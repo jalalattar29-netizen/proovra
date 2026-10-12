@@ -293,6 +293,18 @@ export type ReportEvidence = {
   /** When the recorded anchor check was made (custody OTS_APPLIED). */
   otsAnchorCheckedAtUtc?: string | null;
   otsSubmittedAtUtc?: string | null;
+  /** (2026-10-12) OTS truth columns — see packages/shared/src/ots-truth.ts. */
+  otsAttestationRecordedAtUtc?: string | null;
+  otsAttestationBlockHeight?: number | null;
+  otsChainVerificationStatus?: string | null;
+  otsChainCheckedAtUtc?: string | null;
+  otsChainVerifiedAtUtc?: string | null;
+  otsChainBlockHeight?: number | null;
+  otsChainBlockHash?: string | null;
+  otsChainBlockTimeUtc?: string | null;
+  otsChainConfirmations?: number | null;
+  otsChainVerifier?: string | null;
+  otsChainFailureCode?: string | null;
   /** The Ed25519 check this report run performed (null: not run). */
   signatureVerified?: boolean | null;
   /** The custody hash-chain recomputation this run performed (null: not run). */

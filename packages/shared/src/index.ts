@@ -508,6 +508,7 @@ export {
   OTS_PROOF_RECORDED_AT_LABEL,
   OTS_REPORTED_BY_PROOF_QUALIFIER,
   OTS_TRUTH_STATES,
+  OTS_TRUTH_STATUS_LINES,
   completeOtsChainEvidence,
   isOtsChainVerified,
   normalizeOtsChainVerificationStatus,

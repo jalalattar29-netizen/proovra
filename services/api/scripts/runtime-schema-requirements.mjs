@@ -331,6 +331,14 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
       "every signing-key lookup names its purpose (EVIDENCE_SIGNATURE or PACKAGE_SEAL); without the column evidence signing, verification and package sealing fail",
     suppliedBy: "20281006000100_signing_key_purpose",
   },
+  {
+    id: "evidence.ots_chain_verification_status",
+    kind: "column",
+    detail: 'column public."evidence"."ots_chain_verification_status" must exist',
+    requiredBy:
+      "the OTS upgrade worker records every attestation and independent chain check in the ots_attestation_* / ots_chain_* columns; without them recording a Bitcoin attestation fails",
+    suppliedBy: "20281012000000_evidence_ots_truth_columns",
+  },
 ]);
 
 /**
@@ -555,6 +563,13 @@ const PROBES = Object.freeze({
      WHERE table_schema = 'public'
        AND table_name = 'signing_keys'
        AND column_name = 'purpose'
+     LIMIT 1`,
+  "evidence.ots_chain_verification_status": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'evidence'
+       AND column_name = 'ots_chain_verification_status'
      LIMIT 1`,
 });
 

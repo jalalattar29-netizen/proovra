@@ -7,7 +7,70 @@ import {
   type OtsAnchorCheck,
 } from "@proovra/shared";
 
+import type { OtsChainCheck } from "./ots-chain-verifier.js";
+
 type OtsStatus = "DISABLED" | "PENDING" | "ANCHORED" | "FAILED";
+
+/**
+ * The OTS TRUTH columns (2026-10-12): when PROOVRA recorded the attestation,
+ * the block height the proof reports, and the latest independent chain check.
+ * Written only beside an ANCHORED status; every other status clears them.
+ */
+export type OtsTruthColumns = {
+  otsAttestationRecordedAtUtc: Date | null;
+  otsAttestationBlockHeight: number | null;
+  otsChainVerificationStatus: string | null;
+  otsChainCheckedAtUtc: Date | null;
+  otsChainVerifiedAtUtc: Date | null;
+  otsChainBlockHeight: number | null;
+  otsChainBlockHash: string | null;
+  otsChainBlockTimeUtc: Date | null;
+  otsChainConfirmations: number | null;
+  otsChainVerifier: string | null;
+  otsChainFailureCode: string | null;
+};
+
+type OtsChainColumns = Omit<OtsTruthColumns, "otsAttestationRecordedAtUtc" | "otsAttestationBlockHeight">;
+
+const NO_CHAIN_COLUMNS: OtsChainColumns = {
+  otsChainVerificationStatus: null,
+  otsChainCheckedAtUtc: null,
+  otsChainVerifiedAtUtc: null,
+  otsChainBlockHeight: null,
+  otsChainBlockHash: null,
+  otsChainBlockTimeUtc: null,
+  otsChainConfirmations: null,
+  otsChainVerifier: null,
+  otsChainFailureCode: null,
+};
+
+const NO_TRUTH_COLUMNS: OtsTruthColumns = {
+  otsAttestationRecordedAtUtc: null,
+  otsAttestationBlockHeight: null,
+  ...NO_CHAIN_COLUMNS,
+};
+
+/** The persisted chain columns for one chain check. */
+export function chainColumnsFromCheck(check: OtsChainCheck): OtsChainColumns {
+  const base: OtsChainColumns = {
+    ...NO_CHAIN_COLUMNS,
+    otsChainVerificationStatus: check.status,
+    otsChainCheckedAtUtc: check.checkedAtUtc,
+    otsChainVerifier: check.verifier,
+  };
+  if (check.status === "FAILED") return { ...base, otsChainFailureCode: check.failureCode };
+  if (check.status === "VERIFIED") {
+    return {
+      ...base,
+      otsChainVerifiedAtUtc: check.verifiedAtUtc,
+      otsChainBlockHeight: check.blockHeight,
+      otsChainBlockHash: check.blockHash,
+      otsChainBlockTimeUtc: check.blockTimeUtc,
+      otsChainConfirmations: check.confirmations,
+    };
+  }
+  return base;
+}
 
 type OtsStateInput = {
   status: OtsStatus;
@@ -21,6 +84,8 @@ type OtsStateInput = {
   failureReason?: string | null;
   /** ANCHORED only: how the anchor was established. Cleared for every other status. */
   anchorCheck?: OtsAnchorCheck | null;
+  /** ANCHORED only: the OTS truth columns. Cleared for every other status. */
+  truth?: Partial<OtsTruthColumns> | null;
 };
 
 function clean(value: string | null | undefined): string | null {
@@ -54,6 +119,17 @@ function failureReason(value: string | null | undefined): string {
 export function buildOtsEvidenceUpdateData(
   input: OtsStateInput
 ): Prisma.EvidenceUpdateInput {
+  const core = buildOtsCoreColumns(input);
+  // The truth columns live only beside an ANCHORED status; a write of any other
+  // status (or an ANCHORED input demoted to PENDING for want of a time) clears them.
+  const truth: OtsTruthColumns =
+    core.otsStatus === "ANCHORED" ? { ...NO_TRUTH_COLUMNS, ...(input.truth ?? {}) } : NO_TRUTH_COLUMNS;
+  return { ...core, ...truth };
+}
+
+function buildOtsCoreColumns(
+  input: OtsStateInput
+): Prisma.EvidenceUpdateInput & { otsStatus: OtsStatus } {
   const bitcoinTxid =
     cleanTxid(input.bitcoinTxid) ?? cleanTxid(input.existingBitcoinTxid);
   const anchoredAtUtc = toDate(input.anchoredAtUtc);
@@ -181,7 +257,7 @@ export type OtsRowSnapshot = {
   otsUpgradedAtUtc: Date | null;
   otsFailureReason: string | null;
   otsAnchorCheck: string | null;
-};
+} & Partial<OtsTruthColumns>;
 
 // ET-REC-06 — THE list lives in @proovra/shared (the executor and the
 // remediation registry read it too); re-exported for this module's callers.
@@ -197,6 +273,10 @@ export type OtsObservation =
       /** The Bitcoin block time, when the check reported it. Never invented. */
       blockTimeUtc: Date | null;
       blockHeight: number | null;
+      /** The block height the proof's bytes REPORT (unverified). */
+      attestationBlockHeight?: number | null;
+      /** The independent chain check of this attestation; null when none ran. */
+      chain?: OtsChainCheck | null;
     }
   | { kind: "PENDING"; proofBase64: string; txid: string | null }
   | { kind: "TRANSIENT_ERROR"; reason: string }
@@ -215,11 +295,6 @@ export type OtsTransition =
     }
   | { kind: "RECORD_ATTEMPT_ERROR"; reason: string }
   | { kind: "NO_CHANGE"; reason: string };
-
-const CHECK_STRENGTH: Record<OtsAnchorCheck, number> = {
-  PROOF_STRUCTURE: 1,
-  BITCOIN_VERIFIED: 2,
-};
 
 export function isPermanentOtsProofFailure(reason: string | null | undefined): boolean {
   return (OTS_PERMANENT_PROOF_FAILURES as readonly string[]).includes(String(reason ?? ""));
@@ -247,21 +322,55 @@ export function decideOtsTransition(
 
   switch (observation.kind) {
     case "ANCHOR_PROVEN": {
-      const check =
-        currentCheck && effective === "ANCHORED" && CHECK_STRENGTH[currentCheck] > CHECK_STRENGTH[observation.check]
-          ? currentCheck
-          : observation.check;
+      /*
+       * THE CHECK FOLLOWS THE CHAIN EVIDENCE (2026-10-12). BITCOIN_VERIFIED is
+       * written only with a VERIFIED chain check and its evidence (the database
+       * refuses anything else). A recorded verification is never demoted by an
+       * inconclusive re-check (unavailable, not configured, too few
+       * confirmations); it IS demoted when a configured verifier reached the
+       * chain and the attestation did not verify (a reorg or a rejection).
+       */
+      const chainNew = observation.chain ?? null;
+      const rowChainVerified =
+        effective === "ANCHORED" && currentCheck === "BITCOIN_VERIFIED" && row.otsChainVerificationStatus === "VERIFIED";
+      const keepRowChain = rowChainVerified && chainNew?.status !== "VERIFIED" && chainNew?.status !== "FAILED";
+      const chainColumns: OtsChainColumns = keepRowChain
+        ? {
+            otsChainVerificationStatus: row.otsChainVerificationStatus ?? null,
+            otsChainCheckedAtUtc: row.otsChainCheckedAtUtc ?? null,
+            otsChainVerifiedAtUtc: row.otsChainVerifiedAtUtc ?? null,
+            otsChainBlockHeight: row.otsChainBlockHeight ?? null,
+            otsChainBlockHash: row.otsChainBlockHash ?? null,
+            otsChainBlockTimeUtc: row.otsChainBlockTimeUtc ?? null,
+            otsChainConfirmations: row.otsChainConfirmations ?? null,
+            otsChainVerifier: row.otsChainVerifier ?? null,
+            otsChainFailureCode: row.otsChainFailureCode ?? null,
+          }
+        : chainNew
+          ? chainColumnsFromCheck(chainNew)
+          : NO_CHAIN_COLUMNS;
+      const check: OtsAnchorCheck =
+        chainColumns.otsChainVerificationStatus === "VERIFIED" ? "BITCOIN_VERIFIED" : "PROOF_STRUCTURE";
       const txid = (isValidOtsBitcoinTxid(observation.txid) ? observation.txid!.toLowerCase() : null) ?? rowTxid;
+      // LEGACY completeness marker (see the migration): the verified block time
+      // when there is one, else the time PROOVRA first recorded the attestation.
       const anchoredAtUtc =
-        observation.blockTimeUtc ??
+        (check === "BITCOIN_VERIFIED" ? chainColumns.otsChainBlockTimeUtc : null) ??
         (effective === "ANCHORED" ? row.otsAnchoredAtUtc : null) ??
         observedAt;
+      const attestationRecordedAtUtc =
+        row.otsAttestationRecordedAtUtc ?? (effective === "ANCHORED" ? row.otsAnchoredAtUtc : null) ?? observedAt;
+      const attestationBlockHeight = observation.attestationBlockHeight ?? row.otsAttestationBlockHeight ?? null;
       const unchanged =
         effective === "ANCHORED" &&
         currentCheck === check &&
         rowTxid === txid &&
         row.otsProofBase64 === observation.proofBase64 &&
-        row.otsAnchoredAtUtc?.getTime() === anchoredAtUtc.getTime();
+        row.otsAnchoredAtUtc?.getTime() === anchoredAtUtc.getTime() &&
+        row.otsAttestationRecordedAtUtc?.getTime() === attestationRecordedAtUtc.getTime() &&
+        (row.otsAttestationBlockHeight ?? null) === attestationBlockHeight &&
+        (row.otsChainVerificationStatus ?? null) === chainColumns.otsChainVerificationStatus &&
+        (row.otsChainFailureCode ?? null) === chainColumns.otsChainFailureCode;
       if (unchanged) return { kind: "NO_CHANGE", reason: "anchor already recorded with this proof and check" };
       return {
         kind: "WRITE",
@@ -275,17 +384,26 @@ export function decideOtsTransition(
           anchoredAtUtc,
           upgradedAtUtc: observedAt,
           anchorCheck: check,
+          truth: {
+            otsAttestationRecordedAtUtc: attestationRecordedAtUtc,
+            otsAttestationBlockHeight: attestationBlockHeight,
+            ...chainColumns,
+          },
         }),
         phase:
           effective !== "ANCHORED"
             ? check === "BITCOIN_VERIFIED"
               ? "anchored_verified"
-              : "anchored_by_proof_structure"
+              : "attestation_recorded_by_proof_structure"
             : currentCheck !== check
-              ? "anchor_check_recorded"
-              : txid !== rowTxid
-                ? "anchor_material_recovered"
-                : "anchored_proof_refreshed",
+              ? check === "BITCOIN_VERIFIED"
+                ? "chain_verified"
+                : "chain_verification_withdrawn"
+              : (row.otsChainVerificationStatus ?? null) !== chainColumns.otsChainVerificationStatus
+                ? "chain_check_recorded"
+                : txid !== rowTxid
+                  ? "anchor_material_recovered"
+                  : "anchored_proof_refreshed",
         material: true,
       };
     }
@@ -388,6 +506,7 @@ export function otsSnapshotWhere(evidenceId: string, row: OtsRowSnapshot): Prism
     otsUpgradedAtUtc: row.otsUpgradedAtUtc,
     otsAnchorCheck: row.otsAnchorCheck,
     otsFailureReason: row.otsFailureReason,
+    ...(row.otsChainVerificationStatus !== undefined ? { otsChainVerificationStatus: row.otsChainVerificationStatus } : {}),
   };
 }
 

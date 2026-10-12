@@ -293,8 +293,11 @@ describe("report v2 pipeline", () => {
       "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     );
     expect(html.toLowerCase()).not.toContain("public anchoring");
-    // Anchored, but nothing checked it against the chain: never "verified".
-    expect(html).not.toContain("OpenTimestamps Bitcoin anchoring verified");
+    // (2026-10-12) Nothing checked it against the chain: the txid is reported
+    // by the proof, never verified, and the recording time is not an anchor time.
+    expect(html).toContain("Reported by the OpenTimestamps proof; not independently verified");
+    expect(html).not.toContain("Bitcoin attestation independently verified");
+    expect(html).not.toMatch(/OTS Anchored At|Anchor Anchored At/i);
   });
 
   it("keeps full hashes and supporting previewable evidence visually represented", async () => {

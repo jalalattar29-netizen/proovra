@@ -164,7 +164,9 @@ export function compareCanonicalFacts(record: CanonicalArtifactFacts, rendered: 
   const out: CanonicalFactsFinding[] = [];
   if (record.tsaState !== rendered.tsaState) out.push({ check: "TSA_STATE", detail: `record ${record.tsaState}, payload ${rendered.tsaState}` });
   if (record.otsState !== rendered.otsState) out.push({ check: "OTS_STATE", detail: `record ${record.otsState}, payload ${rendered.otsState}` });
-  if (record.otsTruthState !== rendered.otsTruthState) {
+  // The truth state is reported only where the trust states agree: it tells
+  // apart what one trust state covers (an attestation vs an unreachable verifier).
+  if (record.otsState === rendered.otsState && record.otsTruthState !== rendered.otsTruthState) {
     out.push({ check: "OTS_TRUTH", detail: `record ${record.otsTruthState}, payload ${rendered.otsTruthState}` });
   }
   if (record.evidenceFileSha256 !== rendered.evidenceFileSha256) out.push({ check: "EVIDENCE_DIGEST", detail: "payload digest differs from the record" });
@@ -226,7 +228,7 @@ export function tsaProgressionCompatible(stated: TrustSignalState, later: TrustS
  * asynchronous layers may only have moved forward.
  */
 export function compareIssuanceFactsToRecord(issuance: CanonicalArtifactFacts, later: CanonicalArtifactFacts): CanonicalFactsFinding[] {
-  const out = compareCanonicalFacts(issuance, later).filter((f) => f.check !== "TSA_STATE" && f.check !== "OTS_STATE");
+  const out = compareCanonicalFacts(issuance, later).filter((f) => f.check !== "TSA_STATE" && f.check !== "OTS_STATE" && f.check !== "OTS_TRUTH");
   if (!tsaProgressionCompatible(issuance.tsaState, later.tsaState)) {
     out.push({ check: "TSA_STATE", detail: `issuance ${issuance.tsaState} cannot precede record ${later.tsaState}` });
   }

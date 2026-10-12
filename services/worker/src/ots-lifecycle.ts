@@ -58,6 +58,8 @@
 import * as prismaPkg from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
+import { checkOtsDigestBinding } from "@proovra/shared";
+
 import { appendCustodyEventTx } from "./custody-events.js";
 import { prisma } from "./db.js";
 import { logger, withJobContext } from "./logger.js";
@@ -167,6 +169,7 @@ const INIT_SELECT = {
   teamId: true,
   status: true,
   fingerprintCanonicalJson: true,
+  fingerprintHash: true,
   otsProofBase64: true,
   otsStatus: true,
   otsBitcoinTxid: true,
@@ -250,6 +253,31 @@ export async function ensureEvidenceOtsInitialized(params: {
      */
     logger.warn({ ...ctx, err: error }, "ots.init.attempt_failed");
     throw new OtsInitializationTransientError(evidenceId, error);
+  }
+
+  /*
+   * THE DIGEST BINDING AT ACCEPTANCE (2026-10-12). The stamped digest must be
+   * the record's fingerprint digest, and the returned proof bytes must commit
+   * to it. A proof that does not is never persisted: nothing would ever be
+   * truthfully claimable for it. It is refused as a transient failure — the
+   * stamp is retried under the same budget, and the record stays unstamped.
+   */
+  if (stamp.status === "PENDING" && stamp.proofBase64) {
+    const binding = checkOtsDigestBinding({
+      proofBase64: stamp.proofBase64,
+      fingerprintHash: evidence.fingerprintHash ?? null,
+      otsHash: stamp.hash ?? null,
+    });
+    if (binding.kind !== "MATCH") {
+      logger.error(
+        { ...ctx, binding: binding.kind, reason: binding.kind === "MISMATCH" ? binding.reason : null },
+        "ots.init.proof_digest_refused",
+      );
+      throw new OtsInitializationTransientError(
+        evidenceId,
+        new Error(`OTS_PROOF_DIGEST_${binding.kind}: the stamped proof does not commit to the fingerprint digest`),
+      );
+    }
   }
 
   // ------------------------------------------------------------------

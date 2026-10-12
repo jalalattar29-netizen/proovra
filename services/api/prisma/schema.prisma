@@ -294,6 +294,24 @@ model Evidence {
   /// against the chain) | PROOF_STRUCTURE (proof commits to this hash + carries a
   /// Bitcoin block attestation, chain not checked) | NULL (not recorded).
   otsAnchorCheck   String?   @map("ots_anchor_check") @db.VarChar(24)
+  /// OTS TRUTH (2026-10-12). ots_anchored_at_utc is the legacy completeness
+  /// marker and holds the time PROOVRA RECORDED a proof unless the chain was
+  /// verified; the only Bitcoin anchor time is ots_chain_block_time_utc.
+  /// When PROOVRA recorded the attestation-bearing proof. Never an anchor time.
+  otsAttestationRecordedAtUtc DateTime? @map("ots_attestation_recorded_at_utc") @db.Timestamptz(6)
+  /// Block height the proof REPORTS (read from its bytes; not verified).
+  otsAttestationBlockHeight   Int?      @map("ots_attestation_block_height")
+  /// Latest independent chain check: NOT_CONFIGURED | UNAVAILABLE |
+  /// INSUFFICIENT_CONFIRMATIONS | FAILED | VERIFIED.
+  otsChainVerificationStatus  String?   @map("ots_chain_verification_status") @db.VarChar(32)
+  otsChainCheckedAtUtc        DateTime? @map("ots_chain_checked_at_utc") @db.Timestamptz(6)
+  otsChainVerifiedAtUtc       DateTime? @map("ots_chain_verified_at_utc") @db.Timestamptz(6)
+  otsChainBlockHeight         Int?      @map("ots_chain_block_height")
+  otsChainBlockHash           String?   @map("ots_chain_block_hash") @db.VarChar(64)
+  otsChainBlockTimeUtc        DateTime? @map("ots_chain_block_time_utc") @db.Timestamptz(6)
+  otsChainConfirmations       Int?      @map("ots_chain_confirmations")
+  otsChainVerifier            String?   @map("ots_chain_verifier") @db.VarChar(120)
+  otsChainFailureCode         String?   @map("ots_chain_failure_code") @db.VarChar(64)
 
   /// ET-ACQ-03 (2026-09-30) — the one-time completion fan-out (evidence.completed
   /// webhook, malware scan, finalization fan-out) runs exactly once per record:

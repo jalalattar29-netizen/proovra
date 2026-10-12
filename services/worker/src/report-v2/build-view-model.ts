@@ -24,6 +24,7 @@ import {
   buildVerificationMatrix,
 } from "@proovra/shared";
 import type { CanonicalEvidenceMaterials } from "@proovra/shared";
+import { buildOtsTruthRows, otsStatusLineFor, reportOtsTruth } from "./ots-presentation.js";
 import type {
   CalloutModel,
   CustodyHashRow,
@@ -62,7 +63,6 @@ import {
   reportIdentityLevelLabel,
   reportIdentityRows,
   mapObjectLockModePublicLabel,
-  mapOtsStatusPublicLabelWithTxid,
   mapRecordStatusLabel,
   mapTimestampStatusPublicLabel,
   mapCustodyEventLabel,
@@ -557,14 +557,7 @@ function buildVerificationSummaryRows(
   );
   add(
     "Anchoring Status",
-    mapOtsStatusPublicLabelWithTxid({
-      status:
-        canonicalMaterials.otsState.effectiveStatus ??
-        canonicalMaterials.otsState.otsStatus,
-      bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
-      anchoredAtUtc: canonicalMaterials.otsState.otsAnchoredAtUtc,
-      anchorCheck: canonicalMaterials.otsState.otsAnchorCheck,
-    })
+    otsStatusLineFor(canonicalMaterials.otsState)
   );
   add("Last Verified At (UTC)", formatReportTimestamp(evidence.lastVerifiedAtUtc));
   add(
@@ -655,14 +648,7 @@ function buildReviewReadinessRows(
 
 {
   label: "Bitcoin Anchoring Status",
-  value: mapOtsStatusPublicLabelWithTxid({
-    status:
-      canonicalMaterials.otsState.effectiveStatus ??
-      canonicalMaterials.otsState.otsStatus,
-    bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
-    anchoredAtUtc: canonicalMaterials.otsState.otsAnchoredAtUtc,
-    anchorCheck: canonicalMaterials.otsState.otsAnchorCheck,
-  }),
+  value: otsStatusLineFor(canonicalMaterials.otsState),
 },
     {
       label: "Immutable Storage",
@@ -893,14 +879,7 @@ function buildStorageRows(
     },
     {
       label: "Bitcoin Anchoring Status",
-      value: mapOtsStatusPublicLabelWithTxid({
-        status:
-          canonicalMaterials.otsState.effectiveStatus ??
-          canonicalMaterials.otsState.otsStatus,
-        bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
-        anchoredAtUtc: canonicalMaterials.otsState.otsAnchoredAtUtc,
-        anchorCheck: canonicalMaterials.otsState.otsAnchorCheck,
-      }),
+      value: otsStatusLineFor(canonicalMaterials.otsState),
     },
     {
       label: "RFC 3161 Note",
@@ -908,15 +887,11 @@ function buildStorageRows(
     },
   ].filter((row) => safe(row.value, "") !== "");
   
-  const otsRows: KeyValueRow[] = [
-    { label: "OTS Calendar", value: safe(evidence.otsCalendar, "") },
-    { label: "OTS Anchored At (UTC)", value: safe(evidence.otsAnchoredAtUtc, "") },
-    { label: "OTS Upgraded At (UTC)", value: safe(evidence.otsUpgradedAtUtc, "") },
-    {
-      label: "OTS Bitcoin TxID",
-      value: safe(evidence.otsBitcoinTxid, ""),
-    },
-  ].filter((row) => safe(row.value, "") !== "");
+  // (2026-10-12) Recording time, values the proof reports, and values an
+  // independent chain check verified — never "OTS anchored at".
+  const otsRows: KeyValueRow[] = buildOtsTruthRows(evidence).filter(
+    (row) => row.label !== "OpenTimestamps Status" && safe(row.value, "") !== "",
+  );
 
   rows.push(...otsRows);
 
@@ -931,12 +906,12 @@ function buildStorageRows(
         value: safe(anchorSummary.provider),
       },
       {
-        label: "Anchor Anchored At (UTC)",
-        value: formatReportTimestamp(anchorSummary.anchoredAtUtc),
-      },
-      {
         label: "Anchor Transaction ID",
-        value: safe(anchorSummary.transactionId),
+        value: anchorSummary.transactionId
+          ? reportOtsTruth(evidence).state === "CHAIN_VERIFIED"
+            ? anchorSummary.transactionId
+            : `${anchorSummary.transactionId} — Reported by the OpenTimestamps proof; not independently verified`
+          : "",
       }
     );
   }
@@ -1273,12 +1248,7 @@ function buildTechnicalAppendixCourtRows(params: {
     },
 {
   label: "Bitcoin Anchoring",
-  value: mapOtsStatusPublicLabelWithTxid({
-    status: params.evidence.otsStatus,
-    bitcoinTxid: params.evidence.otsBitcoinTxid,
-    anchoredAtUtc: params.evidence.otsAnchoredAtUtc,
-    anchorCheck: params.evidence.otsAnchorCheck ?? null,
-  }),
+  value: reportOtsTruth(params.evidence).statusLine,
 },
     {
       label: "Forensic Custody Events",

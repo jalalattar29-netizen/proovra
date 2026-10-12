@@ -84,6 +84,8 @@ describe("internal-grant rollout — migration state", () => {
       // Per-profile package rows (reserved ids) and signing-key purpose.
       "20281006000000_verification_package_profile_rows",
       "20281006000100_signing_key_purpose",
+      // OTS truth: attestation / chain-check columns, EXPAND only.
+      "20281012000000_evidence_ots_truth_columns",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

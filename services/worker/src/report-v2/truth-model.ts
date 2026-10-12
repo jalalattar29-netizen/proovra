@@ -1,4 +1,4 @@
-import { boundedOtsFailureCode, OTS_FAILURE_CODE_LABELS, resolveOtsAnchorClaim } from "@proovra/shared";
+import { boundedOtsFailureCode, OTS_FAILURE_CODE_LABELS } from "@proovra/shared";
 import {
   buildEvidenceTrustDecision,
   buildCanonicalEvidenceMaterials,
@@ -82,10 +82,17 @@ export function normalizeBitcoinAnchorTone(params: {
   status: string | null | undefined;
   bitcoinTxid: string | null | undefined;
   anchorCheck?: string | null;
+  /**
+   * (2026-10-12) The OTS truth state. Success requires CHAIN_VERIFIED — a
+   * recorded check without its chain evidence is not one. Absent: never success.
+   */
+  truthState?: string | null;
 }): Tone {
   const baseTone = normalizeOtsTone(params.status);
   if (baseTone !== "success") return baseTone;
-  return isValidBitcoinTxid(params.bitcoinTxid) && params.anchorCheck === "BITCOIN_VERIFIED"
+  return isValidBitcoinTxid(params.bitcoinTxid) &&
+    params.anchorCheck === "BITCOIN_VERIFIED" &&
+    params.truthState === "CHAIN_VERIFIED"
     ? "success"
     : "warning";
 }
@@ -229,36 +236,54 @@ export function buildOtsCallout(
   canonicalMaterials: CanonicalEvidenceMaterials,
   failureReason: string | null | undefined
 ): CalloutModel {
+  // THE OTS TRUTH MODEL (2026-10-12): an attestation read from the proof is
+  // not an anchor; only a recorded independent chain check is verified.
   const ots = canonicalMaterials.otsState;
-  const claim = resolveOtsAnchorClaim({
-    status: ots.effectiveStatus ?? ots.otsStatus,
-    anchoredAtUtc: ots.otsAnchoredAtUtc ?? null,
-    anchorCheck: ots.otsAnchorCheck ?? null,
-    bitcoinTxid: ots.otsBitcoinTxid ?? null,
-  });
-  switch (claim) {
-    case "VERIFIED":
+  switch (ots.truthState) {
+    case "CHAIN_VERIFIED": {
+      const c = ots.chainVerification;
       return {
-        title: "Anchored and verified",
-        body: "The OpenTimestamps proof's Bitcoin attestation was checked against the Bitcoin chain, and its Bitcoin transaction reference is recorded.",
+        title: "Independently verified",
+        body: c
+          ? `The proof's commitment was verified against the Bitcoin blockchain: block ${c.blockHeight} (${c.blockTimeUtc}), ${c.confirmations} confirmations, verified ${c.verifiedAtUtc} by ${c.verifier}.`
+          : "The proof's commitment was verified against the Bitcoin blockchain.",
         tone: "success",
       };
-    case "ANCHORED_NOT_CHECKED":
+    }
+    case "ATTESTATION_PRESENT_NOT_VERIFIED":
       return {
-        title: "Anchored — chain not checked",
-        body: "An OpenTimestamps proof anchored to a Bitcoin block is recorded. The attestation was not checked against the Bitcoin chain when this report was issued; it can be verified independently with the proof (ots verify).",
-        // Not green (the chain was not checked) and not a warning.
+        title: "Attested — not verified",
+        body: "The OpenTimestamps proof commits to this record's fingerprint digest and carries a Bitcoin attestation. It was not independently verified against the Bitcoin blockchain when this report was issued; the verification package explains how to verify it.",
+        // Not green (nothing was verified against the chain) and not a warning.
+        tone: "neutral",
+      };
+    case "CHAIN_VERIFICATION_UNAVAILABLE":
+      return {
+        title: "Verifier unavailable",
+        body: "The OpenTimestamps proof carries a Bitcoin attestation. The configured Bitcoin verifier could not be reached, so it was not independently verified against the Bitcoin blockchain.",
+        tone: "neutral",
+      };
+    case "CHAIN_VERIFICATION_FAILED":
+      return {
+        title: "Did not verify",
+        body: "An independent check against the Bitcoin blockchain ran and did not verify this proof's Bitcoin attestation. No Bitcoin anchoring is claimed.",
+        tone: "danger",
+      };
+    case "UNKNOWN_OR_STALE":
+      return {
+        title: "State unknown",
+        body: "The recorded OpenTimestamps data is incomplete or out of date; no Bitcoin anchoring claim is made.",
         tone: "neutral",
       };
     case "PENDING":
       return {
         title: "Pending",
-        body: "OpenTimestamps proof material is present, but Bitcoin anchoring had not completed when this report was issued.",
+        body: "The OpenTimestamps proof did not carry a Bitcoin attestation yet when this report was issued.",
         tone: "warning",
       };
-    case "FAILED":
+    case "PROOF_INVALID":
       return {
-        title: "Failed",
+        title: "Proof unusable",
         // ET-OTS-04 — the bounded label; stored text (raw `ots stamp` output
         // with server paths on historical rows) never reaches a report.
         body: (() => {
@@ -422,6 +447,19 @@ export function buildReportCanonicalMaterials(params: {
       otsProofPresent: Boolean(
         (ev as { otsProofBase64?: string | null }).otsProofBase64,
       ),
+      // (2026-10-12) The proof bytes and the OTS truth columns.
+      otsProofBase64: (ev as { otsProofBase64?: string | null }).otsProofBase64 ?? null,
+      otsAttestationRecordedAtUtc: ev.otsAttestationRecordedAtUtc ?? null,
+      otsAttestationBlockHeight: ev.otsAttestationBlockHeight ?? null,
+      otsChainVerificationStatus: ev.otsChainVerificationStatus ?? null,
+      otsChainCheckedAtUtc: ev.otsChainCheckedAtUtc ?? null,
+      otsChainVerifiedAtUtc: ev.otsChainVerifiedAtUtc ?? null,
+      otsChainBlockHeight: ev.otsChainBlockHeight ?? null,
+      otsChainBlockHash: ev.otsChainBlockHash ?? null,
+      otsChainBlockTimeUtc: ev.otsChainBlockTimeUtc ?? null,
+      otsChainConfirmations: ev.otsChainConfirmations ?? null,
+      otsChainVerifier: ev.otsChainVerifier ?? null,
+      otsChainFailureCode: ev.otsChainFailureCode ?? null,
       identityLevelSnapshot: ev.identityLevelSnapshot ?? null,
       workspaceNameSnapshot:
         (ev as { workspaceNameSnapshot?: string | null })

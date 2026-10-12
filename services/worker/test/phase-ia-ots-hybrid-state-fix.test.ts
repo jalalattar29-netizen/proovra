@@ -42,11 +42,7 @@ import {
   parseOtsUpgradeOutput,
   parseOtsVerifyOutput,
 } from "../src/ots-upgrade-output.js";
-import {
-  mapOtsStatusPublicLabelWithTxid,
-  mapOtsStatusShortLabel,
-  mapOtsStatusTechnicalDetail,
-} from "../src/report-v2/normalizers.js";
+import { mapOtsStatusPublicLabelWithTxid } from "../src/report-v2/normalizers.js";
 
 const TXID =
   "5d1156f9a225bdb60a59f79adff076dd4ffc079d05e133d689afc3495a12a756";
@@ -252,7 +248,9 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 5: no duplicate follow-up after A
       "utf8",
     );
     expect(proc).toMatch(/if \(transition\.status === "PENDING"\) \{[\s\S]{0,600}enqueueOtsUpgradeJob\(/);
-    expect(proc.match(/enqueueOtsUpgradeJob\(/g)?.length).toBe(2); // init follow-up + pending follow-up
+    // init follow-up + pending follow-up + the configured-verifier chain re-check (2026-10-12)
+    expect(proc.match(/enqueueOtsUpgradeJob\(/g)?.length).toBe(3);
+    expect(proc).toMatch(/traceId: "ots_chain_recheck"/);
   });
 });
 
@@ -318,22 +316,8 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 6: verify ERROR fallback (defensi
 // ============================================================================
 
 describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", () => {
-  it("mapOtsStatusShortLabel(PENDING) → 'Pending'", () => {
-    expect(mapOtsStatusShortLabel("PENDING")).toBe("Pending");
-  });
-  it("mapOtsStatusShortLabel(ANCHORED) → 'Anchored'", () => {
-    expect(mapOtsStatusShortLabel("ANCHORED")).toBe("Anchored");
-  });
-  it("mapOtsStatusShortLabel(FAILED) → 'Failed'", () => {
-    expect(mapOtsStatusShortLabel("FAILED")).toBe("Failed");
-  });
-  it("mapOtsStatusShortLabel(DISABLED) → 'Unavailable'", () => {
-    expect(mapOtsStatusShortLabel("DISABLED")).toBe("Unavailable");
-  });
-
   it("mapOtsStatusPublicLabelWithTxid(PENDING + txid) does NOT return the long technical sentence", () => {
-    // Visible-card helper must stay short. The detailed sentence is
-    // provided ONLY by mapOtsStatusTechnicalDetail (below).
+    // Visible-card helper must stay short.
     const label = mapOtsStatusPublicLabelWithTxid({
       status: "PENDING",
       bitcoinTxid: TXID,
@@ -354,7 +338,8 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", ()
         bitcoinTxid: TXID,
         anchoredAtUtc: "2026-09-20T10:00:00.000Z",
       }),
-    ).not.toMatch(/verified/i);
+    ).toBe("Bitcoin attestation present; not independently verified against the Bitcoin blockchain");
+    // (2026-10-12) A recorded check without its chain evidence is not verified either.
     expect(
       mapOtsStatusPublicLabelWithTxid({
         status: "ANCHORED",
@@ -362,7 +347,7 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", ()
         anchoredAtUtc: "2026-09-20T10:00:00.000Z",
         anchorCheck: "BITCOIN_VERIFIED",
       }),
-    ).toBe("OpenTimestamps Bitcoin anchoring verified");
+    ).toBe("Bitcoin attestation present; not independently verified against the Bitcoin blockchain");
   });
 
   it("ANCHORED + no txid → never falsely 'verified'", () => {
@@ -371,48 +356,57 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", ()
         status: "ANCHORED",
         bitcoinTxid: null,
       }),
-    ).not.toMatch(/verified/i);
+    ).not.toMatch(/independently verified against|anchored/i);
   });
 
-  it("mapOtsStatusTechnicalDetail(PENDING + txid) → the detailed sentence (technical-appendix only)", () => {
-    const detail = mapOtsStatusTechnicalDetail({
-      status: "PENDING",
-      bitcoinTxid: TXID,
-    });
-    expect(detail).toBe(
-      "OTS proof present; Bitcoin transaction id detected; verification pending.",
-    );
-  });
-
-  it("mapOtsStatusTechnicalDetail(PENDING + no txid) → 'OTS proof present; Bitcoin anchoring pending.'", () => {
-    const detail = mapOtsStatusTechnicalDetail({
-      status: "PENDING",
-      bitcoinTxid: null,
-    });
-    expect(detail).toBe("OTS proof present; Bitcoin anchoring pending.");
-  });
-
-  it("the truth-model OTS callout uses SHORT status words, from the ONE claim (2026-09-29)", async () => {
+  it("the truth-model OTS callout follows the OTS truth state, in SHORT words (2026-10-12)", async () => {
     const { buildOtsCallout } = await import("../src/report-v2/truth-model.js");
+    const { buildCanonicalOtsState } = await import("@proovra/shared");
     const TX = "c".repeat(64);
     const at = "2026-09-01T00:00:00.000Z";
-    const callout = (otsState: Record<string, unknown>) =>
-      buildOtsCallout({ otsState } as never, null);
-    const verified = callout({ otsStatus: "ANCHORED", otsAnchoredAtUtc: at, otsAnchorCheck: "BITCOIN_VERIFIED", otsBitcoinTxid: TX });
-    const unchecked = callout({ otsStatus: "ANCHORED", otsAnchoredAtUtc: at, otsAnchorCheck: "PROOF_STRUCTURE", otsBitcoinTxid: null });
+    const chain = {
+      otsChainVerificationStatus: "VERIFIED",
+      otsChainVerifiedAtUtc: "2026-09-02T00:00:00.000Z",
+      otsChainBlockHeight: 860000,
+      otsChainBlockHash: "0".repeat(20) + "a".repeat(44),
+      otsChainBlockTimeUtc: "2026-09-01T00:00:00.000Z",
+      otsChainConfirmations: 9,
+      otsChainVerifier: "test-double/1",
+    };
+    const callout = (ev: Record<string, unknown>) =>
+      buildOtsCallout(
+        {
+          otsState: buildCanonicalOtsState({
+            outputType: "REPORT_SNAPSHOT",
+            evidence: { otsHash: null, otsUpgradedAtUtc: null, otsProofPresent: true, ...ev },
+          } as never),
+        } as never,
+        (ev.otsFailureReason as string | undefined) ?? null,
+      );
+    const verified = callout({ otsStatus: "ANCHORED", otsAnchoredAtUtc: at, otsAnchorCheck: "BITCOIN_VERIFIED", otsBitcoinTxid: TX, ...chain });
+    const unchecked = callout({ otsStatus: "ANCHORED", otsAnchoredAtUtc: at, otsAnchorCheck: "PROOF_STRUCTURE", otsBitcoinTxid: TX });
+    const checkWithoutEvidence = callout({ otsStatus: "ANCHORED", otsAnchoredAtUtc: at, otsAnchorCheck: "BITCOIN_VERIFIED", otsBitcoinTxid: TX });
+    const unavailable = callout({ otsStatus: "ANCHORED", otsAnchoredAtUtc: at, otsAnchorCheck: "PROOF_STRUCTURE", otsBitcoinTxid: TX, otsChainVerificationStatus: "UNAVAILABLE" });
+    const chainFailed = callout({ otsStatus: "ANCHORED", otsAnchoredAtUtc: at, otsAnchorCheck: "PROOF_STRUCTURE", otsBitcoinTxid: TX, otsChainVerificationStatus: "FAILED", otsChainFailureCode: "ATTESTATION_NOT_IN_CHAIN" });
     const pending = callout({ otsStatus: "PENDING" });
-    const failed = callout({ otsStatus: "FAILED" });
-    const none = callout({});
-    expect(verified).toMatchObject({ title: "Anchored and verified", tone: "success" });
-    // An anchor with no txid is anchored-not-checked: never "Pending", never green.
-    expect(unchecked.title).toBe("Anchored — chain not checked");
-    expect(unchecked.tone).toBe("neutral");
+    const failed = callout({ otsStatus: "FAILED", otsFailureReason: "PROOF_HASH_MISMATCH" });
+    const none = callout({ otsStatus: null, otsProofPresent: false });
+    expect(verified).toMatchObject({ title: "Independently verified", tone: "success" });
+    expect(verified.body).toMatch(/block 860000 .*9 confirmations/);
+    // THE INCIDENT: an attestation read from the proof is never "anchored" and never green.
+    expect(unchecked).toMatchObject({ title: "Attested — not verified", tone: "neutral" });
+    expect(unchecked.body).toMatch(/not independently verified against the Bitcoin blockchain/);
+    expect(unchecked.body).not.toMatch(/anchored/i);
+    expect(checkWithoutEvidence.tone).not.toBe("success");
+    expect(unavailable.title).toBe("Verifier unavailable");
+    expect(chainFailed).toMatchObject({ title: "Did not verify", tone: "danger" });
     expect(pending.title).toBe("Pending");
-    expect(failed.title).toBe("Failed");
+    expect(failed.title).toBe("Proof unusable");
+    expect(failed.body).toMatch(/does not commit to this record's fingerprint/);
     expect(none.title).toBe("Unavailable");
-    // A chain check without its txid is not "verified".
-    expect(callout({ otsStatus: "ANCHORED", otsAnchoredAtUtc: at, otsAnchorCheck: "BITCOIN_VERIFIED", otsBitcoinTxid: null }).tone).not.toBe("success");
-    for (const c of [verified, unchecked, pending, failed, none]) expect(c.title.length).toBeLessThanOrEqual(30);
+    for (const c of [verified, unchecked, unavailable, chainFailed, pending, failed, none]) {
+      expect(c.title.length).toBeLessThanOrEqual(30);
+    }
   });
 
   it("the long technical sentence does NOT appear in the truth-model OTS callout (cards)", async () => {

@@ -1419,6 +1419,9 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // Per-profile package rows (reserved ids) and signing-key purpose.
       "20281006000000_verification_package_profile_rows",
       "20281006000100_signing_key_purpose",
+      // OTS TRUTH (2026-10-12) — eleven nullable evidence columns and three
+      // NOT VALID CHECK constraints. EXPAND only.
+      "20281012000000_evidence_ots_truth_columns",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

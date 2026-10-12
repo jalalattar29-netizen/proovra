@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 import {
   JOB_NAMES,
+  checkOtsDigestBinding,
   isValidOtsBitcoinTxid,
   resolveEffectiveOtsStatus,
 } from "@proovra/shared";
@@ -21,8 +22,13 @@ import {
   getOtsProofInfo,
   resolveOtsBin,
   resolveOtsTimeoutMs,
-  verifyOtsProof,
 } from "./ots.service.js";
+import {
+  NOT_CONFIGURED_VERIFIER,
+  resolveOtsChainVerifier,
+  type OtsChainCheck,
+  type OtsChainVerifier,
+} from "./ots-chain-verifier.js";
 import { ensureEvidenceOtsInitialized } from "./ots-lifecycle.js";
 import {
   applyOtsTransition,
@@ -322,6 +328,19 @@ export async function processOtsUpgrade(job: Job<unknown>) {
       otsUpgradedAtUtc: true,
       otsFailureReason: true,
       otsAnchorCheck: true,
+      // (2026-10-12) Every proof must commit to the fingerprint digest.
+      fingerprintHash: true,
+      otsAttestationRecordedAtUtc: true,
+      otsAttestationBlockHeight: true,
+      otsChainVerificationStatus: true,
+      otsChainCheckedAtUtc: true,
+      otsChainVerifiedAtUtc: true,
+      otsChainBlockHeight: true,
+      otsChainBlockHash: true,
+      otsChainBlockTimeUtc: true,
+      otsChainConfirmations: true,
+      otsChainVerifier: true,
+      otsChainFailureCode: true,
     },
   });
 
@@ -422,7 +441,19 @@ export async function processOtsUpgrade(job: Job<unknown>) {
     otsUpgradedAtUtc: evidence.otsUpgradedAtUtc,
     otsFailureReason: evidence.otsFailureReason,
     otsAnchorCheck: evidence.otsAnchorCheck,
+    otsAttestationRecordedAtUtc: evidence.otsAttestationRecordedAtUtc,
+    otsAttestationBlockHeight: evidence.otsAttestationBlockHeight,
+    otsChainVerificationStatus: evidence.otsChainVerificationStatus,
+    otsChainCheckedAtUtc: evidence.otsChainCheckedAtUtc,
+    otsChainVerifiedAtUtc: evidence.otsChainVerifiedAtUtc,
+    otsChainBlockHeight: evidence.otsChainBlockHeight,
+    otsChainBlockHash: evidence.otsChainBlockHash,
+    otsChainBlockTimeUtc: evidence.otsChainBlockTimeUtc,
+    otsChainConfirmations: evidence.otsChainConfirmations,
+    otsChainVerifier: evidence.otsChainVerifier,
+    otsChainFailureCode: evidence.otsChainFailureCode,
   };
+  const chainVerifier = resolveChainVerifierOrNone(evidenceId);
   const effectiveStatus = resolveEffectiveOtsStatus({
     status: evidence.otsStatus,
     bitcoinTxid: evidence.otsBitcoinTxid,
@@ -433,9 +464,13 @@ export async function processOtsUpgrade(job: Job<unknown>) {
   // Nothing to learn: an anchor whose check is recorded, a legacy anchor with a
   // defensible txid (its claim already reads "not checked"), or a proof already
   // established invalid. Delayed and duplicate deliveries end here.
+  //
+  // (2026-10-12) EXCEPT a recorded attestation that a CONFIGURED chain
+  // verifier has not concluded on (never checked, node unavailable, too few
+  // confirmations): that re-check is the follow-up's whole purpose.
   if (
-    isCheckedOtsAnchor(snapshot) ||
-    (effectiveStatus === "ANCHORED" && hasDefensibleTxid) ||
+    ((isCheckedOtsAnchor(snapshot) || (effectiveStatus === "ANCHORED" && hasDefensibleTxid)) &&
+      !chainRecheckDue(snapshot, chainVerifier)) ||
     (effectiveStatus === "FAILED" && isPermanentOtsProofFailure(evidence.otsFailureReason))
   ) {
     logger.info(
@@ -486,18 +521,45 @@ export async function processOtsUpgrade(job: Job<unknown>) {
       const parsedUpgrade = parseOtsUpgradeOutput(stdout, stderr);
       const proofBase64 = (await fs.readFile(file)).toString("base64");
 
-      // `ots verify` checks the Bitcoin attestation against the chain (needs a
-      // Bitcoin node); `ots info` reads the proof structure offline. The
-      // classifier consumes both; which one established an anchor is RECORDED
-      // (evidence.ots_anchor_check), because only the first may be called
-      // verified.
-      const verifyResult = await verifyOtsProof({
+      /*
+       * THE DIGEST BINDING, READ FROM THE BYTES (2026-10-12). The upgraded
+       * proof must commit to the record's fingerprint digest, and the record's
+       * OTS hash must be that digest. A proof bound to another digest is
+       * PROOF_INVALID — it is never recorded as an attestation, anchored or
+       * verified. Bytes the parser cannot read never record an anchor either.
+       */
+      const binding = checkOtsDigestBinding({
         proofBase64,
-        hashHex: evidence.otsHash ?? null,
+        fingerprintHash: evidence.fingerprintHash ?? null,
+        otsHash: evidence.otsHash ?? null,
       });
+
+      // The independent chain check runs only for a proof bound to this record
+      // that carries a Bitcoin attestation. Without a configured verifier it is
+      // NOT_CONFIGURED: the truthful state stays "attestation present".
+      const chain: OtsChainCheck | null =
+        binding.kind === "MATCH" && binding.bitcoinBlockHeights.length > 0
+          ? await chainVerifier
+              .verify({
+                proofBase64,
+                digestHex: binding.committedDigestHex,
+                attestationBlockHeights: binding.bitcoinBlockHeights,
+              })
+              .catch((err: unknown): OtsChainCheck => {
+                logger.warn({ ...withJobContext({ jobId: job.id, evidenceId }), err }, "ots.chain_verifier.error");
+                return { status: "UNAVAILABLE", checkedAtUtc: now(), verifier: chainVerifier.kind, reason: "verifier error" };
+              })
+          : null;
+      // The classifier reads a successful verification only from the chain check.
       const verify =
-        verifyResult.status === "VERIFIED" || verifyResult.status === "INCOMPLETE"
-          ? verifyResult.verify
+        chain?.status === "VERIFIED"
+          ? {
+              raw: "",
+              verified: true,
+              incompleteOutput: false,
+              blockHeight: chain.blockHeight,
+              anchoredAtUtc: chain.blockTimeUtc.toISOString(),
+            }
           : null;
       const infoResult = await getOtsProofInfo({ proofBase64 });
       const info = infoResult.status === "PARSED" ? infoResult.info : null;
@@ -514,8 +576,13 @@ export async function processOtsUpgrade(job: Job<unknown>) {
       });
 
       forensic = {
-        verifyStatus: verifyResult.status,
-        verifyConfirmed: verify?.verified === true,
+        digestBinding: binding.kind,
+        committedDigestMatchesFingerprint: binding.kind === "MATCH",
+        attestationBlockHeights: binding.kind === "MATCH" ? binding.bitcoinBlockHeights : [],
+        chainCheck: chain?.status ?? null,
+        chainVerifier: chain?.verifier ?? null,
+        chainFailureCode: chain?.status === "FAILED" ? chain.failureCode : null,
+        verifyConfirmed: chain?.status === "VERIFIED",
         infoStatus: infoResult.status,
         infoFileHash: info?.fileHash ?? null,
         infoFileHashMatches: info?.fileHash != null && expectedHash != null && info.fileHash === expectedHash,
@@ -527,24 +594,34 @@ export async function processOtsUpgrade(job: Job<unknown>) {
         blockHeight: classification.blockHeight,
       };
 
-      if (info?.fileHash != null && expectedHash != null && info.fileHash !== expectedHash) {
+      const attestationBlockHeight =
+        binding.kind === "MATCH" && binding.bitcoinBlockHeights.length > 0 ? Math.max(...binding.bitcoinBlockHeights) : null;
+      if (
+        binding.kind === "MISMATCH" ||
+        (info?.fileHash != null && expectedHash != null && info.fileHash !== expectedHash)
+      ) {
         // The proof commits to DIFFERENT data. No upgrade can repair that.
         observation = {
           kind: "PROOF_INVALID",
           code: "PROOF_HASH_MISMATCH",
-          reason: "The OpenTimestamps proof commits to a hash other than this record's.",
+          reason: "The OpenTimestamps proof does not commit to this record's fingerprint digest.",
         };
+      } else if (binding.kind !== "MATCH") {
+        // Unreadable to the product parser: never an anchor. The same bytes are
+        // read again on retry; ET-OTS-06's strike rule below makes it terminal.
+        observation = { kind: "TRANSIENT_ERROR", reason: OTS_PROOF_UNREADABLE_REASON };
       } else if (classification.kind === "FULLY_ANCHORED") {
-        const verified = verify?.verified === true;
+        const verified = chain?.status === "VERIFIED";
         observation = {
           kind: "ANCHOR_PROVEN",
           proofBase64,
           check: verified ? "BITCOIN_VERIFIED" : "PROOF_STRUCTURE",
           txid: classification.txid,
-          // The block time only when the chain check reported it; never invented.
-          blockTimeUtc:
-            verified && classification.anchoredAtUtc ? new Date(classification.anchoredAtUtc) : null,
+          // The block time only when the chain check verified it; never invented.
+          blockTimeUtc: chain?.status === "VERIFIED" ? chain.blockTimeUtc : null,
           blockHeight: classification.blockHeight,
+          attestationBlockHeight,
+          chain,
         };
       } else if (classification.kind === "FAILED") {
         // A hard command error that is not an established proof defect: the
@@ -568,6 +645,8 @@ export async function processOtsUpgrade(job: Job<unknown>) {
           txid: classification.txid ?? null,
           blockTimeUtc: null,
           blockHeight: Math.max(...info.bitcoinBlockHeights),
+          attestationBlockHeight,
+          chain,
         };
       } else if (infoResult.status === "ERROR" && infoResult.deterministic) {
         // ET-OTS-06 — `ots info` is offline: the same bytes fail the same way.
@@ -689,6 +768,7 @@ export async function processOtsUpgrade(job: Job<unknown>) {
         otsPhase: transition.phase,
         previousOtsStatus: evidence.otsStatus,
         anchorCheck: transition.data.otsAnchorCheck ?? null,
+        chainVerificationStatus: (transition.data.otsChainVerificationStatus as string | null | undefined) ?? null,
         bitcoinTxid: (transition.data.otsBitcoinTxid as string | null | undefined) ?? null,
         anchoredAtUtc:
           transition.data.otsAnchoredAtUtc instanceof Date
@@ -775,6 +855,21 @@ export async function processOtsUpgrade(job: Job<unknown>) {
       traceId: "ots_followup",
       selfJobId: job.id,
     });
+  } else if (
+    transition.status === "ANCHORED" &&
+    chainRecheckDue(
+      { otsChainVerificationStatus: (transition.data.otsChainVerificationStatus as string | null | undefined) ?? null },
+      chainVerifier,
+    )
+  ) {
+    // (2026-10-12) A recorded attestation whose CONFIGURED chain check did not
+    // conclude (node unavailable, too few confirmations) is checked again on
+    // the same cadence. Without a configured verifier this never runs.
+    await enqueueOtsUpgradeJob(evidenceId, {
+      delayMs: 60 * 60 * 1000,
+      traceId: "ots_chain_recheck",
+      selfJobId: job.id,
+    });
   }
 
   logger.info(
@@ -790,4 +885,28 @@ export async function processOtsUpgrade(job: Job<unknown>) {
         ? "ots.upgrade.proof_invalid"
         : "ots.upgrade.pending"
   );
+}
+
+/**
+ * A recorded attestation is re-checked when a chain verifier is CONFIGURED and
+ * has not concluded: never checked here, node unavailable, or too few
+ * confirmations. A VERIFIED or FAILED chain check is a conclusion.
+ */
+export function chainRecheckDue(
+  row: Pick<OtsRowSnapshot, "otsChainVerificationStatus">,
+  verifier: Pick<OtsChainVerifier, "kind">,
+): boolean {
+  if (verifier.kind === "none") return false;
+  const status = row.otsChainVerificationStatus ?? null;
+  return status !== "VERIFIED" && status !== "FAILED";
+}
+
+/** The configured verifier; a configuration error is logged and treated as none. */
+function resolveChainVerifierOrNone(evidenceId: string): OtsChainVerifier {
+  try {
+    return resolveOtsChainVerifier();
+  } catch (err) {
+    logger.error({ evidenceId, err: err instanceof Error ? err.message : String(err) }, "ots.chain_verifier.misconfigured");
+    return NOT_CONFIGURED_VERIFIER;
+  }
 }

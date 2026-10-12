@@ -45,17 +45,15 @@ describe("OTS labels (Phase B #9 / Phase C #4)", () => {
     }
   });
 
-  it("returns 'OpenTimestamps Bitcoin anchoring verified' ONLY for an anchor verified against the chain (2026-09-29)", () => {
+  it("never says verified without recorded chain evidence; an attestation reads 'present; not independently verified' (2026-10-12)", () => {
     const validTxid = "f".repeat(64);
     const anchoredAtUtc = "2026-09-20T10:00:00.000Z";
-    expect(
-      mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: validTxid, anchoredAtUtc, anchorCheck: "BITCOIN_VERIFIED" })
-    ).toBe("OpenTimestamps Bitcoin anchoring verified");
-    // A valid txid, an anchor time, even a structural proof check: anchored, NOT verified.
-    for (const anchorCheck of [null, "PROOF_STRUCTURE"]) {
+    // A valid txid, a recorded time, a structural check, even a recorded
+    // BITCOIN_VERIFIED check without its chain evidence: NOT verified.
+    for (const anchorCheck of [null, "PROOF_STRUCTURE", "BITCOIN_VERIFIED"]) {
       const label = mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: validTxid, anchoredAtUtc, anchorCheck });
-      expect(label).not.toContain("verified");
-      expect(label).toContain("not checked against the Bitcoin chain");
+      expect(label).toBe("Bitcoin attestation present; not independently verified against the Bitcoin blockchain");
+      expect(label).not.toMatch(/anchored/i);
     }
     expect(
       mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: validTxid })
@@ -76,8 +74,12 @@ describe("OTS labels (Phase B #9 / Phase C #4)", () => {
     expect(tone).toBe("warning");
   });
 
-  it("escalates anchor tone to success only for a chain-verified anchor with a valid txid", () => {
-    expect(normalizeBitcoinAnchorTone({ status: "ANCHORED", bitcoinTxid: "a".repeat(64), anchorCheck: "BITCOIN_VERIFIED" })).toBe("success");
+  it("escalates anchor tone to success only for a CHAIN_VERIFIED anchor with a valid txid", () => {
+    expect(
+      normalizeBitcoinAnchorTone({ status: "ANCHORED", bitcoinTxid: "a".repeat(64), anchorCheck: "BITCOIN_VERIFIED", truthState: "CHAIN_VERIFIED" }),
+    ).toBe("success");
+    // (2026-10-12) A recorded check without the chain evidence is not CHAIN_VERIFIED.
+    expect(normalizeBitcoinAnchorTone({ status: "ANCHORED", bitcoinTxid: "a".repeat(64), anchorCheck: "BITCOIN_VERIFIED" })).toBe("warning");
     // An attested proof read by structure alone is a caution, never a success.
     expect(normalizeBitcoinAnchorTone({ status: "ANCHORED", bitcoinTxid: "a".repeat(64), anchorCheck: "PROOF_STRUCTURE" })).toBe("warning");
     expect(normalizeBitcoinAnchorTone({ status: "ANCHORED", bitcoinTxid: "a".repeat(64) })).toBe("warning");

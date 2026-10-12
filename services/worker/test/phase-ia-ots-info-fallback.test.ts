@@ -312,11 +312,12 @@ describe("Phase IA-OTS-info-fallback — processor source contract", () => {
 
   it("an info-confirmed anchor is recorded as PROOF_STRUCTURE — never as chain-verified (2026-09-29)", () => {
     const src = readProcessor();
-    // `ots info` reads the proof offline; only `ots verify` checks the chain.
-    expect(src).toMatch(/const verified = verify\?\.verified === true;/);
+    // `ots info` reads the proof offline; only the configured chain verifier
+    // checks the chain (2026-10-12).
+    expect(src).toMatch(/const verified = chain\?\.status === "VERIFIED";/);
     expect(src).toMatch(/check:\s*verified\s*\?\s*"BITCOIN_VERIFIED"\s*:\s*"PROOF_STRUCTURE"/);
-    // The block time is taken only from the chain check, never invented.
-    expect(src).toMatch(/verified && classification\.anchoredAtUtc \? new Date\(classification\.anchoredAtUtc\) : null/);
+    // The block time is taken only from a VERIFIED chain check, never invented.
+    expect(src).toMatch(/blockTimeUtc: chain\?\.status === "VERIFIED" \? chain\.blockTimeUtc : null/);
   });
 
   it("report regen is gated to the FULLY_ANCHORED branch only (no `ots_anchored` regen on ANCHOR_MATERIAL_RECOVERED)", () => {
@@ -333,8 +334,11 @@ describe("Phase IA-OTS-info-fallback — processor source contract", () => {
     const src = readProcessor();
     const after = src.slice(src.indexOf("const transition = decideOtsTransition("));
     const enqueues = after.match(/enqueueOtsUpgradeJob\(/g) ?? [];
-    expect(enqueues.length).toBe(1);
+    // The PENDING follow-up, and the re-check gated on a configured verifier
+    // that has not concluded — never an unconditional follow-up after ANCHORED.
+    expect(enqueues.length).toBe(2);
     expect(after).toMatch(/if \(transition\.status === "PENDING"\) \{\s*(\/\/[^\n]*\n\s*)*await enqueueOtsUpgradeJob\(/);
+    expect(after).toMatch(/transition\.status === "ANCHORED" &&\s*chainRecheckDue\(/);
   });
 });
 

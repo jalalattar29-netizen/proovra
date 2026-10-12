@@ -144,10 +144,15 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
       fileName: "ots-upgrade.processor.ts",
     });
 
-  it("imports verifyOtsProof from ots.service", () => {
+  // (2026-10-12) The bare `ots verify` — which needed a Bitcoin node the
+  // worker never had — is replaced by the canonical, configured chain verifier,
+  // and the proof's digest binding is read from its bytes first.
+  it("imports the canonical chain verifier and the digest binding, not a bare ots verify", () => {
     expect(UP).toMatch(
-      /import\s*\{[\s\S]{0,200}verifyOtsProof[\s\S]{0,200}from\s*["']\.\/ots\.service\.js["']/,
+      /import\s*\{[\s\S]{0,200}resolveOtsChainVerifier[\s\S]{0,200}from\s*["']\.\/ots-chain-verifier\.js["']/,
     );
+    expect(UP).toMatch(/import\s*\{[\s\S]{0,200}checkOtsDigestBinding[\s\S]{0,200}from\s*["']@proovra\/shared["']/);
+    expect(UP).not.toMatch(/verifyOtsProof/);
   });
 
   it("imports classifyOtsResult from ots-upgrade-output", () => {
@@ -156,12 +161,15 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
     );
   });
 
-  it("runs ots upgrade THEN ots verify in the upgrade attempt", () => {
-    // upgrade subprocess executes first, then verify is awaited.
+  it("runs ots upgrade, THEN reads the digest binding from the bytes, THEN the chain check", () => {
     const upgradeIdx = UP.indexOf('execFileAsync(resolveOtsBin(), ["upgrade"');
-    const verifyIdx = UP.indexOf("verifyOtsProof({");
+    const bindingIdx = UP.indexOf("checkOtsDigestBinding({", upgradeIdx);
+    const chainIdx = UP.indexOf(".verify({", bindingIdx);
     expect(upgradeIdx).toBeGreaterThan(-1);
-    expect(verifyIdx).toBeGreaterThan(upgradeIdx);
+    expect(bindingIdx).toBeGreaterThan(upgradeIdx);
+    expect(chainIdx).toBeGreaterThan(bindingIdx);
+    // The chain check runs only for a proof bound to THIS record.
+    expect(UP).toMatch(/binding\.kind === "MATCH" && binding\.bitcoinBlockHeights\.length > 0/);
   });
 
   it("feeds BOTH parser outputs through classifyOtsResult", () => {
@@ -182,6 +190,7 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
     const block = fullyAnchoredBranch();
     expect(block).toMatch(/kind:\s*"ANCHOR_PROVEN"/);
     expect(block).toMatch(/check:\s*verified\s*\?\s*"BITCOIN_VERIFIED"\s*:\s*"PROOF_STRUCTURE"/);
+    expect(block).toMatch(/const verified = chain\?\.status === "VERIFIED"/);
     expect(UP).not.toMatch(/enqueueReportJob\(|requestReportGeneration\(|forceRegenerate:/);
   });
 
@@ -195,7 +204,9 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
   });
 
   it("the custody payload records what verify and info established", () => {
-    expect(UP).toMatch(/verifyConfirmed:\s*verify\?\.\s*verified === true/);
+    expect(UP).toMatch(/verifyConfirmed:\s*chain\?\.status === "VERIFIED"/);
+    expect(UP).toMatch(/digestBinding:\s*binding\.kind/);
+    expect(UP).toMatch(/chainCheck:\s*chain\?\.status \?\? null/);
     expect(UP).toMatch(/classification:\s*classification\.kind/);
     expect(UP).toMatch(/classifierPhase:\s*classification\.phase/);
     expect(UP).toMatch(/classifierReason:\s*classification\.reason/);

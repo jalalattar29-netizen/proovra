@@ -150,6 +150,8 @@ export type OtsTruth = {
   claim: OtsAnchorClaim;
   /** Primary reviewer-facing statement. Never a raw code. */
   headline: string;
+  /** ONE line for status rows and package labels — the same text on every surface. */
+  statusLine: string;
   /** Second sentence, always shown beside the headline. */
   detail: string;
   /** When PROOVRA recorded the attestation-bearing proof. Never an anchor time. */
@@ -214,6 +216,18 @@ const COPY: Readonly<Record<OtsTruthState, { headline: string; detail: string }>
     headline: "OpenTimestamps state cannot be established",
     detail: "The recorded OpenTimestamps data is incomplete or out of date; no Bitcoin anchoring claim is made.",
   },
+};
+
+export const OTS_TRUTH_STATUS_LINES: Readonly<Record<OtsTruthState, string>> = {
+  NOT_REQUESTED: "No OpenTimestamps proof",
+  PENDING: "Bitcoin attestation pending",
+  ATTESTATION_PRESENT_NOT_VERIFIED: "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
+  CHAIN_VERIFICATION_UNAVAILABLE:
+    "Bitcoin attestation present; independent verification unavailable, not independently verified against the Bitcoin blockchain",
+  CHAIN_VERIFICATION_FAILED: "Bitcoin attestation did not verify against the Bitcoin blockchain",
+  CHAIN_VERIFIED: "Bitcoin attestation independently verified against the Bitcoin blockchain",
+  PROOF_INVALID: "OpenTimestamps proof unusable for this record",
+  UNKNOWN_OR_STALE: "OpenTimestamps state cannot be established",
 };
 
 const CLAIM: Readonly<Record<OtsTruthState, OtsAnchorClaim>> = {
@@ -307,6 +321,12 @@ export function resolveOtsTruth(input: OtsTruthInput): OtsTruth {
     state,
     claim,
     headline: copy.headline,
+    // A legacy anchor whose check was never recorded still reads as an
+    // attestation that was not verified — never "pending".
+    statusLine:
+      state === "UNKNOWN_OR_STALE" && effective === "ANCHORED"
+        ? OTS_TRUTH_STATUS_LINES.ATTESTATION_PRESENT_NOT_VERIFIED
+        : OTS_TRUTH_STATUS_LINES[state],
     detail,
     proofRecordedAtUtc: hasAttestation || state === "UNKNOWN_OR_STALE" ? proofRecordedAtUtc : null,
     proofUpgradedAtUtc: iso(input.upgradedAtUtc),

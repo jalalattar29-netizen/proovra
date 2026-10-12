@@ -21,11 +21,11 @@ import {
   reportIdentityLevelLabel,
   reportIdentityRows,
   mapAnchorModePublicLabel,
-  mapOtsStatusPublicLabelWithTxid,
   mapPublicAnchoringLabelFromOts,
   mapTimestampStatusPublicLabel,
 } from "./normalizers.js";
-import { deriveAnchorSemantics, formatTimestampForReportUtc } from "@proovra/shared";
+import { OTS_REPORTED_BY_PROOF_QUALIFIER, deriveAnchorSemantics, formatTimestampForReportUtc } from "@proovra/shared";
+import { buildOtsTruthRows, otsStatusLineFor } from "./ots-presentation.js";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 
 export function getTimestampDigestValueLabel(params: {
@@ -291,33 +291,36 @@ export function buildTimestampRows(
   ];
 }
 
+/**
+ * (2026-10-12) The OTS technical rows come from the shared truth model
+ * (ots-presentation.ts): a recording time is never an anchor time, and a txid
+ * or block height read from the proof is labelled as reported, not verified.
+ */
 export function buildOtsRows(
   evidence: ReportEvidence | CanonicalOtsStateMaterial
 ): KeyValueRow[] {
-  return [
-    {
-      label: "OTS Status",
-      value: mapOtsStatusPublicLabelWithTxid({
-        status: evidence.otsStatus,
-        bitcoinTxid: evidence.otsBitcoinTxid,
-        anchoredAtUtc: evidence.otsAnchoredAtUtc,
-        anchorCheck: evidence.otsAnchorCheck ?? null,
-      }),
-    },
-    {
-      label: "OTS Calendar",
-      value: safe((evidence as ReportEvidence).otsCalendar),
-    },
-    {
-      label: "OTS Anchored At (UTC)",
-      value: safe((evidence as ReportEvidence).otsAnchoredAtUtc),
-    },
-    {
-      label: "OTS Upgraded At (UTC)",
-      value: safe((evidence as ReportEvidence).otsUpgradedAtUtc),
-    },
-    { label: "OTS Bitcoin TxID", value: safe(evidence.otsBitcoinTxid) },
-  ].filter(isMeaningfulTechnicalRow);
+  if ("truthState" in evidence && "snapshotSemantics" in evidence) {
+    // The canonical materials' state: rebuild the rows from its own projection.
+    const m = evidence as CanonicalOtsStateMaterial;
+    return buildOtsTruthRows({
+      otsStatus: m.effectiveStatus ?? m.otsStatus,
+      otsHash: m.otsHash,
+      otsBitcoinTxid: m.otsBitcoinTxid,
+      otsAnchorCheck: m.otsAnchorCheck,
+      otsUpgradedAtUtc: m.otsUpgradedAtUtc,
+      otsAnchoredAtUtc: m.otsAnchoredAtUtc ?? m.proofRecordedAtUtc,
+      otsAttestationRecordedAtUtc: m.proofRecordedAtUtc,
+      otsAttestationBlockHeight: m.reportedBlockHeight,
+      otsChainVerificationStatus: m.chainVerification ? "VERIFIED" : m.chainCheckStatus,
+      otsChainVerifiedAtUtc: m.chainVerification?.verifiedAtUtc ?? null,
+      otsChainBlockHeight: m.chainVerification?.blockHeight ?? null,
+      otsChainBlockHash: m.chainVerification?.blockHash ?? null,
+      otsChainBlockTimeUtc: m.chainVerification?.blockTimeUtc ?? null,
+      otsChainConfirmations: m.chainVerification?.confirmations ?? null,
+      otsChainVerifier: m.chainVerification?.verifier ?? null,
+    }).filter(isMeaningfulTechnicalRow);
+  }
+  return buildOtsTruthRows(evidence as ReportEvidence).filter(isMeaningfulTechnicalRow);
 }
 
 export function buildAnchorRows(
@@ -347,16 +350,20 @@ export function buildAnchorRows(
       })
     : mapAnchorModePublicLabel(anchorSummary.mode);
 
+  // (2026-10-12) No "anchored at" row: the anchor summary's time is the
+  // recording time unless the chain was verified, and the OTS rows already
+  // state the verified block time when there is one.
+  const verified = (otsFacts as { truthState?: string } | null | undefined)?.truthState === "CHAIN_VERIFIED";
   return [
     { label: "Anchor Mode", value: anchorModeLabel },
     { label: "Anchor Provider", value: safe(anchorSummary.provider) },
     {
-      label: "Anchor Anchored At (UTC)",
-      value: formatTimestampForReportUtc(anchorSummary.anchoredAtUtc),
-    },
-    {
       label: "Anchor Transaction ID",
-      value: safe(anchorSummary.transactionId),
+      value: anchorSummary.transactionId
+        ? verified
+          ? anchorSummary.transactionId
+          : `${anchorSummary.transactionId} — ${OTS_REPORTED_BY_PROOF_QUALIFIER}`
+        : "",
     },
   ].filter(isMeaningfulTechnicalRow);
 }
@@ -452,14 +459,7 @@ const fingerprintRows: KeyValueRow[] = [
     timestampStatusTone: mapTimestampTone(
       canonicalMaterials.timestampState.tsaStatus
     ),
-    otsStatusLabel: mapOtsStatusPublicLabelWithTxid({
-      status:
-        canonicalMaterials.otsState.effectiveStatus ??
-        canonicalMaterials.otsState.otsStatus,
-      bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
-      anchoredAtUtc: canonicalMaterials.otsState.otsAnchoredAtUtc,
-      anchorCheck: canonicalMaterials.otsState.otsAnchorCheck,
-    }),
+    otsStatusLabel: otsStatusLineFor(canonicalMaterials.otsState),
     otsStatusTone:
       safe(
         canonicalMaterials.otsState.effectiveStatus ??

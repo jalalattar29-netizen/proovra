@@ -35,8 +35,39 @@ function row(over: Partial<OtsRowSnapshot> = {}): OtsRowSnapshot {
   };
 }
 
+/** (2026-10-12) A recorded chain verification and its evidence (test values). */
+const CHAIN_CHECK = {
+  status: "VERIFIED" as const,
+  checkedAtUtc: new Date("2026-09-20T12:00:00Z"),
+  verifier: "test-double/1",
+  verifiedAtUtc: new Date("2026-09-20T12:00:00Z"),
+  blockHeight: 1,
+  blockHash: "0".repeat(20) + "b".repeat(44),
+  blockTimeUtc: BLOCK_TIME,
+  confirmations: 6,
+};
+const CHAIN_COLUMNS = {
+  otsChainVerificationStatus: "VERIFIED",
+  otsChainCheckedAtUtc: CHAIN_CHECK.checkedAtUtc,
+  otsChainVerifiedAtUtc: CHAIN_CHECK.verifiedAtUtc,
+  otsChainBlockHeight: 1,
+  otsChainBlockHash: CHAIN_CHECK.blockHash,
+  otsChainBlockTimeUtc: BLOCK_TIME,
+  otsChainConfirmations: 6,
+  otsChainVerifier: "test-double/1",
+  otsChainFailureCode: null,
+};
+
 const anchoredChecked = (check: "BITCOIN_VERIFIED" | "PROOF_STRUCTURE") =>
-  row({ otsStatus: "ANCHORED", otsBitcoinTxid: TXID, otsAnchoredAtUtc: BLOCK_TIME, otsAnchorCheck: check });
+  row({
+    otsStatus: "ANCHORED",
+    otsBitcoinTxid: TXID,
+    otsAnchoredAtUtc: BLOCK_TIME,
+    otsAnchorCheck: check,
+    otsAttestationRecordedAtUtc: BLOCK_TIME,
+    otsAttestationBlockHeight: 1,
+    ...(check === "BITCOIN_VERIFIED" ? CHAIN_COLUMNS : { otsChainVerificationStatus: null, otsChainFailureCode: null }),
+  });
 
 describe("anchored with a valid (checked) proof", () => {
   it("is never demoted by an inconclusive re-check, a transient error or the budget", () => {
@@ -49,29 +80,67 @@ describe("anchored with a valid (checked) proof", () => {
     expect(decideOtsTransition(r, { kind: "BUDGET_EXHAUSTED" }, NOW).kind).toBe("NO_CHANGE");
   });
 
-  it("a weaker check never replaces a stronger one, and a stronger one upgrades a weaker one", () => {
+  it("recorded chain evidence is kept through an inconclusive re-check, and a verifying check upgrades a structural one", () => {
     const verified = anchoredChecked("BITCOIN_VERIFIED");
-    const t = decideOtsTransition(
-      verified,
-      { kind: "ANCHOR_PROVEN", proofBase64: "cHJvb2Y=", check: "PROOF_STRUCTURE", txid: TXID, blockTimeUtc: null, blockHeight: 1 },
-      NOW,
-    );
-    expect(t.kind).toBe("NO_CHANGE");
+    for (const chain of [null, { status: "UNAVAILABLE" as const, checkedAtUtc: NOW, verifier: "test-double/1", reason: "down" }]) {
+      const t = decideOtsTransition(
+        verified,
+        { kind: "ANCHOR_PROVEN", proofBase64: "cHJvb2Y=", check: "PROOF_STRUCTURE", txid: TXID, blockTimeUtc: null, blockHeight: 1, chain },
+        NOW,
+      );
+      expect(t.kind).toBe("NO_CHANGE");
+    }
 
     const structural = anchoredChecked("PROOF_STRUCTURE");
     const up = decideOtsTransition(
       structural,
-      { kind: "ANCHOR_PROVEN", proofBase64: "cHJvb2Y=", check: "BITCOIN_VERIFIED", txid: TXID, blockTimeUtc: BLOCK_TIME, blockHeight: 1 },
+      { kind: "ANCHOR_PROVEN", proofBase64: "cHJvb2Y=", check: "BITCOIN_VERIFIED", txid: TXID, blockTimeUtc: BLOCK_TIME, blockHeight: 1, chain: CHAIN_CHECK },
       NOW,
     );
-    expect(up).toMatchObject({ kind: "WRITE", status: "ANCHORED", phase: "anchor_check_recorded" });
-    if (up.kind === "WRITE") expect(up.data.otsAnchorCheck).toBe("BITCOIN_VERIFIED");
+    expect(up).toMatchObject({ kind: "WRITE", status: "ANCHORED", phase: "chain_verified" });
+    if (up.kind === "WRITE") {
+      expect(up.data).toMatchObject({ otsAnchorCheck: "BITCOIN_VERIFIED", otsChainVerificationStatus: "VERIFIED", otsChainConfirmations: 6 });
+    }
+  });
+
+  it("BITCOIN_VERIFIED is never written without a VERIFIED chain check — the observation's own label is not enough", () => {
+    const t = decideOtsTransition(
+      row(),
+      { kind: "ANCHOR_PROVEN", proofBase64: "bmV3", check: "BITCOIN_VERIFIED", txid: TXID, blockTimeUtc: BLOCK_TIME, blockHeight: 1 },
+      NOW,
+    );
+    expect(t.kind === "WRITE" && t.data.otsAnchorCheck).toBe("PROOF_STRUCTURE");
+  });
+
+  it("a verified anchor is withdrawn when a configured verifier reached the chain and it did not verify (reorg)", () => {
+    const t = decideOtsTransition(
+      anchoredChecked("BITCOIN_VERIFIED"),
+      {
+        kind: "ANCHOR_PROVEN",
+        proofBase64: "cHJvb2Y=",
+        check: "PROOF_STRUCTURE",
+        txid: TXID,
+        blockTimeUtc: null,
+        blockHeight: 1,
+        chain: { status: "FAILED", checkedAtUtc: NOW, verifier: "test-double/1", failureCode: "ATTESTATION_NOT_IN_CHAIN" },
+      },
+      NOW,
+    );
+    expect(t).toMatchObject({ kind: "WRITE", phase: "chain_verification_withdrawn" });
+    if (t.kind === "WRITE") {
+      expect(t.data).toMatchObject({
+        otsAnchorCheck: "PROOF_STRUCTURE",
+        otsChainVerificationStatus: "FAILED",
+        otsChainFailureCode: "ATTESTATION_NOT_IN_CHAIN",
+        otsChainBlockTimeUtc: null,
+      });
+    }
   });
 
   it("the anchor time is the block time; else the existing anchor time; never overwritten by a later observation", () => {
     const fromPending = decideOtsTransition(
       row(),
-      { kind: "ANCHOR_PROVEN", proofBase64: "bmV3", check: "BITCOIN_VERIFIED", txid: TXID, blockTimeUtc: BLOCK_TIME, blockHeight: 1 },
+      { kind: "ANCHOR_PROVEN", proofBase64: "bmV3", check: "BITCOIN_VERIFIED", txid: TXID, blockTimeUtc: BLOCK_TIME, blockHeight: 1, chain: CHAIN_CHECK },
       NOW,
     );
     expect(fromPending.kind === "WRITE" && fromPending.data.otsAnchoredAtUtc).toEqual(BLOCK_TIME);
@@ -85,6 +154,10 @@ describe("anchored with a valid (checked) proof", () => {
       NOW,
     );
     expect(structural.kind === "WRITE" && structural.data.otsAnchoredAtUtc).toEqual(NOW);
+    // (2026-10-12) That time is RECORDED as what it is: the attestation-recorded
+    // time. No verified block time exists for it.
+    expect(structural.kind === "WRITE" && structural.data.otsAttestationRecordedAtUtc).toEqual(NOW);
+    expect(structural.kind === "WRITE" && structural.data.otsChainBlockTimeUtc).toBeNull();
 
     const legacy = row({ otsStatus: "ANCHORED", otsAnchoredAtUtc: BLOCK_TIME });
     const kept = decideOtsTransition(

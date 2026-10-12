@@ -93,6 +93,19 @@ const LIFECYCLE_SELECT = {
   otsUpgradedAtUtc: true,
   otsFailureReason: true,
   otsAnchorCheck: true,
+  // (2026-10-12) The digest every proof must commit to, and the OTS truth columns.
+  fingerprintHash: true,
+  otsAttestationRecordedAtUtc: true,
+  otsAttestationBlockHeight: true,
+  otsChainVerificationStatus: true,
+  otsChainCheckedAtUtc: true,
+  otsChainVerifiedAtUtc: true,
+  otsChainBlockHeight: true,
+  otsChainBlockHash: true,
+  otsChainBlockTimeUtc: true,
+  otsChainConfirmations: true,
+  otsChainVerifier: true,
+  otsChainFailureCode: true,
 } as const;
 
 const FACTS_SELECT = {
@@ -131,6 +144,18 @@ type LifecycleRow = {
   otsUpgradedAtUtc: Date | null;
   otsFailureReason: string | null;
   otsAnchorCheck: string | null;
+  fingerprintHash?: string | null;
+  otsAttestationRecordedAtUtc?: Date | null;
+  otsAttestationBlockHeight?: number | null;
+  otsChainVerificationStatus?: string | null;
+  otsChainCheckedAtUtc?: Date | null;
+  otsChainVerifiedAtUtc?: Date | null;
+  otsChainBlockHeight?: number | null;
+  otsChainBlockHash?: string | null;
+  otsChainBlockTimeUtc?: Date | null;
+  otsChainConfirmations?: number | null;
+  otsChainVerifier?: string | null;
+  otsChainFailureCode?: string | null;
 };
 
 export type RecordCustodyEvent = {
@@ -223,6 +248,17 @@ export function reportLifecycleFields(
     otsAnchorCheck: row.otsAnchorCheck ?? null,
     otsAnchorCheckedAtUtc: otsCustodyFacts.anchorCheckedAtUtc,
     otsSubmittedAtUtc: otsCustodyFacts.submittedAtUtc,
+    otsAttestationRecordedAtUtc: row.otsAttestationRecordedAtUtc?.toISOString() ?? null,
+    otsAttestationBlockHeight: row.otsAttestationBlockHeight ?? null,
+    otsChainVerificationStatus: row.otsChainVerificationStatus ?? null,
+    otsChainCheckedAtUtc: row.otsChainCheckedAtUtc?.toISOString() ?? null,
+    otsChainVerifiedAtUtc: row.otsChainVerifiedAtUtc?.toISOString() ?? null,
+    otsChainBlockHeight: row.otsChainBlockHeight ?? null,
+    otsChainBlockHash: row.otsChainBlockHash ?? null,
+    otsChainBlockTimeUtc: row.otsChainBlockTimeUtc?.toISOString() ?? null,
+    otsChainConfirmations: row.otsChainConfirmations ?? null,
+    otsChainVerifier: row.otsChainVerifier ?? null,
+    otsChainFailureCode: row.otsChainFailureCode ?? null,
   };
 }
 
@@ -256,6 +292,22 @@ export function assertRenderInputs(
       otsBitcoinTxid: payload.otsBitcoinTxid ?? null,
       otsProofPresent: Boolean(payload.otsProofBase64),
       otsUpgradedAtUtc: payload.otsUpgradedAtUtc ?? null,
+      // (2026-10-12) The payload's proof bytes are bound to its fingerprint
+      // digest exactly as the record's are.
+      otsProofBase64: payload.otsProofBase64 ?? null,
+      fingerprintHash: payload.fingerprintHash ?? null,
+      otsHash: payload.otsHash ?? null,
+      otsAttestationRecordedAtUtc: payload.otsAttestationRecordedAtUtc ?? null,
+      otsAttestationBlockHeight: payload.otsAttestationBlockHeight ?? null,
+      otsChainVerificationStatus: payload.otsChainVerificationStatus ?? null,
+      otsChainCheckedAtUtc: payload.otsChainCheckedAtUtc ?? null,
+      otsChainVerifiedAtUtc: payload.otsChainVerifiedAtUtc ?? null,
+      otsChainBlockHeight: payload.otsChainBlockHeight ?? null,
+      otsChainBlockHash: payload.otsChainBlockHash ?? null,
+      otsChainBlockTimeUtc: payload.otsChainBlockTimeUtc ?? null,
+      otsChainConfirmations: payload.otsChainConfirmations ?? null,
+      otsChainVerifier: payload.otsChainVerifier ?? null,
+      otsChainFailureCode: payload.otsChainFailureCode ?? null,
       acquisitionMode: payload.acquisitionMode ?? null,
     },
     custodyEvents,
@@ -266,6 +318,26 @@ export function assertRenderInputs(
     acquisition: payload.acquisitionIdentity ?? rendered.acquisition,
   });
   if (findings.length) throw new OutputVerificationError("REPORT_RENDER_INPUT_INCONSISTENT", findings);
+  assertOtsProofBinding(record, payload);
+}
+
+/**
+ * THE OTS DIGEST BINDING BEFORE RENDERING (2026-10-12). A report may state a
+ * proof that is UNUSABLE (the worker recorded it FAILED); it may never be
+ * rendered from a record whose status still presents the proof as pending or
+ * as an attestation while the proof's own bytes commit to another digest, or
+ * cannot be read. That contradiction is refused, terminal and stable.
+ */
+export function assertOtsProofBinding(record: CanonicalArtifactFacts, payload: Pick<ReportEvidence, "otsStatus">): void {
+  const unbound = record.otsDigestBinding === "MISMATCH" || record.otsDigestBinding === "UNREADABLE";
+  if (unbound && String(payload.otsStatus ?? "").toUpperCase() !== "FAILED") {
+    throw new OutputVerificationError("REPORT_RENDER_INPUT_INCONSISTENT", [
+      {
+        check: "OTS_PROOF_DIGEST_MISMATCH",
+        detail: `the stored OpenTimestamps proof is ${record.otsDigestBinding} against the fingerprint digest while the record presents it as ${String(payload.otsStatus ?? "absent")}`,
+      },
+    ]);
+  }
 }
 
 /**

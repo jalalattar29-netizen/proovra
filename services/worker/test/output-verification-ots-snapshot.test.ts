@@ -12,6 +12,8 @@
  * say what its own snapshot says is still refused, and the production
  * message still reproduces when the two come from different reads.
  */
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -25,6 +27,11 @@ import { assertRenderInputs, OutputVerificationError, reportLifecycleFields } fr
 import type { ReportEvidence } from "../src/report-v2/types.js";
 
 type Row = Parameters<typeof reportLifecycleFields>[0];
+
+/** Real OpenTimestamps proofs (opentimestamps-client 0.7.2); see the fixture's _about. */
+const PROOFS = JSON.parse(
+  readFileSync(new URL("../../../packages/shared/tests/fixtures/ots-proofs.json", import.meta.url), "utf8"),
+) as { boundFingerprintHash: string; boundProofBase64: string; otherProofBase64: string };
 
 const BASE_ROW: Row = {
   tsaProvider: null,
@@ -49,6 +56,7 @@ const BASE_ROW: Row = {
   otsUpgradedAtUtc: null,
   otsFailureReason: null,
   otsAnchorCheck: null,
+  fingerprintHash: PROOFS.boundFingerprintHash,
 };
 const DIGEST = "a".repeat(64);
 const custody: never[] = [];
@@ -60,20 +68,41 @@ function factsOf(row: Row): CanonicalArtifactFacts {
   );
 }
 function payloadOf(row: Row): ReportEvidence {
-  return { fileSha256: DIGEST, acquisitionMode: null, ...reportLifecycleFields(row, custody) } as unknown as ReportEvidence;
+  return {
+    fileSha256: DIGEST,
+    fingerprintHash: row.fingerprintHash ?? null,
+    acquisitionMode: null,
+    ...reportLifecycleFields(row, custody),
+  } as unknown as ReportEvidence;
 }
 
-const PENDING: Row = { ...BASE_ROW, otsStatus: "PENDING", otsHash: "b".repeat(64) };
+const PENDING: Row = {
+  ...BASE_ROW,
+  otsStatus: "PENDING",
+  otsHash: PROOFS.boundFingerprintHash,
+  otsProofBase64: PROOFS.boundProofBase64,
+};
 const PRESENT: Row = {
   ...PENDING,
   otsStatus: "ANCHORED",
-  otsProofBase64: "cHJvb2Y=",
   otsBitcoinTxid: "c".repeat(64),
   otsAnchoredAtUtc: new Date("2026-10-08T06:00:00Z"),
   otsUpgradedAtUtc: new Date("2026-10-08T06:00:00Z"),
   otsAnchorCheck: "PROOF_STRUCTURE",
 };
-const VERIFIED: Row = { ...PRESENT, otsAnchorCheck: "BITCOIN_VERIFIED" };
+// (2026-10-12) Verified means a recorded chain check WITH its evidence.
+const VERIFIED: Row = {
+  ...PRESENT,
+  otsAnchorCheck: "BITCOIN_VERIFIED",
+  otsChainVerificationStatus: "VERIFIED",
+  otsChainCheckedAtUtc: new Date("2026-10-08T07:00:00Z"),
+  otsChainVerifiedAtUtc: new Date("2026-10-08T07:00:00Z"),
+  otsChainBlockHeight: 970507,
+  otsChainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
+  otsChainBlockTimeUtc: new Date("2026-10-08T05:24:48Z"),
+  otsChainConfirmations: 6,
+  otsChainVerifier: "test-double/1",
+};
 const FAILED: Row = { ...BASE_ROW, otsStatus: "FAILED", otsFailureReason: "calendar unreachable" };
 
 describe("render gate over ONE snapshot (OTS lifecycle)", () => {
@@ -136,5 +165,36 @@ describe("issuance facts vs a later read: forward progress only", () => {
   it("a different digest is never 'progress'", () => {
     const later = { ...factsOf(PENDING), evidenceFileSha256: "d".repeat(64) };
     expect(compareIssuanceFactsToRecord(factsOf(PENDING), later).map((f) => f.check)).toEqual(["EVIDENCE_DIGEST"]);
+  });
+});
+
+describe("the render gate refuses an OTS proof bound to another digest (real proof bytes)", () => {
+  const MISBOUND: Row = { ...PRESENT, otsProofBase64: PROOFS.otherProofBase64 };
+
+  it("a record presenting the proof as an attestation while its bytes commit elsewhere is refused, terminal", () => {
+    const facts = factsOf(MISBOUND);
+    expect(facts.otsDigestBinding).toBe("MISMATCH");
+    expect(facts.otsTruthState).toBe("PROOF_INVALID");
+    let err: unknown;
+    try {
+      assertRenderInputs(facts, payloadOf(MISBOUND), custody);
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toBeInstanceOf(OutputVerificationError);
+    expect((err as OutputVerificationError).retriable).toBe(false);
+    expect((err as OutputVerificationError).findings.map((f) => f.check)).toEqual(["OTS_PROOF_DIGEST_MISMATCH"]);
+  });
+
+  it("a pending record whose proof bytes commit elsewhere is refused too", () => {
+    const pendingMisbound: Row = { ...PENDING, otsProofBase64: PROOFS.otherProofBase64 };
+    expect(() => assertRenderInputs(factsOf(pendingMisbound), payloadOf(pendingMisbound), custody)).toThrow(/OTS_PROOF_DIGEST_MISMATCH/);
+  });
+
+  it("a record the worker already recorded FAILED (PROOF_HASH_MISMATCH) renders — as unusable, never anchored", () => {
+    const recordedInvalid: Row = { ...MISBOUND, otsStatus: "FAILED", otsFailureReason: "PROOF_HASH_MISMATCH", otsAnchorCheck: null };
+    const facts = factsOf(recordedInvalid);
+    expect(facts.otsState).toBe("FAILED");
+    expect(() => assertRenderInputs(facts, payloadOf(recordedInvalid), custody)).not.toThrow();
   });
 });

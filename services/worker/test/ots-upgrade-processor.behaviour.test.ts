@@ -11,14 +11,43 @@
  * stale job completion, duplicate delivery and concurrent update ordering —
  * and that no report is ever requested.
  */
+import { readFileSync } from "node:fs";
+
 import { JOB_NAMES, buildCanonicalJobPayload } from "@proovra/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const OTS_HASH = "b".repeat(64);
+/*
+ * REAL PROOF BYTES (2026-10-12). The processor reads the digest a proof
+ * commits to from its bytes, so the doubled `ots upgrade` writes real ones:
+ * PROOF_V1 is a real calendar proof (opentimestamps-client 0.7.2) committing to
+ * the fixture fingerprint; PROOF_V2 is that proof with a Bitcoin block-header
+ * attestation added at its root — the exact serialization `ots upgrade`
+ * appends. OTHER_PROOF is a real proof committing to a different digest.
+ */
+const FIXTURE = JSON.parse(
+  readFileSync(new URL("../../../packages/shared/tests/fixtures/ots-proofs.json", import.meta.url), "utf8"),
+) as { boundFingerprintHash: string; boundProofBase64: string; otherProofBase64: string };
+const OTS_HASH = FIXTURE.boundFingerprintHash;
 const TXID = "c".repeat(64);
-const MAGIC = Buffer.from("004f70656e54696d657374616d7073000050726f6f6600bf89e2e884e89294", "hex");
-const PROOF_V1 = Buffer.concat([MAGIC, Buffer.from("pending-attestation")]).toString("base64");
-const PROOF_V2 = Buffer.concat([MAGIC, Buffer.from("bitcoin-attestation")]).toString("base64");
+const HEADER_LEN = 31 + 1 + 1 + 32; // magic, version, sha256 op, digest
+function withBitcoinAttestation(proofBase64: string, height: number): string {
+  const bytes = Buffer.from(proofBase64, "base64");
+  const varuint: number[] = [];
+  for (let n = height; ; ) {
+    const b = n & 0x7f;
+    n = Math.floor(n / 128);
+    if (n === 0) {
+      varuint.push(b);
+      break;
+    }
+    varuint.push(b | 0x80);
+  }
+  const attestation = Buffer.from([0xff, 0x00, 0x05, 0x88, 0x96, 0x0d, 0x73, 0xd7, 0x19, 0x01, varuint.length, ...varuint]);
+  return Buffer.concat([bytes.subarray(0, HEADER_LEN), attestation, bytes.subarray(HEADER_LEN)]).toString("base64");
+}
+const PROOF_V1 = FIXTURE.boundProofBase64;
+const PROOF_V2 = withBitcoinAttestation(PROOF_V1, 860000);
+const OTHER_PROOF = withBitcoinAttestation(FIXTURE.otherProofBase64, 860000);
 
 type Row = Record<string, unknown>;
 
@@ -35,6 +64,8 @@ const h = vi.hoisted(() => {
     upgrades: [] as Array<(file: string) => Promise<{ stdout: string; stderr: string }>>,
     verify: null as unknown,
     info: null as unknown,
+    /** The chain verifier the processor resolves; null = the real "none". */
+    chainVerifier: null as unknown,
   };
   return state;
 });
@@ -101,6 +132,14 @@ vi.mock("../src/ots.service.js", () => ({
   getOtsProofInfo: async () => h.info,
 }));
 
+vi.mock("../src/ots-chain-verifier.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/ots-chain-verifier.js")>();
+  return {
+    ...actual,
+    resolveOtsChainVerifier: () => h.chainVerifier ?? actual.NOT_CONFIGURED_VERIFIER,
+  };
+});
+
 vi.mock("node:child_process", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:child_process")>();
   return {
@@ -145,6 +184,7 @@ function baseRow(over: Row = {}): Row {
     otsUpgradedAtUtc: new Date("2026-09-28T00:00:00Z"),
     otsFailureReason: null,
     otsAnchorCheck: null,
+    fingerprintHash: OTS_HASH,
     ...over,
   };
 }
@@ -172,19 +212,6 @@ const infoPending = {
   error: null,
 };
 const verifyUnavailable = { status: "ERROR", verify: null, binaryMissing: false, error: "no bitcoin node" };
-const verifyConfirmed = {
-  status: "VERIFIED",
-  verify: {
-    raw: "",
-    verified: true,
-    incompleteOutput: false,
-    blockHeight: 860000,
-    anchoredAtUtc: "2026-09-20T10:00:00.000Z",
-  },
-  binaryMissing: false,
-  error: null,
-};
-
 beforeEach(() => {
   // A test that spies on a doubled export must not leak it into the next.
   vi.restoreAllMocks();
@@ -197,13 +224,34 @@ beforeEach(() => {
   h.upgrades.length = 0;
   h.verify = verifyUnavailable;
   h.info = infoPending;
+  h.chainVerifier = null;
 });
+
+/** A deterministic chain verifier double. Never a real Bitcoin verification. */
+function chainDouble(outcome: Record<string, unknown>) {
+  return {
+    kind: "test-double",
+    calls: [] as unknown[],
+    async verify(input: unknown) {
+      (this as { calls: unknown[] }).calls.push(input);
+      return { checkedAtUtc: new Date("2026-10-12T09:00:00Z"), verifier: "test-double/1", ...outcome };
+    },
+  };
+}
+const CHAIN_VERIFIED = {
+  status: "VERIFIED",
+  verifiedAtUtc: new Date("2026-10-12T09:00:00Z"),
+  blockHeight: 860000,
+  blockHash: "0000000000000000000a1b2c3d4e5f60718293a4b5c6d7e8f9001122334455aa",
+  blockTimeUtc: new Date("2026-09-20T10:00:00Z"),
+  confirmations: 12,
+};
 
 describe("valid anchored proof", () => {
   it("an anchor verified against the chain records BITCOIN_VERIFIED with the block time", async () => {
     h.row = baseRow();
     h.upgrades.push(upgradedTo(PROOF_V2));
-    h.verify = verifyConfirmed;
+    h.chainVerifier = chainDouble(CHAIN_VERIFIED);
     h.info = infoAnchored;
     await processOtsUpgrade(job() as never);
     expect(h.row).toMatchObject({
@@ -211,8 +259,20 @@ describe("valid anchored proof", () => {
       otsAnchorCheck: "BITCOIN_VERIFIED",
       otsBitcoinTxid: TXID,
       otsProofBase64: PROOF_V2,
+      otsAttestationBlockHeight: 860000,
+      otsChainVerificationStatus: "VERIFIED",
+      otsChainBlockHeight: 860000,
+      otsChainBlockHash: CHAIN_VERIFIED.blockHash,
+      otsChainConfirmations: 12,
+      otsChainVerifier: "test-double/1",
     });
+    expect((h.row!.otsChainBlockTimeUtc as Date).toISOString()).toBe("2026-09-20T10:00:00.000Z");
     expect((h.row!.otsAnchoredAtUtc as Date).toISOString()).toBe("2026-09-20T10:00:00.000Z");
+    // The verifier was asked about THIS proof's committed digest and heights.
+    expect((h.chainVerifier as { calls: Array<Record<string, unknown>> }).calls[0]).toMatchObject({
+      digestHex: OTS_HASH,
+      attestationBlockHeights: [860000],
+    });
     expect(h.custody.map((c) => c.payload.otsPhase)).toEqual(["anchored_verified"]);
     expect(h.enqueued).toEqual([]);
     expect(h.reportRequests).toBe(0);
@@ -223,7 +283,22 @@ describe("valid anchored proof", () => {
     h.upgrades.push(upgradedTo(PROOF_V2));
     h.info = infoAnchored;
     await processOtsUpgrade(job() as never);
-    expect(h.row).toMatchObject({ otsStatus: "ANCHORED", otsAnchorCheck: "PROOF_STRUCTURE" });
+    // THE INCIDENT SHAPE: no verifier is configured, so the attestation is
+    // recorded as present and NOT verified. No block time exists; the
+    // recording time is stored as the attestation-recorded time.
+    expect(h.row).toMatchObject({
+      otsStatus: "ANCHORED",
+      otsAnchorCheck: "PROOF_STRUCTURE",
+      otsAttestationBlockHeight: 860000,
+      otsChainVerificationStatus: "NOT_CONFIGURED",
+      otsChainBlockTimeUtc: null,
+      otsChainVerifiedAtUtc: null,
+    });
+    expect(h.row!.otsAttestationRecordedAtUtc).toBeInstanceOf(Date);
+    expect(h.custody.map((c) => c.payload.otsPhase)).toEqual(["attestation_recorded_by_proof_structure"]);
+    expect(h.custody[0]!.payload).toMatchObject({ digestBinding: "MATCH", committedDigestMatchesFingerprint: true });
+    // No configured verifier: nothing to follow up.
+    expect(h.enqueued).toEqual([]);
   });
 
   it("duplicate delivery after the anchor is recorded does nothing at all", async () => {
@@ -472,7 +547,7 @@ describe("stale and concurrent completions", () => {
     releaseSlow();
     await Promise.all([a, b]);
     expect(h.row).toMatchObject({ otsStatus: "ANCHORED", otsAnchorCheck: "PROOF_STRUCTURE", otsProofBase64: PROOF_V2 });
-    expect(h.custody.map((c) => c.payload.otsPhase)).toEqual(["anchored_by_proof_structure"]);
+    expect(h.custody.map((c) => c.payload.otsPhase)).toEqual(["attestation_recorded_by_proof_structure"]);
   });
 });
 
@@ -580,5 +655,143 @@ describe("resolveOtsBudgetStart", () => {
         { atUtc: t("2026-08-02T00:00:00Z"), payload: null },
       ])?.toISOString(),
     ).toBe("2026-08-01T00:00:00.000Z");
+  });
+});
+
+/*
+ * DIGEST BINDING AND INDEPENDENT CHAIN VERIFICATION (2026-10-12).
+ *
+ * The upgraded proof's committed digest is read from its bytes; the chain
+ * verifier is a deterministic double — never a real Bitcoin verification.
+ */
+describe("digest binding at the upgrade boundary (real proof bytes)", () => {
+  it("a real proof committing to another digest is FAILED (PROOF_HASH_MISMATCH) and never recorded as an attestation", async () => {
+    h.row = baseRow();
+    h.upgrades.push(upgradedTo(OTHER_PROOF));
+    // Even an `ots info` that claims this record's hash cannot rescue it: the bytes decide.
+    h.info = infoAnchored;
+    h.chainVerifier = chainDouble(CHAIN_VERIFIED);
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({
+      otsStatus: "FAILED",
+      otsFailureReason: "PROOF_HASH_MISMATCH",
+      otsAnchorCheck: null,
+      otsAttestationRecordedAtUtc: null,
+      otsChainVerificationStatus: null,
+    });
+    expect(h.custody.map((c) => c.payload.otsPhase)).toEqual(["proof_hash_mismatch"]);
+    expect(h.custody[0]!.payload).toMatchObject({ digestBinding: "MISMATCH", committedDigestMatchesFingerprint: false });
+    // The verifier is never asked about a proof bound to another digest.
+    expect((h.chainVerifier as { calls: unknown[] }).calls).toEqual([]);
+  });
+
+  it("a record whose OTS hash is not its fingerprint digest is FAILED, not anchored", async () => {
+    h.row = baseRow({ fingerprintHash: "d".repeat(64) });
+    h.upgrades.push(upgradedTo(PROOF_V2));
+    h.info = infoAnchored;
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({ otsStatus: "FAILED", otsFailureReason: "PROOF_HASH_MISMATCH" });
+  });
+});
+
+describe("independent chain verification outcomes (verifier double)", () => {
+  it("UNAVAILABLE: the attestation is recorded, not verified, and the check is followed up", async () => {
+    h.row = baseRow();
+    h.upgrades.push(upgradedTo(PROOF_V2));
+    h.info = infoAnchored;
+    h.chainVerifier = chainDouble({ status: "UNAVAILABLE", reason: "node down" });
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({
+      otsStatus: "ANCHORED",
+      otsAnchorCheck: "PROOF_STRUCTURE",
+      otsChainVerificationStatus: "UNAVAILABLE",
+      otsChainVerifier: "test-double/1",
+      otsChainBlockTimeUtc: null,
+    });
+    expect(h.enqueued).toEqual(["ev-1"]);
+  });
+
+  it("INSUFFICIENT_CONFIRMATIONS: not verified yet, followed up", async () => {
+    h.row = baseRow();
+    h.upgrades.push(upgradedTo(PROOF_V2));
+    h.info = infoAnchored;
+    h.chainVerifier = chainDouble({ status: "INSUFFICIENT_CONFIRMATIONS", blockHeight: 860000, confirmations: 2, requiredConfirmations: 6 });
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({ otsAnchorCheck: "PROOF_STRUCTURE", otsChainVerificationStatus: "INSUFFICIENT_CONFIRMATIONS", otsChainBlockHeight: null });
+    expect(h.enqueued).toEqual(["ev-1"]);
+  });
+
+  it("FAILED: a configured verifier rejected the attestation — recorded with its code, never verified, not followed up", async () => {
+    h.row = baseRow();
+    h.upgrades.push(upgradedTo(PROOF_V2));
+    h.info = infoAnchored;
+    h.chainVerifier = chainDouble({ status: "FAILED", failureCode: "ATTESTATION_NOT_IN_CHAIN" });
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({
+      otsAnchorCheck: "PROOF_STRUCTURE",
+      otsChainVerificationStatus: "FAILED",
+      otsChainFailureCode: "ATTESTATION_NOT_IN_CHAIN",
+    });
+    expect(h.enqueued).toEqual([]);
+  });
+
+  const verifiedRow = () =>
+    baseRow({
+      otsStatus: "ANCHORED",
+      otsAnchorCheck: "BITCOIN_VERIFIED",
+      otsBitcoinTxid: TXID,
+      otsProofBase64: PROOF_V2,
+      otsAnchoredAtUtc: CHAIN_VERIFIED.blockTimeUtc,
+      otsAttestationRecordedAtUtc: new Date("2026-09-20T11:00:00Z"),
+      otsAttestationBlockHeight: 860000,
+      otsChainVerificationStatus: "VERIFIED",
+      otsChainCheckedAtUtc: CHAIN_VERIFIED.verifiedAtUtc,
+      otsChainVerifiedAtUtc: CHAIN_VERIFIED.verifiedAtUtc,
+      otsChainBlockHeight: 860000,
+      otsChainBlockHash: CHAIN_VERIFIED.blockHash,
+      otsChainBlockTimeUtc: CHAIN_VERIFIED.blockTimeUtc,
+      otsChainConfirmations: 12,
+      otsChainVerifier: "test-double/1",
+      otsChainFailureCode: null,
+    });
+
+  it("a chain-verified anchor is not re-checked: the evidence is the conclusion", async () => {
+    h.row = verifiedRow();
+    h.chainVerifier = chainDouble({ status: "UNAVAILABLE", reason: "node down" });
+    const before = { ...h.row };
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toEqual(before);
+    expect(h.upgrades.length).toBe(0);
+  });
+
+  it("a recorded attestation is re-checked once a verifier is configured, and the evidence is recorded", async () => {
+    h.row = baseRow({
+      otsStatus: "ANCHORED",
+      otsAnchorCheck: "PROOF_STRUCTURE",
+      otsBitcoinTxid: TXID,
+      otsProofBase64: PROOF_V2,
+      otsAnchoredAtUtc: new Date("2026-10-08T17:22:20.958Z"),
+    });
+    h.upgrades.push(upgradedTo(PROOF_V2));
+    h.info = infoAnchored;
+    h.chainVerifier = chainDouble(CHAIN_VERIFIED);
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({ otsAnchorCheck: "BITCOIN_VERIFIED", otsChainVerificationStatus: "VERIFIED" });
+    // The legacy recording time is kept as the attestation-recorded time.
+    expect((h.row!.otsAttestationRecordedAtUtc as Date).toISOString()).toBe("2026-10-08T17:22:20.958Z");
+    expect(h.custody.map((c) => c.payload.otsPhase)).toEqual(["chain_verified"]);
+  });
+
+  it("without a configured verifier a recorded attestation is not re-checked", async () => {
+    h.row = baseRow({
+      otsStatus: "ANCHORED",
+      otsAnchorCheck: "PROOF_STRUCTURE",
+      otsBitcoinTxid: TXID,
+      otsProofBase64: PROOF_V2,
+      otsAnchoredAtUtc: new Date("2026-10-08T17:22:20.958Z"),
+    });
+    const before = { ...h.row };
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toEqual(before);
   });
 });
