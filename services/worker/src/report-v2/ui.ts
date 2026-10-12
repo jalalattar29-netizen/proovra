@@ -359,7 +359,7 @@ export function renderVerificationMatrix(matrix: VerificationMatrix): string {
               <div class="trust-signal-content">
                 <div class="trust-signal-top">
                   <div class="trust-signal-label">${escapeHtml(row.label)}</div>
-                  <div class="trust-signal-score">${escapeHtml(VERIFICATION_STATUS_LABELS[row.status])}</div>
+                  <div class="trust-signal-score">${escapeHtml(row.statusLabel ?? VERIFICATION_STATUS_LABELS[row.status])}</div>
                 </div>
                 <div class="trust-signal-detail">${escapeHtml(row.statement)}</div>
               </div>

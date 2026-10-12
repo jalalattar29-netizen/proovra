@@ -129,9 +129,10 @@ test("public Verify (basic tier): verified only with the chain check; otherwise 
       // The only anchor time is the VERIFIED block time, never a recording time.
       anchoredAtUtc: BLOCK_TIME,
       truthState: "CHAIN_VERIFIED",
-      headline: "Bitcoin attestation independently verified",
-      detail:
-        "The proof's commitment was verified against the Bitcoin blockchain. Block 970507, 6 confirmations, verified 2026-09-20T11:00:00.000Z.",
+      // The public summary: one status, one sentence. The block evidence is
+      // technical material (chain, below).
+      headline: "Verified",
+      detail: "The proof was independently verified against the Bitcoin blockchain.",
       proofRecordedAtUtc: null,
       bitcoinTxid: TXID,
       bitcoinTxidVerified: true,
@@ -155,8 +156,8 @@ test("public Verify (basic tier): verified only with the chain check; otherwise 
   assert.equal(incident.anchoredAtUtc, null);
   assert.equal(incident.proofRecordedAtUtc, AT);
   assert.equal(incident.truthState, "ATTESTATION_PRESENT_NOT_VERIFIED");
-  assert.equal(incident.headline, "Bitcoin attestation present");
-  assert.equal(incident.detail, "Not independently verified against the Bitcoin blockchain");
+  assert.equal(incident.headline, "Attestation recorded");
+  assert.equal(incident.detail, "Independent Bitcoin verification was not performed.");
   assert.equal(incident.bitcoinTxid, TXID);
   assert.equal(incident.bitcoinTxidVerified, false);
   // (2026-09-29) A historical anchor with NO recorded check does not claim a
@@ -189,13 +190,13 @@ test("trust decision: a txid or anchor time reads anchored-not-checked; only a c
       custodyEvents: [],
     });
   const verified = decide("BITCOIN_VERIFIED", EVIDENCE_CHAIN);
-  assert.equal(verified.anchoringStatusLabel, "Bitcoin attestation independently verified against the Bitcoin blockchain");
+  assert.equal(verified.anchoringStatusLabel, "The proof was independently verified against the Bitcoin blockchain.");
   assert.equal(verified.signals.find((s) => s.key === "bitcoin_anchoring").state, "PASSED");
   for (const [check, extra] of [[null, {}], ["PROOF_STRUCTURE", {}], ["BITCOIN_VERIFIED", {}]]) {
     const d = decide(check, extra);
     const anchoring = d.signals.find((s) => s.key === "bitcoin_anchoring");
     // An attested proof is PRESENT, never passed, and carries no score at all.
-    assert.equal(d.anchoringStatusLabel, "Bitcoin attestation present; not independently verified against the Bitcoin blockchain");
+    assert.equal(d.anchoringStatusLabel, "Attestation recorded");
     assert.equal(anchoring.state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
     assert.notEqual(anchoring.status, "passed");
     assert.equal("points" in anchoring, false);

@@ -326,9 +326,7 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", ()
       /Bitcoin transaction detected; anchoring verification pending/,
     );
     // Reverts to the pre-existing PENDING wording for compact surfaces.
-    expect(label).toBe(
-      "OpenTimestamps proof present; Bitcoin anchoring pending",
-    );
+    expect(label).toBe("Pending");
   });
 
   it("ANCHORED + valid txid is NOT 'verified' unless the anchor was verified against the chain (2026-09-29)", () => {
@@ -338,7 +336,7 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", ()
         bitcoinTxid: TXID,
         anchoredAtUtc: "2026-09-20T10:00:00.000Z",
       }),
-    ).toBe("Bitcoin attestation present; not independently verified against the Bitcoin blockchain");
+    ).toBe("Attestation recorded");
     // (2026-10-12) A recorded check without its chain evidence is not verified either.
     expect(
       mapOtsStatusPublicLabelWithTxid({
@@ -347,7 +345,7 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", ()
         anchoredAtUtc: "2026-09-20T10:00:00.000Z",
         anchorCheck: "BITCOIN_VERIFIED",
       }),
-    ).toBe("Bitcoin attestation present; not independently verified against the Bitcoin blockchain");
+    ).toBe("Attestation recorded");
   });
 
   it("ANCHORED + no txid → never falsely 'verified'", () => {
@@ -381,7 +379,6 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", ()
             evidence: { otsHash: null, otsUpgradedAtUtc: null, otsProofPresent: true, ...ev },
           } as never),
         } as never,
-        (ev.otsFailureReason as string | undefined) ?? null,
       );
     const verified = callout({ otsStatus: "ANCHORED", otsAnchoredAtUtc: at, otsAnchorCheck: "BITCOIN_VERIFIED", otsBitcoinTxid: TX, ...chain });
     const unchecked = callout({ otsStatus: "ANCHORED", otsAnchoredAtUtc: at, otsAnchorCheck: "PROOF_STRUCTURE", otsBitcoinTxid: TX });
@@ -391,18 +388,16 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", ()
     const pending = callout({ otsStatus: "PENDING" });
     const failed = callout({ otsStatus: "FAILED", otsFailureReason: "PROOF_HASH_MISMATCH" });
     const none = callout({ otsStatus: null, otsProofPresent: false });
-    expect(verified).toMatchObject({ title: "Independently verified", tone: "success" });
-    expect(verified.body).toMatch(/block 860000 .*9 confirmations/);
+    // The shared card: one status, one sentence; the block evidence is technical.
+    expect(verified).toMatchObject({ title: "Verified", tone: "success", body: "The proof was independently verified against the Bitcoin blockchain." });
     // THE INCIDENT: an attestation read from the proof is never "anchored" and never green.
-    expect(unchecked).toMatchObject({ title: "Attested — not verified", tone: "neutral" });
-    expect(unchecked.body).toMatch(/not independently verified against the Bitcoin blockchain/);
+    expect(unchecked).toMatchObject({ title: "Attestation recorded", tone: "neutral", body: "Independent Bitcoin verification was not performed." });
     expect(unchecked.body).not.toMatch(/anchored/i);
     expect(checkWithoutEvidence.tone).not.toBe("success");
-    expect(unavailable.title).toBe("Verifier unavailable");
-    expect(chainFailed).toMatchObject({ title: "Did not verify", tone: "danger" });
+    expect(unavailable).toMatchObject({ title: "Attestation recorded", body: "Independent verification is currently unavailable." });
+    expect(chainFailed.title).toBe("Unavailable");
     expect(pending.title).toBe("Pending");
-    expect(failed.title).toBe("Proof unusable");
-    expect(failed.body).toMatch(/does not commit to this record's fingerprint/);
+    expect(failed.title).toBe("Unavailable");
     expect(none.title).toBe("Unavailable");
     for (const c of [verified, unchecked, unavailable, chainFailed, pending, failed, none]) {
       expect(c.title.length).toBeLessThanOrEqual(30);

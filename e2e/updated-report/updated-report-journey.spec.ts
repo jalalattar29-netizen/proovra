@@ -91,8 +91,11 @@ const STATUS_WORDS: Record<string, string> = {
   "Not checked": "NOT_CHECKED",
   "Not applicable": "NOT_APPLICABLE",
   Unavailable: "UNAVAILABLE",
+  // The OpenTimestamps row prints its public word (2026-10-12).
+  Pending: "NOT_CHECKED",
+  "Attestation recorded": "NOT_CHECKED",
 };
-const MATRIX_STATUS = "(Verified|Failed|Not checked|Not applicable|Unavailable)";
+const MATRIX_STATUS = "(Verified|Failed|Not checked|Not applicable|Unavailable|Pending|Attestation recorded)";
 function trustStatements(text: string) {
   const row = (label: string) => {
     // A statement runs to the next row's mark (or the page's closing reviewer action).
@@ -100,7 +103,7 @@ function trustStatements(text: string) {
     return { status: m?.[1] ? (STATUS_WORDS[m[1]] ?? null) : null, statement: m?.[2]?.replace(/\s+/g, " ").trim() ?? null };
   };
   const tsa = row("Trusted timestamp \\(RFC 3161\\)");
-  const ots = row("OpenTimestamps / Bitcoin anchoring");
+  const ots = row("OpenTimestamps");
   return { tsaStatus: tsa.status, tsaStatement: tsa.statement, otsStatus: ots.status, otsStatement: ots.statement };
 }
 
@@ -401,7 +404,7 @@ test.describe("updated report — the real stack, end to end", () => {
     expect(claims2.tsaStatus).toBe("VERIFIED");
     expect(claims2.tsaStatement ?? "").toMatch(/^RFC 3161 timestamp validated\./);
     expect(claims2.otsStatus).toBe("NOT_CHECKED");
-    expect(claims2.otsStatement ?? "").toMatch(/Bitcoin attestation present; not independently verified against the Bitcoin blockchain/);
+    expect(claims2.otsStatement ?? "").toBe("Independent Bitcoin verification was not performed.");
     expect(claims2.otsStatement ?? "").not.toMatch(/does not match|concern|review required|pending|not recorded/i);
 
     // v1 is untouched: same bytes, same hashes, still downloadable.

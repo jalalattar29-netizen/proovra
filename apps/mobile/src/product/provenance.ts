@@ -105,12 +105,13 @@ const TSA_LABELS: Record<string, string> = {
 };
 const OTS_LABELS: Record<string, string> = {
   NOT_REQUESTED: "Not requested",
-  SUBMITTED: "Submitted to OpenTimestamps calendars; Bitcoin anchoring not yet attempted",
-  PENDING: "Bitcoin anchoring pending",
-  ANCHORED_UNVERIFIED: "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
-  VERIFIED: "Bitcoin attestation independently verified against the Bitcoin blockchain",
-  FAILED: "Anchoring failed",
-  STALE_UNKNOWN: "Anchoring state unknown (pending longer than expected)",
+  // The public OpenTimestamps vocabulary (shared OTS_PROOF_STATUS_LABELS).
+  SUBMITTED: "Pending",
+  PENDING: "Pending",
+  ANCHORED_UNVERIFIED: "Attestation recorded",
+  VERIFIED: "Verified",
+  FAILED: "Unavailable",
+  STALE_UNKNOWN: "Unavailable",
 };
 function rfc3161Text(p: ProvenanceView, fmt: (iso: string) => string): string {
   const at = p.rfc3161AppliedAtUtc ? ` · ${fmt(p.rfc3161AppliedAtUtc)}` : "";

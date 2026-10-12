@@ -107,10 +107,10 @@ describe("Public Verify — matrix panels (old API without verificationMatrix)",
     );
     expect(getByTestId("verify-matrix-summary").textContent).toMatch(/“Not checked” was not independently verified/);
     expect(getByTestId("verify-matrix-limitation").textContent).toBe(VERIFICATION_LIMITATION);
-    // An unchecked OpenTimestamps proof reads NOT_CHECKED.
-    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("Not checked");
+    // An unchecked OpenTimestamps proof reads its public word and one sentence.
+    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("Attestation recorded");
     expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).toMatch(
-      /No independent Bitcoin verification result is recorded/,
+      /Independent Bitcoin verification was not performed./,
     );
     expect(getByTestId("verify-matrix-status-file_integrity").textContent).toBe("Verified");
     // The old wire summary and reviewer action never reach the page.
@@ -181,8 +181,8 @@ describe("Public Verify — BASIC tier renders the matrix", () => {
     expectNoRetiredClaims(container.textContent ?? "");
     expect(getByTestId("verify-matrix-summary").textContent).toMatch(/custody checks passed/);
     expect(getByTestId("verify-matrix-limitation").textContent).toBe(VERIFICATION_LIMITATION);
-    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).toMatch(/Not checked/);
-    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).not.toMatch(/VERIFIED/);
+    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).toMatch(/Attestation recorded/);
+    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).not.toMatch(/VERIFIED|Not checked/);
   });
 
   it("renders no matrix section when an older API sent none", () => {

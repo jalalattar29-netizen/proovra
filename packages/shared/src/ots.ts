@@ -204,28 +204,28 @@ export function otsClaimBadge(claim: OtsAnchorClaim): {
 } {
   switch (claim) {
     case "VERIFIED":
-      return { label: "BITCOIN · INDEPENDENTLY VERIFIED", tone: "success" };
+      return { label: "VERIFIED", tone: "success" };
     case "ANCHORED_NOT_CHECKED":
-      return { label: "ATTESTATION PRESENT · NOT VERIFIED", tone: "info" };
+      return { label: "ATTESTATION RECORDED", tone: "info" };
     case "PENDING":
       return { label: "PENDING", tone: "warning" };
     case "FAILED":
-      return { label: "FAILED", tone: "warning" };
+      return { label: "UNAVAILABLE", tone: "warning" };
     case "UNAVAILABLE":
-      return { label: "DISABLED", tone: "neutral" };
+      return { label: "UNAVAILABLE", tone: "neutral" };
     case "NOT_CONFIGURED":
       return { label: "Unavailable", tone: "neutral" };
   }
 }
 
+/** The customer-facing status word for a claim (see ots-truth OTS_PUBLIC_STATUSES). */
 export const OTS_ANCHOR_CLAIM_LABELS: Readonly<Record<OtsAnchorClaim, string>> = {
-  VERIFIED: "Bitcoin attestation independently verified against the Bitcoin blockchain",
-  ANCHORED_NOT_CHECKED:
-    "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
-  PENDING: "OpenTimestamps proof present; Bitcoin anchoring pending",
-  FAILED: "OpenTimestamps anchoring failed",
-  UNAVAILABLE: "OpenTimestamps unavailable",
-  NOT_CONFIGURED: "OpenTimestamps not configured",
+  VERIFIED: "Verified",
+  ANCHORED_NOT_CHECKED: "Attestation recorded",
+  PENDING: "Pending",
+  FAILED: "Unavailable",
+  UNAVAILABLE: "Unavailable",
+  NOT_CONFIGURED: "Unavailable",
 };
 
 /**

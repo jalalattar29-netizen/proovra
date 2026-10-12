@@ -285,7 +285,8 @@ describe("C-1 — cover PDF compactValue is derived from the canonical state", (
     // sees the shared words for that status (VERIFICATION_STATUS_LABELS), never
     // the raw code.
     const src = read(COVER);
-    expect(src).toMatch(/value:\s*VERIFICATION_STATUS_LABELS\[row\.status\]/);
+    // The OpenTimestamps row carries its public word (statusLabel) instead.
+    expect(src).toMatch(/value:\s*row\.statusLabel \?\? VERIFICATION_STATUS_LABELS\[row\.status\]/);
     expect(src).toMatch(/verificationStatusTone\(row\.status\)/);
     expect(src).not.toMatch(/compactValue\s*=\s*"Verified"/);
     expect(src).not.toMatch(/"Anchored"/);

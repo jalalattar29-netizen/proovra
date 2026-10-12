@@ -25,6 +25,7 @@ import {
   maskPublicEmailsInText,
   OTS_FAILURE_CODE_LABELS,
   OTS_FAILURE_CODES,
+  OTS_TRUTH_SENTENCES,
   storedBytesCheckStatusOf,
   VERIFICATION_STATUS_LABELS,
   type VerificationMatrix,
@@ -1508,14 +1509,11 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
   if (coreExplicitlyVerified && failedSignals === 0 && !timestampUnavailable) {
     return {
       status: "verified",
+      // The OpenTimestamps card states its own status once; the summary does not repeat it.
       actionRequired:
-        publicAnchoringPending
-          ? "Read each signal's status in the verification matrix, and separately assess authorship, factual context, relevance, and legal admissibility. Bitcoin anchoring is not independently verified yet; recheck it later if it matters to the review."
-          : "Read each signal's status in the verification matrix, and separately assess authorship, factual context, relevance, and legal admissibility.",
+        "Read each signal's status in the verification matrix, and separately assess authorship, factual context, relevance, and legal admissibility.",
       legalStatement:
-        publicAnchoringPending
-          ? "The available cryptographic, custody, timestamping, and storage signals returned in this verification response support the recorded integrity state. Independent public anchoring is still pending and must not be treated as finalized publication. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content."
-          : "The available cryptographic, custody, timestamping, and storage signals returned in this verification response support the recorded integrity state. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content.",
+        "The available cryptographic, custody, timestamping, and storage signals returned in this verification response support the recorded integrity state. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content.",
       tone: publicAnchoringPending ? "warning" : "success",
     };
   }
@@ -2586,6 +2584,16 @@ function extractEvidenceContent(data: VerifyResponse) {
   };
 }
 
+/**
+ * (2026-10-12) A stored OTS status in the public vocabulary. "Verified" only
+ * with an independently verified Bitcoin time; a raw status is never shown.
+ */
+function otsPublicWord(status: string | null | undefined, chainVerified: boolean): string {
+  const s = String(status ?? "").toUpperCase();
+  if (s === "ANCHORED") return chainVerified ? "Verified" : "Attestation recorded";
+  return s === "PENDING" ? "Pending" : "Unavailable";
+}
+
 function isAccessEventType(eventType?: string | null): boolean {
   return isAccessCustodyEventType(eventType);
 }
@@ -3502,7 +3510,7 @@ const executiveBadges = useMemo<
             : "neutral";
 
       return {
-        label: `${row.label}: ${VERIFICATION_STATUS_LABELS[row.status]}`,
+        label: `${row.label}: ${row.statusLabel ?? VERIFICATION_STATUS_LABELS[row.status]}`,
         tone,
         show: true,
       };
@@ -4957,7 +4965,7 @@ Reviewer Action
         />
         <SummaryField
           label="OTS Status At Generation"
-          value={verificationSnapshot.otsStatusAtGeneration ?? "Not recorded in snapshot"}
+          value={otsPublicWord(verificationSnapshot.otsStatusAtGeneration, false)}
         />
         <SummaryField
           label="Report Signature"
@@ -5036,7 +5044,7 @@ Reviewer Action
             color: VERIFY_BRAND.ink,
           }}
         >
-          OpenTimestamps public anchoring is pending. This does not invalidate recorded integrity, TSA timestamping, signature, custody, or Object Lock.
+          {OTS_TRUTH_SENTENCES.PENDING}
         </div>
       ) : null}
 
@@ -5049,7 +5057,7 @@ Reviewer Action
       >
         <SummaryField
           label="Current OTS Status"
-          value={liveAnchoring?.currentOtsStatus ?? otsStatus ?? "Not recorded"}
+          value={otsPublicWord(liveAnchoring?.currentOtsStatus ?? otsStatus, Boolean(liveAnchoring?.otsAnchoredAtUtc))}
         />
         <SummaryField
           label="Bitcoin Anchor Time (independently verified)"

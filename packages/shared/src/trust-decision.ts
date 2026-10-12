@@ -165,21 +165,19 @@ export function getTrustSignalPresentationLabel(
 
 function getAnchoringStateLabel(state: TrustAnchoringState): string {
   switch (state) {
+    // The public OpenTimestamps vocabulary (ots-truth.ts OTS_PUBLIC_STATUSES).
     case "finalized":
-      return "Bitcoin attestation independently verified against the Bitcoin blockchain";
+      return "Verified";
     case "present_not_verified":
-      return "Bitcoin attestation present; not independently verified against the Bitcoin blockchain";
-    case "stale":
-      return "Anchoring state unknown (pending longer than expected)";
-    case "pending":
-      return "Bitcoin anchoring pending";
     case "degraded":
-      return "Bitcoin anchoring recorded with limitations";
+      return "Attestation recorded";
+    case "pending":
+      return "Pending";
+    case "stale":
     case "failed":
-      return "OpenTimestamps anchoring failed";
     case "unavailable":
     default:
-      return "Anchoring not recorded";
+      return "Unavailable";
   }
 }
 
@@ -1071,13 +1069,9 @@ export function deriveTrustPresentation(
 
   const reviewerAction = criticalFailed
     ? "Do not rely on the preserved bytes until the failed file-integrity, record-signature or custody check is reviewed."
-    : anchoringPresentNotVerified
-      ? "To rely on Bitcoin anchoring, verify the OpenTimestamps proof against the Bitcoin chain yourself; PROOVRA has not checked it against the chain."
-      : publicAnchoringPending || anchoring.state === "STALE"
-        ? "Bitcoin anchoring has not completed; recheck it later if independent Bitcoin anchoring is required."
-        : timestamp.state !== "PASSED"
-          ? "The RFC 3161 timestamp is not validated; do not rely on it as a trusted timestamp."
-          : "Check each signal's status and the technical appendix before relying on this record for a specific purpose.";
+    : timestamp.state !== "PASSED"
+      ? "The RFC 3161 timestamp is not validated; do not rely on it as a trusted timestamp."
+      : "Check each signal's status and the technical appendix before relying on this record for a specific purpose.";
 
   return {
     tone,
@@ -1160,13 +1154,14 @@ const TRUST_LAYER_STATE_LABELS: Readonly<
     FAILED: "Validation failed",
     UNAVAILABLE: "Not obtained",
   },
+  // The customer-facing OTS vocabulary (ots-truth OTS_PUBLIC_STATUSES).
   bitcoin_anchoring: {
-    PASSED: "Independently verified",
-    PRESENT_NOT_INDEPENDENTLY_VERIFIED: "Attestation present, not verified",
+    PASSED: "Verified",
+    PRESENT_NOT_INDEPENDENTLY_VERIFIED: "Attestation recorded",
     PENDING: "Pending",
-    STALE: "State unknown",
-    FAILED: "Failed",
-    UNAVAILABLE: "Not recorded",
+    STALE: "Unavailable",
+    FAILED: "Unavailable",
+    UNAVAILABLE: "Unavailable",
   },
   immutable_storage: {
     PASSED: "Storage protected",

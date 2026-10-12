@@ -112,12 +112,12 @@ export function otsProofStatusIsAnchored(status: OtsProofStatus): boolean {
 
 export const OTS_PROOF_STATUS_LABELS: Readonly<Record<OtsProofStatus, string>> = {
   NOT_REQUESTED: "Not requested",
-  SUBMITTED: "Submitted to OpenTimestamps calendars; Bitcoin anchoring not yet attempted",
-  PENDING: "Bitcoin anchoring pending",
-  ANCHORED_UNVERIFIED: "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
-  VERIFIED: "Bitcoin attestation independently verified against the Bitcoin blockchain",
-  FAILED: "Anchoring failed",
-  STALE_UNKNOWN: "Anchoring state unknown (pending longer than expected)",
+  SUBMITTED: "Pending",
+  PENDING: "Pending",
+  ANCHORED_UNVERIFIED: "Attestation recorded",
+  VERIFIED: "Verified",
+  FAILED: "Unavailable",
+  STALE_UNKNOWN: "Unavailable",
 };
 
 /** Short badge text; green is reserved for VERIFIED. */
@@ -125,12 +125,12 @@ export const OTS_PROOF_STATUS_BADGES: Readonly<
   Record<OtsProofStatus, { label: string; tone: "success" | "warning" | "neutral" | "info" }>
 > = {
   NOT_REQUESTED: { label: "Not requested", tone: "neutral" },
-  SUBMITTED: { label: "Submitted", tone: "info" },
+  SUBMITTED: { label: "Pending", tone: "info" },
   PENDING: { label: "Pending", tone: "warning" },
-  ANCHORED_UNVERIFIED: { label: "Attestation present · not verified", tone: "info" },
-  VERIFIED: { label: "Independently verified", tone: "success" },
-  FAILED: { label: "Failed", tone: "warning" },
-  STALE_UNKNOWN: { label: "State unknown", tone: "neutral" },
+  ANCHORED_UNVERIFIED: { label: "Attestation recorded", tone: "info" },
+  VERIFIED: { label: "Verified", tone: "success" },
+  FAILED: { label: "Unavailable", tone: "warning" },
+  STALE_UNKNOWN: { label: "Unavailable", tone: "neutral" },
 };
 
 export function parseOtsProofStatus(value: unknown): OtsProofStatus | null {

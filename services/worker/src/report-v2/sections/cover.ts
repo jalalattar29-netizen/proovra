@@ -10,25 +10,6 @@ const coverHeaderLockupUrl = reportAssetDataUrl("report-header.png");
 // it. The cover header itself uses the inline lockup image below.
 void coverBrandIconUrl;
 
-function findRowValue(
-  rows: Array<{ label: string; value: string }>,
-  label: string,
-  fallback = "Not recorded"
-): string {
-  return rows.find((row) => row.label === label)?.value ?? fallback;
-}
-
-function hasMeaningfulValue(value: string): boolean {
-  const normalized = value.trim().toLowerCase();
-  return Boolean(
-    normalized &&
-      normalized !== "n/a" &&
-      normalized !== "not recorded" &&
-      normalized !== "not reported" &&
-      normalized !== "off"
-  );
-}
-
 function titleCaseEvidenceType(value: string): string {
   if (!value.trim()) return "Digital evidence record";
 
@@ -167,8 +148,6 @@ export function renderCoverSection(vm: ReportViewModel): string {
     vm.meta.publicEvidenceTypeLabel || "Digital evidence record"
   );
 
-  const anchoringLabel = findRowValue(vm.storageRows, "Bitcoin Anchoring Status");
-
   const leadItemLabel = safe(
     vm.primaryContentItem?.originalFileName || vm.primaryContentItem?.label,
     "No identified lead item"
@@ -280,7 +259,8 @@ export function renderCoverSection(vm: ReportViewModel): string {
                 const tone = verificationStatusTone(row.status);
                 return renderDecisionIndicator({
                   label: row.label,
-                  value: VERIFICATION_STATUS_LABELS[row.status],
+                  // The OpenTimestamps row carries its public word (Pending, Attestation recorded, …).
+                  value: row.statusLabel ?? VERIFICATION_STATUS_LABELS[row.status],
                   tone: tone === "neutral" ? "warning" : tone,
                 });
               })
@@ -343,16 +323,6 @@ export function renderCoverSection(vm: ReportViewModel): string {
               <div class="cover-meta-label">Verification Status</div>
               <div class="cover-meta-value">${escapeHtml(vm.verificationStatusLabel)}</div>
             </div>
-            ${
-              hasMeaningfulValue(anchoringLabel)
-                ? `
-                  <div class="cover-meta-card">
-                    <div class="cover-meta-label">Anchoring</div>
-                    <div class="cover-meta-value">${escapeHtml(anchoringLabel)}</div>
-                  </div>
-                `
-                : ""
-            }
 
             <div class="cover-meta-card">
               <div class="cover-meta-label">Evidence Status At Report Generation</div>

@@ -58,6 +58,7 @@ import {
   resolveReviewerArtifactRole,
   resolveEffectiveOtsStatus,
   resolveRecordOtsTruth,
+  boundOtsProofBase64,
   // Phase 2 — canonical legal boundary so the public-verify response
   // emits the same boundary copy as the snapshot outputs (Report PDF
   // and Verification Package) will in Phase 3.
@@ -1973,8 +1974,28 @@ function captureIdentityTrustInput(
   };
 }
 
+/**
+ * (2026-10-12) The stored OpenTimestamps proof, only when it commits to the
+ * record's fingerprint digest. A proof bound to another digest, or unreadable,
+ * is a cryptographic-integrity failure: Public Verify never presents it as
+ * attached, anchored or verified, and never hands its bytes out.
+ */
+function usableOtsProofBase64(evidence: {
+  otsProofBase64?: string | null;
+  fingerprintHash?: string | null;
+  otsHash?: string | null;
+}): string | null {
+  return boundOtsProofBase64({
+    proofBase64: evidence.otsProofBase64 ?? null,
+    fingerprintHash: evidence.fingerprintHash ?? null,
+    otsHash: evidence.otsHash ?? null,
+  });
+}
+
 function liveTrustFactsFor(
   evidence: {
+    fingerprintHash?: string | null;
+    otsHash?: string | null;
     tsaFailureCode?: string | null;
     tsaTokenBase64?: string | null;
     tsaValidatedAtUtc?: Date | null;
@@ -1991,7 +2012,9 @@ function liveTrustFactsFor(
     tsaFailureCode: evidence.tsaFailureCode ?? null,
     tsaTokenPresent: Boolean(evidence.tsaTokenBase64),
     tsaValidatedAtUtc: evidence.tsaValidatedAtUtc?.toISOString() ?? null,
-    otsProofPresent: Boolean(evidence.otsProofBase64),
+    otsProofPresent: Boolean(usableOtsProofBase64(evidence)),
+    // The bytes go to the decision so it binds them itself (PROOF_INVALID).
+    otsProofBase64: evidence.otsProofBase64 ?? null,
     otsUpgradedAtUtc: evidence.otsUpgradedAtUtc?.toISOString() ?? null,
     otsSubmittedAtUtc: ots.submittedAtUtc,
     otsAnchorCheckedAtUtc: ots.anchorCheckedAtUtc,
@@ -2136,16 +2159,12 @@ function mapOtsStatusLabel(status: string | null | undefined): string {
   // pass). Use mapOtsStatusLabelWithTxid() in surfaces that have the txid.
   const normalized = normalizeOtsStatus(status);
   switch (normalized) {
+    // The public OpenTimestamps vocabulary (shared OTS_PUBLIC_STATUSES).
     case "ANCHORED":
-      return "OpenTimestamps proof present; Bitcoin anchoring pending";
     case "PENDING":
-      return "OpenTimestamps proof present; Bitcoin anchoring pending";
-    case "FAILED":
-      return "OpenTimestamps anchoring failed";
-    case "DISABLED":
-      return "OpenTimestamps unavailable";
+      return "Pending";
     default:
-      return "OpenTimestamps not configured";
+      return "Unavailable";
   }
 }
 
@@ -4728,7 +4747,7 @@ function buildTechnicalMaterials(params: {
     tsaInputDigestHex: params.evidence.tsaInputDigestHex,
     tsaInputKind: params.evidence.tsaInputKind,
     legacyMode: !params.evidence.tsaInputDigestHex,
-    otsProofPresent: Boolean(params.evidence.otsProofBase64),
+    otsProofPresent: Boolean(usableOtsProofBase64(params.evidence)),
   };
 }
 
@@ -10233,7 +10252,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
                 reportedBlockHeight: otsTruth.reported?.blockHeight ?? null,
                 chainVerification: otsTruth.chain,
                 chainCheck: otsTruth.chainCheck,
-                proofPresent: Boolean(evidence.otsProofBase64),
+                proofPresent: Boolean(usableOtsProofBase64(evidence)),
                 hashMatches: otsHashMatches,
                 // The verified Bitcoin block time only — never a recording time.
                 anchoredAtUtc: otsTruth.verifiedAnchorTimeUtc,
@@ -10404,7 +10423,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
                   tsaMessageImprint: evidence.tsaMessageImprint,
                   tsaInputDigestHex: evidence.tsaInputDigestHex,
                   tsaInputKind: evidence.tsaInputKind,
-                  otsProofBase64: evidence.otsProofBase64,
+                  otsProofBase64: usableOtsProofBase64(evidence),
                 },
                 publicKeyPem: signingKey?.publicKeyPem ?? null,
                 partsCount: parts.length,
@@ -14460,7 +14479,7 @@ const technicalMaterials = buildTechnicalMaterials({
     tsaMessageImprint: evidence.tsaMessageImprint,
     tsaInputDigestHex: evidence.tsaInputDigestHex,
     tsaInputKind: evidence.tsaInputKind,
-    otsProofBase64: evidence.otsProofBase64,
+    otsProofBase64: usableOtsProofBase64(evidence),
   },
   publicKeyPem: signingKey.publicKeyPem,
   partsCount: parts.length,
@@ -14883,7 +14902,7 @@ timestampedDigestNote:
         ? evidence.otsUpgradedAtUtc.toISOString()
         : null,
       failureReason: boundedOtsFailureCode(evidence.otsFailureReason),
-      proofPresent: Boolean(evidence.otsProofBase64),
+      proofPresent: Boolean(usableOtsProofBase64(evidence)),
       hashMatchesFingerprintHash: otsHashMatches,
       anchorCheck: evidence.otsAnchorCheck ?? null,
       anchorClaim: otsTruth.claim,
@@ -14892,7 +14911,7 @@ timestampedDigestNote:
         status: evidence.otsStatus,
         anchoredAtUtc: effectiveOtsAnchoredAtUtc,
         anchorCheck: evidence.otsAnchorCheck,
-        proofPresent: Boolean(evidence.otsProofBase64),
+        proofPresent: Boolean(usableOtsProofBase64(evidence)),
         bitcoinTxid: evidence.otsBitcoinTxid ?? null,
         upgradedAtUtc: evidence.otsUpgradedAtUtc,
         submittedAtUtc: evidence.signedAtUtc,

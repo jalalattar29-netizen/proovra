@@ -31,7 +31,7 @@ import {
   type LucideIcon,
   Trash2,
 } from "lucide-react";
-import { getReviewerArtifactRoleLabel } from "@proovra/shared";
+import { OTS_TRUTH_SENTENCES, OTS_TRUTH_STATUS_LINES, getReviewerArtifactRoleLabel } from "@proovra/shared";
 import type { EvidenceOutputState } from "@proovra/shared";
 import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -571,54 +571,21 @@ export function describeOtsStatus(
 ): { label: string; detail: string } {
   const ots = workspace.preservationMatrix.ots;
 
+  // (2026-10-12) The OpenTimestamps card: the public word and one sentence.
+  // "Verified" only for a recorded independent chain check.
   switch (ots.effectiveStatus) {
     case "ANCHORED":
-      return {
-        label: "Anchored",
-        detail: "OpenTimestamps anchoring is recorded for this evidence item.",
-      };
+      return ots.anchorClaim === "VERIFIED"
+        ? { label: OTS_TRUTH_STATUS_LINES.CHAIN_VERIFIED, detail: OTS_TRUTH_SENTENCES.CHAIN_VERIFIED }
+        : { label: OTS_TRUTH_STATUS_LINES.ATTESTATION_PRESENT_NOT_VERIFIED, detail: OTS_TRUTH_SENTENCES.ATTESTATION_PRESENT_NOT_VERIFIED };
     case "FAILED":
-      return {
-        label: "Failed",
-        detail:
-          ots.failureReason || "OpenTimestamps anchoring failed for this evidence item.",
-      };
+      return { label: OTS_TRUTH_STATUS_LINES.PROOF_INVALID, detail: OTS_TRUTH_SENTENCES.PROOF_INVALID };
     case "DISABLED":
-      return {
-        label: "Disabled",
-        detail: "OpenTimestamps anchoring is disabled for this evidence item.",
-      };
-    case "PENDING":
-      return {
-        label: "Pending public anchoring",
-        detail:
-          ots.pendingReason ||
-          "OpenTimestamps proof is recorded, but public anchoring has not finalized yet.",
-      };
+      return { label: OTS_TRUTH_STATUS_LINES.NOT_REQUESTED, detail: OTS_TRUTH_SENTENCES.NOT_REQUESTED };
     default:
-      /*
-       * OTS INTEGRITY DECOUPLING (2026-09-09) — NULL IS "NOT YET", NOT "NOT
-       * FOR YOU".
-       *
-       * This said "Not configured", which reads as a feature that is switched
-       * off for this record. That was defensible while OpenTimestamps was
-       * stamped inside the report job — a record on a plan without reports
-       * genuinely was never going to be anchored — and it is the sentence a
-       * Free customer saw while Pricing promised them OpenTimestamps.
-       *
-       * Every finalized record now enters the lifecycle on every plan, so an
-       * absent state means the stamp has not run YET: the record is between
-       * finalization and its first anchoring attempt, or it predates the
-       * decoupling and is waiting on reconciliation. Both are transitional,
-       * and neither is a configuration.
-       */
-      return {
-        label: "Not yet anchored",
-        detail:
-          "OpenTimestamps anchoring has not started for this evidence item yet. " +
-          "It is part of the integrity layer on every plan and does not depend " +
-          "on reports or verification packages.",
-      };
+      // PENDING, or not stamped YET: every finalized record enters the
+      // lifecycle on every plan (OTS integrity decoupling, 2026-09-09).
+      return { label: OTS_TRUTH_STATUS_LINES.PENDING, detail: OTS_TRUTH_SENTENCES.PENDING };
   }
 }
 

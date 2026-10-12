@@ -91,7 +91,8 @@ const goodText = (facts) =>
     "PROOVRA Verification Report v1",
     `SHA-256 ${SHA}`,
     facts.tsaState === "PASSED" ? `RFC 3161 timestamp validated. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}` : "Timestamp token obtained; not validated",
-    "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
+    // The OTS card of an attested, not independently verified proof.
+    "OpenTimestamps Attestation recorded Independent Bitcoin verification was not performed.",
     VERIFICATION_LIMITATION,
   ].join("\n");
 

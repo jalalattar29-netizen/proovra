@@ -32,6 +32,7 @@ import {
   otsClaimBadge,
   parseOtsAnchorClaim,
   resolveOtsAnchorClaim,
+  OTS_TRUTH_SENTENCES,
 } from "@proovra/shared";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
@@ -602,6 +603,8 @@ export interface VerifyMatrixRowView {
   key: string;
   label: string;
   status: VerificationStatus;
+  /** The OpenTimestamps row's public word (Pending, Attestation recorded, …). */
+  statusLabel?: string;
   statement: string;
   measuredAtUtc: string | null;
   tone: VerifyWebTone;
@@ -798,13 +801,10 @@ export function buildVerifyVerdict(
   if (coreExplicitlyVerified && failedSignals === 0 && !timestampUnavailable) {
     return {
       status: "verified",
-      label: publicAnchoringPending ? "Integrity checks passed; Bitcoin anchoring pending" : "Integrity checks passed",
-      actionRequired: publicAnchoringPending
-        ? "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility. Independent public anchoring is not finalized yet and should be rechecked later if public anchoring matters to the review."
-        : "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility.",
-      legalStatement: publicAnchoringPending
-        ? "The available cryptographic, custody, timestamping, and storage signals returned in this verification response support the recorded integrity state. Independent public anchoring is still pending and must not be treated as finalized publication. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content."
-        : "The available cryptographic, custody, timestamping, and storage signals returned in this verification response support the recorded integrity state. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content.",
+      label: "Integrity checks passed",
+      // The OpenTimestamps card states its own status once; the summary does not repeat it.
+      actionRequired: "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility.",
+      legalStatement: "The available cryptographic, custody, timestamping, and storage signals returned in this verification response support the recorded integrity state. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content.",
       tone: publicAnchoringPending ? "warning" : "success",
     };
   }
@@ -1060,8 +1060,7 @@ export const VERIFY_ANCHORING_COPY = {
   liveKicker: "Live anchoring status",
   liveBody: "This section reflects the current OpenTimestamps/public anchoring state and may advance after the package was generated.",
   advanced: "Anchoring has advanced since this package was generated. A newer report/package may be available.",
-  otsPending:
-    "OpenTimestamps public anchoring is pending. This does not invalidate recorded integrity, TSA timestamping, signature, custody, or Object Lock.",
+  otsPending: OTS_TRUTH_SENTENCES.PENDING,
 } as const;
 
 // -------------------------------------------------------------- redaction

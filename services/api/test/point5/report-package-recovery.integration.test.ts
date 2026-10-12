@@ -985,9 +985,11 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       verified: false,
       claim: "pending",
     },
+    // Anchoring that did not complete, with no proof bytes: published, "Unavailable".
+    // (A proof bound to another digest or unreadable is refused — below.)
     {
-      name: "failed proof",
-      ots: { otsStatus: "FAILED", otsProofBase64: MAGIC_PROOF, otsFailureReason: "PROOF_HASH_MISMATCH" },
+      name: "failed anchoring without a proof",
+      ots: { otsStatus: "FAILED", otsFailureReason: "OTS_GLOBAL_BUDGET_EXHAUSTED" },
       verified: false,
       claim: "failed",
     },
@@ -1093,6 +1095,32 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       }
     });
   }
+
+  it("A PROOF BOUND TO ANOTHER DIGEST (or unreadable) is refused: no report, no package, terminal on every retry; a bound proof publishes (2026-10-12)", async () => {
+    for (const ots of [
+      { otsStatus: "FAILED", otsProofBase64: MAGIC_PROOF, otsFailureReason: "PROOF_HASH_MISMATCH" },
+      { otsStatus: "PENDING", otsProofBase64: otsProofForDigest("ab".repeat(32)) },
+    ]) {
+      const { evidenceId, teamId } = await signedEvidence();
+      await prisma.evidence.update({ where: { id: evidenceId }, data: ots as never });
+      for (const attempt of [0, 1]) {
+        const id = await request({ evidenceId, teamId, forceRegenerate: attempt > 0 });
+        const err = await run(id, 0);
+        expect(String((err as Error)?.message), "refused at the render gate").toMatch(/REPORT_RENDER_INPUT_INCONSISTENT: OTS_PROOF_DIGEST_MISMATCH/);
+        expect((err as { retriable?: boolean }).retriable, "never retried").toBe(false);
+        const row = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id }, select: { state: true } });
+        expect(row.state).toBe("FAILED_TERMINAL");
+      }
+      expect(await prisma.report.count({ where: { evidenceId } }), "no 'proof unusable' report").toBe(0);
+      expect(
+        (await prisma.verificationPackage.findMany({ where: { evidenceId }, select: { state: true } })).filter((p) => p.state === "PUBLISHED"),
+        "no package",
+      ).toEqual([]);
+    }
+    // The distinction: a correctly bound proof that no verifier checked publishes.
+    const entries = await packageEntriesFor({ otsStatus: "PENDING", otsProofBase64: PENDING_PROOF, otsHash: FINGERPRINT });
+    expect([...entries.keys()].some((k) => k.endsWith("opentimestamps-proof.ots"))).toBe(true);
+  });
 
   it("the seal binds the manifest: flipping publicAnchoringVerified is detected", async () => {
     const { verifySealedPackageEntries } = await import("@proovra/shared");
@@ -1659,12 +1687,11 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     // Both sealed packages state the same OTS row: pending, not chain-verified.
     for (const row of pair) {
       const m = JSON.parse(readZipEntries(stored(row.storageBucket, row.storageKey)!).get("trust-decision.json")!.toString("utf8")) as {
-        rows: Array<{ key: string; status: string; statement: string }>;
+        rows: Array<{ key: string; status: string; statement: string; statusLabel?: string }>;
       };
       const ots = m.rows.find((r) => r.key === "ots_anchoring")!;
       expect(ots.status, row.disclosureProfile ?? "").toBe("NOT_CHECKED");
-      expect(ots.statement).toMatch(/pending/i);
-      expect(ots.statement).toMatch(/not been independently verified against the Bitcoin blockchain/);
+      expect(ots.statement).toBe("The anchoring proof is still being prepared.");
     }
     const request_ = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id }, select: { state: true } });
     expect(request_.state).not.toMatch(/FAILED|DLQ/);

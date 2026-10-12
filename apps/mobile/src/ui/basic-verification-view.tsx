@@ -13,11 +13,14 @@
 import React from "react";
 import { View } from "react-native";
 import {
+  OTS_TRUTH_SENTENCES,
+  OTS_TRUTH_STATUS_LINES,
   storedBytesVerificationRow,
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   VERIFICATION_STATUS_LABELS,
   type BasicVerification,
   type ComponentVerificationState,
+  type OtsTruthState,
   type VerificationStatus,
 } from "@proovra/shared";
 
@@ -38,10 +41,10 @@ function MatrixSection({ matrix }: { matrix: VerifyMatrixView }) {
       <ProovraCard testID="basic-verification-matrix">
         <ProovraText variant="bodySm" weight="semibold" testID="basic-verification-headline">{matrix.summary}</ProovraText>
         {matrix.rows.map((r) => (
-          <View key={r.key} style={{ paddingVertical: 10, gap: 6 }} accessibilityLabel={`${r.label}: ${VERIFICATION_STATUS_LABELS[r.status as VerificationStatus] ?? r.status}. ${r.statement}`}>
+          <View key={r.key} style={{ paddingVertical: 10, gap: 6 }} accessibilityLabel={`${r.label}: ${r.statusLabel ?? VERIFICATION_STATUS_LABELS[r.status as VerificationStatus] ?? r.status}. ${r.statement}`}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
               <ProovraText weight="semibold">{r.label}</ProovraText>
-              <ProovraBadge label={VERIFICATION_STATUS_LABELS[r.status as VerificationStatus] ?? r.status} tone={MATRIX_TONE[r.tone]} />
+              <ProovraBadge label={r.statusLabel ?? VERIFICATION_STATUS_LABELS[r.status as VerificationStatus] ?? r.status} tone={MATRIX_TONE[r.tone]} />
             </View>
             {r.statement ? <ProovraText variant="bodySm">{r.statement}</ProovraText> : null}
           </View>
@@ -147,28 +150,22 @@ export function BasicVerificationView({ data, matrix = null }: { data: BasicVeri
                     : "No trusted timestamp was issued for this record."
             }
           />
-          <Row
-            label="Bitcoin anchoring (OpenTimestamps)"
-            state={data.anchoring.state}
-            detail={
+          {(() => {
+            // (2026-10-12) The OpenTimestamps card: the public word and one sentence (as web and the report).
+            const card: OtsTruthState =
               data.anchoring.state === "verified"
-                ? `Independently verified against the Bitcoin blockchain; verified block time ${fmt(data.anchoring.anchoredAtUtc)} — possibly later than any report.`
+                ? "CHAIN_VERIFIED"
                 : data.anchoring.state === "not_checked"
-                  ? (() => {
-                      // (2026-10-12) A recording time is never an anchor time.
-                      const recorded = data.anchoring.proofRecordedAtUtc ?? (data.anchoring.truthState ? null : data.anchoring.anchoredAtUtc);
-                      const at = recorded ? ` (proof recorded by PROOVRA ${fmt(recorded)})` : "";
-                      return data.anchoring.basis === "ANCHOR_RECORDED_CHECK_NOT_RECORDED"
-                        ? `A Bitcoin attestation was recorded${at} before checks were recorded. Not independently verified against the Bitcoin blockchain.`
-                        : `Bitcoin attestation present${at}. Not independently verified against the Bitcoin blockchain.`;
-                    })()
-                : data.anchoring.state === "pending"
-                  ? "The proof does not carry a Bitcoin attestation yet."
-                  : data.anchoring.state === "failed"
-                    ? "The proof is unusable for this record, or an independent Bitcoin check did not verify it."
-                    : "No OpenTimestamps proof exists for this record."
-            }
-          />
+                  ? data.anchoring.truthState === "CHAIN_VERIFICATION_UNAVAILABLE"
+                    ? "CHAIN_VERIFICATION_UNAVAILABLE"
+                    : "ATTESTATION_PRESENT_NOT_VERIFIED"
+                  : data.anchoring.state === "pending"
+                    ? "PENDING"
+                    : data.anchoring.state === "failed"
+                      ? "PROOF_INVALID"
+                      : "NOT_REQUESTED";
+            return <Row label="OpenTimestamps" state={data.anchoring.state} detail={OTS_TRUTH_SENTENCES[card]} badge={OTS_TRUTH_STATUS_LINES[card]} />;
+          })()}
           {/* UC-PROV-001 — the server clock at record creation is never a device-declared capture time. */}
           <ProovraText variant="bodySm">Server received at (PROOVRA server clock): {fmt(o.serverReceivedAtUtc ?? o.capturedAtUtcDeclared)}</ProovraText>
           <ProovraText variant="bodySm">

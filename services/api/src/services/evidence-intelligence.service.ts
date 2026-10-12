@@ -7,6 +7,7 @@ import {
   isAccessCustodyEventType,
   normalizeOtsStatusValue,
   OTS_ANCHOR_CLAIM_LABELS,
+  OTS_TRUTH_SENTENCES,
   resolveTsaProofStatus,
   resolveOtsAnchorClaim,
   classifyStorageProtection,
@@ -988,7 +989,10 @@ function isAnchorGapClaim(claim: OtsAnchorClaim): boolean {
 }
 
 function anchorReadinessReason(claim: OtsAnchorClaim): string | null {
-  return isAnchorRecordedClaim(claim) ? `${OTS_ANCHOR_CLAIM_LABELS[claim]}.` : null;
+  // The public card: one status and one sentence.
+  if (!isAnchorRecordedClaim(claim)) return null;
+  const sentence = OTS_TRUTH_SENTENCES[claim === "VERIFIED" ? "CHAIN_VERIFIED" : "ATTESTATION_PRESENT_NOT_VERIFIED"];
+  return `OpenTimestamps: ${OTS_ANCHOR_CLAIM_LABELS[claim]}. ${sentence}`;
 }
 
 export async function buildEvidenceIntelligence(

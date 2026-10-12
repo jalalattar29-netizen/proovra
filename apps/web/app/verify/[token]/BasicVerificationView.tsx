@@ -12,11 +12,14 @@
  * does not exist.
  */
 import {
+  OTS_TRUTH_SENTENCES,
+  OTS_TRUTH_STATUS_LINES,
   storedBytesVerificationRow,
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   VERIFICATION_STATUS_LABELS,
   type BasicVerification,
   type ComponentVerificationState,
+  type OtsTruthState,
   type VerificationMatrix,
   type VerificationStatus,
 } from "@proovra/shared";
@@ -76,7 +79,7 @@ export function VerificationMatrixSection({ matrix }: { matrix: VerificationMatr
           testId={`verify-matrix-row-${row.key}`}
           label={row.label}
           state={MATRIX_ROW_STATE[row.status]}
-          badge={VERIFICATION_STATUS_LABELS[row.status]}
+          badge={row.statusLabel ?? VERIFICATION_STATUS_LABELS[row.status]}
           detail={row.statement}
         />
       ))}
@@ -175,23 +178,21 @@ export default function BasicVerificationView({
         : data.timestamp.state === "pending"
           ? "The timestamp has not been completed yet."
           : "No trusted timestamp was issued for this record.";
-  // (2026-10-12) The OTS truth: a recording time is never an anchor time, and
-  // only an independent chain check is "verified". An older response carried
-  // the recording time in anchoredAtUtc, so it is read as such when
-  // proofRecordedAtUtc is absent.
-  const otsRecordedAt = data.anchoring.proofRecordedAtUtc ?? (data.anchoring.truthState ? null : data.anchoring.anchoredAtUtc);
-  const otsDetail =
+  // (2026-10-12) The OpenTimestamps card: one public status and one sentence,
+  // the same words as the report. The proof's details are technical material.
+  const otsCard: OtsTruthState =
     data.anchoring.state === "verified"
-      ? `Bitcoin attestation independently verified against the Bitcoin blockchain; verified block time ${fmt(data.anchoring.anchoredAtUtc)}. This verification may be later than any report issued for this record.`
+      ? "CHAIN_VERIFIED"
       : data.anchoring.state === "not_checked"
-        ? data.anchoring.basis === "ANCHOR_RECORDED_CHECK_NOT_RECORDED"
-          ? `A Bitcoin attestation was recorded${otsRecordedAt ? ` (proof recorded by PROOVRA ${fmt(otsRecordedAt)})` : ""} before this service recorded how attestations were checked. The proof is kept. Not independently verified against the Bitcoin blockchain.`
-          : `Bitcoin attestation present: the OpenTimestamps proof carries a Bitcoin attestation for this record${otsRecordedAt ? ` (proof recorded by PROOVRA ${fmt(otsRecordedAt)})` : ""}. Not independently verified against the Bitcoin blockchain.`
-      : data.anchoring.state === "pending"
-        ? "The OpenTimestamps proof does not carry a Bitcoin attestation yet."
-        : data.anchoring.state === "failed"
-          ? "The OpenTimestamps proof is unusable for this record, or an independent Bitcoin check did not verify it."
-          : "No OpenTimestamps proof exists for this record.";
+        ? data.anchoring.truthState === "CHAIN_VERIFICATION_UNAVAILABLE"
+          ? "CHAIN_VERIFICATION_UNAVAILABLE"
+          : "ATTESTATION_PRESENT_NOT_VERIFIED"
+        : data.anchoring.state === "pending"
+          ? "PENDING"
+          : data.anchoring.state === "failed"
+            ? "PROOF_INVALID"
+            : "NOT_REQUESTED";
+  const otsDetail = OTS_TRUTH_SENTENCES[otsCard];
 
   return (
     <main
@@ -225,7 +226,7 @@ export default function BasicVerificationView({
           </div>
         ) : null}
         <Row label="Trusted timestamp (RFC 3161)" state={data.timestamp.state} detail={tsaDetail} />
-        <Row label="Bitcoin anchoring (OpenTimestamps)" state={data.anchoring.state} detail={otsDetail} />
+        <Row label="OpenTimestamps" state={data.anchoring.state} detail={otsDetail} badge={OTS_TRUTH_STATUS_LINES[otsCard]} />
         <div style={{ paddingTop: 14, borderTop: "1px solid rgba(15,23,42,0.08)", fontSize: 14, color: "#334155" }}>
           {/* UC-PROV-001 — the server clock at record creation is never a device-declared capture time. */}
           <div data-verify-time="server-received">Server received at (PROOVRA server clock): {fmt(o.serverReceivedAtUtc ?? o.capturedAtUtcDeclared)}</div>

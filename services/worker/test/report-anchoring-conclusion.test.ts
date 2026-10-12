@@ -68,7 +68,8 @@ describe("executive conclusion vs the OTS chain check (ET-RPT-09)", () => {
     const c = conclude("PROOF_STRUCTURE");
     expect(c.body).not.toMatch(/finalized supporting/i);
     expect(c.body).toContain("Any signal marked “Not checked” was not independently verified.");
-    expect(c.body).toContain("verify the OpenTimestamps proof against the Bitcoin chain yourself");
+    // The OTS card states it once; the conclusion does not repeat it.
+    expect(c.body).not.toMatch(/OpenTimestamps|Bitcoin/);
     expect(c.body).toContain("This record does not by itself establish authorship, factual truth, pre-PROOVRA history or legal admissibility.");
     expect(findForbiddenCustomerClaims(c.body)).toEqual([]);
     expect(c.tone).not.toBe("success");

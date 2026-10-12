@@ -79,7 +79,7 @@ export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): TruthFact 
 }
 
 export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): TruthFact {
-  if (!o) return { label: "Not available", tone: "neutral", state: null, status: "UNAVAILABLE", measuredAtUtc: null };
+  if (!o) return { label: "Unavailable", tone: "neutral", state: null, status: "UNAVAILABLE", measuredAtUtc: null };
   // An attested proof is "present, not independently verified"; only recorded
   // chain evidence is verified (resolveOtsTrustState).
   const s = resolveOtsTrustState({
@@ -110,10 +110,9 @@ export function tsaNote(t: ReturnType<typeof tsaLabel>, fmt: (v: string) => stri
 
 export function otsNote(o: ReturnType<typeof otsLabel>, fmt: (v: string) => string): string | null {
   if (!o.measuredAtUtc) return null;
-  if (o.state === "PASSED") return `Independently verified against the Bitcoin blockchain ${fmt(o.measuredAtUtc)}`;
-  if (o.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED") {
-    return `Bitcoin attestation recorded ${fmt(o.measuredAtUtc)}; not independently verified against the Bitcoin blockchain`;
-  }
+  // The card's optional date, named for what it is (shared presentOtsTruth).
+  if (o.state === "PASSED") return `Verified ${fmt(o.measuredAtUtc)}`;
+  if (o.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED") return `Recorded by PROOVRA ${fmt(o.measuredAtUtc)}`;
   return null;
 }
 
@@ -124,6 +123,7 @@ function Fact({
   testId,
   note,
   status,
+  statusHidden,
 }: {
   label: string;
   value: ReactNode;
@@ -131,6 +131,8 @@ function Fact({
   testId?: string;
   /** THE canonical verification status, stated beside the wording. */
   status?: VerificationStatus | null;
+  /** The status stays machine-readable but is not shown (its value already says it). */
+  statusHidden?: boolean;
   /** When the state was measured (shown beside it, never mixed into it). */
   note?: string | null;
 }) {
@@ -143,6 +145,7 @@ function Fact({
           className="rga-truth__note"
           data-testid={testId ? `${testId}-status` : undefined}
           data-verification-status={status}
+          hidden={statusHidden || undefined}
         >
           {VERIFICATION_STATUS_LABELS[status]}
         </dd>
@@ -250,6 +253,8 @@ export function ArtifactTruthHeader({
           tone={ots.tone}
           testId="truth-ots"
           status={ots.status}
+          // The OpenTimestamps value IS its public status (Pending, Attestation recorded, …).
+          statusHidden
           note={otsNote(ots, formatDateTime)}
         />
         <Fact

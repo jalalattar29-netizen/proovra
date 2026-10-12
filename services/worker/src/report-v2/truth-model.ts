@@ -1,4 +1,4 @@
-import { boundedOtsFailureCode, OTS_FAILURE_CODE_LABELS } from "@proovra/shared";
+import { presentOtsTruth } from "@proovra/shared";
 import {
   buildEvidenceTrustDecision,
   buildCanonicalEvidenceMaterials,
@@ -223,82 +223,21 @@ export function buildTimestampCallout(
 }
 
 /**
- * THE PDF'S OTS CALLOUT FROM THE ONE CLAIM (2026-09-29, audit D7/D8).
- *
- * The callout keyed its tone on a valid txid, so an anchor recorded without one
- * read "Pending" beside rows that said "anchored; not checked", and a
- * historical anchor with a txid read "supports independent Bitcoin anchoring"
- * with no word that the chain was not checked. It now states exactly the
- * shared claim: verified (chain-checked, with its txid), anchored but not
- * checked, pending, failed, or none.
+ * THE OTS CALLOUT (2026-10-12): the shared card — one status and one sentence.
+ * The block, confirmations and verifier are technical-appendix rows.
  */
-export function buildOtsCallout(
-  canonicalMaterials: CanonicalEvidenceMaterials,
-  failureReason: string | null | undefined
-): CalloutModel {
-  // THE OTS TRUTH MODEL (2026-10-12): an attestation read from the proof is
-  // not an anchor; only a recorded independent chain check is verified.
+export function buildOtsCallout(canonicalMaterials: CanonicalEvidenceMaterials): CalloutModel {
   const ots = canonicalMaterials.otsState;
-  switch (ots.truthState) {
-    case "CHAIN_VERIFIED": {
-      const c = ots.chainVerification;
-      return {
-        title: "Independently verified",
-        body: c
-          ? `The proof's commitment was verified against the Bitcoin blockchain: block ${c.blockHeight} (${c.blockTimeUtc}), ${c.confirmations} confirmations, verified ${c.verifiedAtUtc} by ${c.verifier}.`
-          : "The proof's commitment was verified against the Bitcoin blockchain.",
-        tone: "success",
-      };
-    }
-    case "ATTESTATION_PRESENT_NOT_VERIFIED":
-      return {
-        title: "Attested — not verified",
-        body: "The OpenTimestamps proof commits to this record's fingerprint digest and carries a Bitcoin attestation. It was not independently verified against the Bitcoin blockchain when this report was issued; the verification package explains how to verify it.",
-        // Not green (nothing was verified against the chain) and not a warning.
-        tone: "neutral",
-      };
-    case "CHAIN_VERIFICATION_UNAVAILABLE":
-      return {
-        title: "Verifier unavailable",
-        body: "The OpenTimestamps proof carries a Bitcoin attestation. The configured Bitcoin verifier could not be reached, so it was not independently verified against the Bitcoin blockchain.",
-        tone: "neutral",
-      };
-    case "CHAIN_VERIFICATION_FAILED":
-      return {
-        title: "Did not verify",
-        body: "An independent check against the Bitcoin blockchain ran and did not verify this proof's Bitcoin attestation. No Bitcoin anchoring is claimed.",
-        tone: "danger",
-      };
-    case "UNKNOWN_OR_STALE":
-      return {
-        title: "State unknown",
-        body: "The recorded OpenTimestamps data is incomplete or out of date; no Bitcoin anchoring claim is made.",
-        tone: "neutral",
-      };
-    case "PENDING":
-      return {
-        title: "Pending",
-        body: "The OpenTimestamps proof did not carry a Bitcoin attestation yet when this report was issued.",
-        tone: "warning",
-      };
-    case "PROOF_INVALID":
-      return {
-        title: "Proof unusable",
-        // ET-OTS-04 — the bounded label; stored text (raw `ots stamp` output
-        // with server paths on historical rows) never reaches a report.
-        body: (() => {
-          const code = boundedOtsFailureCode(failureReason);
-          return `OpenTimestamps processing reported a failure state.${code ? ` ${OTS_FAILURE_CODE_LABELS[code]}` : ""}`;
-        })(),
-        tone: "danger",
-      };
-    default:
-      return {
-        title: "Unavailable",
-        body: "No Bitcoin anchoring record was included.",
-        tone: "neutral",
-      };
-  }
+  const card = presentOtsTruth({
+    state: ots.truthState,
+    proofRecordedAtUtc: ots.proofRecordedAtUtc ?? null,
+    chain: ots.chainVerification ?? null,
+  });
+  return {
+    title: card.status,
+    body: card.sentence,
+    tone: card.status === "Verified" ? "success" : card.status === "Pending" ? "warning" : "neutral",
+  };
 }
 
 export function buildReviewSequence(

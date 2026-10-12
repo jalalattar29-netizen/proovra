@@ -85,8 +85,6 @@ test("verify page labels snapshot and live anchoring separately", () => {
     VERIFY_PAGE_SOURCE,
     /Anchoring has advanced since this package was generated\. A newer report\/package may be available\./,
   );
-  assert.match(
-    VERIFY_PAGE_SOURCE,
-    /OpenTimestamps public anchoring is pending\. This does not invalidate recorded integrity, TSA timestamping, signature, custody, or Object Lock\./,
-  );
+  // The pending note is the card's one sentence.
+  assert.match(VERIFY_PAGE_SOURCE, /\{OTS_TRUTH_SENTENCES\.PENDING\}/);
 });

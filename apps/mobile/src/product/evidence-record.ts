@@ -14,6 +14,8 @@ import {
   projectOutputProgress,
   type OutputProgressView,
   type ReportFreshness,
+  OTS_TRUTH_SENTENCES,
+  OTS_TRUTH_STATUS_LINES,
 } from "@proovra/shared";
 type Obj = Record<string, unknown>;
 const o = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
@@ -780,25 +782,22 @@ export interface MatrixRow {
 }
 
 /** `_lib.tsx:544` describeOtsStatus, verbatim. */
-export function describeOtsStatus(ots: { effectiveStatus: string | null; failureReason: string | null; pendingReason: string | null }): { label: string; detail: string } {
+export function describeOtsStatus(ots: { effectiveStatus: string | null; failureReason: string | null; pendingReason: string | null; anchorClaim?: string | null }): { label: string; detail: string } {
+  // (2026-10-12) The OpenTimestamps card: the public word and one sentence.
+  // "Verified" only for a recorded independent chain check.
   switch (ots.effectiveStatus) {
     case "ANCHORED":
-      return { label: "Anchored", detail: "OpenTimestamps anchoring is recorded for this evidence item." };
+      return ots.anchorClaim === "VERIFIED"
+        ? { label: OTS_TRUTH_STATUS_LINES.CHAIN_VERIFIED, detail: OTS_TRUTH_SENTENCES.CHAIN_VERIFIED }
+        : { label: OTS_TRUTH_STATUS_LINES.ATTESTATION_PRESENT_NOT_VERIFIED, detail: OTS_TRUTH_SENTENCES.ATTESTATION_PRESENT_NOT_VERIFIED };
     case "FAILED":
-      return { label: "Failed", detail: ots.failureReason || "OpenTimestamps anchoring failed for this evidence item." };
+      return { label: OTS_TRUTH_STATUS_LINES.PROOF_INVALID, detail: OTS_TRUTH_SENTENCES.PROOF_INVALID };
     case "DISABLED":
-      return { label: "Disabled", detail: "OpenTimestamps anchoring is disabled for this evidence item." };
-    case "PENDING":
-      return {
-        label: "Pending public anchoring",
-        detail: ots.pendingReason || "OpenTimestamps proof is recorded, but public anchoring has not finalized yet.",
-      };
+      return { label: OTS_TRUTH_STATUS_LINES.NOT_REQUESTED, detail: OTS_TRUTH_SENTENCES.NOT_REQUESTED };
     default:
-      return {
-        label: "Not yet anchored",
-        detail:
-          "OpenTimestamps anchoring has not started for this evidence item yet. It is part of the integrity layer on every plan and does not depend on reports or verification packages.",
-      };
+      // PENDING, or not stamped YET: every finalized record enters the
+      // lifecycle on every plan (OTS integrity decoupling, 2026-09-09).
+      return { label: OTS_TRUTH_STATUS_LINES.PENDING, detail: OTS_TRUTH_SENTENCES.PENDING };
   }
 }
 
@@ -844,7 +843,7 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
   const eff = s(ots["effectiveStatus"]);
   const otsState: IntegrityState =
     eff === "ANCHORED" ? "recorded" : eff === "FAILED" ? "failed" : eff === "DISABLED" ? "not-applicable" : eff === "PENDING" ? "pending" : "unavailable";
-  const otsDesc = describeOtsStatus({ effectiveStatus: eff, failureReason: s(ots["failureReason"]), pendingReason: s(ots["pendingReason"]) });
+  const otsDesc = describeOtsStatus({ effectiveStatus: eff, failureReason: s(ots["failureReason"]), pendingReason: s(ots["pendingReason"]), anchorClaim: s(ots["anchorClaim"]) });
   const rAvail = aReport["available"] === true;
   const rPending = aReport["pending"] === true;
   const reportState: IntegrityState = rAvail ? "available" : rPending ? "pending" : "unavailable";

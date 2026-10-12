@@ -18,7 +18,7 @@ import { deriveCanonicalArtifactFacts, VERIFICATION_LIMITATION } from "@proovra/
 import { describe, expect, it } from "vitest";
 
 import { OutputVerificationError } from "../src/output-verification-error.js";
-import { assertRenderedReport, extractPdfText } from "../src/output-verification.js";
+import { assertOtsProofBinding, assertRenderedReport, extractPdfText } from "../src/output-verification.js";
 import { checkReportGeometry, readReportGeometry, type PageGeometry } from "../src/pdf/report-geometry.js";
 import { buildReportViewModel } from "../src/report-v2/build-view-model.js";
 import { REPORT_PAGE, REPORT_PAGE_PT } from "../src/report-v2/page-geometry.js";
@@ -178,22 +178,64 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
     RENDER_TIMEOUT,
   );
 
-  it(
-    "JOURNEY C: a proof committed to another digest renders as unusable — never as an attestation or an anchor — and the gate accepts the truthful PDF",
-    async () => {
-      const { input } = layoutVariant({ name: "proof invalid", ots: "proof_invalid" });
-      const pdf = await renderPdfFromHtml(await htmlOf(input));
-      const text = (await extractPdfText(pdf)).replace(/\s+/g, " ");
-      expect(text).toContain("OpenTimestamps proof unusable for this record");
-      // The failure in words, never the stored code.
-      expect(text).toContain("The timestamp proof does not commit to this record's fingerprint.");
-      expect(text).not.toContain("PROOF_HASH_MISMATCH");
-      expect(text).not.toMatch(/Bitcoin attestation present|independently verified against the Bitcoin blockchain\b(?! —)|anchored at/i);
+  it("JOURNEY C: a proof committed to another digest is refused before rendering — whatever its recorded status, on every retry", () => {
+    const { input } = layoutVariant({ name: "proof invalid", ots: "proof_invalid" });
+    const facts = factsOf(input);
+    expect(facts.otsDigestBinding).toBe("MISMATCH");
+    for (const otsStatus of [input.evidence.otsStatus, "FAILED", "PENDING", "ANCHORED"]) {
+      let err: unknown = null;
+      try {
+        assertOtsProofBinding(facts, { otsStatus });
+      } catch (e) {
+        err = e;
+      }
+      expect(err).toBeInstanceOf(OutputVerificationError);
+      expect((err as OutputVerificationError).retriable).toBe(false);
+      expect((err as OutputVerificationError).findings.map((f) => f.check)).toEqual(["OTS_PROOF_DIGEST_MISMATCH"]);
+    }
+  });
+
+  it("a correctly bound proof that no verifier checked is NOT refused: it publishes as Attestation recorded", () => {
+    for (const ots of ["attestation_not_verified", "verification_unavailable", "pending", "chain_verified"] as const) {
+      const { input } = layoutVariant({ name: ots, ots });
       const facts = factsOf(input);
-      expect(facts.otsTruthState).toBe("PROOF_INVALID");
-      await assertRenderedReport(Buffer.from(pdf), facts, input.version, { supersedesVersion: null });
+      expect(facts.otsDigestBinding).toBe("MATCH");
+      expect(() => assertOtsProofBinding(facts, input.evidence)).not.toThrow();
+    }
+  });
+
+  it(
+    "THE OTS CARD: one status and one sentence, no internal states, technical details only in the appendix",
+    async () => {
+      const cards = {
+        pending: ["Pending", "The anchoring proof is still being prepared."],
+        attestation_not_verified: ["Attestation recorded", "Independent Bitcoin verification was not performed."],
+        verification_unavailable: ["Attestation recorded", "Independent verification is currently unavailable."],
+        chain_verified: ["Verified", "The proof was independently verified against the Bitcoin blockchain."],
+      } as const;
+      for (const [ots, [status, sentence]] of Object.entries(cards)) {
+        const { input } = layoutVariant({ name: ots, ots: ots as keyof typeof cards });
+        const pdf = await renderPdfFromHtml(await htmlOf(input));
+        const pages = await readReportGeometry(pdf);
+        const pageText = pages.map((p) => p.items.map((i) => i.str).join(" ").replace(/\s+/g, " "));
+        const all = pageText.join(" ");
+        // The card, once: title, status, one sentence.
+        expect(all, ots).toContain(`OpenTimestamps ${status} ${sentence}`);
+        expect(all.split(sentence).length - 1, ots).toBe(1);
+        // No internal state, raw code or legacy overclaim anywhere in the report.
+        expect(all, ots).not.toMatch(/NOT_CHECKED|PROOF_STRUCTURE|BITCOIN_VERIFIED|PROOF_HASH_MISMATCH|CHAIN_VERIFI|ATTESTATION_PRESENT|Bitcoin attestation present|Anchored at|Bitcoin time|RPC/);
+        // The technical material lives in the appendix only.
+        const appendix = pageText.findIndex((t) => t.includes("Technical Appendix — Timestamp & Anchoring"));
+        expect(appendix, ots).toBeGreaterThan(0);
+        pageText.forEach((t, i) => {
+          if (i === appendix) return;
+          expect(t, `${ots} p${i + 1}`).not.toMatch(/Reported by the OpenTimestamps proof|BITCOIN TRANSACTION ID|BLOCK HEIGHT|CONFIRMATIONS|VERIFIED BITCOIN BLOCK|cccccccccccccccc/i);
+        });
+        // The gate (geometry included: nothing in the footer zone) accepts it.
+        await assertRenderedReport(Buffer.from(pdf), factsOf(input), input.version, { supersedesVersion: null });
+      }
     },
-    RENDER_TIMEOUT,
+    RENDER_TIMEOUT * 2,
   );
 
   it(

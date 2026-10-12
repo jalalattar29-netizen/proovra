@@ -89,10 +89,10 @@ export function otsStatusLineFor(otsState: CanonicalEvidenceMaterials["otsState"
 }
 
 const CHAIN_CHECK_WORDS: Readonly<Record<string, string>> = {
-  NOT_CONFIGURED: "Not performed: no Bitcoin verifier is configured",
-  UNAVAILABLE: "Not completed: the configured Bitcoin verifier was unavailable",
-  INSUFFICIENT_CONFIRMATIONS: "Not completed: too few Bitcoin confirmations when last checked",
-  FAILED: "Ran and did not verify the attestation",
+  NOT_CONFIGURED: "Not performed",
+  UNAVAILABLE: "Unavailable",
+  INSUFFICIENT_CONFIRMATIONS: "Not completed",
+  FAILED: "Did not verify",
   VERIFIED: "Verified",
 };
 

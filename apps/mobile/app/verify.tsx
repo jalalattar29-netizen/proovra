@@ -909,7 +909,7 @@ function MatrixRows({ matrix }: { matrix: VerifyMatrixView }) {
       {matrix.rows.map((r) => (
         <View key={r.key} style={styles.hashRow} testID={`verify-matrix-${r.key}`}>
           <ProovraText variant="label" weight="semibold" color={theme.color.ink.muted}>{r.label}</ProovraText>
-          <ProovraBadge tone={verifyBadgeTone(r.tone)} label={VERIFICATION_STATUS_LABELS[r.status as VerificationStatus] ?? r.status} />
+          <ProovraBadge tone={verifyBadgeTone(r.tone)} label={r.statusLabel ?? VERIFICATION_STATUS_LABELS[r.status as VerificationStatus] ?? r.status} />
           {r.statement ? <ProovraText variant="label">{r.statement}</ProovraText> : null}
         </View>
       ))}

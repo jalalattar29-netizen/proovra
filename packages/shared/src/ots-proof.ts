@@ -299,6 +299,8 @@ export function checkOtsDigestBinding(input: {
 /** Thrown by a boundary that must refuse a proof bound to another digest. */
 export class OtsDigestBindingError extends Error {
   readonly code: "OTS_PROOF_DIGEST_MISMATCH" | "OTS_PROOF_UNREADABLE";
+  /** The same bytes fail the same way: a refusal, never a retry. */
+  readonly retriable = false;
   constructor(binding: Exclude<OtsDigestBinding, { kind: "MATCH" } | { kind: "ABSENT" }>, boundary: string) {
     const code = binding.kind === "MISMATCH" ? "OTS_PROOF_DIGEST_MISMATCH" : "OTS_PROOF_UNREADABLE";
     super(
@@ -309,6 +311,17 @@ export class OtsDigestBindingError extends Error {
     this.name = "OtsDigestBindingError";
     this.code = code;
   }
+}
+
+/**
+ * (2026-10-12) The stored proof, only when it commits to the record's
+ * fingerprint digest. A proof bound to another digest, or unreadable, is never
+ * presented as attached — Public Verify neither counts nor serves it.
+ */
+export function boundOtsProofBase64(input: Parameters<typeof checkOtsDigestBinding>[0]): string | null {
+  if (!input.proofBase64) return null;
+  const kind = checkOtsDigestBinding(input).kind;
+  return kind === "MISMATCH" || kind === "UNREADABLE" ? null : input.proofBase64;
 }
 
 /** Throws unless the proof is ABSENT or bound to the fingerprint digest. */

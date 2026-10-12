@@ -205,9 +205,10 @@ test("TSA valid + OTS proof present, not checked → NOT_CHECKED, no verified cl
   assert.equal(d.anchoringState, "present_not_verified");
   assert.equal(toVerificationStatus(anchoring(d).state), "NOT_CHECKED");
   assert.notEqual(d.presentationState, "VERIFIED_FINALIZED");
-  assert.equal(d.anchoringStatusLabel, "Bitcoin attestation present; not independently verified against the Bitcoin blockchain");
+  assert.match(d.anchoringStatusLabel, /^Attestation recorded$/);
   assert.match(d.summary, /Any signal marked “Not checked” was not independently verified\./);
-  assert.match(d.reviewerAction, /PROOVRA has not checked it against the chain/);
+  // The OTS card says it once; the reviewer action does not repeat it.
+  assert.doesNotMatch(d.reviewerAction, /Bitcoin|OpenTimestamps/);
   assertNoOverclaim(d);
 });
 

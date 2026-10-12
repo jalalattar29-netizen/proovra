@@ -191,10 +191,14 @@ describe("the render gate refuses an OTS proof bound to another digest (real pro
     expect(() => assertRenderInputs(factsOf(pendingMisbound), payloadOf(pendingMisbound), custody)).toThrow(/OTS_PROOF_DIGEST_MISMATCH/);
   });
 
-  it("a record the worker already recorded FAILED (PROOF_HASH_MISMATCH) renders — as unusable, never anchored", () => {
+  it("a record the worker already recorded FAILED (PROOF_HASH_MISMATCH) is refused too: no 'proof unusable' report (2026-10-12)", () => {
     const recordedInvalid: Row = { ...MISBOUND, otsStatus: "FAILED", otsFailureReason: "PROOF_HASH_MISMATCH", otsAnchorCheck: null };
     const facts = factsOf(recordedInvalid);
     expect(facts.otsState).toBe("FAILED");
-    expect(() => assertRenderInputs(facts, payloadOf(recordedInvalid), custody)).not.toThrow();
+    expect(() => assertRenderInputs(facts, payloadOf(recordedInvalid), custody)).toThrow(/OTS_PROOF_DIGEST_MISMATCH/);
+  });
+
+  it("a correctly bound proof with no verifier renders (the distinction)", () => {
+    expect(() => assertRenderInputs(factsOf(PRESENT), payloadOf(PRESENT), custody)).not.toThrow();
   });
 });

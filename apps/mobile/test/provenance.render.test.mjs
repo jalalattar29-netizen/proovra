@@ -101,6 +101,6 @@ test("UC-TRUST-002: a PENDING OTS proof is never 'Anchored'; an unvalidated toke
   });
   const r = await openIntegrity();
   assert.ok(!r.hasText("Anchored"), "a pending proof was shown as anchored");
-  assert.ok(r.hasText("Submitted to OpenTimestamps calendars; Bitcoin anchoring not yet attempted"));
+  assert.ok(r.hasText("Pending"));
   assert.ok(r.hasText("Recorded, not validated"));
 });

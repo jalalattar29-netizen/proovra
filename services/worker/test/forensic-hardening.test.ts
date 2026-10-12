@@ -45,25 +45,25 @@ describe("OTS labels (Phase B #9 / Phase C #4)", () => {
     }
   });
 
-  it("never says verified without recorded chain evidence; an attestation reads 'present; not independently verified' (2026-10-12)", () => {
+  it("never says verified without recorded chain evidence; an attestation reads 'Attestation recorded' (2026-10-12)", () => {
     const validTxid = "f".repeat(64);
     const anchoredAtUtc = "2026-09-20T10:00:00.000Z";
     // A valid txid, a recorded time, a structural check, even a recorded
     // BITCOIN_VERIFIED check without its chain evidence: NOT verified.
     for (const anchorCheck of [null, "PROOF_STRUCTURE", "BITCOIN_VERIFIED"]) {
       const label = mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: validTxid, anchoredAtUtc, anchorCheck });
-      expect(label).toBe("Bitcoin attestation present; not independently verified against the Bitcoin blockchain");
+      expect(label).toBe("Attestation recorded");
       expect(label).not.toMatch(/anchored/i);
     }
     expect(
       mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: validTxid })
-    ).toContain("Bitcoin anchoring pending");
+    ).toBe("Pending");
     expect(
       mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: null })
-    ).toContain("Bitcoin anchoring pending");
+    ).toBe("Pending");
     expect(
       mapOtsStatusPublicLabelWithTxid({ status: "PENDING", bitcoinTxid: validTxid })
-    ).toContain("pending");
+    ).toBe("Pending");
   });
 
   it("downgrades anchor tone to warning without a valid Bitcoin txid", () => {

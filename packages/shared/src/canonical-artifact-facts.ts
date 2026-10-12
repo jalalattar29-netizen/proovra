@@ -18,7 +18,7 @@
 import { resolveAcquisitionIdentitySnapshot, type AcquisitionIdentitySnapshot } from "./acquisition-identity.js";
 import { normalizeOtsAnchorCheck } from "./ots.js";
 import { checkOtsDigestBinding, type OtsDigestBinding } from "./ots-proof.js";
-import { resolveOtsTruth, type OtsTruthState } from "./ots-truth.js";
+import { OTS_TRUTH_SENTENCES, resolveOtsTruth, type OtsTruthState } from "./ots-truth.js";
 import { presentedTsaStatus } from "./tsa-validation-state.js";
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
@@ -28,7 +28,7 @@ import {
   toVerificationStatus,
   type TrustSignalState,
 } from "./trust-signal-state.js";
-import { VERIFICATION_LIMITATION, findForbiddenCustomerClaims, parseVerificationMatrix } from "./verification-matrix.js";
+import { VERIFICATION_LIMITATION, findForbiddenCustomerClaims, otsVerificationStatus, parseVerificationMatrix } from "./verification-matrix.js";
 
 /** The record's own columns that decide the trust and identity states. */
 export type CanonicalFactsSource = {
@@ -239,7 +239,11 @@ export function compareIssuanceFactsToRecord(issuance: CanonicalArtifactFacts, l
 }
 
 /** Phrases that state a STRONGER fact than PRESENT / PENDING / FAILED. */
-const OTS_VERIFIED_PHRASES = ["Bitcoin attestation independently verified", "Independently verified against the Bitcoin blockchain"];
+const OTS_VERIFIED_PHRASES = [
+  "Bitcoin attestation independently verified",
+  "Independently verified against the Bitcoin blockchain",
+  "The proof was independently verified against the Bitcoin blockchain",
+];
 /**
  * (2026-10-12) Retired OTS wording no report may print in any state: it calls a
  * recorded proof "anchored" and the worker's recording time "anchored at".
@@ -251,7 +255,6 @@ const OTS_RETIRED_PHRASES = [
   /not independently chain-verified/i,
   /chain-verified/i,
 ];
-const OTS_NOT_VERIFIED_STATEMENT = "not independently verified against the Bitcoin blockchain";
 const TSA_VALIDATED_PHRASES = ["RFC 3161 timestamp validated", TSA_VALIDATED_QUALIFICATION_STATEMENT];
 /** Raw codes that must never reach a reader. */
 const RAW_CODES = /\b(ORGANIZATION_ACCOUNT|VERIFIED_EMAIL|BITCOIN_VERIFIED|PROOF_STRUCTURE|PRESENT_NOT_INDEPENDENTLY_VERIFIED|OBSERVED_AT_CAPTURE|RECORDED_ON_RECORD|INTAKE_CONTRIBUTOR|INTAKE_LINK_ISSUER|ACCOUNT_USER|GUEST_SESSION|NOT_CHECKED|NOT_APPLICABLE|NOT_CONFIGURED|INSUFFICIENT_CONFIRMATIONS|ANCHORED_NOT_CHECKED|ATTESTATION_PRESENT_NOT_VERIFIED|CHAIN_VERIFICATION_UNAVAILABLE|CHAIN_VERIFICATION_FAILED|CHAIN_VERIFIED|UNKNOWN_OR_STALE|PROOF_INVALID|RECORDED_NOT_VALIDATED|tsa_[a-z_]+)\b/;
@@ -274,8 +277,13 @@ export function checkRenderedReportText(
   if (facts.otsState !== "PASSED") {
     for (const p of OTS_VERIFIED_PHRASES) if (text.includes(p)) out.push({ check: "OTS_OVERCLAIM", detail: `states "${p}" while anchoring is ${facts.otsState}` });
   }
-  if (facts.otsState === "PRESENT_NOT_INDEPENDENTLY_VERIFIED" && !text.toLowerCase().includes(OTS_NOT_VERIFIED_STATEMENT.toLowerCase())) {
-    out.push({ check: "OTS_PRESENT", detail: "does not say the Bitcoin attestation is not independently verified against the Bitcoin blockchain" });
+  // The OTS card of a correctly bound, not independently verified proof states
+  // its status and its one sentence ("Attestation recorded").
+  if (facts.otsState === "PRESENT_NOT_INDEPENDENTLY_VERIFIED") {
+    const sentence = OTS_TRUTH_SENTENCES[facts.otsTruthState] ?? OTS_TRUTH_SENTENCES.ATTESTATION_PRESENT_NOT_VERIFIED;
+    if (!text.includes("Attestation recorded") || !text.includes(sentence)) {
+      out.push({ check: "OTS_PRESENT", detail: `does not state "Attestation recorded" with "${sentence}"` });
+    }
   }
   for (const p of OTS_RETIRED_PHRASES) {
     const m = text.match(p);
@@ -327,7 +335,7 @@ export function checkSealedPackageFacts(
   if (!matrix) out.push({ check: "VERIFICATION_MATRIX", detail: "trust-decision.json is not a verification matrix" });
   const row = (key: string) => matrix?.rows.find((r) => r.key === key);
   const ots = row("ots_anchoring");
-  if (ots && ots.status !== toVerificationStatus(facts.otsState)) {
+  if (ots && ots.status !== otsVerificationStatus(facts.otsState)) {
     out.push({ check: "OTS_STATE", detail: `matrix anchoring ${ots.status}, record ${facts.otsState}` });
   }
   const tsa = row("tsa_token");

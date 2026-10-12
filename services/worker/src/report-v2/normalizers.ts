@@ -346,18 +346,13 @@ export function mapTimestampStatusPublicLabel(
  */
 export function mapOtsStatusPublicLabel(status: string | null | undefined): string {
   switch (safe(status, "").toUpperCase()) {
+    // The public OpenTimestamps vocabulary (shared OTS_PUBLIC_STATUSES).
+    // Without its anchor time an ANCHORED status is not an attestation.
     case "ANCHORED":
-      // Without txid context we cannot assert Bitcoin anchoring; report the
-      // honest OTS state instead.
-      return "OpenTimestamps proof present; Bitcoin anchoring pending";
     case "PENDING":
-      return "OpenTimestamps proof present; Bitcoin anchoring pending";
-    case "FAILED":
-      return "OpenTimestamps anchoring failed";
-    case "DISABLED":
-      return "OpenTimestamps unavailable";
+      return OTS_ANCHOR_CLAIM_LABELS.PENDING;
     default:
-      return "OpenTimestamps not configured";
+      return OTS_ANCHOR_CLAIM_LABELS.UNAVAILABLE;
   }
 }
 

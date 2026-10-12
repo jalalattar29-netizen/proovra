@@ -1247,8 +1247,9 @@ function buildTechnicalAppendixCourtRows(params: {
       value: mapTimestampStatusPublicLabel(params.evidence.tsaStatus),
     },
 {
-  label: "Bitcoin Anchoring",
-  value: reportOtsTruth(params.evidence).statusLine,
+  // The same public word as the OpenTimestamps card (canonical materials).
+  label: "OpenTimestamps",
+  value: otsStatusLineFor(params.canonicalMaterials.otsState),
 },
     {
       label: "Forensic Custody Events",
@@ -1825,7 +1826,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
     storageCallouts: [
       buildStorageCallout(canonicalMaterials),
       buildTimestampCallout(canonicalMaterials, input.evidence.tsaFailureReason),
-      buildOtsCallout(canonicalMaterials, otsEvidence.otsFailureReason),
+      buildOtsCallout(canonicalMaterials),
     ],
 
     forensicRows: buildTimelineRows(

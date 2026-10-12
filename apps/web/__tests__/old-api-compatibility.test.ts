@@ -44,7 +44,7 @@ test("Verify: an old-API ANCHORED record with a txid but no claim/check is not s
     bitcoinTxid: TXID,
   });
   assert.notEqual(badge.tone, "success");
-  assert.equal(badge.label, "ATTESTATION PRESENT · NOT VERIFIED");
+  assert.equal(badge.label, "ATTESTATION RECORDED");
 });
 
 test("Verify: an old-API ANCHORED record with NO txid is never shown as anchored-and-verified", () => {
@@ -59,7 +59,7 @@ test("Verify: the old API's own claim, when it sends one, is honoured as sent", 
 
 test("Verify: PENDING / FAILED / nothing read the same without the new fields", () => {
   assert.equal(otsTone({ status: "PENDING" }).label, "PENDING");
-  assert.equal(otsTone({ status: "FAILED" }).label, "FAILED");
+  assert.equal(otsTone({ status: "FAILED" }).label, "UNAVAILABLE");
   assert.equal(otsTone({ status: null }).label, "Unavailable");
 });
 

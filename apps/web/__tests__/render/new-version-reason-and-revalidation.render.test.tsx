@@ -441,11 +441,10 @@ describe("artifact truth header", () => {
     expect(getByTestId("truth-freshness").textContent).toContain("New verification facts are available");
     expect(getByTestId("truth-tsa").textContent).toBe("Validated");
     // A structure-only anchor is a PRESENT proof, never "Anchored" (canonical state).
-    expect(getByTestId("truth-ots").textContent).toBe("Attestation present, not verified");
+    expect(getByTestId("truth-ots").textContent).toBe("Attestation recorded");
     // Its date is the proof-structure check, never a chain check.
     const presentNote = getByTestId("truth-ots-measured").textContent ?? "";
-    expect(presentNote).toContain("Bitcoin attestation recorded");
-    expect(presentNote).toContain("not independently verified against the Bitcoin blockchain");
+    expect(presentNote).toContain("Recorded by PROOVRA");
     expect(presentNote).not.toContain("Checked against the Bitcoin chain");
     // 2026-10-08 — the canonical status is stated beside each fact: a present
     // but unchecked proof is NOT_CHECKED, never verified.
@@ -480,7 +479,7 @@ describe("artifact truth header", () => {
         actions={null}
       />,
     );
-    expect(getByTestId("truth-ots-measured").textContent).toContain("Independently verified against the Bitcoin blockchain");
+    expect(getByTestId("truth-ots-measured").textContent).toBe("Verified 2026-10-06T10:00:00.000Z");
     expect(getByTestId("truth-ots-status").textContent).toBe("Verified");
     expect(getByTestId("truth-ots-status").getAttribute("data-verification-status")).toBe("VERIFIED");
     rerender(

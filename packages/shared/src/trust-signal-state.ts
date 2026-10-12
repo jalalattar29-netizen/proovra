@@ -30,7 +30,7 @@
  * checked, never a confidence score.
  */
 import { resolveOtsProofStatus, type OtsProofStatus, type OtsProofStatusInput } from "./ots-status.js";
-import { resolveOtsTruth, type OtsTruthInput } from "./ots-truth.js";
+import { OTS_TRUTH_SENTENCES, resolveOtsTruth, type OtsTruthInput } from "./ots-truth.js";
 
 export const TRUST_SIGNAL_STATES = [
   "PASSED",
@@ -329,13 +329,13 @@ export function resolveOtsTrustState(input: OtsTrustStateInput): OtsTrustState {
     now: input.now,
   });
   if (truth.state === "PROOF_INVALID" || truth.state === "CHAIN_VERIFICATION_FAILED") {
-    return { state: "FAILED", proofStatus: "FAILED", label: truth.headline, measuredAtUtc: truth.chainCheck?.checkedAtUtc ?? null };
+    return { state: "FAILED", proofStatus: "FAILED", label: truth.detail, measuredAtUtc: truth.chainCheck?.checkedAtUtc ?? null };
   }
   if (truth.state === "CHAIN_VERIFIED" && truth.chain) {
     return {
       state: "PASSED",
       proofStatus: "VERIFIED",
-      label: "Bitcoin attestation independently verified against the Bitcoin blockchain",
+      label: OTS_TRUTH_SENTENCES.CHAIN_VERIFIED,
       measuredAtUtc: truth.chain.verifiedAtUtc,
     };
   }
@@ -344,7 +344,7 @@ export function resolveOtsTrustState(input: OtsTrustStateInput): OtsTrustState {
       return {
         state: "PASSED",
         proofStatus,
-        label: "Bitcoin attestation independently verified against the Bitcoin blockchain",
+        label: OTS_TRUTH_SENTENCES.CHAIN_VERIFIED,
         measuredAtUtc: isoOrNull(input.anchorCheckedAtUtc),
       };
     case "ANCHORED_UNVERIFIED":
@@ -355,25 +355,25 @@ export function resolveOtsTrustState(input: OtsTrustStateInput): OtsTrustState {
         // with no result — said as such, never as "no check recorded".
         label:
           truth.state === "CHAIN_VERIFICATION_UNAVAILABLE"
-            ? truth.statusLine
-            : "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
+            ? OTS_TRUTH_SENTENCES.CHAIN_VERIFICATION_UNAVAILABLE
+            : OTS_TRUTH_SENTENCES.ATTESTATION_PRESENT_NOT_VERIFIED,
         measuredAtUtc: isoOrNull(input.anchorCheckedAtUtc),
       };
     case "SUBMITTED":
     case "PENDING":
-      return { state: "PENDING", proofStatus, label: "Bitcoin anchoring pending", measuredAtUtc: null };
+      return { state: "PENDING", proofStatus, label: OTS_TRUTH_SENTENCES.PENDING, measuredAtUtc: null };
     case "STALE_UNKNOWN":
       return {
         state: "STALE",
         proofStatus,
-        label: "Anchoring state unknown (pending longer than expected)",
+        label: OTS_TRUTH_SENTENCES.UNKNOWN_OR_STALE,
         measuredAtUtc: null,
       };
     case "FAILED":
-      return { state: "FAILED", proofStatus, label: "Anchoring failed", measuredAtUtc: null };
+      return { state: "FAILED", proofStatus, label: OTS_TRUTH_SENTENCES.PROOF_INVALID, measuredAtUtc: null };
     case "NOT_REQUESTED":
     default:
-      return { state: "UNAVAILABLE", proofStatus, label: "Anchoring not recorded", measuredAtUtc: null };
+      return { state: "UNAVAILABLE", proofStatus, label: OTS_TRUTH_SENTENCES.NOT_REQUESTED, measuredAtUtc: null };
   }
 }
 

@@ -297,8 +297,8 @@ test("a legacy trustDecision (score, verdict, confidence, reliance) renders only
   assert.ok(headline.endsWith(VERIFICATION_LIMITATION), headline);
   // A legacy "passed" OpenTimestamps signal was never chain-checked: NOT_CHECKED, never VERIFIED.
   assert.deepEqual(badges(r, "verify-matrix-bitcoin_anchoring"), ["Not checked"]);
-  has(r, "Publication posture: Bitcoin attestation present; not independently verified against the Bitcoin blockchain.");
-  has(r, "To rely on Bitcoin anchoring, verify the OpenTimestamps proof against the Bitcoin chain yourself; PROOVRA has not checked it against the chain.");
+  has(r, "Publication posture: Attestation recorded.");
+  lacks(r, "To rely on Bitcoin anchoring, verify the OpenTimestamps proof against the Bitcoin chain yourself; PROOVRA has not checked it against the chain.");
 });
 
 test("BASIC tier: the verificationMatrix leads, with its summary as the headline and an unchecked OTS proof NOT_CHECKED", async () => {
@@ -330,10 +330,10 @@ test("BASIC tier: the verificationMatrix leads, with its summary as the headline
   const [headline] = textsIn(r, "basic-verification-headline");
   assert.equal(headline, matrix.summary);
   assert.ok(headline.endsWith(VERIFICATION_LIMITATION));
-  has(r, "OpenTimestamps / Bitcoin anchoring");
-  assert.ok(r.byLabel("Not checked").length >= 1);
-  const ots = r.byTestId("basic-verification-matrix")[0].findAll((n) => typeof n.props?.accessibilityLabel === "string" && n.props.accessibilityLabel.startsWith("OpenTimestamps / Bitcoin anchoring:"));
-  assert.ok(ots.length >= 1 && ots[0].props.accessibilityLabel.startsWith("OpenTimestamps / Bitcoin anchoring: Not checked."), "an unchecked OTS proof reads Not checked");
+  has(r, "OpenTimestamps");
+  // The OpenTimestamps row reads its public word, never the generic "Not checked".
+  const ots = r.byTestId("basic-verification-matrix")[0].findAll((n) => typeof n.props?.accessibilityLabel === "string" && n.props.accessibilityLabel.startsWith("OpenTimestamps:"));
+  assert.ok(ots.length >= 1 && ots[0].props.accessibilityLabel.startsWith("OpenTimestamps: Attestation recorded. Independent Bitcoin verification was not performed."), "an unchecked OTS proof reads Attestation recorded");
   for (const gone of ["96", "Strongly verified", "High"]) lacks(r, gone);
   assert.deepEqual(findForbiddenCustomerClaims(r.texts().join("\n")), []);
 });
@@ -359,9 +359,9 @@ test("verificationMatrix, when the reply carries it, is the matrix and the headl
   assert.equal(headline, matrix.summary);
   assert.equal(r.byTestId("verify-matrix").length, 1);
   assert.deepEqual(badges(r, "verify-matrix-file_integrity"), ["Verified"]);
-  has(r, "OpenTimestamps / Bitcoin anchoring");
-  assert.deepEqual(badges(r, "verify-matrix-ots_anchoring"), ["Not checked"], "an unchecked OTS proof is NOT_CHECKED");
-  assert.ok(textsIn(r, "verify-matrix-ots_anchoring").some((t) => t.includes("No independent Bitcoin verification result is recorded.")));
+  has(r, "OpenTimestamps");
+  assert.deepEqual(badges(r, "verify-matrix-ots_anchoring"), ["Attestation recorded"], "an unchecked OTS proof reads Attestation recorded");
+  assert.ok(textsIn(r, "verify-matrix-ots_anchoring").some((t) => t.includes("Independent Bitcoin verification was not performed.")));
   has(r, "Public Verify publication");
   assert.deepEqual(findForbiddenCustomerClaims(r.texts().join("\n")), []);
 });
@@ -488,9 +488,9 @@ test("OTS pending: the live pending note and the Publication Posture panel appea
     }),
   });
   const r = await render();
-  has(r, "OpenTimestamps public anchoring is pending. This does not invalidate recorded integrity, TSA timestamping, signature, custody, or Object Lock.");
+  has(r, "The anchoring proof is still being prepared.");
   has(r, "Publication Posture");
-  has(r, "Publication posture: Bitcoin anchoring pending.");
+  has(r, "Publication posture: Pending.");
   lacks(r, "Anchoring has advanced since this package was generated.");
 });
 

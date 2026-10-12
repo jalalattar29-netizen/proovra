@@ -88,8 +88,9 @@ test("THE INCIDENT: an attestation read from the proof is not an anchor and has 
   const t = resolveOtsTruth(anchoredByStructure);
   assert.equal(t.state, "ATTESTATION_PRESENT_NOT_VERIFIED");
   assert.equal(t.claim, "ANCHORED_NOT_CHECKED");
-  assert.equal(t.headline, "Bitcoin attestation present");
-  assert.equal(t.detail, "Not independently verified against the Bitcoin blockchain");
+  // The customer-facing card: one status, one sentence (2026-10-12).
+  assert.equal(t.headline, "Attestation recorded");
+  assert.equal(t.detail, "Independent Bitcoin verification was not performed.");
   // The worker's recording time is the proof-recorded time — never an anchor time.
   assert.equal(t.verifiedAnchorTimeUtc, null);
   assert.equal(t.proofRecordedAtUtc, RECORDED);
@@ -111,7 +112,8 @@ test("each truth state is distinct; none is promoted by a txid, a status or a ti
   const unavailable = resolveOtsTruth({ ...anchoredByStructure, chainVerificationStatus: "UNAVAILABLE", chainCheckedAtUtc: "2026-10-12T09:00:00Z" });
   assert.equal(unavailable.state, "CHAIN_VERIFICATION_UNAVAILABLE");
   assert.equal(unavailable.claim, "ANCHORED_NOT_CHECKED");
-  assert.match(unavailable.detail, /Not independently verified against the Bitcoin blockchain/);
+  assert.equal(unavailable.headline, "Attestation recorded");
+  assert.equal(unavailable.detail, "Independent verification is currently unavailable.");
   const failed = resolveOtsTruth({ ...anchoredByStructure, chainVerificationStatus: "FAILED", chainFailureCode: "ATTESTATION_NOT_IN_CHAIN" });
   assert.equal(failed.state, "CHAIN_VERIFICATION_FAILED");
   assert.equal(failed.claim, "FAILED");
@@ -143,7 +145,9 @@ test("CHAIN_VERIFIED carries the full recorded evidence; its block time is the o
     blockTimeUtc: "2026-10-08T15:24:48.000Z",
     confirmations: 499,
   });
-  assert.match(t.detail, /Block 970507, 499 confirmations/);
+  // The block evidence lives in chain (technical surfaces), never in the sentence.
+  assert.equal(t.detail, "The proof was independently verified against the Bitcoin blockchain.");
+  assert.doesNotMatch(t.detail, /970507|confirmation/);
   // A txid is required as well.
   assert.equal(resolveOtsTruth({ ...anchoredByStructure, anchorCheck: "BITCOIN_VERIFIED", ...CHAIN, bitcoinTxid: null }).state, "ATTESTATION_PRESENT_NOT_VERIFIED");
 });

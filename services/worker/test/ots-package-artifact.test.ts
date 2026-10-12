@@ -93,7 +93,7 @@ describe("THE INCIDENT: an attestation read by structure is not an anchor", () =
   it("reports the txid and height as the proof's, unverified, and claims nothing", () => {
     expect(result.companion).toMatchObject({
       truthState: "ATTESTATION_PRESENT_NOT_VERIFIED",
-      statusLine: "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
+      statusLine: "Attestation recorded",
       bitcoinTxid: VALID_TXID,
       bitcoinTxidVerified: false,
       reportedBlockHeight: 970507,
@@ -182,19 +182,23 @@ describe("a proof bound to ANOTHER digest is never packaged (real bytes)", () =>
     );
   });
 
-  it("leaves it out, with the reason, when the worker already recorded it FAILED", () => {
-    const r = decideOtsPackageArtifact({ ...base, status: "FAILED", proofBase64: OTHER, failureReason: "PROOF_HASH_MISMATCH" });
-    expect(r.proofBytes).toBeNull();
-    expect(r.companion).toMatchObject({
-      status: "FAILED",
-      truthState: "PROOF_INVALID",
-      proofPresent: false,
-      proofFile: null,
-      committedDigest: null,
-      failureReason: "PROOF_HASH_MISMATCH",
-      verificationStatus: "FAILED",
-    });
-    expect(r.companion!.proofExcludedReason).toMatch(/does not commit to this package's fingerprint digest/);
+  it("refuses it even when the worker already recorded it FAILED — a retry cannot get past it (2026-10-12)", () => {
+    for (const status of ["FAILED", "ANCHORED", "PENDING"]) {
+      expect(() =>
+        decideOtsPackageArtifact({ ...base, status, proofBase64: OTHER, failureReason: "PROOF_HASH_MISMATCH" }),
+      ).toThrow(/OTS_PROOF_DIGEST_MISMATCH/);
+    }
+    try {
+      decideOtsPackageArtifact({ ...base, status: "FAILED", proofBase64: OTHER });
+    } catch (e) {
+      expect((e as { retriable?: boolean }).retriable).toBe(false);
+    }
+  });
+
+  it("packages a correctly bound proof: the refusal is for the binding, not for a missing verifier", () => {
+    const r = decideOtsPackageArtifact({ ...base, status: "PENDING", proofBase64: BOUND });
+    expect(r.proofBytes).not.toBeNull();
+    expect(r.companion!.proofExcludedReason).toBeNull();
   });
 });
 

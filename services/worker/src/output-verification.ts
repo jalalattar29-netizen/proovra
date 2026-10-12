@@ -33,6 +33,7 @@ import {
   compareCanonicalFacts,
   compareIssuanceFactsToRecord,
   deriveCanonicalArtifactFacts,
+  otsBlocksPublication,
   presentedTsaStatus,
   resolveOtsCustodyFacts,
   validatePackageConsistency,
@@ -312,19 +313,20 @@ export function assertRenderInputs(
 }
 
 /**
- * THE OTS DIGEST BINDING BEFORE RENDERING (2026-10-12). A report may state a
- * proof that is UNUSABLE (the worker recorded it FAILED); it may never be
- * rendered from a record whose status still presents the proof as pending or
- * as an attestation while the proof's own bytes commit to another digest, or
- * cannot be read. That contradiction is refused, terminal and stable.
+ * THE OTS PUBLICATION POLICY BEFORE RENDERING (2026-10-12). A proof that does
+ * not commit to the record's fingerprint digest, cannot be read, or that an
+ * independent Bitcoin check refuted is a cryptographic-integrity failure: no
+ * report is rendered from it — whatever status the record carries, FAILED
+ * included — so no "proof unusable" PDF is ever issued and no retry gets past
+ * it. A correctly bound proof that was not independently verified renders as
+ * "Attestation recorded" (shared otsBlocksPublication).
  */
 export function assertOtsProofBinding(record: CanonicalArtifactFacts, payload: Pick<ReportEvidence, "otsStatus">): void {
-  const unbound = record.otsDigestBinding === "MISMATCH" || record.otsDigestBinding === "UNREADABLE";
-  if (unbound && String(payload.otsStatus ?? "").toUpperCase() !== "FAILED") {
+  if (otsBlocksPublication({ digestBinding: record.otsDigestBinding, truthState: record.otsTruthState })) {
     throw new OutputVerificationError("REPORT_RENDER_INPUT_INCONSISTENT", [
       {
         check: "OTS_PROOF_DIGEST_MISMATCH",
-        detail: `the stored OpenTimestamps proof is ${record.otsDigestBinding} against the fingerprint digest while the record presents it as ${String(payload.otsStatus ?? "absent")}`,
+        detail: `the stored OpenTimestamps proof is ${record.otsDigestBinding} against the fingerprint digest (truth ${record.otsTruthState}, status ${String(payload.otsStatus ?? "absent")})`,
       },
     ]);
   }

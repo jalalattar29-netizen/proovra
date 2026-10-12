@@ -100,10 +100,10 @@ test("ET-TSA-01: a kept token that was never validated is not_checked, never ver
 });
 
 test("D8: one badge per claim — green only when the chain was checked", () => {
-  assert.deepEqual(otsClaimBadge("VERIFIED"), { label: "BITCOIN · INDEPENDENTLY VERIFIED", tone: "success" });
+  assert.deepEqual(otsClaimBadge("VERIFIED"), { label: "VERIFIED", tone: "success" });
   const unchecked = otsClaimBadge("ANCHORED_NOT_CHECKED");
   assert.equal(unchecked.tone, "info");
-  assert.match(unchecked.label, /ATTESTATION PRESENT · NOT VERIFIED/);
+  assert.equal(unchecked.label, "ATTESTATION RECORDED");
   assert.notEqual(otsClaimBadge("PENDING").tone, "success");
   assert.notEqual(otsClaimBadge("FAILED").tone, "success");
   assert.equal(parseOtsAnchorClaim("VERIFIED"), "VERIFIED");

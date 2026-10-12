@@ -183,52 +183,87 @@ export function completeOtsChainEvidence(input: OtsTruthInput): OtsChainEvidence
   return { verifier, verifiedAtUtc, blockHeight, blockHash, blockTimeUtc, confirmations };
 }
 
-const COPY: Readonly<Record<OtsTruthState, { headline: string; detail: string }>> = {
-  NOT_REQUESTED: {
-    headline: "No OpenTimestamps proof",
-    detail: "No OpenTimestamps proof was requested for this record.",
-  },
-  PENDING: {
-    headline: "Bitcoin attestation pending",
-    detail: "The OpenTimestamps proof does not carry a Bitcoin attestation yet.",
-  },
-  ATTESTATION_PRESENT_NOT_VERIFIED: {
-    headline: "Bitcoin attestation present",
-    detail: OTS_NOT_INDEPENDENTLY_VERIFIED,
-  },
-  CHAIN_VERIFICATION_UNAVAILABLE: {
-    headline: "Bitcoin attestation present",
-    detail: `${OTS_NOT_INDEPENDENTLY_VERIFIED}: the configured Bitcoin verifier was unavailable when last checked.`,
-  },
-  CHAIN_VERIFICATION_FAILED: {
-    headline: "Bitcoin attestation did not verify",
-    detail: "An independent check against the Bitcoin blockchain ran and did not verify this proof.",
-  },
-  CHAIN_VERIFIED: {
-    headline: "Bitcoin attestation independently verified",
-    detail: "The proof's commitment was verified against the Bitcoin blockchain.",
-  },
-  PROOF_INVALID: {
-    headline: "OpenTimestamps proof unusable",
-    detail: "The proof does not commit to this record's fingerprint digest, could not be read, or did not complete.",
-  },
-  UNKNOWN_OR_STALE: {
-    headline: "OpenTimestamps state cannot be established",
-    detail: "The recorded OpenTimestamps data is incomplete or out of date; no Bitcoin anchoring claim is made.",
-  },
+/**
+ * THE CUSTOMER-FACING OTS VOCABULARY (2026-10-12): four words and one short
+ * sentence. The eight internal states stay internal; every reader-facing
+ * surface (report card, Public Verify summary, apps, package summaries) says
+ * one of these, and technical detail lives only in technical materials.
+ */
+export const OTS_PRESENTATION_TITLE = "OpenTimestamps";
+export const OTS_PUBLIC_STATUSES = ["Pending", "Attestation recorded", "Verified", "Unavailable"] as const;
+export type OtsPublicStatus = (typeof OTS_PUBLIC_STATUSES)[number];
+
+const COPY: Readonly<Record<OtsTruthState, { headline: OtsPublicStatus; detail: string }>> = {
+  NOT_REQUESTED: { headline: "Unavailable", detail: "No OpenTimestamps proof was requested for this record." },
+  PENDING: { headline: "Pending", detail: "The anchoring proof is still being prepared." },
+  ATTESTATION_PRESENT_NOT_VERIFIED: { headline: "Attestation recorded", detail: "Independent Bitcoin verification was not performed." },
+  CHAIN_VERIFICATION_UNAVAILABLE: { headline: "Attestation recorded", detail: "Independent verification is currently unavailable." },
+  // Never presented on a published report or package: publication is refused.
+  CHAIN_VERIFICATION_FAILED: { headline: "Unavailable", detail: "The proof did not verify against the Bitcoin blockchain." },
+  CHAIN_VERIFIED: { headline: "Verified", detail: "The proof was independently verified against the Bitcoin blockchain." },
+  PROOF_INVALID: { headline: "Unavailable", detail: "Bitcoin anchoring did not complete for this record." },
+  UNKNOWN_OR_STALE: { headline: "Unavailable", detail: "The anchoring state could not be established." },
 };
 
-export const OTS_TRUTH_STATUS_LINES: Readonly<Record<OtsTruthState, string>> = {
-  NOT_REQUESTED: "No OpenTimestamps proof",
-  PENDING: "Bitcoin attestation pending",
-  ATTESTATION_PRESENT_NOT_VERIFIED: "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
-  CHAIN_VERIFICATION_UNAVAILABLE:
-    "Bitcoin attestation present; independent verification unavailable, not independently verified against the Bitcoin blockchain",
-  CHAIN_VERIFICATION_FAILED: "Bitcoin attestation did not verify against the Bitcoin blockchain",
-  CHAIN_VERIFIED: "Bitcoin attestation independently verified against the Bitcoin blockchain",
-  PROOF_INVALID: "OpenTimestamps proof unusable for this record",
-  UNKNOWN_OR_STALE: "OpenTimestamps state cannot be established",
+/** ONE status word per state — the same on every surface. */
+export const OTS_TRUTH_STATUS_LINES: Readonly<Record<OtsTruthState, OtsPublicStatus>> = {
+  NOT_REQUESTED: COPY.NOT_REQUESTED.headline,
+  PENDING: COPY.PENDING.headline,
+  ATTESTATION_PRESENT_NOT_VERIFIED: COPY.ATTESTATION_PRESENT_NOT_VERIFIED.headline,
+  CHAIN_VERIFICATION_UNAVAILABLE: COPY.CHAIN_VERIFICATION_UNAVAILABLE.headline,
+  CHAIN_VERIFICATION_FAILED: COPY.CHAIN_VERIFICATION_FAILED.headline,
+  CHAIN_VERIFIED: COPY.CHAIN_VERIFIED.headline,
+  PROOF_INVALID: COPY.PROOF_INVALID.headline,
+  UNKNOWN_OR_STALE: COPY.UNKNOWN_OR_STALE.headline,
 };
+
+/** The one explanatory sentence per state. */
+export const OTS_TRUTH_SENTENCES: Readonly<Record<OtsTruthState, string>> = Object.fromEntries(
+  Object.entries(COPY).map(([k, v]) => [k, v.detail]),
+) as Record<OtsTruthState, string>;
+
+export type OtsPresentation = {
+  title: typeof OTS_PRESENTATION_TITLE;
+  status: OtsPublicStatus;
+  sentence: string;
+  /** "Recorded by PROOVRA" (when the proof was recorded) or "Verified" — never an anchor time. */
+  dateLabel: "Recorded by PROOVRA" | "Verified" | null;
+  dateUtc: string | null;
+};
+
+/** THE OTS card: title, one status, one sentence, at most one date. */
+export function presentOtsTruth(truth: Pick<OtsTruth, "state" | "proofRecordedAtUtc" | "chain">): OtsPresentation {
+  const copy = COPY[truth.state];
+  const attestation = truth.state === "ATTESTATION_PRESENT_NOT_VERIFIED" || truth.state === "CHAIN_VERIFICATION_UNAVAILABLE";
+  const verified = truth.state === "CHAIN_VERIFIED" && truth.chain;
+  return {
+    title: OTS_PRESENTATION_TITLE,
+    status: copy.headline,
+    sentence: copy.detail,
+    dateLabel: verified ? "Verified" : attestation && truth.proofRecordedAtUtc ? "Recorded by PROOVRA" : null,
+    dateUtc: verified ? truth.chain!.verifiedAtUtc : attestation ? truth.proofRecordedAtUtc : null,
+  };
+}
+
+/**
+ * THE PUBLICATION POLICY (2026-10-12). A proof that does not commit to the
+ * record's fingerprint digest, cannot be read, or that an independent Bitcoin
+ * check ran against and did NOT verify, is a cryptographic-integrity failure:
+ * no report or verification package is published from it (refused with
+ * OTS_PROOF_DIGEST_MISMATCH, deterministically, on every retry). A correctly
+ * bound proof that was simply not independently verified — no verifier, or the
+ * verifier unreachable — publishes as "Attestation recorded".
+ */
+export function otsBlocksPublication(input: {
+  digestBinding: OtsDigestBinding["kind"] | "NOT_EVALUATED" | null | undefined;
+  truthState: OtsTruthState;
+}): boolean {
+  return (
+    input.digestBinding === "MISMATCH" ||
+    input.digestBinding === "UNREADABLE" ||
+    input.truthState === "CHAIN_VERIFICATION_FAILED"
+  );
+}
 
 const CLAIM: Readonly<Record<OtsTruthState, OtsAnchorClaim>> = {
   NOT_REQUESTED: "NOT_CONFIGURED",
@@ -308,10 +343,9 @@ export function resolveOtsTruth(input: OtsTruthInput): OtsTruth {
 
   const chainStatus = normalizeOtsChainVerificationStatus(input.chainVerificationStatus);
   const copy = COPY[state];
-  const detail =
-    state === "CHAIN_VERIFIED" && chain
-      ? `${copy.detail} Block ${chain.blockHeight}, ${chain.confirmations} confirmation${chain.confirmations === 1 ? "" : "s"}, verified ${chain.verifiedAtUtc}.`
-      : copy.detail;
+  // ONE sentence. The block, confirmations and verification time are
+  // technical material: they travel in `chain`, never in the sentence.
+  const detail = copy.detail;
 
   // An anchor recorded before the check existed is stale/unknown, but its claim
   // stays "attestation, chain not checked" — it is not a pending proof.

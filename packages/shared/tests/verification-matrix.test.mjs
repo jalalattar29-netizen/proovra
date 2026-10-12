@@ -110,8 +110,9 @@ test("an unchecked OTS proof is NOT_CHECKED — never verified, passed or scored
     const m = matrix({ evidence: { otsAnchorCheck } });
     const ots = rowOf(m, "ots_anchoring");
     assert.equal(ots.status, "NOT_CHECKED");
-    assert.match(ots.statement, /not independently verified against the Bitcoin blockchain/);
-    assert.match(ots.statement, /No independent Bitcoin verification result is recorded\./);
+    // The reader's word and the one sentence (2026-10-12).
+    assert.equal(ots.statusLabel, "Attestation recorded");
+    assert.equal(ots.statement, "Independent Bitcoin verification was not performed.");
     assert.doesNotMatch(ots.statement, /attestation independently verified|anchored/i);
     const json = JSON.stringify(m);
     assert.doesNotMatch(json, /"(points|maxPoints|score|verdict)"/);
@@ -278,24 +279,30 @@ test("OTS projection per state: pending, present, verified, failed and not reque
   const ots = (evidence) => rowOf(matrix({ evidence }), "ots_anchoring");
   const pending = ots({ otsStatus: "PENDING", otsAnchoredAtUtc: null, otsBitcoinTxid: null, otsAnchorCheck: null, otsProofPresent: false, otsSubmittedAtUtc: new Date().toISOString() });
   assert.equal(pending.status, "NOT_CHECKED");
-  assert.match(pending.statement, /Bitcoin anchoring is pending/);
-  assert.match(pending.statement, /has not been independently verified against the Bitcoin blockchain/);
+  assert.equal(pending.statusLabel, "Pending");
+  assert.equal(pending.statement, "The anchoring proof is still being prepared.");
   assert.doesNotMatch(pending.statement, /verified against the Bitcoin chain|anchored in Bitcoin/i);
 
   const present = ots({});
   assert.equal(present.status, "NOT_CHECKED");
-  assert.match(present.statement, /not independently verified against the Bitcoin blockchain/);
+  assert.equal(present.statusLabel, "Attestation recorded");
 
-  assert.equal(ots({ otsAnchorCheck: "BITCOIN_VERIFIED", otsAnchorCheckedAtUtc: "2026-10-01T03:00:00Z", ...OTS_CHAIN }).status, "VERIFIED");
+  const verified = ots({ otsAnchorCheck: "BITCOIN_VERIFIED", otsAnchorCheckedAtUtc: "2026-10-01T03:00:00Z", ...OTS_CHAIN });
+  assert.equal(verified.status, "VERIFIED");
+  assert.equal(verified.statusLabel, "Verified");
+  assert.equal(verified.statement, "The proof was independently verified against the Bitcoin blockchain.");
 
   const failedMatrix = matrix({ evidence: { otsStatus: "FAILED", otsAnchoredAtUtc: null, otsBitcoinTxid: null, otsAnchorCheck: null, otsFailureReason: "calendar unreachable" } });
   const failed = rowOf(failedMatrix, "ots_anchoring");
-  assert.equal(failed.status, "FAILED");
-  assert.match(failed.statement, /Bitcoin anchoring only/);
+  // Never a failed integrity check: a refuted or unbound proof is never published.
+  assert.equal(failed.status, "UNAVAILABLE");
+  assert.equal(failed.statusLabel, "Unavailable");
+  assert.equal(failed.statement, "Bitcoin anchoring did not complete for this record.");
   // An OTS failure never falsely fails integrity, signature or custody.
   for (const key of ["file_integrity", "record_signature", "custody_chain"]) assert.equal(statusOf(failedMatrix, key), "VERIFIED", key);
 
   const none = ots({ otsStatus: null, otsAnchoredAtUtc: null, otsBitcoinTxid: null, otsAnchorCheck: null });
   assert.equal(none.status, "UNAVAILABLE");
-  assert.equal(none.statement, "Bitcoin anchoring was not requested or is not available for this record.");
+  assert.equal(none.statusLabel, "Unavailable");
+  assert.equal(none.statement, "No OpenTimestamps proof was requested for this record.");
 });

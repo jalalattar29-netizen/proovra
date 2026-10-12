@@ -121,10 +121,6 @@ const shouldRenderSignature = hasSignatureRows;
     vm.technicalAppendix.timestampDigestLabel ??
     describeTsaDigestSource(vm.technicalAppendix.tsaInputKind ?? null);
 
-  const otsHash = hasMeaningfulTechnicalValue(vm.technicalAppendix.otsHash)
-    ? String(vm.technicalAppendix.otsHash)
-    : "";
-
   const anchorHash = hasMeaningfulTechnicalValue(vm.technicalAppendix.anchorHash)
     ? String(vm.technicalAppendix.anchorHash)
     : "";
@@ -260,19 +256,11 @@ timestampDigestLabel.includes("Canonical Package Digest")
               ${renderKeyValueGrid(anchoringRows)}
 
               ${
-                otsHash || anchorHash
+                // The proof's committed digest is already a row of the table above.
+                anchorHash
                   ? `
                     <div class="technical-mono-grid">
-                      ${
-                        otsHash
-                          ? renderMonoBlock("OpenTimestamps Digest", otsHash)
-                          : ""
-                      }
-                      ${
-                        anchorHash
-                          ? renderMonoBlock("Anchor Hash", anchorHash)
-                          : ""
-                      }
+                      ${renderMonoBlock("Anchor Hash", anchorHash)}
                     </div>
                   `
                   : ""

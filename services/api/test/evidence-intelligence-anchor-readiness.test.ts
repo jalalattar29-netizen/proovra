@@ -167,13 +167,15 @@ describe.each([
     }
     const verified = await build("VERIFIED", outputs);
     expect(verified.reviewerDecision.reasons).toContain(
-      "Bitcoin attestation independently verified against the Bitcoin blockchain.",
+      "OpenTimestamps: Verified. The proof was independently verified against the Bitcoin blockchain.",
     );
   });
 
   it("an anchor recorded but not checked says so", async () => {
     const i = await build("PROOF_STRUCTURE", outputs);
-    expect(i.reviewerDecision.reasons.join(" ")).toMatch(/not independently verified against the Bitcoin blockchain/);
+    expect(i.reviewerDecision.reasons).toContain(
+      "OpenTimestamps: Attestation recorded. Independent Bitcoin verification was not performed.",
+    );
   });
 
   it("a FAILED proof is a review gap, worded as a failure of anchoring only", async () => {

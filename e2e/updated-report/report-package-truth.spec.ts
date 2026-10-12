@@ -338,10 +338,10 @@ test("J2 v2 — TSA validated + attested OTS proof: present, not chain-verified;
   expect(text).toMatch(/Bitcoin attestation was added to the OpenTimestamps proof after report v1/);
   expect(text).toMatch(/supersedes report v1/);
   expect(text).toMatch(/trusted timestamp was validated after report v1/i);
-  expect(text).toContain("Bitcoin attestation present; not independently verified against the Bitcoin blockchain");
+  // The OpenTimestamps card: one status, one sentence.
+  expect(text).toMatch(/OpenTimestamps\s+Attestation recorded\s+Independent Bitcoin verification was not performed\./);
   expect(text).not.toMatch(/chain-verified/i);
-  expect(text).toMatch(/OpenTimestamps \/ Bitcoin anchoring\s+Not checked/);
-  expect(text).not.toMatch(/Bitcoin anchoring\s+Verified/);
+  expect(text).not.toMatch(/OpenTimestamps\s+Verified|Bitcoin anchoring\s+Verified/);
   // A validated token is a certificate-chain fact, never a qualification.
   expect(text).toContain("Timestamp token and certificate chain validated; qualified-service status was not independently evaluated.");
   expect(text).not.toMatch(/OAuth-backed|Organization account/);
@@ -392,7 +392,7 @@ test("J3 v3 — with NO trusted Bitcoin verifier, anchoring stays present-not-ve
   expect([200, 202]).toContain(r.status);
   await waitForPair(owner.api, evidenceId, 3);
   const text = pdfText(await downloadVersion(owner.api, evidenceId, "report", 3), "v3.pdf");
-  expect(text).toContain("Bitcoin attestation present; not independently verified against the Bitcoin blockchain");
+  expect(text).toMatch(/OpenTimestamps\s+Attestation recorded\s+Independent Bitcoin verification was not performed\./);
   expect(text).not.toMatch(/chain-verified/i);
   expect(text).not.toContain("Anchored in Bitcoin; verified against the Bitcoin chain");
   expect(text).not.toContain("Anchored, chain-verified");
@@ -593,7 +593,7 @@ test("J9 browser — Artifacts shows identity, profile and both downloads; the p
   await expect(profile).toContainText(v1.packageId);
   await expect(page.getByTestId("download-external-package-v1")).toBeEnabled();
   // No chain check exists in the stack: the header never says chain-verified.
-  await expect(page.getByTestId("truth-ots")).toHaveText("Attestation present, not verified");
+  await expect(page.getByTestId("truth-ots")).toHaveText("Attestation recorded");
   await expect(page.getByTestId("truth-ots")).not.toHaveText(/chain-verified|Independently verified/);
   // Nor does its dated note call the proof-structure check a chain check.
   const otsNote = page.getByTestId("truth-ots-measured");
@@ -652,8 +652,7 @@ test("J10 OTS PENDING at issuance — Report v1 and BOTH packages are generated 
 
   // Report v1: OTS pending, NOT_CHECKED, never chain-verified.
   const text = pdfText(await downloadVersion(session.api, id, "report", 1), "ots-pending-v1.pdf");
-  expect(text).toMatch(/OpenTimestamps \/ Bitcoin anchoring\s+Not checked/);
-  expect(text.replace(/\s+/g, " ")).toContain("Bitcoin anchoring is pending: the OpenTimestamps request was accepted and its Bitcoin attestation has not completed. It has not been independently verified against the Bitcoin blockchain.");
+  expect(text).toMatch(/OpenTimestamps\s+Pending\s+The anchoring proof is still being prepared\./);
   expect(text).not.toContain("Anchored in Bitcoin; verified against the Bitcoin chain");
   expect(findForbiddenCustomerClaims(text)).toEqual([]);
 

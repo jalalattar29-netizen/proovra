@@ -522,7 +522,7 @@ describe("Phase Z [FM-OTS-002] — empty / malformed proof never produces a .ots
     expect(src).toContain("decideOtsPackageArtifact");
     // (2026-10-12) Bytes are emitted only for a proof whose digest binding,
     // read from its bytes, is MATCH — an empty or malformed proof cannot be.
-    expect(src).toMatch(/if \(binding\.kind === "MATCH"\) \{\s*proofBytes = Buffer\.from\(input\.proofBase64 as string, "base64"\);/);
+    expect(src).toMatch(/binding\.kind === "MATCH" \? Buffer\.from\(input\.proofBase64 as string, "base64"\) : null;/);
   });
 });
 
@@ -1212,5 +1212,16 @@ describe("Phase Z [Part B] — chaos / fault injection harness", () => {
       prevHash: h2Tampered,
     });
     expect(h3Recomputed).not.toBe(h3);
+  });
+});
+
+describe("(2026-10-12) Public Verify never presents a proof bound to another digest as attached", () => {
+  it("every OTS proof-presence field and every proof hand-off reads the bound proof only", () => {
+    const src = readSource("../src/routes/evidence.routes.ts");
+    // No surface counts raw stored bytes as an attached proof …
+    expect(src).not.toMatch(/(?:otsP|p)roofPresent:\s*Boolean\(\s*(?:params\.)?evidence\.otsProofBase64\s*\)/);
+    expect(src).not.toMatch(/otsProofBase64:\s*evidence\.otsProofBase64,/);
+    // … the one helper decides, from the proof's own committed digest.
+    expect(src).toContain("return boundOtsProofBase64({");
   });
 });

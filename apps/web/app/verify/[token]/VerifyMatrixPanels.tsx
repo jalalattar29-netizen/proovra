@@ -280,7 +280,7 @@ export function VerificationMatrixGrid({
                   letterSpacing: "0.03em",
                 }}
               >
-                {VERIFICATION_STATUS_LABELS[row.status]}
+                {row.statusLabel ?? VERIFICATION_STATUS_LABELS[row.status]}
               </div>
             </div>
 

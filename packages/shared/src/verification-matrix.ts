@@ -23,6 +23,7 @@
  * Disclosure packages build it from the same inputs and differ only in what
  * they disclose, never in a status.
  */
+import { OTS_TRUTH_SENTENCES, type OtsPublicStatus } from "./ots-truth.js";
 import {
   acquisitionAccountLabel,
   acquisitionActorLabel,
@@ -63,7 +64,7 @@ export const VERIFICATION_MATRIX_LABELS: Readonly<Record<VerificationMatrixKey, 
   package_signature: "Package signature",
   package_completeness: "Package completeness",
   tsa_token: "Trusted timestamp (RFC 3161)",
-  ots_anchoring: "OpenTimestamps / Bitcoin anchoring",
+  ots_anchoring: "OpenTimestamps",
   storage_protection: "Storage protection",
   account_identity: "Account identity",
   organization_verification: "Organization verification",
@@ -79,6 +80,12 @@ export type VerificationMatrixRow = {
   /** One factual sentence: what was checked, or why it was not. */
   statement: string;
   measuredAtUtc: string | null;
+  /**
+   * The word a reader sees when it differs from the generic status word:
+   * OpenTimestamps says Pending / Attestation recorded / Verified / Unavailable
+   * (ots-truth OTS_PUBLIC_STATUSES). Absent for every other row.
+   */
+  statusLabel?: string;
 };
 
 export type VerificationMatrix = {
@@ -184,26 +191,57 @@ function signalRow(
  *   PENDING, STALE      request accepted, upgrade pending         NOT_CHECKED
  *   PRESENT / NOT_CHECKED  proof present, chain not checked       NOT_CHECKED
  *   PASSED              independently verified against Bitcoin    VERIFIED
- *   FAILED              the OTS operation failed                  FAILED
+ *   FAILED              anchoring did not complete                UNAVAILABLE
  */
+const OTS_SENTENCES: ReadonlySet<string> = new Set(Object.values(OTS_TRUTH_SENTENCES));
 export function otsMatrixStatement(state: TrustSignalState, summary: string): string {
+  // The signal's summary IS the one sentence (ots-truth OTS_TRUTH_SENTENCES);
+  // any other text — an older stored summary — is replaced by the state's sentence.
+  const sentence = OTS_SENTENCES.has(summary) ? summary : null;
   switch (state) {
     case "PENDING":
-      return "Bitcoin anchoring is pending: the OpenTimestamps request was accepted and its Bitcoin attestation has not completed. It has not been independently verified against the Bitcoin blockchain.";
+      return sentence ?? OTS_TRUTH_SENTENCES.PENDING;
     case "STALE":
-      return "Bitcoin anchoring has been pending longer than expected; its current state is not known. It has not been independently verified against the Bitcoin blockchain.";
+      return sentence ?? OTS_TRUTH_SENTENCES.UNKNOWN_OR_STALE;
     case "PRESENT_NOT_INDEPENDENTLY_VERIFIED":
     case "NOT_CHECKED":
-      return /verification unavailable/i.test(summary)
-        ? `${summary.replace(/\.$/, "")}. The configured Bitcoin verifier could not be reached when it last checked.`
-        : `${summary.replace(/\.$/, "")}. No independent Bitcoin verification result is recorded.`;
+      return sentence ?? OTS_TRUTH_SENTENCES.ATTESTATION_PRESENT_NOT_VERIFIED;
+    case "PASSED":
+      return OTS_TRUTH_SENTENCES.CHAIN_VERIFIED;
     case "FAILED":
-      return `${summary.replace(/\.$/, "")}. This concerns Bitcoin anchoring only; it does not change the file-integrity, signature or custody checks.`;
-    case "UNAVAILABLE":
-      return "Bitcoin anchoring was not requested or is not available for this record.";
+      return sentence ?? OTS_TRUTH_SENTENCES.PROOF_INVALID;
     default:
-      return summary;
+      return OTS_TRUTH_SENTENCES.NOT_REQUESTED;
   }
+}
+
+/** The OTS row: the generic status for machines, the OTS word for readers. */
+const OTS_STATUS_WORD: Readonly<Record<TrustSignalState, OtsPublicStatus>> = {
+  PASSED: "Verified",
+  PRESENT_NOT_INDEPENDENTLY_VERIFIED: "Attestation recorded",
+  NOT_CHECKED: "Attestation recorded",
+  PENDING: "Pending",
+  STALE: "Unavailable",
+  FAILED: "Unavailable",
+  UNAVAILABLE: "Unavailable",
+  NOT_APPLICABLE: "Unavailable",
+};
+/**
+ * The OTS row's status for an OTS trust state. A proof that is unbound or
+ * refuted by a chain check never reaches a published artifact
+ * (otsBlocksPublication), so an OTS layer that did not complete is
+ * UNAVAILABLE — never a failed integrity check of the bytes.
+ */
+export function otsVerificationStatus(state: TrustSignalState): VerificationStatus {
+  const status = toVerificationStatus(state);
+  return status === "FAILED" ? "UNAVAILABLE" : status;
+}
+
+function otsRow(signal: VerificationSignalInput | undefined): VerificationMatrixRow {
+  const base = signalRow("ots_anchoring", signal, (_status, summary, state) => otsMatrixStatement(state, summary));
+  const state = signal ? resolveSnapshotSignalState(signal) : "UNAVAILABLE";
+  const status = base.status === "FAILED" ? "UNAVAILABLE" : base.status;
+  return { ...base, status, statusLabel: OTS_STATUS_WORD[state] ?? "Unavailable" };
 }
 
 function identityRows(identity: VerificationIdentityInput | null): VerificationMatrixRow[] {
@@ -418,7 +456,7 @@ export function buildVerificationMatrix(input: BuildVerificationMatrixInput): Ve
     signalRow("tsa_token", signal("trusted_timestamp"), (status, summary) =>
       status === "VERIFIED" ? `RFC 3161 timestamp validated. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}` : summary,
     ),
-    signalRow("ots_anchoring", signal("bitcoin_anchoring"), (_status, summary, state) => otsMatrixStatement(state, summary)),
+    otsRow(signal("bitcoin_anchoring")),
     signalRow("storage_protection", signal("immutable_storage")),
     ...identityRows(input.identity),
     ...acquisitionRows(input.acquisitionMode, input.acquisitionModeSource),
@@ -465,6 +503,7 @@ export function parseVerificationMatrix(value: unknown): VerificationMatrix | nu
       status: status as VerificationStatus,
       statement: typeof o.statement === "string" ? o.statement : "",
       measuredAtUtc: typeof o.measuredAtUtc === "string" ? o.measuredAtUtc : null,
+      ...(typeof o.statusLabel === "string" ? { statusLabel: o.statusLabel } : {}),
     });
   }
   return {

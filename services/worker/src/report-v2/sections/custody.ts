@@ -46,20 +46,9 @@ function renderLifecycleSummary(vm: ReportViewModel): string {
     (row) => row.label === "RFC 3161 Status"
   )?.value;
 
-  const normalizedAnchoringStatus = String(anchoringStatus ?? "").toLowerCase();
-
-  const anchoringStep =
-    normalizedAnchoringStatus.includes("pending")
-      ? "Anchoring pending"
-      : normalizedAnchoringStatus.includes("not recorded") ||
-          normalizedAnchoringStatus.includes("not reported")
-        ? "Anchoring not recorded"
-        : normalizedAnchoringStatus.includes("recorded") ||
-            normalizedAnchoringStatus.includes("anchored") ||
-            normalizedAnchoringStatus.includes("published") ||
-            normalizedAnchoringStatus.includes("verified")
-          ? "Anchoring recorded"
-          : "Anchoring not recorded";
+  // The public OpenTimestamps word (Pending, Attestation recorded, Verified,
+  // Unavailable), the same one the trust card shows.
+  const anchoringStep = `OpenTimestamps ${String(anchoringStatus ?? "Unavailable").toLowerCase()}`;
 
   return `
     <div class="custody-lifecycle-summary">
