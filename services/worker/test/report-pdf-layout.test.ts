@@ -186,7 +186,7 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
       // The failure in words, never the stored code.
       expect(text).toContain("The timestamp proof does not commit to this record's fingerprint.");
       expect(text).not.toContain("PROOF_HASH_MISMATCH");
-      expect(text).not.toMatch(/Bitcoin attestation present|independently verified against the Bitcoin blockchain(?! —)|anchored at/i);
+      expect(text).not.toMatch(/Bitcoin attestation present|independently verified against the Bitcoin blockchain\b(?! —)|anchored at/i);
       const facts = factsOf(input);
       expect(facts.otsTruthState).toBe("PROOF_INVALID");
       await assertRenderedReport(Buffer.from(pdf), facts, input.version, { supersedesVersion: null });
