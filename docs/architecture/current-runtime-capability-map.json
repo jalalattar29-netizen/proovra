@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 9808,
-      "UNRESOLVED_IDENTIFIER": 1356
+      "METHOD_ON_VALUE": 9839,
+      "UNRESOLVED_IDENTIFIER": 1360
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -14548,34 +14548,34 @@
     },
     "registeredQueues": {
       "reportQueueName": [
-        "services/worker/src/index.ts:2135"
+        "services/worker/src/index.ts:2142"
       ],
       "otsUpgradeQueueName": [
-        "services/worker/src/index.ts:2153"
+        "services/worker/src/index.ts:2160"
       ],
       "evidencePurgeQueueName": [
-        "services/worker/src/index.ts:2170"
+        "services/worker/src/index.ts:2177"
       ],
       "searchIndexingQueueName": [
-        "services/worker/src/index.ts:2188"
+        "services/worker/src/index.ts:2195"
       ],
       "mediaIntelligenceQueueName": [
-        "services/worker/src/index.ts:2210"
+        "services/worker/src/index.ts:2217"
       ],
       "derivedAssetsQueueName": [
-        "services/worker/src/index.ts:2232"
+        "services/worker/src/index.ts:2239"
       ],
       "redactionDerivativeQueueName": [
-        "services/worker/src/index.ts:2254"
+        "services/worker/src/index.ts:2261"
       ],
       "graphReconcileQueueName": [
-        "services/worker/src/index.ts:2292"
+        "services/worker/src/index.ts:2299"
       ],
       "miEmbedQueueName": [
-        "services/worker/src/index.ts:2313"
+        "services/worker/src/index.ts:2320"
       ],
       "graphSearchProjectionQueueName": [
-        "services/worker/src/index.ts:2335"
+        "services/worker/src/index.ts:2342"
       ]
     },
     "registryEntries": 30,
@@ -90984,8 +90984,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@5319",
-      "terminalLocation": "services/worker/src/processor.ts:5319",
+      "writerId": "services/worker/src/processor.ts#evidence.update@5402",
+      "terminalLocation": "services/worker/src/processor.ts:5402",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -91015,8 +91015,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.updateMany@4497",
-      "terminalLocation": "services/worker/src/processor.ts:4497",
+      "writerId": "services/worker/src/processor.ts#evidence.updateMany@4580",
+      "terminalLocation": "services/worker/src/processor.ts:4580",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -91046,8 +91046,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#report.create@4554",
-      "terminalLocation": "services/worker/src/processor.ts:4554",
+      "writerId": "services/worker/src/processor.ts#report.create@4637",
+      "terminalLocation": "services/worker/src/processor.ts:4637",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -91077,8 +91077,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4058",
-      "terminalLocation": "services/worker/src/processor.ts:4058",
+      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4141",
+      "terminalLocation": "services/worker/src/processor.ts:4141",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -91108,8 +91108,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4718",
-      "terminalLocation": "services/worker/src/processor.ts:4718",
+      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4801",
+      "terminalLocation": "services/worker/src/processor.ts:4801",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -91453,8 +91453,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@392",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:392",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@482",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:482",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "markRequestRetryable",
       "kind": "DATABASE",
@@ -91484,8 +91484,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@437",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:437",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@527",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:527",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "recordRequestProgress",
       "kind": "DATABASE",
@@ -91515,8 +91515,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@573",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:573",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@663",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:663",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "reconcileStrandedReportRequests",
       "kind": "DATABASE",
@@ -91985,7 +91985,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2725#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2732#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -92016,7 +92016,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2725#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2732#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -92115,7 +92115,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2725#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2732#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -92146,7 +92146,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2725#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2732#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -92177,7 +92177,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2725#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2732#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -92208,7 +92208,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2725#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2732#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -95834,6 +95834,7 @@
         "evidence",
         "operationalIncident",
         "payment",
+        "reportGenerationRequest",
         "securityEvent",
         "ssoConnection",
         "uploadSession",
@@ -95845,11 +95846,11 @@
         "services/api/src/routes/admin-alerts.routes.ts: platform-admin scope (multi-tenant by design)",
         "services/api/src/services/admin/alerts.service.ts: operationalIncident.findMany — no tenant or self predicate",
         "services/api/src/services/admin/alerts.service.ts: securityEvent.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/ops/dead-letter.ts: reportGenerationRequest.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/ops/dead-letter.ts: operationalIncident.findMany — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
-        "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
-        "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate"
@@ -96717,17 +96718,18 @@
       "modelsRead": [
         "evidence",
         "operationalIncident",
+        "reportGenerationRequest",
         "uploadSession"
       ],
       "modelsWritten": [],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/routes/admin-evidence-ops.routes.ts: platform-admin scope (multi-tenant by design)",
+        "packages/shared-runtime/src/ops/dead-letter.ts: reportGenerationRequest.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/ops/dead-letter.ts: operationalIncident.findMany — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
-        "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
-        "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
@@ -97742,6 +97744,7 @@
         "organizationDomain",
         "payment",
         "queueTelemetrySnapshot",
+        "reportGenerationRequest",
         "securityEvent",
         "ssoConnection",
         "subscription",
@@ -97757,11 +97760,11 @@
         "services/api/src/routes/admin-overview.routes.ts: platform-admin scope (multi-tenant by design)",
         "services/api/src/services/admin/alerts.service.ts: operationalIncident.findMany — no tenant or self predicate",
         "services/api/src/services/admin/alerts.service.ts: securityEvent.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/ops/dead-letter.ts: reportGenerationRequest.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/ops/dead-letter.ts: operationalIncident.findMany — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
-        "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
-        "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate"
@@ -97819,6 +97822,7 @@
         "operationalIncident",
         "paypalWebhookEvent",
         "queueTelemetrySnapshot",
+        "reportGenerationRequest",
         "securityEvent",
         "ssoConnection",
         "stripeWebhookEvent",
@@ -97831,6 +97835,8 @@
         "services/api/src/routes/admin-platform-health.routes.ts: platform-admin scope (multi-tenant by design)",
         "services/api/src/runtime/runtime-readiness.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/runtime/runtime-readiness.ts: securityEvent.findFirst — no tenant or self predicate",
+        "packages/shared-runtime/src/ops/dead-letter.ts: reportGenerationRequest.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/ops/dead-letter.ts: operationalIncident.findMany — no tenant or self predicate",
         "services/api/src/services/admin/platform-health.service.ts: ssoConnection.count — no tenant or self predicate",
         "services/api/src/services/admin/platform-health.service.ts: authenticatedSession.count — no tenant or self predicate",
         "services/api/src/services/admin/platform-health.service.ts: uploadSession.count — no tenant or self predicate",
@@ -97941,6 +97947,7 @@
         "governanceReconciliationRun",
         "operationalIncident",
         "payment",
+        "reportGenerationRequest",
         "securityEvent",
         "ssoConnection",
         "uploadSession",
@@ -97955,11 +97962,11 @@
         "services/api/src/services/operations/platform-health-snapshot.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/admin/alerts.service.ts: operationalIncident.findMany — no tenant or self predicate",
         "services/api/src/services/admin/alerts.service.ts: securityEvent.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/ops/dead-letter.ts: reportGenerationRequest.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/ops/dead-letter.ts: operationalIncident.findMany — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
         "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
-        "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
-        "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
-        "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate"
+        "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -117859,6 +117866,8 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "operationalIncident",
+        "reportGenerationRequest",
         "teamMember",
         "user"
       ],
@@ -117868,7 +117877,9 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "packages/shared-runtime/src/ops/dead-letter.ts: reportGenerationRequest.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/ops/dead-letter.ts: operationalIncident.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -118033,6 +118044,8 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "operationalIncident",
+        "reportGenerationRequest",
         "teamMember",
         "user",
         "workerLease"
@@ -118043,7 +118056,9 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "packages/shared-runtime/src/ops/dead-letter.ts: reportGenerationRequest.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/ops/dead-letter.ts: operationalIncident.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
