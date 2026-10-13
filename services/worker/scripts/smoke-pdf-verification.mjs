@@ -94,12 +94,28 @@ async function samplePdf(text) {
 }
 
 const DIGEST = "3f2a9c1e5b7d4f6a8c0e2b4d6f8a1c3e5b7d9f0a2c4e6b8d0f1a3c5e7b9d2f4a";
+const FINGERPRINT = "c".repeat(64);
+/**
+ * A pending OpenTimestamps proof over FINGERPRINT in the real binary format
+ * (magic, version, the SHA-256 file-hash op, the digest, one calendar
+ * attestation): the OTS state is resolved from these bytes (2026-10-13).
+ */
+function pendingOtsProof(digestHex) {
+  const magic = Buffer.from("004f70656e54696d657374616d7073000050726f6f6600bf89e2e884e89294", "hex");
+  const uri = Buffer.from("https://a.pool.opentimestamps.org");
+  const payload = Buffer.concat([Buffer.from([uri.length]), uri]);
+  return Buffer.concat([
+    magic, Buffer.from([0x01, 0x08]), Buffer.from(digestHex, "hex"),
+    Buffer.from([0x00]), Buffer.from("83dfe30d2ef90c8e", "hex"), Buffer.from([payload.length]), payload,
+  ]).toString("base64");
+}
 const ROW = {
   tsaProvider: null, tsaUrl: null, tsaSerialNumber: null, tsaGenTimeUtc: null, tsaTokenBase64: null,
   tsaMessageImprint: null, tsaInputDigestHex: null, tsaInputKind: null, tsaHashAlgorithm: null,
   tsaStatus: null, tsaFailureReason: null, tsaFailureCode: null, tsaValidatedAtUtc: null,
   // The state production failed on: OTS initialized (PENDING) at issuance.
-  otsProofBase64: null, otsHash: "b".repeat(64), otsStatus: "PENDING", otsCalendar: "smoke-calendar",
+  otsProofBase64: pendingOtsProof(FINGERPRINT), otsHash: FINGERPRINT, otsStatus: "PENDING", otsCalendar: "smoke-calendar",
+  fingerprintHash: FINGERPRINT,
   otsBitcoinTxid: null, otsAnchoredAtUtc: null, otsUpgradedAtUtc: null, otsFailureReason: null,
 };
 const CUSTODY = [
@@ -150,7 +166,7 @@ async function main() {
 
   // 3. A representative PROOVRA report, rendered and verified for real.
   const facts = shared.deriveCanonicalArtifactFacts(
-    { ...ROW, fileSha256: DIGEST, tsaTokenPresent: false, otsProofPresent: false },
+    { ...ROW, fileSha256: DIGEST, tsaTokenPresent: false },
     CUSTODY,
   );
   const input = {
@@ -173,7 +189,7 @@ async function main() {
       gps: { lat: null, lng: null, accuracyMeters: null },
       fileSha256: DIGEST,
       fingerprintCanonicalJson: '{"smoke":1}',
-      fingerprintHash: "c".repeat(64),
+      fingerprintHash: FINGERPRINT,
       signatureBase64: "c21va2U=",
       signingKeyId: "smoke_ed25519",
       signingKeyVersion: 1,
@@ -204,7 +220,7 @@ async function main() {
     digest: text.replace(/\s/g, "").includes(DIGEST),
     version: /\bv1\b/.test(flat),
     limitation: flat.includes(shared.VERIFICATION_LIMITATION.replace(/\s+/g, " ")),
-    otsPending: /pending/i.test(flat),
+    otsPending: facts.otsState === "PENDING" && flat.includes(shared.OTS_STATE_SENTENCES.PENDING),
   };
   step("verify", { textChars: text.length, required });
 

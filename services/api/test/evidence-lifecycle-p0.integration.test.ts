@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { IntegrationHarness } from "./integration-harness.js";
 // ET-PKG-07 — a record's id is not a public link: requests go through a share
 // link (the record is published and the link minted on first use).
+import { otsColumnsFor } from "./helpers/ots-proof-bytes.js";
 import { shareLinkFor } from "./helpers/verify-share.js";
 
 describe("evidence lifecycle P0 invariants (live PostgreSQL 16)", () => {
@@ -180,6 +181,9 @@ describe("evidence lifecycle P0 invariants (live PostgreSQL 16)", () => {
         tsaFailureReason: "provider unavailable",
         otsStatus: "PENDING",
       });
+      // (2026-10-13) Pending = a stored proof over the record's digest with no Bitcoin attestation yet.
+      const { fingerprintHash } = await prisma.evidence.findUniqueOrThrow({ where: { id: ev.id }, select: { fingerprintHash: true } });
+      await prisma.evidence.update({ where: { id: ev.id }, data: otsColumnsFor(fingerprintHash!, "PENDING") });
       const res = await h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, ev.id)}` });
       expect(res.statusCode).toBe(200);
       const body = res.json() as { basicVerification?: { timestamp?: { state?: string }; anchoring?: { state?: string } } };
