@@ -380,6 +380,13 @@ export const CAPABILITY_KEYS = [
   "TEAM_MANAGE",
   "BILLING_VIEW",
   "BILLING_MANAGE",
+  /**
+   * May create or change the workspace's AI provider cost budgets — the
+   * canonical `intelligence.policy.manage` (OWNER/ADMIN). Its own key, not
+   * BILLING_MANAGE: AI cost controls and financial commitments are separate
+   * authorities.
+   */
+  "INTELLIGENCE_POLICY_MANAGE",
   "INTEGRATIONS_MANAGE",
   "INTAKE_LINKS_MANAGE",
   "SETTINGS_VIEW",

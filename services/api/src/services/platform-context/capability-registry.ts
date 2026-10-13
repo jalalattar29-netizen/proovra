@@ -27,6 +27,8 @@
  *      workspaces — those still require explicit membership.
  */
 
+import { roleHasPermission } from "@proovra/shared";
+
 import {
   CAPABILITY_KEYS,
   type CapabilityKey,
@@ -120,7 +122,6 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
   const isOwnedWorkspace = kind === "OWNED";
   const isOrganizationWorkspace = kind === "ORGANIZATION";
   const isTeam = isOwnedWorkspace || isOrganizationWorkspace;
-  const isOwner = role === "OWNER";
   const isAdmin = role === "ADMIN" || role === "OWNER";
   const isMember = role === "MEMBER" || isAdmin;
   const isViewer = role === "VIEWER";
@@ -210,13 +211,13 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
         // Phase ROUTE-FIX — Billing and Teams are ACCOUNT-LEVEL
         // surfaces, not workspace-operator surfaces. A personal
         // user must be able to:
-        //   - view their personal subscription/plan (BILLING_VIEW)
-        //     and upgrade to Pro / create a team
+        //   - view and manage their personal subscription/plan
+        //     (BILLING_VIEW / BILLING_MANAGE, derived from the canonical
+        //     permission matrix below — they are the payer) and upgrade
         //   - reach the Teams page as a CREATE-team entry point
         //     (TEAM_VIEW). TEAM_MANAGE is still gated to team
         //     OWNER/ADMIN so personal users see a "create team"
         //     surface rather than an operator surface.
-        "BILLING_VIEW",
         "TEAM_VIEW",
         // Phase IA-intake-access-fix — Intake Links is a core
         // self-serve feature for PRO/TEAM users (lawyers,
@@ -284,11 +285,6 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
           "CASE_EVIDENCE_LINK",
           "CASE_COMMENT",
           "CASE_COMMENT_RESOLVE",
-          // Phase ROUTE-FIX — Billing read access is granted to every
-          // non-VIEWER team member. Viewing the plan/seats page is
-          // account-tier; managing billing (BILLING_MANAGE) remains
-          // OWNER/ADMIN only.
-          "BILLING_VIEW",
           // Phase E3 — every team writer can read automation rules +
           // run history (visibility is part of operational discipline).
           // AUTOMATION_MANAGE (create/edit/enable/disable) stays
@@ -309,8 +305,6 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
         map,
         [
           "TEAM_MANAGE",
-          "BILLING_VIEW",
-          "BILLING_MANAGE",
           "INTEGRATIONS_MANAGE",
           "INTAKE_LINKS_MANAGE",
           "SETTINGS_MANAGE",
@@ -332,11 +326,30 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
       );
     }
 
-    if (isOwner) {
-      // OWNER gets everything ADMIN does + nothing extra here. Kept
-      // as a branch for clarity / future expansion.
-      map.BILLING_MANAGE = true;
-    }
+  }
+
+  // ============================================================
+  // BILLING AND COST AUTHORITY — the canonical permission matrix, nowhere else.
+  //
+  // BILLING_MANAGE used to be granted to workspace ADMINs here while the
+  // canonical matrix (packages/shared/src/permissions.ts) makes
+  // `billing.manage` OWNER-only and every billing mutation route authorizes
+  // through the PAYER's billing account (billing-accounts.service.ts), which an
+  // administrator who is not the payer never holds. The envelope therefore
+  // offered admins billing controls the API refuses. It also withheld
+  // BILLING_MANAGE from the Personal Space owner, who IS the payer.
+  //
+  // All three keys are now the canonical permission for the viewer's role:
+  //   BILLING_VIEW               billing.read            (never billing.manage)
+  //   BILLING_MANAGE             billing.manage          OWNER only
+  //   INTELLIGENCE_POLICY_MANAGE intelligence.policy.manage — the AI cost
+  //                              controls, which borrowed BILLING_MANAGE as a
+  //                              client mirror; they keep their own rule.
+  // ============================================================
+  if (isPersonal || isTeam) {
+    map.BILLING_VIEW = roleHasPermission(role, "billing.read");
+    map.BILLING_MANAGE = roleHasPermission(role, "billing.manage");
+    map.INTELLIGENCE_POLICY_MANAGE = roleHasPermission(role, "intelligence.policy.manage");
   }
 
   // ============================================================
@@ -490,7 +503,8 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
 
   // Organization-tier — granted only when the active space is an
   // organization (TEAM scope). Role-aware: viewers do NOT get governance
-  // act or team manage; admins do; billing manage is OWNER/ADMIN.
+  // act or team manage; admins do; billing manage is the canonical
+  // `billing.manage` (OWNER only), exactly like BILLING_MANAGE.
   //
   // @deprecated PHASE 3 — The ORG_* grants below are DEAD: no
   //   route, no UI surface, and no service reads these keys. The
@@ -515,8 +529,9 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
       true,
     );
     if (isAdmin) {
-      setMany(map, ["ORG_TEAM_MANAGE", "ORG_BILLING_MANAGE"], true);
+      setMany(map, ["ORG_TEAM_MANAGE"], true);
     }
+    setMany(map, ["ORG_BILLING_MANAGE"], roleHasPermission(role, "billing.manage"));
   }
 
   return map;

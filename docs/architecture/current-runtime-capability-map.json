@@ -14517,7 +14517,7 @@
     "producedWork": {
       "GENERATE_REPORT": [
         "services/api/src/services/reports/report-generation-authority.service.ts:397",
-        "services/api/src/services/reports/report-generation-authority.service.ts:456"
+        "services/api/src/services/reports/report-generation-authority.service.ts:468"
       ],
       "UPGRADE_OTS": [
         "services/api/src/services/integrity/ots-anchoring-authority.service.ts:85"
@@ -80965,8 +80965,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reports/report-generation-authority.service.ts#GENERATE_REPORT.enqueueCanonicalWork@456",
-      "terminalLocation": "services/api/src/services/reports/report-generation-authority.service.ts:456",
+      "writerId": "services/api/src/services/reports/report-generation-authority.service.ts#GENERATE_REPORT.enqueueCanonicalWork@468",
+      "terminalLocation": "services/api/src/services/reports/report-generation-authority.service.ts:468",
       "file": "services/api/src/services/reports/report-generation-authority.service.ts",
       "enclosingDeclaration": "reenqueueReportGenerationRequest",
       "kind": "QUEUE",
