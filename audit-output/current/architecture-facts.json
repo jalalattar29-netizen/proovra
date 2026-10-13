@@ -223,7 +223,7 @@
       "problemCount": 0
     },
     "auditGovernance": {
-      "AuditFilesInventoried": 352,
+      "AuditFilesInventoried": 354,
       "AuditFilesUnclassified": 0,
       "AuditArtifactProducersUnknown": 0,
       "AuditArtifactConsumersUnknown": 0,
@@ -272,7 +272,7 @@
       "ProductionRuntimeFilesModifiedByPhase0": 0,
       "ProductBehaviorTestsRemoved": 0,
       "HistoricalMigrationsModifiedByPhase0": 0,
-      "ProductBehaviorTestsInventoried": 269
+      "ProductBehaviorTestsInventoried": 271
     },
     "proofFreshness": {
       "domainProofsRead": 10,
@@ -343,8 +343,8 @@
       "binding": "CONTENT_ONLY",
       "bindingValue": null,
       "schemaVersion": null,
-      "contentHash": "a0ba1cb4c021ad1c5170c0b55b7a9bef3561757f080104e39a30de505a2e886b",
-      "byteLength": 1197957,
+      "contentHash": "38f0d41f6242a7e09173e835dd971184af30583c22e20c9094d7d59c38c3c2ff",
+      "byteLength": 1197994,
       "present": true,
       "freshness": "BOUND_BY_CONTENT",
       "why": "One record per migration directory on disk. The source engine never classifies migrations; this is the database domain's own authority."

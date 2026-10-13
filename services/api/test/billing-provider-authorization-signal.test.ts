@@ -61,7 +61,7 @@ describe("provider-authorization signal", () => {
       code: "ops.billing.provider_authorization",
       params: { provider: "STRIPE", operation: "RECONCILE_ACCOUNT" },
     });
-    expect(stampConditionMessage(arg.message)!.summary).toContain("RECONCILE_ACCOUNT");
+    expect(stampConditionMessage((arg as { message: { code: string; params: unknown } }).message)!.summary).toContain("RECONCILE_ACCOUNT");
     expect(resolveConditionFromSourceRecovery).not.toHaveBeenCalled();
   });
 

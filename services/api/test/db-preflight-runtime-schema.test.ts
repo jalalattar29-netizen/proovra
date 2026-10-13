@@ -84,6 +84,7 @@ function databaseWith(present: {
   packageProfileRows?: boolean;
   signingKeyPurpose?: boolean;
   otsTruthColumns?: boolean;
+  incidentMessageCode?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (sql.includes("WORKSPACE_OPERATIONS")) return present.reconciliationEnumValue === true;

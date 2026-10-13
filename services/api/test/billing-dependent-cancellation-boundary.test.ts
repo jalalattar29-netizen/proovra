@@ -170,8 +170,9 @@ describe("syncDependentCancellationConditions", () => {
     await conditions.syncDependentCancellationConditions({ payerUserId: "user-1" });
     const arg = recordIncident.mock.calls[0]![0];
     // The writer records a code; the English it stores is rendered from it.
-    expect(arg.message.code).toBe("ops.billing.dependent_cancellation.ungrantable_stopping");
-    const stored = stampConditionMessage(arg.message)!;
+    const message = (arg as { message: { code: string; params: unknown } }).message;
+    expect(message.code).toBe("ops.billing.dependent_cancellation.ungrantable_stopping");
+    const stored = stampConditionMessage(message)!;
     expect(stored.summary).not.toMatch(/plan was cancelled/);
     expect(stored.summary).toMatch(/could not be added to this account/);
   });

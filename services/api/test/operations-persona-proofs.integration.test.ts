@@ -612,7 +612,15 @@ describe("Operations persona proofs (live PostgreSQL 16)", () => {
           return original.call(delegate, args);
         },
       });
-      let body: Record<string, any>;
+      let body: {
+        workspaces: Array<{
+          workspaceId: string;
+          coverage: string;
+          summary: { open: number | null; critical: number | null; mayAssertAllClear: boolean; incompleteReason: string | null };
+        }>;
+        coverage: { workspacesUnknown: number; complete: boolean };
+        totals: { open: number };
+      };
       try {
         const r = await rollup(o.orgId, o.owner.token);
         expect(r.statusCode).toBe(200);
@@ -624,7 +632,8 @@ describe("Operations persona proofs (live PostgreSQL 16)", () => {
       }
       expect(typeof c.prisma.operationalIncident.findMany).toBe("function");
       expect(injected).toBeGreaterThan(0);
-      const w2 = body.workspaces.find((w: { workspaceId: string }) => w.workspaceId === o.w2);
+      const w2 = body.workspaces.find((w) => w.workspaceId === o.w2)!;
+      expect(w2, "w2 is reported (as UNKNOWN), never dropped").toBeTruthy();
       expect(w2.coverage).toBe("UNKNOWN");
       expect(w2.summary.open).toBeNull();
       expect(w2.summary.critical).toBeNull();
