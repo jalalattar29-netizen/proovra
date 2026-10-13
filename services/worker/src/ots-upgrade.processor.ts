@@ -563,10 +563,11 @@ async function commitOtsTransition(input: {
       bump("ots_upgrade_succeeded_total");
     } else if (transition.status === "FAILED") {
       bump("ots_upgrade_failed_total");
-      bump(transition.phase === "global_budget_exhausted" ? "ots_budget_exhausted_total" : "ots_proof_integrity_failed_total");
+      bump(
+        transition.data.otsFailureReason === "OTS_GLOBAL_BUDGET_EXHAUSTED" ? "ots_budget_exhausted_total" : "ots_proof_integrity_failed_total",
+      );
     }
   }
-  if (transition.status === "PENDING") bump("ots_upgrade_pending_total");
 
   if (transition.status === "ANCHORED") {
     await requestAnchoredReportVersion(evidenceId, transition.anchoring, job.id ?? null);
@@ -605,6 +606,7 @@ async function commitOtsTransition(input: {
   }
 
   if (transition.status === "PENDING") {
+    bump("ots_upgrade_pending_total");
     // PHASE 12 — POINT 5. ONE job id per record's OTS upgrade
     // (`ots-upgrade-<evidenceId>`); `selfJobId` keeps this call from collapsing
     // onto the job that is running it.
