@@ -49,7 +49,8 @@ describe("Phase IA-intake-completion P1 — capability + denial", () => {
   });
 
   it("ADMIN branch still has INTAKE_LINKS_MANAGE (defence in depth)", () => {
-    const adminBlock = REG.match(/if \(isAdmin\)[\s\S]*?if \(isOwner\)/)?.[0] ?? "";
+    // The ADMIN branch ends where the billing-authority section begins.
+    const adminBlock = REG.match(/if \(isAdmin\)[\s\S]*?BILLING AND COST AUTHORITY/)?.[0] ?? "";
     expect(adminBlock).toContain("INTAKE_LINKS_MANAGE");
   });
 
