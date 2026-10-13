@@ -16,3 +16,6 @@ export * from "./capture-failure-metrics.js";
 // THE incident SLA cycle authority, shared by the API and the Worker writers.
 export * from "./sla-policy-resolution.js";
 export * from "./incident-sla-cycle.js";
+// THE dead-letter reader: a sink's retained entries classified by their
+// incident lifecycle (unresolved new/older, acknowledged, resolved).
+export * from "./dead-letter.js";

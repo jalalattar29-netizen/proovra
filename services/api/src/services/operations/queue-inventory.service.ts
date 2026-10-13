@@ -23,6 +23,10 @@
 import { Queue, type QueueOptions } from "bullmq";
 import IORedis from "ioredis";
 
+import { deadLetterNeedsAttention, isDeadLetterQueue, type DeadLetterSummary } from "@proovra/shared";
+import { readDeadLetterSummary, type DeadLetterQueueLike } from "@proovra/shared-runtime/ops";
+
+import { prisma } from "../../db.js";
 import { KNOWN_QUEUE_NAMES } from "./queue-replay-safety.service.js";
 import { getWorkerFleetLiveness } from "./worker-liveness.service.js";
 
@@ -169,6 +173,10 @@ export type QueueInventoryItem = {
   /** When health is "disabled" or "unconfigured", an operator-readable
    *  reason. null otherwise. */
   disabledReason: string | null;
+  /** WORK queue, or a dead-letter SINK whose counts are retained history. */
+  role?: "WORK" | "DEAD_LETTER";
+  /** A sink's entries by the state of the condition each records (2026-10-13). */
+  deadLetter?: DeadLetterSummary | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -215,7 +223,15 @@ function classifyHealth(item: {
   counts: QueueInventoryItem["counts"];
   stalledCount: number;
   oldestWaitingAgeMs: number | null;
+  deadLetter?: DeadLetterSummary | null;
 }): QueueHealthStatus {
+  // A SINK (2026-10-13): its retained entries never age into "waiting too
+  // long" — nothing processes them. It needs an operator only while an entry's
+  // condition is unresolved (an unclassifiable sink is reported unknown).
+  if (item.deadLetter !== undefined) {
+    if (item.deadLetter === null) return "unknown";
+    return deadLetterNeedsAttention(item.deadLetter) ? "degraded" : "healthy";
+  }
   if (item.stalledCount > 0) return "degraded";
   // Waiting jobs older than 5 minutes are degraded.
   if (item.oldestWaitingAgeMs !== null && item.oldestWaitingAgeMs > 5 * 60_000) {
@@ -296,6 +312,14 @@ export async function getQueueInventory(): Promise<
       } catch {
         // Non-fatal
       }
+      const sink = isDeadLetterQueue(name);
+      const deadLetter = sink
+        ? await withDeadline(
+            `${name}.deadLetter`,
+            readDeadLetterSummary(prisma as never, q as unknown as DeadLetterQueueLike),
+            Math.max(1, budgetExpiresAt - Date.now()),
+          ).catch(() => null)
+        : undefined;
       const projection = {
         counts: {
           waiting: Number(counts.waiting ?? 0),
@@ -304,13 +328,21 @@ export async function getQueueInventory(): Promise<
           failed: Number(counts.failed ?? 0),
           completed: Number(counts.completed ?? 0),
         },
-        stalledCount,
-        oldestWaitingAgeMs,
+        // A sink's waiting entries are not stalled work.
+        stalledCount: sink ? 0 : stalledCount,
+        // A sink's age is the age of its oldest UNRESOLVED entry.
+        oldestWaitingAgeMs: sink
+          ? deadLetter?.oldestUnresolvedAgeSeconds != null
+            ? deadLetter.oldestUnresolvedAgeSeconds * 1000
+            : null
+          : oldestWaitingAgeMs,
+        ...(sink ? { deadLetter } : {}),
       };
       out.push({
         queueName: name,
         label: QUEUE_LABELS[name] ?? name,
         ...projection,
+        role: sink ? "DEAD_LETTER" : "WORK",
         health: classifyHealth(projection),
         disabledReason: null,
       });
@@ -477,7 +509,10 @@ export async function getWorkerHealth(): Promise<
         "Queue read failed. Confirm worker container is running and Redis is reachable.";
     } else if (q.health === "degraded") {
       status = "degraded";
-      if (q.stalledCount > 0) {
+      if (q.role === "DEAD_LETTER") {
+        recommendedAction =
+          "Dead-letter entries record conditions that are not yet acknowledged or resolved. Review the related incidents in Operations; acknowledging or resolving an incident settles its entry.";
+      } else if (q.stalledCount > 0) {
         recommendedAction =
           "Stalled jobs detected. Inspect the failed-jobs view and consider replay for the safe category.";
       } else if (q.counts.failed > 0) {

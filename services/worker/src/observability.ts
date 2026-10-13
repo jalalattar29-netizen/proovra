@@ -22,6 +22,7 @@
  */
 
 import type { Queue } from "bullmq";
+import { isDeadLetterQueue, type DeadLetterSummary } from "@proovra/shared";
 
 import { logger } from "./logger.js";
 
@@ -66,11 +67,17 @@ export type QueueHealthSample = {
   failed: number;
   paused: number;
   /** True when the queue has any non-terminal state — used by the
-   *  dashboard to highlight queues that need an operator's attention. */
+   *  dashboard to highlight queues that need an operator's attention.
+   *  Always false for a dead-letter SINK: its entries are terminal history. */
   hasBacklog: boolean;
   /** Oldest job's age in seconds, when the queue exposes it. NULL
-   *  when we couldn't fetch — never an estimate. */
+   *  when we couldn't fetch — never an estimate. NULL for a sink (see
+   *  `deadLetter.oldestUnresolvedAgeSeconds`). */
   oldestPendingAgeSeconds: number | null;
+  /** WORK queue, or a dead-letter SINK whose raw counts are retained history. */
+  role: "WORK" | "DEAD_LETTER";
+  /** A sink's entries by the state of the condition each records. */
+  deadLetter?: DeadLetterSummary | null;
   sampledAtUtc: string;
 };
 
@@ -112,6 +119,10 @@ async function safeOldestPendingAge(queue: Queue): Promise<number | null> {
  */
 export async function snapshotQueueHealth(
   queues: ReadonlyArray<{ name: string; queue: Queue }>,
+  opts: {
+    /** Classifies a sink's retained entries (see @proovra/shared-runtime/ops readDeadLetterSummary). */
+    readDeadLetter?: (queue: Queue) => Promise<DeadLetterSummary>;
+  } = {},
 ): Promise<ReadonlyArray<QueueHealthSample>> {
   const sampledAtUtc = new Date().toISOString();
   const samples = await Promise.all(
@@ -126,6 +137,11 @@ export async function snapshotQueueHealth(
           safeCount(queue, "paused"),
           safeOldestPendingAge(queue),
         ]);
+      // A SINK HAS NO BACKLOG (2026-10-13): nothing processes it, so its
+      // retained entries are history, never pending work. What an operator
+      // still owes is the UNRESOLVED part, reported separately.
+      const sink = isDeadLetterQueue(name);
+      const deadLetter = sink && opts.readDeadLetter ? await opts.readDeadLetter(queue).catch(() => null) : null;
       const sample: QueueHealthSample = {
         name,
         waiting,
@@ -134,8 +150,10 @@ export async function snapshotQueueHealth(
         completed,
         failed,
         paused,
-        hasBacklog: waiting + active + delayed > 0,
-        oldestPendingAgeSeconds: oldestAge,
+        hasBacklog: sink ? false : waiting + active + delayed > 0,
+        oldestPendingAgeSeconds: sink ? null : oldestAge,
+        role: sink ? "DEAD_LETTER" : "WORK",
+        ...(sink ? { deadLetter } : {}),
         sampledAtUtc,
       };
       return sample;

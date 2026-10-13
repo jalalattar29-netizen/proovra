@@ -28,3 +28,4 @@ export * from "./retry-policy.js";
 export * from "./enqueue.js";
 export * from "./registry.js";
 export * from "./integrity.js";
+export * from "./dead-letter.js";

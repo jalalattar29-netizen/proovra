@@ -160,13 +160,18 @@ function summariseQueues(inventory: ReadonlyArray<QueueInventoryItem>) {
   const reportQueue = byName.get("report") ?? null;
   const reportDlq = byName.get("report-dlq") ?? null;
 
-  // Failed report generation: failed jobs on the report queue plus the
-  // whole DLQ backlog (every DLQ entry is a report that failed all
-  // retries). Null only if we could not read the report queue at all.
+  // Failed report generation: failed jobs on the report queue plus the DLQ
+  // entries whose condition is still UNRESOLVED (2026-10-13). The sink's
+  // retained history — acknowledged or resolved entries — is not an active
+  // failure. An unclassifiable sink falls back to its raw size rather than to 0.
   let reportFailedGeneration: Measured = null;
   if (reportQueue) {
-    reportFailedGeneration =
-      reportQueue.counts.failed + (reportDlq ? reportDlq.counts.waiting + reportDlq.counts.active + reportDlq.counts.failed : 0);
+    const dlqUnresolved = !reportDlq
+      ? 0
+      : reportDlq.deadLetter
+        ? reportDlq.deadLetter.unresolvedNew + reportDlq.deadLetter.unresolvedOlder
+        : reportDlq.counts.waiting + reportDlq.counts.active + reportDlq.counts.failed;
+    reportFailedGeneration = reportQueue.counts.failed + dlqUnresolved;
   }
 
   const reportQueued: Measured = reportQueue

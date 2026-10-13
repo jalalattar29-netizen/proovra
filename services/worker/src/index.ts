@@ -2021,7 +2021,14 @@ async function sampleQueueHealthOnce() {
         name: graphSearchProjectionQueueName,
         queue: graphSearchProjectionQueue,
       },
-    ]);
+    ], {
+      // A sink is classified by its entries' incident lifecycle, never by its raw size.
+      readDeadLetter: async (queue) => {
+        const { prisma } = await import("./db.js");
+        const { readDeadLetterSummary } = await import("@proovra/shared-runtime/ops");
+        return readDeadLetterSummary(prisma as never, queue as never);
+      },
+    });
     lastQueueHealthSample = snapshot;
     logger.info(
       { queueHealthSample: true, queues: snapshot },

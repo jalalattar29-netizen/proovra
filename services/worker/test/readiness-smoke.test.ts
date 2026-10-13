@@ -742,6 +742,7 @@ describe("readiness/meta — suite sanity", () => {
       completed: 0,
       failed: 0,
       paused: 0,
+      role: "WORK",
       hasBacklog: false,
       oldestPendingAgeSeconds: null,
       sampledAtUtc: new Date().toISOString(),
