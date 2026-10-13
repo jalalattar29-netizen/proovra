@@ -487,11 +487,12 @@ describe("Operations persona proofs (live PostgreSQL 16)", () => {
 
       const ownerEnv = await envelopeFor(c, t.owner.token, t.teamId);
       expect(ownerEnv.caps.BILLING_MANAGE).toBe(true);
-      // NOTE (reported, not asserted): the envelope ALSO grants an ADMIN
-      // BILLING_MANAGE (capability-registry.ts isAdmin branch), while the
-      // canonical permission `billing.manage` is OWNER-only
-      // (packages/shared/src/permissions.ts). Operations decides on the
-      // permission, which is what is asserted below.
+      // The envelope and the canonical `billing.manage` (OWNER only) agree:
+      // an administrator who is not the payer is offered no billing control.
+      for (const who of [t.admin, t.reviewer, t.viewer]) {
+        const env = await envelopeFor(c, who.token, t.teamId);
+        expect(env.caps.BILLING_MANAGE, who.id).toBe(false);
+      }
 
       const ownerDetail = await c.inj("GET", `/v1/ops/incidents/${bill.id}?teamId=${t.teamId}`, t.owner.token);
       expect(ownerDetail.statusCode).toBe(200);

@@ -376,10 +376,10 @@ export function ProviderBudgetPanel() {
 //     form states which workspace it will write to and refuses to submit
 //     without a resolved active workspace.
 //   * Authorization: `intelligence.policy.manage` (OWNER/ADMIN only). The
-//     client-side mirror is the BILLING_MANAGE capability, granted to exactly
-//     OWNER + ADMIN by capability-registry.ts — cost controls are the same
-//     admin tier. The server remains the authority; this only avoids
-//     rendering an enabled control that must 403.
+//     client-side mirror is the INTELLIGENCE_POLICY_MANAGE capability, which
+//     capability-registry.ts derives from that same canonical permission. The
+//     server remains the authority; this only avoids rendering an enabled
+//     control that must 403.
 //   * Responses: 201 {budgetId}; 409 {denial} for a policy-rejected budget
 //     (bad limits / missing scope target); 401/403/404; >=500.
 //
@@ -412,7 +412,7 @@ function ProviderBudgetCreateForm({
   onCreated: () => void | Promise<void>;
 }) {
   const { can, activeWorkspaceId, contextGeneration } = usePlatformContext();
-  const canManage = can("BILLING_MANAGE");
+  const canManage = can("INTELLIGENCE_POLICY_MANAGE");
 
   const [scope, setScope] = useState<ProviderBudgetScope>("WORKSPACE");
   const [scopeTargetId, setScopeTargetId] = useState("");
@@ -779,7 +779,7 @@ function ProviderBudgetCreateForm({
         title={
           canManage
             ? undefined
-            : "Requires workspace owner or admin (BILLING_MANAGE)."
+            : "Requires workspace owner or admin."
         }
         style={{
           ...primaryButton,

@@ -78,9 +78,10 @@ export type SettingsUiContextInput = {
    * `envelope.capabilities.BILLING_MANAGE`.
    *
    * This replaces the former `activeOrgRole === "OWNER" || "ADMIN"` client
-   * comparison. `capability-registry.ts` grants BILLING_MANAGE to exactly the
-   * OWNER/ADMIN membership the billing routes enforce, so the affordance and
-   * the enforcement cannot disagree.
+   * comparison. `capability-registry.ts` derives BILLING_MANAGE from the
+   * canonical `billing.manage` permission (OWNER only — the payer), which is
+   * what the billing routes enforce, so the affordance and the enforcement
+   * cannot disagree.
    *
    * `null` = envelope loading / degraded / capability absent → FAIL CLOSED
    * (no billing action rendered).

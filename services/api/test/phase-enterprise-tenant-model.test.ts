@@ -212,9 +212,12 @@ describe("ENTERPRISE TENANT MODEL — capability registry", () => {
     expect(admin.ORG_TEAM_MANAGE).toBe(true);
     expect(member.ORG_TEAM_MANAGE).toBe(false);
     expect(viewer.ORG_TEAM_MANAGE).toBe(false);
+    // The canonical `billing.manage`: OWNER only — an administrator who is
+    // not the payer holds no financial authority.
     expect(owner.ORG_BILLING_MANAGE).toBe(true);
-    expect(admin.ORG_BILLING_MANAGE).toBe(true);
+    expect(admin.ORG_BILLING_MANAGE).toBe(false);
     expect(member.ORG_BILLING_MANAGE).toBe(false);
+    expect(viewer.ORG_BILLING_MANAGE).toBe(false);
   });
 
   it("personal OWNER does NOT inherit organization-tier operator caps even on PRO plan", () => {
