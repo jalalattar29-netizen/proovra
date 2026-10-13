@@ -14,7 +14,7 @@
  * overflow page back, or removing a required statement each refuses the
  * report; a long manifest URL and a v2 supersession notice still pass.
  */
-import { deriveCanonicalArtifactFacts, VERIFICATION_LIMITATION } from "@proovra/shared";
+import { ACQUISITION_BOUNDARY_STATEMENTS, deriveCanonicalArtifactFacts, VERIFICATION_LIMITATION } from "@proovra/shared";
 import { describe, expect, it } from "vitest";
 
 import { OutputVerificationError } from "../src/output-verification-error.js";
@@ -25,10 +25,10 @@ import { REPORT_PAGE, REPORT_PAGE_PT } from "../src/report-v2/page-geometry.js";
 import { renderReportHtml } from "../src/report-v2/render-html.js";
 import { REPORT_PDF_CREATOR, renderPdfFromHtml, resolveBrowserExecutablePath } from "../src/report-v2/render-pdf.js";
 import { openPdf } from "../src/pdf/pdfjs-runtime.js";
-import { PROVENANCE_BOUNDARY_STATEMENT, supersessionStatement } from "../src/report-v2/required-statements.js";
+import { supersessionStatement } from "../src/report-v2/required-statements.js";
 import { getReportCss } from "../src/report-v2/templates/report.css.js";
 import type { ReportV2Input } from "../src/report-v2/types.js";
-import { LAYOUT_VARIANTS, LONG_MANIFEST_URL, layoutVariant } from "./fixtures/report-layout-variants.js";
+import { LAYOUT_VARIANTS, LONG_MANIFEST_URL, layoutVariant, regressionRecordInput } from "./fixtures/report-layout-variants.js";
 
 const BROWSER = resolveBrowserExecutablePath();
 // CI runners carry Chrome; a CI run without one is a broken gate, not a skip.
@@ -38,7 +38,7 @@ const RENDER_TIMEOUT = 180_000;
 function required(input: ReportV2Input) {
   return [
     { name: "verification limitation", text: VERIFICATION_LIMITATION },
-    { name: "provenance boundary", text: PROVENANCE_BOUNDARY_STATEMENT },
+    { name: "observation boundary", text: ACQUISITION_BOUNDARY_STATEMENTS[0]!, anyOf: ACQUISITION_BOUNDARY_STATEMENTS },
     ...(input.supersession ? [{ name: "supersession notice", text: supersessionStatement(input.supersession.previousVersion) }] : []),
   ];
 }
@@ -148,16 +148,13 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
   }
 
   it(
-    "a Web Upload states the provenance panel once, in the canonical words",
+    "a Web Upload states its observation boundary once, in Capture Context — no provenance essay",
     async () => {
       const { input } = layoutVariant(LAYOUT_VARIANTS[0]!);
       const text = (await extractPdfText(await renderPdfFromHtml(await htmlOf(input)))).replace(/\s+/g, " ");
-      for (const row of ["Method", "Observed by PROOVRA", "Reported by the submitter or capture client", "Not observed by PROOVRA", "Evidence boundary"]) {
-        expect(text).toContain(row);
-      }
-      const sentence =
-        "Files were submitted through PROOVRA Web Upload. PROOVRA observed receipt, preservation and integrity from intake onward. Creation, authorship and editing before submission were not observed.";
+      const sentence = "PROOVRA observed the files from upload onward; creation and editing before upload were not observed.";
       expect(text.split(sentence).length - 1).toBe(1);
+      expect(text).not.toMatch(/How this record entered PROOVRA|Observed by PROOVRA|Not observed by PROOVRA|Pre-PROOVRA provenance/);
     },
     RENDER_TIMEOUT,
   );
@@ -219,8 +216,9 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
         const pages = await readReportGeometry(pdf);
         const pageText = pages.map((p) => p.items.map((i) => i.str).join(" ").replace(/\s+/g, " "));
         const all = pageText.join(" ");
-        // The card, once: title, status, one sentence.
-        expect(all, ots).toContain(`OpenTimestamps ${status} ${sentence}`);
+        // The Bitcoin anchoring card, once: label, status, title, one sentence.
+        const title = status === "Verified" ? "OpenTimestamps Bitcoin anchoring verified" : `OpenTimestamps ${status.toLowerCase()}`;
+        expect(all, ots).toContain(`Bitcoin anchoring ${status} ${title} ${sentence}`);
         expect(all.split(sentence).length - 1, ots).toBe(1);
         // No internal state, raw code or legacy overclaim anywhere in the report.
         expect(all, ots).not.toMatch(/NOT_CHECKED|PROOF_STRUCTURE|BITCOIN_VERIFIED|PROOF_HASH_MISMATCH|CHAIN_VERIFI|ATTESTATION_PRESENT|Bitcoin attestation present|Anchored at|Bitcoin time|RPC/);
@@ -294,13 +292,13 @@ describe.skipIf(!BROWSER)("mutation proofs", () => {
   );
 
   it(
-    "removing the provenance boundary or the supersession notice is refused",
+    "removing the observation boundary or the supersession notice is refused",
     async () => {
       const html = await htmlOf(v2);
-      const withoutBoundary = html.replace(PROVENANCE_BOUNDARY_STATEMENT, "");
+      const withoutBoundary = html.replace(ACQUISITION_BOUNDARY_STATEMENTS[0]!, "");
       const withoutNotice = html.replace(supersessionStatement(v2.supersession!.previousVersion), "This version");
       for (const [mutated, name] of [
-        [withoutBoundary, "provenance boundary"],
+        [withoutBoundary, "observation boundary"],
         [withoutNotice, "supersession notice"],
       ] as const) {
         const pdf = await renderPdfFromHtml(mutated);
@@ -322,6 +320,113 @@ describe.skipIf(!BROWSER)("mutation proofs", () => {
       const pdf = await renderPdfFromHtml(await htmlOf(input));
       expect((await extractPdfText(pdf)).replace(/\s+/g, "")).toContain(LONG_MANIFEST_URL);
       expect(checkReportGeometry(await readReportGeometry(pdf), { requiredStatements: required(input) })).toEqual([]);
+    },
+    RENDER_TIMEOUT,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// (2026-10-13) The restored evidence report, rendered: full-A4 background on
+// every page, no sparse page, no stranded custody row, the gate accepts it.
+// ---------------------------------------------------------------------------
+
+type Raster = { width: number; height: number; data: Uint8ClampedArray };
+
+/** Every page, rasterized by the worker's own PDF.js build onto a canvas. */
+async function rasterPages(pdf: Uint8Array | Buffer, scale = 0.35): Promise<Raster[]> {
+  const { createCanvas } = await import("@napi-rs/canvas");
+  const doc = (await openPdf(pdf)) as unknown as {
+    numPages: number;
+    getPage(n: number): Promise<{
+      getViewport(o: { scale: number }): { width: number; height: number };
+      render(o: Record<string, unknown>): { promise: Promise<void> };
+    }>;
+    destroy(): Promise<void>;
+  };
+  const out: Raster[] = [];
+  try {
+    for (let n = 1; n <= doc.numPages; n++) {
+      const page = await doc.getPage(n);
+      const vp = page.getViewport({ scale });
+      const canvas = createCanvas(Math.ceil(vp.width), Math.ceil(vp.height));
+      const ctx = canvas.getContext("2d");
+      await page.render({ canvasContext: ctx, viewport: vp, canvas }).promise;
+      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      out.push({ width: canvas.width, height: canvas.height, data: img.data as unknown as Uint8ClampedArray });
+    }
+  } finally {
+    await doc.destroy();
+  }
+  return out;
+}
+
+/** Bands of the page (fractions of its height) where only background shows: a pure-white row there is a gap. */
+function whiteBands(r: Raster): number[] {
+  const rows = [0.01, 0.02, 0.955, 0.985, 0.995].map((f) => Math.min(r.height - 1, Math.floor(r.height * f)));
+  return rows.filter((y) => {
+    let white = 0;
+    for (let x = 0; x < r.width; x++) {
+      const i = (y * r.width + x) * 4;
+      if (r.data[i]! >= 253 && r.data[i + 1]! >= 253 && r.data[i + 2]! >= 253) white += 1;
+    }
+    return white > r.width * 0.5;
+  });
+}
+
+const TIMESTAMP = /^\d{2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}:\d{2} UTC$/;
+
+describe.skipIf(!BROWSER)("the restored evidence report, rendered", () => {
+  it(
+    "the regression record: every page has a full-A4 background, no page is sparse, no custody row stands alone, the gate accepts it",
+    async () => {
+      const input = regressionRecordInput("absent");
+      const pdf = await renderPdfFromHtml(await htmlOf(input));
+      const pages = await readReportGeometry(pdf);
+      // The original v2 was 16 pages; the restored report is markedly shorter.
+      expect(pages.length).toBeLessThanOrEqual(12);
+      const rasters = await rasterPages(pdf);
+      rasters.forEach((r, i) => expect(whiteBands(r), `page ${i + 1} has a white band`).toEqual([]));
+      const text = pages.map((p) => p.items.map((i) => i.str).join(" ").replace(/\s+/g, " "));
+      text.forEach((t, i) => expect(t.length, `page ${i + 1} is sparse`).toBeGreaterThan(400));
+      // Custody pages: from the timeline to the workflow page, every page holds 0 or ≥ 2 rows.
+      const start = text.findIndex((t) => t.includes("Chain of Custody"));
+      const end = text.findIndex((t) => t.includes("Reviewer Verification Workflow"));
+      expect(start).toBeGreaterThan(0);
+      for (let i = start; i < end; i++) {
+        const rows = pages[i]!.items.filter((it) => TIMESTAMP.test(it.str.trim())).length;
+        expect(rows === 0 || rows >= 2, `page ${i + 1} holds ${rows} custody row(s)`).toBe(true);
+      }
+      await assertRenderedReport(Buffer.from(pdf), factsOf(input), input.version, { supersedesVersion: input.supersession!.previousVersion });
+    },
+    RENDER_TIMEOUT * 2,
+  );
+
+  it(
+    "MUTATION: a page background tied to the content again leaves white bands, and the check finds them",
+    async () => {
+      const input = regressionRecordInput("absent");
+      const html = (await htmlOf(input)).replace("</style>", "html { background: none !important; } </style>");
+      const rasters = await rasterPages(await renderPdfFromHtml(html));
+      expect(rasters.some((r) => whiteBands(r).length > 0)).toBe(true);
+    },
+    RENDER_TIMEOUT,
+  );
+
+  it(
+    "MUTATION: the PENDING sentence beside an upgraded proof, or a retired card, is refused by the gate",
+    async () => {
+      const input = regressionRecordInput("absent");
+      const html = await htmlOf(input);
+      for (const [mutated, check] of [
+        [html.replace("Independent Bitcoin verification was not performed.", "The anchoring proof is still being prepared."), "OTS_CONTRADICTION"],
+        [html.replace("Workspace identity", "Pre-PROOVRA provenance"), "RETIRED_SIGNAL"],
+      ] as const) {
+        const pdf = await renderPdfFromHtml(mutated);
+        const err = await refusal(() =>
+          assertRenderedReport(Buffer.from(pdf), factsOf(input), input.version, { supersedesVersion: input.supersession!.previousVersion }),
+        );
+        expect(err.findings.map((f) => f.check)).toContain(check);
+      }
     },
     RENDER_TIMEOUT,
   );

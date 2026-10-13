@@ -181,9 +181,10 @@ test("J1 v1 — capture-time identity, upload wording and timestamp truth; both 
   expect(text).toContain("Personal workspace");
   expect(text).toMatch(/Organization Verification\s+Not established/i);
   expect(text).not.toMatch(IDENTITY_OVERCLAIM);
-  expect(text).toContain(
-    "Files were submitted through PROOVRA Web Upload. PROOVRA observed receipt, preservation and integrity from intake onward. Creation, authorship and editing before submission were not observed.",
-  );
+  // (2026-10-13) The upload's observation boundary, stated once in Capture Context.
+  const boundary = "PROOVRA observed the files from upload onward; creation and editing before upload were not observed.";
+  expect(text.replace(/\s+/g, " ").split(boundary).length - 1).toBe(1);
+  expect(text).toContain("Location metadata was not recorded for this evidence.");
   expect(text).not.toMatch(/secure capture/i);
   expect(text).toContain("Timestamp token obtained; not validated");
   expect(text).not.toMatch(/could not be obtained/i);
@@ -339,7 +340,7 @@ test("J2 v2 — TSA validated + attested OTS proof: present, not chain-verified;
   expect(text).toMatch(/supersedes report v1/);
   expect(text).toMatch(/trusted timestamp was validated after report v1/i);
   // The OpenTimestamps card: one status, one sentence.
-  expect(text).toMatch(/OpenTimestamps\s+Attestation recorded\s+Independent Bitcoin verification was not performed\./);
+  expect(text).toMatch(/Bitcoin anchoring\s+Attestation recorded\s+OpenTimestamps attestation recorded\s+Independent Bitcoin verification was not performed\./);
   expect(text).not.toMatch(/chain-verified/i);
   expect(text).not.toMatch(/OpenTimestamps\s+Verified|Bitcoin anchoring\s+Verified/);
   // A validated token is a certificate-chain fact, never a qualification.
@@ -392,7 +393,7 @@ test("J3 v3 — with NO trusted Bitcoin verifier, anchoring stays present-not-ve
   expect([200, 202]).toContain(r.status);
   await waitForPair(owner.api, evidenceId, 3);
   const text = pdfText(await downloadVersion(owner.api, evidenceId, "report", 3), "v3.pdf");
-  expect(text).toMatch(/OpenTimestamps\s+Attestation recorded\s+Independent Bitcoin verification was not performed\./);
+  expect(text).toMatch(/Bitcoin anchoring\s+Attestation recorded\s+OpenTimestamps attestation recorded\s+Independent Bitcoin verification was not performed\./);
   expect(text).not.toMatch(/chain-verified/i);
   expect(text).not.toContain("Anchored in Bitcoin; verified against the Bitcoin chain");
   expect(text).not.toContain("Anchored, chain-verified");
@@ -652,7 +653,7 @@ test("J10 OTS PENDING at issuance — Report v1 and BOTH packages are generated 
 
   // Report v1: OTS pending, NOT_CHECKED, never chain-verified.
   const text = pdfText(await downloadVersion(session.api, id, "report", 1), "ots-pending-v1.pdf");
-  expect(text).toMatch(/OpenTimestamps\s+Pending\s+The anchoring proof is still being prepared\./);
+  expect(text).toMatch(/Bitcoin anchoring\s+Pending\s+OpenTimestamps pending\s+The anchoring proof is still being prepared\./);
   expect(text).not.toContain("Anchored in Bitcoin; verified against the Bitcoin chain");
   expect(findForbiddenCustomerClaims(text)).toEqual([]);
 

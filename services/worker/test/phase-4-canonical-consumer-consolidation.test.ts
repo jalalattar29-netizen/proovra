@@ -55,12 +55,11 @@ describe("Phase 4 — Verification Package README boundary statements", () => {
 describe("Phase 4 — Report cover consumes canonical legal boundary", () => {
   const coverSrc = readSrc("../src/report-v2/sections/cover.ts");
 
-  it("cover states the limitation once, through the canonical verification summary", () => {
-    // (2026-10-12) The cover's limitation is the canonical one, carried by the
-    // matrix summary (VERIFICATION_LIMITATION). The separate boundary
-    // paragraph that repeated it beside the summary is gone; no boundary
-    // sentence is hardcoded in its place.
-    expect(coverSrc).toContain("escapeHtml(matrix.summary)");
+  it("cover states the limitation once, as its one-line report boundary", () => {
+    // (2026-10-13) The cover's report boundary is the canonical limitation
+    // (VERIFICATION_LIMITATION), printed once; no boundary sentence is
+    // hardcoded in its place.
+    expect(coverSrc).toContain("escapeHtml(VERIFICATION_LIMITATION)");
     expect(coverSrc).not.toContain("vm.canonicalMaterials.legalBoundary.reportBoundary");
   });
 

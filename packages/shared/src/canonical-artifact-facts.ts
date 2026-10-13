@@ -240,6 +240,7 @@ export function compareIssuanceFactsToRecord(issuance: CanonicalArtifactFacts, l
 
 /** Phrases that state a STRONGER fact than PRESENT / PENDING / FAILED. */
 const OTS_VERIFIED_PHRASES = [
+  "OpenTimestamps Bitcoin anchoring verified",
   "Bitcoin attestation independently verified",
   "Independently verified against the Bitcoin blockchain",
   "The proof was independently verified against the Bitcoin blockchain",
@@ -255,12 +256,24 @@ const OTS_RETIRED_PHRASES = [
   /not independently chain-verified/i,
   /chain-verified/i,
 ];
-const TSA_VALIDATED_PHRASES = ["RFC 3161 timestamp validated", TSA_VALIDATED_QUALIFICATION_STATEMENT];
+// The report's timestamp card ("RFC 3161 timestamp verified") and the
+// appendix's validation scope (2026-10-13).
+/** Cards of the retired 13-row matrix that no report may print again. */
+export const RETIRED_REPORT_CARDS = [
+  "Pre-PROOVRA provenance",
+  "Package completeness",
+  "Package signature",
+  "Public Verify publication",
+  "PROOVRA custody chain",
+  "Account identity",
+] as const;
+const TSA_VALIDATED_PHRASES =["RFC 3161 timestamp verified", TSA_VALIDATED_QUALIFICATION_STATEMENT];
 /** Raw codes that must never reach a reader. */
 const RAW_CODES = /\b(ORGANIZATION_ACCOUNT|VERIFIED_EMAIL|BITCOIN_VERIFIED|PROOF_STRUCTURE|PRESENT_NOT_INDEPENDENTLY_VERIFIED|OBSERVED_AT_CAPTURE|RECORDED_ON_RECORD|INTAKE_CONTRIBUTOR|INTAKE_LINK_ISSUER|ACCOUNT_USER|GUEST_SESSION|NOT_CHECKED|NOT_APPLICABLE|NOT_CONFIGURED|INSUFFICIENT_CONFIRMATIONS|ANCHORED_NOT_CHECKED|ATTESTATION_PRESENT_NOT_VERIFIED|CHAIN_VERIFICATION_UNAVAILABLE|CHAIN_VERIFICATION_FAILED|CHAIN_VERIFIED|UNKNOWN_OR_STALE|PROOF_INVALID|RECORDED_NOT_VALIDATED|tsa_[a-z_]+)\b/;
 const STORAGE_KEY = /\b(?:reports|verification)\/[0-9a-f-]{36}\/v\d+\//;
 
-const norm = (s: string) => s.replace(/\s+/g, " ");
+// A line break after a hyphen is layout, not text ("qualified-\nservice").
+const norm = (s: string) => s.replace(/(?<=\w)-\s+(?=\w)/g, "-").replace(/\s+/g, " ");
 
 /**
  * AFTER RENDERING: the report's extracted text states the canonical facts and
@@ -284,6 +297,16 @@ export function checkRenderedReportText(
     if (!text.includes("Attestation recorded") || !text.includes(sentence)) {
       out.push({ check: "OTS_PRESENT", detail: `does not state "Attestation recorded" with "${sentence}"` });
     }
+  }
+  // (2026-10-13) The PENDING sentence never accompanies a proof that is not
+  // pending (an upgraded proof carrying a txid and a block height).
+  if (facts.otsTruthState !== "PENDING" && text.includes(OTS_TRUTH_SENTENCES.PENDING)) {
+    out.push({ check: "OTS_CONTRADICTION", detail: `states "${OTS_TRUTH_SENTENCES.PENDING}" while the proof is ${facts.otsTruthState}` });
+  }
+  // (2026-10-13) The report states the evidence's eight verification layers;
+  // the expanded matrix's product-mechanics cards are retired from it.
+  for (const card of RETIRED_REPORT_CARDS) {
+    if (text.includes(card)) out.push({ check: "RETIRED_SIGNAL", detail: `states the retired "${card}" card` });
   }
   for (const p of OTS_RETIRED_PHRASES) {
     const m = text.match(p);

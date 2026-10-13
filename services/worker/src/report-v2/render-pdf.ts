@@ -1,10 +1,12 @@
 // D:\digital-witness\services\worker\src\report-v2\render-pdf.ts
 import fs from "node:fs";
 import puppeteer from "puppeteer";
+import sharp from "sharp";
+import { resolveReportAssetPath } from "./asset-data-url.js";
 
 import { OutputVerificationError } from "../output-verification-error.js";
 import { LAYOUT_AUDIT_SCRIPT, layoutAuditFindings, type LayoutAuditEntry } from "../pdf/report-geometry.js";
-import { REPORT_PAGE } from "./page-geometry.js";
+import { REPORT_PAGE, REPORT_PAGE_AREA_HEIGHT_MM } from "./page-geometry.js";
 
 /** The PDF /Creator of every report (never the renderer host's user agent). */
 export const REPORT_PDF_CREATOR = "PROOVRA Verification Report Renderer";
@@ -59,10 +61,45 @@ function normalizeGeneratedDate(value: string | null | undefined): string {
   return dateOnly?.[1] ?? raw;
 }
 
+/**
+ * THE PAGE BACKGROUND IN THE MARGINS (2026-10-13). The stylesheet paints the
+ * paper texture on the root element, which Chromium repeats over every page's
+ * content area however little content the page holds; the top and bottom page
+ * margins are painted by the header and footer templates with strips cut from
+ * the same texture (the tile's last rows above the content, its first rows
+ * below), so no white band appears on any page.
+ */
+let paperBands: Promise<{ top: string; bottom: string }> | null = null;
+export function paperBandDataUrls(): Promise<{ top: string; bottom: string }> {
+  paperBands ??= (async () => {
+    const source = resolveReportAssetPath("paper-silver.png");
+    const meta = await sharp(source).metadata();
+    const width = meta.width ?? 1024;
+    const height = meta.height ?? 1536;
+    const rows = (mm: number) => Math.max(1, Math.round((height * mm) / REPORT_PAGE_AREA_HEIGHT_MM));
+    const strip = async (top: number, h: number) =>
+      `data:image/jpeg;base64,${(
+        await sharp(source).extract({ left: 0, top, width, height: h }).resize({ width: 600 }).jpeg({ quality: 82 }).toBuffer()
+      ).toString("base64")}`;
+    const topRows = rows(REPORT_PAGE.marginTopMm);
+    return { top: await strip(height - topRows, topRows), bottom: await strip(0, rows(REPORT_PAGE.marginBottomMm)) };
+  })();
+  return paperBands;
+}
+
+function bandStyle(url: string, heightMm: number): string {
+  return `html,body{margin:0;padding:0}#header,#footer{padding:0 !important;margin:0 !important}.proovra-band{position:relative;width:100%;height:${heightMm}mm;background:url("${url}") 0 0/100% 100% no-repeat;-webkit-print-color-adjust:exact;print-color-adjust:exact}`;
+}
+
+export function buildHeaderTemplate(topBandUrl: string): string {
+  return `<style>${bandStyle(topBandUrl, REPORT_PAGE.marginTopMm)}</style><div class="proovra-band"></div>`;
+}
+
 function buildFooterTemplate(params: {
   reportId: string;
   version: string;
   generatedDateUtc: string;
+  bottomBandUrl: string;
 }): string {
   const reportId = escapeFooterHtml(params.reportId);
   const version = escapeFooterHtml(params.version);
@@ -70,6 +107,7 @@ function buildFooterTemplate(params: {
 
   return `
     <style>
+      ${bandStyle(params.bottomBandUrl, REPORT_PAGE.marginBottomMm)}
       .proovra-footer {
         width: 100%;
         box-sizing: border-box;
@@ -110,7 +148,7 @@ function buildFooterTemplate(params: {
       }
     </style>
 
-    <div class="proovra-footer">
+    <div class="proovra-band"><div class="proovra-footer">
       <div class="proovra-footer-inner">
         <span class="proovra-footer-brand">PROOVRA</span>
         <span>&nbsp;Verification Report</span>
@@ -123,7 +161,7 @@ function buildFooterTemplate(params: {
         <span class="proovra-footer-sep">|</span>
         <span>Generated: ${generatedDateUtc} UTC</span>
       </div>
-    </div>
+    </div></div>
   `;
 }
 
@@ -283,7 +321,9 @@ await page.evaluate(
       generatedDateUtc: string;
     };
 
+    const bands = await paperBandDataUrls();
     const footerTemplate = buildFooterTemplate({
+      bottomBandUrl: bands.bottom,
 reportId: fullReportId(footerData.evidenceReference),
       version: footerData.version || "1",
       generatedDateUtc: normalizeGeneratedDate(footerData.generatedDateUtc),
@@ -295,7 +335,7 @@ reportId: fullReportId(footerData.evidenceReference),
       preferCSSPageSize: true,
       tagged: true,
       displayHeaderFooter: true,
-      headerTemplate: `<div></div>`,
+      headerTemplate: buildHeaderTemplate(bands.top),
       footerTemplate,
       // The SAME margins the stylesheet declares in @page (page-geometry.ts):
       // the footer template is drawn in the bottom margin, which no content can

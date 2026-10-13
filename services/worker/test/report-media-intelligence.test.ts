@@ -20,7 +20,7 @@
  *      GPS) — it is retained but unwired, so the contract still holds.
  */
 
-import { PROVENANCE_BOUNDARY_STATEMENT } from "../src/report-v2/required-statements.js";
+import { resolveEvidenceAcquisition } from "@proovra/shared";
 import { describe, expect, it } from "vitest";
 // LEGACY-003: the report-v2 barrel was removed — production
 // (src/processor.ts) imports the concrete modules directly, so these tests
@@ -930,25 +930,20 @@ describe("retired media-intelligence section module", () => {
 describe("UC-0 — How this record entered PROOVRA (report acquisition statement)", () => {
   const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 
-  it("states the recorded channel from the snapshot, with its limitations", async () => {
+  it("states the recorded channel's observation boundary once, in Capture Context (2026-10-13)", async () => {
     const vm = await buildReportViewModel(
       buildInput({
         evidence: { ...buildInput().evidence, acquisitionMode: "PROOVRA_MOBILE_APP" },
       }),
     );
     const t = text(renderReportHtml(vm));
-    expect(t).toContain("How this record entered PROOVRA");
-    expect(t).toContain("Submitted through the PROOVRA mobile app");
-    // The compact provenance panel (2026-10-12): five rows, the boundary once.
-    for (const row of ["Method", "Observed by PROOVRA", "Reported by the submitter or capture client", "Not observed by PROOVRA", "Evidence boundary"]) {
-      expect(t).toContain(row);
-    }
-    expect(t).toContain(PROVENANCE_BOUNDARY_STATEMENT);
-    // The mobile channel's own limitations stay with the panel.
-    expect(t).toContain("is reported by the app and is not independently verified");
+    const boundary = resolveEvidenceAcquisition({ acquisitionMode: "PROOVRA_MOBILE_APP" }).boundary;
+    expect(t.split(boundary).length - 1).toBe(1);
+    // The five-row provenance essay is gone.
+    expect(t).not.toMatch(/How this record entered PROOVRA|Observed by PROOVRA|Not observed by PROOVRA/);
   });
 
-  it("a legacy record says Not recorded — never a guessed channel", async () => {
+  it("a legacy record says its channel was not recorded — never a guessed channel", async () => {
     const vm = await buildReportViewModel(
       buildInput({
         evidence: {
@@ -960,12 +955,10 @@ describe("UC-0 — How this record entered PROOVRA (report acquisition statement
       }),
     );
     const html = renderReportHtml(vm);
-    // The whole acquisition statement section, read by its own element.
-    const panel = html.match(/<section class="[^"]*acquisition-statement-panel[^"]*"[^>]*>[\s\S]*?<\/section>/);
+    const panel = html.match(/<section class="capture-context-panel"[^>]*data-capture-context[^>]*>[\s\S]*?<\/section>/);
     expect(panel).not.toBeNull();
     const t = text(panel![0]);
-    expect(t).toContain("How this record entered PROOVRA");
-    expect(t).toContain("Not recorded");
+    expect(t).toContain("How this record entered PROOVRA was not recorded.");
     expect(t).not.toContain("PROOVRA Web Upload");
   });
 

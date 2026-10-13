@@ -60,27 +60,26 @@ function conclude(otsAnchorCheck: "PROOF_STRUCTURE" | "BITCOIN_VERIFIED", acquis
     packageSeal: { kind: "SELF" },
     publication: { kind: "DOCUMENT" },
   });
-  return buildExecutiveConclusion(decision, matrix);
+  void matrix;
+  return buildExecutiveConclusion(decision);
 }
 
 describe("executive conclusion vs the OTS chain check (ET-RPT-09)", () => {
-  it("anchored but not chain-checked: no 'finalized' claim, NOT_CHECKED named, no success tone", () => {
+  it("anchored but not chain-checked: anchoring is named as not verified, never verified; no success tone", () => {
     const c = conclude("PROOF_STRUCTURE");
     expect(c.body).not.toMatch(/finalized supporting/i);
-    expect(c.body).toContain("Any signal marked “Not checked” was not independently verified.");
-    // The OTS card states it once; the conclusion does not repeat it.
-    expect(c.body).not.toMatch(/OpenTimestamps|Bitcoin/);
-    expect(c.body).toContain("This record does not by itself establish authorship, factual truth, pre-PROOVRA history or legal admissibility.");
+    expect(c.body).toMatch(/Not verified: [^.]*Bitcoin anchoring/);
+    expect(c.body).not.toMatch(/Verified for this evidence record: [^.]*Bitcoin anchoring/);
+    // The OTS card states its status and sentence once; the conclusion does not repeat them.
+    expect(c.body).not.toMatch(/OpenTimestamps|Attestation recorded|Independent Bitcoin verification/);
     expect(findForbiddenCustomerClaims(c.body)).toEqual([]);
     expect(c.tone).not.toBe("success");
   });
 
-  it("chain-verified: integrity and custody passed; pre-PROOVRA provenance is still not checked", () => {
-    const c = conclude("BITCOIN_VERIFIED");
-    expect(c.body).toContain("Cryptographic integrity and PROOVRA custody checks passed for the preserved bytes.");
-    // Provenance before PROOVRA is never verified, so the limitation stays.
-    expect(c.body).toContain("Any signal marked “Not checked” was not independently verified.");
-    expect(c.body).not.toMatch(/finalized supporting/i);
+  it("states the evidence's verification layers — never a product boundary or a verdict", () => {
+    const c = conclude("PROOF_STRUCTURE");
+    expect(c.body).toMatch(/^Verified for this evidence record: core integrity, /);
+    expect(c.body).not.toMatch(/PROOVRA|admissib|authorship|Not checked/);
     expect(findForbiddenCustomerClaims(c.body)).toEqual([]);
   });
 });

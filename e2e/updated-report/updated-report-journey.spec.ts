@@ -83,27 +83,27 @@ async function openArtifacts(page: Page, evidenceId: string) {
  * The report's own statements about the timestamp and the anchor: the status
  * word and statement of each verification-matrix row, as rendered in the PDF.
  */
-// The PDF prints each status as words (2026-10-12); the codes stay the
-// machine vocabulary, so the words are mapped back to compare with packages.
+// (2026-10-13) Trust Signal Analysis prints the evidence's eight signal cards:
+// label, status word, headline, one sentence. The words map back to the
+// package matrix's codes for comparison.
 const STATUS_WORDS: Record<string, string> = {
   Verified: "VERIFIED",
   Failed: "FAILED",
-  "Not checked": "NOT_CHECKED",
-  "Not applicable": "NOT_APPLICABLE",
-  Unavailable: "UNAVAILABLE",
-  // The OpenTimestamps row prints its public word (2026-10-12).
+  Recorded: "NOT_CHECKED",
   Pending: "NOT_CHECKED",
   "Attestation recorded": "NOT_CHECKED",
+  Unavailable: "UNAVAILABLE",
+  "Not applicable": "NOT_APPLICABLE",
 };
-const MATRIX_STATUS = "(Verified|Failed|Not checked|Not applicable|Unavailable|Pending|Attestation recorded)";
+const CARD_STATUS = "(Verified|Failed|Attestation recorded|Recorded|Pending|Unavailable|Not applicable)";
 function trustStatements(text: string) {
   const row = (label: string) => {
-    // A statement runs to the next row's mark (or the page's closing reviewer action).
-    const m = text.match(new RegExp(`${label}\\s+${MATRIX_STATUS}\\s+([^]{1,260}?)(?=\\s+[!✓i]\\s+[A-Z]|\\s+Reviewer action\\b)`));
+    // A card runs to the next card's mark, or to the page footer.
+    const m = text.match(new RegExp(`${label}\\s+${CARD_STATUS}\\s+([^]{1,300}?)(?=\\s+[!✓i]\\s+[A-Z]|\\s+PROOVRA Veri)`));
     return { status: m?.[1] ? (STATUS_WORDS[m[1]] ?? null) : null, statement: m?.[2]?.replace(/\s+/g, " ").trim() ?? null };
   };
-  const tsa = row("Trusted timestamp \\(RFC 3161\\)");
-  const ots = row("OpenTimestamps");
+  const tsa = row("Trusted timestamp");
+  const ots = row("Bitcoin anchoring");
   return { tsaStatus: tsa.status, tsaStatement: tsa.statement, otsStatus: ots.status, otsStatement: ots.statement };
 }
 
@@ -402,9 +402,9 @@ test.describe("updated report — the real stack, end to end", () => {
     // v2 states the validated token — with the bounded sentence, never as
     // qualified — and states the anchor proof as present but NOT_CHECKED.
     expect(claims2.tsaStatus).toBe("VERIFIED");
-    expect(claims2.tsaStatement ?? "").toMatch(/^RFC 3161 timestamp validated\./);
+    expect(claims2.tsaStatement ?? "").toMatch(/^RFC 3161 timestamp verified /);
     expect(claims2.otsStatus).toBe("NOT_CHECKED");
-    expect(claims2.otsStatement ?? "").toBe("Independent Bitcoin verification was not performed.");
+    expect(claims2.otsStatement ?? "").toBe("OpenTimestamps attestation recorded Independent Bitcoin verification was not performed.");
     expect(claims2.otsStatement ?? "").not.toMatch(/does not match|concern|review required|pending|not recorded/i);
 
     // v1 is untouched: same bytes, same hashes, still downloadable.

@@ -5,7 +5,6 @@ import {
   hasCoreCryptoMaterials as hasSharedCoreCryptoMaterials,
   isExplicitRecordedIntegrityVerified,
   type CanonicalEvidenceMaterials,
-  type VerificationMatrix,
   OTS_ANCHOR_CLAIM_LABELS,
 } from "@proovra/shared";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
@@ -123,19 +122,26 @@ export function normalizeStorageTone(
   return "neutral";
 }
 
-export function buildExecutiveConclusion(
-  decision: ReportTrustDecision,
-  matrix: VerificationMatrix
-): CalloutModel {
-  // The conclusion is the matrix's bounded summary and the reviewer action —
-  // never an overall verdict, a confidence or a score. FAILED reads as danger,
-  // anything not checked as a limitation.
-  const anyFailed = matrix.rows.some((row) => row.status === "FAILED");
-  const anyNotChecked = matrix.rows.some((row) => row.status === "NOT_CHECKED");
+export function buildExecutiveConclusion(decision: ReportTrustDecision): CalloutModel {
+  // (2026-10-13) The evidence record's verification layers in one or two
+  // sentences: which verified, which did not — never a verdict, confidence or
+  // score, and no product boundary (the Report Boundary states that once).
+  const layers = decision.signals.filter((s) => s.key !== "identity" && s.key !== "verification_package");
+  const list = (items: string[]) =>
+    items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+  const lower = (s: { label: string }) => s.label.replace(/^[A-Z](?!itcoin)/, (c) => c.toLowerCase());
+  const passed = layers.filter((s) => s.state === "PASSED").map(lower);
+  const failed = layers.filter((s) => s.state === "FAILED").map(lower);
+  const other = layers.filter((s) => s.state !== "PASSED" && s.state !== "FAILED").map(lower);
+  const parts = [
+    passed.length ? `Verified for this evidence record: ${list(passed)}.` : "No verification layer passed for this evidence record.",
+    failed.length ? `Failed: ${list(failed)} — review before relying on the record.` : "",
+    other.length ? `Not verified: ${list(other)}; Trust Signal Analysis states each.` : "",
+  ].filter(Boolean);
   return {
-    title: "Verification summary",
-    body: `${matrix.summary} ${decision.reviewerAction}`,
-    tone: anyFailed ? "danger" : anyNotChecked ? "warning" : "success",
+    title: "Executive conclusion",
+    body: parts.join(" "),
+    tone: failed.length ? "danger" : other.length ? "warning" : "success",
   };
 }
 

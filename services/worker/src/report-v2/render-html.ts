@@ -10,7 +10,6 @@ import { renderTechnicalSummarySection } from "./sections/technical-summary.js";
 import { renderIntelligenceSummarySection } from "./sections/intelligence-summary.js";
 import { renderDerivedReviewSection } from "./sections/derived-review.js";
 import { renderLifecycleSummarySection } from "./sections/lifecycle-summary.js";
-import { renderLegalInterpretationSection } from "./sections/legal-interpretation.js";
 import { renderTechnicalAppendixSection } from "./sections/technical-appendix.js";
 import { renderCertificationsSection } from "./sections/certifications.js";
 
@@ -65,7 +64,6 @@ export function renderReportHtml(vm: ReportViewModel): string {
     // every caller that does not opt in. Positioned after intelligence-summary
     // and before the custody chain so governance context precedes custody detail.
     renderLifecycleSummarySection(vm.lifecycleSummary ?? null),
-    renderLegalInterpretationSection(vm),
     // Phase 12 Point 4 — Certification & Attestation. `vm.certifications`
     // has been populated by the processor (and served by
     // `GET /v1/evidence/:id/certifications`) all along, but nothing

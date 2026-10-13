@@ -2,8 +2,9 @@
 import { reportAssetDataUrl } from "../asset-data-url.js";
 import type { ReportViewModel } from "../types.js";
 import { escapeHtml, safe } from "../formatters.js";
-import { renderInlineQrBlock, verificationStatusTone } from "../ui.js";
-import { VERIFICATION_STATUS_LABELS, formatTimestampForReportUtc } from "@proovra/shared";
+import { renderInlineQrBlock } from "../ui.js";
+import { VERIFICATION_LIMITATION, formatTimestampForReportUtc } from "@proovra/shared";
+import { buildSignalCards } from "../signal-cards.js";
 const coverBrandIconUrl = reportAssetDataUrl("icon-192.png");
 const coverHeaderLockupUrl = reportAssetDataUrl("report-header.png");
 // `coverBrandIconUrl` is retained for any legacy section that may still reference
@@ -49,7 +50,8 @@ function buildCoverSubtitle(vm: ReportViewModel): string {
 function renderDecisionIndicator(params: {
   label: string;
   value: string;
-  tone: "success" | "warning" | "danger";
+  tone: "success" | "warning" | "danger" | "neutral";
+  mark: string;
 }): string {
   // The compact value is THE canonical layer/state label (getTrustLayerStateLabel),
   // passed in by the caller: only the PASSED state of a layer reads as verified or anchored.
@@ -59,7 +61,7 @@ function renderDecisionIndicator(params: {
     <div class="cover-decision-indicator tone-${params.tone}">
       <div class="cover-decision-line">
         <span class="cover-decision-mark">
-          ${params.tone === "success" ? "✓" : "!"}
+          ${escapeHtml(params.mark)}
         </span>
         <span class="cover-decision-label">
           ${escapeHtml(params.label)}
@@ -114,16 +116,14 @@ function renderCoverEvidenceVisual(vm: ReportViewModel): string {
 }
 
 export function renderCoverSection(vm: ReportViewModel): string {
-  // The cover states the per-signal matrix and its bounded summary — never an
-  // overall verdict, a confidence or a score. Its tone follows file integrity:
-  // FAILED is danger, VERIFIED with nothing unchecked is success.
-  const matrix = vm.verificationMatrix;
-  const statusOf = (key: string) => matrix.rows.find((row) => row.key === key)?.status ?? "UNAVAILABLE";
-  const fileIntegrity = statusOf("file_integrity");
-  const anyFailed = matrix.rows.some((row) => row.status === "FAILED");
-  const presentationTone = anyFailed
+  // The cover states the evidence's own verification layers (the first five
+  // of the eight signal cards) — never an overall verdict, confidence or score.
+  // Its tone follows core integrity: a failed signal is danger.
+  const cards = buildSignalCards(vm);
+  const core = cards.find((c) => c.key === "core_integrity");
+  const presentationTone = cards.some((c) => c.tone === "danger")
     ? "danger"
-    : fileIntegrity === "VERIFIED" && !matrix.rows.some((row) => row.status === "NOT_CHECKED")
+    : core?.status === "Verified"
       ? "success"
       : "warning";
 
@@ -134,7 +134,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
         ? "badge-danger"
         : "badge-warning";
 
-  const integrityBadgeText = `File integrity ${VERIFICATION_STATUS_LABELS[fileIntegrity]}`;
+  const integrityBadgeText = core?.status === "Verified" ? "Recorded integrity verified" : `Core integrity ${(core?.status ?? "Unavailable").toLowerCase()}`;
   const primaryItemCount = vm.contentItems.filter(
     (item) => item.artifactRole === "primary_evidence"
   ).length;
@@ -242,28 +242,14 @@ export function renderCoverSection(vm: ReportViewModel): string {
 
             <div class="cover-status-stamp ${integrityBadgeClass}">
               <span>${presentationTone === "success" ? "✓" : "!"}</span>
-              <strong>File integrity ${escapeHtml(VERIFICATION_STATUS_LABELS[fileIntegrity])} · PROOVRA custody chain ${escapeHtml(VERIFICATION_STATUS_LABELS[statusOf("custody_chain")])}</strong>
-            </div>
-
-            <div class="cover-status-subtitle" data-verification-summary>
-              ${escapeHtml(matrix.summary)}
+              <strong>${escapeHtml(integrityBadgeText)}</strong>
             </div>
           </div>
 
           <div class="cover-decision-grid cover-trust-signal-grid">
-            ${matrix.rows
-              .filter((row) =>
-                ["file_integrity", "record_signature", "tsa_token", "ots_anchoring", "storage_protection"].includes(row.key)
-              )
-              .map((row) => {
-                const tone = verificationStatusTone(row.status);
-                return renderDecisionIndicator({
-                  label: row.label,
-                  // The OpenTimestamps row carries its public word (Pending, Attestation recorded, …).
-                  value: row.statusLabel ?? VERIFICATION_STATUS_LABELS[row.status],
-                  tone: tone === "neutral" ? "warning" : tone,
-                });
-              })
+            ${cards
+              .slice(0, 5)
+              .map((c) => renderDecisionIndicator({ label: c.label, value: c.status, tone: c.tone, mark: c.mark }))
               .join("")}
           </div>
                     <div class="cover-main-grid">
@@ -342,10 +328,8 @@ export function renderCoverSection(vm: ReportViewModel): string {
           </div>
 
 <div class="cover-boundary-note cover-boundary-inline">
-  <div class="cover-boundary-title">Independent review.</div>
-  <div class="cover-boundary-followup">
-    Every signal above can be checked independently: use the public verification page, the technical appendix and the verification package.
-  </div>
+  <div class="cover-boundary-title">Report boundary.</div>
+  <div class="cover-boundary-followup">${escapeHtml(VERIFICATION_LIMITATION)}</div>
 </div>
       </div>
     </section>

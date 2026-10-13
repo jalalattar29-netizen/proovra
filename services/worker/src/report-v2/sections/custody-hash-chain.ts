@@ -4,20 +4,21 @@ import {
 } from "../ui.js";
 import { escapeHtml } from "../formatters.js";
 
+export const CUSTODY_HASH_INTRO =
+  "Events are listed in hash-chain order. Sequence numbers follow the full custody log, so events omitted here leave gaps.";
+
 function renderCustodyHashChainNotice(): string {
-  return `
-    <div class="custody-hash-chain-notice">
-      <p>
-        This table shows a curated forensic subset of the custody hash chain. Sequence identifiers preserve the original custody-event log order, so numbering may be non-sequential when intermediate events are omitted from this PDF view.
-      </p>
-      <p>
-        Full custody records, intermediate entries, complete hash values, and access activity are preserved in the verification package and can be inspected through the public verification page.
-      </p>
-      <p>
-        Events are displayed in hash-chain order. Some timestamps may appear slightly out of chronological order because asynchronous system jobs can append events after the workflow timestamp they document.
-      </p>
-    </div>
-  `;
+  return `<div class="custody-hash-chain-notice"><p>${escapeHtml(CUSTODY_HASH_INTRO)}</p></div>`;
+}
+
+/** Row groups: the first two and the last two rows never stand alone on a page. */
+function rowGroups(rows: string[]): string {
+  if (rows.length < 4) return `<tbody class="report-keep-together">${rows.join("")}</tbody>`;
+  return [
+    `<tbody class="report-keep-together">${rows.slice(0, 2).join("")}</tbody>`,
+    `<tbody>${rows.slice(2, -2).join("")}</tbody>`,
+    `<tbody class="report-keep-together">${rows.slice(-2).join("")}</tbody>`,
+  ].join("");
 }
 
 function renderEnterpriseCustodyHashTable(vm: ReportViewModel): string {
@@ -32,8 +33,7 @@ function renderEnterpriseCustodyHashTable(vm: ReportViewModel): string {
           <th>Event Hash</th>
         </tr>
       </thead>
-      <tbody>
-        ${vm.custodyHashRows
+      ${rowGroups(vm.custodyHashRows
           .map(
             (row) => `
               <tr>
@@ -58,9 +58,7 @@ ${escapeHtml(row.eventHash ?? "")}
                 </td>
               </tr>
             `
-          )
-          .join("")}
-      </tbody>
+          ))}
     </table>
 
   `;

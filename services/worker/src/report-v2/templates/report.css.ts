@@ -4016,7 +4016,7 @@ body {
   margin-top: 0.3mm !important;
 }
 
-/* How this record entered PROOVRA — observed / attested / before visibility */
+/* Acquisition limitation lists (capture-client reported facts) */
 .acquisition-basis {
   display: grid !important;
   gap: 0.6mm !important;
@@ -4802,6 +4802,83 @@ body {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+}
+
+
+/* ===========================================================================
+   (2026-10-13) THE PAGE, THE CARDS AND THE BREAKS — last, so it wins.
+   The paper texture is ONE page-level background on the root element:
+   Chromium repeats it over every page's content area (the header and footer
+   templates paint the margins), so a short page is never white below its
+   content. Sections carry no background of their own.
+   =========================================================================== */
+html {
+  background-color: #f4f4f4 !important;
+  background-image: url("${paperSilverUrl}") !important;
+  background-size: 210mm var(--report-page-area) !important;
+  background-repeat: repeat !important;
+  background-position: 0 0 !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+body,
+.report-root,
+.report-cover,
+.report-section,
+.report-page {
+  background: transparent !important;
+}
+@media print {
+  html {
+    background-color: #f4f4f4 !important;
+    background-image: url("${paperSilverUrl}") !important;
+    background-size: 210mm var(--report-page-area) !important;
+    background-repeat: repeat !important;
+    background-position: 0 0 !important;
+  }
+  body,
+  .report-root,
+  .report-cover,
+  .report-section,
+  .report-page {
+    background: transparent !important;
+  }
+}
+
+/* A group that must not be split: a card, or the two rows/events at either
+   end of a list (so no page holds a single stranded row). */
+.report-keep-together,
+tbody.report-keep-together,
+.trust-signal-card,
+.timeline-card,
+.capture-context-panel {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+.custody-hash-chain-table thead {
+  display: table-header-group !important;
+}
+.custody-hash-chain-table tr {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+.section-heading,
+.trust-signal-analysis-hero,
+.capture-context-header {
+  break-after: avoid !important;
+  page-break-after: avoid !important;
+}
+.custody-intro {
+  margin: 0 0 8px;
+  font-size: 9.4px;
+  color: ${c.muted};
+}
+.report-supersession-panel {
+  margin-bottom: 8px !important;
+}
+.cover-decision-indicator.tone-neutral .cover-decision-mark,
+.cover-decision-indicator.tone-neutral .cover-decision-value {
+  color: #47585a !important;
 }
 
     `;

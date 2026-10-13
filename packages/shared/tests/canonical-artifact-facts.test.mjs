@@ -90,7 +90,7 @@ const goodText = (facts) =>
   [
     "PROOVRA Verification Report v1",
     `SHA-256 ${SHA}`,
-    facts.tsaState === "PASSED" ? `RFC 3161 timestamp validated. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}` : "Timestamp token obtained; not validated",
+    facts.tsaState === "PASSED" ? `RFC 3161 timestamp verified. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}` : "Timestamp token obtained; not validated",
     // The OTS card of an attested, not independently verified proof.
     "OpenTimestamps Attestation recorded Independent Bitcoin verification was not performed.",
     VERIFICATION_LIMITATION,
@@ -113,7 +113,7 @@ test("AFTER RENDERING: the PDF text states the facts and nothing stronger", () =
   assert.ok(missing.some((x) => x.check === "TSA_VALIDATED"));
   // An unvalidated timestamp may never read as validated.
   const unvalidated = record({ tsaValidatedAtUtc: null, tsaStatus: "FAILED", tsaFailureCode: "tsa_trust_anchor_not_configured" });
-  const tsaOver = checkRenderedReportText(`${goodText(unvalidated)}\nRFC 3161 timestamp validated`, unvalidated, { reportVersion: 1 });
+  const tsaOver = checkRenderedReportText(`${goodText(unvalidated)}\nRFC 3161 timestamp verified`, unvalidated, { reportVersion: 1 });
   assert.ok(tsaOver.some((x) => x.check === "TSA_OVERCLAIM"));
   // Raw codes, storage keys, a missing digest or version are findings.
   const raw = checkRenderedReportText(`${goodText(f)}\nORGANIZATION_ACCOUNT reports/00000000-0000-4000-8000-000000000000/v1/x.pdf`, f, { reportVersion: 1 });
@@ -126,6 +126,18 @@ test("AFTER RENDERING: the PDF text states the facts and nothing stronger", () =
     assert.ok(checkRenderedReportText(`${goodText(f)}\n${claim}`, f, { reportVersion: 1 }).some((x) => x.check === "FORBIDDEN_CLAIM"), claim);
   }
   assert.ok(checkRenderedReportText(goodText(f).replace(VERIFICATION_LIMITATION, ""), f, { reportVersion: 1 }).some((x) => x.check === "LIMITATION"));
+  // (2026-10-13) The PENDING sentence beside an upgraded proof is a contradiction.
+  const contradiction = checkRenderedReportText(`${goodText(f)}
+The anchoring proof is still being prepared.`, f, { reportVersion: 1 });
+  assert.ok(contradiction.some((x) => x.check === "OTS_CONTRADICTION"));
+  // (2026-10-13) A retired matrix card is refused.
+  for (const card of ["Pre-PROOVRA provenance", "Package completeness", "Public Verify publication"]) {
+    assert.ok(checkRenderedReportText(`${goodText(f)}
+${card} Not checked`, f, { reportVersion: 1 }).some((x) => x.check === "RETIRED_SIGNAL"), card);
+  }
+  // A line break after a hyphen is layout: the qualification still reads whole.
+  const wrapped = goodText(f).replace("qualified-service", "qualified-\nservice");
+  assert.deepEqual(checkRenderedReportText(wrapped, f, { reportVersion: 1 }), []);
 });
 
 test("AFTER SEALING: sealed documents that disagree with the record are findings", () => {

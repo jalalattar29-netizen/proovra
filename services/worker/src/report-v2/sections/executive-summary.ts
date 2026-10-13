@@ -1,23 +1,19 @@
 import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
-import {
-  ACQUISITION_LIMITATION_TEXT,
-  VERIFICATION_STATUS_LABELS,
-  formatTimestampForReportUtc,
-  resolveEvidenceAcquisition,
-  type AcquisitionLimitationCode,
-} from "@proovra/shared";
+import { resolveEvidenceAcquisition } from "@proovra/shared";
 import {
   getCaptureContextTimestampLabel,
   captureMethodDisplayLabel,
 } from "@proovra/shared-runtime/technical-metadata";
 import {
   renderPageSection,
-  renderVerificationMatrix,
+  renderSignalCardGrid,
   renderKeyValueGrid,
   renderFieldGrid,
 } from "../ui.js";
-import { PROVENANCE_BOUNDARY_STATEMENT, supersessionStatement } from "../required-statements.js";
+import { supersessionStatement } from "../required-statements.js";
+import { buildSignalCards } from "../signal-cards.js";
+import { renderReportBoundary } from "./legal-interpretation.js";
 
 /**
  * Server-time label for the Capture Context — never says "intake" for
@@ -32,76 +28,19 @@ function captureTimestampLabel(vm: ReportViewModel): string {
 }
 
 /**
- * UC-0 — "How this record entered PROOVRA": the acquisition statement from the
- * report's own acquisition snapshot, its bounded limitations, and the global
- * qualifier. Always rendered, and always neutral — a legacy record says the
- * acquisition was not recorded; nothing here is a verification signal.
- */
-/**
- * An UPDATED report says, first, which version it supersedes and what changed.
- * The earlier version is unchanged and still states only what was true when it
- * was issued.
+ * An UPDATED report says, in one line, which version it supersedes and which
+ * canonical facts changed (or that none did). The earlier version is unchanged.
  */
 function renderSupersession(vm: ReportViewModel): string {
   const s = vm.supersession;
   if (!s) return "";
-  const changes = s.changes.length
-    ? `<ul class="acquisition-limitations">${s.changes.map((c) => `<li>${escapeHtml(c)}</li>`).join("")}</ul>`
-    : `<div class="capture-context-note">No verification fact changed since report v${s.previousVersion}; this version was issued on request.</div>`;
+  const what = s.changes.length
+    ? `Changed: ${s.changes.map((c) => c.replace(/.$/, "")).join("; ")}.`
+    : "Reissued on request; no verification facts changed.";
   return `
-    <section class="capture-context-panel acquisition-statement-panel" data-report-supersession>
-      <div class="capture-context-header">
-        <div class="executive-confirmation-kicker">Updated report</div>
-        <div class="capture-context-intro">${escapeHtml(supersessionStatement(s.previousVersion))}${
-          s.previousGeneratedAtUtc ? ` (issued ${escapeHtml(formatTimestampForReportUtc(s.previousGeneratedAtUtc))})` : ""
-        }.</div>
-      </div>
-      <div class="capture-context-note">What changed since report v${s.previousVersion}:</div>
-      ${changes}
-      ${s.reason ? `<div class="capture-context-note">Reason recorded: ${escapeHtml(s.reason)}</div>` : ""}
-      <div class="capture-context-note">Report v${s.previousVersion} is unchanged and remains available. It states only what was true when it was issued.</div>
-    </section>
-  `;
-}
-
-/**
- * Limitations the panel's own rows already state: printing them again was the
- * repetition the panel replaces.
- */
-const STATED_BY_THE_PANEL: ReadonlySet<AcquisitionLimitationCode> = new Set([
-  "CREATION_NOT_OBSERVED_BY_PROOVRA",
-  "ACQUISITION_NOT_RECORDED",
-]);
-
-/**
- * THE provenance panel: how the record entered PROOVRA, in five rows — the
- * method, what PROOVRA itself observed, what the submitter or capture client
- * reported, what PROOVRA did not observe, and the evidence boundary — stated
- * once. Limitations particular to a capture channel follow the rows; the
- * client's manifest facts sit with what the client reported.
- */
-function renderAcquisitionStatement(vm: ReportViewModel): string {
-  const a = resolveEvidenceAcquisition({
-    acquisitionMode: vm.meta.acquisitionMode ?? null,
-  });
-  const limitations = a.limitations
-    .filter((code) => !STATED_BY_THE_PANEL.has(code))
-    .map((code) => `<li>${escapeHtml(ACQUISITION_LIMITATION_TEXT[code])}</li>`)
-    .join("");
-  return `
-    <section class="capture-context-panel acquisition-statement-panel provenance-panel" data-provenance-panel>
-      <div class="capture-context-header">
-        <div class="executive-confirmation-kicker">How this record entered PROOVRA</div>
-      </div>
-      <div class="capture-context-note">${escapeHtml(a.statement)}</div>
-      <dl class="acquisition-basis">
-        <div><dt>Method</dt><dd>${escapeHtml(a.label)}</dd></div>
-        <div><dt>Observed by PROOVRA</dt><dd>${escapeHtml(a.observedByProovra)}</dd></div>
-        <div><dt>Reported by the submitter or capture client</dt><dd>${escapeHtml(a.attested)}${renderCaptureManifestFacts(vm)}</dd></div>
-        <div><dt>Not observed by PROOVRA</dt><dd>${escapeHtml(a.beforeProovraVisibility)}</dd></div>
-        <div><dt>Evidence boundary</dt><dd>${escapeHtml(PROVENANCE_BOUNDARY_STATEMENT)}</dd></div>
-      </dl>
-      ${limitations ? `<ul class="acquisition-limitations">${limitations}</ul>` : ""}
+    <section class="capture-context-panel report-supersession-panel" data-report-supersession>
+      <div class="executive-confirmation-kicker">Updated report</div>
+      <div class="capture-context-note">${escapeHtml(supersessionStatement(s.previousVersion))}. ${escapeHtml(what)}</div>
     </section>
   `;
 }
@@ -291,50 +230,54 @@ function renderEvidenceAcquisition(vm: ReportViewModel): string {
   `;
 }
 
+/**
+ * CAPTURE CONTEXT — the recorded location (map and coordinates from the same
+ * stored values), or a plain statement that none was recorded; what the
+ * capture client reported; and the record's observation boundary, stated once.
+ */
 function renderCaptureContext(vm: ReportViewModel): string {
-  if (!vm.meta.captureContext) return "";
-
-  return `
-    <section class="capture-context-panel">
-      <div class="capture-context-header">
-        <div class="executive-confirmation-kicker">Capture Context</div>
-        <div class="capture-context-intro">
-          ${escapeHtml(vm.meta.captureContext.description)}
-        </div>
-      </div>
-      <div class="capture-context-layout">
+  const cc = vm.meta.captureContext;
+  const boundary = resolveEvidenceAcquisition({ acquisitionMode: vm.meta.acquisitionMode ?? null }).boundary;
+  const location = cc
+    ? `
+      <div class="capture-context-layout" data-capture-location="recorded">
         <div class="capture-context-map-shell">
-          <img
-            class="capture-context-map"
-            src="${vm.meta.captureContext.mapPreviewDataUrl}"
-            alt="Capture location preview"
-          />
+          <img class="capture-context-map" src="${cc.mapPreviewDataUrl}" alt="Capture location preview" />
         </div>
-
         <div class="capture-context-metadata">
           ${[
             ["Location metadata included", "Yes"],
-            ["Latitude", vm.meta.captureContext.lat],
-            ["Longitude", vm.meta.captureContext.lng],
-            ["Accuracy radius", vm.meta.captureContext.accuracyRadius],
-            [captureTimestampLabel(vm), vm.meta.captureContext.capturedAtLabel],
-            ["Source", vm.meta.captureContext.sourceLabel],
+            ["Latitude", cc.lat],
+            ["Longitude", cc.lng],
+            ["Accuracy radius", cc.accuracyRadius],
+            [captureTimestampLabel(vm), cc.capturedAtLabel],
+            ["Source", cc.sourceLabel],
           ]
             .map(
               ([label, value]) => `
                 <div class="capture-context-row">
                   <div class="capture-context-label">${escapeHtml(label)}</div>
-                  <div class="capture-context-value">${escapeHtml(value)}</div>
-                </div>
-              `
+                  <div class="capture-context-value" data-capture-field="${escapeHtml(label)}">${escapeHtml(value)}</div>
+                </div>`,
             )
             .join("")}
         </div>
       </div>
-
-      <div class="capture-context-note">
-        ${escapeHtml(vm.meta.captureContext.legalBoundary)}
+      <div class="capture-context-note">${escapeHtml(cc.legalBoundary)}</div>`
+    : `<div class="capture-context-note" data-capture-location="${escapeHtml(vm.meta.captureLocationState ?? "absent")}">${escapeHtml(
+        vm.meta.captureLocationState === "incomplete"
+          ? "Location metadata was recorded incompletely and is not shown."
+          : "Location metadata was not recorded for this evidence.",
+      )}</div>`;
+  return `
+    <section class="capture-context-panel" data-capture-context>
+      <div class="capture-context-header">
+        <div class="executive-confirmation-kicker">Capture Context</div>
+        ${cc ? `<div class="capture-context-intro">${escapeHtml(cc.description)}</div>` : ""}
       </div>
+      ${location}
+      ${renderCaptureManifestFacts(vm)}
+      <div class="capture-context-note" data-observation-boundary>${escapeHtml(boundary)}</div>
     </section>
   `;
 }
@@ -346,29 +289,13 @@ function renderTrustSignalAnalysisPage(vm: ReportViewModel): string {
       <div class="trust-signal-analysis-page">
         ${renderSupersession(vm)}
         <section class="trust-signal-analysis-hero">
-          <div class="executive-confirmation-kicker">Verification matrix</div>
-          <div class="executive-confirmation-title">
-            What was checked, signal by signal
-          </div>
-          <div class="executive-confirmation-body">
-            Each signal is stated as Verified, Failed, Not checked, Not applicable or Unavailable. “Not checked” means the material was not independently verified. There is no overall score and no overall verdict.
-          </div>
+          <div class="executive-confirmation-kicker">Verification layer review</div>
+          <div class="executive-confirmation-title">The evidence record's verification layers</div>
         </section>
-
-        ${renderVerificationMatrix(vm.verificationMatrix)}
-
-        <section class="trust-signal-analysis-footer">
-          <div class="executive-outcome-title">Reviewer action</div>
-          <div class="executive-reviewer-action">
-            ${escapeHtml(vm.trustDecision.reviewerAction)}
-          </div>
-        </section>
+        ${renderSignalCardGrid(buildSignalCards(vm))}
       </div>
     `,
-    {
-      pageBreakBefore: true,
-      className: "trust-signal-analysis-section",
-    }
+    { pageBreakBefore: true, className: "trust-signal-analysis-section" },
   );
 }
 
@@ -391,12 +318,7 @@ function renderCourtReviewIndexPage(vm: ReportViewModel): string {
           ${renderKeyValueGrid(vm.meta.courtAppendixRows ?? [])}
         </section>
 
-        <section class="trust-signal-analysis-footer">
-          <div class="executive-outcome-title">Review boundary</div>
-          <div class="executive-outcome-body">
-            These control points support technical and procedural review. The questions they cannot answer are set out once, on the Legal Interpretation &amp; Report Boundary page.
-          </div>
-        </section>
+        ${renderReportBoundary(vm)}
       </div>
     `,
     {
@@ -453,19 +375,12 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
       label: "Identity Level",
       value: findRowValue(vm.reviewReadinessRows, "Identity Level"),
     },
-    ...["Workspace Type", "Organization Verification"]
-      .map((label) => ({ label, value: findRowValue(vm.reviewReadinessRows, label, "") }))
-      .filter((row) => row.value !== ""),
+    { label: "Workspace Type", value: findRowValue(vm.reviewReadinessRows, "Workspace Type", "") },
     {
       label: "Lead Item",
       value: leadItemValue,
     },
-    // Per-signal statuses only: no overall verdict, no confidence.
-    ...(["file_integrity", "custody_chain"] as const).map((key) => {
-      const row = vm.verificationMatrix.rows.find((r) => r.key === key);
-      return { label: row?.label ?? key, value: VERIFICATION_STATUS_LABELS[row?.status ?? "UNAVAILABLE"] };
-    }),
-  ];
+  ].filter((row) => row.value !== "");
 
   // Phase D Blocker 4 — render the executiveConclusion callout from the
   // view model (truth-model.buildExecutiveConclusion). The viewmodel
@@ -495,8 +410,6 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
             ${escapeHtml(conclusion.body)}
           </div>
         </section>
-
-        ${renderAcquisitionStatement(vm)}
 
         ${renderEvidenceAcquisition(vm)}
 
