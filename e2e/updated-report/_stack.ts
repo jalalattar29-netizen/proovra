@@ -246,7 +246,7 @@ export function anchorOtsThroughUpgrade(evidenceId: string): void {
   // The stamp a calendar would have returned: a pending record WITH its proof.
   sql(
     `UPDATE evidence SET ots_status = 'PENDING', ots_hash = $2, ots_proof_base64 = $3,
-       ots_calendar = 'rga-local-offline-proof', ots_anchored_at_utc = NULL, ots_anchor_check = NULL,
+       ots_calendar = 'rga-local-offline-proof', ots_anchored_at_utc = NULL,
        ots_failure_reason = NULL WHERE id = $1`,
     [evidenceId, digest, proof],
   );

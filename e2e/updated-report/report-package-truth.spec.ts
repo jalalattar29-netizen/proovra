@@ -451,9 +451,11 @@ test("J4 Public Verify, the review workspace and the package carry the same cano
   const rw = await owner.api.get(`/v1/evidence/${evidenceId}/review-workspace`);
   expect(rw.ok()).toBe(true);
   const rwBody = (await rw.json()) as Record<string, unknown>;
-  // The authenticated review workspace states the same anchoring state.
-  expect(JSON.stringify(rwBody)).toMatch(/"key":"bitcoin_anchoring"[^}]*"state":"PRESENT_NOT_INDEPENDENTLY_VERIFIED"/);
-  expect(JSON.stringify(rwBody)).not.toMatch(/"key":"bitcoin_anchoring"[^}]*"state":"PASSED"/);
+  // The authenticated review workspace states the same anchoring state: the
+  // stored proof attests a Bitcoin block, so the signal is PASSED (ANCHORED)
+  // — never the retired "present, not independently verified" middle state.
+  expect(JSON.stringify(rwBody)).toMatch(/"key":"bitcoin_anchoring"[^}]*"state":"PASSED"/);
+  expect(JSON.stringify(rwBody)).not.toMatch(/PRESENT_NOT_INDEPENDENTLY_VERIFIED"[^}]*"key":"bitcoin_anchoring"|"key":"bitcoin_anchoring"[^}]*"state":"PRESENT_NOT_INDEPENDENTLY_VERIFIED"/);
 });
 
 test("J5 identity: a later account/workspace change rewrites nothing; an organization-verified capture is stated when established", async () => {
@@ -622,12 +624,28 @@ test("J9 browser — Artifacts shows identity, profile and both downloads; the p
   }
 });
 
+/**
+ * A calendar-pending OpenTimestamps proof over `digestHex` in the real binary
+ * format (magic, version, the SHA-256 file-hash op, the digest, one pending
+ * attestation): what OTS initialization stores (2026-10-13).
+ */
+function pendingOtsProofFor(digestHex: string): string {
+  const magic = Buffer.from("004f70656e54696d657374616d7073000050726f6f6600bf89e2e884e89294", "hex");
+  const uri = Buffer.from("https://a.pool.opentimestamps.org");
+  const payload = Buffer.concat([Buffer.from([uri.length]), uri]);
+  return Buffer.concat([
+    magic, Buffer.from([0x01, 0x08]), Buffer.from(digestHex, "hex"),
+    Buffer.from([0x00]), Buffer.from("83dfe30d2ef90c8e", "hex"), Buffer.from([payload.length]), payload,
+  ]).toString("base64");
+}
+
 test("J10 OTS PENDING at issuance — Report v1 and BOTH packages are generated and verified; OTS reads pending / NOT_CHECKED; the UI completes", async ({ page }) => {
   // Production 2026-10-08 (evidence ce465a9e…): OTS initialization committed
   // PENDING while report v1 was being produced, and the render gate failed the
   // valid report into the DLQ. Here the worker is paused at finalize, the
   // record is given exactly what OTS initialization writes on success
-  // (status PENDING, the fingerprint hash, the calendar), and the worker
+  // (status PENDING, the fingerprint hash, the calendar, and a calendar-pending
+  // proof over that digest — the bytes the state is resolved from), and the worker
   // resumes: report v1 renders over a PENDING anchor. (The mid-run commit
   // itself is proven against the real processor in the Point-5 suite.)
   test.setTimeout(600_000);
@@ -641,8 +659,8 @@ test("J10 OTS PENDING at issuance — Report v1 and BOTH packages are generated 
     const [row] = sql<{ fingerprint_hash: string }>("SELECT fingerprint_hash FROM evidence WHERE id = $1", [id]);
     sql(
       `UPDATE evidence SET ots_status = 'PENDING', ots_hash = $2, ots_calendar = 'rga-local-offline-calendar',
-         ots_proof_base64 = NULL, ots_anchored_at_utc = NULL, ots_anchor_check = NULL, ots_failure_reason = NULL WHERE id = $1`,
-      [id, row!.fingerprint_hash],
+         ots_proof_base64 = $3, ots_anchored_at_utc = NULL, ots_failure_reason = NULL WHERE id = $1`,
+      [id, row!.fingerprint_hash, pendingOtsProofFor(row!.fingerprint_hash)],
     );
   } finally {
     stackCtl("unpause", "worker");
