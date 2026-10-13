@@ -406,17 +406,29 @@ export async function requestReportGeneration(
       requested: true,
       requestId: persisted.requestId,
       enqueued: true,
-      reason: outcome.collapsed ? "collapsed_onto_live_job" : undefined,
+      reason: outcome.collapsed
+        ? "collapsed_onto_live_job"
+        : persisted.deduplicated
+          ? "joined_existing_request"
+          : undefined,
       deduplicated: persisted.deduplicated,
       /*
        * SUPERSEDED counts as accepted work and is reported separately, because
        * it is the click that finally worked for a customer whose record had
-       * been locked out. `collapsed` is the one case that genuinely IS "already
-       * under way", and it is now the only one that says so.
+       * been locked out.
+       *
+       * ONE CALLER IS TOLD "ENQUEUED": the one whose call CREATED the request
+       * row. The queue's `collapsed` flag alone cannot decide it — two
+       * concurrent callers both look for a live job before either has added
+       * one, both see none, and BullMQ keeps the single job their shared id
+       * names; each then said ENQUEUED for the same request. The durable
+       * writer's unique insert elects exactly one creator, so a caller that
+       * JOINED an existing request (deduplicated) is answered ALREADY_ACTIVE,
+       * deterministically, whatever order the two enqueues land in.
        */
       outcome: persisted.superseded
         ? "SUPERSEDED"
-        : outcome.collapsed
+        : outcome.collapsed || persisted.deduplicated
           ? "ALREADY_ACTIVE"
           : "ENQUEUED",
       forceRegenerate,

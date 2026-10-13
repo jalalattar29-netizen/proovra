@@ -382,25 +382,33 @@ describe("blocked supersession + stranded recovery (live PostgreSQL 16)", () => 
       select: { id: true },
     });
 
-    const enqueued: string[] = [];
-    const summary = await authority.reconcileStrandedReportRequests({
-      enqueue: async (id: string) => {
-        enqueued.push(id);
-        return { enqueued: true as const, jobId: `job-${id}` };
-      },
-    });
+    try {
+      const enqueued: string[] = [];
+      const summary = await authority.reconcileStrandedReportRequests({
+        enqueue: async (id: string) => {
+          enqueued.push(id);
+          return { enqueued: true as const, jobId: `job-${id}` };
+        },
+      });
 
-    expect(enqueued).toContain(stranded.id);
-    expect(summary.reenqueued).toBeGreaterThanOrEqual(1);
+      expect(enqueued).toContain(stranded.id);
+      expect(summary.reenqueued).toBeGreaterThanOrEqual(1);
 
-    // Still QUEUED and still a regeneration — recovery restores SCHEDULING and
-    // never re-decides authorization.
-    const after = await prisma.reportGenerationRequest.findUnique({
-      where: { id: stranded.id },
-      select: { state: true, forceRegenerate: true },
-    });
-    expect(after?.state).toBe("QUEUED");
-    expect(after?.forceRegenerate).toBe(true);
+      // Still QUEUED and still a regeneration — recovery restores SCHEDULING
+      // and never re-decides authorization.
+      const after = await prisma.reportGenerationRequest.findUnique({
+        where: { id: stranded.id },
+        select: { state: true, forceRegenerate: true },
+      });
+      expect(after?.state).toBe("QUEUED");
+      expect(after?.forceRegenerate).toBe(true);
+    } finally {
+      // The fake enqueue leaves the row QUEUED and an hour old by design, so a
+      // left-behind copy sits at the FRONT of every later sweep's oldest-first
+      // batch on a shared database: repeated runs filled the batch with this
+      // test's own leftovers and the new row never reached it.
+      await prisma.reportGenerationRequest.delete({ where: { id: stranded.id } }).catch(() => undefined);
+    }
   });
 
   it("R7: a request past its attempt ceiling is retired, not re-enqueued again", async () => {
