@@ -165,9 +165,9 @@ $EXEC dist/scripts/repair-tsa-failed-with-token.js --evidence-id $EVIDENCE_ID   
 ## 14. Report + verification package recovery
 
 ```bash
-$EXEC dist/scripts/recover-evidence-outputs.js recover --user-id=$REEM_ID                # DRY RUN: "would request first_issuance"
+$EXEC dist/scripts/recover-evidence-outputs.js recover --user-id=$REEM_ID                # DRY RUN: assessment FIRST_ISSUANCE_REQUIRED, action request_first_issuance
 $EXEC dist/scripts/recover-evidence-outputs.js recover --user-id=$REEM_ID --apply        # WRITES one request per record (queued)
-$EXEC dist/scripts/recover-evidence-outputs.js recover --user-id=$REEM_ID --apply        # replay: deduplicated / nothing to recover
+$EXEC dist/scripts/recover-evidence-outputs.js recover --user-id=$REEM_ID --apply        # replay: ACTIVE_REQUEST (in flight) or COMPLETE — nothing new
 for i in $(seq 1 30); do
   $EXEC dist/scripts/recover-evidence-outputs.js status --evidence-id $EVIDENCE_ID --expect-complete >/tmp/reem-outputs.json && break
   sleep 10

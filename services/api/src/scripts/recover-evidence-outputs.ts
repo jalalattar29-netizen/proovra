@@ -2,7 +2,7 @@
  * EVIDENCE OUTPUT RECOVERY — operator CLI over the CANONICAL report authority.
  *
  *   node dist/scripts/recover-evidence-outputs.js status  --email=<email> | --user-id=<uuid> | --evidence-id=<uuid> [--expect-complete]
- *   node dist/scripts/recover-evidence-outputs.js recover --email=<email> | --user-id=<uuid> | --evidence-id=<uuid> [--apply]
+ *   node dist/scripts/recover-evidence-outputs.js recover --email=<email> | --user-id=<uuid> | --evidence-id=<uuid> [--apply] [--regenerate]
  *
  * WHY (evidence-output incident, 2026-10-05). A record finalized while its
  * account was FREE is SIGNED with no report: issuance was skipped as not
@@ -24,21 +24,41 @@
  * It never inserts report/package rows, never changes a status, never touches
  * the timestamp. `status` is read-only (a HEAD of each stored object proves it
  * exists); `recover` without --apply only prints what it would request.
+ *
+ * ONE ASSESSMENT (2026-10-13). `status`, the dry run and `--apply` all read
+ * assessEvidenceOutputRecovery, and `recover` performs only the operation it
+ * names. Package recovery is chosen only for a latest report whose object
+ * exists and can be vouched for; a missing or unverifiable report is
+ * REPORT_REGENERATION_REQUIRED (executed only with --regenerate, as a new
+ * verified version), altered bytes are REFUSED_INTEGRITY_FAILURE, a live
+ * request is re-driven as itself, and an exhausted TECHNICAL terminal is
+ * superseded once through the writer's bounded, audited supersession.
  */
 import { prisma } from "../db.js";
 import { headObject } from "../storage.js";
 import { resolveEvidenceOutputEligibility } from "../services/billing/evidence-output-eligibility.service.js";
-import { requestReportGeneration } from "../services/reports/report-generation-authority.service.js";
+import {
+  reenqueueReportGenerationRequest,
+  requestReportGeneration,
+} from "../services/reports/report-generation-authority.service.js";
+import {
+  assessEvidenceOutputRecovery,
+  type AssessmentIo,
+} from "../services/reports/output-recovery-assessment.js";
 import { resolveInternalGrantSubject } from "../services/billing/internal-plan-grant.service.js";
 
 import { primaryPublishedPackageWhere, asPublishedPackage } from "@proovra/shared-runtime/reports";
 const MACHINE_ID = "ops.recover-evidence-outputs";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const LIVE_LIFECYCLE = ["ACTIVE", "UNDER_REVIEW", "ON_HOLD", "RETENTION_LOCKED"] as const;
 
+/** `--name=value` or `--name value` (the runbooks use both). */
 function arg(name: string): string | null {
-  const hit = process.argv.slice(2).find((a) => a.startsWith(`--${name}=`));
-  return hit ? hit.slice(name.length + 3).trim() : null;
+  const argv = process.argv.slice(2);
+  const hit = argv.find((a) => a.startsWith(`--${name}=`));
+  if (hit) return hit.slice(name.length + 3).trim();
+  const at = argv.indexOf(`--${name}`);
+  const next = at >= 0 ? argv[at + 1] : undefined;
+  return next && !next.startsWith("--") ? next.trim() : null;
 }
 const flag = (name: string) => process.argv.slice(2).includes(`--${name}`);
 
@@ -73,7 +93,9 @@ async function objectExists(bucket: string, key: string): Promise<boolean> {
   }
 }
 
-export async function evidenceOutputStatus(t: RecoveryTarget & { expectComplete?: boolean }): Promise<number> {
+export async function evidenceOutputStatus(
+  t: RecoveryTarget & { expectComplete?: boolean; io?: AssessmentIo },
+): Promise<number> {
   const evidence = await targetEvidence(t);
   let incomplete = 0;
   for (const ev of evidence) {
@@ -125,12 +147,8 @@ export async function evidenceOutputStatus(t: RecoveryTarget & { expectComplete?
         objectExists: await objectExists(p.storageBucket, p.storageKey),
       })),
     );
-    const latestReport = reportOut[reportOut.length - 1];
-    const pairedPackage = latestReport ? packageOut.find((p) => p.reportVersion === latestReport.version) : undefined;
-    const complete =
-      row?.status === "REPORTED" &&
-      Boolean(latestReport?.objectExists) &&
-      Boolean(pairedPackage?.objectExists);
+    const assessed = await assessEvidenceOutputRecovery(ev, t.io);
+    const complete = assessed.complete;
     if (!complete) incomplete += 1;
     console.log(
       JSON.stringify(
@@ -156,6 +174,9 @@ export async function evidenceOutputStatus(t: RecoveryTarget & { expectComplete?
             terminalReasonCode: r.terminalReasonCode,
             createdAt: r.createdAtUtc.toISOString(),
           })),
+          assessment: assessed.assessment,
+          assessmentReason: assessed.reason,
+          latestReportFinding: assessed.latestReport?.finding ?? null,
           complete,
         },
         null,
@@ -167,63 +188,167 @@ export async function evidenceOutputStatus(t: RecoveryTarget & { expectComplete?
   return t.expectComplete && incomplete > 0 ? 3 : 0;
 }
 
-export async function recoverEvidenceOutputs(t: RecoveryTarget & { apply?: boolean }): Promise<{
+export async function recoverEvidenceOutputs(
+  t: RecoveryTarget & { apply?: boolean; regenerate?: boolean; io?: AssessmentIo },
+): Promise<{
   code: number;
   summary: Record<string, number>;
+  results: Array<{ evidenceId: string; assessment: string; reason: string; action: string; requestId?: string; deduplicated?: boolean; enqueued?: boolean }>;
 }> {
   const apply = t.apply === true;
   const evidence = await targetEvidence(t);
-  const summary = { scanned: 0, requested: 0, deduplicated: 0, wouldRequest: 0, notEntitled: 0, notApplicable: 0, refused: 0 };
+  const summary = {
+    scanned: 0,
+    complete: 0,
+    requested: 0,
+    deduplicated: 0,
+    reenqueued: 0,
+    wouldRequest: 0,
+    activeRequest: 0,
+    notEntitled: 0,
+    notApplicable: 0,
+    operatorAction: 0,
+    refused: 0,
+  };
+  const results: Array<{ evidenceId: string; assessment: string; reason: string; action: string; requestId?: string; deduplicated?: boolean; enqueued?: boolean }> = [];
+  const say = (r: (typeof results)[number]) => {
+    results.push(r);
+    console.log(`[recover] ${JSON.stringify({ mode: apply ? "APPLY" : "DRY-RUN", ...r })}`);
+  };
+
   for (const ev of evidence) {
     summary.scanned += 1;
-    const row = await prisma.evidence.findUnique({
-      where: { id: ev.id },
-      select: { status: true, lifecycleState: true },
-    });
-    const reports = await prisma.report.findMany({ where: { evidenceId: ev.id }, select: { version: true }, orderBy: { version: "desc" } });
-    const latest = reports[0]?.version ?? null;
-    const paired = latest == null ? true : (await prisma.verificationPackage.count({ where: primaryPublishedPackageWhere({ evidenceId: ev.id, reportVersion: latest }) })) > 0;
-
-    let purpose: "first_issuance" | "package_recovery" | null = null;
-    if (row?.status === "SIGNED" && latest == null) purpose = "first_issuance";
-    else if (row?.status === "REPORTED" && latest != null && !paired) purpose = "package_recovery";
-    if (!purpose || !LIVE_LIFECYCLE.includes(String(row?.lifecycleState) as (typeof LIVE_LIFECYCLE)[number])) {
-      summary.notApplicable += 1;
-      console.log(`[recover] ${ev.id} nothing to recover (status=${row?.status} lifecycle=${row?.lifecycleState})`);
-      continue;
+    const a = await assessEvidenceOutputRecovery(ev, t.io);
+    const head = { evidenceId: ev.id, assessment: a.assessment, reason: a.reason };
+    switch (a.assessment) {
+      case "COMPLETE":
+        summary.complete += 1;
+        say({ ...head, action: "none" });
+        continue;
+      case "NOT_ENTITLED":
+        summary.notEntitled += 1;
+        say({ ...head, action: "none" });
+        continue;
+      case "NOT_APPLICABLE":
+        summary.notApplicable += 1;
+        say({ ...head, action: "none" });
+        continue;
+      case "REFUSED_INTEGRITY_FAILURE":
+        summary.refused += 1;
+        say({ ...head, action: "operator_review_required" });
+        continue;
+      case "REPORT_REGENERATION_REQUIRED":
+        if (!t.regenerate) {
+          summary.operatorAction += 1;
+          say({ ...head, action: "rerun_with_--regenerate_to_issue_a_new_verified_report_version" });
+          continue;
+        }
+        break;
+      case "ACTIVE_REQUEST":
+        if (a.request?.state !== "FAILED_RETRYABLE" && !(await liveRetryable(ev.id))) {
+          summary.activeRequest += 1;
+          say({ ...head, action: "none_in_flight", requestId: a.activeRequestId ?? undefined });
+          continue;
+        }
+        break;
+      default:
+        break;
     }
 
-    const eligibility = await resolveEvidenceOutputEligibility({ evidenceId: ev.id, ownerUserId: ev.ownerUserId, teamId: ev.teamId });
-    const needed = purpose === "first_issuance" ? eligibility.reportEligibility : eligibility.packageEligibility;
-    if (needed !== "ELIGIBLE") {
-      summary.notEntitled += 1;
-      console.log(`[recover] ${ev.id} NOT ENTITLED (${needed}, plan=${eligibility.plan}, reason=${eligibility.ineligibilityReason ?? "-"}) — nothing requested`);
-      continue;
-    }
     if (!apply) {
       summary.wouldRequest += 1;
-      console.log(`[recover] ${ev.id} (dry-run) would request ${purpose}`);
+      say({ ...head, action: plannedAction(a.assessment) });
       continue;
     }
-    const res = await requestReportGeneration({
-      evidenceId: ev.id,
-      purpose,
-      ...(purpose === "package_recovery" ? { artifactType: "VERIFICATION_PACKAGE" as const, reportVersion: latest } : {}),
-      requestedByMachineId: MACHINE_ID,
-    });
+
+    if (a.assessment === "ACTIVE_REQUEST") {
+      // A retryable request is re-driven AS ITSELF — no new identity.
+      const retryable = await liveRetryable(ev.id);
+      const out = retryable ? await reenqueueReportGenerationRequest(retryable) : { enqueued: false, outcome: "ALREADY_ACTIVE" };
+      if (out.enqueued) summary.reenqueued += 1;
+      else summary.activeRequest += 1;
+      say({ ...head, action: "reenqueue_retryable", requestId: retryable ?? undefined, enqueued: out.enqueued });
+      continue;
+    }
+
+    const res =
+      a.assessment === "FIRST_ISSUANCE_REQUIRED"
+        ? await requestReportGeneration({ evidenceId: ev.id, purpose: "first_issuance", requestedByMachineId: MACHINE_ID })
+        : a.assessment === "REPORT_REGENERATION_REQUIRED"
+          ? await requestReportGeneration({
+              evidenceId: ev.id,
+              purpose: "operator_regenerate",
+              forceRegenerate: true,
+              intent: "NEW_VERSION",
+              // One regeneration per unusable report version, however often
+              // the command runs.
+              clientRequestKey: `ops-regenerate:${ev.id}:v${a.latestReportVersion}`,
+              regenerateReason: `operator recovery: ${a.reason}`,
+              requestedByMachineId: MACHINE_ID,
+            })
+          : await requestReportGeneration({
+              evidenceId: ev.id,
+              purpose: "package_recovery",
+              artifactType: "VERIFICATION_PACKAGE" as const,
+              reportVersion: a.latestReportVersion,
+              // A package for an existing report is not a regeneration. Stated,
+              // not derived, so this command and the Operations recovery
+              // (requestOutputRecovery) share ONE key — `VERIFICATION_PACKAGE:<id>:v<N>` —
+              // and collapse onto one request (2026-10-13). Derived, it was
+              // `…:v<N>:force`: a second identity for the same package.
+              forceRegenerate: false,
+              requestedByMachineId: MACHINE_ID,
+              ...(a.assessment === "TERMINAL_FAILURE_REQUIRES_SUPERSESSION"
+                ? {
+                    supersedeTechnicalTerminal: true,
+                    regenerateReason: `operator recovery after technical terminal ${a.reason}`.slice(0, 120),
+                  }
+                : {}),
+            });
     if (!res.requested) {
       summary.refused += 1;
-      console.log(`[recover] ${ev.id} REFUSED by the report authority: ${res.reason}`);
+      say({ ...head, action: `refused_by_authority:${res.reason}` });
       continue;
     }
     if (res.deduplicated) summary.deduplicated += 1;
     else summary.requested += 1;
-    console.log(
-      `[recover] ${ev.id} ${purpose} request=${res.requestId} deduplicated=${res.deduplicated} enqueued=${res.enqueued}${res.reason ? ` reason=${res.reason}` : ""}`,
-    );
+    say({
+      ...head,
+      action: plannedAction(a.assessment),
+      requestId: res.requestId,
+      deduplicated: res.deduplicated,
+      enqueued: res.enqueued,
+    });
   }
   console.log(`[recover] summary ${JSON.stringify({ mode: apply ? "APPLY" : "DRY-RUN", ...summary })}`);
-  return { code: summary.refused > 0 ? 3 : 0, summary };
+  return { code: summary.refused > 0 ? 3 : 0, summary, results };
+}
+
+/** The retryable request of this record, if any (re-driven as itself). */
+async function liveRetryable(evidenceId: string): Promise<string | null> {
+  const row = await prisma.reportGenerationRequest.findFirst({
+    where: { evidenceId, state: "FAILED_RETRYABLE" },
+    orderBy: { createdAtUtc: "desc" },
+    select: { id: true },
+  });
+  return row?.id ?? null;
+}
+
+function plannedAction(kind: string): string {
+  switch (kind) {
+    case "FIRST_ISSUANCE_REQUIRED":
+      return "request_first_issuance";
+    case "PACKAGE_RECOVERY_REQUIRED":
+      return "request_package_recovery";
+    case "TERMINAL_FAILURE_REQUIRES_SUPERSESSION":
+      return "supersede_technical_terminal_with_package_recovery";
+    case "REPORT_REGENERATION_REQUIRED":
+      return "request_new_verified_report_version";
+    case "ACTIVE_REQUEST":
+      return "reenqueue_retryable";
+    default:
+      return "none";
+  }
 }
 
 const invokedDirectly = /recover-evidence-outputs\.(ts|js)$/.test(process.argv[1] ?? "");
@@ -233,7 +358,7 @@ if (invokedDirectly) {
   (command === "status"
     ? evidenceOutputStatus({ ...target, expectComplete: flag("expect-complete") })
     : command === "recover"
-      ? recoverEvidenceOutputs({ ...target, apply: flag("apply") }).then((r) => r.code)
+      ? recoverEvidenceOutputs({ ...target, apply: flag("apply"), regenerate: flag("regenerate") }).then((r) => r.code)
       : Promise.reject(new Error("command must be status or recover")))
     .then((code) => {
       process.exitCode = code;
