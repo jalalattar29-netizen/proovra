@@ -71,6 +71,17 @@ export const INCIDENT_CATEGORIES = [
 ] as const;
 export type IncidentCategory = (typeof INCIDENT_CATEGORIES)[number];
 
+/**
+ * What the title and summary say, as data: the catalogue code and params the
+ * server rendered them from (null on a legacy row), and whether the title is
+ * the source's own label. Resolved by `localizeCondition` (@proovra/shared).
+ */
+export type ConditionMessageRef = {
+  code: string | null;
+  params: Record<string, unknown> | null;
+  titleSource: "SOURCE_LABEL" | "CONDITION";
+};
+
 /** One row of `GET /v1/ops/incidents`. */
 export type Incident = {
   id: string;
@@ -79,6 +90,8 @@ export type Incident = {
   status: IncidentStatus;
   title: string;
   safeSummary: string;
+  /** Absent from a server older than the message codes: the stored text is shown. */
+  message?: ConditionMessageRef | null;
   fingerprint: string;
   occurrenceCount: number;
   firstSeenAtUtc: string;
@@ -178,6 +191,8 @@ export type IncidentGroup = {
   sourceId: string;
   category: string;
   title: string;
+  /** SOURCE_LABEL: `title` is the source's label, localized by `sourceId`. */
+  titleSource?: "SOURCE_LABEL" | "CONDITION";
   conditionCount: number;
   /**
    * HOW MANY REAL THINGS THE GROUP STANDS FOR, or null when unknowable.
@@ -243,6 +258,8 @@ export type AffectedRecord = {
   conditionId: string;
   evidenceId: string | null;
   title: string;
+  /** Absent from a server older than the message codes: the stored title is shown. */
+  message?: ConditionMessageRef | null;
   severity: string;
   status: string;
   firstSeenAtUtc: string;

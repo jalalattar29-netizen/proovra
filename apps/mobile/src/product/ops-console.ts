@@ -27,9 +27,9 @@
  *     web replaces it with generic copy.
  */
 import type { ProovraStatusTone } from "@proovra/ui";
-import { bulkActionItemSettled, bulkActionItemSucceeded } from "@proovra/shared";
+import { bulkActionItemSettled, bulkActionItemSucceeded, conditionSourceLabel, localizeCondition } from "@proovra/shared";
 
-import { OPS_COPY_EN, fillOpsCopy, formatOpsCount, opsDuration, type OpsCopy } from "./ops-copy";
+import { OPS_COPY_EN, fillOpsCopy, formatOpsCount, opsCopyLocaleOf, opsDuration, type OpsCopy } from "./ops-copy";
 import { resolveInboxRoute } from "./inbox";
 import { webUrl } from "./support";
 import { nativeHrefForWebPath } from "./shell-gates";
@@ -109,11 +109,61 @@ export function isRenderableSource(sourceId: string | null | undefined): boolean
   return !sourceId || !RETIRED_OPS_SOURCES.has(sourceId);
 }
 
-/** A condition's title: the server's, else its source's label, else "Condition" — in the reader's language. */
-export function conditionTitle(x: { title: string; sourceId?: string | null }, t: OpsCopy = OPS_COPY_EN): string {
-  if (x.title) return x.title;
-  const bySource = x.sourceId ? (t.sourceLabel as Record<string, string>)[x.sourceId] : undefined;
+/**
+ * What the server's title and summary say, as data: the shared-catalogue code
+ * and params they were rendered from (null on a legacy row), and whether the
+ * title is the source's own label.
+ */
+export interface ConditionMessageRef {
+  readonly code: string | null;
+  readonly params: Record<string, unknown> | null;
+  readonly titleSource: "SOURCE_LABEL" | "CONDITION";
+}
+
+export function parseConditionMessage(v: unknown): ConditionMessageRef | null {
+  if (!v || typeof v !== "object") return null;
+  const m = v as Record<string, unknown>;
+  const params = m["params"];
+  return {
+    code: typeof m["code"] === "string" ? m["code"] : null,
+    params: params && typeof params === "object" && !Array.isArray(params) ? (params as Record<string, unknown>) : null,
+    titleSource: m["titleSource"] === "SOURCE_LABEL" ? "SOURCE_LABEL" : "CONDITION",
+  };
+}
+
+type LocalizableRow = {
+  title: string;
+  safeSummary?: string | null;
+  sourceId?: string | null;
+  message?: ConditionMessageRef | null;
+  titleSource?: "SOURCE_LABEL" | "CONDITION" | null;
+};
+
+function localized(x: LocalizableRow, t: OpsCopy) {
+  return localizeCondition(opsCopyLocaleOf(t), {
+    title: x.title,
+    safeSummary: x.safeSummary ?? "",
+    message: x.message ?? null,
+    sourceId: x.sourceId ?? null,
+    titleSource: x.titleSource ?? x.message?.titleSource ?? null,
+  });
+}
+
+/**
+ * A condition's title in the reader's language, through the ONE shared
+ * catalogue (@proovra/shared): the server's code when it sent one, the stored
+ * title for a legacy row, else its source's label, else "Condition".
+ */
+export function conditionTitle(x: LocalizableRow, t: OpsCopy = OPS_COPY_EN): string {
+  if (x.title) return localized(x, t).title;
+  const bySource = x.sourceId ? conditionSourceLabel(opsCopyLocaleOf(t), x.sourceId) : null;
   return bySource ?? t.conditionFallbackTitle;
+}
+
+/** A condition's summary in the reader's language; the stored text for a legacy row. */
+export function conditionSummary(x: LocalizableRow, t: OpsCopy = OPS_COPY_EN): string {
+  if (!x.safeSummary) return "";
+  return localized(x, t).summary;
 }
 
 export function severityOf(v: unknown): Severity {
@@ -516,6 +566,8 @@ export interface Incident {
   readonly category: string;
   readonly title: string;
   readonly safeSummary: string;
+  /** The code the title/summary were rendered from; null from a legacy row or an older server. */
+  readonly message: ConditionMessageRef | null;
   readonly severity: Severity;
   readonly status: IncidentStatus;
   readonly occurrenceCount: number;
@@ -580,6 +632,7 @@ export function parseIncident(v: unknown): Incident | null {
     // No server title: the display resolves one (conditionTitle) in the reader's language.
     title: str(i["title"]) ?? "",
     safeSummary: str(i["safeSummary"]) ?? "",
+    message: parseConditionMessage(i["message"]),
     severity: severityOf(i["severity"]),
     status: statusOf(i["status"]),
     occurrenceCount: num(i["occurrenceCount"]) ?? 1,
@@ -699,6 +752,8 @@ export interface IncidentGroup {
   readonly groupKey: string;
   readonly sourceId: string;
   readonly title: string;
+  /** SOURCE_LABEL: the title is the source's label, localized by sourceId. */
+  readonly titleSource: "SOURCE_LABEL" | "CONDITION" | null;
   readonly severity: Severity;
   readonly statusPosture: string;
   readonly category: string;
@@ -736,6 +791,7 @@ export function parseGroups(v: unknown): { groups: IncidentGroup[]; totalGroups:
         groupKey: key,
         sourceId: str(o["sourceId"]) ?? "",
         title: str(o["title"]) ?? "",
+        titleSource: o["titleSource"] === "SOURCE_LABEL" ? "SOURCE_LABEL" : o["titleSource"] === "CONDITION" ? "CONDITION" : null,
         severity: severityOf(o["severity"]),
         statusPosture: str(o["statusPosture"]) ?? "OPEN",
         category: str(o["category"]) ?? "",
@@ -778,6 +834,7 @@ export interface AffectedRecord {
   readonly conditionId: string;
   readonly evidenceId: string | null;
   readonly title: string;
+  readonly message: ConditionMessageRef | null;
   readonly severity: Severity;
   readonly status: string;
   readonly firstSeenAtUtc: string;
@@ -798,6 +855,7 @@ export function parseAffected(v: unknown): { records: AffectedRecord[]; nextCurs
           conditionId: id,
           evidenceId: str(o["evidenceId"]),
           title: str(o["title"]) ?? "",
+          message: parseConditionMessage(o["message"]),
           severity: severityOf(o["severity"]),
           status: str(o["status"]) ?? "",
           firstSeenAtUtc: str(o["firstSeenAtUtc"]) ?? "",

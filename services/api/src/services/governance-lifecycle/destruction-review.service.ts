@@ -816,8 +816,10 @@ async function executeApprovedReview(
         category: "GOVERNANCE",
         severity: "HIGH",
         fingerprint: `destruction_executed:${existing.id}`,
-        title: "Evidence destroyed",
-        safeSummary: `Destruction review ${existing.id} executed for evidence ${existing.evidenceId}`,
+        message: {
+          code: "ops.governance.destruction_executed",
+          params: { reviewId: existing.id, evidenceId: existing.evidenceId },
+        },
         relatedEvidenceId: existing.evidenceId,
         metadata: {
           destructionReviewId: existing.id,

@@ -674,6 +674,9 @@ export function entryForIncident(input: {
     fingerprint: input.fingerprint,
   });
   if (resolved.match !== "UNREGISTERED") {
+    // A source NOTHING produces is not an operational capability: it offers no
+    // action and no deep link, and never inherits its category's remediation.
+    if (resolved.lifecycle.discoveryState === "NOT_YET_DISCOVERED") return null;
     const bySource = SOURCE_ENTRIES[resolved.lifecycle.sourceId];
     if (bySource) return bySource;
   }

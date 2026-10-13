@@ -101,14 +101,14 @@ const CLASSIFIED = [
   },
   {
     sourceId: "governance.policy_condition",
-    authority: "OPERATOR_DECISION",
-    // OPS-13 — none of its four event types has an emitter anywhere, so the
-    // bridge no longer classifies them and the source is NOT_YET_DISCOVERED.
-    // The legacy fingerprint still resolves historical rows to it (below).
+    // NOT PRODUCED (2026-10-13): no emitter writes it and nothing routes to
+    // it, so it is inactive like every NOT_YET_DISCOVERED source — not
+    // closable, no action. The legacy fingerprint still classifies history.
+    authority: "NO_DIRECT_RESOLUTION",
     writer: "none — NOT_YET_DISCOVERED",
     fingerprint: "governance:security_event:<eventType>",
     claim:
-      "names an event class rather than a policy row, so no governance authority can re-check this condition",
+      "nothing produces this source, so it offers no action and no closure",
   },
 ] as const;
 

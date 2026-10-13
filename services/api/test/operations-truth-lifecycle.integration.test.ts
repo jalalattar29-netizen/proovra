@@ -147,7 +147,7 @@ describe("Operations truth closure — lifecycle truth (live PostgreSQL 16)", ()
 
   it("OPS-030 'Stop notifying' needs a reason (single and bulk), and the reason is in the history", async () => {
     const a = c.h.fixtures.teamA;
-    const row = await seedIncident(c, a.teamId, { sourceId: "governance.policy_condition" });
+    const row = await seedIncident(c, a.teamId, { sourceId: "governance.notification_escalated" });
     const bare = await c.inj("POST", `/v1/ops/incidents/${row.id}/suppress`, a.ownerToken, { teamId: a.teamId });
     expect(bare.statusCode).toBe(400);
     expect(bare.json().error.code).toBe("SUPPRESSION_REASON_REQUIRED");
@@ -162,7 +162,7 @@ describe("Operations truth closure — lifecycle truth (live PostgreSQL 16)", ()
     const messages = (detail.incident.timeline ?? []).map((e: { safeMessage: string }) => e.safeMessage);
     expect(messages.join(" | ")).toContain("Known policy migration; tracked in change 42");
 
-    const row2 = await seedIncident(c, a.teamId, { sourceId: "governance.policy_condition" });
+    const row2 = await seedIncident(c, a.teamId, { sourceId: "governance.notification_escalated" });
     const bulk = await c.inj("POST", "/v1/ops/bulk-actions", a.ownerToken, {
       teamId: a.teamId,
       actionType: "BULK_SUPPRESS_INCIDENTS",

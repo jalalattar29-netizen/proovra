@@ -238,6 +238,10 @@ export async function workspaceOperationsRoutes(
           lastSeenAtUtc: true,
           occurrenceCount: true,
           runbookSlug: true,
+          // The code and params the title/summary were rendered from, so a
+          // client renders the alert in its reader's language.
+          messageCode: true,
+          messageParams: true,
         },
         }),
         prisma.operationalIncident.groupBy({
@@ -253,7 +257,18 @@ export async function workspaceOperationsRoutes(
       return reply.code(200).send({
         scope: "WORKSPACE",
         workspaceId,
-        items: rows.slice(0, ALERTS_CAP),
+        items: rows.slice(0, ALERTS_CAP).map(({ messageCode, messageParams, ...row }) => ({
+          ...row,
+          message: {
+            code: messageCode ?? null,
+            params:
+              messageParams && typeof messageParams === "object" && !Array.isArray(messageParams)
+                ? messageParams
+                : null,
+            // This surface shows each row's own stored title.
+            titleSource: "CONDITION" as const,
+          },
+        })),
         // Counts are over EVERY unresolved condition, not the capped rows.
         counts: {
           total: bySeverity.reduce((n, r) => n + r._count._all, 0),

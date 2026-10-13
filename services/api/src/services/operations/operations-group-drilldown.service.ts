@@ -97,6 +97,8 @@ export type AffectedRecordRow = {
   evidenceId: string | null;
   /** The condition's own operator-safe title. Never a raw filename. */
   title: string;
+  /** The code and params the title was rendered from (null on a legacy row). */
+  message: { code: string | null; params: Record<string, unknown> | null; titleSource: "CONDITION" };
   severity: string;
   status: string;
   firstSeenAtUtc: string;
@@ -191,6 +193,8 @@ export async function listGroupAffectedRecords(
       id: true,
       relatedEvidenceId: true,
       title: true,
+      messageCode: true,
+      messageParams: true,
       severity: true,
       status: true,
       firstSeenAtUtc: true,
@@ -212,6 +216,14 @@ export async function listGroupAffectedRecords(
       conditionId: r.id,
       evidenceId: r.relatedEvidenceId,
       title: r.title,
+      message: {
+        code: r.messageCode ?? null,
+        params:
+          r.messageParams && typeof r.messageParams === "object" && !Array.isArray(r.messageParams)
+            ? (r.messageParams as Record<string, unknown>)
+            : null,
+        titleSource: "CONDITION" as const,
+      },
       severity: r.severity,
       status: r.status,
       firstSeenAtUtc: r.firstSeenAtUtc.toISOString(),

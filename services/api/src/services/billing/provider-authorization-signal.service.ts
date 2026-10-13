@@ -98,12 +98,10 @@ export function recordProviderFailureSignal(input: {
     category: "RECONCILIATION",
     severity: "HIGH",
     fingerprint: providerAuthorizationFingerprint(input.provider),
-    title: input.provider + " refused our credentials",
-    safeSummary:
-      input.provider +
-      " answered 401/403 during " +
-      input.operation +
-      ". Payment states cannot be verified until the credential is restored. No customer payment has been changed.",
+    message: {
+      code: "ops.billing.provider_authorization",
+      params: { provider: String(input.provider), operation: String(input.operation) },
+    },
     runbookSlug: "billing-provider-authorization",
     metadata: {
       provider: input.provider,

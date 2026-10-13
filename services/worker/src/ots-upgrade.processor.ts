@@ -828,9 +828,10 @@ export async function processOtsUpgrade(job: Job<unknown>) {
         category: "WORKER",
         severity: "CRITICAL",
         fingerprint: `OTS:${evidenceId}:GLOBAL_BUDGET_EXHAUSTED`,
-        title: `OTS anchoring gave up (${evidenceId.slice(0, 8)})`,
-        safeSummary:
-          "Global budget exhausted: the OpenTimestamps proof did not anchor on the public chain within the configured retry budget — no further attempts will be made.",
+        message: {
+          code: "ops.evidence_integrity.ots_budget_exhausted",
+          params: { recordRef: evidenceId.slice(0, 8) },
+        },
         relatedEvidenceId: evidenceId,
         relatedJobId: job.id,
         metadata: {

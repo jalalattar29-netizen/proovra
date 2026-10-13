@@ -12,7 +12,7 @@ import type { AppTone } from "../../../../components/app-primitives/AppStatusBad
 import { opsDuration } from "./time";
 
 import type { Incident, OperationsCapabilities, SlaPosture } from "./types";
-import { operationsDict, type OperationsCopy } from "@proovra/shared/i18n";
+import { localizeCondition, operationsDict, type OperationsCopy } from "@proovra/shared/i18n";
 
 import { formatOpsNumber } from "./format";
 import {
@@ -312,11 +312,20 @@ export function buildRowModel(
 
   const isOpen = i.status === "OPEN";
   const isUnresolved = isOpen || i.status === "ACKNOWLEDGED";
+  // The server's code, resolved in the reader's language; the stored text for
+  // a legacy row or an unknown code. Never a raw key.
+  const text = localizeCondition(locale, {
+    title: i.title,
+    safeSummary: i.safeSummary,
+    message: i.message ?? null,
+    sourceId: i.lifecycle?.sourceId ?? null,
+    titleSource: i.message?.titleSource ?? null,
+  });
 
   return {
     id: i.id,
-    title: i.title,
-    summary: i.safeSummary,
+    title: text.title,
+    summary: text.summary,
 
     severityLabel: severity.label,
     severityTone: severity.tone,

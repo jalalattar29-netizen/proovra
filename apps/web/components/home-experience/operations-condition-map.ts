@@ -197,6 +197,16 @@ export type HomeConditionRepresentation =
        */
       readonly kind: "RETIRED";
       readonly because: string;
+    }
+  | {
+      /**
+       * A registered source NOTHING produces (NOT_YET_DISCOVERED). It is not an
+       * operational capability of this product, so it is advertised nowhere:
+       * no row, no action, no count. A stray historical row reaches Home as
+       * nothing at all.
+       */
+      readonly kind: "NOT_PRODUCED";
+      readonly because: string;
     };
 
 /**
@@ -449,15 +459,8 @@ export const HOME_CONDITION_REPRESENTATION: Record<
 
   // ---- Governance ----------------------------------------------------------
   "governance.policy_condition": {
-    kind: "ROW",
-    severity: "warning",
-    domains: ["governance"],
-    label: "A governance policy needs attention",
-    whyItMatters:
-      "A retention, hold or disposal rule is in a state that stops it being applied as written.",
-    recommendedAction: "Open Governance to review the policy.",
-    actionLabel: "Open governance",
-    href: "/governance/policy",
+    kind: "NOT_PRODUCED",
+    because: "NOT_YET_DISCOVERED: no emitter writes this source.",
   },
   "governance.destruction_executed": {
     kind: "ROW",
@@ -505,14 +508,8 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     href: "/operations",
   },
   "integration.configuration_failure": {
-    kind: "ROW",
-    severity: "warning",
-    domains: ["governance"],
-    label: "An integration is misconfigured",
-    whyItMatters: "A connected system cannot be reached with its current settings.",
-    recommendedAction: "Open Integrations and check the connection.",
-    actionLabel: "Open integrations",
-    href: "/integrations",
+    kind: "NOT_PRODUCED",
+    because: "NOT_YET_DISCOVERED: no stored configuration verdict exists to observe.",
   },
   "search.indexing_failure": {
     kind: "ROW",

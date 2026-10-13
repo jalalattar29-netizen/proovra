@@ -63,9 +63,11 @@ import {
 } from "../../../../lib/platform-context";
 import { identifierLabel } from "@proovra/shared";
 import { categoryLabel } from "../_lib/vocabulary";
+import { localizeCondition } from "@proovra/shared/i18n";
 import {
   fillOperationsCopy,
   useOpsCopy,
+  useOpsLocale,
   useOpsNumber,
   type OperationsCopy,
 } from "../_lib/copy";
@@ -102,7 +104,20 @@ type WorkspaceAlertRow = {
   lastSeenAtUtc: string;
   occurrenceCount: number;
   runbookSlug: string | null;
+  /** The code the title/summary were rendered from; absent on an older server. */
+  message?: { code: string | null; params: Record<string, unknown> | null; titleSource: "SOURCE_LABEL" | "CONDITION" } | null;
 };
+
+/** One alert's title and summary in the reader's language (stored text for legacy rows). */
+function alertText(row: WorkspaceAlertRow, locale: string): { title: string; summary: string | null } {
+  const text = localizeCondition(locale, {
+    title: row.title,
+    safeSummary: row.safeSummary ?? "",
+    message: row.message ?? null,
+    titleSource: row.message?.titleSource ?? null,
+  });
+  return { title: text.title, summary: text.summary.length > 0 ? text.summary : null };
+}
 
 type WorkspaceAlerts = {
   scope: "WORKSPACE";
@@ -188,6 +203,7 @@ function WorkspaceHealthPageInner() {
   const workspaceId = useActiveSpaceId();
   const activeSpace = useActiveSpace();
   const copy = useOpsCopy();
+  const locale = useOpsLocale();
   const fmt = useOpsNumber();
   const [health, setHealth] = useState<Loaded<WorkspaceHealth>>({
     kind: "LOADING",
@@ -464,10 +480,10 @@ function WorkspaceHealthPageInner() {
                           </AppStatusBadge>
                         </td>
                         <td className="app-table__primary">
-                          {row.title}
-                          {row.safeSummary ? (
+                          {alertText(row, locale).title}
+                          {alertText(row, locale).summary ? (
                             <span className="app-table__muted">
-                              {row.safeSummary}
+                              {alertText(row, locale).summary}
                             </span>
                           ) : null}
                         </td>

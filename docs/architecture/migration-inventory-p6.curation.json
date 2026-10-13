@@ -3517,6 +3517,14 @@
       "evidence": "Unnumbered directory whose migration.sql is BYTE-IDENTICAL (LF-normalised) to 20260215095541_email_password_auth — verified by diff, not asserted. Every statement is IF NOT EXISTS / enum-label-guarded, so applying it at chain end is a proven no-op. RENAME DISPOSITION: this is NOT a rename of the numbered migration — both directories coexist in one chain and either may already be recorded in _prisma_migrations. Deleting it would create a 'migration missing locally' drift on any database that recorded it, so it is PRESERVED and treated as a no-op.",
       "rollbackDisposition": "ROLL_FORWARD — no-op.",
       "ownerAction": "Leave in place. Never delete, never renumber."
+    },
+    "20281013000000_operational_incident_message_code": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='operational_incidents' AND column_name IN ('message_code','message_params')\"",
+      "evidence": "OPERATIONS MESSAGE CODE (2026-10-13). Two nullable operational_incidents columns: message_code (VARCHAR(120), the semantic code a condition's title and summary were rendered from) and message_params (JSONB, the structured params it interpolated — ids, counts, outcomes, never prose). Clients resolve the code through the shared catalogue (packages/shared/src/operations-condition-messages.ts) in en/de/ar. title and safe_summary keep being written in English from the same catalogue, so previous-release readers are unaffected. Rows written before this migration keep NULL and render their stored English text; no row is rewritten. SAFE BEFORE THE NEW CODE: ADD COLUMN of a nullable column without a default is catalogue-only (no table rewrite), and previous images never read or write the columns. READINESS: the count is 2 after apply. No backfill. ROLLBACK is code-first; the columns are not dropped. NOT APPLIED TO PRODUCTION."
     }
   }
 }

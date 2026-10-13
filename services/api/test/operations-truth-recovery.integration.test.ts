@@ -229,8 +229,8 @@ describe("Operations truth closure — recovery, remediation, titles (live Postg
   it("OPS-033 distinct per-record conditions keep distinct titles; an aggregate keeps its count-free label", async () => {
     const a = c.h.fixtures.teamA;
     const rows = [
-      await seedIncident(c, a.teamId, { sourceId: "governance.policy_condition", title: "Retention policy conflicts with an active legal hold" }),
-      await seedIncident(c, a.teamId, { sourceId: "governance.policy_condition", title: "Export policy blocks a shared case (3)" }),
+      await seedIncident(c, a.teamId, { sourceId: "governance.notification_escalated", title: "Retention policy conflicts with an active legal hold" }),
+      await seedIncident(c, a.teamId, { sourceId: "governance.notification_escalated", title: "Export policy blocks a shared case (3)" }),
       await seedIncident(c, a.teamId, {
         sourceId: "pipeline.report_backlog",
         category: "REPORT",

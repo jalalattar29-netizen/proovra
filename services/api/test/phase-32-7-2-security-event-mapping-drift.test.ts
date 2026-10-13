@@ -1422,6 +1422,9 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // OTS TRUTH (2026-10-12) — eleven nullable evidence columns and three
       // NOT VALID CHECK constraints. EXPAND only.
       "20281012000000_evidence_ots_truth_columns",
+      // OPERATIONS MESSAGE CODE (2026-10-13) — two nullable
+      // operational_incidents columns. EXPAND only.
+      "20281013000000_operational_incident_message_code",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

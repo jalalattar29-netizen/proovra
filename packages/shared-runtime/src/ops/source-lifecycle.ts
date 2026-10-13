@@ -1202,29 +1202,34 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       sourceId: "governance.policy_condition",
       category: "GOVERNANCE",
       displayLabel: "Governance policy condition",
-      // NOT_YET_DISCOVERED (OPS-13). The bridge would classify four governance
-      // event types here, and none of them has an emitter anywhere in the
-      // product. Registered so the classification is ready; never reported as
-      // production coverage.
+      // NOT PRODUCED — inactive and not advertised (2026-10-13). No code path
+      // writes this source: the four governance security-event types that
+      // once mapped here have no emitter, and the security-event bridge no
+      // longer routes anything to it. It is registered only so a historical
+      // row (legacy prefix below) stays classifiable. It is advertised on no
+      // surface, offers no action and cannot be closed by hand, exactly like
+      // every other NOT_YET_DISCOVERED source; a real governance producer
+      // would have to be built, with its own recovery authority, before this
+      // changes.
       producers: [],
       discoveryState: "NOT_YET_DISCOVERED",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "governance:security_event" }],
-      resolutionAuthority: "OPERATOR_DECISION",
+      resolutionAuthority: "NO_DIRECT_RESOLUTION",
       activityProbeKey: "NONE",
-      recoveryPolicy: "OPERATOR_CLOSES",
+      recoveryPolicy: "NO_RECOVERY_SIGNAL",
       recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
       suppressionPolicy: "SUPPRESSION_PERSISTS",
-      remediationDisposition: "SAFE_DEEP_LINK",
+      remediationDisposition: "NOT_APPLICABLE",
       requiredCapability: "governance.policy.read",
-      audience: "TENANT_ACTIONABLE",
+      audience: "TENANT_ADVISORY",
       cardinality: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
-      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
-      requiresResolutionNote: true,
+      notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
       rationale:
-        "A governance or publication security signal was recorded; it names an event class rather than a policy row, so no governance authority can re-check THIS condition and closure is the recorded review outcome.",
+        "Not produced: no emitter writes this source and nothing routes to it. Registered for historical classification only; inactive and not advertised.",
     },
     {
       // RETIRED (OPS-13, Phase 3). This was the security-event bridge's DEFAULT
@@ -2199,6 +2204,21 @@ export function conditionTitle(
   }
   const own = storedTitle.replace(/\s*\(\s*[\d.,]+\s*[a-z%]*\s*\)\s*$/i, "").trim();
   return own.length > 0 ? own : lifecycle.displayLabel;
+}
+
+/**
+ * WHERE THE PROJECTED TITLE CAME FROM — the same branch as `conditionTitle`.
+ *
+ * SOURCE_LABEL: an AGGREGATE or RETIRED source renders its own label, which a
+ * client localizes by source id. CONDITION: the row's own (stored or coded)
+ * title, which a client localizes through the row's message code.
+ */
+export function conditionTitleSource(resolved: ResolvedConditionSource): "SOURCE_LABEL" | "CONDITION" {
+  if (resolved.match === "UNREGISTERED") return "CONDITION";
+  const lifecycle = resolved.lifecycle;
+  return lifecycle.cardinality === "AGGREGATE" || lifecycle.discoveryState === "RETIRED"
+    ? "SOURCE_LABEL"
+    : "CONDITION";
 }
 
 /**

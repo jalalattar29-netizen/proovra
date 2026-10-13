@@ -490,6 +490,10 @@ async function emitDestructionPendingNotification(
       severity: "WARNING",
       dedupeKey: dedupeKey("destruction_pending", evidenceId),
       title: "Destruction review pending",
+      conditionMessage: {
+        code: "ops.governance.notification.destruction_pending",
+        params: { evidenceRef: evidenceId.slice(0, 8), reviewRef: reviewId.slice(0, 8) },
+      },
       summary: `Retention has expired on evidence ${evidenceId.slice(0, 8)}…; review #${reviewId.slice(0, 8)}…`,
       relatedEvidenceId: evidenceId,
       relatedReviewId: reviewId,
@@ -513,6 +517,12 @@ async function emitDestructionBlockedNotification(
       severity: "INFO",
       dedupeKey: dedupeKey("destruction_blocked", blockReason, evidenceId),
       title: "Destruction blocked",
+      conditionMessage: {
+        code: "ops.governance.notification.retention_blocked",
+        params: {
+          cause: blockReason === "immutable" ? "immutable" : blockReason === "case_hold" ? "case_hold" : "hold",
+        },
+      },
       summary:
         blockReason === "immutable"
           ? "Retention has expired but the policy is immutable. Operator must supersede the policy before destruction."
@@ -541,6 +551,10 @@ async function emitRetentionExtensionNotification(
       severity: "INFO",
       dedupeKey: dedupeKey("retention_extension", policyId, evidenceId),
       title: "Retention auto-extended",
+      conditionMessage: {
+        code: "ops.governance.notification.retention_extended",
+        params: { days: Math.round(days) },
+      },
       summary: `Policy auto-extended retention by ${days} days following recent custody activity.`,
       relatedEvidenceId: evidenceId,
       relatedPolicyId: policyId,
@@ -563,6 +577,7 @@ async function emitLifecycleDriftNotification(
       severity: "HIGH",
       dedupeKey: dedupeKey("lifecycle_drift", "stale_review", evidenceId),
       title: "Lifecycle drift detected",
+      conditionMessage: { code: "ops.governance.notification.lifecycle_drift", params: {} },
       summary:
         "Evidence is PENDING_DESTRUCTION but its active destruction review pointer is stale.",
       relatedEvidenceId: evidenceId,

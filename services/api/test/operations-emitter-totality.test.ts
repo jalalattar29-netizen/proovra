@@ -356,19 +356,7 @@ describe("§3.2 — emitted sources and registered sources are the SAME set", ()
       // And it fails closed: an undiscovered source that was operator-
       // resolvable would be a Resolve control on a condition nothing writes,
       // observes or can close.
-      //
-      // ONE named exception, and only in the stricter direction a note
-      // provides: `governance.policy_condition` keeps the contract its
-      // classification will need when an emitter lands (OPS-13 moved it to
-      // NOT_YET_DISCOVERED because none of its event types has an emitter).
-      // Nothing writes it — the emitted-set assertion above proves that — so
-      // no Resolve control can exist for it; and any row a future emitter
-      // writes can be closed only with a written conclusion.
-      if (s.sourceId === "governance.policy_condition") {
-        expect(s.resolutionAuthority, s.sourceId).toBe("OPERATOR_DECISION");
-        expect(s.requiresResolutionNote, s.sourceId).toBe(true);
-        continue;
-      }
+      // No exceptions: every undiscovered source is inactive.
       expect(s.resolutionAuthority, s.sourceId).toBe("NO_DIRECT_RESOLUTION");
     }
     // eslint-disable-next-line no-console -- the honest state IS the deliverable

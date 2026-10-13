@@ -177,6 +177,7 @@ export default defineConfig({
       OPERATIONS_RECONCILER_ENABLED: "false",
       BILLING_ADDON_RETRY_ENABLED: "false",
       BILLING_RECONCILER_ENABLED: "false",
+      PLATFORM_MAINTENANCE_RECONCILER_ENABLED: "false",
       // Non-production, test-only signing secret for harness-minted tokens.
       // Never a real key: the harness only needs a syntactically valid HS256
       // secret to exercise the authenticated request pipeline.

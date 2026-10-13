@@ -40,6 +40,7 @@ import {
   resolveChannels,
   type GovernanceNotificationKind,
   type GovernanceNotificationSeverity,
+  type ConditionMessage,
 } from "@proovra/shared";
 
 import { prisma } from "../db.js";
@@ -60,6 +61,12 @@ export type EmitWorkerGovernanceNotificationInput = {
   dedupeKey: string;
   title: string;
   summary: string;
+  /**
+   * The SAME notification as a catalogue code, for the Operations condition a
+   * HIGH/CRITICAL notification opens — so that condition renders in every
+   * locale. The notification row itself keeps `title` / `summary`.
+   */
+  conditionMessage: ConditionMessage;
   relatedEvidenceId?: string | null;
   relatedReviewId?: string | null;
   relatedHoldId?: string | null;
@@ -232,8 +239,7 @@ export async function emitWorkerGovernanceNotification(
         severity: finalSeverity,
         fingerprint:
           `governance_notification:${input.kind}:${input.dedupeKey}`.slice(0, 120),
-        title,
-        safeSummary: summary,
+        message: input.conditionMessage,
         relatedEvidenceId: input.relatedEvidenceId ?? null,
         correlationId: input.correlationId,
         metadata: {

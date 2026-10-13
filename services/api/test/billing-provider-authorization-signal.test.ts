@@ -9,6 +9,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { stampConditionMessage } from "@proovra/shared";
 
 const recordIncident = vi.fn<(input: Record<string, unknown>) => Promise<unknown>>(async () => ({}));
 const resolveConditionFromSourceRecovery = vi.fn<(input: Record<string, unknown>) => Promise<unknown>>(async () => ({
@@ -56,7 +57,11 @@ describe("provider-authorization signal", () => {
       platform: true,
       fingerprint: "billing-provider-auth:STRIPE",
     });
-    expect(String(arg.safeSummary)).toContain("RECONCILE_ACCOUNT");
+    expect(arg.message).toEqual({
+      code: "ops.billing.provider_authorization",
+      params: { provider: "STRIPE", operation: "RECONCILE_ACCOUNT" },
+    });
+    expect(stampConditionMessage(arg.message)!.summary).toContain("RECONCILE_ACCOUNT");
     expect(resolveConditionFromSourceRecovery).not.toHaveBeenCalled();
   });
 

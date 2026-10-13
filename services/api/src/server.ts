@@ -1714,5 +1714,59 @@ allowedHeaders: [
     app.log.warn({ reconciler: "billing" }, "billing_reconciler.disabled");
   }
 
+  // PLATFORM MAINTENANCE — the scheduled caller of the two cron-secret
+  // reconcile routes' work. `POST /v1/ops/reconcile` (runMasterReconcile) and
+  // `POST /v1/reliability/reconcile` (reconcileUploads) had no invoker in the
+  // deployment, so TTL expiry, the upload reapers, stalled/abandoned upload
+  // transitions and the reconcile gauges ran only when someone POSTed them.
+  // The sweep calls the SAME functions in-process; each step holds the
+  // existing `withLease` lease, so replicas and slow ticks never overlap, and
+  // the Safe wrapper never rejects, so a failed tick cannot stop the interval.
+  //
+  // Delayed and jittered like the sweeps above; enabled by default for the
+  // same reason.
+  if (process.env.PLATFORM_MAINTENANCE_RECONCILER_ENABLED !== "false") {
+    const { runPlatformMaintenanceSweepSafe, PLATFORM_MAINTENANCE_INTERVAL_MS } =
+      await import("./jobs/platform-maintenance-reconciliation.job.js");
+    const intervalMs = Number.parseInt(
+      process.env.PLATFORM_MAINTENANCE_RECONCILER_INTERVAL_MS ??
+        String(PLATFORM_MAINTENANCE_INTERVAL_MS),
+      10,
+    );
+    const startupDelayMs =
+      Number.parseInt(
+        process.env.PLATFORM_MAINTENANCE_RECONCILER_STARTUP_DELAY_MS ?? "60000",
+        10,
+      ) + Math.floor(Math.random() * 30_000);
+
+    const maintenanceStartupHandle = setTimeout(() => {
+      void runPlatformMaintenanceSweepSafe({ trigger: "startup" }, { logger: app.log });
+    }, startupDelayMs);
+    if (
+      typeof (maintenanceStartupHandle as { unref?: () => void }).unref === "function"
+    ) {
+      (maintenanceStartupHandle as { unref?: () => void }).unref!();
+    }
+    const maintenanceHandle = setInterval(() => {
+      void runPlatformMaintenanceSweepSafe({ trigger: "scheduler" }, { logger: app.log });
+    }, intervalMs);
+    if (typeof (maintenanceHandle as { unref?: () => void }).unref === "function") {
+      (maintenanceHandle as { unref?: () => void }).unref!();
+    }
+    app.addHook("onClose", async () => {
+      clearTimeout(maintenanceStartupHandle);
+      clearInterval(maintenanceHandle);
+    });
+    app.log.info(
+      { intervalMs, startupDelayMs },
+      "platform_maintenance_reconciler.scheduled",
+    );
+  } else {
+    app.log.warn(
+      { reconciler: "platform_maintenance" },
+      "platform_maintenance_reconciler.disabled",
+    );
+  }
+
   return app;
 }

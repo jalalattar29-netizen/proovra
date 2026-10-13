@@ -28,6 +28,7 @@
  */
 
 import * as prismaPkg from "@prisma/client";
+import { type ConditionMessage, renderConditionMessage } from "@proovra/shared";
 
 import { prisma } from "../../db.js";
 import { recordIncident } from "../observability/incident.service.js";
@@ -60,56 +61,48 @@ export function dependentCancellationFingerprint(addonId: string): string {
  * personal add-on; the workspace's billing owner, for a shared one. No name or
  * provider identifier is carried, only the role.
  */
-export function dependentCancellationWording(input: {
+/**
+ * The condition's message: a semantic code per state, and who pays. The
+ * wording lives in the shared catalogue (en/de/ar); this chooses the code.
+ */
+export function dependentCancellationMessage(input: {
   state: string;
   reasonCode: string | null;
   personal: boolean;
-}): { title: string; safeSummary: string } {
-  const payer = input.personal
-    ? "You pay for this add-on on your personal account"
-    : "This workspace's billing owner pays for this add-on";
-  const providerUnreachable = input.reasonCode === "PROVIDER_UNAVAILABLE";
+}): ConditionMessage {
+  const payer = input.personal ? ("personal" as const) : ("workspace" as const);
   // An UNGRANTABLE obligation has no cancelled plan behind it: the provider
   // activated a storage subscription PROOVRA refused to grant, and the
   // subscription is being stopped so it does not bill for nothing. Saying
   // "this add-on's plan was cancelled" there is simply untrue.
   if (input.reasonCode === UNGRANTABLE_PROVIDER_ACTIVE) {
-    const manual = input.state === S.MANUAL_INTERVENTION;
-    return {
-      title: manual
-        ? "Ungranted storage add-on still billing — support needed"
-        : "Ungranted storage add-on being stopped",
-      safeSummary: manual
-        ? `The payment provider activated a storage add-on that could not be added to this account. Automatic retries to stop it are exhausted and the provider has not confirmed it is stopped, so it may still be charging. Retry from Billing or contact support. ${payer}.`
-        : `The payment provider activated a storage add-on that could not be added to this account, so stopping it has been requested from the provider. It may still be charging until the provider confirms; PROOVRA retries automatically. ${payer}.`,
-    };
+    return input.state === S.MANUAL_INTERVENTION
+      ? { code: "ops.billing.dependent_cancellation.ungrantable_manual", params: { payer } }
+      : { code: "ops.billing.dependent_cancellation.ungrantable_stopping", params: { payer } };
   }
   switch (input.state) {
     case S.PENDING:
-      return {
-        title: "Storage add-on cancellation in progress",
-        safeSummary: `This storage add-on's plan was cancelled and stopping the add-on itself has been requested from the payment provider. It closes when the provider confirms. ${payer}.`,
-      };
+      return { code: "ops.billing.dependent_cancellation.pending", params: { payer } };
     case S.RETRY_SCHEDULED:
-      return {
-        title: providerUnreachable
-          ? "Storage add-on cancellation waiting for the payment provider"
-          : "Storage add-on cancellation retrying",
-        safeSummary: providerUnreachable
-          ? `The payment provider could not be reached to stop this storage add-on. PROOVRA retries automatically; it may still be charging until the provider confirms. ${payer}.`
-          : `The payment provider has not confirmed this storage add-on is stopped. PROOVRA retries automatically; it may still be charging until the provider confirms. ${payer}.`,
-      };
+      return input.reasonCode === "PROVIDER_UNAVAILABLE"
+        ? { code: "ops.billing.dependent_cancellation.retry_provider_unreachable", params: { payer } }
+        : { code: "ops.billing.dependent_cancellation.retry", params: { payer } };
     case S.MANUAL_INTERVENTION:
-      return {
-        title: "Storage add-on still billing — support needed",
-        safeSummary: `Automatic retries to stop this storage add-on are exhausted and the payment provider has not confirmed it is stopped, so it may still be charging. Retry from Billing or contact support. ${payer}.`,
-      };
+      return { code: "ops.billing.dependent_cancellation.manual", params: { payer } };
     default:
-      return {
-        title: "Storage add-on may still be billing",
-        safeSummary: `This storage add-on's plan was cancelled but the payment provider has not confirmed the add-on itself is stopped, so it may still be charging. Retry from Billing. ${payer}.`,
-      };
+      return { code: "ops.billing.dependent_cancellation.unconfirmed", params: { payer } };
   }
+}
+
+/** The English the condition stores for a state — rendered from its message. */
+export function dependentCancellationWording(input: {
+  state: string;
+  reasonCode: string | null;
+  personal: boolean;
+}): { title: string; safeSummary: string } {
+  const message = dependentCancellationMessage(input);
+  const en = renderConditionMessage("en", message.code, message.params)!;
+  return { title: en.title, safeSummary: en.summary };
 }
 
 function humanBytes(bytes: bigint): string {
@@ -276,7 +269,7 @@ export async function syncDependentCancellationConditions(input?: {
 
       const manual =
         addon.dependentCancellationState === S.MANUAL_INTERVENTION;
-      const wording = dependentCancellationWording({
+      const message = dependentCancellationMessage({
         state: addon.dependentCancellationState,
         reasonCode: addon.dependentCancellationReasonCode ?? null,
         personal: addon.teamId === null,
@@ -295,8 +288,7 @@ export async function syncDependentCancellationConditions(input?: {
         // not by pretending the earlier attempts mattered less.
         severity: "HIGH",
         fingerprint: dependentCancellationFingerprint(addon.id),
-        title: wording.title,
-        safeSummary: wording.safeSummary,
+        message,
         // The provider NAME is safe and useful for triage; no identifier is.
         relatedProvider: addon.paymentProvider ?? null,
         metadata: {

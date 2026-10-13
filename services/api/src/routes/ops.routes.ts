@@ -372,7 +372,7 @@ async function requireOpsActor(
 // Reconcile sub-tasks
 // -----------------------------------------------------------------------------
 
-type ReconcileSummary = {
+export type ReconcileSummary = {
   stepUpChallengesExpired: number;
   trustedDevicesExpired: number;
   communicationsRetryDue: number;
@@ -389,7 +389,7 @@ type ReconcileSummary = {
   uploadSessionsExpired: number;
 };
 
-async function runMasterReconcile(): Promise<ReconcileSummary> {
+export async function runMasterReconcile(): Promise<ReconcileSummary> {
   const now = new Date();
   const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
 

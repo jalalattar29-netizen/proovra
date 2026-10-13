@@ -334,12 +334,17 @@ describe("Grouped Operations projection at scale (live PostgreSQL 16)", () => {
           "evidenceId",
           "firstSeenAtUtc",
           "lastSeenAtUtc",
+          "message",
           "occurrenceCount",
           "severity",
           "status",
           "title",
         ].sort(),
       );
+      // `message` is the code + structured params the title was rendered from
+      // (shared catalogue) — reviewed: exactly these three keys, nothing else.
+      expect(Object.keys(r.message).sort()).toEqual(["code", "params", "titleSource"]);
+      expect(r.message.titleSource).toBe("CONDITION");
       // No evidence content, no provider string, no infrastructure detail.
       const blob = JSON.stringify(r);
       expect(blob).not.toMatch(/sha256|storageKey|signedUrl|provider|postgres/i);

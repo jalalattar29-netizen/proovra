@@ -172,9 +172,43 @@ export function batchStatusTone(status: string): ProovraStatusTone {
   return BATCH_TONES[status.toLowerCase()] ?? "neutral";
 }
 
-export function batchStatusLabel(status: string): string {
+/**
+ * The batch words this pure module owns, in English. They are the English
+ * entries of the localized Operations dictionary (ops-copy.ts spreads them into
+ * its EN table, so the two cannot drift); a screen passes its locale's table.
+ * This module stays import-free so it can be loaded on its own.
+ */
+export interface BatchCopy {
+  batchStatus: { pending: string; processing: string; completed: string; failed: string; cancelled: string };
+  batchStatusUnknown: string;
+  batchNeedName: string;
+  batchNeedRecords: string;
+}
+export const BATCH_COPY_EN: BatchCopy = {
+  batchStatus: {
+    pending: "Pending",
+    processing: "Processing",
+    completed: "Completed",
+    failed: "Failed",
+    cancelled: "Cancelled",
+  },
+  batchStatusUnknown: "Unknown",
+  batchNeedName: "Give this batch a name.",
+  batchNeedRecords: "Choose at least one evidence record.",
+};
+
+/**
+ * The display word for a job's status, in the viewer's language. The five
+ * statuses the service defines are translated; a status it does not define is
+ * a technical value and is shown as the service sent it (capitalised).
+ */
+export function batchStatusLabel(status: string, t: BatchCopy = BATCH_COPY_EN): string {
   const s = status.toLowerCase();
-  return s.length === 0 ? "Unknown" : s.charAt(0).toUpperCase() + s.slice(1);
+  if (s.length === 0) return t.batchStatusUnknown;
+  if (Object.prototype.hasOwnProperty.call(t.batchStatus, s)) {
+    return t.batchStatus[s as keyof BatchCopy["batchStatus"]];
+  }
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 export function parseBatchJobs(payload: unknown): BatchJob[] {
@@ -257,9 +291,9 @@ export function buildBatchExportPath(id: string): string {
  * after: an empty name and an empty selection are both VALIDATION_ERROR, and a
  * round trip to be told so is a round trip the phone did not need.
  */
-export function validateBatchDraft(name: string, evidenceIds: string[]): string | null {
-  if (name.trim().length === 0) return "Give this batch a name.";
-  if (evidenceIds.length === 0) return "Choose at least one evidence record.";
+export function validateBatchDraft(name: string, evidenceIds: string[], t: BatchCopy = BATCH_COPY_EN): string | null {
+  if (name.trim().length === 0) return t.batchNeedName;
+  if (evidenceIds.length === 0) return t.batchNeedRecords;
   return null;
 }
 
@@ -365,7 +399,8 @@ export function hasRunningBatch(jobs: readonly BatchJob[]): boolean {
  * would be an empty list and a zero presented as an analysis of the operator's
  * evidence. An absent panel is honest; that would not be.
  *
- * What the batch DOES produce is stated instead, in the service's own words.
+ * What the batch DOES produce is stated instead, in the service's own words
+ * (this is the English entry of the localized `batchModeNote`, ops-copy.ts).
  */
 export const BATCH_ANALYSIS_MODE_NOTE =
   "This batch reads each record's metadata only. It does not determine factual truth, " +

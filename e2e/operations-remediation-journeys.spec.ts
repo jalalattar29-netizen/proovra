@@ -21,6 +21,12 @@
  *   H  A denied switch into another tenant's workspace writes no condition
  *      there.
  *   I  Billing contradiction: the exact Billing link for the payer.
+ *   J  FREE: the Operations workbench is not offered — the page is gated and
+ *      the API refuses the workbench read.
+ *   K  TEAM viewer: reads the condition, and the drawer offers no action.
+ *   L  German and Arabic: a coded condition renders from the shared catalogue
+ *      in the reader's language (Arabic right-to-left); a legacy row keeps its
+ *      stored English.
  */
 
 import { test, expect, type Page, type Route } from "@playwright/test";
@@ -374,5 +380,99 @@ test.describe("Operations remediation — executed browser journeys", () => {
     await expect(link).toHaveAttribute("href", "/billing?workspace=personal#billing-action-required");
     // Operations never offers a Resolve for it: Billing truth closes it.
     await expect(page.locator('[data-ops-action="resolve"]')).toHaveCount(0);
+  });
+  test("J. FREE: the Operations workbench is not offered and its read is refused", async ({ page }) => {
+    const s = await createGuestSession({ plan: "FREE" });
+    const space = personalSpaceOf(s.userId);
+    await signIn(page, s.email);
+    await page.goto("/operations");
+    await expect(page.locator('[data-testid="route-gate-workspace.operations"]')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("[data-ops-action]")).toHaveCount(0);
+    await expect(page.locator("[data-ops-inspector]")).toHaveCount(0);
+    const api = await makeApi(s.token);
+    const r = await api.get(`/v1/ops/incidents?teamId=${space}`);
+    expect(r.status()).toBe(403);
+    expect(((await r.json()) as { error: { reason?: string } }).error.reason).toBe("operations_not_included");
+    await api.dispose();
+  });
+
+  test("K. TEAM viewer: the condition is readable and the drawer offers no action", async ({ page }) => {
+    const owner = await createGuestSession({ plan: "PRO" });
+    const viewer = await createGuestSession({ plan: "FREE" });
+    const org = sql(
+      `INSERT INTO organizations (name, billing_owner_user_id, status, kind, updated_at)
+       VALUES ('E2E team viewer org', $1, 'ACTIVE', 'CUSTOMER', now()) RETURNING id`,
+      [owner.userId],
+    )[0]!.id as string;
+    sql(`INSERT INTO organization_security_policies (organization_id, policy_version, updated_at) VALUES ($1, 1, now())`, [org]);
+    sql(
+      `INSERT INTO organization_memberships (organization_id, user_id, role, updated_at)
+       VALUES ($1, $2, 'ORG_OWNER', now()), ($1, $3, 'ORG_MEMBER', now())`,
+      [org, owner.userId, viewer.userId],
+    );
+    const team = sql(
+      `INSERT INTO teams (name, owner_user_id, is_personal, organization_id, workspace_kind, billing_plan, billing_status, updated_at)
+       VALUES ('E2E team viewer workspace', $1, false, $2, 'ORGANIZATION', 'TEAM', 'ACTIVE', now()) RETURNING id`,
+      [owner.userId, org],
+    )[0]!.id as string;
+    sql(
+      `INSERT INTO team_members (team_id, user_id, role, status) VALUES ($1, $2, 'OWNER', 'ACTIVE'), ($1, $3, 'VIEWER', 'ACTIVE')`,
+      [team, owner.userId, viewer.userId],
+    );
+    const id = seedCondition(team, { sourceId: "review.escalation_storm", category: "GOVERNANCE", severity: "HIGH" });
+
+    await signIn(page, viewer.email);
+    const switched = await page.request.post(`${process.env.API_BASE ?? "http://localhost:8081"}/v1/platform/context/switch-workspace`, {
+      headers: { authorization: `Bearer ${viewer.token}` },
+      data: { workspaceId: team },
+    });
+    expect(switched.status()).toBeLessThan(300);
+    await openCondition(page, id);
+    await expect(page.locator(`[data-ops-inspector="${id}"]`)).toBeVisible();
+    await expect(page.locator("[data-ops-action]")).toHaveCount(0);
+    await expect(page.locator("[data-ops-remediate]")).toHaveCount(0);
+    // And the server agrees: the viewer cannot acknowledge.
+    const api = await makeApi(viewer.token);
+    const ack = await api.post(`/v1/ops/incidents/${id}/ack`, { data: { teamId: team } });
+    expect(ack.status()).toBe(403);
+    await api.dispose();
+    expect(sql("SELECT status FROM operational_incidents WHERE id = $1", [id])[0]!.status).toBe("OPEN");
+  });
+
+  test("L. German and Arabic: a coded condition renders in the reader's language; a legacy row keeps its stored text", async ({ page }) => {
+    const s = await createGuestSession({ plan: "PRO" });
+    const space = personalSpaceOf(s.userId);
+    const coded = seedCondition(space, {
+      sourceId: "integration.webhook_destination_disabled",
+      category: "INTEGRATION",
+      title: "Webhook destination disabled after repeated failures",
+    });
+    sql(
+      `UPDATE operational_incidents SET message_code = 'ops.integration.webhook_destination_disabled',
+         message_params = '{"failures": 9}'::jsonb WHERE id = $1`,
+      [coded],
+    );
+    const legacy = seedCondition(space, { sourceId: "review.escalation_storm", category: "GOVERNANCE", title: "A legacy English title" });
+
+    await signIn(page, s.email);
+    for (const [locale, title, dir] of [
+      ["de", "Webhook-Ziel nach wiederholten Fehlern deaktiviert", "ltr"],
+      ["ar", "عُطّلت وجهة Webhook بعد إخفاقات متكررة", "rtl"],
+    ] as const) {
+      await page.context().addCookies([
+        { name: "proovra-locale", value: locale, url: page.url() },
+        { name: "proovra-locale-mode", value: "manual", url: page.url() },
+      ]);
+      await page.evaluate((l) => {
+        localStorage.setItem("proovra-locale", l);
+        localStorage.setItem("proovra-locale-mode", "manual");
+      }, locale);
+      await openCondition(page, coded);
+      await expect(page.locator("html")).toHaveAttribute("dir", dir);
+      await expect(page.locator(`[data-ops-inspector="${coded}"]`)).toContainText(title);
+      await expect(page.locator(`[data-ops-inspector="${coded}"]`)).not.toContainText("Webhook destination disabled");
+      await openCondition(page, legacy);
+      await expect(page.locator(`[data-ops-inspector="${legacy}"]`)).toContainText("A legacy English title");
+    }
   });
 });

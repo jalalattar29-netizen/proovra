@@ -5999,12 +5999,12 @@ export async function recordReportFailureIncident(input: {
       category: "REPORT",
       severity: input.severity,
       fingerprint,
-      title: input.retriable
-        ? `Report v${targetVersion} stopped after its retries — record ${recordRef}`
-        : `Report v${targetVersion} generation failed — record ${recordRef}`,
-      safeSummary: input.retriable
-        ? `Automatic retries for report version ${targetVersion} of this record were exhausted (${errorClass}). The evidence is unaffected. An operator can recover or retry it from Operations; the condition clears only when report version ${targetVersion} exists.`
-        : `Report version ${targetVersion} of this record could not be generated and will not be retried automatically (${errorClass}). The evidence is unaffected. An operator can recover it from Operations; the condition clears only when report version ${targetVersion} exists.`,
+      message: {
+        code: input.retriable
+          ? "ops.pipeline.report_generation_failed.retries_exhausted"
+          : "ops.pipeline.report_generation_failed.not_retriable",
+        params: { version: targetVersion, recordRef, errorClass },
+      },
       relatedEvidenceId: input.evidenceId,
       relatedJobId: input.jobId ?? null,
       metadata: {
@@ -6075,12 +6075,12 @@ async function recordPackageGenerationIncident(input: {
       // One condition per (record, report version, failure class). Segment 1
       // is the evidence id and segment 2 the version the probe checks.
       fingerprint: `PACKAGE:${input.evidenceId}:v${input.reportVersion}:${errorClass}`,
-      title: deterministic
-        ? `Verification package v${input.reportVersion} refused by object storage (${input.evidenceId.slice(0, 8)})`
-        : `Verification package v${input.reportVersion} generation failed (${input.evidenceId.slice(0, 8)})`,
-      safeSummary: deterministic
-        ? `Report version ${input.reportVersion} is stored, but object storage refused its verification package. Retrying the same request cannot succeed; after the storage configuration or worker is corrected, an operator can retry it from Operations. The evidence and the report are unaffected.`
-        : `Report version ${input.reportVersion} is stored, but its verification package was not. The evidence and the report are unaffected; the pipeline retries, and the condition clears only when the package for version ${input.reportVersion} exists.`,
+      message: {
+        code: deterministic
+          ? "ops.pipeline.package_generation_failed.storage_rejected"
+          : "ops.pipeline.package_generation_failed.failed",
+        params: { version: input.reportVersion, recordRef: input.evidenceId.slice(0, 8) },
+      },
       relatedEvidenceId: input.evidenceId,
       relatedJobId: input.jobId == null ? null : String(input.jobId),
       metadata: {

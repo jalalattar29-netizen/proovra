@@ -2398,3 +2398,7 @@ export function operationsCopyFor(locale: string | null | undefined): Operations
 export function fillOperationsCopy(template: string, values: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (_m, k: string) => (k in values ? String(values[k]) : `{${k}}`));
 }
+
+// Operations condition titles and summaries: semantic codes written by the
+// server, resolved here in en/de/ar (see operations-condition-messages.ts).
+export * from "./operations-condition-messages.js";

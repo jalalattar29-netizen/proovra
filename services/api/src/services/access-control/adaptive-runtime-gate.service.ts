@@ -201,8 +201,10 @@ export async function runtimeAdaptiveGate(
           category: "IDENTITY_SECURITY",
           severity: "HIGH",
           fingerprint: `runtime-block:${input.teamId}:${input.action}:${Math.floor(Date.now() / 3600_000)}`,
-          title: `Runtime block — ${input.action}`,
-          safeSummary: `Adaptive auth blocked a ${input.action} attempt with risk score ${decision.riskScore}.`,
+          message: {
+            code: "ops.identity.runtime_block",
+            params: { action: input.action, riskScore: Math.round(decision.riskScore) },
+          },
           runbookSlug: "runtime-adaptive-block",
           metadata: {
             sessionId: session.id,

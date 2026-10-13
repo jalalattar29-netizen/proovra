@@ -339,6 +339,14 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
       "the OTS upgrade worker records every attestation and independent chain check in the ots_attestation_* / ots_chain_* columns; without them recording a Bitcoin attestation fails",
     suppliedBy: "20281012000000_evidence_ots_truth_columns",
   },
+  {
+    id: "operational_incidents.message_code",
+    kind: "column",
+    detail: 'column public."operational_incidents"."message_code" must exist',
+    requiredBy:
+      "every condition writer records the semantic message code and params its title and summary were rendered from; without the columns every incident write fails",
+    suppliedBy: "20281013000000_operational_incident_message_code",
+  },
 ]);
 
 /**
@@ -570,6 +578,13 @@ const PROBES = Object.freeze({
      WHERE table_schema = 'public'
        AND table_name = 'evidence'
        AND column_name = 'ots_chain_verification_status'
+     LIMIT 1`,
+  "operational_incidents.message_code": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'operational_incidents'
+       AND column_name = 'message_code'
      LIMIT 1`,
 });
 

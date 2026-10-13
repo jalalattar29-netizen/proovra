@@ -99,7 +99,6 @@ const CATEGORY_FALLBACK_OK: Record<string, string> = {
   "identity.security_condition": "IDENTITY_SECURITY entry links to Security Center",
   "identity.runtime_block": "IDENTITY_SECURITY entry links to Security Center",
   "identity.high_risk_session_surge": "IDENTITY_SECURITY entry links to Security Center",
-  "governance.policy_condition": "GOVERNANCE entry links to the governance surface that owns it",
   "governance.destruction_executed": "GOVERNANCE entry links to the governance surface that owns it",
   "governance.notification_escalated": "GOVERNANCE entry links to the governance surface that owns it",
   "review.escalation_storm": "GOVERNANCE entry; Review owns the escalations it summarises",

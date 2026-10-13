@@ -98,13 +98,25 @@ describe("Operations truth closure — platform conditions (live PostgreSQL 16 +
 
   it("OPS-002 re-observed workspace conditions are never reported as a queue retry storm", async () => {
     const a = c.h.fixtures.teamA;
+    // The proof is that THIS sweep writes no retry-storm row, in any scope.
+    // The table is shared by the whole integration run, and other suites seed
+    // the retired `queue.retry_storm` shape on purpose (the reconciliation
+    // suite proves it closes them, and keeps them as history), so a count over
+    // the whole table measures their fixtures rather than this sweep. Every
+    // write to the table stamps `updatedAt` (Prisma, this process's clock), so
+    // the window catches a created row and a re-observed old one alike.
+    const t0 = new Date();
     for (let i = 0; i < 6; i++) {
       await seedIncident(c, a.teamId, { occurrenceCount: 40 });
     }
     await sweep(a.teamId);
-    expect(await c.prisma.operationalIncident.count({ where: { sourceId: "queue.retry_storm" } })).toBe(0);
     expect(
-      await c.prisma.operationalIncident.count({ where: { fingerprint: { contains: "retry_storm" } } }),
+      await c.prisma.operationalIncident.count({ where: { sourceId: "queue.retry_storm", updatedAt: { gte: t0 } } }),
+    ).toBe(0);
+    expect(
+      await c.prisma.operationalIncident.count({
+        where: { fingerprint: { contains: "retry_storm" }, updatedAt: { gte: t0 } },
+      }),
     ).toBe(0);
   });
 
@@ -181,15 +193,24 @@ describe("Operations truth closure — platform conditions (live PostgreSQL 16 +
     // This test's own fingerprint, cleared so a re-run of the suite counts
     // from one rather than reopening the previous run's row.
     await c.prisma.operationalIncident.deleteMany({ where: { fingerprint: "billing-provider-auth:PAYPAL" } });
+    // What these two refusals write, in any scope and under any fingerprint.
+    // Other suites leave provider-authorization rows behind in the shared
+    // database (the billing suites' real refusals for either provider, the
+    // reconciliation suite's superseded hourly `reconciliation:provider_auth:*`
+    // shape), so the source alone does not identify THIS test's rows; the
+    // write window does. Every write stamps `updatedAt` from this process's
+    // clock.
+    const t0 = new Date();
+    const mine = { sourceId: "billing.provider_authorization", updatedAt: { gte: t0 } };
     recordProviderFailureSignal({ provider: "PAYPAL" as never, operation: "RECHECK_PAYMENT", failure: "AUTHORIZATION_FAILED" as never, paymentId: "p-1" });
-    await waitFor(async () => (await c.prisma.operationalIncident.count({ where: { sourceId: "billing.provider_authorization" } })) > 0);
+    await waitFor(async () => (await c.prisma.operationalIncident.count({ where: mine })) > 0);
     recordProviderFailureSignal({ provider: "PAYPAL" as never, operation: "ABANDON_PAYMENT", failure: "AUTHORIZATION_FAILED" as never, paymentId: "p-2" });
     await waitFor(async () => {
-      const r = await c.prisma.operationalIncident.findFirst({ where: { sourceId: "billing.provider_authorization" }, select: { occurrenceCount: true } });
+      const r = await c.prisma.operationalIncident.findFirst({ where: { ...mine, fingerprint: "billing-provider-auth:PAYPAL" }, select: { occurrenceCount: true } });
       return (r?.occurrenceCount ?? 0) >= 2;
     });
     const rows = await c.prisma.operationalIncident.findMany({
-      where: { sourceId: "billing.provider_authorization" },
+      where: mine,
       select: { teamId: true, scope: true, fingerprint: true, status: true, occurrenceCount: true },
     });
     expect(rows).toEqual([

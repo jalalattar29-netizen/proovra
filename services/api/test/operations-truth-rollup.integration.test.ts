@@ -29,7 +29,7 @@ describe("Operations truth closure — Enterprise roll-up (live PostgreSQL 16)",
     const w3 = await makeWorkspace(c, other.id, { name: "rollup-three", orgId: w1.orgId, billingPlan: "ENTERPRISE", billingStatus: "ACTIVE" });
     await c.prisma.organizationMembership.create({ data: { organizationId: w1.orgId, userId: other.id, role: "ORG_MEMBER" } }).catch(() => null);
     for (const [teamId, n] of [[w1.teamId, 2], [w2.teamId, 1], [w3.teamId, 5]] as const) {
-      for (let i = 0; i < n; i++) await seedIncident(c, teamId, { sourceId: "governance.policy_condition", severity: i === 0 ? "CRITICAL" : "HIGH" });
+      for (let i = 0; i < n; i++) await seedIncident(c, teamId, { sourceId: "governance.notification_escalated", severity: i === 0 ? "CRITICAL" : "HIGH" });
     }
 
     const res = await c.inj("GET", `/v1/orgs/${w1.orgId}/operations/rollup`, owner.token);

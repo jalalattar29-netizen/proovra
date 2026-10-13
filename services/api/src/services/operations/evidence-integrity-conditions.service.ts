@@ -94,7 +94,6 @@ import { recordIncident } from "../observability/incident.service.js";
 import { inSourceStage } from "./operations-source-diagnostics.js";
 import {
   classifyIntegrityFailure,
-  describeFailureClass,
   deriveIntegritySeverity,
   type IntegrityFailureClass,
 } from "./evidence-integrity-severity.js";
@@ -301,10 +300,17 @@ export function hasRecovered(row: IntegrityRecoveryRow, integrityClass: Integrit
   return ots === "VERIFIED" || ots === "ANCHORED_UNVERIFIED";
 }
 
-const PROOF_LABEL: Record<IntegrityClass, string> = {
-  tsa_failure: "RFC3161 timestamp",
-  ots_failure: "OpenTimestamps anchor",
-};
+/**
+ * How a condition names its record: the record's own title (user content,
+ * never translated, bounded) or, without one, its short reference.
+ */
+function recordMessageParams(evidence: { id: string; title: string | null }): {
+  recordTitle: string | null;
+  recordRef: string;
+} {
+  const title = evidence.title?.trim();
+  return { recordTitle: title ? title.slice(0, 80) : null, recordRef: evidence.id.slice(0, 8) };
+}
 
 export type SyncResult = {
   /** Conditions opened for the first time on this pass. */
@@ -771,10 +777,6 @@ async function recordIntegrityCondition(
     underLegalHold: args.underLegalHold,
   });
 
-  const proof = PROOF_LABEL[integrityClass];
-  const recordLabel = evidence.title?.trim()
-    ? `"${evidence.title.trim().slice(0, 80)}"`
-    : `record ${evidence.id.slice(0, 8)}`;
 
   // ---------------------------------------------------------------------
   // CORRELATION (Phase 3.7, producer wired in the closure pass).
@@ -821,11 +823,13 @@ async function recordIntegrityCondition(
       category: EVIDENCE_INTEGRITY_CATEGORY,
       severity,
       fingerprint,
-      title: `${proof} missing for ${recordLabel}`,
-      safeSummary:
-        `This record has no ${proof}: ${describeFailureClass(failureClass)}. ` +
-        `It stays unresolved until the record's ${integrityClass === "tsa_failure" ? "timestamp is validated" : "OpenTimestamps proof is anchored"}. ` +
-        `Each affected record is tracked separately — this condition covers one record only.`,
+      message: {
+        code:
+          integrityClass === "tsa_failure"
+            ? "ops.evidence_integrity.tsa_failed"
+            : "ops.evidence_integrity.ots_failed",
+        params: { ...recordMessageParams(evidence), failureClass },
+      },
       relatedEvidenceId: evidence.id,
       relatedProvider:
         integrityClass === "tsa_failure" ? evidence.tsaProvider : null,
@@ -893,9 +897,6 @@ async function recordOtsPendingAgedCondition(
   const wasSuppressed =
     existing?.status === prismaPkg.IncidentStatus.SUPPRESSED;
 
-  const recordLabel = evidence.title?.trim()
-    ? `"${evidence.title.trim().slice(0, 80)}"`
-    : `record ${evidence.id.slice(0, 8)}`;
 
   const { created } = await recordIncident(
     {
@@ -907,13 +908,14 @@ async function recordOtsPendingAgedCondition(
       // CRITICAL — see the policy for why a pending anchor cannot reach it.
       severity: (posture === "HIGH" ? "HIGH" : "WARNING") as IncidentSeverity,
       fingerprint,
-      title: `Blockchain anchoring still pending for ${recordLabel}`,
-      safeSummary:
-        "This record's OpenTimestamps anchor has not settled within the workspace's anchoring window " +
-        `(warning after ${policy.warningHours}h, high after ${policy.highHours}h). ` +
-        "The record's own trusted timestamp is unaffected and the record remains valid evidence; " +
-        "the public-chain anchor is a second, independent proof that is still outstanding. " +
-        "The platform continues its own anchoring attempts on their existing schedule, and a recovery sweep re-schedules an upgrade whose schedule was lost; nothing here re-anchors or alters a proof.",
+      message: {
+        code: "ops.evidence_integrity.ots_pending_aged",
+        params: {
+          ...recordMessageParams(evidence),
+          warningHours: Math.round(policy.warningHours),
+          highHours: Math.round(policy.highHours),
+        },
+      },
       relatedEvidenceId: evidence.id,
       runbookSlug: "ots-anchoring",
       metadata: {
@@ -1296,9 +1298,6 @@ async function recordOtsInitializationStalledCondition(
   const wasSuppressed =
     existing?.status === prismaPkg.IncidentStatus.SUPPRESSED;
 
-  const recordLabel = evidence.title?.trim()
-    ? `"${evidence.title.trim().slice(0, 80)}"`
-    : `record ${evidence.id.slice(0, 8)}`;
 
   const waitingHours = Math.floor(
     (args.now.getTime() - evidence.createdAt.getTime()) / (60 * 60 * 1000),
@@ -1311,12 +1310,10 @@ async function recordOtsInitializationStalledCondition(
       category: EVIDENCE_INTEGRITY_CATEGORY,
       severity: "WARNING" as IncidentSeverity,
       fingerprint,
-      title: `Blockchain anchoring has not started for ${recordLabel}`,
-      safeSummary:
-        "This record was finalized and signed, but its OpenTimestamps anchoring has not begun. " +
-        "The record's own trusted timestamp, signature and chain of custody are unaffected and it remains valid evidence; " +
-        "the public-chain anchor is a second, independent proof that has not been requested yet. " +
-        "The platform re-requests anchoring for records in this state automatically; nothing here retries, re-anchors or alters a proof.",
+      message: {
+        code: "ops.evidence_integrity.ots_initialization_stalled",
+        params: recordMessageParams(evidence),
+      },
       relatedEvidenceId: evidence.id,
       runbookSlug: "ots-anchoring",
       metadata: {

@@ -1292,6 +1292,7 @@ async function runReconcileInner(
             workflowId: wf.id,
             reason: "REVIEW_OVERDUE",
             safeSummary: "Review past due — automatic escalation by reviewer ops reconcile.",
+            conditionMessage: { code: "ops.review.escalation.overdue_auto" },
             severity: "HIGH",
             evidenceId: wf.evidenceId,
           },
@@ -1380,10 +1381,10 @@ async function runReconcileInner(
             category: "GOVERNANCE",
             severity: "HIGH",
             fingerprint: `reviewer:escalation_storm:${input.teamId}:${today}`,
-            title: "Reviewer escalation storm",
-            safeSummary:
-              `Reviewer reconcile created ${escalationsCreated} escalations in a single sweep. ` +
-              `Investigate workload distribution and SLA policy before escalation backlog grows.`,
+            message: {
+              code: "ops.review.escalation_storm",
+              params: { count: escalationsCreated },
+            },
             runbookSlug: "reviewer-escalation-storm",
             metadata: {
               escalationsCreated,
@@ -1510,6 +1511,7 @@ async function runReconcileInner(
               // fingerprint dedup keeps escalation storms bounded.
               reason: "WORKFLOW_STALLED",
               safeSummary: `Workflow stuck — ${top.label}. Automatic escalation by reviewer ops reconcile.`,
+              conditionMessage: { code: "ops.review.escalation.stuck_auto", stuck: top.code },
               severity: "HIGH",
               evidenceId: wf.evidenceId ?? null,
             },
