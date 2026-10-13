@@ -191,6 +191,7 @@ import { resolveExpectedOriginalDigest } from "./integrity-recheck.js";
 import { decodeCanonicalJob } from "./canonical-job.js";
 import {
   markRequestRetryable,
+  recordRequestExhaustedIncident,
   markRequestTerminal,
   claimFenceWhere,
   recordRequestProgress,
@@ -1326,6 +1327,7 @@ export class PackageAllowanceRefusal extends Error {
 
 /** Errors the package path raised after its own incident was recorded. */
 export function isPackageOwnedFailure(error: unknown): boolean {
+  if ((error as { packageOwned?: unknown } | null)?.packageOwned === true) return true;
   const code =
     error && typeof error === "object" && "code" in error
       ? String((error as { code?: unknown }).code ?? "")
@@ -1334,6 +1336,22 @@ export function isPackageOwnedFailure(error: unknown): boolean {
     code.startsWith("VERIFICATION_PACKAGE_INCOMPLETE_") ||
     code === "VERIFICATION_PACKAGE_STORAGE_REJECTED"
   );
+}
+
+/**
+ * A package-path error, marked as already reported by the package path, and
+ * carrying the ROOT cause it wraps (2026-10-13): the request records
+ * PACKAGE_INCONSISTENT_OTS_STATE, not only VERIFICATION_PACKAGE_INCOMPLETE_PREPARE.
+ */
+function packageOwned(error: WorkerError, rootCode: string): WorkerError {
+  return Object.assign(error, { packageOwned: true as const, rootCode: rootCode.slice(0, 64) });
+}
+
+/** The actionable cause a durable request records: the wrapped root when there is one. */
+export function rootReasonCode(error: unknown): string {
+  const root = (error as { rootCode?: unknown } | null)?.rootCode;
+  if (typeof root === "string" && /^[A-Z][A-Z0-9_]{2,63}$/.test(root)) return root;
+  return toBoundedReasonCode(error);
 }
 
 /** Classify an allowance-gate error; anything unrecognised stays a failure. */
@@ -3369,23 +3387,58 @@ export async function processGenerateReport(job: Job<unknown>) {
     // ET-SEC-30 — both writes are fenced by this run's claim: a late worker
     // whose lease was re-claimed changes nothing.
     const fence = { claimedAtUtc: command.claimedAtUtc };
+    const reason = rootReasonCode(error);
     // This issuance's still-reserved package rows record the failure; the next
     // attempt re-reserves the same rows and ids.
     await failIssuance({ requestId: command.requestId, reason: toBoundedReasonCode(error) });
-    if (isRetriableError(error)) {
-      await markRequestRetryable({
-        requestId: command.requestId,
-        terminalReasonCode: toBoundedReasonCode(error),
-        fence,
-      });
+    /*
+     * THE LAST ATTEMPT IS TERMINAL (2026-10-13). When BullMQ's final attempt of
+     * a retryable failure was spent, the request used to stay FAILED_RETRYABLE
+     * — the worker logged "moved to DLQ", the customer saw an in-flight
+     * request, the supersede path refused it as not terminal, and only the
+     * reconciler's claim ceiling retired it, as `retry_budget_exhausted`
+     * with the cause gone. It is now terminal on that attempt, with the root
+     * cause, a dead-letter record and the deduplicated exhausted condition —
+     * one transition, fenced by this run's claim, so a replay changes nothing.
+     */
+    const finalAttempt = job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
+    let outcome: "failed_retryable" | "failed_terminal" = "failed_terminal";
+    if (isRetriableError(error) && !finalAttempt) {
+      outcome = "failed_retryable";
+      await markRequestRetryable({ requestId: command.requestId, terminalReasonCode: reason, fence });
     } else {
-      await markRequestTerminal({
+      const retired = await markRequestTerminal({
         requestId: command.requestId,
         state: "FAILED_TERMINAL",
-        terminalReasonCode: toBoundedReasonCode(error),
+        terminalReasonCode: reason,
         fence,
       });
+      if (retired && isRetriableError(error)) {
+        await reportDlqQueue
+          .add(
+            "ReportDLQ",
+            { evidenceId: command.evidenceId, requestId: command.requestId, jobId: job.id, errorCode: reason, retriable: true },
+            { removeOnComplete: true, removeOnFail: false },
+          )
+          .catch((err: unknown) => logger.warn({ err, reportRequestId: command.requestId }, "report.dlq.record_failed"));
+        await recordRequestExhaustedIncident(command.requestId).catch(() => null);
+      }
     }
+    logger.error(
+      {
+        ...withJobContext({
+          requestId,
+          jobId: job.id,
+          evidenceId: command.evidenceId,
+          attempt: job.attemptsMade + 1,
+          status: outcome,
+        }),
+        reportRequestId: command.requestId,
+        reasonCode: reason,
+        outcome,
+      },
+      outcome === "failed_retryable" ? "GenerateReportJob failed (retryable)" : "GenerateReportJob failed (terminal)",
+    );
     throw error;
   }
 
@@ -3407,6 +3460,23 @@ export async function processGenerateReport(job: Job<unknown>) {
     resultReportId: produced?.id ?? null,
     fence: { claimedAtUtc: command.claimedAtUtc },
   });
+  // The ONE overall outcome line, written only after the request recorded it.
+  logger.info(
+    {
+      ...withJobContext({
+        requestId,
+        jobId: job.id,
+        evidenceId: command.evidenceId,
+        attempt: job.attemptsMade + 1,
+        status: "succeeded",
+      }),
+      reportRequestId: command.requestId,
+      outcome: "succeeded",
+      runOutcome: run.outcome,
+      reportVersion: run.reportVersion,
+    },
+    "GenerateReportJob succeeded",
+  );
 
   // (2026-10-13) THE ANCHORED-BEFORE/AFTER RACE. A report that committed
   // stating a not-yet-anchored proof, while the proof anchored during the run,
@@ -3455,9 +3525,15 @@ function toBoundedReasonCode(error: unknown): string {
  *
  *   * `reports.pdf_sha256` when the row carries it (every report written since
  *     it was introduced);
- *   * otherwise the SHA-256 the object store validated and kept when the
- *     worker PUT the PDF with `ChecksumSHA256` (legacy rows);
- *   * otherwise nothing can vouch for the bytes, and they are not used.
+ *   * the `pdfSha256` the report's own REPORT_GENERATED custody event
+ *     recorded at issuance (hash-linked, never rewritten) — a legacy row may
+ *     lack the column but carry the event;
+ *   * the SHA-256 the object store validated and kept when the worker PUT the
+ *     PDF with `ChecksumSHA256` (legacy rows);
+ *   * with none of them, nothing can vouch for the bytes, and they are not used.
+ *
+ * Every source that IS present must agree with the bytes (2026-10-13): one
+ * matching source never outvotes another that disagrees.
  *
  * Every refusal is terminal and non-retryable: a missing, unverifiable or
  * altered report is a matter for a person, and silently rendering a
@@ -3471,6 +3547,8 @@ export async function readVerifiedStoredReport(
     storageKey: string;
     sizeBytes: bigint | null;
     pdfSha256: string | null;
+    /** The pdfSha256 its REPORT_GENERATED custody event recorded, when it did. */
+    issuanceSha256?: string | null;
     /** UC-OUT-003 — the committed report object VERSION; read exactly it when recorded. */
     s3VersionId?: string | null;
   },
@@ -3500,21 +3578,17 @@ export async function readVerifiedStoredReport(
   if (report.sizeBytes != null && BigInt(bytes.length) !== report.sizeBytes) {
     throw createWorkerError("REPORT_INTEGRITY_MISMATCH", false);
   }
-  if (report.pdfSha256) {
-    if (report.pdfSha256.toLowerCase() !== sha256) {
-      throw createWorkerError("REPORT_INTEGRITY_MISMATCH", false);
-    }
-    return { bytes, sha256 };
+  const sources: string[] = [];
+  if (report.pdfSha256) sources.push(report.pdfSha256.toLowerCase());
+  if (report.issuanceSha256 && /^[0-9a-f]{64}$/i.test(report.issuanceSha256)) {
+    sources.push(report.issuanceSha256.toLowerCase());
   }
   // A composite checksum ("…-N", multipart upload) is not a hash of the bytes.
   const stored = head.checksumSha256;
-  if (stored && !stored.includes("-")) {
-    if (Buffer.from(stored, "base64").toString("hex") !== sha256) {
-      throw createWorkerError("REPORT_INTEGRITY_MISMATCH", false);
-    }
-    return { bytes, sha256 };
-  }
-  throw createWorkerError("REPORT_INTEGRITY_UNVERIFIABLE", false);
+  if (stored && !stored.includes("-")) sources.push(Buffer.from(stored, "base64").toString("hex"));
+  if (sources.length === 0) throw createWorkerError("REPORT_INTEGRITY_UNVERIFIABLE", false);
+  if (sources.some((s) => s !== sha256)) throw createWorkerError("REPORT_INTEGRITY_MISMATCH", false);
+  return { bytes, sha256 };
 }
 
 /**
@@ -3548,7 +3622,16 @@ async function loadCommittedReportForPackage(params: {
   });
   if (!report) throw createWorkerError("REPORT_VERSION_NOT_FOUND", false);
 
-  const verified = await readVerifiedStoredReport(report);
+  const issuance = await prisma.custodyEvent.findFirst({
+    where: { evidenceId, eventType: "REPORT_GENERATED", payload: { path: ["reportVersion"], equals: version } },
+    orderBy: { sequence: "asc" },
+    select: { payload: true },
+  });
+  const issuanceSha256 = (issuance?.payload as { pdfSha256?: unknown } | null)?.pdfSha256;
+  const verified = await readVerifiedStoredReport({
+    ...report,
+    issuanceSha256: typeof issuanceSha256 === "string" ? issuanceSha256 : null,
+  });
 
   // Every downstream consumer reads the version and keys from `prepared`.
   prepared.version = version;
@@ -5705,15 +5788,22 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
           evidenceId,
           attempt: job.attemptsMade + 1,
           durationMs,
-          status: finalized.skipped ? "already_completed" : "completed",
+          status: finalized.skipped ? "report_already_exists" : runMode === "PACKAGE_FOR_VERSION" ? "package_stage_done" : "report_stage_done",
         }),
         forceRegenerate,
         regenerateReason,
         effectivePlan: prepared.effectivePlan,
+        stage: runMode === "PACKAGE_FOR_VERSION" ? "package" : "report",
       },
+      // A STAGE, not the job (2026-10-13): this line used to read
+      // "GenerateReportJob completed" and was followed, in production, by the
+      // job's failure. The job's one outcome line is written by
+      // processGenerateReport after the request records it.
       finalized.skipped
-        ? "GenerateReportJob skipped because report already exists"
-        : "GenerateReportJob completed"
+        ? "Report stage skipped: the report already exists"
+        : runMode === "PACKAGE_FOR_VERSION"
+          ? "Package stage finished for the stored report; checking outputs"
+          : "Report rendering and publication finished; checking outputs"
     );
 
     /*
@@ -5763,17 +5853,23 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
         // names the cause — a storage refusal, or an output that contradicts
         // the record (never published). An operator path (supersede) exists
         // once the configuration or code is fixed.
-        throw createWorkerError(
-          packageTechnicalFailure.phase === "store"
-            ? "VERIFICATION_PACKAGE_STORAGE_REJECTED"
-            : packageTechnicalFailure.message,
-          false,
+        throw packageOwned(
+          createWorkerError(
+            packageTechnicalFailure.phase === "store"
+              ? "VERIFICATION_PACKAGE_STORAGE_REJECTED"
+              : packageTechnicalFailure.message,
+            false,
+          ),
+          packageTechnicalFailure.message,
         );
       }
-      throw createWorkerError(
-        "VERIFICATION_PACKAGE_INCOMPLETE_" +
-          packageTechnicalFailure.phase.toUpperCase(),
-        true,
+      throw packageOwned(
+        createWorkerError(
+          "VERIFICATION_PACKAGE_INCOMPLETE_" +
+            packageTechnicalFailure.phase.toUpperCase(),
+          true,
+        ),
+        packageTechnicalFailure.message,
       );
     }
     if (finalized.skipped) return { outcome: "already_issued", reportVersion: null };
@@ -5850,14 +5946,13 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
           evidenceId,
           attempt: job.attemptsMade + 1,
           durationMs,
-          status: "failed",
+          status: "attempt_error",
         }),
         err: error,
       },
-      "GenerateReportJob failed"
+      "GenerateReportJob attempt raised an error"
     );
 
-    const attempts = job.opts.attempts ?? 1;
     const retriable = isRetriableError(error);
 
     if (!retriable) {
@@ -5868,8 +5963,9 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
         "ReportDLQ",
         {
           evidenceId,
+          requestId: command.requestId,
           jobId: job.id,
-          errorCode: toBoundedReasonCode(error),
+          errorCode: rootReasonCode(error),
           retriable: false,
         },
         { removeOnComplete: true, removeOnFail: false }
@@ -5895,47 +5991,21 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
             evidenceId,
             attempt: job.attemptsMade + 1,
             durationMs,
-            status: "dlq",
+            status: "dlq_recorded",
           }),
           moved_to_dlq: true,
         },
-        "GenerateReportJob moved to DLQ (non-retriable)"
+        "GenerateReportJob dead-letter record written (non-retriable)"
       );
 
       throw error;
     }
 
-    if (job.attemptsMade + 1 >= attempts) {
-      // ET-Q-08 — NO DLQ record here. BullMQ's per-run attempts are spent, but
-      // the durable request stays FAILED_RETRYABLE and lifecycle recovery
-      // re-drives it (up to 12 claims), so it is not dead letter. The DLQ holds
-      // only terminal failures; a request that exhausts its DURABLE budget is
-      // retired and escalated by the report authority.
-
-      // ET-REC-10 — ONE BUDGET. This is BullMQ's per-run budget (5 attempts);
-      // the request's DURABLE budget (REPORT_RECONCILE_MAX_ATTEMPTS = 12 claims)
-      // keeps it FAILED_RETRYABLE and the reconciler re-enqueues it. A HIGH
-      // "retry budget exhausted" incident here told operators it was over
-      // while the customer saw Retry and the supersede action was refused (not
-      // terminal). The exhausted incident is opened by the report authority
-      // when the durable row goes FAILED_TERMINAL.
-
-      logger.error(
-        {
-          ...withJobContext({
-            requestId,
-            jobId: job.id,
-            evidenceId,
-            attempt: job.attemptsMade + 1,
-            durationMs,
-            status: "dlq",
-          }),
-          moved_to_dlq: true,
-        },
-        "GenerateReportJob moved to DLQ"
-      );
-    }
-
+    // The LAST attempt of a retryable failure is
+    // retired by processGenerateReport (2026-10-13): FAILED_TERMINAL with its
+    // root cause, one dead-letter record and the exhausted condition, all
+    // after the request records it — never a "moved to DLQ" line here that
+    // the durable request contradicts.
     throw error;
   }
 }

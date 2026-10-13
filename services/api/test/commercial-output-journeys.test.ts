@@ -526,7 +526,13 @@ describe("SCENARIO 16 — a real technical failure is visible and retryable", ()
   it("WIRING: the retry budget is bounded and its exhaustion is terminal", () => {
     const auth = strip(worker("report-generation-authority.ts"));
     expect(auth).toMatch(/REPORT_RECONCILE_MAX_ATTEMPTS/);
-    expect(auth).toMatch(/terminalReasonCode:\s*"retry_budget_exhausted"/);
+    // (2026-10-13) The durable ceiling keeps the cause the last attempt
+    // recorded; only a row that never recorded one reads retry_budget_exhausted.
+    expect(auth).toMatch(/terminalReasonCode:\s*row\.terminalReasonCode\?\.trim\(\)\s*\|\|\s*"retry_budget_exhausted"/);
+    // And BullMQ's LAST attempt is terminal at once, with the root cause.
+    const processor = strip(worker("processor.ts"));
+    expect(processor).toMatch(/const finalAttempt = job\.attemptsMade \+ 1 >= \(job\.opts\.attempts \?\? 1\);/);
+    expect(processor).toMatch(/isRetriableError\(error\) && !finalAttempt[\s\S]{0,200}markRequestRetryable/);
   });
 });
 

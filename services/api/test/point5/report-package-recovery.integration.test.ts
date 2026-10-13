@@ -648,19 +648,28 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     );
   });
 
-  it("ET-REC-10: the LAST BullMQ attempt of a retryable failure opens no 'budget exhausted' incident while the durable budget remains", async () => {
+  it("ET-REC-10 (2026-10-13): the LAST BullMQ attempt of a retryable failure is TERMINAL at once — root cause kept, one exhausted condition, an earlier attempt stays retryable", async () => {
     const { evidenceId, teamId } = await signedEvidence();
     const id = await request({ evidenceId, teamId });
+    // An earlier attempt: retryable, no exhausted condition.
     seam.reportHeadFailures = 1;
-    // attemptsMade 4 of attempts 5: BullMQ's own last try.
+    expect(await run(id, 0), "the report failure must surface").toBeTruthy();
+    const retryable = (await state(evidenceId, id)).req!;
+    expect(retryable.state).toBe("FAILED_RETRYABLE");
+    const exhausted = () =>
+      prisma.operationalIncident.findMany({
+        where: { teamId, fingerprint: { endsWith: ":RETRY_BUDGET_EXHAUSTED" }, relatedEvidenceId: evidenceId },
+        select: { fingerprint: true },
+      });
+    expect(await exhausted()).toEqual([]);
+    // attemptsMade 4 of attempts 5: BullMQ's own last try. The request used to
+    // stay FAILED_RETRYABLE here while the worker said "moved to DLQ".
+    seam.reportHeadFailures = 1;
     expect(await run(id, 4), "the report failure must surface").toBeTruthy();
     const after = await state(evidenceId, id);
-    expect(after.req!.state, "the durable budget (12 claims) keeps the request alive").toBe("FAILED_RETRYABLE");
-    const incidents = await prisma.operationalIncident.findMany({
-      where: { teamId, fingerprint: { startsWith: `REPORT:${evidenceId}:` } },
-      select: { fingerprint: true, title: true },
-    });
-    expect(incidents, "one budget: the exhausted incident belongs to FAILED_TERMINAL (D3 below)").toEqual([]);
+    expect(after.req!.state).toBe("FAILED_TERMINAL");
+    expect(after.req!.terminalReasonCode, "the same cause the attempts recorded, not retry_budget_exhausted").toBe(retryable.terminalReasonCode);
+    expect(await exhausted()).toEqual([{ fingerprint: `REPORT:${evidenceId}:v1:RETRY_BUDGET_EXHAUSTED` }]);
   });
 
   it("a request that exhausts its retry budget is retired AND opens the deduplicated REPORT incident (D3)", async () => {
@@ -675,7 +684,8 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     }
     const after = await state(evidenceId, id);
     expect(after.req!.state).toBe("FAILED_TERMINAL");
-    expect(after.req!.terminalReasonCode).toBe("retry_budget_exhausted");
+    // (2026-10-13) The cause the last attempt recorded survives the ceiling.
+    expect(after.req!.terminalReasonCode).toBe("VERIFICATION_PACKAGE_INCOMPLETE_STORE");
     const incidents = await prisma.operationalIncident.findMany({
       // OPS-004 — the identity names the report VERSION the request was for.
       where: { teamId, fingerprint: `REPORT:${evidenceId}:v1:RETRY_BUDGET_EXHAUSTED` },
@@ -829,16 +839,34 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect(after.packages[0]!.reportSha256).toBe(sha256Hex(stored(report.storageBucket, report.storageKey)!));
   });
 
-  it("a legacy report with NO recorded hash anywhere cannot be verified and is escalated, not embedded", async () => {
+  it("a legacy report with no row hash and no store checksum is verified against its REPORT_GENERATED issuance record (2026-10-13)", async () => {
     const { evidenceId, teamId, report } = await reportWithoutPackage();
     await prisma.report.updateMany({ where: { evidenceId, version: 1 }, data: { pdfSha256: null } as never });
     const key = storage.at(report.storageBucket, report.storageKey);
     storage.objects.set(key, { ...storage.objects.get(key)!, checksumSha256: null });
     const id = await request({ evidenceId, teamId, artifactType: "VERIFICATION_PACKAGE", reportVersion: 1 });
+    expect(await run(id, 0)).toBeNull();
+    const after = await state(evidenceId, id);
+    expect(after.req!.state).toBe("SUCCEEDED");
+    expect(after.packages[0]!.reportSha256).toBe(sha256Hex(stored(report.storageBucket, report.storageKey)!));
+    // Nothing anywhere (no row hash, no issuance hash, no store checksum) is
+    // REPORT_INTEGRITY_UNVERIFIABLE — proven in the worker's
+    // report-pinned-version-read suite, where the issuance record can be absent.
+  });
+
+  it("a legacy report whose bytes disagree with its issuance record is refused, not embedded", async () => {
+    const { evidenceId, teamId, report } = await reportWithoutPackage();
+    await prisma.report.updateMany({ where: { evidenceId, version: 1 }, data: { pdfSha256: null } as never });
+    const key = storage.at(report.storageBucket, report.storageKey);
+    const altered = Buffer.from("%PDF-1.7 altered after issuance\n");
+    // The store recorded a checksum OF THE NEW BYTES (a later overwrite) — it
+    // alone would agree with them; the issuance record does not.
+    storage.objects.set(key, { ...storage.objects.get(key)!, body: altered, checksumSha256: createHash("sha256").update(altered).digest("base64") });
+    const id = await request({ evidenceId, teamId, artifactType: "VERIFICATION_PACKAGE", reportVersion: 1 });
     expect(await run(id, 0)).toBeTruthy();
     const after = await state(evidenceId, id);
     expect(after.req!.state).toBe("FAILED_TERMINAL");
-    expect(after.req!.terminalReasonCode).toBe("REPORT_INTEGRITY_UNVERIFIABLE");
+    expect(after.req!.terminalReasonCode).toBe("REPORT_INTEGRITY_MISMATCH");
     expect(after.packages).toEqual([]);
   });
 
@@ -1450,7 +1478,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
 
     // 5. Replay: nothing to recover, no new request, report or package.
     const replay = await recoverEvidenceOutputs({ evidenceId: ev.id, apply: true });
-    expect(replay.summary).toMatchObject({ notApplicable: 1, requested: 0 });
+    expect(replay.summary).toMatchObject({ complete: 1, requested: 0 });
     expect(await requestsFor()).toHaveLength(1);
     const after = await state(ev.id);
     expect(after.reports).toHaveLength(1);

@@ -2,11 +2,12 @@ import {
   classifyCustodyEventType,
   type CustodyEventCategory,
 } from "./custody.js";
-import { OTS_STATE_WORDS } from "./ots-anchoring.js";
+import { OTS_STATE_WORDS, type OtsAnchoring } from "./ots-anchoring.js";
 import { presentedTsaStatus } from "./tsa-validation-state.js";
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   TRUST_SIGNAL_STATE_PRESENTATION,
+  otsTrustStateOf,
   resolveOtsTrustState,
   resolveSnapshotSignalState,
   resolveTsaTrustState,
@@ -587,6 +588,10 @@ function buildAnchoringSignal(
     anchoredAtUtc: evidence.otsAnchoredAtUtc ?? null,
     upgradedAtUtc: evidence.otsUpgradedAtUtc ?? null,
   });
+  return anchoringSignalOf(ots);
+}
+
+function anchoringSignalOf(ots: ReturnType<typeof otsTrustStateOf>): TrustSignal {
   return makeSignal({
     key: "bitcoin_anchoring",
     label: "Bitcoin anchoring",
@@ -595,6 +600,37 @@ function buildAnchoringSignal(
     summary: OTS_STATE_WORDS[ots.otsState],
     detail: ots.label,
   });
+}
+
+/**
+ * THE DECISION WITH THE ANCHORING OF THE PROOF ACTUALLY SHIPPED (2026-10-13).
+ *
+ * A verification package carries the record's OpenTimestamps proof and states
+ * its state in the manifest, anchor.json and opentimestamps.json — resolved
+ * once, from those bytes, against the package's fingerprint digest. Its
+ * verification matrix used to take the anchoring row from the decision STORED
+ * WITH THE REPORT instead. For a report issued before the canonical OTS state
+ * existed that snapshot reads a legacy anchoring `passed` conservatively as
+ * UNAVAILABLE (resolveSnapshotSignalState), so a package for that report said
+ * ANCHORED in its manifest and UNAVAILABLE in its matrix, and the consistency
+ * gate refused every attempt (production, 2026-10-13). A package for a report
+ * that stated PENDING before the proof anchored had the same contradiction.
+ *
+ * Every other signal keeps the report's words. Only the anchoring signal is
+ * replaced, by the one resolution the package ships, and the presentation is
+ * derived again from the signal states. Nothing is promoted: a proof that does
+ * not execute to a Bitcoin attestation resolves PENDING, FAILED or UNAVAILABLE
+ * here exactly as it does on every other surface.
+ */
+export function withShippedAnchoring(
+  decision: TrustDecision,
+  ots: Pick<OtsAnchoring, "state" | "anchoredAtUtc">,
+): TrustDecision {
+  const anchoring = anchoringSignalOf(otsTrustStateOf(ots));
+  const signals = decision.signals.some((s) => s.key === "bitcoin_anchoring")
+    ? decision.signals.map((s) => (s.key === "bitcoin_anchoring" ? anchoring : s))
+    : [...decision.signals, anchoring];
+  return { ...decision, ...deriveTrustPresentation(signals), signals };
 }
 
 function buildStorageSignal(

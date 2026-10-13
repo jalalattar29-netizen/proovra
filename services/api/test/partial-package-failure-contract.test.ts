@@ -89,10 +89,12 @@ describe("partial Report/Package failure — the state transition", () => {
     // above is only meaningful if this is the error actually thrown.
     const guard = PROCESSOR.slice(
       PROCESSOR.indexOf("if (packageTechnicalFailure && verificationPackageEntitled)"),
-    ).slice(0, 1400);
+    ).slice(0, 1800);
     expect(guard).toContain("recordPackageGenerationIncident");
+    // (2026-10-13) Wrapped by packageOwned(): marked as reported by the
+    // package path and carrying the root cause the request records.
     expect(guard).toMatch(
-      /throw createWorkerError\(\s*"VERIFICATION_PACKAGE_INCOMPLETE_"[\s\S]{0,120}true,?\s*\)/,
+      /throw packageOwned\(\s*createWorkerError\(\s*"VERIFICATION_PACKAGE_INCOMPLETE_"[\s\S]{0,120}true,?\s*\),\s*packageTechnicalFailure\.message,?\s*\)/,
     );
     // 2026-09-29: a DETERMINISTIC storage refusal (e.g. S3 InvalidRequest) is
     // the one exception — retrying the same bytes the same way cannot succeed,
@@ -112,7 +114,7 @@ describe("partial Report/Package failure — the state transition", () => {
       else if (guard[close] === "}" && --depth === 0) break;
     }
     expect(guard.substring(terminal, close + 1)).toMatch(
-      /throw createWorkerError\(\s*packageTechnicalFailure\.phase === "store"\s*\?\s*"VERIFICATION_PACKAGE_STORAGE_REJECTED"\s*:\s*packageTechnicalFailure\.message,\s*false,?\s*\)/,
+      /throw packageOwned\(\s*createWorkerError\(\s*packageTechnicalFailure\.phase === "store"\s*\?\s*"VERIFICATION_PACKAGE_STORAGE_REJECTED"\s*:\s*packageTechnicalFailure\.message,\s*false,?\s*\),/,
     );
   });
 

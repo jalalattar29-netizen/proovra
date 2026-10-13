@@ -29,7 +29,7 @@
  * passed nor degraded). No state carries points: PROOVRA reports what was
  * checked, never a confidence score.
  */
-import { OTS_STATE_SENTENCES, resolveOtsAnchoring, type OtsAnchoringInput, type OtsState } from "./ots-anchoring.js";
+import { OTS_STATE_SENTENCES, resolveOtsAnchoring, type OtsAnchoring, type OtsAnchoringInput, type OtsState } from "./ots-anchoring.js";
 
 export const TRUST_SIGNAL_STATES = [
   "PASSED",
@@ -308,7 +308,15 @@ const OTS_TRUST: Readonly<Record<OtsState, TrustSignalState>> = {
  * block attestation is ANCHORED, a success. Nothing else is.
  */
 export function resolveOtsTrustState(input: OtsAnchoringInput): OtsTrustState {
-  const ots = resolveOtsAnchoring(input);
+  return otsTrustStateOf(resolveOtsAnchoring(input));
+}
+
+/**
+ * The trust state of an ALREADY RESOLVED anchoring — for a caller that holds
+ * the resolution (the verification package resolves the proof it ships once,
+ * and every document in it states that one result).
+ */
+export function otsTrustStateOf(ots: Pick<OtsAnchoring, "state" | "anchoredAtUtc">): OtsTrustState {
   return {
     state: OTS_TRUST[ots.state],
     otsState: ots.state,

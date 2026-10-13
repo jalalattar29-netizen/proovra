@@ -483,6 +483,7 @@ export {
   summarizeTrustSignals,
   deriveTrustPresentation,
   readStoredTrustDecision,
+  withShippedAnchoring,
 } from "./trust-decision.js";
 
 export * from "./verification-matrix.js";

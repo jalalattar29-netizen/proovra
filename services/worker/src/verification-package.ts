@@ -53,6 +53,7 @@ import {
   otsBlocksPublication,
   presentOtsAnchoring,
   resolveOtsAnchoring,
+  withShippedAnchoring,
   type OtsAnchoring,
   type OtsState,
   deriveCanonicalWorkspaceScope,
@@ -835,6 +836,25 @@ export type OtsPackageArtifactDecision = {
   companion: OtsPackageArtifactCompanion | null;
   anchoring: OtsAnchoring;
 };
+
+/**
+ * THE PACKAGE CONTRADICTS ITSELF (2026-10-13). Deterministic: the same inputs
+ * contradict on every attempt, so it is not retried. It used to be a plain
+ * `Error`, whose bounded code was its class name, so the request recorded
+ * VERIFICATION_PACKAGE_INCOMPLETE_PREPARE, burned every BullMQ attempt and
+ * stayed FAILED_RETRYABLE (production). The code now names the first check
+ * that failed — PACKAGE_INCONSISTENT_OTS_STATE — and the request goes terminal
+ * with it; the gate itself is unchanged.
+ */
+export class PackageInconsistentError extends Error {
+  readonly code: string;
+  readonly retriable = false;
+  constructor(readonly findings: ReadonlyArray<{ check: string; detail: string }>) {
+    super(`PACKAGE_INCONSISTENT: ${findings.map((x) => `${x.check} (${x.detail})`).join("; ").slice(0, 900)}`);
+    this.name = "PackageInconsistentError";
+    this.code = `PACKAGE_INCONSISTENT_${findings[0]?.check ?? "UNKNOWN"}`.replace(/[^A-Z0-9_]/gi, "_").toUpperCase().slice(0, 64);
+  }
+}
 
 export function decideOtsPackageArtifact(input: OtsPackageArtifactInput): OtsPackageArtifactDecision {
   const anchoring = resolveOtsAnchoring({
@@ -3093,6 +3113,13 @@ export async function createVerificationPackage(data: {
         })
       : null;
     const otsCompanion: OtsPackageArtifactCompanion | null = otsDecision?.companion ?? null;
+    // The matrix states the anchoring of THIS resolution — the proof the
+    // package ships — like the manifest, anchor.json and opentimestamps.json.
+    // No OTS material is NOT_REQUESTED here exactly as in the manifest.
+    const packageTrustDecision = withShippedAnchoring(
+      data.trustDecision,
+      otsDecision?.anchoring ?? { state: "NOT_REQUESTED", anchoredAtUtc: null },
+    );
     const anchorSemantics = deriveAnchorSemantics({
       transactionId: otsDecision?.anchoring.state === "ANCHORED" ? otsDecision.anchoring.bitcoinTxid : null,
       otsState: otsDecision?.anchoring.state ?? "NOT_REQUESTED",
@@ -3389,13 +3416,13 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         // publication state can change after it was built.
         {
           ...buildVerificationMatrix({
-            signals: data.trustDecision.signals,
+            signals: packageTrustDecision.signals,
             identity: metadata.acquisitionIdentity ?? null,
             acquisitionMode: metadata.acquisitionMode ?? null,
             packageSeal: { kind: "SELF" },
             publication: { kind: "DOCUMENT" },
           }),
-          reviewerAction: data.trustDecision.reviewerAction,
+          reviewerAction: packageTrustDecision.reviewerAction,
         }
       ),
       "application/json"
@@ -3901,11 +3928,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           evidenceFileSha256: data.seal.fileSha256,
         },
       });
-      if (findings.length > 0) {
-        throw new Error(
-          `PACKAGE_INCONSISTENT: ${findings.map((x) => `${x.check} (${x.detail})`).join("; ").slice(0, 900)}`,
-        );
-      }
+      if (findings.length > 0) throw new PackageInconsistentError(findings);
     }
 
     // Compute the package checksum index over all packaged entries.

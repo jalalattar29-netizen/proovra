@@ -377,6 +377,96 @@ export async function markRequestTerminal(input: {
 }
 
 /**
+ * AN EXHAUSTED REQUEST IS AN OPERATOR MATTER, and the customer is told so.
+ *
+ * It opens (or re-counts) the SAME incident the pipeline's own DLQ path uses
+ * for this record — deduplicated on (workspace, fingerprint) — so Operations
+ * shows one actionable condition, never a second system. Called when the
+ * request went FAILED_TERMINAL because its retries were spent: by the worker
+ * on BullMQ's last attempt, and by the reconciler at the durable claim ceiling.
+ *
+ * NAME THE COMPONENT THAT IS ACTUALLY MISSING. A request that committed its
+ * report (`stage = REPORT_COMMITTED`) or that only ever targeted a package is
+ * missing a PACKAGE at a known version. Filing it under the REPORT source let
+ * a probe that asks "does a report exist?" declare it recovered while the
+ * package was absent.
+ */
+export async function recordRequestExhaustedIncident(requestId: string): Promise<void> {
+  const row = await prisma.reportGenerationRequest.findUnique({
+    where: { id: requestId },
+    select: {
+      id: true,
+      attemptCount: true,
+      evidenceId: true,
+      teamId: true,
+      artifactType: true,
+      stage: true,
+      reportVersion: true,
+      terminalReasonCode: true,
+    },
+  });
+  if (!row) return;
+  const packageOnly =
+    row.reportVersion != null &&
+    (row.artifactType === "VERIFICATION_PACKAGE" || row.stage === "REPORT_COMMITTED");
+  // OPS-004 — a REPORT condition names the version the request was for:
+  // the one after the latest committed report.
+  const targetReportVersion = packageOnly
+    ? null
+    : ((
+        await prisma.evidence
+          .findUnique({ where: { id: row.evidenceId }, select: { latestReportVersion: true } })
+          .catch(() => null)
+      )?.latestReportVersion ?? 0) + 1;
+  const rootCause = row.terminalReasonCode ?? null;
+  await recordWorkerIncident(
+    packageOnly
+      ? {
+          sourceId: "pipeline.package_generation_failed",
+          teamId: row.teamId,
+          category: "PACKAGE",
+          severity: "HIGH",
+          fingerprint: `PACKAGE:${row.evidenceId}:v${row.reportVersion}:RETRY_BUDGET_EXHAUSTED`,
+          message: {
+            code: "ops.pipeline.package_generation_failed.retry_budget_exhausted",
+            params: { version: row.reportVersion!, recordRef: row.evidenceId.slice(0, 8) },
+          },
+          relatedEvidenceId: row.evidenceId,
+          metadata: {
+            queueName: "report",
+            retriable: false,
+            errorClass: "RETRY_BUDGET_EXHAUSTED",
+            rootCause,
+            requestId: row.id,
+            attemptCount: row.attemptCount,
+            reportVersion: row.reportVersion,
+          },
+        }
+      : {
+          sourceId: "pipeline.report_generation_failed",
+          teamId: row.teamId,
+          category: "REPORT",
+          severity: "HIGH",
+          fingerprint: `REPORT:${row.evidenceId}:v${targetReportVersion}:RETRY_BUDGET_EXHAUSTED`,
+          message: {
+            code: "ops.pipeline.report_generation_failed.retry_budget_exhausted",
+            params: { version: targetReportVersion!, recordRef: row.evidenceId.slice(0, 8) },
+          },
+          relatedEvidenceId: row.evidenceId,
+          metadata: {
+            queueName: "report",
+            retriable: false,
+            errorClass: "RETRY_BUDGET_EXHAUSTED",
+            rootCause,
+            requestId: row.id,
+            attemptCount: row.attemptCount,
+            reportVersion: targetReportVersion,
+          },
+        },
+  );
+}
+
+/**
  * Release a claim so the queue's own retry can pick the request up again.
  *
  * Distinct from a terminal write: this is the "the attempt failed but the
@@ -673,101 +763,28 @@ export async function reconcileStrandedReportRequests(input: {
       state: "FAILED_RETRYABLE",
       attemptCount: { gte: REPORT_RECONCILE_MAX_ATTEMPTS },
     },
-    select: {
-      id: true,
-      attemptCount: true,
-      evidenceId: true,
-      teamId: true,
-      artifactType: true,
-      stage: true,
-      reportVersion: true,
-    },
+    select: { id: true, attemptCount: true, terminalReasonCode: true },
     orderBy: { createdAtUtc: "asc" },
     take: batchSize,
   });
   for (const row of exhausted) {
+    // The cause the last attempt recorded survives (2026-10-13); only a row
+    // that never recorded one (an expired lease) reads retry_budget_exhausted.
     const retired = await markRequestTerminal({
       requestId: row.id,
       state: "FAILED_TERMINAL",
-      terminalReasonCode: "retry_budget_exhausted",
+      terminalReasonCode: row.terminalReasonCode?.trim() || "retry_budget_exhausted",
     });
     if (retired) {
       summary.terminalRepaired += 1;
-      /*
-       * An exhausted request is an operator matter, and the customer is told
-       * so. It opens (or re-counts) the SAME incident the pipeline's own DLQ
-       * path uses for this record — deduplicated on (workspace, fingerprint) —
-       * so Operations shows one actionable condition, never a second system.
-       */
-      /*
-       * NAME THE COMPONENT THAT IS ACTUALLY MISSING.
-       *
-       * A request that committed its report (`stage = REPORT_COMMITTED`) or
-       * that only ever targeted a package is missing a PACKAGE at a known
-       * version. Filing it under the REPORT source let a probe that asks "does
-       * a report exist?" declare it recovered while the package was absent.
-       */
-      const packageOnly =
-        row.reportVersion != null &&
-        (row.artifactType === "VERIFICATION_PACKAGE" || row.stage === "REPORT_COMMITTED");
-      // OPS-004 — a REPORT condition names the version the request was for:
-      // the one after the latest committed report.
-      const targetReportVersion = packageOnly
-        ? null
-        : ((
-            await prisma.evidence
-              .findUnique({ where: { id: row.evidenceId }, select: { latestReportVersion: true } })
-              .catch(() => null)
-          )?.latestReportVersion ?? 0) + 1;
-      await recordWorkerIncident(
-        packageOnly
-          ? {
-              sourceId: "pipeline.package_generation_failed",
-              teamId: row.teamId,
-              category: "PACKAGE",
-              severity: "HIGH",
-              fingerprint: `PACKAGE:${row.evidenceId}:v${row.reportVersion}:RETRY_BUDGET_EXHAUSTED`,
-              message: {
-                code: "ops.pipeline.package_generation_failed.retry_budget_exhausted",
-                params: { version: row.reportVersion!, recordRef: row.evidenceId.slice(0, 8) },
-              },
-              relatedEvidenceId: row.evidenceId,
-              metadata: {
-                queueName: "report",
-                retriable: false,
-                errorClass: "RETRY_BUDGET_EXHAUSTED",
-                requestId: row.id,
-                attemptCount: row.attemptCount,
-                reportVersion: row.reportVersion,
-              },
-            }
-          : {
-              sourceId: "pipeline.report_generation_failed",
-              teamId: row.teamId,
-              category: "REPORT",
-              severity: "HIGH",
-              fingerprint: `REPORT:${row.evidenceId}:v${targetReportVersion}:RETRY_BUDGET_EXHAUSTED`,
-              message: {
-                code: "ops.pipeline.report_generation_failed.retry_budget_exhausted",
-                params: { version: targetReportVersion!, recordRef: row.evidenceId.slice(0, 8) },
-              },
-              relatedEvidenceId: row.evidenceId,
-              metadata: {
-                queueName: "report",
-                retriable: false,
-                errorClass: "RETRY_BUDGET_EXHAUSTED",
-                requestId: row.id,
-                attemptCount: row.attemptCount,
-                reportVersion: targetReportVersion,
-              },
-            },
-      ).catch(() => null);
+      await recordRequestExhaustedIncident(row.id).catch(() => null);
       logger.warn(
         {
           event: "report_generation.retry_budget_exhausted",
           requestId: row.id,
           attemptCount: row.attemptCount,
           maxAttempts: REPORT_RECONCILE_MAX_ATTEMPTS,
+          reasonCode: row.terminalReasonCode ?? null,
         },
         "report_generation.retry_budget_exhausted",
       );
