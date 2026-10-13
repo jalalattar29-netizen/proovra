@@ -5761,21 +5761,6 @@
       "disposition": "RETAINED"
     },
     {
-      "path": "services/worker/test/ots-chain-verifier.test.ts",
-      "role": "PRODUCT_BEHAVIOR_TEST",
-      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
-      "importedBy": [],
-      "spawns": [],
-      "readsArtifacts": [],
-      "writesArtifacts": [],
-      "declaresArtifacts": [],
-      "packageScripts": [],
-      "ciConsumers": [],
-      "sourceOfTruthFor": [],
-      "disposition": "RETAINED"
-    },
-    {
       "path": "services/worker/test/package-disclosure-text-projection.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
@@ -5887,6 +5872,23 @@
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/worker/test/reconcile-ots-state.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [
+        "packages/shared/tests/helpers/ots-fixtures.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
