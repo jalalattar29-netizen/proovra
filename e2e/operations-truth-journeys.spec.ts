@@ -178,9 +178,9 @@ test.describe("Journey A — report failure to recovery, through Operations", ()
   });
 
   test("a real report job fails in the worker and raises one exact condition", async () => {
-    // The durable budget is 12 claims across lifecycle-recovery ticks; the
-    // stack runs that tick every 20s (playwright-e2e.yml), so exhaustion is
-    // minutes, not the production 5-minute cadence times twelve.
+    // (2026-10-13) BullMQ's LAST attempt of a retryable failure is terminal at
+    // once, recording the ROOT cause (never only retry_budget_exhausted); the
+    // durable 12-claim ceiling remains the backstop for lease expiries.
     test.setTimeout(720_000);
     await clearTestRateLimits();
     A = await createGuestSession({ plan: "PRO" });
@@ -190,17 +190,18 @@ test.describe("Journey A — report failure to recovery, through Operations", ()
     // must read and write goes away until the retries are spent.
     storage("kill");
 
-    // The worker's own durable answer: terminal, for the closed reason.
+    // The worker's own durable answer: terminal, for a bounded root cause.
+    const lastRequest = () =>
+      sql(
+        "SELECT state, terminal_reason_code FROM report_generation_requests WHERE evidence_id = $1 AND artifact_type = 'REPORT' ORDER BY created_at_utc DESC LIMIT 1",
+        [evidenceId],
+      )[0] ?? null;
     await expect
-      .poll(
-        () =>
-          sql(
-            "SELECT state, terminal_reason_code FROM report_generation_requests WHERE evidence_id = $1 AND artifact_type = 'REPORT' ORDER BY created_at_utc DESC LIMIT 1",
-            [evidenceId],
-          )[0] ?? null,
-        { timeout: 600_000, intervals: [3000] },
-      )
-      .toMatchObject({ state: "FAILED_TERMINAL", terminal_reason_code: "retry_budget_exhausted" });
+      .poll(() => lastRequest()?.state ?? null, { timeout: 600_000, intervals: [3000] })
+      .toBe("FAILED_TERMINAL");
+    const cause = String(lastRequest()!.terminal_reason_code ?? "");
+    expect(cause, "a bounded code, never a message").toMatch(/^[A-Za-z][A-Za-z0-9_]{1,63}$/);
+    expect(cause, "the root cause survives exhaustion").not.toBe("retry_budget_exhausted");
     await storageBack();
 
     await expect
