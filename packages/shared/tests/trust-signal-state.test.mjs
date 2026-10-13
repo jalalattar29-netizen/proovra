@@ -20,25 +20,17 @@ import {
   trustSignalStateIsPassed,
 } from "../dist/index.js";
 
-const OTS_CHAIN_INPUT = {
-  chainVerificationStatus: "VERIFIED",
-  chainVerifiedAtUtc: "2026-10-01T03:00:00.000Z",
-  chainBlockHeight: 970507,
-  chainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
-  chainBlockTimeUtc: "2026-10-01T01:24:48.000Z",
-  chainConfirmations: 6,
-  chainVerifier: "test-double/1",
-};
-/** A complete recorded chain check (test values; not a real verification). */
-const OTS_CHAIN = {
-  otsChainVerificationStatus: "VERIFIED",
-  otsChainVerifiedAtUtc: "2026-10-01T03:00:00.000Z",
-  otsChainBlockHeight: 970507,
-  otsChainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
-  otsChainBlockTimeUtc: "2026-10-01T01:24:48.000Z",
-  otsChainConfirmations: 6,
-  otsChainVerifier: "test-double/1",
-};
+import { REAL, upgradedProof } from "./helpers/ots-fixtures.mjs";
+
+/**
+ * (2026-10-13) The OTS signal is the canonical anchoring state resolved from
+ * real proof bytes: the `ots stamp` proof is PENDING; ANCHORED only from an
+ * upgraded proof (tests/helpers/ots-fixtures.mjs). ANCHORED→PASSED,
+ * PENDING→PENDING, FAILED→FAILED, NOT_REQUESTED→NOT_APPLICABLE,
+ * UNAVAILABLE→UNAVAILABLE.
+ */
+const FP = REAL.boundFingerprintHash;
+const ANCHORED_PROOF = upgradedProof();
 
 test("every state has one presentation, and only PASSED is a passed signal", () => {
   assert.deepEqual([...TRUST_SIGNAL_STATES].sort(), [
@@ -73,21 +65,23 @@ test("every state has one presentation, and only PASSED is a passed signal", () 
 });
 
 test("legacy snapshots without a state are re-read conservatively", () => {
+  // A legacy anchoring "passed" was awarded for a txid on the row, not for a
+  // proof executed to a Bitcoin attestation: it reads UNAVAILABLE, never anchored.
   assert.equal(
     resolveSnapshotSignalState({
       key: "bitcoin_anchoring",
       status: "passed",
       summary: "OpenTimestamps proof anchored to a Bitcoin block; not checked against the Bitcoin chain",
     }),
-    "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
+    "UNAVAILABLE",
   );
-  // A legacy anchoring pass was awarded for a proof's presence, whatever its
-  // summary says: it is never re-read as verified.
-  assert.equal(
-    resolveSnapshotSignalState({ key: "bitcoin_anchoring", status: "passed", summary: "Anchored in Bitcoin" }),
-    "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
-  );
+  assert.equal(resolveSnapshotSignalState({ key: "bitcoin_anchoring", status: "passed", summary: "Anchored in Bitcoin" }), "UNAVAILABLE");
+  // Only an explicit PASSED (written from a valid upgraded proof) is anchored.
+  assert.equal(resolveSnapshotSignalState({ key: "bitcoin_anchoring", state: "PASSED", status: "passed" }), "PASSED");
+  assert.equal(resolveSnapshotSignalState({ key: "bitcoin_anchoring", status: "pending" }), "PENDING");
+  assert.equal(resolveSnapshotSignalState({ key: "bitcoin_anchoring", status: "failed" }), "FAILED");
   assert.equal(resolveSnapshotSignalState({ key: "verification_package", status: "passed" }), "NOT_APPLICABLE");
+  assert.equal(resolveSnapshotSignalState({ key: "trusted_timestamp", status: "passed" }), "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
   assert.equal(resolveSnapshotSignalState({ key: "trusted_timestamp", status: "partial" }), "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
   assert.equal(resolveSnapshotSignalState({ key: "identity", status: "missing" }), "UNAVAILABLE");
   assert.notEqual(
@@ -111,29 +105,31 @@ test("TSA: only a validated token is PASSED; a kept token without an anchor is p
   assert.equal(resolveTsaTrustState({ presentedStatus: null }).state, "UNAVAILABLE");
 });
 
-test("OTS: an attestation is present; only a recorded chain check is PASSED; long pending is STALE", () => {
-  const base = { status: "ANCHORED", anchoredAtUtc: "2026-10-01T00:00:00Z", bitcoinTxid: "c".repeat(64) };
-  assert.equal(resolveOtsTrustState({ ...base, anchorCheck: "PROOF_STRUCTURE" }).state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
-  assert.equal(resolveOtsTrustState({ ...base, anchorCheck: null }).state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
-  // A recorded check without its chain evidence is not PASSED (2026-10-12).
+test("OTS: the state comes from the proof bytes; only a valid upgraded proof is PASSED", () => {
+  const ots = (over) => resolveOtsTrustState({ status: "ANCHORED", fingerprintHash: FP, ...over });
+  // A valid upgraded proof: ANCHORED → PASSED, measured at PROOVRA's recorded anchoring time.
+  const anchored = ots({ proofBase64: ANCHORED_PROOF.base64, anchoredAtUtc: "2026-10-02T00:00:00Z" });
+  assert.equal(anchored.state, "PASSED");
+  assert.equal(anchored.otsState, "ANCHORED");
+  assert.equal(anchored.label, "OpenTimestamps proof anchored in Bitcoin.");
+  assert.equal(anchored.measuredAtUtc, "2026-10-02T00:00:00.000Z");
+  // Status ANCHORED + anchored-at over the real pending proof: PENDING, no measured time.
+  const claimed = ots({ proofBase64: REAL.boundProofBase64, anchoredAtUtc: "2026-10-01T00:00:00Z" });
+  assert.equal(claimed.state, "PENDING");
+  assert.equal(claimed.otsState, "PENDING");
+  assert.equal(claimed.measuredAtUtc, null);
+  // A long-pending proof is still PENDING: there is no STALE for OTS.
   assert.equal(
-    resolveOtsTrustState({ ...base, anchorCheck: "BITCOIN_VERIFIED", anchorCheckedAtUtc: "2026-10-02T00:00:00Z" }).state,
-    "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
+    resolveOtsTrustState({ status: "PENDING", proofBase64: REAL.boundProofBase64, fingerprintHash: FP, submittedAtUtc: "2020-01-01T00:00:00Z" }).state,
+    "PENDING",
   );
-  const verified = resolveOtsTrustState({
-    ...base,
-    anchorCheck: "BITCOIN_VERIFIED",
-    anchorCheckedAtUtc: "2026-10-02T00:00:00Z",
-    chain: { ...OTS_CHAIN_INPUT, chainVerifiedAtUtc: "2026-10-02T00:00:00Z" },
-  });
-  assert.equal(verified.state, "PASSED");
-  // The time of a verified check is the verifier's own recorded time.
-  assert.equal(verified.measuredAtUtc, "2026-10-02T00:00:00.000Z");
-  const now = new Date("2026-10-20T00:00:00Z");
-  assert.equal(resolveOtsTrustState({ status: "PENDING", anchoredAtUtc: null, anchorCheck: null, submittedAtUtc: "2026-10-19T00:00:00Z", now }).state, "PENDING");
-  assert.equal(resolveOtsTrustState({ status: "PENDING", anchoredAtUtc: null, anchorCheck: null, submittedAtUtc: "2026-10-01T00:00:00Z", now }).state, "STALE");
-  assert.equal(resolveOtsTrustState({ status: "FAILED", anchoredAtUtc: null, anchorCheck: null }).state, "FAILED");
-  assert.equal(resolveOtsTrustState({ status: null, anchoredAtUtc: null, anchorCheck: null }).state, "UNAVAILABLE");
+  // FAILED from a proof defect or a recorded failure; UNAVAILABLE without proof material; NOT_APPLICABLE when not requested.
+  assert.equal(ots({ proofBase64: REAL.otherProofBase64 }).state, "FAILED");
+  assert.equal(resolveOtsTrustState({ status: "FAILED", proofBase64: null, fingerprintHash: FP }).state, "FAILED");
+  assert.equal(ots({ proofBase64: null }).state, "UNAVAILABLE");
+  assert.equal(ots({ proofBase64: ANCHORED_PROOF.base64, fingerprintHash: null }).state, "UNAVAILABLE");
+  assert.equal(resolveOtsTrustState({ status: null, proofBase64: null, fingerprintHash: FP }).state, "NOT_APPLICABLE");
+  assert.equal(resolveOtsTrustState({ status: "DISABLED", proofBase64: null, fingerprintHash: FP }).state, "NOT_APPLICABLE");
 });
 
 // ---------------------------------------------------------------------------
@@ -153,7 +149,7 @@ function decide(overrides) {
       verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
       recordedIntegrityVerifiedAtUtc: "2026-10-01T00:00:00.000Z",
       fileSha256: "a".repeat(64),
-      fingerprintHash: "b".repeat(64),
+      fingerprintHash: FP,
       signatureBase64: "c2ln",
       signingKeyId: "k1",
       publicKeyPem: "-----BEGIN PUBLIC KEY-----\nx\n-----END PUBLIC KEY-----",
@@ -166,6 +162,8 @@ function decide(overrides) {
       storageObjectLockRetainUntilUtc: "2036-01-01T00:00:00.000Z",
       identityLevelSnapshot: "VERIFIED_EMAIL",
       submittedByAuthProvider: "EMAIL",
+      otsStatus: "PENDING",
+      otsProofBase64: REAL.boundProofBase64,
       ...overrides,
     },
     custodyEvents: forensic,
@@ -191,65 +189,58 @@ function assertNoOverclaim(d) {
   assert.doesNotMatch(d.summary, /STRONGLY|score|Passed signals|No degraded signals/i);
 }
 
-test("TSA valid + OTS pending → anchoring NOT_CHECKED, never finalized", () => {
-  const d = decide({ otsStatus: "PENDING", otsProofPresent: true, otsUpgradedAtUtc: "2026-10-01T01:00:00Z", otsSubmittedAtUtc: new Date().toISOString() });
+test("TSA valid + OTS pending → anchoring PENDING (NOT_CHECKED), never finalized", () => {
+  const d = decide({ otsStatus: "PENDING", otsProofBase64: REAL.boundProofBase64, otsUpgradedAtUtc: "2026-10-01T01:00:00Z" });
   assert.equal(anchoring(d).state, "PENDING");
+  assert.equal(d.anchoringState, "pending");
   assert.equal(d.presentationState, "VERIFIED_PENDING_ANCHORING");
   assert.equal(toVerificationStatus(anchoring(d).state), "NOT_CHECKED");
   assertNoOverclaim(d);
 });
 
-test("TSA valid + OTS proof present, not checked → NOT_CHECKED, no verified claim", () => {
-  const d = decide({ otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-10-01T02:00:00Z", otsBitcoinTxid: "c".repeat(64), otsAnchorCheck: "PROOF_STRUCTURE" });
-  assert.equal(anchoring(d).state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
-  assert.equal(d.anchoringState, "present_not_verified");
+test("TSA valid + stored ANCHORED status over a pending proof → PENDING, no anchored claim", () => {
+  const d = decide({ otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-10-01T02:00:00Z", otsProofBase64: REAL.boundProofBase64 });
+  assert.equal(anchoring(d).state, "PENDING");
+  assert.equal(d.anchoringState, "pending");
   assert.equal(toVerificationStatus(anchoring(d).state), "NOT_CHECKED");
   assert.notEqual(d.presentationState, "VERIFIED_FINALIZED");
-  assert.match(d.anchoringStatusLabel, /^Attestation recorded$/);
+  assert.equal(d.anchoringStatusLabel, "Pending");
   assert.match(d.summary, /Any signal marked “Not checked” was not independently verified\./);
   // The OTS card says it once; the reviewer action does not repeat it.
   assert.doesNotMatch(d.reviewerAction, /Bitcoin|OpenTimestamps/);
   assertNoOverclaim(d);
 });
 
-test("TSA valid + OTS independently verified → every time layer VERIFIED and finalized", () => {
-  const d = decide({
-    otsStatus: "ANCHORED",
-    otsAnchoredAtUtc: "2026-10-01T02:00:00Z",
-    otsBitcoinTxid: "c".repeat(64),
-    otsAnchorCheck: "BITCOIN_VERIFIED",
-    otsAnchorCheckedAtUtc: "2026-10-01T03:00:00Z",
-    ...OTS_CHAIN,
-  });
+test("TSA valid + OTS anchored from a valid upgraded proof → every time layer VERIFIED and finalized", () => {
+  const d = decide({ otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-10-01T02:00:00Z", otsProofBase64: ANCHORED_PROOF.base64 });
   assert.equal(anchoring(d).state, "PASSED");
-  assert.equal(anchoring(d).measuredAtUtc, "2026-10-01T03:00:00.000Z");
+  assert.equal(anchoring(d).measuredAtUtc, "2026-10-01T02:00:00.000Z");
   assert.equal(toVerificationStatus(anchoring(d).state), "VERIFIED");
+  assert.equal(d.anchoringState, "anchored");
+  assert.equal(d.anchoringStatusLabel, "Anchored");
   assert.equal(d.presentationState, "VERIFIED_FINALIZED");
   assertNoOverclaim(d);
 });
 
-test("a chain check recorded with NO txid is never verified (the package's sealed precondition)", () => {
-  const d = decide({
-    otsStatus: "ANCHORED",
-    otsAnchoredAtUtc: "2026-10-01T02:00:00Z",
-    otsBitcoinTxid: null,
-    otsAnchorCheck: "BITCOIN_VERIFIED",
-    otsAnchorCheckedAtUtc: "2026-10-01T03:00:00Z",
-  });
-  assert.equal(anchoring(d).state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
-  assert.notEqual(d.presentationState, "VERIFIED_FINALIZED");
+test("an upgraded proof with NO transaction step is still anchored; the txid is never what decides", () => {
+  const d = decide({ otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-10-01T02:00:00Z", otsProofBase64: upgradedProof({ withTransaction: false }).base64 });
+  assert.equal(anchoring(d).state, "PASSED");
+  assert.equal(d.presentationState, "VERIFIED_FINALIZED");
   assertNoOverclaim(d);
 });
 
-test("OTS unavailable / failed / stale never read as verified", () => {
+test("OTS unavailable / failed / not requested never read as verified", () => {
   for (const [overrides, state] of [
-    [{ otsStatus: null }, "UNAVAILABLE"],
-    [{ otsStatus: "DISABLED" }, "UNAVAILABLE"],
-    [{ otsStatus: "FAILED" }, "FAILED"],
-    [{ otsStatus: "PENDING", otsProofPresent: true, otsSubmittedAtUtc: "2020-01-01T00:00:00Z" }, "STALE"],
+    [{ otsStatus: null, otsProofBase64: null }, "NOT_APPLICABLE"],
+    [{ otsStatus: "DISABLED", otsProofBase64: null }, "NOT_APPLICABLE"],
+    [{ otsStatus: "ANCHORED", otsProofBase64: null }, "UNAVAILABLE"],
+    [{ otsStatus: "FAILED", otsProofBase64: null }, "FAILED"],
+    [{ otsStatus: "ANCHORED", otsProofBase64: REAL.otherProofBase64 }, "FAILED"],
+    [{ otsStatus: "ANCHORED", otsProofBase64: upgradedProof({ trailingPayload: Buffer.from([1]) }).base64 }, "FAILED"],
+    [{ otsStatus: "PENDING", otsProofBase64: REAL.boundProofBase64 }, "PENDING"],
   ]) {
     const d = decide(overrides);
-    assert.equal(anchoring(d).state, state, JSON.stringify(overrides));
+    assert.equal(anchoring(d).state, state, JSON.stringify(overrides).slice(0, 80));
     assert.notEqual(d.presentationState, "VERIFIED_FINALIZED");
     assertNoOverclaim(d);
   }

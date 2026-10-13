@@ -1572,8 +1572,11 @@ describe("Phase 32.8C++ — Deep Integrity Watch engine", () => {
 
   it("uses real TSA + OTS columns from Evidence (no fabricated columns)", () => {
     expect(SERVICE).toMatch(/tsaTokenBase64:\s*null/);
-    expect(SERVICE).toMatch(/otsStatus:\s*null/);
-    expect(SERVICE).toMatch(/otsStatus:\s*\{\s*in:\s*\["PENDING",\s*"FAILED",\s*"ERRORED"\]/);
+    // (2026-10-13) The OTS candidates are read with the columns the ONE state
+    // authority needs, and each is resolved from its stored proof.
+    expect(SERVICE).toMatch(/otsStatus:\s*\{\s*in:\s*\["FAILED",\s*"ANCHORED"\]/);
+    expect(SERVICE).toMatch(/\.\.\.OTS_ANCHORING_RECORD_SELECT/);
+    expect(SERVICE).toMatch(/resolveRecordOtsAnchoring\(r\)\.state/);
   });
 
   it("each signal carries sourceFields + confidence", () => {

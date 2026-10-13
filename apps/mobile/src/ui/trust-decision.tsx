@@ -8,10 +8,14 @@ import React from "react";
 import { View } from "react-native";
 
 import { TRUST_STATUS_BOUNDARY, verificationStatusBadge, type TrustDecision } from "../product/trust-decision";
+import { useOptionalLocale } from "../locale-context";
+import { otsBadgeLabel, otsCard } from "../product/ots-anchoring";
 import { theme } from "../theme/theme";
 import { ProovraBadge, ProovraCard, ProovraText } from "./index";
 
 export function TrustDecisionCard({ trust }: { trust: TrustDecision | null }) {
+  // Bitcoin anchoring words come from the active locale (en / de / ar).
+  const locale = useOptionalLocale();
   if (!trust) {
     return (
       <ProovraText variant="bodySm" color={theme.color.ink.muted}>
@@ -25,9 +29,9 @@ export function TrustDecisionCard({ trust }: { trust: TrustDecision | null }) {
         <ProovraText variant="h3" weight="semibold">Verification signals</ProovraText>
         <ProovraText variant="bodySm" testID="trust-summary">{trust.summary}</ProovraText>
         {trust.anchoring ? (
-          <View style={{ flexDirection: "row", justifyContent: "space-between", gap: theme.space.s2 }}>
-            <ProovraText variant="label" color={theme.color.ink.secondary}>Anchoring</ProovraText>
-            <ProovraText variant="label" weight="semibold">{trust.anchoring}</ProovraText>
+          <View style={{ flexDirection: locale === "ar" ? "row-reverse" : "row", justifyContent: "space-between", gap: theme.space.s2 }}>
+            <ProovraText variant="label" color={theme.color.ink.secondary}>{otsCard({ state: trust.anchoring }, locale).title}</ProovraText>
+            <ProovraText variant="label" weight="semibold">{otsBadgeLabel(otsCard({ state: trust.anchoring }, locale))}</ProovraText>
           </View>
         ) : null}
         {trust.reviewerAction ? (
@@ -42,16 +46,21 @@ export function TrustDecisionCard({ trust }: { trust: TrustDecision | null }) {
             <ProovraText variant="bodySm" weight="semibold">Per-signal detail</ProovraText>
             <ProovraText variant="label" color={theme.color.ink.muted}>{TRUST_STATUS_BOUNDARY}</ProovraText>
             {trust.signals.map((s) => {
-              const badge = verificationStatusBadge(s.status);
+              const ots = s.otsState ? otsCard({ state: s.otsState }, locale) : null;
+              const badge = ots ? { label: otsBadgeLabel(ots), tone: ots.badgeTone } : verificationStatusBadge(s.status);
               return (
                 <View key={s.key} style={{ gap: 2 }} testID={`trust-signal-${s.key}`}>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.space.s2 }}>
-                    <ProovraText variant="bodySm" weight="semibold">{s.label}</ProovraText>
+                  <View style={{ flexDirection: locale === "ar" ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center", gap: theme.space.s2 }}>
+                    <ProovraText variant="bodySm" weight="semibold">{ots ? ots.title : s.label}</ProovraText>
                     <ProovraBadge label={badge.label} tone={badge.tone} />
                   </View>
-                  {s.summary ? <ProovraText variant="label" color={theme.color.ink.secondary}>{s.summary}</ProovraText> : null}
+                  {ots ? (
+                    <ProovraText variant="label" color={theme.color.ink.secondary}>{ots.sentence}</ProovraText>
+                  ) : s.summary ? (
+                    <ProovraText variant="label" color={theme.color.ink.secondary}>{s.summary}</ProovraText>
+                  ) : null}
                   {s.detail ? <ProovraText variant="label" color={theme.color.ink.muted}>{s.detail}</ProovraText> : null}
-                  {!s.summary && !s.detail ? (
+                  {!ots && !s.summary && !s.detail ? (
                     <ProovraText variant="label" color={theme.color.ink.muted}>No further detail was recorded for this signal.</ProovraText>
                   ) : null}
                 </View>

@@ -1,3 +1,4 @@
+import type { OtsState } from "./ots-anchoring.js";
 export type EvidenceReviewDecisionStatus =
   | "READY_FOR_EXTERNAL_REVIEW"
   | "NEEDS_ATTENTION"
@@ -23,7 +24,8 @@ export type EvidenceVerificationProof = {
   sha256Recorded: boolean;
   signatureStatus: "APPLIED" | "MISSING" | "UNKNOWN";
   tsaStatus: "RECORDED" | "PENDING" | "FAILED" | "UNKNOWN";
-  otsStatus: "ANCHORED" | "PENDING" | "FAILED" | "DISABLED" | "UNKNOWN";
+  /** The canonical OpenTimestamps state (ots-anchoring.ts); clients never re-derive it. */
+  otsState: OtsState;
 };
 
 export type EvidenceArtifactSummary = {

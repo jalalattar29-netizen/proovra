@@ -50,6 +50,7 @@ import {
 } from "./platform-conditions.service.js";
 import {
   IN_FLIGHT_REPORT_REQUEST_STATES,
+  OTS_ANCHORING_RECORD_SELECT,
   parseOtsBudgetExhaustedFingerprint,
   REVIEW_ESCALATION_TERMINAL,
 } from "@proovra/shared";
@@ -57,7 +58,6 @@ import type { PrismaClient, Prisma } from "@prisma/client";
 
 import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
 import {
-  isOtsPendingAged,
   // RELIABILITY CLOSURE (2026-09-09) — the never-attempted predicate.
   isOtsInitializationStalled,
   workspaceEvidenceWhere,
@@ -606,7 +606,9 @@ async function observeOtsPendingAged(
       // claimed, so a future caller that reaches a probe by some other route
       // cannot turn an inconsistency into a leak.
       where: { AND: [{ id: evidenceId }, ctx.evidenceWhere] },
-      select: { otsStatus: true, otsAnchoredAtUtc: true, createdAt: true },
+      // (2026-10-13) The proof decides: a record that resolves ANCHORED is
+      // never aged-pending, whatever its stored status says.
+      select: { ...OTS_ANCHORING_RECORD_SELECT, createdAt: true },
     });
     // The record is gone, or is not this workspace's. It can never be observed
     // aged again, so it must stay closable rather than becoming a permanent row
@@ -614,7 +616,7 @@ async function observeOtsPendingAged(
     if (!record) return { ...base, activity: "NOT_APPLICABLE" };
     return {
       ...base,
-      activity: isOtsPendingAged(record, ctx.now) ? "ACTIVE" : "RECOVERED",
+      activity: integrity.isOtsPendingBeyondSla(record, ctx.now) ? "ACTIVE" : "RECOVERED",
     };
   } catch {
     return { ...base, activity: "UNKNOWN" };

@@ -11,10 +11,11 @@
  *     authority (inside the API image, against the stack database) and the
  *     organization-verification decision (one column).
  *
- * There is NO Bitcoin-chain fixture (2026-10-07): the stack has no trusted
- * Bitcoin verifier, and a fixture that WRITES a verified result proves nothing
- * about the chain. Anchoring stays PRESENT_NOT_INDEPENDENTLY_VERIFIED here, and
- * real chain verification is an external-proof item, not a passed journey.
+ * There is NO Bitcoin node in the stack (2026-10-13): Bitcoin anchoring is the
+ * canonical OTS state resolved from the stored proof (ANCHORED once the proof
+ * executes to a valid Bitcoin block-header attestation). PROOVRA makes no
+ * independent canonical-chain claim; checking the proof against a node is the
+ * reviewer's own step (OTS_ANCHORED_BOUNDARY).
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";

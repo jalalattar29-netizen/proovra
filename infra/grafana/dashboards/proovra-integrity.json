@@ -19,7 +19,6 @@
         { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.integrity.canonical.digest\"}[5m]))", "legendFormat": "canonical.digest" },
         { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.integrity.signature.verify\"}[5m]))", "legendFormat": "signature.verify" },
         { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.integrity.timestamp.verify\"}[5m]))", "legendFormat": "timestamp.verify" },
-        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.integrity.public_anchor.verify\"}[5m]))", "legendFormat": "public_anchor.verify" },
         { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.custody.chain.verify\"}[5m]))", "legendFormat": "custody.chain.verify" }
       ]
     },
@@ -57,12 +56,11 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "OTS anchor / upgrade / verify (5m rate)",
+      "title": "OTS anchor / upgrade (5m rate)",
       "datasource": "prometheus",
       "targets": [
         { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.ots.anchor\"}[5m]))", "legendFormat": "anchor" },
-        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.ots.upgrade\"}[5m]))", "legendFormat": "upgrade" },
-        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.ots.verify\"}[5m]))", "legendFormat": "verify" }
+        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.ots.upgrade\"}[5m]))", "legendFormat": "upgrade" }
       ]
     },
     {

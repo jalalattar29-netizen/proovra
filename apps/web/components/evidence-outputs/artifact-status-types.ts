@@ -9,6 +9,7 @@
  * never as "nothing exists" and never as success.
  */
 import type {
+  OtsAnchoringView,
   OutputActiveRequestView,
   OutputOfferEnvelope,
   OutputProgressView,
@@ -23,21 +24,11 @@ export type ArtifactTrust = {
     failureCode: string | null;
     genTimeUtc: string | null;
   };
-  ots: {
-    status: string | null;
-    anchorCheck: string | null;
-    anchoredAtUtc: string | null;
-    /** When the current anchor check was recorded (absent from an older API). */
-    anchorCheckedAtUtc?: string | null;
-    /** (2026-10-12) The recorded independent chain check — VERIFIED requires it. */
-    chainVerificationStatus?: string | null;
-    chainVerifiedAtUtc?: string | null;
-    chainBlockHeight?: number | null;
-    chainBlockHash?: string | null;
-    chainBlockTimeUtc?: string | null;
-    chainConfirmations?: number | null;
-    chainVerifier?: string | null;
-  };
+  /**
+   * THE Bitcoin anchoring state (2026-10-13): the server's OtsAnchoringView.
+   * Read it ONLY through `readOtsAnchoringView` — never re-derived.
+   */
+  ots: Partial<OtsAnchoringView> | null;
 };
 
 export type ArtifactActiveRequest = OutputActiveRequestView & {

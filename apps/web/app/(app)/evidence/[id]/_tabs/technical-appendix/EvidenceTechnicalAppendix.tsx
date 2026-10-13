@@ -315,15 +315,8 @@ export function EvidenceTechnicalAppendix({
               provider: pm?.tsa?.provider ?? null,
               timestampedDigestLabel: pm?.tsa?.timestampedDigestLabel ?? "",
             },
-            ots: {
-              effectiveStatus: pm?.ots?.effectiveStatus ?? pm?.ots?.status ?? null,
-              proofPresent: Boolean(pm?.ots?.proofPresent),
-              bitcoinTxid: pm?.ots?.bitcoinTxid ?? null,
-              anchoredAtUtc: pm?.ots?.anchoredAtUtc ?? null,
-              calendar: pm?.ots?.calendar ?? null,
-              anchorCheck: pm?.ots?.anchorCheck ?? null,
-              anchorClaim: pm?.ots?.anchorClaim ?? null,
-            },
+            // THE Bitcoin anchoring state: the server's view, as sent.
+            ots: pm?.ots ?? null,
             storage: {},
           }}
           evidence={{

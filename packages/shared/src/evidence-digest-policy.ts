@@ -302,7 +302,7 @@ export function evaluateDigestPolicy(
   // not, the trust chain has no anchor digest to display and the
   // report cannot honestly claim anchored truth.
   const ots = (input.otsStatus ?? "").toUpperCase();
-  if ((ots === "ANCHORED" || ots === "VERIFIED") && digests.otsDigest === null) {
+  if (ots === "ANCHORED" && digests.otsDigest === null) {
     violations.push({
       code: "ots_anchored_without_persisted_hash",
       detail: "otsStatus claims anchored but evidence.otsHash is null",

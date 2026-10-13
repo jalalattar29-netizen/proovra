@@ -11,12 +11,11 @@ import {
 import * as prismaPkg from "@prisma/client";
 import { custodyLabelHints } from "@proovra/shared";
 import {
-  mapOtsStatusPublicLabel,
-  mapOtsStatusPublicLabelWithTxid,
   mapTimestampStatusPublicLabel,
   mapCustodyEventLabel,
 } from "../src/report-v2/normalizers.js";
-import { normalizeBitcoinAnchorTone } from "../src/report-v2/truth-model.js";
+import { otsStatusLineFor, otsStatusWordFor, reportOtsAnchoring } from "../src/report-v2/ots-presentation.js";
+import { REAL, upgradedProof } from "../../../packages/shared/tests/helpers/ots-fixtures.mjs";
 import { shouldExpireCaptureDraft } from "../src/capture-draft-governance.js";
 
 /**
@@ -37,60 +36,32 @@ function readRepoFile(...segments: string[]): string {
   return readFileSync(resolve(REPO_ROOT, ...segments), "utf8");
 }
 
-describe("OTS labels (Phase B #9 / Phase C #4)", () => {
-  it("never returns 'Public anchoring verified' from the base label", () => {
-    for (const status of ["ANCHORED", "PENDING", "FAILED", "DISABLED", null, "UNKNOWN"]) {
-      const label = mapOtsStatusPublicLabel(status as string | null);
-      expect(label.toLowerCase()).not.toContain("public anchoring verified");
+describe("OTS labels (2026-10-13: the canonical state, from the proof)", () => {
+  it("the report says Anchored only for a proof that executes to a Bitcoin attestation", () => {
+    const anchored = reportOtsAnchoring({ otsStatus: "PENDING", otsProofBase64: upgradedProof().base64, otsHash: REAL.boundFingerprintHash, fingerprintHash: REAL.boundFingerprintHash });
+    expect(anchored.state).toBe("ANCHORED");
+    expect(otsStatusWordFor(anchored.state)).toBe("Anchored");
+    expect(otsStatusLineFor(anchored.state)).toBe("Bitcoin anchored");
+  });
+
+  it("a status, a valid txid and a time never make a pending proof anchored", () => {
+    const a = reportOtsAnchoring({
+      otsStatus: "ANCHORED",
+      otsBitcoinTxid: "f".repeat(64),
+      otsAnchoredAtUtc: "2026-09-20T10:00:00.000Z",
+      otsProofBase64: REAL.boundProofBase64,
+      otsHash: REAL.boundFingerprintHash,
+      fingerprintHash: REAL.boundFingerprintHash,
+    } as never);
+    expect(a.state).toBe("PENDING");
+    expect(otsStatusWordFor(a.state)).toBe("Pending");
+  });
+
+  it("never says verified, attestation recorded or chain-verified for any state", () => {
+    for (const state of ["NOT_REQUESTED", "PENDING", "ANCHORED", "FAILED", "UNAVAILABLE"] as const) {
+      const text = `${otsStatusWordFor(state)} ${otsStatusLineFor(state)}`;
+      expect(text).not.toMatch(/verified|attestation recorded|chain/i);
     }
-  });
-
-  it("never says verified without recorded chain evidence; an attestation reads 'Attestation recorded' (2026-10-12)", () => {
-    const validTxid = "f".repeat(64);
-    const anchoredAtUtc = "2026-09-20T10:00:00.000Z";
-    // A valid txid, a recorded time, a structural check, even a recorded
-    // BITCOIN_VERIFIED check without its chain evidence: NOT verified.
-    for (const anchorCheck of [null, "PROOF_STRUCTURE", "BITCOIN_VERIFIED"]) {
-      const label = mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: validTxid, anchoredAtUtc, anchorCheck });
-      expect(label).toBe("Attestation recorded");
-      expect(label).not.toMatch(/anchored/i);
-    }
-    expect(
-      mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: validTxid })
-    ).toBe("Pending");
-    expect(
-      mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: null })
-    ).toBe("Pending");
-    expect(
-      mapOtsStatusPublicLabelWithTxid({ status: "PENDING", bitcoinTxid: validTxid })
-    ).toBe("Pending");
-  });
-
-  it("downgrades anchor tone to warning without a valid Bitcoin txid", () => {
-    const tone = normalizeBitcoinAnchorTone({
-      status: "ANCHORED",
-      bitcoinTxid: null,
-    });
-    expect(tone).toBe("warning");
-  });
-
-  it("escalates anchor tone to success only for a CHAIN_VERIFIED anchor with a valid txid", () => {
-    expect(
-      normalizeBitcoinAnchorTone({ status: "ANCHORED", bitcoinTxid: "a".repeat(64), anchorCheck: "BITCOIN_VERIFIED", truthState: "CHAIN_VERIFIED" }),
-    ).toBe("success");
-    // (2026-10-12) A recorded check without the chain evidence is not CHAIN_VERIFIED.
-    expect(normalizeBitcoinAnchorTone({ status: "ANCHORED", bitcoinTxid: "a".repeat(64), anchorCheck: "BITCOIN_VERIFIED" })).toBe("warning");
-    // An attested proof read by structure alone is a caution, never a success.
-    expect(normalizeBitcoinAnchorTone({ status: "ANCHORED", bitcoinTxid: "a".repeat(64), anchorCheck: "PROOF_STRUCTURE" })).toBe("warning");
-    expect(normalizeBitcoinAnchorTone({ status: "ANCHORED", bitcoinTxid: "a".repeat(64) })).toBe("warning");
-  });
-
-  it("rejects malformed Bitcoin txids (not 64 hex)", () => {
-    const tone = normalizeBitcoinAnchorTone({
-      status: "ANCHORED",
-      bitcoinTxid: "not-hex",
-    });
-    expect(tone).toBe("warning");
   });
 });
 

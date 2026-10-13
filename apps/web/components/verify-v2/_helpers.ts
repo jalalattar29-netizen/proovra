@@ -19,7 +19,7 @@
  * behaviour. CR4 changes ZERO logic in these helpers.
  */
 
-import { otsClaimBadge, parseOtsAnchorClaim, resolveOtsAnchorClaim } from "@proovra/shared";
+import { readOtsAnchoringView } from "@proovra/shared";
 import { formatUserDateTime } from "../../lib/date";
 
 // ---------------------------------------------------------------------------
@@ -132,28 +132,21 @@ export function timestampTone(
 }
 
 /**
- * The OTS badge from the ONE claim (2026-09-29): the server's `anchorClaim`
- * when it sent one, else the same shared resolver over the stored fields. A
- * txid no longer decides green; see `otsClaimBadge`.
+ * The Bitcoin anchoring badge (2026-10-13): the state the server sent, read
+ * through `readOtsAnchoringView` — never re-derived from a txid, a time or a
+ * status string. ANCHORED ("Bitcoin anchored") is the only success; FAILED
+ * warns; every other state is neutral. A missing or unknown state reads as
+ * "Bitcoin anchoring unavailable".
  */
-export function otsTone(input: {
-  anchorClaim?: string | null;
-  status?: string | null;
-  anchoredAtUtc?: string | null;
-  anchorCheck?: string | null;
-  proofPresent?: boolean | null;
-  bitcoinTxid?: string | null;
-}): { label: string; tone: "success" | "warning" | "neutral" | "info" } {
-  const claim =
-    parseOtsAnchorClaim(input.anchorClaim) ??
-    resolveOtsAnchorClaim({
-      status: input.status,
-      anchoredAtUtc: input.anchoredAtUtc,
-      anchorCheck: input.anchorCheck,
-      proofPresent: input.proofPresent,
-      bitcoinTxid: input.bitcoinTxid ?? null,
-    });
-  return otsClaimBadge(claim);
+export function otsTone(otsAnchoring: unknown): {
+  label: string;
+  tone: "success" | "warning" | "neutral" | "info";
+} {
+  const view = readOtsAnchoringView(otsAnchoring);
+  return {
+    label: view.label,
+    tone: view.tone === "success" ? "success" : view.tone === "danger" ? "warning" : "neutral",
+  };
 }
 
 // ---------------------------------------------------------------------------

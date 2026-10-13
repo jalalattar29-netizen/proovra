@@ -34,9 +34,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Link2, ShieldCheck } from "lucide-react";
 
 import {
-  OTS_PROOF_STATUS_LABELS,
+  OTS_STATE_WORDS,
   TSA_PROOF_STATUS_LABELS,
-  parseOtsProofStatus,
+  parseOtsState,
   parseTsaProofStatus,
   type CaptureManifestFacts,
   type ProvenanceChain,
@@ -51,7 +51,8 @@ import {
 type ProvenanceChainView = ProvenanceChain & {
   time: {
     rfc3161: ProvenanceChain["time"]["rfc3161"] & { status?: string };
-    ots: ProvenanceChain["time"]["ots"] & { status?: string };
+    /** `status` is THE OtsState the server resolved; `statusLabel` its word. */
+    ots: ProvenanceChain["time"]["ots"] & { status?: string; statusLabel?: string };
   };
   trustEventChain?: { valid: boolean | null; checked: number; unverifiableLegacy: number };
   captureManifestFacts?: CaptureManifestFacts | null;
@@ -67,11 +68,20 @@ export function rfc3161LayerText(chain: ProvenanceChainView, fmt: (iso: string) 
   return TSA_PROOF_STATUS_LABELS[status];
 }
 
-/** Only VERIFIED is "anchored"; a pending proof is never shown as an anchor. */
-export function otsLayerText(chain: ProvenanceChainView): string {
-  const status = parseOtsProofStatus(chain.time.ots.status);
-  if (status === null) return "Not stated";
-  return OTS_PROOF_STATUS_LABELS[status];
+/**
+ * Bitcoin anchoring (2026-10-13): the server's OtsState in its one word — a
+ * missing or unknown state reads as Unavailable. Only ANCHORED adds the
+ * proof's block height and when PROOVRA recorded anchoring (never a block time).
+ */
+export function otsLayerText(chain: ProvenanceChainView, fmt?: (iso: string) => string): string {
+  const ots = chain.time.ots;
+  const state = parseOtsState(ots.status);
+  const word = OTS_STATE_WORDS[state];
+  if (state !== "ANCHORED") return word;
+  const parts = [`✓ ${word}`];
+  if (ots.bitcoinBlockHeight != null) parts.push(`block ${ots.bitcoinBlockHeight}`);
+  if (ots.appliedAtUtc && fmt) parts.push(`recorded by PROOVRA ${fmt(ots.appliedAtUtc)}`);
+  return parts.join(" · ");
 }
 
 import { apiFetch } from "../../../../../lib/api";
@@ -260,8 +270,8 @@ function ProvenanceChainBody({ chain }: { chain: ProvenanceChainView }) {
       value: rfc3161LayerText(chain, formatUserDateTime),
     },
     {
-      label: "Public anchor",
-      value: otsLayerText(chain),
+      label: "Bitcoin anchoring",
+      value: otsLayerText(chain, formatUserDateTime),
     },
   ];
   if (chain.trustEventChain && chain.trustEventChain.valid !== null) {

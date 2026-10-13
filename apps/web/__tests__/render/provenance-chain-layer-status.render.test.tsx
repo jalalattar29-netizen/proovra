@@ -1,6 +1,7 @@
 /**
  * UC-TRUST-002 — the web provenance section states the canonical proof
- * status: a PENDING OTS proof is never "Anchored", a legacy token never
+ * status: Bitcoin anchoring is the server's OtsState (a PENDING proof is
+ * never "Anchored", an unknown state is "Unavailable"), a legacy token never
  * validated is never "Applied".
  */
 import { describe, expect, it, vi } from "vitest";
@@ -18,12 +19,29 @@ function chain(time: Record<string, unknown>) {
 }
 
 describe("provenance time layers (UC-TRUST-002)", () => {
-  it("a submitted / pending OTS proof is not anchored", () => {
-    const text = otsLayerText(chain({ rfc3161: {}, ots: { applied: true, status: "SUBMITTED", confirmations: null } }));
-    expect(text).not.toMatch(/^Anchored/);
+  it("a pending OTS proof is 'Pending', never anchored", () => {
+    const text = otsLayerText(chain({ rfc3161: {}, ots: { applied: false, status: "PENDING", anchorTxId: null } }), fmt);
     expect(text).toBe("Pending");
-    expect(otsLayerText(chain({ rfc3161: {}, ots: { applied: false, status: "ANCHORED_UNVERIFIED" } }))).toBe("Attestation recorded");
-    expect(otsLayerText(chain({ rfc3161: {}, ots: { applied: true, status: "VERIFIED" } }))).toBe("Verified");
+    expect(text).not.toMatch(/Anchored/);
+  });
+
+  it("ANCHORED reads ✓ Anchored with the proof's block height and PROOVRA's recording time", () => {
+    const text = otsLayerText(
+      chain({
+        rfc3161: {},
+        ots: { applied: true, status: "ANCHORED", statusLabel: "Anchored", bitcoinBlockHeight: 812345, appliedAtUtc: "2026-09-01T00:00:00Z" },
+      }),
+      fmt,
+    );
+    expect(text).toBe("✓ Anchored · block 812345 · recorded by PROOVRA 2026-09-01T00:00:00Z");
+  });
+
+  it("the removed vocabulary and unknown states read as Unavailable; not requested / failed say so", () => {
+    for (const status of ["SUBMITTED", "ANCHORED_UNVERIFIED", "VERIFIED", "CHAIN_VERIFIED", undefined]) {
+      expect(otsLayerText(chain({ rfc3161: {}, ots: { applied: true, status } }), fmt)).toBe("Unavailable");
+    }
+    expect(otsLayerText(chain({ rfc3161: {}, ots: { applied: false, status: "NOT_REQUESTED" } }), fmt)).toBe("Not requested");
+    expect(otsLayerText(chain({ rfc3161: {}, ots: { applied: false, status: "FAILED" } }), fmt)).toBe("Failed");
   });
 
   it("a legacy STAMPED token never validated is 'Recorded, not validated', never 'Applied'", () => {

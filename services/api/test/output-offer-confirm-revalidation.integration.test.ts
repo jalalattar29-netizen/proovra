@@ -12,6 +12,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { otsColumnsFor } from "./helpers/ots-proof-bytes.js";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -181,10 +182,9 @@ describe("RGA-02 confirm-time offer revalidation (live PostgreSQL 16 + Redis, re
   it("OTS becomes anchored → stale (OTS_CHANGED)", async () => {
     const id = await seedV1();
     const s = await status(id);
-    await prisma.evidence.update({
-      where: { id },
-      data: { otsStatus: "ANCHORED", otsAnchoredAtUtc: new Date(), otsAnchorCheck: "PROOF_STRUCTURE" } as never,
-    });
+    // (2026-10-13) The stored proof now attests a Bitcoin block.
+    const fp = (await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { fingerprintHash: true } })).fingerprintHash ?? "c".repeat(64);
+    await prisma.evidence.update({ where: { id }, data: otsColumnsFor(fp, "ANCHORED") });
     await expectStale(id, s.outputs.offer!.revision, "OTS_CHANGED");
     expect((await status(id)).outputs.freshness.changes.map((c) => c.code)).toContain("OTS_ANCHORED_AFTER_REPORT");
   });

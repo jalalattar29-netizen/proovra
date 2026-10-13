@@ -877,9 +877,7 @@ function EvidenceDetailPageInner() {
    * The remaining condition is the one that was always doing the real work:
    * offer the check while the anchor can still move.
    */
-  const showManualLatestStatusCheck = !isOtsTerminal(
-    workspace.preservationMatrix.ots.effectiveStatus,
-  );
+  const showManualLatestStatusCheck = !isOtsTerminal(workspace.preservationMatrix.ots);
 
   const canSeeDiscussion =
     workspaceCaps?.discussionEnabled === true ||

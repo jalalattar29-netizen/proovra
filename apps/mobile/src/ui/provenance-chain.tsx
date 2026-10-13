@@ -21,6 +21,7 @@ import {
   type ProvenanceView,
 } from "../product/provenance";
 import { ProovraButton, ProovraCard, ProovraSection, ProovraText } from "./index";
+import { useOptionalLocale } from "../locale-context";
 import { ProovraDetailRows } from "./patterns";
 
 type Load = { kind: "loading" } | { kind: "denied"; message: string } | { kind: "error"; message: string } | { kind: "ready"; chain: ProvenanceView };
@@ -52,6 +53,7 @@ export function ProvenanceChainSection({ evidenceId, workspaceId }: { evidenceId
   }, [load, workspaceId]);
 
   const fmt = (iso: string) => formatUserDateTime(iso);
+  const locale = useOptionalLocale();
 
   return (
     <ProovraSection title={COPY.title}>
@@ -71,7 +73,7 @@ export function ProvenanceChainSection({ evidenceId, workspaceId }: { evidenceId
             <>
               <ProovraDetailRows rows={provenanceCaptureRows(state.chain, fmt)} />
               <ProovraText variant="bodySm" weight="semibold">{COPY.preservation}</ProovraText>
-              <ProovraDetailRows rows={provenancePreservationRows(state.chain, fmt)} />
+              <ProovraDetailRows rows={provenancePreservationRows(state.chain, fmt, locale)} />
               <ProovraText variant="label" color={theme.color.ink.muted}>{COPY.custodyNote}</ProovraText>
               {state.chain.derivations.length > 0 ? (
                 <>

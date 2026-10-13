@@ -71,7 +71,15 @@
 import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
-import { resolveOtsProofStatus, resolveTsaProofStatus, tsaProofStatusIsValidated } from "@proovra/shared";
+import {
+  normalizeOtsStatusValue,
+  OTS_ANCHORING_RECORD_SELECT,
+  resolveRecordOtsAnchoring,
+  resolveTsaProofStatus,
+  tsaProofStatusIsValidated,
+  type OtsAnchoring,
+  type OtsAnchoringRecord,
+} from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import {
@@ -202,6 +210,11 @@ type EvidenceIntegrityRow = {
   otsUpgradedAtUtc: Date | null;
   /** The earliest pinned anchor, when one exists. Read-only, for aging. */
   otsAnchoredAtUtc: Date | null;
+  /** (2026-10-13) The stored proof and the digest it must commit to: the OTS state's only inputs. */
+  otsProofBase64: string | null;
+  otsHash: string | null;
+  fingerprintHash: string | null;
+  otsCalendar: string | null;
   createdAt: Date;
   updatedAt: Date;
   /**
@@ -221,10 +234,7 @@ const EVIDENCE_SELECT = {
   tsaStatus: true,
   tsaFailureReason: true,
   tsaProvider: true,
-  otsStatus: true,
-  otsFailureReason: true,
-  otsUpgradedAtUtc: true,
-  otsAnchoredAtUtc: true,
+  ...OTS_ANCHORING_RECORD_SELECT,
   createdAt: true,
   updatedAt: true,
   integrityCorrelationId: true,
@@ -234,24 +244,68 @@ function failureReasonFor(
   row: EvidenceIntegrityRow,
   integrityClass: IntegrityClass,
 ): string | null {
-  return integrityClass === "tsa_failure"
-    ? row.tsaFailureReason
-    : row.otsFailureReason;
+  if (integrityClass === "tsa_failure") return row.tsaFailureReason;
+  // (2026-10-13) The proof's own bounded code first (malformed, digest
+  // mismatch, missing proof, ...); the stored reason only classifies a
+  // pipeline failure the proof cannot name (calendar submission, budget).
+  const code = resolveRecordOtsAnchoring(row).failureCode;
+  return code && code !== "OTS_PROCESSING_FAILED" ? code : (row.otsFailureReason ?? code);
 }
 
-function statusFor(
-  row: Pick<EvidenceIntegrityRow, "tsaStatus" | "otsStatus">,
-  integrityClass: IntegrityClass,
-): string | null {
-  return integrityClass === "tsa_failure" ? row.tsaStatus : row.otsStatus;
+// ---------------------------------------------------------------------------
+// (2026-10-13) THE OTS PREDICATES. Every one reads the ONE state
+// (resolveRecordOtsAnchoring: the stored proof executed against the record's
+// digest). A status string, a txid or a timestamp never decides them.
+// ---------------------------------------------------------------------------
+
+/** The resolved OpenTimestamps anchoring of a row. */
+export function otsAnchoringOf(row: OtsAnchoringRecord): OtsAnchoring {
+  return resolveRecordOtsAnchoring(row);
+}
+
+/**
+ * Still waiting for Bitcoin: the proof resolves PENDING, or the record says
+ * PENDING and its proof bytes are not stored yet (the stamp is in flight).
+ */
+function isOtsAwaitingAnchor(row: OtsAnchoringRecord, anchoring: OtsAnchoring): boolean {
+  return (
+    anchoring.state === "PENDING" ||
+    (anchoring.state === "UNAVAILABLE" && normalizeOtsStatusValue(row.otsStatus) === "PENDING")
+  );
+}
+
+/**
+ * A REAL OTS DEFECT (`ots_failure`): the proof resolves FAILED (malformed,
+ * digest mismatch, unsupported operation, invalid attestation, exhausted
+ * upgrade budget, calendar submission failure), or the record references proof
+ * material that cannot be read (missing proof, no digest) outside the pending
+ * window. PENDING is never a failure; pending beyond the SLA is its own class.
+ */
+export function isOtsDefect(row: OtsAnchoringRecord): boolean {
+  const anchoring = otsAnchoringOf(row);
+  if (anchoring.state === "FAILED") return true;
+  return anchoring.state === "UNAVAILABLE" && !isOtsAwaitingAnchor(row, anchoring);
+}
+
+/**
+ * PENDING BEYOND THE SLA (`ots_pending_aged`): still awaiting Bitcoin AND past
+ * the shared aging window. Pending within the window opens nothing; a proof
+ * that resolves ANCHORED is never pending, whatever its stored status says.
+ */
+export function isOtsPendingBeyondSla(
+  row: OtsAnchoringRecord & { otsStatus: string | null; otsAnchoredAtUtc: Date | null; createdAt: Date },
+  now: Date,
+): boolean {
+  if (!isOtsAwaitingAnchor(row, otsAnchoringOf(row))) return false;
+  return isOtsPendingAged(row, now);
 }
 
 /** Is this record CURRENTLY failing this proof? Positive, from the row. */
 export function isCurrentlyFailing(
-  row: Pick<EvidenceIntegrityRow, "tsaStatus" | "otsStatus">,
+  row: Pick<EvidenceIntegrityRow, "tsaStatus"> & OtsAnchoringRecord,
   integrityClass: IntegrityClass,
 ): boolean {
-  return statusFor(row, integrityClass) === FAILED;
+  return integrityClass === "tsa_failure" ? row.tsaStatus === FAILED : isOtsDefect(row);
 }
 
 /**
@@ -262,28 +316,20 @@ export function isCurrentlyFailing(
  * condition, and an OTS failure closed on PENDING or NULL — contradicting the
  * registry's own contract ("otsStatus reaches ANCHORED or UPGRADED").
  *
- * The answer now comes from the canonical proof-status resolvers every
- * customer surface already uses: a timestamp has recovered only when it is
- * VALIDATED; an anchor only when it is recorded as anchored (verified against
- * the chain, or anchored and not yet chain-checked). Anything else — pending,
- * absent, recorded-not-validated — keeps the condition open.
+ * The answer now comes from the canonical resolvers every customer surface
+ * already uses: a timestamp has recovered only when it is VALIDATED; an anchor
+ * only when the record resolves ANCHORED (resolveRecordOtsAnchoring). Anything
+ * else (pending, absent, recorded-not-validated) keeps the condition open.
  */
-export type IntegrityRecoveryRow = {
+export type IntegrityRecoveryRow = OtsAnchoringRecord & {
   tsaStatus: string | null;
   tsaValidatedAtUtc: Date | null;
-  otsStatus: string | null;
-  otsAnchoredAtUtc: Date | null;
-  otsAnchorCheck: string | null;
-  otsBitcoinTxid: string | null;
 };
 
 export const INTEGRITY_RECOVERY_SELECT = {
   tsaStatus: true,
   tsaValidatedAtUtc: true,
-  otsStatus: true,
-  otsAnchoredAtUtc: true,
-  otsAnchorCheck: true,
-  otsBitcoinTxid: true,
+  ...OTS_ANCHORING_RECORD_SELECT,
 } as const;
 
 export function hasRecovered(row: IntegrityRecoveryRow, integrityClass: IntegrityClass): boolean {
@@ -292,13 +338,9 @@ export function hasRecovered(row: IntegrityRecoveryRow, integrityClass: Integrit
       resolveTsaProofStatus({ tsaStatus: row.tsaStatus, tsaValidatedAtUtc: row.tsaValidatedAtUtc }),
     );
   }
-  const ots = resolveOtsProofStatus({
-    status: row.otsStatus,
-    anchoredAtUtc: row.otsAnchoredAtUtc,
-    anchorCheck: row.otsAnchorCheck,
-    bitcoinTxid: row.otsBitcoinTxid,
-  });
-  return ots === "VERIFIED" || ots === "ANCHORED_UNVERIFIED";
+  // (2026-10-13) An OTS condition auto-resolves when the record resolves
+  // ANCHORED: the stored proof executes to a valid Bitcoin attestation.
+  return otsAnchoringOf(row).state === "ANCHORED";
 }
 
 const PROOF_LABEL: Record<IntegrityClass, string> = {
@@ -444,6 +486,9 @@ export async function syncEvidenceIntegrityConditions(
           OR: [
             { tsaStatus: FAILED },
             { otsStatus: FAILED },
+            // (2026-10-13) MISSING PROOF: a record recorded as anchored whose
+            // proof bytes are absent resolves UNAVAILABLE, a real defect.
+            { otsStatus: "ANCHORED", otsProofBase64: null },
             // AGED-PENDING. Selected broadly here — every record still in a
             // trying state — and narrowed by the SHARED age predicate below,
             // because the window is configurable and a SQL cutoff computed
@@ -499,7 +544,7 @@ export async function syncEvidenceIntegrityConditions(
         integrityConditionFingerprint(integrityClass, row.id),
       );
     }
-    if (isOtsPendingAged(row, now)) {
+    if (isOtsPendingBeyondSla(row, now)) {
       wantedFingerprints.push(otsPendingAgedFingerprint(row.id));
     }
   }
@@ -550,7 +595,7 @@ export async function syncEvidenceIntegrityConditions(
     //
     // READ-ONLY. Nothing here contacts a calendar server, retries an anchor,
     // replaces a proof or writes to the Evidence row.
-    if (isOtsPendingAged(row, now)) {
+    if (isOtsPendingBeyondSla(row, now)) {
       const outcome = await inSourceStage("WRITE", () =>
         recordOtsPendingAgedCondition(
           {
@@ -993,8 +1038,7 @@ async function resolveRecoveredOtsPendingAged(
     },
     select: {
       id: true,
-      otsStatus: true,
-      otsAnchoredAtUtc: true,
+      ...OTS_ANCHORING_RECORD_SELECT,
       createdAt: true,
     },
   });
@@ -1005,7 +1049,9 @@ async function resolveRecoveredOtsPendingAged(
     const evidence = byId.get(evidenceId);
     // Unreadable or gone: NOT proof of recovery. Leave it open.
     if (!evidence) continue;
-    if (isOtsPendingAged(evidence, args.now)) continue;
+    // Recovered once it is no longer pending beyond the SLA: it resolved
+    // ANCHORED, or it became a defect (the `ots_failure` class takes over).
+    if (isOtsPendingBeyondSla(evidence, args.now)) continue;
 
     const decision = decideObservationTransition({
       currentStatus: row.status as IncidentTransitionStatus,

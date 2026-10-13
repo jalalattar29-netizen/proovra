@@ -172,7 +172,6 @@ const INIT_SELECT = {
   fingerprintHash: true,
   otsProofBase64: true,
   otsStatus: true,
-  otsBitcoinTxid: true,
 } as const;
 
 /**
@@ -291,10 +290,7 @@ export async function ensureEvidenceOtsInitialized(params: {
       // stamp. `updateMany` returns a count rather than throwing, which is
       // what makes the loser's path ordinary rather than exceptional.
       where: { id: evidenceId, otsProofBase64: null, deletedAt: null },
-      data: buildOtsEvidenceUpdateData({
-        ...stamp,
-        existingBitcoinTxid: evidence.otsBitcoinTxid ?? null,
-      }) as Prisma.EvidenceUpdateManyMutationInput,
+      data: buildOtsEvidenceUpdateData(stamp) as Prisma.EvidenceUpdateManyMutationInput,
     });
 
     if (claimed.count === 0) return false;
@@ -344,25 +340,11 @@ export async function ensureEvidenceOtsInitialized(params: {
 /**
  * Does a freshly-initialized proof still need the upgrade ladder?
  *
- * A PENDING proof always does. An ANCHORED one does too when it arrived
- * without a Bitcoin txid, because the product will not present that as a
- * verified anchor — so the ladder keeps running until the anchor is one it is
- * willing to show.
- *
- * CORRECTED 2026-09-09. This said `resolveEffectiveOtsStatus` degrades "exactly
- * that shape" back to PENDING. It does not: that function degrades an ANCHORED
- * status with no `anchoredAtUtc`, and says nothing about the txid. The two
- * conditions are close enough that the sentence read as true, which is what
- * made it worth fixing — the txid rule lives in `mapPublicAnchoringLabelFromOts`
- * and in this processor's own `hasDefensibleTxid` check. The BEHAVIOUR here is
- * unchanged and correct; only the citation was wrong.
- *
- * FAILED and DISABLED need nothing: one has no proof worth upgrading, the
- * other means the feature is off on this deployment.
+ * A PENDING proof does: the ladder runs until the stored bytes execute to a
+ * Bitcoin block attestation (ots-upgrade.processor.ts decides that from the
+ * proof, 2026-10-13). FAILED and DISABLED need nothing: one has no proof worth
+ * upgrading, the other means the feature is off on this deployment.
  */
-export function otsInitializationNeedsUpgrade(
-  stamp: Pick<OtsStampResult, "status" | "bitcoinTxid">,
-): boolean {
-  if (stamp.status === "PENDING") return true;
-  return stamp.status === "ANCHORED" && !stamp.bitcoinTxid;
+export function otsInitializationNeedsUpgrade(stamp: Pick<OtsStampResult, "status">): boolean {
+  return stamp.status === "PENDING";
 }

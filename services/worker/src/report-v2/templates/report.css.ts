@@ -4760,9 +4760,8 @@ body {
   line-height: 1.12 !important;
   font-weight: 950 !important;
 
-  /* The canonical state labels are honest and can be long ("Proof present,
-     not chain-verified"): they wrap inside their own card, never run into
-     the next one. */
+  /* The canonical state labels can be long ("Bitcoin anchoring pending"):
+     they wrap inside their own card, never run into the next one. */
   white-space: normal !important;
   word-break: normal !important;
   overflow-wrap: break-word !important;

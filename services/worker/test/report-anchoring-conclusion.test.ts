@@ -1,20 +1,15 @@
 /**
- * ET-RPT-09 — the executive conclusion's anchoring claim follows the check.
- *
- * On a40ca76f an OpenTimestamps proof anchored to a Bitcoin block but NOT
- * checked against the chain scored "passed" (10/10) with anchoringState
- * "finalized", so the conclusion said the record had "finalized supporting
- * publication materials" while the OTS callout in the same PDF said
- * "Anchored — chain not checked". Since 2026-10-07 the decision itself can no
- * longer be finalized over an unchecked anchor, so the conclusion is driven
- * through the real builder here, not a hand-made finalized stub. Since
- * 2026-10-08 the conclusion IS the verification matrix's bounded summary and
- * the reviewer action: no overall verdict, confidence or score.
+ * ET-RPT-09, re-stated 2026-10-13 — the executive conclusion and Bitcoin
+ * anchoring. Anchoring is stated in its own words ("Bitcoin anchoring:
+ * Anchored." / "Pending." …) from the canonical state, never as "verified" and
+ * never as a reason the other layers fail. Driven through the real builder on
+ * real OpenTimestamps bytes.
  */
 import { describe, expect, it } from "vitest";
 
-import { buildEvidenceTrustDecision, buildVerificationMatrix, findForbiddenCustomerClaims } from "@proovra/shared";
+import { buildEvidenceTrustDecision, findForbiddenCustomerClaims } from "@proovra/shared";
 
+import { REAL, upgradedProof } from "../../../packages/shared/tests/helpers/ots-fixtures.mjs";
 import { buildExecutiveConclusion } from "../src/report-v2/truth-model.js";
 
 const forensic = Array.from({ length: 6 }, (_, i) => ({
@@ -24,13 +19,13 @@ const forensic = Array.from({ length: 6 }, (_, i) => ({
   eventHash: `h${i}`,
 }));
 
-function decide(otsAnchorCheck: "PROOF_STRUCTURE" | "BITCOIN_VERIFIED") {
-  return buildEvidenceTrustDecision({
+function conclude(otsProofBase64: string | null, otsStatus = "ANCHORED") {
+  const decision = buildEvidenceTrustDecision({
     evidence: {
       verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
       recordedIntegrityVerifiedAtUtc: "2026-10-01T00:00:00.000Z",
       fileSha256: "a".repeat(64),
-      fingerprintHash: "b".repeat(64),
+      fingerprintHash: REAL.boundFingerprintHash,
       signatureBase64: "c2ln",
       signingKeyId: "k1",
       publicKeyPem: "pem",
@@ -38,10 +33,10 @@ function decide(otsAnchorCheck: "PROOF_STRUCTURE" | "BITCOIN_VERIFIED") {
       custodyChainValid: true,
       tsaStatus: "STAMPED",
       tsaValidatedAtUtc: "2026-10-01T00:00:01.000Z",
-      otsStatus: "ANCHORED",
+      otsStatus,
+      otsHash: REAL.boundFingerprintHash,
       otsAnchoredAtUtc: "2026-10-01T02:00:00.000Z",
-      otsBitcoinTxid: "c".repeat(64),
-      otsAnchorCheck,
+      otsProofBase64,
       storageImmutable: true,
       storageObjectLockMode: "COMPLIANCE",
       storageObjectLockRetainUntilUtc: "2036-01-01T00:00:00.000Z",
@@ -49,37 +44,35 @@ function decide(otsAnchorCheck: "PROOF_STRUCTURE" | "BITCOIN_VERIFIED") {
     },
     custodyEvents: forensic,
   });
-}
-
-function conclude(otsAnchorCheck: "PROOF_STRUCTURE" | "BITCOIN_VERIFIED", acquisitionMode = "DIRECT_SCREEN_CAPTURE_IOS") {
-  const decision = decide(otsAnchorCheck);
-  const matrix = buildVerificationMatrix({
-    signals: decision.signals,
-    identity: null,
-    acquisitionMode,
-    packageSeal: { kind: "SELF" },
-    publication: { kind: "DOCUMENT" },
-  });
-  void matrix;
   return buildExecutiveConclusion(decision);
 }
 
-describe("executive conclusion vs the OTS chain check (ET-RPT-09)", () => {
-  it("anchored but not chain-checked: anchoring is named as not verified, never verified; no success tone", () => {
-    const c = conclude("PROOF_STRUCTURE");
-    expect(c.body).not.toMatch(/finalized supporting/i);
-    expect(c.body).toMatch(/Not verified: [^.]*Bitcoin anchoring/);
+describe("executive conclusion and Bitcoin anchoring", () => {
+  it("an anchored proof: 'Bitcoin anchoring: Anchored.', never in the verified list, success tone", () => {
+    const c = conclude(upgradedProof().base64);
+    expect(c.body).toMatch(/^Verified for this evidence record: core integrity, /);
+    expect(c.body).toContain("Bitcoin anchoring: Anchored.");
     expect(c.body).not.toMatch(/Verified for this evidence record: [^.]*Bitcoin anchoring/);
-    // The OTS card states its status and sentence once; the conclusion does not repeat them.
-    expect(c.body).not.toMatch(/OpenTimestamps|Attestation recorded|Independent Bitcoin verification/);
+    expect(c.body).not.toMatch(/Not verified: [^.]*Bitcoin anchoring/);
+    expect(c.tone).toBe("success");
     expect(findForbiddenCustomerClaims(c.body)).toEqual([]);
-    expect(c.tone).not.toBe("success");
+  });
+
+  it("a stored ANCHORED label over a pending proof: 'Bitcoin anchoring: Pending.' — the proof decides", () => {
+    const c = conclude(REAL.boundProofBase64);
+    expect(c.body).toContain("Bitcoin anchoring: Pending.");
+    expect(c.body).not.toContain("Anchored");
+    // Pending anchoring is not a defect of the other layers.
+    expect(c.body).not.toMatch(/Failed:|Not verified:/);
+  });
+
+  it("no proof bytes: 'Bitcoin anchoring: Unavailable.'", () => {
+    expect(conclude(null).body).toContain("Bitcoin anchoring: Unavailable.");
   });
 
   it("states the evidence's verification layers — never a product boundary or a verdict", () => {
-    const c = conclude("PROOF_STRUCTURE");
-    expect(c.body).toMatch(/^Verified for this evidence record: core integrity, /);
-    expect(c.body).not.toMatch(/PROOVRA|admissib|authorship|Not checked/);
+    const c = conclude(upgradedProof().base64);
+    expect(c.body).not.toMatch(/PROOVRA|admissib|authorship|Not checked|Attestation recorded|independently verified/);
     expect(findForbiddenCustomerClaims(c.body)).toEqual([]);
   });
 });

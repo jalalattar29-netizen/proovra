@@ -63,10 +63,9 @@ import {
   QUEUE_RETRY_PROFILES,
   // OTS / anchor trust
   deriveAnchorSemantics,
-  isCompleteOtsAnchor,
   isValidOtsBitcoinTxid,
   normalizeOtsStatusValue,
-  resolveEffectiveOtsStatus,
+  resolveOtsAnchoring,
   // Observability
   evaluateAlerts,
   formatPrometheusExposition,
@@ -76,6 +75,7 @@ import {
   withSpan,
   type SpanSink,
 } from "@proovra/shared";
+import { otsProofForDigest } from "./helpers/ots-proof-bytes.js";
 
 import {
   computeAuditLogChainHash,
@@ -461,58 +461,57 @@ describe("Phase Z [Part D] — Export / package / verify parity", () => {
 // Part E — OTS / TSA / anchor regression validation
 // =============================================================================
 
-describe("Phase Z [FM-OTS-001] — ANCHORED without proof is degraded to PENDING", () => {
-  it("status=ANCHORED with no txid and no anchoredAtUtc → PENDING", () => {
-    expect(
-      resolveEffectiveOtsStatus({
-        status: "ANCHORED",
-        bitcoinTxid: null,
-        anchoredAtUtc: null,
-      }),
-    ).toBe("PENDING");
-  });
-
-  it("status=ANCHORED with anchoredAtUtc but no txid stays ANCHORED (the timestamp is the proof signal we accept)", () => {
-    expect(
-      resolveEffectiveOtsStatus({
-        status: "ANCHORED",
-        bitcoinTxid: null,
-        anchoredAtUtc: "2025-01-15T12:00:00Z",
-      }),
-    ).toBe("ANCHORED");
-  });
-
-  it("deriveAnchorSemantics never reports verified without anchor material", () => {
-    const sem = deriveAnchorSemantics({
-      otsStatus: "ANCHORED",
-      transactionId: null,
-      anchoredAtUtc: null,
+describe("Phase Z [FM-OTS-001] — ANCHORED is decided by the proof, never by a status, txid or time", () => {
+  const DIGEST = "e".repeat(64);
+  it("status=ANCHORED with no proof bytes is UNAVAILABLE, never anchored", () => {
+    const a = resolveOtsAnchoring({
+      status: "ANCHORED",
+      proofBase64: null,
+      fingerprintHash: DIGEST,
+      anchoredAtUtc: "2025-01-15T12:00:00Z",
     });
-    expect(sem.anchoringStatus).not.toBe("verified");
-    expect(sem.publicAnchoringVerified).toBe(false);
-    expect(sem.anchorMode).not.toBe("anchored");
+    expect(a.state).toBe("UNAVAILABLE");
+    expect(a.failureCode).toBe("PROOF_MATERIAL_MISSING");
+  });
+
+  it("status=ANCHORED with a pending-only proof is PENDING", () => {
+    const a = resolveOtsAnchoring({
+      status: "ANCHORED",
+      proofBase64: otsProofForDigest(DIGEST),
+      fingerprintHash: DIGEST,
+      anchoredAtUtc: "2025-01-15T12:00:00Z",
+    });
+    expect(a.state).toBe("PENDING");
+    expect(a.anchoredAtUtc).toBeNull();
+  });
+
+  it("a proof that executes to a Bitcoin block attestation is ANCHORED with its block height", () => {
+    const a = resolveOtsAnchoring({
+      status: "PENDING",
+      proofBase64: otsProofForDigest(DIGEST, { bitcoinHeight: 860000 }),
+      fingerprintHash: DIGEST,
+    });
+    expect(a.state).toBe("ANCHORED");
+    expect(a.bitcoinBlockHeight).toBe(860000);
+  });
+
+  it("deriveAnchorSemantics projects the state it is given and never upgrades it", () => {
+    const sem = deriveAnchorSemantics({ otsState: "PENDING", transactionId: "a".repeat(64) });
+    expect(sem.otsState).toBe("PENDING");
+    expect(sem.anchorMode).toBe("bitcoin_anchoring_pending");
+    expect(sem.anchoringLabel).toBe("Bitcoin anchoring pending");
   });
 });
 
 describe("Phase Z [FM-OTS-002] — empty / malformed proof never produces a .ots file", () => {
-  it("isCompleteOtsAnchor is false without anchoredAtUtc", () => {
-    expect(
-      isCompleteOtsAnchor({
-        status: "ANCHORED",
-        bitcoinTxid: "a".repeat(64),
-        anchoredAtUtc: null,
-      }),
-    ).toBe(false);
-  });
-
-  it("isCompleteOtsAnchor is true with status=ANCHORED + anchoredAtUtc", () => {
-    expect(
-      isCompleteOtsAnchor({
-        status: "ANCHORED",
-        bitcoinTxid: null,
-        anchoredAtUtc: "2025-01-15T12:00:00Z",
-      }),
-    ).toBe(true);
+  it("an unreadable proof is FAILED (MALFORMED_PROOF), never anchored", () => {
+    const a = resolveOtsAnchoring({
+      status: "ANCHORED",
+      proofBase64: Buffer.from("not an ots proof").toString("base64"),
+      fingerprintHash: "e".repeat(64),
+    });
+    expect(a.state).toBe("FAILED");
+    expect(a.failureCode).toBe("MALFORMED_PROOF");
   });
 
   it("verification-package builder emits proof only when proofBase64 decodes to non-zero length", () => {
@@ -520,9 +519,11 @@ describe("Phase Z [FM-OTS-002] — empty / malformed proof never produces a .ots
       "../../worker/src/verification-package.ts",
     );
     expect(src).toContain("decideOtsPackageArtifact");
-    // (2026-10-12) Bytes are emitted only for a proof whose digest binding,
-    // read from its bytes, is MATCH — an empty or malformed proof cannot be.
-    expect(src).toMatch(/binding\.kind === "MATCH" \? Buffer\.from\(input\.proofBase64 as string, "base64"\) : null;/);
+    // (2026-10-13) The ONE state authority decides: a proof that fails
+    // validation refuses the package, and bytes are emitted only for a proof
+    // bound to the record's digest — an empty or malformed proof cannot be.
+    expect(src).toMatch(/if \(otsBlocksPublication\(anchoring\)\) \{/);
+    expect(src).toMatch(/bound \? Buffer\.from\(String\(input\.proofBase64\)\.trim\(\), "base64"\) : null;/);
   });
 });
 
@@ -531,9 +532,9 @@ describe("Phase Z [FM-OTS-003] — DISABLED OTS workspace produces no companion"
     const src = readSource(
       "../../worker/src/verification-package.ts",
     );
-    // The DISABLED early-return short-circuits both proofBytes and companion.
-    expect(src).toMatch(/canonicalStatus\s*===\s*"DISABLED"/);
-    expect(src).toMatch(/proofBytes:\s*null,\s*companion:\s*null/);
+    // NOT_REQUESTED (DISABLED or never requested) short-circuits both the
+    // proof bytes and the companion.
+    expect(src).toMatch(/anchoring\.state\s*===\s*"NOT_REQUESTED"\)\s*return\s*\{\s*proofBytes:\s*null,\s*companion:\s*null/);
   });
 });
 
@@ -547,12 +548,10 @@ describe("Phase Z [FM-OTS-004] — invalid txid is rejected", () => {
     expect(isValidOtsBitcoinTxid("A".repeat(64))).toBe(true); // case-insensitive
   });
 
-  it("deriveAnchorSemantics drops invalid txid to null", () => {
-    const sem = deriveAnchorSemantics({
-      transactionId: "not-a-real-txid",
-      anchoredAtUtc: null,
-    });
-    expect(sem.bitcoinTxid).toBe(null);
+  it("deriveAnchorSemantics carries no txid when none is given", () => {
+    const sem = deriveAnchorSemantics({ transactionId: "  ", otsState: "NOT_REQUESTED" });
+    expect(sem.transactionId).toBe(null);
+    expect(sem.hasTransactionId).toBe(false);
   });
 
   it("normalizeOtsStatusValue clamps unknown statuses to null", () => {

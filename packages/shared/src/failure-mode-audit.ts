@@ -317,13 +317,12 @@ export const FAILURE_MODE_AUDIT: ReadonlyArray<FailureModeEntry> = [
     domain: "anchor_trust",
     severity: "CRITICAL",
     scenario:
-      "Record claims status=ANCHORED but has no Bitcoin txid AND no anchoredAtUtc.",
+      "Record claims status=ANCHORED (or carries a txid / anchored-at time) but its stored proof does not execute to a Bitcoin block attestation over the record's digest.",
     impact:
       "Trust badge would assert Bitcoin anchoring without any proof — fabricated trust.",
     mitigations: [
-      "resolveEffectiveOtsStatus degrades ANCHORED → PENDING when neither signal is present.",
-      "decideOtsPackageArtifact mirrors the degrade rule in the verification package builder.",
-      "deriveAnchorSemantics never emits anchoringStatus='verified' without publicAnchoringVerified.",
+      "resolveOtsAnchoring decides ANCHORED only from the executed proof bytes; a status, txid or time is never evidence.",
+      "The package's opentimestamps.json and manifest otsState are the same resolved state; checkSealedPackageFacts fails a disagreement.",
     ],
     validationStrategy: "pure_helper_test",
     runbookId: "RB-OTS-DEGRADATION",
@@ -337,8 +336,8 @@ export const FAILURE_MODE_AUDIT: ReadonlyArray<FailureModeEntry> = [
     impact:
       "An empty .ots file would be emitted as if it carried proof — verifiers would fail in opaque ways.",
     mitigations: [
-      "decideOtsPackageArtifact only emits proofBytes when Buffer.from(base64) has non-zero length.",
-      "Companion JSON sets proofPresent=false and verificationHint to the 'no proof' string when bytes are absent.",
+      "resolveOtsAnchoring resolves an unreadable proof to FAILED (MALFORMED_PROOF) and a missing one to UNAVAILABLE.",
+      "decideOtsPackageArtifact only emits proofBytes for a non-empty proof; opentimestamps.json states proofPresent=false otherwise.",
     ],
     validationStrategy: "pure_helper_test",
     runbookId: "RB-OTS-DEGRADATION",
@@ -364,7 +363,7 @@ export const FAILURE_MODE_AUDIT: ReadonlyArray<FailureModeEntry> = [
     impact:
       "A malformed txid could be displayed as 'anchored' on the trust badge.",
     mitigations: [
-      "isValidOtsBitcoinTxid enforces /^[a-f0-9]{64}$/i; deriveAnchorSemantics drops invalid values to null.",
+      "A txid is shown only when the executed proof path derives it from a strictly parsed transaction; stored txid columns are never displayed as a claim.",
     ],
     validationStrategy: "pure_helper_test",
   },

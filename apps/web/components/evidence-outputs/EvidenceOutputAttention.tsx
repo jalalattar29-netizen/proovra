@@ -116,7 +116,7 @@ export function EvidenceOutputsCard({
               testId="evidence-outputs-package"
             />
             <Fact label="Trusted timestamp" value={tsa.label} testId="evidence-outputs-tsa" />
-            <Fact label="OpenTimestamps" value={ots.label} testId="evidence-outputs-ots" />
+            <Fact label="Bitcoin anchoring" value={ots.label} testId="evidence-outputs-ots" />
             {a.updatedAt ? <Fact label="Last generated" value={formatDateTime(a.updatedAt)} /> : null}
           </dl>
           {/* Said only when the server actually compared the facts. */}

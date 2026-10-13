@@ -25,7 +25,13 @@ export interface PreservationView {
   verificationStatus: string | null;
   verificationStatusLabel: string;
   tsa: { status: string | null; provider: string | null; genTimeUtc: string | null; failureReason: string | null };
-  ots: { status: string | null; effectiveStatus: string | null; proofPresent: boolean; anchoredAtUtc: string | null; bitcoinTxid: string | null; failureReason: string | null };
+  /**
+   * `preservationMatrix.ots` — an OtsAnchoringView (2026-10-13). `state` is the
+   * server's canonical OTS state as sent (render it through
+   * src/product/ots-anchoring.ts, which reads anything unknown as UNAVAILABLE);
+   * the anchor facts are kept only for an ANCHORED state.
+   */
+  ots: { state: string | null; proofPresent: boolean; anchoredAtUtc: string | null; bitcoinTxid: string | null; failureCode: string | null };
   signature: { recorded: boolean; valid: boolean | null; keyId: string | null };
   custodyChain: { valid: boolean | null; mode: string | null; reason: string | null };
 }
@@ -101,7 +107,17 @@ export function projectPreservation(rw: unknown): PreservationView {
     verificationStatus: s(pm["verificationStatus"]),
     verificationStatusLabel: s(pm["verificationStatusLabel"]) ?? "",
     tsa: { status: s(tsa["status"]), provider: s(tsa["provider"]), genTimeUtc: s(tsa["genTimeUtc"]), failureReason: s(tsa["failureReason"]) },
-    ots: { status: s(ots["status"]), effectiveStatus: s(ots["effectiveStatus"]), proofPresent: b(ots["proofPresent"]), anchoredAtUtc: s(ots["anchoredAtUtc"]), bitcoinTxid: s(ots["bitcoinTxid"]), failureReason: s(ots["failureReason"]) },
+    ots: (() => {
+      const state = s(ots["state"]);
+      const anchored = state === "ANCHORED";
+      return {
+        state,
+        proofPresent: b(ots["proofPresent"]),
+        anchoredAtUtc: anchored ? s(ots["anchoredAtUtc"]) : null,
+        bitcoinTxid: anchored ? s(ots["bitcoinTxid"]) : null,
+        failureCode: state === "FAILED" || state === "UNAVAILABLE" ? s(ots["failureCode"]) : null,
+      };
+    })(),
     signature: { recorded: b(sig["recorded"]), valid: bn(sig["valid"]), keyId: s(sig["keyId"]) },
     custodyChain: { valid: bn(chain["valid"]), mode: s(chain["mode"]), reason: s(chain["reason"]) },
   };

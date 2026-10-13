@@ -649,6 +649,13 @@ export const COUNTER_NAMES = [
   "ots_upgrade_succeeded_total",
   "ots_upgrade_failed_total",
   "ots_upgrade_pending_total",
+  // (2026-10-13) The canonical OTS outcomes Operations watches: anchored,
+  // calendar (transport) failures, proof-integrity failures and an exhausted
+  // upgrade budget.
+  "ots_anchored_total",
+  "ots_calendar_failure_total",
+  "ots_proof_integrity_failed_total",
+  "ots_budget_exhausted_total",
   // RELIABILITY CLOSURE (2026-09-09) — the never-attempted population. A
   // finalized record with NULL OTS columns had no counter, no condition and no
   // sweep, so a lost enqueue was invisible by construction.
@@ -919,6 +926,8 @@ export const GAUGE_NAMES = [
   // Phase Y — Observability platform gauges.
   "ots_upgrade_pending_inflight",
   "ots_upgrade_backlog",
+  // (2026-10-13) PENDING proofs older than the Operations aging window.
+  "ots_pending_beyond_sla",
   "audit_chain_last_drift_check_age_seconds",
   "worker_last_heartbeat_age_seconds",
   "queue_active_count",

@@ -141,6 +141,7 @@ describe("UC-TRUST-008 — the report states which stored bytes it certifies", (
 });
 
 import { VERIFICATION_LIMITATION, findForbiddenCustomerClaims } from "@proovra/shared";
+import { REAL, upgradedProof } from "../../../packages/shared/tests/helpers/ots-fixtures.mjs";
 
 describe("evidence claims (2026-10-08) — the rendered report states a verification matrix, never a score", () => {
   async function render(evidence: Record<string, unknown>) {
@@ -151,22 +152,43 @@ describe("evidence claims (2026-10-08) — the rendered report states a verifica
     return { vm, html, text: html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") };
   }
 
-  it("an unchecked OTS proof is never Verified; no score, verdict, reliance or tally anywhere", async () => {
+  it("a stored ANCHORED label without an anchored proof is never Anchored; no score, verdict, reliance or tally anywhere", async () => {
     const { vm, html, text } = await render({
       otsStatus: "ANCHORED",
       otsAnchoredAtUtc: "2026-01-01T02:00:00.000Z",
       otsBitcoinTxid: "c".repeat(64),
-      otsAnchorCheck: "PROOF_STRUCTURE",
       acquisitionMode: "PROOVRA_WEB_UPLOAD",
     });
-    expect(vm.verificationMatrix.rows.find((r) => r.key === "ots_anchoring")!.status).toBe("NOT_CHECKED");
-    // (2026-10-13) The evidence signal card: the public word, never "Verified".
-    expect(html).toContain('data-signal="bitcoin_anchoring" data-signal-status="Attestation recorded"');
+    // No stored proof: the material is missing (2026-10-13), never inferred anchored.
+    const row = vm.verificationMatrix.rows.find((r) => r.key === "ots_anchoring")!;
+    expect(row.otsState).toBe("UNAVAILABLE");
+    expect(row.status).toBe("UNAVAILABLE");
+    expect(html).toContain('data-signal="bitcoin_anchoring" data-signal-status="Unavailable"');
+    expect(text).not.toContain("c".repeat(64));
     expect(findForbiddenCustomerClaims(text)).toEqual([]);
     expect(text).not.toMatch(/Technical Confidence|Trust Decision|Overall trust decision|STRONGLY/);
     expect(text).toContain(VERIFICATION_LIMITATION);
     // Upload is not capture: the upload boundary, once.
     expect(text.split("PROOVRA observed the files from upload onward; creation and editing before upload were not observed.").length - 1).toBe(1);
+  });
+
+  it("a proof that executes to a Bitcoin attestation is Bitcoin anchoring — Anchored, stated without any score", async () => {
+    const up = upgradedProof();
+    const { vm, html, text } = await render({
+      otsStatus: "ANCHORED",
+      otsAnchoredAtUtc: "2026-01-01T02:00:00.000Z",
+      otsProofBase64: up.base64,
+      otsHash: REAL.boundFingerprintHash,
+      fingerprintHash: REAL.boundFingerprintHash,
+      acquisitionMode: "PROOVRA_WEB_UPLOAD",
+    });
+    const row = vm.verificationMatrix.rows.find((r) => r.key === "ots_anchoring")!;
+    expect(row.otsState).toBe("ANCHORED");
+    expect(row.statusLabel).toBe("Anchored");
+    expect(html).toContain('data-signal="bitcoin_anchoring" data-signal-status="Anchored"');
+    expect(text).toContain("OpenTimestamps proof anchored in Bitcoin.");
+    expect(findForbiddenCustomerClaims(text)).toEqual([]);
+    expect(text).not.toMatch(/Attestation recorded|independently verified against|chain-verified/i);
   });
 
   it("a validated timestamp is stated with the bounded TSA sentence, never as qualified", async () => {

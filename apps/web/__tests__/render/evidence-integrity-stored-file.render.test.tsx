@@ -15,6 +15,7 @@ vi.mock("../../app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection", ()
 vi.mock("../../components/capture-location/CaptureLocationMapPanel", () => ({ default: () => null }));
 
 import { EvidenceIntegrityTab } from "../../app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab";
+import { describeOtsStatus } from "../../app/(app)/evidence/[id]/_tabs/_lib";
 
 const NOW = new Date("2026-10-01T12:00:00.000Z");
 const HOUR = 3600_000;
@@ -23,10 +24,10 @@ function stored(facts: Record<string, unknown>, versionPinned: boolean) {
   return { ...resolveStoredBytesIntegrity({ ...base, ...facts } as never, NOW), versionPinned };
 }
 
-function ctx(storedBytes: unknown): never {
+function ctx(storedBytes: unknown, ots: unknown = { state: "PENDING" }): never {
   return {
     evidenceId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-    otsStatusPresentation: null,
+    otsStatusPresentation: describeOtsStatus({ preservationMatrix: { ots } } as never),
     showManualLatestStatusCheck: false,
     loadWorkspace: () => {},
     workspaceCaps: { verificationPackageIncluded: false },
@@ -34,7 +35,7 @@ function ctx(storedBytes: unknown): never {
       verificationStatus: "RECORDED_INTEGRITY_VERIFIED", verificationStatusLabel: "Recorded integrity state verified",
       sha256Recorded: true, fingerprintHashRecorded: true, fingerprintCanonicalHashMatches: true,
       signature: { recorded: true, valid: true }, tsa: { timestampAvailable: false, status: null },
-      ots: { effectiveStatus: null, lastUpdatedAtUtc: null }, storage: null,
+      ots: { state: "PENDING", lastUpdatedAtUtc: null }, storage: null,
       report: { available: false, version: null }, verificationPackage: { available: false, version: null },
       custodyChain: { valid: true, mode: "full", reason: null },
       ...(storedBytes === undefined ? {} : { storedBytes }),
@@ -97,5 +98,34 @@ describe("Integrity tab — Stored file (current)", () => {
   it("an API that sends no stored-file state shows no row (no invented claim)", () => {
     render(<EvidenceIntegrityTab ctx={ctx(undefined)} />);
     expect(screen.queryByText("Stored file (current)")).toBeNull();
+  });
+});
+
+describe("Integrity tab — Bitcoin anchoring is the server's state (2026-10-13)", () => {
+  const otsRow = () => document.querySelector('[data-evidence-matrix-row="Bitcoin anchoring"]') as HTMLElement;
+  const otsWord = () => otsRow().querySelector(".evidence-detail-matrix-cell__state");
+  const detail = () => (document.querySelector('[data-evidence-matrix-row="Bitcoin anchoring detail"]') as HTMLElement).textContent ?? "";
+
+  it("ANCHORED renders green ✓ Anchored with 'OpenTimestamps proof anchored in Bitcoin.'", () => {
+    render(<EvidenceIntegrityTab ctx={ctx(undefined, { state: "ANCHORED", bitcoinBlockHeight: 812345 })} />);
+    expect(otsWord()?.textContent).toBe("✓ Anchored");
+    expect(otsWord()?.getAttribute("data-tone")).toBe("green");
+    expect(otsRow().textContent).toContain("Bitcoin anchored");
+    expect(detail()).toContain("OpenTimestamps proof anchored in Bitcoin.");
+    expect(document.body.textContent).not.toMatch(/Attestation recorded|Independently verified|chain-verified/i);
+  });
+
+  it("PENDING is a neutral 'Pending' awaiting Bitcoin anchoring", () => {
+    render(<EvidenceIntegrityTab ctx={ctx(undefined, { state: "PENDING" })} />);
+    expect(otsWord()?.textContent).toBe("Pending");
+    expect(otsWord()?.getAttribute("data-tone")).toBe("slate");
+    expect(detail()).toContain("OpenTimestamps proof is awaiting Bitcoin anchoring.");
+  });
+
+  it("an unknown state from the server renders 'Unavailable' — never anchored", () => {
+    render(<EvidenceIntegrityTab ctx={ctx(undefined, { state: "CHAIN_VERIFIED", effectiveStatus: "ANCHORED", bitcoinTxid: "c".repeat(64) })} />);
+    expect(otsWord()?.textContent).toBe("Unavailable");
+    expect(otsWord()?.getAttribute("data-tone")).toBe("slate");
+    expect(otsRow().textContent).toContain("Bitcoin anchoring unavailable");
   });
 });

@@ -5,12 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
-import {
-  JOB_NAMES,
-  checkOtsDigestBinding,
-  isValidOtsBitcoinTxid,
-  resolveEffectiveOtsStatus,
-} from "@proovra/shared";
+import { JOB_NAMES, resolveOtsAnchoring, type OtsAnchoring } from "@proovra/shared";
 import * as prismaPkg from "@prisma/client";
 import { decodeCanonicalJob } from "./canonical-job.js";
 import type { Prisma } from "@prisma/client";
@@ -18,34 +13,22 @@ import { appendCustodyEventTx } from "./custody-events.js";
 import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { prisma } from "./db.js";
 import { enqueueOtsUpgradeJob } from "./queue.js";
-import {
-  getOtsProofInfo,
-  resolveOtsBin,
-  resolveOtsTimeoutMs,
-} from "./ots.service.js";
-import {
-  NOT_CONFIGURED_VERIFIER,
-  resolveOtsChainVerifier,
-  type OtsChainCheck,
-  type OtsChainVerifier,
-} from "./ots-chain-verifier.js";
+import { resolveOtsBin, resolveOtsTimeoutMs } from "./ots.service.js";
+import { ensureOtsAnchoredReportVersion } from "./ots-anchored-version.js";
 import { ensureEvidenceOtsInitialized } from "./ots-lifecycle.js";
 import {
   applyOtsTransition,
   decideOtsTransition,
+  decideStoredStatusAlignment,
   hasOtsProofMagic,
-  isCheckedOtsAnchor,
   isPermanentOtsProofFailure,
+  resolveRowOtsAnchoring,
   type OtsObservation,
   type OtsRowSnapshot,
+  type OtsTransition,
 } from "./ots-state.js";
 import { logger, withJobContext } from "./logger.js";
-import {
-  classifyOtsResult,
-  parseOtsUpgradeOutput,
-  type OtsClassification,
-  type OtsInfoOutput,
-} from "./ots-upgrade-output.js";
+import { bump } from "@proovra/shared-runtime/ops";
 
 const execFileAsync = promisify(execFile);
 
@@ -199,7 +182,10 @@ export function resolveOtsBudgetStart(
   }
   for (const event of events) {
     const payload = (event.payload ?? {}) as { otsPhase?: unknown };
-    if (payload.otsPhase === "anchor_not_confirmed_on_recheck" && event.atUtc > start) {
+    if (
+      (payload.otsPhase === "anchor_not_confirmed_on_recheck" || payload.otsPhase === "legacy_anchor_label_without_attestation") &&
+      event.atUtc > start
+    ) {
       start = event.atUtc;
     }
   }
@@ -219,78 +205,6 @@ async function loadOtsBudgetStart(evidenceId: string): Promise<Date | null> {
     select: { atUtc: true, payload: true },
   });
   return resolveOtsBudgetStart(events);
-}
-
-/**
- * True only when the proof was READ (`ots info` parsed), is pinned to THIS
- * record (its file hash equals `evidence.otsHash`), and carries NO Bitcoin
- * block attestation. That — and nothing weaker — is what a PENDING
- * observation may assert. Exported for the behaviour test.
- */
-export function isConclusivelyUnanchored(input: {
-  info: OtsInfoOutput | null;
-  expectedHash: string | null;
-}): boolean {
-  const { info, expectedHash } = input;
-  return (
-    info !== null &&
-    expectedHash !== null &&
-    info.fileHash !== null &&
-    info.fileHash === expectedHash &&
-    info.bitcoinBlockHeights.length === 0
-  );
-}
-
-/**
- * ET-OTS-06 — an unreadable proof is terminal after this many CONSECUTIVE
- * identical deterministic read failures (counted from the custody chain's
- * OTS_ATTEMPT_ERROR events, so no new state). One is not enough: the bytes are
- * the same, but a strike count keeps a single odd read from being final.
- */
-export const OTS_UNREADABLE_PROOF_STRIKES = 3;
-export const OTS_PROOF_UNREADABLE_REASON =
-  "OTS_PROOF_UNREADABLE: ots info could not read this proof (an offline, deterministic read).";
-
-/** How many of the most recent OTS custody events are this same unreadable-proof attempt. */
-export async function priorConsecutiveUnreadableAttempts(evidenceId: string): Promise<number> {
-  const events = await prisma.custodyEvent.findMany({
-    where: {
-      evidenceId,
-      eventType: {
-        in: [
-          prismaPkg.CustodyEventType.OTS_ATTEMPT_ERROR,
-          prismaPkg.CustodyEventType.OTS_APPLIED,
-          prismaPkg.CustodyEventType.OTS_FAILED,
-        ],
-      },
-    },
-    orderBy: { sequence: "desc" },
-    take: OTS_UNREADABLE_PROOF_STRIKES - 1,
-    select: { eventType: true, payload: true },
-  });
-  let n = 0;
-  for (const e of events) {
-    const reason = (e.payload as { reason?: unknown } | null)?.reason;
-    if (e.eventType === prismaPkg.CustodyEventType.OTS_ATTEMPT_ERROR && reason === OTS_PROOF_UNREADABLE_REASON) n += 1;
-    else break;
-  }
-  return n;
-}
-
-/** Why the check could not conclude, for the custody event. Bounded vocabulary. */
-export function inconclusiveCheckReason(input: {
-  infoStatus: string;
-  info: OtsInfoOutput | null;
-  expectedHash: string | null;
-}): string {
-  const { infoStatus, info, expectedHash } = input;
-  if (expectedHash === null) return "OTS_CHECK_INCONCLUSIVE: the record has no OpenTimestamps hash to compare.";
-  if (info === null) return `OTS_CHECK_INCONCLUSIVE: ots info did not complete (${infoStatus}).`;
-  if (info.fileHash === null) return "OTS_CHECK_INCONCLUSIVE: ots info output carried no file hash.";
-  if (info.bitcoinBlockHeights.length > 0) {
-    return "OTS_CHECK_INCONCLUSIVE: the proof carries a Bitcoin block attestation but no transaction id could be read; the anchor is neither recorded nor withdrawn.";
-  }
-  return "OTS_CHECK_INCONCLUSIVE: the proof could not be pinned to this record.";
 }
 
 export async function processOtsUpgrade(job: Job<unknown>) {
@@ -327,20 +241,8 @@ export async function processOtsUpgrade(job: Job<unknown>) {
       otsAnchoredAtUtc: true,
       otsUpgradedAtUtc: true,
       otsFailureReason: true,
-      otsAnchorCheck: true,
-      // (2026-10-12) Every proof must commit to the fingerprint digest.
+      // Every proof must commit to the fingerprint digest.
       fingerprintHash: true,
-      otsAttestationRecordedAtUtc: true,
-      otsAttestationBlockHeight: true,
-      otsChainVerificationStatus: true,
-      otsChainCheckedAtUtc: true,
-      otsChainVerifiedAtUtc: true,
-      otsChainBlockHeight: true,
-      otsChainBlockHash: true,
-      otsChainBlockTimeUtc: true,
-      otsChainConfirmations: true,
-      otsChainVerifier: true,
-      otsChainFailureCode: true,
     },
   });
 
@@ -440,267 +342,103 @@ export async function processOtsUpgrade(job: Job<unknown>) {
     otsAnchoredAtUtc: evidence.otsAnchoredAtUtc,
     otsUpgradedAtUtc: evidence.otsUpgradedAtUtc,
     otsFailureReason: evidence.otsFailureReason,
-    otsAnchorCheck: evidence.otsAnchorCheck,
-    otsAttestationRecordedAtUtc: evidence.otsAttestationRecordedAtUtc,
-    otsAttestationBlockHeight: evidence.otsAttestationBlockHeight,
-    otsChainVerificationStatus: evidence.otsChainVerificationStatus,
-    otsChainCheckedAtUtc: evidence.otsChainCheckedAtUtc,
-    otsChainVerifiedAtUtc: evidence.otsChainVerifiedAtUtc,
-    otsChainBlockHeight: evidence.otsChainBlockHeight,
-    otsChainBlockHash: evidence.otsChainBlockHash,
-    otsChainBlockTimeUtc: evidence.otsChainBlockTimeUtc,
-    otsChainConfirmations: evidence.otsChainConfirmations,
-    otsChainVerifier: evidence.otsChainVerifier,
-    otsChainFailureCode: evidence.otsChainFailureCode,
+    fingerprintHash: evidence.fingerprintHash,
   };
-  const chainVerifier = resolveChainVerifierOrNone(evidenceId);
-  const effectiveStatus = resolveEffectiveOtsStatus({
-    status: evidence.otsStatus,
-    bitcoinTxid: evidence.otsBitcoinTxid,
-    anchoredAtUtc: evidence.otsAnchoredAtUtc,
-  });
-  const hasDefensibleTxid = isValidOtsBitcoinTxid(evidence.otsBitcoinTxid);
+  const current = resolveRowOtsAnchoring(snapshot);
 
-  // Nothing to learn: an anchor whose check is recorded, a legacy anchor with a
-  // defensible txid (its claim already reads "not checked"), or a proof already
-  // established invalid. Delayed and duplicate deliveries end here.
-  //
-  // (2026-10-12) EXCEPT a recorded attestation that a CONFIGURED chain
-  // verifier has not concluded on (never checked, node unavailable, too few
-  // confirmations): that re-check is the follow-up's whole purpose.
-  if (
-    ((isCheckedOtsAnchor(snapshot) || (effectiveStatus === "ANCHORED" && hasDefensibleTxid)) &&
-      !chainRecheckDue(snapshot, chainVerifier)) ||
-    (effectiveStatus === "FAILED" && isPermanentOtsProofFailure(evidence.otsFailureReason))
-  ) {
+  // A stored status that disagrees with the stored proof is aligned first —
+  // a proof already anchored is recorded ANCHORED, a defective one FAILED —
+  // without a calendar round trip.
+  const alignment = decideStoredStatusAlignment(snapshot, now());
+  if (alignment && alignment.kind === "WRITE") {
+    await commitOtsTransition({ job, evidenceId, evidence, snapshot, transition: alignment, observedAt: now(), forensic: {}, startedAt });
+    return;
+  }
+
+  // ANCHORED is terminal for this proof; an established proof defect is too.
+  // Delayed and duplicate deliveries end here. The downstream version decision
+  // is idempotent, so a restart that lost it after the anchor committed
+  // recovers it on the next delivery.
+  if (current.state === "ANCHORED" || (current.state === "FAILED" && isPermanentOtsProofFailure(current.failureCode))) {
+    if (current.state === "ANCHORED") await requestAnchoredReportVersion(evidenceId, current, job.id ?? null);
     logger.info(
       withJobContext({
         jobId: job.id,
         evidenceId,
         durationMs: Date.now() - startedAt,
-        status: effectiveStatus === "FAILED" ? "proof_invalid_terminal" : "already_anchored",
+        status: current.state === "ANCHORED" ? "already_anchored" : "proof_invalid_terminal",
       }),
-      "ots.upgrade.skipped"
+      "ots.upgrade.skipped",
     );
     return;
   }
 
+  bump("ots_upgrade_started_total");
   const storedProof = Buffer.from(evidence.otsProofBase64, "base64");
   let observation: OtsObservation;
   let forensic: Record<string, unknown> = {};
 
   if (!hasOtsProofMagic(storedProof)) {
-    observation = {
-      kind: "PROOF_INVALID",
-      code: "MALFORMED_PROOF",
-      reason: "The stored proof is not an OpenTimestamps proof (header missing).",
-    };
+    // The resolver already reads such bytes as MALFORMED_PROOF; alignment above
+    // recorded it. Reaching here means the row is already FAILED for it.
+    observation = { kind: "TRANSIENT_ERROR", reason: "OTS_PROOF_UNREADABLE: the stored proof has no OpenTimestamps header." };
   } else {
     const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "ots-upgrade-"));
     const file = path.join(workDir, "proof.ots");
     try {
       await fs.writeFile(file, storedProof);
-
-      let stdout = "";
-      let stderr = "";
       let commandErrored = false;
+      let errorText = "";
       try {
-        const result = await execFileAsync(resolveOtsBin(), ["upgrade", file], {
+        await execFileAsync(resolveOtsBin(), ["upgrade", file], {
           timeout: resolveOtsTimeoutMs(),
           cwd: workDir,
         });
-        stdout = result.stdout ?? "";
-        stderr = result.stderr ?? "";
       } catch (error) {
         commandErrored = true;
-        const err = error as { stdout?: string; stderr?: string; message?: string };
-        stdout = err.stdout ?? "";
-        stderr = err.stderr ?? err.message ?? "";
+        const err = error as { stderr?: string; message?: string };
+        errorText = String(err.stderr ?? err.message ?? "").slice(0, 300);
       }
-
-      const parsedUpgrade = parseOtsUpgradeOutput(stdout, stderr);
       const proofBase64 = (await fs.readFile(file)).toString("base64");
-
-      /*
-       * THE DIGEST BINDING, READ FROM THE BYTES (2026-10-12). The upgraded
-       * proof must commit to the record's fingerprint digest, and the record's
-       * OTS hash must be that digest. A proof bound to another digest is
-       * PROOF_INVALID — it is never recorded as an attestation, anchored or
-       * verified. Bytes the parser cannot read never record an anchor either.
-       */
-      const binding = checkOtsDigestBinding({
-        proofBase64,
-        fingerprintHash: evidence.fingerprintHash ?? null,
-        otsHash: evidence.otsHash ?? null,
-      });
-
-      // The independent chain check runs only for a proof bound to this record
-      // that carries a Bitcoin attestation. Without a configured verifier it is
-      // NOT_CONFIGURED: the truthful state stays "attestation present".
-      const chain: OtsChainCheck | null =
-        binding.kind === "MATCH" && binding.bitcoinBlockHeights.length > 0
-          ? await chainVerifier
-              .verify({
-                proofBase64,
-                digestHex: binding.committedDigestHex,
-                attestationBlockHeights: binding.bitcoinBlockHeights,
-              })
-              .catch((err: unknown): OtsChainCheck => {
-                logger.warn({ ...withJobContext({ jobId: job.id, evidenceId }), err }, "ots.chain_verifier.error");
-                return { status: "UNAVAILABLE", checkedAtUtc: now(), verifier: chainVerifier.kind, reason: "verifier error" };
-              })
-          : null;
-      // The classifier reads a successful verification only from the chain check.
-      const verify =
-        chain?.status === "VERIFIED"
-          ? {
-              raw: "",
-              verified: true,
-              incompleteOutput: false,
-              blockHeight: chain.blockHeight,
-              anchoredAtUtc: chain.blockTimeUtc.toISOString(),
-            }
-          : null;
-      const infoResult = await getOtsProofInfo({ proofBase64 });
-      const info = infoResult.status === "PARSED" ? infoResult.info : null;
-      const expectedHash = evidence.otsHash ? evidence.otsHash.toLowerCase() : null;
-
-      const classification: OtsClassification = classifyOtsResult({
-        upgrade: parsedUpgrade,
-        verify,
-        info,
-        expectedFileHashHex: evidence.otsHash ?? null,
-        existingTxid: evidence.otsBitcoinTxid,
-        commandErrored,
-        mergedErrorText: parsedUpgrade.raw,
-      });
-
-      forensic = {
-        digestBinding: binding.kind,
-        committedDigestMatchesFingerprint: binding.kind === "MATCH",
-        attestationBlockHeights: binding.kind === "MATCH" ? binding.bitcoinBlockHeights : [],
-        chainCheck: chain?.status ?? null,
-        chainVerifier: chain?.verifier ?? null,
-        chainFailureCode: chain?.status === "FAILED" ? chain.failureCode : null,
-        verifyConfirmed: chain?.status === "VERIFIED",
-        infoStatus: infoResult.status,
-        infoFileHash: info?.fileHash ?? null,
-        infoFileHashMatches: info?.fileHash != null && expectedHash != null && info.fileHash === expectedHash,
-        infoBlockHeights: info?.bitcoinBlockHeights ?? [],
-        infoPendingCalendars: info?.pendingCalendars ?? [],
-        classification: classification.kind,
-        classifierPhase: classification.phase,
-        classifierReason: classification.reason,
-        blockHeight: classification.blockHeight,
-      };
-
-      const attestationBlockHeight =
-        binding.kind === "MATCH" && binding.bitcoinBlockHeights.length > 0 ? Math.max(...binding.bitcoinBlockHeights) : null;
-      if (
-        binding.kind === "MISMATCH" ||
-        (info?.fileHash != null && expectedHash != null && info.fileHash !== expectedHash)
-      ) {
-        // The proof commits to DIFFERENT data. No upgrade can repair that.
-        observation = {
-          kind: "PROOF_INVALID",
-          code: "PROOF_HASH_MISMATCH",
-          reason: "The OpenTimestamps proof does not commit to this record's fingerprint digest.",
-        };
-      } else if (binding.kind !== "MATCH") {
-        // Unreadable to the product parser: never an anchor. The same bytes are
-        // read again on retry; ET-OTS-06's strike rule below makes it terminal.
-        observation = { kind: "TRANSIENT_ERROR", reason: OTS_PROOF_UNREADABLE_REASON };
-      } else if (classification.kind === "FULLY_ANCHORED") {
-        const verified = chain?.status === "VERIFIED";
-        observation = {
-          kind: "ANCHOR_PROVEN",
-          proofBase64,
-          check: verified ? "BITCOIN_VERIFIED" : "PROOF_STRUCTURE",
-          txid: classification.txid,
-          // The block time only when the chain check verified it; never invented.
-          blockTimeUtc: chain?.status === "VERIFIED" ? chain.blockTimeUtc : null,
-          blockHeight: classification.blockHeight,
-          attestationBlockHeight,
-          chain,
-        };
-      } else if (classification.kind === "FAILED") {
-        // A hard command error that is not an established proof defect: the
-        // attempt failed, the proof did not.
-        observation = { kind: "TRANSIENT_ERROR", reason: classification.reason };
-      } else if (
-        info !== null &&
-        expectedHash !== null &&
-        info.fileHash === expectedHash &&
-        info.bitcoinBlockHeights.length > 0
-      ) {
-        // ET-OTS-06 — the proof commits to THIS record and carries a Bitcoin
-        // block attestation, but no transaction id could be read. That is an
-        // anchor by proof structure (the claim that does not say "checked");
-        // the txid is optional for it. Treating it as inconclusive retried it
-        // forever and never recorded the anchor.
-        observation = {
-          kind: "ANCHOR_PROVEN",
-          proofBase64,
-          check: "PROOF_STRUCTURE",
-          txid: classification.txid ?? null,
-          blockTimeUtc: null,
-          blockHeight: Math.max(...info.bitcoinBlockHeights),
-          attestationBlockHeight,
-          chain,
-        };
-      } else if (infoResult.status === "ERROR" && infoResult.deterministic) {
-        // ET-OTS-06 — `ots info` is offline: the same bytes fail the same way.
-        // After OTS_UNREADABLE_PROOF_STRIKES consecutive identical failures
-        // the proof is MALFORMED (terminal); before that it is an attempt error.
-        observation =
-          (await priorConsecutiveUnreadableAttempts(evidenceId)) >= OTS_UNREADABLE_PROOF_STRIKES - 1
-            ? {
-                kind: "PROOF_INVALID",
-                code: "MALFORMED_PROOF",
-                reason: `The stored proof could not be read by ots info on ${OTS_UNREADABLE_PROOF_STRIKES} consecutive attempts.`,
-              }
-            : { kind: "TRANSIENT_ERROR", reason: OTS_PROOF_UNREADABLE_REASON };
-      } else if (!isConclusivelyUnanchored({ info, expectedHash })) {
-        /*
-         * THE CHECK DID NOT COMPLETE — THAT IS NOT "PENDING" (2026-09-29).
-         *
-         * A PENDING observation asserts that the proof was read and carries no
-         * Bitcoin attestation for this record. It used to be made whenever no
-         * anchor was proven, including when `ots info` failed or timed out,
-         * its output had no hash line, the record had no hash to compare, or
-         * the proof carried a block attestation this rule cannot accept
-         * without a txid. On an ANCHORED row that demoted the stored anchor;
-         * on a pending one it let the 30-day budget mark the proof FAILED.
-         *
-         * None of those outcomes says anything about the proof. They are an
-         * attempt that could not reach a conclusion, so they take the existing
-         * TRANSIENT_ERROR path: nothing on the row changes (no promotion, no
-         * demotion, no budget), the attempt is recorded in custody, and the
-         * job's retry policy brings it back.
-         */
-        observation = {
-          kind: "TRANSIENT_ERROR",
-          reason: inconclusiveCheckReason({ infoStatus: infoResult.status, info, expectedHash }),
-        };
-      } else {
-        observation = { kind: "PENDING", proofBase64, txid: classification.txid };
-      }
+      const changed = proofBase64 !== evidence.otsProofBase64;
+      forensic = { upgradeCommandErrored: commandErrored, proofChanged: changed };
+      // `ots upgrade` exits non-zero while a calendar has nothing new yet; the
+      // bytes it leaves behind are what is decided on. Only a command that
+      // could not reach a calendar (or run at all) and changed nothing is an
+      // attempt error — recorded, retried, never a proof fact.
+      observation =
+        commandErrored && !changed && isOtsTransportFailure(errorText)
+          ? { kind: "TRANSIENT_ERROR", reason: `OTS_CALENDAR_UNAVAILABLE: ${boundedCalendarError(errorText)}` }
+          : { kind: "PROOF", proofBase64 };
     } finally {
       await fs.rm(workDir, { recursive: true, force: true });
     }
   }
 
   const observedAt = now();
-  // The budget applies only to a CONCLUSIVE pending observation of a proof
-  // that is not anchored, measured from the proof's recorded start (see
-  // `resolveOtsBudgetStart`) — never from when the record was created.
-  if (observation.kind === "PENDING" && effectiveStatus !== "ANCHORED") {
-    const budgetStart = await loadOtsBudgetStart(evidenceId);
-    if (
-      budgetStart !== null &&
-      isOtsGlobalBudgetExhausted({ firstAttemptAtUtc: budgetStart, nowUtc: observedAt })
-    ) {
-      observation = { kind: "BUDGET_EXHAUSTED" };
+  if (observation.kind === "PROOF") {
+    // The budget applies only to a proof that is still PENDING after this
+    // upgrade, measured from the proof's recorded start.
+    const candidate = resolveOtsAnchoring({
+      status: "PENDING",
+      proofBase64: observation.proofBase64,
+      fingerprintHash: evidence.fingerprintHash,
+      otsHash: evidence.otsHash,
+    });
+    forensic = {
+      ...forensic,
+      candidateState: candidate.state,
+      candidateFailureCode: candidate.failureCode,
+      candidateProofSha256: candidate.proofSha256,
+      bitcoinBlockHeight: candidate.bitcoinBlockHeight,
+      pendingCalendars: candidate.pendingCalendars.length,
+      validator: candidate.validator,
+    };
+    if (candidate.state === "PENDING") {
+      const budgetStart = await loadOtsBudgetStart(evidenceId);
+      if (budgetStart !== null && isOtsGlobalBudgetExhausted({ firstAttemptAtUtc: budgetStart, nowUtc: observedAt })) {
+        observation = { kind: "BUDGET_EXHAUSTED" };
+      }
     }
   }
 
@@ -709,20 +447,16 @@ export async function processOtsUpgrade(job: Job<unknown>) {
   if (transition.kind === "NO_CHANGE") {
     logger.info(
       {
-        ...withJobContext({
-          jobId: job.id,
-          evidenceId,
-          durationMs: Date.now() - startedAt,
-          status: "no_change",
-        }),
+        ...withJobContext({ jobId: job.id, evidenceId, durationMs: Date.now() - startedAt, status: "no_change" }),
         reason: transition.reason,
       },
-      "ots.upgrade.no_change"
+      "ots.upgrade.no_change",
     );
     return;
   }
 
   if (transition.kind === "RECORD_ATTEMPT_ERROR") {
+    bump("ots_calendar_failure_total");
     // The ATTEMPT failed, not the proof: the row keeps every established fact,
     // the attempt is recorded, and the job's retry budget brings it back.
     await prisma.$transaction(async (tx) => {
@@ -740,45 +474,73 @@ export async function processOtsUpgrade(job: Job<unknown>) {
     });
     logger.warn(
       {
-        ...withJobContext({
-          jobId: job.id,
-          evidenceId,
-          durationMs: Date.now() - startedAt,
-          status: "attempt_failed",
-        }),
+        ...withJobContext({ jobId: job.id, evidenceId, durationMs: Date.now() - startedAt, status: "attempt_failed" }),
         reason: transition.reason,
       },
-      "ots.upgrade.attempt_failed"
+      "ots.upgrade.attempt_failed",
     );
     throw new Error("OTS_UPGRADE_ATTEMPT_FAILED");
   }
 
+  await commitOtsTransition({ job, evidenceId, evidence, snapshot, transition, observedAt, forensic, startedAt });
+}
+
+/**
+ * The upgrade command could not reach a calendar or could not run: DNS,
+ * connection, TLS, timeout, a calendar 5xx, a missing binary. "Not yet
+ * complete" / "pending confirmation" output is NOT one — that is the proof
+ * still awaiting Bitcoin, decided from its bytes.
+ */
+export function isOtsTransportFailure(text: string): boolean {
+  return /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|ENOENT|socket hang up|timed? ?out|certificate|SSL|TLS|HTTP Error 5\d\d|\b50[0-4]\b|Could not connect|Connection (?:refused|reset|aborted)|Name or service not known|Temporary failure in name resolution|Killed|SIGKILL|SIGTERM/i.test(
+    text,
+  );
+}
+
+/**
+ * A calendar failure as a bounded category: no host, URL, path or raw
+ * command output ever reaches the custody chain or Operations.
+ */
+export function boundedCalendarError(text: string): string {
+  if (/ENOENT|not found: ots|command not found/i.test(text)) return "binary_missing";
+  if (/ENOTFOUND|EAI_AGAIN|Name or service not known|Temporary failure in name resolution/i.test(text)) return "dns_failure";
+  if (/ETIMEDOUT|timed? ?out|Killed|SIGKILL|SIGTERM/i.test(text)) return "timeout";
+  if (/HTTP Error 5\d\d|\b50[0-4]\b/i.test(text)) return "calendar_http_5xx";
+  if (/certificate|SSL|TLS/i.test(text)) return "tls_failure";
+  return "connection_failure";
+}
+
+async function commitOtsTransition(input: {
+  job: Job<unknown>;
+  evidenceId: string;
+  evidence: { otsStatus: string | null; teamId: string | null };
+  snapshot: OtsRowSnapshot;
+  transition: Extract<OtsTransition, { kind: "WRITE" }>;
+  observedAt: Date;
+  forensic: Record<string, unknown>;
+  startedAt: number;
+}): Promise<void> {
+  const { job, evidenceId, evidence, snapshot, transition, observedAt, forensic, startedAt } = input;
   const applied = await prisma.$transaction(async (tx) => {
     const won = await applyOtsTransition(tx, evidenceId, snapshot, transition);
     if (!won || !transition.material) return won;
     await appendCustodyEventTx(tx, {
       evidenceId,
       eventType:
-        transition.status === "FAILED"
-          ? prismaPkg.CustodyEventType.OTS_FAILED
-          : prismaPkg.CustodyEventType.OTS_APPLIED,
+        transition.status === "FAILED" ? prismaPkg.CustodyEventType.OTS_FAILED : prismaPkg.CustodyEventType.OTS_APPLIED,
       atUtc: observedAt,
       payload: {
         otsStatus: transition.status,
+        otsState: transition.anchoring.state,
         otsPhase: transition.phase,
         previousOtsStatus: evidence.otsStatus,
-        anchorCheck: transition.data.otsAnchorCheck ?? null,
-        chainVerificationStatus: (transition.data.otsChainVerificationStatus as string | null | undefined) ?? null,
-        bitcoinTxid: (transition.data.otsBitcoinTxid as string | null | undefined) ?? null,
-        anchoredAtUtc:
-          transition.data.otsAnchoredAtUtc instanceof Date
-            ? transition.data.otsAnchoredAtUtc.toISOString()
-            : null,
+        proofSha256: transition.anchoring.proofSha256,
+        bitcoinBlockHeight: transition.anchoring.state === "ANCHORED" ? transition.anchoring.bitcoinBlockHeight : null,
+        bitcoinTxid: transition.anchoring.state === "ANCHORED" ? transition.anchoring.bitcoinTxid : null,
+        validator: transition.anchoring.validator,
         observedAtUtc: observedAt.toISOString(),
         failureReason: (transition.data.otsFailureReason as string | null | undefined) ?? null,
-        ...(transition.phase === "global_budget_exhausted"
-          ? { budgetDays: readOtsGlobalBudgetDays() }
-          : {}),
+        ...(transition.phase === "global_budget_exhausted" ? { budgetDays: readOtsGlobalBudgetDays() } : {}),
         ...forensic,
       } as Prisma.InputJsonValue,
     });
@@ -789,34 +551,30 @@ export async function processOtsUpgrade(job: Job<unknown>) {
     // The row moved on since it was read — a newer job or worker recorded
     // newer OTS facts. This older observation is discarded, not written.
     logger.info(
-      withJobContext({
-        jobId: job.id,
-        evidenceId,
-        durationMs: Date.now() - startedAt,
-        status: "stale_observation_discarded",
-      }),
-      "ots.upgrade.stale"
+      withJobContext({ jobId: job.id, evidenceId, durationMs: Date.now() - startedAt, status: "stale_observation_discarded" }),
+      "ots.upgrade.stale",
     );
     return;
   }
 
-  /*
-   * NO REPORT IS RE-ISSUED BECAUSE A PROOF CHANGED (2026-09-29).
-   *
-   * An anchor that lands later is a LATER FACT, recorded above and shown by
-   * Public Verify and the record as current proof state, while every issued
-   * PDF keeps saying what it said. An updated report that documents it is an
-   * explicit, authorized "Issue updated report" action — never a side effect.
-   */
+  if (transition.material) {
+    if (transition.status === "ANCHORED") {
+      bump("ots_anchored_total");
+      bump("ots_upgrade_succeeded_total");
+    } else if (transition.status === "FAILED") {
+      bump("ots_upgrade_failed_total");
+      bump(transition.phase === "global_budget_exhausted" ? "ots_budget_exhausted_total" : "ots_proof_integrity_failed_total");
+    }
+  }
+  if (transition.status === "PENDING") bump("ots_upgrade_pending_total");
+
+  if (transition.status === "ANCHORED") {
+    await requestAnchoredReportVersion(evidenceId, transition.anchoring, job.id ?? null);
+  }
 
   if (transition.phase === "global_budget_exhausted") {
     logger.error(
-      withJobContext({
-        jobId: job.id,
-        evidenceId,
-        durationMs: Date.now() - startedAt,
-        status: "global_budget_exhausted",
-      }),
+      withJobContext({ jobId: job.id, evidenceId, durationMs: Date.now() - startedAt, status: "global_budget_exhausted" }),
       "ots.upgrade.budget_exhausted",
     );
     // Budget exhaustion is TERMINAL: no further upgrade attempts. CRITICAL so
@@ -828,9 +586,9 @@ export async function processOtsUpgrade(job: Job<unknown>) {
         category: "WORKER",
         severity: "CRITICAL",
         fingerprint: `OTS:${evidenceId}:GLOBAL_BUDGET_EXHAUSTED`,
-        title: `OTS anchoring gave up (${evidenceId.slice(0, 8)})`,
+        title: `Bitcoin anchoring gave up (${evidenceId.slice(0, 8)})`,
         safeSummary:
-          "Global budget exhausted: the OpenTimestamps proof did not anchor on the public chain within the configured retry budget — no further attempts will be made.",
+          "Global budget exhausted: the OpenTimestamps proof did not anchor in Bitcoin within the configured retry budget — no further attempts will be made.",
         relatedEvidenceId: evidenceId,
         relatedJobId: job.id,
         metadata: {
@@ -848,65 +606,35 @@ export async function processOtsUpgrade(job: Job<unknown>) {
   if (transition.status === "PENDING") {
     // PHASE 12 — POINT 5. ONE job id per record's OTS upgrade
     // (`ots-upgrade-<evidenceId>`); `selfJobId` keeps this call from collapsing
-    // onto the job that is running it, which would leave the record PENDING
-    // with no future retry.
+    // onto the job that is running it.
     await enqueueOtsUpgradeJob(evidenceId, {
       delayMs: 60 * 60 * 1000,
       traceId: "ots_followup",
       selfJobId: job.id,
     });
-  } else if (
-    transition.status === "ANCHORED" &&
-    chainRecheckDue(
-      { otsChainVerificationStatus: (transition.data.otsChainVerificationStatus as string | null | undefined) ?? null },
-      chainVerifier,
-    )
-  ) {
-    // (2026-10-12) A recorded attestation whose CONFIGURED chain check did not
-    // conclude (node unavailable, too few confirmations) is checked again on
-    // the same cadence. Without a configured verifier this never runs.
-    await enqueueOtsUpgradeJob(evidenceId, {
-      delayMs: 60 * 60 * 1000,
-      traceId: "ots_chain_recheck",
-      selfJobId: job.id,
-    });
   }
 
   logger.info(
-    withJobContext({
-      jobId: job.id,
-      evidenceId,
-      durationMs: Date.now() - startedAt,
-      status: transition.phase,
-    }),
+    withJobContext({ jobId: job.id, evidenceId, durationMs: Date.now() - startedAt, status: transition.phase }),
     transition.status === "ANCHORED"
       ? "ots.upgrade.anchored"
       : transition.status === "FAILED"
         ? "ots.upgrade.proof_invalid"
-        : "ots.upgrade.pending"
+        : "ots.upgrade.pending",
   );
 }
 
 /**
- * A recorded attestation is re-checked when a chain verifier is CONFIGURED and
- * has not concluded: never checked here, node unavailable, or too few
- * confirmations. A VERIFIED or FAILED chain check is a conclusion.
+ * THE DOWNSTREAM VERSION DECISION, after a proof becomes ANCHORED. Never
+ * throws: the anchor is committed either way, and the decision is idempotent
+ * (see ots-anchored-version.ts), so a later delivery or the reconcile script
+ * recovers a decision lost to a restart.
  */
-export function chainRecheckDue(
-  row: Pick<OtsRowSnapshot, "otsChainVerificationStatus">,
-  verifier: Pick<OtsChainVerifier, "kind">,
-): boolean {
-  if (verifier.kind === "none") return false;
-  const status = row.otsChainVerificationStatus ?? null;
-  return status !== "VERIFIED" && status !== "FAILED";
-}
-
-/** The configured verifier; a configuration error is logged and treated as none. */
-function resolveChainVerifierOrNone(evidenceId: string): OtsChainVerifier {
+async function requestAnchoredReportVersion(evidenceId: string, anchoring: OtsAnchoring, jobId: string | null): Promise<void> {
   try {
-    return resolveOtsChainVerifier();
+    const decision = await ensureOtsAnchoredReportVersion({ evidenceId, anchoring });
+    logger.info({ evidenceId, jobId, decision: decision.outcome }, "ots.anchored.version_decision");
   } catch (err) {
-    logger.error({ evidenceId, err: err instanceof Error ? err.message : String(err) }, "ots.chain_verifier.misconfigured");
-    return NOT_CONFIGURED_VERIFIER;
+    logger.warn({ evidenceId, jobId, err }, "ots.anchored.version_decision_failed");
   }
 }

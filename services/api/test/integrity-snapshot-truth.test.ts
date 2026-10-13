@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 
 import { deriveIntegritySnapshot, type IntegritySnapshotInput } from "../src/services/dashboard/integrity-snapshot.service.js";
+import { otsProofForDigest } from "./helpers/ots-proof-bytes.js";
 
 const FP = "a".repeat(64);
 const base: IntegritySnapshotInput = {
@@ -46,9 +47,22 @@ describe("integrity snapshot truth (ET-SEC-35)", () => {
   });
 
   it("otsHashMatches compares the stamped digest with the fingerprint hash", () => {
-    expect(deriveIntegritySnapshot({ ...base, otsStatus: "ANCHORED", otsHash: FP }).otsHashMatches).toBe(true);
-    expect(deriveIntegritySnapshot({ ...base, otsStatus: "ANCHORED", otsHash: "c".repeat(64) }).otsHashMatches).toBe(false);
+    const anchored = otsProofForDigest(FP, { bitcoinHeight: 860000 });
+    expect(deriveIntegritySnapshot({ ...base, otsStatus: "ANCHORED", otsHash: FP, otsProofBase64: anchored }).otsHashMatches).toBe(true);
+    // A stamped digest that disagrees with the fingerprint: the proof is not
+    // bound to this record (FAILED), and the comparison says so.
+    expect(deriveIntegritySnapshot({ ...base, otsStatus: "ANCHORED", otsHash: "c".repeat(64), otsProofBase64: anchored }).otsHashMatches).toBe(false);
     // A FAILED OTS row with a matching digest (e.g. the retry budget ran out) is not a mismatch.
     expect(deriveIntegritySnapshot({ ...base, otsStatus: "FAILED", otsHash: FP }).otsHashMatches).toBeNull();
+  });
+});
+
+describe("integrity snapshot OTS state (2026-10-13): the proof decides, never the status", () => {
+  it("ANCHORED without proof bytes is not OK; a proof with a Bitcoin attestation is", () => {
+    expect(deriveIntegritySnapshot({ ...base, otsStatus: "ANCHORED", otsHash: FP }).otsStatus).toBe("UNAVAILABLE");
+    expect(deriveIntegritySnapshot({ ...base, otsStatus: "ANCHORED", otsHash: FP, otsProofBase64: otsProofForDigest(FP) }).otsStatus).toBe("PENDING");
+    expect(
+      deriveIntegritySnapshot({ ...base, otsStatus: "PENDING", otsHash: FP, otsProofBase64: otsProofForDigest(FP, { bitcoinHeight: 1 }) }).otsStatus,
+    ).toBe("OK");
   });
 });

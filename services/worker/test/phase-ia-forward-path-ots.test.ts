@@ -8,23 +8,13 @@
  *      and writes the proof bytes to the Evidence row.
  *   2. After the initial proof lands, `enqueueOtsUpgradeJob` is called
  *      so the upgrade loop runs automatically.
- *   3. The upgrade processor runs `ots upgrade` THEN `ots verify`, then
- *      feeds BOTH outputs through `classifyOtsResult`.
- *   4. FULLY_ANCHORED → writes ANCHORED + enqueueReportJob with
- *      `regenerateReason: "ots_anchored"` — IN the same prisma.$transaction.
- *   5. ANCHOR_MATERIAL_RECOVERED → keeps PENDING + persists the txid
- *      + emits a custody event whose payload exposes
- *      `classification: "ANCHOR_MATERIAL_RECOVERED"` AND re-enqueues
- *      a follow-up via the stable jobId.
- *   6. STILL_PENDING → re-enqueues the follow-up, NO report regen.
- *   7. The global attempt budget bounds infinite retries and transitions
- *      to FAILED + OperationalIncident when exhausted.
+ *   3. The upgrade processor runs `ots upgrade` and decides on the bytes it
+ *      leaves through the one OTS authority (resolveOtsAnchoring): ANCHORED
+ *      requests the downstream version decision, PENDING re-enqueues the
+ *      follow-up, a defect is FAILED with a bounded code (2026-10-13).
  *
- * This test does NOT mock the worker — it pins the source contract so a
- * refactor cannot quietly bypass the bounded classifier or drop the
- * regen call. The pure-function classifier tests in
- * ots-classification.test.ts already cover the classifier semantics; this
- * file pins the WIRING — that the processor actually uses it.
+ * This test does NOT mock the worker — it pins the source contract; the
+ * behaviour is run in ots-upgrade-processor.behaviour.test.ts.
  */
 
 import { readFileSync } from "node:fs";
@@ -32,11 +22,6 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  classifyOtsResult,
-  parseOtsUpgradeOutput,
-  parseOtsVerifyOutput,
-} from "../src/ots-upgrade-output.js";
 import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 function readSource(rel: string): string {
@@ -134,245 +119,31 @@ describe("OTS forward path — initial create belongs to the integrity lifecycle
 });
 
 // ============================================================================
-// 2. Upgrade processor — verify + classify wiring
+// 2. Upgrade processor — the executed proof decides (2026-10-13)
 // ============================================================================
 
-describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classifier", () => {
+describe("upgrade processor — the state comes from the executed proof", () => {
   const UP = readSource("../src/ots-upgrade.processor.ts");
-  const fullyAnchoredBranch = () =>
-    enclosingSource(UP, 'if (classification.kind === "FULLY_ANCHORED")', "statement", {
-      fileName: "ots-upgrade.processor.ts",
-    });
 
-  // (2026-10-12) The bare `ots verify` — which needed a Bitcoin node the
-  // worker never had — is replaced by the canonical, configured chain verifier,
-  // and the proof's digest binding is read from its bytes first.
-  it("imports the canonical chain verifier and the digest binding, not a bare ots verify", () => {
-    expect(UP).toMatch(
-      /import\s*\{[\s\S]{0,200}resolveOtsChainVerifier[\s\S]{0,200}from\s*["']\.\/ots-chain-verifier\.js["']/,
-    );
-    expect(UP).toMatch(/import\s*\{[\s\S]{0,200}checkOtsDigestBinding[\s\S]{0,200}from\s*["']@proovra\/shared["']/);
-    expect(UP).not.toMatch(/verifyOtsProof/);
+  it("runs `ots upgrade` and decides on the bytes it leaves, through the one authority", () => {
+    expect(UP).toMatch(/execFileAsync\(resolveOtsBin\(\), \["upgrade", file\]/);
+    expect(UP).toMatch(/resolveOtsAnchoring\(\{/);
+    expect(UP).toMatch(/decideOtsTransition\(snapshot, observation, observedAt\)/);
   });
 
-  it("imports classifyOtsResult from ots-upgrade-output", () => {
-    expect(UP).toMatch(
-      /import\s*\{[\s\S]{0,200}classifyOtsResult[\s\S]{0,200}from\s*["']\.\/ots-upgrade-output\.js["']/,
-    );
+  it("no `ots info`, `ots verify`, chain verifier, Bitcoin node or output classifier remains", () => {
+    expect(UP).not.toMatch(/getOtsProofInfo|verifyOtsProof|classifyOtsResult|parseOtsUpgradeOutput|ots-chain-verifier|chainRecheckDue|OTS_BITCOIN_NODE_URL|OTS_CHAIN_VERIFIER/);
   });
 
-  it("runs ots upgrade, THEN reads the digest binding from the bytes, THEN the chain check", () => {
-    const upgradeIdx = UP.indexOf('execFileAsync(resolveOtsBin(), ["upgrade"');
-    const bindingIdx = UP.indexOf("checkOtsDigestBinding({", upgradeIdx);
-    const chainIdx = UP.indexOf(".verify({", bindingIdx);
-    expect(upgradeIdx).toBeGreaterThan(-1);
-    expect(bindingIdx).toBeGreaterThan(upgradeIdx);
-    expect(chainIdx).toBeGreaterThan(bindingIdx);
-    // The chain check runs only for a proof bound to THIS record.
-    expect(UP).toMatch(/binding\.kind === "MATCH" && binding\.bitcoinBlockHeights\.length > 0/);
+  it("ANCHORED requests the downstream version decision; nothing else does", () => {
+    const calls = UP.match(/requestAnchoredReportVersion\(/g) ?? [];
+    // the definition, the terminal re-ask, and the transition
+    expect(calls.length).toBe(3);
+    expect(UP).toMatch(/if \(transition\.status === "ANCHORED"\) \{\s*await requestAnchoredReportVersion\(/);
+    expect(UP).not.toMatch(/enqueueReportGenerationRequest|enqueueReportJob/);
   });
 
-  it("feeds BOTH parser outputs through classifyOtsResult", () => {
-    expect(UP).toMatch(
-      /classifyOtsResult\(\{[\s\S]{0,400}upgrade:\s*parsedUpgrade[\s\S]{0,400}verify[\s\S]{0,400}existingTxid[\s\S]{0,400}commandErrored/,
-    );
-  });
-
-  /*
-   * 2026-09-29 — THE BRANCHES BECAME OBSERVATIONS. The processor no longer
-   * writes per classification branch; it turns the classification into ONE
-   * typed observation and applies `decideOtsTransition` compare-and-set.
-   * Behaviour (anchored, pending, transient, invalid, stale, duplicate,
-   * concurrent) is pinned in ots-upgrade-processor.behaviour.test.ts and the
-   * rule itself in ots-transition-rule.test.ts; these pin the wiring.
-   */
-  it("FULLY_ANCHORED becomes ANCHOR_PROVEN with the check that proved it — and no report", () => {
-    const block = fullyAnchoredBranch();
-    expect(block).toMatch(/kind:\s*"ANCHOR_PROVEN"/);
-    expect(block).toMatch(/check:\s*verified\s*\?\s*"BITCOIN_VERIFIED"\s*:\s*"PROOF_STRUCTURE"/);
-    expect(block).toMatch(/const verified = chain\?\.status === "VERIFIED"/);
-    expect(UP).not.toMatch(/enqueueReportJob\(|requestReportGeneration\(|forceRegenerate:/);
-  });
-
-  it("every write is compare-and-set with its custody event in the SAME transaction", () => {
-    expect(UP).toMatch(
-      /prisma\.\$transaction\(async \(tx\) => \{\s*const won = await applyOtsTransition\(tx, evidenceId, snapshot, transition\);[\s\S]{0,300}appendCustodyEventTx\(tx,/,
-    );
-    // No unconditional evidence write remains in the processor.
-    expect(UP).not.toMatch(/tx\.evidence\.update\(/);
-    expect(UP).not.toMatch(/prisma\.evidence\.update\(/);
-  });
-
-  it("the custody payload records what verify and info established", () => {
-    expect(UP).toMatch(/verifyConfirmed:\s*chain\?\.status === "VERIFIED"/);
-    expect(UP).toMatch(/digestBinding:\s*binding\.kind/);
-    expect(UP).toMatch(/chainCheck:\s*chain\?\.status \?\? null/);
-    expect(UP).toMatch(/classification:\s*classification\.kind/);
-    expect(UP).toMatch(/classifierPhase:\s*classification\.phase/);
-    expect(UP).toMatch(/classifierReason:\s*classification\.reason/);
-    expect(UP).toMatch(/anchorCheck:\s*transition\.data\.otsAnchorCheck/);
-  });
-
-  it("a hard command error is a TRANSIENT attempt error, not a proof failure", () => {
-    const block = enclosingSource(UP, 'classification.kind === "FAILED"', "statement", {
-      unique: true,
-      fileName: "ots-upgrade.processor.ts",
-    });
-    expect(block).toMatch(/kind:\s*"TRANSIENT_ERROR"/);
-  });
-
-  it("PENDING branch re-enqueues a delayed follow-up that is not collapsed away", () => {
-    // PHASE 12 — POINT 5: there is now ONE job id for an evidence record's OTS
-    // upgrade, built by the shared authority, instead of a separate
-    // `ots-upgrade-followup-<id>`. `selfJobId` is what keeps the ladder alive
-    // across that change: this call runs inside the job holding the target id,
-    // so without it the enqueue collapses onto its own active job and
-    // schedules nothing.
-    expect(UP).toMatch(/selfJobId:\s*job\.id/);
-    expect(UP).toMatch(/enqueueOtsUpgradeJob\(evidenceId,\s*\{/);
-    expect(UP).toMatch(/delayMs:\s*60\s*\*\s*60\s*\*\s*1000/);
-  });
-
-  it("PENDING branch does NOT enqueue a report regen (no false ANCHORED truth)", () => {
-    // The ONLY enqueueReportJob calls in the upgrade processor are
-    // gated on FULLY_ANCHORED or txidRecoveredWhileAnchored (which is
-    // the legacy already-ANCHORED-but-no-txid case). Pin both arms so
-    // a refactor cannot add a stray regen on bare PENDING.
-    // PHASE 12 — POINT 5: `enqueueReportJob` now records a durable
-    // `ReportGenerationRequest` and enqueues its id, so both call sites gained
-    // a `purpose` and a machine principal. The count is what this pins, and it
-    // is unchanged: exactly two, both on an anchored classification.
-    // 2026-09-29: the upgrade processor issues NO report on any branch.
-    const regenSites = UP.match(/enqueueReportJob\(|requestReportGeneration/g) ?? [];
-    expect(regenSites.length).toBe(0);
-  });
-
-  it("global budget exhaustion is an observation on a PENDING proof, then FAILED + a CRITICAL incident", () => {
-    // Only a pending observation of a record that is not anchored qualifies:
-    // the budget is read INSIDE that guard.
-    const block = enclosingSource(
-      UP,
-      'if (observation.kind === "PENDING" && effectiveStatus !== "ANCHORED")',
-      "statement",
-      { unique: true, fileName: "ots-upgrade.processor.ts" },
-    );
-    expect(block).toMatch(/isOtsGlobalBudgetExhausted\(\{/);
-    expect(block).toMatch(/kind:\s*"BUDGET_EXHAUSTED"/);
-    // (2026-09-29) Measured from the proof's recorded start, never createdAt;
-    // no recorded start means no automatic failure.
-    expect(block).toMatch(/loadOtsBudgetStart\(evidenceId\)/);
-    expect(block).toMatch(/budgetStart !== null/);
-    expect(block).not.toMatch(/createdAt/);
-    // occurrence 1: the first is the custody payload's budgetDays spread.
-    const incident = enclosingSource(UP, 'transition.phase === "global_budget_exhausted"', "statement", {
-      occurrence: 1,
-      fileName: "ots-upgrade.processor.ts",
-    });
-    expect(incident).toMatch(/recordWorkerIncident\(/);
-    expect(incident).toMatch(/severity:\s*"CRITICAL"/);
-    expect(incident).toMatch(/failureReason:\s*"OTS_GLOBAL_BUDGET_EXHAUSTED"/);
-  });
-});
-
-// ============================================================================
-// 3. End-to-end classifier — FULLY_ANCHORED is gated on verify
-// ============================================================================
-
-describe("Phase IA-forward-path-OTS — classifier promotes ONLY on verify success", () => {
-  it("verify SUCCESS → FULLY_ANCHORED with anchoredAtUtc + blockHeight", () => {
-    const upgradeStdout =
-      "Bitcoin transaction id: 0000000000000000000000000000000000000000000000000000000000000001\n";
-    const verifyStdout =
-      "Success! Bitcoin block 800000 attests existence as of 2026-06-08 13:30:00 UTC\n";
-    const upgrade = parseOtsUpgradeOutput(upgradeStdout, "");
-    const verify = parseOtsVerifyOutput(verifyStdout, "");
-    const cls = classifyOtsResult({
-      upgrade,
-      verify,
-      existingTxid: null,
-      commandErrored: false,
-      mergedErrorText: null,
-    });
-    expect(cls.kind).toBe("FULLY_ANCHORED");
-    expect(cls.blockHeight).toBe(800000);
-    expect(cls.anchoredAtUtc).not.toBeNull();
-    expect(cls.phase).toBe("anchored");
-  });
-
-  it("verify INCOMPLETE + txid in upgrade → ANCHOR_MATERIAL_RECOVERED (NOT anchored)", () => {
-    const upgradeStdout =
-      "Bitcoin transaction: 0000000000000000000000000000000000000000000000000000000000000001\nPending confirmation in Bitcoin blockchain\n";
-    const verifyStdout = "Calendar attestation incomplete\nGot 0 attestation(s)\n";
-    const upgrade = parseOtsUpgradeOutput(upgradeStdout, "");
-    const verify = parseOtsVerifyOutput(verifyStdout, "");
-    const cls = classifyOtsResult({
-      upgrade,
-      verify,
-      existingTxid: null,
-      commandErrored: false,
-      mergedErrorText: null,
-    });
-    expect(cls.kind).toBe("ANCHOR_MATERIAL_RECOVERED");
-    expect(cls.txid).toBe(
-      "0000000000000000000000000000000000000000000000000000000000000001",
-    );
-    expect(cls.phase).toBe("txid_detected_pending_confirmation");
-  });
-
-  it("no txid + no verify success → STILL_PENDING (no report regen)", () => {
-    const upgradeStdout = "Pending confirmations\n";
-    const verifyStdout = "Calendar attestation incomplete\n";
-    const upgrade = parseOtsUpgradeOutput(upgradeStdout, "");
-    const verify = parseOtsVerifyOutput(verifyStdout, "");
-    const cls = classifyOtsResult({
-      upgrade,
-      verify,
-      existingTxid: null,
-      commandErrored: false,
-      mergedErrorText: null,
-    });
-    expect(cls.kind).toBe("STILL_PENDING");
-    expect(cls.txid).toBeNull();
-  });
-
-  it("anchored-looking upgrade TEXT with no proof check is NOT an anchor (2026-09-29)", () => {
-    // The text-only legacy heuristic is gone: without verify or info proving
-    // the attestation, "Success! Timestamp complete" is not an anchor.
-    const upgradeStdout = "Success! Timestamp complete\n";
-    const upgrade = parseOtsUpgradeOutput(upgradeStdout, "");
-    const cls = classifyOtsResult({
-      upgrade,
-      // verify omitted intentionally
-      existingTxid: null,
-      commandErrored: false,
-      mergedErrorText: null,
-    });
-    expect(cls.kind).toBe("STILL_PENDING");
-  });
-
-  it("hard command error with no pending-like text → FAILED (NOT marked anchored)", () => {
-    const upgrade = parseOtsUpgradeOutput("", "");
-    const cls = classifyOtsResult({
-      upgrade,
-      verify: null,
-      existingTxid: null,
-      commandErrored: true,
-      mergedErrorText: "Segmentation fault (core dumped)",
-    });
-    expect(cls.kind).toBe("FAILED");
-  });
-
-  it("pending-like error (timeout) does NOT promote to FAILED", () => {
-    const upgrade = parseOtsUpgradeOutput("", "");
-    const cls = classifyOtsResult({
-      upgrade,
-      verify: null,
-      existingTxid: null,
-      commandErrored: true,
-      mergedErrorText: "calendar request timed out",
-    });
-    // Timeout-like errors do not flag the proof as definitively FAILED;
-    // the proof keeps trying on the follow-up.
-    expect(cls.kind).not.toBe("FAILED");
+  it("only a PENDING outcome schedules the follow-up", () => {
+    expect(UP).toMatch(/if \(transition\.status === "PENDING"\) \{[\s\S]{0,300}enqueueOtsUpgradeJob\(evidenceId,/);
   });
 });

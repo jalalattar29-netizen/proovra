@@ -1,4 +1,4 @@
-import type { AcquisitionIdentitySnapshot, CustodyLabelHints } from "@proovra/shared";
+import type { AcquisitionIdentitySnapshot, CustodyLabelHints, OtsState } from "@proovra/shared";
 import type {
   TrustDecision,
   TrustDecisionTone,
@@ -136,6 +136,13 @@ export type ReportAnchorSummary = {
   anchorHash: string | null;
   transactionId: string | null;
   anchoredAtUtc: string | null;
+  /**
+   * (2026-10-13) The canonical OpenTimestamps state this report STATED, and
+   * the proof it was resolved from — read back to decide the one automatic
+   * version when the proof later anchors (ots-anchored-version.ts).
+   */
+  otsState?: OtsState | null;
+  otsProofSha256?: string | null;
 };
 
 export type ReportCertificationSnapshot = {
@@ -288,23 +295,7 @@ export type ReportEvidence = {
   otsFailureReason?: string | null;
   /** THE capture-time identity snapshot (custody IDENTITY_SNAPSHOT_RECORDED). */
   acquisitionIdentity?: AcquisitionIdentitySnapshot | null;
-  /** How the OTS anchor was established: BITCOIN_VERIFIED | PROOF_STRUCTURE | null. */
-  otsAnchorCheck?: string | null;
-  /** When the recorded anchor check was made (custody OTS_APPLIED). */
-  otsAnchorCheckedAtUtc?: string | null;
   otsSubmittedAtUtc?: string | null;
-  /** (2026-10-12) OTS truth columns — see packages/shared/src/ots-truth.ts. */
-  otsAttestationRecordedAtUtc?: string | null;
-  otsAttestationBlockHeight?: number | null;
-  otsChainVerificationStatus?: string | null;
-  otsChainCheckedAtUtc?: string | null;
-  otsChainVerifiedAtUtc?: string | null;
-  otsChainBlockHeight?: number | null;
-  otsChainBlockHash?: string | null;
-  otsChainBlockTimeUtc?: string | null;
-  otsChainConfirmations?: number | null;
-  otsChainVerifier?: string | null;
-  otsChainFailureCode?: string | null;
   /** The Ed25519 check this report run performed (null: not run). */
   signatureVerified?: boolean | null;
   /** The custody hash-chain recomputation this run performed (null: not run). */
@@ -776,6 +767,8 @@ export type ReportViewModel = {
     tsaInputKind?: string | null;
     otsHash: string | null;
     otsDetail: string | null;
+    otsDetailTitle?: string | null;
+    otsDetailTone?: Tone;
     anchorHash: string | null;
     timestampDigestLabel?: string | null;
     timestampReferenceNote: string;

@@ -33,7 +33,7 @@
  * controllable failure seam in front of the real package builder.
  */
 
-import { otsProofForDigest, verifiedChainColumns } from "../helpers/ots-proof-bytes.js";
+import { otsProofForDigest } from "../helpers/ots-proof-bytes.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -926,13 +926,12 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
   });
 
   // -------------------------------------------------------------------------
-  // publicAnchoringVerified — THE ONE OTS CLAIM, SIGNED (2026-09-29)
+  // otsState — THE ONE OTS STATE, SIGNED (2026-10-13)
   //
-  // The manifest used to sign `publicAnchoringVerified: true` whenever a
-  // transaction id or an anchored-at time was on the record. It is now true
-  // ONLY for an anchor verified against the Bitcoin chain
-  // (ots_anchor_check = BITCOIN_VERIFIED), and the manifest, anchor.json and
-  // opentimestamps.json state the same claim. The seal binds all of it.
+  // The manifest, anchor.json and opentimestamps.json state the state the
+  // stored proof resolves to (resolveOtsAnchoring) — never one inferred from a
+  // transaction id, an anchored-at time or the status column. The seal binds
+  // all of it.
   // -------------------------------------------------------------------------
   // (2026-10-12) Every OTS boundary reads the digest a proof commits to from
   // its bytes, so the cases carry real-shaped proofs over the record's
@@ -978,135 +977,87 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     return key ? (JSON.parse(entries.get(key)!.toString("utf8")) as Record<string, unknown>) : null;
   };
 
-  const CASES: Array<{ name: string; ots: Record<string, unknown>; verified: boolean; claim: string }> = [
+  // (2026-10-13) THE ONE OTS STATE: every case's state is what the stored
+  // proof resolves to (resolveOtsAnchoring), never the ots_status column, a
+  // txid or an anchor time. Manifest, anchor.json and opentimestamps.json all
+  // carry that one state.
+  const CASES: Array<{ name: string; ots: Record<string, unknown>; state: string }> = [
     {
       name: "pending proof",
       ots: { otsStatus: "PENDING", otsProofBase64: PENDING_PROOF, otsHash: FINGERPRINT },
-      verified: false,
-      claim: "pending",
+      state: "PENDING",
     },
-    // Anchoring that did not complete, with no proof bytes: published, "Unavailable".
+    // Anchoring that did not complete, with no proof bytes: published, "Failed".
     // (A proof bound to another digest or unreadable is refused — below.)
     {
       name: "failed anchoring without a proof",
       ots: { otsStatus: "FAILED", otsFailureReason: "OTS_GLOBAL_BUDGET_EXHAUSTED" },
-      verified: false,
-      claim: "failed",
+      state: "FAILED",
     },
     {
-      name: "anchored and verified against the chain",
-      ots: {
-        otsStatus: "ANCHORED",
-        otsProofBase64: ATTESTED_PROOF,
-        otsBitcoinTxid: TXID,
-        otsAnchoredAtUtc: ANCHORED_AT,
-        otsAnchorCheck: "BITCOIN_VERIFIED",
-        // Verified means the recorded independent chain check WITH its evidence.
-        ...verifiedChainColumns(860_000),
-      },
-      verified: true,
-      claim: "verified",
-    },
-    {
-      name: "anchored by proof structure only (chain not checked)",
-      ots: {
-        otsStatus: "ANCHORED",
-        otsProofBase64: ATTESTED_PROOF,
-        otsBitcoinTxid: TXID,
-        otsAnchoredAtUtc: ANCHORED_AT,
-        otsAnchorCheck: "PROOF_STRUCTURE",
-      },
-      verified: false,
-      claim: "anchored_not_checked",
-    },
-    {
-      name: "anchored before the check was recorded (historical row, check NULL)",
+      name: "proof with a Bitcoin block attestation",
       ots: { otsStatus: "ANCHORED", otsProofBase64: ATTESTED_PROOF, otsBitcoinTxid: TXID, otsAnchoredAtUtc: ANCHORED_AT },
-      verified: false,
-      claim: "anchored_not_checked",
+      state: "ANCHORED",
     },
+    // The proof decides, not the anchor time: an attested proof is ANCHORED
+    // even when the row recorded no anchor time.
     {
-      name: "ANCHORED label with a txid but no anchor time (no valid proof of anchoring)",
-      ots: { otsStatus: "ANCHORED", otsProofBase64: ATTESTED_PROOF, otsBitcoinTxid: TXID },
-      verified: false,
-      claim: "pending",
+      name: "attested proof on a row with no anchor time",
+      ots: { otsStatus: "ANCHORED", otsProofBase64: ATTESTED_PROOF },
+      state: "ANCHORED",
     },
-    // 2026-09-29 — D7: the manifest used to say "pending" here while
-    // opentimestamps.json said anchored.
+    // A row LABELLED anchored whose proof carries no Bitcoin attestation is
+    // pending, whatever its txid and time say.
     {
-      name: "anchor recorded by proof structure with no readable txid",
-      ots: {
-        otsStatus: "ANCHORED",
-        otsProofBase64: ATTESTED_PROOF,
-        otsAnchoredAtUtc: ANCHORED_AT,
-        otsAnchorCheck: "PROOF_STRUCTURE",
-      },
-      verified: false,
-      claim: "anchored_not_checked",
-    },
-    // The txid precondition for a chain-checked claim is kept everywhere.
-    {
-      name: "chain check recorded but no txid (never verified without its txid)",
-      ots: {
-        otsStatus: "ANCHORED",
-        otsProofBase64: ATTESTED_PROOF,
-        otsAnchoredAtUtc: ANCHORED_AT,
-        otsAnchorCheck: "BITCOIN_VERIFIED",
-        // The complete chain evidence (the database refuses BITCOIN_VERIFIED
-        // without it) — and still no txid, so still never verified.
-        ...verifiedChainColumns(860_000),
-      },
-      verified: false,
-      claim: "anchored_not_checked",
+      name: "ANCHORED label with a pending-only proof, a txid and a time",
+      ots: { otsStatus: "ANCHORED", otsProofBase64: PENDING_PROOF, otsBitcoinTxid: TXID, otsAnchoredAtUtc: ANCHORED_AT },
+      state: "PENDING",
     },
   ];
-  const MODE_FOR_CLAIM: Record<string, string> = {
-    verified: "anchored",
-    anchored_not_checked: "anchored",
-    pending: "bitcoin_anchoring_pending",
-    failed: "failed",
+  const MODE_FOR_STATE: Record<string, string> = {
+    ANCHORED: "anchored",
+    PENDING: "bitcoin_anchoring_pending",
+    FAILED: "failed",
+    UNAVAILABLE: "unavailable",
+    NOT_REQUESTED: "not_configured",
   };
 
   for (const c of CASES) {
-    it(`the signed manifest claims publicAnchoringVerified=${c.verified} for a ${c.name}`, async () => {
+    it(`the signed manifest states otsState=${c.state} for a ${c.name}`, async () => {
       const entries = await packageEntriesFor(c.ots);
       const manifest = json(entries, "package-manifest.json");
       expect(manifest, "package-manifest.json").toBeTruthy();
-      expect(manifest!.publicAnchoringVerified).toBe(c.verified);
-      // The explicit claim is present whether or not anchor.json is included.
+      expect(manifest!.otsState).toBe(c.state);
       if (manifest!.anchorIncluded) {
-        expect(manifest!.anchoringClaim).toBe(c.claim);
-        expect(json(entries, "anchor.json")).toMatchObject({ publicAnchoringVerified: c.verified, anchoringClaim: c.claim });
-        // One claim, one mode: the manifest's anchorMode never contradicts it.
-        expect(manifest!.anchorMode, "manifest anchorMode agrees with the claim").toBe(MODE_FOR_CLAIM[c.claim]);
+        expect(json(entries, "anchor.json")).toMatchObject({ otsState: c.state });
+        // One state, one mode: the manifest's anchorMode never contradicts it.
+        expect(manifest!.anchorMode, "manifest anchorMode agrees with the state").toBe(MODE_FOR_STATE[c.state]);
       }
       const companion = json(entries, "opentimestamps.json");
-      if (companion) {
-        expect(companion.publicAnchoringVerified).toBe(c.verified);
-        expect(companion.anchorClaim).toBe(c.claim.toUpperCase());
-      }
-      // No surface inside the package may call an unchecked anchor verified.
-      if (!c.verified) {
-        for (const [name, bytes] of entries) {
-          if (/\.(json|txt|md)$/i.test(name)) {
-            expect(bytes.toString("utf8"), name).not.toContain("OpenTimestamps Bitcoin anchoring verified");
-          }
+      if (companion) expect(companion.state).toBe(c.state);
+      // The retired chain-verifier vocabulary appears on no surface.
+      for (const [name, bytes] of entries) {
+        if (/\.(json|txt|md)$/i.test(name)) {
+          const text = bytes.toString("utf8");
+          expect(text, name).not.toMatch(/Bitcoin anchoring verified|Attestation recorded|Independently verified|publicAnchoringVerified/);
         }
       }
     });
   }
 
   it("A PROOF BOUND TO ANOTHER DIGEST (or unreadable) is refused: no report, no package, terminal on every retry; a bound proof publishes (2026-10-12)", async () => {
-    for (const ots of [
-      { otsStatus: "FAILED", otsProofBase64: MAGIC_PROOF, otsFailureReason: "PROOF_HASH_MISMATCH" },
-      { otsStatus: "PENDING", otsProofBase64: otsProofForDigest("ab".repeat(32)) },
-    ]) {
+    // An unreadable proof is MALFORMED_PROOF (OTS_PROOF_INVALID); a proof for
+    // another digest is PROOF_HASH_MISMATCH (OTS_PROOF_DIGEST_MISMATCH).
+    for (const [ots, check] of [
+      [{ otsStatus: "FAILED", otsProofBase64: MAGIC_PROOF, otsFailureReason: "PROOF_HASH_MISMATCH" }, "OTS_PROOF_INVALID"],
+      [{ otsStatus: "PENDING", otsProofBase64: otsProofForDigest("ab".repeat(32)) }, "OTS_PROOF_DIGEST_MISMATCH"],
+    ] as const) {
       const { evidenceId, teamId } = await signedEvidence();
       await prisma.evidence.update({ where: { id: evidenceId }, data: ots as never });
       for (const attempt of [0, 1]) {
         const id = await request({ evidenceId, teamId, forceRegenerate: attempt > 0 });
         const err = await run(id, 0);
-        expect(String((err as Error)?.message), "refused at the render gate").toMatch(/REPORT_RENDER_INPUT_INCONSISTENT: OTS_PROOF_DIGEST_MISMATCH/);
+        expect(String((err as Error)?.message), "refused at the render gate").toContain(`REPORT_RENDER_INPUT_INCONSISTENT: ${check}`);
         expect((err as { retriable?: boolean }).retriable, "never retried").toBe(false);
         const row = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id }, select: { state: true } });
         expect(row.state).toBe("FAILED_TERMINAL");
@@ -1122,10 +1073,10 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect([...entries.keys()].some((k) => k.endsWith("opentimestamps-proof.ots"))).toBe(true);
   });
 
-  it("the seal binds the manifest: flipping publicAnchoringVerified is detected", async () => {
+  it("the seal binds the manifest: flipping otsState to ANCHORED is detected", async () => {
     const { verifySealedPackageEntries } = await import("@proovra/shared");
     const { verify, createPublicKey } = await import("node:crypto");
-    const entries = await packageEntriesFor(CASES[3]!.ots); // anchored, not checked → false
+    const entries = await packageEntriesFor(CASES[4]!.ots); // labelled anchored, pending proof → PENDING
     const check = (m: Map<string, Buffer>) =>
       verifySealedPackageEntries({
         entries: m,
@@ -1140,8 +1091,8 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
 
     const key = [...entries.keys()].find((k) => k.endsWith("package-manifest.json"))!;
     const forged = JSON.parse(entries.get(key)!.toString("utf8")) as Record<string, unknown>;
-    expect(forged.publicAnchoringVerified).toBe(false);
-    forged.publicAnchoringVerified = true;
+    expect(forged.otsState).toBe("PENDING");
+    forged.otsState = "ANCHORED";
     const tampered = new Map(entries);
     tampered.set(key, Buffer.from(JSON.stringify(forged, null, 2)));
     const result = check(tampered);
@@ -1665,11 +1616,115 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     });
     return readStoredTrustDecision(report.trustDecisionSnapshot)!.signals.find((s) => s.key === "bitcoin_anchoring")!;
   };
-  /** A pending OTS request over THIS record's fingerprint digest (its otsHash is that digest). */
-  const otsPendingFor = async (evidenceId: string) => ({
-    otsStatus: "PENDING",
-    otsHash: (await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { fingerprintHash: true } })).fingerprintHash,
-    otsCalendar: "https://calendar.example",
+  /** A pending OTS proof over THIS record's fingerprint digest (its otsHash is that digest). */
+  const otsPendingFor = async (evidenceId: string) => {
+    const digest = (await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { fingerprintHash: true } })).fingerprintHash!;
+    return {
+      otsStatus: "PENDING",
+      otsHash: digest,
+      otsProofBase64: otsProofForDigest(digest),
+      otsCalendar: "https://calendar.example",
+    };
+  };
+
+  // -------------------------------------------------------------------------
+  // THE OTS JOURNEY (2026-10-13): finalize → PENDING → report v1 → the proof
+  // anchors → exactly ONE automatic v2 (+ packages) → v1 preserved → every
+  // surface states ANCHORED → no OTS condition. And the race: anchored
+  // before v1 → v1 states ANCHORED and no v2 is requested.
+  // -------------------------------------------------------------------------
+  const anchoredProofFor = async (evidenceId: string) =>
+    otsProofForDigest(
+      (await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { fingerprintHash: true } })).fingerprintHash!,
+      { bitcoinHeight: 860_000 },
+    );
+  const autoRequests = (evidenceId: string) =>
+    prisma.reportGenerationRequest.findMany({
+      where: { evidenceId, purpose: "ots_upgrade_completed" },
+      select: { id: true, state: true, forceRegenerate: true, clientRequestKey: true, requestedByMachineId: true },
+    });
+  const anchorSnapshotOf = async (evidenceId: string, version: number) =>
+    ((await prisma.report.findUniqueOrThrow({ where: { evidenceId_version: { evidenceId, version } }, select: { anchorSnapshot: true } }))
+      .anchorSnapshot ?? {}) as { otsState?: string; otsProofSha256?: string };
+
+  it("OTS JOURNEY: PENDING v1 → the proof anchors → ONE automatic v2 stating ANCHORED; v1 preserved; idempotent; no credit; no OTS condition", async () => {
+    const ev = await signedEvidence();
+    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: (await otsPendingFor(ev.evidenceId)) as never });
+    const credits = await creditEntries(ev.evidenceId);
+
+    // v1 while PENDING.
+    expect(await run(await request(ev), 0)).toBeNull();
+    expect((await anchorSnapshotOf(ev.evidenceId, 1)).otsState).toBe("PENDING");
+    const v1 = (await state(ev.evidenceId)).reports.find((r) => r.version === 1)!;
+
+    // The upgrade's bytes land (as `ots upgrade` leaves them) and the worker
+    // aligns the record from its proof — through the canonical transition.
+    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { otsProofBase64: await anchoredProofFor(ev.evidenceId) } as never });
+    const reconcile = await import("../../../worker/src/scripts/reconcile-ots-state.js");
+    const applied = await reconcile.main(["--apply", "--evidence-id", ev.evidenceId]);
+    expect(applied.results[0]).toMatchObject({ state: "ANCHORED", action: "aligned", version: "requested" });
+
+    // Exactly one automatic request: forced NEW_VERSION, a machine principal, keyed per proof.
+    const [auto, ...extra] = await autoRequests(ev.evidenceId);
+    expect(extra).toEqual([]);
+    expect(auto).toMatchObject({ forceRegenerate: true, requestedByMachineId: "worker.ots-anchored" });
+    expect(auto!.clientRequestKey).toMatch(/^ots-anchored:[0-9a-f]{64}$/);
+
+    // Duplicate deliveries / a second reconcile collapse onto it.
+    const { reconcileOtsAnchoredReportVersion } = await import("../../../worker/src/ots-anchored-version.js");
+    expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("already_requested");
+    const again = await reconcile.main(["--apply", "--evidence-id", ev.evidenceId]);
+    expect(again.results[0]).toMatchObject({ action: "none" });
+    expect(await autoRequests(ev.evidenceId)).toHaveLength(1);
+
+    // The automatic version renders v2, stating ANCHORED; its packages publish.
+    expect(await run(auto!.id, 0)).toBeNull();
+    const after = await state(ev.evidenceId);
+    expect(after.reports.map((r) => r.version)).toEqual([1, 2]);
+    expect((await anchorSnapshotOf(ev.evidenceId, 2)).otsState).toBe("ANCHORED");
+    expect((await anchoringOf(ev.evidenceId, 2)).state).toBe("PASSED");
+    expect((await rowsOf(ev.evidenceId, 2)).map((r) => r.state)).toEqual(["PUBLISHED", "PUBLISHED"]);
+    for (const row of await rowsOf(ev.evidenceId, 2)) {
+      const entries = readZipEntries(stored(row.storageBucket, row.storageKey)!);
+      const manifest = JSON.parse(entries.get("package-manifest.json")!.toString("utf8")) as Record<string, unknown>;
+      expect(manifest.otsState).toBe("ANCHORED");
+      expect(manifest).not.toHaveProperty("publicAnchoringVerified");
+      const otsDoc = JSON.parse(entries.get("opentimestamps.json")!.toString("utf8")) as Record<string, unknown>;
+      expect(otsDoc).toMatchObject({ state: "ANCHORED", status: "Anchored" });
+      expect(entries.has("opentimestamps-proof.ots")).toBe(true);
+    }
+
+    // v1 is preserved exactly; the v2 decision does not run again.
+    const v1After = after.reports.find((r) => r.version === 1)!;
+    expect(v1After.pdfSha256).toBe(v1.pdfSha256);
+    expect((await anchorSnapshotOf(ev.evidenceId, 1)).otsState).toBe("PENDING");
+    expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("latest_report_anchored");
+    expect(await autoRequests(ev.evidenceId)).toHaveLength(1);
+    expect(await creditEntries(ev.evidenceId), "no credit moved").toBe(credits);
+
+    // The API's own projections agree, and Operations opens no OTS condition.
+    const { OTS_ANCHORING_RECORD_SELECT, resolveRecordOtsAnchoring, toOtsAnchoringView } = await import("@proovra/shared");
+    const row = await prisma.evidence.findUniqueOrThrow({ where: { id: ev.evidenceId }, select: OTS_ANCHORING_RECORD_SELECT });
+    expect(toOtsAnchoringView(resolveRecordOtsAnchoring(row))).toMatchObject({ state: "ANCHORED", label: "Bitcoin anchored", status: "Anchored" });
+    const conditions = await import("../../src/services/operations/evidence-integrity-conditions.service.js");
+    expect(conditions.isOtsDefect(row)).toBe(false);
+    expect(
+      await prisma.operationalIncident.count({ where: { relatedEvidenceId: ev.evidenceId, fingerprint: { startsWith: "ots_" } } }),
+    ).toBe(0);
+  });
+
+  it("OTS RACE: anchored BEFORE v1 — v1 states ANCHORED and no automatic version is requested", async () => {
+    const ev = await signedEvidence();
+    await prisma.evidence.update({
+      where: { id: ev.evidenceId },
+      data: { ...(await otsPendingFor(ev.evidenceId)), otsStatus: "ANCHORED", otsAnchoredAtUtc: new Date(), otsProofBase64: await anchoredProofFor(ev.evidenceId) } as never,
+    });
+    expect(await run(await request(ev), 0)).toBeNull();
+    expect((await anchorSnapshotOf(ev.evidenceId, 1)).otsState).toBe("ANCHORED");
+    expect((await state(ev.evidenceId)).reports.map((r) => r.version)).toEqual([1]);
+    expect(await autoRequests(ev.evidenceId)).toEqual([]);
+    const { reconcileOtsAnchoredReportVersion } = await import("../../../worker/src/ots-anchored-version.js");
+    expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("latest_report_anchored");
   });
 
   it("OTS PENDING: report v1 and both package profiles publish; OTS is stated PENDING (NOT_CHECKED), never UNAVAILABLE", async () => {
@@ -1684,14 +1739,16 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect(anchoring.state).toBe("PENDING");
     const { toVerificationStatus } = await import("@proovra/shared");
     expect(toVerificationStatus(anchoring.state)).toBe("NOT_CHECKED");
-    // Both sealed packages state the same OTS row: pending, not chain-verified.
+    // Both sealed packages state the same OTS row: pending.
     for (const row of pair) {
       const m = JSON.parse(readZipEntries(stored(row.storageBucket, row.storageKey)!).get("trust-decision.json")!.toString("utf8")) as {
-        rows: Array<{ key: string; status: string; statement: string; statusLabel?: string }>;
+        rows: Array<{ key: string; status: string; statement: string; statusLabel?: string; otsState?: string }>;
       };
       const ots = m.rows.find((r) => r.key === "ots_anchoring")!;
-      expect(ots.status, row.disclosureProfile ?? "").toBe("NOT_CHECKED");
-      expect(ots.statement).toBe("The anchoring proof is still being prepared.");
+      // (2026-10-13) The row carries the ONE OTS state and its words.
+      expect(ots.otsState, row.disclosureProfile ?? "").toBe("PENDING");
+      expect(ots.statusLabel).toBe("Pending");
+      expect(ots.statement).toBe("OpenTimestamps proof is awaiting Bitcoin anchoring.");
     }
     const request_ = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id }, select: { state: true } });
     expect(request_.state).not.toMatch(/FAILED|DLQ/);

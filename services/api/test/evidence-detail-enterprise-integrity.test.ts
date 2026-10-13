@@ -54,7 +54,7 @@ describe("evidence detail enterprise integrity backend contract", () => {
     );
   });
 
-  it("review-workspace preservation matrix carries OTS freshness fields", () => {
+  it("review-workspace preservation matrix carries the shared OTS view plus operational fields (2026-10-13)", () => {
     // Scoped to the `ots:` object inside preservationMatrix rather than a
     // fixed character window: a comment or a new sibling field must not be
     // able to push these assertions out of range.
@@ -63,9 +63,12 @@ describe("evidence detail enterprise integrity backend contract", () => {
     const otsIdx = SRC.indexOf("ots: {", matrixIdx);
     expect(otsIdx).toBeGreaterThan(matrixIdx);
     const otsBlock = SRC.slice(otsIdx, SRC.indexOf("\n              },", otsIdx));
+    // The wire contract: exactly toOtsAnchoringView(...) plus operational siblings.
+    expect(otsBlock).toContain("...toOtsAnchoringView(otsAnchoring),");
     expect(otsBlock).toMatch(/proofPresent:/);
     expect(otsBlock).toMatch(/lastUpdatedAtUtc:/);
-    expect(otsBlock).toMatch(/pendingReason:/);
+    // The retired fields are gone.
+    expect(otsBlock).not.toMatch(/pendingReason:|effectiveStatus:|anchorClaim:|truthState:|anchorCheck:|chainVerification:/);
   });
 
   it("source context exposes client signal collection states", () => {

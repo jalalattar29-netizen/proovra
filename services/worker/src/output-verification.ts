@@ -84,20 +84,8 @@ const LIFECYCLE_SELECT = {
   otsAnchoredAtUtc: true,
   otsUpgradedAtUtc: true,
   otsFailureReason: true,
-  otsAnchorCheck: true,
-  // (2026-10-12) The digest every proof must commit to, and the OTS truth columns.
+  // The digest every proof must commit to.
   fingerprintHash: true,
-  otsAttestationRecordedAtUtc: true,
-  otsAttestationBlockHeight: true,
-  otsChainVerificationStatus: true,
-  otsChainCheckedAtUtc: true,
-  otsChainVerifiedAtUtc: true,
-  otsChainBlockHeight: true,
-  otsChainBlockHash: true,
-  otsChainBlockTimeUtc: true,
-  otsChainConfirmations: true,
-  otsChainVerifier: true,
-  otsChainFailureCode: true,
 } as const;
 
 const FACTS_SELECT = {
@@ -135,19 +123,6 @@ type LifecycleRow = {
   otsAnchoredAtUtc: Date | null;
   otsUpgradedAtUtc: Date | null;
   otsFailureReason: string | null;
-  otsAnchorCheck: string | null;
-  fingerprintHash?: string | null;
-  otsAttestationRecordedAtUtc?: Date | null;
-  otsAttestationBlockHeight?: number | null;
-  otsChainVerificationStatus?: string | null;
-  otsChainCheckedAtUtc?: Date | null;
-  otsChainVerifiedAtUtc?: Date | null;
-  otsChainBlockHeight?: number | null;
-  otsChainBlockHash?: string | null;
-  otsChainBlockTimeUtc?: Date | null;
-  otsChainConfirmations?: number | null;
-  otsChainVerifier?: string | null;
-  otsChainFailureCode?: string | null;
 };
 
 export type RecordCustodyEvent = {
@@ -188,7 +163,6 @@ export async function loadRecordSnapshot(evidenceId: string): Promise<RecordSnap
     {
       ...row,
       tsaTokenPresent: Boolean(row.tsaTokenBase64),
-      otsProofPresent: Boolean(row.otsProofBase64),
       identityLevelSnapshot: row.identityLevelSnapshot as string | null,
       submittedByAuthProvider: row.submittedByAuthProvider as string | null,
       acquisitionMode: row.acquisitionMode as string | null,
@@ -214,7 +188,7 @@ export function reportLifecycleFields(
   row: LifecycleRow,
   custody: ReadonlyArray<{ eventType?: string | null; atUtc?: Date | string | null; payload?: unknown }>,
 ) {
-  const otsCustodyFacts = resolveOtsCustodyFacts(custody, row.otsAnchorCheck ?? null);
+  const otsCustodyFacts = resolveOtsCustodyFacts(custody);
   return {
     tsaProvider: row.tsaProvider ?? null,
     tsaUrl: row.tsaUrl ?? null,
@@ -237,20 +211,7 @@ export function reportLifecycleFields(
     otsAnchoredAtUtc: row.otsAnchoredAtUtc ? row.otsAnchoredAtUtc.toISOString() : null,
     otsUpgradedAtUtc: row.otsUpgradedAtUtc ? row.otsUpgradedAtUtc.toISOString() : null,
     otsFailureReason: row.otsFailureReason ?? null,
-    otsAnchorCheck: row.otsAnchorCheck ?? null,
-    otsAnchorCheckedAtUtc: otsCustodyFacts.anchorCheckedAtUtc,
     otsSubmittedAtUtc: otsCustodyFacts.submittedAtUtc,
-    otsAttestationRecordedAtUtc: row.otsAttestationRecordedAtUtc?.toISOString() ?? null,
-    otsAttestationBlockHeight: row.otsAttestationBlockHeight ?? null,
-    otsChainVerificationStatus: row.otsChainVerificationStatus ?? null,
-    otsChainCheckedAtUtc: row.otsChainCheckedAtUtc?.toISOString() ?? null,
-    otsChainVerifiedAtUtc: row.otsChainVerifiedAtUtc?.toISOString() ?? null,
-    otsChainBlockHeight: row.otsChainBlockHeight ?? null,
-    otsChainBlockHash: row.otsChainBlockHash ?? null,
-    otsChainBlockTimeUtc: row.otsChainBlockTimeUtc?.toISOString() ?? null,
-    otsChainConfirmations: row.otsChainConfirmations ?? null,
-    otsChainVerifier: row.otsChainVerifier ?? null,
-    otsChainFailureCode: row.otsChainFailureCode ?? null,
   };
 }
 
@@ -280,26 +241,13 @@ export function assertRenderInputs(
       tsaValidatedAtUtc: payload.tsaValidatedAtUtc ?? null,
       otsStatus: payload.otsStatus ?? null,
       otsAnchoredAtUtc: payload.otsAnchoredAtUtc ?? null,
-      otsAnchorCheck: payload.otsAnchorCheck ?? null,
-      otsBitcoinTxid: payload.otsBitcoinTxid ?? null,
-      otsProofPresent: Boolean(payload.otsProofBase64),
       otsUpgradedAtUtc: payload.otsUpgradedAtUtc ?? null,
-      // (2026-10-12) The payload's proof bytes are bound to its fingerprint
-      // digest exactly as the record's are.
+      otsFailureReason: payload.otsFailureReason ?? null,
+      // The payload's proof bytes are bound to its fingerprint digest exactly
+      // as the record's are.
       otsProofBase64: payload.otsProofBase64 ?? null,
       fingerprintHash: payload.fingerprintHash ?? null,
       otsHash: payload.otsHash ?? null,
-      otsAttestationRecordedAtUtc: payload.otsAttestationRecordedAtUtc ?? null,
-      otsAttestationBlockHeight: payload.otsAttestationBlockHeight ?? null,
-      otsChainVerificationStatus: payload.otsChainVerificationStatus ?? null,
-      otsChainCheckedAtUtc: payload.otsChainCheckedAtUtc ?? null,
-      otsChainVerifiedAtUtc: payload.otsChainVerifiedAtUtc ?? null,
-      otsChainBlockHeight: payload.otsChainBlockHeight ?? null,
-      otsChainBlockHash: payload.otsChainBlockHash ?? null,
-      otsChainBlockTimeUtc: payload.otsChainBlockTimeUtc ?? null,
-      otsChainConfirmations: payload.otsChainConfirmations ?? null,
-      otsChainVerifier: payload.otsChainVerifier ?? null,
-      otsChainFailureCode: payload.otsChainFailureCode ?? null,
       acquisitionMode: payload.acquisitionMode ?? null,
     },
     custodyEvents,
@@ -314,20 +262,19 @@ export function assertRenderInputs(
 }
 
 /**
- * THE OTS PUBLICATION POLICY BEFORE RENDERING (2026-10-12). A proof that does
- * not commit to the record's fingerprint digest, cannot be read, or that an
- * independent Bitcoin check refuted is a cryptographic-integrity failure: no
- * report is rendered from it — whatever status the record carries, FAILED
- * included — so no "proof unusable" PDF is ever issued and no retry gets past
- * it. A correctly bound proof that was not independently verified renders as
- * "Attestation recorded" (shared otsBlocksPublication).
+ * THE OTS PUBLICATION POLICY BEFORE RENDERING (2026-10-13). A stored proof
+ * that does not commit to the record's fingerprint digest, cannot be read,
+ * uses an operation PROOVRA does not execute, or carries a malformed Bitcoin
+ * attestation is a cryptographic-integrity failure: no report is rendered from
+ * it, whatever status the record carries. PENDING, UNAVAILABLE and an
+ * exhausted upgrade budget do not block (shared otsBlocksPublication).
  */
 export function assertOtsProofBinding(record: CanonicalArtifactFacts, payload: Pick<ReportEvidence, "otsStatus">): void {
-  if (otsBlocksPublication({ digestBinding: record.otsDigestBinding, truthState: record.otsTruthState })) {
+  if (otsBlocksPublication({ state: record.otsState, failureCode: record.otsFailureCode })) {
     throw new OutputVerificationError("REPORT_RENDER_INPUT_INCONSISTENT", [
       {
-        check: "OTS_PROOF_DIGEST_MISMATCH",
-        detail: `the stored OpenTimestamps proof is ${record.otsDigestBinding} against the fingerprint digest (truth ${record.otsTruthState}, status ${String(payload.otsStatus ?? "absent")})`,
+        check: record.otsFailureCode === "PROOF_HASH_MISMATCH" ? "OTS_PROOF_DIGEST_MISMATCH" : "OTS_PROOF_INVALID",
+        detail: `the stored OpenTimestamps proof failed validation (${String(record.otsFailureCode)}; stored status ${String(payload.otsStatus ?? "absent")})`,
       },
     ]);
   }

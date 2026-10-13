@@ -19,6 +19,7 @@
  *            holds operations.resolve, and to nobody else.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { otsColumnsFor } from "./helpers/ots-proof-bytes.js";
 
 import {
   addMember,
@@ -135,7 +136,8 @@ describe("Operations truth closure — recovery, remediation, titles (live Postg
     const a = c.h.fixtures.teamA;
     const owner = a.ownerUserId;
     // OTS: the record anchored after the budget bridge fired.
-    const ev = await seedEvidence(c, a.teamId, owner, { otsStatus: "ANCHORED", otsAnchoredAtUtc: new Date(), otsBitcoinTxid: "b".repeat(64) });
+    // (2026-10-13) Anchored = a stored proof that attests a Bitcoin block.
+    const ev = await seedEvidence(c, a.teamId, owner, otsColumnsFor("b".repeat(64), "ANCHORED"));
     const ots = await seedIncident(c, a.teamId, {
       sourceId: "evidence_integrity.ots_budget_exhausted",
       category: "WORKER",

@@ -1,5 +1,4 @@
 import { custodyEventLabel } from "@proovra/shared";
-import { OTS_ANCHOR_CLAIM_LABELS, resolveOtsAnchorClaim } from "@proovra/shared";
 import {
   acquisitionAccountLabel,
   acquisitionIdentityBasisLabel,
@@ -7,7 +6,6 @@ import {
   acquisitionOrganizationVerificationLabel,
   acquisitionWorkspaceLabel,
   identityLevelLabel,
-  resolveOtsTrustState,
   type AcquisitionIdentitySnapshot,
 } from "@proovra/shared";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
@@ -335,57 +333,6 @@ export function mapTimestampStatusPublicLabel(
   }
 }
 
-/**
- * Truthful OTS / Bitcoin anchoring labels.
- *
- * "OpenTimestamps Bitcoin anchoring verified" was previously returned for ANCHORED, but the
- * worker can persist ANCHORED before a Bitcoin transaction id is attached
- * (that lives behind a separate upgrade pass). For legal safety we no longer
- * return "verified" purely on the ANCHORED status. Use the txid-aware variant
- * mapOtsStatusPublicLabelWithTxid() to choose the precise label.
- */
-export function mapOtsStatusPublicLabel(status: string | null | undefined): string {
-  switch (safe(status, "").toUpperCase()) {
-    // The public OpenTimestamps vocabulary (shared OTS_PUBLIC_STATUSES).
-    // Without its anchor time an ANCHORED status is not an attestation.
-    case "ANCHORED":
-    case "PENDING":
-      return OTS_ANCHOR_CLAIM_LABELS.PENDING;
-    default:
-      return OTS_ANCHOR_CLAIM_LABELS.UNAVAILABLE;
-  }
-}
-
-/**
- * txid-aware variant: returns "Bitcoin anchoring verified" only when a Bitcoin
- * transaction id is actually recorded for the OTS proof. This is the function
- * report / verify / package surfaces should prefer when they have the txid.
- *
- * Phase IA-OTS-hybrid-fix (UX correction) — visible card surfaces
- * stay on short labels. The detailed PENDING+txid explanation is
- * provided ONLY by `mapOtsStatusTechnicalDetail` below for the
- * technical-appendix surface.
- */
-export function mapOtsStatusPublicLabelWithTxid(params: {
-  status: string | null | undefined;
-  bitcoinTxid: string | null | undefined;
-  /** 2026-09-29: the one OTS claim needs these; "verified" only for BITCOIN_VERIFIED. */
-  anchoredAtUtc?: string | Date | null;
-  anchorCheck?: string | null;
-}): string {
-  const status = safe(params.status, "").toUpperCase();
-  if (status === "ANCHORED") {
-    const claim = resolveOtsAnchorClaim({
-      status: params.status,
-      anchoredAtUtc: params.anchoredAtUtc ?? null,
-      anchorCheck: params.anchorCheck ?? null,
-    });
-    // An ANCHORED status with no anchor time is not an anchor at all.
-    if (claim === "VERIFIED" || claim === "ANCHORED_NOT_CHECKED") return OTS_ANCHOR_CLAIM_LABELS[claim];
-  }
-  return mapOtsStatusPublicLabel(params.status);
-}
-
 export function mapObjectLockModePublicLabel(
   mode: string | null | undefined
 ): string {
@@ -397,76 +344,6 @@ export function mapObjectLockModePublicLabel(
     default:
       return "Not recorded";
   }
-}
-
-export function mapAnchorModePublicLabel(mode: string | null | undefined): string {
-  switch (safe(mode, "").toUpperCase()) {
-    case "ANCHORED":
-    case "ACTIVE":
-      // A MODE says anchoring happened, not that anyone checked it (2026-09-29).
-      return OTS_ANCHOR_CLAIM_LABELS.ANCHORED_NOT_CHECKED;
-    case "BITCOIN_ANCHORING_PENDING":
-    case "READY":
-      // A MODE names a configuration, not a proof: never "proof present".
-      return "Bitcoin anchoring pending";
-    case "FAILED":
-      return "OpenTimestamps anchoring failed";
-    case "NOT_CONFIGURED":
-    case "OFF":
-      return "Anchoring not recorded";
-    case "PUBLIC":
-      return "Bitcoin anchoring";
-    case "PRIVATE":
-      return "Private anchoring";
-    case "HASH_ONLY":
-      return "Digest anchoring";
-    default:
-      return "Anchoring not recorded";
-  }
-}
-
-/**
- * OTS-aware variant of `mapAnchorModePublicLabel` for the report's
- * Technical Appendix "Anchor Mode" row.
- *
- * The row historically reflected the EvidenceAnchor (external
- * publication) pipeline only, which produced a misleading
- * "OTS proof present; Bitcoin anchoring pending" label on records whose
- * OTS proof was actually fully ANCHORED with a Bitcoin txid. The row
- * is supposed to summarize the *Bitcoin anchoring* state — i.e. OTS /
- * Bitcoin anchoring. This
- * helper inspects the canonical OTS facts FIRST and only falls back to
- * the EvidenceAnchor-derived mode when OTS state is unknown.
- *
- * Honest semantics:
- *   - OTS ANCHORED with valid txid/anchoredAt → "OpenTimestamps Bitcoin anchoring verified"
- *   - OTS PENDING / proof present, not yet upgraded → "OTS proof present,
- *     Bitcoin anchoring pending"
- *   - OTS FAILED → "OpenTimestamps anchoring failed"
- *   - OTS DISABLED / missing → fall through to anchor-mode label
- *     (typically "Anchoring not recorded")
- *
- * NEVER fabricates. Never asserts verified anchoring without canonical
- * proof signals (txid OR anchoredAtUtc).
- */
-export function mapPublicAnchoringLabelFromOts(input: {
-  otsStatus?: string | null;
-  otsBitcoinTxid?: string | null;
-  otsAnchoredAtUtc?: string | null;
-  otsProofPresent?: boolean | null;
-  fallbackAnchorMode?: string | null;
-  otsAnchorCheck?: string | null;
-}): string {
-  // THE canonical OTS state (resolveOtsTrustState): a proof is "present" only
-  // when the record holds one, and only a recorded chain check is verified.
-  // The external-anchor MODE is not OTS evidence and is never read here.
-  const state = resolveOtsTrustState({
-    status: input.otsStatus,
-    anchoredAtUtc: input.otsAnchoredAtUtc ?? null,
-    anchorCheck: input.otsAnchorCheck ?? null,
-    proofPresent: input.otsProofPresent ?? null,
-  });
-  return state.label;
 }
 
 export function mapEvidenceAssetKindLabel(

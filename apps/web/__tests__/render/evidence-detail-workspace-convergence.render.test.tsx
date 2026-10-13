@@ -279,18 +279,27 @@ function makeWorkspace(): unknown {
         failureReason: null,
         timestampedDigestLabel: "Canonical fingerprint",
       },
+      // The server's OtsAnchoringView plus operational siblings (2026-10-13).
       ots: {
-        status: "ANCHORED",
-        effectiveStatus: "ANCHORED",
-        proofPresent: true,
-        hashMatches: true,
+        state: "ANCHORED",
+        title: "Bitcoin anchoring",
+        status: "Anchored",
+        label: "Bitcoin anchored",
+        sentence: "OpenTimestamps proof anchored in Bitcoin.",
+        tone: "success",
+        failureCode: null,
+        failureLabel: null,
+        committedDigestHex: null,
+        proofSha256: null,
+        attestationType: "BITCOIN_BLOCK_HEADER",
+        bitcoinBlockHeight: 812345,
+        bitcoinTxid: null,
+        submittedAtUtc: null,
         anchoredAtUtc: iso("2026-07-04T05:53:39Z"),
-        upgradedAtUtc: iso("2026-07-04T05:53:39Z"),
+        validator: null,
+        proofPresent: true,
         lastUpdatedAtUtc: iso("2026-07-04T05:53:39Z"),
         calendar: "fixture-calendar",
-        bitcoinTxid: null,
-        failureReason: null,
-        pendingReason: null,
       },
       custodyChain: { valid: true, mode: "HASH_CHAIN", reason: null },
       storage: {
@@ -1622,7 +1631,7 @@ describe("evidence output attention — one canonical value across the page", ()
   };
   const TRUST = {
     tsa: { status: "STAMPED", validated: true, validatedAtUtc: "2026-10-06T10:00:00Z", failureCode: null, genTimeUtc: null },
-    ots: { status: "ANCHORED", anchorCheck: "PROOF_STRUCTURE", anchoredAtUtc: "2026-10-06T10:05:00Z" },
+    ots: { state: "ANCHORED", anchoredAtUtc: "2026-10-06T10:05:00Z" },
   };
   const pairOf = (v: number, withPackage = true) => ({
     reportVersion: v,

@@ -24,6 +24,7 @@
  */
 
 import { prisma } from "../../db.js";
+import { OTS_ANCHORING_RECORD_SELECT, resolveRecordOtsAnchoring } from "@proovra/shared";
 /*
  * The ONE tenant predicate for incidents. Five reads on this endpoint composed
  * `OR: [{ teamId }, { teamId: null }]` by hand — the predicate that hands a
@@ -5528,23 +5529,29 @@ async function runDeepIntegrityWatch(
       });
     }
 
-    // OTS unavailable / failed.
-    const otsUnavailable = await prisma.evidence.findMany({
+    // OTS unavailable / failed. (2026-10-13) Each candidate's state is the
+    // ONE OTS authority (resolveRecordOtsAnchoring over the stored proof): a
+    // FAILED proof or unreadable proof material is listed; PENDING (Bitcoin
+    // has not confirmed yet) and ANCHORED are not defects and are skipped.
+    const otsCandidates = await prisma.evidence.findMany({
       where: {
         AND: [pop.evidence],
         status: "REPORTED",
         OR: [
-          { otsStatus: null },
-          { otsStatus: { in: ["PENDING", "FAILED", "ERRORED"] } },
+          { otsStatus: { in: ["FAILED", "ANCHORED"] } },
+          { otsStatus: "PENDING", otsProofBase64: null },
         ],
       },
       orderBy: { updatedAt: "desc" },
-      take: 6,
-      select: { id: true, title: true, updatedAt: true, otsStatus: true },
+      take: 24,
+      select: { id: true, title: true, updatedAt: true, ...OTS_ANCHORING_RECORD_SELECT },
     });
+    const otsUnavailable = otsCandidates
+      .map((r) => ({ ...r, otsState: resolveRecordOtsAnchoring(r).state }))
+      .filter((r) => r.otsState === "FAILED" || r.otsState === "UNAVAILABLE")
+      .slice(0, 6);
     for (const r of otsUnavailable) {
-      const failed =
-        r.otsStatus === "FAILED" || r.otsStatus === "ERRORED";
+      const failed = r.otsState === "FAILED";
       items.push({
         evidenceId: r.id,
         title: r.title ?? "Untitled evidence",
@@ -5554,8 +5561,8 @@ async function runDeepIntegrityWatch(
         sourceFields: ["Evidence.otsStatus", "Evidence.status"],
         confidence: "direct",
         explanation: failed
-          ? "OpenTimestamps anchor reported a failure status. Anchor signal requires reprocessing."
-          : "OpenTimestamps anchor signal is unavailable or pending for this finalized record.",
+          ? "Bitcoin anchoring failed for this finalized record. Anchor signal requires reprocessing."
+          : "The OpenTimestamps proof material for this finalized record cannot currently be read.",
         recommendedAction:
           "Confirm the OTS pipeline is healthy and reprocess if required.",
         href: `/evidence/${r.id}`,

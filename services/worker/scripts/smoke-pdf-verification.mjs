@@ -100,7 +100,7 @@ const ROW = {
   tsaStatus: null, tsaFailureReason: null, tsaFailureCode: null, tsaValidatedAtUtc: null,
   // The state production failed on: OTS initialized (PENDING) at issuance.
   otsProofBase64: null, otsHash: "b".repeat(64), otsStatus: "PENDING", otsCalendar: "smoke-calendar",
-  otsBitcoinTxid: null, otsAnchoredAtUtc: null, otsUpgradedAtUtc: null, otsFailureReason: null, otsAnchorCheck: null,
+  otsBitcoinTxid: null, otsAnchoredAtUtc: null, otsUpgradedAtUtc: null, otsFailureReason: null,
 };
 const CUSTODY = [
   {

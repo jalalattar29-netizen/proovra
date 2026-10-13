@@ -55,7 +55,7 @@ test("an unchanged binding has no changes and a stable canonical form", () => {
 test("each bound fact maps to its own change code", () => {
   const cases = [
     [{ tsa: "STAMPED|validated", reportableFacts: "changed" }, ["TSA_CHANGED"]],
-    [{ ots: "ANCHORED|PROOF_STRUCTURE", reportableFacts: "changed" }, ["OTS_CHANGED"]],
+    [{ ots: "ANCHORED|-", reportableFacts: "changed" }, ["OTS_CHANGED"]],
     [{ latestReportVersion: 2, targetVersion: 3 }, ["LATEST_REPORT_CHANGED"]],
     [{ activeRequest: "r2:QUEUED" }, ["REQUEST_STATE_CHANGED"]],
     [{ callerMayGenerate: false }, ["PERMISSION_CHANGED"]],
@@ -79,25 +79,41 @@ test("freshness: TSA validated and OTS anchored after the report are reported; n
     reportVersion: 1,
     reportGeneratedAtUtc: "2026-10-06T10:00:00.000Z",
     tsa: { status: "STAMPED", validatedAtUtc: "2026-10-06T11:00:00.000Z" },
-    ots: { status: "ANCHORED", anchoredAtUtc: "2026-10-06T12:00:00.000Z", upgradedAtUtc: null },
+    ots: { state: "ANCHORED", anchoredAtUtc: "2026-10-06T12:00:00.000Z", reportState: "PENDING" },
     custodyAfterReport: { count: 0, latestAtUtc: null },
     integrity: { lastVerifiedAtUtc: null, reportLastVerifiedAtUtc: null },
   };
   const fresh = deriveReportFreshness(base);
   assert.equal(fresh.hasNewerFacts, true);
   assert.deepEqual(fresh.changes.map((c) => c.code), ["TSA_VALIDATED_AFTER_REPORT", "OTS_ANCHORED_AFTER_REPORT"]);
+  assert.equal(fresh.changes[1].atUtc, "2026-10-06T12:00:00.000Z");
+
+  // OTS freshness is decided by the canonical state, not by a time or a status string.
+  const otsCodes = (ots) => deriveReportFreshness({ ...base, tsa: { status: "STAMPED", validatedAtUtc: null }, ots }).changes.map((c) => c.code);
+  // The report already stated ANCHORED: nothing newer, whatever the recorded time.
+  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: "2026-10-06T12:00:00.000Z", reportState: "ANCHORED" }), []);
+  // Anchored now, the report said pending — even without a recorded anchoring time.
+  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: null, reportState: "PENDING" }), ["OTS_ANCHORED_AFTER_REPORT"]);
+  // Not anchored now: never reported as anchored after the report, whatever the time says.
+  for (const state of ["PENDING", "FAILED", "UNAVAILABLE", "NOT_REQUESTED"]) {
+    assert.deepEqual(otsCodes({ state, anchoredAtUtc: "2026-10-06T12:00:00.000Z", reportState: "PENDING" }), [], state);
+  }
+  // A legacy report (no stated state) compares by the recorded anchoring time; no time → nothing invented.
+  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: "2026-10-06T12:00:00.000Z", reportState: null }), ["OTS_ANCHORED_AFTER_REPORT"]);
+  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: "2026-10-06T09:00:00.000Z" }), []);
+  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: null, reportState: null }), []);
 
   // Validated BEFORE the report: no false freshness.
   const before = deriveReportFreshness({
     ...base,
     tsa: { status: "STAMPED", validatedAtUtc: "2026-10-06T09:00:00.000Z" },
-    ots: { status: "PENDING", anchoredAtUtc: null, upgradedAtUtc: null },
+    ots: { state: "PENDING", anchoredAtUtc: null, reportState: "PENDING" },
   });
   assert.equal(before.hasNewerFacts, false);
   assert.deepEqual(before.changes, []);
 
   // A FAILED timestamp is not "validated", whatever its time fields say.
-  const failed = deriveReportFreshness({ ...base, tsa: { status: "FAILED", validatedAtUtc: null }, ots: { status: "PENDING", anchoredAtUtc: null, upgradedAtUtc: null } });
+  const failed = deriveReportFreshness({ ...base, tsa: { status: "FAILED", validatedAtUtc: null }, ots: { state: "PENDING", anchoredAtUtc: null, reportState: "PENDING" } });
   assert.equal(failed.hasNewerFacts, false);
 
   // No report → nothing is newer than it.
@@ -107,7 +123,7 @@ test("freshness: TSA validated and OTS anchored after the report are reported; n
   const custody = deriveReportFreshness({
     ...base,
     tsa: { status: "STAMPED", validatedAtUtc: null },
-    ots: { status: "PENDING", anchoredAtUtc: null, upgradedAtUtc: null },
+    ots: { state: "PENDING", anchoredAtUtc: null, reportState: "PENDING" },
     custodyAfterReport: { count: 2, latestAtUtc: "2026-10-06T13:00:00.000Z" },
   });
   assert.deepEqual(custody.changes, [{ code: "CUSTODY_CHANGED_AFTER_REPORT", atUtc: "2026-10-06T13:00:00.000Z", count: 2 }]);

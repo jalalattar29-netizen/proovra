@@ -1,17 +1,15 @@
-import { presentOtsTruth } from "@proovra/shared";
+import { OTS_STATE_WORDS, otsStateFromTrustState, presentOtsAnchoring } from "@proovra/shared";
 import {
   buildEvidenceTrustDecision,
   buildCanonicalEvidenceMaterials,
   hasCoreCryptoMaterials as hasSharedCoreCryptoMaterials,
   isExplicitRecordedIntegrityVerified,
   type CanonicalEvidenceMaterials,
-  OTS_ANCHOR_CLAIM_LABELS,
 } from "@proovra/shared";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import {
   Tone,
   ReportEvidence,
-  ReportAnchorSummary,
   ReportCustodyEvent,
   CalloutModel,
   ReportTrustDecision,
@@ -56,46 +54,6 @@ export function normalizeTimestampTone(
   return "neutral";
 }
 
-export function normalizeOtsTone(status: string | null | undefined): Tone {
-  const s = safe(status, "").toUpperCase();
-
-  // ANCHORED alone is an attested proof; the claim follows the check
-  // (normalizeBitcoinAnchorTone). The status tone is a caution.
-  if (s === "ANCHORED") return "success";
-  if (s === "PENDING") return "warning";
-  if (s === "FAILED") return "danger";
-  return "neutral";
-}
-
-/**
- * Truthful Bitcoin-anchoring tone: "success" only when the OTS proof is
- * ANCHORED, a valid Bitcoin transaction id is recorded AND the anchor was
- * checked against the Bitcoin chain (BITCOIN_VERIFIED). An attested proof
- * read by structure alone is a caution, never a success.
- */
-function isValidBitcoinTxid(value: string | null | undefined): boolean {
-  return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value.trim());
-}
-
-export function normalizeBitcoinAnchorTone(params: {
-  status: string | null | undefined;
-  bitcoinTxid: string | null | undefined;
-  anchorCheck?: string | null;
-  /**
-   * (2026-10-12) The OTS truth state. Success requires CHAIN_VERIFIED — a
-   * recorded check without its chain evidence is not one. Absent: never success.
-   */
-  truthState?: string | null;
-}): Tone {
-  const baseTone = normalizeOtsTone(params.status);
-  if (baseTone !== "success") return baseTone;
-  return isValidBitcoinTxid(params.bitcoinTxid) &&
-    params.anchorCheck === "BITCOIN_VERIFIED" &&
-    params.truthState === "CHAIN_VERIFIED"
-    ? "success"
-    : "warning";
-}
-
 export function normalizeStorageTone(
   immutable: boolean | null | undefined,
   mode: string | null | undefined,
@@ -126,7 +84,14 @@ export function buildExecutiveConclusion(decision: ReportTrustDecision): Callout
   // (2026-10-13) The evidence record's verification layers in one or two
   // sentences: which verified, which did not — never a verdict, confidence or
   // score, and no product boundary (the Report Boundary states that once).
-  const layers = decision.signals.filter((s) => s.key !== "identity" && s.key !== "verification_package");
+  // Bitcoin anchoring is an additional public layer stated in its own words
+  // (Anchored / Pending / …), never as "verified" and never as a reason not to
+  // rely on the preserved bytes (2026-10-13).
+  const layers = decision.signals.filter(
+    (s) => s.key !== "identity" && s.key !== "verification_package" && s.key !== "bitcoin_anchoring",
+  );
+  const anchoring = decision.signals.find((s) => s.key === "bitcoin_anchoring");
+  const anchoringWord = anchoring ? OTS_STATE_WORDS[otsStateFromTrustState(anchoring.state)] : null;
   const list = (items: string[]) =>
     items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
   const lower = (s: { label: string }) => s.label.replace(/^[A-Z](?!itcoin)/, (c) => c.toLowerCase());
@@ -137,6 +102,7 @@ export function buildExecutiveConclusion(decision: ReportTrustDecision): Callout
     passed.length ? `Verified for this evidence record: ${list(passed)}.` : "No verification layer passed for this evidence record.",
     failed.length ? `Failed: ${list(failed)} — review before relying on the record.` : "",
     other.length ? `Not verified: ${list(other)}; Trust Signal Analysis states each.` : "",
+    anchoringWord ? `Bitcoin anchoring: ${anchoringWord}.` : "",
   ].filter(Boolean);
   return {
     title: "Executive conclusion",
@@ -229,20 +195,15 @@ export function buildTimestampCallout(
 }
 
 /**
- * THE OTS CALLOUT (2026-10-12): the shared card — one status and one sentence.
- * The block, confirmations and verifier are technical-appendix rows.
+ * THE OTS CALLOUT (2026-10-13): the "Bitcoin anchoring" card — the canonical
+ * state's status word and its one sentence. ANCHORED is a success.
  */
 export function buildOtsCallout(canonicalMaterials: CanonicalEvidenceMaterials): CalloutModel {
-  const ots = canonicalMaterials.otsState;
-  const card = presentOtsTruth({
-    state: ots.truthState,
-    proofRecordedAtUtc: ots.proofRecordedAtUtc ?? null,
-    chain: ots.chainVerification ?? null,
-  });
+  const card = presentOtsAnchoring({ state: canonicalMaterials.otsState.state });
   return {
     title: card.status,
     body: card.sentence,
-    tone: card.status === "Verified" ? "success" : card.status === "Pending" ? "warning" : "neutral",
+    tone: card.tone === "success" ? "success" : card.tone === "danger" ? "danger" : "neutral",
   };
 }
 
@@ -270,21 +231,6 @@ export function buildIntegrityReadinessSummary(
       "Not reported"
     ),
   ].join(" • ");
-}
-
-export function buildAnchorPublicationSummary(
-  anchor: ReportAnchorSummary | null
-): string {
-  if (anchor?.transactionId || anchor?.anchoredAtUtc) {
-    // Anchor material recorded; the summary carries no chain check (2026-09-29).
-    return OTS_ANCHOR_CLAIM_LABELS.ANCHORED_NOT_CHECKED;
-  }
-
-  if (anchor?.configured) {
-    return "OpenTimestamps proof present; Bitcoin anchoring pending";
-  }
-
-  return "OpenTimestamps anchoring unavailable";
 }
 
 /**
@@ -384,27 +330,11 @@ export function buildReportCanonicalMaterials(params: {
           .storageObjectLockLegalHoldStatus ?? null,
       otsStatus: ev.otsStatus ?? null,
       otsHash: ev.otsHash ?? null,
-      otsBitcoinTxid: ev.otsBitcoinTxid ?? null,
       otsAnchoredAtUtc: ev.otsAnchoredAtUtc ?? null,
-      otsUpgradedAtUtc:
-        (ev as { otsUpgradedAtUtc?: string | null }).otsUpgradedAtUtc ?? null,
-      otsAnchorCheck: ev.otsAnchorCheck ?? null,
-      otsProofPresent: Boolean(
-        (ev as { otsProofBase64?: string | null }).otsProofBase64,
-      ),
-      // (2026-10-12) The proof bytes and the OTS truth columns.
-      otsProofBase64: (ev as { otsProofBase64?: string | null }).otsProofBase64 ?? null,
-      otsAttestationRecordedAtUtc: ev.otsAttestationRecordedAtUtc ?? null,
-      otsAttestationBlockHeight: ev.otsAttestationBlockHeight ?? null,
-      otsChainVerificationStatus: ev.otsChainVerificationStatus ?? null,
-      otsChainCheckedAtUtc: ev.otsChainCheckedAtUtc ?? null,
-      otsChainVerifiedAtUtc: ev.otsChainVerifiedAtUtc ?? null,
-      otsChainBlockHeight: ev.otsChainBlockHeight ?? null,
-      otsChainBlockHash: ev.otsChainBlockHash ?? null,
-      otsChainBlockTimeUtc: ev.otsChainBlockTimeUtc ?? null,
-      otsChainConfirmations: ev.otsChainConfirmations ?? null,
-      otsChainVerifier: ev.otsChainVerifier ?? null,
-      otsChainFailureCode: ev.otsChainFailureCode ?? null,
+      otsUpgradedAtUtc: ev.otsUpgradedAtUtc ?? null,
+      otsFailureReason: ev.otsFailureReason ?? null,
+      // The proof bytes: the canonical OTS state is resolved from them.
+      otsProofBase64: ev.otsProofBase64 ?? null,
       identityLevelSnapshot: ev.identityLevelSnapshot ?? null,
       workspaceNameSnapshot:
         (ev as { workspaceNameSnapshot?: string | null })
@@ -455,28 +385,13 @@ export function buildTrustDecision(params: {
       tsaValidatedAtUtc: params.evidence.tsaValidatedAtUtc ?? null,
       otsStatus: params.evidence.otsStatus,
       otsHash: params.evidence.otsHash,
-      otsBitcoinTxid: params.evidence.otsBitcoinTxid,
       otsAnchoredAtUtc: params.evidence.otsAnchoredAtUtc,
+      otsUpgradedAtUtc: params.evidence.otsUpgradedAtUtc ?? null,
       otsCalendar: params.evidence.otsCalendar,
       otsFailureReason: params.evidence.otsFailureReason,
-      otsAnchorCheck: params.evidence.otsAnchorCheck ?? null,
-      otsAnchorCheckedAtUtc: params.evidence.otsAnchorCheckedAtUtc ?? null,
-      otsProofPresent: Boolean(params.evidence.otsProofBase64),
-      // The proof's own bytes (the digest binding is read from them) and the
-      // recorded independent chain check: without them no anchoring state
-      // beyond "attestation present" can be stated, in either direction.
+      // The proof's own bytes: the anchoring signal is the canonical state
+      // resolved from them against the fingerprint digest.
       otsProofBase64: params.evidence.otsProofBase64 ?? null,
-      otsAttestationRecordedAtUtc: params.evidence.otsAttestationRecordedAtUtc ?? null,
-      otsAttestationBlockHeight: params.evidence.otsAttestationBlockHeight ?? null,
-      otsChainVerificationStatus: params.evidence.otsChainVerificationStatus ?? null,
-      otsChainCheckedAtUtc: params.evidence.otsChainCheckedAtUtc ?? null,
-      otsChainVerifiedAtUtc: params.evidence.otsChainVerifiedAtUtc ?? null,
-      otsChainBlockHeight: params.evidence.otsChainBlockHeight ?? null,
-      otsChainBlockHash: params.evidence.otsChainBlockHash ?? null,
-      otsChainBlockTimeUtc: params.evidence.otsChainBlockTimeUtc ?? null,
-      otsChainConfirmations: params.evidence.otsChainConfirmations ?? null,
-      otsChainVerifier: params.evidence.otsChainVerifier ?? null,
-      otsChainFailureCode: params.evidence.otsChainFailureCode ?? null,
       signatureVerified: params.evidence.signatureVerified ?? null,
       custodyChainValid: params.evidence.custodyChainValid ?? null,
       storageImmutable: params.evidence.storageImmutable,

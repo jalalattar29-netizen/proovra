@@ -13,6 +13,7 @@
  *     permanently invalid proof the worker then skips.
  */
 import { randomUUID } from "node:crypto";
+import { otsColumnsFor } from "./helpers/ots-proof-bytes.js";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -96,11 +97,9 @@ describe("OTS remediation truth (live PostgreSQL 16)", () => {
     expect((await detail(incidentId)).incident.status).toBe("OPEN");
     // The proof recovers: the same sweep closes it.
     // OPS-019 — "ANCHORED" alone is a label; recovery is an anchored proof
-    // (its anchor time and Bitcoin transaction recorded).
-    await prisma.evidence.update({
-      where: { id: evidenceId },
-      data: { otsStatus: "ANCHORED", otsFailureReason: null, otsAnchoredAtUtc: new Date(), otsBitcoinTxid: "d".repeat(64) } as never,
-    });
+    // (its stored proof attests a Bitcoin block).
+    const fp = (await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { fingerprintHash: true } })).fingerprintHash ?? "d".repeat(64);
+    await prisma.evidence.update({ where: { id: evidenceId }, data: otsColumnsFor(fp, "ANCHORED") });
     const swept = await sweepSourceTruthRecoveries({ teamId: A.teamId, sourceId: "evidence_integrity.ots_budget_exhausted" });
     expect(swept.resolved).toBeGreaterThanOrEqual(1);
     expect((await detail(incidentId)).incident.status).toBe("RESOLVED");
@@ -152,7 +151,7 @@ describe("OTS remediation truth (live PostgreSQL 16)", () => {
     const team = await prisma.team.findUniqueOrThrow({ where: { id: A.teamId }, select: { organizationId: true } });
     const evidenceId = (
       await prisma.evidence.create({
-        data: { title: "anchored", type: "PHOTO", status: "SIGNED", teamId: A.teamId, organizationId: team.organizationId, ownerUserId: A.ownerUserId, otsStatus: "ANCHORED" } as never,
+        data: { title: "anchored", type: "PHOTO", status: "SIGNED", teamId: A.teamId, organizationId: team.organizationId, ownerUserId: A.ownerUserId, ...otsColumnsFor("f".repeat(64), "ANCHORED") } as never,
         select: { id: true },
       })
     ).id;

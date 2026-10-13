@@ -13,16 +13,16 @@
 import React from "react";
 import { View } from "react-native";
 import {
-  OTS_TRUTH_SENTENCES,
-  OTS_TRUTH_STATUS_LINES,
   storedBytesVerificationRow,
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   VERIFICATION_STATUS_LABELS,
   type BasicVerification,
   type ComponentVerificationState,
-  type OtsTruthState,
   type VerificationStatus,
 } from "@proovra/shared";
+
+import { useOptionalLocale } from "../locale-context";
+import { otsBadgeLabel, otsCard } from "../product/ots-anchoring";
 
 import type { VerifyMatrixView, VerifyWebTone } from "../product/public-verify";
 import { ProovraBadge, ProovraCard, ProovraSection, ProovraText } from "./index";
@@ -36,13 +36,14 @@ const MATRIX_TONE: Record<VerifyWebTone, "verified" | "pending" | "risk" | "info
 };
 
 function MatrixSection({ matrix }: { matrix: VerifyMatrixView }) {
+  const rtl = useOptionalLocale() === "ar";
   return (
     <ProovraSection title="Verification matrix">
       <ProovraCard testID="basic-verification-matrix">
         <ProovraText variant="bodySm" weight="semibold" testID="basic-verification-headline">{matrix.summary}</ProovraText>
         {matrix.rows.map((r) => (
           <View key={r.key} style={{ paddingVertical: 10, gap: 6 }} accessibilityLabel={`${r.label}: ${r.statusLabel ?? VERIFICATION_STATUS_LABELS[r.status as VerificationStatus] ?? r.status}. ${r.statement}`}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <View style={{ flexDirection: rtl ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
               <ProovraText weight="semibold">{r.label}</ProovraText>
               <ProovraBadge label={r.statusLabel ?? VERIFICATION_STATUS_LABELS[r.status as VerificationStatus] ?? r.status} tone={MATRIX_TONE[r.tone]} />
             </View>
@@ -76,15 +77,52 @@ function fmt(iso: string | null): string {
   return Number.isNaN(d.getTime()) ? "—" : `${d.toISOString().replace("T", " ").slice(0, 19)} UTC`;
 }
 
-function Row({ label, state, detail, badge }: { label: string; state: ComponentVerificationState; detail: string; badge?: string }) {
+function Row({
+  label,
+  state,
+  detail,
+  badge,
+  tone,
+  testID,
+  children,
+}: {
+  label: string;
+  state: ComponentVerificationState;
+  detail: string;
+  badge?: string;
+  tone?: "verified" | "pending" | "risk" | "neutral";
+  testID?: string;
+  children?: React.ReactNode;
+}) {
+  // Arabic reads right to left: the label leads from the right edge.
+  const rtl = useOptionalLocale() === "ar";
   return (
-    <View style={{ paddingVertical: 10, gap: 6 }} accessibilityLabel={`${label}: ${badge ?? LABEL[state]}. ${detail}`}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+    <View testID={testID} style={{ paddingVertical: 10, gap: 6 }} accessibilityLabel={`${label}: ${badge ?? LABEL[state]}. ${detail}`}>
+      <View style={{ flexDirection: rtl ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <ProovraText weight="semibold">{label}</ProovraText>
-        <ProovraBadge label={badge ?? LABEL[state]} tone={TONE[state]} />
+        <ProovraBadge label={badge ?? LABEL[state]} tone={tone ?? TONE[state]} />
       </View>
       <ProovraText variant="bodySm">{detail}</ProovraText>
+      {children}
     </View>
+  );
+}
+
+/**
+ * THE BITCOIN ANCHORING CARD (2026-10-13) — the state the server resolved
+ * (`anchoring.otsState`), in the active locale's words. A reply without it
+ * reads as Unavailable; nothing here re-derives the state.
+ */
+function AnchoringRow({ anchoring }: { anchoring: BasicVerification["anchoring"] }) {
+  const locale = useOptionalLocale();
+  const card = otsCard({ ...anchoring, state: (anchoring as { otsState?: unknown }).otsState }, locale, fmt);
+  const shown = card.facts.filter((f) => f.key === "blockHeight" || f.key === "txid" || f.key === "anchoredAt");
+  return (
+    <Row label={card.title} state={anchoring.state} detail={card.sentence} badge={otsBadgeLabel(card)} tone={card.badgeTone} testID={`basic-verification-ots-${card.state}`}>
+      {shown.map((f) => (
+        <ProovraText key={f.key} variant="label" mono={f.mono} selectable>{`${f.label}: ${f.value}`}</ProovraText>
+      ))}
+    </Row>
   );
 }
 
@@ -150,22 +188,7 @@ export function BasicVerificationView({ data, matrix = null }: { data: BasicVeri
                     : "No trusted timestamp was issued for this record."
             }
           />
-          {(() => {
-            // (2026-10-12) The OpenTimestamps card: the public word and one sentence (as web and the report).
-            const card: OtsTruthState =
-              data.anchoring.state === "verified"
-                ? "CHAIN_VERIFIED"
-                : data.anchoring.state === "not_checked"
-                  ? data.anchoring.truthState === "CHAIN_VERIFICATION_UNAVAILABLE"
-                    ? "CHAIN_VERIFICATION_UNAVAILABLE"
-                    : "ATTESTATION_PRESENT_NOT_VERIFIED"
-                  : data.anchoring.state === "pending"
-                    ? "PENDING"
-                    : data.anchoring.state === "failed"
-                      ? "PROOF_INVALID"
-                      : "NOT_REQUESTED";
-            return <Row label="OpenTimestamps" state={data.anchoring.state} detail={OTS_TRUTH_SENTENCES[card]} badge={OTS_TRUTH_STATUS_LINES[card]} />;
-          })()}
+          <AnchoringRow anchoring={data.anchoring} />
           {/* UC-PROV-001 — the server clock at record creation is never a device-declared capture time. */}
           <ProovraText variant="bodySm">Server received at (PROOVRA server clock): {fmt(o.serverReceivedAtUtc ?? o.capturedAtUtcDeclared)}</ProovraText>
           <ProovraText variant="bodySm">

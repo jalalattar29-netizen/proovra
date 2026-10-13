@@ -73,7 +73,7 @@ function ctx(): never {
       verificationStatus: "MATERIALS_AVAILABLE", verificationStatusLabel: "Materials available",
       sha256Recorded: true, fingerprintHashRecorded: false, fingerprintCanonicalHashMatches: null,
       signature: { recorded: false, valid: false }, tsa: { timestampAvailable: false, status: null },
-      ots: { effectiveStatus: null, lastUpdatedAtUtc: null }, storage: null,
+      ots: { state: "PENDING", lastUpdatedAtUtc: null }, storage: null,
       report: { available: false, version: null }, verificationPackage: { available: false, version: null },
       custodyChain: { valid: true, mode: "full", reason: null },
     },

@@ -3,6 +3,8 @@ import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import type { ReportTrustDecision } from "./report-v2/types.js";
+import type { OtsState } from "@proovra/shared";
+import { reconcileOtsAnchoredReportVersion } from "./ots-anchored-version.js";
 import { otsClientIdentity } from "./ots.service.js";
 import {
   buildTrustDecision,
@@ -79,20 +81,20 @@ import {
   // UC-0 — the acquisition authority.
   resolveEvidenceAcquisition,
   compareTimestampDigest,
-  isCompleteOtsAnchor,
   presentedTsaStatus,
   buildTimestampValidationRecord,
   deriveReportFreshness,
   reportFreshnessChangeCopy,
-  resolveEffectiveOtsStatus,
+  resolveRecordOtsAnchoring,
+  parseOtsState,
   REPORTABLE_CUSTODY_EVENT_TYPES,
   parseTsaValidationEvidence,
   acquisitionIdentitySummary,
   acquisitionActorLabel,
   resolveAcquisitionIdentitySnapshot,
-  resolveOtsCustodyFacts,
+  OTS_STATE_SENTENCES,
   resolveTsaTrustState,
-  resolveOtsTrustState,
+  OTS_STATE_LABELS,
   type AcquisitionIdentitySnapshot,
   custodyLabelHints,
   readStoredTrustDecision,
@@ -367,6 +369,13 @@ type ReportAnchorSummary = {
   anchorHash: string | null;
   transactionId: string | null;
   anchoredAtUtc: string | null;
+  /**
+   * (2026-10-13) The canonical OpenTimestamps state the report states and the
+   * proof it was resolved from. Persisted in reports.anchor_snapshot; the one
+   * automatic version after anchoring is decided from it.
+   */
+  otsState?: OtsState | null;
+  otsProofSha256?: string | null;
 };
 
 type PreparedAnchorPayload = {
@@ -381,8 +390,8 @@ type PreparedAnchorPayload = {
   transactionId?: string | null;
   anchoredAtUtc?: string | null;
   /** The record's OTS state and how its anchor was established (2026-09-29). */
-  otsStatus?: string | null;
-  otsAnchorCheck?: string | null;
+  /** The record's canonical OTS state (2026-10-13). */
+  otsState?: OtsState | null;
 };
 
 type ReportBuildParams = {
@@ -573,16 +582,19 @@ async function buildReportSupersession(input: {
     otsStatus: string | null;
     otsAnchoredAtUtc: Date | null;
     otsUpgradedAtUtc: Date | null;
-    otsAnchorCheck: string | null;
+    otsProofBase64: string | null;
+    otsHash: string | null;
+    otsFailureReason: string | null;
+    fingerprintHash: string | null;
     lastVerifiedAtUtc?: Date | null;
   };
   reason: string | null;
 }): Promise<{ previousVersion: number; previousGeneratedAtUtc: string | null; changes: string[]; reason: string | null }> {
   const previous = await prisma.report.findUnique({
     where: { evidenceId_version: { evidenceId: input.evidenceId, version: input.previousVersion } },
-    select: { generatedAtUtc: true, custodyThroughSequence: true, lastVerifiedAtUtcSnapshot: true },
+    select: { generatedAtUtc: true, custodyThroughSequence: true, lastVerifiedAtUtcSnapshot: true, anchorSnapshot: true },
   });
-  const [afterReport, otsEvents] = await Promise.all([
+  const [afterReport] = await Promise.all([
     previous
       ? prisma.custodyEvent.aggregate({
           where: {
@@ -596,23 +608,18 @@ async function buildReportSupersession(input: {
           _max: { atUtc: true },
         })
       : null,
-    prisma.custodyEvent.findMany({
-      where: { evidenceId: input.evidenceId, eventType: prismaPkg.CustodyEventType.OTS_APPLIED },
-      orderBy: { sequence: "asc" },
-      select: { eventType: true, atUtc: true, payload: true },
-    }),
   ]);
+  const ots = resolveRecordOtsAnchoring(input.evidence);
+  const statedOts = (previous?.anchorSnapshot as { otsState?: unknown } | null | undefined)?.otsState;
   const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
   const freshness = deriveReportFreshness({
     reportVersion: input.previousVersion,
     reportGeneratedAtUtc: iso(previous?.generatedAtUtc),
     tsa: { status: input.evidence.tsaStatus, validatedAtUtc: iso(input.evidence.tsaValidatedAtUtc) },
     ots: {
-      status: resolveEffectiveOtsStatus({ status: input.evidence.otsStatus, anchoredAtUtc: input.evidence.otsAnchoredAtUtc }),
-      anchoredAtUtc: iso(input.evidence.otsAnchoredAtUtc),
-      upgradedAtUtc: iso(input.evidence.otsUpgradedAtUtc),
-      anchorCheck: input.evidence.otsAnchorCheck,
-      anchorCheckedAtUtc: resolveOtsCustodyFacts(otsEvents, input.evidence.otsAnchorCheck).anchorCheckedAtUtc,
+      state: ots.state,
+      anchoredAtUtc: ots.anchoredAtUtc,
+      reportState: statedOts == null ? null : parseOtsState(statedOts),
     },
     custodyAfterReport: { count: afterReport?._count._all ?? 0, latestAtUtc: iso(afterReport?._max.atUtc ?? null) },
     integrity: {
@@ -825,24 +832,21 @@ case "TIMESTAMP_FAILED": {
 
     case "OTS_APPLIED": {
       const otsStatus = normalizePayloadPrimitive(obj.otsStatus);
-      const otsPhase = normalizePayloadPrimitive(obj.otsPhase);
       const bitcoinTxid = normalizePayloadPrimitive(obj.bitcoinTxid);
       const calendar = normalizePayloadPrimitive(obj.calendar);
-      // THE canonical OTS reading of this event: an attestation recorded by
-      // proof structure is "present, not chain-verified"; only a recorded
-      // BITCOIN_VERIFIED check is verified. Never the raw status code.
-      const anchorCheck = normalizePayloadPrimitive(obj.anchorCheck);
-      const eventState = resolveOtsTrustState({
-        status: otsStatus,
-        anchoredAtUtc: normalizePayloadPrimitive(obj.anchoredAtUtc),
-        anchorCheck,
-        proofPresent: true,
-      });
+      // THE canonical OTS reading of this event (2026-10-13): the state the
+      // worker resolved from the executed proof when it wrote the event. A
+      // legacy event (no otsState) names only that the proof was updated.
+      const eventOtsState = obj.otsState == null ? null : parseOtsState(obj.otsState);
       return [
-        otsPhase === "anchored" || otsStatus === "ANCHORED"
-          ? eventState.label
-          : "OpenTimestamps proof submitted; Bitcoin anchoring pending",
-        bitcoinTxid ? `Bitcoin Tx: ${bitcoinTxid}` : null,
+        eventOtsState === "ANCHORED"
+          ? OTS_STATE_SENTENCES.ANCHORED.replace(/\.$/, "")
+          : eventOtsState === "PENDING" || (eventOtsState === null && otsStatus !== "ANCHORED")
+            ? "OpenTimestamps proof submitted; Bitcoin anchoring pending"
+            : eventOtsState === null
+              ? "OpenTimestamps proof updated"
+              : OTS_STATE_LABELS[eventOtsState],
+        eventOtsState === "ANCHORED" && bitcoinTxid ? `Bitcoin Tx: ${bitcoinTxid}` : null,
         calendar ? `Calendar: ${calendar}` : null,
       ]
         .filter(Boolean)
@@ -1362,8 +1366,8 @@ function buildFinalizedAnchorPayload(params: {
   anchorSummary: ReportAnchorSummary | null;
   otsBitcoinTxid?: string | null;
   otsAnchoredAtUtc?: string | null;
-  otsStatus?: string | null;
-  otsAnchorCheck?: string | null;
+  /** The canonical OTS state; ANCHORED alone carries a txid and an anchored time. */
+  otsState: OtsState;
 }): PreparedAnchorPayload | null {
   if (params.anchorMode === "off") return null;
 
@@ -1382,20 +1386,12 @@ function buildFinalizedAnchorPayload(params: {
       params.lastEventHash ?? "",
     ]),
     generatedAtUtc: params.generatedAtUtc,
+    // The txid and time travel only for a proof that resolves to ANCHORED.
     transactionId:
-      params.anchorSummary?.transactionId ?? params.otsBitcoinTxid ?? null,
-    // (2026-09-29) The recorded anchor time travels whenever the record IS
-    // anchored (status + time, the shared completeness rule). It used to be
-    // dropped without a txid, so the manifest said "pending" beside an
-    // opentimestamps.json that said anchored. A chain-checked claim still
-    // needs the txid (resolveOtsAnchorClaim).
+      params.otsState === "ANCHORED" ? (params.anchorSummary?.transactionId ?? params.otsBitcoinTxid ?? null) : null,
     anchoredAtUtc:
-      params.anchorSummary?.anchoredAtUtc ??
-      (isCompleteOtsAnchor({ status: params.otsStatus ?? null, anchoredAtUtc: params.otsAnchoredAtUtc ?? null })
-        ? (params.otsAnchoredAtUtc ?? null)
-        : null),
-    otsStatus: params.otsStatus ?? null,
-    otsAnchorCheck: params.otsAnchorCheck ?? null,
+      params.otsState === "ANCHORED" ? (params.anchorSummary?.anchoredAtUtc ?? params.otsAnchoredAtUtc ?? null) : null,
+    otsState: params.otsState,
   };
 }
 
@@ -2197,7 +2193,6 @@ async function prepareReportArtifacts(
       otsAnchoredAtUtc: true,
       otsUpgradedAtUtc: true,
       otsFailureReason: true,
-      otsAnchorCheck: true,
     },
   });
 
@@ -3412,6 +3407,16 @@ export async function processGenerateReport(job: Job<unknown>) {
     resultReportId: produced?.id ?? null,
     fence: { claimedAtUtc: command.claimedAtUtc },
   });
+
+  // (2026-10-13) THE ANCHORED-BEFORE/AFTER RACE. A report that committed
+  // stating a not-yet-anchored proof, while the proof anchored during the run,
+  // owes exactly one automatic version; one that stated ANCHORED owes none.
+  // Idempotent (ots-anchored-version.ts); never fails the finished request.
+  if (run.outcome === "generated") {
+    await reconcileOtsAnchoredReportVersion(command.evidenceId).catch((err: unknown) => {
+      logger.warn({ evidenceId: command.evidenceId, err }, "ots.anchored.version_decision_failed");
+    });
+  }
 }
 
 /**
@@ -4117,6 +4122,19 @@ async function runReportGeneration(
           ...prepared.reportEvidencePayload,
           ...reportLifecycleFields(renderSnapshot.lifecycle, renderSnapshot.custody),
         };
+        // The OTS state the report STATES is the render snapshot's.
+        prepared.anchorSummary = {
+          ...(prepared.anchorSummary ?? {
+            mode: "off",
+            provider: null,
+            configured: false,
+            anchorHash: null,
+            transactionId: null,
+            anchoredAtUtc: null,
+          }),
+          otsState: renderSnapshot.facts.otsState,
+          otsProofSha256: renderSnapshot.facts.otsProofSha256,
+        };
         const custodyAtIssue = renderSnapshot.custody;
         const custodyThroughSequence = custodyAtIssue.at(-1)?.sequence ?? null;
 
@@ -4821,8 +4839,7 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
   anchorSummary: prepared.anchorSummary,
   otsBitcoinTxid: prepared.reportEvidencePayload.otsBitcoinTxid ?? null,
   otsAnchoredAtUtc: prepared.reportEvidencePayload.otsAnchoredAtUtc ?? null,
-  otsStatus: prepared.reportEvidencePayload.otsStatus ?? null,
-  otsAnchorCheck: prepared.reportEvidencePayload.otsAnchorCheck ?? null,
+  otsState: prepared.anchorSummary?.otsState ?? "UNAVAILABLE",
 });
         // Phase 31.14 — bounded intelligence projection for the
         // verification package. Returns null when no surfaceable
@@ -5005,22 +5022,10 @@ signingKeyVersion: evidence.signingKeyVersion ?? undefined,
               finalized.finalizedReportEvidencePayload.otsAnchoredAtUtc ?? null,
             upgradedAtUtc:
               finalized.finalizedReportEvidencePayload.otsUpgradedAtUtc ?? null,
-            anchorCheck:
-              finalized.finalizedReportEvidencePayload.otsAnchorCheck ?? null,
             failureReason:
               finalized.finalizedReportEvidencePayload.otsFailureReason ?? null,
-            // (2026-10-12) The OTS truth columns and the client that produced the proof.
-            attestationRecordedAtUtc: finalized.finalizedReportEvidencePayload.otsAttestationRecordedAtUtc ?? null,
-            attestationBlockHeight: finalized.finalizedReportEvidencePayload.otsAttestationBlockHeight ?? null,
-            chainVerificationStatus: finalized.finalizedReportEvidencePayload.otsChainVerificationStatus ?? null,
-            chainCheckedAtUtc: finalized.finalizedReportEvidencePayload.otsChainCheckedAtUtc ?? null,
-            chainVerifiedAtUtc: finalized.finalizedReportEvidencePayload.otsChainVerifiedAtUtc ?? null,
-            chainBlockHeight: finalized.finalizedReportEvidencePayload.otsChainBlockHeight ?? null,
-            chainBlockHash: finalized.finalizedReportEvidencePayload.otsChainBlockHash ?? null,
-            chainBlockTimeUtc: finalized.finalizedReportEvidencePayload.otsChainBlockTimeUtc ?? null,
-            chainConfirmations: finalized.finalizedReportEvidencePayload.otsChainConfirmations ?? null,
-            chainVerifier: finalized.finalizedReportEvidencePayload.otsChainVerifier ?? null,
-            chainFailureCode: finalized.finalizedReportEvidencePayload.otsChainFailureCode ?? null,
+            submittedAtUtc: finalized.finalizedReportEvidencePayload.otsSubmittedAtUtc ?? null,
+            fingerprintHash: finalized.finalizedReportEvidencePayload.fingerprintHash ?? null,
             otsClient,
           },
           metadata: {

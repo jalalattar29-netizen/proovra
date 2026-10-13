@@ -165,7 +165,8 @@ export type StatusBody = {
     newVersion: { action: string; reason: string | null; currentVersion: number | null; nextVersion: number | null };
     offer: { revision: string; targetVersion: number | null } | null;
     freshness: { hasNewerFacts: boolean; changes: Array<{ code: string }> };
-    trust: { tsa: { status: string | null; validated: boolean }; ots: { status: string | null; anchorCheck: string | null } };
+    /** `ots` is the server's OtsAnchoringView (2026-10-13): read `state`, never derive it. */
+    trust: { tsa: { status: string | null; validated: boolean }; ots: { state: string | null; label: string | null; bitcoinTxid?: string | null } };
     activeRequest: { requestId: string; state: string; progress: { currentStep: string; outcome: string } } | null;
     pollIntervalMs: number | null;
   };
@@ -223,8 +224,10 @@ export function validateKeptTsaToken(evidenceId: string): string {
 /**
  * OTS — a proof committing to the record's digest with a Bitcoin block-header
  * attestation, built offline with the official library, then anchored by the
- * worker's real upgrade processor (`ots upgrade` / `ots info`; no Bitcoin node,
- * so the recorded check is PROOF_STRUCTURE — never claimed as chain-verified).
+ * worker's real upgrade processor (`ots upgrade` / `ots info`). The stored proof
+ * executes from the record's digest to a valid Bitcoin block-header attestation,
+ * so the record is ANCHORED — PROOVRA operates no Bitcoin node and claims no
+ * independent canonical-chain verification (OTS_ANCHORED_BOUNDARY).
  */
 export function anchorOtsThroughUpgrade(evidenceId: string): void {
   // The anchor commits to the CANONICAL FINGERPRINT HASH (what completion

@@ -27,9 +27,9 @@ function renderLifecycleSummary(vm: ReportViewModel): string {
     (row) => row.label === "RFC 3161 Status"
   )?.value;
 
-  // The public OpenTimestamps word (Pending, Attestation recorded, Verified,
-  // Unavailable), the same one the trust card shows.
-  const anchoringStep = `OpenTimestamps ${String(anchoringStatus ?? "Unavailable").toLowerCase()}`;
+  // The canonical Bitcoin anchoring label ("Bitcoin anchored", "Bitcoin
+  // anchoring pending", …), the same state the trust card shows.
+  const anchoringStep = String(anchoringStatus ?? "Bitcoin anchoring unavailable");
 
   return `
     <div class="custody-lifecycle-summary">

@@ -316,13 +316,11 @@ export const PROOVRA_SPAN_NAMES = {
   INTEGRITY_CANONICAL_DIGEST: "proovra.integrity.canonical.digest",
   INTEGRITY_SIGNATURE_VERIFY: "proovra.integrity.signature.verify",
   INTEGRITY_TIMESTAMP_VERIFY: "proovra.integrity.timestamp.verify",
-  INTEGRITY_PUBLIC_ANCHOR_VERIFY: "proovra.integrity.public_anchor.verify",
   CUSTODY_CHAIN_VERIFY: "proovra.custody.chain.verify",
   TSA_TIMESTAMP_REQUEST: "proovra.tsa.timestamp.request",
   TSA_TIMESTAMP_VERIFY: "proovra.tsa.timestamp.verify",
   OTS_ANCHOR: "proovra.ots.anchor",
   OTS_UPGRADE: "proovra.ots.upgrade",
-  OTS_VERIFY: "proovra.ots.verify",
   // Phase O1.5C — Report pipeline.
   REPORT_GENERATE: "proovra.report.generate",
   REPORT_RENDER_HTML: "proovra.report.render.html",

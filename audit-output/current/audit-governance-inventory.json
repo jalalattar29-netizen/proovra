@@ -66,7 +66,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 352,
+    "AuditFilesInventoried": 351,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -113,9 +113,9 @@
     "Phase0ChangedPathClassificationMissing": 0,
     "ManualPhase0ChangeInventories": 0,
     "ProductionRuntimeFilesModifiedByPhase0": 0,
-    "ProductBehaviorTestsRemoved": 0,
+    "ProductBehaviorTestsRemoved": 10,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 269
+    "ProductBehaviorTestsInventoried": 268
   },
   "reportRoles": {
     "counts": {
@@ -132,7 +132,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 269,
+    "PRODUCT_BEHAVIOR_TEST": 268,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "CURRENT_GENERATED_REPORT": 1,
     "DIAGNOSTIC_NOT_AUTHORITY": 1,
@@ -142,7 +142,18 @@
     "DEPRECATED_DELEGATE": 1,
     "AUDIT_ENGINE_TEST": 14
   },
-  "problems": [],
+  "problems": [
+    "PRODUCT BEHAVIOUR TEST DELETED: packages/shared/tests/ots-anchor-claim.test.mjs",
+    "PRODUCT BEHAVIOUR TEST DELETED: packages/shared/tests/ots-presentation.test.mjs",
+    "PRODUCT BEHAVIOUR TEST DELETED: packages/shared/tests/ots-truth.test.mjs",
+    "PRODUCT BEHAVIOUR TEST DELETED: services/worker/test/ots-chain-verifier.test.ts",
+    "PRODUCT BEHAVIOUR TEST DELETED: services/worker/test/ots-classification.test.ts",
+    "PRODUCT BEHAVIOUR TEST DELETED: services/worker/test/ots-state.test.ts",
+    "PRODUCT BEHAVIOUR TEST DELETED: services/worker/test/ots-upgrade-output.test.ts",
+    "PRODUCT BEHAVIOUR TEST DELETED: services/worker/test/phase-ia-ots-hybrid-state-fix.test.ts",
+    "PRODUCT BEHAVIOUR TEST DELETED: services/worker/test/phase-ia-ots-info-fallback.test.ts",
+    "PRODUCT BEHAVIOUR TEST DELETED: services/worker/test/repair-ots-hybrid-state.test.ts"
+  ],
   "duplicateClaims": [],
   "multiProducer": [],
   "selfReading": [],
@@ -5717,21 +5728,6 @@
     },
     {
       "path": "services/worker/test/offline-verifier-decommission.test.ts",
-      "role": "PRODUCT_BEHAVIOR_TEST",
-      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
-      "importedBy": [],
-      "spawns": [],
-      "readsArtifacts": [],
-      "writesArtifacts": [],
-      "declaresArtifacts": [],
-      "packageScripts": [],
-      "ciConsumers": [],
-      "sourceOfTruthFor": [],
-      "disposition": "RETAINED"
-    },
-    {
-      "path": "services/worker/test/ots-chain-verifier.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],

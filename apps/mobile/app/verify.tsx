@@ -84,7 +84,9 @@ import {
 } from "../src/ui";
 import { AuthBrandHeader } from "../src/ui/brand";
 import { BasicVerificationView } from "../src/ui/basic-verification-view";
-import { VERIFICATION_STATUS_LABELS, type BasicVerification, type VerificationStatus } from "@proovra/shared";
+import { VERIFICATION_STATUS_LABELS, otsAnchoringCopy, type BasicVerification, type VerificationStatus } from "@proovra/shared";
+import { useOptionalLocale } from "../src/locale-context";
+import { otsBadgeLabel, otsCard } from "../src/product/ots-anchoring";
 import { CaptureLocationMap } from "../src/ui/capture-location-map";
 import { parseVerifyCaptureContext } from "../src/product/public-verify";
 
@@ -97,6 +99,8 @@ type VerifyData = Record<string, unknown>;
  * signature (the previous mock is gone). Honest loading/error/empty states.
  */
 export default function VerifyScreen() {
+  // Bitcoin anchoring words come from the active locale (en / de / ar).
+  const locale = useOptionalLocale();
   const params = useLocalSearchParams<{ id?: string }>();
   const paramId = params.id ?? "";
   const [id, setId] = useState(paramId);
@@ -148,7 +152,7 @@ export default function VerifyScreen() {
     return (
       <ProovraScreen>
         <AuthBrandHeader />
-        <BasicVerificationView data={data.basicVerification as BasicVerification} matrix={parseVerifyMatrix(data)} />
+        <BasicVerificationView data={data.basicVerification as BasicVerification} matrix={parseVerifyMatrix(data, locale)} />
       </ProovraScreen>
     );
   }
@@ -267,8 +271,9 @@ export default function VerifyScreen() {
   // WEB PARITY (verify/[token]/page.tsx) — every section below reads a field
   // GET /public/verify/:id actually sends, and renders nothing without it.
   const fmt = (iso: string) => formatUserDateTime(iso);
-  const trust = parseVerifyTrustDecision(data);
-  const matrix = parseVerifyMatrix(data);
+  const trust = parseVerifyTrustDecision(data, locale);
+  const matrix = parseVerifyMatrix(data, locale);
+  const otsC = otsCard(v.ots, locale, fmt);
   const outputContext = parseVerifyOutputContext(data);
   const signals = parseVerifyIntegritySignals(data);
   const verdict = buildVerifyVerdict(trust, signals, matrix);
@@ -276,12 +281,12 @@ export default function VerifyScreen() {
   const mismatchExplanations = buildVerifyMismatchExplanations(signals);
   const mismatchMessages = verifyMismatchMessages(signals);
   const divergence = parseVerifyDivergence(data);
-  const anchoring = parseVerifyAnchoring(data, fmt);
+  const anchoring = parseVerifyAnchoring(data, fmt, locale);
   const redaction = parseVerifyRedaction(data, fmt);
   const content = parseVerifyContentReview(data, fmt);
   const custody = parseVerifyCustody(data);
   const recordFields = verifyRecordFields(data, trust, fmt);
-  const integrityTab = verifyIntegrityTab(data, signals, fmt, verifyIntegrityReviewRequired(trust, matrix));
+  const integrityTab = verifyIntegrityTab(data, signals, fmt, verifyIntegrityReviewRequired(trust, matrix), locale);
   const pkg = parseVerifyPackage(data);
   const recordStatus = (data?.["overview"] as Record<string, unknown> | undefined)?.["recordStatus"];
   const selected: VerifyContentItem | null = content
@@ -428,9 +433,9 @@ export default function VerifyScreen() {
                   <Kicker>{VERIFY_ANCHORING_COPY.liveKicker}</Kicker>
                   <ProovraText variant="label">{VERIFY_ANCHORING_COPY.liveBody}</ProovraText>
                   {anchoring.advanced ? <ProovraText variant="label" weight="semibold">{VERIFY_ANCHORING_COPY.advanced}</ProovraText> : null}
-                  {anchoring.otsPending ? <ProovraText variant="label" weight="semibold">{VERIFY_ANCHORING_COPY.otsPending}</ProovraText> : null}
+                  {anchoring.otsPending ? <ProovraText variant="label" weight="semibold">{anchoring.otsPendingSentence}</ProovraText> : null}
                   {anchoring.liveRows.map((r) => (
-                    <Row key={r.label} k={r.label} value={r.value} mono={r.label === "Bitcoin Transaction" && r.value !== "Not recorded"} />
+                    <Row key={r.label} k={r.label} value={r.value} mono={r.mono === true} />
                   ))}
                 </View>
               </>
@@ -457,7 +462,7 @@ export default function VerifyScreen() {
             {verifyPublicationPending(trust) ? (
               <View style={styles.inset}>
                 <Kicker>{VERIFY_TRUST_COPY.publicationPostureKicker}</Kicker>
-                <ProovraText variant="label">{VERIFY_TRUST_COPY.publicationPostureBody}</ProovraText>
+                <ProovraText variant="label">{otsAnchoringCopy(locale).sentences.PENDING}</ProovraText>
               </View>
             ) : null}
             {signals.custodyChainFailureReason ? (
@@ -604,8 +609,13 @@ export default function VerifyScreen() {
           <Row k="Public key" value={v.materials.publicKeyPem} mono />
           <Row k="Timestamp (RFC 3161)" value={[v.tsa.status, v.tsa.provider, v.tsa.genTimeUtc ? formatUserDateTime(v.tsa.genTimeUtc) : null].filter(Boolean).join(" · ") || null} />
           <Row k="Timestamp serial" value={v.tsa.serialNumber} mono />
-          <Row k="OpenTimestamps" value={[v.ots.status, v.ots.proofPresent ? "proof present" : null, v.ots.anchoredAtUtc ? formatUserDateTime(v.ots.anchoredAtUtc) : null].filter(Boolean).join(" · ") || null} />
-          <Row k="TxID:" value={v.ots.bitcoinTxid ?? v.anchorTransactionId} mono />
+          {/* Bitcoin anchoring: the server's state in the locale's words; the txid only when present. */}
+          <Row k={otsC.title} value={`${otsBadgeLabel(otsC)} — ${otsC.sentence}`} />
+          {otsC.facts
+            .filter((f) => f.key === "txid" || f.key === "anchoredAt")
+            .map((f) => (
+              <Row key={f.key} k={f.label} value={f.value} mono={f.mono} />
+            ))}
         </ProovraCard>
 
         {v.acquisition.length > 0 ? (
@@ -924,7 +934,7 @@ function SignalList({ signals }: { signals: VerifyTrustSignalView[] }) {
       {signals.map((s) => (
         <View key={s.key} style={styles.hashRow} testID={`verify-signal-${s.key}`}>
           <ProovraText variant="label" weight="semibold" color={theme.color.ink.muted}>{s.label}</ProovraText>
-          <ProovraBadge tone={verifyBadgeTone(s.tone)} label={VERIFICATION_STATUS_LABELS[s.presentationLabel] ?? s.presentationLabel} />
+          <ProovraBadge tone={verifyBadgeTone(s.tone)} label={s.statusLabel ?? VERIFICATION_STATUS_LABELS[s.presentationLabel] ?? s.presentationLabel} />
           {s.summary ? <ProovraText variant="bodySm" weight="semibold">{s.summary}</ProovraText> : null}
           {s.detail ? <ProovraText variant="label" color={theme.color.ink.secondary}>{s.detail}</ProovraText> : null}
         </View>

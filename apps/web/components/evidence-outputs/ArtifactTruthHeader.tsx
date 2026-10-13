@@ -16,11 +16,12 @@ import {
   TRUST_SIGNAL_STATE_PRESENTATION,
   getTrustLayerStateLabel,
   presentedTsaStatus,
+  readOtsAnchoringView,
   reportFreshnessChangeCopy,
-  resolveOtsTrustState,
   resolveTsaTrustState,
   toVerificationStatus,
   VERIFICATION_STATUS_LABELS,
+  type OtsState,
   type ReportFreshness,
   type TrustSignalState,
   type VerificationStatus,
@@ -78,42 +79,44 @@ export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): TruthFact 
   };
 }
 
-export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): TruthFact {
-  if (!o) return { label: "Unavailable", tone: "neutral", state: null, status: "UNAVAILABLE", measuredAtUtc: null };
-  // An attested proof is "present, not independently verified"; only recorded
-  // chain evidence is verified (resolveOtsTrustState).
-  const s = resolveOtsTrustState({
-    status: o.status,
-    anchoredAtUtc: o.anchoredAtUtc,
-    anchorCheck: o.anchorCheck,
-    anchorCheckedAtUtc: o.anchorCheckedAtUtc ?? null,
-    // The recorded chain evidence; without it nothing reads as verified.
-    chain: o,
-  });
+/** THE Bitcoin anchoring state as a trust state (ANCHORED is the only PASSED). */
+const OTS_TRUST_STATE: Readonly<Record<OtsState, TrustSignalState>> = {
+  ANCHORED: "PASSED",
+  PENDING: "PENDING",
+  FAILED: "FAILED",
+  UNAVAILABLE: "UNAVAILABLE",
+  NOT_REQUESTED: "NOT_APPLICABLE",
+};
+
+/**
+ * Bitcoin anchoring (2026-10-13): the server's OtsAnchoringView, read — never
+ * derived. A missing object or an unknown state reads as Unavailable.
+ */
+export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): TruthFact & { otsState: OtsState; word: string } {
+  const view = readOtsAnchoringView(o);
+  const state = OTS_TRUST_STATE[view.state];
   return {
-    label: getTrustLayerStateLabel({ key: "bitcoin_anchoring", status: TRUST_SIGNAL_STATE_PRESENTATION[s.state].legacyStatus, state: s.state }),
-    tone: toneOf(s.state),
-    state: s.state,
-    status: toVerificationStatus(s.state),
-    measuredAtUtc: s.measuredAtUtc,
+    label: view.tone === "success" ? `✓ ${view.status}` : view.status,
+    tone: view.tone === "success" ? "ok" : view.tone === "danger" ? "warn" : "neutral",
+    state,
+    status: toVerificationStatus(state),
+    measuredAtUtc: view.anchoredAtUtc,
+    otsState: view.state,
+    word: view.status,
   };
 }
 
 /**
  * The dated note under each trust fact names what the date IS. Only a PASSED
- * state carries a validation / chain-check date: a present OpenTimestamps
- * proof is dated by its structure check, never as a chain check.
+ * timestamp carries a validation date; an anchored proof carries when PROOVRA
+ * recorded the anchoring — never a Bitcoin block time.
  */
 export function tsaNote(t: ReturnType<typeof tsaLabel>, fmt: (v: string) => string): string | null {
   return t.state === "PASSED" && t.measuredAtUtc ? `Validated ${fmt(t.measuredAtUtc)}` : null;
 }
 
 export function otsNote(o: ReturnType<typeof otsLabel>, fmt: (v: string) => string): string | null {
-  if (!o.measuredAtUtc) return null;
-  // The card's optional date, named for what it is (shared presentOtsTruth).
-  if (o.state === "PASSED") return `Verified ${fmt(o.measuredAtUtc)}`;
-  if (o.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED") return `Recorded by PROOVRA ${fmt(o.measuredAtUtc)}`;
-  return null;
+  return o.otsState === "ANCHORED" && o.measuredAtUtc ? `Anchoring recorded by PROOVRA ${fmt(o.measuredAtUtc)}` : null;
 }
 
 function Fact({
@@ -124,6 +127,7 @@ function Fact({
   note,
   status,
   statusHidden,
+  statusText,
 }: {
   label: string;
   value: ReactNode;
@@ -133,6 +137,8 @@ function Fact({
   status?: VerificationStatus | null;
   /** The status stays machine-readable but is not shown (its value already says it). */
   statusHidden?: boolean;
+  /** The status's words when a shared vocabulary owns them (Bitcoin anchoring). */
+  statusText?: string;
   /** When the state was measured (shown beside it, never mixed into it). */
   note?: string | null;
 }) {
@@ -147,7 +153,7 @@ function Fact({
           data-verification-status={status}
           hidden={statusHidden || undefined}
         >
-          {VERIFICATION_STATUS_LABELS[status]}
+          {statusText ?? VERIFICATION_STATUS_LABELS[status]}
         </dd>
       ) : null}
       {note ? (
@@ -248,12 +254,13 @@ export function ArtifactTruthHeader({
           note={tsaNote(tsa, formatDateTime)}
         />
         <Fact
-          label="OpenTimestamps"
+          label="Bitcoin anchoring"
           value={ots.label}
           tone={ots.tone}
           testId="truth-ots"
           status={ots.status}
-          // The OpenTimestamps value IS its public status (Pending, Attestation recorded, …).
+          // The value IS its status word (Anchored, Pending, …).
+          statusText={ots.word}
           statusHidden
           note={otsNote(ots, formatDateTime)}
         />

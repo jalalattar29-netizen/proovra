@@ -12,11 +12,7 @@
  * content-credential acronyms are intentionally excluded.
  */
 
-import {
-  OTS_ANCHOR_CLAIM_LABELS,
-  resolveOtsAnchorClaim,
-  type OtsAnchorClaim,
-} from "@proovra/shared";
+import { OTS_ANCHORING_COPY, readOtsAnchoringView } from "@proovra/shared";
 import type { AppendixRow, TechnicalMetadataInternal } from "./types";
 
 const NON_MEANINGFUL = new Set([
@@ -386,44 +382,21 @@ export function timestampStatusLabel(status: string | null | undefined): string 
 }
 
 /**
- * OTS/Bitcoin anchoring status → reviewer label: the ONE OTS claim
- * (2026-09-29). "Verified" only when the server says the anchor was verified
- * against the Bitcoin chain; a txid or anchored-at time alone is not that.
+ * Bitcoin anchoring → reviewer label (2026-10-13): the server's state
+ * (`preservationMatrix.ots`, an OtsAnchoringView) in its one label —
+ * "Bitcoin anchored", "Bitcoin anchoring pending", … A missing or unknown
+ * state reads as unavailable; nothing here re-derives it.
  */
-export function anchoringStatusLabel(input: {
-  status: string | null | undefined;
-  bitcoinTxid: string | null | undefined;
-  anchoredAtUtc: string | null | undefined;
-  proofPresent: boolean;
-  anchorCheck?: string | null;
-  anchorClaim?: string | null;
-}): string {
-  const serverClaim = input.anchorClaim as OtsAnchorClaim | null | undefined;
-  const claim =
-    serverClaim && serverClaim in OTS_ANCHOR_CLAIM_LABELS
-      ? serverClaim
-      : resolveOtsAnchorClaim({
-          status: input.status,
-          anchoredAtUtc: input.anchoredAtUtc,
-          anchorCheck: input.anchorCheck ?? null,
-          proofPresent: input.proofPresent,
-        });
-  return OTS_ANCHOR_CLAIM_LABELS[claim];
+export function anchoringStatusLabel(ots: unknown): string {
+  return readOtsAnchoringView(ots).label;
 }
 
 export type PreservationInput = {
   recordedIntegrityVerifiedAtUtc: string | null;
   signature: { recorded: boolean; valid: boolean; keyId: string | null; keyVersion: number | null };
   tsa: { status: string | null; provider: string | null; timestampedDigestLabel: string };
-  ots: {
-    effectiveStatus: string | null;
-    proofPresent: boolean;
-    bitcoinTxid: string | null;
-    anchoredAtUtc: string | null;
-    calendar: string | null;
-    anchorCheck?: string | null;
-    anchorClaim?: string | null;
-  };
+  /** The server's OtsAnchoringView, as sent; read through readOtsAnchoringView. */
+  ots: unknown;
   storage: { objectLockMode?: string | null; retainUntilUtc?: string | null; immutableLabel?: string | null };
 };
 
@@ -442,6 +415,8 @@ export function buildIntegrityRows(input: {
   multipart: boolean;
 }): AppendixRow[] {
   const { preservation: p, evidence: e } = input;
+  const ots = readOtsAnchoringView(p.ots);
+  const otsFacts = OTS_ANCHORING_COPY.en.facts;
   const digestLabel = input.multipart
     ? "Canonical package digest (SHA-256)"
     : "Original file SHA-256";
@@ -477,18 +452,17 @@ export function buildIntegrityRows(input: {
     { label: "Trusted timestamp", value: timestampStatusLabel(p.tsa.status) },
     { label: "Timestamp provider", value: p.tsa.provider },
     { label: "Timestamp serial", value: e.tsaSerialNumber, mono: true },
+    { label: ots.title, value: ots.label },
     {
-      label: "OpenTimestamps / Bitcoin anchoring",
-      value: anchoringStatusLabel({
-        status: p.ots.effectiveStatus,
-        bitcoinTxid: p.ots.bitcoinTxid,
-        anchoredAtUtc: p.ots.anchoredAtUtc,
-        proofPresent: p.ots.proofPresent,
-        anchorCheck: p.ots.anchorCheck ?? null,
-        anchorClaim: p.ots.anchorClaim ?? null,
-      }),
+      label: otsFacts.blockHeight,
+      value: ots.bitcoinBlockHeight != null ? String(ots.bitcoinBlockHeight) : null,
+      mono: true,
     },
-    { label: "Bitcoin transaction ID", value: p.ots.bitcoinTxid, mono: true, copyable: true },
+    // A transaction id only when the executed proof derived it.
+    { label: otsFacts.txid, value: ots.bitcoinTxid, mono: true, copyable: true },
+    // When PROOVRA recorded anchoring — never a Bitcoin block time.
+    { label: otsFacts.anchoredAt, value: ots.anchoredAtUtc },
+    { label: otsFacts.proofSha256, value: ots.proofSha256, mono: true, copyable: true },
     {
       label: "Immutable storage",
       value: mapObjectLockLabel(e.storageObjectLockMode),

@@ -8,6 +8,8 @@
  * derived copies and the standing limitations. Every value is the server's;
  * nothing is derived here. A projection for another record is never shown.
  */
+import { otsAnchoringCopy, parseOtsState, type OtsState } from "@proovra/shared";
+
 export function buildProvenancePath(evidenceId: string): string {
   return `/v1/provenance/${encodeURIComponent(evidenceId)}`;
 }
@@ -26,9 +28,16 @@ export interface ProvenanceView {
   /** UC-TRUST-002 — the canonical RFC 3161 status (only VALIDATED is applied). */
   rfc3161Status: string | null;
   otsApplied: boolean;
-  otsConfirmations: number | null;
-  /** UC-TRUST-002 — the canonical OTS status (only VERIFIED is anchored). */
-  otsStatus: string | null;
+  /**
+   * `time.ots.status` — THE canonical OTS state (ots-anchoring.ts, 2026-10-13),
+   * read as sent; anything missing or unknown reads as UNAVAILABLE.
+   */
+  otsStatus: OtsState;
+  /** Only when the server sent it for an ANCHORED state. */
+  otsAnchorTxId: string | null;
+  /** When PROOVRA recorded the anchor — never a Bitcoin block time. */
+  otsAppliedAtUtc: string | null;
+  otsBlockHeight: number | null;
   derivations: Array<{ derivedEvidenceId: string; transformLabel: string | null; derivedAtUtc: string }>;
   limitations: string[];
 }
@@ -64,8 +73,13 @@ export function parseProvenanceChain(payload: unknown, evidenceId: string): Prov
     rfc3161AppliedAtUtc: s(rfc.appliedAtUtc),
     rfc3161Status: s(rfc.status),
     otsApplied: ots.applied === true,
-    otsConfirmations: typeof ots.confirmations === "number" ? (ots.confirmations as number) : null,
-    otsStatus: s(ots.status),
+    otsStatus: parseOtsState(ots.status),
+    otsAnchorTxId: parseOtsState(ots.status) === "ANCHORED" ? s(ots.anchorTxId) : null,
+    otsAppliedAtUtc: parseOtsState(ots.status) === "ANCHORED" ? s(ots.appliedAtUtc) : null,
+    otsBlockHeight:
+      parseOtsState(ots.status) === "ANCHORED" && typeof ots.bitcoinBlockHeight === "number" && Number.isSafeInteger(ots.bitcoinBlockHeight)
+        ? (ots.bitcoinBlockHeight as number)
+        : null,
     derivations: (Array.isArray(c.derivations) ? c.derivations : [])
       .map((x) => o(x))
       .filter((x) => s(x.derivedEvidenceId) && s(x.derivedAtUtc))
@@ -103,16 +117,6 @@ const TSA_LABELS: Record<string, string> = {
   RECORDED_NOT_VALIDATED: "Recorded, not validated",
   FAILED: "Timestamp failed",
 };
-const OTS_LABELS: Record<string, string> = {
-  NOT_REQUESTED: "Not requested",
-  // The public OpenTimestamps vocabulary (shared OTS_PROOF_STATUS_LABELS).
-  SUBMITTED: "Pending",
-  PENDING: "Pending",
-  ANCHORED_UNVERIFIED: "Attestation recorded",
-  VERIFIED: "Verified",
-  FAILED: "Unavailable",
-  STALE_UNKNOWN: "Unavailable",
-};
 function rfc3161Text(p: ProvenanceView, fmt: (iso: string) => string): string {
   const at = p.rfc3161AppliedAtUtc ? ` · ${fmt(p.rfc3161AppliedAtUtc)}` : "";
   if (p.rfc3161Status && TSA_LABELS[p.rfc3161Status]) {
@@ -123,19 +127,23 @@ function rfc3161Text(p: ProvenanceView, fmt: (iso: string) => string): string {
   // An older server: "applied" only ever claimed a recorded token.
   return p.rfc3161Applied ? `Recorded${at}` : "Not applied";
 }
-function otsText(p: ProvenanceView): string {
-  if (p.otsStatus && OTS_LABELS[p.otsStatus]) return OTS_LABELS[p.otsStatus]!;
-  // An older server set "applied" even for a PENDING proof, so "applied" is
-  // never read as "Anchored" here; its "not applied" stays "Not anchored".
-  return p.otsApplied ? "Not stated" : "Not anchored";
-}
-
-export function provenancePreservationRows(p: ProvenanceView, fmt: (iso: string) => string): Array<{ label: string; value: string }> {
-  return [
+export function provenancePreservationRows(
+  p: ProvenanceView,
+  fmt: (iso: string) => string,
+  locale?: string | null,
+): Array<{ label: string; value: string }> {
+  // Bitcoin anchoring: the server's state in the locale's words (ANCHORED with ✓).
+  const ots = otsAnchoringCopy(locale);
+  const word = ots.words[p.otsStatus];
+  const rows = [
     { label: "PROOVRA countersignature", value: p.countersigned ? `Applied${p.countersignedAtUtc ? ` · ${fmt(p.countersignedAtUtc)}` : ""}` : "Not applied" },
     { label: "Independent timestamp", value: rfc3161Text(p, fmt) },
-    { label: "Public anchor", value: otsText(p) },
+    { label: ots.title, value: p.otsStatus === "ANCHORED" ? `${word} ✓` : word },
   ];
+  if (p.otsBlockHeight !== null) rows.push({ label: ots.facts.blockHeight, value: String(p.otsBlockHeight) });
+  if (p.otsAnchorTxId) rows.push({ label: ots.facts.txid, value: p.otsAnchorTxId });
+  if (p.otsAppliedAtUtc) rows.push({ label: ots.facts.anchoredAt, value: fmt(p.otsAppliedAtUtc) });
+  return rows;
 }
 
 /** LIMITATION_COPY, verbatim; an unknown code is humanised, never dropped. */

@@ -17,6 +17,10 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { otsProofForDigest } from "./helpers/ots-proof-bytes.js";
+
+/** The record digest every OTS proof below commits to. */
+const DIGEST = "f".repeat(64);
 
 describe("provenance chain truth (live PostgreSQL 16)", () => {
   let h: IntegrationHarness;
@@ -90,7 +94,8 @@ describe("provenance chain truth (live PostgreSQL 16)", () => {
   it("TRUST-002: PENDING OTS + unvalidated legacy STAMPED -> not anchored, not an applied timestamp", async () => {
     const ev = await record({
       otsStatus: "PENDING",
-      otsProofBase64: Buffer.from("proof").toString("base64"),
+      fingerprintHash: DIGEST,
+      otsProofBase64: otsProofForDigest(DIGEST),
       tsaStatus: "STAMPED",
       tsaValidatedAtUtc: null,
       tsaGenTimeUtc: new Date(),
@@ -110,40 +115,37 @@ describe("provenance chain truth (live PostgreSQL 16)", () => {
     });
     const chain = await runtime.loadProvenanceChain(prisma as never, ev.id);
     expect(chain.time.ots.applied).toBe(false);
-    expect(chain.time.ots.status).toBe("SUBMITTED");
+    expect(chain.time.ots.status).toBe("PENDING");
     expect(chain.time.rfc3161.applied).toBe(false);
     expect(chain.time.rfc3161.status).toBe("RECORDED_NOT_VALIDATED");
   });
 
-  it("TRUST-002: a chain-verified anchor is the only 'applied' OTS layer", async () => {
-    // (2026-10-12) Chain-verified means the recorded independent chain check
-    // WITH its evidence; a BITCOIN_VERIFIED label alone is attestation present.
-    const bare = await record({
+  it("TRUST-002: only a proof that resolves ANCHORED is the 'applied' OTS layer (2026-10-13)", async () => {
+    // A row LABELLED anchored, with a txid and a time, whose proof carries no
+    // Bitcoin attestation is pending — the proof decides, nothing else.
+    const labelled = await record({
       otsStatus: "ANCHORED",
       otsAnchoredAtUtc: new Date(),
-      otsAnchorCheck: "PROOF_STRUCTURE",
       otsBitcoinTxid: "a".repeat(64),
+      fingerprintHash: DIGEST,
+      otsProofBase64: otsProofForDigest(DIGEST),
     });
-    expect((await runtime.loadProvenanceChain(prisma as never, bare.id)).time.ots).toMatchObject({ applied: false });
+    expect((await runtime.loadProvenanceChain(prisma as never, labelled.id)).time.ots).toMatchObject({
+      applied: false,
+      status: "PENDING",
+      anchorTxId: null,
+    });
     const ev = await record({
       otsStatus: "ANCHORED",
       otsAnchoredAtUtc: new Date(),
-      otsAnchorCheck: "BITCOIN_VERIFIED",
-      otsBitcoinTxid: "a".repeat(64),
-      otsChainVerificationStatus: "VERIFIED",
-      otsChainCheckedAtUtc: new Date(),
-      otsChainVerifiedAtUtc: new Date(),
-      otsChainBlockHeight: 860000,
-      otsChainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
-      otsChainBlockTimeUtc: new Date("2024-08-27T08:00:00Z"),
-      otsChainConfirmations: 12,
-      otsChainVerifier: "test-double/1",
+      fingerprintHash: DIGEST,
+      otsProofBase64: otsProofForDigest(DIGEST, { bitcoinHeight: 860000 }),
       tsaStatus: "STAMPED",
       tsaValidatedAtUtc: new Date(),
       tsaGenTimeUtc: new Date(),
     });
     const chain = await runtime.loadProvenanceChain(prisma as never, ev.id);
-    expect(chain.time.ots).toMatchObject({ applied: true, status: "VERIFIED", anchorTxId: "a".repeat(64) });
+    expect(chain.time.ots).toMatchObject({ applied: true, status: "ANCHORED", bitcoinBlockHeight: 860000, statusLabel: "Bitcoin anchored" });
     expect(chain.time.rfc3161).toMatchObject({ applied: true, status: "VALIDATED" });
   });
 

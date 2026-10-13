@@ -20,7 +20,6 @@ test("OTS pending alone does not start automatic polling", () => {
   assert.equal(
     shouldAutoPollPublicVerify({
       liveAnchoring: {
-        currentOtsStatus: "PENDING",
         autoRefreshRecommended: false,
       },
     }),
@@ -30,7 +29,6 @@ test("OTS pending alone does not start automatic polling", () => {
   assert.equal(
     shouldAutoPollPublicVerify({
       liveAnchoring: {
-        currentOtsStatus: "PENDING",
       },
     }),
     false,
@@ -41,7 +39,6 @@ test("polling only resumes when an explicit auto-refresh recommendation is prese
   assert.equal(
     shouldAutoPollPublicVerify({
       liveAnchoring: {
-        currentOtsStatus: "PENDING",
         autoRefreshRecommended: true,
       },
     }),
@@ -85,6 +82,9 @@ test("verify page labels snapshot and live anchoring separately", () => {
     VERIFY_PAGE_SOURCE,
     /Anchoring has advanced since this package was generated\. A newer report\/package may be available\./,
   );
-  // The pending note is the card's one sentence.
-  assert.match(VERIFY_PAGE_SOURCE, /\{OTS_TRUTH_SENTENCES\.PENDING\}/);
+  // The pending note is the server view's one sentence; the live section's
+  // state is the server's Bitcoin anchoring view, never a stored status.
+  assert.match(VERIFY_PAGE_SOURCE, /otsView\.state === "PENDING" \?/);
+  assert.match(VERIFY_PAGE_SOURCE, /\{otsView\.sentence\}/);
+  assert.doesNotMatch(VERIFY_PAGE_SOURCE, /currentOtsStatus/);
 });

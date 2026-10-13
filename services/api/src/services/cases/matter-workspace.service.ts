@@ -33,6 +33,8 @@ import {
   type OutputGenerationState,
   type PersistedReportRequestState,
   presentedTsaStatus,
+  OTS_ANCHORING_RECORD_SELECT,
+  resolveRecordOtsAnchoring,
 } from "@proovra/shared";
 import { resolveEvidenceOutputEligibilityByRecord } from "../billing/evidence-output-eligibility.service.js";
 import { resolveOutputRecordApplicability } from "../evidence-artifact-status.service.js";
@@ -739,7 +741,8 @@ async function runEvidenceBoard(
         acquisitionModeSource: true,
         tsaStatus: true,
         tsaValidatedAtUtc: true,
-        otsStatus: true,
+        // (2026-10-13) The columns the ONE OTS state authority reads.
+        ...OTS_ANCHORING_RECORD_SELECT,
         latestReportVersion: true,
         teamId: true,
         deletedAt: true,
@@ -901,7 +904,8 @@ async function runEvidenceBoard(
             acquisitionMode: e.acquisitionMode ?? null,
             acquisitionModeSource: e.acquisitionModeSource ?? null,
             tsaStatus: presentedTsaStatus(e),
-            otsStatus: e.otsStatus,
+            // (2026-10-13) The resolved OTS state (OtsState), never the raw column.
+            otsStatus: resolveRecordOtsAnchoring(e).state,
             createdAt: e.createdAt,
             lifecycleState:
               e.lifecycleState === null ? null : String(e.lifecycleState),

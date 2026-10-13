@@ -129,8 +129,8 @@ test("the Technical tab states each signal's verification status and the bounded
   assert.ok(!/STRONGLY/.test(text));
   const badge = (key) => [...new Set(r.byTestId(`trust-signal-${key}`)[0].findAll((n) => typeof n.props?.label === "string").map((n) => n.props.label))];
   assert.deepEqual(badge("core_integrity"), ["VERIFIED"]);
-  // A legacy "passed" OpenTimestamps signal was never chain-checked.
-  assert.deepEqual(badge("bitcoin_anchoring"), ["NOT_CHECKED"]);
+  // A legacy "passed" OpenTimestamps signal carries no canonical OTS state: Unavailable, never Anchored.
+  assert.deepEqual(badge("bitcoin_anchoring"), ["Unavailable"]);
   const summary = r.byTestId("trust-summary")[0].findAll((n) => n.type === "Text").map((n) => [].concat(n.props.children).join(""))[0];
   assert.ok(summary.includes("Any signal marked “Not checked” was not independently verified."), summary);
   assert.ok(summary.endsWith(VERIFICATION_LIMITATION), summary);

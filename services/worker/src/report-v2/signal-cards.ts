@@ -5,13 +5,13 @@
  * core integrity, digital signature, trusted timestamp, Bitcoin anchoring,
  * immutable storage, custody chain, workspace identity and verification
  * package — one compact card each. Every status comes from the canonical
- * trust-decision state of that signal (and, for anchoring, from the OTS truth
- * model); this module only chooses the words. "Verified" is printed for a
- * PASSED state and nothing else.
+ * trust-decision state of that signal (and, for anchoring, from the canonical
+ * OpenTimestamps state, ots-anchoring.ts); this module only chooses the words.
+ * "Verified" is printed for a PASSED state and nothing else; Bitcoin anchoring
+ * says "Anchored" for a proof that resolves to ANCHORED.
  */
 import {
-  OTS_TRUTH_SENTENCES,
-  presentOtsTruth,
+  presentOtsAnchoring,
   type TrustSignal,
   type TrustSignalKey,
 } from "@proovra/shared";
@@ -110,27 +110,16 @@ function card(signal: TrustSignal, vm: ReportViewModel): SignalCard {
         ? verified(signal.key, "RFC 3161 timestamp verified", "The token, its message imprint and its certificate chain were validated.")
         : notPassed(signal, word);
     case "bitcoin_anchoring": {
-      // The OpenTimestamps card: the truth model's public word and sentence.
-      const ots = vm.canonicalMaterials.otsState;
-      const presentation = presentOtsTruth({
-        state: ots.truthState,
-        proofRecordedAtUtc: ots.proofRecordedAtUtc ?? null,
-        chain: ots.chainVerification ?? null,
-      });
-      if (presentation.status === "Verified" && signal.state === "PASSED") {
-        return verified(signal.key, "OpenTimestamps Bitcoin anchoring verified", OTS_TRUTH_SENTENCES.CHAIN_VERIFIED);
-      }
-      // "Verified" needs both the truth model and the signal; anything less is
-      // never printed as verified.
-      const status = presentation.status === "Verified" ? "Attestation recorded" : presentation.status;
+      // "Bitcoin anchoring": the canonical state word and its one sentence.
+      const p = presentOtsAnchoring({ state: vm.canonicalMaterials.otsState.state });
       return {
         key: signal.key,
         label: LABELS[signal.key],
-        status,
-        mark: "i",
-        tone: status === "Pending" ? "warning" : "neutral",
-        title: `OpenTimestamps ${status.toLowerCase()}`,
-        sentence: presentation.status === "Verified" ? OTS_TRUTH_SENTENCES.ATTESTATION_PRESENT_NOT_VERIFIED : presentation.sentence,
+        status: p.status,
+        mark: p.state === "ANCHORED" ? "✓" : p.state === "FAILED" ? "!" : "i",
+        tone: p.tone === "success" ? "success" : p.tone === "danger" ? "danger" : "neutral",
+        title: p.label,
+        sentence: p.sentence,
       };
     }
     case "immutable_storage":

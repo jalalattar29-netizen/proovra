@@ -275,9 +275,9 @@ timestampDigestLabel.includes("Canonical Package Digest")
               ${
                 otsDetail
                   ? renderCallout({
-                      title: "Anchoring detail",
+                      title: vm.technicalAppendix.otsDetailTitle ?? "Anchoring detail",
                       body: otsDetail,
-                      tone: "warning",
+                      tone: vm.technicalAppendix.otsDetailTone ?? "neutral",
                     })
                   : ""
               }

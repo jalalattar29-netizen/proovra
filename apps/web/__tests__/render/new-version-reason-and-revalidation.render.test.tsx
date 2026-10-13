@@ -108,7 +108,7 @@ describe("updated-report dialog — RGA-02 confirm-time revalidation, RGA-03 rea
     );
     expect(dialog.textContent).toContain("Generate report v2");
     expect(q(dialog, "updated-report-changes").textContent).toContain("The trusted timestamp was validated after report v1 was generated.");
-    expect(q(dialog, "updated-report-changes").textContent).toContain("A Bitcoin attestation was added to the OpenTimestamps proof after report v1 was generated.");
+    expect(q(dialog, "updated-report-changes").textContent).toContain("The OpenTimestamps proof was anchored in Bitcoin after report v1 was generated.");
     fireEvent.change(q(dialog, "updated-report-reason"), { target: { value: "Document the validated timestamp" } });
     fireEvent.click(q(dialog, "updated-report-confirm"));
     await waitFor(() => expect(seen).toEqual(["ofr1.current"]));
@@ -433,45 +433,26 @@ describe("artifact truth header", () => {
   it("says 'New verification facts are available' only with server-derived changes", () => {
     const trust = {
       tsa: { status: "STAMPED", validated: true, validatedAtUtc: "2026-10-06T09:30:00.000Z", failureCode: null, genTimeUtc: null },
-      ots: { status: "ANCHORED", anchorCheck: "PROOF_STRUCTURE", anchoredAtUtc: "2026-10-06T09:40:00.000Z", anchorCheckedAtUtc: "2026-10-06T09:41:00.000Z" },
+      // The server's OtsAnchoringView (2026-10-13): pending first.
+      ots: { state: "PENDING" as const, anchoredAtUtc: null },
     };
     const { getByTestId, rerender, queryByTestId } = render(
       <ArtifactTruthHeader latest={history.versions[1]!} trust={trust} freshness={freshness} activeRequest={null} formatDateTime={fmt} formatBytes={fmt} actions={null} />,
     );
     expect(getByTestId("truth-freshness").textContent).toContain("New verification facts are available");
     expect(getByTestId("truth-tsa").textContent).toBe("Validated");
-    // A structure-only anchor is a PRESENT proof, never "Anchored" (canonical state).
-    expect(getByTestId("truth-ots").textContent).toBe("Attestation recorded");
-    // Its date is the proof-structure check, never a chain check.
-    const presentNote = getByTestId("truth-ots-measured").textContent ?? "";
-    expect(presentNote).toContain("Recorded by PROOVRA");
-    expect(presentNote).not.toContain("Checked against the Bitcoin chain");
-    // 2026-10-08 — the canonical status is stated beside each fact: a present
-    // but unchecked proof is NOT_CHECKED, never verified.
-    expect(getByTestId("truth-ots-status").textContent).toBe("Not checked");
-    expect(getByTestId("truth-ots-status").getAttribute("data-verification-status")).toBe("NOT_CHECKED");
+    // PENDING: the one word, neutral, undated — never anchored, never "Not checked".
+    expect(getByTestId("truth-ots").textContent).toBe("Pending");
+    expect(getByTestId("truth-ots").closest("[data-tone]")?.getAttribute("data-tone")).toBe("neutral");
+    expect(queryByTestId("truth-ots-measured")).toBeNull();
+    expect(getByTestId("truth-ots-status").textContent).toBe("Pending");
     expect(getByTestId("truth-tsa-status").textContent).toBe("Verified");
     expect(getByTestId("truth-tsa-status").getAttribute("data-verification-status")).toBe("VERIFIED");
-    // Only a recorded chain check is dated as one.
+    // ANCHORED as the server sent it: green ✓ Anchored, dated as PROOVRA's recording.
     rerender(
       <ArtifactTruthHeader
         latest={history.versions[1]!}
-        trust={{
-          ...trust,
-          ots: {
-            ...trust.ots,
-            anchorCheck: "BITCOIN_VERIFIED",
-            anchorCheckedAtUtc: "2026-10-06T10:00:00.000Z",
-            // (2026-10-12) Verified means the recorded chain evidence.
-            chainVerificationStatus: "VERIFIED",
-            chainVerifiedAtUtc: "2026-10-06T10:00:00.000Z",
-            chainBlockHeight: 970507,
-            chainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
-            chainBlockTimeUtc: "2026-10-06T09:24:48.000Z",
-            chainConfirmations: 6,
-            chainVerifier: "test-double/1",
-          },
-        }}
+        trust={{ ...trust, ots: { state: "ANCHORED", anchoredAtUtc: "2026-10-06T10:00:00.000Z" } }}
         freshness={freshness}
         activeRequest={null}
         formatDateTime={fmt}
@@ -479,9 +460,24 @@ describe("artifact truth header", () => {
         actions={null}
       />,
     );
-    expect(getByTestId("truth-ots-measured").textContent).toBe("Verified 2026-10-06T10:00:00.000Z");
-    expect(getByTestId("truth-ots-status").textContent).toBe("Verified");
+    expect(getByTestId("truth-ots").textContent).toBe("✓ Anchored");
+    expect(getByTestId("truth-ots").closest("[data-tone]")?.getAttribute("data-tone")).toBe("ok");
+    expect(getByTestId("truth-ots-measured").textContent).toBe("Anchoring recorded by PROOVRA 2026-10-06T10:00:00.000Z");
     expect(getByTestId("truth-ots-status").getAttribute("data-verification-status")).toBe("VERIFIED");
+    // An old-shape object (status string, chain fields) is never re-derived: Unavailable.
+    rerender(
+      <ArtifactTruthHeader
+        latest={history.versions[1]!}
+        trust={{ ...trust, ots: { status: "ANCHORED", anchorCheck: "BITCOIN_VERIFIED", chainVerificationStatus: "VERIFIED" } as never }}
+        freshness={freshness}
+        activeRequest={null}
+        formatDateTime={fmt}
+        formatBytes={fmt}
+        actions={null}
+      />,
+    );
+    expect(getByTestId("truth-ots").textContent).toBe("Unavailable");
+    expect(getByTestId("artifact-truth-header").textContent).not.toMatch(/Attestation recorded|Verified 2026|chain/i);
     rerender(
       <ArtifactTruthHeader latest={history.versions[0]!} trust={trust} freshness={{ ...freshness, reportVersion: 2, hasNewerFacts: false, changes: [] }} activeRequest={null} formatDateTime={fmt} formatBytes={fmt} actions={null} />,
     );
@@ -493,7 +489,7 @@ describe("artifact truth header", () => {
     const { getByTestId, queryByTestId } = render(
       <ArtifactTruthHeader
         latest={history.versions[1]!}
-        trust={{ tsa: { status: "FAILED", validated: false, validatedAtUtc: null, failureCode: "x", genTimeUtc: null }, ots: { status: "PENDING", anchorCheck: null, anchoredAtUtc: null } }}
+        trust={{ tsa: { status: "FAILED", validated: false, validatedAtUtc: null, failureCode: "x", genTimeUtc: null }, ots: { state: "PENDING" } }}
         freshness={null}
         activeRequest={null}
         formatDateTime={fmt}
@@ -505,8 +501,7 @@ describe("artifact truth header", () => {
     expect(getByTestId("truth-ots").textContent).toBe("Pending");
     expect(getByTestId("truth-tsa-status").textContent).toBe("Not checked");
     expect(getByTestId("truth-tsa-status").getAttribute("data-verification-status")).toBe("NOT_CHECKED");
-    expect(getByTestId("truth-ots-status").textContent).toBe("Not checked");
-    expect(getByTestId("truth-ots-status").getAttribute("data-verification-status")).toBe("NOT_CHECKED");
+    expect(getByTestId("truth-ots-status").textContent).toBe("Pending");
     expect(queryByTestId("truth-tsa-measured")).toBeNull();
     expect(queryByTestId("truth-ots-measured")).toBeNull();
     expect(getByTestId("truth-freshness-state").textContent).toBe("Not available");

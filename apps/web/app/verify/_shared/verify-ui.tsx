@@ -32,8 +32,23 @@ export function fmt(iso: string | null | undefined): string {
   return Number.isNaN(d.getTime()) ? "—" : `${d.toISOString().replace("T", " ").slice(0, 19)} UTC`;
 }
 
-export function Row(props: { label: string; state: ComponentVerificationState; detail: ReactNode; badge?: string; testId?: string }) {
-  const tone = STATE_TONE[props.state];
+/** A row whose own vocabulary carries a tone (Bitcoin anchoring: success / neutral / danger). */
+const OWN_TONE: Record<"success" | "neutral" | "danger", { fg: string; bg: string }> = {
+  success: STATE_TONE.verified,
+  neutral: STATE_TONE.not_checked,
+  danger: STATE_TONE.failed,
+};
+
+export function Row(props: {
+  label: string;
+  state: ComponentVerificationState;
+  detail: ReactNode;
+  badge?: string;
+  testId?: string;
+  /** Overrides the state's tone when the badge speaks its own vocabulary. */
+  tone?: "success" | "neutral" | "danger";
+}) {
+  const tone = props.tone ? OWN_TONE[props.tone] : STATE_TONE[props.state];
   return (
     <div
       data-testid={props.testId}

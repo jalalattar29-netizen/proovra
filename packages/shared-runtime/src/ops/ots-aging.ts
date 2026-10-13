@@ -69,20 +69,13 @@ export function isOtsGlobalBudgetExhausted(params: {
   return params.nowUtc.getTime() - params.firstAttemptAtUtc.getTime() > budget;
 }
 
-/** The OTS statuses that mean "still trying". */
-export const OTS_PENDING_STATUSES: readonly string[] = Object.freeze([
-  "PENDING",
-  "SUBMITTED",
-  "UPGRADING",
-]);
-
-/** The OTS statuses that mean the proof landed. */
-export const OTS_SETTLED_STATUSES: readonly string[] = Object.freeze([
-  "ANCHORED",
-  "UPGRADED",
-  "CONFIRMED",
-  "COMPLETE",
-]);
+/**
+ * The stored OTS status that means "still trying" (2026-10-13: the worker
+ * writes only DISABLED / PENDING / ANCHORED / FAILED). Callers that decide a
+ * condition also resolve the canonical state from the proof
+ * (resolveRecordOtsAnchoring); this only narrows the scan.
+ */
+export const OTS_PENDING_STATUSES: readonly string[] = Object.freeze(["PENDING"]);
 
 /**
  * IS THIS RECORD AN AGED-PENDING OTS CONDITION, RIGHT NOW?

@@ -16,6 +16,10 @@
 import {
   buildVerificationMatrix,
   getTrustDecisionPresentationTone,
+  OTS_STATE_TONES,
+  OTS_STATE_WORDS,
+  parseOtsState,
+  type OtsStateTone,
   VERIFICATION_LIMITATION,
   VERIFICATION_STATUS_LABELS,
   verificationMatrixSummary,
@@ -94,6 +98,25 @@ export function matrixSummarySentence(matrix: VerificationMatrix): string {
   return limitation && summary.endsWith(limitation)
     ? summary.slice(0, summary.length - limitation.length).trim()
     : summary;
+}
+
+/**
+ * The Bitcoin anchoring row speaks its own vocabulary (2026-10-13): the
+ * server's `otsState` in one word and tone — Anchored is the only success
+ * (with ✓), Failed is danger, every other state neutral. Other rows: null.
+ */
+export function otsMatrixRowPresentation(
+  row: Pick<VerificationMatrixRow, "key" | "otsState">
+): { word: string; badge: string; tone: OtsStateTone } | null {
+  if (row.key !== "ots_anchoring") return null;
+  const state = parseOtsState(row.otsState);
+  const tone = OTS_STATE_TONES[state];
+  const word = OTS_STATE_WORDS[state];
+  return { word, badge: tone === "success" ? `✓ ${word}` : word, tone };
+}
+
+function otsToneColor(tone: OtsStateTone): string {
+  return tone === "success" ? VERIFY_BRAND.success : tone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.accent;
 }
 
 function verificationStatusColor(status: VerificationStatus): string {
@@ -240,7 +263,8 @@ export function VerificationMatrixGrid({
       }}
     >
       {rows.map((row) => {
-        const color = verificationStatusColor(row.status);
+        const ots = otsMatrixRowPresentation(row);
+        const color = ots ? otsToneColor(ots.tone) : verificationStatusColor(row.status);
 
         return (
           <div
@@ -280,7 +304,7 @@ export function VerificationMatrixGrid({
                   letterSpacing: "0.03em",
                 }}
               >
-                {row.statusLabel ?? VERIFICATION_STATUS_LABELS[row.status]}
+                {ots ? ots.badge : (row.statusLabel ?? VERIFICATION_STATUS_LABELS[row.status])}
               </div>
             </div>
 

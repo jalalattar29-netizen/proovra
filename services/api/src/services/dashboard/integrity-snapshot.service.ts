@@ -31,6 +31,7 @@ import {
   compareTimestampDigest,
   evaluateDigestPolicy,
   presentedTsaStatus,
+  resolveOtsAnchoring,
   TSA_RECORDED_NOT_VALIDATED,
 } from "@proovra/shared";
 import {
@@ -63,6 +64,12 @@ export type IntegritySnapshotInput = {
   // ---- OTS canonical-digest set ----
   otsStatus: string | null;
   otsHash: string | null;
+  /**
+   * (2026-10-13) The stored proof bytes: the OTS state is resolved from them
+   * (resolveOtsAnchoring), never from otsStatus. Absent = no proof.
+   */
+  otsProofBase64?: string | null;
+  otsFailureReason?: string | null;
   // ---- Content + fingerprint anchor digests ----
   fileSha256: string | null;
   fingerprintHash: string | null;
@@ -222,14 +229,20 @@ export function deriveIntegritySnapshot(input: IntegritySnapshotInput): {
     timestampDigestMatches = null;
   }
 
-  // OTS derivation:
-  //   * OK + otsHashMatches=true ONLY when the chain says ANCHORED
-  //     AND the digest policy did NOT flag a missing otsHash.
-  //   * otsHashMatches=false on FAILED rows or when policy says
-  //     anchored-without-persisted-hash (the chain is incomplete).
+  // OTS derivation (2026-10-13) — from the ONE state authority: the stored
+  // proof executed against the record's digest (resolveOtsAnchoring).
+  //   * OK ONLY when the proof resolves ANCHORED AND the digest policy did
+  //     NOT flag a missing otsHash.
+  //   * otsHashMatches=false when policy says anchored-without-persisted-hash.
   let otsStatus: string;
   let otsHashMatches: boolean | null;
-  const rawOts = (input.otsStatus ?? "").toUpperCase();
+  const otsState = resolveOtsAnchoring({
+    status: input.otsStatus,
+    proofBase64: input.otsProofBase64 ?? null,
+    fingerprintHash: input.fingerprintHash,
+    otsHash: input.otsHash,
+    failureReason: input.otsFailureReason ?? null,
+  }).state;
   const otsPolicyViolated = policyCodes.has("ots_anchored_without_persisted_hash");
   // ET-SEC-35 — otsHashMatches is a COMPARISON: the stamped digest against
   // the record's fingerprint hash (both SHA-256 of the canonical fingerprint).
@@ -238,21 +251,22 @@ export function deriveIntegritySnapshot(input: IntegritySnapshotInput): {
     input.otsHash && input.fingerprintHash
       ? input.otsHash.toLowerCase() === input.fingerprintHash.toLowerCase()
       : null;
-  if (rawOts === "ANCHORED" || rawOts === "VERIFIED") {
+  if (otsState === "ANCHORED") {
     otsStatus = otsPolicyViolated ? "REVIEW_REQUIRED" : "OK";
     otsHashMatches = otsPolicyViolated ? false : otsDigestComparison;
     if (otsPolicyViolated) reasonCodes.push("OTS_DIGEST_POLICY_VIOLATED");
-  } else if (rawOts === "FAILED" || rawOts === "ERRORED") {
+  } else if (otsState === "FAILED") {
     otsStatus = "FAILED";
     otsHashMatches = otsDigestComparison === false ? false : null;
     reasonCodes.push("OTS_FAILED");
-  } else if (rawOts === "" || input.otsStatus == null) {
+  } else if (otsState === "PENDING") {
+    otsStatus = "PENDING";
+    otsHashMatches = null;
+  } else {
+    // NOT_REQUESTED, or proof material that cannot be read.
     otsStatus = "UNAVAILABLE";
     otsHashMatches = null;
     if (isOk) reasonCodes.push("OTS_UNAVAILABLE");
-  } else {
-    otsStatus = "PENDING";
-    otsHashMatches = null;
   }
 
   if (isReviewRequired) reasonCodes.push("INTEGRITY_REVIEW_REQUIRED");
@@ -481,6 +495,8 @@ export async function backfillIntegritySnapshots(input: {
         tsaInputKind: true,
         otsStatus: true,
         otsHash: true,
+        otsProofBase64: true,
+        otsFailureReason: true,
         fileSha256: true,
         fingerprintHash: true,
         signatureBase64: true,
@@ -503,6 +519,8 @@ export async function backfillIntegritySnapshots(input: {
           tsaInputKind: e.tsaInputKind ?? null,
           otsStatus: e.otsStatus ?? null,
           otsHash: e.otsHash ?? null,
+          otsProofBase64: e.otsProofBase64 ?? null,
+          otsFailureReason: e.otsFailureReason ?? null,
           fileSha256: e.fileSha256 ?? null,
           fingerprintHash: e.fingerprintHash ?? null,
           signatureBase64: e.signatureBase64 ?? null,

@@ -10,6 +10,7 @@
  * Pure: entries in, findings out. Each finding names the two documents that
  * disagree and the field.
  */
+import { parseOtsState } from "./ots-anchoring.js";
 import { DISCLOSURE_MANIFEST_FILE } from "./disclosure-profile.js";
 import { parseTrustSignalState, toVerificationStatus } from "./trust-signal-state.js";
 import { findForbiddenCustomerClaims, parseVerificationMatrix } from "./verification-matrix.js";
@@ -89,13 +90,22 @@ export function validatePackageConsistency(input: {
   }
 
   // 3. trust-decision.json is the verification matrix, and the manifest's
-  //    anchoring claim is its OTS row: VERIFIED only for a chain check.
+  //    otsState, opentimestamps.json and the matrix's OTS row state ONE
+  //    canonical anchoring state (2026-10-13).
   const matrix = parseVerificationMatrix(parsed.get("trust-decision.json"));
   if (!matrix) f("VERIFICATION_MATRIX", "trust-decision.json is not a verification matrix");
   const row = (key: string) => matrix?.rows.find((r) => r.key === key);
   const ots = row("ots_anchoring");
-  if (isObj(manifest) && Boolean(manifest.publicAnchoringVerified) !== (ots?.status === "VERIFIED")) {
-    f("OTS_STATE", `manifest publicAnchoringVerified=${String(manifest.publicAnchoringVerified)} but the matrix states anchoring ${ots ? ots.status : "absent"}`);
+  if (isObj(manifest)) {
+    const stated = parseOtsState(manifest.otsState);
+    if (!ots || ots.otsState !== stated) {
+      f("OTS_STATE", `manifest otsState=${String(manifest.otsState)} but the matrix states anchoring ${ots ? String(ots.otsState) : "absent"}`);
+    }
+    const otsDoc = parsed.get("opentimestamps.json");
+    if (isObj(otsDoc) && parseOtsState(otsDoc.state) !== stated) {
+      f("OTS_STATE", `opentimestamps.json states ${String(otsDoc.state)} but the manifest states ${String(manifest.otsState)}`);
+    }
+    if ("publicAnchoringVerified" in manifest) f("OTS_RETIRED_FIELD", "manifest states the retired publicAnchoringVerified");
   }
 
   // 4. The timestamp validation record and the matrix state the same timestamp.

@@ -7,7 +7,7 @@
  * itself:
  *
  *   - `tsaStatus`          (RFC 3161 trusted timestamp state)
- *   - `otsStatus`          (OpenTimestamps anchor state)
+ *   - the OpenTimestamps proof (resolveRecordOtsAnchoring — the one OTS state)
  *   - `signatureBase64`    (Ed25519 signature present ⇒ signed)
  *   - `publicVerifyState`  (public verification page state)
  *   - `verificationStatus` (overall integrity verdict)
@@ -23,7 +23,14 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
-import { presentedTsaStatus, resolveOtsAnchorClaim, TSA_RECORDED_NOT_VALIDATED } from "@proovra/shared";
+import {
+  OTS_ANCHORING_RECORD_SELECT,
+  presentedTsaStatus,
+  resolveRecordOtsAnchoring,
+  TSA_RECORDED_NOT_VALIDATED,
+  type OtsAnchoringRecord,
+  type OtsState,
+} from "@proovra/shared";
 // COMMERCIAL CLOSURE (2026-09-08) — the ONE narrowing that keeps a commercial
 // product decision out of the operational "stuck" counters.
 import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
@@ -42,14 +49,17 @@ export type TrustSummary = {
     /** No TSA attempted / unavailable. */
     none: number;
   };
+  /**
+   * (2026-10-13) Counts per OTS state, each row resolved from its stored proof
+   * bytes (resolveRecordOtsAnchoring): anchored = ANCHORED, pending = PENDING,
+   * failed = FAILED, unavailable = UNAVAILABLE, notRequested = NOT_REQUESTED.
+   */
   ots: {
-    /** UC-TRUST-007 — anchored AND verified against the Bitcoin chain. */
     anchored: number;
-    /** Recorded as anchored; the Bitcoin chain was not checked. Never "anchored". */
-    anchoredNotChecked: number;
     pending: number;
     failed: number;
-    none: number;
+    unavailable: number;
+    notRequested: number;
   };
   /**
    * Evidence carrying an Ed25519 signature. NOTE: this is NOT a
@@ -126,40 +136,58 @@ function tsaBucket(
   return "none";
 }
 
+export type OtsBucket = "anchored" | "pending" | "failed" | "unavailable" | "notRequested";
+
+const OTS_BUCKET: Readonly<Record<OtsState, OtsBucket>> = {
+  ANCHORED: "anchored",
+  PENDING: "pending",
+  FAILED: "failed",
+  UNAVAILABLE: "unavailable",
+  NOT_REQUESTED: "notRequested",
+};
+
 /**
- * UC-TRUST-007 — the OTS bucket comes from the ONE claim: only an anchor
- * verified against the Bitcoin chain counts as "anchored". A row recorded as
- * ANCHORED whose chain was not checked is counted separately, never as
- * anchored. The worker writes "ANCHORED", "PENDING" and "FAILED"
- * (and "DISABLED"); the claim resolver reads every one of them.
+ * (2026-10-13) The OTS bucket is the ONE state (resolveRecordOtsAnchoring):
+ * ANCHORED only when the stored proof executes from the record's digest to a
+ * valid Bitcoin block attestation — never from a status string, a txid or a
+ * timestamp.
  */
-export function otsBucket(row: {
-  otsStatus: string | null;
-  otsAnchoredAtUtc?: Date | string | null;
-  otsAnchorCheck?: string | null;
-  /** (2026-10-12) evidence.ots_chain_verification_status. */
-  otsChainVerificationStatus?: string | null;
-}): "anchored" | "anchoredNotChecked" | "pending" | "failed" | "none" {
-  const claim = resolveOtsAnchorClaim({
-    status: row.otsStatus,
-    anchoredAtUtc: row.otsAnchoredAtUtc ?? null,
-    anchorCheck: row.otsAnchorCheck ?? null,
+export function otsBucket(row: OtsAnchoringRecord): OtsBucket {
+  return OTS_BUCKET[resolveRecordOtsAnchoring(row).state];
+}
+
+/** Rows per page when resolving the stored proofs of a workspace. */
+const OTS_SUMMARY_PAGE = 500;
+
+/**
+ * Counts per OTS state. Rows without proof bytes resolve from their stored
+ * status alone, so they are grouped in one aggregate; rows WITH proof bytes are
+ * resolved one by one (the proof decides), paged by id.
+ */
+async function countOtsStates(baseWhere: Prisma.EvidenceWhereInput): Promise<TrustSummary["ots"]> {
+  const ots: TrustSummary["ots"] = { anchored: 0, pending: 0, failed: 0, unavailable: 0, notRequested: 0 };
+  const withoutProof = await prisma.evidence.groupBy({
+    by: ["otsStatus"],
+    where: { AND: [baseWhere, { otsProofBase64: null }] },
+    _count: { _all: true },
   });
-  // A grouped count carries no per-row evidence. BITCOIN_VERIFIED together with
-  // a VERIFIED chain status is enough here: the database refuses either without
-  // the complete chain evidence (evidence_ots_chain_verified_requires_evidence,
-  // evidence_ots_bitcoin_verified_requires_chain_evidence).
-  if (claim === "ANCHORED_NOT_CHECKED" && row.otsAnchorCheck === "BITCOIN_VERIFIED" && row.otsChainVerificationStatus === "VERIFIED") {
-    return "anchored";
+  for (const g of withoutProof) {
+    ots[otsBucket({ otsStatus: g.otsStatus, otsProofBase64: null })] += g._count._all;
   }
-  if (claim === "VERIFIED") return "anchored";
-  if (claim === "ANCHORED_NOT_CHECKED") return "anchoredNotChecked";
-  if (claim === "PENDING") return "pending";
-  if (claim === "FAILED") return "failed";
-  const v = (row.otsStatus ?? "").toUpperCase();
-  if (v === "UPGRADING" || v === "QUEUED") return "pending";
-  if (v === "ERRORED" || v === "ERROR") return "failed";
-  return "none";
+  let cursor: string | null = null;
+  for (;;) {
+    const page: Array<OtsAnchoringRecord & { id: string }> = await prisma.evidence.findMany({
+      where: { AND: [baseWhere, { otsProofBase64: { not: null } }] },
+      select: { id: true, ...OTS_ANCHORING_RECORD_SELECT },
+      orderBy: { id: "asc" },
+      take: OTS_SUMMARY_PAGE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    for (const row of page) ots[otsBucket(row)] += 1;
+    if (page.length < OTS_SUMMARY_PAGE) break;
+    cursor = page[page.length - 1]!.id;
+  }
+  return ots;
 }
 
 export async function buildTrustSummary(input: {
@@ -198,7 +226,7 @@ export async function buildTrustSummary(input: {
   // (puppeteer __name) that previously left Trust Ready at 100%.
   const [
     tsaGroups,
-    otsGroups,
+    ots,
     verifyGroups,
     totalEvidence,
     signed,
@@ -215,12 +243,8 @@ export async function buildTrustSummary(input: {
         where: baseWhere,
         _count: { _all: true },
       }),
-      prisma.evidence.groupBy({
-        // UC-TRUST-007 — grouped by how the anchor was established too.
-        by: ["otsStatus", "otsAnchorCheck", "otsAnchoredAtUtc", "otsChainVerificationStatus"],
-        where: baseWhere,
-        _count: { _all: true },
-      }),
+      // (2026-10-13) Each row's OTS state, resolved from its stored proof.
+      countOtsStates(baseWhere),
       prisma.evidence.groupBy({
         by: ["publicVerifyState"],
         where: baseWhere,
@@ -305,11 +329,6 @@ export async function buildTrustSummary(input: {
   for (const g of tsaGroups) {
     const bucket = tsaBucket(presentedTsaStatus(g));
     tsa[bucket] += g._count._all;
-  }
-
-  const ots = { anchored: 0, anchoredNotChecked: 0, pending: 0, failed: 0, none: 0 };
-  for (const g of otsGroups) {
-    ots[otsBucket(g)] += g._count._all;
   }
 
   const publicVerify = { published: 0, unpublished: 0, suspended: 0 };

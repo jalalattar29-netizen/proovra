@@ -229,12 +229,6 @@
       "reviewedAtUtc": "2026-10-01"
     },
     {
-      "site": "services/worker/src/ots-chain-verifier.ts:158",
-      "class": "EXTERNAL_DESTINATION",
-      "evidence": "fetch(endpoint, { method: \"POST\", ... }) inside makeRpc — JSON-RPC (getblockhash / getblockheader) to the operator's own Bitcoin Core node named by OTS_BITCOIN_NODE_URL, used only when OTS_CHAIN_VERIFIER=bitcoind-rpc to verify an OpenTimestamps attestation against the chain. Not a PROOVRA route; the URL is a secret and is never logged.",
-      "reviewedAtUtc": "2026-10-12"
-    },
-    {
       "site": "apps/web/app/(app)/operations/page.tsx:2059",
       "class": "PROP_CALLBACK",
       "evidence": "onAssign={(userId) => void assign(openRow.id, userId)} — the drawer's assign callback; the path is built where the handler is defined, apps/web/app/(app)/operations/page.tsx:1352 `/v1/ops/incidents/${encodeURIComponent(incidentId)}/assign` (POST), and is counted there.",

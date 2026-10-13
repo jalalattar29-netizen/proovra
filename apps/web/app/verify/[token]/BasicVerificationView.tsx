@@ -12,19 +12,19 @@
  * does not exist.
  */
 import {
-  OTS_TRUTH_SENTENCES,
-  OTS_TRUTH_STATUS_LINES,
+  OTS_ANCHORING_COPY,
+  readOtsAnchoringView,
   storedBytesVerificationRow,
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   VERIFICATION_STATUS_LABELS,
   type BasicVerification,
   type ComponentVerificationState,
-  type OtsTruthState,
   type VerificationMatrix,
   type VerificationStatus,
 } from "@proovra/shared";
 
 import { Row, fmt } from "../_shared/verify-ui";
+import { otsMatrixRowPresentation } from "./VerifyMatrixPanels";
 
 /**
  * ET-PKG-02: a seal key found only inside a package vouches for nothing, so the
@@ -73,16 +73,20 @@ export function VerificationMatrixSection({ matrix }: { matrix: VerificationMatr
       <p data-testid="verify-matrix-summary" style={{ margin: "6px 0 10px", fontWeight: 600, color: "#0f172a" }}>
         {sentence}
       </p>
-      {matrix.rows.map((row) => (
-        <Row
-          key={row.key}
-          testId={`verify-matrix-row-${row.key}`}
-          label={row.label}
-          state={MATRIX_ROW_STATE[row.status]}
-          badge={row.statusLabel ?? VERIFICATION_STATUS_LABELS[row.status]}
-          detail={row.statement}
-        />
-      ))}
+      {matrix.rows.map((row) => {
+        const ots = otsMatrixRowPresentation(row);
+        return (
+          <Row
+            key={row.key}
+            testId={`verify-matrix-row-${row.key}`}
+            label={row.label}
+            state={MATRIX_ROW_STATE[row.status]}
+            badge={ots ? ots.badge : (row.statusLabel ?? VERIFICATION_STATUS_LABELS[row.status])}
+            tone={ots?.tone}
+            detail={row.statement}
+          />
+        );
+      })}
       <p data-testid="verify-matrix-limitation" style={{ fontSize: 13, color: "#64748b", margin: "12px 0 0" }}>
         {matrix.limitation}
       </p>
@@ -178,21 +182,31 @@ export default function BasicVerificationView({
         : data.timestamp.state === "pending"
           ? "The timestamp has not been completed yet."
           : "No trusted timestamp was issued for this record.";
-  // (2026-10-12) The OpenTimestamps card: one public status and one sentence,
-  // the same words as the report. The proof's details are technical material.
-  const otsCard: OtsTruthState =
-    data.anchoring.state === "verified"
-      ? "CHAIN_VERIFIED"
-      : data.anchoring.state === "not_checked"
-        ? data.anchoring.truthState === "CHAIN_VERIFICATION_UNAVAILABLE"
-          ? "CHAIN_VERIFICATION_UNAVAILABLE"
-          : "ATTESTATION_PRESENT_NOT_VERIFIED"
-        : data.anchoring.state === "pending"
-          ? "PENDING"
-          : data.anchoring.state === "failed"
-            ? "PROOF_INVALID"
-            : "NOT_REQUESTED";
-  const otsDetail = OTS_TRUTH_SENTENCES[otsCard];
+  // (2026-10-13) Bitcoin anchoring: the server's state (`otsState`), read —
+  // never derived — and stated in the one vocabulary with one sentence.
+  const ots = readOtsAnchoringView({ ...data.anchoring, state: data.anchoring.otsState });
+  const otsFacts = OTS_ANCHORING_COPY.en.facts;
+  const otsDetail = (
+    <>
+      {ots.sentence}
+      {ots.failureLabel ? <> {ots.failureLabel}</> : null}
+      {ots.state === "ANCHORED" && ots.bitcoinBlockHeight != null ? (
+        <span data-verify-ots-fact="block-height" style={{ display: "block" }}>
+          {otsFacts.blockHeight}: {ots.bitcoinBlockHeight}
+        </span>
+      ) : null}
+      {ots.bitcoinTxid ? (
+        <span data-verify-ots-fact="txid" style={{ display: "block" }}>
+          {otsFacts.txid}: <code>{ots.bitcoinTxid}</code>
+        </span>
+      ) : null}
+      {ots.anchoredAtUtc ? (
+        <span data-verify-ots-fact="anchored-at" style={{ display: "block" }}>
+          {otsFacts.anchoredAt}: {fmt(ots.anchoredAtUtc)}
+        </span>
+      ) : null}
+    </>
+  );
 
   return (
     <main
@@ -226,7 +240,15 @@ export default function BasicVerificationView({
           </div>
         ) : null}
         <Row label="Trusted timestamp (RFC 3161)" state={data.timestamp.state} detail={tsaDetail} />
-        <Row label="OpenTimestamps" state={data.anchoring.state} detail={otsDetail} badge={OTS_TRUTH_STATUS_LINES[otsCard]} />
+        <div data-verify-ots-state={ots.state}>
+          <Row
+            label={ots.title}
+            state={data.anchoring.state}
+            detail={otsDetail}
+            badge={ots.tone === "success" ? `✓ ${ots.status}` : ots.status}
+            tone={ots.tone}
+          />
+        </div>
         <div style={{ paddingTop: 14, borderTop: "1px solid rgba(15,23,42,0.08)", fontSize: 14, color: "#334155" }}>
           {/* UC-PROV-001 — the server clock at record creation is never a device-declared capture time. */}
           <div data-verify-time="server-received">Server received at (PROOVRA server clock): {fmt(o.serverReceivedAtUtc ?? o.capturedAtUtcDeclared)}</div>

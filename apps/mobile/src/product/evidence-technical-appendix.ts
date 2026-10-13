@@ -12,11 +12,7 @@
  * web's rule (`rows()`), so a card says "not recorded" once instead of eight
  * times.
  */
-import {
-  OTS_ANCHOR_CLAIM_LABELS,
-  resolveOtsAnchorClaim,
-  type OtsAnchorClaim,
-} from "@proovra/shared";
+import { otsBadgeLabel, otsCard } from "./ots-anchoring";
 
 type Obj = Record<string, unknown>;
 const o = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
@@ -77,7 +73,7 @@ export interface TechnicalAppendixModel {
 
 const exifNum = (v: unknown): string | null => (v == null ? null : String(v));
 
-export function buildTechnicalAppendix(technicalPayload: unknown, rw: unknown): TechnicalAppendixModel {
+export function buildTechnicalAppendix(technicalPayload: unknown, rw: unknown, locale?: string | null): TechnicalAppendixModel {
   const tm = technicalPayload && typeof technicalPayload === "object" ? o(o(technicalPayload)["technicalMetadata"]) : {};
   const root = o(rw);
   const ev = o(root["evidence"]);
@@ -223,7 +219,8 @@ export function buildTechnicalAppendix(technicalPayload: unknown, rw: unknown): 
   // Section 9 — Security & Integrity (buildIntegrityRows).
   const sig = o(pm["signature"]);
   const tsa = o(pm["tsa"]);
-  const ots = o(pm["ots"]);
+  // THE BITCOIN ANCHORING CARD (2026-10-13): the server's OtsAnchoringView, in the locale's words.
+  const ots = otsCard(pm["ots"], locale);
   const keyId = s(sig["keyId"]);
   const keyVersion = n(sig["keyVersion"]);
   const integrity = appendixRows([
@@ -239,18 +236,10 @@ export function buildTechnicalAppendix(technicalPayload: unknown, rw: unknown): 
     { label: "Trusted timestamp", value: timestampStatusLabel(s(tsa["status"])) },
     { label: "Timestamp provider", value: s(tsa["provider"]) },
     { label: "Timestamp serial", value: s(ev["tsaSerialNumber"]), mono: true },
-    {
-      label: "OpenTimestamps / Bitcoin anchoring",
-      value: anchoringStatusLabel({
-        status: s(ots["effectiveStatus"]) ?? s(ots["status"]),
-        bitcoinTxid: s(ots["bitcoinTxid"]),
-        anchoredAtUtc: s(ots["anchoredAtUtc"]),
-        proofPresent: ots["proofPresent"] === true,
-        anchorCheck: s(ots["anchorCheck"]),
-        anchorClaim: s(ots["anchorClaim"]),
-      }),
-    },
-    { label: "Bitcoin transaction ID", value: s(ots["bitcoinTxid"]), mono: true, copyable: true },
+    { label: ots.title, value: otsBadgeLabel(ots) },
+    { label: ots.label, value: [ots.sentence, ots.failureLabel, ots.boundary].filter(Boolean).join(" ") },
+    // Only the facts the proof yields; the txid only when the proof path derived it.
+    ...ots.facts.map((f) => ({ label: f.label, value: f.value, mono: f.mono, copyable: f.mono })),
     { label: "Immutable storage", value: objectLockLabel(s(ev["storageObjectLockMode"])) },
     { label: "Retention until", value: s(ev["storageObjectLockRetainUntilUtc"]) },
   ]);
@@ -306,30 +295,6 @@ export function timestampStatusLabel(status: string | null): string {
     default:
       return "Trusted timestamp not configured";
   }
-}
-
-/** sections-model.ts anchoringStatusLabel — the one OTS claim. */
-export function anchoringStatusLabel(input: {
-  status: string | null;
-  bitcoinTxid: string | null;
-  anchoredAtUtc: string | null;
-  proofPresent: boolean;
-  anchorCheck?: string | null;
-  anchorClaim?: string | null;
-}): string {
-  // The ONE OTS claim (2026-09-29): "verified" only when the server says the
-  // anchor was verified against the Bitcoin chain.
-  const serverClaim = input.anchorClaim as OtsAnchorClaim | null | undefined;
-  const claim =
-    serverClaim && serverClaim in OTS_ANCHOR_CLAIM_LABELS
-      ? serverClaim
-      : resolveOtsAnchorClaim({
-          status: input.status,
-          anchoredAtUtc: input.anchoredAtUtc,
-          anchorCheck: input.anchorCheck ?? null,
-          proofPresent: input.proofPresent,
-        });
-  return OTS_ANCHOR_CLAIM_LABELS[claim];
 }
 
 function objectLockLabel(mode: string | null): string | null {

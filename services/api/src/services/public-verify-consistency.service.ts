@@ -1,5 +1,5 @@
-import type { TrustDecision } from "@proovra/shared";
-import { resolveSnapshotSignalState } from "@proovra/shared";
+import type { OtsAnchoring, OtsState, TrustDecision } from "@proovra/shared";
+import { OTS_STATES } from "@proovra/shared";
 
 export type PublicVerifySnapshotSource =
   | "REPORT_SNAPSHOT"
@@ -13,7 +13,11 @@ export type PublicVerifySnapshotSection = {
   reportVersion: number | null;
   packageVersion: number | null;
   trustDecisionSnapshot: TrustDecision | null;
-  otsStatusAtGeneration: string | null;
+  /**
+   * The OTS state the latest report stated (its anchorSnapshot.otsState).
+   * A legacy report without one, or no report, reads UNAVAILABLE.
+   */
+  otsStatusAtGeneration: OtsState;
   reportSignature: {
     status: string | null;
     signedAtUtc: string | null;
@@ -25,13 +29,12 @@ export type PublicVerifySnapshotSection = {
   } | null;
 };
 
+/**
+ * The record's live anchoring freshness (2026-10-13): operational fields only.
+ * The OTS state itself (state, txid, block height, time) is stated once, by
+ * `storageAndTimestamping.ots` (the shared OtsAnchoringView).
+ */
 export type PublicVerifyLiveAnchoringSection = {
-  currentOtsStatus: string | null;
-  /** (2026-10-12) The VERIFIED Bitcoin block time only. */
-  otsAnchoredAtUtc: string | null;
-  /** When PROOVRA recorded the attestation-bearing proof. Never an anchor time. */
-  otsProofRecordedAtUtc: string | null;
-  otsBitcoinTxid: string | null;
   lastUpdatedAtUtc: string | null;
   hasAdvancedSinceSnapshot: boolean;
   newerReportAvailable: boolean;
@@ -40,39 +43,24 @@ export type PublicVerifyLiveAnchoringSection = {
 };
 
 /**
- * The OTS lifecycle status a snapshot's anchoring signal implies, read from
- * its canonical state: an attested proof (present, chain not checked) and a
- * chain-verified anchor are both ANCHORED in lifecycle terms — the CLAIM
- * difference between them lives in the state, never in this status.
+ * The OTS state a report stated: its `anchorSnapshot.otsState`, written by the
+ * worker. A legacy report without it (or no report) reads UNAVAILABLE — never
+ * re-derived from a status word or a trust-signal reading.
  */
-function mapSignalToOtsStatus(
-  signal: Parameters<typeof resolveSnapshotSignalState>[0] | null | undefined,
-): string | null {
-  if (!signal) return null;
-  switch (resolveSnapshotSignalState(signal)) {
-    case "PASSED":
-    case "PRESENT_NOT_INDEPENDENTLY_VERIFIED":
-    case "NOT_CHECKED":
-      return "ANCHORED";
-    case "PENDING":
-    case "STALE":
-      return "PENDING";
-    case "FAILED":
-      return "FAILED";
-    default:
-      return null;
-  }
+export function reportOtsStateOf(anchorSnapshot: unknown): OtsState {
+  const raw =
+    anchorSnapshot && typeof anchorSnapshot === "object" && !Array.isArray(anchorSnapshot)
+      ? (anchorSnapshot as Record<string, unknown>).otsState
+      : null;
+  return typeof raw === "string" && (OTS_STATES as readonly string[]).includes(raw) ? (raw as OtsState) : "UNAVAILABLE";
 }
 
-function rankOtsStatus(status: string | null | undefined): number {
-  const normalized = typeof status === "string" ? status.trim().toUpperCase() : "";
-
-  switch (normalized) {
+/** Progress order: only a move toward ANCHORED is an advance. */
+function rankOtsState(state: OtsState | null | undefined): number {
+  switch (state) {
     case "ANCHORED":
-      return 3;
-    case "PENDING":
       return 2;
-    case "FAILED":
+    case "PENDING":
       return 1;
     default:
       return 0;
@@ -89,16 +77,6 @@ function isLaterThan(
   return left.getTime() > right.getTime();
 }
 
-export function deriveSnapshotOtsStatus(
-  trustDecisionSnapshot: TrustDecision | null,
-): string | null {
-  const publicAnchoringSignal = trustDecisionSnapshot?.signals?.find(
-    (signal) => signal.key === "bitcoin_anchoring",
-  );
-
-  return mapSignalToOtsStatus(publicAnchoringSignal);
-}
-
 export function buildPublicVerifyConsistencySections(params: {
   source: PublicVerifySnapshotSource;
   trustDecisionSnapshot: TrustDecision | null;
@@ -107,6 +85,8 @@ export function buildPublicVerifyConsistencySections(params: {
     generatedAtUtc: Date;
     pdfSignatureStatus: string | null;
     pdfSignedAtUtc: Date | null;
+    /** The report's anchor snapshot; its `otsState` is the state the report stated. */
+    anchorSnapshot?: unknown;
   } | null;
   latestVerificationPackage: {
     version: number;
@@ -118,18 +98,14 @@ export function buildPublicVerifyConsistencySections(params: {
     signedManifestPresent: boolean;
     packageType: string | null;
   } | null;
-  currentOtsStatus: string | null;
-  otsAnchoredAtUtc: string | null;
-  otsProofRecordedAtUtc?: string | null;
-  otsBitcoinTxid: string | null;
+  /** The record's live anchoring, resolved once by the caller (resolveRecordOtsAnchoring). */
+  currentOts: OtsAnchoring;
   otsUpgradedAtUtc: string | null;
 }): {
   verificationSnapshot: PublicVerifySnapshotSection;
   liveAnchoring: PublicVerifyLiveAnchoringSection;
 } {
-  const otsStatusAtGeneration = deriveSnapshotOtsStatus(
-    params.trustDecisionSnapshot,
-  );
+  const otsStatusAtGeneration = reportOtsStateOf(params.latestReport?.anchorSnapshot ?? null);
 
   const generatedAtUtc =
     params.source === "REPORT_SNAPSHOT"
@@ -167,14 +143,12 @@ export function buildPublicVerifyConsistencySections(params: {
       : null,
   };
 
+  const current = params.currentOts;
   const liveAnchoring: PublicVerifyLiveAnchoringSection = {
-    currentOtsStatus: params.currentOtsStatus,
-    otsAnchoredAtUtc: params.otsAnchoredAtUtc,
-    otsProofRecordedAtUtc: params.otsProofRecordedAtUtc ?? null,
-    otsBitcoinTxid: params.otsBitcoinTxid,
-    lastUpdatedAtUtc: params.otsUpgradedAtUtc ?? params.otsAnchoredAtUtc ?? params.otsProofRecordedAtUtc ?? null,
+    lastUpdatedAtUtc:
+      params.otsUpgradedAtUtc ?? (current.state === "ANCHORED" ? current.anchoredAtUtc : null) ?? null,
     hasAdvancedSinceSnapshot:
-      rankOtsStatus(params.currentOtsStatus) > rankOtsStatus(otsStatusAtGeneration),
+      params.latestReport != null && rankOtsState(current.state) > rankOtsState(otsStatusAtGeneration),
     newerReportAvailable: isLaterThan(
       params.latestReport?.generatedAtUtc ?? null,
       generatedAtUtc,

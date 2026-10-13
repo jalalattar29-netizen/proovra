@@ -1,282 +1,188 @@
 /**
- * THE OTS TRANSITION RULE (2026-09-29) — pure decisions.
+ * THE OTS TRANSITION RULE (2026-10-13), on real OpenTimestamps bytes.
  *
- * `decideOtsTransition(row, observation, observedAt)` is the one place that
- * decides how an OTS observation changes a record. These cases pin the rule
- * the processor applies compare-and-set (see ots-upgrade-processor.behaviour).
+ * The worker decides from the executed proof (resolveOtsAnchoring): a proof
+ * that executes to a valid Bitcoin block attestation over the record's digest
+ * is written ANCHORED; ANCHORED is terminal per proof (no stale regression);
+ * a defect is FAILED with a bounded code and the stored proof preserved; an
+ * attempt error changes nothing. No deprecated column is written.
  */
 import { describe, expect, it } from "vitest";
 
+import { REAL, upgradedProof } from "../../../packages/shared/tests/helpers/ots-fixtures.mjs";
 import {
+  buildOtsEvidenceUpdateData,
   decideOtsTransition,
-  hasOtsProofMagic,
-  isCheckedOtsAnchor,
+  decideStoredStatusAlignment,
+  isAnchoredOtsRow,
   otsSnapshotWhere,
   type OtsRowSnapshot,
 } from "../src/ots-state.js";
 
-const TXID = "a".repeat(64);
-const BLOCK_TIME = new Date("2026-09-20T10:00:00Z");
-const EARLIER = new Date("2026-09-21T10:00:00Z");
-const NOW = new Date("2026-09-29T12:00:00Z");
+const FP = REAL.boundFingerprintHash;
+const T0 = new Date("2026-10-01T00:00:00.000Z");
+const NOW = new Date("2026-10-13T12:00:00.000Z");
+const ANCHORED = upgradedProof();
 
 function row(over: Partial<OtsRowSnapshot> = {}): OtsRowSnapshot {
   return {
     otsStatus: "PENDING",
-    otsProofBase64: "cHJvb2Y=",
-    otsHash: "b".repeat(64),
-    otsCalendar: "https://calendar.example",
+    otsProofBase64: REAL.boundProofBase64,
+    otsHash: FP,
+    otsCalendar: "https://a.pool.opentimestamps.org",
     otsBitcoinTxid: null,
     otsAnchoredAtUtc: null,
-    otsUpgradedAtUtc: EARLIER,
+    otsUpgradedAtUtc: T0,
     otsFailureReason: null,
-    otsAnchorCheck: null,
+    fingerprintHash: FP,
     ...over,
   };
 }
 
-/** (2026-10-12) A recorded chain verification and its evidence (test values). */
-const CHAIN_CHECK = {
-  status: "VERIFIED" as const,
-  checkedAtUtc: new Date("2026-09-20T12:00:00Z"),
-  verifier: "test-double/1",
-  verifiedAtUtc: new Date("2026-09-20T12:00:00Z"),
-  blockHeight: 1,
-  blockHash: "0".repeat(20) + "b".repeat(44),
-  blockTimeUtc: BLOCK_TIME,
-  confirmations: 6,
-};
-const CHAIN_COLUMNS = {
-  otsChainVerificationStatus: "VERIFIED",
-  otsChainCheckedAtUtc: CHAIN_CHECK.checkedAtUtc,
-  otsChainVerifiedAtUtc: CHAIN_CHECK.verifiedAtUtc,
-  otsChainBlockHeight: 1,
-  otsChainBlockHash: CHAIN_CHECK.blockHash,
-  otsChainBlockTimeUtc: BLOCK_TIME,
-  otsChainConfirmations: 6,
-  otsChainVerifier: "test-double/1",
-  otsChainFailureCode: null,
-};
+const DEPRECATED = [
+  "otsAnchorCheck",
+  "otsAttestationRecordedAtUtc",
+  "otsAttestationBlockHeight",
+  "otsChainVerificationStatus",
+  "otsChainCheckedAtUtc",
+  "otsChainVerifiedAtUtc",
+  "otsChainBlockHeight",
+  "otsChainBlockHash",
+  "otsChainBlockTimeUtc",
+  "otsChainConfirmations",
+  "otsChainVerifier",
+  "otsChainFailureCode",
+];
 
-const anchoredChecked = (check: "BITCOIN_VERIFIED" | "PROOF_STRUCTURE") =>
-  row({
-    otsStatus: "ANCHORED",
-    otsBitcoinTxid: TXID,
-    otsAnchoredAtUtc: BLOCK_TIME,
-    otsAnchorCheck: check,
-    otsAttestationRecordedAtUtc: BLOCK_TIME,
-    otsAttestationBlockHeight: 1,
-    ...(check === "BITCOIN_VERIFIED" ? CHAIN_COLUMNS : { otsChainVerificationStatus: null, otsChainFailureCode: null }),
-  });
-
-describe("anchored with a valid (checked) proof", () => {
-  it("is never demoted by an inconclusive re-check, a transient error or the budget", () => {
-    const r = anchoredChecked("BITCOIN_VERIFIED");
-    expect(isCheckedOtsAnchor(r)).toBe(true);
-    expect(decideOtsTransition(r, { kind: "PENDING", proofBase64: "x", txid: null }, NOW).kind).toBe("NO_CHANGE");
-    expect(decideOtsTransition(r, { kind: "TRANSIENT_ERROR", reason: "ECONNRESET" }, NOW).kind).toBe(
-      "RECORD_ATTEMPT_ERROR",
-    );
-    expect(decideOtsTransition(r, { kind: "BUDGET_EXHAUSTED" }, NOW).kind).toBe("NO_CHANGE");
-  });
-
-  it("recorded chain evidence is kept through an inconclusive re-check, and a verifying check upgrades a structural one", () => {
-    const verified = anchoredChecked("BITCOIN_VERIFIED");
-    for (const chain of [null, { status: "UNAVAILABLE" as const, checkedAtUtc: NOW, verifier: "test-double/1", reason: "down" }]) {
-      const t = decideOtsTransition(
-        verified,
-        { kind: "ANCHOR_PROVEN", proofBase64: "cHJvb2Y=", check: "PROOF_STRUCTURE", txid: TXID, blockTimeUtc: null, blockHeight: 1, chain },
-        NOW,
-      );
-      expect(t.kind).toBe("NO_CHANGE");
-    }
-
-    const structural = anchoredChecked("PROOF_STRUCTURE");
-    const up = decideOtsTransition(
-      structural,
-      { kind: "ANCHOR_PROVEN", proofBase64: "cHJvb2Y=", check: "BITCOIN_VERIFIED", txid: TXID, blockTimeUtc: BLOCK_TIME, blockHeight: 1, chain: CHAIN_CHECK },
-      NOW,
-    );
-    expect(up).toMatchObject({ kind: "WRITE", status: "ANCHORED", phase: "chain_verified" });
-    if (up.kind === "WRITE") {
-      expect(up.data).toMatchObject({ otsAnchorCheck: "BITCOIN_VERIFIED", otsChainVerificationStatus: "VERIFIED", otsChainConfirmations: 6 });
+describe("the column writer", () => {
+  it("never writes a deprecated chain-verifier column, for any status", () => {
+    for (const status of ["DISABLED", "PENDING", "ANCHORED", "FAILED"] as const) {
+      const data = buildOtsEvidenceUpdateData({ status, proofBase64: "x", upgradedAtUtc: NOW });
+      for (const key of DEPRECATED) expect(Object.keys(data)).not.toContain(key);
     }
   });
 
-  it("BITCOIN_VERIFIED is never written without a VERIFIED chain check — the observation's own label is not enough", () => {
-    const t = decideOtsTransition(
-      row(),
-      { kind: "ANCHOR_PROVEN", proofBase64: "bmV3", check: "BITCOIN_VERIFIED", txid: TXID, blockTimeUtc: BLOCK_TIME, blockHeight: 1 },
-      NOW,
-    );
-    expect(t.kind === "WRITE" && t.data.otsAnchorCheck).toBe("PROOF_STRUCTURE");
-  });
-
-  it("a verified anchor is withdrawn when a configured verifier reached the chain and it did not verify (reorg)", () => {
-    const t = decideOtsTransition(
-      anchoredChecked("BITCOIN_VERIFIED"),
-      {
-        kind: "ANCHOR_PROVEN",
-        proofBase64: "cHJvb2Y=",
-        check: "PROOF_STRUCTURE",
-        txid: TXID,
-        blockTimeUtc: null,
-        blockHeight: 1,
-        chain: { status: "FAILED", checkedAtUtc: NOW, verifier: "test-double/1", failureCode: "ATTESTATION_NOT_IN_CHAIN" },
-      },
-      NOW,
-    );
-    expect(t).toMatchObject({ kind: "WRITE", phase: "chain_verification_withdrawn" });
-    if (t.kind === "WRITE") {
-      expect(t.data).toMatchObject({
-        otsAnchorCheck: "PROOF_STRUCTURE",
-        otsChainVerificationStatus: "FAILED",
-        otsChainFailureCode: "ATTESTATION_NOT_IN_CHAIN",
-        otsChainBlockTimeUtc: null,
-      });
-    }
-  });
-
-  it("the anchor time is the block time; else the existing anchor time; never overwritten by a later observation", () => {
-    const fromPending = decideOtsTransition(
-      row(),
-      { kind: "ANCHOR_PROVEN", proofBase64: "bmV3", check: "BITCOIN_VERIFIED", txid: TXID, blockTimeUtc: BLOCK_TIME, blockHeight: 1, chain: CHAIN_CHECK },
-      NOW,
-    );
-    expect(fromPending.kind === "WRITE" && fromPending.data.otsAnchoredAtUtc).toEqual(BLOCK_TIME);
-    expect(fromPending.kind === "WRITE" && fromPending.data.otsUpgradedAtUtc).toEqual(NOW);
-
-    // Structure-only proof carries no block time: the observation time is the
-    // earliest defensible upper bound — used only when no anchor time exists.
-    const structural = decideOtsTransition(
-      row(),
-      { kind: "ANCHOR_PROVEN", proofBase64: "bmV3", check: "PROOF_STRUCTURE", txid: TXID, blockTimeUtc: null, blockHeight: 1 },
-      NOW,
-    );
-    expect(structural.kind === "WRITE" && structural.data.otsAnchoredAtUtc).toEqual(NOW);
-    // (2026-10-12) That time is RECORDED as what it is: the attestation-recorded
-    // time. No verified block time exists for it.
-    expect(structural.kind === "WRITE" && structural.data.otsAttestationRecordedAtUtc).toEqual(NOW);
-    expect(structural.kind === "WRITE" && structural.data.otsChainBlockTimeUtc).toBeNull();
-
-    const legacy = row({ otsStatus: "ANCHORED", otsAnchoredAtUtc: BLOCK_TIME });
-    const kept = decideOtsTransition(
-      legacy,
-      { kind: "ANCHOR_PROVEN", proofBase64: "bmV3", check: "PROOF_STRUCTURE", txid: TXID, blockTimeUtc: null, blockHeight: 1 },
-      NOW,
-    );
-    expect(kept.kind === "WRITE" && kept.data.otsAnchoredAtUtc).toEqual(BLOCK_TIME);
-  });
-
-  it("duplicate delivery of the same proven anchor writes nothing", () => {
-    const r = anchoredChecked("PROOF_STRUCTURE");
-    const t = decideOtsTransition(
-      r,
-      { kind: "ANCHOR_PROVEN", proofBase64: r.otsProofBase64!, check: "PROOF_STRUCTURE", txid: TXID, blockTimeUtc: null, blockHeight: 1 },
-      NOW,
-    );
-    expect(t).toEqual({ kind: "NO_CHANGE", reason: expect.any(String) });
+  it("writes a txid only beside ANCHORED, and only a well-formed one", () => {
+    const txid = "ab".repeat(32);
+    expect(buildOtsEvidenceUpdateData({ status: "PENDING", bitcoinTxid: txid }).otsBitcoinTxid).toBeNull();
+    expect(buildOtsEvidenceUpdateData({ status: "FAILED", bitcoinTxid: txid }).otsBitcoinTxid).toBeNull();
+    expect(buildOtsEvidenceUpdateData({ status: "ANCHORED", bitcoinTxid: txid, upgradedAtUtc: NOW }).otsBitcoinTxid).toBe(txid);
+    expect(buildOtsEvidenceUpdateData({ status: "ANCHORED", bitcoinTxid: "nope", upgradedAtUtc: NOW }).otsBitcoinTxid).toBeNull();
   });
 });
 
-describe("anchored WITHOUT a defensible txid or a recorded check (legacy)", () => {
-  it("is demoted to PENDING when the re-check cannot confirm it — the label is not kept to avoid a downgrade", () => {
-    const legacy = row({ otsStatus: "ANCHORED", otsAnchoredAtUtc: BLOCK_TIME });
-    expect(isCheckedOtsAnchor(legacy)).toBe(false);
-    const t = decideOtsTransition(legacy, { kind: "PENDING", proofBase64: "cmVmcmVzaGVk", txid: null }, NOW);
-    expect(t).toMatchObject({ kind: "WRITE", status: "PENDING", phase: "anchor_not_confirmed_on_recheck", material: true });
-    if (t.kind === "WRITE") {
-      expect(t.data.otsAnchoredAtUtc).toBeNull();
-      expect(t.data.otsAnchorCheck).toBeNull();
-      // The refreshed proof is kept; nothing established is thrown away.
-      expect(t.data.otsProofBase64).toBe("cmVmcmVzaGVk");
+describe("decideOtsTransition", () => {
+  it("an upgraded proof that executes to a Bitcoin attestation is written ANCHORED with the derived txid", () => {
+    const t = decideOtsTransition(row(), { kind: "PROOF", proofBase64: ANCHORED.base64 }, NOW);
+    expect(t.kind).toBe("WRITE");
+    if (t.kind !== "WRITE") return;
+    expect(t.status).toBe("ANCHORED");
+    expect(t.phase).toBe("anchored");
+    expect(t.material).toBe(true);
+    expect(t.anchoring.state).toBe("ANCHORED");
+    expect(t.anchoring.bitcoinBlockHeight).toBe(ANCHORED.blockHeight);
+    expect(t.data.otsBitcoinTxid).toBe(ANCHORED.txid);
+    expect(t.data.otsProofBase64).toBe(ANCHORED.base64);
+    expect(t.data.otsAnchoredAtUtc).toEqual(NOW);
+  });
+
+  it("an upgraded proof with no transaction step is ANCHORED with no txid (never invented)", () => {
+    const p = upgradedProof({ withTransaction: false });
+    const t = decideOtsTransition(row(), { kind: "PROOF", proofBase64: p.base64 }, NOW);
+    expect(t.kind === "WRITE" && t.status).toBe("ANCHORED");
+    expect(t.kind === "WRITE" && t.data.otsBitcoinTxid).toBeNull();
+  });
+
+  it("the same pending proof refreshes PENDING without a material change", () => {
+    const t = decideOtsTransition(row(), { kind: "PROOF", proofBase64: REAL.boundProofBase64 }, NOW);
+    expect(t.kind === "WRITE" && t.status).toBe("PENDING");
+    expect(t.kind === "WRITE" && t.material).toBe(false);
+  });
+
+  it("upgraded bytes that commit to another digest are a defect: FAILED, the stored proof preserved", () => {
+    const t = decideOtsTransition(row(), { kind: "PROOF", proofBase64: REAL.otherProofBase64 }, NOW);
+    expect(t.kind).toBe("WRITE");
+    if (t.kind !== "WRITE") return;
+    expect(t.status).toBe("FAILED");
+    expect(t.data.otsFailureReason).toBe("PROOF_HASH_MISMATCH");
+    expect(t.data.otsProofBase64).toBe(REAL.boundProofBase64);
+  });
+
+  it("a malformed Bitcoin attestation in the upgrade is FAILED INVALID_ATTESTATION", () => {
+    const p = upgradedProof({ trailingPayload: new Uint8Array([1]) });
+    const t = decideOtsTransition(row(), { kind: "PROOF", proofBase64: p.base64 }, NOW);
+    expect(t.kind === "WRITE" && t.data.otsFailureReason).toBe("INVALID_ATTESTATION");
+  });
+
+  it("ANCHORED is terminal per proof: no observation regresses it", () => {
+    const anchored = row({ otsStatus: "ANCHORED", otsProofBase64: ANCHORED.base64, otsAnchoredAtUtc: T0 });
+    expect(isAnchoredOtsRow(anchored)).toBe(true);
+    for (const obs of [
+      { kind: "PROOF", proofBase64: REAL.boundProofBase64 },
+      { kind: "PROOF", proofBase64: REAL.otherProofBase64 },
+      { kind: "BUDGET_EXHAUSTED" },
+      { kind: "TRANSIENT_ERROR", reason: "calendar down" },
+    ] as const) {
+      expect(decideOtsTransition(anchored, obs, NOW).kind).toBe("NO_CHANGE");
     }
   });
 
-  it("is confirmed (and gains its check) when the re-check proves it", () => {
-    const legacy = row({ otsStatus: "ANCHORED", otsAnchoredAtUtc: BLOCK_TIME });
-    const t = decideOtsTransition(
-      legacy,
-      { kind: "ANCHOR_PROVEN", proofBase64: "cHJvb2Y=", check: "PROOF_STRUCTURE", txid: TXID, blockTimeUtc: null, blockHeight: 7 },
-      NOW,
-    );
-    expect(t).toMatchObject({ kind: "WRITE", status: "ANCHORED" });
-    if (t.kind === "WRITE") expect(t.data.otsAnchorCheck).toBe("PROOF_STRUCTURE");
-  });
-});
-
-describe("transient provider/network failure", () => {
-  it("changes nothing on the row — it is recorded as an attempt error, for any state", () => {
-    for (const r of [row(), row({ otsStatus: "ANCHORED", otsAnchoredAtUtc: BLOCK_TIME }), anchoredChecked("PROOF_STRUCTURE")]) {
-      const t = decideOtsTransition(r, { kind: "TRANSIENT_ERROR", reason: "getaddrinfo ENOTFOUND" }, NOW);
-      expect(t).toEqual({ kind: "RECORD_ATTEMPT_ERROR", reason: "getaddrinfo ENOTFOUND" });
-    }
+  it("an established proof defect is terminal", () => {
+    const failed = row({ otsStatus: "FAILED", otsProofBase64: REAL.otherProofBase64, otsFailureReason: "PROOF_HASH_MISMATCH" });
+    expect(decideOtsTransition(failed, { kind: "PROOF", proofBase64: ANCHORED.base64 }, NOW).kind).toBe("NO_CHANGE");
   });
 
-  it("a record left FAILED by the old transient bug recovers to PENDING on the next good attempt", () => {
-    const failed = row({ otsStatus: "FAILED", otsFailureReason: "Error: connect ECONNREFUSED" });
-    const t = decideOtsTransition(failed, { kind: "PENDING", proofBase64: "cHJvb2Y=", txid: null }, NOW);
-    expect(t).toMatchObject({ kind: "WRITE", status: "PENDING", phase: "recovered_from_failed_attempt" });
-  });
-});
-
-describe("permanently invalid proof", () => {
-  it("is FAILED with the reason code, preserving the stored proof as evidence", () => {
-    const t = decideOtsTransition(row(), { kind: "PROOF_INVALID", code: "PROOF_HASH_MISMATCH", reason: "x" }, NOW);
-    expect(t).toMatchObject({ kind: "WRITE", status: "FAILED", phase: "proof_hash_mismatch" });
-    if (t.kind === "WRITE") {
-      expect(t.data.otsFailureReason).toBe("PROOF_HASH_MISMATCH");
-      expect(t.data.otsProofBase64).toBe("cHJvb2Y=");
-    }
-  });
-
-  it("stays FAILED: a later inconclusive observation does not resurrect it, a repeat writes nothing", () => {
-    const invalid = row({ otsStatus: "FAILED", otsFailureReason: "MALFORMED_PROOF" });
-    expect(decideOtsTransition(invalid, { kind: "PENDING", proofBase64: "x", txid: null }, NOW).kind).toBe("NO_CHANGE");
-    expect(
-      decideOtsTransition(invalid, { kind: "PROOF_INVALID", code: "MALFORMED_PROOF", reason: "x" }, NOW).kind,
-    ).toBe("NO_CHANGE");
-  });
-
-  it("only an OpenTimestamps proof passes the structural check", () => {
-    const magic = Buffer.from("004f70656e54696d657374616d7073000050726f6f6600bf89e2e884e89294", "hex");
-    expect(hasOtsProofMagic(Buffer.concat([magic, Buffer.from([1, 2, 3])]))).toBe(true);
-    expect(hasOtsProofMagic(Buffer.from("not a proof at all, just text"))).toBe(false);
-    expect(hasOtsProofMagic(magic)).toBe(false); // header only, no body
-  });
-});
-
-describe("pending progress and the budget", () => {
-  it("a pending re-check with no new fact refreshes the observation time without a custody event", () => {
-    const t = decideOtsTransition(row(), { kind: "PENDING", proofBase64: "cHJvb2Y=", txid: null }, NOW);
-    expect(t).toMatchObject({ kind: "WRITE", status: "PENDING", material: false });
-  });
-
-  it("a newly detected txid is a material pending fact", () => {
-    const t = decideOtsTransition(row(), { kind: "PENDING", proofBase64: "cHJvb2Y=", txid: TXID }, NOW);
-    expect(t).toMatchObject({ kind: "WRITE", phase: "txid_detected_pending_confirmation", material: true });
-  });
-
-  it("budget exhaustion fails only a PENDING proof", () => {
-    expect(decideOtsTransition(row(), { kind: "BUDGET_EXHAUSTED" }, NOW)).toMatchObject({
-      kind: "WRITE",
-      status: "FAILED",
-      phase: "global_budget_exhausted",
+  it("an attempt error changes nothing and is recorded as an attempt", () => {
+    expect(decideOtsTransition(row(), { kind: "TRANSIENT_ERROR", reason: "OTS_CALENDAR_UNAVAILABLE" }, NOW)).toEqual({
+      kind: "RECORD_ATTEMPT_ERROR",
+      reason: "OTS_CALENDAR_UNAVAILABLE",
     });
-    expect(decideOtsTransition(row({ otsStatus: "FAILED" }), { kind: "BUDGET_EXHAUSTED" }, NOW).kind).toBe("NO_CHANGE");
+  });
+
+  it("budget exhaustion fails only a PENDING proof, with its stable code", () => {
+    const t = decideOtsTransition(row(), { kind: "BUDGET_EXHAUSTED" }, NOW);
+    expect(t.kind === "WRITE" && t.data.otsFailureReason).toBe("OTS_GLOBAL_BUDGET_EXHAUSTED");
+    expect(t.kind === "WRITE" && t.data.otsProofBase64).toBe(REAL.boundProofBase64);
   });
 });
 
-describe("compare-and-set predicate", () => {
-  it("pins every OTS fact the decision was made from, nulls included", () => {
-    expect(otsSnapshotWhere("ev-1", row())).toEqual({
-      id: "ev-1",
-      otsStatus: "PENDING",
-      otsBitcoinTxid: null,
-      otsAnchoredAtUtc: null,
-      otsUpgradedAtUtc: EARLIER,
-      otsAnchorCheck: null,
-      otsFailureReason: null,
-    });
+describe("decideStoredStatusAlignment (restart recovery and legacy rows)", () => {
+  it("a PENDING label over an anchored proof is aligned to ANCHORED from the proof", () => {
+    const t = decideStoredStatusAlignment(row({ otsProofBase64: ANCHORED.base64 }), NOW);
+    expect(t?.kind === "WRITE" && t.status).toBe("ANCHORED");
+    expect(t?.kind === "WRITE" && t.phase).toBe("anchored_by_stored_proof");
+    expect(t?.kind === "WRITE" && t.data.otsBitcoinTxid).toBe(ANCHORED.txid);
+  });
+
+  it("an ANCHORED label over a proof without a Bitcoin attestation is aligned to PENDING", () => {
+    const t = decideStoredStatusAlignment(
+      row({ otsStatus: "ANCHORED", otsBitcoinTxid: "cd".repeat(32), otsAnchoredAtUtc: T0 }),
+      NOW,
+    );
+    expect(t?.kind === "WRITE" && t.status).toBe("PENDING");
+    expect(t?.kind === "WRITE" && t.phase).toBe("legacy_anchor_label_without_attestation");
+  });
+
+  it("a stored proof bound to another digest is aligned to FAILED", () => {
+    const t = decideStoredStatusAlignment(row({ otsProofBase64: REAL.otherProofBase64 }), NOW);
+    expect(t?.kind === "WRITE" && t.data.otsFailureReason).toBe("PROOF_HASH_MISMATCH");
+  });
+
+  it("an aligned row produces no decision (idempotent)", () => {
+    expect(decideStoredStatusAlignment(row(), NOW)).toBeNull();
+    const anchored = row({ otsStatus: "ANCHORED", otsProofBase64: ANCHORED.base64, otsBitcoinTxid: ANCHORED.txid, otsAnchoredAtUtc: T0 });
+    expect(decideStoredStatusAlignment(anchored, NOW)).toBeNull();
+  });
+
+  it("an ANCHORED label with no proof is left for Operations (UNAVAILABLE), never rewritten", () => {
+    expect(decideStoredStatusAlignment(row({ otsStatus: "ANCHORED", otsProofBase64: null }), NOW)).toBeNull();
+  });
+});
+
+describe("compare-and-set", () => {
+  it("is conditional on the stored proof and the OTS columns, not on deprecated ones", () => {
+    const where = otsSnapshotWhere("e1", row());
+    expect(where).toMatchObject({ id: "e1", otsStatus: "PENDING", otsProofBase64: REAL.boundProofBase64 });
+    for (const key of DEPRECATED) expect(Object.keys(where)).not.toContain(key);
   });
 });

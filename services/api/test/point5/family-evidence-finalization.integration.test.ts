@@ -8,10 +8,11 @@
  *   external boundary  the `ots` CLI, plus the report fan-out enqueue
  *
  * The OpenTimestamps CLI is a genuine external process and is the ONE thing
- * substituted here — as a RECORDING fake, so every case can assert how many
- * times it was actually invoked. Tenancy, the effective-status resolver, the
- * classifier, the custody ledger and every terminal write are the real
- * production code paths.
+ * substituted here — as a RECORDING fake of `ots upgrade` (and of the stamp),
+ * so every case can assert how many times it was actually invoked. Tenancy,
+ * the canonical OTS resolver (the stored proof executed against the record's
+ * digest), the custody ledger and every terminal write are the real
+ * production code paths (2026-10-13).
  *
  * The fan-out enqueue is also recorded rather than executed: what matters is
  * that it happens once, for the right record, after the durable state is
@@ -35,6 +36,7 @@ import { JOB_NAMES, decodeJobPayload, getWorkEntryOrThrow } from "@proovra/share
 import type { IntegrationHarness } from "../integration-harness.js";
 import { provenCase, recordSuiteProof } from "./family-coverage-manifest.js";
 import type { WorkspaceFixture } from "./family-harness.js";
+import { otsProofForDigest } from "../helpers/ots-proof-bytes.js";
 
 const ENTRY = getWorkEntryOrThrow(JOB_NAMES.UPGRADE_OTS);
 
@@ -47,8 +49,13 @@ const ENTRY = getWorkEntryOrThrow(JOB_NAMES.UPGRADE_OTS);
  */
 const ots = vi.hoisted(() => ({
   upgradeCalls: [] as string[],
-  /** What the fake CLI should report for the next upgrade. */
-  outcome: "unavailable" as "unavailable" | "anchored",
+  /**
+   * What the fake `ots upgrade` does next: "unavailable" cannot reach a
+   * calendar (bytes unchanged), "pending" exits non-zero with the proof still
+   * awaiting Bitcoin (bytes unchanged), "anchored" writes the proof with a
+   * Bitcoin block-header attestation over the same digest.
+   */
+  outcome: "unavailable" as "unavailable" | "pending" | "anchored",
   /**
    * What the fake CLI should do for the next INITIALIZATION.
    *
@@ -71,18 +78,39 @@ const fingerprintOf = (json: string) => ({
   fingerprintHash: createHash("sha256").update(json).digest("hex"),
 });
 
+/** The fake binary name: only calls naming it are intercepted. */
+const FAKE_OTS_BIN = "ots-point5-fake";
+
+vi.mock("node:child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:child_process")>();
+  return {
+    ...actual,
+    execFile: ((bin: string, args: string[], opts: unknown, cb: (err: unknown, out?: unknown) => void) => {
+      if (bin !== FAKE_OTS_BIN) return (actual.execFile as unknown as (...a: unknown[]) => unknown)(bin, args, opts, cb);
+      ots.upgradeCalls.push("upgrade");
+      void (async () => {
+        const file = args[1]!;
+        if (ots.outcome === "anchored") {
+          const { readFile, writeFile } = await import("node:fs/promises");
+          const bytes = await readFile(file);
+          const digest = bytes.subarray(33, 65).toString("hex");
+          const { otsProofForDigest } = await import("../helpers/ots-proof-bytes.js");
+          await writeFile(file, Buffer.from(otsProofForDigest(digest, { bitcoinHeight: 860_000 }), "base64"));
+          cb(null, { stdout: "Success! Timestamp complete", stderr: "" });
+          return;
+        }
+        const stderr = ots.outcome === "pending" ? "Pending confirmation in Bitcoin blockchain" : "spawn ots ENOENT";
+        cb(Object.assign(new Error("Command failed"), { stdout: "", stderr }));
+      })();
+    }) as typeof actual.execFile,
+  };
+});
+
 vi.mock("../../../worker/src/ots.service.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    verifyOtsProof: async () => {
-      ots.upgradeCalls.push("verify");
-      return { status: "UNAVAILABLE" as const };
-    },
-    getOtsProofInfo: async () => {
-      ots.upgradeCalls.push("info");
-      return { status: "UNAVAILABLE" as const };
-    },
+    resolveOtsBin: () => FAKE_OTS_BIN,
     createOpenTimestamp: async (params: { content: Buffer }) => {
       ots.upgradeCalls.push("create");
       if (ots.stamp === "throw") {
@@ -169,7 +197,7 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
   // Fixtures
   // =========================================================================
 
-  /** Evidence carrying a real (if unanchorable) OTS proof, PENDING. */
+  /** Evidence carrying a real PENDING OTS proof over its own fingerprint digest. */
   async function pendingOts(
     fixture: WorkspaceFixture,
     overrides: Record<string, unknown> = {},
@@ -178,6 +206,7 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
       where: { id: fixture.teamId },
       select: { organizationId: true },
     });
+    const fingerprint = fingerprintOf(JSON.stringify({ p5: randomUUID() }));
     const row = await prisma.evidence.create({
       data: {
         title: `point5-ots-${randomUUID()}`,
@@ -187,13 +216,11 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
         organizationId: team.organizationId,
         ownerUserId: fixture.ownerUserId,
         otsStatus: "PENDING",
-        // A syntactically plausible proof blob. The CLI boundary is faked, so
-        // the bytes only have to exist for the processor to proceed past its
-        // "no proof, nothing to upgrade" guard.
-        otsProofBase64: Buffer.from(`ots-proof-${randomUUID()}`).toString(
-          "base64",
-        ),
-        otsHash: randomUUID().replace(/-/g, "").repeat(2).slice(0, 64),
+        // A real pending proof over the record's own fingerprint digest: the
+        // state is resolved from these bytes (packages/shared ots-anchoring.ts).
+        ...fingerprint,
+        otsProofBase64: otsProofForDigest(fingerprint.fingerprintHash),
+        otsHash: fingerprint.fingerprintHash,
         otsCalendar: "https://alice.btc.calendar.opentimestamps.org",
         ...overrides,
       },
@@ -245,9 +272,33 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
       await processor.processOtsUpgrade(job as never);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (!/OTS_UPGRADE_FAILED/i.test(message)) throw err;
+      if (!/OTS_UPGRADE_(ATTEMPT_)?FAILED/i.test(message)) throw err;
     }
   }
+
+  /** The record's own digest with a Bitcoin block-header attestation (`ots upgrade`'s result). */
+  async function anchoredProofOf(evidenceId: string): Promise<string> {
+    const row = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { fingerprintHash: true } });
+    return otsProofForDigest(row.fingerprintHash!, { bitcoinHeight: 860_000 });
+  }
+
+  it("a proof that the upgrade anchors is recorded ANCHORED from its bytes, once, and is not followed up", async () => {
+    const evidenceId = await pendingOts(own);
+    fanout.reset();
+    ots.reset();
+    ots.outcome = "anchored";
+
+    await runUpgrade(otsJob(evidenceId));
+    await runUpgrade(otsJob(evidenceId));
+
+    const after = await readOts(evidenceId);
+    expect(after!.otsStatus).toBe("ANCHORED");
+    expect(after!.otsAnchoredAtUtc).toBeInstanceOf(Date);
+    // The second job found the proof anchored and never reached the CLI.
+    expect(ots.upgradeCalls.filter((c) => c === "upgrade")).toHaveLength(1);
+    expect(await custodyCount(evidenceId)).toBe(1);
+    expect(fanout.otsReschedules).not.toContain(evidenceId);
+  });
 
   async function custodyCount(evidenceId: string): Promise<number> {
     return prisma.custodyEvent.count({
@@ -272,7 +323,8 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
   it("a record with NO proof is skipped rather than invented", async () => {
     // The upload half of the finalization guarantee: the processor may not
     // manufacture the artifact it exists to advance.
-    const evidenceId = await pendingOts(own, { otsProofBase64: null });
+    // No fingerprint either: nothing finalized to stamp.
+    const evidenceId = await pendingOts(own, { otsProofBase64: null, fingerprintCanonicalJson: null });
     ots.reset();
 
     await runUpgrade(otsJob(evidenceId));
@@ -362,14 +414,11 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
     provenCase("ots.claim.one_winner");
   });
 
-  it("an already-ANCHORED record with a defensible txid is left alone", async () => {
-    // This unit's "active claim": a settled anchor is the terminal state, and
-    // a later job must not re-enter the upgrade path over it.
-    const evidenceId = await pendingOts(own, {
-      otsStatus: "ANCHORED",
-      otsBitcoinTxid: "a".repeat(64),
-      otsAnchoredAtUtc: new Date(),
-    });
+  it("an ANCHORED record whose stored proof attests a Bitcoin block is left alone", async () => {
+    // This unit's "active claim": an anchored proof is terminal, and a later
+    // job must not re-enter the upgrade path over it.
+    const evidenceId = await pendingOts(own, { otsStatus: "ANCHORED", otsAnchoredAtUtc: new Date() });
+    await prisma.evidence.update({ where: { id: evidenceId }, data: { otsProofBase64: await anchoredProofOf(evidenceId) } });
     const before = await readOts(evidenceId);
     ots.reset();
 
@@ -418,10 +467,11 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
   it("a settled ANCHORED record is never downgraded by a stale job", async () => {
     const evidenceId = await pendingOts(own, {
       otsStatus: "ANCHORED",
-      otsBitcoinTxid: "b".repeat(64),
       otsAnchoredAtUtc: new Date("2026-01-01T00:00:00Z"),
     });
+    await prisma.evidence.update({ where: { id: evidenceId }, data: { otsProofBase64: await anchoredProofOf(evidenceId) } });
     const anchored = await readOts(evidenceId);
+    ots.outcome = "pending";
 
     // A job enqueued before the anchor landed, arriving after it.
     await processor.processOtsUpgrade(otsJob(evidenceId));
@@ -442,10 +492,12 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
     const evidenceId = await pendingOts(own);
     fanout.reset();
     ots.reset();
+    ots.outcome = "pending";
 
     await runUpgrade(otsJob(evidenceId));
 
     const after = await readOts(evidenceId);
+    expect(fanout.otsReschedules.filter((e) => e === evidenceId)).toHaveLength(1);
     if (after!.otsStatus === "PENDING") {
       expect(fanout.otsReschedules.filter((e) => e === evidenceId).length)
         .toBeLessThanOrEqual(1);
@@ -616,11 +668,12 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
     // It anchored while the late job was in flight.
     await prisma.evidence.update({
       where: { id: owed },
+      // (2026-10-13) Settled = a stored proof that attests a Bitcoin block
+      // over the record's own digest.
       data: {
         otsStatus: "ANCHORED",
-        otsProofBase64: Buffer.from("settled").toString("base64"),
+        otsProofBase64: await anchoredProofOf(owed),
         otsAnchoredAtUtc: new Date(),
-        otsBitcoinTxid: "a".repeat(64),
       },
     });
     const settled = await readOts(owed);

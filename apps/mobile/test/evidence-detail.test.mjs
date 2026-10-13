@@ -69,7 +69,8 @@ const rw = {
     verificationStatusLabel: "Integrity verified",
     signature: { recorded: true, valid: true, keyId: "k1" },
     tsa: { status: "GRANTED", provider: "FreeTSA", genTimeUtc: "2026-09-19T10:01:00Z", failureReason: null },
-    ots: { status: "PENDING", effectiveStatus: "ANCHORED", proofPresent: true, hashMatches: true, anchoredAtUtc: "2026-09-19T10:05:00Z", bitcoinTxid: "abc123", failureReason: null },
+    // An OtsAnchoringView (2026-10-13) plus operational siblings.
+    ots: { state: "ANCHORED", title: "Bitcoin anchoring", status: "Anchored", label: "Bitcoin anchored", sentence: "OpenTimestamps proof anchored in Bitcoin.", tone: "success", failureCode: null, failureLabel: null, committedDigestHex: "ab".repeat(32), proofSha256: "cd".repeat(32), attestationType: "BITCOIN_BLOCK_HEADER", bitcoinBlockHeight: 860000, bitcoinTxid: "abc123", submittedAtUtc: "2026-09-19T10:00:00Z", anchoredAtUtc: "2026-09-19T10:05:00Z", validator: "proovra-ots-proof/1", proofPresent: true, lastUpdatedAtUtc: "2026-09-19T10:05:00Z" },
     custodyChain: { valid: true, mode: "HASH_CHAIN", reason: null },
   },
   relationships: {
@@ -94,8 +95,12 @@ test("preservation binds TSA/OTS/signature/custody-chain from preservationMatrix
   const p = mod.projectPreservation(rw);
   assert.equal(p.tsa.status, "GRANTED");
   assert.equal(p.tsa.provider, "FreeTSA");
-  assert.equal(p.ots.effectiveStatus, "ANCHORED");
+  assert.equal(p.ots.state, "ANCHORED");
   assert.equal(p.ots.bitcoinTxid, "abc123");
+  // A txid is kept only for an ANCHORED state.
+  const pending = mod.projectPreservation({ preservationMatrix: { ots: { state: "PENDING", bitcoinTxid: "abc123", anchoredAtUtc: "2026-09-19T10:05:00Z" } } });
+  assert.equal(pending.ots.bitcoinTxid, null);
+  assert.equal(pending.ots.anchoredAtUtc, null);
   assert.equal(p.signature.recorded, true);
   assert.equal(p.custodyChain.valid, true);
 });

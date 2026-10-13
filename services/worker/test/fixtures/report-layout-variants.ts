@@ -12,28 +12,11 @@ import { buildEvidenceAcquisitionContext, toPublicAcquisition } from "@proovra/s
 
 import type { ReportEvidenceAsset, ReportV2Input } from "../../src/report-v2/types.js";
 import { reportInputFixture } from "./report-v2-input.js";
+import { upgradedProof } from "../../../../packages/shared/tests/helpers/ots-fixtures.mjs";
 
 const PROOFS = JSON.parse(
   readFileSync(new URL("../../../../packages/shared/tests/fixtures/ots-proofs.json", import.meta.url), "utf8"),
 ) as { boundFingerprintCanonicalJson: string; boundFingerprintHash: string; boundProofBase64: string; otherProofBase64: string };
-
-/** A real calendar proof with a Bitcoin attestation at its root (`ots upgrade`'s serialization). */
-function withBitcoinAttestation(proofBase64: string, height: number): string {
-  const bytes = Buffer.from(proofBase64, "base64");
-  const headerLen = 31 + 1 + 1 + 32;
-  const varuint: number[] = [];
-  for (let n = height; ; ) {
-    const b = n & 0x7f;
-    n = Math.floor(n / 128);
-    if (n === 0) {
-      varuint.push(b);
-      break;
-    }
-    varuint.push(b | 0x80);
-  }
-  const attestation = Buffer.from([0xff, 0x00, 0x05, 0x88, 0x96, 0x0d, 0x73, 0xd7, 0x19, 0x01, varuint.length, ...varuint]);
-  return Buffer.concat([bytes.subarray(0, headerLen), attestation, bytes.subarray(headerLen)]).toString("base64");
-}
 
 const AT = "2026-10-01T09:15:00.000Z";
 const LONG_HASH = "9f2c4e7a1b3d5f60718293a4b5c6d7e8f9012a3b4c5d6e7f8091a2b3c4d5e6f7";
@@ -191,15 +174,23 @@ function identity(kind: Identity): Partial<ReportV2Input["evidence"]> {
   };
 }
 
+/** The canonical OpenTimestamps states (ots-anchoring.ts), on real proof bytes. */
 export type OtsVariant =
   | "none"
   | "pending"
-  | "attestation_not_verified"
-  | "verification_unavailable"
-  | "verification_failed"
-  | "chain_verified"
+  /** An upgraded proof whose executed path derives the txid. */
+  | "anchored"
+  /** An upgraded proof with no transaction step: anchored, no txid. */
+  | "anchored_no_txid"
+  /** A pending proof the upgrade budget gave up on. */
+  | "budget_failed"
+  /** A stored status with no proof bytes. */
+  | "unavailable"
   /** A proof committed to ANOTHER digest, recorded FAILED by the worker. */
   | "proof_invalid";
+
+export const ANCHORED_PROOF = upgradedProof({ blockHeight: 860_000 });
+const ANCHORED_NO_TXID_PROOF = upgradedProof({ blockHeight: 860_000, withTransaction: false });
 
 function ots(kind: OtsVariant): Partial<ReportV2Input["evidence"]> {
   if (kind === "none") return { otsStatus: null };
@@ -211,48 +202,33 @@ function ots(kind: OtsVariant): Partial<ReportV2Input["evidence"]> {
     otsSubmittedAtUtc: AT,
   };
   if (kind === "pending") return { ...base, otsStatus: "PENDING", otsProofBase64: PROOFS.boundProofBase64 };
+  if (kind === "unavailable") return { ...base, otsStatus: "PENDING", otsProofBase64: null };
+  if (kind === "budget_failed") {
+    return {
+      ...base,
+      otsStatus: "FAILED",
+      otsFailureReason: "OTS_GLOBAL_BUDGET_EXHAUSTED",
+      otsProofBase64: PROOFS.boundProofBase64,
+      otsUpgradedAtUtc: "2026-10-01T12:00:00.000Z",
+    };
+  }
   if (kind === "proof_invalid") {
     return {
       ...base,
       otsStatus: "FAILED",
       otsFailureReason: "PROOF_HASH_MISMATCH",
-      otsProofBase64: withBitcoinAttestation(PROOFS.otherProofBase64, 860_000),
+      otsProofBase64: upgradedProof({ base64: PROOFS.otherProofBase64 }).base64,
       otsUpgradedAtUtc: "2026-10-01T12:00:00.000Z",
     };
   }
-  const attested = {
+  const proof = kind === "anchored_no_txid" ? ANCHORED_NO_TXID_PROOF : ANCHORED_PROOF;
+  return {
     ...base,
     otsStatus: "ANCHORED",
-    otsProofBase64: withBitcoinAttestation(PROOFS.boundProofBase64, 860_000),
-    otsBitcoinTxid: "c".repeat(64),
+    otsProofBase64: proof.base64,
+    otsBitcoinTxid: proof.txid,
     otsAnchoredAtUtc: "2026-10-01T12:00:00.000Z",
     otsUpgradedAtUtc: "2026-10-01T12:00:00.000Z",
-    otsAttestationRecordedAtUtc: "2026-10-01T12:00:00.000Z",
-    otsAttestationBlockHeight: 860_000,
-    otsAnchorCheck: "PROOF_STRUCTURE",
-    otsAnchorCheckedAtUtc: "2026-10-01T12:00:00.000Z",
-  };
-  if (kind === "attestation_not_verified") return { ...attested, otsChainVerificationStatus: "NOT_CONFIGURED", otsChainCheckedAtUtc: "2026-10-01T12:00:00.000Z" };
-  if (kind === "verification_unavailable") return { ...attested, otsChainVerificationStatus: "UNAVAILABLE", otsChainCheckedAtUtc: "2026-10-01T12:00:00.000Z" };
-  if (kind === "verification_failed") {
-    return {
-      ...attested,
-      otsChainVerificationStatus: "FAILED",
-      otsChainCheckedAtUtc: "2026-10-01T12:00:00.000Z",
-      otsChainFailureCode: "ATTESTATION_NOT_IN_BLOCK",
-    };
-  }
-  return {
-    ...attested,
-    otsAnchorCheck: "BITCOIN_VERIFIED",
-    otsChainVerificationStatus: "VERIFIED",
-    otsChainCheckedAtUtc: "2026-10-01T13:00:00.000Z",
-    otsChainVerifiedAtUtc: "2026-10-01T13:00:00.000Z",
-    otsChainBlockHeight: 860_000,
-    otsChainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
-    otsChainBlockTimeUtc: "2026-10-01T11:48:12.000Z",
-    otsChainConfirmations: 12,
-    otsChainVerifier: "bitcoind-rpc/opentimestamps-client 0.7.2",
   };
 }
 
@@ -402,11 +378,11 @@ export function layoutVariant(o: VariantOptions): LayoutVariant {
 /** The variants every layout test renders. */
 export const LAYOUT_VARIANTS: ReadonlyArray<VariantOptions> = [
   { name: "v1 · web upload · 1 part · OTS pending · TSA stamped · full identity" },
-  { name: "v2 · supersession · long values", supersession: true, longValues: true, ots: "attestation_not_verified" },
-  { name: "5 parts · attestation present, not verified", parts: 5, ots: "attestation_not_verified" },
-  { name: "20 parts · chain verification unavailable", parts: 20, ots: "verification_unavailable", custodyEvents: 40 },
-  { name: "100 parts · chain verification failed · TSA unavailable", parts: 100, ots: "verification_failed", tsaStamped: false, custodyEvents: 120 },
-  { name: "browser capture · long manifest URL · chain verified", mode: "browser_capture", longValues: true, ots: "chain_verified" },
+  { name: "v2 · supersession · long values · Bitcoin anchored", supersession: true, longValues: true, ots: "anchored" },
+  { name: "5 parts · Bitcoin anchored", parts: 5, ots: "anchored" },
+  { name: "20 parts · anchoring unavailable", parts: 20, ots: "unavailable", custodyEvents: 40 },
+  { name: "100 parts · anchoring failed (budget) · TSA unavailable", parts: 100, ots: "budget_failed", tsaStamped: false, custodyEvents: 120 },
+  { name: "browser capture · long manifest URL · anchored without derivable txid", mode: "browser_capture", longValues: true, ots: "anchored_no_txid" },
   { name: "mobile capture · minimal identity · no OTS", mode: "mobile_capture", identity: "minimal", ots: "none" },
   { name: "maximum limitation content · long values", maxLimitation: true, longValues: true, parts: 5 },
   // The shape that first stranded a heading and left a blank page in the
@@ -419,8 +395,8 @@ export const LAYOUT_VARIANTS: ReadonlyArray<VariantOptions> = [
  * ce465a9e-43c2-4702-87e5-32fcb2dc52fc's report v2 — a five-part web upload
  * from a personal email account, 23 forensic custody events, a validated
  * timestamp, COMPLIANCE retention, a verified signature and custody chain, and
- * an OpenTimestamps proof carrying a Bitcoin attestation (txid and block
- * height) that no chain verifier checked; v2 reissued with no changed facts.
+ * an upgraded OpenTimestamps proof that executes to a Bitcoin block-header
+ * attestation (2026-10-13: "Bitcoin anchoring — Anchored").
  * `location` chooses what the record holds for location.
  */
 export function regressionRecordInput(
@@ -430,7 +406,7 @@ export function regressionRecordInput(
     name: "regression record",
     parts: 5,
     custodyEvents: 23,
-    ots: "attestation_not_verified",
+    ots: "anchored",
     supersession: true,
   });
   const gps =

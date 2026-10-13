@@ -40,7 +40,7 @@
  * human passes `--apply`, and it has never been run against Production.
  *
  * ===========================================================================
- * SAFETY DESIGN — deliberately identical to `repair-ots-hybrid-state.ts`
+ * SAFETY DESIGN — the same rules as `reconcile-ots-state.ts`
  * ===========================================================================
  *   * Dry-run by default. Writes nothing without `--apply`.
  *   * It NEVER writes OTS columns itself. It enqueues the canonical

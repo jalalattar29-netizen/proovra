@@ -14,9 +14,8 @@ import {
   projectOutputProgress,
   type OutputProgressView,
   type ReportFreshness,
-  OTS_TRUTH_SENTENCES,
-  OTS_TRUTH_STATUS_LINES,
 } from "@proovra/shared";
+import { otsBadgeLabel, otsCard, readOts, type OtsState } from "./ots-anchoring";
 type Obj = Record<string, unknown>;
 const o = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
@@ -781,37 +780,37 @@ export interface MatrixRow {
   wide?: boolean;
 }
 
-/** `_lib.tsx:544` describeOtsStatus, verbatim. */
-export function describeOtsStatus(ots: { effectiveStatus: string | null; failureReason: string | null; pendingReason: string | null; anchorClaim?: string | null }): { label: string; detail: string } {
-  // (2026-10-12) The OpenTimestamps card: the public word and one sentence.
-  // "Verified" only for a recorded independent chain check.
-  switch (ots.effectiveStatus) {
-    case "ANCHORED":
-      return ots.anchorClaim === "VERIFIED"
-        ? { label: OTS_TRUTH_STATUS_LINES.CHAIN_VERIFIED, detail: OTS_TRUTH_SENTENCES.CHAIN_VERIFIED }
-        : { label: OTS_TRUTH_STATUS_LINES.ATTESTATION_PRESENT_NOT_VERIFIED, detail: OTS_TRUTH_SENTENCES.ATTESTATION_PRESENT_NOT_VERIFIED };
-    case "FAILED":
-      return { label: OTS_TRUTH_STATUS_LINES.PROOF_INVALID, detail: OTS_TRUTH_SENTENCES.PROOF_INVALID };
-    case "DISABLED":
-      return { label: OTS_TRUTH_STATUS_LINES.NOT_REQUESTED, detail: OTS_TRUTH_SENTENCES.NOT_REQUESTED };
-    default:
-      // PENDING, or not stamped YET: every finalized record enters the
-      // lifecycle on every plan (OTS integrity decoupling, 2026-09-09).
-      return { label: OTS_TRUTH_STATUS_LINES.PENDING, detail: OTS_TRUTH_SENTENCES.PENDING };
-  }
+/**
+ * THE BITCOIN ANCHORING CARD (2026-10-13): the state the server resolved
+ * (`preservationMatrix.ots`, an OtsAnchoringView) in the locale's words.
+ * Unknown or missing reads as Unavailable; never re-derived here.
+ */
+export function describeOtsStatus(ots: unknown, locale?: string | null): { label: string; detail: string; state: OtsState } {
+  const card = otsCard(ots, locale);
+  return { label: otsBadgeLabel(card), detail: card.sentence, state: card.state };
 }
 
-/** `_lib.tsx:600` isOtsTerminal — the manual re-check is offered while the anchor can move. */
-export function isOtsTerminal(status: string | null | undefined): boolean {
-  return status === null || status === undefined || status === "ANCHORED" || status === "FAILED" || status === "DISABLED";
-}
+/** The native integrity state of an OTS state: ANCHORED is the only verified one. */
+const OTS_INTEGRITY_STATE: Readonly<Record<OtsState, IntegrityState>> = {
+  ANCHORED: "verified",
+  PENDING: "pending",
+  FAILED: "failed",
+  NOT_REQUESTED: "not-applicable",
+  UNAVAILABLE: "unavailable",
+};
 
-export function projectOtsEffectiveStatus(rw: unknown): string | null {
-  return s(o(o(o(rw)["preservationMatrix"])["ots"])["effectiveStatus"]);
+/**
+ * The manual "Check latest status" is offered while anchoring can still move:
+ * the server's `recheckAvailable` when it sends one, else a PENDING state.
+ */
+export function otsRecheckAvailable(rw: unknown): boolean {
+  const ots = o(o(o(rw)["preservationMatrix"])["ots"]);
+  if (typeof ots["recheckAvailable"] === "boolean") return ots["recheckAvailable"];
+  return readOts(ots).state === "PENDING";
 }
 
 /** EvidenceIntegrityTab.tsx:237-628 — the matrix, every row from the field its value is read from. */
-export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => string): MatrixRow[] {
+export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => string, locale?: string | null): MatrixRow[] {
   const root = o(rw);
   const pm = o(root["preservationMatrix"]);
   if (Object.keys(pm).length === 0) return [];
@@ -840,10 +839,13 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
   const tsaAvailable = tsa["timestampAvailable"] === true;
   const tsaStatus = s(tsa["status"]);
   const tsaState: IntegrityState = tsaAvailable ? "recorded" : tsaStatus === "FAILED" ? "failed" : tsaStatus ? "pending" : "unavailable";
-  const eff = s(ots["effectiveStatus"]);
-  const otsState: IntegrityState =
-    eff === "ANCHORED" ? "recorded" : eff === "FAILED" ? "failed" : eff === "DISABLED" ? "not-applicable" : eff === "PENDING" ? "pending" : "unavailable";
-  const otsDesc = describeOtsStatus({ effectiveStatus: eff, failureReason: s(ots["failureReason"]), pendingReason: s(ots["pendingReason"]), anchorClaim: s(ots["anchorClaim"]) });
+  const otsView = otsCard(ots, locale, fmt);
+  const otsState: IntegrityState = OTS_INTEGRITY_STATE[otsView.state];
+  const otsDesc = { label: otsBadgeLabel(otsView), detail: otsView.sentence };
+  // Only the facts the proof itself yields; the txid only when present.
+  const otsFacts: MatrixRow[] = otsView.facts
+    .filter((f) => f.key === "blockHeight" || f.key === "txid" || f.key === "anchoredAt")
+    .map((f) => ({ label: f.label, value: f.value, state: "recorded" as IntegrityState }));
   const rAvail = aReport["available"] === true;
   const rPending = aReport["pending"] === true;
   const reportState: IntegrityState = rAvail ? "available" : rPending ? "pending" : "unavailable";
@@ -927,7 +929,8 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
     },
     { label: "Signature", value: sigRecorded ? (sig["valid"] === true ? "Recorded and validated" : "Recorded") : "Not recorded", state: signatureState },
     { label: "Timestamp proof (TSA)", value: tsaAvailable ? "Timestamp recorded" : tsaStatus ? `Status: ${tsaStatus}` : "Timestamp unavailable", state: tsaState },
-    { label: "Bitcoin anchoring (OTS)", value: otsDesc.label, state: otsState },
+    { label: otsView.title, value: otsDesc.label, state: otsState },
+    ...otsFacts,
     { label: "Bitcoin anchoring last updated", value: dateOr(otsUpdated, "Not recorded"), state: otsUpdated ? "recorded" : "unavailable" },
     {
       label: "Storage protection",
@@ -962,7 +965,7 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
       value: legalHold === "ON" ? "Legal hold active" : legalHold === "OFF" ? "Legal hold off" : "No legal hold metadata recorded",
       state: legalHold === "ON" ? "recorded" : legalHold === "OFF" ? "not-applicable" : "unavailable",
     },
-    { label: "Bitcoin anchoring detail", value: otsDesc.detail, wide: true },
+    { label: `${otsView.title} — detail`, value: otsView.failureLabel ? `${otsDesc.detail} ${otsView.failureLabel}` : otsDesc.detail, wide: true },
   ];
 }
 

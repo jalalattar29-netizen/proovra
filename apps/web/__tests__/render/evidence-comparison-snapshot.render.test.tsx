@@ -198,8 +198,10 @@ describe("Comparison mode — structured snapshot rendering", () => {
     const text = snapshot.textContent ?? "";
     expect(text).not.toMatch(/STRONGLY|96\s*\/\s*100|Reviewer reliance|Max points/i);
     expect(text).toMatch(/This record does not by itself establish authorship/);
-    // A legacy anchoring "passed" is never read as checked.
-    expect(text).toMatch(/“Not checked” was not independently verified/);
+    // A legacy anchoring "passed" is never read as anchored (2026-10-13): it
+    // cannot be re-validated from a snapshot, so it states nothing — and the
+    // bounded summary does not count it as a passed or unchecked signal.
+    expect(text).not.toMatch(/Bitcoin anchored|Attestation recorded|“Not checked”/);
   });
 
   it("gives nested objects bounded sections and arrays structured lists", async () => {

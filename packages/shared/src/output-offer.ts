@@ -24,6 +24,7 @@
  * with the list of what changed) unless every bound field is equal. The client
  * never decides staleness; it renders what the server says changed.
  */
+import type { OtsState } from "./ots-anchoring.js";
 
 // ===========================================================================
 // OFFER BINDING
@@ -60,7 +61,7 @@ export type OutputOfferBinding = {
   reportableFacts: string;
   /** Trusted timestamp: `<status>|<validated>` (validated = a validation time exists). */
   tsa: string;
-  /** OpenTimestamps: `<effective status>|<anchor check>`. */
+  /** OpenTimestamps: `<canonical state>|<proof sha-256>` (ots-anchoring.ts). */
   ots: string;
   /** The three decisions, as `<action>:<operation|reason>` (newVersion adds `:v<next>`). */
   reportAction: string;
@@ -269,7 +270,6 @@ export const REPORT_FRESHNESS_CHANGE_CODES = [
   "TSA_VALIDATED_AFTER_REPORT",
   "TSA_STATUS_CHANGED_AFTER_REPORT",
   "OTS_ANCHORED_AFTER_REPORT",
-  "OTS_CHAIN_VERIFIED_AFTER_REPORT",
   "CUSTODY_CHANGED_AFTER_REPORT",
   "INTEGRITY_REVERIFIED_AFTER_REPORT",
 ] as const;
@@ -298,13 +298,12 @@ export type ReportFreshnessInput = {
   reportTsaStatus?: string | null;
   tsa: { status: string | null; validatedAtUtc: string | null };
   ots: {
-    status: string | null;
+    /** The canonical state now (ots-anchoring.ts). */
+    state: OtsState;
+    /** When PROOVRA recorded ANCHORED. */
     anchoredAtUtc: string | null;
-    upgradedAtUtc: string | null;
-    /** BITCOIN_VERIFIED | PROOF_STRUCTURE | null — the check now on the record. */
-    anchorCheck?: string | null;
-    /** When that check was recorded (custody OTS_APPLIED). */
-    anchorCheckedAtUtc?: string | null;
+    /** The state the report stated (anchorSnapshot.otsState); null for legacy reports. */
+    reportState?: OtsState | null;
   };
   /** Reportable custody events recorded after the report's custody horizon. */
   custodyAfterReport: { count: number; latestAtUtc: string | null };
@@ -336,19 +335,13 @@ export function deriveReportFreshness(input: ReportFreshnessInput): ReportFreshn
   ) {
     changes.push({ code: "TSA_STATUS_CHANGED_AFTER_REPORT", atUtc: null });
   }
-  const otsStatus = (input.ots.status ?? "").toUpperCase();
-  const anchoredAt = input.ots.anchoredAtUtc ?? input.ots.upgradedAtUtc;
-  if (otsStatus === "ANCHORED" && after(anchoredAt, base)) {
-    changes.push({ code: "OTS_ANCHORED_AFTER_REPORT", atUtc: anchoredAt });
-  }
-  // A chain verification recorded after the report is a newer fact even when
-  // the attestation itself predates it: the report could only say "present".
+  // A proof that became ANCHORED after the report the report could only call
+  // pending. A legacy report without a stated state compares by time.
   if (
-    otsStatus === "ANCHORED" &&
-    input.ots.anchorCheck === "BITCOIN_VERIFIED" &&
-    after(input.ots.anchorCheckedAtUtc ?? null, base)
+    input.ots.state === "ANCHORED" &&
+    (input.ots.reportState != null ? input.ots.reportState !== "ANCHORED" : after(input.ots.anchoredAtUtc, base))
   ) {
-    changes.push({ code: "OTS_CHAIN_VERIFIED_AFTER_REPORT", atUtc: input.ots.anchorCheckedAtUtc ?? null });
+    changes.push({ code: "OTS_ANCHORED_AFTER_REPORT", atUtc: input.ots.anchoredAtUtc });
   }
   if (input.custodyAfterReport.count > 0) {
     changes.push({
@@ -378,9 +371,7 @@ export function reportFreshnessChangeCopy(
     case "TSA_STATUS_CHANGED_AFTER_REPORT":
       return `The trusted timestamp's status changed after ${v} was generated.`;
     case "OTS_ANCHORED_AFTER_REPORT":
-      return `A Bitcoin attestation was added to the OpenTimestamps proof after ${v} was generated.`;
-    case "OTS_CHAIN_VERIFIED_AFTER_REPORT":
-      return `The Bitcoin attestation was independently verified against the Bitcoin blockchain after ${v} was generated.`;
+      return `The OpenTimestamps proof was anchored in Bitcoin after ${v} was generated.`;
     case "CUSTODY_CHANGED_AFTER_REPORT":
       return `${change.count ?? "Some"} reportable custody event${change.count === 1 ? " was" : "s were"} recorded after ${v}.`;
     case "INTEGRITY_REVERIFIED_AFTER_REPORT":

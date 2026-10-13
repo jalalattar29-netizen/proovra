@@ -494,55 +494,59 @@ export type {
 
 export { deriveAnchorSemantics } from "./anchor.js";
 
-export type {
-  EffectiveOtsStatus,
-  OtsAnchorCheck,
-  OtsAnchorClaim,
-  OtsAnchorCompletenessInput,
-  OtsChainEvidenceInput,
-} from "./ots.js";
-export { isCompleteOtsChainEvidence } from "./ots.js";
+// THE OpenTimestamps anchoring state — the one authority (2026-10-13).
 export {
-  OTS_CHAIN_FAILURE_CODES,
-  OTS_CHAIN_VERIFICATION_STATUSES,
-  OTS_NOT_INDEPENDENTLY_VERIFIED,
-  OTS_PROOF_RECORDED_AT_LABEL,
-  OTS_REPORTED_BY_PROOF_QUALIFIER,
-  OTS_TRUTH_STATES,
-  OTS_TRUTH_RECORD_SELECT,
-  OTS_TRUTH_STATUS_LINES,
-  OTS_TRUTH_SENTENCES,
-  OTS_PRESENTATION_TITLE,
-  OTS_PUBLIC_STATUSES,
-  presentOtsTruth,
+  OTS_STATES,
+  OTS_PROOF_INTEGRITY_FAILURES,
+  OTS_UNAVAILABLE_CODES,
+  OTS_ANCHORING_RECORD_SELECT,
+  OTS_STATE_WORDS,
+  OTS_STATE_LABELS,
+  OTS_STATE_SENTENCES,
+  OTS_STATE_TONES,
+  OTS_ANCHORED_BOUNDARY,
+  OTS_FAILURE_LABELS,
+  parseOtsState,
+  resolveOtsAnchoring,
+  resolveRecordOtsAnchoring,
   otsBlocksPublication,
-  resolveRecordOtsTruth,
-  completeOtsChainEvidence,
-  isOtsChainVerified,
-  normalizeOtsChainVerificationStatus,
-  resolveOtsTruth,
-} from "./ots-truth.js";
+  presentOtsAnchoring,
+  toOtsAnchoringView,
+  readOtsAnchoringView,
+  OTS_ANCHORING_COPY,
+  otsAnchoringCopy,
+} from "./ots-anchoring.js";
 export type {
-  OtsChainEvidence,
-  OtsChainFailureCode,
-  OtsChainVerificationStatus,
-  OtsTruth,
-  OtsTruthInput,
-  OtsRecordColumns,
-  OtsTruthState,
-  OtsPresentation,
-  OtsPublicStatus,
-} from "./ots-truth.js";
+  OtsState,
+  OtsStateTone,
+  OtsAnchoring,
+  OtsAnchoringInput,
+  OtsAnchoringRecord,
+  OtsProofIntegrityFailure,
+  OtsUnavailableCode,
+  OtsAnchoringView,
+  OtsAnchoringCopy,
+  OtsCopyLocale,
+} from "./ots-anchoring.js";
 export {
+  OTS_PROOF_VALIDATOR,
   OtsDigestBindingError,
   OtsProofParseError,
   assertOtsDigestBinding,
   boundOtsProofBase64,
   checkOtsDigestBinding,
   decodeOtsProofBase64,
+  isSerializedBitcoinTransaction,
+  otsProofSha256Hex,
   parseOtsProof,
 } from "./ots-proof.js";
-export type { OtsDigestAlgorithm, OtsDigestBinding, OtsProofAttestation, ParsedOtsProof } from "./ots-proof.js";
+export type {
+  OtsBitcoinAttestation,
+  OtsDigestAlgorithm,
+  OtsDigestBinding,
+  OtsProofAttestation,
+  ParsedOtsProof,
+} from "./ots-proof.js";
 
 export type { VerificationPackageMetadata } from "./verification-package-metadata.js";
 
@@ -637,26 +641,18 @@ export type {
 } from "./operational-hardening.js";
 
 export {
-  isCompleteOtsAnchor,
-  isPublicAnchoringVerified,
   isValidOtsBitcoinTxid,
-  normalizeOtsAnchorCheck,
   normalizeOtsStatusValue,
-  OTS_ANCHOR_CLAIM_LABELS,
-  resolveEffectiveOtsStatus,
-  resolveOtsAnchorClaim,
-  parseOtsAnchorClaim,
-  otsClaimBadge,
   // ET-REC-02 / ET-REC-06 — the terminal proof failures and the budget bridge fingerprint.
   OTS_PERMANENT_PROOF_FAILURES,
   type OtsPermanentProofFailure,
+  type OtsStoredStatus,
   isPermanentOtsProofFailureReason,
   parseOtsBudgetExhaustedFingerprint,
   // ET-OTS-04 — the only OTS failure value any surface outside the worker shows.
   OTS_FAILURE_CODES,
   type OtsFailureCode,
   boundedOtsFailureCode,
-  OTS_FAILURE_CODE_LABELS,
 } from "./ots.js";
 
 // -----------------------------------------------------------------------------

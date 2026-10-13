@@ -31,7 +31,12 @@ import {
   type LucideIcon,
   Trash2,
 } from "lucide-react";
-import { OTS_TRUTH_SENTENCES, OTS_TRUTH_STATUS_LINES, getReviewerArtifactRoleLabel } from "@proovra/shared";
+import {
+  getReviewerArtifactRoleLabel,
+  readOtsAnchoringView,
+  type OtsState,
+  type OtsStateTone,
+} from "@proovra/shared";
 import type { EvidenceOutputState } from "@proovra/shared";
 import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -75,7 +80,7 @@ export type EvidenceDetailCtx = {
 
   // Derived / memoized values from the orchestrator
   publicVerificationState: { label: string; detail: string } | null;
-  otsStatusPresentation: { label: string; detail: string } | null;
+  otsStatusPresentation: OtsStatusPresentation | null;
   technicalReadinessSummary: string;
   reviewSignals: RiskSignal[];
   reviewReadinessItems: Array<{ label: string; value: string }>;
@@ -575,36 +580,41 @@ export function describePackageManifestStatus(
   return included ? "Unknown" : "Not included on plan";
 }
 
-export function describeOtsStatus(
-  workspace: ReviewWorkspaceResponse
-): { label: string; detail: string } {
-  const ots = workspace.preservationMatrix.ots;
+/** The Bitcoin anchoring card, in the server's state and the one vocabulary. */
+export type OtsStatusPresentation = {
+  state: OtsState;
+  /** The status word beside "Bitcoin anchoring" (Anchored, Pending, …). */
+  status: string;
+  /** The standalone label (Bitcoin anchored, Bitcoin anchoring pending, …). */
+  label: string;
+  /** The one sentence, plus the bounded failure label when there is one. */
+  detail: string;
+  tone: OtsStateTone;
+};
 
-  // (2026-10-12) The OpenTimestamps card: the public word and one sentence.
-  // "Verified" only for a recorded independent chain check.
-  switch (ots.effectiveStatus) {
-    case "ANCHORED":
-      return ots.anchorClaim === "VERIFIED"
-        ? { label: OTS_TRUTH_STATUS_LINES.CHAIN_VERIFIED, detail: OTS_TRUTH_SENTENCES.CHAIN_VERIFIED }
-        : { label: OTS_TRUTH_STATUS_LINES.ATTESTATION_PRESENT_NOT_VERIFIED, detail: OTS_TRUTH_SENTENCES.ATTESTATION_PRESENT_NOT_VERIFIED };
-    case "FAILED":
-      return { label: OTS_TRUTH_STATUS_LINES.PROOF_INVALID, detail: OTS_TRUTH_SENTENCES.PROOF_INVALID };
-    case "DISABLED":
-      return { label: OTS_TRUTH_STATUS_LINES.NOT_REQUESTED, detail: OTS_TRUTH_SENTENCES.NOT_REQUESTED };
-    default:
-      // PENDING, or not stamped YET: every finalized record enters the
-      // lifecycle on every plan (OTS integrity decoupling, 2026-09-09).
-      return { label: OTS_TRUTH_STATUS_LINES.PENDING, detail: OTS_TRUTH_SENTENCES.PENDING };
-  }
+/**
+ * (2026-10-13) THE Bitcoin anchoring state is the server's
+ * (`preservationMatrix.ots`, an OtsAnchoringView): read, never re-derived. A
+ * missing or unknown state reads as Unavailable.
+ */
+export function describeOtsStatus(workspace: ReviewWorkspaceResponse): OtsStatusPresentation {
+  const view = readOtsAnchoringView(workspace.preservationMatrix?.ots);
+  return {
+    state: view.state,
+    status: view.status,
+    label: view.label,
+    detail: view.failureLabel ? `${view.sentence} ${view.failureLabel}` : view.sentence,
+    tone: view.tone,
+  };
 }
 
-export function isOtsTerminal(status: string | null | undefined): boolean {
-  return (
-    status === null ||
-    status === "ANCHORED" ||
-    status === "FAILED" ||
-    status === "DISABLED"
-  );
+/**
+ * Whether the anchoring state can no longer move. Only PENDING can; the
+ * server's `recheckAvailable`, when sent, decides instead.
+ */
+export function isOtsTerminal(ots: ReviewWorkspaceResponse["preservationMatrix"]["ots"] | null | undefined): boolean {
+  if (typeof ots?.recheckAvailable === "boolean") return !ots.recheckAvailable;
+  return readOtsAnchoringView(ots).state !== "PENDING";
 }
 
 /**

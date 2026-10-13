@@ -109,6 +109,8 @@ type MatrixItem = {
   stateLabel?: string;
   /** Descriptive rows span the full row so long prose stays readable. */
   wide?: boolean;
+  /** The chip tone, when a shared vocabulary owns it (Bitcoin anchoring). */
+  tone?: AppTone;
 };
 
 // ---------------------------------------------------------------------------
@@ -186,7 +188,7 @@ function MatrixGrid({ items }: { items: MatrixItem[] }) {
                 <span
                   className="app-status-text evidence-detail-matrix-cell__state"
                   data-size="md"
-                  data-tone={presentation.tone}
+                  data-tone={item.tone ?? presentation.tone}
                 >
                   {item.stateLabel ?? presentation.label}
                 </span>
@@ -291,19 +293,26 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         ? "pending"
         : "unavailable";
 
-  // Anchoring is "recorded", never "verified": an anchor records that a
-  // digest existed at a point in time, which is not a claim about the
-  // content itself.
+  // (2026-10-13) Bitcoin anchoring: the server's state in the one vocabulary.
+  // Anchored is the only success (green ✓); Failed is danger; every other
+  // state is neutral.
   const otsState: IntegrityState =
-    preservation.ots.effectiveStatus === "ANCHORED"
-      ? "recorded"
-      : preservation.ots.effectiveStatus === "FAILED"
+    otsStatusPresentation?.state === "ANCHORED"
+      ? "verified"
+      : otsStatusPresentation?.state === "FAILED"
         ? "failed"
-        : preservation.ots.effectiveStatus === "DISABLED"
+        : otsStatusPresentation?.state === "NOT_REQUESTED"
           ? "not-applicable"
-          : preservation.ots.effectiveStatus === "PENDING"
+          : otsStatusPresentation?.state === "PENDING"
             ? "pending"
             : "unavailable";
+  const otsTone: AppTone =
+    otsStatusPresentation?.tone === "success" ? "green" : otsStatusPresentation?.tone === "danger" ? "red" : "slate";
+  const otsStateLabel = otsStatusPresentation
+    ? otsStatusPresentation.tone === "success"
+      ? `✓ ${otsStatusPresentation.status}`
+      : otsStatusPresentation.status
+    : undefined;
 
   const reportState: IntegrityState = workspace.artifactStatus.report.available
     ? "available"
@@ -549,9 +558,11 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
               state: tsaState,
             },
             {
-              label: "Bitcoin anchoring (OTS)",
-              value: otsStatusPresentation?.label ?? "Not configured",
+              label: "Bitcoin anchoring",
+              value: otsStatusPresentation?.label ?? "Bitcoin anchoring unavailable",
               state: otsState,
+              stateLabel: otsStateLabel,
+              tone: otsTone,
             },
             {
               label: "Bitcoin anchoring last updated",
@@ -661,7 +672,7 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
               label: "Bitcoin anchoring detail",
               value:
                 otsStatusPresentation?.detail ??
-                "No Bitcoin anchoring state recorded",
+                "The OpenTimestamps proof material cannot currently be read.",
               wide: true,
             },
           ]}

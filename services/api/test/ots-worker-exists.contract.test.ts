@@ -20,9 +20,10 @@
  *  1. The OTS state-machine module exists at the canonical path.
  *  2. The report processor calls createOpenTimestamp() to seed the
  *     proof when an evidence row is sealed.
- *  3. The OTS upgrade processor runs the `ots verify` CLI to
- *     transition PENDING → ANCHORED.
- *  4. The trust-summary bucket maps the worker's status values.
+ *  3. The OTS upgrade processor decides ANCHORED through the ONE state
+ *     authority (resolveOtsAnchoring over the stored proof bytes); the
+ *     retired chain-verifier subsystem does not exist.
+ *  4. The trust-summary bucket reads that same state.
  *  5. The Home priority's href set matches the union the worker can
  *     actually write (no aspirational values).
  *
@@ -96,24 +97,23 @@ describe("OTS truth contract — UI claims must remain backed by a real worker",
     expect(report).not.toMatch(/createOpenTimestamp/);
   });
 
-  it("OTS upgrade processor reaches `ots verify` only through the configured chain verifier (2026-10-12)", () => {
+  it("OTS upgrade processor decides ANCHORED through the one state authority; no chain verifier exists (2026-10-13)", () => {
     const src = readFileSync(UPGRADE_PROCESSOR, "utf8");
-    // The processor binds the proof to the fingerprint digest, then asks the
-    // canonical verifier; the verifier runs `ots --bitcoin-node … verify`.
-    expect(src).toMatch(/checkOtsDigestBinding\(/);
-    expect(src).toMatch(/resolveOtsChainVerifier/);
-    const verifier = readFileSync(resolve(WORKER_DIR, "ots-chain-verifier.ts"), "utf8");
-    expect(verifier).toMatch(/"--bitcoin-node", opts\.nodeUrl, "verify", "-d"/);
+    // The stored proof, executed against the record's digest, is the only
+    // thing that makes a record ANCHORED.
+    expect(src).toMatch(/resolveOtsAnchoring\(/);
+    expect(src).not.toMatch(/resolveOtsChainVerifier|bitcoin-node|OTS_CHAIN_VERIFIER|OTS_BITCOIN_NODE_URL/);
+    expect(existsSync(resolve(WORKER_DIR, "ots-chain-verifier.ts"))).toBe(false);
   });
 
-  it("Trust-summary `otsBucket` recognises the worker's status values", () => {
+  it("Trust-summary `otsBucket` reads the one OTS state", () => {
     const src = readFileSync(TRUST_SUMMARY, "utf8");
     expect(src).toMatch(/function\s+otsBucket/);
-    // Real worker writes ANCHORED + PENDING + FAILED at minimum; the
-    // trust-summary bucket must map them or the Home counters will
-    // under-count.
-    for (const v of ["ANCHORED", "PENDING", "FAILED"]) {
-      expect(src).toContain(`"${v}"`);
+    // Every bucket comes from resolveRecordOtsAnchoring over the stored proof,
+    // and every state has a bucket, or the Home counters would under-count.
+    expect(src).toMatch(/resolveRecordOtsAnchoring\(/);
+    for (const v of ["ANCHORED", "PENDING", "FAILED", "UNAVAILABLE", "NOT_REQUESTED"]) {
+      expect(src).toMatch(new RegExp(`\\b${v}:`));
     }
   });
 

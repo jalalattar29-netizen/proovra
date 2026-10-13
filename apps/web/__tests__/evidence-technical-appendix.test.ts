@@ -212,13 +212,7 @@ test("integrity rows: canonical digest, fingerprint, signature, anchoring status
       recordedIntegrityVerifiedAtUtc: "2026-06-01T09:10:00Z",
       signature: { recorded: true, valid: true, keyId: "key-1", keyVersion: 2 },
       tsa: { status: "STAMPED", provider: "Apple", timestampedDigestLabel: "" },
-      ots: {
-        effectiveStatus: "PENDING",
-        proofPresent: true,
-        bitcoinTxid: null,
-        anchoredAtUtc: null,
-        calendar: null,
-      },
+      ots: { state: "PENDING", proofSha256: "a".repeat(64) },
       storage: {},
     },
     evidence: {
@@ -236,53 +230,61 @@ test("integrity rows: canonical digest, fingerprint, signature, anchoring status
   assert.equal(byLabel["Recorded integrity"], "Recorded integrity verified");
   assert.equal(byLabel["Digital signature"], "Digital signature recorded");
   assert.equal(byLabel["Trusted timestamp"], "Trusted timestamp recorded");
-  assert.equal(
-    byLabel["OpenTimestamps / Bitcoin anchoring"],
-    "Pending",
-  );
+  assert.equal(byLabel["Bitcoin anchoring"], "Bitcoin anchoring pending");
+  assert.equal(byLabel["Proof SHA-256"], "a".repeat(64));
+  // Pending: no block height, transaction or anchoring time is stated.
+  assert.equal(byLabel["Bitcoin block height"], undefined);
+  assert.equal(byLabel["Bitcoin transaction"], undefined);
+  assert.equal(byLabel["Anchoring recorded by PROOVRA (UTC)"], undefined);
   assert.equal(byLabel["Immutable storage"], "Compliance retention lock");
 });
 
-test("anchoring label follows the one OTS claim (2026-09-29); timestamp labels map correctly", () => {
-  const anchored = {
-    status: "ANCHORED",
-    bitcoinTxid: "e".repeat(64),
-    anchoredAtUtc: "2026-06-02T00:00:00Z",
-    proofPresent: true,
-  };
-  // A txid and an anchor time are anchor material, not a chain verification.
+test("anchoring label is the server's Bitcoin anchoring state (2026-10-13); timestamp labels map correctly", () => {
+  const TXID = "e".repeat(64);
+  // ANCHORED as the server sent it: "Bitcoin anchored", with the proof's facts.
+  assert.equal(anchoringStatusLabel({ state: "ANCHORED", bitcoinTxid: TXID }), "Bitcoin anchored");
+  assert.equal(anchoringStatusLabel({ state: "PENDING" }), "Bitcoin anchoring pending");
+  assert.equal(anchoringStatusLabel({ state: "FAILED" }), "Bitcoin anchoring failed");
+  assert.equal(anchoringStatusLabel({ state: "NOT_REQUESTED" }), "Not requested");
+  // The client never re-derives a state from a status string, txid or time:
+  // an old-shape object, an unknown state or nothing reads as unavailable.
   assert.equal(
-    anchoringStatusLabel(anchored),
-    "Attestation recorded",
+    anchoringStatusLabel({ status: "ANCHORED", effectiveStatus: "ANCHORED", bitcoinTxid: TXID, anchoredAtUtc: "2026-06-02T00:00:00Z" }),
+    "Bitcoin anchoring unavailable",
   );
-  assert.equal(
-    anchoringStatusLabel({ ...anchored, anchorCheck: "PROOF_STRUCTURE" }),
-    "Attestation recorded",
-  );
-  // (2026-10-12) A recorded check is not verification without its chain
-  // evidence — which only the server holds. The server's VERIFIED claim is.
-  assert.equal(
-    anchoringStatusLabel({ ...anchored, anchorCheck: "BITCOIN_VERIFIED" }),
-    "Attestation recorded",
-  );
-  assert.equal(
-    anchoringStatusLabel({ ...anchored, anchorCheck: "BITCOIN_VERIFIED", anchorClaim: "VERIFIED" }),
-    "Verified",
-  );
-  // The server's claim wins when present — the client never re-derives "verified".
-  assert.equal(
-    anchoringStatusLabel({ ...anchored, anchorClaim: "PENDING" }),
-    "Pending",
-  );
-  assert.equal(
-    anchoringStatusLabel({
-      status: "PENDING",
-      bitcoinTxid: null,
-      anchoredAtUtc: null,
-      proofPresent: true,
-    }),
-    "Pending",
-  );
+  assert.equal(anchoringStatusLabel({ state: "CHAIN_VERIFIED" }), "Bitcoin anchoring unavailable");
+  assert.equal(anchoringStatusLabel(null), "Bitcoin anchoring unavailable");
+
+  const rows = buildIntegrityRows({
+    multipart: false,
+    preservation: {
+      recordedIntegrityVerifiedAtUtc: null,
+      signature: { recorded: false, valid: false, keyId: null, keyVersion: null },
+      tsa: { status: null, provider: null, timestampedDigestLabel: "" },
+      ots: {
+        state: "ANCHORED",
+        bitcoinBlockHeight: 812345,
+        bitcoinTxid: TXID,
+        anchoredAtUtc: "2026-06-02T00:00:00.000Z",
+      },
+      storage: {},
+    },
+    evidence: {
+      evidenceRef: null,
+      fileSha256: null,
+      fingerprintHash: null,
+      tsaSerialNumber: null,
+      storageObjectLockMode: null,
+      storageObjectLockRetainUntilUtc: null,
+    },
+  });
+  const byLabel = Object.fromEntries(rows.map((r) => [r.label, r.value]));
+  assert.equal(byLabel["Bitcoin anchoring"], "Bitcoin anchored");
+  assert.equal(byLabel["Bitcoin block height"], "812345");
+  assert.equal(byLabel["Bitcoin transaction"], TXID);
+  assert.equal(byLabel["Anchoring recorded by PROOVRA (UTC)"], "2026-06-02T00:00:00.000Z");
+  assert.doesNotMatch(JSON.stringify(rows), /Attestation recorded|Verified|chain/i);
+
   assert.equal(timestampStatusLabel("STAMPED"), "Trusted timestamp recorded");
   assert.equal(timestampStatusLabel("PENDING"), "Trusted timestamp pending");
 });

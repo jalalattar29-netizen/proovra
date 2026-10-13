@@ -1,9 +1,8 @@
 import type {
   CanonicalEvidenceMaterials,
-  CanonicalOtsStateMaterial,
   CanonicalTimestampStateMaterial,
 } from "@proovra/shared";
-import { OTS_FAILURE_CODE_LABELS, boundedOtsFailureCode } from "@proovra/shared";
+import { OTS_FAILURE_LABELS, presentOtsAnchoring } from "@proovra/shared";
 import {
   ReportEvidence,
   ReportAnchorSummary,
@@ -21,16 +20,13 @@ import {
   mapAuthProviderLabel,
   reportIdentityLevelLabel,
   reportIdentityRows,
-  mapAnchorModePublicLabel,
   mapTimestampStatusPublicLabel,
 } from "./normalizers.js";
 import {
-  OTS_REPORTED_BY_PROOF_QUALIFIER,
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
-  deriveAnchorSemantics,
   formatTimestampForReportUtc,
 } from "@proovra/shared";
-import { buildOtsTruthRows, otsStatusLineFor } from "./ots-presentation.js";
+import { OTS_REPORT_BOUNDARY, buildOtsAnchoringRows, otsStatusLineFor, reportOtsAnchoring } from "./ots-presentation.js";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 
 export function getTimestampDigestValueLabel(params: {
@@ -64,19 +60,6 @@ function mapTimestampTone(status: string | null | undefined): Tone {
   return "neutral";
 }
 
-function mapOtsTone(status: string | null | undefined): Tone {
-  const value = safe(status, "").toUpperCase();
-
-  if (value === "ANCHORED") return "warning";
-  if (value === "PENDING") return "warning";
-  if (value === "FAILED") return "danger";
-  return "neutral";
-}
-
-function isValidBitcoinTxid(value: string | null | undefined): boolean {
-  return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value.trim());
-}
-
 function isMeaningfulTechnicalRow(row: KeyValueRow): boolean {
   const value = safe(row.value, "");
   return value !== "" && value !== "N/A" && value !== "Not recorded";
@@ -96,26 +79,21 @@ export function resolveAnchorSummary(
 
   if (!hasLegacyAnchor) return null;
 
-  const semantics = deriveAnchorSemantics({
-    transactionId: evidence.anchorTransactionId ?? null,
-    // The OTS anchor time is the canonical one; the legacy anchor record's is a
-    // fallback. Without it an anchored OTS proof read as pending (2026-09-29).
-    anchoredAtUtc:
-      evidence.anchorAnchoredAtUtc ??
-      (evidence.otsAnchoredAtUtc ? new Date(evidence.otsAnchoredAtUtc).toISOString() : null),
-    otsStatus: evidence.otsStatus,
-    otsAnchorCheck: evidence.otsAnchorCheck ?? null,
-    otsProofPresent: Boolean(evidence.otsProofBase64),
-  });
-
+  // A legacy evidence-anchor row: its own material only. The OpenTimestamps
+  // state is never inferred from it (ots-presentation.ts states that).
   return {
-    mode: semantics.anchorMode,
+    mode: normalizeLegacyAnchorMode(evidence.anchorMode),
     provider: evidence.anchorProvider ?? null,
     configured: Boolean(evidence.anchorProvider),
     anchorHash: evidence.anchorHash ?? null,
-    transactionId: semantics.transactionId,
-    anchoredAtUtc: semantics.anchoredAtUtc,
+    transactionId: null,
+    anchoredAtUtc: null,
   };
+}
+
+function normalizeLegacyAnchorMode(mode: string | null | undefined): ReportAnchorSummary["mode"] {
+  const value = safe(mode, "").toLowerCase();
+  return value === "ready" || value === "active" ? value : "off";
 }
 
 export function buildOrganizationDisplay(evidence: ReportEvidence): string {
@@ -301,69 +279,18 @@ export function buildTimestampRows(
 }
 
 /**
- * (2026-10-12) The OTS technical rows come from the shared truth model
- * (ots-presentation.ts): a recording time is never an anchor time, and a txid
- * or block height read from the proof is labelled as reported, not verified.
+ * (2026-10-13) The OTS technical rows: the canonical anchoring state and the
+ * facts the stored proof yields (ots-presentation.ts), from the payload the
+ * report renders. The anchored time is PROOVRA's recording time.
  */
-export function buildOtsRows(
-  evidence: ReportEvidence | CanonicalOtsStateMaterial
-): KeyValueRow[] {
-  if ("truthState" in evidence && "snapshotSemantics" in evidence) {
-    // The canonical materials' state: rebuild the rows from its own projection.
-    const m = evidence as CanonicalOtsStateMaterial;
-    return buildOtsTruthRows({
-      otsStatus: m.effectiveStatus ?? m.otsStatus,
-      otsHash: m.otsHash,
-      otsBitcoinTxid: m.otsBitcoinTxid,
-      otsAnchorCheck: m.otsAnchorCheck,
-      otsUpgradedAtUtc: m.otsUpgradedAtUtc,
-      otsAnchoredAtUtc: m.otsAnchoredAtUtc ?? m.proofRecordedAtUtc,
-      otsAttestationRecordedAtUtc: m.proofRecordedAtUtc,
-      otsAttestationBlockHeight: m.reportedBlockHeight,
-      otsChainVerificationStatus: m.chainVerification ? "VERIFIED" : m.chainCheckStatus,
-      otsChainVerifiedAtUtc: m.chainVerification?.verifiedAtUtc ?? null,
-      otsChainBlockHeight: m.chainVerification?.blockHeight ?? null,
-      otsChainBlockHash: m.chainVerification?.blockHash ?? null,
-      otsChainBlockTimeUtc: m.chainVerification?.blockTimeUtc ?? null,
-      otsChainConfirmations: m.chainVerification?.confirmations ?? null,
-      otsChainVerifier: m.chainVerification?.verifier ?? null,
-    }).filter(isMeaningfulTechnicalRow);
-  }
-  return buildOtsTruthRows(evidence as ReportEvidence).filter(isMeaningfulTechnicalRow);
+export function buildOtsRows(evidence: ReportEvidence): KeyValueRow[] {
+  return buildOtsAnchoringRows(evidence).filter(isMeaningfulTechnicalRow);
 }
 
-export function buildAnchorRows(
-  anchorSummary: ReportAnchorSummary | null,
-  otsFacts?: {
-    otsStatus?: string | null;
-    otsBitcoinTxid?: string | null;
-    otsAnchoredAtUtc?: string | null;
-    otsProofPresent?: boolean | null;
-    otsAnchorCheck?: string | null;
-    /** The canonical OTS truth state (resolveOtsTruth). */
-    truthState?: string | null;
-  } | null
-): KeyValueRow[] {
+/** The legacy anchor record's own rows (provider). Never an OTS state. */
+export function buildAnchorRows(anchorSummary: ReportAnchorSummary | null): KeyValueRow[] {
   if (!anchorSummary) return [];
-
-  // (2026-10-13) With OTS facts there is no "Anchor Mode" row: the OTS rows
-  // above state the canonical status once. It used to re-derive a state from
-  // the anchor time alone — an attestation has none until it is independently
-  // verified — and so printed the PENDING sentence beside an upgraded proof
-  // carrying a txid and a block height.
-  const verified = otsFacts?.truthState === "CHAIN_VERIFIED";
-  return [
-    ...(otsFacts ? [] : [{ label: "Anchor Mode", value: mapAnchorModePublicLabel(anchorSummary.mode) }]),
-    { label: "Anchor Provider", value: safe(anchorSummary.provider) },
-    {
-      label: "Anchor Transaction ID",
-      value: anchorSummary.transactionId
-        ? verified
-          ? anchorSummary.transactionId
-          : `${anchorSummary.transactionId} — ${OTS_REPORTED_BY_PROOF_QUALIFIER}`
-        : "",
-    },
-  ].filter(isMeaningfulTechnicalRow);
+  return [{ label: "Anchor Provider", value: safe(anchorSummary.provider) }].filter(isMeaningfulTechnicalRow);
 }
 
 export function buildTechnicalAppendixModel(
@@ -430,6 +357,11 @@ const fingerprintRows: KeyValueRow[] = [
   },
 ];
 
+  const otsAnchoring = reportOtsAnchoring(evidence);
+  const otsPresentation = presentOtsAnchoring({ state: canonicalMaterials.otsState.state });
+  const otsTone: Tone =
+    otsPresentation.tone === "success" ? "success" : otsPresentation.tone === "danger" ? "danger" : "neutral";
+
   return {
     fileSha256: safe(canonicalMaterials.fingerprint.fileSha256),
     fingerprintHash: safe(canonicalMaterials.fingerprint.fingerprintHash),
@@ -440,40 +372,29 @@ const fingerprintRows: KeyValueRow[] = [
     signatureRows,
     fingerprintRows,
     timestampRows: buildTimestampRows(evidence, contentSummary),
-    anchoringRows: buildOtsRows(canonicalMaterials.otsState).concat(
-      buildAnchorRows(anchorSummary, {
-        otsStatus:
-          canonicalMaterials.otsState.effectiveStatus ??
-          canonicalMaterials.otsState.otsStatus,
-        otsBitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
-        otsAnchoredAtUtc: canonicalMaterials.otsState.otsAnchoredAtUtc,
-        otsProofPresent: canonicalMaterials.otsState.proofPresent,
-        otsAnchorCheck: canonicalMaterials.otsState.otsAnchorCheck,
-        truthState: canonicalMaterials.otsState.truthState,
-      })
-    ),
+    anchoringRows: buildOtsRows(evidence).concat(buildAnchorRows(anchorSummary)),
     timestampStatusLabel: mapTimestampStatusPublicLabel(
       canonicalMaterials.timestampState.tsaStatus
     ),
     timestampStatusTone: mapTimestampTone(
       canonicalMaterials.timestampState.tsaStatus
     ),
-    otsStatusLabel: otsStatusLineFor(canonicalMaterials.otsState),
-    otsStatusTone:
-      safe(
-        canonicalMaterials.otsState.effectiveStatus ??
-          canonicalMaterials.otsState.otsStatus,
-        ""
-      ).toUpperCase() === "ANCHORED" &&
-      isValidBitcoinTxid(canonicalMaterials.otsState.otsBitcoinTxid)
-        ? "success"
-        : mapOtsTone(canonicalMaterials.otsState.otsStatus),
+    otsStatusLabel: otsStatusLineFor(canonicalMaterials.otsState.state),
+    otsStatusTone: otsTone,
     tsaMessageImprint: safe(evidence.tsaMessageImprint),
     tsaInputDigestHex: safe(canonicalMaterials.timestampState.tsaInputDigestHex),
     tsaInputKind: safe(canonicalMaterials.timestampState.tsaInputKind),
     otsHash: safe(canonicalMaterials.otsState.otsHash),
-    // The failure in words (the bounded vocabulary), never the stored code.
-    otsDetail: evidence.otsFailureReason ? OTS_FAILURE_CODE_LABELS[boundedOtsFailureCode(evidence.otsFailureReason)!] : "",
+    // ANCHORED: the boundary, stated once. FAILED / UNAVAILABLE: the bounded
+    // reason in words, never the stored code.
+    otsDetail:
+      otsAnchoring.state === "ANCHORED"
+        ? OTS_REPORT_BOUNDARY
+        : otsAnchoring.failureCode
+          ? (OTS_FAILURE_LABELS[otsAnchoring.failureCode] ?? OTS_FAILURE_LABELS.OTS_PROCESSING_FAILED!)
+          : "",
+    otsDetailTitle: otsAnchoring.state === "ANCHORED" ? "What Bitcoin anchoring establishes" : "Anchoring detail",
+    otsDetailTone: otsAnchoring.state === "ANCHORED" ? "neutral" : otsTone,
     anchorHash: safe(anchorSummary?.anchorHash),
 timestampReferenceNote:
   (canonicalMaterials.timestampState.tokenPresent ||

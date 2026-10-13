@@ -41,6 +41,24 @@ test.describe.configure({ mode: "serial" });
 
 const API_DIR = resolve(__dirname, "..", "services", "api");
 
+/**
+ * A detached OpenTimestamps proof for `digestHex`, in the real binary format:
+ * magic, version 1, the SHA-256 file-hash op, the digest, then one attestation
+ * on the digest — a calendar's PENDING attestation, or a Bitcoin block-header
+ * attestation (what `ots upgrade` adds). The product decides the state from
+ * these bytes (packages/shared ots-anchoring.ts).
+ */
+function otsProofFor(digestHex: string, kind: "pending" | "bitcoin"): string {
+  const magic = Buffer.from("004f70656e54696d657374616d7073000050726f6f6600bf89e2e884e89294", "hex");
+  const calendar = Buffer.from("https://a.pool.opentimestamps.org");
+  const payload =
+    kind === "bitcoin"
+      ? Buffer.from([0xe0, 0xbe, 0x34]) // varuint 860000
+      : Buffer.concat([Buffer.from([calendar.length]), calendar]);
+  const tag = Buffer.from(kind === "bitcoin" ? "0588960d73d71901" : "83dfe30d2ef90c8e", "hex");
+  return Buffer.concat([magic, Buffer.from([0x01, 0x08]), Buffer.from(digestHex, "hex"), Buffer.from([0x00]), tag, Buffer.from([payload.length]), payload]).toString("base64");
+}
+
 /** One SQL statement against the stack's own disposable database. */
 function sql(query: string, params: unknown[] = []): Array<Record<string, unknown>> {
   const script = `
@@ -580,17 +598,31 @@ test.describe("Journey C — TSA/OTS truth, through Operations", () => {
       `/evidence/${evidenceId}?tab=integrity`,
     );
 
-    // Pending is not anchored.
-    sql("UPDATE evidence SET ots_status = 'PENDING' WHERE id = $1", [evidenceId]);
+    const digest = String(sql("SELECT fingerprint_hash FROM evidence WHERE id = $1", [evidenceId])[0]!.fingerprint_hash);
+
+    // A status label and a txid with no anchored proof are not anchoring (2026-10-13).
+    sql(
+      "UPDATE evidence SET ots_status = 'ANCHORED', ots_anchored_at_utc = now(), ots_bitcoin_txid = $2, ots_proof_base64 = NULL WHERE id = $1",
+      [evidenceId, "c".repeat(64)],
+    );
     await page.goto("/operations");
     await recheck(page, teamId);
     expect(ots()[0]!.status).toBe("OPEN");
 
-    // Anchored, with its transaction, is.
-    sql(
-      "UPDATE evidence SET ots_status = 'ANCHORED', ots_anchored_at_utc = now(), ots_bitcoin_txid = $2 WHERE id = $1",
-      [evidenceId, "c".repeat(64)],
-    );
+    // A pending proof is not anchored.
+    sql("UPDATE evidence SET ots_status = 'PENDING', ots_anchored_at_utc = NULL, ots_bitcoin_txid = NULL, ots_hash = $2, ots_proof_base64 = $3 WHERE id = $1", [
+      evidenceId,
+      digest,
+      otsProofFor(digest, "pending"),
+    ]);
+    await recheck(page, teamId);
+    expect(ots()[0]!.status).toBe("OPEN");
+
+    // A stored proof that executes to a Bitcoin block attestation is.
+    sql("UPDATE evidence SET ots_status = 'ANCHORED', ots_anchored_at_utc = now(), ots_proof_base64 = $2 WHERE id = $1", [
+      evidenceId,
+      otsProofFor(digest, "bitcoin"),
+    ]);
     await recheck(page, teamId);
     await expect.poll(() => ots()[0]!.status, { timeout: 30_000 }).toBe("RESOLVED");
     // One condition per proof, throughout.

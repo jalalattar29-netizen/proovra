@@ -38,7 +38,12 @@
  * Redis errors, Prisma errors and queue names stay in the logs.
  */
 
-import { isPermanentOtsProofFailureReason } from "@proovra/shared";
+import {
+  OTS_ANCHORING_RECORD_SELECT,
+  otsBlocksPublication,
+  resolveRecordOtsAnchoring,
+  type OtsAnchoringRecord,
+} from "@proovra/shared";
 import type { PrismaClient } from "@prisma/client";
 import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
 
@@ -150,8 +155,7 @@ export async function executeRemediation(
       teamId: true,
       ownerUserId: true,
       status: true,
-      otsStatus: true,
-      otsFailureReason: true,
+      ...OTS_ANCHORING_RECORD_SELECT,
       deletedAt: true,
     },
   });
@@ -244,22 +248,18 @@ export async function executeRemediation(
  * `ots-upgrade-<evidenceId>` is itself the dedupe: a second request while one
  * is live collapses onto it rather than creating a second unit of work.
  */
-async function resumeOtsAnchoring(evidence: {
-  id: string;
-  otsStatus: string | null;
-  otsFailureReason?: string | null;
-}): Promise<ExecuteRemediationOutcome> {
-  // An already-anchored proof is immutable and needs nothing. Re-running would
-  // spend work to reach the state it is already in.
-  if (evidence.otsStatus === "ANCHORED" || evidence.otsStatus === "UPGRADED") {
-    return outcome("ALREADY_SATISFIED");
-  }
-  // ET-REC-06 — a proof that does not commit to this record, or cannot be
-  // parsed, is terminal: the worker ends the job without a change. Queueing
-  // it answered QUEUED and recorded "remediation_queued" for nothing.
-  if (evidence.otsStatus === "FAILED" && isPermanentOtsProofFailureReason(evidence.otsFailureReason)) {
-    return outcome("NOT_ELIGIBLE");
-  }
+async function resumeOtsAnchoring(evidence: OtsAnchoringRecord & { id: string }): Promise<ExecuteRemediationOutcome> {
+  // (2026-10-13) The ONE state authority decides: the stored proof executed
+  // against the record's digest.
+  const anchoring = resolveRecordOtsAnchoring(evidence);
+  // An anchored proof is immutable and needs nothing. Re-running would spend
+  // work to reach the state it is already in.
+  if (anchoring.state === "ANCHORED") return outcome("ALREADY_SATISFIED");
+  // ET-REC-06 — a proof that does not commit to this record, cannot be parsed
+  // or attests nothing valid is terminal: the worker ends the job without a
+  // change. Queueing it answered QUEUED and recorded "remediation_queued" for
+  // nothing.
+  if (otsBlocksPublication(anchoring)) return outcome("NOT_ELIGIBLE");
 
   /*
    * OTS INTEGRITY DECOUPLING (2026-09-09) — through the request authority.

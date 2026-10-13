@@ -37,8 +37,7 @@ import {
   type TrustDecision,
 } from "./trust-decision.js";
 import { getReviewerEvidenceTypeLabel } from "./reviewer-evidence.js";
-import { checkOtsDigestBinding } from "./ots-proof.js";
-import { resolveOtsTruth, type OtsChainEvidence, type OtsTruthState } from "./ots-truth.js";
+import { resolveOtsAnchoring, type OtsState } from "./ots-anchoring.js";
 import { classifyCustodyEventType } from "./custody.js";
 
 // Local alias so the public type names read consistently with the
@@ -203,40 +202,30 @@ export type CanonicalStorageStateMaterial = {
   isProtected: boolean;
 };
 
+/**
+ * THE OTS MATERIAL (2026-10-13) — the canonical anchoring state
+ * (ots-anchoring.ts) and the facts the stored proof yields. The stored
+ * evidence.ots_status is carried for reference only; it never decides `state`.
+ */
 export type CanonicalOtsStateMaterial = {
   snapshotSemantics: CanonicalSnapshotLiveSemantics;
+  /** evidence.ots_status as stored (reference only). */
   otsStatus: string | null;
   otsHash: string | null;
-  /** Reported by the proof (`ots info`); verified only when truthState is CHAIN_VERIFIED. */
-  otsBitcoinTxid: string | null;
-  /**
-   * (2026-10-12) The VERIFIED Bitcoin block time of an independent chain
-   * check — null otherwise. The time PROOVRA recorded the proof is
-   * `proofRecordedAtUtc`; it is never an anchor time.
-   */
+  state: OtsState;
+  failureCode: string | null;
+  proofPresent: boolean;
+  /** SHA-256 of the stored proof bytes. */
+  proofSha256: string | null;
+  attestationType: "BITCOIN_BLOCK_HEADER" | "PENDING_CALENDAR" | null;
+  /** From the executed proof path; null unless ANCHORED. */
+  bitcoinBlockHeight: number | null;
+  /** Only when the executed proof path derives it. */
+  bitcoinTxid: string | null;
+  /** When PROOVRA recorded ANCHORED — a recording time, not a block time. */
   otsAnchoredAtUtc: string | null;
   otsUpgradedAtUtc: string | null;
-  /** How the anchor was established (BITCOIN_VERIFIED | PROOF_STRUCTURE | null). */
-  otsAnchorCheck: string | null;
-  proofPresent: boolean;
-  /** The OTS truth state (ots-truth.ts). */
-  truthState: OtsTruthState;
-  /** When PROOVRA recorded the attestation-bearing proof. */
-  proofRecordedAtUtc: string | null;
-  /** The block height the proof reports (unverified unless truthState is CHAIN_VERIFIED). */
-  reportedBlockHeight: number | null;
-  /** The recorded independent chain verification (CHAIN_VERIFIED only). */
-  chainVerification: OtsChainEvidence | null;
-  /** The latest chain check status, whatever its outcome. */
-  chainCheckStatus: string | null;
-  /** Does the proof commit to the record's fingerprint digest? NOT_EVALUATED without bytes. */
-  committedDigestBinding: "MATCH" | "MISMATCH" | "UNREADABLE" | "ABSENT" | "NOT_EVALUATED";
-  /**
-   * Honesty rule (mirrors verification-package.ts:decideOtsPackageArtifact):
-   * if otsStatus claims ANCHORED but no Bitcoin txid AND no anchored-at
-   * timestamp are present, the canonical state downgrades to PENDING.
-   */
-  effectiveStatus: string | null;
+  validator: string;
 };
 
 export type CanonicalMediaIntelligenceSnapshotMaterial = {
@@ -397,24 +386,11 @@ export type CanonicalMaterialsBuildInput = {
     storageObjectLockLegalHoldStatus: string | null;
     otsStatus: string | null;
     otsHash: string | null;
-    otsBitcoinTxid: string | null;
     otsAnchoredAtUtc: string | Date | null | undefined;
     otsUpgradedAtUtc: string | Date | null | undefined;
-    otsAnchorCheck?: string | null;
-    otsProofPresent: boolean;
-    /** (2026-10-12) The OTS truth inputs; absent reads conservatively. */
-    otsProofBase64?: string | null;
-    otsAttestationRecordedAtUtc?: string | Date | null;
-    otsAttestationBlockHeight?: number | null;
-    otsChainVerificationStatus?: string | null;
-    otsChainCheckedAtUtc?: string | Date | null;
-    otsChainVerifiedAtUtc?: string | Date | null;
-    otsChainBlockHeight?: number | null;
-    otsChainBlockHash?: string | null;
-    otsChainBlockTimeUtc?: string | Date | null;
-    otsChainConfirmations?: number | null;
-    otsChainVerifier?: string | null;
-    otsChainFailureCode?: string | null;
+    otsFailureReason?: string | null;
+    /** The stored proof bytes; the state is resolved from them. */
+    otsProofBase64: string | null;
     identityLevelSnapshot: string | null;
     workspaceNameSnapshot: string | null;
     organizationNameSnapshot: string | null;
@@ -695,65 +671,34 @@ export function buildCanonicalStorageState(
   };
 }
 
-const HEX_TXID_RE = /^[0-9a-f]{64}$/i;
-
 export function buildCanonicalOtsState(
   input: CanonicalMaterialsBuildInput,
 ): CanonicalOtsStateMaterial {
   const e = input.evidence;
-  const status = nonEmptyOrNull(e.otsStatus);
-  const txid = nonEmptyOrNull(e.otsBitcoinTxid);
-  const anchoredAt = toIsoOrNull(e.otsAnchoredAtUtc);
-  const hasValidTxid = txid !== null && HEX_TXID_RE.test(txid);
-  const effective =
-    status === "ANCHORED" && !hasValidTxid && anchoredAt === null
-      ? "PENDING"
-      : status;
-  const binding =
-    e.otsProofBase64 !== undefined
-      ? checkOtsDigestBinding({
-          proofBase64: e.otsProofBase64 ?? null,
-          fingerprintHash: e.fingerprintHash ?? null,
-          otsHash: e.otsHash ?? null,
-        })
-      : null;
-  const truth = resolveOtsTruth({
-    status,
-    anchoredAtUtc: anchoredAt,
-    anchorCheck: e.otsAnchorCheck ?? null,
-    bitcoinTxid: txid,
-    proofPresent: Boolean(e.otsProofPresent),
-    upgradedAtUtc: toIsoOrNull(e.otsUpgradedAtUtc),
-    attestationRecordedAtUtc: toIsoOrNull(e.otsAttestationRecordedAtUtc),
-    attestationBlockHeight: e.otsAttestationBlockHeight ?? null,
-    chainVerificationStatus: e.otsChainVerificationStatus ?? null,
-    chainCheckedAtUtc: toIsoOrNull(e.otsChainCheckedAtUtc),
-    chainVerifiedAtUtc: toIsoOrNull(e.otsChainVerifiedAtUtc),
-    chainBlockHeight: e.otsChainBlockHeight ?? null,
-    chainBlockHash: e.otsChainBlockHash ?? null,
-    chainBlockTimeUtc: toIsoOrNull(e.otsChainBlockTimeUtc),
-    chainConfirmations: e.otsChainConfirmations ?? null,
-    chainVerifier: e.otsChainVerifier ?? null,
-    chainFailureCode: e.otsChainFailureCode ?? null,
-    digestBinding: binding,
+  const ots = resolveOtsAnchoring({
+    status: e.otsStatus,
+    proofBase64: e.otsProofBase64,
+    fingerprintHash: e.fingerprintHash ?? null,
+    otsHash: e.otsHash ?? null,
+    failureReason: e.otsFailureReason ?? null,
+    anchoredAtUtc: e.otsAnchoredAtUtc ?? null,
+    upgradedAtUtc: e.otsUpgradedAtUtc ?? null,
   });
+  const anchored = ots.state === "ANCHORED";
   return {
     snapshotSemantics: semanticForMaterial("otsState", input.outputType),
-    otsStatus: status,
+    otsStatus: nonEmptyOrNull(e.otsStatus),
     otsHash: nonEmptyOrNull(e.otsHash),
-    otsBitcoinTxid: txid,
-    // The only anchor time: a VERIFIED block time (2026-10-12).
-    otsAnchoredAtUtc: truth.verifiedAnchorTimeUtc,
+    state: ots.state,
+    failureCode: ots.failureCode,
+    proofPresent: Boolean(nonEmptyOrNull(e.otsProofBase64)),
+    proofSha256: ots.proofSha256,
+    attestationType: ots.attestationType,
+    bitcoinBlockHeight: anchored ? ots.bitcoinBlockHeight : null,
+    bitcoinTxid: anchored ? ots.bitcoinTxid : null,
+    otsAnchoredAtUtc: anchored ? ots.anchoredAtUtc : null,
     otsUpgradedAtUtc: toIsoOrNull(e.otsUpgradedAtUtc),
-    otsAnchorCheck: nonEmptyOrNull(e.otsAnchorCheck ?? null),
-    proofPresent: Boolean(e.otsProofPresent),
-    effectiveStatus: effective,
-    truthState: truth.state,
-    proofRecordedAtUtc: truth.proofRecordedAtUtc,
-    reportedBlockHeight: truth.reported?.blockHeight ?? null,
-    chainVerification: truth.chain,
-    chainCheckStatus: truth.chainCheck?.status ?? null,
-    committedDigestBinding: binding ? binding.kind : "NOT_EVALUATED",
+    validator: ots.validator,
   };
 }
 
@@ -855,12 +800,12 @@ export function buildCanonicalEvidenceMaterials(
       message: "Canonical signature is not yet available for this evidence record.",
     });
   }
-  if (otsState.otsStatus === "ANCHORED" && otsState.effectiveStatus === "PENDING") {
+  if (otsState.otsStatus === "ANCHORED" && otsState.state !== "ANCHORED") {
     issues.push({
       severity: "info",
-      code: "OTS_STATUS_DOWNGRADED_PENDING",
+      code: "OTS_STORED_STATUS_NOT_ANCHORED",
       message:
-        "otsStatus claimed ANCHORED but no Bitcoin txid or anchored-at timestamp was present; canonical effectiveStatus downgraded to PENDING per honesty rule.",
+        "The stored OpenTimestamps status says ANCHORED but the stored proof does not resolve to a Bitcoin anchor; the canonical state is taken from the proof.",
     });
   }
 

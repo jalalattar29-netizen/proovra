@@ -2,8 +2,7 @@ import {
   classifyCustodyEventType,
   type CustodyEventCategory,
 } from "./custody.js";
-import { normalizeOtsAnchorCheck } from "./ots.js";
-import { checkOtsDigestBinding } from "./ots-proof.js";
+import { OTS_STATE_WORDS } from "./ots-anchoring.js";
 import { presentedTsaStatus } from "./tsa-validation-state.js";
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
@@ -47,14 +46,8 @@ export type TrustPresentationState =
   | "FAILED_VERIFICATION"
   | "REVIEW_REQUIRED";
 
-export type TrustAnchoringState =
-  | "finalized"
-  | "present_not_verified"
-  | "stale"
-  | "pending"
-  | "degraded"
-  | "unavailable"
-  | "failed";
+/** The anchoring bucket — the canonical OTS state (ots-anchoring.ts), lower-cased. */
+export type TrustAnchoringState = "anchored" | "pending" | "failed" | "unavailable" | "not_requested";
 
 export type TrustSignalKey =
   | "core_integrity"
@@ -163,23 +156,13 @@ export function getTrustSignalPresentationLabel(
   return TRUST_SIGNAL_STATE_PRESENTATION[resolveSnapshotSignalState(signal)].label;
 }
 
-function getAnchoringStateLabel(state: TrustAnchoringState): string {
-  switch (state) {
-    // The public OpenTimestamps vocabulary (ots-truth.ts OTS_PUBLIC_STATUSES).
-    case "finalized":
-      return "Verified";
-    case "present_not_verified":
-    case "degraded":
-      return "Attestation recorded";
-    case "pending":
-      return "Pending";
-    case "stale":
-    case "failed":
-    case "unavailable":
-    default:
-      return "Unavailable";
-  }
-}
+const ANCHORING_STATE_LABELS: Readonly<Record<TrustAnchoringState, string>> = {
+  anchored: OTS_STATE_WORDS.ANCHORED,
+  pending: OTS_STATE_WORDS.PENDING,
+  failed: OTS_STATE_WORDS.FAILED,
+  unavailable: OTS_STATE_WORDS.UNAVAILABLE,
+  not_requested: OTS_STATE_WORDS.NOT_REQUESTED,
+};
 
 /**
  * The bounded summary of a decision's own signals (no identity, capture or
@@ -228,39 +211,15 @@ export type TrustDecisionEvidenceInput = {
   tsaValidatedAtUtc?: string | null;
   otsStatus?: string | null;
   otsHash?: string | null;
-  otsBitcoinTxid?: string | null;
   otsAnchoredAtUtc?: string | null;
+  otsUpgradedAtUtc?: string | null;
   otsCalendar?: string | null;
   otsFailureReason?: string | null;
   /**
-   * How the anchor was established (2026-09-29): BITCOIN_VERIFIED | PROOF_STRUCTURE,
-   * null when not recorded. Only BITCOIN_VERIFIED may be called verified.
+   * (2026-10-13) The stored proof bytes — REQUIRED: the anchoring signal is the
+   * canonical state resolved from them (resolveOtsAnchoring). null = no proof.
    */
-  otsAnchorCheck?: string | null;
-  /** When the recorded anchor check was made (OTS_APPLIED observedAtUtc). */
-  otsAnchorCheckedAtUtc?: string | null;
-  /** True when an OTS proof is stored (a proof without status is pending). */
-  otsProofPresent?: boolean | null;
-  /** When the proof was requested; drives STALE for a long-pending proof. */
-  otsSubmittedAtUtc?: string | null;
-  otsUpgradedAtUtc?: string | null;
-  /**
-   * (2026-10-12) The proof bytes, when the caller holds them: the anchoring
-   * signal is FAILED unless the proof commits to the fingerprint digest.
-   */
-  otsProofBase64?: string | null;
-  /** evidence.ots_attestation_* / ots_chain_* — the OTS truth inputs. */
-  otsAttestationRecordedAtUtc?: string | null;
-  otsAttestationBlockHeight?: number | null;
-  otsChainVerificationStatus?: string | null;
-  otsChainCheckedAtUtc?: string | null;
-  otsChainVerifiedAtUtc?: string | null;
-  otsChainBlockHeight?: number | null;
-  otsChainBlockHash?: string | null;
-  otsChainBlockTimeUtc?: string | null;
-  otsChainConfirmations?: number | null;
-  otsChainVerifier?: string | null;
-  otsChainFailureCode?: string | null;
+  otsProofBase64: string | null;
   /**
    * The result of verifying the Ed25519 signature over the recomputed
    * fingerprint IN THE EVALUATION that builds this decision. Omitted/null:
@@ -306,7 +265,8 @@ export type BuildEvidenceTrustDecisionInput = {
 };
 
 export type RecordedIntegrityPromotionInput = {
-  evidence: TrustDecisionEvidenceInput;
+  /** Anchoring never decides the promotion; the OTS proof is not read here. */
+  evidence: Omit<TrustDecisionEvidenceInput, "otsProofBase64"> & { otsProofBase64?: string | null };
   itemCount?: number | null;
   multipartItemHashesPresent?: boolean | null;
   canonicalHashMatches: boolean;
@@ -374,7 +334,7 @@ function makeSignal(params: {
 }
 
 export function isExplicitRecordedIntegrityVerified(
-  input: TrustDecisionEvidenceInput
+  input: Pick<TrustDecisionEvidenceInput, "verificationStatus" | "recordedIntegrityVerifiedAtUtc">
 ): boolean {
   return (
     safe(input.verificationStatus).toUpperCase() ===
@@ -384,7 +344,7 @@ export function isExplicitRecordedIntegrityVerified(
 }
 
 export function hasCoreCryptoMaterials(
-  input: TrustDecisionEvidenceInput
+  input: Pick<TrustDecisionEvidenceInput, "fileSha256" | "fingerprintHash" | "signatureBase64" | "signingKeyId">
 ): boolean {
   return Boolean(
     hasMeaningfulValue(input.fileSha256) &&
@@ -447,27 +407,6 @@ export function evaluateRecordedIntegrityPromotion(
     shouldPromote: qualifies && !alreadyExplicitlyVerified,
     blockers,
   };
-}
-
-function hasAnchorMaterial(
-  anchor: TrustDecisionEvidenceInput["anchor"]
-): boolean {
-  return Boolean(
-    hasMeaningfulValue(anchor?.transactionId) ||
-      hasMeaningfulValue(anchor?.anchoredAtUtc)
-  );
-}
-
-function isValidOtsBitcoinTxid(
-  value: string | null | undefined
-): boolean {
-  return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value.trim());
-}
-
-function hasMalformedOtsBitcoinTxid(
-  value: string | null | undefined
-): boolean {
-  return hasMeaningfulValue(value) && !isValidOtsBitcoinTxid(value);
 }
 
 function buildCoreIntegritySignal(
@@ -635,93 +574,26 @@ function buildTimestampSignal(
 function buildAnchoringSignal(
   evidence: TrustDecisionEvidenceInput
 ): TrustSignal {
-  const otsHashMismatch =
-    hasMeaningfulValue(evidence.otsHash) &&
-    hasMeaningfulValue(evidence.fingerprintHash) &&
-    safe(evidence.otsHash).toLowerCase() !==
-      safe(evidence.fingerprintHash).toLowerCase();
-  const malformedTxidWithoutOtherProof =
-    hasMalformedOtsBitcoinTxid(evidence.otsBitcoinTxid) &&
-    !hasAnchorMaterial(evidence.anchor);
-
-  if (otsHashMismatch) {
-    return makeSignal({
-      key: "bitcoin_anchoring",
-      label: "Bitcoin anchoring",
-      state: "FAILED",
-      summary: "Bitcoin anchoring review required",
-      detail:
-        "Recorded OpenTimestamps hash material does not match the canonical fingerprint hash, so Bitcoin anchoring cannot be treated as verified.",
-    });
-  }
-
-  if (malformedTxidWithoutOtherProof) {
-    return makeSignal({
-      key: "bitcoin_anchoring",
-      label: "Bitcoin anchoring",
-      state: "FAILED",
-      summary: "Bitcoin anchoring review required",
-      detail:
-        "A malformed Bitcoin transaction identifier was recorded without any other defensible Bitcoin transaction id or anchored timestamp.",
-    });
-  }
-
-  // THE CLAIM FOLLOWS THE CHECK. A proof carrying a Bitcoin attestation is
-  // PRESENT; only a recorded BITCOIN_VERIFIED check is PASSED.
+  // THE CANONICAL OTS STATE (2026-10-13): a stored proof that executes from
+  // the record's digest to a valid Bitcoin block attestation is ANCHORED — a
+  // passed signal. Nothing else (a txid, a time, a status string) decides it.
   const ots = resolveOtsTrustState({
     status: evidence.otsStatus,
-    anchoredAtUtc: evidence.otsAnchoredAtUtc ?? evidence.anchor?.anchoredAtUtc ?? null,
-    anchorCheck: normalizeOtsAnchorCheck(evidence.otsAnchorCheck ?? null),
-    proofPresent: evidence.otsProofPresent ?? null,
+    proofBase64: evidence.otsProofBase64,
+    fingerprintHash: evidence.fingerprintHash ?? null,
+    otsHash: evidence.otsHash ?? null,
+    failureReason: evidence.otsFailureReason ?? null,
+    calendar: evidence.otsCalendar ?? null,
+    anchoredAtUtc: evidence.otsAnchoredAtUtc ?? null,
     upgradedAtUtc: evidence.otsUpgradedAtUtc ?? null,
-    submittedAtUtc: evidence.otsSubmittedAtUtc ?? null,
-    anchorCheckedAtUtc: evidence.otsAnchorCheckedAtUtc ?? null,
-    // The txid precondition the package seals: a chain check with no txid on
-    // the record is never "verified". Passed whenever the caller supplied the
-    // field (null = known to be absent).
-    ...(evidence.otsBitcoinTxid !== undefined ? { bitcoinTxid: evidence.otsBitcoinTxid } : {}),
-    truth: {
-      attestationRecordedAtUtc: evidence.otsAttestationRecordedAtUtc ?? null,
-      attestationBlockHeight: evidence.otsAttestationBlockHeight ?? null,
-      chainVerificationStatus: evidence.otsChainVerificationStatus ?? null,
-      chainCheckedAtUtc: evidence.otsChainCheckedAtUtc ?? null,
-      chainVerifiedAtUtc: evidence.otsChainVerifiedAtUtc ?? null,
-      chainBlockHeight: evidence.otsChainBlockHeight ?? null,
-      chainBlockHash: evidence.otsChainBlockHash ?? null,
-      chainBlockTimeUtc: evidence.otsChainBlockTimeUtc ?? null,
-      chainConfirmations: evidence.otsChainConfirmations ?? null,
-      chainVerifier: evidence.otsChainVerifier ?? null,
-      chainFailureCode: evidence.otsChainFailureCode ?? null,
-      digestBinding: evidence.otsProofBase64
-        ? checkOtsDigestBinding({
-            proofBase64: evidence.otsProofBase64,
-            fingerprintHash: evidence.fingerprintHash ?? null,
-            otsHash: evidence.otsHash ?? null,
-          })
-        : null,
-    },
   });
-
-  const detail: Readonly<Record<TrustSignalState, string>> = {
-    PASSED: `The OpenTimestamps proof was independently verified against the Bitcoin blockchain (verified ${ots.measuredAtUtc ?? "at an unrecorded time"}).`,
-    PRESENT_NOT_INDEPENDENTLY_VERIFIED:
-      "The OpenTimestamps proof carries a Bitcoin attestation for this record's fingerprint digest. It has not been independently verified against the Bitcoin blockchain, so no Bitcoin anchor is claimed.",
-    NOT_CHECKED: "The anchoring proof was not checked in this evaluation.",
-    PENDING: "OpenTimestamps proof material is present, but Bitcoin anchoring has not finalized yet.",
-    STALE:
-      "The OpenTimestamps proof has been pending for longer than Bitcoin anchoring normally takes; its current state is not known and is not claimed.",
-    UNAVAILABLE: "Anchoring was not recorded for this evidence record.",
-    FAILED: "The OpenTimestamps proof is unusable for this record, or an independent Bitcoin check did not verify it.",
-    NOT_APPLICABLE: "",
-  };
-
   return makeSignal({
     key: "bitcoin_anchoring",
     label: "Bitcoin anchoring",
     state: ots.state,
     measuredAtUtc: ots.measuredAtUtc,
-    summary: ots.label,
-    detail: detail[ots.state],
+    summary: OTS_STATE_WORDS[ots.otsState],
+    detail: ots.label,
   });
 }
 
@@ -1018,8 +890,7 @@ export function deriveTrustPresentation(
   const signature = { state: stateOf("signature") };
   const custody = { state: stateOf("custody_chain") };
   const timestamp = { state: stateOf("trusted_timestamp") };
-  const anchoringSignal = signals.find((signal) => signal.key === "bitcoin_anchoring");
-  const anchoring = { state: anchoringSignal?.state ?? "UNAVAILABLE", summary: anchoringSignal?.summary ?? "" };
+  const anchoring = { state: stateOf("bitcoin_anchoring") };
 
   const criticalFailed =
     core.state === "FAILED" ||
@@ -1027,24 +898,19 @@ export function deriveTrustPresentation(
     custody.state === "FAILED";
 
   const corePassed = core.state === "PASSED";
-  const publicAnchoringPending = anchoring.state === "PENDING";
-  const anchoringPresentNotVerified =
-    anchoring.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED" || anchoring.state === "NOT_CHECKED";
   const anchoringState: TrustAnchoringState =
     anchoring.state === "PASSED"
-      ? "finalized"
-      : publicAnchoringPending
+      ? "anchored"
+      : anchoring.state === "PENDING"
         ? "pending"
-        : anchoringPresentNotVerified
-          ? "present_not_verified"
-          : anchoring.state === "STALE"
-            ? "stale"
-            : anchoring.state === "FAILED"
-              ? "failed"
-              : "unavailable";
-  // Every time-and-anchoring layer PASSED its own check: an attested proof or
-  // an unvalidated token never puts a record in the finalized bucket.
-  const finalizable = anchoringState === "finalized" && timestamp.state === "PASSED";
+        : anchoring.state === "FAILED"
+          ? "failed"
+          : anchoring.state === "NOT_APPLICABLE"
+            ? "not_requested"
+            : "unavailable";
+  // Every time-and-anchoring layer PASSED its own check: an unvalidated token
+  // never puts a record in the finalized bucket.
+  const finalizable = anchoringState === "anchored" && timestamp.state === "PASSED";
 
   // Internal presentation bucket — decided by the states themselves, never by
   // a weighted total. It picks a tone; it is not a conclusion and not shown.
@@ -1078,9 +944,7 @@ export function deriveTrustPresentation(
     presentationState,
     presentationTone: tone,
     anchoringState,
-    // A finalized anchor says exactly what was checked (see buildAnchoringSignal).
-    anchoringStatusLabel:
-      anchoringState === "finalized" ? anchoring.summary : getAnchoringStateLabel(anchoringState),
+    anchoringStatusLabel: ANCHORING_STATE_LABELS[anchoringState],
     summary: summarizeTrustSignals(signals as TrustSignal[]),
     reviewerAction,
     integrityReviewRequired: criticalFailed,
@@ -1154,14 +1018,14 @@ const TRUST_LAYER_STATE_LABELS: Readonly<
     FAILED: "Validation failed",
     UNAVAILABLE: "Not obtained",
   },
-  // The customer-facing OTS vocabulary (ots-truth OTS_PUBLIC_STATUSES).
+  // The customer-facing OTS vocabulary (ots-anchoring OTS_STATE_WORDS).
   bitcoin_anchoring: {
-    PASSED: "Verified",
-    PRESENT_NOT_INDEPENDENTLY_VERIFIED: "Attestation recorded",
-    PENDING: "Pending",
-    STALE: "Unavailable",
-    FAILED: "Unavailable",
-    UNAVAILABLE: "Unavailable",
+    PASSED: OTS_STATE_WORDS.ANCHORED,
+    PENDING: OTS_STATE_WORDS.PENDING,
+    STALE: OTS_STATE_WORDS.UNAVAILABLE,
+    FAILED: OTS_STATE_WORDS.FAILED,
+    UNAVAILABLE: OTS_STATE_WORDS.UNAVAILABLE,
+    NOT_APPLICABLE: OTS_STATE_WORDS.NOT_REQUESTED,
   },
   immutable_storage: {
     PASSED: "Storage protected",

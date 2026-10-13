@@ -139,6 +139,8 @@ import {
   INCIDENT_STATUS_FILTERS,
   OperationsSavedViewFilterSchema,
   resolveEvidenceOutputActions,
+  OTS_ANCHORING_RECORD_SELECT,
+  type OtsAnchoringRecord,
 } from "@proovra/shared";
 import { loadEvidenceOutputFacts } from "../services/reports/output-recovery.service.js";
 import { runSchemaValidation } from "../runtime/schema-validation.js";
@@ -1868,22 +1870,29 @@ export async function opsRoutes(app: FastifyInstance) {
 
       // ET-REC-06 — the affected record's OTS facts, so a permanently invalid
       // proof is not offered a Resume the worker would ignore.
-      const remediationRecord: {
+      const remediationRecord: (OtsAnchoringRecord & {
         otsStatus: string | null;
         otsFailureReason: string | null;
         outputRecovery?: "SUPERSEDE" | "RECOVER" | "NONE" | null;
-      } | null = detail.relatedEvidenceId
+      }) | null = detail.relatedEvidenceId
         ? await prisma.evidence
             .findUnique({
               where: { id: detail.relatedEvidenceId },
-              select: { teamId: true, ownerUserId: true, otsStatus: true, otsFailureReason: true },
+              // (2026-10-13) The OTS columns the one state authority reads.
+              select: { teamId: true, ownerUserId: true, ...OTS_ANCHORING_RECORD_SELECT },
             })
             // The record is in this workspace by the canonical resolver, not
             // by team_id alone: a Personal record is stored with team_id NULL
             // and lives in its owner's Personal workspace (OPS-01).
             .then(async (r) =>
               r && (await resolveEvidenceWorkspaceId(r, prisma as never)) === q.teamId
-                ? { otsStatus: r.otsStatus ? String(r.otsStatus) : null, otsFailureReason: r.otsFailureReason ?? null }
+                ? {
+                    otsStatus: r.otsStatus ? String(r.otsStatus) : null,
+                    otsFailureReason: r.otsFailureReason ?? null,
+                    otsProofBase64: r.otsProofBase64 ?? null,
+                    otsHash: r.otsHash ?? null,
+                    fingerprintHash: r.fingerprintHash ?? null,
+                  }
                 : null,
             )
             .catch(() => null)

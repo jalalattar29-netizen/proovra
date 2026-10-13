@@ -227,37 +227,43 @@ longer promotes to `ANCHORED`. OTS recovery touches OTS only. It requests no
 report and rewrites no issued PDF, and custody events are written only for
 material changes.
 
-## 12. The anchoring claim (`publicAnchoringVerified`)
+## 12. The anchoring state (`otsState`)
 
-`resolveOtsAnchorClaim` (`packages/shared/src/ots.ts`) is the only source of
-the claim. The claim is **VERIFIED** only for an anchored record whose anchor
-was verified against the Bitcoin chain. The other claims are:
-- **ANCHORED_NOT_CHECKED**: a proof-structure anchor, or a historical anchor whose check was never recorded.
-- **PENDING**: this includes an `ANCHORED` label with no anchor time.
-- **FAILED**
-- **UNAVAILABLE** and **NOT_CONFIGURED**
+Superseded 2026-10-13. There is one authority, `resolveOtsAnchoring`
+(`packages/shared/src/ots-anchoring.ts`). It decides the state from the
+stored proof bytes, executed against the record's evidence digest:
+- **ANCHORED** ("Bitcoin anchoring — Anchored"): the proof executes to a valid
+  Bitcoin block-header attestation.
+- **PENDING**: the proof has no Bitcoin attestation yet.
+- **FAILED**: a bounded code.
+- **UNAVAILABLE**: the material cannot be read.
+- **NOT_REQUESTED**
 
-A status string, a txid, an anchor time or a pending operation never makes the
-claim VERIFIED.
+A status string, a txid, an anchor time or an unparsed file never makes a
+record ANCHORED. PROOVRA operates no Bitcoin node and states that boundary once
+in the report appendix and the package README.
 
-The same claim feeds every surface:
-- the package manifest (`publicAnchoringVerified`, plus an explicit `anchoringClaim`);
-- `anchor.json` and `opentimestamps.json` (`anchorCheck`, `anchorClaim`, `publicAnchoringVerified`);
-- the package README;
-- report PDF labels;
-- the trust decision's `anchoringStatusLabel`;
+The same state feeds every surface:
+- the package manifest (`otsState`);
+- `anchor.json` and `opentimestamps.json` (`state`, the digest ↔ proof mapping,
+  `proof.sha256`, the attestation facts, `validator`);
+- the README ("what PROOVRA established" / "what an external reviewer can do");
+- the report card, cover and court index, and the report's
+  `anchorSnapshot.otsState`;
+- the trust decision and the verification matrix (`otsState` on the row);
 - evidence intelligence;
-- public Verify's basic tier (`not_checked` with basis `PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED`);
-- the web and mobile technical appendix, which prefer the server's `anchorClaim`.
+- Public Verify, web and mobile, which read the API's `OtsAnchoringView`
+  through `readOtsAnchoringView`. An unknown state reads as Unavailable.
 
-The format-5 seal binds the manifest, so flipping the value is detected
-(`ENTRIES_MATCH_INDEX`).
+A report whose stated state was not ANCHORED gets exactly one automatic report
++ package version when its proof anchors (`ots-anchored-version.ts`). The
+request is idempotent per proof, previous versions are preserved, and nothing
+is charged.
 
-Historical packages are immutable and are not re-signed. Packages issued before
-format 5 signed `publicAnchoringVerified` from "a txid or anchor time exists".
-Every package in production today is in that set. The artifact history labels
-them "older format; anchoring not chain-checked" rather than repeating their
-claim.
+Historical packages are immutable and are not re-signed. Format-5 packages
+issued before this change carry `publicAnchoringVerified`. The sealed-facts
+check (`checkSealedPackageFacts`) treats that field as retired in any NEW
+package.
 
 ## 13. Record conditions with no workspace row
 

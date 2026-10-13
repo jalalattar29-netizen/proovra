@@ -114,7 +114,7 @@ import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import {
   boundedOtsFailureCode,
   formatTimestampForReportUtc,
-  OTS_FAILURE_CODE_LABELS,
+  OTS_FAILURE_LABELS,
   type OtsFailureCode,
 } from "@proovra/shared";
 import { evidenceScopeForMany } from "@proovra/shared-runtime";
@@ -4677,9 +4677,9 @@ function humanizeEscalationReason(reason: string): string {
 function humanizeOtsFailureReason(code: OtsFailureCode): string {
   // ET-OTS-04 — one label per bounded code; stored text never reaches a member.
   if (code === "OTS_GLOBAL_BUDGET_EXHAUSTED") {
-    return `${OTS_FAILURE_CODE_LABELS[code]} No further attempts will be made.`;
+    return `${(OTS_FAILURE_LABELS[code] ?? OTS_FAILURE_LABELS.OTS_PROCESSING_FAILED)} No further attempts will be made.`;
   }
-  return OTS_FAILURE_CODE_LABELS[code];
+  return (OTS_FAILURE_LABELS[code] ?? OTS_FAILURE_LABELS.OTS_PROCESSING_FAILED);
 }
 
 function humanizeSecurityEventType(eventType: string): string {

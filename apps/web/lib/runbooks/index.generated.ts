@@ -116,7 +116,7 @@ export const RUNBOOK_INDEX: readonly RunbookIndexEntry[] = [
     title: "OTS / Bitcoin anchor degradation",
     category: "Storage & integrity",
     subsystems: ["ots","anchor"],
-    summary: "Failure modes: FM-OTS-001 (ANCHORED without proof), FM-OTS-002 (empty proof bytes).",
+    summary: "Failure modes: FM-OTS-001 (ANCHORED claimed without an anchored proof), FM-OTS-002 (empty or malformed proof bytes).",
   },
   {
     slug: "pentest-readiness",

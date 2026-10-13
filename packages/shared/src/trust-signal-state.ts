@@ -29,8 +29,7 @@
  * passed nor degraded). No state carries points: PROOVRA reports what was
  * checked, never a confidence score.
  */
-import { resolveOtsProofStatus, type OtsProofStatus, type OtsProofStatusInput } from "./ots-status.js";
-import { OTS_TRUTH_SENTENCES, resolveOtsTruth, type OtsTruthInput } from "./ots-truth.js";
+import { OTS_STATE_SENTENCES, resolveOtsAnchoring, type OtsAnchoringInput, type OtsState } from "./ots-anchoring.js";
 
 export const TRUST_SIGNAL_STATES = [
   "PASSED",
@@ -159,11 +158,11 @@ export function resolveSnapshotSignalState(signal: {
   if (signal.key === "verification_package") {
     return status === "missing" ? "UNAVAILABLE" : "NOT_APPLICABLE";
   }
-  // A legacy anchoring `passed` predates any recorded chain check: it was
-  // awarded for a proof's presence. Only an explicit PASSED state (written
-  // from a recorded BITCOIN_VERIFIED check) may ever read as verified.
+  // A legacy anchoring `passed` was awarded for a txid on the row, not for a
+  // validated proof; a stored snapshot cannot be re-validated, so it states
+  // nothing about anchoring. Only an explicit PASSED (a validated proof) counts.
   if (signal.key === "bitcoin_anchoring" && status === "passed") {
-    return "PRESENT_NOT_INDEPENDENTLY_VERIFIED";
+    return "UNAVAILABLE";
   }
   // Likewise a legacy timestamp `passed` predates "only a validated token
   // passes" (a STAMPED token could pass unvalidated): it says only that a
@@ -285,119 +284,49 @@ export function resolveTsaTrustState(input: TsaTrustStateInput): TsaTrustState {
 }
 
 // ---------------------------------------------------------------------------
-// OpenTimestamps — the one reading of an anchor as a trust state.
+// OpenTimestamps — the one reading of the anchoring state as a trust state.
 // ---------------------------------------------------------------------------
-
-export type OtsTrustStateInput = OtsProofStatusInput & {
-  /** The new OTS truth inputs (ots_attestation_*, ots_chain_*, the digest binding). */
-  truth?: Omit<OtsTruthInput, "status" | "anchoredAtUtc" | "anchorCheck"> | null;
-  /**
-   * When the canonical verifier last recorded its check (the `observedAtUtc`
-   * of the OTS_APPLIED custody event that wrote the check). Null when not
-   * recorded; a chain verification is then stated without a time.
-   */
-  anchorCheckedAtUtc?: Date | string | null;
-};
 
 export type OtsTrustState = {
   state: TrustSignalState;
-  proofStatus: OtsProofStatus;
+  otsState: OtsState;
   label: string;
   measuredAtUtc: string | null;
 };
 
+const OTS_TRUST: Readonly<Record<OtsState, TrustSignalState>> = {
+  ANCHORED: "PASSED",
+  PENDING: "PENDING",
+  FAILED: "FAILED",
+  UNAVAILABLE: "UNAVAILABLE",
+  NOT_REQUESTED: "NOT_APPLICABLE",
+};
+
 /**
- * An attested proof is NOT a verified anchor. Only a recorded
- * BITCOIN_VERIFIED check (the canonical `ots verify` against the chain) is
- * PASSED; a proof read by structure alone is PRESENT_NOT_INDEPENDENTLY_VERIFIED.
+ * The anchoring signal is the canonical OTS state (resolveOtsAnchoring): a
+ * stored proof that executes from the record's digest to a valid Bitcoin
+ * block attestation is ANCHORED, a success. Nothing else is.
  */
-export function resolveOtsTrustState(input: OtsTrustStateInput): OtsTrustState {
-  const chain = input.chain ?? input.truth ?? null;
-  const proofStatus = resolveOtsProofStatus({ ...input, chain });
-  // THE TRUTH MODEL DECIDES (2026-10-12). A proof that does not commit to the
-  // fingerprint, or a configured chain check that failed, is FAILED whatever
-  // the status column says; only recorded chain evidence is PASSED.
-  const truth = resolveOtsTruth({
-    ...(input.truth ?? {}),
-    status: input.status,
-    anchoredAtUtc: input.anchoredAtUtc,
-    anchorCheck: input.anchorCheck,
-    bitcoinTxid: input.bitcoinTxid ?? input.truth?.bitcoinTxid ?? null,
-    proofPresent: input.proofPresent ?? null,
-    upgradedAtUtc: input.upgradedAtUtc ?? null,
-    submittedAtUtc: input.submittedAtUtc ?? null,
-    now: input.now,
-  });
-  if (truth.state === "PROOF_INVALID" || truth.state === "CHAIN_VERIFICATION_FAILED") {
-    return { state: "FAILED", proofStatus: "FAILED", label: truth.detail, measuredAtUtc: truth.chainCheck?.checkedAtUtc ?? null };
-  }
-  if (truth.state === "CHAIN_VERIFIED" && truth.chain) {
-    return {
-      state: "PASSED",
-      proofStatus: "VERIFIED",
-      label: OTS_TRUTH_SENTENCES.CHAIN_VERIFIED,
-      measuredAtUtc: truth.chain.verifiedAtUtc,
-    };
-  }
-  switch (proofStatus) {
-    case "VERIFIED":
-      return {
-        state: "PASSED",
-        proofStatus,
-        label: OTS_TRUTH_SENTENCES.CHAIN_VERIFIED,
-        measuredAtUtc: isoOrNull(input.anchorCheckedAtUtc),
-      };
-    case "ANCHORED_UNVERIFIED":
-      return {
-        state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
-        proofStatus,
-        // A configured verifier that could not be reached is a recorded check
-        // with no result — said as such, never as "no check recorded".
-        label:
-          truth.state === "CHAIN_VERIFICATION_UNAVAILABLE"
-            ? OTS_TRUTH_SENTENCES.CHAIN_VERIFICATION_UNAVAILABLE
-            : OTS_TRUTH_SENTENCES.ATTESTATION_PRESENT_NOT_VERIFIED,
-        measuredAtUtc: isoOrNull(input.anchorCheckedAtUtc),
-      };
-    case "SUBMITTED":
-    case "PENDING":
-      return { state: "PENDING", proofStatus, label: OTS_TRUTH_SENTENCES.PENDING, measuredAtUtc: null };
-    case "STALE_UNKNOWN":
-      return {
-        state: "STALE",
-        proofStatus,
-        label: OTS_TRUTH_SENTENCES.UNKNOWN_OR_STALE,
-        measuredAtUtc: null,
-      };
-    case "FAILED":
-      return { state: "FAILED", proofStatus, label: OTS_TRUTH_SENTENCES.PROOF_INVALID, measuredAtUtc: null };
-    case "NOT_REQUESTED":
-    default:
-      return { state: "UNAVAILABLE", proofStatus, label: OTS_TRUTH_SENTENCES.NOT_REQUESTED, measuredAtUtc: null };
-  }
+export function resolveOtsTrustState(input: OtsAnchoringInput): OtsTrustState {
+  const ots = resolveOtsAnchoring(input);
+  return {
+    state: OTS_TRUST[ots.state],
+    otsState: ots.state,
+    label: OTS_STATE_SENTENCES[ots.state],
+    measuredAtUtc: ots.state === "ANCHORED" ? ots.anchoredAtUtc : null,
+  };
 }
 
 /**
- * The OTS facts that live in the custody chain (immutable, hash-linked):
- *   - submittedAtUtc: the first OTS_APPLIED event (the proof was requested);
- *   - anchorCheckedAtUtc: the latest OTS_APPLIED event that recorded the
- *     check now on the record (its `observedAtUtc`, else the event time).
- * One reading for the worker (report/package) and the API (Public Verify).
+ * When the record's digest was first submitted for anchoring: the first
+ * OTS_APPLIED custody event (immutable, hash-linked). One reading for the
+ * worker (report/package) and the API (Public Verify).
  */
 export function resolveOtsCustodyFacts(
-  events: ReadonlyArray<{ eventType?: string | null; atUtc?: Date | string | null; payload?: unknown }>,
-  currentAnchorCheck: string | null | undefined,
-): { submittedAtUtc: string | null; anchorCheckedAtUtc: string | null } {
-  let submittedAtUtc: string | null = null;
-  let anchorCheckedAtUtc: string | null = null;
+  events: ReadonlyArray<{ eventType?: string | null; atUtc?: Date | string | null }>,
+): { submittedAtUtc: string | null } {
   for (const e of events) {
-    if (e.eventType !== "OTS_APPLIED") continue;
-    const at = isoOrNull(e.atUtc ?? null);
-    if (!submittedAtUtc) submittedAtUtc = at;
-    const p = (e.payload && typeof e.payload === "object" ? e.payload : {}) as Record<string, unknown>;
-    if (currentAnchorCheck && p.anchorCheck === currentAnchorCheck) {
-      anchorCheckedAtUtc = isoOrNull(typeof p.observedAtUtc === "string" ? p.observedAtUtc : null) ?? at;
-    }
+    if (e.eventType === "OTS_APPLIED") return { submittedAtUtc: isoOrNull(e.atUtc ?? null) };
   }
-  return { submittedAtUtc, anchorCheckedAtUtc };
+  return { submittedAtUtc: null };
 }

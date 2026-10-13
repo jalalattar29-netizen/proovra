@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { buildReportViewModel } from "../src/report-v2/build-view-model.js";
 import { renderReportHtml } from "../src/report-v2/render-html.js";
 import type { ReportV2Input } from "../src/report-v2/types.js";
+import { REAL, upgradedProof } from "../../../packages/shared/tests/helpers/ots-fixtures.mjs";
 import {
   PROOVRA_FORBIDDEN_SURFACE_PATTERNS,
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
@@ -264,7 +265,7 @@ describe("report v2 pipeline", () => {
     ]);
   });
 
-  it("treats txid-only anchor metadata as anchored in report-v2", async () => {
+  it("txid-only anchor metadata is never anchoring; the proof decides (2026-10-13)", async () => {
     const input = buildInput({
       evidence: {
         ...buildInput().evidence,
@@ -272,31 +273,43 @@ describe("report v2 pipeline", () => {
           "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         anchorAnchoredAtUtc: null,
         otsStatus: "ANCHORED",
-        // 2026-09-29: an anchor needs its time (isCompleteOtsAnchor); the OTS
-        // anchor time now reaches the anchor summary when the legacy anchor
-        // record has none.
         otsAnchoredAtUtc: "2026-09-20T10:00:00.000Z",
+        // The stored proof carries no Bitcoin attestation.
+        otsProofBase64: REAL.boundProofBase64,
+        otsHash: REAL.boundFingerprintHash,
+        fingerprintHash: REAL.boundFingerprintHash,
       },
     });
 
     const vm = await buildReportViewModel(input);
-
-    expect(vm.anchorSummary).not.toBeNull();
-    expect(vm.anchorSummary?.mode).toBe("anchored");
-    expect(vm.anchorSummary?.transactionId).toBe(
-      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    );
+    expect(vm.canonicalMaterials.otsState.state).toBe("PENDING");
+    expect(vm.anchorSummary?.transactionId ?? null).toBeNull();
     const html = renderReportHtml(vm);
-    expect(html).toContain("Anchor Transaction ID");
-    expect(html).toContain(
-      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    expect(html).not.toContain("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+    expect(html).toContain("OpenTimestamps proof is awaiting Bitcoin anchoring.");
+    expect(html).not.toContain("OpenTimestamps proof anchored in Bitcoin");
+    expect(html).not.toMatch(/OTS Anchored At|Anchor Anchored At|Attestation recorded|independently verified against/i);
+  });
+
+  it("an upgraded proof renders Bitcoin anchoring — Anchored with its derived txid and the boundary once", async () => {
+    const up = upgradedProof();
+    const vm = await buildReportViewModel(
+      buildInput({
+        evidence: {
+          ...buildInput().evidence,
+          otsStatus: "ANCHORED",
+          otsAnchoredAtUtc: "2026-10-13T08:00:00.000Z",
+          otsProofBase64: up.base64,
+          otsHash: REAL.boundFingerprintHash,
+          fingerprintHash: REAL.boundFingerprintHash,
+        },
+      }),
     );
-    expect(html.toLowerCase()).not.toContain("public anchoring");
-    // (2026-10-12) Nothing checked it against the chain: the txid is reported
-    // by the proof, never verified, and the recording time is not an anchor time.
-    expect(html).toContain("Reported by the OpenTimestamps proof; not independently verified");
-    expect(html).not.toContain("Bitcoin attestation independently verified");
-    expect(html).not.toMatch(/OTS Anchored At|Anchor Anchored At/i);
+    expect(vm.canonicalMaterials.otsState.state).toBe("ANCHORED");
+    const html = renderReportHtml(vm);
+    expect(html).toContain("OpenTimestamps proof anchored in Bitcoin.");
+    expect(html).toContain(up.txid!);
+    expect(html.split("PROOVRA does not claim independent canonical-chain verification").length - 1).toBe(1);
   });
 
   it("keeps full hashes and supporting previewable evidence visually represented", async () => {

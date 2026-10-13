@@ -17,7 +17,7 @@ import { CopyButton, copyToClipboard } from "../../../src/ui/copy-button";
 import { projectTrustDecision, type TrustDecision } from "../../../src/product/trust-decision";
 import { Alert, Linking, Pressable, Share, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { NEW_VERSION_ACTION, TRASH_KEEPS_PLAN_CAPACITY_COPY, reportFreshnessChangeCopy, type EvidenceOutputState } from "@proovra/shared";
+import { NEW_VERSION_ACTION, otsAnchoringCopy, TRASH_KEEPS_PLAN_CAPACITY_COPY, reportFreshnessChangeCopy, type EvidenceOutputState } from "@proovra/shared";
 import { apiFetch } from "../../../src/api";
 import { EvidenceInternalMaterials } from "../../../src/ui/evidence-internal-materials";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
@@ -143,12 +143,11 @@ import {
   custodyChainLabel,
   downloadBlockedReason,
   isIntegrityFailed,
-  isOtsTerminal,
   lifecycleFacts,
+  otsRecheckAvailable,
   projectArtifactOutputs,
   projectCaptureTemplate,
   projectCustodyTimelines,
-  projectOtsEffectiveStatus,
   projectPreview,
   projectPublicVerification,
   projectRecord,
@@ -162,6 +161,7 @@ import {
   buildHashRows,
   buildTechnicalAppendix,
 } from "../../../src/product/evidence-technical-appendix";
+import { useOptionalLocale } from "../../../src/locale-context";
 import {
   ArtifactLifecyclePanel,
   PackageRecoveryPanel,
@@ -257,6 +257,7 @@ const EMPTY_OUTPUTS: ArtifactOutputs = projectArtifactOutputs(null);
 
 export default function EvidenceDetailScreen() {
   const router = useRouter();
+  const locale = useOptionalLocale();
   const params = useLocalSearchParams<{ id?: string; tab?: string }>();
   const id = params.id ?? "";
 
@@ -867,11 +868,11 @@ export default function EvidenceDetailScreen() {
   const record = useMemo(() => projectRecord(rw), [rw]);
   const preview = useMemo(() => projectPreview(rw), [rw]);
   const template = useMemo(() => projectCaptureTemplate(rw), [rw]);
-  const matrix = useMemo(() => buildPreservationMatrix(rw, (iso) => formatUserDateTime(iso) ?? iso), [rw]);
+  const matrix = useMemo(() => buildPreservationMatrix(rw, (iso) => formatUserDateTime(iso) ?? iso, locale), [rw, locale]);
   const sourceFacts = useMemo(() => buildSourceContextFacts(rw, (iso) => formatUserDateTime(iso) ?? iso), [rw]);
   const snapshotTiming = useMemo(() => buildSnapshotTiming(rw, (iso) => formatUserDateTime(iso) ?? iso), [rw]);
   const timelines = useMemo(() => projectCustodyTimelines(rw), [rw]);
-  const appendix = useMemo(() => buildTechnicalAppendix(technicalRaw.payload, rw), [technicalRaw.payload, rw]);
+  const appendix = useMemo(() => buildTechnicalAppendix(technicalRaw.payload, rw, locale), [technicalRaw.payload, rw, locale]);
   const hashes = useMemo(() => buildHashRows(rw), [rw]);
   const eventCounts = useMemo(() => buildEventCountRows(rw), [rw]);
   const divergenceReasons = useMemo(() => buildDivergenceReasons(rw), [rw]);
@@ -1523,7 +1524,7 @@ export default function EvidenceDetailScreen() {
             title="Verification & Preservation"
             description="Recorded integrity and preservation materials, each with the state PROOVRA can actually attest to. A state describes the material, not the truthfulness of what the material shows."
             action={
-              !isOtsTerminal(projectOtsEffectiveStatus(rw)) ? (
+              otsRecheckAvailable(rw) ? (
                 <ProovraButton label="Check latest status" variant="secondary" fullWidth={false} onPress={() => void load()} />
               ) : null
             }
@@ -1539,7 +1540,7 @@ export default function EvidenceDetailScreen() {
               <>
                 {preservation.signature.recorded ? <Row k="Signature" v={preservation.signature.valid === false ? "Recorded (invalid)" : "Recorded"} /> : null}
                 <Row k="Trusted timestamp (TSA)" v={preservation.tsa.status ? `${humanizeEnum(preservation.tsa.status)}${preservation.tsa.provider ? ` · ${preservation.tsa.provider}` : ""}` : "Not timestamped"} />
-                {preservation.ots.bitcoinTxid ? <Row k="Bitcoin tx" v={preservation.ots.bitcoinTxid} mono /> : null}
+                {preservation.ots.bitcoinTxid ? <Row k={otsAnchoringCopy(locale).facts.txid} v={preservation.ots.bitcoinTxid} mono /> : null}
               </>
             ) : null}
           </ProovraCard>

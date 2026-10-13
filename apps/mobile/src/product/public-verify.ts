@@ -29,11 +29,19 @@ import {
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
   hasCaptureLocationMetadata,
-  otsClaimBadge,
-  parseOtsAnchorClaim,
-  resolveOtsAnchorClaim,
-  OTS_TRUTH_SENTENCES,
+  otsAnchoringCopy,
+  parseOtsState,
+  type OtsState,
 } from "@proovra/shared";
+import {
+  otsBadgeLabel,
+  otsCard,
+  otsStateFromAnchoringBucket,
+  otsStateFromTrustSignal,
+  readOts,
+  type OtsAnchoringView,
+  type OtsFact,
+} from "./ots-anchoring";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
   PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
@@ -127,8 +135,8 @@ export interface VerifyView {
     signingKey: string | null;
   };
   tsa: { status: string | null; provider: string | null; genTimeUtc: string | null; serialNumber: string | null };
-  ots: { status: string | null; bitcoinTxid: string | null; anchoredAtUtc: string | null; calendar: string | null; proofPresent: boolean };
-  anchorTransactionId: string | null;
+  /** `storageAndTimestamping.ots` — the server's OtsAnchoringView (unknown → UNAVAILABLE). */
+  ots: OtsAnchoringView & { calendar: string | null; proofPresent: boolean };
   items: VerifyItem[];
   custody: Array<{ eventType: string; atUtc: string | null; summary: string | null }>;
   accessEventCount: number | null;
@@ -150,7 +158,6 @@ export function parseVerifyView(payload: unknown): VerifyView {
   const st = obj(d["storageAndTimestamping"]);
   const tsa = obj(st["tsa"]);
   const ots = obj(st["ots"]);
-  const anchor = obj(st["anchor"]);
   const content = obj(d["evidenceContent"]);
   const custody = obj(d["custodyLifecycle"]);
   const meta = obj(d["technicalMetadata"]);
@@ -227,13 +234,10 @@ export function parseVerifyView(payload: unknown): VerifyView {
     },
     tsa: { status: str(tsa["status"]), provider: str(tsa["provider"]), genTimeUtc: str(tsa["genTimeUtc"]), serialNumber: str(tsa["serialNumber"]) },
     ots: {
-      status: str(ots["status"]),
-      bitcoinTxid: str(ots["bitcoinTxid"]),
-      anchoredAtUtc: str(ots["anchoredAtUtc"]),
+      ...readOts(ots),
       calendar: str(ots["calendar"]),
       proofPresent: ots["proofPresent"] === true || tm["otsProofPresent"] === true,
     },
-    anchorTransactionId: str(anchor["transactionId"]),
     items,
     custody: forensic.map((raw) => {
       const e = obj(raw);
@@ -451,27 +455,13 @@ export function verifyTimestampTone(status?: string | null): { label: string; to
 }
 
 /**
- * verify-v2/_helpers.ts otsTone (2026-09-29): the badge from the ONE claim —
- * the server's anchorClaim, else the shared resolver — never from a txid.
+ * The Bitcoin anchoring badge (2026-10-13): the state the server resolved
+ * (`storageAndTimestamping.ots`, an OtsAnchoringView), in the locale's words.
+ * ANCHORED is the only success (with ✓), FAILED the only danger.
  */
-export function verifyOtsTone(input: {
-  anchorClaim?: string | null;
-  status?: string | null;
-  anchoredAtUtc?: string | null;
-  anchorCheck?: string | null;
-  proofPresent?: boolean | null;
-  bitcoinTxid?: string | null;
-}): { label: string; tone: VerifyWebTone } {
-  const claim =
-    parseOtsAnchorClaim(input.anchorClaim) ??
-    resolveOtsAnchorClaim({
-      status: input.status,
-      anchoredAtUtc: input.anchoredAtUtc,
-      anchorCheck: input.anchorCheck,
-      proofPresent: input.proofPresent,
-      bitcoinTxid: input.bitcoinTxid ?? null,
-    });
-  return otsClaimBadge(claim);
+export function verifyOtsTone(ots: unknown, locale?: string | null): { label: string; tone: VerifyWebTone; state: OtsState } {
+  const card = otsCard(ots, locale);
+  return { label: otsBadgeLabel(card), tone: card.tone, state: card.state };
 }
 
 function isPositiveTsa(status?: string | null): boolean {
@@ -499,9 +489,11 @@ export interface VerifyIntegritySignals {
   custodyChainMode: string | null;
   custodyChainFailureReason: string | null;
   timestampDigestMatches: boolean | null;
-  otsHashMatches: boolean | null;
+  /** THE canonical OTS state the server sent (unknown → UNAVAILABLE). */
+  otsState: OtsState;
+  /** The stored proof does not commit to the record's digest (FAILED / PROOF_HASH_MISMATCH). */
+  otsProofMismatch: boolean;
   tsaStatus: string | null;
-  otsStatus: string | null;
   storage: { immutable: boolean | null; verified: boolean | null; mode: string | null };
 }
 
@@ -511,7 +503,7 @@ export function parseVerifyIntegritySignals(payload: unknown): VerifyIntegritySi
   const proof = obj(ip);
   const st = obj(d["storageAndTimestamping"]);
   const tsa = obj(st["tsa"]);
-  const ots = obj(st["ots"]);
+  const otsView = readOts(st["ots"]);
   const storage = obj(st["storage"]);
   return {
     present: Boolean(ip && typeof ip === "object"),
@@ -522,9 +514,9 @@ export function parseVerifyIntegritySignals(payload: unknown): VerifyIntegritySi
     custodyChainMode: str(proof["custodyChainMode"]),
     custodyChainFailureReason: str(proof["custodyChainFailureReason"]),
     timestampDigestMatches: bool(proof["timestampDigestMatches"]) ?? bool(tsa["digestMatchesTimestampInput"]),
-    otsHashMatches: bool(proof["otsHashMatches"]) ?? bool(ots["hashMatchesFingerprintHash"]),
+    otsState: otsView.state,
+    otsProofMismatch: otsView.state === "FAILED" && otsView.failureCode === "PROOF_HASH_MISMATCH",
     tsaStatus: upper(tsa["status"]),
-    otsStatus: upper(ots["status"]),
     storage: { immutable: bool(storage["immutable"]), verified: bool(storage["verified"]), mode: str(storage["mode"]) },
   };
 }
@@ -543,6 +535,8 @@ export interface VerifyTrustSignalView {
   detail: string;
   /** The word the badge shows: the status itself, never a score or a verdict. */
   presentationLabel: VerificationStatus;
+  /** bitcoin_anchoring only: the localized OTS word ("Anchored ✓", "Pending", …). */
+  statusLabel?: string;
 }
 export interface VerifyTrustDecisionView {
   /** The bounded summary of the signals (ends with the fixed limitation). */
@@ -557,6 +551,11 @@ export interface VerifyTrustDecisionView {
   signals: VerifyTrustSignalView[];
 }
 
+/** The bitcoin_anchoring signal's card: its canonical OTS state, in the locale's words. */
+function anchoringSignalCard(state: TrustSignalState, locale?: string | null) {
+  return otsCard({ state: otsStateFromTrustSignal(state) }, locale);
+}
+
 /** The tone of one verification status. VERIFIED alone is a success. */
 export function verificationStatusTone(status: VerificationStatus): VerifyWebTone {
   return status === "VERIFIED" ? "success" : status === "FAILED" ? "danger" : status === "NOT_CHECKED" ? "warning" : "neutral";
@@ -569,25 +568,28 @@ export function verificationStatusTone(status: VerificationStatus): VerifyWebTon
  * reliance level or a confidence in the reply (an older API, an old stored
  * snapshot) never reaches this view (evidence-claims correction 2026-10-08).
  */
-export function parseVerifyTrustDecision(payload: unknown): VerifyTrustDecisionView | null {
+export function parseVerifyTrustDecision(payload: unknown, locale?: string | null): VerifyTrustDecisionView | null {
   const decision = readStoredTrustDecision(obj(payload)["trustDecision"]);
   if (!decision) return null;
+  const copy = otsAnchoringCopy(locale);
   const signals: VerifyTrustSignalView[] = decision.signals.map((s) => {
     const status = toVerificationStatus(s.state);
     return {
       key: s.key,
-      label: s.label,
+      label: s.key === "bitcoin_anchoring" ? copy.title : s.label,
       state: s.state,
       status,
-      tone: verificationStatusTone(status),
-      summary: s.summary,
+      // Bitcoin anchoring: Anchored is green, Failed danger, the rest neutral.
+      tone: s.key === "bitcoin_anchoring" ? anchoringSignalCard(s.state, locale).tone : verificationStatusTone(status),
+      summary: s.key === "bitcoin_anchoring" ? anchoringSignalCard(s.state, locale).sentence : s.summary,
       detail: s.detail,
       presentationLabel: status,
+      ...(s.key === "bitcoin_anchoring" ? { statusLabel: otsBadgeLabel(anchoringSignalCard(s.state, locale)) } : {}),
     };
   });
   return {
     summary: decision.summary,
-    publicationPostureLine: `Publication posture: ${str(decision.anchoringStatusLabel) ?? "Bitcoin anchoring status requires review"}.`,
+    publicationPostureLine: `Publication posture: ${copy.title} — ${copy.words[otsStateFromAnchoringBucket(decision.anchoringState)]}.`,
     reviewerAction: str(decision.reviewerAction),
     integrityReviewRequired: decision.integrityReviewRequired,
     tone: decision.presentationTone as VerifyWebTone,
@@ -603,8 +605,10 @@ export interface VerifyMatrixRowView {
   key: string;
   label: string;
   status: VerificationStatus;
-  /** The OpenTimestamps row's public word (Pending, Attestation recorded, …). */
+  /** The Bitcoin anchoring row's word (Pending, Anchored ✓, …), localized. */
   statusLabel?: string;
+  /** The canonical OTS state, on the ots_anchoring row only. */
+  otsState?: OtsState;
   statement: string;
   measuredAtUtc: string | null;
   tone: VerifyWebTone;
@@ -634,12 +638,12 @@ const INTEGRITY_REVIEW_KEYS: ReadonlySet<string> = new Set([
  * this build) is read from its trust signals instead — one row per signal,
  * its status and its recorded words — never from a score or a verdict.
  */
-export function parseVerifyMatrix(payload: unknown): VerifyMatrixView | null {
+export function parseVerifyMatrix(payload: unknown, locale?: string | null): VerifyMatrixView | null {
   const d = obj(payload);
   const matrix = parseVerificationMatrix(d["verificationMatrix"]);
   if (matrix && matrix.rows.length > 0) {
     return {
-      rows: matrix.rows.map((r) => ({ ...r, tone: verificationStatusTone(r.status) })),
+      rows: matrix.rows.map((r) => (r.key === "ots_anchoring" ? otsMatrixRow(r, locale) : { ...r, tone: verificationStatusTone(r.status) })),
       summary: matrix.summary,
       limitation: matrix.limitation || VERIFICATION_LIMITATION,
       source: "SERVER",
@@ -650,6 +654,9 @@ export function parseVerifyMatrix(payload: unknown): VerifyMatrixView | null {
   return {
     rows: decision.signals.map((s) => {
       const status = toVerificationStatus(s.state);
+      if (s.key === "bitcoin_anchoring") {
+        return otsMatrixRow({ key: s.key, status, measuredAtUtc: s.measuredAtUtc, otsState: otsStateFromTrustSignal(s.state) }, locale);
+      }
       return {
         key: s.key,
         label: s.label,
@@ -665,6 +672,27 @@ export function parseVerifyMatrix(payload: unknown): VerifyMatrixView | null {
   };
 }
 
+/**
+ * The Bitcoin anchoring row: the state the row carries (a legacy row without
+ * one reads as UNAVAILABLE in the shared parser), in the locale's words.
+ */
+function otsMatrixRow(
+  r: { key: string; status: VerificationStatus; measuredAtUtc: string | null; otsState?: OtsState },
+  locale?: string | null,
+): VerifyMatrixRowView {
+  const card = otsCard({ state: r.otsState }, locale);
+  return {
+    key: r.key,
+    label: card.title,
+    status: r.status,
+    statusLabel: otsBadgeLabel(card),
+    otsState: card.state,
+    statement: card.sentence,
+    measuredAtUtc: r.measuredAtUtc,
+    tone: card.tone,
+  };
+}
+
 /** A FAILED file-integrity, record-signature or custody check, from the decision or the matrix. */
 export function verifyIntegrityReviewRequired(trust: VerifyTrustDecisionView | null, matrix: VerifyMatrixView | null): boolean {
   if (trust?.integrityReviewRequired) return true;
@@ -673,12 +701,12 @@ export function verifyIntegrityReviewRequired(trust: VerifyTrustDecisionView | n
 
 /** Web `publicationPendingPosture` (page.tsx:3760). */
 export function verifyPublicationPending(d: VerifyTrustDecisionView): boolean {
-  return d.presentationState === "VERIFIED_PENDING_ANCHORING" || d.anchoringState === "pending" || d.anchoringState === "degraded";
+  return d.presentationState === "VERIFIED_PENDING_ANCHORING" || d.anchoringState === "pending";
 }
 
 /** Web `executiveBadges` (page.tsx:3765): each signal with its status word. */
 export function verifyExecutiveBadges(d: VerifyTrustDecisionView): Array<{ label: string; tone: VerifyWebTone }> {
-  return d.signals.map((s) => ({ label: `${s.label}: ${s.status}`, tone: s.tone }));
+  return d.signals.map((s) => ({ label: `${s.label}: ${s.statusLabel ?? s.status}`, tone: s.tone }));
 }
 
 export const VERIFY_TRUST_COPY = {
@@ -702,8 +730,8 @@ export const VERIFY_TRUST_COPY = {
   reviewerActionKicker: "Reviewer Action",
   reviewerActionBoundary: `Each status is limited to the recorded technical state. ${VERIFICATION_LIMITATION}`,
   publicationPostureKicker: "Publication Posture",
-  publicationPostureBody:
-    "Independent public anchoring is not finalized yet. OpenTimestamps anchoring is not verified; recheck it later if independent public anchoring matters to the review.",
+  /** The PENDING sentence of the one OTS vocabulary (the screen prints the locale's: otsAnchoringCopy). */
+  publicationPostureBody: otsAnchoringCopy("en").sentences.PENDING,
   verificationWarningKicker: "Verification Warning",
 } as const;
 
@@ -766,16 +794,16 @@ export function buildVerifyVerdict(
   const presentationState = trust?.presentationState ?? null;
   const coreExplicitlyVerified = core?.state === "PASSED";
   const publicAnchoringPending =
-    anchoring?.state === "PENDING" || anchoring?.state === "STALE" || presentationState === "VERIFIED_PENDING_ANCHORING";
+    anchoring?.state === "PENDING" || presentationState === "VERIFIED_PENDING_ANCHORING";
   const timestampMismatch = isPositiveTsa(s.tsaStatus) && s.timestampDigestMatches === false;
   const timestampUnavailable = (isFailedTsa(s.tsaStatus) || !String(s.tsaStatus ?? "").trim()) && s.timestampDigestMatches !== true;
-  const failedSignals = [s.canonicalHashMatches === false, s.signatureValid === false, s.custodyChainValid === false, timestampMismatch, s.otsHashMatches === false].filter(Boolean).length;
+  const failedSignals = [s.canonicalHashMatches === false, s.signatureValid === false, s.custodyChainValid === false, timestampMismatch, s.otsProofMismatch].filter(Boolean).length;
   const passedSignals = [
     s.canonicalHashMatches === true,
     s.signatureValid === true,
     s.custodyChainValid === true,
     s.timestampDigestMatches === true,
-    s.otsHashMatches === true,
+    s.otsState === "ANCHORED",
     s.storage.verified === true || s.storage.immutable === true,
   ].filter(Boolean).length;
   const knownSignals = [
@@ -783,7 +811,7 @@ export function buildVerifyVerdict(
     s.signatureValid !== null,
     s.custodyChainValid !== null,
     s.timestampDigestMatches !== null,
-    s.otsHashMatches !== null,
+    s.otsState !== "UNAVAILABLE",
     s.storage.verified !== null || s.storage.immutable !== null,
   ].filter(Boolean).length;
 
@@ -855,8 +883,8 @@ export function buildVerifyReviewerActions(verdict: VerifyVerdictView, s: Verify
     actions.push(
       "Review timestamp availability. The timestamp provider did not return a usable token, so no timestamp digest match or mismatch can be concluded.",
     );
-  if (s.otsHashMatches === false)
-    actions.push("Review the OpenTimestamps proof and its linked hash. The OTS proof should be checked against the recorded fingerprint/hash material.");
+  if (s.otsProofMismatch)
+    actions.push("Review the OpenTimestamps proof: it does not commit to this record's evidence digest.");
   if (s.storage.immutable !== true && s.storage.verified !== true)
     actions.push("Confirm storage immutability or retention status before relying on the storage-protection layer.");
   if (actions.length === 0)
@@ -895,11 +923,11 @@ export function buildVerifyMismatchExplanations(s: VerifyIntegritySignals): Arra
       severity: "warning",
       body: "The trusted timestamp digest does not match the recorded timestamp input digest. This does not automatically prove the content is false, but it means the timestamp layer cannot be treated as clean without review.",
     });
-  if (s.otsHashMatches === false)
+  if (s.otsProofMismatch)
     out.push({
-      title: "OpenTimestamps hash mismatch",
+      title: "Bitcoin anchoring failed",
       severity: "warning",
-      body: "The OpenTimestamps hash does not match the recorded fingerprint hash. The OTS proof should be manually checked against the expected digest.",
+      body: "The OpenTimestamps proof does not commit to this record's evidence digest.",
     });
   return out;
 }
@@ -919,7 +947,7 @@ export function verifyMismatchMessages(s: VerifyIntegritySignals): string[] {
     items.push(
       "Trusted timestamp unavailable. The timestamp provider did not return a usable token, so no timestamp digest match or mismatch can be concluded.",
     );
-  if (s.otsHashMatches === false) items.push("The OpenTimestamps hash did not match the recorded fingerprint hash.");
+  if (s.otsProofMismatch) items.push("The OpenTimestamps proof does not commit to this record's evidence digest.");
   return items;
 }
 
@@ -996,9 +1024,11 @@ function formatSignatureStatus(status?: string | null): string {
 
 export interface VerifyAnchoringView {
   snapshotRows: Array<{ label: string; value: string }>;
-  liveRows: Array<{ label: string; value: string }>;
+  liveRows: Array<{ label: string; value: string; mono?: boolean }>;
   advanced: boolean;
   otsPending: boolean;
+  /** The PENDING sentence in the locale's words. */
+  otsPendingSentence: string;
 }
 
 /**
@@ -1006,21 +1036,22 @@ export interface VerifyAnchoringView {
  * built by public-verify-consistency.service.ts). The web renders both blocks
  * only when `verificationSnapshot` is present (page.tsx:5158).
  */
-export function parseVerifyAnchoring(payload: unknown, fmt: (iso: string) => string): VerifyAnchoringView | null {
+export function parseVerifyAnchoring(payload: unknown, fmt: (iso: string) => string, locale?: string | null): VerifyAnchoringView | null {
   const d = obj(payload);
   const rawSnap = d["verificationSnapshot"];
   if (!rawSnap || typeof rawSnap !== "object") return null;
   const snap = obj(rawSnap);
   const live = obj(d["liveAnchoring"]);
-  const otsStatus = upper(obj(obj(d["storageAndTimestamping"])["ots"])["status"]);
+  // THE live state: the OtsAnchoringView the server sent (liveAnchoring.ots when
+  // present, else storageAndTimestamping.ots). Never re-derived from a txid or a time.
+  const liveOts = obj(live["ots"]);
+  const ots = otsCard(Object.keys(liveOts).length > 0 ? liveOts : obj(d["storageAndTimestamping"])["ots"], locale, fmt);
+  const copy = otsAnchoringCopy(locale);
+  const snapState = str(snap["otsStatusAtGeneration"]);
   const reportVersion = num(snap["reportVersion"]);
   const packageVersion = num(snap["packageVersion"]);
   const pkgSig = obj(snap["verificationPackageSignature"]);
   const snapGen = str(snap["generatedAtUtc"]);
-  const currentOts = str(live["currentOtsStatus"]) ?? otsStatus;
-  // (2026-10-12) The verified block time only; the recording time beside it.
-  const liveAnchored = str(live["otsAnchoredAtUtc"]);
-  const liveRecorded = str(live["otsProofRecordedAtUtc"]);
   const liveUpdated = str(live["lastUpdatedAtUtc"]);
   return {
     snapshotRows: [
@@ -1028,7 +1059,10 @@ export function parseVerifyAnchoring(payload: unknown, fmt: (iso: string) => str
       { label: "Generated At", value: snapGen ? fmt(snapGen) : "Not recorded" },
       { label: "Report Version", value: reportVersion !== null ? `v${reportVersion}` : "Not recorded" },
       { label: "Package Version", value: packageVersion !== null ? `v${packageVersion}` : "Not recorded" },
-      { label: "OTS Status At Generation", value: str(snap["otsStatusAtGeneration"]) ?? "Not recorded in snapshot" },
+      {
+        label: `${copy.title} (at generation)`,
+        value: snapState ? copy.words[parseOtsState(snapState)] : "Not recorded in snapshot",
+      },
       { label: "Report Signature", value: formatSignatureStatus(str(obj(snap["reportSignature"])["status"])) },
       {
         label: "Package Manifest Signature",
@@ -1038,19 +1072,18 @@ export function parseVerifyAnchoring(payload: unknown, fmt: (iso: string) => str
       { label: "Snapshot Signal Summary", value: readStoredTrustDecision(snap["trustDecisionSnapshot"])?.summary ?? "No fixed signal snapshot" },
     ],
     liveRows: [
-      { label: "Current OTS Status", value: currentOts ?? "Not recorded" },
-      {
-        label: "Bitcoin Anchor Time (independently verified)",
-        value: liveAnchored ? fmt(liveAnchored) : "Not independently verified",
-      },
-      { label: "Proof Recorded by PROOVRA (UTC)", value: liveRecorded ? fmt(liveRecorded) : "Not recorded" },
-      { label: "Bitcoin Transaction", value: str(live["otsBitcoinTxid"]) ?? "Not recorded" },
+      { label: ots.title, value: otsBadgeLabel(ots) },
+      // Only the facts present; the txid only when the proof path derived it.
+      ...ots.facts
+        .filter((f: OtsFact) => f.key === "blockHeight" || f.key === "txid" || f.key === "anchoredAt")
+        .map((f: OtsFact) => ({ label: f.label, value: f.value, mono: f.mono })),
       { label: "Last Anchoring Update", value: liveUpdated ? fmt(liveUpdated) : "Not recorded" },
       { label: "Latest Report", value: live["newerReportAvailable"] === true ? "Latest report available" : "No newer report recorded" },
       { label: "Latest Package", value: live["newerPackageAvailable"] === true ? "Latest package available" : "No newer package recorded" },
     ],
     advanced: live["hasAdvancedSinceSnapshot"] === true,
-    otsPending: currentOts === "PENDING",
+    otsPending: ots.state === "PENDING",
+    otsPendingSentence: ots.sentence,
   };
 }
 
@@ -1060,7 +1093,7 @@ export const VERIFY_ANCHORING_COPY = {
   liveKicker: "Live anchoring status",
   liveBody: "This section reflects the current OpenTimestamps/public anchoring state and may advance after the package was generated.",
   advanced: "Anchoring has advanced since this package was generated. A newer report/package may be available.",
-  otsPending: OTS_TRUTH_SENTENCES.PENDING,
+  otsPending: otsAnchoringCopy("en").sentences.PENDING,
 } as const;
 
 // -------------------------------------------------------------- redaction
@@ -1600,28 +1633,6 @@ export function verifyRecordFields(
   return rows.filter((r): r is [string, string] => r[1] !== null).map(([label, value]) => ({ label, value }));
 }
 
-function normalizeOtsFailureMessage(raw?: string | null): string | null {
-  if (!raw) return null;
-  const text = raw.trim();
-  if (!text) return null;
-  const lower = text.toLowerCase();
-  if (lower.includes("cannot be greater than available calendar") || lower.includes("available calendar"))
-    return "OpenTimestamps proof was created, but blockchain anchoring is not available yet. The proof still needs more time to be upgraded by the calendar service.";
-  if (lower.includes("not found") && (lower.includes("ots") || lower.includes("opentimestamps")))
-    return "OpenTimestamps binary is not installed correctly in the worker environment.";
-  if (lower.includes("timed out") || lower.includes("timeout")) return "OpenTimestamps request timed out before the calendar service returned a result.";
-  if (
-    lower.includes("network") ||
-    lower.includes("econnreset") ||
-    lower.includes("enotfound") ||
-    lower.includes("fetch failed") ||
-    lower.includes("connection")
-  )
-    return "OpenTimestamps service could not be reached at the time of report generation.";
-  if (lower.includes("stamp") && lower.includes("failed")) return "OpenTimestamps stamping did not complete successfully for this evidence record.";
-  return "OpenTimestamps processing did not complete successfully for this evidence record.";
-}
-
 /** buildStoragePresentation (page.tsx:394) — the badge label. */
 function buildStoragePresentation(s: VerifyIntegritySignals["storage"]): { label: string; tone: VerifyWebTone } {
   const mode = (s.mode ?? "").trim().toUpperCase();
@@ -1649,6 +1660,7 @@ export interface VerifyIntegrityTabView {
   otherFields: VerifyMaterialField[];
   statusCards: VerifyStatusCard[];
   tsaFailureReason: string | null;
+  /** FAILED / UNAVAILABLE: the sentence with the bounded failure in words, and its code. */
   otsFailure: { message: string; technical: string } | null;
 }
 
@@ -1663,6 +1675,7 @@ export function verifyIntegrityTab(
   s: VerifyIntegritySignals,
   fmt: (iso: string) => string,
   integrityReviewRequired: boolean,
+  locale?: string | null,
 ): VerifyIntegrityTabView {
   const d = obj(payload);
   const tm = obj(d["technicalMaterials"]);
@@ -1713,24 +1726,13 @@ export function verifyIntegrityTab(
     v === true ? { value: yes, tone: yesTone } : v === false ? { value: no, tone: "warning" } : { value: unknown, tone: "neutral" };
   const storage = buildStoragePresentation(s.storage);
   const ts = verifyTimestampTone(s.tsaStatus);
-  const otsT = verifyOtsTone({
-    anchorClaim: str(ots["anchorClaim"]),
-    status: s.otsStatus,
-    anchoredAtUtc: str(ots["anchoredAtUtc"]),
-    anchorCheck: str(ots["anchorCheck"]),
-    proofPresent: bool(ots["proofPresent"]),
-    bitcoinTxid: str(ots["bitcoinTxid"]),
-  });
+  // THE Bitcoin anchoring card (2026-10-13): the server's OtsAnchoringView.
+  const otsC = otsCard(ots, locale, fmt);
+  const otsFailureCode = readOts(ots).failureCode;
   const proofPresent = bool(ots["proofPresent"]) ?? (tm["otsProofPresent"] === true ? true : null);
   const keyId = str(tm["signingKeyId"]);
   const keyVersion = num(tm["signingKeyVersion"]);
   const genTime = str(tsa["genTimeUtc"]);
-  // (2026-10-12) A response with truthState states the VERIFIED block time in
-  // anchoredAtUtc; an older one carried the recording time there.
-  const truthState = str(ots["truthState"]);
-  const anchoredAt = truthState ? str(ots["anchoredAtUtc"]) : null;
-  const proofRecordedAt = truthState ? str(ots["proofRecordedAtUtc"]) : str(ots["anchoredAtUtc"]);
-  const upgradedAt = str(ots["upgradedAtUtc"]);
   const text = (label: string, value: string | null): VerifyStatusCard | null => (value ? { label, value, tone: null } : null);
   const cards: Array<VerifyStatusCard | null> = [
     {
@@ -1748,7 +1750,7 @@ export function verifyIntegrityTab(
         ? { value: "Valid (Legacy)", tone: "info" as VerifyWebTone }
         : tri(s.custodyChainValid, "Valid", "Invalid", "Pending", "success")),
     },
-    { label: "OpenTimestamps", value: otsT.label, tone: otsT.tone },
+    { label: otsC.title, value: otsBadgeLabel(otsC), tone: otsC.tone },
     { label: "Storage Protection", value: storage.label, tone: storage.tone },
     { label: "Timestamp Status", value: ts.label, tone: ts.tone },
     text("Timestamp Provider", str(tsa["provider"])),
@@ -1758,18 +1760,11 @@ export function verifyIntegrityTab(
     text("Signing Key", keyId),
     text("Signing Key Version", keyVersion !== null ? String(keyVersion) : null),
     text("OTS Calendar", str(ots["calendar"])),
-    proofPresent !== null ? { label: "OTS Proof", value: proofPresent ? "Proof Present" : "Not Present", tone: proofPresent ? "success" : "neutral" } : null,
-    text("Bitcoin Anchor Time (independently verified)", anchoredAt ? fmt(anchoredAt) : null),
-    text("Proof Recorded by PROOVRA (UTC)", proofRecordedAt ? fmt(proofRecordedAt) : null),
-    text("Proof Upgraded by PROOVRA (UTC)", upgradedAt ? fmt(upgradedAt) : null),
-    {
-      label: "OTS Hash Check",
-      value: s.otsHashMatches === true ? "Hash Matches" : s.otsHashMatches === false ? "Hash Mismatch" : "Unavailable",
-      tone: s.otsHashMatches === true ? "success" : s.otsHashMatches === false ? "warning" : "neutral",
-    },
+    proofPresent !== null ? { label: "OTS Proof", value: proofPresent ? "Proof Present" : "Not Present", tone: "neutral" } : null,
+    // Only the facts present; the txid only when the proof path derived it.
+    ...otsC.facts.map((f) => text(f.label, f.value)),
+    otsC.boundary ? text(otsC.label, otsC.boundary) : null,
   ];
-  const otsReason = str(ots["failureReason"]);
-  const otsMsg = normalizeOtsFailureMessage(otsReason);
   return {
     hashField,
     multipart,
@@ -1778,7 +1773,7 @@ export function verifyIntegrityTab(
     otherFields,
     statusCards: cards.filter((c): c is VerifyStatusCard => c !== null),
     tsaFailureReason: str(tsa["failureReason"]),
-    otsFailure: otsMsg && otsReason ? { message: otsMsg, technical: otsReason.replace(/\s+/g, " ").trim() } : null,
+    otsFailure: otsC.failureLabel ? { message: `${otsC.sentence} ${otsC.failureLabel}`, technical: otsFailureCode ?? "" } : null,
   };
 }
 

@@ -83,15 +83,12 @@ describe("Phase IA-OTS-forward-retry — invariant: PENDING outcome MUST schedul
     expect(block).toMatch(/selfJobId:\s*job\.id/);
   });
 
-  it("no other outcome schedules a follow-up (anchored and failed are terminal for this job)", () => {
-    // (2026-10-12) Exactly two post-decision enqueues: the PENDING follow-up,
-    // and the chain re-check of a recorded attestation — which runs only when a
-    // chain verifier is CONFIGURED and has not concluded (chainRecheckDue).
+  it("no other outcome schedules a follow-up (anchored and failed are terminal)", () => {
+    // (2026-10-13) Exactly one post-decision enqueue: the PENDING follow-up.
+    // ANCHORED is terminal for its proof; no chain re-check exists.
     const enqueues = afterDecision().match(/enqueueOtsUpgradeJob\(/g) ?? [];
-    expect(enqueues.length).toBe(2);
-    expect(afterDecision()).toMatch(
-      /\} else if \(\s*transition\.status === "ANCHORED" &&\s*chainRecheckDue\([\s\S]{0,400}enqueueOtsUpgradeJob\(/,
-    );
+    expect(enqueues.length).toBe(1);
+    expect(afterDecision()).not.toMatch(/chainRecheckDue/);
     // A transient attempt error throws for the job's own retry budget instead.
     expect(afterDecision()).toMatch(/throw new Error\("OTS_UPGRADE_ATTEMPT_FAILED"\)/);
   });

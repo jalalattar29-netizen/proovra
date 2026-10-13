@@ -6,9 +6,9 @@
  * from the API at 1a86485c. These payloads are that API's shapes, taken from
  * its source, and every assertion is on the new client's own decision:
  *
- *   * Verify: the old API may send no `anchorClaim` and no `anchorCheck`. The
- *     badge is then derived by the shared resolver, and it never claims more
- *     than the stored fields support — a txid alone is NOT "verified".
+ *   * Verify (2026-10-13): the Bitcoin anchoring badge reads ONLY the server's
+ *     `state` (readOtsAnchoringView). An old API's status string, txid or
+ *     claim is never re-derived into a state: it reads as Unavailable.
  *   * Evidence Detail / Reports notes: the old API sends no
  *     `terminalReasonCode`; the note falls back to the reason's own copy, so
  *     no row is left blank and none invents the unreadable-original story.
@@ -34,33 +34,32 @@ import { otsTone } from "../components/verify-v2/_helpers";
 
 const TXID = "a".repeat(64);
 
-test("Verify: an old-API ANCHORED record with a txid but no claim/check is not shown as chain-verified", () => {
+test("Verify: an old-API OTS object (status string, txid, no state) reads as Unavailable — never anchored", () => {
   const badge = otsTone({
-    anchorClaim: null,
-    anchorCheck: null,
+    anchorClaim: "VERIFIED",
+    anchorCheck: "BITCOIN_VERIFIED",
     status: "ANCHORED",
+    effectiveStatus: "ANCHORED",
     anchoredAtUtc: "2026-09-01T00:00:00.000Z",
     proofPresent: true,
     bitcoinTxid: TXID,
   });
   assert.notEqual(badge.tone, "success");
-  assert.equal(badge.label, "ATTESTATION RECORDED");
+  assert.equal(badge.label, "Bitcoin anchoring unavailable");
 });
 
-test("Verify: an old-API ANCHORED record with NO txid is never shown as anchored-and-verified", () => {
-  const badge = otsTone({ status: "ANCHORED", anchoredAtUtc: "2026-09-01T00:00:00.000Z", bitcoinTxid: null });
-  assert.notEqual(badge.tone, "success");
+test("Verify: the server's ANCHORED state is the only success — 'Bitcoin anchored'", () => {
+  const badge = otsTone({ state: "ANCHORED", bitcoinTxid: TXID });
+  assert.equal(badge.tone, "success");
+  assert.equal(badge.label, "Bitcoin anchored");
 });
 
-test("Verify: the old API's own claim, when it sends one, is honoured as sent", () => {
-  assert.equal(otsTone({ anchorClaim: "PENDING", status: "ANCHORED", bitcoinTxid: TXID }).label, "PENDING");
-  assert.equal(otsTone({ anchorClaim: "VERIFIED", status: "ANCHORED", bitcoinTxid: TXID }).tone, "success");
-});
-
-test("Verify: PENDING / FAILED / nothing read the same without the new fields", () => {
-  assert.equal(otsTone({ status: "PENDING" }).label, "PENDING");
-  assert.equal(otsTone({ status: "FAILED" }).label, "UNAVAILABLE");
-  assert.equal(otsTone({ status: null }).label, "Unavailable");
+test("Verify: PENDING / FAILED / NOT_REQUESTED / unknown / nothing read from the server's state", () => {
+  assert.deepEqual(otsTone({ state: "PENDING" }), { label: "Bitcoin anchoring pending", tone: "neutral" });
+  assert.deepEqual(otsTone({ state: "FAILED" }), { label: "Bitcoin anchoring failed", tone: "warning" });
+  assert.deepEqual(otsTone({ state: "NOT_REQUESTED" }), { label: "Not requested", tone: "neutral" });
+  assert.deepEqual(otsTone({ state: "CHAIN_VERIFIED" }), { label: "Bitcoin anchoring unavailable", tone: "neutral" });
+  assert.deepEqual(otsTone(null), { label: "Bitcoin anchoring unavailable", tone: "neutral" });
 });
 
 test("Notes: an old-API output with no terminalReasonCode reads its reason's own copy", () => {
@@ -69,4 +68,26 @@ test("Notes: an old-API output with no terminalReasonCode reads its reason's own
     assert.equal(outputNoteCopy(oldOutput), outputUnavailableReasonCopy(reason));
     assert.equal(outputNoteShort(oldOutput), outputUnavailableReasonShort(reason));
   }
+});
+
+test("Web source carries none of the removed OpenTimestamps chain-verifier vocabulary (2026-10-13)", async () => {
+  const { readdirSync, readFileSync, statSync } = await import("node:fs");
+  const { join, resolve, dirname } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  const RETIRED =
+    /Attestation recorded|Independently verified|Bitcoin anchoring verified|chain-verified|proof still being prepared|OTS_CHAIN_VERIFIED_AFTER_REPORT|resolveOtsTruth|OTS_TRUTH_|resolveOtsAnchorClaim|otsClaimBadge|parseOtsAnchorClaim|OTS_PROOF_STATUS_LABELS|resolveEffectiveOtsStatus\(|anchorClaim|truthState/;
+  const offenders: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) {
+        walk(full);
+      } else if (/\.(ts|tsx)$/.test(name) && !name.endsWith(".generated.ts") && RETIRED.test(readFileSync(full, "utf8"))) {
+        offenders.push(full.slice(root.length + 1));
+      }
+    }
+  };
+  for (const dir of ["app", "components", "lib"]) walk(join(root, dir));
+  assert.deepEqual(offenders, []);
 });

@@ -75,7 +75,14 @@ function utf8Bytes(input: string): Uint8Array {
 
 /** The raw 32-byte SHA-256 digest of a string. */
 function sha256Bytes(input: string): Uint8Array {
-  const bytes = utf8Bytes(input);
+  return sha256OfBytes(utf8Bytes(input));
+}
+
+/**
+ * The raw 32-byte SHA-256 digest of bytes — browser-safe (no node:crypto). The
+ * OpenTimestamps proof executor (ots-proof.ts) runs proof operations with it.
+ */
+export function sha256OfBytes(bytes: Uint8Array): Uint8Array {
   const bitLen = bytes.length * 8;
 
   // Pad to a multiple of 64 bytes: 0x80, then zeros, then a 64-bit big-endian

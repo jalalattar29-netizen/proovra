@@ -171,29 +171,25 @@ describe("Phase IA-forward-path — every report/package read site selects the L
   });
 });
 
-describe("Phase IA-forward-path — OTS-anchored regen produces a version bump", () => {
+describe("Phase IA-forward-path — an anchored proof gets exactly one automatic version (2026-10-13)", () => {
   const UP = readSource("../../worker/src/ots-upgrade.processor.ts");
+  const VERSION = readSource("../../worker/src/ots-anchored-version.ts");
 
-  it("FULLY_ANCHORED records the anchor and re-issues NO report (Decision C, 2026-09-29)", () => {
-    // SUPERSEDED: this used to pin a forced regeneration with reason
-    // `ots_anchored`. A report is a dated statement; a later anchor is a later
-    // fact, recorded in custody and shown by Verify. Minting a version here
-    // also left latest reports with no paired package. An updated report is
-    // the explicit, reasoned user action only.
-    const block = enclosingSource(UP, 'if (classification.kind === "FULLY_ANCHORED")', "statement", {
-      fileName: "ots-upgrade.processor.ts",
-    });
-    expect(block).not.toMatch(/enqueueReportJob|requestReportGeneration|forceRegenerate/);
-    // The branch now only turns the classification into an observation; the
-    // no-report rule is stated where the write happens.
-    expect(block).toMatch(/kind:\s*"ANCHOR_PROVEN"/);
-    expect(UP).toMatch(/NO REPORT IS RE-ISSUED BECAUSE A PROOF CHANGED/);
+  it("ANCHORED runs the downstream version decision; nothing else in the processor requests a report", () => {
+    // SUPERSEDES Decision C (2026-09-29): the product contract now issues ONE
+    // automatic report + package version when the latest report stated a
+    // not-yet-anchored proof — through the existing versioning, idempotent per
+    // proof, previous versions preserved, no charge.
+    expect(UP).toMatch(/if \(transition\.status === "ANCHORED"\) \{\s*await requestAnchoredReportVersion\(/);
+    expect(UP).not.toMatch(/enqueueReportJob\(|requestReportGenerationFromWorker\(|forceRegenerate:/);
   });
 
-  it("a PENDING outcome (incl. recovered anchor material) never re-issues a report (2026-09-29)", () => {
-    // The pending branch no longer exists as its own statement: every
-    // classification becomes one observation. No path in the processor
-    // requests a report at all.
-    expect(UP).not.toMatch(/enqueueReportJob\(|requestReportGeneration\(|forceRegenerate:/);
+  it("the decision is idempotent per proof and goes through the existing request authority", () => {
+    expect(VERSION).toMatch(/clientRequestKey: key/);
+    expect(VERSION).toMatch(/ots-anchored:\$\{proofSha256/);
+    expect(VERSION).toMatch(/createReportGenerationRequest\(prisma, \{/);
+    expect(VERSION).toMatch(/purpose: "ots_upgrade_completed"/);
+    expect(VERSION).toMatch(/latest_report_anchored/);
+    expect(VERSION).toMatch(/no_report_yet/);
   });
 });

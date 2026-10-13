@@ -91,15 +91,17 @@ const STATUS_WORDS: Record<string, string> = {
   Failed: "FAILED",
   Recorded: "NOT_CHECKED",
   Pending: "NOT_CHECKED",
-  "Attestation recorded": "NOT_CHECKED",
+  // (2026-10-13) Bitcoin anchoring's own words: Anchored is the only success.
+  Anchored: "VERIFIED",
+  "Not requested": "NOT_APPLICABLE",
   Unavailable: "UNAVAILABLE",
   "Not applicable": "NOT_APPLICABLE",
 };
-const CARD_STATUS = "(Verified|Failed|Attestation recorded|Recorded|Pending|Unavailable|Not applicable)";
+const CARD_STATUS = "(Verified|Failed|Anchored|Recorded|Pending|Unavailable|Not requested|Not applicable)";
 function trustStatements(text: string) {
   const row = (label: string) => {
     // A card runs to the next card's mark, or to the page footer.
-    const m = text.match(new RegExp(`${label}\\s+${CARD_STATUS}\\s+([^]{1,300}?)(?=\\s+[!✓i]\\s+[A-Z]|\\s+PROOVRA Veri)`));
+    const m = text.match(new RegExp(`${label}\\s+${CARD_STATUS}(?:\\s*✓)?\\s+([^]{1,300}?)(?=\\s+[!✓i]\\s+[A-Z]|\\s+PROOVRA Veri)`));
     return { status: m?.[1] ? (STATUS_WORDS[m[1]] ?? null) : null, statement: m?.[2]?.replace(/\s+/g, " ").trim() ?? null };
   };
   const tsa = row("Trusted timestamp");
@@ -183,10 +185,11 @@ test.describe("updated report — the real stack, end to end", () => {
 
     anchorOtsThroughUpgrade(evidenceId);
     await expect
-      .poll(async () => (await status(owner.api, evidenceId)).outputs.trust.ots.status, { timeout: 180_000, intervals: [2000] })
+      .poll(async () => (await status(owner.api, evidenceId)).outputs.trust.ots.state, { timeout: 180_000, intervals: [2000] })
       .toBe("ANCHORED");
     const s = await status(owner.api, evidenceId);
-    expect(s.outputs.trust.ots.anchorCheck).toBe("PROOF_STRUCTURE");
+    // The server's OtsAnchoringView: the executed proof derives the anchor.
+    expect(s.outputs.trust.ots.label).toBe("Bitcoin anchored");
     expect(s.outputs.freshness.hasNewerFacts).toBe(true);
     expect(s.outputs.freshness.changes.map((c) => c.code)).toEqual(
       expect.arrayContaining(["TSA_VALIDATED_AFTER_REPORT", "OTS_ANCHORED_AFTER_REPORT"]),
@@ -204,7 +207,7 @@ test.describe("updated report — the real stack, end to end", () => {
     const header = page.getByTestId("artifact-truth-header");
     await expect(header.getByTestId("truth-freshness")).toContainText("New verification facts are available");
     await expect(header.getByTestId("truth-freshness")).toContainText("The trusted timestamp was validated after report v1 was generated.");
-    await expect(header.getByTestId("truth-freshness")).toContainText("A Bitcoin attestation was added to the OpenTimestamps proof after report v1 was generated.");
+    await expect(header.getByTestId("truth-freshness")).toContainText("The OpenTimestamps proof was anchored in Bitcoin after report v1 was generated.");
     await expect(header.getByTestId("truth-tsa")).toHaveText("Validated");
     await expect(page.getByTestId("pair-1")).toHaveAttribute("data-pair-latest", "true");
     await page.screenshot({ path: join(PROOF_DIR, "01-status-freshness.png"), fullPage: true });
@@ -400,11 +403,12 @@ test.describe("updated report — the real stack, end to end", () => {
     const claims2 = trustStatements(text2);
     record("v2TrustStatements", claims2);
     // v2 states the validated token — with the bounded sentence, never as
-    // qualified — and states the anchor proof as present but NOT_CHECKED.
+    // qualified — and states Bitcoin anchoring as Anchored (2026-10-13).
     expect(claims2.tsaStatus).toBe("VERIFIED");
     expect(claims2.tsaStatement ?? "").toMatch(/^RFC 3161 timestamp verified /);
-    expect(claims2.otsStatus).toBe("NOT_CHECKED");
-    expect(claims2.otsStatement ?? "").toBe("OpenTimestamps attestation recorded Independent Bitcoin verification was not performed.");
+    expect(claims2.otsStatus).toBe("VERIFIED");
+    expect(claims2.otsStatement ?? "").toMatch(/OpenTimestamps proof anchored in Bitcoin\./);
+    expect(claims2.otsStatement ?? "").not.toMatch(/Attestation recorded|Independent Bitcoin verification|chain-verified/i);
     expect(claims2.otsStatement ?? "").not.toMatch(/does not match|concern|review required|pending|not recorded/i);
 
     // v1 is untouched: same bytes, same hashes, still downloadable.

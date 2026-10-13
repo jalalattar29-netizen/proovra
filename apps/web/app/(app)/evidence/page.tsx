@@ -175,7 +175,7 @@ function ActiveTrustFilterChips({
     chips.push({ key: "tsaStatus", label: `Trust timestamp: ${humaniseTrustFilterValue(filters.tsaStatus)}` });
   }
   if (filters.otsStatus && filters.otsStatus !== "all") {
-    chips.push({ key: "otsStatus", label: `Blockchain anchor: ${humaniseTrustFilterValue(filters.otsStatus)}` });
+    chips.push({ key: "otsStatus", label: `Bitcoin anchoring: ${humaniseTrustFilterValue(filters.otsStatus)}` });
   }
   if (filters.publicVerifyState && filters.publicVerifyState !== "all") {
     chips.push({ key: "publicVerifyState", label: `Public verification: ${humaniseTrustFilterValue(filters.publicVerifyState)}` });

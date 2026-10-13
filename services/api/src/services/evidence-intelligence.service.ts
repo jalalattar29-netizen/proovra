@@ -5,14 +5,13 @@ import { evaluateCustodyChain } from "./custody-events.service.js";
 import {
   deriveCanonicalArtifactAvailability,
   isAccessCustodyEventType,
-  normalizeOtsStatusValue,
-  OTS_ANCHOR_CLAIM_LABELS,
-  OTS_TRUTH_SENTENCES,
+  OTS_STATE_LABELS,
+  OTS_STATE_SENTENCES,
   resolveTsaProofStatus,
-  resolveOtsAnchorClaim,
+  resolveRecordOtsAnchoring,
   classifyStorageProtection,
   storageProtectionAlert,
-  type OtsAnchorClaim,
+  type OtsState,
 } from "@proovra/shared";
 import type {
   EvidenceIntelligence,
@@ -72,17 +71,16 @@ type EvidenceIntelligenceInput = {
     /** ET-TSA-01 / UC-TRUST-007 — a STAMPED token is "recorded" only once validated. */
     tsaValidatedAtUtc?: Date | string | null;
     otsStatus: string | null;
-    /** 2026-09-29: the one OTS claim needs the anchor time and how it was established. */
+    /**
+     * (2026-10-13) The OTS record the one resolver reads
+     * (resolveRecordOtsAnchoring): the stored proof bytes decide the state.
+     */
+    otsProofBase64?: string | null;
+    otsHash?: string | null;
+    otsFailureReason?: string | null;
+    otsCalendar?: string | null;
     otsAnchoredAtUtc?: Date | string | null;
-    otsAnchorCheck?: string | null;
-    /** (2026-10-12) evidence.ots_chain_* — VERIFIED requires them. */
-    otsChainVerificationStatus?: string | null;
-    otsChainVerifiedAtUtc?: Date | string | null;
-    otsChainBlockHeight?: number | null;
-    otsChainBlockHash?: string | null;
-    otsChainBlockTimeUtc?: Date | string | null;
-    otsChainConfirmations?: number | null;
-    otsChainVerifier?: string | null;
+    otsUpgradedAtUtc?: Date | string | null;
     reportGeneratedAtUtc: Date | string | null;
     verificationPackageGeneratedAtUtc: Date | string | null;
     latestReportVersion: number | null;
@@ -354,7 +352,7 @@ function buildEvidenceReviewDecision(params: {
   chainValid: boolean;
   chainMode: string;
   outputs: EvidenceIntelligenceOutputs;
-  anchorClaim: OtsAnchorClaim;
+  otsState: OtsState;
 }): EvidenceIntelligence["reviewerDecision"] {
   const issues: string[] = [];
   const nextActions: string[] = [];
@@ -407,17 +405,17 @@ function buildEvidenceReviewDecision(params: {
    * not exist.
    */
   const packageAbsenceIsGap = outputAbsenceIsReviewGap(packageState);
-  const anchorGap = isAnchorGapClaim(params.anchorClaim);
+  const anchorGap = isAnchorGapState(params.otsState);
   if (anchorGap && packageAbsenceIsGap) {
     issues.push("OpenTimestamps anchoring and the verification package are not available.");
   } else if (anchorGap) {
     issues.push(
-      params.anchorClaim === "FAILED"
-        ? "OpenTimestamps anchoring failed for this record."
-        : "No OpenTimestamps proof is recorded for this record.",
+      params.otsState === "FAILED"
+        ? "Bitcoin anchoring failed for this record."
+        : "The OpenTimestamps proof for this record cannot currently be read.",
     );
   }
-  const anchorReason = anchorReadinessReason(params.anchorClaim);
+  const anchorReason = anchorReadinessReason(params.otsState);
 
   if (params.evidence.deletedAt) {
     return {
@@ -549,31 +547,7 @@ export function buildVerificationProof(params: EvidenceIntelligenceInput["eviden
   const hasHash = Boolean(params.fileSha256 || params.fingerprintHash);
   const signaturePresent = Boolean(params.signatureBase64 && params.signingKeyId && params.signingKeyVersion);
   const tsa = resolveTsaProofStatus({ tsaStatus: params.tsaStatus, tsaValidatedAtUtc: params.tsaValidatedAtUtc ?? null });
-  const otsClaim = resolveOtsAnchorClaim({
-    status: params.otsStatus,
-    anchoredAtUtc: params.otsAnchoredAtUtc ?? null,
-    anchorCheck: params.otsAnchorCheck ?? null,
-    chain: {
-      chainVerificationStatus: params.otsChainVerificationStatus ?? null,
-      chainVerifiedAtUtc: params.otsChainVerifiedAtUtc ?? null,
-      chainBlockHeight: params.otsChainBlockHeight ?? null,
-      chainBlockHash: params.otsChainBlockHash ?? null,
-      chainBlockTimeUtc: params.otsChainBlockTimeUtc ?? null,
-      chainConfirmations: params.otsChainConfirmations ?? null,
-      chainVerifier: params.otsChainVerifier ?? null,
-    },
-  });
-  const rawOts = normalizeOtsStatusValue(params.otsStatus);
-  const otsStatus: EvidenceIntelligence["verificationProof"]["otsStatus"] =
-    otsClaim === "VERIFIED"
-      ? "ANCHORED"
-      : otsClaim === "PENDING"
-        ? "PENDING"
-        : otsClaim === "FAILED"
-          ? "FAILED"
-          : rawOts === "DISABLED"
-            ? "DISABLED"
-            : "UNKNOWN";
+  const otsState = otsStateFor(params);
   const rejected = String(params.status) === "FAILED_HASH_MISMATCH";
   const explicitlyVerified =
     String(params.verificationStatus ?? "") === "RECORDED_INTEGRITY_VERIFIED" ||
@@ -591,7 +565,7 @@ export function buildVerificationProof(params: EvidenceIntelligenceInput["eviden
           : tsa === "PENDING"
             ? "PENDING"
             : "UNKNOWN",
-                otsStatus,
+    otsState,
   };
 }
 
@@ -786,19 +760,19 @@ function buildReviewerAlerts(params: {
   // read "Public verification not configured" whenever the external-anchor
   // provider variable was empty — which says nothing about public Verify (it
   // serves every finalized, published record) and fired on every record.
-  const anchorClaim = anchorClaimFor(params);
-  if (anchorClaim === "FAILED") {
+  const otsState = otsStateFor(params.evidence);
+  if (otsState === "FAILED") {
     alerts.push({
       severity: "warning",
-      label: "OpenTimestamps anchoring failed",
+      label: OTS_STATE_LABELS.FAILED,
       detail:
-        "The OpenTimestamps proof for this record could not be anchored. The record's fingerprint, signature and custody chain are unaffected.",
+        `${OTS_STATE_SENTENCES.FAILED} The record's fingerprint, signature and custody chain are unaffected.`,
     });
-  } else if (anchorClaim === "NOT_CONFIGURED") {
+  } else if (otsState === "UNAVAILABLE") {
     alerts.push({
       severity: "warning",
-      label: "No OpenTimestamps proof recorded",
-      detail: "No OpenTimestamps proof is recorded for this evidence record.",
+      label: OTS_STATE_LABELS.UNAVAILABLE,
+      detail: OTS_STATE_SENTENCES.UNAVAILABLE,
     });
   }
 
@@ -879,16 +853,15 @@ function buildLibrarySummary(params: {
   evidence: EvidenceIntelligenceInput["evidence"];
   chainValid: boolean;
   outputs: EvidenceIntelligenceOutputs;
-  anchorClaim: OtsAnchorClaim;
+  otsState: OtsState;
 }): EvidenceIntelligence["librarySummary"] {
-  // (2026-10-12) Only an anchor VERIFIED against the Bitcoin chain earns the
-  // point. An attestation that was not independently verified earns nothing
-  // and costs nothing: it leaves the denominator, exactly like a disabled
-  // deployment (UNAVAILABLE) does. A pending or failed proof scores zero.
+  // (2026-10-13) An ANCHORED proof earns the point. Anchoring that was not
+  // requested leaves the denominator; a pending, failed or unreadable proof
+  // scores zero.
   const signals: number[] = [params.chainValid ? 1 : 0];
-  if (params.anchorClaim === "VERIFIED") {
+  if (params.otsState === "ANCHORED") {
     signals.push(1);
-  } else if (params.anchorClaim !== "UNAVAILABLE" && params.anchorClaim !== "ANCHORED_NOT_CHECKED") {
+  } else if (params.otsState !== "NOT_REQUESTED") {
     signals.push(0);
   }
   if (outputParticipatesInReadinessScore(params.outputs.report.state)) {
@@ -924,75 +897,36 @@ function formatNullableDate(value: Date | string | null | undefined): string | n
 }
 
 /**
- * The record's ONE OTS claim (shared `resolveOtsAnchorClaim`). A transaction id
- * or an anchored-at time on the anchor summary is anchor material, not a check.
+ * (2026-10-13) The record's ONE OTS state (resolveRecordOtsAnchoring): the
+ * stored proof executed against the fingerprint digest. A transaction id or an
+ * anchored-at time on the anchor summary is never an input.
  */
-function anchorClaimFor(params: {
-  evidence: Pick<
-    EvidenceIntelligenceInput["evidence"],
-    | "otsStatus"
-    | "otsAnchoredAtUtc"
-    | "otsAnchorCheck"
-    | "otsChainVerificationStatus"
-    | "otsChainVerifiedAtUtc"
-    | "otsChainBlockHeight"
-    | "otsChainBlockHash"
-    | "otsChainBlockTimeUtc"
-    | "otsChainConfirmations"
-    | "otsChainVerifier"
-  >;
-  anchor?: { anchoredAtUtc?: Date | string | null } | null;
-}): OtsAnchorClaim {
-  return resolveOtsAnchorClaim({
-    status: params.evidence.otsStatus,
-    anchoredAtUtc: params.evidence.otsAnchoredAtUtc ?? params.anchor?.anchoredAtUtc ?? null,
-    anchorCheck: params.evidence.otsAnchorCheck ?? null,
-    chain: {
-      chainVerificationStatus: params.evidence.otsChainVerificationStatus ?? null,
-      chainVerifiedAtUtc: params.evidence.otsChainVerifiedAtUtc ?? null,
-      chainBlockHeight: params.evidence.otsChainBlockHeight ?? null,
-      chainBlockHash: params.evidence.otsChainBlockHash ?? null,
-      chainBlockTimeUtc: params.evidence.otsChainBlockTimeUtc ?? null,
-      chainConfirmations: params.evidence.otsChainConfirmations ?? null,
-      chainVerifier: params.evidence.otsChainVerifier ?? null,
-    },
-  });
+function otsStateFor(evidence: EvidenceIntelligenceInput["evidence"]): OtsState {
+  return resolveRecordOtsAnchoring({
+    otsStatus: evidence.otsStatus,
+    otsProofBase64: evidence.otsProofBase64 ?? null,
+    otsHash: evidence.otsHash ?? null,
+    fingerprintHash: evidence.fingerprintHash ?? null,
+    otsFailureReason: evidence.otsFailureReason ?? null,
+    otsCalendar: evidence.otsCalendar ?? null,
+    otsAnchoredAtUtc: evidence.otsAnchoredAtUtc ?? null,
+    otsUpgradedAtUtc: evidence.otsUpgradedAtUtc ?? null,
+  }).state;
 }
 
 /**
- * READINESS IS NOT CHAIN VERIFICATION (2026-09-29).
- *
- * The review decision, the alerts and the score used to read "anchoring
- * verified against the Bitcoin chain" — a check this deployment cannot run
- * (no Bitcoin node) — as "the record is anchored". Every healthy record
- * therefore read "Bitcoin anchoring has not been confirmed" / "Needs review",
- * and the alert block said "Public verification not configured" because an
- * unrelated external-anchor provider variable was empty.
- *
- * What readiness needs is whether an OpenTimestamps anchor is RECORDED for
- * the record. The claim text a surface shows still distinguishes VERIFIED from
- * ANCHORED_NOT_CHECKED (`OTS_ANCHOR_CLAIM_LABELS`); nothing here upgrades one
- * to the other.
+ * An anchoring GAP worth a reviewer's attention: the proof failed, or the
+ * record references proof material that cannot be read. PENDING is the
+ * ordinary first hours of every record, and NOT_REQUESTED is not a defect.
  */
-function isAnchorRecordedClaim(claim: OtsAnchorClaim): boolean {
-  return claim === "VERIFIED" || claim === "ANCHORED_NOT_CHECKED";
+function isAnchorGapState(state: OtsState): boolean {
+  return state === "FAILED" || state === "UNAVAILABLE";
 }
 
-/**
- * An anchoring GAP worth a reviewer's attention: the proof failed, or a
- * finalized record has no OpenTimestamps state at all. A PENDING proof is the
- * ordinary first hours of every record, and UNAVAILABLE means OTS is disabled
- * on this deployment — neither is a defect of the record.
- */
-function isAnchorGapClaim(claim: OtsAnchorClaim): boolean {
-  return claim === "FAILED" || claim === "NOT_CONFIGURED";
-}
-
-function anchorReadinessReason(claim: OtsAnchorClaim): string | null {
-  // The public card: one status and one sentence.
-  if (!isAnchorRecordedClaim(claim)) return null;
-  const sentence = OTS_TRUTH_SENTENCES[claim === "VERIFIED" ? "CHAIN_VERIFIED" : "ATTESTATION_PRESENT_NOT_VERIFIED"];
-  return `OpenTimestamps: ${OTS_ANCHOR_CLAIM_LABELS[claim]}. ${sentence}`;
+/** The readiness sentence once the record is ANCHORED; null otherwise. */
+function anchorReadinessReason(state: OtsState): string | null {
+  if (state !== "ANCHORED") return null;
+  return `Bitcoin anchoring: ${OTS_STATE_LABELS.ANCHORED}. ${OTS_STATE_SENTENCES.ANCHORED}`;
 }
 
 export async function buildEvidenceIntelligence(
@@ -1108,7 +1042,7 @@ export async function buildEvidenceIntelligence(
       chainValid: chain.valid,
       chainMode: chain.mode,
       outputs: params.outputs,
-      anchorClaim: anchorClaimFor(params),
+      otsState: otsStateFor(params.evidence),
     }),
     verificationProof: buildVerificationProof(params.evidence),
     artifacts: buildArtifactSummaries({ evidence: params.evidence }),
@@ -1125,7 +1059,7 @@ export async function buildEvidenceIntelligence(
       evidence: params.evidence,
       chainValid: chain.valid,
       outputs: params.outputs,
-      anchorClaim: anchorClaimFor(params),
+      otsState: otsStateFor(params.evidence),
     }),
   };
 }

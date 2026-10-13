@@ -26,10 +26,10 @@
  *                            signed
  *   TSA                      the RFC 3161 authority's genTime — independently
  *                            established ONLY when the token was validated
- *   OTS                      the Bitcoin anchoring time — the verified block
- *                            time of an independent chain check, nothing else
- *   OTS_PROOF_RECORDED       the PROOVRA server clock when it recorded an
- *                            attestation-bearing proof that was NOT verified
+ *   OTS_ANCHORED             the PROOVRA server clock when it recorded the
+ *                            OpenTimestamps proof as anchored in Bitcoin
+ *                            (2026-10-13). PROOVRA reads no Bitcoin block
+ *                            time; this is never presented as one.
  *
  * A capture time is stated only from SOURCE_DECLARED_CAPTURE,
  * DEVICE_OBSERVED or APPLICATION_OBSERVED, always labelled with who declared
@@ -37,8 +37,8 @@
  * answer is "Capture time not available". Legacy records project what they
  * have — normally the server-received time only; no history is fabricated.
  */
-import type { OtsChainEvidenceInput } from "./ots.js";
-import { resolveOtsProofStatus, resolveTsaProofStatus } from "./ots-status.js";
+import { resolveOtsAnchoring, type OtsAnchoringInput } from "./ots-anchoring.js";
+import { resolveTsaProofStatus } from "./tsa-status.js";
 
 export const PROVENANCE_TIME_KINDS = [
   "SOURCE_DECLARED_CAPTURE",
@@ -49,8 +49,7 @@ export const PROVENANCE_TIME_KINDS = [
   "RECORD_CREATED",
   "FINALIZED",
   "TSA",
-  "OTS",
-  "OTS_PROOF_RECORDED",
+  "OTS_ANCHORED",
 ] as const;
 export type ProvenanceTimeKind = (typeof PROVENANCE_TIME_KINDS)[number];
 
@@ -59,8 +58,7 @@ export type ProvenanceTimeSource =
   | "CAPTURE_DEVICE_CLOCK"
   | "CAPTURE_CLIENT"
   | "PROOVRA_SERVER"
-  | "RFC3161_AUTHORITY"
-  | "BITCOIN_ANCHOR";
+  | "RFC3161_AUTHORITY";
 
 /**
  * How far the time can be relied on:
@@ -96,10 +94,8 @@ export const PROVENANCE_TIME_LABELS: Readonly<Record<ProvenanceTimeKind, string>
   RECORD_CREATED: "Record created",
   FINALIZED: "Finalized and signed",
   TSA: "RFC 3161 timestamp time",
-  OTS: "Bitcoin anchor time",
-  // (2026-10-12) When PROOVRA recorded an attestation-bearing proof — the time
-  // that used to be shown as an anchor time. It is a PROOVRA server time.
-  OTS_PROOF_RECORDED: "OpenTimestamps proof recorded by PROOVRA",
+  // (2026-10-13) A PROOVRA server time, not a Bitcoin block time.
+  OTS_ANCHORED: "Bitcoin anchoring recorded by PROOVRA",
 };
 
 /** The one sentence for "no capture time is known". */
@@ -126,16 +122,8 @@ export type ProvenanceTimeInput = {
     validatedAtUtc?: Date | string | null;
     genTimeUtc?: Date | string | null;
   } | null;
-  ots?: {
-    status: string | null | undefined;
-    anchoredAtUtc?: Date | string | null;
-    anchorCheck?: string | null;
-    bitcoinTxid?: string | null;
-    /** (2026-10-12) evidence.ots_attestation_recorded_at_utc. */
-    attestationRecordedAtUtc?: Date | string | null;
-    /** evidence.ots_chain_* — the only source of a Bitcoin anchor time. */
-    chain?: OtsChainEvidenceInput | null;
-  } | null;
+  /** The OpenTimestamps record (ots-anchoring.ts). */
+  ots?: OtsAnchoringInput | null;
 };
 
 export type ProvenanceTimeline = {
@@ -198,24 +186,8 @@ export function buildProvenanceTimeline(input: ProvenanceTimeInput): ProvenanceT
     }
   }
   if (input.ots) {
-    const otsStatus = resolveOtsProofStatus({
-      status: input.ots.status,
-      anchoredAtUtc: input.ots.anchoredAtUtc ?? null,
-      anchorCheck: input.ots.anchorCheck ?? null,
-      chain: input.ots.chain ?? null,
-      ...(input.ots.bitcoinTxid !== undefined ? { bitcoinTxid: input.ots.bitcoinTxid } : {}),
-    });
-    if (otsStatus === "VERIFIED") {
-      // The verified block time — never the time PROOVRA recorded the proof.
-      push("OTS", iso(input.ots.chain?.chainBlockTimeUtc ?? null), "BITCOIN_ANCHOR", "INDEPENDENTLY_VALIDATED");
-    } else if (otsStatus === "ANCHORED_UNVERIFIED") {
-      push(
-        "OTS_PROOF_RECORDED",
-        iso(input.ots.attestationRecordedAtUtc ?? input.ots.anchoredAtUtc ?? null),
-        "PROOVRA_SERVER",
-        "SERVER_OBSERVED",
-      );
-    }
+    const ots = resolveOtsAnchoring(input.ots);
+    if (ots.state === "ANCHORED") push("OTS_ANCHORED", ots.anchoredAtUtc, "PROOVRA_SERVER", "SERVER_OBSERVED");
   }
 
   // Preference among CLIENT-DECLARED capture times: the capture app's own

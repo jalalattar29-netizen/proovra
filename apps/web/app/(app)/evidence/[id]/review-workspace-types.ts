@@ -3,7 +3,7 @@ import type {
   MatchedHistory,
   ArtifactPackageAccess,
 } from "../../../../components/evidence-outputs/artifact-status-types";
-import type { StoredBytesIntegrity } from "@proovra/shared";
+import type { OtsAnchoringView, StoredBytesIntegrity } from "@proovra/shared";
 import type {
   EvidenceIntelligence,
   EvidenceOutputState,
@@ -223,21 +223,16 @@ export type PreservationMatrix = {
     failureReason: string | null;
     timestampedDigestLabel: string;
   };
-  ots: {
-    status: string | null;
-    effectiveStatus: string | null;
-    /** 2026-09-29: how the anchor was established, and the one claim it supports. */
-    anchorCheck?: string | null;
-    anchorClaim?: string | null;
-    proofPresent: boolean;
-    hashMatches: boolean | null;
-    anchoredAtUtc: string | null;
-    upgradedAtUtc: string | null;
-    lastUpdatedAtUtc: string | null;
-    calendar: string | null;
-    bitcoinTxid: string | null;
-    failureReason: string | null;
-    pendingReason: string | null;
+  /**
+   * THE Bitcoin anchoring state (2026-10-13): exactly the server's
+   * OtsAnchoringView plus operational siblings. Read it ONLY through
+   * `readOtsAnchoringView` — never re-derived from a txid, time or status.
+   */
+  ots: Partial<OtsAnchoringView> & {
+    calendar?: string | null;
+    proofPresent?: boolean | null;
+    lastUpdatedAtUtc?: string | null;
+    recheckAvailable?: boolean | null;
   };
   custodyChain: {
     valid: boolean;

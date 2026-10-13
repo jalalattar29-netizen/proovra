@@ -1,91 +1,43 @@
 import type { Prisma } from "@prisma/client";
 import {
-  isCompleteOtsAnchor,
+  OTS_PERMANENT_PROOF_FAILURES,
+  isPermanentOtsProofFailureReason,
   isValidOtsBitcoinTxid,
-  normalizeOtsAnchorCheck,
-  resolveEffectiveOtsStatus,
-  type OtsAnchorCheck,
+  resolveOtsAnchoring,
+  type OtsAnchoring,
+  type OtsPermanentProofFailure,
 } from "@proovra/shared";
-
-import type { OtsChainCheck } from "./ots-chain-verifier.js";
 
 type OtsStatus = "DISABLED" | "PENDING" | "ANCHORED" | "FAILED";
 
-/**
- * The OTS TRUTH columns (2026-10-12): when PROOVRA recorded the attestation,
- * the block height the proof reports, and the latest independent chain check.
- * Written only beside an ANCHORED status; every other status clears them.
+/*
+ * THE OTS WRITE PATH (2026-10-13).
+ *
+ * The stored columns are storage, not authority: the anchoring state is what
+ * `resolveOtsAnchoring` reads from the stored proof bytes (packages/shared
+ * ots-anchoring.ts). The worker writes `ots_status` to MATCH that resolution so
+ * queries and Operations can filter on it, and never writes ANCHORED for a
+ * proof that does not resolve to ANCHORED.
+ *
+ * DEPRECATED COLUMNS (expand/contract). The chain-verifier columns
+ * (ots_chain_*), ots_attestation_recorded_at_utc / _block_height and
+ * ots_anchor_check are no longer written or read as authority. They stay in
+ * the schema until the contraction migration, which is safe once every
+ * deployed API and worker image is at or after this change (no reader left)
+ * and the reconcile-ots-state script has run --apply in each environment.
  */
-export type OtsTruthColumns = {
-  otsAttestationRecordedAtUtc: Date | null;
-  otsAttestationBlockHeight: number | null;
-  otsChainVerificationStatus: string | null;
-  otsChainCheckedAtUtc: Date | null;
-  otsChainVerifiedAtUtc: Date | null;
-  otsChainBlockHeight: number | null;
-  otsChainBlockHash: string | null;
-  otsChainBlockTimeUtc: Date | null;
-  otsChainConfirmations: number | null;
-  otsChainVerifier: string | null;
-  otsChainFailureCode: string | null;
-};
-
-type OtsChainColumns = Omit<OtsTruthColumns, "otsAttestationRecordedAtUtc" | "otsAttestationBlockHeight">;
-
-const NO_CHAIN_COLUMNS: OtsChainColumns = {
-  otsChainVerificationStatus: null,
-  otsChainCheckedAtUtc: null,
-  otsChainVerifiedAtUtc: null,
-  otsChainBlockHeight: null,
-  otsChainBlockHash: null,
-  otsChainBlockTimeUtc: null,
-  otsChainConfirmations: null,
-  otsChainVerifier: null,
-  otsChainFailureCode: null,
-};
-
-const NO_TRUTH_COLUMNS: OtsTruthColumns = {
-  otsAttestationRecordedAtUtc: null,
-  otsAttestationBlockHeight: null,
-  ...NO_CHAIN_COLUMNS,
-};
-
-/** The persisted chain columns for one chain check. */
-export function chainColumnsFromCheck(check: OtsChainCheck): OtsChainColumns {
-  const base: OtsChainColumns = {
-    ...NO_CHAIN_COLUMNS,
-    otsChainVerificationStatus: check.status,
-    otsChainCheckedAtUtc: check.checkedAtUtc,
-    otsChainVerifier: check.verifier,
-  };
-  if (check.status === "FAILED") return { ...base, otsChainFailureCode: check.failureCode };
-  if (check.status === "VERIFIED") {
-    return {
-      ...base,
-      otsChainVerifiedAtUtc: check.verifiedAtUtc,
-      otsChainBlockHeight: check.blockHeight,
-      otsChainBlockHash: check.blockHash,
-      otsChainBlockTimeUtc: check.blockTimeUtc,
-      otsChainConfirmations: check.confirmations,
-    };
-  }
-  return base;
-}
 
 type OtsStateInput = {
   status: OtsStatus;
   proofBase64?: string | null;
   hash?: string | null;
   calendar?: string | null;
+  /** ANCHORED only: the txid the executed proof path derived. */
   bitcoinTxid?: string | null;
-  existingBitcoinTxid?: string | null;
+  /** ANCHORED only: when PROOVRA recorded the anchor. */
   anchoredAtUtc?: Date | string | null;
   upgradedAtUtc?: Date | string | null;
   failureReason?: string | null;
-  /** ANCHORED only: how the anchor was established. Cleared for every other status. */
-  anchorCheck?: OtsAnchorCheck | null;
-  /** ANCHORED only: the OTS truth columns. Cleared for every other status. */
-  truth?: Partial<OtsTruthColumns> | null;
 };
 
 function clean(value: string | null | undefined): string | null {
@@ -100,41 +52,16 @@ function cleanTxid(value: string | null | undefined): string | null {
 }
 
 function toDate(value: Date | string | null | undefined): Date | null {
-  if (value instanceof Date) {
-    return Number.isFinite(value.getTime()) ? value : null;
-  }
-
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : null;
   const trimmed = clean(value);
   if (!trimmed) return null;
-
   const parsed = new Date(trimmed);
   return Number.isFinite(parsed.getTime()) ? parsed : null;
 }
 
-function failureReason(value: string | null | undefined): string {
-  return clean(value) ?? "OTS operation failed without a structured reason.";
-}
-
 /** The column shape for one OTS status. Every writer builds its data here. */
-export function buildOtsEvidenceUpdateData(
-  input: OtsStateInput
-): Prisma.EvidenceUpdateInput {
-  const core = buildOtsCoreColumns(input);
-  // The truth columns live only beside an ANCHORED status; a write of any other
-  // status (or an ANCHORED input demoted to PENDING for want of a time) clears them.
-  const truth: OtsTruthColumns =
-    core.otsStatus === "ANCHORED" ? { ...NO_TRUTH_COLUMNS, ...(input.truth ?? {}) } : NO_TRUTH_COLUMNS;
-  return { ...core, ...truth };
-}
-
-function buildOtsCoreColumns(
-  input: OtsStateInput
-): Prisma.EvidenceUpdateInput & { otsStatus: OtsStatus } {
-  const bitcoinTxid =
-    cleanTxid(input.bitcoinTxid) ?? cleanTxid(input.existingBitcoinTxid);
-  const anchoredAtUtc = toDate(input.anchoredAtUtc);
+export function buildOtsEvidenceUpdateData(input: OtsStateInput): Prisma.EvidenceUpdateInput {
   const upgradedAtUtc = toDate(input.upgradedAtUtc);
-
   switch (input.status) {
     case "DISABLED":
       return {
@@ -146,106 +73,66 @@ function buildOtsCoreColumns(
         otsAnchoredAtUtc: null,
         otsUpgradedAtUtc: null,
         otsFailureReason: null,
-        otsAnchorCheck: null,
       };
-
     case "PENDING":
       return {
         otsProofBase64: clean(input.proofBase64),
         otsHash: clean(input.hash),
         otsStatus: "PENDING",
         otsCalendar: clean(input.calendar),
-        otsBitcoinTxid: bitcoinTxid,
+        otsBitcoinTxid: null,
         otsAnchoredAtUtc: null,
         otsUpgradedAtUtc: upgradedAtUtc,
         otsFailureReason: null,
-        otsAnchorCheck: null,
       };
-
     case "ANCHORED": {
-      if (
-        !isCompleteOtsAnchor({
-          status: input.status,
-          anchoredAtUtc,
-        })
-      ) {
-        return {
-          otsProofBase64: clean(input.proofBase64),
-          otsHash: clean(input.hash),
-          otsStatus: "PENDING",
-          otsCalendar: clean(input.calendar),
-          otsBitcoinTxid: bitcoinTxid,
-          otsAnchoredAtUtc: null,
-          otsUpgradedAtUtc: upgradedAtUtc,
-          otsFailureReason: null,
-          otsAnchorCheck: null,
-        };
-      }
-
+      const anchoredAtUtc = toDate(input.anchoredAtUtc) ?? upgradedAtUtc;
       return {
         otsProofBase64: clean(input.proofBase64),
         otsHash: clean(input.hash),
         otsStatus: "ANCHORED",
         otsCalendar: clean(input.calendar),
-        otsBitcoinTxid: bitcoinTxid,
+        otsBitcoinTxid: cleanTxid(input.bitcoinTxid),
         otsAnchoredAtUtc: anchoredAtUtc,
         otsUpgradedAtUtc: upgradedAtUtc ?? anchoredAtUtc,
         otsFailureReason: null,
-        otsAnchorCheck: input.anchorCheck ?? null,
       };
     }
-
     case "FAILED":
       return {
         otsProofBase64: clean(input.proofBase64),
         otsHash: clean(input.hash),
         otsStatus: "FAILED",
         otsCalendar: clean(input.calendar),
-        otsBitcoinTxid: bitcoinTxid,
+        otsBitcoinTxid: null,
         otsAnchoredAtUtc: null,
         otsUpgradedAtUtc: upgradedAtUtc,
-        otsFailureReason: failureReason(input.failureReason),
-        otsAnchorCheck: null,
+        otsFailureReason: clean(input.failureReason) ?? "OTS_PROCESSING_FAILED",
       };
   }
 }
 
 // ===========================================================================
-// THE OTS TRANSITION RULE (2026-09-29)
+// THE OTS TRANSITION RULE (2026-10-13)
 // ===========================================================================
 //
-// Before this, the upgrade processor wrote whatever its current run concluded,
-// unconditionally: a transient calendar/network error wrote FAILED (clearing
-// the anchor time) and then retried; a re-check that could not confirm an
-// ANCHORED row kept the ANCHORED label and invented `anchoredAt = now`; and a
-// delayed or duplicate job could overwrite a newer anchor with an older
-// observation.
+// A pure decision over (current row, typed observation). The row's state and
+// the candidate proof's state are both resolved by the ONE authority.
 //
-// The rule is now a pure decision over (current row, typed observation):
-//
-//   ANCHOR_PROVEN     the proof demonstrably carries a Bitcoin attestation for
-//                     THIS record's hash (`ots verify` against the chain, or
-//                     `ots info` offline). Always accepted; a stronger check
-//                     replaces a weaker one, never the reverse. The anchor time
-//                     is the block time when known, else the existing anchor
-//                     time, else the observation time.
-//   PENDING           the proof is valid but not (yet) anchored — incomplete or
-//                     unknown. It never demotes a CHECKED anchor. An anchored
-//                     row whose anchor was never checked (legacy) and which the
-//                     re-check could not confirm is honestly demoted to PENDING:
-//                     an ANCHORED label is not kept just to avoid a downgrade.
-//   TRANSIENT_ERROR   the attempt itself failed (network, timeout, calendar or
-//                     binary unavailable). NOTHING on the row changes; the
-//                     attempt is recorded and retried.
-//   PROOF_INVALID     the proof is established to be unusable — it commits to a
-//                     different hash, or it is not an OpenTimestamps proof.
-//                     FAILED, with the proof bytes preserved as evidence.
+//   PROOF             the bytes `ots upgrade` left behind. Resolved:
+//                       ANCHORED  → write ANCHORED with those bytes (the txid
+//                                   only when the executed path derives it);
+//                       PENDING   → write PENDING when the bytes changed;
+//                       FAILED    → a proof defect: FAILED with its bounded
+//                                   code, the STORED proof preserved;
+//                       anything else → no change.
+//   TRANSIENT_ERROR   the attempt failed (calendar, network, binary). Nothing
+//                     on the row changes; the attempt is recorded and retried.
 //   BUDGET_EXHAUSTED  a PENDING proof never anchored within the global budget.
-//                     FAILED; never applied to an anchored row.
 //
-// Every write the processor makes is COMPARE-AND-SET against the snapshot the
-// decision was made from (`applyOtsTransition`), so a delayed job, a duplicate
-// delivery or a concurrent worker cannot overwrite newer OTS facts.
+// ANCHORED IS TERMINAL PER PROOF: a row whose stored proof resolves to
+// ANCHORED is never rewritten by an observation (no stale regression). Every
+// write is COMPARE-AND-SET against the snapshot the decision was made from.
 
 export type OtsRowSnapshot = {
   otsStatus: string | null;
@@ -256,31 +143,14 @@ export type OtsRowSnapshot = {
   otsAnchoredAtUtc: Date | null;
   otsUpgradedAtUtc: Date | null;
   otsFailureReason: string | null;
-  otsAnchorCheck: string | null;
-} & Partial<OtsTruthColumns>;
+  fingerprintHash: string | null;
+};
 
-// ET-REC-06 — THE list lives in @proovra/shared (the executor and the
-// remediation registry read it too); re-exported for this module's callers.
-import { OTS_PERMANENT_PROOF_FAILURES, type OtsPermanentProofFailure } from "@proovra/shared";
 export { OTS_PERMANENT_PROOF_FAILURES, type OtsPermanentProofFailure };
 
 export type OtsObservation =
-  | {
-      kind: "ANCHOR_PROVEN";
-      proofBase64: string;
-      check: OtsAnchorCheck;
-      txid: string | null;
-      /** The Bitcoin block time, when the check reported it. Never invented. */
-      blockTimeUtc: Date | null;
-      blockHeight: number | null;
-      /** The block height the proof's bytes REPORT (unverified). */
-      attestationBlockHeight?: number | null;
-      /** The independent chain check of this attestation; null when none ran. */
-      chain?: OtsChainCheck | null;
-    }
-  | { kind: "PENDING"; proofBase64: string; txid: string | null }
+  | { kind: "PROOF"; proofBase64: string }
   | { kind: "TRANSIENT_ERROR"; reason: string }
-  | { kind: "PROOF_INVALID"; code: OtsPermanentProofFailure; reason: string }
   | { kind: "BUDGET_EXHAUSTED" };
 
 export type OtsTransition =
@@ -292,187 +162,127 @@ export type OtsTransition =
       phase: string;
       /** False when the write only refreshes an unchanged fact (no custody event). */
       material: boolean;
+      /** The canonical resolution of what was written. */
+      anchoring: OtsAnchoring;
     }
   | { kind: "RECORD_ATTEMPT_ERROR"; reason: string }
   | { kind: "NO_CHANGE"; reason: string };
 
 export function isPermanentOtsProofFailure(reason: string | null | undefined): boolean {
-  return (OTS_PERMANENT_PROOF_FAILURES as readonly string[]).includes(String(reason ?? ""));
+  return isPermanentOtsProofFailureReason(reason);
 }
 
-/** An anchor established by this rule (its check is recorded). */
-export function isCheckedOtsAnchor(row: Pick<OtsRowSnapshot, "otsStatus" | "otsAnchoredAtUtc" | "otsAnchorCheck">): boolean {
-  return (
-    resolveEffectiveOtsStatus({ status: row.otsStatus, anchoredAtUtc: row.otsAnchoredAtUtc }) === "ANCHORED" &&
-    normalizeOtsAnchorCheck(row.otsAnchorCheck) !== null
-  );
-}
-
-export function decideOtsTransition(
-  row: OtsRowSnapshot,
-  observation: OtsObservation,
-  observedAt: Date,
-): OtsTransition {
-  const effective = resolveEffectiveOtsStatus({
+/** The canonical state of a row as stored. */
+export function resolveRowOtsAnchoring(row: OtsRowSnapshot): OtsAnchoring {
+  return resolveOtsAnchoring({
     status: row.otsStatus,
+    proofBase64: row.otsProofBase64,
+    fingerprintHash: row.fingerprintHash,
+    otsHash: row.otsHash,
+    failureReason: row.otsFailureReason,
+    calendar: row.otsCalendar,
     anchoredAtUtc: row.otsAnchoredAtUtc,
+    upgradedAtUtc: row.otsUpgradedAtUtc,
   });
-  const currentCheck = normalizeOtsAnchorCheck(row.otsAnchorCheck);
-  const rowTxid = isValidOtsBitcoinTxid(row.otsBitcoinTxid) ? row.otsBitcoinTxid!.toLowerCase() : null;
+}
+
+/** The proof the row stores resolves to ANCHORED: nothing may change it. */
+export function isAnchoredOtsRow(row: OtsRowSnapshot): boolean {
+  return resolveRowOtsAnchoring(row).state === "ANCHORED";
+}
+
+/**
+ * The stored status disagrees with the stored proof (a legacy row, or one
+ * written before this rule): the write that brings the status in line.
+ * Returns null when they agree. Never invents a proof or a time.
+ */
+export function decideStoredStatusAlignment(row: OtsRowSnapshot, observedAt: Date): OtsTransition | null {
+  const current = resolveRowOtsAnchoring(row);
+  const stored = String(row.otsStatus ?? "").toUpperCase();
+  if (current.state === "ANCHORED") {
+    if (stored === "ANCHORED" && (row.otsBitcoinTxid ?? null) === (current.bitcoinTxid ?? null)) return null;
+    return {
+      kind: "WRITE",
+      status: "ANCHORED",
+      data: buildOtsEvidenceUpdateData({
+        status: "ANCHORED",
+        proofBase64: row.otsProofBase64,
+        hash: row.otsHash,
+        calendar: row.otsCalendar,
+        bitcoinTxid: current.bitcoinTxid,
+        anchoredAtUtc: stored === "ANCHORED" ? (row.otsAnchoredAtUtc ?? observedAt) : observedAt,
+        upgradedAtUtc: row.otsUpgradedAtUtc ?? observedAt,
+      }),
+      phase: stored === "ANCHORED" ? "anchored_facts_aligned_with_proof" : "anchored_by_stored_proof",
+      material: true,
+      anchoring: resolveOtsAnchoring({
+        status: "ANCHORED",
+        proofBase64: row.otsProofBase64,
+        fingerprintHash: row.fingerprintHash,
+        otsHash: row.otsHash,
+        anchoredAtUtc: stored === "ANCHORED" ? (row.otsAnchoredAtUtc ?? observedAt) : observedAt,
+      }),
+    };
+  }
+  if (current.state === "FAILED" && stored !== "FAILED" && isPermanentOtsProofFailure(current.failureCode)) {
+    return proofDefect(row, current, observedAt);
+  }
+  if (current.state === "PENDING" && stored === "ANCHORED") {
+    // A legacy ANCHORED label over a proof that carries no Bitcoin attestation.
+    return {
+      kind: "WRITE",
+      status: "PENDING",
+      data: buildOtsEvidenceUpdateData({
+        status: "PENDING",
+        proofBase64: row.otsProofBase64,
+        hash: row.otsHash,
+        calendar: row.otsCalendar,
+        upgradedAtUtc: row.otsUpgradedAtUtc ?? observedAt,
+      }),
+      phase: "legacy_anchor_label_without_attestation",
+      material: true,
+      anchoring: current,
+    };
+  }
+  return null;
+}
+
+function proofDefect(row: OtsRowSnapshot, defect: OtsAnchoring, observedAt: Date): OtsTransition {
+  const code = defect.failureCode ?? "OTS_PROCESSING_FAILED";
+  return {
+    kind: "WRITE",
+    status: "FAILED",
+    data: buildOtsEvidenceUpdateData({
+      status: "FAILED",
+      // The stored proof is preserved as evidence of what was checked.
+      proofBase64: row.otsProofBase64,
+      hash: row.otsHash,
+      calendar: row.otsCalendar,
+      upgradedAtUtc: observedAt,
+      failureReason: code,
+    }),
+    phase: code === "PROOF_HASH_MISMATCH" ? "proof_hash_mismatch" : code === "MALFORMED_PROOF" ? "malformed_proof" : "proof_invalid",
+    material: true,
+    anchoring: { ...defect, state: "FAILED", failureCode: code },
+  };
+}
+
+export function decideOtsTransition(row: OtsRowSnapshot, observation: OtsObservation, observedAt: Date): OtsTransition {
+  const current = resolveRowOtsAnchoring(row);
+  if (current.state === "ANCHORED") {
+    return { kind: "NO_CHANGE", reason: "the stored proof is anchored; ANCHORED is terminal for this proof" };
+  }
+  if (current.state === "FAILED" && isPermanentOtsProofFailure(current.failureCode)) {
+    return { kind: "NO_CHANGE", reason: "the stored proof is established invalid" };
+  }
 
   switch (observation.kind) {
-    case "ANCHOR_PROVEN": {
-      /*
-       * THE CHECK FOLLOWS THE CHAIN EVIDENCE (2026-10-12). BITCOIN_VERIFIED is
-       * written only with a VERIFIED chain check and its evidence (the database
-       * refuses anything else). A recorded verification is never demoted by an
-       * inconclusive re-check (unavailable, not configured, too few
-       * confirmations); it IS demoted when a configured verifier reached the
-       * chain and the attestation did not verify (a reorg or a rejection).
-       */
-      const chainNew = observation.chain ?? null;
-      const rowChainVerified =
-        effective === "ANCHORED" && currentCheck === "BITCOIN_VERIFIED" && row.otsChainVerificationStatus === "VERIFIED";
-      const keepRowChain = rowChainVerified && chainNew?.status !== "VERIFIED" && chainNew?.status !== "FAILED";
-      const chainColumns: OtsChainColumns = keepRowChain
-        ? {
-            otsChainVerificationStatus: row.otsChainVerificationStatus ?? null,
-            otsChainCheckedAtUtc: row.otsChainCheckedAtUtc ?? null,
-            otsChainVerifiedAtUtc: row.otsChainVerifiedAtUtc ?? null,
-            otsChainBlockHeight: row.otsChainBlockHeight ?? null,
-            otsChainBlockHash: row.otsChainBlockHash ?? null,
-            otsChainBlockTimeUtc: row.otsChainBlockTimeUtc ?? null,
-            otsChainConfirmations: row.otsChainConfirmations ?? null,
-            otsChainVerifier: row.otsChainVerifier ?? null,
-            otsChainFailureCode: row.otsChainFailureCode ?? null,
-          }
-        : chainNew
-          ? chainColumnsFromCheck(chainNew)
-          : NO_CHAIN_COLUMNS;
-      const check: OtsAnchorCheck =
-        chainColumns.otsChainVerificationStatus === "VERIFIED" ? "BITCOIN_VERIFIED" : "PROOF_STRUCTURE";
-      const txid = (isValidOtsBitcoinTxid(observation.txid) ? observation.txid!.toLowerCase() : null) ?? rowTxid;
-      // LEGACY completeness marker (see the migration): the verified block time
-      // when there is one, else the time PROOVRA first recorded the attestation.
-      const anchoredAtUtc =
-        (check === "BITCOIN_VERIFIED" ? chainColumns.otsChainBlockTimeUtc : null) ??
-        (effective === "ANCHORED" ? row.otsAnchoredAtUtc : null) ??
-        observedAt;
-      const attestationRecordedAtUtc =
-        row.otsAttestationRecordedAtUtc ?? (effective === "ANCHORED" ? row.otsAnchoredAtUtc : null) ?? observedAt;
-      const attestationBlockHeight = observation.attestationBlockHeight ?? row.otsAttestationBlockHeight ?? null;
-      const unchanged =
-        effective === "ANCHORED" &&
-        currentCheck === check &&
-        rowTxid === txid &&
-        row.otsProofBase64 === observation.proofBase64 &&
-        row.otsAnchoredAtUtc?.getTime() === anchoredAtUtc.getTime() &&
-        row.otsAttestationRecordedAtUtc?.getTime() === attestationRecordedAtUtc.getTime() &&
-        (row.otsAttestationBlockHeight ?? null) === attestationBlockHeight &&
-        (row.otsChainVerificationStatus ?? null) === chainColumns.otsChainVerificationStatus &&
-        (row.otsChainFailureCode ?? null) === chainColumns.otsChainFailureCode;
-      if (unchanged) return { kind: "NO_CHANGE", reason: "anchor already recorded with this proof and check" };
-      return {
-        kind: "WRITE",
-        status: "ANCHORED",
-        data: buildOtsEvidenceUpdateData({
-          status: "ANCHORED",
-          proofBase64: observation.proofBase64,
-          hash: row.otsHash,
-          calendar: row.otsCalendar,
-          bitcoinTxid: txid,
-          anchoredAtUtc,
-          upgradedAtUtc: observedAt,
-          anchorCheck: check,
-          truth: {
-            otsAttestationRecordedAtUtc: attestationRecordedAtUtc,
-            otsAttestationBlockHeight: attestationBlockHeight,
-            ...chainColumns,
-          },
-        }),
-        phase:
-          effective !== "ANCHORED"
-            ? check === "BITCOIN_VERIFIED"
-              ? "anchored_verified"
-              : "attestation_recorded_by_proof_structure"
-            : currentCheck !== check
-              ? check === "BITCOIN_VERIFIED"
-                ? "chain_verified"
-                : "chain_verification_withdrawn"
-              : (row.otsChainVerificationStatus ?? null) !== chainColumns.otsChainVerificationStatus
-                ? "chain_check_recorded"
-                : txid !== rowTxid
-                  ? "anchor_material_recovered"
-                  : "anchored_proof_refreshed",
-        material: true,
-      };
-    }
-
-    case "PENDING": {
-      if (effective === "ANCHORED" && currentCheck !== null) {
-        // A CHECKED anchor is never demoted by an inconclusive re-check.
-        return { kind: "NO_CHANGE", reason: "checked anchor kept; the re-check was inconclusive" };
-      }
-      if (effective === "FAILED" && isPermanentOtsProofFailure(row.otsFailureReason)) {
-        return { kind: "NO_CHANGE", reason: "proof already established invalid" };
-      }
-      const txid = (isValidOtsBitcoinTxid(observation.txid) ? observation.txid!.toLowerCase() : null) ?? rowTxid;
-      const demoting = effective === "ANCHORED";
-      const material =
-        demoting ||
-        effective !== "PENDING" ||
-        txid !== rowTxid ||
-        row.otsProofBase64 !== observation.proofBase64;
-      return {
-        kind: "WRITE",
-        status: "PENDING",
-        data: buildOtsEvidenceUpdateData({
-          status: "PENDING",
-          proofBase64: observation.proofBase64,
-          hash: row.otsHash,
-          calendar: row.otsCalendar,
-          bitcoinTxid: txid,
-          upgradedAtUtc: observedAt,
-        }),
-        phase: demoting
-          ? "anchor_not_confirmed_on_recheck"
-          : effective === "FAILED"
-            ? "recovered_from_failed_attempt"
-            : txid !== rowTxid
-              ? "txid_detected_pending_confirmation"
-              : "pending_confirmation",
-        material,
-      };
-    }
-
     case "TRANSIENT_ERROR":
       return { kind: "RECORD_ATTEMPT_ERROR", reason: observation.reason };
 
-    case "PROOF_INVALID": {
-      if (effective === "FAILED" && row.otsFailureReason === observation.code) {
-        return { kind: "NO_CHANGE", reason: "proof already recorded invalid for this reason" };
-      }
-      return {
-        kind: "WRITE",
-        status: "FAILED",
-        data: buildOtsEvidenceUpdateData({
-          status: "FAILED",
-          // The stored proof is preserved as evidence of what was checked.
-          proofBase64: row.otsProofBase64,
-          hash: row.otsHash,
-          calendar: row.otsCalendar,
-          existingBitcoinTxid: row.otsBitcoinTxid,
-          upgradedAtUtc: observedAt,
-          failureReason: observation.code,
-        }),
-        phase: observation.code === "PROOF_HASH_MISMATCH" ? "proof_hash_mismatch" : "malformed_proof",
-        material: true,
-      };
-    }
-
     case "BUDGET_EXHAUSTED": {
-      if (effective !== "PENDING") {
-        return { kind: "NO_CHANGE", reason: `budget exhaustion does not apply to ${effective ?? "no"} state` };
+      if (current.state !== "PENDING") {
+        return { kind: "NO_CHANGE", reason: `budget exhaustion does not apply to ${current.state}` };
       }
       return {
         kind: "WRITE",
@@ -482,13 +292,65 @@ export function decideOtsTransition(
           proofBase64: row.otsProofBase64,
           hash: row.otsHash,
           calendar: row.otsCalendar,
-          existingBitcoinTxid: row.otsBitcoinTxid,
           upgradedAtUtc: observedAt,
           failureReason: "OTS_GLOBAL_BUDGET_EXHAUSTED",
         }),
         phase: "global_budget_exhausted",
         material: true,
+        anchoring: { ...current, state: "FAILED", failureCode: "OTS_GLOBAL_BUDGET_EXHAUSTED" },
       };
+    }
+
+    case "PROOF": {
+      const candidate = resolveOtsAnchoring({
+        status: "PENDING",
+        proofBase64: observation.proofBase64,
+        fingerprintHash: row.fingerprintHash,
+        otsHash: row.otsHash,
+        calendar: row.otsCalendar,
+        anchoredAtUtc: observedAt,
+      });
+      if (candidate.state === "ANCHORED") {
+        return {
+          kind: "WRITE",
+          status: "ANCHORED",
+          data: buildOtsEvidenceUpdateData({
+            status: "ANCHORED",
+            proofBase64: observation.proofBase64,
+            hash: row.otsHash,
+            calendar: row.otsCalendar,
+            bitcoinTxid: candidate.bitcoinTxid,
+            anchoredAtUtc: observedAt,
+            upgradedAtUtc: observedAt,
+          }),
+          phase: "anchored",
+          material: true,
+          anchoring: candidate,
+        };
+      }
+      if (candidate.state === "FAILED") {
+        // The upgraded bytes are defective; the STORED proof is kept.
+        return proofDefect(row, candidate, observedAt);
+      }
+      if (candidate.state === "PENDING") {
+        const proofChanged = row.otsProofBase64 !== observation.proofBase64;
+        const statusChanged = String(row.otsStatus ?? "").toUpperCase() !== "PENDING";
+        return {
+          kind: "WRITE",
+          status: "PENDING",
+          data: buildOtsEvidenceUpdateData({
+            status: "PENDING",
+            proofBase64: observation.proofBase64,
+            hash: row.otsHash,
+            calendar: row.otsCalendar,
+            upgradedAtUtc: observedAt,
+          }),
+          phase: statusChanged ? "recovered_to_pending" : proofChanged ? "proof_upgraded_pending" : "pending_confirmation",
+          material: proofChanged || statusChanged,
+          anchoring: candidate,
+        };
+      }
+      return { kind: "NO_CHANGE", reason: `the upgraded proof resolves to ${candidate.state} (${candidate.failureCode ?? "no code"})` };
     }
   }
 }
@@ -501,12 +363,11 @@ export function otsSnapshotWhere(evidenceId: string, row: OtsRowSnapshot): Prism
   return {
     id: evidenceId,
     otsStatus: row.otsStatus,
+    otsProofBase64: row.otsProofBase64,
     otsBitcoinTxid: row.otsBitcoinTxid,
     otsAnchoredAtUtc: row.otsAnchoredAtUtc,
     otsUpgradedAtUtc: row.otsUpgradedAtUtc,
-    otsAnchorCheck: row.otsAnchorCheck,
     otsFailureReason: row.otsFailureReason,
-    ...(row.otsChainVerificationStatus !== undefined ? { otsChainVerificationStatus: row.otsChainVerificationStatus } : {}),
   };
 }
 
@@ -526,6 +387,19 @@ export async function applyOtsTransition(
   });
   return res.count === 1;
 }
+
+/** The columns a snapshot is read from. */
+export const OTS_ROW_SNAPSHOT_SELECT = {
+  otsStatus: true,
+  otsProofBase64: true,
+  otsHash: true,
+  otsCalendar: true,
+  otsBitcoinTxid: true,
+  otsAnchoredAtUtc: true,
+  otsUpgradedAtUtc: true,
+  otsFailureReason: true,
+  fingerprintHash: true,
+} as const;
 
 /** OpenTimestamps proof files begin with this magic header. */
 const OTS_MAGIC = Buffer.from([

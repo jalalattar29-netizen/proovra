@@ -1,22 +1,22 @@
 /**
- * READINESS IS NOT CHAIN VERIFICATION (2026-09-29).
+ * READINESS AND THE ONE OTS STATE (2026-10-13).
  *
- * After 1a86485c the intelligence layer read "anchoring verified against the
- * Bitcoin chain" — which no production worker can establish (no Bitcoin node)
- * — as "the record is anchored". Every healthy record read "Bitcoin anchoring
- * has not been confirmed" / "Needs review", and the alert block said "Public
- * verification not configured" because an unrelated external-anchor provider
- * variable was empty.
+ * The intelligence layer reads the record's OTS state from the ONE authority
+ * (resolveRecordOtsAnchoring): the stored proof executed against the record's
+ * fingerprint digest. ANCHORED only when the proof reaches a valid Bitcoin
+ * block attestation — never from ots_status, a txid or an anchor time.
  *
- * Pinned here, over every OTS claim, on a Free (NOT_INCLUDED) and a paid
- * (READY) record:
- *   * an anchor RECORDED (verified or not) is not a review gap;
- *   * a PENDING proof is not a review gap (every record's first hours);
- *   * a FAILED proof, or no proof at all, IS one, with honest wording;
- *   * nothing says "verified" unless the claim is VERIFIED;
+ * Pinned here, over every state, on a Free (NOT_INCLUDED) and a paid (READY)
+ * record:
+ *   * ANCHORED, PENDING and NOT_REQUESTED are not review gaps;
+ *   * a FAILED proof, or an unreadable one (UNAVAILABLE), IS one, with honest
+ *     wording;
+ *   * the retired chain-verifier vocabulary is never emitted;
  *   * "Public verification not configured" is never emitted.
  */
 import { describe, expect, it, vi } from "vitest";
+
+import { otsProofForDigest } from "./helpers/ots-proof-bytes.js";
 
 vi.mock("../src/db.js", () => ({
   prisma: { custodyEvent: { findMany: async () => [] } },
@@ -27,38 +27,33 @@ const { buildEvidenceIntelligence } = await import("../src/services/evidence-int
 type Ots = {
   otsStatus: string | null;
   otsAnchoredAtUtc: string | null;
-  otsAnchorCheck: string | null;
-  /** (2026-10-12) The recorded independent chain check, when there is one. */
-  otsChainVerificationStatus?: string | null;
-  otsChainVerifiedAtUtc?: string | null;
-  otsChainBlockHeight?: number | null;
-  otsChainBlockHash?: string | null;
-  otsChainBlockTimeUtc?: string | null;
-  otsChainConfirmations?: number | null;
-  otsChainVerifier?: string | null;
+  otsProofBase64: string | null;
+  otsFailureReason?: string | null;
 };
 
+const DIGEST = "b".repeat(64);
+
 const OTS: Record<string, Ots> = {
-  // (2026-10-12) Verified means a recorded chain check WITH its evidence.
-  VERIFIED: {
+  ANCHORED: {
     otsStatus: "ANCHORED",
     otsAnchoredAtUtc: "2026-09-01T00:00:00Z",
-    otsAnchorCheck: "BITCOIN_VERIFIED",
-    otsChainVerificationStatus: "VERIFIED",
-    otsChainVerifiedAtUtc: "2026-09-02T00:00:00Z",
-    otsChainBlockHeight: 860000,
-    otsChainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
-    otsChainBlockTimeUtc: "2026-09-01T00:00:00Z",
-    otsChainConfirmations: 6,
-    otsChainVerifier: "test-double/1",
+    otsProofBase64: otsProofForDigest(DIGEST, { bitcoinHeight: 860000 }),
   },
-  // A recorded check whose chain evidence is missing is not verified.
-  VERIFIED_WITHOUT_EVIDENCE: { otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-09-01T00:00:00Z", otsAnchorCheck: "BITCOIN_VERIFIED" },
-  PROOF_STRUCTURE: { otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-09-01T00:00:00Z", otsAnchorCheck: "PROOF_STRUCTURE" },
-  HISTORICAL_NULL_CHECK: { otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-09-01T00:00:00Z", otsAnchorCheck: null },
-  PENDING: { otsStatus: "PENDING", otsAnchoredAtUtc: null, otsAnchorCheck: null },
-  FAILED: { otsStatus: "FAILED", otsAnchoredAtUtc: null, otsAnchorCheck: null },
-  NONE: { otsStatus: null, otsAnchoredAtUtc: null, otsAnchorCheck: null },
+  // A row that SAYS anchored but carries a pending proof is pending.
+  ANCHORED_STATUS_PENDING_PROOF: {
+    otsStatus: "ANCHORED",
+    otsAnchoredAtUtc: "2026-09-01T00:00:00Z",
+    otsProofBase64: otsProofForDigest(DIGEST),
+  },
+  PENDING: { otsStatus: "PENDING", otsAnchoredAtUtc: null, otsProofBase64: otsProofForDigest(DIGEST) },
+  FAILED: { otsStatus: "FAILED", otsAnchoredAtUtc: null, otsProofBase64: null, otsFailureReason: "OTS_GLOBAL_BUDGET_EXHAUSTED" },
+  MISMATCH: {
+    otsStatus: "ANCHORED",
+    otsAnchoredAtUtc: "2026-09-01T00:00:00Z",
+    otsProofBase64: otsProofForDigest("c".repeat(64), { bitcoinHeight: 860000 }),
+  },
+  MISSING_PROOF: { otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-09-01T00:00:00Z", otsProofBase64: null },
+  NONE: { otsStatus: null, otsAnchoredAtUtc: null, otsProofBase64: null },
 };
 
 function evidence(ots: Ots, status: "SIGNED" | "REPORTED" = "SIGNED") {
@@ -82,7 +77,7 @@ function evidence(ots: Ots, status: "SIGNED" | "REPORTED" = "SIGNED") {
     organizationNameSnapshot: null,
     organizationVerifiedSnapshot: null,
     fileSha256: "a".repeat(64),
-    fingerprintHash: "b".repeat(64),
+    fingerprintHash: DIGEST,
     signatureBase64: "sig",
     signingKeyId: "k",
     signingKeyVersion: 1,
@@ -148,61 +143,69 @@ describe.each([
   ["Free record", FREE],
   ["paid record with its pair", PAID_READY],
 ] as const)("%s", (_label, outputs) => {
-  it.each(["VERIFIED", "PROOF_STRUCTURE", "HISTORICAL_NULL_CHECK", "PENDING"] as const)(
+  it.each(["ANCHORED", "ANCHORED_STATUS_PENDING_PROOF", "PENDING", "NONE"] as const)(
     "%s OTS is ready for review with no anchoring issue or alert",
     async (otsKey) => {
       const i = await build(otsKey, outputs);
       expect(i.reviewerDecision.status).toBe("READY_FOR_EXTERNAL_REVIEW");
       expect(allText(i)).not.toMatch(/Public verification not configured/);
       expect(allText(i)).not.toMatch(/has not been confirmed/);
-      expect(i.reviewerAlerts.map((a) => a.label)).not.toContain("No OpenTimestamps proof recorded");
-      expect(i.reviewerAlerts.map((a) => a.label)).not.toContain("OpenTimestamps anchoring failed");
+      expect(i.reviewerAlerts.map((a) => a.label)).not.toContain("Bitcoin anchoring failed");
+      expect(i.reviewerAlerts.map((a) => a.label)).not.toContain("Bitcoin anchoring unavailable");
     },
   );
 
-  it("never says 'verified' unless the anchor was checked against the chain", async () => {
-    for (const otsKey of ["PROOF_STRUCTURE", "HISTORICAL_NULL_CHECK", "PENDING", "VERIFIED_WITHOUT_EVIDENCE"] as const) {
+  it("never uses the retired chain-verifier vocabulary", async () => {
+    for (const otsKey of Object.keys(OTS) as Array<keyof typeof OTS>) {
       const i = await build(otsKey, outputs);
-      expect(allText(i), otsKey).not.toMatch(/attestation independently verified|anchoring verified/i);
+      expect(allText(i), otsKey).not.toMatch(
+        /independently verified|anchoring verified|attestation recorded|not checked|chain-verified|unverified/i,
+      );
     }
-    const verified = await build("VERIFIED", outputs);
-    expect(verified.reviewerDecision.reasons).toContain(
-      "OpenTimestamps: Verified. The proof was independently verified against the Bitcoin blockchain.",
-    );
   });
 
-  it("an anchor recorded but not checked says so", async () => {
-    const i = await build("PROOF_STRUCTURE", outputs);
+  it("an anchored proof says Bitcoin anchored", async () => {
+    const i = await build("ANCHORED", outputs);
     expect(i.reviewerDecision.reasons).toContain(
-      "OpenTimestamps: Attestation recorded. Independent Bitcoin verification was not performed.",
+      "Bitcoin anchoring: Bitcoin anchored. OpenTimestamps proof anchored in Bitcoin.",
     );
+    expect(i.verificationProof.otsState).toBe("ANCHORED");
+  });
+
+  it("a row that says ANCHORED with a pending proof is never anchored", async () => {
+    const i = await build("ANCHORED_STATUS_PENDING_PROOF", outputs);
+    expect(i.verificationProof.otsState).toBe("PENDING");
+    expect(JSON.stringify(i.reviewerDecision.reasons)).not.toMatch(/Bitcoin anchored/);
   });
 
   it("a FAILED proof is a review gap, worded as a failure of anchoring only", async () => {
-    const i = await build("FAILED", outputs);
-    expect(i.reviewerDecision.status).toBe("NEEDS_ATTENTION");
-    expect(i.reviewerDecision.reasons).toContain("OpenTimestamps anchoring failed for this record.");
-    const alert = i.reviewerAlerts.find((a) => a.label === "OpenTimestamps anchoring failed");
-    expect(alert?.detail).toMatch(/fingerprint, signature and custody chain are unaffected/);
+    for (const otsKey of ["FAILED", "MISMATCH"] as const) {
+      const i = await build(otsKey, outputs);
+      expect(i.reviewerDecision.status, otsKey).toBe("NEEDS_ATTENTION");
+      expect(i.reviewerDecision.reasons).toContain("Bitcoin anchoring failed for this record.");
+      const alert = i.reviewerAlerts.find((a) => a.label === "Bitcoin anchoring failed");
+      expect(alert?.detail).toMatch(/fingerprint, signature and custody chain are unaffected/);
+    }
   });
 
-  it("no OTS state at all is a review gap and an alert", async () => {
-    const i = await build("NONE", outputs);
+  it("an unreadable proof (UNAVAILABLE) is a review gap and an alert", async () => {
+    const i = await build("MISSING_PROOF", outputs);
     expect(i.reviewerDecision.status).toBe("NEEDS_ATTENTION");
-    expect(i.reviewerAlerts.map((a) => a.label)).toContain("No OpenTimestamps proof recorded");
+    expect(i.reviewerAlerts.map((a) => a.label)).toContain("Bitcoin anchoring unavailable");
+    expect(i.verificationProof.otsState).toBe("UNAVAILABLE");
   });
 });
 
 describe("readiness score", () => {
-  it("an anchor recorded but not chain-checked scores as prepared", async () => {
-    const structure = await build("PROOF_STRUCTURE", FREE);
-    const verified = await build("VERIFIED", FREE);
-    expect(structure.librarySummary.score).toBe(verified.librarySummary.score);
+  it("anchoring that was not requested leaves the denominator; an anchored proof earns its point", async () => {
+    const none = await build("NONE", FREE);
+    const anchored = await build("ANCHORED", FREE);
+    expect(none.librarySummary.score).toBe(anchored.librarySummary.score);
   });
 
-  it("a failed proof scores lower than a recorded one", async () => {
+  it("a failed proof scores lower than an anchored one", async () => {
     const failed = await build("FAILED", FREE);
-    const structure = await build("PROOF_STRUCTURE", FREE);
-    expect(failed.librarySummary.score ?? 0).toBeLessThan(structure.librarySummary.score ?? 0);
+    const anchored = await build("ANCHORED", FREE);
+    expect(failed.librarySummary.score ?? 0).toBeLessThan(anchored.librarySummary.score ?? 0);
   });
 });

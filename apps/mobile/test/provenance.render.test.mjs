@@ -19,7 +19,7 @@ const CHAIN = (over = {}) => ({
     acquisition: { label: "Captured in the PROOVRA app", recordedBy: "BACKFILL_INTAKE_SESSION_LINK" },
     capture: { deviceSignatureNote: "Signed by the capturing device", attestationVerdict: "PASSED", attestationProvider: "APP_ATTEST", signedAtUtc: "2026-09-20T10:00:00Z" },
     server: { countersigned: true, countersignedAtUtc: "2026-09-20T10:01:00Z" },
-    time: { rfc3161: { applied: true, appliedAtUtc: "2026-09-20T10:02:00Z" }, ots: { applied: false, confirmations: null } },
+    time: { rfc3161: { applied: true, appliedAtUtc: "2026-09-20T10:02:00Z" }, ots: { applied: false, anchorTxId: null, appliedAtUtc: null, bitcoinBlockHeight: null, status: "NOT_REQUESTED", statusLabel: "Not requested" } },
     derivations: [{ derivedEvidenceId: "abcdef1234567890", transformLabel: "redacted copy", derivedAtUtc: "2026-09-21T10:00:00Z" }],
     limitations: ["PROVENANCE_DOES_NOT_PROVE_CONTENT_TRUTH", "SOME_NEW_CODE"],
     ...over,
@@ -66,7 +66,8 @@ test("the Integrity tab shows how the record reached PROOVRA, its preservation s
   assert.ok(r.hasText("Captured in the PROOVRA app"));
   assert.ok(r.hasText("Recorded later from this record's secure intake session."));
   assert.ok(r.hasText("Passed (App attest)"));
-  assert.ok(r.hasText("Not anchored"));
+  assert.ok(r.hasText("Bitcoin anchoring"));
+  assert.ok(r.hasText("Not requested"));
   assert.ok(r.hasText("abcdef12… · redacted copy"));
   assert.ok(r.hasText("It does not establish whether what the file shows is true."));
   assert.ok(r.hasText("Some new code"), "an unknown limitation code was dropped instead of shown");
@@ -94,8 +95,8 @@ test("UC-TRUST-002: a PENDING OTS proof is never 'Anchored'; an unvalidated toke
     body: CHAIN({
       time: {
         rfc3161: { applied: false, appliedAtUtc: "2026-09-20T10:02:00Z", status: "RECORDED_NOT_VALIDATED" },
-        // The pre-fix projection sent applied:true for a PENDING proof.
-        ots: { applied: true, confirmations: null, status: "SUBMITTED" },
+        // ProvenanceChain time.ots.status is THE canonical OtsState (2026-10-13).
+        ots: { applied: false, anchorTxId: null, appliedAtUtc: null, bitcoinBlockHeight: null, status: "PENDING", statusLabel: "Pending" },
       },
     }),
   });

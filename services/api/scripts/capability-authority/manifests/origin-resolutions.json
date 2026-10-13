@@ -212,13 +212,6 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/worker/src/ots-chain-verifier.ts:158",
-      "verdict": "EXTERNAL",
-      "originBinding": "OTS_BITCOIN_NODE_URL — the operator's own Bitcoin Core node (JSON-RPC getblockhash / getblockheader)",
-      "evidence": "services/worker/src/ots-chain-verifier.ts — independent Bitcoin chain verification of an OpenTimestamps attestation; only when OTS_CHAIN_VERIFIER=bitcoind-rpc. Not a PROOVRA route.",
-      "reviewedAtUtc": "2026-10-12"
-    },
-    {
       "site": "services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts:127",
       "verdict": "OURS",
       "originBinding": "const baseUrl = apiBaseUrl()",

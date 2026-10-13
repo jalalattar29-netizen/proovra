@@ -1,4 +1,4 @@
-import type { TrustDecision, TrustSignal } from "@proovra/shared";
+import type { OtsAnchoringView, TrustDecision, TrustSignal } from "@proovra/shared";
 // Pure type declarations extracted from page.tsx (P7 R5.1 decomposition).
 // No runtime code — import-only.
 
@@ -163,30 +163,17 @@ export type VerifyTsa = {
   timestampAvailable?: boolean | null;
 } | null;
 
-export type VerifyOts = {
-  status?: string | null;
-  hash?: string | null;
+/**
+ * `storageAndTimestamping.ots` (2026-10-13): exactly the server's
+ * OtsAnchoringView plus operational siblings. Read it ONLY through
+ * `readOtsAnchoringView` — the state is the server's, never re-derived here.
+ */
+export type VerifyOts = (Partial<OtsAnchoringView> & {
   calendar?: string | null;
-  bitcoinTxid?: string | null;
-  /**
-   * (2026-10-12) With truthState present: the VERIFIED Bitcoin block time only.
-   * Older responses carried the time PROOVRA recorded the proof here.
-   */
-  anchoredAtUtc?: string | null;
-  /** The OTS truth state and its one line (packages/shared/src/ots-truth.ts). */
-  truthState?: string | null;
-  statusLine?: string | null;
-  /** When PROOVRA recorded the attestation-bearing proof. Never an anchor time. */
-  proofRecordedAtUtc?: string | null;
-  bitcoinTxidVerified?: boolean | null;
-  upgradedAtUtc?: string | null;
-  failureReason?: string | null;
   proofPresent?: boolean | null;
-  hashMatchesFingerprintHash?: boolean | null;
-  anchorClaim?: string | null;
-  anchorCheck?: string | null;
-  proofBase64?: string | null;
-} | null;
+  lastUpdatedAtUtc?: string | null;
+  recheckAvailable?: boolean | null;
+}) | null;
 
 export type VerifyStorageAndTimestamping = {
   storage?: VerifyStorageProtection;
@@ -325,30 +312,14 @@ export type StorageProtection = {
 };
 
 export type OtsDetails = {
-  /** The server's one OTS claim (RICH responses since 2026-09-29). */
-  anchorClaim: string | null;
-  /** How the anchor was established (BITCOIN_VERIFIED | PROOF_STRUCTURE | null). */
-  anchorCheck: string | null;
-  status: string | null;
-  hash: string | null;
+  /** THE Bitcoin anchoring state the server sent (readOtsAnchoringView). */
+  view: OtsAnchoringView;
   calendar: string | null;
-  bitcoinTxid: string | null;
-  /**
-   * INTERNAL completeness time for the client-side rules (an anchor needs a
-   * time): the verified block time, else the proof-recorded time. NEVER shown
-   * as an anchor time — display reads verifiedAnchorAtUtc / proofRecordedAtUtc.
-   */
-  anchoredAtUtc: string | null;
-  /** The VERIFIED Bitcoin block time (CHAIN_VERIFIED only). */
-  verifiedAnchorAtUtc: string | null;
-  /** When PROOVRA recorded the attestation-bearing proof. */
-  proofRecordedAtUtc: string | null;
-  statusLine: string | null;
-  upgradedAtUtc: string | null;
-  failureReason: string | null;
+  /** The stored proof material, published for independent checking only. */
   proofBase64: string | null;
   proofPresent: boolean | null;
-  hashMatchesFingerprintHash: boolean | null;
+  /** Legacy top-level stored status — only for the pre-matrix trust fallback. */
+  legacyStatus: string | null;
 };
 
 export type TechnicalTabId =
@@ -440,6 +411,7 @@ export type VerifySnapshotSection = {
   packageVersion?: number | null;
   /** Read ONLY through readStoredTrustDecision: an old snapshot may carry a score. */
   trustDecisionSnapshot?: unknown;
+  /** The Bitcoin anchoring state at generation (an OtsState); unknown reads as Unavailable. */
   otsStatusAtGeneration?: string | null;
   reportSignature?: {
     status?: string | null;
@@ -452,13 +424,12 @@ export type VerifySnapshotSection = {
   } | null;
 } | null;
 
+/**
+ * The live anchoring section's operational facts. Its Bitcoin anchoring state,
+ * block height, txid and recording time are read from the current
+ * `storageAndTimestamping.ots` view, never from these fields.
+ */
 export type VerifyLiveAnchoring = {
-  currentOtsStatus?: string | null;
-  /** (2026-10-12) The VERIFIED Bitcoin block time only. */
-  otsAnchoredAtUtc?: string | null;
-  /** When PROOVRA recorded the attestation-bearing proof. */
-  otsProofRecordedAtUtc?: string | null;
-  otsBitcoinTxid?: string | null;
   lastUpdatedAtUtc?: string | null;
   hasAdvancedSinceSnapshot?: boolean | null;
   newerReportAvailable?: boolean | null;

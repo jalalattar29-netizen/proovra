@@ -46,17 +46,15 @@ import {
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
   buildCaptureLocationExternalMapUrl,
   deriveAnchorSemantics,
-  normalizeOtsAnchorCheck,
-  OTS_ANCHOR_CLAIM_LABELS,
-  OtsDigestBindingError,
+  OTS_ANCHORED_BOUNDARY,
+  OTS_FAILURE_LABELS,
+  OTS_STATE_SENTENCES,
+  OTS_STATE_WORDS,
   otsBlocksPublication,
-  OTS_REPORTED_BY_PROOF_QUALIFIER,
-  OTS_TRUTH_SENTENCES,
-  OTS_TRUTH_STATUS_LINES,
-  type OtsTruthState,
-  checkOtsDigestBinding,
-  resolveOtsAnchorClaim,
-  resolveOtsTruth,
+  presentOtsAnchoring,
+  resolveOtsAnchoring,
+  type OtsAnchoring,
+  type OtsState,
   deriveCanonicalWorkspaceScope,
   describeCanonicalWorkspaceScope,
   evidenceLocationSourceLabel,
@@ -66,8 +64,6 @@ import {
   hasCaptureLocationMetadata,
   isAccessCustodyEventType,
   buildVerificationMatrix,
-  toVerificationStatus,
-  type VerificationStatus,
   type CanonicalEvidenceMaterials,
   // UC-0 — acquisition authority + artifact classes.
   ACQUISITION_GLOBAL_QUALIFIER,
@@ -158,7 +154,8 @@ type AnchorMode =
   | "not_configured"
   | "bitcoin_anchoring_pending"
   | "anchored"
-  | "failed";
+  | "failed"
+  | "unavailable";
 
 type AnchorPayload = {
   version: 1;
@@ -173,9 +170,8 @@ type AnchorPayload = {
   statusLabel?: string;
   transactionId?: string | null;
   anchoredAtUtc?: string | null;
-  /** The record's OTS state and how its anchor was established (2026-09-29). */
-  otsStatus?: string | null;
-  otsAnchorCheck?: string | null;
+  /** The record's canonical OTS state (2026-10-13). */
+  otsState?: OtsState | null;
 };
 
 type PackageManifest = {
@@ -223,12 +219,9 @@ type PackageManifest = {
   anchorMode: AnchorMode;
   anchorStatusLabel?: string | null;
   anchorProvider: string | null;
-  publicAnchoringVerified: boolean;
-  /**
-   * The one OTS claim behind publicAnchoringVerified (2026-09-29):
-   * verified | anchored_not_checked | pending | failed | unavailable | not_included.
-   */
-  anchoringClaim: string;
+  /** THE canonical OpenTimestamps state (2026-10-13); opentimestamps.json states it too. */
+  otsState: OtsState;
+  /** Only when the executed proof path derives it (ANCHORED). */
   transactionId: string | null;
   verificationProfile: "FORENSIC_INTEGRITY";
   contents: {
@@ -695,113 +688,6 @@ export function buildEvidencePackageFileName(params: {
   return params.totalParts > 1 ? fileName : avoidReservedRootEntryName(fileName);
 }
 
-function normalizeAnchorMode(value: string | null | undefined): AnchorMode {
-  const raw = String(value ?? "").trim().toLowerCase();
-  switch (raw) {
-    case "anchored":
-    case "active":
-      return "anchored";
-    case "failed":
-      return "failed";
-    case "not_configured":
-    case "off":
-      return "not_configured";
-    case "bitcoin_anchoring_pending":
-    case "ready":
-    default:
-      return "bitcoin_anchoring_pending";
-  }
-}
-
-/**
- * The label for a package WITHOUT anchor material. With anchor material the
- * label is `deriveAnchorSemantics(...).anchoringLabel` — the one OTS claim —
- * which is the only place "verified" can come from (2026-09-29).
- */
-function getAnchorStatusLabel(mode: AnchorMode): string {
-  switch (mode) {
-    case "anchored":
-      return OTS_ANCHOR_CLAIM_LABELS.ANCHORED_NOT_CHECKED;
-    case "failed":
-      return OTS_ANCHOR_CLAIM_LABELS.FAILED;
-    case "not_configured":
-      return OTS_ANCHOR_CLAIM_LABELS.NOT_CONFIGURED;
-    case "bitcoin_anchoring_pending":
-    default:
-      return OTS_ANCHOR_CLAIM_LABELS.PENDING;
-  }
-}
-
-function derivePackageAnchorMode(params: {
-  rawMode?: string | null;
-  anchor?: AnchorPayload | null;
-  trustDecision: ReportTrustDecision;
-}): AnchorMode {
-  const normalizedRawMode = normalizeAnchorMode(params.rawMode);
-  /*
-   * THE PACKAGE'S ANCHOR MODE FOLLOWS ITS OWN ANCHOR CLAIM (2026-09-29).
-   *
-   * It used to follow the report's trust-decision signal, which requires a
-   * txid for "passed". A recorded anchor without a txid therefore produced
-   * anchorMode "bitcoin_anchoring_pending" in the manifest and anchor.json
-   * while opentimestamps.json — built from the same record — said anchored.
-   * When the package carries anchor material the mode is now the SAME shared
-   * claim the companion and anchor.json state; the trust signal is only the
-   * fallback for a package with no anchor payload.
-   */
-  if (params.anchor) {
-    const anchor = params.anchor as AnchorPayload & {
-      otsStatus?: string | null;
-      otsAnchorCheck?: string | null;
-    };
-    const legacyMaterial =
-      anchor.otsStatus == null && Boolean(anchor.transactionId || anchor.anchoredAtUtc);
-    const claim = legacyMaterial
-      ? "ANCHORED_NOT_CHECKED"
-      : resolveOtsAnchorClaim({
-          status: anchor.otsStatus ?? null,
-          anchoredAtUtc: anchor.anchoredAtUtc ?? null,
-          anchorCheck: anchor.otsAnchorCheck ?? null,
-          bitcoinTxid: anchor.transactionId ?? null,
-        });
-    if (claim === "VERIFIED" || claim === "ANCHORED_NOT_CHECKED") return "anchored";
-    if (claim === "PENDING") return "bitcoin_anchoring_pending";
-    if (claim === "FAILED") return "failed";
-  }
-  const anchoringSignal = params.trustDecision.signals.find(
-    (signal) => signal.key === "bitcoin_anchoring"
-  );
-  const hasPublicAnchorMaterial = Boolean(
-    params.anchor?.transactionId || params.anchor?.anchoredAtUtc
-  );
-
-  if (anchoringSignal?.status === "failed") {
-    return "failed";
-  }
-
-  if (anchoringSignal?.status === "passed") {
-    return "anchored";
-  }
-
-  if (
-    anchoringSignal?.status === "pending" ||
-    anchoringSignal?.status === "partial" ||
-    normalizedRawMode === "bitcoin_anchoring_pending"
-  ) {
-    return "bitcoin_anchoring_pending";
-  }
-
-  if (normalizedRawMode === "failed") {
-    return "failed";
-  }
-
-  if (normalizedRawMode === "anchored") {
-    return hasPublicAnchorMaterial ? "anchored" : "bitcoin_anchoring_pending";
-  }
-
-  return "not_configured";
-}
-
 function safeText(value: string | null | undefined, fallback = "N/A"): string {
   const text = typeof value === "string" ? value.trim() : "";
   return text || fallback;
@@ -873,26 +759,20 @@ function jsonBuffer(value: unknown): Buffer {
 }
 
 // -----------------------------------------------------------------------------
-// Hotfix — OTS artifact emission decision (pure, unit-testable).
+// THE PACKAGE'S OPENTIMESTAMPS MATERIAL (2026-10-13) — pure, unit-testable.
 //
-// Captures the rules for emitting `opentimestamps-proof.ots` and
-// `opentimestamps.json` inside the verification package. Kept separate
-// from the rest of the package builder so it can be exercised by the
-// regression tests without setting up signing keys, archives, or a
-// full evidence fixture.
-//
-// Hard rules (mirrored by the test file):
-//   * `.ots` file is emitted ONLY when proof bytes actually decode
-//     from the base64 input AND have non-zero length. Never
-//     fabricated.
-//   * `opentimestamps.json` companion is emitted whenever any OTS
-//     state is reported, EXCEPT for DISABLED (we don't add stubs for
-//     workspaces that intentionally have OTS off).
-//   * `ANCHORED` status without a valid Bitcoin txid AND without an
-//     `anchoredAtUtc` value DEGRADES to PENDING in the companion. The
-//     package never asserts Bitcoin anchoring without evidence for it.
-//   * `failureReason` is only echoed when status is FAILED. `anchoredAtUtc`
-//     is only echoed when canonical status remains ANCHORED.
+// The state is the ONE canonical resolution (`resolveOtsAnchoring`), computed
+// against THIS package's fingerprint digest (the SHA-256 of the fingerprint.json
+// bytes it carries). Rules:
+//   * `opentimestamps-proof.ots` is the stored proof's exact bytes, included
+//     only when they parse and commit to that digest. Never fabricated.
+//   * `opentimestamps.json` states the canonical state, the digest ↔ proof
+//     mapping, the proof's SHA-256, the attestation facts the proof yields and
+//     the validator — for every state except NOT_REQUESTED.
+//   * A proof-integrity failure (malformed, digest mismatch, unsupported
+//     operation, invalid attestation) refuses the package (otsBlocksPublication).
+//   * A txid appears only when the executed proof path derived it; the
+//     anchored time is when PROOVRA recorded the anchor, not a block time.
 // -----------------------------------------------------------------------------
 
 export type OtsPackageArtifactInput = {
@@ -900,204 +780,132 @@ export type OtsPackageArtifactInput = {
   proofBase64: string | null;
   hash: string | null;
   calendar: string | null;
-  bitcoinTxid: string | null;
+  bitcoinTxid?: string | null;
   anchoredAtUtc: string | null;
   upgradedAtUtc: string | null;
   failureReason: string | null;
-  /** How the anchor was established (2026-09-29); null when not recorded. */
-  anchorCheck?: string | null;
+  /** When the digest was submitted (the first OTS custody event), when known. */
+  submittedAtUtc?: string | null;
   /**
-   * (2026-10-12) The digest every proof must commit to: the SHA-256 of the
-   * package's own fingerprint.json bytes. Required to include a proof.
+   * The digest every proof must commit to: the SHA-256 of the package's own
+   * fingerprint.json bytes. Required to include a proof.
    */
   fingerprintHash?: string | null;
-  /** The OTS truth columns (evidence.ots_attestation_* / ots_chain_*). */
-  attestationRecordedAtUtc?: string | null;
-  attestationBlockHeight?: number | null;
-  chainVerificationStatus?: string | null;
-  chainCheckedAtUtc?: string | null;
-  chainVerifiedAtUtc?: string | null;
-  chainBlockHeight?: number | null;
-  chainBlockHash?: string | null;
-  chainBlockTimeUtc?: string | null;
-  chainConfirmations?: number | null;
-  chainVerifier?: string | null;
-  chainFailureCode?: string | null;
   /** The OpenTimestamps client the worker ran, e.g. "opentimestamps-client 0.7.2". */
   otsClient?: string | null;
 };
 
 export type OtsPackageArtifactCompanion = {
   schema: "PROOVRA_OPENTIMESTAMPS_STATE";
-  version: 2;
+  version: 3;
+  /** THE canonical state (packages/shared ots-anchoring.ts). */
+  state: OtsState;
+  title: "Bitcoin anchoring";
   status: string;
-  /** The OTS truth state (packages/shared/src/ots-truth.ts) and its one line. */
-  truthState: string;
-  statusLine: string;
-  /** The digest the record says was stamped (the fingerprint digest). */
-  hash: string | null;
-  /**
-   * The digest the INCLUDED proof commits to, read from its bytes, and whether
-   * it is the SHA-256 of this package's fingerprint.json — the binding a
-   * reviewer can recompute: `sha256sum fingerprint.json`.
-   */
-  committedDigest: {
-    algorithm: "sha256";
-    hex: string;
-    fingerprintFile: "fingerprint.json";
-    matchesFingerprint: true;
+  label: string;
+  sentence: string;
+  failureCode: string | null;
+  failureLabel: string | null;
+  /** The record's evidence digest: the SHA-256 of fingerprint.json. */
+  evidenceDigest: { algorithm: "sha256"; hex: string | null; file: "fingerprint.json" };
+  /** The digest the INCLUDED proof commits to, read from its bytes. */
+  committedDigest: { algorithm: "sha256"; hex: string; matchesEvidenceDigest: boolean } | null;
+  proof: { file: "opentimestamps-proof.ots"; sha256: string; sizeBytes: number } | null;
+  attestation: {
+    type: "BITCOIN_BLOCK_HEADER" | "PENDING_CALENDAR";
+    bitcoinBlockHeight: number | null;
+    /** Only when the executed proof path derives it. */
+    bitcoinTxid: string | null;
+    merkleRootHex: string | null;
+    pendingCalendarCount: number;
   } | null;
   calendar: string | null;
-  /** Reported by the proof (`ots info`); verified only when bitcoinTxidVerified. */
-  bitcoinTxid: string | null;
-  bitcoinTxidVerified: boolean;
-  /** Block height the proof reports; verified only inside chainVerification. */
-  reportedBlockHeight: number | null;
-  /** When PROOVRA recorded the attestation-bearing proof. Never an anchor time. */
-  proofRecordedAtUtc: string | null;
+  submittedAtUtc: string | null;
+  /** When PROOVRA recorded ANCHORED — not a Bitcoin block time. */
+  anchoredRecordedAtUtc: string | null;
   upgradedAtUtc: string | null;
-  /** The VERIFIED Bitcoin block time of an independent chain check; null otherwise. */
-  anchoredAtUtc: string | null;
-  /** The independent chain verification, with its evidence (CHAIN_VERIFIED only). */
-  chainVerification: {
-    verifier: string;
-    verifiedAtUtc: string;
-    blockHeight: number;
-    blockHash: string;
-    blockTimeUtc: string;
-    confirmations: number;
-  } | null;
-  /** The latest chain check, whatever its outcome. */
-  chainCheck: { status: string; checkedAtUtc: string | null; failureCode: string | null } | null;
-  failureReason: string | null;
-  proofPresent: boolean;
-  proofFile: string | null;
-  /** Why proof bytes recorded for the record are NOT in this package. */
-  proofExcludedReason: string | null;
-  anchorCheck: string | null;
-  anchorClaim: string;
-  publicAnchoringVerified: boolean;
-  /** The customer-facing status: anything not chain-verified is NOT_CHECKED. */
-  verificationStatus: VerificationStatus;
-  /** The tool the worker ran, recorded with the proof it produced. */
+  validator: string;
+  /** Stated for ANCHORED: what PROOVRA does and does not establish. */
+  boundary: string | null;
   otsClient: string | null;
-  verificationHint: string;
 };
 
 export type OtsPackageArtifactDecision = {
   proofBytes: Buffer | null;
   companion: OtsPackageArtifactCompanion | null;
+  anchoring: OtsAnchoring;
 };
 
-/**
- * THE PACKAGE'S OPENTIMESTAMPS MATERIAL (2026-10-12) — the shared truth model,
- * and a proof only when it commits to this package's fingerprint digest.
- *
- * A proof bound to another digest, unreadable, or refuted by an independent
- * Bitcoin check is never packaged: the build is REFUSED whatever status the
- * record carries (OtsDigestBindingError, OTS_PROOF_DIGEST_MISMATCH /
- * OTS_PROOF_UNREADABLE; shared otsBlocksPublication). A correctly bound proof
- * that was not independently verified is packaged as "Attestation recorded".
- */
-export function decideOtsPackageArtifact(
-  input: OtsPackageArtifactInput
-): OtsPackageArtifactDecision {
-  const statusRaw = (input.status ?? "").toString().trim().toUpperCase();
-  const hasAnchoredAt = Boolean(input.anchoredAtUtc);
-  // The SHARED completeness rule (an anchor needs its time), as before.
-  const canonicalStatus =
-    statusRaw === "ANCHORED" && !hasAnchoredAt
-      ? "PENDING"
-      : statusRaw || "UNKNOWN";
-
-  // Companion JSON is suppressed for DISABLED (no value adding a stub
-  // for a workspace that has OTS off).
-  if (canonicalStatus === "DISABLED") {
-    return { proofBytes: null, companion: null };
-  }
-
-  const binding = checkOtsDigestBinding({
+export function decideOtsPackageArtifact(input: OtsPackageArtifactInput): OtsPackageArtifactDecision {
+  const anchoring = resolveOtsAnchoring({
+    status: input.status,
     proofBase64: input.proofBase64,
     fingerprintHash: input.fingerprintHash ?? null,
     otsHash: input.hash ?? null,
-  });
-  if (binding.kind === "MISMATCH" || binding.kind === "UNREADABLE") {
-    throw new OtsDigestBindingError(binding, "the verification package builder");
-  }
-  const proofBytes: Buffer | null =
-    binding.kind === "MATCH" ? Buffer.from(input.proofBase64 as string, "base64") : null;
-  const proofExcludedReason: string | null = null;
-
-  const truth = resolveOtsTruth({
-    status: input.status,
+    failureReason: input.failureReason,
+    calendar: input.calendar,
     anchoredAtUtc: input.anchoredAtUtc,
-    anchorCheck: input.anchorCheck ?? null,
-    bitcoinTxid: input.bitcoinTxid ?? null,
-    proofPresent: Boolean(input.proofBase64),
     upgradedAtUtc: input.upgradedAtUtc,
-    attestationRecordedAtUtc: input.attestationRecordedAtUtc ?? null,
-    attestationBlockHeight: input.attestationBlockHeight ?? null,
-    chainVerificationStatus: input.chainVerificationStatus ?? null,
-    chainCheckedAtUtc: input.chainCheckedAtUtc ?? null,
-    chainVerifiedAtUtc: input.chainVerifiedAtUtc ?? null,
-    chainBlockHeight: input.chainBlockHeight ?? null,
-    chainBlockHash: input.chainBlockHash ?? null,
-    chainBlockTimeUtc: input.chainBlockTimeUtc ?? null,
-    chainConfirmations: input.chainConfirmations ?? null,
-    chainVerifier: input.chainVerifier ?? null,
-    chainFailureCode: input.chainFailureCode ?? null,
-    digestBinding: binding.kind === "ABSENT" ? null : binding,
+    submittedAtUtc: input.submittedAtUtc ?? null,
   });
-  if (otsBlocksPublication({ digestBinding: binding.kind, truthState: truth.state })) {
-    // An independent Bitcoin check ran and refuted this proof.
+  if (anchoring.state === "NOT_REQUESTED") return { proofBytes: null, companion: null, anchoring };
+  if (otsBlocksPublication(anchoring)) {
     throw new OutputVerificationError("PACKAGE_OUTPUT_INCONSISTENT", [
-      { check: "OTS_PROOF_DIGEST_MISMATCH", detail: `the OpenTimestamps proof is ${truth.state}` },
+      {
+        check: anchoring.failureCode === "PROOF_HASH_MISMATCH" ? "OTS_PROOF_DIGEST_MISMATCH" : "OTS_PROOF_INVALID",
+        detail: `the stored OpenTimestamps proof failed validation (${String(anchoring.failureCode)})`,
+      },
     ]);
   }
-  const verified = truth.state === "CHAIN_VERIFIED";
-  const attested = truth.claim === "VERIFIED" || truth.claim === "ANCHORED_NOT_CHECKED";
+  const bound = anchoring.committedDigestHex !== null && anchoring.proofSha256 !== null;
+  const proofBytes = bound ? Buffer.from(String(input.proofBase64).trim(), "base64") : null;
+  const anchored = anchoring.state === "ANCHORED";
+  const presented = presentOtsAnchoring(anchoring);
+  const evidenceDigest = input.fingerprintHash ? input.fingerprintHash.toLowerCase() : null;
 
   const companion: OtsPackageArtifactCompanion = {
     schema: "PROOVRA_OPENTIMESTAMPS_STATE",
-    version: 2,
-    status: canonicalStatus,
-    truthState: truth.state,
-    statusLine: truth.statusLine,
-    hash: input.hash ?? null,
-    committedDigest:
-      binding.kind === "MATCH"
-        ? { algorithm: "sha256", hex: binding.committedDigestHex, fingerprintFile: "fingerprint.json", matchesFingerprint: true }
+    version: 3,
+    state: anchoring.state,
+    title: presented.title,
+    status: presented.status,
+    label: presented.label,
+    sentence: presented.sentence,
+    failureCode: anchoring.failureCode,
+    failureLabel: anchoring.failureCode
+      ? (OTS_FAILURE_LABELS[anchoring.failureCode] ?? OTS_FAILURE_LABELS.OTS_PROCESSING_FAILED!)
+      : null,
+    evidenceDigest: { algorithm: "sha256", hex: evidenceDigest, file: "fingerprint.json" },
+    committedDigest: anchoring.committedDigestHex
+      ? {
+          algorithm: "sha256",
+          hex: anchoring.committedDigestHex,
+          matchesEvidenceDigest: anchoring.committedDigestHex === evidenceDigest,
+        }
+      : null,
+    proof:
+      proofBytes && anchoring.proofSha256
+        ? { file: "opentimestamps-proof.ots", sha256: anchoring.proofSha256, sizeBytes: proofBytes.length }
         : null,
+    attestation: anchoring.attestationType
+      ? {
+          type: anchoring.attestationType,
+          bitcoinBlockHeight: anchored ? anchoring.bitcoinBlockHeight : null,
+          bitcoinTxid: anchored ? anchoring.bitcoinTxid : null,
+          merkleRootHex: anchored ? anchoring.merkleRootHex : null,
+          pendingCalendarCount: anchoring.pendingCalendars.length,
+        }
+      : null,
     calendar: input.calendar ?? null,
-    bitcoinTxid: attested ? (truth.reported?.txid ?? null) : null,
-    bitcoinTxidVerified: verified,
-    reportedBlockHeight: attested ? (truth.reported?.blockHeight ?? null) : null,
-    proofRecordedAtUtc: truth.proofRecordedAtUtc,
+    submittedAtUtc: anchoring.submittedAtUtc,
+    anchoredRecordedAtUtc: anchored ? anchoring.anchoredAtUtc : null,
     upgradedAtUtc: input.upgradedAtUtc ?? null,
-    anchoredAtUtc: truth.verifiedAnchorTimeUtc,
-    chainVerification: truth.chain,
-    chainCheck: truth.chainCheck,
-    failureReason: canonicalStatus === "FAILED" ? input.failureReason ?? null : null,
-    proofPresent: Boolean(proofBytes),
-    proofFile: proofBytes ? "opentimestamps-proof.ots" : null,
-    proofExcludedReason,
-    anchorCheck: canonicalStatus === "ANCHORED" ? normalizeOtsAnchorCheck(input.anchorCheck) : null,
-    anchorClaim: truth.claim,
-    publicAnchoringVerified: verified,
-    verificationStatus: verified
-      ? "VERIFIED"
-      : truth.claim === "FAILED"
-        ? "FAILED"
-        : canonicalStatus === "ANCHORED" || canonicalStatus === "PENDING"
-          ? "NOT_CHECKED"
-          : "UNAVAILABLE",
+    validator: anchoring.validator,
+    boundary: anchored ? OTS_ANCHORED_BOUNDARY : null,
     otsClient: input.otsClient ?? null,
-    verificationHint: proofBytes
-      ? "1) Structure (offline): `ots info opentimestamps-proof.ots` prints the committed digest (equal to `sha256sum fingerprint.json`) and the attestations the proof carries. 2) Bitcoin (needs a Bitcoin Core node you trust): `ots --bitcoin-node <node URL> verify -d <committedDigest.hex> opentimestamps-proof.ots`. Step 1 alone does not verify anything against Bitcoin."
-      : "OTS proof bytes are not present in this package; the status above is the canonical OTS state at package generation time.",
   };
 
-  return { proofBytes, companion };
+  return { proofBytes, companion, anchoring };
 }
 
 function textBuffer(value: string): Buffer {
@@ -1767,79 +1575,66 @@ async function buildCaptureContextMapPreview(
   }
 }
 
-function buildAnchorReadmeSection(params: {
-  anchorMode: AnchorMode;
-  anchorStatusLabel: string;
-  hasAnchorPayload: boolean;
-  otsStatus?: string | null;
-  bitcoinTxid?: string | null;
-  /** deriveAnchorSemantics(...).anchoringStatus — the one OTS claim. */
-  anchoringClaim?: string | null;
-  /** (2026-10-12) The package's OTS truth (opentimestamps.json). */
-  ots?: OtsPackageArtifactCompanion | null;
-}): string {
-  const otsStatus = String(params.otsStatus ?? "").toUpperCase();
-  const ots = params.ots ?? null;
-  const procedure = ots ? otsVerificationProcedure(ots) : "";
-
-  // (2026-10-12) One status and one sentence — the card the report shows.
-  // The details are in opentimestamps.json and the procedure below.
-  const status = (state: OtsTruthState): string =>
-    `ANCHOR STATUS
-
-OpenTimestamps: ${OTS_TRUTH_STATUS_LINES[state]}. ${OTS_TRUTH_SENTENCES[state]}`;
-
-  if (params.anchorMode === "not_configured") return status("NOT_REQUESTED");
-
-  if (!params.hasAnchorPayload) {
-    return `ANCHOR STATUS
-
-No anchor.json file is included in this package.
-OpenTimestamps: ${params.anchorStatusLabel}.`;
-  }
-
-  // "Verified" only when an independent check verified the proof against the
-  // chain. A proof that check refuted is never packaged (otsBlocksPublication).
-  if (params.anchorMode === "anchored") {
-    if (ots?.truthState === "CHAIN_VERIFIED" && ots.chainVerification) {
-      return `${status("CHAIN_VERIFIED")}${procedure}`;
-    }
-    const lines = [
-      status(ots?.truthState === "CHAIN_VERIFICATION_UNAVAILABLE" ? "CHAIN_VERIFICATION_UNAVAILABLE" : "ATTESTATION_PRESENT_NOT_VERIFIED"),
-      ots?.proofRecordedAtUtc ? `Recorded by PROOVRA: ${ots.proofRecordedAtUtc}` : null,
-      ots?.bitcoinTxid ? `Bitcoin transaction ID: ${ots.bitcoinTxid} (${OTS_REPORTED_BY_PROOF_QUALIFIER}.)` : null,
-    ].filter((l): l is string => l !== null);
-    return `${lines.join("\n")}${procedure}`;
-  }
-
-  if (params.anchorMode === "bitcoin_anchoring_pending" || otsStatus === "PENDING") {
-    return `${status("PENDING")}${procedure}`;
-  }
-
-  if (params.anchorMode === "failed" || otsStatus === "FAILED") return status("PROOF_INVALID");
-
-  return status("PENDING");
-}
-
 /**
- * (2026-10-12) The runnable OpenTimestamps procedure. Structure (offline)
- * proves which digest the proof commits to; only a Bitcoin node the reviewer
- * trusts verifies the attestation against the chain.
+ * THE README'S BITCOIN ANCHORING SECTION (2026-10-13): what PROOVRA
+ * established, and what an external reviewer can do with their own tools.
  */
-function otsVerificationProcedure(ots: OtsPackageArtifactCompanion): string {
-  if (!ots.proofFile || !ots.committedDigest) return "";
-  return `
+function buildAnchorReadmeSection(params: { ots: OtsPackageArtifactCompanion | null }): string {
+  const ots = params.ots;
+  if (!ots) {
+    return `BITCOIN ANCHORING (OPENTIMESTAMPS)
 
-OPENTIMESTAMPS VERIFICATION
+Status: ${OTS_STATE_WORDS.NOT_REQUESTED}. ${OTS_STATE_SENTENCES.NOT_REQUESTED}`;
+  }
+  const established: string[] = [];
+  if (ots.state === "ANCHORED") {
+    established.push(
+      ots.boundary ?? OTS_ANCHORED_BOUNDARY,
+      ots.committedDigest ? `The proof commits to the evidence digest ${ots.committedDigest.hex} (the SHA-256 of fingerprint.json).` : "",
+      ots.attestation?.bitcoinBlockHeight != null ? `Bitcoin block height attested by the proof: ${ots.attestation.bitcoinBlockHeight}.` : "",
+      ots.attestation?.bitcoinTxid ? `Bitcoin transaction derived from the proof: ${ots.attestation.bitcoinTxid}.` : "",
+      ots.anchoredRecordedAtUtc ? `PROOVRA recorded the anchor at ${ots.anchoredRecordedAtUtc} (a PROOVRA time, not a Bitcoin block time).` : "",
+    );
+  } else if (ots.state === "PENDING") {
+    established.push(
+      "The evidence digest was submitted to OpenTimestamps calendars. The included proof does not yet carry a Bitcoin block attestation.",
+      ots.committedDigest ? `The proof commits to the evidence digest ${ots.committedDigest.hex} (the SHA-256 of fingerprint.json).` : "",
+    );
+  } else if (ots.state === "FAILED") {
+    established.push(ots.failureLabel ?? "Bitcoin anchoring did not complete for this record.");
+  } else {
+    established.push(ots.failureLabel ?? "The OpenTimestamps proof material cannot currently be read.");
+  }
+  if (ots.proof) established.push(`opentimestamps-proof.ots SHA-256: ${ots.proof.sha256}. Validated by ${ots.validator}.`);
+
+  const reviewer = ots.proof && ots.committedDigest
+    ? `
+WHAT AN EXTERNAL REVIEWER CAN DO
 Tool: the OpenTimestamps client (pip install opentimestamps-client)${ots.otsClient ? `; PROOVRA ran ${ots.otsClient}` : ""}.
-1) The proof commits to fingerprint.json (structural, offline — checks nothing in Bitcoin):
+1) Check the digest the proof commits to (offline):
    sha256sum fingerprint.json
+   The result must equal ${ots.committedDigest.hex}.
+2) Check the proof file is the one PROOVRA stored (offline):
+   sha256sum opentimestamps-proof.ots
+   The result must equal ${ots.proof.sha256}.
+3) Inspect the proof's operations and attestations (offline):
    ots info opentimestamps-proof.ots
-   The "File sha256 hash" line must equal both the value above and the committed digest ${ots.committedDigest.hex}.
-2) Verify the Bitcoin attestation (requires access to a Bitcoin Core node you trust):
-   ots --bitcoin-node http://<rpcuser>:<rpcpassword>@<host>:8332 verify -d ${ots.committedDigest.hex} opentimestamps-proof.ots
-   Success prints "Bitcoin block <height> attests existence as of <time>".
-   "Could not connect to Bitcoin node" is not a verification result: nothing was checked.`;
+${
+  ots.state === "ANCHORED"
+    ? `4) Verify the Bitcoin block attestation against a Bitcoin node YOU operate or trust:
+   ots --bitcoin-node <your node> verify -d ${ots.committedDigest.hex} opentimestamps-proof.ots
+   PROOVRA does not operate a Bitcoin node and makes no canonical-chain claim of its own.`
+    : `4) The proof is awaiting Bitcoin anchoring. A later \`ots upgrade opentimestamps-proof.ots\` may add the Bitcoin attestation; then verify it as above against a node you operate or trust.`
+}`
+    : "";
+
+  return `BITCOIN ANCHORING (OPENTIMESTAMPS)
+
+Status: ${ots.status}. ${ots.sentence}
+
+WHAT PROOVRA ESTABLISHED
+${established.filter(Boolean).map((l) => `- ${l}`).join("\n")}
+${reviewer}`;
 }
 
 function buildEvidenceManifest(
@@ -2051,8 +1846,9 @@ function buildPackageManifest(params: {
   anchorStatusLabel: string;
   anchorProvider?: string | null;
   anchor?: AnchorPayload | null;
-  publicAnchoringVerified: boolean;
-  anchoringClaim: string;
+  otsState: OtsState;
+  /** Only when the executed proof path derives it (ANCHORED). */
+  transactionId: string | null;
   hasTimestampToken: boolean;
   hasActualCertifications: boolean;
   hasReportArtifact: boolean;
@@ -2140,12 +1936,8 @@ function buildPackageManifest(params: {
     anchorMode: params.anchorMode,
     anchorStatusLabel: params.anchorStatusLabel,
     anchorProvider: params.anchorProvider ?? null,
-    // THE ONE OTS CLAIM (2026-09-29): true only when the proof's Bitcoin
-    // attestation was verified against the chain. A recorded transaction
-    // reference or anchored-at time is anchor material, not verification.
-    publicAnchoringVerified: params.publicAnchoringVerified,
-    anchoringClaim: params.anchoringClaim,
-    transactionId: params.anchor?.transactionId ?? null,
+    otsState: params.otsState,
+    transactionId: params.transactionId,
     verificationProfile: "FORENSIC_INTEGRITY",
     contents: {
       // EXTERNAL_DISCLOSURE withholds the original files (their digests stay).
@@ -2217,9 +2009,6 @@ function buildReadme(params: {
   hasReportArtifact: boolean;
   hasTimestampToken: boolean;
   timestampStatus?: string | null;
-  otsStatus?: string | null;
-  bitcoinTxid?: string | null;
-  anchoringClaim?: string | null;
   ots?: OtsPackageArtifactCompanion | null;
   metadata: VerificationPackageMetadata;
   /** From the seal: when the report was issued and this package assembled. */
@@ -2573,15 +2362,7 @@ ${params.evidenceFiles.length > 1 ? `   ${PROOVRA_MULTIPART_REVIEWER_EXPLANATION
 10) Use original-linkage.json to tie every included file and the bundled report back to the preserved record.
 11) Complete the certification templates inside certifications/ before using this package as a court-facing packet.
 
-${buildAnchorReadmeSection({
-  anchorMode: params.anchorMode,
-  anchorStatusLabel: params.anchorStatusLabel,
-  hasAnchorPayload: params.anchorIncluded,
-  otsStatus: params.otsStatus,
-  bitcoinTxid: params.bitcoinTxid,
-  anchoringClaim: params.anchoringClaim,
-  ots: params.ots ?? null,
-})}
+${buildAnchorReadmeSection({ ots: params.ots ?? null })}
 
 ${commandsSection}
 ${tsaLevelsSection}
@@ -2965,10 +2746,9 @@ export async function createVerificationPackage(data: {
    *     from inside the package without fabricating a proof file.
    *   - `otsStatus === "DISABLED"` → no `.ots` file, no companion. The
    *     package shape is unchanged from pre-hotfix builds.
-   *   - All other states with `otsProofBase64` present → the `.ots`
-   *     file IS emitted, and the companion records the canonical
-   *     state. `ANCHORED` without a valid txid degrades to `PENDING`
-   *     in the companion so the package never overclaims anchoring.
+   *   - Every other state: the companion records the canonical state
+   *     (decideOtsPackageArtifact); the `.ots` file is the stored proof,
+   *     included when it commits to this package's fingerprint digest.
    */
   ots?: {
     status: string | null;
@@ -2979,19 +2759,10 @@ export async function createVerificationPackage(data: {
     anchoredAtUtc: string | null;
     upgradedAtUtc: string | null;
     failureReason: string | null;
-    anchorCheck?: string | null;
-    /** (2026-10-12) The OTS truth columns and the client the worker ran. */
-    attestationRecordedAtUtc?: string | null;
-    attestationBlockHeight?: number | null;
-    chainVerificationStatus?: string | null;
-    chainCheckedAtUtc?: string | null;
-    chainVerifiedAtUtc?: string | null;
-    chainBlockHeight?: number | null;
-    chainBlockHash?: string | null;
-    chainBlockTimeUtc?: string | null;
-    chainConfirmations?: number | null;
-    chainVerifier?: string | null;
-    chainFailureCode?: string | null;
+    /** When the digest was submitted (first OTS custody event), when known. */
+    submittedAtUtc?: string | null;
+    /** The digest the record says the proof commits to (not used: the package recomputes it). */
+    fingerprintHash?: string | null;
     otsClient?: string | null;
   } | null;
   /**
@@ -3310,46 +3081,25 @@ export async function createVerificationPackage(data: {
       };
     });
 
-    const anchorMode = derivePackageAnchorMode({
-      rawMode: data.anchorMode,
-      anchor: data.anchor ?? null,
-      trustDecision: data.trustDecision,
-    });
-    const anchorIncluded = Boolean(data.anchor);
     /*
-     * ONE ANCHORING CLAIM (2026-09-29). The manifest, anchor.json, the README
-     * and the status label all read this. It was computed with `otsStatus:
-     * null`, and the manifest used `Boolean(transactionId || anchoredAtUtc)` —
-     * a txid on the row was signed as "publicAnchoringVerified: true" whether
-     * or not anything checked the proof's Bitcoin attestation. Now it is
-     * VERIFIED only for an anchor verified against the Bitcoin chain
-     * (evidence.ots_anchor_check = BITCOIN_VERIFIED).
+     * ONE ANCHORING STATE (2026-10-13). The proof is resolved against THIS
+     * package's fingerprint digest; the manifest, anchor.json,
+     * opentimestamps.json, the integrity summary and the README all state it.
      */
-    const anchorSemantics = data.anchor
-      ? deriveAnchorSemantics({
-          transactionId: data.anchor.transactionId ?? null,
-          anchoredAtUtc: data.anchor.anchoredAtUtc ?? null,
-          otsStatus: data.anchor.otsStatus ?? null,
-          otsAnchorCheck: data.anchor.otsAnchorCheck ?? null,
-          otsProofPresent: null,
-          // (2026-10-12) VERIFIED needs the recorded chain evidence — the same
-          // evidence opentimestamps.json states, so the two cannot disagree.
-          chain: data.ots
-            ? {
-                chainVerificationStatus: data.ots.chainVerificationStatus ?? null,
-                chainVerifiedAtUtc: data.ots.chainVerifiedAtUtc ?? null,
-                chainBlockHeight: data.ots.chainBlockHeight ?? null,
-                chainBlockHash: data.ots.chainBlockHash ?? null,
-                chainBlockTimeUtc: data.ots.chainBlockTimeUtc ?? null,
-                chainConfirmations: data.ots.chainConfirmations ?? null,
-                chainVerifier: data.ots.chainVerifier ?? null,
-              }
-            : null,
+    const otsDecision: OtsPackageArtifactDecision | null = data.ots
+      ? decideOtsPackageArtifact({
+          ...data.ots,
+          fingerprintHash: sha256Hex(Buffer.from(data.fingerprint, "utf8")),
         })
       : null;
-    const anchorStatusLabel = anchorSemantics
-      ? anchorSemantics.anchoringLabel
-      : getAnchorStatusLabel(anchorMode);
+    const otsCompanion: OtsPackageArtifactCompanion | null = otsDecision?.companion ?? null;
+    const anchorSemantics = deriveAnchorSemantics({
+      transactionId: otsDecision?.anchoring.state === "ANCHORED" ? otsDecision.anchoring.bitcoinTxid : null,
+      otsState: otsDecision?.anchoring.state ?? "NOT_REQUESTED",
+    });
+    const anchorMode: AnchorMode = anchorSemantics.anchorMode;
+    const anchorIncluded = Boolean(data.anchor);
+    const anchorStatusLabel = anchorSemantics.anchoringLabel;
     const hasTimestampToken = Boolean(data.timestampToken);
     const certificationSummary = buildCertificationSummary({
       custodian: data.certifications?.custodian ?? null,
@@ -3421,29 +3171,11 @@ export async function createVerificationPackage(data: {
     //     even when the proof file is absent (DISABLED / probe-failed).
     //   * `ANCHORED` without a valid txid degrades to `PENDING` in the
     //     companion. The package never overclaims anchoring.
-    let otsCompanion: OtsPackageArtifactCompanion | null = null;
-    if (data.ots) {
-      // The proof must commit to THIS package's fingerprint digest: the
-      // SHA-256 of the fingerprint.json bytes the package carries.
-      const decision = decideOtsPackageArtifact({
-        ...data.ots,
-        fingerprintHash: sha256Hex(Buffer.from(data.fingerprint, "utf8")),
-      });
-      otsCompanion = decision.companion;
-      if (decision.proofBytes) {
-        appendEntry(
-        "opentimestamps-proof.ots",
-          decision.proofBytes,
-          "application/octet-stream"
-        );
-      }
-      if (decision.companion) {
-        appendEntry(
-        "opentimestamps.json",
-          jsonBuffer(decision.companion),
-          "application/json"
-        );
-      }
+    if (otsDecision?.proofBytes) {
+      appendEntry("opentimestamps-proof.ots", otsDecision.proofBytes, "application/octet-stream");
+    }
+    if (otsCompanion) {
+      appendEntry("opentimestamps.json", jsonBuffer(otsCompanion), "application/json");
     }
 
     appendEntry(
@@ -3479,26 +3211,12 @@ export async function createVerificationPackage(data: {
           ...data.anchor,
           status: anchorMode,
           statusLabel: anchorStatusLabel,
-          publicAnchoringVerified:
-            anchorSemantics?.publicAnchoringVerified ?? false,
-          anchoringClaim: anchorSemantics?.anchoringStatus ?? "not_included",
-          // The same status the verification matrix states for this anchor.
-          verificationStatus: (() => {
-            const signal = data.trustDecision.signals.find((x) => x.key === "bitcoin_anchoring");
-            return signal ? toVerificationStatus(signal.state) : "UNAVAILABLE";
-          })(),
-          // (2026-10-12) What each value IS. The transaction id is the one the
-          // OpenTimestamps proof reports; only an independent chain check
-          // verifies it, and only that check's block time is an anchor time.
-          transactionId: data.anchor.transactionId ?? null,
-          transactionIdVerified: otsCompanion?.bitcoinTxidVerified === true,
-          transactionIdSource: data.anchor.transactionId
-            ? otsCompanion?.bitcoinTxidVerified === true
-              ? "Verified by an independent Bitcoin chain check (see opentimestamps.json chainVerification)"
-              : "Reported by the OpenTimestamps proof; not independently verified"
-            : null,
-          anchoredAtUtc: otsCompanion?.anchoredAtUtc ?? null,
-          proofRecordedAtUtc: otsCompanion?.proofRecordedAtUtc ?? null,
+          otsState: anchorSemantics.otsState,
+          // Only for a proof that resolves to ANCHORED, and only as the
+          // executed proof path derives it.
+          transactionId: anchorSemantics.transactionId,
+          anchoredAtUtc: otsCompanion?.anchoredRecordedAtUtc ?? null,
+          anchoredAtUtcMeaning: "When PROOVRA recorded the anchor; not a Bitcoin block time.",
           // The digest the OpenTimestamps proof commits to — and what anchorHash is NOT.
           otsProofCommitsTo: {
             digest: data.anchor.fingerprintHash,
@@ -3529,8 +3247,8 @@ export async function createVerificationPackage(data: {
       anchorStatusLabel,
       anchorProvider: data.anchorProvider,
       anchor: data.anchor ?? null,
-      publicAnchoringVerified: anchorSemantics?.publicAnchoringVerified ?? false,
-      anchoringClaim: anchorSemantics?.anchoringStatus ?? "not_included",
+      otsState: anchorSemantics.otsState,
+      transactionId: anchorSemantics.transactionId,
       hasTimestampToken,
       hasActualCertifications: certificationSummary.hasActualCertifications,
       hasReportArtifact: Boolean(data.reportPdf) && profile === "FULL_FORENSIC",
@@ -3838,9 +3556,6 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           hasReportArtifact: Boolean(data.reportPdf),
           hasTimestampToken,
           timestampStatus: metadata.tsaStatus ?? null,
-          otsStatus: metadata.otsStatus ?? null,
-          bitcoinTxid: data.anchor?.transactionId ?? null,
-          anchoringClaim: anchorSemantics?.anchoringStatus ?? null,
           ots: otsCompanion,
           metadata,
           chronology: data.seal

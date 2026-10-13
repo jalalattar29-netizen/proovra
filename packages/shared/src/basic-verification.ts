@@ -17,11 +17,15 @@
  * not_issued | not_checked. "verified" means the check named in `basis` was
  * performed and passed — never "a record of it exists".
  */
-import { normalizeOtsAnchorCheck } from "./ots.js";
-import { checkOtsDigestBinding } from "./ots-proof.js";
-import { resolveOtsTruth, type OtsChainEvidence, type OtsTruthInput, type OtsTruthState } from "./ots-truth.js";
+import {
+  OTS_STATE_LABELS,
+  OTS_STATE_SENTENCES,
+  OTS_STATE_WORDS,
+  resolveOtsAnchoring,
+  type OtsAnchoringInput,
+  type OtsState,
+} from "./ots-anchoring.js";
 
-import { resolveOtsProofStatus, type OtsProofStatus } from "./ots-status.js";
 import { buildProvenanceTimeline, CAPTURE_TIME_NOT_AVAILABLE } from "./provenance-time.js";
 import {
   storedBytesCheckStatusOf,
@@ -33,7 +37,7 @@ import {
 
 // UC-TRUST-002 / UC-PROV-001 — the canonical proof-status and provenance-time
 // modules travel with this one (every consumer of Basic Verify needs them).
-export * from "./ots-status.js";
+export * from "./tsa-status.js";
 export * from "./provenance-time.js";
 // UC-PROV-007 — the whole-word forbidden-phrase matcher (report-artifact.ts is
 // re-exported from the barrel by name).
@@ -47,6 +51,14 @@ export const COMPONENT_VERIFICATION_STATES = [
   "not_checked",
 ] as const;
 export type ComponentVerificationState = (typeof COMPONENT_VERIFICATION_STATES)[number];
+
+const OTS_COMPONENT_STATE: Readonly<Record<OtsState, ComponentVerificationState>> = {
+  ANCHORED: "verified",
+  PENDING: "pending",
+  FAILED: "failed",
+  NOT_REQUESTED: "not_issued",
+  UNAVAILABLE: "not_checked",
+};
 
 export type BasicVerification = {
   schema: "PROOVRA_BASIC_VERIFICATION";
@@ -139,41 +151,32 @@ export type BasicVerification = {
     /** The authority's own time for the token. */
     tokenTimeUtc: string | null;
   };
+  /**
+   * THE BITCOIN ANCHORING SIGNAL (2026-10-13) — the canonical OpenTimestamps
+   * state (ots-anchoring.ts) and the facts the stored proof itself yields.
+   * `state` is the generic component word; readers show `otsState` through
+   * `status` / `sentence` and never re-derive it.
+   */
   anchoring: {
     state: ComponentVerificationState;
-    /**
-     * BITCOIN_BLOCK_CONFIRMED_BY_OTS_VERIFY: `ots verify` checked the proof's
-     * Bitcoin attestation against the chain (state verified).
-     * PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED: the proof carries a Bitcoin
-     * block attestation for this record (or was recorded anchored before the
-     * check existed) but the chain was not checked (state not_checked).
-     */
-    /**
-     * (2026-09-29) ANCHOR_RECORDED_CHECK_NOT_RECORDED: the record was stored as
-     * anchored before the platform recorded HOW an anchor was established
-     * (ots_anchor_check NULL). The historical proof is kept; no proof-structure
-     * or chain check is claimed for it.
-     */
-    basis:
-      | "BITCOIN_BLOCK_CONFIRMED_BY_OTS_VERIFY"
-      | "PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED"
-      | "ANCHOR_RECORDED_CHECK_NOT_RECORDED"
-      | null;
-    /** The OTS truth state (ots-truth.ts) and its reviewer-facing sentences. */
-    truthState: OtsTruthState;
-    headline: string;
-    detail: string;
-    /** When PROOVRA recorded the attestation-bearing proof. Never an anchor time. */
-    proofRecordedAtUtc: string | null;
-    /** Reported by the proof; verified only when `bitcoinTxidVerified`. */
-    bitcoinTxidVerified: boolean;
-    reportedBlockHeight: number | null;
-    chain: OtsChainEvidence | null;
-    /** The VERIFIED block time of an independent chain check; null otherwise. */
-    anchoredAtUtc: string | null;
+    otsState: OtsState;
+    /** "Not requested" | "Pending" | "Anchored" | "Failed" | "Unavailable". */
+    status: string;
+    /** "Bitcoin anchoring pending" | "Bitcoin anchored" | … */
+    label: string;
+    sentence: string;
+    /** Bounded failure / unavailability code; null otherwise. */
+    failureCode: string | null;
+    proofSha256: string | null;
+    attestationType: "BITCOIN_BLOCK_HEADER" | "PENDING_CALENDAR" | null;
+    /** From the executed proof path; null unless ANCHORED. */
+    bitcoinBlockHeight: number | null;
+    /** Only when the executed proof path derives it. */
     bitcoinTxid: string | null;
-    /** UC-TRUST-002 — the canonical OTS proof status (only VERIFIED is "anchored"). */
-    status?: OtsProofStatus;
+    submittedAtUtc: string | null;
+    /** When PROOVRA recorded ANCHORED — not a Bitcoin block time. */
+    anchoredAtUtc: string | null;
+    validator: string;
   };
   report: {
     issued: boolean;
@@ -226,20 +229,8 @@ export function buildBasicVerification(input: {
   tsaStatus: string | null;
   tsaImprintMatches: boolean | null;
   tsaGenTimeUtc: Date | string | null;
-  otsStatus: string | null;
-  otsBitcoinTxid: string | null;
-  otsAnchoredAtUtc: Date | string | null;
-  /** evidence.ots_anchor_check — BITCOIN_VERIFIED | PROOF_STRUCTURE | null. */
-  otsAnchorCheck?: string | null;
-  /**
-   * (2026-10-12) The OTS truth inputs: the proof bytes with the fingerprint
-   * digest they must commit to, and the recorded attestation / chain check.
-   */
-  ots?: Omit<OtsTruthInput, "status" | "anchoredAtUtc" | "anchorCheck" | "bitcoinTxid" | "now"> & {
-    proofBase64?: string | null;
-    fingerprintHash?: string | null;
-    otsHash?: string | null;
-  };
+  /** The OpenTimestamps record (ots-anchoring.ts OtsAnchoringInput). */
+  ots: OtsAnchoringInput;
   latestReport: { version: number; generatedAtUtc: Date; pdfSha256: string | null } | null;
   pairedPackage: {
     reportVersion: number | null;
@@ -294,34 +285,11 @@ export function buildBasicVerification(input: {
           ? "TOKEN_RECORDED_NOT_VALIDATED"
           : "TOKEN_RECORDED_IMPRINT_NOT_COMPARED";
 
-  // THE OTS TRUTH MODEL (2026-10-12): a status, a txid or a recording time is
-  // never "verified"; only recorded chain evidence is. A proof bound to another
-  // digest is failed whatever the status says.
-  const { proofBase64, fingerprintHash, otsHash, ...otsTruthInputs } = input.ots ?? {};
-  const otsTruth = resolveOtsTruth({
-    ...otsTruthInputs,
-    status: input.otsStatus,
-    anchoredAtUtc: input.otsAnchoredAtUtc,
-    anchorCheck: input.otsAnchorCheck ?? null,
-    bitcoinTxid: input.otsBitcoinTxid ?? null,
-    now: input.now,
-    digestBinding:
-      proofBase64 != null
-        ? checkOtsDigestBinding({ proofBase64, fingerprintHash: fingerprintHash ?? null, otsHash: otsHash ?? null })
-        : (otsTruthInputs.digestBinding ?? null),
-  });
-  const claim = otsTruth.claim;
-  const anchoringState: ComponentVerificationState =
-    otsTruth.state === "CHAIN_VERIFIED"
-      ? "verified"
-      : otsTruth.state === "PROOF_INVALID" || otsTruth.state === "CHAIN_VERIFICATION_FAILED"
-        ? "failed"
-        : claim === "ANCHORED_NOT_CHECKED"
-          ? "not_checked"
-          : claim === "PENDING"
-            ? "pending"
-            : "not_issued";
-  const anchored = anchoringState === "verified" || anchoringState === "not_checked";
+  // THE ONE OTS AUTHORITY (2026-10-13): the state is resolved from the stored
+  // proof bytes, never from a status, a txid or a recording time.
+  const ots = resolveOtsAnchoring(input.ots);
+  const anchoringState: ComponentVerificationState = OTS_COMPONENT_STATE[ots.state];
+  const anchored = ots.state === "ANCHORED";
 
   const latest = input.latestReport;
   const pkg = input.pairedPackage;
@@ -390,33 +358,18 @@ export function buildBasicVerification(input: {
     },
     anchoring: {
       state: anchoringState,
-      basis:
-        claim === "VERIFIED"
-          ? "BITCOIN_BLOCK_CONFIRMED_BY_OTS_VERIFY"
-          : claim === "ANCHORED_NOT_CHECKED"
-            ? normalizeOtsAnchorCheck(input.otsAnchorCheck ?? null) === "PROOF_STRUCTURE"
-              ? "PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED"
-              : "ANCHOR_RECORDED_CHECK_NOT_RECORDED"
-            : null,
-      // The ONLY anchor time: the block time of an independent chain check.
-      anchoredAtUtc: otsTruth.verifiedAnchorTimeUtc,
-      truthState: otsTruth.state,
-      headline: otsTruth.headline,
-      detail: otsTruth.detail,
-      proofRecordedAtUtc: anchored ? otsTruth.proofRecordedAtUtc : null,
-      bitcoinTxid: anchored ? (otsTruth.reported?.txid ?? null) : null,
-      /** True only when the txid's block was verified by the chain check. */
-      bitcoinTxidVerified: otsTruth.state === "CHAIN_VERIFIED",
-      reportedBlockHeight: anchored ? (otsTruth.reported?.blockHeight ?? null) : null,
-      chain: otsTruth.chain,
-      status: resolveOtsProofStatus({
-        status: input.otsStatus,
-        anchoredAtUtc: input.otsAnchoredAtUtc,
-        anchorCheck: input.otsAnchorCheck ?? null,
-        bitcoinTxid: input.otsBitcoinTxid ?? null,
-        now: input.now,
-        chain: otsTruthInputs,
-      }),
+      otsState: ots.state,
+      status: OTS_STATE_WORDS[ots.state],
+      label: OTS_STATE_LABELS[ots.state],
+      sentence: OTS_STATE_SENTENCES[ots.state],
+      failureCode: ots.failureCode,
+      proofSha256: ots.proofSha256,
+      attestationType: ots.attestationType,
+      bitcoinBlockHeight: anchored ? ots.bitcoinBlockHeight : null,
+      bitcoinTxid: anchored ? ots.bitcoinTxid : null,
+      submittedAtUtc: ots.submittedAtUtc,
+      anchoredAtUtc: anchored ? ots.anchoredAtUtc : null,
+      validator: ots.validator,
     },
     report: {
       issued: latest !== null,

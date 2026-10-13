@@ -605,11 +605,15 @@ export type ProvenanceChain = {
       tsaUrl: string | null;
       appliedAtUtc: string | null;
     };
+    /** OpenTimestamps: applied only when the stored proof resolves to ANCHORED. */
     ots: {
       applied: boolean;
+      /** Only when the executed proof path derives it. */
       anchorTxId: string | null;
+      /** When PROOVRA recorded ANCHORED — not a Bitcoin block time. */
       appliedAtUtc: string | null;
-      confirmations: number | null;
+      /** The Bitcoin block height the proof attests (from the proof). */
+      bitcoinBlockHeight: number | null;
     };
   };
 

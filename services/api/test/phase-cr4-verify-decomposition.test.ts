@@ -474,10 +474,14 @@ describe("CR4 Group 7 — integrityProof mapping preferred", () => {
       .toBe(true);
   });
 
-  it("at least 2 callsites use the integrityProof preference pattern", () => {
+  it("every callsite that reads the integrity proof uses the preference pattern", () => {
+    // (2026-10-13) The OTS hash-check read left with the old OTS model (the
+    // state is the server's otsAnchoring view); the remaining read is pinned.
     const matches =
       TOKEN_PAGE.match(/integrityProof\s*\?\?\s*data?\.?\s*verification/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+    const reads = TOKEN_PAGE.match(/data\.integrityProof\b/g) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(1);
+    expect(matches.length).toBe(reads.length);
   });
 
   // Reverse-order anti-pattern: nothing in the tree should prefer the

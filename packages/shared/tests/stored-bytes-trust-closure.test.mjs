@@ -7,8 +7,9 @@
  *              missing / substituted original is never a verified headline.
  *   TRUST-001  the expected digest is read from the SIGNED fingerprint, and
  *              columns that disagree with it are an integrity failure.
- *   TRUST-002  one OTS status: a PENDING proof is never "anchored"; a legacy
- *              unvalidated TSA token is never "validated".
+ *   TRUST-002  one OTS state, resolved from the stored proof bytes: a pending
+ *              proof is never "anchored" (whatever the status column, txid or
+ *              time says); a legacy unvalidated TSA token is never "validated".
  *   PROV-001   the server-received time is never presented as a device-
  *              declared capture time.
  */
@@ -17,6 +18,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 
 import * as shared from "../dist/index.js";
+import { REAL, upgradedProof } from "./helpers/ots-fixtures.mjs";
 
 const sha = (t) => createHash("sha256").update(t).digest("hex");
 const HOUR = 60 * 60 * 1000;
@@ -117,9 +119,7 @@ function basic(storedBytes, extra = {}) {
     tsaStatus: null,
     tsaImprintMatches: null,
     tsaGenTimeUtc: null,
-    otsStatus: "PENDING",
-    otsBitcoinTxid: null,
-    otsAnchoredAtUtc: null,
+    ots: { status: "PENDING", proofBase64: REAL.boundProofBase64, fingerprintHash: REAL.boundFingerprintHash },
     latestReport: null,
     pairedPackage: null,
     ...extra,
@@ -179,28 +179,47 @@ test("TRUST-001: expected digest comes from the signed fingerprint; columns that
 });
 
 test("TRUST-002: a PENDING OTS proof is never anchored; unvalidated STAMPED is not validated", () => {
-  const s = shared.resolveOtsProofStatus({ status: "PENDING", anchoredAtUtc: null, anchorCheck: null, proofPresent: true, now });
-  assert.ok(s === "SUBMITTED" || s === "PENDING");
-  assert.equal(shared.otsProofStatusIsAnchored(s), false);
-  assert.equal(
-    shared.resolveOtsProofStatus({ status: "ANCHORED", anchoredAtUtc: now, anchorCheck: "PROOF_STRUCTURE", now }),
-    "ANCHORED_UNVERIFIED",
-  );
-  assert.equal(
-    shared.resolveOtsProofStatus({
-      status: "PENDING",
-      anchoredAtUtc: null,
-      anchorCheck: null,
-      proofPresent: true,
-      submittedAtUtc: new Date(now.getTime() - 30 * 24 * HOUR),
-      now,
-    }),
-    "STALE_UNKNOWN",
-  );
-  assert.equal(shared.resolveOtsProofStatus({ status: null, anchoredAtUtc: null, anchorCheck: null }), "NOT_REQUESTED");
+  const FP = REAL.boundFingerprintHash;
+  // The real pending proof: PENDING, with its calendars and no Bitcoin facts.
+  const pending = basic(null).anchoring;
+  assert.equal(pending.otsState, "PENDING");
+  assert.equal(pending.state, "pending");
+  assert.equal(pending.status, "Pending");
+  assert.equal(pending.attestationType, "PENDING_CALENDAR");
+  assert.equal(pending.bitcoinTxid, null);
+  assert.equal(pending.bitcoinBlockHeight, null);
+  assert.equal(pending.anchoredAtUtc, null);
+  // A stored ANCHORED status with an anchored-at time over the same pending bytes is still PENDING.
+  const claimed = basic(null, {
+    ots: { status: "ANCHORED", proofBase64: REAL.boundProofBase64, fingerprintHash: FP, anchoredAtUtc: now },
+  }).anchoring;
+  assert.equal(claimed.otsState, "PENDING");
+  assert.equal(claimed.anchoredAtUtc, null);
+  // Only a valid upgraded proof is ANCHORED, with the facts its path yields.
+  const up = upgradedProof();
+  const anchored = basic(null, { ots: { status: "ANCHORED", proofBase64: up.base64, fingerprintHash: FP, anchoredAtUtc: now } }).anchoring;
+  assert.equal(anchored.otsState, "ANCHORED");
+  assert.equal(anchored.state, "verified");
+  assert.equal(anchored.status, "Anchored");
+  assert.equal(anchored.sentence, "OpenTimestamps proof anchored in Bitcoin.");
+  assert.equal(anchored.bitcoinTxid, up.txid);
+  assert.equal(anchored.bitcoinBlockHeight, up.blockHeight);
+  assert.equal(anchored.anchoredAtUtc, now.toISOString());
+  // A proof bound to another digest is FAILED; status without proof is UNAVAILABLE; nothing requested is not issued.
+  const other = basic(null, { ots: { status: "ANCHORED", proofBase64: REAL.otherProofBase64, fingerprintHash: FP } }).anchoring;
+  assert.equal(other.otsState, "FAILED");
+  assert.equal(other.failureCode, "PROOF_HASH_MISMATCH");
+  const missing = basic(null, { ots: { status: "ANCHORED", proofBase64: null, fingerprintHash: FP } }).anchoring;
+  assert.equal(missing.otsState, "UNAVAILABLE");
+  assert.equal(missing.failureCode, "PROOF_MATERIAL_MISSING");
+  assert.equal(basic(null, { ots: { status: null, proofBase64: null, fingerprintHash: FP } }).anchoring.state, "not_issued");
+  // TSA: a stamped token without a validation time is recorded, not validated.
   assert.equal(shared.resolveTsaProofStatus({ tsaStatus: "STAMPED", tsaValidatedAtUtc: null }), "RECORDED_NOT_VALIDATED");
   assert.equal(shared.resolveTsaProofStatus({ tsaStatus: "STAMPED", tsaValidatedAtUtc: now }), "VALIDATED");
-  assert.equal(basic(null).anchoring.status, "SUBMITTED");
+  // The provenance timeline only carries an OTS anchoring entry for an ANCHORED proof.
+  const timeline = (ots) => shared.buildProvenanceTimeline({ serverReceivedAtUtc: now, ots }).entries.filter((e) => e.kind === "OTS_ANCHORED");
+  assert.equal(timeline({ status: "ANCHORED", proofBase64: REAL.boundProofBase64, fingerprintHash: FP, anchoredAtUtc: now }).length, 0);
+  assert.equal(timeline({ status: "ANCHORED", proofBase64: up.base64, fingerprintHash: FP, anchoredAtUtc: now }).length, 1);
 });
 
 test("PROV-001: the server-received time is never a device-declared capture time", () => {

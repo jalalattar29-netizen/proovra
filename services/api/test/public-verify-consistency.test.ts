@@ -1,61 +1,69 @@
 import { describe, expect, it } from "vitest";
-import type { TrustDecision } from "@proovra/shared";
+import { resolveOtsAnchoring, type TrustDecision } from "@proovra/shared";
 import {
   buildPublicVerifyConsistencySections,
-  deriveSnapshotOtsStatus,
+  reportOtsStateOf,
 } from "../src/services/public-verify-consistency.service.js";
+import { otsProofForDigest } from "./helpers/ots-proof-bytes.js";
 
-function buildTrustDecision(status: "passed" | "partial" | "failed"): TrustDecision {
-  const finalized = status === "passed";
-  const pending = status === "partial";
+const DIGEST = "d".repeat(64);
 
+function buildTrustDecision(): TrustDecision {
   return {
     tone: "success",
-    presentationState: finalized
-      ? "VERIFIED_FINALIZED"
-      : pending
-        ? "VERIFIED_PENDING_ANCHORING"
-        : "FAILED_VERIFICATION",
-    presentationTone: finalized ? "success" : pending ? "warning" : "danger",
-    anchoringState: finalized ? "finalized" : pending ? "pending" : "failed",
-    anchoringStatusLabel: finalized ? "Finalized" : pending ? "Pending" : "Failed",
+    presentationState: "VERIFIED_PENDING_ANCHORING",
+    presentationTone: "warning",
+    anchoringState: "pending",
+    anchoringStatusLabel: "Pending",
     summary: "Snapshot trust decision",
     reviewerAction: "Review the fixed snapshot.",
-    integrityReviewRequired: status === "failed",
+    integrityReviewRequired: false,
     signals: [
       {
         key: "bitcoin_anchoring",
         label: "Bitcoin anchoring",
-        status,
-        tone: status === "failed" ? "danger" : status === "passed" ? "success" : "warning",
+        status: "partial",
+        tone: "warning",
         summary: "Anchoring snapshot",
-        state: status === "passed" ? "PASSED" : status === "failed" ? "FAILED" : "PENDING",
+        state: "PENDING",
         measuredAtUtc: null,
         detail: "Anchoring status recorded at generation time.",
       },
     ],
-  };
+  } as TrustDecision;
 }
 
-describe("public verify consistency helpers", () => {
-  it("derives OTS snapshot state from the trust-decision bitcoin_anchoring signal", () => {
-    expect(deriveSnapshotOtsStatus(buildTrustDecision("passed"))).toBe("ANCHORED");
-    expect(deriveSnapshotOtsStatus(buildTrustDecision("partial"))).toBe("PENDING");
-    expect(deriveSnapshotOtsStatus(buildTrustDecision("failed"))).toBe("FAILED");
-    expect(deriveSnapshotOtsStatus(null)).toBeNull();
+/** The record's live anchoring, resolved from a real proof — never from a status string. */
+const anchoredNow = resolveOtsAnchoring({
+  status: "ANCHORED",
+  proofBase64: otsProofForDigest(DIGEST, { bitcoinHeight: 860123 }),
+  fingerprintHash: DIGEST,
+  anchoredAtUtc: "2026-06-08T11:30:00Z",
+});
+
+const report = (anchorSnapshot: unknown) => ({
+  version: 1,
+  generatedAtUtc: new Date("2026-06-08T10:00:00Z"),
+  pdfSignatureStatus: "SIGNED",
+  pdfSignedAtUtc: new Date("2026-06-08T10:01:00Z"),
+  anchorSnapshot,
+});
+
+describe("public verify consistency helpers (2026-10-13)", () => {
+  it("the state a report stated is its anchorSnapshot.otsState; a legacy report reads UNAVAILABLE", () => {
+    expect(reportOtsStateOf({ otsState: "PENDING" })).toBe("PENDING");
+    expect(reportOtsStateOf({ otsState: "ANCHORED" })).toBe("ANCHORED");
+    expect(reportOtsStateOf({ otsState: "VERIFIED" })).toBe("UNAVAILABLE");
+    expect(reportOtsStateOf({ mode: "anchored" })).toBe("UNAVAILABLE");
+    expect(reportOtsStateOf(null)).toBe("UNAVAILABLE");
   });
 
-  it("flags anchoring advancement when the live row outruns the fixed snapshot", () => {
+  it("liveAnchoring carries only operational freshness fields and flags advancement past the report", () => {
     const { verificationSnapshot, liveAnchoring } =
       buildPublicVerifyConsistencySections({
         source: "REPORT_SNAPSHOT",
-        trustDecisionSnapshot: buildTrustDecision("partial"),
-        latestReport: {
-          version: 1,
-          generatedAtUtc: new Date("2026-06-08T10:00:00Z"),
-          pdfSignatureStatus: "SIGNED",
-          pdfSignedAtUtc: new Date("2026-06-08T10:01:00Z"),
-        },
+        trustDecisionSnapshot: buildTrustDecision(),
+        latestReport: report({ otsState: "PENDING" }),
         latestVerificationPackage: {
           version: 2,
           generatedAtUtc: new Date("2026-06-08T12:00:00Z"),
@@ -66,39 +74,53 @@ describe("public verify consistency helpers", () => {
           signedManifestPresent: true,
           packageType: "FULL",
         },
-        currentOtsStatus: "ANCHORED",
-        otsAnchoredAtUtc: "2026-06-08T11:30:00Z",
-        otsBitcoinTxid: "a".repeat(64),
+        currentOts: anchoredNow,
         otsUpgradedAtUtc: "2026-06-08T11:30:00Z",
       });
 
     expect(verificationSnapshot.otsStatusAtGeneration).toBe("PENDING");
-    expect(liveAnchoring.currentOtsStatus).toBe("ANCHORED");
-    expect(liveAnchoring.hasAdvancedSinceSnapshot).toBe(true);
-    expect(liveAnchoring.newerPackageAvailable).toBe(true);
-    expect(liveAnchoring.newerReportAvailable).toBe(false);
+    expect(liveAnchoring).toEqual({
+      lastUpdatedAtUtc: "2026-06-08T11:30:00Z",
+      hasAdvancedSinceSnapshot: true,
+      newerReportAvailable: false,
+      newerPackageAvailable: true,
+      autoRefreshRecommended: false,
+    });
+    // The OTS state lives in storageAndTimestamping.ots, not here.
+    for (const key of ["state", "currentOtsStatus", "otsAnchoredAtUtc", "otsProofRecordedAtUtc", "otsBitcoinTxid"]) {
+      expect(liveAnchoring).not.toHaveProperty(key);
+    }
+  });
+
+  it("a stored ANCHORED status without a proof is not an advance", () => {
+    const { liveAnchoring, verificationSnapshot } = buildPublicVerifyConsistencySections({
+      source: "REPORT_SNAPSHOT",
+      trustDecisionSnapshot: null,
+      latestReport: report({ otsState: "PENDING" }),
+      latestVerificationPackage: null,
+      verificationPackageIntegrity: null,
+      currentOts: resolveOtsAnchoring({ status: "ANCHORED", proofBase64: null, fingerprintHash: DIGEST }),
+      otsUpgradedAtUtc: null,
+    });
+    expect(verificationSnapshot.otsStatusAtGeneration).toBe("PENDING");
+    expect(liveAnchoring.hasAdvancedSinceSnapshot).toBe(false);
+    expect(liveAnchoring.lastUpdatedAtUtc).toBeNull();
   });
 
   it("does not mutate the fixed trust-decision snapshot when live OTS changes", () => {
-    const snapshot = buildTrustDecision("partial");
+    const snapshot = buildTrustDecision();
     const { verificationSnapshot } = buildPublicVerifyConsistencySections({
       source: "REPORT_SNAPSHOT",
       trustDecisionSnapshot: snapshot,
-      latestReport: {
-        version: 3,
-        generatedAtUtc: new Date("2026-06-08T10:00:00Z"),
-        pdfSignatureStatus: null,
-        pdfSignedAtUtc: null,
-      },
+      latestReport: report(null),
       latestVerificationPackage: null,
       verificationPackageIntegrity: null,
-      currentOtsStatus: "ANCHORED",
-      otsAnchoredAtUtc: "2026-06-08T11:30:00Z",
-      otsBitcoinTxid: "b".repeat(64),
+      currentOts: anchoredNow,
       otsUpgradedAtUtc: "2026-06-08T11:30:00Z",
     });
 
     expect(verificationSnapshot.trustDecisionSnapshot).toEqual(snapshot);
-    expect(verificationSnapshot.otsStatusAtGeneration).toBe("PENDING");
+    // A legacy report (no anchorSnapshot.otsState) reads UNAVAILABLE.
+    expect(verificationSnapshot.otsStatusAtGeneration).toBe("UNAVAILABLE");
   });
 });

@@ -24,7 +24,12 @@ import {
   type EvidenceAnalysisContext,
   type EvidenceAnalysisFacts,
 } from "@proovra/shared-runtime";
-import { presentedTsaStatus, resolveEvidenceAcquisition } from "@proovra/shared";
+import {
+  OTS_ANCHORING_RECORD_SELECT,
+  presentedTsaStatus,
+  resolveEvidenceAcquisition,
+  resolveRecordOtsAnchoring,
+} from "@proovra/shared";
 
 import { prisma } from "../../db.js";
 
@@ -54,7 +59,8 @@ export const EVIDENCE_ANALYSIS_SELECT = {
   acquisitionModeSource: true,
   tsaStatus: true,
   tsaValidatedAtUtc: true,
-  otsStatus: true,
+  // (2026-10-13) The columns the ONE OTS state authority reads.
+  ...OTS_ANCHORING_RECORD_SELECT,
   createdAt: true,
   lifecycleState: true,
   deletedAt: true,
@@ -137,7 +143,8 @@ export function evidenceAnalysisFacts(row: EvidenceAnalysisRow): EvidenceAnalysi
     }).label,
     // ET-TSA-01: the AI is never told an unvalidated token is STAMPED.
     tsaStatus: presentedTsaStatus(row),
-    otsStatus: row.otsStatus,
+    // (2026-10-13) The AI is told the resolved OTS state, never the raw column.
+    otsStatus: resolveRecordOtsAnchoring(row).state,
     createdAtUtc: row.createdAt,
     partCount: row._count.parts,
     custodyEventCount: row._count.custodyEvents,

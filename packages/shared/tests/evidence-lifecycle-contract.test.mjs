@@ -197,15 +197,16 @@ test("PublicVerifyPublished is a live publication state, not a snapshot", () => 
 test("OTSAnchoredLater is live-updating-after-snapshot", () => {
   const def = getLifecycleStepDefinition("OTSAnchoredLater");
   assert.equal(def.snapshotSemantics, "live-updating-after-snapshot");
-  assert.equal(def.custodyEventType, "ANCHOR_PUBLISHED");
+  assert.equal(def.custodyEventType, "OTS_APPLIED");
   assert.ok(
     def.producedMaterials.includes("evidence.otsStatus"),
     "OTSAnchoredLater must produce evidence.otsStatus",
   );
   assert.ok(
-    def.producedMaterials.includes("evidence.otsBitcoinTxid"),
-    "OTSAnchoredLater must produce evidence.otsBitcoinTxid",
+    def.producedMaterials.includes("evidence.otsProofBase64"),
+    "OTSAnchoredLater must produce the upgraded evidence.otsProofBase64 the state is resolved from",
   );
+  assert.ok(def.requiredInputs.includes("evidence.fingerprintHash"), "the proof is executed against the fingerprint digest");
 });
 
 test("steps with custodyEventGap=true name a real reason", () => {

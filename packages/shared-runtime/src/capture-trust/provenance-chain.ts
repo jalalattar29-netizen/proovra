@@ -25,14 +25,14 @@ import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { canonicalJsonValue } from "@proovra/shared/custody-hash";
 import {
-  OTS_PROOF_STATUS_LABELS,
+  OTS_STATE_LABELS,
   PROVENANCE_CHAIN_SCHEMA_VERSION,
   TSA_PROOF_STATUS_LABELS,
-  resolveOtsProofStatus,
+  resolveOtsAnchoring,
   resolveTsaProofStatus,
   selectCaptureManifestFacts,
   type CaptureManifestFacts,
-  type OtsProofStatus,
+  type OtsState,
   type TsaProofStatus,
   STANDING_PROVENANCE_LIMITATIONS,
   derivedAssetTransformationForKind,
@@ -226,14 +226,14 @@ export function evaluateTrustEventChain(rows: ReadonlyArray<TrustRow>): TrustEve
 /**
  * UC-TRUST-002 / 004 / UC-DER-007 / UC-PROV-003 — what this projection adds to
  * the shared ProvenanceChain shape. The time layers carry the CANONICAL proof
- * status (only VERIFIED is "anchored"; only VALIDATED is an applied RFC 3161
- * timestamp); the trust-event sub-chain carries its verdict; the derived
+ * status (only a proof resolving to ANCHORED is anchored; only VALIDATED is an
+ * applied RFC 3161 timestamp); the trust-event sub-chain carries its verdict; the derived
  * lineage states when it was bounded.
  */
 export type ProvenanceChainTrustExtensions = {
   time: {
     rfc3161: { status: TsaProofStatus; statusLabel: string };
-    ots: { status: OtsProofStatus; statusLabel: string };
+    ots: { status: OtsState; statusLabel: string };
   };
   trustEventChain: TrustEventChainVerdict;
   derivedArtifactsTotalCount: number;
@@ -280,19 +280,11 @@ export async function loadProvenanceChain(
       tsaUrl: true,
       otsStatus: true,
       otsAnchoredAtUtc: true,
-      otsAnchorCheck: true,
-      otsBitcoinTxid: true,
       otsUpgradedAtUtc: true,
       otsProofBase64: true,
-      // (2026-10-12) The recorded independent chain check: "verified" is that
-      // check with its evidence, never the anchor-check label alone.
-      otsChainVerificationStatus: true,
-      otsChainVerifiedAtUtc: true,
-      otsChainBlockHeight: true,
-      otsChainBlockHash: true,
-      otsChainBlockTimeUtc: true,
-      otsChainConfirmations: true,
-      otsChainVerifier: true,
+      otsHash: true,
+      otsFailureReason: true,
+      fingerprintHash: true,
     },
   });
   const acquisition = resolveEvidenceAcquisition({
@@ -453,28 +445,17 @@ export async function loadProvenanceChain(
     tsaStatus: evidence?.tsaStatus ?? null,
     tsaValidatedAtUtc: evidence?.tsaValidatedAtUtc ?? null,
   });
-  const otsStatus = resolveOtsProofStatus({
+  // THE ONE OTS AUTHORITY (2026-10-13): resolved from the stored proof bytes.
+  const ots = resolveOtsAnchoring({
     status: evidence?.otsStatus ?? null,
+    proofBase64: evidence?.otsProofBase64 ?? null,
+    fingerprintHash: evidence?.fingerprintHash ?? null,
+    otsHash: evidence?.otsHash ?? null,
+    failureReason: evidence?.otsFailureReason ?? null,
     anchoredAtUtc: evidence?.otsAnchoredAtUtc ?? null,
-    anchorCheck: evidence?.otsAnchorCheck ?? null,
-    bitcoinTxid: evidence?.otsBitcoinTxid ?? null,
-    proofPresent: Boolean(evidence?.otsProofBase64),
     upgradedAtUtc: evidence?.otsUpgradedAtUtc ?? null,
-    submittedAtUtc: evidence?.signedAtUtc ?? null,
-    chain: evidence
-      ? {
-          chainVerificationStatus: evidence.otsChainVerificationStatus,
-          chainVerifiedAtUtc: evidence.otsChainVerifiedAtUtc,
-          chainBlockHeight: evidence.otsChainBlockHeight,
-          chainBlockHash: evidence.otsChainBlockHash,
-          chainBlockTimeUtc: evidence.otsChainBlockTimeUtc,
-          chainConfirmations: evidence.otsChainConfirmations,
-          chainVerifier: evidence.otsChainVerifier,
-        }
-      : null,
-    now,
   });
-  const otsRecordedAnchor = otsStatus === "VERIFIED" || otsStatus === "ANCHORED_UNVERIFIED";
+  const otsAnchored = ots.state === "ANCHORED";
 
   // ----- V1 record-level derivation edges -------------------------------
   const derivations = trustEvents
@@ -554,14 +535,12 @@ export async function loadProvenanceChain(
         statusLabel: TSA_PROOF_STATUS_LABELS[tsaStatus],
       },
       ots: {
-        // Only an anchor VERIFIED against the Bitcoin chain is "applied".
-        applied: otsStatus === "VERIFIED",
-        anchorTxId: otsRecordedAnchor ? (evidence?.otsBitcoinTxid ?? null) : null,
-        appliedAtUtc: otsRecordedAnchor ? (evidence?.otsAnchoredAtUtc?.toISOString() ?? null) : null,
-        // Not recorded by any writer; never invented.
-        confirmations: null,
-        status: otsStatus,
-        statusLabel: OTS_PROOF_STATUS_LABELS[otsStatus],
+        applied: otsAnchored,
+        anchorTxId: otsAnchored ? ots.bitcoinTxid : null,
+        appliedAtUtc: otsAnchored ? ots.anchoredAtUtc : null,
+        bitcoinBlockHeight: otsAnchored ? ots.bitcoinBlockHeight : null,
+        status: ots.state,
+        statusLabel: OTS_STATE_LABELS[ots.state],
       },
     },
     trustEventChain,

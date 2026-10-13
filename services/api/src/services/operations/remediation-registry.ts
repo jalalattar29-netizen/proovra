@@ -35,7 +35,12 @@
  * can read and cannot act on, which is the safe direction to be wrong in.
  */
 
-import { isPermanentOtsProofFailureReason, parseOtsBudgetExhaustedFingerprint } from "@proovra/shared";
+import {
+  otsBlocksPublication,
+  parseOtsBudgetExhaustedFingerprint,
+  resolveRecordOtsAnchoring,
+  type OtsAnchoringRecord,
+} from "@proovra/shared";
 import type { IncidentCategory } from "@proovra/shared";
 import { resolveConditionSource } from "@proovra/shared-runtime";
 
@@ -688,10 +693,12 @@ export function entryForIncident(input: {
 export type RemediationContext = {
   /**
    * ET-REC-06 — facts about the affected record the static entry cannot
-   * know. A permanently invalid OTS proof (PROOF_HASH_MISMATCH /
-   * MALFORMED_PROOF) is never offered "Resume OTS anchoring".
+   * know. (2026-10-13) The record's OTS columns, resolved through the ONE
+   * state authority: a permanently invalid proof (malformed, digest mismatch,
+   * unsupported operation, invalid attestation) is never offered "Resume OTS
+   * anchoring" — no re-run can repair it.
    */
-  record?: {
+  record?: (OtsAnchoringRecord & {
     otsStatus: string | null;
     otsFailureReason: string | null;
     /**
@@ -705,7 +712,7 @@ export type RemediationContext = {
      * Null or absent when the record's outputs were not read; both stay offered.
      */
     outputRecovery?: "SUPERSEDE" | "RECOVER" | "NONE" | null;
-  } | null;
+  }) | null;
   /** Server-resolved permissions for THIS caller in THIS workspace. */
   can: (permission: RemediationPermission) => boolean;
 /** Server-resolved permission check for deep-link destinations. */
@@ -774,8 +781,8 @@ export function resolveRemediations(
 
   if (
     entry.action?.actionId === RESUME_OTS.actionId &&
-    ctx.record?.otsStatus === "FAILED" &&
-    isPermanentOtsProofFailureReason(ctx.record.otsFailureReason)
+    ctx.record &&
+    otsBlocksPublication(resolveRecordOtsAnchoring(ctx.record))
   ) {
     return {
       disposition: "READ_ONLY_GUIDANCE",

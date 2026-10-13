@@ -6,8 +6,8 @@
  * duplicate verdict logic), reviewer evidence type is delegated to
  * getReviewerEvidenceTypeLabel (no duplicate category logic), the
  * workspace scope correctly distinguishes personal-Team workspaces
- * from team-account workspaces, OTS honesty-rule downgrades a fake
- * ANCHORED status without txid/anchored-at, and snapshot vs live
+ * from team-account workspaces, the OTS state comes from the stored proof
+ * bytes (a stored ANCHORED status never decides it), and snapshot vs live
  * semantics are encoded per-material.
  */
 
@@ -27,6 +27,7 @@ import {
   deriveCanonicalOutputContext,
   buildEvidenceTrustDecision,
 } from "../dist/index.js";
+import { REAL, upgradedProof } from "./helpers/ots-fixtures.mjs";
 
 /** Minimal trust-decision input that exercises the real shared builder. */
 function trustInputFor(evidence) {
@@ -38,9 +39,9 @@ function trustInputFor(evidence) {
       signingKeyId: evidence.signingKeyId,
       tsaStatus: evidence.tsaStatus,
       otsStatus: evidence.otsStatus,
-      otsBitcoinTxid: evidence.otsBitcoinTxid,
       otsAnchoredAtUtc: evidence.otsAnchoredAtUtc,
       otsHash: evidence.otsHash,
+      otsProofBase64: evidence.otsProofBase64 ?? null,
       storageImmutable: evidence.storageObjectLockMode === "COMPLIANCE",
       storageObjectLockMode: evidence.storageObjectLockMode,
       storageObjectLockRetainUntilUtc:
@@ -87,10 +88,9 @@ function fullEvidenceInput() {
     storageObjectLockLegalHoldStatus: "OFF",
     otsStatus: "ANCHORED",
     otsHash: "d".repeat(64),
-    otsBitcoinTxid: "e".repeat(64),
     otsAnchoredAtUtc: "2026-01-02T00:00:00.000Z",
     otsUpgradedAtUtc: "2026-01-02T00:00:01.000Z",
-    otsProofPresent: true,
+    otsProofBase64: null,
     identityLevelSnapshot: "ORGANIZATION_ACCOUNT",
     workspaceNameSnapshot: "Workspace Snapshot Name",
     organizationNameSnapshot: "Org Inc.",
@@ -249,26 +249,50 @@ test("snapshot vs live semantics: live output uses append-only / live-updating t
   assert.equal(m.identitySnapshot.workspaceScope, "TEAM_ACCOUNT_WORKSPACE");
 });
 
-test("OTS honesty rule: ANCHORED without txid AND without anchoredAtUtc downgrades to PENDING", () => {
-  const evidence = fullEvidenceInput();
-  evidence.otsBitcoinTxid = null;
-  evidence.otsAnchoredAtUtc = null;
-  const td = buildEvidenceTrustDecision(trustInputFor(evidence));
-  const m = buildCanonicalEvidenceMaterials({
-    evidence,
-    team: null,
-    parts: [],
-    custodyEvents: [],
-    trustDecision: td,
-    outputType: "REPORT_SNAPSHOT",
-  });
-  assert.equal(m.otsState.otsStatus, "ANCHORED");
-  assert.equal(m.otsState.effectiveStatus, "PENDING");
-  // The downgrade emits a canonical info-level issue.
+test("OTS: a stored ANCHORED status never decides the state — the stored proof bytes do", () => {
+  const materialsFor = (otsProofBase64) => {
+    const evidence = {
+      ...fullEvidenceInput(),
+      fingerprintHash: REAL.boundFingerprintHash,
+      otsHash: REAL.boundFingerprintHash,
+      otsProofBase64,
+    };
+    const td = buildEvidenceTrustDecision(trustInputFor(evidence));
+    return buildCanonicalEvidenceMaterials({
+      evidence,
+      team: null,
+      parts: [],
+      custodyEvents: [],
+      trustDecision: td,
+      outputType: "REPORT_SNAPSHOT",
+    });
+  };
+  // Status ANCHORED, a well-formed txid and an anchored-at time over the real
+  // pending proof: PENDING, with no height/txid/anchored-at carried.
+  const pending = materialsFor(REAL.boundProofBase64);
+  assert.equal(pending.otsState.otsStatus, "ANCHORED");
+  assert.equal(pending.otsState.state, "PENDING");
+  assert.equal(pending.otsState.bitcoinTxid, null);
+  assert.equal(pending.otsState.bitcoinBlockHeight, null);
+  assert.equal(pending.otsState.otsAnchoredAtUtc, null);
   assert.ok(
-    m.issues.some((i) => i.code === "OTS_STATUS_DOWNGRADED_PENDING"),
-    "missing OTS downgrade issue",
+    pending.issues.some((i) => i.code === "OTS_STORED_STATUS_NOT_ANCHORED"),
+    "missing stored-status issue",
   );
+  // No proof bytes at all: UNAVAILABLE, never anchored.
+  const missing = materialsFor(null);
+  assert.equal(missing.otsState.state, "UNAVAILABLE");
+  assert.equal(missing.otsState.failureCode, "PROOF_MATERIAL_MISSING");
+  assert.ok(missing.issues.some((i) => i.code === "OTS_STORED_STATUS_NOT_ANCHORED"));
+  // A valid upgraded proof: ANCHORED with the facts the proof yields.
+  const up = upgradedProof();
+  const anchored = materialsFor(up.base64);
+  assert.equal(anchored.otsState.state, "ANCHORED");
+  assert.equal(anchored.otsState.bitcoinTxid, up.txid);
+  assert.equal(anchored.otsState.bitcoinBlockHeight, up.blockHeight);
+  assert.equal(anchored.otsState.proofSha256, up.proofSha256);
+  assert.equal(anchored.otsState.otsAnchoredAtUtc, "2026-01-02T00:00:00.000Z");
+  assert.ok(!anchored.issues.some((i) => i.code === "OTS_STORED_STATUS_NOT_ANCHORED"));
 });
 
 test("legal boundary material is shared across outputs (no duplicate copy)", () => {

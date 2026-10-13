@@ -16,7 +16,7 @@
  *   4. legal effect                              (jurisdiction and context;
  *                                                 never stated here)
  */
-import { resolveTsaProofStatus } from "./ots-status.js";
+import { resolveTsaProofStatus } from "./tsa-status.js";
 import { presentedTsaStatus } from "./tsa-validation-state.js";
 import { resolveTsaTrustState, TSA_VALIDATED_QUALIFICATION_STATEMENT } from "./trust-signal-state.js";
 

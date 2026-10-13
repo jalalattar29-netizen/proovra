@@ -176,9 +176,12 @@ export const EVIDENCE_LIFECYCLE_FAILURE_CODES = [
   "CUSTODY_APPEND_FAILED",
   "OTS_PROVIDER_UNAVAILABLE",
   "OTS_PROOF_CREATE_FAILED",
-  "OTS_STILL_PENDING",
-  "OTS_UPGRADE_BUDGET_EXHAUSTED",
-  "OTS_STUCK_AT_ATTEMPT_THRESHOLD",
+  "OTS_CALENDAR_UNAVAILABLE",
+  "OTS_GLOBAL_BUDGET_EXHAUSTED",
+  "PROOF_HASH_MISMATCH",
+  "MALFORMED_PROOF",
+  "UNSUPPORTED_PROOF_OPERATION",
+  "INVALID_ATTESTATION",
   "REPORT_PDF_RENDER_FAILED",
   "REPORT_PDF_SIGNATURE_FAILED",
   "PACKAGE_BUILD_FAILED",
@@ -566,7 +569,7 @@ const STEP_DEFS: Record<
     writerResponsibility:
       "services/worker/src/ots-lifecycle.ts:ensureEvidenceOtsInitialized — the one initialization authority, driven by the `ots-upgrade` queue. Triggered by evidence finalization (services/api/src/services/evidence-complete.service.ts) and by the bounded reconciliation script for records that predate the decoupling. It was previously called from the REPORT processor, which meant a record only ever reached the calendar if its plan included reports.",
     timestampMeaning:
-      "Server wall-clock at the stamp attempt, which follows finalization rather than report generation. A proof attests existence NO LATER THAN its anchor time, so a record reconciled long after capture receives a later anchor — capture/finalization, TSA and OTS anchor stay three distinct times and are never collapsed. otsProofBase64 is immutable from this point; only otsStatus + otsBitcoinTxid + otsAnchoredAtUtc advance later.",
+      "Server wall-clock at the stamp attempt, which follows finalization rather than report generation. A proof attests existence NO LATER THAN its anchor time, so a record reconciled long after capture receives a later anchor — capture/finalization, TSA and OTS anchor stay three distinct times and are never collapsed. Later upgrades only EXTEND the proof (the same digest, more operations and attestations); the canonical state is always resolved from the stored bytes (ots-anchoring.ts).",
     requiredInputs: [
       "evidence.fingerprintHash",
       "evidence.fileSha256",
@@ -714,33 +717,39 @@ const STEP_DEFS: Record<
     id: "OTSAnchoredLater",
     eventName: EVIDENCE_LIFECYCLE_EVENT_NAMES.OTSAnchoredLater,
     description:
-      "Previously-PENDING OpenTimestamps proof is upgraded to ANCHORED once Bitcoin confirms. This may occur hours or days after the report/package were sealed.",
+      "A PENDING OpenTimestamps proof is upgraded and its stored bytes now execute from the record's digest to a valid Bitcoin block-header attestation: the canonical state becomes ANCHORED (\"Bitcoin anchoring — Anchored\"), terminal for that proof. This may occur hours or days after the report/package were sealed; when the latest report stated an earlier state, exactly one automatic report + package version is requested (services/worker/src/ots-anchored-version.ts).",
     writerResponsibility:
-      "services/worker/src/ots-upgrade.processor.ts (writes via services/worker/src/ots-state.ts:buildOtsEvidenceUpdateData).",
+      "services/worker/src/ots-upgrade.processor.ts (decides with services/worker/src/ots-state.ts:decideOtsTransition, writes compare-and-set via buildOtsEvidenceUpdateData).",
     timestampMeaning:
-      "Evidence.otsAnchoredAtUtc — the Bitcoin-confirmed anchor time. Evidence.otsUpgradedAtUtc — server wall-clock when the upgrade was applied.",
+      "Evidence.otsAnchoredAtUtc — when PROOVRA recorded the anchor (a PROOVRA time, never a Bitcoin block time). Evidence.otsUpgradedAtUtc — server wall-clock when the upgrade was applied.",
     requiredInputs: [
       "evidence.otsProofBase64",
+      "evidence.fingerprintHash",
       "evidence.otsStatus",
     ],
     producedMaterials: [
+      "evidence.otsProofBase64",
       "evidence.otsStatus",
       "evidence.otsBitcoinTxid",
       "evidence.otsAnchoredAtUtc",
       "evidence.otsUpgradedAtUtc",
     ],
-    custodyEventType: "ANCHOR_PUBLISHED",
+    custodyEventType: "OTS_APPLIED",
     custodyEventGap: false,
     failureCodes: [
-      "OTS_STILL_PENDING",
-      "OTS_UPGRADE_BUDGET_EXHAUSTED",
-      "OTS_STUCK_AT_ATTEMPT_THRESHOLD",
+      "OTS_CALENDAR_UNAVAILABLE",
+      "OTS_GLOBAL_BUDGET_EXHAUSTED",
+      "PROOF_HASH_MISMATCH",
+      "MALFORMED_PROOF",
+      "UNSUPPORTED_PROOF_OPERATION",
+      "INVALID_ATTESTATION",
     ],
     retryPolicy:
-      "30-day global budget (OTS_GLOBAL_BUDGET_DAYS_DEFAULT=30). Stuck detection at 10 attempts (OTS_STUCK_ATTEMPT_THRESHOLD_DEFAULT=10). Stable jobId via buildFollowUpJobId.",
+      "One stable job per record (ots-upgrade-<evidenceId>), hourly follow-ups while PENDING, a 30-day global budget (OTS_GLOBAL_BUDGET_DAYS_DEFAULT=30) after which the proof is FAILED OTS_GLOBAL_BUDGET_EXHAUSTED. Calendar failures are recorded attempt errors under the queue's retry policy; proof defects are terminal.",
     snapshotSemantics: "live-updating-after-snapshot",
-    downstreamConsumers: ["PUBLIC_VERIFY", "INTERNAL_METRICS"],
+    downstreamConsumers: ["PUBLIC_VERIFY", "REPORT_SNAPSHOT", "VERIFICATION_PACKAGE", "INTERNAL_METRICS"],
   },
+
 };
 
 // -----------------------------------------------------------------------------

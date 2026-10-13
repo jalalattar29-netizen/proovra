@@ -18,13 +18,13 @@ import {
   formatCaptureLocationCoordinate,
   getReviewerEvidenceTypeLabel,
   hasCaptureLocationMetadata,
-  isCompleteOtsAnchor,
   formatTimestampForReportUtc,
+  OTS_STATE_SENTENCES,
   absoluteInternalUrl,
   buildVerificationMatrix,
 } from "@proovra/shared";
 import type { CanonicalEvidenceMaterials } from "@proovra/shared";
-import { buildOtsTruthRows, otsStatusLineFor, reportOtsTruth } from "./ots-presentation.js";
+import { buildOtsAnchoringRows, otsStatusLineFor } from "./ots-presentation.js";
 import type {
   CalloutModel,
   CustodyHashRow,
@@ -57,7 +57,6 @@ import {
   safeBooleanLabel,
 } from "./formatters.js";
 import {
-  mapAnchorModePublicLabel,
   mapCertificationStatusLabel,
   mapEvidenceAssetKindLabel,
   reportIdentityLevelLabel,
@@ -557,7 +556,7 @@ function buildVerificationSummaryRows(
   );
   add(
     "Anchoring Status",
-    otsStatusLineFor(canonicalMaterials.otsState)
+    otsStatusLineFor(canonicalMaterials.otsState.state)
   );
   add("Last Verified At (UTC)", formatReportTimestamp(evidence.lastVerifiedAtUtc));
   add(
@@ -588,28 +587,12 @@ function buildVerificationSummaryRows(
   return rows;
 }
 
+/**
+ * (2026-10-13) The OTS columns are presented as stored: the canonical state is
+ * resolved from the proof bytes (ots-anchoring.ts), never rewritten from a
+ * status, a txid or a time here.
+ */
 function resolveOtsPresentationEvidence(evidence: ReportEvidence): ReportEvidence {
-  const complete = isCompleteOtsAnchor({
-    status: evidence.otsStatus,
-    bitcoinTxid: evidence.otsBitcoinTxid,
-    anchoredAtUtc: evidence.otsAnchoredAtUtc,
-  });
-
-  if (complete) {
-    return Object.assign({}, evidence, {
-      otsStatus: "ANCHORED",
-      otsFailureReason: null,
-    });
-  }
-
-  if (safe(evidence.otsStatus, "").toUpperCase() === "ANCHORED") {
-    return Object.assign({}, evidence, {
-      otsStatus: "PENDING",
-      otsAnchoredAtUtc: null,
-      otsFailureReason: null,
-    });
-  }
-
   return evidence;
 }
 
@@ -648,7 +631,7 @@ function buildReviewReadinessRows(
 
 {
   label: "Bitcoin Anchoring Status",
-  value: otsStatusLineFor(canonicalMaterials.otsState),
+  value: otsStatusLineFor(canonicalMaterials.otsState.state),
 },
     {
       label: "Immutable Storage",
@@ -879,7 +862,7 @@ function buildStorageRows(
     },
     {
       label: "Bitcoin Anchoring Status",
-      value: otsStatusLineFor(canonicalMaterials.otsState),
+      value: otsStatusLineFor(canonicalMaterials.otsState.state),
     },
     {
       label: "RFC 3161 Note",
@@ -887,10 +870,10 @@ function buildStorageRows(
     },
   ].filter((row) => safe(row.value, "") !== "");
   
-  // (2026-10-12) Recording time, values the proof reports, and values an
-  // independent chain check verified — never "OTS anchored at".
-  const otsRows: KeyValueRow[] = buildOtsTruthRows(evidence).filter(
-    (row) => row.label !== "OpenTimestamps Status" && safe(row.value, "") !== "",
+  // (2026-10-13) The facts the stored proof yields; the anchored time is
+  // PROOVRA's recording time, never a Bitcoin block time.
+  const otsRows: KeyValueRow[] = buildOtsAnchoringRows(evidence).filter(
+    (row) => row.label !== "Bitcoin Anchoring" && safe(row.value, "") !== "",
   );
 
   rows.push(...otsRows);
@@ -898,21 +881,9 @@ function buildStorageRows(
   if (anchorSummary) {
     rows.push(
       {
-        label: "External Anchor Mode",
-        value: mapAnchorModePublicLabel(anchorSummary.mode),
-      },
-      {
         label: "External Anchor Provider",
         value: safe(anchorSummary.provider),
       },
-      {
-        label: "Anchor Transaction ID",
-        value: anchorSummary.transactionId
-          ? reportOtsTruth(evidence).state === "CHAIN_VERIFIED"
-            ? anchorSummary.transactionId
-            : `${anchorSummary.transactionId} — Reported by the OpenTimestamps proof; not independently verified`
-          : "",
-      }
     );
   }
 
@@ -1247,9 +1218,9 @@ function buildTechnicalAppendixCourtRows(params: {
       value: mapTimestampStatusPublicLabel(params.evidence.tsaStatus),
     },
 {
-  // The same public word as the OpenTimestamps card (canonical materials).
-  label: "OpenTimestamps",
-  value: otsStatusLineFor(params.canonicalMaterials.otsState),
+  // The Bitcoin anchoring card's sentence (canonical materials).
+  label: "Bitcoin anchoring",
+  value: OTS_STATE_SENTENCES[params.canonicalMaterials.otsState.state].replace(/\.$/, ""),
 },
     {
       label: "Forensic Custody Events",
@@ -1908,8 +1879,8 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
         input.acquisition?.isIntake === true
       ),
       timestampRows: buildTimestampRows(canonicalMaterials.timestampState, contentSummary),
-      otsRows: buildOtsRows(canonicalMaterials.otsState),
-      anchorRows: buildAnchorRows(anchorSummary, canonicalMaterials.otsState),
+      otsRows: buildOtsRows(otsEvidence),
+      anchorRows: buildAnchorRows(anchorSummary),
       signingKeyReference: buildPublicSigningKeyReference(
         input.evidence.signingKeyId,
         input.evidence.signingKeyVersion

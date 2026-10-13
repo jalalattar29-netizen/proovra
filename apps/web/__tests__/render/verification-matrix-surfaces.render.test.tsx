@@ -2,9 +2,10 @@
  * EVIDENCE-CLAIMS CORRECTION (2026-10-08) — every web surface states a record
  * signal by signal through the verification matrix: no numeric trust score,
  * no weighted points, no overall verdict ("strongly verified"), no reliance or
- * confidence level. An OpenTimestamps proof that is present but not checked
- * against the chain is NOT_CHECKED, and the bounded summary and the fixed
- * limitation are always stated.
+ * confidence level. Bitcoin anchoring is the canonical OTS state (2026-10-13):
+ * a legacy "passed" anchoring signal cannot be re-validated from a snapshot
+ * and reads as Unavailable — never anchored — and the bounded summary and the
+ * fixed limitation are always stated.
  *
  * The web deploys before the API, so the old response shape (score, verdict,
  * relianceLevel, points …) is fed through each surface here: none of it may
@@ -60,7 +61,7 @@ function oldApiTrustDecision() {
       { key: "custody_chain", label: "Custody chain", status: "passed", tone: "success", points: 15, maxPoints: 15, summary: "Chain intact.", detail: "" },
       { key: "trusted_timestamp", label: "Trusted timestamp", status: "passed", tone: "success", points: 15, maxPoints: 15, summary: "Timestamp issued.", detail: "" },
       // A legacy anchoring "passed" was awarded for a proof's PRESENCE: it is
-      // never read as chain-verified.
+      // never read as anchored.
       { key: "bitcoin_anchoring", label: "Bitcoin anchoring", status: "passed", tone: "success", points: 10, maxPoints: 10, summary: "Proof present", detail: "" },
       { key: "immutable_storage", label: "Immutable storage", status: "passed", tone: "success", points: 10, maxPoints: 10, summary: "Object lock recorded.", detail: "" },
     ],
@@ -89,7 +90,9 @@ describe("Public Verify — matrix panels (old API without verificationMatrix)",
       "ots_anchoring",
       "storage_protection",
     ]);
-    expect(matrix.rows.find((r) => r.key === "ots_anchoring")!.status).toBe("NOT_CHECKED");
+    const ots = matrix.rows.find((r) => r.key === "ots_anchoring")!;
+    expect(ots.status).toBe("UNAVAILABLE");
+    expect(ots.otsState).toBe("UNAVAILABLE");
     expect(matrix.limitation).toBe(VERIFICATION_LIMITATION);
   });
 
@@ -107,11 +110,12 @@ describe("Public Verify — matrix panels (old API without verificationMatrix)",
     );
     expect(getByTestId("verify-matrix-summary").textContent).toMatch(/“Not checked” was not independently verified/);
     expect(getByTestId("verify-matrix-limitation").textContent).toBe(VERIFICATION_LIMITATION);
-    // An unchecked OpenTimestamps proof reads its public word and one sentence.
-    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("Attestation recorded");
+    // The legacy anchoring signal reads its one word and sentence: Unavailable.
+    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("Unavailable");
     expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).toMatch(
-      /Independent Bitcoin verification was not performed./,
+      /The OpenTimestamps proof material cannot currently be read./,
     );
+    expect(text).not.toMatch(/Attestation recorded|Independent Bitcoin verification/);
     expect(getByTestId("verify-matrix-status-file_integrity").textContent).toBe("Verified");
     // The old wire summary and reviewer action never reach the page.
     expect(text).not.toContain("Rely on this record.");
@@ -161,7 +165,7 @@ function basicData(): BasicVerification {
       finalizedAtUtc: AT,
     },
     timestamp: { state: "not_issued", basis: null, tokenTimeUtc: null },
-    anchoring: { state: "not_checked", basis: "PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED", anchoredAtUtc: AT, bitcoinTxid: null },
+    anchoring: { state: "pending", otsState: "PENDING", anchoredAtUtc: null, bitcoinTxid: null },
     report: { issued: false, latestVersion: null, issuedAtUtc: null, digestRecorded: false },
     package: { issued: false, certifiesReportVersion: null, assembledAtUtc: null, sealed: false, latestReportLacksPackage: false },
   } as unknown as BasicVerification;
@@ -181,8 +185,8 @@ describe("Public Verify — BASIC tier renders the matrix", () => {
     expectNoRetiredClaims(container.textContent ?? "");
     expect(getByTestId("verify-matrix-summary").textContent).toMatch(/custody checks passed/);
     expect(getByTestId("verify-matrix-limitation").textContent).toBe(VERIFICATION_LIMITATION);
-    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).toMatch(/Attestation recorded/);
-    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).not.toMatch(/VERIFIED|Not checked/);
+    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).toMatch(/Unavailable/);
+    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).not.toMatch(/VERIFIED|Not checked|Attestation recorded/);
   });
 
   it("renders no matrix section when an older API sent none", () => {
@@ -199,10 +203,10 @@ describe("Technical Appendix — TrustDecisionSummary reads any snapshot score-f
     expect(text).not.toMatch(/Verdict|Score|Weighting/);
     expect(text).toContain(VERIFICATION_LIMITATION);
     const anchoring = container.querySelector('[data-trust-signal-key="bitcoin_anchoring"]') as HTMLElement;
-    expect(anchoring.getAttribute("data-trust-signal-status")).toBe("NOT_CHECKED");
+    expect(anchoring.getAttribute("data-trust-signal-status")).toBe("UNAVAILABLE");
     // The machine status stays in the data attribute; the reader sees words.
-    expect(anchoring.textContent).toMatch(/Not checked/);
-    expect(anchoring.textContent).not.toMatch(/NOT_CHECKED/);
+    expect(anchoring.textContent).toMatch(/Unavailable/);
+    expect(anchoring.textContent).not.toMatch(/UNAVAILABLE|Not checked|Attestation recorded/);
     const core = container.querySelector('[data-trust-signal-key="core_integrity"]') as HTMLElement;
     expect(core.getAttribute("data-trust-signal-status")).toBe("VERIFIED");
   });

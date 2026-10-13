@@ -23,7 +23,7 @@
  * Disclosure packages build it from the same inputs and differ only in what
  * they disclose, never in a status.
  */
-import { OTS_TRUTH_SENTENCES, type OtsPublicStatus } from "./ots-truth.js";
+import { OTS_STATE_SENTENCES, OTS_STATE_WORDS, parseOtsState, type OtsState } from "./ots-anchoring.js";
 import {
   acquisitionAccountLabel,
   acquisitionActorLabel,
@@ -82,10 +82,12 @@ export type VerificationMatrixRow = {
   measuredAtUtc: string | null;
   /**
    * The word a reader sees when it differs from the generic status word:
-   * OpenTimestamps says Pending / Attestation recorded / Verified / Unavailable
-   * (ots-truth OTS_PUBLIC_STATUSES). Absent for every other row.
+   * OpenTimestamps says Not requested / Pending / Anchored / Failed /
+   * Unavailable (ots-anchoring OTS_STATE_WORDS). Absent for every other row.
    */
   statusLabel?: string;
+  /** The canonical OpenTimestamps state, on the ots_anchoring row only. */
+  otsState?: OtsState;
 };
 
 export type VerificationMatrix = {
@@ -183,65 +185,51 @@ function signalRow(
 }
 
 /**
- * THE OTS statement, one per canonical state (2026-10-08). The internal
- * lifecycle state stays as recorded (PENDING stays PENDING); only the
- * customer-facing status and words are projected here:
+ * THE OTS ROW (2026-10-13): the canonical anchoring state (ots-anchoring.ts),
+ * read back from the anchoring signal's state — never from its words.
  *
- *   UNAVAILABLE         not requested / not available            UNAVAILABLE
- *   PENDING, STALE      request accepted, upgrade pending         NOT_CHECKED
- *   PRESENT / NOT_CHECKED  proof present, chain not checked       NOT_CHECKED
- *   PASSED              independently verified against Bitcoin    VERIFIED
- *   FAILED              anchoring did not complete                UNAVAILABLE
+ *   PASSED          ANCHORED       "Anchored"       (machine status VERIFIED)
+ *   PENDING         PENDING        "Pending"        (NOT_CHECKED)
+ *   FAILED          FAILED         "Failed"         (FAILED)
+ *   NOT_APPLICABLE  NOT_REQUESTED  "Not requested"  (NOT_APPLICABLE)
+ *   anything else   UNAVAILABLE    "Unavailable"    (UNAVAILABLE)
  */
-const OTS_SENTENCES: ReadonlySet<string> = new Set(Object.values(OTS_TRUTH_SENTENCES));
-export function otsMatrixStatement(state: TrustSignalState, summary: string): string {
-  // The signal's summary IS the one sentence (ots-truth OTS_TRUTH_SENTENCES);
-  // any other text — an older stored summary — is replaced by the state's sentence.
-  const sentence = OTS_SENTENCES.has(summary) ? summary : null;
+export function otsStateFromTrustState(state: TrustSignalState): OtsState {
   switch (state) {
-    case "PENDING":
-      return sentence ?? OTS_TRUTH_SENTENCES.PENDING;
-    case "STALE":
-      return sentence ?? OTS_TRUTH_SENTENCES.UNKNOWN_OR_STALE;
-    case "PRESENT_NOT_INDEPENDENTLY_VERIFIED":
-    case "NOT_CHECKED":
-      return sentence ?? OTS_TRUTH_SENTENCES.ATTESTATION_PRESENT_NOT_VERIFIED;
     case "PASSED":
-      return OTS_TRUTH_SENTENCES.CHAIN_VERIFIED;
+      return "ANCHORED";
+    case "PENDING":
+      return "PENDING";
     case "FAILED":
-      return sentence ?? OTS_TRUTH_SENTENCES.PROOF_INVALID;
+      return "FAILED";
+    case "NOT_APPLICABLE":
+      return "NOT_REQUESTED";
     default:
-      return OTS_TRUTH_SENTENCES.NOT_REQUESTED;
+      return "UNAVAILABLE";
   }
 }
 
-/** The OTS row: the generic status for machines, the OTS word for readers. */
-const OTS_STATUS_WORD: Readonly<Record<TrustSignalState, OtsPublicStatus>> = {
-  PASSED: "Verified",
-  PRESENT_NOT_INDEPENDENTLY_VERIFIED: "Attestation recorded",
-  NOT_CHECKED: "Attestation recorded",
-  PENDING: "Pending",
-  STALE: "Unavailable",
-  FAILED: "Unavailable",
-  UNAVAILABLE: "Unavailable",
-  NOT_APPLICABLE: "Unavailable",
+const OTS_STATE_MATRIX_STATUS: Readonly<Record<OtsState, VerificationStatus>> = {
+  ANCHORED: "VERIFIED",
+  PENDING: "NOT_CHECKED",
+  FAILED: "FAILED",
+  NOT_REQUESTED: "NOT_APPLICABLE",
+  UNAVAILABLE: "UNAVAILABLE",
 };
-/**
- * The OTS row's status for an OTS trust state. A proof that is unbound or
- * refuted by a chain check never reaches a published artifact
- * (otsBlocksPublication), so an OTS layer that did not complete is
- * UNAVAILABLE — never a failed integrity check of the bytes.
- */
+
+/** The OTS row's machine status for a trust state. */
 export function otsVerificationStatus(state: TrustSignalState): VerificationStatus {
-  const status = toVerificationStatus(state);
-  return status === "FAILED" ? "UNAVAILABLE" : status;
+  return toVerificationStatus(state);
 }
 
 function otsRow(signal: VerificationSignalInput | undefined): VerificationMatrixRow {
-  const base = signalRow("ots_anchoring", signal, (_status, summary, state) => otsMatrixStatement(state, summary));
   const state = signal ? resolveSnapshotSignalState(signal) : "UNAVAILABLE";
-  const status = base.status === "FAILED" ? "UNAVAILABLE" : base.status;
-  return { ...base, status, statusLabel: OTS_STATUS_WORD[state] ?? "Unavailable" };
+  const ots = parseOtsState(otsStateFromTrustState(state));
+  return {
+    ...row("ots_anchoring", otsVerificationStatus(state), OTS_STATE_SENTENCES[ots], signal?.measuredAtUtc ?? null),
+    statusLabel: OTS_STATE_WORDS[ots],
+    otsState: ots,
+  };
 }
 
 function identityRows(identity: VerificationIdentityInput | null): VerificationMatrixRow[] {
@@ -425,7 +413,9 @@ const STATUS_PREDICATE: Readonly<Record<VerificationStatus, string>> = {
  */
 export function verificationMatrixSummary(rows: ReadonlyArray<Pick<VerificationMatrixRow, "key" | "label" | "status">>): string {
   const of = (key: VerificationMatrixKey) => rows.find((r) => r.key === key)?.status ?? "UNAVAILABLE";
-  const failed = rows.filter((r) => r.status === "FAILED").map((r) => r.label);
+  // Anchoring does not decide the integrity of the bytes: an OpenTimestamps
+  // failure is stated by its own row, never as "do not rely on the bytes".
+  const failed = rows.filter((r) => r.status === "FAILED" && r.key !== "ots_anchoring").map((r) => r.label);
   const parts: string[] = [];
   if (failed.length > 0) {
     parts.push(
@@ -497,6 +487,22 @@ export function parseVerificationMatrix(value: unknown): VerificationMatrix | nu
     if (!(VERIFICATION_MATRIX_KEYS as readonly string[]).includes(String(o.key))) return null;
     const status = String(o.status);
     if (!["VERIFIED", "FAILED", "NOT_CHECKED", "NOT_APPLICABLE", "UNAVAILABLE"].includes(status)) return null;
+    if (o.key === "ots_anchoring") {
+      // The canonical state travels with the row; a legacy row without it
+      // (or with an unknown value) reads as Unavailable — never re-derived
+      // from a legacy status word.
+      const ots = parseOtsState(o.otsState);
+      rows.push({
+        key: "ots_anchoring",
+        label: VERIFICATION_MATRIX_LABELS.ots_anchoring,
+        status: OTS_STATE_MATRIX_STATUS[ots],
+        statement: OTS_STATE_SENTENCES[ots],
+        measuredAtUtc: typeof o.measuredAtUtc === "string" ? o.measuredAtUtc : null,
+        statusLabel: OTS_STATE_WORDS[ots],
+        otsState: ots,
+      });
+      continue;
+    }
     rows.push({
       key: o.key as VerificationMatrixKey,
       label: typeof o.label === "string" ? o.label : VERIFICATION_MATRIX_LABELS[o.key as VerificationMatrixKey],

@@ -83,6 +83,9 @@ export interface TrustState {
   otsAnchored: number;
   otsPending: number;
   otsFailed: number;
+  /** Proof material referenced but not currently readable (OtsState UNAVAILABLE). */
+  otsUnavailable: number;
+  /** No anchoring requested (OtsState NOT_REQUESTED; older servers: `none`). */
   otsNone: number;
   signed: number;
   endToEndReady: number;
@@ -111,7 +114,8 @@ export function parseTrustState(summary: unknown): TrustState | null {
     otsAnchored: n0(ots.anchored),
     otsPending: n0(ots.pending),
     otsFailed: n0(ots.failed),
-    otsNone: n0(ots.none),
+    otsUnavailable: n0(ots.unavailable),
+    otsNone: n0(ots.notRequested) + n0(ots.none),
     signed: n0(s.signed),
     endToEndReady: n0(s.endToEndReady),
     signedWithoutReport: n0(s.signedWithoutReport),
@@ -147,14 +151,17 @@ export function buildTrustRows(t: TrustState): TrustRow[] {
     },
     {
       key: "ots",
-      label: "OpenTimestamps (OTS)",
+      // The canonical OTS vocabulary (ots-anchoring.ts): Anchored is the only
+      // success, Failed the only danger; Pending / Unavailable / Not requested are neutral.
+      label: "Bitcoin anchoring",
       segments: [
         { text: `${t.otsAnchored} anchored`, tone: "ok" },
-        ...(t.otsPending ? [{ text: `${t.otsPending} pending`, tone: "warn" as const }] : []),
+        ...(t.otsPending ? [{ text: `${t.otsPending} pending`, tone: "neutral" as const }] : []),
         ...(t.otsFailed ? [{ text: `${t.otsFailed} failed`, tone: "danger" as const }] : []),
-        ...(t.otsNone ? [{ text: `${t.otsNone} not anchored yet`, tone: "danger" as const }] : []),
+        ...(t.otsUnavailable ? [{ text: `${t.otsUnavailable} unavailable`, tone: "neutral" as const }] : []),
+        ...(t.otsNone ? [{ text: `${t.otsNone} not requested`, tone: "neutral" as const }] : []),
       ],
-      tone: t.otsFailed > 0 ? "danger" : t.otsPending > 0 ? "warn" : t.empty ? "neutral" : "ok",
+      tone: t.otsFailed > 0 ? "danger" : t.otsAnchored > 0 && t.otsPending === 0 && t.otsUnavailable === 0 ? "ok" : "neutral",
     },
     { key: "signed", label: "Signed records", segments: [{ text: `${t.signed} of ${t.totalEvidence}`, tone: "neutral" }], tone: "neutral" },
     { key: "verify", label: "Public verification links live", segments: [{ text: `${t.verifyPublished}`, tone: "neutral" }], tone: "neutral" },

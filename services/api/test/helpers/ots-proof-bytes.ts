@@ -63,16 +63,26 @@ export function otsProofForDigest(
   return Buffer.concat([MAGIC, varuint(1), Buffer.from([0x08]), Buffer.from(digestHex, "hex"), tree]).toString("base64");
 }
 
-/** A complete recorded independent chain check (VERIFIED), as the worker writes it. */
-export function verifiedChainColumns(blockHeight: number) {
+/**
+ * (2026-10-13) The OTS columns of a record whose stored proof attests a
+ * Bitcoin block (ANCHORED) or awaits one (PENDING), over `digestHex` — the
+ * record's fingerprint digest. The state is read from these bytes; a status,
+ * a txid or a time alone never makes a record anchored.
+ */
+export function otsColumnsFor(digestHex: string, state: "ANCHORED" | "PENDING"): {
+  fingerprintHash: string;
+  otsHash: string;
+  otsStatus: "ANCHORED" | "PENDING";
+  otsProofBase64: string;
+  otsAnchoredAtUtc: Date | null;
+  otsFailureReason: null;
+} {
   return {
-    otsChainVerificationStatus: "VERIFIED",
-    otsChainCheckedAtUtc: new Date("2026-09-21T10:00:00.000Z"),
-    otsChainVerifiedAtUtc: new Date("2026-09-21T10:00:00.000Z"),
-    otsChainBlockHeight: blockHeight,
-    otsChainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
-    otsChainBlockTimeUtc: new Date("2026-09-20T10:00:00.000Z"),
-    otsChainConfirmations: 12,
-    otsChainVerifier: "test-double/1",
-  } as const;
+    fingerprintHash: digestHex,
+    otsHash: digestHex,
+    otsStatus: state,
+    otsProofBase64: otsProofForDigest(digestHex, state === "ANCHORED" ? { bitcoinHeight: 860_000 } : {}),
+    otsAnchoredAtUtc: state === "ANCHORED" ? new Date() : null,
+    otsFailureReason: null,
+  };
 }

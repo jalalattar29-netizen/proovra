@@ -17,7 +17,8 @@ const AT = "2026-09-01T00:00:00.000Z";
 
 function data(over: {
   timestamp?: Partial<BasicVerification["timestamp"]>;
-  anchoring?: Partial<BasicVerification["anchoring"]>;
+  /** Wire-shaped: an older or unknown payload is exercised on purpose. */
+  anchoring?: Record<string, unknown>;
 }): BasicVerification {
   return {
     schema: "PROOVRA_BASIC_VERIFICATION",
@@ -33,7 +34,7 @@ function data(over: {
       finalizedAtUtc: AT,
     },
     timestamp: { state: "not_issued", basis: null, tokenTimeUtc: null, ...over.timestamp },
-    anchoring: { state: "not_issued", basis: null, anchoredAtUtc: null, bitcoinTxid: null, ...over.anchoring },
+    anchoring: { state: "not_issued", otsState: "NOT_REQUESTED", anchoredAtUtc: null, bitcoinTxid: null, ...over.anchoring },
     report: { issued: false, latestVersion: null, issuedAtUtc: null, digestRecorded: false },
     package: { issued: false, certifiesReportVersion: null, assembledAtUtc: null, sealed: false, latestReportLacksPackage: false },
   } as unknown as BasicVerification;
@@ -41,52 +42,95 @@ function data(over: {
 
 afterEach(() => cleanup());
 
-describe("Basic Verify — honest 'not checked'", () => {
-  it("an anchor checked offline says the chain was not checked — never 'no proof exists'", () => {
+/** The Bitcoin anchoring row's badge (the span carrying the aria-label). */
+function otsBadge(container: HTMLElement): HTMLElement {
+  const badge = container.querySelector<HTMLElement>("[data-verify-ots-state] span[aria-label]");
+  if (!badge) throw new Error("no Bitcoin anchoring badge");
+  return badge;
+}
+
+describe("Basic Verify — Bitcoin anchoring is the server's state (2026-10-13)", () => {
+  it("ANCHORED renders a green ✓ 'Anchored' with 'OpenTimestamps proof anchored in Bitcoin.'", () => {
     const { container } = render(
       <BasicVerificationView
-        data={data({ anchoring: { state: "not_checked", basis: "PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED", anchoredAtUtc: AT } })}
+        data={data({
+          anchoring: {
+            state: "verified",
+            otsState: "ANCHORED",
+            bitcoinBlockHeight: 812345,
+            bitcoinTxid: "c".repeat(64),
+            anchoredAtUtc: AT,
+          },
+        })}
       />,
     );
     const text = container.textContent ?? "";
-    // (2026-10-12) The OpenTimestamps card: one status, one sentence.
-    expect(text).toMatch(/OpenTimestamps.*Independent Bitcoin verification was not performed..*Attestation recorded/);
-    expect(text).not.toMatch(/No OpenTimestamps proof|anchored/i);
+    expect(container.querySelector("[data-verify-ots-state='ANCHORED']")).not.toBeNull();
+    expect(text).toContain("Bitcoin anchoring");
+    expect(text).toContain("OpenTimestamps proof anchored in Bitcoin.");
+    expect(otsBadge(container).textContent).toBe("✓ Anchored");
+    expect(otsBadge(container).style.color).toBe("rgb(11, 93, 59)");
+    expect(text).toContain("Bitcoin block height: 812345");
+    expect(text).toContain(`Bitcoin transaction: ${"c".repeat(64)}`);
+    // The recorded time is PROOVRA's recording, never a block time.
+    expect(text).toContain("Anchoring recorded by PROOVRA (UTC): 2026-09-01 00:00:00 UTC");
+    expect(text).not.toMatch(/Attestation recorded|Independent Bitcoin verification|chain-verified|Not checked/i);
   });
 
-  it("THE INCIDENT: a current response shows no anchor time, only the time PROOVRA recorded the proof", () => {
+  it("PENDING renders a neutral 'Pending' with the awaiting sentence, and no anchor facts", () => {
+    const { container } = render(
+      <BasicVerificationView
+        data={data({
+          anchoring: {
+            state: "pending",
+            otsState: "PENDING",
+            // Facts a pending proof must never show, even if a payload carried them.
+            bitcoinTxid: "c".repeat(64),
+            anchoredAtUtc: AT,
+          },
+        })}
+      />,
+    );
+    const text = container.textContent ?? "";
+    expect(otsBadge(container).textContent).toBe("Pending");
+    expect(otsBadge(container).style.color).toBe("rgb(75, 85, 99)");
+    expect(text).toContain("OpenTimestamps proof is awaiting Bitcoin anchoring.");
+    expect(text).not.toMatch(/Bitcoin transaction|Anchoring recorded by PROOVRA|Attestation recorded/);
+  });
+
+  it("an unknown state from the server renders 'Unavailable' — never anchored", () => {
     const { container } = render(
       <BasicVerificationView
         data={data({
           anchoring: {
             state: "not_checked",
-            basis: "PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED",
-            anchoredAtUtc: null,
-            truthState: "ATTESTATION_PRESENT_NOT_VERIFIED",
-            proofRecordedAtUtc: AT,
-          } as never,
+            otsState: "CHAIN_VERIFIED",
+            truthState: "CHAIN_VERIFIED",
+            bitcoinTxid: "c".repeat(64),
+          },
         })}
       />,
     );
     const text = container.textContent ?? "";
-    expect(text).toMatch(/Attestation recorded/);
-    expect(text).toMatch(/Independent Bitcoin verification was not performed./);
-    // No anchor time, no internal state.
-    expect(text).not.toMatch(/anchored|confirmed|ATTESTATION_PRESENT/i);
+    expect(container.querySelector("[data-verify-ots-state='UNAVAILABLE']")).not.toBeNull();
+    expect(otsBadge(container).textContent).toBe("Unavailable");
+    expect(text).toContain("The OpenTimestamps proof material cannot currently be read.");
+    expect(text).not.toMatch(/Anchored|Bitcoin transaction|Attestation recorded/);
   });
 
-  it("a historical anchor with no recorded check claims no structure or chain check", () => {
+  it("FAILED states the bounded failure label in danger tone", () => {
     const { container } = render(
       <BasicVerificationView
-        data={data({ anchoring: { state: "not_checked", basis: "ANCHOR_RECORDED_CHECK_NOT_RECORDED", anchoredAtUtc: AT } })}
+        data={data({ anchoring: { state: "failed", otsState: "FAILED", failureCode: "PROOF_HASH_MISMATCH" } })}
       />,
     );
-    const text = container.textContent ?? "";
-    expect(text).toMatch(/Attestation recorded/);
-    expect(text).toMatch(/Independent Bitcoin verification was not performed./);
-    expect(text).not.toMatch(/No OpenTimestamps proof|verified against the Bitcoin blockchain/);
+    expect(otsBadge(container).textContent).toBe("Failed");
+    expect(otsBadge(container).style.color).toBe("rgb(155, 28, 28)");
+    expect(container.textContent).toContain("The OpenTimestamps proof does not commit to this record's evidence digest.");
   });
+});
 
+describe("Basic Verify — honest 'not checked'", () => {
   it("a timestamp whose imprint was never stored is 'not compared', not 'matches' and not 'failed'", () => {
     const { container } = render(
       <BasicVerificationView

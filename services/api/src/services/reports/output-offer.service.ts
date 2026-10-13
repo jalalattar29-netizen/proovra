@@ -27,9 +27,13 @@ import {
   REPORTABLE_CUSTODY_EVENT_TYPES,
   deriveReportFreshness,
   diffOutputOfferBindings,
-  normalizeOtsAnchorCheck,
+  OTS_ANCHORING_RECORD_SELECT,
+  OTS_STATES,
   resolveOtsCustodyFacts,
-  resolveEffectiveOtsStatus,
+  resolveRecordOtsAnchoring,
+  toOtsAnchoringView,
+  type OtsAnchoringView,
+  type OtsState,
   type OutputOfferBinding,
   type OutputOfferChangeCode,
   type OutputOfferEnvelope,
@@ -55,24 +59,22 @@ export type ReportableFacts = {
     failureCode: string | null;
     genTimeUtc: string | null;
   };
-  ots: {
-    /** Effective status: an ANCHORED row without an anchor time reads PENDING. */
-    status: string | null;
-    anchorCheck: string | null;
-    anchoredAtUtc: string | null;
-    /** When the current anchor check was recorded (custody), when known. */
-    anchorCheckedAtUtc: string | null;
-    /** (2026-10-12) The recorded independent chain check — VERIFIED requires it. */
-    chainVerificationStatus?: string | null;
-    chainVerifiedAtUtc?: string | null;
-    chainBlockHeight?: number | null;
-    chainBlockHash?: string | null;
-    chainBlockTimeUtc?: string | null;
-    chainConfirmations?: number | null;
-    chainVerifier?: string | null;
-  };
+  /**
+   * (2026-10-13) THE WIRE CONTRACT: exactly the shared view of the record's
+   * OTS state (toOtsAnchoringView(resolveRecordOtsAnchoring(row))).
+   */
+  ots: OtsAnchoringView;
   freshness: ReportFreshness;
 };
+
+/** The OTS state a report stated (its anchorSnapshot.otsState); null for a legacy report. */
+function reportOtsStateOf(anchorSnapshot: unknown): OtsState | null {
+  const raw =
+    anchorSnapshot && typeof anchorSnapshot === "object" && !Array.isArray(anchorSnapshot)
+      ? (anchorSnapshot as Record<string, unknown>).otsState
+      : null;
+  return typeof raw === "string" && (OTS_STATES as readonly string[]).includes(raw) ? (raw as OtsState) : null;
+}
 
 const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null);
 
@@ -91,18 +93,8 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
         tsaValidatedAtUtc: true,
         tsaFailureCode: true,
         tsaGenTimeUtc: true,
-        otsStatus: true,
-        otsAnchoredAtUtc: true,
-        otsUpgradedAtUtc: true,
-        otsAnchorCheck: true,
-        otsBitcoinTxid: true,
-        otsChainVerificationStatus: true,
-        otsChainVerifiedAtUtc: true,
-        otsChainBlockHeight: true,
-        otsChainBlockHash: true,
-        otsChainBlockTimeUtc: true,
-        otsChainConfirmations: true,
-        otsChainVerifier: true,
+        // (2026-10-13) The columns the one OTS state authority reads.
+        ...OTS_ANCHORING_RECORD_SELECT,
         lastVerifiedAtUtc: true,
       },
     }),
@@ -114,6 +106,7 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
         generatedAtUtc: true,
         custodyThroughSequence: true,
         lastVerifiedAtUtcSnapshot: true,
+        anchorSnapshot: true,
       },
     }),
   ]);
@@ -136,8 +129,7 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
           _max: { atUtc: true },
         })
       : Promise.resolve(null),
-    // The OTS lifecycle events (few per record): when the proof was requested
-    // and when its current check was recorded.
+    // The OTS lifecycle events (few per record): when the proof was requested.
     prisma.custodyEvent.findMany({
       where: { evidenceId, eventType: prismaPkg.CustodyEventType.OTS_APPLIED },
       orderBy: { sequence: "asc" },
@@ -146,17 +138,15 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
   ]);
 
   const tsaStatus = ev?.tsaStatus ?? null;
-  const otsStatus = resolveEffectiveOtsStatus({
-    status: ev?.otsStatus ?? null,
-    bitcoinTxid: ev?.otsBitcoinTxid ?? null,
-    anchoredAtUtc: ev?.otsAnchoredAtUtc ?? null,
-  });
-  const anchorCheck = normalizeOtsAnchorCheck(ev?.otsAnchorCheck ?? null);
-  const otsCustody = resolveOtsCustodyFacts(otsEvents, anchorCheck);
+  // (2026-10-13) THE OTS STATE — the stored proof executed against the
+  // record's digest; nothing else decides it.
+  const ots = toOtsAnchoringView(
+    resolveRecordOtsAnchoring(ev ?? {}, { submittedAtUtc: resolveOtsCustodyFacts(otsEvents).submittedAtUtc }),
+  );
   const fingerprint = [
     `status:${ev?.status ?? "-"}`,
     `tsa:${tsaStatus ?? "-"}:${iso(ev?.tsaValidatedAtUtc) ?? "-"}:${ev?.tsaFailureCode ?? "-"}`,
-    `ots:${otsStatus ?? "-"}:${iso(ev?.otsAnchoredAtUtc) ?? "-"}:${anchorCheck ?? "-"}:${ev?.otsChainVerificationStatus ?? "-"}`,
+    `ots:${ots.state}:${ots.proofSha256 ?? "-"}:${ots.anchoredAtUtc ?? "-"}`,
     `custody:${maxReportable._max.sequence ?? 0}`,
     `verified:${iso(ev?.lastVerifiedAtUtc) ?? "-"}`,
   ].join("|");
@@ -170,29 +160,15 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
       failureCode: ev?.tsaFailureCode ?? null,
       genTimeUtc: iso(ev?.tsaGenTimeUtc),
     },
-    ots: {
-      status: otsStatus,
-      anchorCheck,
-      anchoredAtUtc: otsStatus === "ANCHORED" ? iso(ev?.otsAnchoredAtUtc) : null,
-      anchorCheckedAtUtc: otsCustody.anchorCheckedAtUtc,
-      chainVerificationStatus: ev?.otsChainVerificationStatus ?? null,
-      chainVerifiedAtUtc: iso(ev?.otsChainVerifiedAtUtc),
-      chainBlockHeight: ev?.otsChainBlockHeight ?? null,
-      chainBlockHash: ev?.otsChainBlockHash ?? null,
-      chainBlockTimeUtc: iso(ev?.otsChainBlockTimeUtc),
-      chainConfirmations: ev?.otsChainConfirmations ?? null,
-      chainVerifier: ev?.otsChainVerifier ?? null,
-    },
+    ots,
     freshness: deriveReportFreshness({
       reportVersion: latest?.version ?? null,
       reportGeneratedAtUtc: iso(latest?.generatedAtUtc),
       tsa: { status: tsaStatus, validatedAtUtc: iso(ev?.tsaValidatedAtUtc) },
       ots: {
-        status: otsStatus,
-        anchoredAtUtc: iso(ev?.otsAnchoredAtUtc),
-        upgradedAtUtc: iso(ev?.otsUpgradedAtUtc),
-        anchorCheck,
-        anchorCheckedAtUtc: otsCustody.anchorCheckedAtUtc,
+        state: ots.state,
+        anchoredAtUtc: ots.anchoredAtUtc,
+        reportState: reportOtsStateOf(latest?.anchorSnapshot),
       },
       custodyAfterReport: {
         count: afterReport?._count._all ?? 0,
@@ -250,7 +226,7 @@ export function buildOutputOfferBinding(
     latestPackageVersion: facts.latestPackageVersion,
     reportableFacts: reportable.fingerprint,
     tsa: `${reportable.tsa.status ?? "-"}|${reportable.tsa.validated ? "validated" : "not-validated"}`,
-    ots: `${reportable.ots.status ?? "-"}|${reportable.ots.anchorCheck ?? "-"}`,
+    ots: `${reportable.ots.state}|${reportable.ots.proofSha256 ?? "-"}`,
     reportAction: decision(actions.report),
     packageAction: decision(actions.verificationPackage),
     newVersionAction: `${actions.newVersion.action}:${actions.newVersion.reason ?? "-"}:v${actions.newVersion.nextVersion ?? "-"}`,

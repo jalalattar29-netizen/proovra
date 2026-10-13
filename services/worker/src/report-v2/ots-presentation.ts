@@ -1,154 +1,108 @@
 /**
- * THE REPORT'S OPENTIMESTAMPS PRESENTATION (2026-10-12) — every OTS sentence,
- * status and technical row in the PDF comes from here, and here comes only
- * from the shared truth model (`resolveOtsTruth`). Nothing in report-v2 maps
- * an OTS status string to words on its own.
+ * THE REPORT'S OPENTIMESTAMPS PRESENTATION (2026-10-13) — every OTS status,
+ * sentence and technical row in the PDF comes from here, and here comes only
+ * from the canonical anchoring state (`resolveOtsAnchoring`, packages/shared
+ * ots-anchoring.ts). Nothing in report-v2 maps an OTS status string to words
+ * on its own.
  *
- * The worker's recording time is "Proof recorded by PROOVRA (UTC)". A txid or
- * block height read from the proof is "Reported by the OpenTimestamps proof;
- * not independently verified" unless an independent chain check verified it,
- * and only that check's block time is ever a Bitcoin anchor time.
+ *   card      "Bitcoin anchoring" — Pending / Anchored ✓ / Failed /
+ *             Unavailable / Not requested, with the state's one sentence
+ *   appendix  the facts the stored proof yields, and — once, for ANCHORED —
+ *             the boundary of what PROOVRA establishes
+ *
+ * A txid appears only when the executed proof path derived it. The anchored
+ * time is when PROOVRA recorded the anchor, never a Bitcoin block time.
  */
 import {
-  OTS_PROOF_RECORDED_AT_LABEL,
-  OTS_REPORTED_BY_PROOF_QUALIFIER,
-  OTS_TRUTH_STATUS_LINES,
-  checkOtsDigestBinding,
+  OTS_ANCHORED_BOUNDARY,
+  OTS_ANCHORING_COPY,
+  OTS_FAILURE_LABELS,
+  OTS_STATE_LABELS,
+  OTS_STATE_WORDS,
   formatTimestampForReportUtc,
-  resolveOtsTruth,
-  type CanonicalEvidenceMaterials,
-  type OtsTruth,
+  resolveOtsAnchoring,
+  type OtsAnchoring,
+  type OtsState,
 } from "@proovra/shared";
-
 
 import type { KeyValueRow, ReportEvidence } from "./types.js";
 
 type OtsEvidenceFields = Pick<
   ReportEvidence,
+  | "id"
   | "otsStatus"
   | "otsAnchoredAtUtc"
-  | "otsAnchorCheck"
-  | "otsBitcoinTxid"
   | "otsUpgradedAtUtc"
   | "otsProofBase64"
   | "otsHash"
+  | "otsCalendar"
+  | "otsFailureReason"
   | "fingerprintHash"
   | "otsSubmittedAtUtc"
-  | "otsAttestationRecordedAtUtc"
-  | "otsAttestationBlockHeight"
-  | "otsChainVerificationStatus"
-  | "otsChainCheckedAtUtc"
-  | "otsChainVerifiedAtUtc"
-  | "otsChainBlockHeight"
-  | "otsChainBlockHash"
-  | "otsChainBlockTimeUtc"
-  | "otsChainConfirmations"
-  | "otsChainVerifier"
-  | "otsChainFailureCode"
 >;
 
-/** The OTS truth for one report payload, its proof bytes bound to its fingerprint digest. */
-export function reportOtsTruth(ev: Partial<OtsEvidenceFields>, now?: Date): OtsTruth {
-  return resolveOtsTruth({
+/** The canonical anchoring state for one report payload. */
+export function reportOtsAnchoring(ev: Partial<OtsEvidenceFields>): OtsAnchoring {
+  return resolveOtsAnchoring({
     status: ev.otsStatus ?? null,
+    proofBase64: ev.otsProofBase64 ?? null,
+    fingerprintHash: ev.fingerprintHash ?? null,
+    otsHash: ev.otsHash ?? null,
+    failureReason: ev.otsFailureReason ?? null,
+    calendar: ev.otsCalendar ?? null,
     anchoredAtUtc: ev.otsAnchoredAtUtc ?? null,
-    anchorCheck: ev.otsAnchorCheck ?? null,
-    bitcoinTxid: ev.otsBitcoinTxid ?? null,
-    proofPresent: Boolean(ev.otsProofBase64),
     upgradedAtUtc: ev.otsUpgradedAtUtc ?? null,
     submittedAtUtc: ev.otsSubmittedAtUtc ?? null,
-    attestationRecordedAtUtc: ev.otsAttestationRecordedAtUtc ?? null,
-    attestationBlockHeight: ev.otsAttestationBlockHeight ?? null,
-    chainVerificationStatus: ev.otsChainVerificationStatus ?? null,
-    chainCheckedAtUtc: ev.otsChainCheckedAtUtc ?? null,
-    chainVerifiedAtUtc: ev.otsChainVerifiedAtUtc ?? null,
-    chainBlockHeight: ev.otsChainBlockHeight ?? null,
-    chainBlockHash: ev.otsChainBlockHash ?? null,
-    chainBlockTimeUtc: ev.otsChainBlockTimeUtc ?? null,
-    chainConfirmations: ev.otsChainConfirmations ?? null,
-    chainVerifier: ev.otsChainVerifier ?? null,
-    chainFailureCode: ev.otsChainFailureCode ?? null,
-    digestBinding: ev.otsProofBase64
-      ? checkOtsDigestBinding({
-          proofBase64: ev.otsProofBase64,
-          fingerprintHash: ev.fingerprintHash ?? null,
-          otsHash: ev.otsHash ?? null,
-        })
-      : null,
-    ...(now ? { now } : {}),
   });
 }
 
-/** The one status line for the canonical materials' OTS state. */
-export function otsStatusLineFor(otsState: CanonicalEvidenceMaterials["otsState"]): string {
-  // A legacy anchor whose check was never recorded is an unverified attestation.
-  if (otsState.truthState === "UNKNOWN_OR_STALE" && (otsState.effectiveStatus ?? otsState.otsStatus) === "ANCHORED") {
-    return OTS_TRUTH_STATUS_LINES.ATTESTATION_PRESENT_NOT_VERIFIED;
-  }
-  return OTS_TRUTH_STATUS_LINES[otsState.truthState];
+/** The status word beside "Bitcoin anchoring" (cover, index, cards). */
+export function otsStatusWordFor(state: OtsState): string {
+  return OTS_STATE_WORDS[state];
 }
 
-const CHAIN_CHECK_WORDS: Readonly<Record<string, string>> = {
-  NOT_CONFIGURED: "Not performed",
-  UNAVAILABLE: "Unavailable",
-  INSUFFICIENT_CONFIRMATIONS: "Not completed",
-  FAILED: "Did not verify",
-  VERIFIED: "Verified",
-};
+/** The standalone label ("Bitcoin anchored", "Bitcoin anchoring pending", …). */
+export function otsStatusLineFor(state: OtsState): string {
+  return OTS_STATE_LABELS[state];
+}
+
+/** The boundary sentence, stated once in the technical appendix for ANCHORED. */
+export const OTS_REPORT_BOUNDARY = OTS_ANCHORED_BOUNDARY;
 
 /**
- * The technical OTS rows. They name what each value IS: a recording time, a
- * value reported by the proof, or a value an independent chain check verified.
+ * The technical OTS rows: state, the digest the proof commits to, the proof's
+ * own SHA-256 and reference, its attestation, and the recording times. No
+ * bucket name, storage key, credential or URL.
  */
-export function buildOtsTruthRows(
-  ev: Partial<OtsEvidenceFields> & { otsCalendar?: string | null },
-  truth: OtsTruth = reportOtsTruth(ev),
+export function buildOtsAnchoringRows(
+  ev: Partial<OtsEvidenceFields>,
+  a: OtsAnchoring = reportOtsAnchoring(ev),
 ): KeyValueRow[] {
-  const rows: KeyValueRow[] = [{ label: "OpenTimestamps Status", value: truth.statusLine }];
-  if (ev.otsHash) {
-    const binding = ev.otsProofBase64
-      ? checkOtsDigestBinding({ proofBase64: ev.otsProofBase64, fingerprintHash: ev.fingerprintHash ?? null, otsHash: ev.otsHash })
-      : null;
+  const facts = OTS_ANCHORING_COPY.en.facts;
+  const rows: KeyValueRow[] = [{ label: "Bitcoin Anchoring", value: OTS_STATE_WORDS[a.state] }];
+  if (a.state === "NOT_REQUESTED") return rows;
+  if (a.committedDigestHex) rows.push({ label: facts.digest, value: a.committedDigestHex });
+  if (a.proofSha256) {
+    rows.push({ label: facts.proofSha256, value: a.proofSha256 });
     rows.push({
-      label: "Digest Committed by the Proof (SHA-256)",
-      value:
-        binding?.kind === "MATCH"
-          ? `${binding.committedDigestHex} (the record's fingerprint digest)`
-          : binding?.kind === "MISMATCH"
-            ? `${binding.committedDigestHex ?? "unknown"} (does NOT match the record's fingerprint digest)`
-            : ev.otsHash,
+      label: "Proof Reference",
+      value: `${ev.id ? `record ${ev.id}, ` : ""}opentimestamps-proof.ots (sha256:${a.proofSha256.slice(0, 16)})`,
     });
   }
-  if (ev.otsCalendar) rows.push({ label: "OpenTimestamps Calendar", value: ev.otsCalendar });
-  if (truth.proofRecordedAtUtc) {
-    rows.push({ label: OTS_PROOF_RECORDED_AT_LABEL, value: formatTimestampForReportUtc(truth.proofRecordedAtUtc) });
+  if (a.attestationType) {
+    rows.push({ label: facts.attestationType, value: OTS_ANCHORING_COPY.en.attestationTypes[a.attestationType] });
   }
-  if (truth.proofUpgradedAtUtc) {
-    rows.push({ label: "Proof Upgraded by PROOVRA (UTC)", value: formatTimestampForReportUtc(truth.proofUpgradedAtUtc) });
+  if (a.state === "ANCHORED") {
+    if (a.bitcoinBlockHeight != null) rows.push({ label: facts.blockHeight, value: String(a.bitcoinBlockHeight) });
+    if (a.bitcoinTxid) rows.push({ label: "Bitcoin Transaction ID", value: a.bitcoinTxid });
   }
-  if (truth.chain) {
-    const c = truth.chain;
-    if (truth.reported?.txid) rows.push({ label: "Bitcoin Transaction ID", value: truth.reported.txid });
-    rows.push(
-      { label: "Verified Bitcoin Block", value: `${c.blockHeight} (${c.blockHash})` },
-      { label: "Verified Block Time (UTC)", value: formatTimestampForReportUtc(c.blockTimeUtc) },
-      { label: "Confirmations at Verification", value: String(c.confirmations) },
-      { label: "Independently Verified At (UTC)", value: formatTimestampForReportUtc(c.verifiedAtUtc) },
-      { label: "Bitcoin Verifier", value: c.verifier },
-    );
-    return rows;
+  if (a.submittedAtUtc) rows.push({ label: facts.submittedAt, value: formatTimestampForReportUtc(a.submittedAtUtc) });
+  if (a.state === "ANCHORED" && a.anchoredAtUtc) {
+    rows.push({ label: facts.anchoredAt, value: formatTimestampForReportUtc(a.anchoredAtUtc) });
   }
-  if (truth.reported?.txid) {
-    rows.push({ label: "Bitcoin Transaction ID", value: `${truth.reported.txid} — ${OTS_REPORTED_BY_PROOF_QUALIFIER}` });
+  if ((a.state === "FAILED" || a.state === "UNAVAILABLE") && a.failureCode) {
+    rows.push({ label: "Reason", value: OTS_FAILURE_LABELS[a.failureCode] ?? OTS_FAILURE_LABELS.OTS_PROCESSING_FAILED! });
   }
-  if (truth.reported?.blockHeight != null) {
-    rows.push({ label: "Bitcoin Block Height", value: `${truth.reported.blockHeight} — ${OTS_REPORTED_BY_PROOF_QUALIFIER}` });
-  }
-  if (truth.chainCheck) {
-    rows.push({
-      label: "Independent Bitcoin Verification",
-      value: CHAIN_CHECK_WORDS[truth.chainCheck.status] ?? truth.chainCheck.status,
-    });
-  }
+  rows.push({ label: facts.validator, value: a.validator });
   return rows;
 }

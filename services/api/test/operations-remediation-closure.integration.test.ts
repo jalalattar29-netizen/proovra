@@ -23,6 +23,8 @@
  */
 import { randomUUID } from "node:crypto";
 
+import { otsColumnsFor } from "./helpers/ots-proof-bytes.js";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -237,11 +239,8 @@ describe("Operations remediation closure (live PostgreSQL 16)", () => {
     const N = 230;
     const evIds: string[] = [];
     for (let i = 0; i < N; i++) {
-      const ev = await seedEvidence(c, teamId, owner.id, {
-        otsStatus: "ANCHORED",
-        otsAnchoredAtUtc: new Date(),
-        otsBitcoinTxid: "c".repeat(64),
-      });
+      // (2026-10-13) Recovered = a stored proof that attests a Bitcoin block.
+      const ev = await seedEvidence(c, teamId, owner.id, otsColumnsFor("c".repeat(64), "ANCHORED"));
       evIds.push(ev.id);
     }
     await c.prisma.operationalIncident.createMany({

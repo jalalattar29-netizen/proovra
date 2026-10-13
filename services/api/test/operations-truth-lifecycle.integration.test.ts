@@ -16,6 +16,7 @@
  *            recorded in the condition's history.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { otsColumnsFor } from "./helpers/ots-proof-bytes.js";
 
 import {
   bootOps,
@@ -71,10 +72,9 @@ describe("Operations truth closure — lifecycle truth (live PostgreSQL 16)", ()
       await sweep(a.teamId);
       expect(await status(cond.id), String(otsStatus)).toBe("OPEN");
     }
-    await c.prisma.evidence.update({
-      where: { id: ev.id },
-      data: { otsStatus: "ANCHORED", otsAnchoredAtUtc: new Date(), otsBitcoinTxid: "a".repeat(64) },
-    });
+    // (2026-10-13) Recovery is a stored proof that attests a Bitcoin block.
+    const fp = (await c.prisma.evidence.findUniqueOrThrow({ where: { id: ev.id }, select: { fingerprintHash: true } })).fingerprintHash ?? "a".repeat(64);
+    await c.prisma.evidence.update({ where: { id: ev.id }, data: otsColumnsFor(fp, "ANCHORED") });
     await sweep(a.teamId);
     expect(await status(cond.id)).toBe("RESOLVED");
   });

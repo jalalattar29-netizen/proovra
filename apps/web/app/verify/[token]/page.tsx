@@ -23,13 +23,13 @@ import {
   isAccessCustodyEventType,
   maskPublicEmail,
   maskPublicEmailsInText,
-  OTS_FAILURE_CODE_LABELS,
-  OTS_FAILURE_CODES,
-  OTS_TRUTH_SENTENCES,
+  OTS_STATE_WORDS,
+  parseOtsState,
+  readOtsAnchoringView,
   storedBytesCheckStatusOf,
   VERIFICATION_STATUS_LABELS,
   type VerificationMatrix,
-  type OtsFailureCode,
+  type OtsAnchoringView,
 } from "@proovra/shared";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
@@ -192,20 +192,6 @@ function extractTimestampStatus(data: VerifyResponse): string | null {
   return String(raw).trim().toUpperCase();
 }
 
-function extractOtsStatus(data: VerifyResponse): string | null {
-  const raw =
-    data.storageAndTimestamping?.ots?.status ??
-    data.ots?.status ??
-    data.otsStatus ??
-    data.overview?.otsStatus ??
-    data.humanSummary?.otsStatus ??
-    null;
-
-  if (!raw || !String(raw).trim()) return null;
-  // Canonical OTS states surfaced by this page: PENDING, ANCHORED, FAILED, UNAVAILABLE.
-  return String(raw).trim().toUpperCase();
-}
-
 function findEventTime(
   timeline: TimelineItem[],
   eventNames: string[]
@@ -291,41 +277,20 @@ timestampAvailable:
 }
 
 function buildOtsDetails(data: VerifyResponse): OtsDetails {
+  // THE Bitcoin anchoring state is the server's (2026-10-13): read, never derived.
   const ots = data.storageAndTimestamping?.ots ?? data.ots ?? null;
-  const integrity = data.integrityProof ?? data.verification ?? null;
-
+  const proofBase64 = firstNonEmpty(data.otsProofBase64);
   return {
-    anchorClaim: firstNonEmpty(ots?.anchorClaim),
-    anchorCheck: firstNonEmpty(ots?.anchorCheck),
-    status: extractOtsStatus(data),
-    hash: firstNonEmpty(ots?.hash, data.otsHash),
+    view: readOtsAnchoringView(ots),
     calendar: firstNonEmpty(ots?.calendar, data.otsCalendar),
-    bitcoinTxid: firstNonEmpty(ots?.bitcoinTxid, data.otsBitcoinTxid),
-    // (2026-10-12) A response carrying truthState states the VERIFIED block
-    // time in anchoredAtUtc; an older one carried the recording time there.
-    verifiedAnchorAtUtc: ots?.truthState ? firstNonEmpty(ots.anchoredAtUtc) : null,
-    proofRecordedAtUtc: ots?.truthState
-      ? firstNonEmpty(ots.proofRecordedAtUtc)
-      : firstNonEmpty(ots?.anchoredAtUtc, data.otsAnchoredAtUtc),
-    statusLine: firstNonEmpty(ots?.statusLine),
-    anchoredAtUtc: firstNonEmpty(ots?.anchoredAtUtc, ots?.proofRecordedAtUtc, data.otsAnchoredAtUtc),
-    upgradedAtUtc: firstNonEmpty(ots?.upgradedAtUtc, data.otsUpgradedAtUtc),
-    failureReason: firstNonEmpty(ots?.failureReason, data.otsFailureReason),
-    proofBase64: firstNonEmpty(ots?.proofBase64, data.otsProofBase64),
+    proofBase64,
     proofPresent:
       typeof ots?.proofPresent === "boolean"
         ? ots.proofPresent
-        : data.technicalMaterials?.otsProofPresent === true
+        : data.technicalMaterials?.otsProofPresent === true || proofBase64
           ? true
-          : firstNonEmpty(ots?.proofBase64, data.otsProofBase64)
-            ? true
-            : false,
-    hashMatchesFingerprintHash:
-      typeof ots?.hashMatchesFingerprintHash === "boolean"
-        ? ots.hashMatchesFingerprintHash
-        : typeof integrity?.otsHashMatches === "boolean"
-          ? integrity.otsHashMatches
           : null,
+    legacyStatus: firstNonEmpty(data.otsStatus, data.overview?.otsStatus, data.humanSummary?.otsStatus),
   };
 }
 
@@ -1033,62 +998,6 @@ background:
   );
 }
 
-function normalizeOtsFailureMessage(raw?: string | null): string | null {
-  if (!raw) return null;
-
-  const text = raw.trim();
-  if (!text) return null;
-
-  // ET-OTS-04 — the API now sends a bounded code; show its one label.
-  if ((OTS_FAILURE_CODES as readonly string[]).includes(text)) {
-    return OTS_FAILURE_CODE_LABELS[text as OtsFailureCode];
-  }
-
-  const lower = text.toLowerCase();
-
-  if (
-    lower.includes("cannot be greater than available calendar") ||
-    lower.includes("available calendar")
-  ) {
-    return "OpenTimestamps proof was created, but blockchain anchoring is not available yet. The proof still needs more time to be upgraded by the calendar service.";
-  }
-
-  if (
-    lower.includes("not found") &&
-    (lower.includes("ots") || lower.includes("opentimestamps"))
-  ) {
-    return "OpenTimestamps binary is not installed correctly in the worker environment.";
-  }
-
-  if (lower.includes("timed out") || lower.includes("timeout")) {
-    return "OpenTimestamps request timed out before the calendar service returned a result.";
-  }
-
-  if (
-    lower.includes("network") ||
-    lower.includes("econnreset") ||
-    lower.includes("enotfound") ||
-    lower.includes("fetch failed") ||
-    lower.includes("connection")
-  ) {
-    return "OpenTimestamps service could not be reached at the time of report generation.";
-  }
-
-  if (lower.includes("stamp") && lower.includes("failed")) {
-    return "OpenTimestamps stamping did not complete successfully for this evidence record.";
-  }
-
-  return "OpenTimestamps processing did not complete successfully for this evidence record.";
-}
-
-function sanitizeOtsFailureTechnical(raw?: string | null): string | null {
-  if (!raw) return null;
-  const text = raw.trim();
-  if (!text) return null;
-
-  return text.replace(/\s+/g, " ").trim();
-}
-
 function formatDuration(durationMs?: number | null): string | null {
   if (!durationMs || durationMs <= 0) return null;
 
@@ -1445,8 +1354,6 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
   const coreExplicitlyVerified = coreSignal?.state === "PASSED";
   const publicAnchoringPending =
     publicAnchoringSignal?.state === "PENDING" ||
-    publicAnchoringSignal?.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED" ||
-    publicAnchoringSignal?.state === "NOT_CHECKED" ||
     presentationState === "VERIFIED_PENDING_ANCHORING";
   const timestampMismatch =
     isPositiveTsa(input.tsaStatus) && input.timestampDigestMatches === false;
@@ -1572,8 +1479,9 @@ function buildLegacyTrustDecisionFallback(params: {
   publicKeyPem?: string | null;
   tsaStatus?: string | null;
   tsaFailureReason?: string | null;
+  /** Legacy top-level stored status and proof (pre-matrix API only). */
   otsStatus?: string | null;
-  otsFailureReason?: string | null;
+  otsProofBase64?: string | null;
   storageProtection?: StorageProtection | null;
   identityLevelSnapshot?: string | null;
   submittedByEmail?: string | null;
@@ -1599,8 +1507,10 @@ function buildLegacyTrustDecisionFallback(params: {
       publicKeyPem: params.publicKeyPem ?? null,
       tsaStatus: params.tsaStatus ?? null,
       tsaFailureReason: params.tsaFailureReason ?? null,
+      // A pre-matrix API sent no decision: the shared builder resolves the
+      // anchoring signal from the stored proof bytes (the one authority).
       otsStatus: params.otsStatus ?? null,
-      otsFailureReason: params.otsFailureReason ?? null,
+      otsProofBase64: params.otsProofBase64 ?? null,
       storageImmutable: params.storageProtection?.immutable ?? null,
       storageObjectLockMode: params.storageProtection?.mode ?? null,
       storageObjectLockRetainUntilUtc: params.storageProtection?.retainUntil ?? null,
@@ -2454,27 +2364,16 @@ export default function VerifyPage() {
   const [anchorTransactionId, setAnchorTransactionId] =
     useState<string | null>(null);
 
-  const [otsStatus, setOtsStatus] = useState<string | null>(null);
+  // THE Bitcoin anchoring state (2026-10-13): the server's OtsAnchoringView,
+  // read through readOtsAnchoringView — a missing or unknown state is
+  // Unavailable. Nothing on this page re-derives it.
+  const [otsView, setOtsView] = useState<OtsAnchoringView>(() => readOtsAnchoringView(null));
+  const [otsLoaded, setOtsLoaded] = useState(false);
+  const [otsLegacyStatus, setOtsLegacyStatus] = useState<string | null>(null);
   const [otsCalendar, setOtsCalendar] = useState<string | null>(null);
-  const [otsBitcoinTxid, setOtsBitcoinTxid] = useState<string | null>(null);
-  const [otsAnchoredAtUtc, setOtsAnchoredAtUtc] = useState<string | null>(null);
-  const [otsVerifiedAnchorAtUtc, setOtsVerifiedAnchorAtUtc] = useState<string | null>(null);
-  const [otsProofRecordedAtUtc, setOtsProofRecordedAtUtc] = useState<string | null>(null);
-  const [otsAnchorClaim, setOtsAnchorClaim] = useState<string | null>(null);
-  const [otsAnchorCheck, setOtsAnchorCheck] = useState<string | null>(null);
-  const [otsUpgradedAtUtc, setOtsUpgradedAtUtc] = useState<string | null>(null);
-  const [otsFailureReason, setOtsFailureReason] = useState<string | null>(null);
   const [otsProofBase64, setOtsProofBase64] = useState<string | null>(null);
   const [otsProofPresent, setOtsProofPresent] = useState<boolean | null>(null);
-  // The OTS badge from the ONE claim (2026-09-29), never from a txid.
-  const otsBadge = otsTone({
-    anchorClaim: otsAnchorClaim,
-    status: otsStatus,
-    anchoredAtUtc: otsAnchoredAtUtc,
-    anchorCheck: otsAnchorCheck,
-    proofPresent: otsProofPresent,
-    bitcoinTxid: otsBitcoinTxid,
-  });
+  const otsBadge = otsTone(otsView);
 
   const [canonicalHashMatches, setCanonicalHashMatches] = useState<boolean | null>(null);
   const [signatureValid, setSignatureValid] = useState<boolean | null>(null);
@@ -2584,14 +2483,9 @@ function extractEvidenceContent(data: VerifyResponse) {
   };
 }
 
-/**
- * (2026-10-12) A stored anchoring status in the public vocabulary; the chain-checked word only
- * with an independently verified Bitcoin time; a raw status is never shown.
- */
-function otsPublicWord(status: string | null | undefined, chainVerified: boolean): string {
-  const s = String(status ?? "").toUpperCase();
-  if (s === "ANCHORED") return chainVerified ? "Verified" : "Attestation recorded";
-  return s === "PENDING" ? "Pending" : "Unavailable";
+/** A Bitcoin anchoring state a server sent, in its one word; unknown reads as Unavailable. */
+function otsStateWord(state: string | null | undefined): string {
+  return OTS_STATE_WORDS[parseOtsState(state)];
 }
 
 function isAccessEventType(eventType?: string | null): boolean {
@@ -2896,21 +2790,16 @@ setFullCustodyTimeline(fullTimeline);
             : null
     );
 
-    setAnchorTransactionId(data.anchor?.transactionId ?? null);
+    // A transaction id is shown only when the server's ANCHORED view derived it.
+    setAnchorTransactionId(otsDetails.view.bitcoinTxid);
 
     setForensicTimeline(forensicOnly);
     setAccessTimeline(accessOnly);
 
-    setOtsStatus(otsDetails.status);
+    setOtsView(otsDetails.view);
+    setOtsLoaded(Boolean(data.storageAndTimestamping?.ots ?? data.ots));
+    setOtsLegacyStatus(otsDetails.legacyStatus);
     setOtsCalendar(otsDetails.calendar);
-    setOtsBitcoinTxid(otsDetails.bitcoinTxid);
-    setOtsAnchoredAtUtc(otsDetails.anchoredAtUtc);
-    setOtsVerifiedAnchorAtUtc(otsDetails.verifiedAnchorAtUtc);
-    setOtsProofRecordedAtUtc(otsDetails.proofRecordedAtUtc);
-    setOtsAnchorClaim(otsDetails.anchorClaim);
-    setOtsAnchorCheck(otsDetails.anchorCheck);
-    setOtsUpgradedAtUtc(otsDetails.upgradedAtUtc);
-    setOtsFailureReason(otsDetails.failureReason);
     setOtsProofBase64(otsDetails.proofBase64);
     setOtsProofPresent(otsDetails.proofPresent);
     const integrity = data.integrityProof ?? data.verification ?? null;
@@ -2942,9 +2831,7 @@ setFullCustodyTimeline(fullTimeline);
           : null
     );
     setOtsHashMatches(
-      typeof integrity?.otsHashMatches === "boolean"
-        ? integrity.otsHashMatches
-        : otsDetails.hashMatchesFingerprintHash
+      typeof integrity?.otsHashMatches === "boolean" ? integrity.otsHashMatches : null
     );
     setOverallIntegrity(
       typeof integrity?.overallIntegrity === "boolean"
@@ -3099,15 +2986,9 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     [storageProtection]
   );
 
-  const otsFailureDisplayMessage = useMemo(
-    () => normalizeOtsFailureMessage(otsFailureReason),
-    [otsFailureReason]
-  );
-
-  const otsFailureTechnicalMessage = useMemo(
-    () => sanitizeOtsFailureTechnical(otsFailureReason),
-    [otsFailureReason]
-  );
+  // The server's bounded failure code, in its one label (never a raw reason).
+  const otsFailureDisplayMessage = otsView.failureLabel;
+  const otsFailureTechnicalMessage = otsView.failureCode;
 
   const liveAnchoringAdvanced = useMemo(
     () => hasAdvancedLiveAnchoring({ liveAnchoring }),
@@ -3380,7 +3261,8 @@ const trustDecision = useMemo(() => {
     !signature &&
     !signingKeyId &&
     !tsaStatus &&
-    !otsStatus &&
+    !otsLoaded &&
+    !otsLegacyStatus &&
     !storageProtection &&
     !identityLevel &&
     !submittedByEmail &&
@@ -3407,8 +3289,8 @@ const trustDecision = useMemo(() => {
     publicKeyPem,
     tsaStatus,
     tsaFailureReason,
-    otsStatus,
-    otsFailureReason,
+    otsStatus: otsLegacyStatus,
+    otsProofBase64,
     storageProtection,
     identityLevelSnapshot: identityLevel,
     submittedByEmail,
@@ -3419,10 +3301,9 @@ const trustDecision = useMemo(() => {
       humanSummary?.verificationPackageGeneratedAtUtc ??
       null,
     anchor: {
-      configured:
-        Boolean(anchorTransactionId) || Boolean(otsAnchoredAtUtc),
+      configured: otsView.state !== "NOT_REQUESTED",
       provider: null,
-      anchoredAtUtc: otsAnchoredAtUtc,
+      anchoredAtUtc: otsView.anchoredAtUtc,
       transactionId: anchorTransactionId,
     },
     custodyEvents: [...forensicTimeline, ...accessTimeline],
@@ -3442,9 +3323,11 @@ const trustDecision = useMemo(() => {
   identityLevel,
   overview?.recordedIntegrityVerifiedAtUtc,
   overview?.verificationPackageGeneratedAtUtc,
-  otsAnchoredAtUtc,
-  otsFailureReason,
-  otsStatus,
+  otsLegacyStatus,
+  otsLoaded,
+  otsProofBase64,
+  otsView.anchoredAtUtc,
+  otsView.state,
   publicKeyPem,
   serverTrustDecision,
   signature,
@@ -3490,8 +3373,7 @@ const verdictRequiresReview = matrixRequiresIntegrityReview(
 const trustDecisionTone = getTrustDecisionPresentationTone(trustDecision);
 const publicationPendingPosture =
   trustDecision.presentationState === "VERIFIED_PENDING_ANCHORING" ||
-  trustDecision.anchoringState === "pending" ||
-  trustDecision.anchoringState === "degraded";
+  trustDecision.anchoringState === "pending";
 
 const executiveBadges = useMemo<
   Array<{
@@ -3803,10 +3685,10 @@ const executiveBadges = useMemo<
           ),
         },
         {
-          label: "OTS Status",
-          value:
-            humanSummary?.otsStatus ?? overview?.otsStatus ?? otsStatus ?? "N/A",
-          show: Boolean(humanSummary?.otsStatus ?? overview?.otsStatus ?? otsStatus),
+          // The server's Bitcoin anchoring state, never a raw stored status.
+          label: "Bitcoin anchoring",
+          value: otsView.status,
+          show: otsLoaded,
         },
         {
           label: "Storage Protection",
@@ -3842,7 +3724,8 @@ const executiveBadges = useMemo<
       verifiedAt,
       mimeType,
       tsaStatus,
-      otsStatus,
+      otsView.status,
+      otsLoaded,
       storagePresentation.badgeLabel,
       acquisition,
     ]
@@ -3930,10 +3813,10 @@ tone={
           show: true,
         },
         {
-          label: "OpenTimestamps",
+          label: "Bitcoin anchoring",
           content: (
             <Badge
-              label={otsBadge.label}
+              label={otsBadge.tone === "success" ? `✓ ${otsBadge.label}` : otsBadge.label}
               tone={otsBadge.tone}
             />
           ),
@@ -4010,21 +3893,22 @@ tone={
           ),
           show: otsProofPresent !== null,
         },
-        // (2026-10-12) A recording time is never an anchor time.
+        // The proof's own facts, as the server's view states them. The
+        // recorded time is when PROOVRA recorded anchoring — never a block time.
         {
-          label: "Bitcoin Anchor Time (independently verified)",
-          content: otsVerifiedAnchorAtUtc ? formatDateTime(otsVerifiedAnchorAtUtc) : null,
-          show: Boolean(otsVerifiedAnchorAtUtc),
+          label: "Bitcoin Block Height",
+          content: otsView.bitcoinBlockHeight != null ? String(otsView.bitcoinBlockHeight) : null,
+          show: otsView.bitcoinBlockHeight != null,
         },
         {
-          label: "Proof Recorded by PROOVRA (UTC)",
-          content: otsProofRecordedAtUtc ? formatDateTime(otsProofRecordedAtUtc) : null,
-          show: Boolean(otsProofRecordedAtUtc),
+          label: "Anchoring Recorded by PROOVRA (UTC)",
+          content: otsView.anchoredAtUtc ? formatDateTime(otsView.anchoredAtUtc) : null,
+          show: Boolean(otsView.anchoredAtUtc),
         },
         {
-          label: "Proof Upgraded by PROOVRA (UTC)",
-          content: otsUpgradedAtUtc ? formatDateTime(otsUpgradedAtUtc) : null,
-          show: Boolean(otsUpgradedAtUtc),
+          label: "OTS Proof SHA-256",
+          content: otsView.proofSha256 ? truncateHash(otsView.proofSha256) : null,
+          show: Boolean(otsView.proofSha256),
         },
         {
           label: "OTS Hash Check",
@@ -4057,15 +3941,10 @@ tone={
       custodyChainMode,
       otsCalendar,
       otsProofPresent,
-      otsUpgradedAtUtc,
-      // The time PROOVRA recorded the proof and the verified anchor time are
-      // distinct rows (2026-10-12); both invalidate the memo.
-      otsProofRecordedAtUtc,
-      otsVerifiedAnchorAtUtc,
+      otsView.bitcoinBlockHeight,
+      otsView.anchoredAtUtc,
+      otsView.proofSha256,
       otsHashMatches,
-      // The badge is derived from the claim, the check, the status and the
-      // txid (2026-09-29); it is what this memo reads, so it is what
-      // invalidates it.
       otsBadge.label,
       otsBadge.tone,
       storagePresentation,
@@ -4122,7 +4001,7 @@ tone={
           "Signature Status",
           "Fingerprint Status",
           "Custody Chain",
-          "OpenTimestamps",
+          "Bitcoin anchoring",
           "Storage Protection",
           "Timestamp Status",
           "Timestamp Provider",
@@ -4133,9 +4012,9 @@ tone={
           "Signing Key Version",
           "OTS Calendar",
           "OTS Proof",
-          "Bitcoin Anchor Time (independently verified)",
-          "Proof Recorded by PROOVRA (UTC)",
-          "Proof Upgraded by PROOVRA (UTC)",
+          "Bitcoin Block Height",
+          "Anchoring Recorded by PROOVRA (UTC)",
+          "OTS Proof SHA-256",
           "OTS Hash Check",
         ].includes(card.label)
       ),
@@ -4964,8 +4843,8 @@ Reviewer Action
           }
         />
         <SummaryField
-          label="OTS Status At Generation"
-          value={otsPublicWord(verificationSnapshot.otsStatusAtGeneration, false)}
+          label="Bitcoin Anchoring At Generation"
+          value={otsStateWord(verificationSnapshot.otsStatusAtGeneration)}
         />
         <SummaryField
           label="Report Signature"
@@ -5031,7 +4910,7 @@ Reviewer Action
         </div>
       ) : null}
 
-      {(liveAnchoring?.currentOtsStatus ?? otsStatus) === "PENDING" ? (
+      {otsView.state === "PENDING" ? (
         <div
           style={{
             border: "1px solid rgba(138,106,47,0.28)",
@@ -5044,7 +4923,7 @@ Reviewer Action
             color: VERIFY_BRAND.ink,
           }}
         >
-          {OTS_TRUTH_SENTENCES.PENDING}
+          {otsView.sentence}
         </div>
       ) : null}
 
@@ -5055,30 +4934,17 @@ Reviewer Action
           gap: 12,
         }}
       >
+        <SummaryField label="Bitcoin anchoring" value={otsView.status} />
         <SummaryField
-          label="Current OTS Status"
-          value={otsPublicWord(liveAnchoring?.currentOtsStatus ?? otsStatus, Boolean(liveAnchoring?.otsAnchoredAtUtc))}
+          label="Anchoring Recorded by PROOVRA (UTC)"
+          value={otsView.anchoredAtUtc ? formatDateTime(otsView.anchoredAtUtc) : "Not recorded"}
         />
-        <SummaryField
-          label="Bitcoin Anchor Time (independently verified)"
-          value={
-            liveAnchoring?.otsAnchoredAtUtc
-              ? formatDateTime(liveAnchoring.otsAnchoredAtUtc)
-              : "Not independently verified"
-          }
-        />
-        <SummaryField
-          label="Proof Recorded by PROOVRA (UTC)"
-          value={
-            liveAnchoring?.otsProofRecordedAtUtc
-              ? formatDateTime(liveAnchoring.otsProofRecordedAtUtc)
-              : "Not recorded"
-          }
-        />
-        <SummaryField
-          label="Bitcoin Transaction"
-          value={liveAnchoring?.otsBitcoinTxid ?? "Not recorded"}
-        />
+        {otsView.bitcoinBlockHeight != null ? (
+          <SummaryField label="Bitcoin Block Height" value={String(otsView.bitcoinBlockHeight)} />
+        ) : null}
+        {otsView.bitcoinTxid ? (
+          <SummaryField label="Bitcoin Transaction" value={otsView.bitcoinTxid} />
+        ) : null}
         <SummaryField
           label="Last Anchoring Update"
           value={
@@ -5241,7 +5107,7 @@ Reviewer Action
                           color: VERIFY_BRAND.ink,
                         }}
                       >
-                        Recorded integrity is verified, but independent public anchoring is not finalized yet. Reviewers should treat this as a conditional anchoring state and recheck anchoring later if independent public anchoring matters to the review.
+                        Recorded integrity is verified. Bitcoin anchoring is pending: the OpenTimestamps proof is awaiting Bitcoin anchoring. Recheck later if a Bitcoin anchor matters to the review.
                       </div>
                     </div>
                   ) : null}
@@ -5273,7 +5139,7 @@ Reviewer Action
                             color: VERIFY_BRAND.ink,
                           }}
                         >
-                          Bitcoin anchor recorded
+                          {otsView.label}
                         </div>
                         <div
                           style={{

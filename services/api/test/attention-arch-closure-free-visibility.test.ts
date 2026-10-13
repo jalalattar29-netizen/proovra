@@ -245,11 +245,13 @@ describe("Closure — every Home metric names a canonical authority", () => {
     expect(VM).toContain(
       'export const HOME_ANCHORING_FAILURES_HREF =\n  "/evidence?otsStatus=FAILED,ERRORED,ERROR"',
     );
-    // UC-TRUST-007 — the bucket is decided by the canonical OTS claim resolver, so the
-    // population is asserted by BEHAVIOUR: exactly the CTA's three statuses count as failed.
+    // (2026-10-13) The bucket is the ONE OTS state (resolveRecordOtsAnchoring), so the
+    // population is asserted by BEHAVIOUR: a FAILED record counts as failed; the stored
+    // vocabulary is DISABLED | PENDING | ANCHORED | FAILED, so ERRORED / ERROR are never
+    // written and read as no state at all.
     const { otsBucket } = await import("../src/services/dashboard/trust-summary.service.js");
-    for (const s of ["FAILED", "ERRORED", "ERROR"]) expect(otsBucket({ otsStatus: s })).toBe("failed");
-    for (const s of ["PENDING", "ANCHORED", "DISABLED", null]) expect(otsBucket({ otsStatus: s })).not.toBe("failed");
+    expect(otsBucket({ otsStatus: "FAILED" })).toBe("failed");
+    for (const s of ["PENDING", "ANCHORED", "DISABLED", "ERRORED", "ERROR", null]) expect(otsBucket({ otsStatus: s })).not.toBe("failed");
   });
 
   it("the integrity-review count and its CTA describe the SAME population", () => {

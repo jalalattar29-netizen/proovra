@@ -99,7 +99,6 @@ vi.mock("../../worker/src/ots.service.js", async (importOriginal) => {
       }
       return { ...base, status: "PENDING" };
     },
-    verifyOtsProof: async () => ({ status: "UNAVAILABLE" as const }),
     getOtsProofInfo: async () => ({ status: "UNAVAILABLE" as const }),
   };
 });

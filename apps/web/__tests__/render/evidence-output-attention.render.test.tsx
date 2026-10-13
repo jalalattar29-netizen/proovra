@@ -47,7 +47,8 @@ const out = (state: string, action = "NONE", extra: Partial<Slice> = {}): Slice 
 
 const TRUST = {
   tsa: { status: "STAMPED", validated: true, validatedAtUtc: "2026-10-06T10:00:00Z", failureCode: null, genTimeUtc: null },
-  ots: { status: "ANCHORED", anchorCheck: "PROOF_STRUCTURE", anchoredAtUtc: "2026-10-06T10:05:00Z" },
+  // The server's OtsAnchoringView (2026-10-13).
+  ots: { state: "ANCHORED" as const, anchoredAtUtc: "2026-10-06T10:05:00Z", bitcoinBlockHeight: 812345 },
 };
 
 const pair = (v: number, pkg = true) => ({
@@ -182,8 +183,8 @@ describe("Evidence outputs card", () => {
     expect(getByTestId("evidence-outputs-report").textContent).toBe("v1");
     expect(getByTestId("evidence-outputs-package").textContent).toBe("v1");
     expect(getByTestId("evidence-outputs-tsa").textContent).toBe("Validated");
-    // The fixture anchor is PROOF_STRUCTURE: present, not chain-verified.
-    expect(getByTestId("evidence-outputs-ots").textContent).toBe("Attestation recorded");
+    // The server says ANCHORED: the one success word, with its ✓.
+    expect(getByTestId("evidence-outputs-ots").textContent).toBe("✓ Anchored");
     expect(queryByText("All generated outputs reflect the latest verified facts.")).not.toBeNull();
     expect(queryByText(/New verification facts/)).toBeNull();
     fireEvent.click(getByTestId("evidence-outputs-view"));
