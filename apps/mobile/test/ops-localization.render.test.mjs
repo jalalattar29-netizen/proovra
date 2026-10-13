@@ -5,10 +5,14 @@
  *      the Workspace-health state copy (src/product/ops-health.ts) exists in
  *      all three languages, with the same shape, and no entry is empty.
  *   2. Rendered in German and in Arabic, the Operations queue (grouped and
- *      flat), a condition's inspector, a group's sheet, and Workspace health
- *      show NO English string from either dictionary (or from the shared
+ *      flat), a condition's inspector, a group's sheet, Workspace health,
+ *      Quotas & usage and Batch analysis (list, composer, confirm sheet and
+ *      outcome messages) show NO English string from either dictionary (or from the shared
  *      Operations dictionary). Server data in the fixtures (titles, summaries)
  *      is data, not chrome, and is not part of the scan.
+ *   3. No rendered string carries a raw `{placeholder}` or a dictionary key,
+ *      and Arabic lays rows out right-to-left (row-reverse) — the same
+ *      useOpsRowDirection the queue and Workspace health use.
  *
  * Render-harness proof only; no device.
  */
@@ -20,6 +24,8 @@ import { authenticatedRoutes, platformContextEnvelope, signIn } from "./support/
 const h = React.createElement;
 let OPS;
 let HEALTH;
+let QUOTAS;
+let BATCH;
 let requests = [];
 let handlers = {};
 let mounted = [];
@@ -33,6 +39,8 @@ before(async () => {
     "src/product/ops-console.ts",
   ]);
   HEALTH = await loadModule("app/(stack)/operations/health.tsx", ["test/support/providers.tsx", "test/support/expo-stub.mjs"]);
+  QUOTAS = await loadModule("app/(stack)/operations/quotas.tsx", ["test/support/providers.tsx", "test/support/expo-stub.mjs"]);
+  BATCH = await loadModule("app/(stack)/operations/batch-analysis.tsx", ["test/support/providers.tsx", "test/support/expo-stub.mjs"]);
 });
 
 /* ------------------------------------------------------------ dictionary completeness */
@@ -134,6 +142,12 @@ const GROUP = {
   metric: { currentValue: 3, unit: "records", thresholdValue: 1, criticalThresholdValue: 5, observedAtUtc: INCIDENT.lastSeenAtUtc, stale: true, contract: "AGGREGATE_THRESHOLD" },
 };
 
+const BATCH_JOBS = [
+  { id: "job-a", name: "DATA-JOBA", status: "processing", totalItems: 1200, processedItems: 400, failedItems: 100, progress: 42, createdAt: "2026-09-24T10:00:00.000Z", completedAt: null },
+  { id: "job-b", name: "DATA-JOBB", status: "completed", totalItems: 4, processedItems: 3, failedItems: 1, progress: 100, createdAt: "2026-09-20T10:00:00.000Z", completedAt: "2026-09-20T10:05:00.000Z" },
+  { id: "job-c", name: "DATA-JOBC", status: "failed", totalItems: 0, processedItems: 0, failedItems: 0, progress: null, createdAt: "2026-09-18T10:00:00.000Z", completedAt: null },
+];
+
 beforeEach(async () => {
   requests = [];
   handlers = {
@@ -152,6 +166,43 @@ beforeEach(async () => {
       body: {
         summary: { open: 1, critical: 0, high: 1, warning: 0, info: 0, slaBreached: 1, slaAtRisk: 0, resolved: 4, assignedToMe: 0, unassigned: 0, complete: true, mayAssertAllClear: false, readiness: "PARTIAL", reconciliation: { sources: { failedSources: 1, truncatedSources: 0, sourceFailures: [{ retryable: true }] } } },
         workspace: { operatorCount: 2 },
+      },
+    }),
+    // Quotas & usage (enterprise.routes.ts getRealQuotas / getRealUsageStats).
+    // teamMembers has no usable limit, so the "no limit" sentence renders too.
+    "GET /v1/quotas": () => ({
+      body: {
+        data: {
+          analyses: { limit: 10000, used: 9500, remaining: 500, resetDate: "2026-10-01T00:00:00.000Z" },
+          batchJobs: { limit: 100, used: 75, remaining: 25 },
+          apiKeys: { limit: 50, used: 3, remaining: 47 },
+          teamMembers: { limit: 0, used: 0, remaining: 0 },
+        },
+      },
+    }),
+    "GET /v1/usage-stats": () => ({
+      body: {
+        data: {
+          dailyAnalyses: { today: 12, thisWeek: 1240, thisMonth: 4095 },
+          costBreakdown: { totalCost: 21.5, thisMonth: 9.5, averagePerAnalysis: 0.1 },
+          topEvidenceTypes: { "DATA-PHOTO": 30 },
+          activeApiKeys: 3,
+          activeBatches: 1,
+        },
+      },
+    }),
+    // Batch analysis: one running, one completed, one that declares no items.
+    "GET /v1/batch-analysis": () => ({ body: { data: BATCH_JOBS } }),
+    "POST /v1/batch-analysis": () => ({ body: { data: { id: "job-new" } } }),
+    "POST /v1/batch-analysis/": () => ({ body: { message: "ok" } }),
+    "GET /v1/evidence": () => ({
+      body: {
+        scope: "active",
+        items: [
+          { id: "ev-1", title: "DATA-EVA", type: "PHOTO", status: "SIGNED", teamId: TEAM, ownerUserId: "user-1", createdAt: "2026-09-20T10:00:00.000Z" },
+          { id: "ev-2", title: "DATA-EVB", type: "VIDEO", status: "SIGNED", teamId: TEAM, ownerUserId: "user-1", createdAt: "2026-09-20T10:00:00.000Z" },
+        ],
+        pageInfo: { limit: 50, nextCursor: null, hasMore: false },
       },
     }),
     "GET /v1/ops/incidents/": () => ({
@@ -173,8 +224,7 @@ beforeEach(async () => {
     }),
   };
   installFetch();
-  await signIn(OPS);
-  await signIn(HEALTH);
+  for (const M of [OPS, HEALTH, QUOTAS, BATCH]) await signIn(M);
 });
 afterEach(async () => {
   for (const r of mounted) {
@@ -185,7 +235,7 @@ afterEach(async () => {
     }
   }
   mounted = [];
-  for (const M of [OPS, HEALTH]) {
+  for (const M of [OPS, HEALTH, QUOTAS, BATCH]) {
     await M.AsyncStorage.setItem("proovra-locale-mode", "manual");
     await M.AsyncStorage.setItem("proovra-locale", "en");
   }
@@ -288,15 +338,163 @@ for (const locale of ["de", "ar"]) {
   });
 }
 
+/* ------------------------------------------------------------ Quotas & Batch analysis */
+
+/** Every dictionary key, at every depth (`batchStatus`, `quotaBarLabel.analyses`, …). */
+const DICT_KEYS = () => new Set(leaves(OPS.opsCopyFor("en")).flatMap(([p]) => p.split(".")));
+
+/** No unfilled `{placeholder}` and no bare dictionary key reached the screen. */
+function assertNoRawTokens(texts, where) {
+  const keys = DICT_KEYS();
+  const raw = texts.filter((s) => /\{\w+\}/.test(s) || /\bundefined\b|\bNaN\b/.test(s) || keys.has(s.trim()));
+  assert.deepEqual(raw, [], `${where} rendered a raw placeholder or key`);
+}
+
+/** The resolved flexDirection of the host View with this testID. */
+function directionOf(r, testID) {
+  const node = r.byTestId(testID).find((n) => n.type === "View");
+  assert.ok(node, `no View with testID ${testID}`);
+  return r.styleOf(node).flexDirection;
+}
+
+for (const locale of ["de", "ar"]) {
+  const expectedDir = locale === "ar" ? "row-reverse" : "row";
+
+  test(`Quotas & usage renders no English in ${locale}, numbers grouped, Arabic mirrored`, async () => {
+    await useLocale(QUOTAS, locale);
+    const r = await renderComponent(h(QUOTAS.TestProviders, null, h(QUOTAS.default, {})));
+    mounted.push(r);
+    await settleN();
+    const t = OPS.opsCopyFor(locale);
+    // Every body string the screen owns is the chosen language's.
+    for (const s of [t.usageToday, t.usageTodayCaption, t.usageAverageCaption, t.costTotal, t.servicesApiKeys, t.servicesBatches, t.quotaNoLimit, t.quotaCardLabel.analyses, t.quotaBarLabel.analyses]) {
+      assert.ok(r.hasText(s), `${locale}: "${s}" did not render`);
+    }
+    const n = (v) => OPS.formatOpsCount(v, locale);
+    assert.ok(r.hasText(OPS.fillOpsCopy(t.quotaUsedRemaining, { used: n(9500), limit: n(10000), remaining: n(500) })));
+    assert.ok(r.hasText(n(4095)), "the month counter is not formatted for the locale");
+    assert.ok(r.texts().some((s) => s.startsWith(OPS.fillOpsCopy(t.quotaResetOn, { date: "" }).split(" ")[0])), "the reset sentence is missing");
+    const bars = r.byRole("progressbar").map((x) => x.props.accessibilityLabel);
+    assert.ok(bars.includes(OPS.fillOpsCopy(t.quotaBarA11y, { label: t.quotaBarLabel.analyses, percent: n(95) })), bars.join(" | "));
+
+    const texts = rendered(r, "operations-quotas");
+    assertNoEnglish(texts, locale, "quotas");
+    assertNoRawTokens(texts, `quotas (${locale})`);
+    assert.equal(directionOf(r, "quota-line-analyses"), expectedDir);
+  });
+
+  test(`Batch analysis — list, composer, confirm and outcomes — renders no English in ${locale}, Arabic mirrored`, async () => {
+    await useLocale(BATCH, locale);
+    const r = await renderComponent(h(BATCH.TestProviders, null, h(BATCH.default, {})));
+    mounted.push(r);
+    await settleN();
+    const t = OPS.opsCopyFor(locale);
+    const n = (v) => OPS.formatOpsCount(v, locale);
+
+    // The list: KPIs, row details, statuses, tiles, the no-items line, the note.
+    for (const s of [t.batchKpiTotal, t.batchKpiActiveCaption, t.batchStatus.processing, t.batchStatus.completed, t.batchStatus.failed, t.batchTilePending, t.batchNoItems, t.batchModeNote, t.batchProgress]) {
+      assert.ok(r.hasText(s), `${locale}: "${s}" did not render`);
+    }
+    assert.ok(r.hasText(OPS.fillOpsCopy(t.batchJobCounts, { processed: n(400), failed: n(100), total: n(1200) })));
+    assert.ok(r.hasText(OPS.fillOpsCopy(t.batchCountMany, { n: 3 })));
+    assert.ok(r.texts().some((s) => s.startsWith(OPS.fillOpsCopy(t.batchCompletedAt, { at: "" }).trim())), "completion line missing");
+    let texts = rendered(r, "operations-batch-analysis");
+    assertNoEnglish(texts, locale, "batch list");
+    assertNoRawTokens(texts, `batch list (${locale})`);
+    assert.equal(directionOf(r, "batch-counters-job-a"), expectedDir);
+    assert.equal(directionOf(r, "batch-head-job-a"), expectedDir);
+
+    // The composer, with its validation sentence, a chosen record and the count.
+    await r.press(t.batchNew);
+    await settleN();
+    assert.ok(r.byLabel(t.batchNameA11y).length > 0, "the composer did not open");
+    assert.ok(r.hasText(t.batchNeedName));
+    await r.press("DATA-EVA");
+    await settleN(2);
+    assert.ok(r.hasText(t.batchPickedOne) && r.hasText(t.batchChosen));
+    await r.press("DATA-EVB");
+    await settleN(2);
+    assert.ok(r.hasText(OPS.fillOpsCopy(t.batchPickedMany, { n: n(2) })));
+    texts = rendered(r, "operations-batch-analysis");
+    assertNoEnglish(texts, locale, "batch composer");
+    assertNoRawTokens(texts, `batch composer (${locale})`);
+
+    // Create → started: the outcome message is localized.
+    await r.type(t.batchNameA11y, "DATA-NAME");
+    await settleN(2);
+    await r.press(t.batchCreateStart);
+    await settleN();
+    assert.ok(r.hasText(t.batchCreatedStarted), "the created-and-started message is not localized");
+    assertNoEnglish(rendered(r, "operations-batch-analysis"), locale, "batch created");
+
+    // Cancel: the confirm sheet, then the outcome.
+    const cancelButtons = r.byLabel(t.batchCancelJob).filter((x) => x.props.onPress);
+    await act(async () => { await cancelButtons[0].props.onPress(); });
+    await settleN(2);
+    assert.ok(r.hasText(t.batchCancelConsequence) && r.byLabel(t.batchKeepRunning).length > 0);
+    texts = rendered(r, "operations-batch-analysis");
+    assertNoEnglish(texts, locale, "batch cancel sheet");
+    assertNoRawTokens(texts, `batch cancel sheet (${locale})`);
+    const confirm = r.byLabel(t.batchCancelJob).filter((x) => x.props.onPress).at(-1);
+    await act(async () => { await confirm.props.onPress(); });
+    await settleN();
+    assert.ok(r.hasText(t.batchCancelledDone), "the cancelled message is not localized");
+    assertNoEnglish(rendered(r, "operations-batch-analysis"), locale, "batch cancelled");
+  });
+}
+
+test("Quotas & Batch helpers: localized labels, English defaults, unknown status kept as the service sent it", () => {
+  for (const locale of ["en", "de", "ar"]) {
+    const t = OPS.opsCopyFor(locale);
+    for (const s of ["pending", "processing", "completed", "failed", "cancelled"]) {
+      assert.ok(t.batchStatus[s]?.trim(), `${locale}.batchStatus.${s}`);
+    }
+    for (const k of ["analyses", "batchJobs", "apiKeys", "teamMembers"]) {
+      assert.ok(t.quotaCardLabel[k]?.trim() && t.quotaBarLabel[k]?.trim(), `${locale} quota label ${k}`);
+    }
+  }
+  // The English entries ARE the pure module's English (no drift between the two).
+  const en = OPS.opsCopyFor("en");
+  assert.equal(en.batchModeNote, "This batch reads each record's metadata only. It does not determine factual truth, authorship, authenticity, or legal admissibility.");
+  assert.equal(en.batchStatus.processing, "Processing");
+  assert.equal(en.batchNeedName, "Give this batch a name.");
+});
+
+test("fillOpsCopy inserts values as text only: no re-expansion, no inherited keys, never a raw {placeholder}", () => {
+  const fill = OPS.fillOpsCopy;
+  // A value that looks like a placeholder is inserted literally, not expanded.
+  assert.equal(fill("{name}: {percent}% complete", { name: "{percent}", percent: 5 }), "{percent}: 5% complete");
+  assert.equal(fill("{a}{b}", { a: "{b}", b: "x" }), "{b}x");
+  // Markup is text; React renders it as text.
+  assert.equal(fill("Job {name}", { name: "<b>x</b>" }), "Job <b>x</b>");
+  // Missing, null, undefined and non-finite values render as nothing.
+  assert.equal(fill("Completed {at}", {}), "Completed ");
+  assert.equal(fill("{n} remaining", { n: null }), " remaining");
+  assert.equal(fill("{n} remaining", { n: undefined }), " remaining");
+  assert.equal(fill("{n}% used", { n: Number.NaN }), "% used");
+  // Inherited Object members are not values.
+  assert.equal(fill("{constructor}{toString}{__proto__}", {}), "");
+  // Every localized template, filled with no values, leaves no brace behind.
+  for (const locale of ["en", "de", "ar"]) {
+    for (const [p, v] of leaves(OPS.opsCopyFor(locale))) {
+      assert.ok(!/\{\w+\}/.test(fill(v, {})), `${locale}.${p} left a raw placeholder`);
+    }
+  }
+});
+
 /* ------------------------------------------------------------ source registry (2026-10-12) */
 
-test("registry: the new webhook-destination source is labelled in en/de/ar; retired sources are never rendered", () => {
+test("registry: the new webhook-destination source is labelled in en/de/ar; retired sources are never rendered", async () => {
   const src = "integration.webhook_destination_disabled";
+  // Source labels come from the ONE shared catalogue (@proovra/shared), not a
+  // second table in this client.
+  const { conditionSourceLabel } = await import("@proovra/shared");
   for (const locale of ["en", "de", "ar"]) {
-    const label = OPS.opsCopyFor(locale).sourceLabel[src];
+    const label = conditionSourceLabel(locale, src);
     assert.ok(typeof label === "string" && label.trim(), `${locale} has no label for ${src}`);
     assert.equal(OPS.conditionTitle({ title: "", sourceId: src }, OPS.opsCopyFor(locale)), label);
   }
+  assert.match(conditionSourceLabel("ar", src), /[؀-ۿ]/);
   assert.equal(OPS.categoryLabel("INTEGRATION", OPS.opsCopyFor("de")), "Integrationen");
   // Its next step (Automation) has no native screen: withheld, offered on the web.
   assert.equal(OPS.remediationDestination("/operations/automation").native, null);
@@ -314,5 +512,5 @@ test("registry: the new webhook-destination source is labelled in en/de/ar; reti
     ],
   });
   assert.deepEqual(groups.groups.map((g) => g.groupKey), ["g1"]);
-  assert.equal(OPS.conditionTitle(groups.groups[0], OPS.opsCopyFor("ar")), OPS.opsCopyFor("ar").sourceLabel[src]);
+  assert.equal(OPS.conditionTitle(groups.groups[0], OPS.opsCopyFor("ar")), conditionSourceLabel("ar", src));
 });

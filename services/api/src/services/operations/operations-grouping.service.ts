@@ -140,6 +140,12 @@ export type OperationsConditionGroup = {
   /** The one sentence that describes the whole group. */
   title: string;
   /**
+   * SOURCE_LABEL when `title` is the source's declared label (a client renders
+   * it in its own language by `sourceId`); CONDITION for an unregistered
+   * group, whose title is its members' stored text.
+   */
+  titleSource: "SOURCE_LABEL" | "CONDITION";
+  /**
    * HOW MANY CONDITIONS ARE IN THE GROUP.
    *
    * Renamed from `affectedCount`, which was true for per-record groups and
@@ -552,6 +558,7 @@ export function projectConditionGroups(
           : null,
       category,
       title: derivedTitle,
+      titleSource: resolved.match === "UNREGISTERED" ? ("CONDITION" as const) : ("SOURCE_LABEL" as const),
       conditionCount: members.length,
       affectedRecordCount,
       affectedUnit,

@@ -589,6 +589,9 @@ export const COUNTER_NAMES = [
   "forced_reauth_cooldown_skipped_total",
   "high_risk_session_total",
   "runtime_incident_total",
+  // A condition writer passed a message code whose params did not satisfy
+  // its declared shape; the row was written without a code.
+  "operations_condition_message_invalid_total",
   "emergency_org_revoke_total",
   "trusted_device_decay_total",
   "trusted_device_auto_invalidated_total",

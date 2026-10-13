@@ -331,6 +331,22 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
       "every signing-key lookup names its purpose (EVIDENCE_SIGNATURE or PACKAGE_SEAL); without the column evidence signing, verification and package sealing fail",
     suppliedBy: "20281006000100_signing_key_purpose",
   },
+  {
+    id: "evidence.ots_chain_verification_status",
+    kind: "column",
+    detail: 'column public."evidence"."ots_chain_verification_status" must exist',
+    requiredBy:
+      "the Prisma client still maps the deprecated ots_anchor_check / ots_attestation_* / ots_chain_* columns (2026-10-13: no writer, no reader) until the contraction release; a whole-row evidence read fails without them",
+    suppliedBy: "20281012000000_evidence_ots_truth_columns",
+  },
+  {
+    id: "operational_incidents.message_code",
+    kind: "column",
+    detail: 'column public."operational_incidents"."message_code" must exist',
+    requiredBy:
+      "every condition writer records the semantic message code and params its title and summary were rendered from; without the columns every incident write fails",
+    suppliedBy: "20281013000000_operational_incident_message_code",
+  },
 ]);
 
 /**
@@ -555,6 +571,20 @@ const PROBES = Object.freeze({
      WHERE table_schema = 'public'
        AND table_name = 'signing_keys'
        AND column_name = 'purpose'
+     LIMIT 1`,
+  "evidence.ots_chain_verification_status": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'evidence'
+       AND column_name = 'ots_chain_verification_status'
+     LIMIT 1`,
+  "operational_incidents.message_code": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'operational_incidents'
+       AND column_name = 'message_code'
      LIMIT 1`,
 });
 

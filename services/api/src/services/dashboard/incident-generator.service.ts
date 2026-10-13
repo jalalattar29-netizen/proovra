@@ -331,8 +331,7 @@ export async function generateIncidentsForWorkspace(
           // STABLE AND COUNT-FREE. The number is in the metric, where it can
           // be refreshed; a title carrying "(26)" was written once and then
           // frozen for the life of the condition.
-          title: spec.stableTitle,
-          safeSummary: spec.describe({ value: observation.currentValue ?? 0 }),
+          message: spec.message(),
           runbookSlug: spec.runbookSlug,
           metric: buildConditionMetric({
             currentValue: observation.currentValue ?? 0,

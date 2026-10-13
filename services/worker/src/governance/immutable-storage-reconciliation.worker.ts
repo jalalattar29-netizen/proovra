@@ -300,10 +300,10 @@ async function raiseGovernanceIncident(
     category: "GOVERNANCE",
     severity: "HIGH",
     fingerprint: `immutable_storage_drift:${outcome}:${evidenceId}`,
-    title: `Immutable storage drift: ${outcome}`,
-    safeSummary:
-      driftSummary ??
-      `Drift outcome ${outcome} on evidence ${evidenceId.slice(0, 8)}…`,
+    message: {
+      code: "ops.storage.immutable_drift",
+      params: { outcome: String(outcome), evidenceRef: evidenceId.slice(0, 8), detail: driftSummary },
+    },
     relatedEvidenceId: evidenceId,
     correlationId,
     metadata: { outcome, driftSummary: driftSummary ?? null },
@@ -330,6 +330,10 @@ async function emitImmutableDriftNotification(
         DEDUPE_KEY_MAX,
       ),
       title: "Immutable storage drift detected",
+      conditionMessage: {
+        code: "ops.governance.notification.immutable_drift",
+        params: { evidenceRef: evidenceId.slice(0, 8), outcome: String(outcome) },
+      },
       summary:
         driftSummary?.slice(0, 1000) ??
         `Storage layer disagrees with DB on evidence ${evidenceId.slice(0, 8)}… (outcome=${outcome}).`,

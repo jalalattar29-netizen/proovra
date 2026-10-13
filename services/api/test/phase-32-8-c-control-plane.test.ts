@@ -25,6 +25,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { renderConditionMessage } from "@proovra/shared";
 
 function readApi(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
@@ -242,10 +243,18 @@ describe("Phase 32.8C control plane — incident generator", () => {
     expect(titles.length).toBeGreaterThanOrEqual(4);
     for (const t of titles) expect(t).not.toMatch(/\d/);
     // The platform writer's titles carry no count either: the value is in the
-    // metric, and a queue's label is a name.
-    const platformTitles = PLATFORM_CONDITIONS.match(/title:\s*(`[^`]*`|"[^"]*")/g) ?? [];
-    expect(platformTitles.length).toBeGreaterThanOrEqual(2);
-    for (const t of platformTitles) expect(t).not.toMatch(/\d/);
+    // metric, and a queue's label is a name. Its titles are catalogue codes
+    // now, so the check reads the codes it writes and the titles they render.
+    const platformCodes = [...PLATFORM_CONDITIONS.matchAll(/code:\s*"(ops\.[a-z0-9_.]+)"/g)].map((m) => m[1]!);
+    expect(platformCodes).toEqual(expect.arrayContaining(["ops.platform.worker_heartbeat_stale", "ops.job.background_failure"]));
+    expect(PLATFORM_CONDITIONS).not.toMatch(/^\s*title:/m);
+    for (const code of platformCodes) {
+      for (const locale of ["en", "de", "ar"] as const) {
+        const rendered = renderConditionMessage(locale, code, code === "ops.job.background_failure" ? { queue: "Reports" } : {});
+        expect(rendered, code).not.toBeNull();
+        expect(rendered!.title, `${code}/${locale}`).not.toMatch(/\d/);
+      }
+    }
   });
 
   it("never projects raw bytes / signed URLs / storage keys", () => {

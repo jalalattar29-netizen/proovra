@@ -83,6 +83,8 @@ function databaseWith(present: {
   disclosureProfileColumn?: boolean;
   packageProfileRows?: boolean;
   signingKeyPurpose?: boolean;
+  otsTruthColumns?: boolean;
+  incidentMessageCode?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (sql.includes("WORKSPACE_OPERATIONS")) return present.reconciliationEnumValue === true;
@@ -148,6 +150,14 @@ function databaseWith(present: {
     if (sql.includes("table_name = 'signing_keys'") && sql.includes("column_name = 'purpose'")) {
       return present.signingKeyPurpose === true;
     }
+    // 20281013000000 — the condition message code and params.
+    if (sql.includes("table_name = 'operational_incidents'") && sql.includes("column_name = 'message_code'")) {
+      return present.incidentMessageCode === true;
+    }
+    // 20281012000000 — the OTS attestation / chain-check columns.
+    if (sql.includes("table_name = 'evidence'") && sql.includes("column_name = 'ots_chain_verification_status'")) {
+      return present.otsTruthColumns === true;
+    }
     // 20281005000000 — the package row's disclosure profile.
     if (sql.includes("column_name = 'disclosure_profile'")) {
       return present.disclosureProfileColumn === true;
@@ -193,6 +203,8 @@ const FULLY_MIGRATED = {
   disclosureProfileColumn: true,
   packageProfileRows: true,
   signingKeyPurpose: true,
+  otsTruthColumns: true,
+  incidentMessageCode: true,
 };
 
 describe("runtime schema requirements", () => {

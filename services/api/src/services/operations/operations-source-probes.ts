@@ -56,7 +56,7 @@ import {
 } from "@proovra/shared";
 import type { PrismaClient, Prisma } from "@prisma/client";
 
-import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
+import type { ConditionMessage, IncidentCategory, IncidentSeverity } from "@proovra/shared";
 import {
   // RELIABILITY CLOSURE (2026-09-09) — the never-attempted predicate.
   isOtsInitializationStalled,
@@ -221,8 +221,12 @@ type AggregateSpec = {
    */
   readonly escalationComparison: "GTE" | "GT";
   readonly runbookSlug: string | null;
-  /** Operator-safe. Describes the condition; the number comes from the metric. */
-  readonly describe: (o: { value: number }) => string;
+  /**
+   * Operator-safe. The condition's semantic message (shared catalogue, en/de/ar).
+   * It describes the condition and its thresholds; the current number travels
+   * in the metric, never in the text.
+   */
+  readonly message: () => ConditionMessage;
   readonly count: (
     ctx: ProbeContext,
   ) => Promise<{ value: number; truncated?: boolean }>;
@@ -251,8 +255,10 @@ const AGGREGATE_SPECS: readonly AggregateSpec[] = [
     escalatedSeverity: "CRITICAL",
     escalationComparison: "GTE",
     runbookSlug: "report-pipeline",
-    describe: () =>
-      `Signed evidence records that are entitled to a report in this workspace have none. Source: Evidence(status=SIGNED, latestReportVersion=null), narrowed to records whose plan or funding includes a report. HIGH at ${REPORT_BACKLOG_HIGH}, CRITICAL at ${REPORT_BACKLOG_CRITICAL}.`,
+    message: () => ({
+      code: "ops.pipeline.report_backlog",
+      params: { high: REPORT_BACKLOG_HIGH, critical: REPORT_BACKLOG_CRITICAL },
+    }),
     count: async (ctx) => ({
       ...assertEntitlementKnown(ctx),
       value: await ctx.client.evidence.count({
@@ -280,8 +286,10 @@ const AGGREGATE_SPECS: readonly AggregateSpec[] = [
     escalatedSeverity: "CRITICAL",
     escalationComparison: "GTE",
     runbookSlug: "package-pipeline",
-    describe: () =>
-      `Reported evidence records that are entitled to a verification package have none. Source: Evidence(status=REPORTED, verificationPackageVersion=null), narrowed to records whose plan or funding includes a package. HIGH at ${PACKAGE_BACKLOG_HIGH}, CRITICAL at ${PACKAGE_BACKLOG_CRITICAL}.`,
+    message: () => ({
+      code: "ops.pipeline.package_backlog",
+      params: { high: PACKAGE_BACKLOG_HIGH, critical: PACKAGE_BACKLOG_CRITICAL },
+    }),
     count: async (ctx) => ({
       ...assertEntitlementKnown(ctx),
       value: await ctx.client.evidence.count({
@@ -309,8 +317,10 @@ const AGGREGATE_SPECS: readonly AggregateSpec[] = [
     escalatedSeverity: "HIGH",
     escalationComparison: "GTE",
     runbookSlug: "reviewer-ops",
-    describe: () =>
-      `Assigned, in-review or needs-info review workflows have not been touched in ${STALE_REVIEW_HOURS}h or more. Source: EvidenceReviewWorkflow.updatedAt.`,
+    message: () => ({
+      code: "ops.review.stale_workflows",
+      params: { hours: STALE_REVIEW_HOURS },
+    }),
     count: async (ctx) => ({
       value: await ctx.client.evidenceReviewWorkflow.count({
         where: {
@@ -341,8 +351,10 @@ const AGGREGATE_SPECS: readonly AggregateSpec[] = [
     escalatedSeverity: "HIGH",
     escalationComparison: "GTE",
     runbookSlug: "coordination-backlog",
-    describe: () =>
-      `Reviewer comments, annotations and case comments have been unresolved for more than ${COORDINATION_STALE_DAYS} days.`,
+    message: () => ({
+      code: "ops.coordination.backlog_stale",
+      params: { days: COORDINATION_STALE_DAYS },
+    }),
     count: async (ctx) => {
       const cutoff = new Date(ctx.now.getTime() - COORDINATION_STALE_DAYS * DAY_MS);
       // Each read is its own statement, and a failure of any one of them is a

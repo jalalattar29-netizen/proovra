@@ -171,8 +171,10 @@ export async function runtimeRiskRecomputeSweep(
         category: "IDENTITY_SECURITY",
         severity: "HIGH",
         fingerprint: `runtime-high-risk-sessions:${input.teamId}:${Math.floor(now.getTime() / (HIGH_RISK_INCIDENT_DEDUP_HOURS * 3600_000))}`,
-        title: `High-risk sessions surge (${highRiskCount})`,
-        safeSummary: `Runtime risk recompute detected ${highRiskCount} sessions at HIGH+ risk in one sweep.`,
+        message: {
+          code: "ops.identity.high_risk_session_surge",
+          params: { count: highRiskCount },
+        },
         runbookSlug: "high-risk-session-surge",
         metadata: { highRiskCount, recomputed },
       });

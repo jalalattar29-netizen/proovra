@@ -10,7 +10,7 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
+| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
 | ProductClosure       | OPEN    | release-blocking measured facts + undisposed routes                   |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | aa891a07d68839fd264f39ab19d87ae7c9171561e2b2632971e5990ffd174b89 |
+| engineHash    | 65e791c0cdeaab1e5dd4c22e7f1c3e2e7b01191a3853d4eff52dc5eef452d176 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -73,7 +73,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 351   |
+| AuditFilesInventoried                      | 354   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -120,9 +120,9 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | Phase0ChangedPathClassificationMissing     | 0     |
 | ManualPhase0ChangeInventories              | 0     |
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
-| ProductBehaviorTestsRemoved                | 10    |
+| ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 268   |
+| ProductBehaviorTestsInventoried            | 271   |
 
 ### Report roles
 
@@ -165,16 +165,7 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-- PRODUCT BEHAVIOUR TEST DELETED: packages/shared/tests/ots-anchor-claim.test.mjs
-- PRODUCT BEHAVIOUR TEST DELETED: packages/shared/tests/ots-presentation.test.mjs
-- PRODUCT BEHAVIOUR TEST DELETED: packages/shared/tests/ots-truth.test.mjs
-- PRODUCT BEHAVIOUR TEST DELETED: services/worker/test/ots-chain-verifier.test.ts
-- PRODUCT BEHAVIOUR TEST DELETED: services/worker/test/ots-classification.test.ts
-- PRODUCT BEHAVIOUR TEST DELETED: services/worker/test/ots-state.test.ts
-- PRODUCT BEHAVIOUR TEST DELETED: services/worker/test/ots-upgrade-output.test.ts
-- PRODUCT BEHAVIOUR TEST DELETED: services/worker/test/phase-ia-ots-hybrid-state-fix.test.ts
-- PRODUCT BEHAVIOUR TEST DELETED: services/worker/test/phase-ia-ots-info-fallback.test.ts
-- PRODUCT BEHAVIOUR TEST DELETED: services/worker/test/repair-ots-hybrid-state.test.ts
+_(none — the instrument is sound)_
 
 ### Product closure
 

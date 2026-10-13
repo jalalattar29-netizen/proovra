@@ -48,7 +48,8 @@ import type {
 import { categoryLabel, severityEntry, statusEntry } from "../_lib/vocabulary";
 import { IconClose, IconExternal, IconSpinner } from "./icons";
 import { useDialogFocusTrap } from "../../../../components/ui/useDialogFocusTrap";
-import { fillOperationsCopy, useOpsCopy, useOpsNumber, useOpsTime } from "../_lib/copy";
+import { fillOperationsCopy, useOpsCopy, useOpsLocale, useOpsNumber, useOpsTime } from "../_lib/copy";
+import { localizedGroupTitle, localizedRecordTitle } from "../_lib/groupTitle";
 
 export function GroupInspector({
   group,
@@ -85,6 +86,7 @@ export function GroupInspector({
   const panelRef = React.useRef<HTMLElement | null>(null);
   const titleId = React.useId();
   const copy = useOpsCopy();
+  const locale = useOpsLocale();
   const fmt = useOpsNumber();
   const time = useOpsTime();
 
@@ -126,7 +128,7 @@ export function GroupInspector({
               <AppStatusBadge tone={status.tone}>{status.label}</AppStatusBadge>
             </div>
             <h2 id={titleId} className="opsw-drawer__title">
-              {group.title}
+              {localizedGroupTitle(group, locale)}
             </h2>
           </div>
           <button
@@ -286,7 +288,7 @@ export function GroupInspector({
                   className="opsw-affected__row"
                   data-ops-affected-row={r.conditionId}
                 >
-                  <span className="opsw-affected__title">{r.title}</span>
+                  <span className="opsw-affected__title">{localizedRecordTitle(r, locale)}</span>
                   <span className="opsw-affected__meta">
                     <AppStatusBadge tone={severityEntry(r.severity, copy).tone}>
                       {severityEntry(r.severity, copy).label}

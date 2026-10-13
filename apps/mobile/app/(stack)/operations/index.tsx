@@ -62,6 +62,7 @@ import {
   canActOnAnything,
   canViewWorkspaceHealth,
   categoryLabel,
+  conditionSummary,
   conditionTitle,
   filtersForMetric,
   buildOpsAssignPath,
@@ -1497,7 +1498,7 @@ function IncidentInspector({
             </ProovraText>
 
             <ProovraSection title={copy.whatHappened} heading>
-              {i.safeSummary ? <ProovraText variant="bodySm">{i.safeSummary}</ProovraText> : null}
+              {i.safeSummary ? <ProovraText variant="bodySm">{conditionSummary(i, nc)}</ProovraText> : null}
               <ProovraDetailRows
                 rows={[
                   { label: nc.factSource, value: categoryLabel(i.category, nc) },
@@ -1918,7 +1919,7 @@ function GroupInspector({
           {records.map((r) => (
             <ProovraListRow
               key={r.conditionId}
-              title={r.title || nc.conditionFallbackTitle}
+              title={conditionTitle(r, nc)}
               subtitle={[
                 nc.severity[r.severity].label,
                 // D6 — each record states its own status, in words.

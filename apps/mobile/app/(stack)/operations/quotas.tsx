@@ -23,7 +23,8 @@ import { apiFetch } from "../../../src/api";
 import { formatUserDate } from "../../../src/lib/date";
 import { theme } from "../../../src/theme/theme";
 import { useOptionalLocale } from "../../../src/locale-context";
-import { opsCopyFor } from "../../../src/product/ops-copy";
+import { fillOpsCopy, formatOpsCount, opsCopyFor, type OpsCopy } from "../../../src/product/ops-copy";
+import { useOpsRowDirection } from "../../../src/ui/ops-surfaces";
 import {
   ProovraScreen,
   ProovraCard,
@@ -46,29 +47,34 @@ import {
   type UsageStats,
 } from "../../../src/product/operations";
 import {
-  QUOTA_BAR_LABEL,
-  QUOTA_CARD_LABEL,
   formatCost,
   parseUsageExtras,
+  quotaLabel,
   type UsageExtras,
 } from "../../../src/product/operations-quotas";
 
 type Section<T> = { phase: "loading" } | { phase: "loaded"; data: T } | { phase: "failed" };
 type Usage = { stats: UsageStats | null; extras: UsageExtras };
 
-function QuotaBar({ line }: { line: QuotaLine }) {
+function QuotaBar({ line, t, locale }: { line: QuotaLine; t: OpsCopy; locale: string }) {
   const tone = quotaTone(line.percent);
   const palette = theme.color.status[tone];
-  const label = QUOTA_BAR_LABEL[line.key] ?? line.label;
+  const rowDir = useOpsRowDirection();
+  const label = quotaLabel("bar", line.key, line.label, t);
+  const n = (v: number) => formatOpsCount(v, locale);
+  const percent = line.percent === null ? "" : n(line.percent);
 
   return (
     <View style={{ gap: theme.space.s1 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: theme.space.s2 }}>
+      <View
+        testID={`quota-line-${line.key}`}
+        style={{ flexDirection: rowDir, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: theme.space.s2 }}
+      >
         <ProovraText variant="bodySm" weight="bold">
           {label}
         </ProovraText>
         <ProovraText variant="label" color={theme.color.ink.muted}>
-          {`${line.used} / ${line.limit} used · ${line.remaining} remaining`}
+          {fillOpsCopy(t.quotaUsedRemaining, { used: n(line.used), limit: n(line.limit), remaining: n(line.remaining) })}
         </ProovraText>
       </View>
 
@@ -79,14 +85,16 @@ function QuotaBar({ line }: { line: QuotaLine }) {
       */}
       {line.percent === null ? (
         <ProovraText variant="label" color={theme.color.ink.muted}>
-          No limit is published for this allowance.
+          {t.quotaNoLimit}
         </ProovraText>
       ) : (
         <>
           <View
             accessibilityRole="progressbar"
-            accessibilityLabel={`${label}: ${line.percent}% used`}
+            accessibilityLabel={fillOpsCopy(t.quotaBarA11y, { label, percent })}
             style={{
+              // The fill grows from the reading edge: right in Arabic.
+              flexDirection: rowDir,
               height: 10,
               borderRadius: 999,
               backgroundColor: theme.color.surface.muted,
@@ -103,7 +111,7 @@ function QuotaBar({ line }: { line: QuotaLine }) {
             />
           </View>
           <ProovraText variant="label" color={theme.color.ink.muted}>
-            {`${line.percent}% used`}
+            {fillOpsCopy(t.quotaPercentUsed, { percent })}
           </ProovraText>
         </>
       )}
@@ -122,7 +130,8 @@ function SoftMetric({ label, value, center }: { label: string; value: string; ce
         borderRadius: theme.radius.lg,
         backgroundColor: theme.color.surface.muted,
         gap: 4,
-        alignItems: center ? "center" : "flex-start",
+        // Stretched, so the text's own locale alignment (right in Arabic) applies.
+        alignItems: center ? "center" : "stretch",
       }}
     >
       {center ? null : <ProovraText variant="label" color={theme.color.ink.muted}>{label}</ProovraText>}
@@ -134,7 +143,10 @@ function SoftMetric({ label, value, center }: { label: string; value: string; ce
 
 export default function QuotasScreen() {
   const router = useRouter();
-  const t = opsCopyFor(useOptionalLocale());
+  const locale = useOptionalLocale();
+  const t = opsCopyFor(locale);
+  const rowDir = useOpsRowDirection();
+  const n = (v: number) => formatOpsCount(v, locale);
   const [quotas, setQuotas] = useState<Section<QuotaLine[]>>({ phase: "loading" });
   const [usage, setUsage] = useState<Section<Usage>>({ phase: "loading" });
 
@@ -185,14 +197,14 @@ export default function QuotasScreen() {
       {stats ? (
         <ProovraKpiGrid
           items={[
-            { key: "today", label: "Today", value: String(stats.today), caption: "Analyses processed today" },
-            { key: "week", label: "This Week", value: String(stats.thisWeek), caption: "Analyses processed this week" },
-            { key: "month", label: "This Month", value: String(stats.thisMonth), caption: "Analyses processed this month" },
+            { key: "today", label: t.usageToday, value: n(stats.today), caption: t.usageTodayCaption },
+            { key: "week", label: t.usageWeek, value: n(stats.thisWeek), caption: t.usageWeekCaption },
+            { key: "month", label: t.usageMonth, value: n(stats.thisMonth), caption: t.usageMonthCaption },
             {
               key: "avgCost",
-              label: "Average Per Analysis",
+              label: t.usageAverage,
               value: formatCost(stats.averageCostPerAnalysis, 4),
-              caption: "Average AI analysis cost",
+              caption: t.usageAverageCaption,
             },
           ]}
         />
@@ -211,22 +223,22 @@ export default function QuotasScreen() {
           <ProovraKpiGrid
             items={lines.map((line) => ({
               key: `card-${line.key}`,
-              label: QUOTA_CARD_LABEL[line.key] ?? line.label,
-              value: `${line.used} / ${line.limit}`,
-              caption: `${line.remaining} remaining`,
+              label: quotaLabel("card", line.key, line.label, t),
+              value: `${n(line.used)} / ${n(line.limit)}`,
+              caption: fillOpsCopy(t.quotaRemaining, { n: n(line.remaining) }),
             }))}
           />
           <ProovraPageSection title={t.quotasCurrent}>
             <ProovraCard testID="current-quotas">
               <View style={{ gap: theme.space.s4 }}>
                 {lines.map((line) => (
-                  <QuotaBar key={line.key} line={line} />
+                  <QuotaBar key={line.key} line={line} t={t} locale={locale} />
                 ))}
                 {/* resetDate is sent on `analyses` only (enterprise.routes.ts getRealQuotas). */}
                 {resetIso ? (
                   <View style={{ borderTopWidth: 1, borderTopColor: theme.color.border.subtle, paddingTop: theme.space.s3 }}>
                     <ProovraText variant="label" color={theme.color.ink.secondary}>
-                      {`Quotas reset on ${formatUserDate(resetIso)}`}
+                      {fillOpsCopy(t.quotaResetOn, { date: formatUserDate(resetIso) })}
                     </ProovraText>
                   </View>
                 ) : null}
@@ -240,18 +252,18 @@ export default function QuotasScreen() {
         <>
           <ProovraPageSection title={t.quotasCost}>
             <ProovraCard testID="cost-overview">
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s3 }}>
-                <SoftMetric label="Total Cost" value={formatCost(extras.totalCost)} />
-                <SoftMetric label="This Month" value={formatCost(extras.thisMonthCost)} />
+              <View style={{ flexDirection: rowDir, flexWrap: "wrap", gap: theme.space.s3 }}>
+                <SoftMetric label={t.costTotal} value={formatCost(extras.totalCost)} />
+                <SoftMetric label={t.costThisMonth} value={formatCost(extras.thisMonthCost)} />
               </View>
             </ProovraCard>
           </ProovraPageSection>
 
           <ProovraPageSection title={t.quotasServices}>
             <ProovraCard testID="active-services">
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s3 }}>
-                <SoftMetric label="Active API Keys" value={extras.activeApiKeys === null ? "—" : String(extras.activeApiKeys)} />
-                <SoftMetric label="Active Batch Jobs" value={extras.activeBatches === null ? "—" : String(extras.activeBatches)} />
+              <View style={{ flexDirection: rowDir, flexWrap: "wrap", gap: theme.space.s3 }}>
+                <SoftMetric label={t.servicesApiKeys} value={extras.activeApiKeys === null ? "—" : n(extras.activeApiKeys)} />
+                <SoftMetric label={t.servicesBatches} value={extras.activeBatches === null ? "—" : n(extras.activeBatches)} />
               </View>
             </ProovraCard>
           </ProovraPageSection>
@@ -260,9 +272,10 @@ export default function QuotasScreen() {
           {extras.evidenceTypes.length > 0 ? (
             <ProovraPageSection title={t.quotasEvidenceTypes}>
               <ProovraCard testID="evidence-types">
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s3 }}>
+                <View style={{ flexDirection: rowDir, flexWrap: "wrap", gap: theme.space.s3 }}>
+                  {/* `e.type` is the server's evidence-type code, shown as sent. */}
                   {extras.evidenceTypes.map((e) => (
-                    <SoftMetric key={e.type} label={e.type} value={String(e.count)} center />
+                    <SoftMetric key={e.type} label={e.type} value={n(e.count)} center />
                   ))}
                 </View>
               </ProovraCard>

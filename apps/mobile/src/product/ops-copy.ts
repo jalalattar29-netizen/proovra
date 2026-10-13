@@ -21,6 +21,7 @@
 export { operationsCopyFor } from "@proovra/shared";
 
 import { formatUserDateTime } from "../lib/date";
+import { BATCH_ANALYSIS_MODE_NOTE, BATCH_COPY_EN, BATCH_CREATED_NOT_STARTED } from "./operations";
 
 export type OpsCopyLocale = "en" | "de" | "ar";
 
@@ -68,10 +69,6 @@ const EN = {
     EVIDENCE_INTEGRITY: "Evidence integrity",
   },
   categoryOther: "Other source",
-  /** Per-SOURCE titles, used when the server sends no title (operations-condition-map.ts). */
-  sourceLabel: {
-    "integration.webhook_destination_disabled": "A webhook destination was switched off",
-  },
   sort: {
     recent: "Most recent activity",
     severity: "Most severe first",
@@ -475,6 +472,83 @@ const EN = {
   batchExport: "Export CSV",
   batchCancelJob: "Cancel job",
   batchCancelTitle: "Cancel this batch job?",
+  /* ---------------------------------------------------------- Quotas body */
+  quotaCardLabel: {
+    analyses: "Analysis Calls",
+    batchJobs: "Batch Jobs",
+    apiKeys: "API Keys",
+    teamMembers: "Team Members",
+  },
+  quotaBarLabel: {
+    analyses: "Analysis API Calls",
+    batchJobs: "Batch Jobs",
+    apiKeys: "API Keys",
+    teamMembers: "Team Members",
+  },
+  quotaUsedRemaining: "{used} / {limit} used · {remaining} remaining",
+  quotaRemaining: "{n} remaining",
+  quotaNoLimit: "No limit is published for this allowance.",
+  quotaPercentUsed: "{percent}% used",
+  quotaBarA11y: "{label}: {percent}% used",
+  quotaResetOn: "Quotas reset on {date}",
+  usageToday: "Today",
+  usageTodayCaption: "Analyses processed today",
+  usageWeek: "This Week",
+  usageWeekCaption: "Analyses processed this week",
+  usageMonth: "This Month",
+  usageMonthCaption: "Analyses processed this month",
+  usageAverage: "Average Per Analysis",
+  usageAverageCaption: "Average AI analysis cost",
+  costTotal: "Total Cost",
+  costThisMonth: "This Month",
+  servicesApiKeys: "Active API Keys",
+  servicesBatches: "Active Batch Jobs",
+
+  /* ---------------------------------------------------------- Batch body */
+  /** Display words for the service's lower-case BatchStatus codes (English owned by operations.ts). */
+  batchStatus: { ...BATCH_COPY_EN.batchStatus },
+  batchStatusUnknown: BATCH_COPY_EN.batchStatusUnknown,
+  batchJobCounts: "{processed} processed · {failed} failed · {total} total",
+  batchNoItems: "This job declares no items, so it has no progress to report.",
+  batchProgress: "Progress",
+  batchProgressA11y: "{name}: {percent}% complete",
+  batchTileProcessed: "Processed",
+  batchTileFailed: "Failed",
+  batchTilePending: "Pending",
+  batchCompletedAt: "Completed {at}",
+  batchStartedAt: "Started {at}",
+  batchKpiTotal: "Total Jobs",
+  batchKpiTotalCaption: "All batch jobs",
+  batchKpiActive: "Active Jobs",
+  batchKpiActiveCaption: "Pending or processing",
+  batchCountOne: "1 job on this page",
+  batchCountMany: "{n} jobs on this page",
+  batchModeNote: BATCH_ANALYSIS_MODE_NOTE,
+  batchCreatedNotStarted: BATCH_CREATED_NOT_STARTED,
+  batchNoId: "The job was created but the server did not return its id.",
+  batchCreatedStarted: "Batch job created and processing started.",
+  batchCancelledDone: "That job was cancelled.",
+  batchNoTempDir: "A writable temporary directory is not available on this device.",
+  batchExportDeviceFailed: "The export could not be saved or shared on this device.",
+  batchNameLabel: "Batch Name",
+  batchNamePlaceholder: "e.g., Q1 2026 Review",
+  batchNameA11y: "Batch name",
+  batchDescLabel: "Description (optional)",
+  batchDescPlaceholder: "Add notes about this batch",
+  batchDescA11y: "Batch description",
+  batchRecordsLabel: "Records",
+  batchSearchPlaceholder: "Search your evidence",
+  batchSearchA11y: "Search evidence",
+  batchPickedNone: "Nothing chosen yet.",
+  batchPickedOne: "1 record chosen.",
+  batchPickedMany: "{n} records chosen.",
+  batchLoadingEvidence: "Loading your evidence",
+  batchNoMatch: "No records match that.",
+  batchChosen: "Chosen",
+  batchNeedName: BATCH_COPY_EN.batchNeedName,
+  batchNeedRecords: BATCH_COPY_EN.batchNeedRecords,
+  batchCancelConsequence: "In-progress items will stop. Already completed items keep their results.",
+  batchKeepRunning: "Keep running",
 };
 
 export type OpsCopy = typeof EN;
@@ -522,9 +596,6 @@ const DE: OpsCopy = {
     EVIDENCE_INTEGRITY: "Beweisintegrität",
   },
   categoryOther: "Andere Quelle",
-  sourceLabel: {
-    "integration.webhook_destination_disabled": "Ein Webhook-Ziel wurde abgeschaltet",
-  },
   sort: {
     recent: "Neueste Aktivität",
     severity: "Schwerwiegendste zuerst",
@@ -894,6 +965,87 @@ const DE: OpsCopy = {
   batchExport: "CSV exportieren",
   batchCancelJob: "Auftrag abbrechen",
   batchCancelTitle: "Diesen Stapelauftrag abbrechen?",
+  quotaCardLabel: {
+    analyses: "Analyseaufrufe",
+    batchJobs: "Stapelaufträge",
+    apiKeys: "API-Schlüssel",
+    teamMembers: "Teammitglieder",
+  },
+  quotaBarLabel: {
+    analyses: "Analyse-API-Aufrufe",
+    batchJobs: "Stapelaufträge",
+    apiKeys: "API-Schlüssel",
+    teamMembers: "Teammitglieder",
+  },
+  quotaUsedRemaining: "{used} / {limit} genutzt · {remaining} verbleibend",
+  quotaRemaining: "{n} verbleibend",
+  quotaNoLimit: "Für dieses Kontingent ist keine Grenze veröffentlicht.",
+  quotaPercentUsed: "{percent} % genutzt",
+  quotaBarA11y: "{label}: {percent} % genutzt",
+  quotaResetOn: "Kontingente werden am {date} zurückgesetzt",
+  usageToday: "Heute",
+  usageTodayCaption: "Heute verarbeitete Analysen",
+  usageWeek: "Diese Woche",
+  usageWeekCaption: "Diese Woche verarbeitete Analysen",
+  usageMonth: "Dieser Monat",
+  usageMonthCaption: "Diesen Monat verarbeitete Analysen",
+  usageAverage: "Durchschnitt pro Analyse",
+  usageAverageCaption: "Durchschnittliche Kosten einer KI-Analyse",
+  costTotal: "Gesamtkosten",
+  costThisMonth: "Dieser Monat",
+  servicesApiKeys: "Aktive API-Schlüssel",
+  servicesBatches: "Aktive Stapelaufträge",
+  batchStatus: {
+    pending: "Ausstehend",
+    processing: "In Bearbeitung",
+    completed: "Abgeschlossen",
+    failed: "Fehlgeschlagen",
+    cancelled: "Abgebrochen",
+  },
+  batchStatusUnknown: "Unbekannt",
+  batchJobCounts: "{processed} verarbeitet · {failed} fehlgeschlagen · {total} gesamt",
+  batchNoItems: "Dieser Auftrag enthält keine Elemente und hat daher keinen Fortschritt zu melden.",
+  batchProgress: "Fortschritt",
+  batchProgressA11y: "{name}: {percent} % abgeschlossen",
+  batchTileProcessed: "Verarbeitet",
+  batchTileFailed: "Fehlgeschlagen",
+  batchTilePending: "Ausstehend",
+  batchCompletedAt: "Abgeschlossen am {at}",
+  batchStartedAt: "Gestartet am {at}",
+  batchKpiTotal: "Aufträge gesamt",
+  batchKpiTotalCaption: "Alle Stapelaufträge",
+  batchKpiActive: "Aktive Aufträge",
+  batchKpiActiveCaption: "Ausstehend oder in Bearbeitung",
+  batchCountOne: "1 Auftrag auf dieser Seite",
+  batchCountMany: "{n} Aufträge auf dieser Seite",
+  batchModeNote:
+    "Dieser Stapel liest nur die Metadaten jedes Datensatzes. Er stellt weder die sachliche Wahrheit noch Urheberschaft, Echtheit oder rechtliche Zulässigkeit fest.",
+  batchCreatedNotStarted:
+    "Der Stapelauftrag wurde erstellt, aber nicht gestartet – es wird also noch nichts verarbeitet. Er ist unten als ausstehend aufgeführt. Versuchen Sie es erneut, um genau diesen Auftrag zu starten – es wird kein zweiter angelegt.",
+  batchNoId: "Der Auftrag wurde erstellt, aber der Server hat seine Kennung nicht zurückgegeben.",
+  batchCreatedStarted: "Stapelauftrag erstellt und Verarbeitung gestartet.",
+  batchCancelledDone: "Der Auftrag wurde abgebrochen.",
+  batchNoTempDir: "Auf diesem Gerät ist kein beschreibbares temporäres Verzeichnis verfügbar.",
+  batchExportDeviceFailed: "Der Export konnte auf diesem Gerät nicht gespeichert oder geteilt werden.",
+  batchNameLabel: "Name des Stapels",
+  batchNamePlaceholder: "z. B. Prüfung Q1 2026",
+  batchNameA11y: "Stapelname",
+  batchDescLabel: "Beschreibung (optional)",
+  batchDescPlaceholder: "Notizen zu diesem Stapel hinzufügen",
+  batchDescA11y: "Stapelbeschreibung",
+  batchRecordsLabel: "Datensätze",
+  batchSearchPlaceholder: "Eigene Beweise durchsuchen",
+  batchSearchA11y: "Beweise durchsuchen",
+  batchPickedNone: "Noch nichts ausgewählt.",
+  batchPickedOne: "1 Datensatz ausgewählt.",
+  batchPickedMany: "{n} Datensätze ausgewählt.",
+  batchLoadingEvidence: "Ihre Beweise werden geladen",
+  batchNoMatch: "Keine Datensätze passen dazu.",
+  batchChosen: "Ausgewählt",
+  batchNeedName: "Geben Sie diesem Stapel einen Namen.",
+  batchNeedRecords: "Wählen Sie mindestens einen Beweisdatensatz aus.",
+  batchCancelConsequence: "Laufende Elemente werden gestoppt. Bereits abgeschlossene Elemente behalten ihre Ergebnisse.",
+  batchKeepRunning: "Weiterlaufen lassen",
 };
 
 const AR: OpsCopy = {
@@ -936,9 +1088,6 @@ const AR: OpsCopy = {
     EVIDENCE_INTEGRITY: "سلامة الأدلة",
   },
   categoryOther: "مصدر آخر",
-  sourceLabel: {
-    "integration.webhook_destination_disabled": "تم إيقاف وجهة Webhook",
-  },
   sort: {
     recent: "الأحدث نشاطًا",
     severity: "الأشد خطورة أولًا",
@@ -1293,9 +1442,95 @@ const AR: OpsCopy = {
   batchExport: "تصدير CSV",
   batchCancelJob: "إلغاء المهمة",
   batchCancelTitle: "إلغاء هذه المهمة الجماعية؟",
+  quotaCardLabel: {
+    analyses: "استدعاءات التحليل",
+    batchJobs: "المهام الجماعية",
+    apiKeys: "مفاتيح API",
+    teamMembers: "أعضاء الفريق",
+  },
+  quotaBarLabel: {
+    analyses: "استدعاءات واجهة التحليل البرمجية",
+    batchJobs: "المهام الجماعية",
+    apiKeys: "مفاتيح API",
+    teamMembers: "أعضاء الفريق",
+  },
+  quotaUsedRemaining: "{used} / {limit} مستخدَم · {remaining} متبقٍ",
+  quotaRemaining: "{n} متبقٍ",
+  quotaNoLimit: "لا يوجد حد منشور لهذه الحصة.",
+  quotaPercentUsed: "{percent}% مستخدَم",
+  quotaBarA11y: "{label}: {percent}% مستخدَم",
+  quotaResetOn: "يُعاد ضبط الحصص في {date}",
+  usageToday: "اليوم",
+  usageTodayCaption: "التحليلات المعالَجة اليوم",
+  usageWeek: "هذا الأسبوع",
+  usageWeekCaption: "التحليلات المعالَجة هذا الأسبوع",
+  usageMonth: "هذا الشهر",
+  usageMonthCaption: "التحليلات المعالَجة هذا الشهر",
+  usageAverage: "المتوسط لكل تحليل",
+  usageAverageCaption: "متوسط تكلفة التحليل بالذكاء الاصطناعي",
+  costTotal: "التكلفة الإجمالية",
+  costThisMonth: "هذا الشهر",
+  servicesApiKeys: "مفاتيح API النشطة",
+  servicesBatches: "المهام الجماعية النشطة",
+  batchStatus: {
+    pending: "قيد الانتظار",
+    processing: "قيد المعالجة",
+    completed: "مكتملة",
+    failed: "فشلت",
+    cancelled: "ملغاة",
+  },
+  batchStatusUnknown: "غير معروفة",
+  batchJobCounts: "{processed} معالَجة · {failed} فاشلة · {total} إجمالًا",
+  batchNoItems: "لا تتضمن هذه المهمة أي عناصر، لذا لا يوجد تقدّم للإبلاغ عنه.",
+  batchProgress: "التقدّم",
+  batchProgressA11y: "{name}: اكتمل {percent}%",
+  batchTileProcessed: "معالَجة",
+  batchTileFailed: "فاشلة",
+  batchTilePending: "قيد الانتظار",
+  batchCompletedAt: "اكتملت في {at}",
+  batchStartedAt: "بدأت في {at}",
+  batchKpiTotal: "إجمالي المهام",
+  batchKpiTotalCaption: "كل المهام الجماعية",
+  batchKpiActive: "المهام النشطة",
+  batchKpiActiveCaption: "قيد الانتظار أو قيد المعالجة",
+  batchCountOne: "مهمة واحدة في هذه الصفحة",
+  batchCountMany: "{n} مهام في هذه الصفحة",
+  batchModeNote:
+    "تقرأ هذه الدفعة البيانات الوصفية لكل سجل فقط. ولا تحدد الحقيقة الواقعية ولا التأليف ولا الأصالة ولا المقبولية القانونية.",
+  batchCreatedNotStarted:
+    "أُنشئت المهمة الجماعية لكنها لم تبدأ، لذا لا تجري أي معالجة بعد. وهي مدرجة أدناه على أنها قيد الانتظار. أعد المحاولة لبدء هذه المهمة نفسها — لن تُنشأ مهمة ثانية.",
+  batchNoId: "أُنشئت المهمة لكن الخادم لم يُرجع معرّفها.",
+  batchCreatedStarted: "أُنشئت المهمة الجماعية وبدأت معالجتها.",
+  batchCancelledDone: "أُلغيت تلك المهمة.",
+  batchNoTempDir: "لا يتوفر مجلد مؤقت قابل للكتابة على هذا الجهاز.",
+  batchExportDeviceFailed: "تعذّر حفظ التصدير أو مشاركته على هذا الجهاز.",
+  batchNameLabel: "اسم الدفعة",
+  batchNamePlaceholder: "مثلًا: مراجعة الربع الأول 2026",
+  batchNameA11y: "اسم الدفعة",
+  batchDescLabel: "الوصف (اختياري)",
+  batchDescPlaceholder: "أضف ملاحظات عن هذه الدفعة",
+  batchDescA11y: "وصف الدفعة",
+  batchRecordsLabel: "السجلات",
+  batchSearchPlaceholder: "ابحث في أدلتك",
+  batchSearchA11y: "البحث في الأدلة",
+  batchPickedNone: "لم يُختر شيء بعد.",
+  batchPickedOne: "سجل واحد مُختار.",
+  batchPickedMany: "{n} سجلات مُختارة.",
+  batchLoadingEvidence: "جارٍ تحميل أدلتك",
+  batchNoMatch: "لا توجد سجلات مطابقة.",
+  batchChosen: "مُختار",
+  batchNeedName: "أعطِ هذه الدفعة اسمًا.",
+  batchNeedRecords: "اختر سجل دليل واحدًا على الأقل.",
+  batchCancelConsequence: "ستتوقف العناصر الجارية. وتحتفظ العناصر المكتملة بنتائجها.",
+  batchKeepRunning: "متابعة التشغيل",
 };
 
 const DICT: Readonly<Record<OpsCopyLocale, OpsCopy>> = { en: EN, de: DE, ar: AR };
+
+/** Which locale a dictionary is — so a pure helper given only `t` can resolve shared catalogues. */
+export function opsCopyLocaleOf(t: OpsCopy): OpsCopyLocale {
+  return t === DE ? "de" : t === AR ? "ar" : "en";
+}
 
 export function opsCopyFor(locale: string | null | undefined): OpsCopy {
   return locale === "de" || locale === "ar" ? DICT[locale] : EN;
@@ -1307,8 +1542,25 @@ export const opsNativeCopyFor = opsCopyFor;
 export const OPS_COPY_EN: OpsCopy = EN;
 
 /** Fill `{name}` placeholders. */
-export function fillOpsCopy(template: string, values: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (m, k: string) => (k in values ? String(values[k]) : m));
+/**
+ * Fill `{name}` placeholders, in ONE pass over the template: a value is
+ * inserted as plain text and is never itself scanned, so a job name or server
+ * string that contains `{total}` stays literally `{total}`. Only the caller's
+ * OWN keys count (never `constructor`, `toString` or another inherited name),
+ * and a placeholder with no value — absent, null, undefined or a non-finite
+ * number — renders as nothing rather than as a raw `{name}` on screen.
+ */
+export function fillOpsCopy(
+  template: string,
+  values: Readonly<Record<string, string | number | null | undefined>>,
+): string {
+  return template.replace(/\{(\w+)\}/g, (_m, k: string) => {
+    if (!Object.prototype.hasOwnProperty.call(values, k)) return "";
+    const v = values[k];
+    if (v === null || v === undefined) return "";
+    if (typeof v === "number") return Number.isFinite(v) ? String(v) : "";
+    return typeof v === "string" ? v : "";
+  });
 }
 
 function localeTag(locale: string | null | undefined): string {

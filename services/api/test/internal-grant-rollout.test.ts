@@ -86,6 +86,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281006000100_signing_key_purpose",
       // OTS truth: attestation / chain-check columns, EXPAND only.
       "20281012000000_evidence_ots_truth_columns",
+      // Operations condition message code + params, EXPAND only.
+      "20281013000000_operational_incident_message_code",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

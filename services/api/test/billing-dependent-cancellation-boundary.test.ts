@@ -11,6 +11,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { stampConditionMessage } from "@proovra/shared";
 
 const db = vi.hoisted(() => ({
   prisma: {
@@ -168,8 +169,12 @@ describe("syncDependentCancellationConditions", () => {
     ]);
     await conditions.syncDependentCancellationConditions({ payerUserId: "user-1" });
     const arg = recordIncident.mock.calls[0]![0];
-    expect(String(arg.safeSummary)).not.toMatch(/plan was cancelled/);
-    expect(String(arg.safeSummary)).toMatch(/could not be added to this account/);
+    // The writer records a code; the English it stores is rendered from it.
+    const message = (arg as { message: { code: string; params: unknown } }).message;
+    expect(message.code).toBe("ops.billing.dependent_cancellation.ungrantable_stopping");
+    const stored = stampConditionMessage(message)!;
+    expect(stored.summary).not.toMatch(/plan was cancelled/);
+    expect(stored.summary).toMatch(/could not be added to this account/);
   });
 });
 

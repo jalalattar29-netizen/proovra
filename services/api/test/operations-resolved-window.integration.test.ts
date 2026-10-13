@@ -58,7 +58,7 @@ describe("Operations — resolved window, grouping and isolation (live PostgreSQ
     otherToken = other.token;
 
     const now = Date.now();
-    const gov = { sourceId: "governance.policy_condition", category: "GOVERNANCE" as const };
+    const gov = { sourceId: "governance.notification_escalated", category: "GOVERNANCE" as const };
     const backlog = { sourceId: "pipeline.report_backlog", category: "REPORT" as const };
     recentButLastSeenLongAgo = (await seedIncident(c, teamId, { ...gov, status: "RESOLVED" })).id;
     seenTodayButResolvedLongAgo = (await seedIncident(c, teamId, { ...gov, status: "RESOLVED" })).id;
@@ -84,7 +84,7 @@ describe("Operations — resolved window, grouping and isolation (live PostgreSQ
     const { status, body } = await groupsOf("&status=ALL");
     expect(status).toBe(200);
     expect(body.totals).toEqual({ groups: 2, conditions: 5 });
-    expect(body.groups.map((g) => g.sourceId).sort()).toEqual(["governance.policy_condition", "pipeline.report_backlog"]);
+    expect(body.groups.map((g) => g.sourceId).sort()).toEqual(["governance.notification_escalated", "pipeline.report_backlog"]);
     expect(body.groups.reduce((n, g) => n + g.conditionCount, 0)).toBe(5);
     expect(body.window).toBeNull();
     expect(conditionIds(body)).toEqual([recentButLastSeenLongAgo, seenTodayButResolvedLongAgo, open1, resolvedRecently, open2].sort());
@@ -101,7 +101,7 @@ describe("Operations — resolved window, grouping and isolation (live PostgreSQ
     expect(serverNow).toBeGreaterThanOrEqual(before - 1000);
     expect(serverNow - Date.parse(body.window!.resolvedSinceUtc)).toBe(7 * DAY);
     // Each group states its latest RESOLUTION, not its latest activity.
-    const gov = body.groups.find((g) => g.sourceId === "governance.policy_condition")!;
+    const gov = body.groups.find((g) => g.sourceId === "governance.notification_escalated")!;
     expect(Date.parse(gov.latestResolvedAtUtc!)).toBeGreaterThan(Date.now() - 5 * 60_000);
   });
 
@@ -171,7 +171,7 @@ describe("Operations — resolved window, grouping and isolation (live PostgreSQ
     // A fresh observation reopens it: no resolution time, not resolved.
     await recordIncident({
       teamId,
-      sourceId: "governance.policy_condition",
+      sourceId: "governance.notification_escalated",
       category: "GOVERNANCE",
       severity: "HIGH",
       fingerprint,
@@ -192,7 +192,7 @@ describe("Operations — resolved window, grouping and isolation (live PostgreSQ
     const owner = await makeUser(c, "journey-d");
     const ws = await makeWorkspace(c, owner.id, { name: "journey-d", kind: "OWNED", billingPlan: "TEAM", billingStatus: "ACTIVE" });
     const now = Date.now();
-    const gov = { sourceId: "governance.policy_condition", category: "GOVERNANCE" as const, status: "RESOLVED" as const };
+    const gov = { sourceId: "governance.notification_escalated", category: "GOVERNANCE" as const, status: "RESOLVED" as const };
     const backlog = { sourceId: "pipeline.report_backlog", category: "REPORT" as const, status: "RESOLVED" as const };
     // Source 1: three resolved — two this week, one a month ago.
     // Source 2: two resolved — both a month ago (last seen today).
@@ -213,7 +213,7 @@ describe("Operations — resolved window, grouping and isolation (live PostgreSQ
     const all = await groupsOf("&status=RESOLVED", owner.token, ws.teamId);
     expect(all.body.totals).toEqual({ groups: 2, conditions: 5 });
     const recent = await groupsOf("&status=RESOLVED&resolvedWithinDays=7", owner.token, ws.teamId);
-    expect(recent.body.groups.map((g) => g.sourceId)).toEqual(["governance.policy_condition"]);
+    expect(recent.body.groups.map((g) => g.sourceId)).toEqual(["governance.notification_escalated"]);
     expect(recent.body.totals).toEqual({ groups: 1, conditions: 2 });
     expect(Date.parse(recent.body.groups[0]!.latestResolvedAtUtc!)).toBeGreaterThan(now - 2 * DAY);
   });

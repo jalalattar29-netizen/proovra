@@ -27,10 +27,28 @@ import {
 
 describe("Operations truth reconciliation (live PostgreSQL 16)", () => {
   let c: Ctx;
+  /** Every condition this file seeds, so it can leave the database as it found it. */
+  const seededIds: string[] = [];
+  const seed = async (...args: Parameters<typeof seedIncident>) => {
+    const row = await seedIncident(...args);
+    seededIds.push(row.id);
+    return row;
+  };
   beforeAll(async () => {
     c = await bootOps();
   }, 900_000);
   afterAll(async () => {
+    // The rows seeded below are deliberately in the shapes the OLD code wrote:
+    // a `queue.retry_storm` row, and an hourly `reconciliation:provider_auth:*`
+    // row with NO team. The harness cleanup owns neither (the provider row has
+    // no workspace at all), so without this they outlive the file and sit in
+    // the shared database as "a retry storm exists" and "a second
+    // provider-authorization row exists" for every LATER suite that measures
+    // those sources (operations-truth-platform OPS-002 / OPS-027). Their
+    // events cascade with them.
+    if (seededIds.length > 0) {
+      await c?.prisma.operationalIncident.deleteMany({ where: { id: { in: seededIds } } });
+    }
     await c?.h.cleanup();
   });
 
@@ -40,15 +58,15 @@ describe("Operations truth reconciliation (live PostgreSQL 16)", () => {
     const space = await personalSpace(c, owner.id);
     const t = Date.now();
 
-    const retired = await seedIncident(c, w.teamId, { sourceId: "queue.retry_storm", category: "WORKER", fingerprint: `dashboard:reliability:retry_storms:${w.teamId}` });
-    const telemetry = await seedIncident(c, w.teamId, { sourceId: null, category: "WORKER", fingerprint: `dashboard:telemetry:queue_stale:${w.teamId}` });
-    const heartbeat = await seedIncident(c, w.teamId, { sourceId: "platform.worker_heartbeat_stale", category: "WORKER", fingerprint: `dashboard:worker:heartbeat_stale:${w.teamId}` });
-    const providerHourly = await seedIncident(c, null, { sourceId: "billing.provider_authorization", category: "RECONCILIATION", fingerprint: `reconciliation:provider_auth:PAYPAL:${t}` });
-    const denied = await seedIncident(c, w.teamId, { sourceId: "identity.security_condition", category: "IDENTITY_SECURITY", fingerprint: "identity_security:security_event:permission_denied" });
+    const retired = await seed(c, w.teamId, { sourceId: "queue.retry_storm", category: "WORKER", fingerprint: `dashboard:reliability:retry_storms:${w.teamId}` });
+    const telemetry = await seed(c, w.teamId, { sourceId: null, category: "WORKER", fingerprint: `dashboard:telemetry:queue_stale:${w.teamId}` });
+    const heartbeat = await seed(c, w.teamId, { sourceId: "platform.worker_heartbeat_stale", category: "WORKER", fingerprint: `dashboard:worker:heartbeat_stale:${w.teamId}` });
+    const providerHourly = await seed(c, null, { sourceId: "billing.provider_authorization", category: "RECONCILIATION", fingerprint: `reconciliation:provider_auth:PAYPAL:${t}` });
+    const denied = await seed(c, w.teamId, { sourceId: "identity.security_condition", category: "IDENTITY_SECURITY", fingerprint: "identity_security:security_event:permission_denied" });
 
     // A Personal record's failure, stranded unscoped; and one whose record is gone.
     const personalEv = await seedEvidence(c, null, owner.id);
-    const stranded = await seedIncident(c, null, {
+    const stranded = await seed(c, null, {
       scope: "LEGACY_UNSCOPED",
       sourceId: "pipeline.report_generation_failed",
       category: "REPORT",
@@ -58,7 +76,7 @@ describe("Operations truth reconciliation (live PostgreSQL 16)", () => {
 
     // A raw-message identity and summary.
     const teamEv = await seedEvidence(c, w.teamId, owner.id);
-    const raw = await seedIncident(c, w.teamId, {
+    const raw = await seed(c, w.teamId, {
       sourceId: "pipeline.report_generation_failed",
       category: "REPORT",
       fingerprint: `REPORT:${teamEv.id}:S3_PUTOBJECT_DENIED FOR ARN:AWS:S3:::SECRET`,
@@ -68,7 +86,7 @@ describe("Operations truth reconciliation (live PostgreSQL 16)", () => {
 
     // A TSA condition resolved early by the old "not FAILED" rule.
     const tsaEv = await seedEvidence(c, w.teamId, owner.id, { tsaStatus: "PENDING" });
-    const premature = await seedIncident(c, w.teamId, {
+    const premature = await seed(c, w.teamId, {
       sourceId: "evidence_integrity.tsa_failed",
       category: "EVIDENCE_INTEGRITY",
       fingerprint: `tsa_failure:${tsaEv.id}`,
@@ -78,7 +96,7 @@ describe("Operations truth reconciliation (live PostgreSQL 16)", () => {
     await c.prisma.operationalIncident.update({ where: { id: premature.id }, data: { resolvedAtUtc: new Date(), resolvedByUserId: null } });
 
     // A billing condition whose add-on is gone.
-    const orphanBilling = await seedIncident(c, space, {
+    const orphanBilling = await seed(c, space, {
       sourceId: "billing.dependent_cancellation_failed",
       category: "STORAGE",
       fingerprint: "billing_dependent_cancellation:44444444-4444-4444-8444-444444444444",

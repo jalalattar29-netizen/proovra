@@ -357,11 +357,13 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     id: "integration.configuration_failure",
     owner: "ApiCredential / integration settings",
     scopeAuthority: "STRICT_WORKSPACE_COLUMN",
-    discovery: "written by the integration domain on configuration rejection",
+    // NOT PRODUCED: no emitter writes this source (NOT_YET_DISCOVERED). It is
+    // advertised on no surface until a real producer exists.
+    discovery: "not produced — no emitter writes this source (registered for classification only)",
     fingerprint: "one condition per integration",
     resolution: "the configuration is corrected",
     freshnessParticipating: false,
-    surfaces: { home: false, notifications: true, operations: true },
+    surfaces: { home: false, notifications: false, operations: false },
   },
   {
     id: "identity.security_condition",
@@ -375,43 +377,49 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
   },
   {
     id: "governance.policy_condition",
-    owner: "GovernanceReconciliationRun / retention",
+    owner: "none — not produced",
     scopeAuthority: "STRICT_WORKSPACE_COLUMN",
-    discovery: "written by the governance reconciliation families",
-    fingerprint: "one condition per (family, workspace)",
-    resolution: "an operator records the workspace's conclusion",
+    discovery: "not produced: no emitter writes it and nothing routes to it (historical classification only)",
+    fingerprint: "historical rows only",
+    resolution: "not applicable — inactive",
     freshnessParticipating: false,
-    surfaces: { home: false, notifications: false, operations: true },
+    surfaces: { home: false, notifications: false, operations: false },
   },
   {
     id: "storage.condition",
     owner: "object storage",
     scopeAuthority: "PLATFORM_TELEMETRY",
-    discovery: "written by the storage health path",
+    // NOT PRODUCED: no emitter writes this source (NOT_YET_DISCOVERED). It is
+    // advertised on no surface until a real producer exists.
+    discovery: "not produced — no emitter writes this source (registered for classification only)",
     fingerprint: "one condition per failure class",
     resolution: "storage recovers",
     freshnessParticipating: false,
-    surfaces: { home: false, notifications: false, operations: true },
+    surfaces: { home: false, notifications: false, operations: false },
   },
   {
     id: "ai.condition",
     owner: "AI provider budget / availability",
     scopeAuthority: "PLATFORM_TELEMETRY",
-    discovery: "written by the AI runtime on budget or provider failure",
+    // NOT PRODUCED: no emitter writes this source (NOT_YET_DISCOVERED). It is
+    // advertised on no surface until a real producer exists.
+    discovery: "not produced — no emitter writes this source (registered for classification only)",
     fingerprint: "one condition per failure class",
     resolution: "the provider recovers or the budget resets",
     freshnessParticipating: false,
-    surfaces: { home: false, notifications: false, operations: true },
+    surfaces: { home: false, notifications: false, operations: false },
   },
   {
     id: "database.condition",
     owner: "PostgreSQL",
     scopeAuthority: "PLATFORM_TELEMETRY",
-    discovery: "written by the health path on database failure",
+    // NOT PRODUCED: no emitter writes this source (NOT_YET_DISCOVERED). It is
+    // advertised on no surface until a real producer exists.
+    discovery: "not produced — no emitter writes this source (registered for classification only)",
     fingerprint: "one condition per failure class",
     resolution: "the database recovers",
     freshnessParticipating: false,
-    surfaces: { home: false, notifications: false, operations: true },
+    surfaces: { home: false, notifications: false, operations: false },
   },
   // -------------------------------------------------------------------------
   // WRITTEN BY THEIR OWN DOMAIN, AT THE MOMENT IT HAPPENS.

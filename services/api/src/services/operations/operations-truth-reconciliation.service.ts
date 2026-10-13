@@ -28,6 +28,7 @@
  */
 
 import * as prismaPkg from "@prisma/client";
+import { stampConditionMessage } from "@proovra/shared";
 import {
   decideObservationTransition,
   decisionIsReopen,
@@ -106,16 +107,14 @@ const PREMATURE_RECOVERY_SOURCES = [
   "evidence_integrity.ots_failed",
 ];
 const CLOSED_CLASS = /^[A-Z][A-Z0-9_]{2,63}$/;
-const SAFE_REPORT_TEXT = {
-  title: "Report generation failed",
-  safeSummary:
-    "This record's report could not be generated. The evidence is unaffected. An operator can recover it from Operations; the condition clears only when the report exists.",
-};
-const SAFE_PACKAGE_TEXT = {
-  title: "Verification package generation failed",
-  safeSummary:
-    "This record's verification package could not be generated. The evidence and its report are unaffected. An operator can recover it from Operations; the condition clears only when the package exists.",
-};
+// The fixed safe sentences, from the shared catalogue so the repaired row
+// carries the code its words were rendered from (and renders in every locale).
+function safeTextFor(code: "ops.pipeline.report_generation_failed.sanitized" | "ops.pipeline.package_generation_failed.sanitized") {
+  const stamped = stampConditionMessage({ code, params: {} })!;
+  return { code, title: stamped.title, safeSummary: stamped.summary };
+}
+const SAFE_REPORT_TEXT = safeTextFor("ops.pipeline.report_generation_failed.sanitized");
+const SAFE_PACKAGE_TEXT = safeTextFor("ops.pipeline.package_generation_failed.sanitized");
 
 function emptyCounts(): RuleCounts {
   return { matched: 0, changed: 0, requiresOwnerReview: 0, truncated: false };
@@ -569,7 +568,12 @@ export async function reconcileOperationsTruth(
         }
         await client.operationalIncident.update({
           where: { id: row.id },
-          data: { title: safe.title, safeSummary: safe.safeSummary },
+          data: {
+            title: safe.title,
+            safeSummary: safe.safeSummary,
+            messageCode: safe.code,
+            messageParams: {},
+          },
         });
         await client.operationalIncidentEvent.create({
           data: {

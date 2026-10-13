@@ -30,6 +30,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { renderConditionMessage } from "@proovra/shared";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -70,7 +71,9 @@ describe("Worker incident emitter — safeSummary cannot be NULL", () => {
   });
 
   it("recordWorkerIncident applies coerceSafeSummary BEFORE clipString (so empty/undefined cannot reach prisma)", () => {
-    const coerceIdx = EMITTER.indexOf("coerceSafeSummary(input.safeSummary)");
+    // The summary is the catalogue-rendered text (or a test's literal); it is
+    // coerced before it is clipped and inserted either way.
+    const coerceIdx = EMITTER.indexOf("coerceSafeSummary(rawSummary)");
     const insertIdx = EMITTER.indexOf("safeSummary,");
     expect(coerceIdx).toBeGreaterThan(0);
     expect(insertIdx).toBeGreaterThan(coerceIdx);
@@ -91,12 +94,21 @@ describe("Worker incident emitter — safeSummary cannot be NULL", () => {
       .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
     expect(block.length).toBeGreaterThan(200);
     expect(block).not.toMatch(/rawMessage|errorMessage/);
-    const summary = block.slice(block.indexOf("safeSummary:"), block.indexOf("relatedEvidenceId:"));
-    const literals = summary.match(/`[^`]+`/g) ?? [];
-    expect(literals.length).toBe(2);
-    for (const l of literals) {
-      expect(l.length).toBeGreaterThan(40);
-      expect(l.replace(/\$\{(targetVersion|errorClass)\}/g, "")).not.toMatch(/\$\{/);
+    // The bridge records a catalogue CODE whose only params are closed values:
+    // the version, the record's short ref and the closed error class.
+    const message = block.slice(block.indexOf("message:"), block.indexOf("relatedEvidenceId:"));
+    const codes = [...message.matchAll(/"(ops\.[a-z0-9_.]+)"/g)].map((m) => m[1]!);
+    expect(codes).toEqual([
+      "ops.pipeline.report_generation_failed.retries_exhausted",
+      "ops.pipeline.report_generation_failed.not_retriable",
+    ]);
+    expect(message).toMatch(/params:\s*\{\s*version:\s*targetVersion,\s*recordRef,\s*errorClass\s*\}/);
+    // And each code's summary is a FIXED sentence in every locale.
+    for (const code of codes) {
+      for (const locale of ["en", "de", "ar"] as const) {
+        const r = renderConditionMessage(locale, code, { version: 2, recordRef: "9f1d2c3b", errorClass: "UNCLASSIFIED" })!;
+        expect(r.summary.length, `${code}/${locale}`).toBeGreaterThan(40);
+      }
     }
   });
 

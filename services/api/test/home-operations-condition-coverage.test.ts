@@ -141,6 +141,12 @@ describe("each representation matches the source's own lifecycle contract", () =
       if (!lifecycle) continue;
       if (lifecycle.audience === "PLATFORM_INTERNAL") continue;
       const kind = representationFor(id)?.kind;
+      // A source NOTHING produces is not advertised at all.
+      // (The UNREGISTERED fallback is not a source: real rows land there.)
+      if (lifecycle.discoveryState === "NOT_YET_DISCOVERED" && id !== "unregistered.condition") {
+        expect(kind, `${id} is not produced and must not be a Home row`).toBe("NOT_PRODUCED");
+        continue;
+      }
       expect(["ROW", "MERGE"], `${id} (${lifecycle.audience}) got ${kind}`).toContain(kind);
     }
   });

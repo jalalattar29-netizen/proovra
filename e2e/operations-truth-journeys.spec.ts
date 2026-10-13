@@ -805,7 +805,7 @@ function seedCondition(teamId: string, severity: "CRITICAL" | "HIGH", label: str
   return String(
     sql(
       `INSERT INTO operational_incidents (team_id, scope, source_id, category, severity, status, fingerprint, title, safe_summary, updated_at)
-       VALUES ($1, 'WORKSPACE', 'governance.policy_condition', 'GOVERNANCE', $2::"IncidentSeverity", 'OPEN', $3, $4, 'A governance policy condition that needs a decision.', now())
+       VALUES ($1, 'WORKSPACE', 'governance.notification_escalated', 'GOVERNANCE', $2::"IncidentSeverity", 'OPEN', $3, $4, 'A governance notification that needs a decision.', now())
        RETURNING id`,
       [teamId, severity, `journey-e:${label}:${Date.now()}`, `Policy decision needed — ${label}`],
     )[0]!.id,
@@ -868,7 +868,7 @@ test.describe("Journey E — Enterprise roll-up, drilldown and action on the ori
     const garbage = await owner.api.get(`/v1/orgs/${org.organizationId}/operations/incidents?cursor=not-a-cursor`);
     expect(garbage.status()).toBe(400);
     expect(((await garbage.json()) as { error?: { code?: string } }).error?.code).toBe("invalid_cursor");
-    expect((await list("sourceId=governance.policy_condition")).incidents).toHaveLength(3);
+    expect((await list("sourceId=governance.notification_escalated")).incidents).toHaveLength(3);
 
     // In the browser: the readiness page shows the union and drills into the
     // ORIGINAL condition in its own workspace.

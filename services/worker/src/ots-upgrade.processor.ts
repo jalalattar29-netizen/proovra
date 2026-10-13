@@ -586,9 +586,10 @@ async function commitOtsTransition(input: {
         category: "WORKER",
         severity: "CRITICAL",
         fingerprint: `OTS:${evidenceId}:GLOBAL_BUDGET_EXHAUSTED`,
-        title: `Bitcoin anchoring gave up (${evidenceId.slice(0, 8)})`,
-        safeSummary:
-          "Global budget exhausted: the OpenTimestamps proof did not anchor in Bitcoin within the configured retry budget — no further attempts will be made.",
+        message: {
+          code: "ops.evidence_integrity.ots_budget_exhausted",
+          params: { recordRef: evidenceId.slice(0, 8) },
+        },
         relatedEvidenceId: evidenceId,
         relatedJobId: job.id,
         metadata: {

@@ -238,18 +238,33 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
     throw new Error(`sweep did not drain within ${maxTicks} ticks`);
   }
 
+  /**
+   * The wall-clock budget of a drain: the drain's OWN bound (`maxTicks` ticks
+   * of at most `batchSize` workspaces) at a generous per-workspace cost. The
+   * integration database is shared, so how many workspaces are due depends on
+   * what earlier suites left; the 60s default measured that, not the sweep.
+   */
+  const DRAIN_BUDGET_MS = 40 * 50 * 500;
+
   it("the sweep reaches workspaces nobody has opened", async () => {
     // The whole point of §7: discovery no longer depends on a page visit.
+    // THIS suite's own workspaces become never-opened. Every OTHER suite's run
+    // rows are left alone: erasing them all made every workspace in the shared
+    // database due at once, and rewrote state this file does not own.
+    const mine = [personal.teamId, teamA.teamId, teamB.teamId];
     await prisma.governanceReconciliationRun.deleteMany({
-      where: { kind: "WORKSPACE_OPERATIONS" },
+      where: { kind: "WORKSPACE_OPERATIONS", teamId: { in: mine } },
     });
+    for (const workspaceId of mine) {
+      expect(await runtime.latestWorkspaceOperationsRun(prisma, workspaceId)).toBeNull();
+    }
     await drainSweep();
 
-    for (const workspaceId of [personal.teamId, teamA.teamId, teamB.teamId]) {
+    for (const workspaceId of mine) {
       const run = await runtime.latestWorkspaceOperationsRun(prisma, workspaceId);
       expect(run, `${workspaceId} was never scanned`).not.toBeNull();
     }
-  });
+  }, DRAIN_BUDGET_MS);
 
   it("a workspace inside its freshness window is not re-swept", async () => {
     // Drain first: "nothing is due" is only assertable once nothing IS due.
@@ -261,7 +276,7 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
     // Churning fresh workspaces would spend the batch on ones that already
     // have a current picture while the ones that do not keep waiting.
     expect(second.reconciled).toBe(0);
-  });
+  }, DRAIN_BUDGET_MS);
 
   // -------------------------------------------------------------------------
   // §8 — the false-clear contract, end to end.

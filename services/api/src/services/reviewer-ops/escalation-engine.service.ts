@@ -37,6 +37,7 @@ import {
   stringContainsForbiddenOverclaim,
   type ReviewEscalationReason,
   type ReviewEscalationStatus,
+  type StuckReasonCode,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -168,6 +169,15 @@ export type CreateEscalationInput = {
   reason: ReviewEscalationReason;
   /** Bounded to 400 chars; wording is scrubbed by the service. */
   safeSummary: string;
+  /**
+   * The SYSTEM's own wording for the operational condition a HIGH/CRITICAL
+   * escalation opens, as a catalogue code. Automatic escalations pass one;
+   * a person's escalation omits it and the condition shows their note as
+   * written (user-authored text is never machine-translated).
+   */
+  conditionMessage?:
+    | { code: "ops.review.escalation.overdue_auto" }
+    | { code: "ops.review.escalation.stuck_auto"; stuck: StuckReasonCode };
   severity?: "INFO" | "WARNING" | "HIGH" | "CRITICAL";
   workflowInstanceId?: string | null;
   evidenceId?: string | null;
@@ -337,8 +347,15 @@ export async function createEscalation(
         category: "GOVERNANCE",
         severity: severity === "CRITICAL" ? "CRITICAL" : "HIGH",
         fingerprint: `review-escalation:${input.reason}:${input.workflowId}`,
-        title: `Reviewer escalation — ${input.reason}`,
-        safeSummary: summary,
+        message:
+          input.conditionMessage?.code === "ops.review.escalation.stuck_auto"
+            ? {
+                code: "ops.review.escalation.stuck_auto",
+                params: { reason: String(input.reason), stuck: input.conditionMessage.stuck },
+              }
+            : input.conditionMessage?.code === "ops.review.escalation.overdue_auto"
+              ? { code: "ops.review.escalation.overdue_auto", params: { reason: String(input.reason) } }
+              : { code: "ops.review.escalation", params: { reason: String(input.reason), note: summary } },
         relatedEvidenceId: workflow.evidenceId,
         runbookSlug:
           input.reason === "REVIEW_OVERDUE" ||

@@ -20,7 +20,7 @@ import { apiFetch } from "../../../src/api";
 import { toSafeUserError } from "../../../src/errors/safe-error";
 import { useOptionalLocale } from "../../../src/locale-context";
 import { usePlatformContext } from "../../../src/product/platform-context";
-import { canViewWorkspaceHealth, categoryLabel } from "../../../src/product/ops-console";
+import { canViewWorkspaceHealth, categoryLabel, conditionSummary, conditionTitle } from "../../../src/product/ops-console";
 import { fillOpsCopy, formatOpsCount, formatOpsDateTime, opsCopyFor } from "../../../src/product/ops-copy";
 import {
   ALERTS_CAP,
@@ -214,9 +214,9 @@ function WorkspaceHealthBody() {
             {alerts.value.items.map((a) => (
               <ProovraListRow
                 key={a.id}
-                title={a.title || t.conditionFallbackTitle}
+                title={conditionTitle(a, t)}
                 subtitle={[
-                  a.safeSummary,
+                  conditionSummary(a, t) || null,
                   categoryLabel(a.category, t),
                   fillOpsCopy(t.healthAlertTimes, { first: when(a.firstSeenAtUtc), last: when(a.lastSeenAtUtc), n: count(a.occurrenceCount) }),
                 ]

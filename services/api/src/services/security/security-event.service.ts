@@ -24,6 +24,7 @@ import {
   SECURITY_EVENT_TYPES,
   type SecurityEventSeverity,
   type SecurityEventType,
+  type ConditionMessage,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -254,8 +255,7 @@ async function maybeAutoCreateIncident(
   }
   const { category, runbookSlug, sourceId } = mapping;
   const fingerprint = `${category.toLowerCase()}:security_event:${input.eventType}`;
-  const title = `Security signal: ${input.eventType}`;
-  const safeSummary = buildSafeSummaryFromDetails(input);
+  const message = securitySignalMessage(input);
   try {
     await incident.recordIncident(
       {
@@ -268,8 +268,7 @@ async function maybeAutoCreateIncident(
         category,
         severity: input.severity === "HIGH" ? "HIGH" : "WARNING",
         fingerprint,
-        title,
-        safeSummary,
+        message,
         runbookSlug,
         relatedJobId: securityEventId,
         metadata: { eventType: input.eventType },
@@ -959,17 +958,23 @@ export const CLASSIFIED_SECURITY_EVENTS: Readonly<
   }
 }
 
-function buildSafeSummaryFromDetails(input: EmitSecurityEventInput): string {
-  const parts: string[] = [`Severity ${input.severity}`];
-  if (input.teamId) parts.push(`team ${input.teamId.slice(0, 8)}…`);
+function securitySignalMessage(input: EmitSecurityEventInput): ConditionMessage {
   // The details payload was already clipped/sanitised by safeDetails
   // (4 KiB cap, 1 KB string cap per field, no secrets). We only echo
   // the top-level keys to give operators a glance, never the values.
-  if (input.details && typeof input.details === "object") {
-    const keys = Object.keys(input.details).slice(0, 6).join(", ");
-    if (keys.length > 0) parts.push(`fields: ${keys}`);
-  }
-  return parts.join(" · ");
+  const keys =
+    input.details && typeof input.details === "object"
+      ? Object.keys(input.details).slice(0, 6).join(", ")
+      : "";
+  return {
+    code: "ops.security.signal",
+    params: {
+      eventType: String(input.eventType),
+      severity: String(input.severity),
+      teamRef: input.teamId ? input.teamId.slice(0, 8) : null,
+      fields: keys.length > 0 ? keys : null,
+    },
+  };
 }
 
 // -----------------------------------------------------------------------------

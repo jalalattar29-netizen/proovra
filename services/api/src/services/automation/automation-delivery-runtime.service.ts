@@ -1142,8 +1142,10 @@ export async function markDestinationFailure(
           category: "INTEGRATION",
           severity: "HIGH",
           fingerprint: webhookDestinationDisabledFingerprint(updated.id),
-          title: "Webhook destination disabled after repeated failures",
-          safeSummary: `Automation stopped delivering to this webhook destination after ${updated.consecutiveFailureCount} consecutive failed deliveries. Fix the receiving endpoint, then re-enable the destination in Automation.`,
+          message: {
+            code: "ops.integration.webhook_destination_disabled",
+            params: { failures: updated.consecutiveFailureCount },
+          },
           runbookSlug: null,
           metadata: {
             destinationId: updated.id,

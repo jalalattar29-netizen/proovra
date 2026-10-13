@@ -7730,6 +7730,12 @@ model OperationalIncident {
   /// wrong.
   metricSnapshot Json? @map("metric_snapshot")
 
+  /// The semantic message code the title/summary were rendered from, and its
+  /// structured params (packages/shared operations-condition-messages). NULL on
+  /// rows written before codes existed: those render their stored text.
+  messageCode   String? @map("message_code") @db.VarChar(120)
+  messageParams Json?   @map("message_params")
+
   /// WHICH OPERATIONS SOURCE OWNS THIS CONDITION — declared, never inferred.
   ///
   /// Lifecycle authority used to be derived from `category` (fourteen values

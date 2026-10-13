@@ -94,7 +94,7 @@ test("loaded: the four allowance lines in the web's order, with counts, bands, r
     "API Keys: 6% used",
     "Team Members: 40% used",
   ]);
-  assert.ok(r.hasText("9500 / 10000"));
+  assert.ok(r.hasText("9,500 / 10,000"));
   assert.ok(r.hasText("500 remaining"));
   assert.ok(r.hasText("25 remaining") && r.hasText("47 remaining") && r.hasText("6 remaining"));
   // resetDate is sent on `analyses` only (enterprise.routes.ts getRealQuotas).
@@ -207,7 +207,7 @@ test("the header, usage-card and quota-card copy is the web's", async () => {
   assert.ok(r.hasText("Review analysis activity, cost metrics, quota consumption, and active service usage from one dashboard."));
   for (const t of ["Analyses processed today", "Analyses processed this week", "Analyses processed this month", "Average AI analysis cost"]) assert.ok(r.hasText(t), t);
   for (const t of ["Analysis Calls", "Batch Jobs", "API Keys", "Team Members"]) assert.ok(r.hasText(t), t);
-  assert.ok(r.hasText("9500 / 10000 used · 500 remaining"));
+  assert.ok(r.hasText("9,500 / 10,000 used · 500 remaining"));
   assert.ok(r.hasText("Current Quotas"));
   r.unmount();
 });

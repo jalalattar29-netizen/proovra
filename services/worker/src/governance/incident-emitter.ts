@@ -18,6 +18,7 @@
  */
 
 import * as prismaPkg from "@prisma/client";
+import { type ConditionMessage, stampConditionMessage } from "@proovra/shared";
 
 import {
   decideObservationTransition,
@@ -25,6 +26,7 @@ import {
   OCCURRENCE_WHILE_SUPPRESSED_EVENT,
   OCCURRENCE_AFTER_RESOLUTION_EVENT,
   closeSlaCycle,
+  lifecycleForSourceId,
   openSlaCycle,
   REOPENED_EVENT,
   reopenReasonFor,
@@ -85,7 +87,16 @@ async function readWorkerResolutionOrigin(
 // the worker-side bridge can land report / package / OTS / intake /
 // integration / reconciliation failures that previously vanished into
 // BullMQ DLQs without ever surfacing in /v1/me/inbox.
-export type RecordWorkerIncidentInput = {
+/**
+ * WHAT THE CONDITION SAYS — exactly as in the API writer: production callers
+ * pass a catalogue `message` (code + params) and the stored English is
+ * rendered from it; literal `title` / `safeSummary` remain for tests.
+ */
+export type RecordWorkerIncidentText =
+  | { message: ConditionMessage; title?: never; safeSummary?: never }
+  | { message?: never; title: string; safeSummary: string };
+
+export type RecordWorkerIncidentInput = RecordWorkerIncidentText & {
   /**
    * WHICH REGISTERED OPERATIONS SOURCE THIS CONDITION COMES FROM.
    *
@@ -112,8 +123,6 @@ export type RecordWorkerIncidentInput = {
     | "RECONCILIATION";
   severity: "INFO" | "WARNING" | "HIGH" | "CRITICAL";
   fingerprint: string;
-  title: string;
-  safeSummary: string;
   relatedEvidenceId?: string | null;
   relatedJobId?: string | null;
   correlationId?: string | null;
@@ -302,11 +311,30 @@ export async function recordWorkerIncident(
     return null;
   }
   const fingerprint = clipString(input.fingerprint, FINGERPRINT_MAX);
-  const title = clipString(input.title, TITLE_MAX);
+  // A message whose params do not satisfy its code is written WITHOUT a code
+  // under the source's own label: the observation is kept, and no reader
+  // renders a half-filled sentence.
+  const stamped = input.message ? stampConditionMessage(input.message) : null;
+  if (input.message && !stamped) {
+    logger.warn({ sourceId: input.sourceId, code: input.message.code }, "worker.incident.message_invalid");
+  }
+  const rawTitle = stamped
+    ? stamped.title
+    : input.message
+      ? (lifecycleForSourceId(input.sourceId)?.displayLabel ?? "Operational condition")
+      : (input.title ?? "");
+  const rawSummary = stamped
+    ? stamped.summary
+    : input.message
+      ? "This condition was recorded without readable details."
+      : input.safeSummary;
+  const messageCode = stamped?.code ?? null;
+  const messageParams = stamped?.params ?? prismaPkg.Prisma.DbNull;
+  const title = clipString(rawTitle, TITLE_MAX);
   // Coerce BEFORE clip — if a caller passed empty/undefined, we use a
   // deterministic fallback rather than INSERT NULL into a NOT NULL
   // column and lose the operator-facing record entirely.
-  const safeSummary = clipString(coerceSafeSummary(input.safeSummary), SUMMARY_MAX);
+  const safeSummary = clipString(coerceSafeSummary(rawSummary), SUMMARY_MAX);
   // OPS-015 — A RECORD'S CONDITION BELONGS TO THE RECORD'S WORKSPACE.
   //
   // A Personal record is stored with team_id NULL, so every caller that passed
@@ -399,6 +427,8 @@ export async function recordWorkerIncident(
           fingerprint,
           title,
           safeSummary,
+          messageCode,
+          messageParams,
           relatedEvidenceId: input.relatedEvidenceId ?? null,
           relatedJobId: input.relatedJobId?.slice(0, 128) ?? null,
           openedBySystem: true,
@@ -516,6 +546,13 @@ export async function recordWorkerIncident(
       data: {
         lastSeenAtUtc: observedAt,
         occurrenceCount: { increment: 1 },
+        // The words and their code are refreshed together, so a row written
+        // before codes existed is stamped by its next observation and the
+        // code always describes the stored text.
+        title,
+        safeSummary,
+        messageCode,
+        messageParams,
         // A reopen is a new active interval: the CURRENT severity, never the
         // worst one from a cycle that has already ended.
         severity: severityToPrismaEnum(willReopen ? input.severity : nextSeverity),
@@ -539,7 +576,7 @@ export async function recordWorkerIncident(
       if ((input as { __casRetry?: boolean }).__casRetry) {
         throw new Error("operational_incident_concurrent_transition");
       }
-      return recordWorkerIncident({ ...input, __casRetry: true } as RecordWorkerIncidentInput);
+      return recordWorkerIncident({ ...input, __casRetry: true } as unknown as RecordWorkerIncidentInput);
     }
     const row = await prisma.operationalIncident.findUniqueOrThrow({ where: { id: existing.id } });
     if (willReopen) await startSlaCycle(row, observedAt, true);

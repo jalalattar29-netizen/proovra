@@ -408,8 +408,10 @@ export async function noteSsoFailure(
         category: "IDENTITY_SECURITY",
         severity: "HIGH",
         fingerprint: `idp-outage:${row.id}`,
-        title: `IdP outage — ${row.provider}`,
-        safeSummary: `Identity provider ${row.provider} has produced ${newCount} consecutive callback failures.`,
+        message: {
+          code: "ops.identity.idp_outage",
+          params: { provider: String(row.provider), failures: newCount },
+        },
         runbookSlug: "idp-outage-response",
         metadata: { connectionId: row.id, provider: row.provider },
       });

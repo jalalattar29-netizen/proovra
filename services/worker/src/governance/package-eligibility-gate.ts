@@ -261,8 +261,7 @@ async function emitDenial(
       category: "GOVERNANCE",
       severity: denial.outcome === "GOVERNANCE_STATE_UNAVAILABLE" ? "HIGH" : "WARNING",
       fingerprint: `worker_package_gate:${input.teamId}:${input.evidenceId}:${denial.outcome}`,
-      title: `Package generation denied — ${denial.outcome}`,
-      safeSummary: `Verification package denied for evidence record. ${label}`,
+      message: { code: "ops.pipeline.package_generation_denied", params: { outcome: denial.outcome } },
       relatedEvidenceId: input.evidenceId,
       metadata: {
         outcome: denial.outcome,

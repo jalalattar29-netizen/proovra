@@ -28,9 +28,11 @@ import {
   type IncidentCategory,
   type IncidentSeverity,
   type IncidentStatus,
+  type ConditionMessage,
   clipSafeSummary,
   isAllowedIncidentStatusTransition,
   isValidIncidentFingerprint,
+  stampConditionMessage,
 } from "@proovra/shared";
 
 import {
@@ -38,6 +40,7 @@ import {
   CONDITION_ACTIVITY_UNKNOWN,
   CONDITION_NOT_DIRECTLY_RESOLVABLE,
   conditionTitle,
+  conditionTitleSource,
   CONDITION_STILL_ACTIVE,
   RESOLUTION_NOTE_REQUIRED,
   decideManualResolution,
@@ -202,7 +205,23 @@ export async function readResolutionOrigin(
 // recordIncident — upsert by (teamId, fingerprint)
 // -----------------------------------------------------------------------------
 
-export type RecordIncidentInput = {
+/**
+ * WHAT THE CONDITION SAYS — a semantic code, or (tests and legacy callers
+ * only) literal English.
+ *
+ * Production writers pass `message`: a code from the shared catalogue
+ * (packages/shared/src/operations-condition-messages.ts) and its structured
+ * params. The stored English `title` / `safeSummary` are rendered from that
+ * same catalogue here, and the code and params are stored beside them, so
+ * every client renders the condition in its own language and the English can
+ * never drift from the translations. `operations-condition-message-writers`
+ * proves every production call site passes a code.
+ */
+export type RecordIncidentText =
+  | { message: ConditionMessage; title?: never; safeSummary?: never }
+  | { message?: never; title: string; safeSummary: string };
+
+export type RecordIncidentInput = RecordIncidentText & {
   teamId?: string | null;
   /**
    * WHICH REGISTERED OPERATIONS SOURCE THIS CONDITION COMES FROM.
@@ -224,8 +243,6 @@ export type RecordIncidentInput = {
   category: IncidentCategory;
   severity: IncidentSeverity;
   fingerprint: string;
-  title: string;
-  safeSummary: string;
   requestId?: string | null;
   traceId?: string | null;
   relatedEvidenceId?: string | null;
@@ -280,6 +297,37 @@ function isIncidentIdentityCollision(err: unknown): boolean {
   );
 }
 
+/**
+ * The stored text and code for a write. A message whose params do not satisfy
+ * its code's declared shape is a writer bug: it is counted, and the row is
+ * written WITHOUT a code under its source's own label, so the observation is
+ * kept and no reader renders a half-filled sentence.
+ */
+export function resolveRecordIncidentText(input: RecordIncidentText & { sourceId: string }): {
+  title: string;
+  summary: string;
+  messageCode: string | null;
+  messageParams: Record<string, string | number> | null;
+} {
+  if (input.message) {
+    const stamped = stampConditionMessage(input.message);
+    if (stamped) {
+      return { title: stamped.title, summary: stamped.summary, messageCode: stamped.code, messageParams: stamped.params };
+    }
+    bump("operations_condition_message_invalid_total");
+    const label =
+      lifecycleForSourceId(input.sourceId)?.displayLabel ??
+      "Operational condition";
+    return {
+      title: label,
+      summary: "This condition was recorded without readable details.",
+      messageCode: null,
+      messageParams: null,
+    };
+  }
+  return { title: input.title ?? "", summary: input.safeSummary ?? "", messageCode: null, messageParams: null };
+}
+
 export async function recordIncident(
   input: RecordIncidentInput,
   client: PrismaClient = defaultPrisma,
@@ -292,8 +340,9 @@ export async function recordIncident(
     // column exists to prevent.
     throw new IncidentError("invalid_fingerprint");
   }
-  const safeTitle = clipSafeSummary(input.title).slice(0, 180);
-  const safeSummary = clipSafeSummary(input.safeSummary);
+  const text = resolveRecordIncidentText(input);
+  const safeTitle = clipSafeSummary(text.title).slice(0, 180);
+  const safeSummary = clipSafeSummary(text.summary);
   const sanitisedMetadata =
     input.metadata != null ? safeJsonSnapshot(input.metadata) : null;
 
@@ -467,6 +516,8 @@ export async function recordIncident(
         fingerprint: input.fingerprint,
         title: safeTitle,
         safeSummary,
+        messageCode: text.messageCode,
+        messageParams: text.messageParams ?? prismaPkg.Prisma.DbNull,
         requestId: input.requestId?.slice(0, 128) ?? null,
         traceId: input.traceId?.slice(0, 128) ?? null,
         relatedEvidenceId: input.relatedEvidenceId ?? null,
@@ -585,6 +636,9 @@ export async function recordIncident(
       occurrenceCount: { increment: 1 },
       title: safeTitle,
       safeSummary,
+      // Re-stamped with the text: the code always describes the stored words.
+      messageCode: text.messageCode,
+      messageParams: text.messageParams ?? prismaPkg.Prisma.DbNull,
       runbookSlug: input.runbookSlug?.slice(0, 64) ?? undefined,
       // A row written before `source_id` existed gets stamped by the first
       // writer to re-observe it. Never OVERWRITTEN: a row that already carries
@@ -1835,6 +1889,20 @@ export type IncidentProjection = {
   status: string;
   title: string;
   safeSummary: string;
+  /**
+   * WHAT THE TITLE AND SUMMARY SAY, AS DATA — for clients to localize.
+   *
+   * `code` and `params` are what the writer rendered `title` / `safeSummary`
+   * from (shared catalogue, packages/shared operations-condition-messages);
+   * null on a row written before codes existed, which renders its stored text.
+   * `titleSource` says whether `title` is the source's own label (localized by
+   * `sourceId`) or the condition's own title (localized by `code`).
+   */
+  message: {
+    code: string | null;
+    params: Record<string, unknown> | null;
+    titleSource: "SOURCE_LABEL" | "CONDITION";
+  };
   fingerprint: string;
   occurrenceCount: number;
   firstSeenAtUtc: string;
@@ -2010,6 +2078,14 @@ export function projectIncident(
     // production are repaired by this read: no migration, no stored rewrite.
     title: conditionTitle({ lifecycle, match, diagnostic: null }, i.title),
     safeSummary: i.safeSummary,
+    message: {
+      code: i.messageCode ?? null,
+      params:
+        i.messageParams && typeof i.messageParams === "object" && !Array.isArray(i.messageParams)
+          ? (i.messageParams as Record<string, unknown>)
+          : null,
+      titleSource: conditionTitleSource({ lifecycle, match, diagnostic: null }),
+    },
     fingerprint: i.fingerprint,
     occurrenceCount: i.occurrenceCount,
     firstSeenAtUtc: i.firstSeenAtUtc.toISOString(),

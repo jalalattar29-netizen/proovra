@@ -2021,8 +2021,9 @@ function mergeOperationalConditions(
       continue;
     }
 
-    if (representation.kind === "RETIRED") {
-      // A false signal that is no longer produced (OPS-001 / OPS-002).
+    if (representation.kind === "RETIRED" || representation.kind === "NOT_PRODUCED") {
+      // A false signal no longer produced (OPS-001 / OPS-002), or a registered
+      // source nothing produces: neither is an operational fact to show.
       continue;
     }
     if (representation.kind === "MERGE") {

@@ -144,15 +144,9 @@ export async function syncSearchIndexConditions(
         // COUNT-FREE and stable: the same sentence on every observation, so
         // nothing in it can go out of date the way a title carrying a number
         // does. The changing numbers travel in the metadata below.
-        title: neverReconciled ? "Search index not built yet" : "Search index reconciliation failing",
-        safeSummary: neverReconciled
-          ? "This workspace's records have not been indexed for search yet — no indexing run has been recorded — so search may not find them until it runs. " +
-            "Evidence records, proofs, reports and verification packages are unaffected. " +
-            "The condition closes on its own once the index is proven complete."
-          : "This workspace's search index is out of step with its records, and nothing is currently working to close the gap, " +
-            "so search results may be missing or out of date. " +
-            "Evidence records, proofs, reports and verification packages are unaffected. " +
-            "The condition closes on its own once the index is proven complete.",
+        message: neverReconciled
+          ? { code: "ops.search.not_built", params: {} }
+          : { code: "ops.search.reconciliation_failing", params: {} },
         runbookSlug: "search-index",
         metadata: {
           // The DERIVED state, not a run's exit code. `STALLED` means work is

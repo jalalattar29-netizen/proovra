@@ -179,6 +179,7 @@ import {
 import { ToastProvider } from "../../components/ui";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
 import OperationsPage from "../../app/(app)/operations/page";
+import { directionFor } from "../../lib/i18n";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -3717,7 +3718,7 @@ describe("Operations truth closure — web", () => {
     severity: "HIGH",
     category: "GOVERNANCE",
     lifecycle: {
-      sourceId: "governance.policy_condition",
+      sourceId: "governance.notification_escalated",
       resolutionAuthority: "OPERATOR_DECISION",
       manualResolution: true,
       requiresResolutionNote: true,
@@ -3966,6 +3967,75 @@ describe("Operations truth closure — web", () => {
     localeState.locale = "ar";
     await mount(envelope(TEAM_ADMIN), "grouped");
     expect(q("h1")?.textContent).toBe("العمليات");
+  });
+
+  it("server condition titles and summaries render from their code in German and Arabic; legacy rows and unknown codes keep their stored text", async () => {
+    const coded = {
+      ...incident({ id: "i-coded", title: "Webhook destination disabled after repeated failures" }),
+      safeSummary: "Automation stopped delivering to this webhook destination after 9 consecutive failed deliveries.",
+      message: { code: "ops.integration.webhook_destination_disabled", params: { failures: 9 }, titleSource: "CONDITION" },
+    };
+    const versioned = {
+      ...incident({ id: "i-report", title: "Report v2 generation failed — record 9f1d2c3b" }),
+      message: {
+        code: "ops.pipeline.report_generation_failed.not_retriable",
+        params: { version: 2, recordRef: "9f1d2c3b", errorClass: "UNCLASSIFIED" },
+        titleSource: "CONDITION",
+      },
+    };
+    const legacy = incident({ id: "i-legacy", title: "A legacy English title" });
+    const unknown = {
+      ...incident({ id: "i-unknown-code", title: "Stored English for a future code" }),
+      message: { code: "ops.not_yet_known", params: {}, titleSource: "CONDITION" },
+    };
+    incidentsReply = () => list([coded, versioned, legacy, unknown] as never);
+    const rowText = (id: string) => (q(`[data-ops-row="${id}"]`) as HTMLElement | null)?.textContent ?? "";
+
+    localeState.locale = "de";
+    await mount(envelope(TEAM_ADMIN));
+    expect(rowText("i-coded")).toContain("Webhook-Ziel nach wiederholten Fehlern deaktiviert");
+    expect(rowText("i-coded")).not.toContain("Webhook destination disabled");
+    expect(rowText("i-report")).toContain("Erstellung von Bericht v2 fehlgeschlagen — Datensatz 9f1d2c3b");
+    expect(rowText("i-legacy")).toContain("A legacy English title");
+    expect(rowText("i-unknown-code")).toContain("Stored English for a future code");
+    for (const id of ["i-coded", "i-report", "i-legacy", "i-unknown-code"]) {
+      expect(rowText(id), id).not.toMatch(/ops\.[a-z_]+\.|\{\w+\}/);
+    }
+
+    localeState.locale = "ar";
+    await mount(envelope(TEAM_ADMIN));
+    expect(rowText("i-coded")).toContain("عُطّلت وجهة Webhook بعد إخفاقات متكررة");
+    // Technical values sit inside Unicode isolates in the Arabic sentence, so
+    // a Latin ref cannot reorder the right-to-left line around it.
+    expect(rowText("i-report")).toContain("\u20689f1d2c3b\u2069");
+    expect(rowText("i-report")).toMatch(/[؀-ۿ]/);
+    expect(rowText("i-legacy")).toContain("A legacy English title");
+    // The page itself is right-to-left in Arabic (the root layout sets dir).
+    expect(directionFor("ar")).toBe("rtl");
+    expect(directionFor("de")).toBe("ltr");
+
+    localeState.locale = "en";
+    await mount(envelope(TEAM_ADMIN));
+    expect(rowText("i-coded")).toContain("Webhook destination disabled after repeated failures");
+  });
+
+  it("a group headed by its source's label renders that label in the reader's language", async () => {
+    groupsReply = () => ({
+      groups: [
+        group({ groupKey: "pipeline.report_backlog", sourceId: "pipeline.report_backlog", title: "Report generation backlog", titleSource: "SOURCE_LABEL" }),
+        group({ groupKey: "unregistered.condition", sourceId: "unregistered.condition", title: "Members' own stored title", titleSource: "CONDITION" }),
+      ],
+      totals: { groups: 2, conditions: 10000 },
+      conservation: { conditions: 10000, grouped: 10000 },
+      completeness: { complete: true, mayAssertAllClear: true },
+    });
+    localeState.locale = "de";
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    expect(q('[data-ops-group="pipeline.report_backlog"]')?.textContent).toContain("Rückstau bei der Berichtserstellung");
+    expect(q('[data-ops-group="unregistered.condition"]')?.textContent).toContain("Members' own stored title");
+    localeState.locale = "ar";
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    expect(q('[data-ops-group="pipeline.report_backlog"]')?.textContent).toContain("تراكم في إنشاء التقارير");
   });
 
   it("the default view is the simple page: Action required, Monitoring, Recently resolved", async () => {

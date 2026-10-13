@@ -45,6 +45,7 @@ import type {
 import { categoryLabel, severityEntry, statusEntry } from "../_lib/vocabulary";
 import { formatOpsNumber } from "../_lib/format";
 import { fillOperationsCopy, useOpsCopy, useOpsLocale, useOpsTime, type OperationsCopy } from "../_lib/copy";
+import { localizedGroupTitle } from "../_lib/groupTitle";
 import { opsDuration } from "../_lib/time";
 
 /**
@@ -173,7 +174,7 @@ export function GroupSurface({
                     {severity.label}
                   </AppStatusBadge>
                   <span className="app-table__primary opsw-group__title">
-                    {g.title}
+                    {localizedGroupTitle(g, locale)}
                   </span>
                 </span>
 

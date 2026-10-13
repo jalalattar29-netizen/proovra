@@ -10,7 +10,7 @@
  * native re-sorts defensively and states the cap when the list is not complete.
  */
 import type { ProovraStatusTone } from "@proovra/ui";
-import { SEVERITY_VOCABULARY, categoryLabel, severityOf, type Severity } from "./ops-console";
+import { SEVERITY_VOCABULARY, categoryLabel, parseConditionMessage, severityOf, type ConditionMessageRef, type Severity } from "./ops-console";
 
 function obj(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
@@ -211,6 +211,8 @@ export interface HealthAlert {
   readonly severity: Severity;
   readonly title: string;
   readonly safeSummary: string | null;
+  /** The code the title/summary were rendered from; null from a legacy row or an older server. */
+  readonly message: ConditionMessageRef | null;
   readonly category: string;
   readonly categoryLabel: string;
   readonly firstSeenAtUtc: string;
@@ -232,6 +234,7 @@ export function parseAlerts(v: unknown): { items: HealthAlert[]; evaluatedAtUtc:
         severity: severityOf(o["severity"]),
         title: str(o["title"]) ?? "",
         safeSummary: str(o["safeSummary"]),
+        message: parseConditionMessage(o["message"]),
         category,
         categoryLabel: categoryLabel(category),
         firstSeenAtUtc: str(o["firstSeenAtUtc"]) ?? "",

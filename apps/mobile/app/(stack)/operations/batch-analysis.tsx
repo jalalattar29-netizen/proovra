@@ -31,7 +31,8 @@ import { formatUserDateTime } from "../../../src/lib/date";
 import { toSafeUserError } from "../../../src/errors/safe-error";
 import { theme } from "../../../src/theme/theme";
 import { useOptionalLocale } from "../../../src/locale-context";
-import { opsCopyFor } from "../../../src/product/ops-copy";
+import { fillOpsCopy, formatOpsCount, opsCopyFor } from "../../../src/product/ops-copy";
+import { useOpsRowDirection } from "../../../src/ui/ops-surfaces";
 import { useAuth } from "../../../src/auth-context";
 import { usePlatformContext } from "../../../src/product/platform-context";
 import {
@@ -51,14 +52,12 @@ import {
   ProovraSheet,
   ProovraConfirmSheet,
   ProovraPageHeader,
-  ProovraResultCount,
   ProovraLoadingState,
   ProovraErrorState,
   ProovraEmpty,
   ProovraKpiGrid,
 } from "../../../src/ui";
 import {
-  BATCH_ANALYSIS_MODE_NOTE,
   BATCH_ANALYSIS_PATH,
   BATCH_POLL_INTERVAL_MS,
   batchExportFilename,
@@ -76,7 +75,6 @@ import {
   selectBatchCandidateItems,
   sortBatchJobs,
   validateBatchDraft,
-  BATCH_CREATED_NOT_STARTED,
   type BatchJob,
 } from "../../../src/product/operations";
 
@@ -100,15 +98,20 @@ function JobRow({
   onCancel: () => void;
   onExport: () => void;
 }) {
-  const t = opsCopyFor(useOptionalLocale());
+  const locale = useOptionalLocale();
+  const t = opsCopyFor(locale);
+  const rowDir = useOpsRowDirection();
+  const n = (v: number) => formatOpsCount(v, locale);
   const tone = batchStatusTone(job.status);
   const palette = theme.color.status[tone];
+  const pending = Math.max(0, job.totalItems - job.processedItems - job.failedItems);
 
   return (
     <View style={{ gap: theme.space.s2 }}>
       <View
+        testID={`batch-head-${job.id}`}
         style={{
-          flexDirection: "row",
+          flexDirection: rowDir,
           justifyContent: "space-between",
           alignItems: "center",
           gap: theme.space.s2,
@@ -119,7 +122,7 @@ function JobRow({
             {job.name}
           </ProovraText>
           <ProovraText variant="label" color={theme.color.ink.muted}>
-            {`${job.processedItems} processed · ${job.failedItems} failed · ${job.totalItems} total`}
+            {fillOpsCopy(t.batchJobCounts, { processed: n(job.processedItems), failed: n(job.failedItems), total: n(job.totalItems) })}
           </ProovraText>
           {job.createdAtIso ? (
             <ProovraText variant="label" color={theme.color.ink.muted}>
@@ -127,25 +130,27 @@ function JobRow({
             </ProovraText>
           ) : null}
         </View>
-        <ProovraBadge label={batchStatusLabel(job.status)} tone={tone} />
+        <ProovraBadge label={batchStatusLabel(job.status, t)} tone={tone} />
       </View>
 
       {job.progress === null ? (
         <ProovraText variant="label" color={theme.color.ink.muted}>
-          This job declares no items, so it has no progress to report.
+          {t.batchNoItems}
         </ProovraText>
       ) : (
         <>
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <ProovraText variant="label" color={theme.color.ink.muted}>Progress</ProovraText>
+        <View style={{ flexDirection: rowDir, justifyContent: "space-between" }}>
+          <ProovraText variant="label" color={theme.color.ink.muted}>{t.batchProgress}</ProovraText>
           <ProovraText variant="label" color={theme.color.ink.secondary}>
-            {`${job.processedItems + job.failedItems} / ${job.totalItems}`}
+            {`${n(job.processedItems + job.failedItems)} / ${n(job.totalItems)}`}
           </ProovraText>
         </View>
         <View
           accessibilityRole="progressbar"
-          accessibilityLabel={`${job.name}: ${job.progress}% complete`}
+          accessibilityLabel={fillOpsCopy(t.batchProgressA11y, { name: job.name, percent: n(job.progress) })}
           style={{
+            // The fill grows from the reading edge: right in Arabic.
+            flexDirection: rowDir,
             height: 8,
             borderRadius: 4,
             backgroundColor: theme.color.surface.muted,
@@ -160,31 +165,33 @@ function JobRow({
       )}
 
       {/* The web's Processed / Failed / Pending tiles. */}
-      <View style={{ flexDirection: "row", gap: theme.space.s2 }} testID={`batch-counters-${job.id}`}>
-        {[
-          ["Processed", job.processedItems],
-          ["Failed", job.failedItems],
-          ["Pending", Math.max(0, job.totalItems - job.processedItems - job.failedItems)],
-        ].map(([label, value]) => (
+      <View style={{ flexDirection: rowDir, gap: theme.space.s2 }} testID={`batch-counters-${job.id}`}>
+        {(
+          [
+            ["processed", t.batchTileProcessed, job.processedItems],
+            ["failed", t.batchTileFailed, job.failedItems],
+            ["pending", t.batchTilePending, pending],
+          ] as const
+        ).map(([key, label, value]) => (
           <View
-            key={String(label)}
+            key={key}
             style={{ flex: 1, padding: theme.space.s2, borderRadius: theme.radius.md, backgroundColor: theme.color.surface.muted }}
           >
-            <ProovraText variant="label" color={theme.color.ink.muted}>{String(label)}</ProovraText>
-            <ProovraText variant="body" weight="bold">{String(value)}</ProovraText>
+            <ProovraText variant="label" color={theme.color.ink.muted}>{label}</ProovraText>
+            <ProovraText variant="body" weight="bold">{n(value)}</ProovraText>
           </View>
         ))}
       </View>
 
       <ProovraText variant="label" color={theme.color.ink.muted}>
         {job.completedAtIso
-          ? `Completed ${formatUserDateTime(job.completedAtIso)}`
+          ? fillOpsCopy(t.batchCompletedAt, { at: formatUserDateTime(job.completedAtIso) })
           : job.createdAtIso
-            ? `Started ${formatUserDateTime(job.createdAtIso)}`
+            ? fillOpsCopy(t.batchStartedAt, { at: formatUserDateTime(job.createdAtIso) })
             : ""}
       </ProovraText>
 
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
+      <View style={{ flexDirection: rowDir, flexWrap: "wrap", gap: theme.space.s2 }}>
         {canExportBatch(job) ? (
           <ProovraButton
             label={t.batchExport}
@@ -217,7 +224,9 @@ function JobRow({
 
 export default function BatchAnalysisScreen() {
   const router = useRouter();
-  const t = opsCopyFor(useOptionalLocale());
+  const locale = useOptionalLocale();
+  const t = opsCopyFor(locale);
+  const n = (v: number) => formatOpsCount(v, locale);
   const { user } = useAuth();
   const platform = usePlatformContext();
   const teamId = platform.context?.activeTeamId ?? null;
@@ -322,7 +331,7 @@ export default function BatchAnalysisScreen() {
     if (composing) void loadCandidates();
   }, [composing, loadCandidates]);
 
-  const draftError = useMemo(() => validateBatchDraft(name, picked), [name, picked]);
+  const draftError = useMemo(() => validateBatchDraft(name, picked, t), [name, picked, t]);
 
   // D11 — A JOB CREATED BUT NOT STARTED. Create and process are two calls; when
   // the second fails, the job EXISTS (pending). It is remembered against the
@@ -350,7 +359,7 @@ export default function BatchAnalysisScreen() {
         });
         id = readCreatedBatchId(created);
         if (!id) {
-          setMessage("The job was created but the server did not return its id.");
+          setMessage(t.batchNoId);
           await load();
           return;
         }
@@ -365,7 +374,7 @@ export default function BatchAnalysisScreen() {
       } catch (err) {
         // The job exists and is NOT running. Say exactly that, show it in the
         // list, and keep the draft so a retry starts this same job.
-        setMessage(`${BATCH_CREATED_NOT_STARTED} ${toSafeUserError(err).message}`);
+        setMessage(`${t.batchCreatedNotStarted} ${toSafeUserError(err).message}`);
         await load();
         return;
       }
@@ -375,7 +384,7 @@ export default function BatchAnalysisScreen() {
       setName("");
       setDescription("");
       setPicked([]);
-      setMessage("Batch job created and processing started.");
+      setMessage(t.batchCreatedStarted);
       await load();
     } catch (err) {
       setMessage(toSafeUserError(err).message);
@@ -383,7 +392,7 @@ export default function BatchAnalysisScreen() {
       creating.current = false;
       setBusy(false);
     }
-  }, [draftError, name, description, picked, load]);
+  }, [draftError, name, description, picked, load, t]);
 
   const cancel = useCallback(async () => {
     const job = cancelling;
@@ -394,13 +403,13 @@ export default function BatchAnalysisScreen() {
     try {
       await apiFetch(buildBatchCancelPath(job.id), { method: "POST" });
       await load();
-      setMessage("That job was cancelled.");
+      setMessage(t.batchCancelledDone);
     } catch (err) {
       setMessage(toSafeUserError(err).message);
     } finally {
       setBusy(false);
     }
-  }, [cancelling, load]);
+  }, [cancelling, load, t]);
 
   const exportCsv = useCallback(async (job: BatchJob) => {
     setBusy(true);
@@ -411,7 +420,7 @@ export default function BatchAnalysisScreen() {
       // failure the user could not explain.
       const csv = await apiFetchText(buildBatchExportPath(job.id));
       if (!FileSystem.cacheDirectory) {
-        setMessage("A writable temporary directory is not available on this device.");
+        setMessage(t.batchNoTempDir);
         return;
       }
       const filename = batchExportFilename(job.id);
@@ -424,13 +433,12 @@ export default function BatchAnalysisScreen() {
       // A write or share that fails on the device is not a transport failure;
       // without this sentence it would read "Check your connection".
       setMessage(
-        toSafeUserError(err, { message: "The export could not be saved or shared on this device." })
-          .message,
+        toSafeUserError(err, { message: t.batchExportDeviceFailed }).message,
       );
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [t]);
 
   // A fresh draft starts without the previous outcome's message in the sheet.
   const openComposer = useCallback(() => {
@@ -480,12 +488,12 @@ export default function BatchAnalysisScreen() {
       {state.phase === "loaded" ? (
         <ProovraKpiGrid
           items={[
-            { key: "total", label: "Total Jobs", value: String(state.jobs.length), caption: "All batch jobs" },
+            { key: "total", label: t.batchKpiTotal, value: n(state.jobs.length), caption: t.batchKpiTotalCaption },
             {
               key: "active",
-              label: "Active Jobs",
-              value: String(state.jobs.filter((j) => ["pending", "processing"].includes(j.status.toLowerCase())).length),
-              caption: "Pending or processing",
+              label: t.batchKpiActive,
+              value: n(state.jobs.filter((j) => ["pending", "processing"].includes(j.status.toLowerCase())).length),
+              caption: t.batchKpiActiveCaption,
             },
           ]}
         />
@@ -502,7 +510,9 @@ export default function BatchAnalysisScreen() {
 
       {state.phase === "loaded" && state.jobs.length > 0 ? (
         <>
-          <ProovraResultCount count={state.jobs.length} noun="job" />
+          <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+            {state.jobs.length === 1 ? t.batchCountOne : fillOpsCopy(t.batchCountMany, { n: n(state.jobs.length) })}
+          </ProovraText>
           {/*
             What the batch actually does, in the service's own words. The
             /results aggregate is not read: it sums classification, moderation
@@ -511,7 +521,7 @@ export default function BatchAnalysisScreen() {
             the operator's evidence.
           */}
           <ProovraText variant="label" color={theme.color.ink.muted}>
-            {BATCH_ANALYSIS_MODE_NOTE}
+            {t.batchModeNote}
           </ProovraText>
           <ProovraCard>
             <View style={{ gap: theme.space.s5 }}>
@@ -531,47 +541,49 @@ export default function BatchAnalysisScreen() {
 
       {/* ------------------------------------------------------- the composer */}
       <ProovraSheet visible={composing} title={t.batchComposerTitle} closeLabel={t.close} onClose={() => setComposing(false)}>
-        <ProovraFormField label="Batch Name">
+        <ProovraFormField label={t.batchNameLabel}>
           <ProovraInput
             value={name}
             onChangeText={setName}
-            placeholder="e.g., Q1 2026 Review"
+            placeholder={t.batchNamePlaceholder}
             autoCapitalize="sentences"
-            accessibilityLabel="Batch name"
+            accessibilityLabel={t.batchNameA11y}
           />
         </ProovraFormField>
 
-        <ProovraFormField label="Description (optional)">
+        <ProovraFormField label={t.batchDescLabel}>
           <ProovraInput
             value={description}
             onChangeText={setDescription}
-            placeholder="Add notes about this batch"
+            placeholder={t.batchDescPlaceholder}
             autoCapitalize="sentences"
             multiline
-            accessibilityLabel="Batch description"
+            accessibilityLabel={t.batchDescA11y}
           />
         </ProovraFormField>
 
-        <ProovraFormField label="Records">
+        <ProovraFormField label={t.batchRecordsLabel}>
           <ProovraInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Search your evidence"
+            placeholder={t.batchSearchPlaceholder}
             onSubmitEditing={() => void loadCandidates()}
-            accessibilityLabel="Search evidence"
+            accessibilityLabel={t.batchSearchA11y}
           />
         </ProovraFormField>
 
         <ProovraText variant="label" color={theme.color.ink.muted}>
           {picked.length === 0
-            ? "Nothing chosen yet."
-            : `${picked.length} record${picked.length === 1 ? "" : "s"} chosen.`}
+            ? t.batchPickedNone
+            : picked.length === 1
+              ? t.batchPickedOne
+              : fillOpsCopy(t.batchPickedMany, { n: n(picked.length) })}
         </ProovraText>
 
         {candidates === null ? (
-          <ProovraLoadingState label="Loading your evidence" />
+          <ProovraLoadingState label={t.batchLoadingEvidence} />
         ) : candidates.length === 0 ? (
-          <ProovraEmpty presence="inline" title="No records match that." />
+          <ProovraEmpty presence="inline" title={t.batchNoMatch} />
         ) : (
           candidates.map((row) => (
             <ProovraListRow
@@ -581,7 +593,7 @@ export default function BatchAnalysisScreen() {
               onPress={() => toggle(row.id)}
               trailing={
                 picked.includes(row.id) ? (
-                  <ProovraBadge label="Chosen" tone="verified" />
+                  <ProovraBadge label={t.batchChosen} tone="verified" />
                 ) : undefined
               }
             />
@@ -613,9 +625,9 @@ export default function BatchAnalysisScreen() {
       <ProovraConfirmSheet
         visible={cancelling !== null}
         title={t.batchCancelTitle}
-        consequence="In-progress items will stop. Already completed items keep their results."
-        confirmLabel="Cancel job"
-        cancelLabel="Keep running"
+        consequence={t.batchCancelConsequence}
+        confirmLabel={t.batchCancelJob}
+        cancelLabel={t.batchKeepRunning}
         tone="danger"
         busy={busy}
         onConfirm={() => void cancel()}

@@ -702,6 +702,10 @@ async function emitDestructionExecutedNotification(
       severity: "HIGH",
       dedupeKey: `destruction_executed:${reviewId}`.slice(0, DEDUPE_KEY_MAX),
       title: "Destruction executed",
+      conditionMessage: {
+        code: "ops.governance.notification.destruction_executed",
+        params: { evidenceRef: evidenceId.slice(0, 8), certificateRef: certificateHash.slice(0, 16) },
+      },
       summary: `Evidence ${evidenceId.slice(0, 8)}… was destroyed. Certificate ${certificateHash.slice(0, 16)}…`,
       relatedEvidenceId: evidenceId,
       relatedReviewId: reviewId,
@@ -729,6 +733,10 @@ async function emitDestructionBlockedNotification(
         DEDUPE_KEY_MAX,
       ),
       title: "Destruction blocked at execution",
+      conditionMessage: {
+        code: "ops.governance.notification.destruction_blocked",
+        params: { cause: reason === "hold" ? "hold" : "immutable" },
+      },
       summary:
         reason === "hold"
           ? "Destruction was blocked because a legal hold became active before execution."

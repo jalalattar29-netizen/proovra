@@ -47,7 +47,7 @@ describe("Operations truth closure — remaining contract points (live PostgreSQ
 
   it("OPS-030 Resume notifications returns a SUPPRESSED condition to OPEN, with both moves in history", async () => {
     const a = c.h.fixtures.teamA;
-    const row = await seedIncident(c, a.teamId, { sourceId: "governance.policy_condition" });
+    const row = await seedIncident(c, a.teamId, { sourceId: "governance.notification_escalated" });
     const early = await c.inj("POST", `/v1/ops/incidents/${row.id}/unsuppress`, a.ownerToken, { teamId: a.teamId });
     expect(early.statusCode).toBe(409);
     await c.inj("POST", `/v1/ops/incidents/${row.id}/suppress`, a.ownerToken, { teamId: a.teamId, reason: "Planned maintenance" });
@@ -177,10 +177,10 @@ describe("Operations truth closure — remaining contract points (live PostgreSQ
     const own = [] as string[];
     for (const [teamId, n] of [[w1.teamId, 3], [w2.teamId, 2]] as const) {
       for (let i = 0; i < n; i++) {
-        own.push((await seedIncident(c, teamId, { sourceId: "governance.policy_condition", severity: i === 0 ? "CRITICAL" : "HIGH" })).id);
+        own.push((await seedIncident(c, teamId, { sourceId: "governance.notification_escalated", severity: i === 0 ? "CRITICAL" : "HIGH" })).id);
       }
     }
-    const hidden = await seedIncident(c, w3.teamId, { sourceId: "governance.policy_condition" });
+    const hidden = await seedIncident(c, w3.teamId, { sourceId: "governance.notification_escalated" });
 
     const page1 = (await c.inj("GET", `/v1/orgs/${w1.orgId}/operations/incidents?limit=3`, owner.token)).json();
     expect(page1.incidents).toHaveLength(3);
