@@ -236,6 +236,39 @@ model Evidence {
   /// review is in flight. Reset on review completion.
   activeDestructionReviewId String?                @map("active_destruction_review_id") @db.Uuid
 
+  /// CANONICAL VERIFICATION IDENTITY (owner decision 2026-10-14). The ONE
+  /// permanent public verification reference of this record: `pvr_` + 27
+  /// base64url chars (160 bits from the CSPRNG). Issued before Report v1 is
+  /// rendered, printed in every report version's QR and text, carried by every
+  /// package, never reassigned, never reused (UNIQUE; a trigger refuses any
+  /// change once set). It is a public REFERENCE, not a capability: the page it
+  /// opens verifies the record and never serves original files or artifacts.
+  /// Written only by the verification-identity authority (@proovra/shared-runtime).
+  verificationRef               String?   @unique @map("verification_ref") @db.VarChar(40)
+  verificationRefIssuedAtUtc    DateTime? @map("verification_ref_issued_at_utc") @db.Timestamptz(6)
+  /// AVAILABLE | WITHDRAWN | SUSPENDED — a legal/privacy/security withdrawal of
+  /// the canonical page. The identity is kept; the page answers truthfully.
+  verificationAccessState       String    @default("AVAILABLE") @map("verification_access_state") @db.VarChar(16)
+  verificationAccessChangedAtUtc DateTime? @map("verification_access_changed_at_utc") @db.Timestamptz(6)
+  verificationAccessChangedByUserId String? @map("verification_access_changed_by_user_id") @db.Uuid
+  /// Bounded code (LEGAL_REQUEST | PRIVACY_REQUEST | SECURITY_INCIDENT | OPERATOR_REVIEW).
+  verificationAccessReason      String?   @map("verification_access_reason") @db.VarChar(64)
+
+  /// RETENTION ARCHIVE (owner decision 2026-10-14). When the record left the
+  /// 90-day Trash for the Retention Archive because a retention barrier still
+  /// prevents final purge. NULL outside RETENTION_ARCHIVED.
+  retentionArchivedAtUtc        DateTime? @map("retention_archived_at_utc") @db.Timestamptz(6)
+  /// The latest retain-until across every REQUIRED stored object version, as
+  /// last read from storage (the authority). A cache for display and
+  /// scheduling only; the purge path re-reads storage.
+  latestRequiredRetainUntilUtc  DateTime? @map("latest_required_retain_until_utc") @db.Timestamptz(6)
+  /// max(trash end, latest required retain-until, app retention, hold release).
+  purgeEligibleAtUtc            DateTime? @map("purge_eligible_at_utc") @db.Timestamptz(6)
+  /// CLEAR | OBJECT_RETENTION | APP_RETENTION | LEGAL_HOLD | EVIDENCE_LOCKED | METADATA_MISSING |
+  /// METADATA_INCONSISTENT | STORAGE_UNAVAILABLE — the last barrier evaluation.
+  retentionBarrierState         String?   @map("retention_barrier_state") @db.VarChar(32)
+  retentionBarrierEvaluatedAtUtc DateTime? @map("retention_barrier_evaluated_at_utc") @db.Timestamptz(6)
+
   // Phase T — Canonical workflow-template identity trio (additive, nullable).
   //
   // These three columns propagate the workflow-template identity onto the
@@ -377,6 +410,7 @@ model Evidence {
   evidenceRequests            EvidenceRequest[]                    @relation("EvidenceRequestEvidence")
   responseForEvidenceRequest  EvidenceRequestResponse?             @relation("EvidenceRequestResponseEvidence")
   legalHolds                  EvidenceLegalHold[]                  @relation("EvidenceLegalHolds")
+  archiveRestoreRequests      EvidenceArchiveRestoreRequest[]
   securityScans               FileSecurityScan[]                   @relation("EvidenceSecurityScans")
   uploadSession               UploadSession?                       @relation("EvidenceUploadSession")
   intelligenceJobs            EvidenceIntelligenceJob[]            @relation("EvidenceIntelligenceJobs")
@@ -3439,6 +3473,16 @@ enum CustodyEventType {
   REVIEW_DECISION_RECORDED
   // ET-CUS-13: a retention policy was applied (was a second EVIDENCE_CREATED).
   RETENTION_POLICY_APPLIED
+  // Retention archive restore workflow (owner decision 2026-10-14).
+  ARCHIVE_RESTORE_REQUESTED
+  ARCHIVE_RESTORE_STARTED
+  ARCHIVE_RESTORE_VERIFIED
+  ARCHIVE_RESTORE_COMPLETED
+  ARCHIVE_RESTORE_FAILED
+  // Canonical verification page (owner decision 2026-10-14).
+  VERIFICATION_REFERENCE_ISSUED
+  VERIFICATION_ACCESS_WITHDRAWN
+  VERIFICATION_ACCESS_REINSTATED
 }
 
 enum AuthProvider {
@@ -5517,6 +5561,13 @@ enum EvidenceLifecycleState {
   /// `deleted_at` by a runtime reader — `lifecycle_state` is the authority
   /// and `deleted_at` is the trash EVENT timestamp.
   TRASHED
+  /// RETENTION ARCHIVE (owner decision 2026-10-14). The 90-day Trash has
+  /// ended but a retention barrier (S3 Object Lock retain-until on a required
+  /// object version, application retention, a legal hold) still prevents final
+  /// purge. Hidden from the library and Trash, listed in Archived evidence,
+  /// read-only, and restorable only through the verified archive-restore
+  /// workflow. Never physically deleted while here.
+  RETENTION_ARCHIVED
 }
 
 // =============================================================================
@@ -14867,4 +14918,39 @@ model WorkerSweepCursor {
   updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("worker_sweep_cursors")
+}
+
+/// RETENTION ARCHIVE RESTORE (owner decision 2026-10-14) — one durable,
+/// idempotent request to bring a RETENTION_ARCHIVED record back to ACTIVE.
+/// The worker verifies every required stored object version and digest before
+/// the record changes state; any missing or inconsistent object fails closed
+/// and the record stays archived. At most one open request per record (partial
+/// UNIQUE index in the migration).
+model EvidenceArchiveRestoreRequest {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId        String    @map("evidence_id") @db.Uuid
+  teamId            String?   @map("team_id") @db.Uuid
+  requestedByUserId String    @map("requested_by_user_id") @db.Uuid
+  /// Caller-supplied or derived; UNIQUE — a retried request returns the same row.
+  idempotencyKey    String    @unique @map("idempotency_key") @db.VarChar(160)
+  /// REQUESTED | RUNNING | COMPLETED | FAILED
+  status            String    @default("REQUESTED") @db.VarChar(16)
+  /// Bounded: OBJECT_VERSION_MISSING | DIGEST_MISMATCH | ARTIFACT_MISSING |
+  /// SIGNATURE_REFERENCE_MISSING | STORAGE_UNAVAILABLE | STATE_CHANGED
+  failureCode       String?   @map("failure_code") @db.VarChar(64)
+  /// [{ kind, versionId, sha256, outcome }] — what the verification read.
+  verifiedObjects   Json      @default("[]") @map("verified_objects")
+  attemptCount      Int       @default(0) @map("attempt_count")
+  requestedAtUtc    DateTime  @default(now()) @map("requested_at_utc") @db.Timestamptz(6)
+  startedAtUtc      DateTime? @map("started_at_utc") @db.Timestamptz(6)
+  /// Worker lease: a RUNNING request whose lease lapsed is resumable.
+  leaseUntilUtc     DateTime? @map("lease_until_utc") @db.Timestamptz(6)
+  completedAtUtc    DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+  failedAtUtc       DateTime? @map("failed_at_utc") @db.Timestamptz(6)
+
+  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
+
+  @@index([evidenceId, requestedAtUtc])
+  @@index([status, requestedAtUtc])
+  @@map("evidence_archive_restore_requests")
 }

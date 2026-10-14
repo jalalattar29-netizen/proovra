@@ -347,6 +347,22 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
       "every condition writer records the semantic message code and params its title and summary were rendered from; without the columns every incident write fails",
     suppliedBy: "20281013000000_operational_incident_message_code",
   },
+  {
+    id: "evidence.verification_ref",
+    kind: "column",
+    detail: 'column public."evidence"."verification_ref" must exist',
+    requiredBy:
+      "the canonical verification identity: the report worker issues it before Report v1 is rendered and the public route resolves pvr_ references by it; a whole-row evidence read fails without the three-decisions columns",
+    suppliedBy: "20281014000000_free_outputs_canonical_verification_retention_archive",
+  },
+  {
+    id: "evidence_archive_restore_requests.table",
+    kind: "table",
+    detail: 'table public."evidence_archive_restore_requests" must exist',
+    requiredBy:
+      "the durable retention-archive restore outbox: the API writes one request per restore and the worker lifecycle sweep claims and verifies it; without it no archived record can be restored",
+    suppliedBy: "20281014000000_free_outputs_canonical_verification_retention_archive",
+  },
 ]);
 
 /**
@@ -585,6 +601,19 @@ const PROBES = Object.freeze({
      WHERE table_schema = 'public'
        AND table_name = 'operational_incidents'
        AND column_name = 'message_code'
+     LIMIT 1`,
+  "evidence.verification_ref": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'evidence'
+       AND column_name = 'verification_ref'
+     LIMIT 1`,
+  "evidence_archive_restore_requests.table": `
+    SELECT 1
+      FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = 'evidence_archive_restore_requests'
      LIMIT 1`,
 });
 

@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 322,
-    "classifiedMigrations": 322,
+    "filesystemMigrations": 323,
+    "classifiedMigrations": 323,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 322,
+    "productionSnapshotUnknown": 323,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 322,
-    "classifiedMigrations": 322,
+    "filesystemMigrations": 323,
+    "classifiedMigrations": 323,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 322,
+    "productionSnapshotUnknown": 323,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 96,
+      "EXPAND": 97,
       "BACKFILL": 25,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 109,
+      "SAFE_TO_APPLY_NOW": 110,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 2
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 322
+    "ProductionMigrationStateUnknown": 323
   },
   "gateFailures": [],
   "migrations": [
@@ -24471,8 +24471,104 @@
       "evidence": "OPERATIONS MESSAGE CODE (2026-10-13). Two nullable operational_incidents columns: message_code (VARCHAR(120), the semantic code a condition's title and summary were rendered from) and message_params (JSONB, the structured params it interpolated — ids, counts, outcomes, never prose). Clients resolve the code through the shared catalogue (packages/shared/src/operations-condition-messages.ts) in en/de/ar. title and safe_summary keep being written in English from the same catalogue, so previous-release readers are unaffected. Rows written before this migration keep NULL and render their stored English text; no row is rewritten. SAFE BEFORE THE NEW CODE: ADD COLUMN of a nullable column without a default is catalogue-only (no table rewrite), and previous images never read or write the columns. READINESS: the count is 2 after apply. No backfill. ROLLBACK is code-first; the columns are not dropped. NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281014000000_free_outputs_canonical_verification_retention_archive",
       "order": 321,
+      "sqlPresent": true,
+      "byteLength": 6945,
+      "checksumSha256": "66b0312377484fa4747268000f91380bc4c1fe604e21a891a5cd6cdac77fc92e",
+      "checksumSha256Raw": "66b0312377484fa4747268000f91380bc4c1fe604e21a891a5cd6cdac77fc92e",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": true,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cascade, on",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "evidence_archive_restore_requests"
+        ],
+        "droppedTables": [],
+        "alteredTables": [
+          "evidence",
+          "evidence_archive_restore_requests"
+        ],
+        "addedColumns": [
+          "latest_required_retain_until_utc",
+          "purge_eligible_at_utc",
+          "retention_archived_at_utc",
+          "retention_barrier_evaluated_at_utc",
+          "retention_barrier_state",
+          "verification_access_changed_at_utc",
+          "verification_access_changed_by_user_id",
+          "verification_access_reason",
+          "verification_access_state",
+          "verification_ref",
+          "verification_ref_issued_at_utc"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [
+          "custodyeventtype",
+          "evidencelifecyclestate"
+        ],
+        "createdIndexes": [
+          "evidence_archive_restore_requests_evidence_id_requested_at__idx",
+          "evidence_archive_restore_requests_idempotency_key_key",
+          "evidence_archive_restore_requests_one_open_per_evidence",
+          "evidence_archive_restore_requests_status_requested_at_utc_idx",
+          "evidence_verification_ref_key"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "evidence_archive_restore_requests_evidence_id_fkey",
+          "evidence_retention_barrier_state_check",
+          "evidence_verification_access_state_check",
+          "evidence_verification_ref_shape_check"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cascade",
+        "on"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade",
+        "on"
+      ],
+      "dependencies": [
+        "20260131235343_init"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 1,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_name='evidence' AND column_name IN ('verification_ref','verification_access_state','retention_archived_at_utc','purge_eligible_at_utc')) || ':' || (SELECT count(*) FROM information_schema.tables WHERE table_name='evidence_archive_restore_requests')\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "THREE PRODUCT DECISIONS (2026-10-14). EXPAND only: nullable evidence columns verification_ref (UNIQUE, shape CHECK, set-once trigger), verification_ref_issued_at_utc, verification_access_* (state NOT NULL DEFAULT 'AVAILABLE' with CHECK — a constant default, catalogue-only), retention_archived_at_utc, latest_required_retain_until_utc, purge_eligible_at_utc, retention_barrier_state (CHECK) and retention_barrier_evaluated_at_utc; enum values EvidenceLifecycleState.RETENTION_ARCHIVED and eight CustodyEventType values; table evidence_archive_restore_requests with a partial unique index (one open request per record). SAFE BEFORE THE NEW CODE: previous images neither read nor write any of it and no row carries the new enum values until the new code writes them. APPLY BEFORE the API and worker images (their Prisma client maps the columns; db:preflight requires evidence.verification_ref and the restore table). DATA BACKFILL is a separate owner-run, dry-run-first command (services/api src/scripts/three-decisions-backfill.ts), not part of this migration. READINESS: '4:1' after apply. ROLLBACK is code-first; nothing is dropped. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 322,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",
