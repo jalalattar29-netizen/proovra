@@ -11,8 +11,6 @@ import { buildReportViewModel } from "../src/report-v2/build-view-model.js";
 import { renderReportHtml } from "../src/report-v2/render-html.js";
 import { reportInputFixture } from "./fixtures/report-v2-input.js";
 
-const TOKEN_URL = "https://app.proovra.com/verify/pvs_" + "k".repeat(43);
-
 describe("CANONICAL VERIFICATION — the report prints the permanent page, or says why it cannot", () => {
   const CANONICAL_URL = "https://app.proovra.com/verify/pvr_" + "c".repeat(27);
 

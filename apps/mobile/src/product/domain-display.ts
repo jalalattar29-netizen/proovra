@@ -92,6 +92,9 @@ const EVIDENCE_LIFECYCLE_DISPLAY: Record<EvidenceLifecycleState, DomainDisplay> 
   TRASHED: { label: "In trash", tone: "neutral" },
   DESTROYED: { label: "Destroyed", tone: "neutral" },
   ARCHIVED: { label: "Archived", tone: "neutral" },
+  // Trash -> Retention Archive -> Purge (owner decision 2026-10-14): retained
+  // after Trash, restorable by the owner until it is purged.
+  RETENTION_ARCHIVED: { label: "Retention archive", tone: "governance" },
 };
 
 /* ---------------------------------------------------------------- Case status */
