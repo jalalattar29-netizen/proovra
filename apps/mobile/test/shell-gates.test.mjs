@@ -223,6 +223,7 @@ test("T-09h: on a tablet the page precedes the rail in reading order, while the 
 /* ------------------------------------------- which screens carry the shell */
 
 const AUTHENTICATED_STACK_SCREENS = [
+  "evidence-archive",
   "billing", "case/[id]", "collaboration-team/[id]", "evidence-request/[id]", "evidence-requests",
   "evidence/[id]", "intake-links", "intake-link-create", "operations/index", "operations/health", "operations/batch-analysis", "operations/quotas",
   "organizations/[id]", "organizations/index", "reports", "search", "settings/ai",

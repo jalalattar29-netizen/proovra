@@ -721,8 +721,10 @@ export function ReportProductionCard({
   production: ReportProduction;
   isFreePlan: boolean;
 }) {
+  // FREE THREE-RECORD CONTRACT (owner decision 2026-10-14) — every FREE
+  // record (up to three) gets its report automatically; nothing to upsell here.
   const emptyCopy = isFreePlan
-    ? "Reports are included with Pay-Per-Evidence, Pro, and Team."
+    ? "Complete an evidence record — each of your three Free records includes its report, verification package and verification page."
     : "Complete an evidence record to generate your first report.";
   const hasAny =
     production.reportsReady + production.packagesReady + production.reportsPending + production.packagesPending + production.reportsFailed + production.packagesFailed > 0 ||

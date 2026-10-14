@@ -60,7 +60,8 @@ const PLAN_FEATURES: Record<
     teamCollaborationIncluded: boolean;
   }
 > = {
-  FREE: { intakeIncluded: false, reportsIncluded: false, verificationPackageIncluded: false, casesIncluded: false, teamCollaborationIncluded: false },
+  // FREE THREE-RECORD CONTRACT (2026-10-14): reports and packages are included (for three records).
+  FREE: { intakeIncluded: false, reportsIncluded: true, verificationPackageIncluded: true, casesIncluded: false, teamCollaborationIncluded: false },
   PAYG: { intakeIncluded: true, reportsIncluded: true, verificationPackageIncluded: true, casesIncluded: false, teamCollaborationIncluded: false },
   PRO: { intakeIncluded: true, reportsIncluded: true, verificationPackageIncluded: true, casesIncluded: true, teamCollaborationIncluded: true },
   TEAM: { intakeIncluded: true, reportsIncluded: true, verificationPackageIncluded: true, casesIncluded: true, teamCollaborationIncluded: true },
@@ -337,9 +338,13 @@ test("category matrix — universal core everywhere; plan-gated sources only whe
   }
   // FREE hides the plan/participation-gated sources (no actual items).
   const free = policyCtxFor("FREE");
-  for (const key of ["intake", "reports", "packages", "review", "collaboration", "governance", "admin", "due_soon", "overdue"] as const) {
+  for (const key of ["intake", "review", "collaboration", "governance", "admin", "due_soon", "overdue"] as const) {
     assert.equal(filterAllowed(key as never, free), false, `FREE hides ${key}`);
   }
+  // FREE THREE-RECORD CONTRACT (2026-10-14): each FREE record carries its
+  // report and package, so their operational sources are real for FREE.
+  assert.equal(filterAllowed("reports" as never, free), true, "FREE shows reports");
+  assert.equal(filterAllowed("packages" as never, free), true, "FREE shows packages");
   // PAYG gains intake + reports/packages + deadline sources (the contract).
   const payg = policyCtxFor("PAYG");
   assert.equal(filterAllowed("intake" as never, payg), true);

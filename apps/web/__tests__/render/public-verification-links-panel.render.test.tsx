@@ -177,7 +177,7 @@ describe("Public verification links — owner controls", () => {
     expect(submit.disabled).toBe(true);
     fireEvent.change(container.querySelector("#verification-link-audience")!, { target: { value: "  The insurer " } });
     expect(submit.disabled).toBe(false);
-    expect(submit.textContent).toBe("Create link");
+    expect(submit.textContent).toBe("Create recipient link");
 
     fireEvent.submit(container.querySelector("[data-verification-link-form]")!);
     await waitFor(() => expect(container.querySelector("[data-verification-link-created]")).not.toBeNull());
@@ -235,18 +235,18 @@ describe("Public verification links — owner controls", () => {
     const { container } = await mount(onChanged);
 
     expect(container.querySelector("[data-verification-links-state]")!.getAttribute("data-verification-links-state")).toBe("private");
-    expect(container.textContent).toContain("This record is private.");
+    expect(container.textContent).toContain("A recipient link is for one named person");
     expect(container.textContent).toContain("No active links.");
     const submit = container.querySelector("[data-verification-link-action='create']") as HTMLButtonElement;
-    expect(submit.textContent).toBe("Publish and create link");
+    expect(submit.textContent).toBe("Create recipient link");
 
     fireEvent.change(container.querySelector("#verification-link-audience")!, { target: { value: "Counsel" } });
 
     // Declined: nothing is created and nothing is published.
     fireEvent.submit(container.querySelector("[data-verification-link-form]")!);
     const text = await confirmModal(false);
-    expect(text).toContain("Publish this record and create the link?");
-    expect(text).toContain("publishes it");
+    expect(text).toContain("Allow recipient links for this record?");
+    expect(text).toContain("can show more of this record than its verification page");
     await waitFor(() => expect(document.querySelector("[data-confirm-action-modal]")).toBeNull());
     expect(posts()).toEqual([]);
     expect(onChanged).not.toHaveBeenCalled();
@@ -438,8 +438,8 @@ describe("Public verification links — owner controls", () => {
   });
 });
 
-describe("UC-OUT-001 — a printed link on a private record is not labelled Active", () => {
-  it("an ACTIVE REPORT link on an unpublished record reads 'Inactive — record not published'", async () => {
+describe("UC-OUT-001 / CANONICAL VERIFICATION — which links answer on an unpublished record", () => {
+  it("a link PRINTED in a report opens the canonical page on an unpublished record, so it reads Active", async () => {
     routes[`GET ${BASE}`] = () =>
       listing({
         publicVerifyState: "NOT_PUBLISHED",
@@ -448,10 +448,21 @@ describe("UC-OUT-001 — a printed link on a private record is not labelled Acti
     const { container } = await mount();
     const row = container.querySelector("[data-verification-link='link-report']") as HTMLElement;
     expect(row).not.toBeNull();
+    expect(row.getAttribute("data-verification-link-usable")).toBe("true");
+    expect(row.textContent).not.toContain("Inactive — record not published");
+  });
+
+  it("an ACTIVE recipient link on an unpublished record reads 'Inactive — record not published'", async () => {
+    routes[`GET ${BASE}`] = () =>
+      listing({
+        publicVerifyState: "NOT_PUBLISHED",
+        links: [link({ id: "link-owner", purpose: "OWNER_SHARE", audience: "Opposing counsel" })],
+      });
+    const { container } = await mount();
+    const row = container.querySelector("[data-verification-link='link-owner']") as HTMLElement;
     expect(row.getAttribute("data-verification-link-usable")).toBe("false");
     expect(row.textContent).toContain("Inactive — record not published");
     expect(row.querySelector(".evidence-detail-link-row__main")?.textContent).not.toMatch(/\bActive\b/);
-    expect(container.textContent).toContain("Links printed in reports or packages do not open while the record is private.");
   });
 
   it("the same link on a published record is Active and usable", async () => {

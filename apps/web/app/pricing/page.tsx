@@ -258,10 +258,10 @@ export default function MarketingPricingPage() {
       ctaLabel: buildCtaLabel("personal"),
       ctaHref: buildCtaHref("personal"),
       features: [
-        `${catalogValue(catalog?.free?.maxEvidenceRecords)} evidence records total`,
+        `${catalogValue(catalog?.free?.maxEvidenceRecords)} complete evidence records total`,
+        "Each includes its report, verification package and verification page",
         `${catalogValue(catalog?.free?.storageLabel)} storage`,
-        "Basic integrity signals",
-        "Public verification access",
+        "Deleting a record does not restore a slot",
       ],
     },
     {
@@ -448,9 +448,9 @@ export default function MarketingPricingPage() {
   /**
    * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — this list said "Reports" and
    * "Verification Packages" while the comparison table on the SAME PAGE said
-   * "PDF reports: Free — Not included". The catalog agrees with the table:
-   * `PLAN_CAPABILITIES.FREE.reportsIncluded` and
-   * `verificationPackageIncluded` are both false.
+   * "PDF reports: Free — Not included". Since the FREE three-record contract
+   * (owner decision 2026-10-14) FREE includes them for its three records, and
+   * the comparison table says exactly that.
    *
    * What genuinely IS plan-independent is the integrity layer — hashing,
    * trusted timestamps, signatures, custody — and that is what this row now
@@ -573,12 +573,13 @@ export default function MarketingPricingPage() {
       ],
     },
     {
+      // FREE THREE-RECORD CONTRACT (owner decision 2026-10-14).
       label: "Verification package",
-      values: ["Not included", "Included", "Included", "Included", "Included"],
+      values: ["Included for 3 records", "Included", "Included", "Included", "Included"],
     },
     {
       label: "PDF reports",
-      values: ["Not included", "Included", "Included", "Included", "Included"],
+      values: ["Included for 3 records", "Included", "Included", "Included", "Included"],
     },
     {
       label: "Public verification page",

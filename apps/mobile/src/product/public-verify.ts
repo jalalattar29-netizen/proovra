@@ -314,6 +314,45 @@ export function parseCreatedVerificationLink(
   };
 }
 
+// ---------------------------------------------------------------------------
+// CANONICAL VERIFICATION (owner decision 2026-10-14) — every record with an
+// issued report has ONE permanent verification page, the same link the
+// report's QR code and the package carry. Sharing from the phone shares THAT
+// link: nothing is created, published or expires. (Recipient links with an
+// expiry or use limit are the separate advanced feature on the web record.)
+// ---------------------------------------------------------------------------
+
+export function buildVerificationAccessPath(evidenceId: string): string {
+  return `/v1/evidence/${encodeURIComponent(evidenceId)}/verification-access`;
+}
+
+export type NativeVerificationAccess = {
+  status: string;
+  reference: string | null;
+  verifyPath: string | null;
+};
+
+/**
+ * The verification-access response, read by its real keys. Only a canonical
+ * `/verify/pvr_…` path is a link; anything else is no link.
+ */
+export function parseVerificationAccess(res: unknown): NativeVerificationAccess | null {
+  if (!res || typeof res !== "object") return null;
+  const r = res as Record<string, unknown>;
+  const status = typeof r["status"] === "string" ? (r["status"] as string) : null;
+  if (!status) return null;
+  const verifyPath = typeof r["verifyPath"] === "string" ? (r["verifyPath"] as string) : null;
+  return {
+    status,
+    reference: typeof r["reference"] === "string" ? (r["reference"] as string) : null,
+    verifyPath: verifyPath && verifyPath.startsWith("/verify/pvr_") ? verifyPath : null,
+  };
+}
+
+/** What a person is told when there is no verification page to share yet. */
+export const VERIFICATION_PAGE_NOT_ISSUED_COPY =
+  "The verification page is created automatically with this record's first report.";
+
 /** The absolute link on the public web origin, or null when this build has none. */
 export function verifyUrlFromPath(origin: string | null, verifyPath: string): string | null {
   if (!origin) return null;

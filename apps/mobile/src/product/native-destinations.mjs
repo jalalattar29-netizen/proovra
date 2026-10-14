@@ -231,6 +231,17 @@ export const NATIVE_DESTINATIONS = {
       "four lifecycle scopes, search, type/status/source/report filters, sort, cursor paging, workspace metrics and the record inspector",
     ],
   },
+  "/evidence/archive": {
+    routeFile: "(stack)/evidence-archive.tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/(app)/evidence/archive/page.tsx"],
+    gaps: [
+      "RETENTION ARCHIVE (owner decision 2026-10-14): the same two routes the web page reads - GET /v1/evidence/retention-archive and POST /v1/evidence/:id/archive-restore - with the same barrier, earliest-purge and legal-hold facts; restore is a verified request the worker completes, never a row flip",
+      "the per-request status poll (GET /v1/evidence/:id/archive-restore) is web-only: the native list refreshes on pull and on return instead",
+      "device acceptance outstanding - docs/physical-acceptance.md section 2",
+    ],
+  },
   "/evidence/[id]": {
     routeFile: "(stack)/evidence/[id].tsx",
     alsoRouteFiles: ["(stack)/legal/[slug].tsx"],

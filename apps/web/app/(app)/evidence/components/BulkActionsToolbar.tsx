@@ -6,6 +6,7 @@ import {
   EVIDENCE_BULK_ACTIONS,
   EVIDENCE_BULK_MAX_IDS,
   TRASH_KEEPS_PLAN_CAPACITY_COPY,
+  TRASH_LIFECYCLE_COPY,
   evidenceBulkActionRequiresCase,
   type EvidenceBulkActionName,
 } from "@proovra/shared";
@@ -499,9 +500,14 @@ export function BulkActionsToolbar({
               Bulk selection applies only to the records you selected in the currently loaded pages.
             </p>
             {action === "TRASH" ? (
-              <p className="evidence-library-muted" data-evidence-trash-capacity-note>
-                {TRASH_KEEPS_PLAN_CAPACITY_COPY}
-              </p>
+              <>
+                <p className="evidence-library-muted" data-evidence-trash-lifecycle-note>
+                  {TRASH_LIFECYCLE_COPY}
+                </p>
+                <p className="evidence-library-muted" data-evidence-trash-capacity-note>
+                  {TRASH_KEEPS_PLAN_CAPACITY_COPY}
+                </p>
+              </>
             ) : null}
             {error ? (
               <div

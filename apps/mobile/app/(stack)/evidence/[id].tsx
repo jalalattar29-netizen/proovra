@@ -17,7 +17,7 @@ import { CopyButton, copyToClipboard } from "../../../src/ui/copy-button";
 import { projectTrustDecision, type TrustDecision } from "../../../src/product/trust-decision";
 import { Alert, Linking, Pressable, Share, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { NEW_VERSION_ACTION, otsAnchoringCopy, TRASH_KEEPS_PLAN_CAPACITY_COPY, reportFreshnessChangeCopy, type EvidenceOutputState } from "@proovra/shared";
+import { NEW_VERSION_ACTION, otsAnchoringCopy, TRASH_KEEPS_PLAN_CAPACITY_COPY, TRASH_LIFECYCLE_COPY, reportFreshnessChangeCopy, type EvidenceOutputState } from "@proovra/shared";
 import { apiFetch } from "../../../src/api";
 import { EvidenceInternalMaterials } from "../../../src/ui/evidence-internal-materials";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
@@ -132,6 +132,12 @@ import {
   type ProvenanceView,
   type TechnicalView,
 } from "../../../src/product/evidence-detail";
+import {
+  VERIFICATION_PAGE_NOT_ISSUED_COPY,
+  parseVerificationAccess,
+  buildVerificationAccessPath,
+  verifyUrlFromPath,
+} from "../../../src/product/public-verify";
 import {
   LIFECYCLE_DIALOG_COPY,
   UNLOCK_REASON_MAX,
@@ -660,11 +666,36 @@ export default function EvidenceDetailScreen() {
   // always "not published" — and every tap wrote a public verification-page
   // view into the record's analytics.
   const publicVerification = useMemo(() => projectPublicVerification(rw), [rw]);
-  const shareUrl = useMemo(() => buildPublishedVerificationUrl(publicVerification, webOrigin()), [publicVerification]);
+  // CANONICAL VERIFICATION (owner decision 2026-10-14) — the record's
+  // permanent verification page, the same link its report's QR code carries.
+  // The legacy published share path is used only while the canonical one is
+  // not issued yet (a record without a report has none).
+  const [canonicalVerifyPath, setCanonicalVerifyPath] = useState<string | null>(null);
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    void apiFetch(buildVerificationAccessPath(String(id)))
+      .then((res) => {
+        if (!cancelled) setCanonicalVerifyPath(parseVerificationAccess(res)?.verifyPath ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setCanonicalVerifyPath(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+  const shareUrl = useMemo(
+    () =>
+      canonicalVerifyPath
+        ? verifyUrlFromPath(webOrigin(), canonicalVerifyPath)
+        : buildPublishedVerificationUrl(publicVerification, webOrigin()),
+    [canonicalVerifyPath, publicVerification],
+  );
   const [copyVerifyState, setCopyVerifyState] = useState<"idle" | "copied">("idle");
   const copyVerification = useCallback(async () => {
     if (!shareUrl) {
-      Alert.alert("Not available", "Public verification link is only available when publication state is PUBLISHED");
+      Alert.alert("Not available", VERIFICATION_PAGE_NOT_ISSUED_COPY);
       return;
     }
     if (await copyToClipboard(shareUrl)) {
@@ -1875,7 +1906,7 @@ export default function EvidenceDetailScreen() {
       <ProovraConfirmSheet
         visible={trashing}
         title={TRASH_COPY.moveTitle}
-        consequence={`${TRASH_COPY.moveBody}\n\n${TRASH_COPY.moveBody2}\n\n${TRASH_KEEPS_PLAN_CAPACITY_COPY}`}
+        consequence={`${TRASH_COPY.moveBody}\n\n${TRASH_LIFECYCLE_COPY}\n\n${TRASH_COPY.moveBody2}\n\n${TRASH_KEEPS_PLAN_CAPACITY_COPY}`}
         confirmLabel={TRASH_COPY.moveAction}
         tone="danger"
         busy={actionBusy}

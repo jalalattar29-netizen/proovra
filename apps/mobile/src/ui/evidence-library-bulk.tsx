@@ -13,6 +13,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import {
   EVIDENCE_BULK_MAX_IDS,
   TRASH_KEEPS_PLAN_CAPACITY_COPY,
+  TRASH_LIFECYCLE_COPY,
   evidenceBulkActionRequiresCase,
   type EvidenceBulkActionName,
 } from "@proovra/shared";
@@ -227,7 +228,7 @@ export function EvidenceLibraryBulkToolbar({
                 </ProovraText>
                 {action === "TRASH" ? (
                   <ProovraText variant="label" color={theme.color.ink.secondary} testID="bulk-trash-capacity-note">
-                    {TRASH_KEEPS_PLAN_CAPACITY_COPY}
+                    {`${TRASH_LIFECYCLE_COPY}\n\n${TRASH_KEEPS_PLAN_CAPACITY_COPY}`}
                   </ProovraText>
                 ) : null}
                 {error ? (

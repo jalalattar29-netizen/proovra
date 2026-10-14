@@ -13,12 +13,11 @@ import { useToast } from "../../src/toast-context";
 import { usePlatformContext } from "../../src/product/platform-context";
 import { webOrigin } from "../../src/product/intake-create";
 import {
-  parseCreatedVerificationLink,
-  verificationLinkCreateBody,
-  verificationLinkCreatePath,
+  parseVerificationAccess,
+  buildVerificationAccessPath,
+  VERIFICATION_PAGE_NOT_ISSUED_COPY,
   verifyUrlFromPath,
 } from "../../src/product/public-verify";
-import { ChallengeStepUpSheet, useChallengeStepUp } from "../../src/ui/challenge-step-up";
 import {
   ProovraShell,
   ProovraCard,
@@ -402,38 +401,27 @@ export default function EvidenceLibraryScreen() {
     }
   }, [inspectorId, addToast]);
 
-  // ET-PKG-07 — a public link is a share token the server issues, never the
-  // record's id. Sharing CREATES a link (expiring, labelled as made from the
-  // phone) and shares that. If the record is not public yet, creating its
-  // first link publishes it — the server asks for the step-up proof first.
+  // CANONICAL VERIFICATION (owner decision 2026-10-14) — sharing shares the
+  // record's permanent verification page: the same link its report's QR code
+  // carries. Nothing is created, published or set to expire.
   const shareOrigin = webOrigin();
-  const shareStepUp = useChallengeStepUp(platform.context?.activeTeamId ?? null);
   const shareVerification = useCallback(async () => {
     if (!inspectorId || !shareOrigin) return;
     setInspectorBusy("share");
     try {
-      const res = await shareStepUp.run((headers) =>
-        apiFetch(verificationLinkCreatePath(inspectorId), {
-          method: "POST",
-          headers: { "content-type": "application/json", ...(headers ?? {}) },
-          body: JSON.stringify(verificationLinkCreateBody()),
-        }),
-      );
-      const created = parseCreatedVerificationLink(res);
-      const url = created ? verifyUrlFromPath(shareOrigin, created.verifyPath) : null;
+      const access = parseVerificationAccess(await apiFetch(buildVerificationAccessPath(inspectorId)));
+      const url = access?.verifyPath ? verifyUrlFromPath(shareOrigin, access.verifyPath) : null;
       if (!url) {
-        addToast("The verification link could not be created", "error");
+        addToast(VERIFICATION_PAGE_NOT_ISSUED_COPY, "info");
         return;
       }
       await Share.share({ url, message: `Verify this PROOVRA record: ${url}` });
-    } catch (err) {
-      if ((err as { code?: string } | null)?.code !== "STEP_UP_CANCEL") {
-        addToast("Failed to share verification link", "error");
-      }
+    } catch {
+      addToast("Failed to share verification link", "error");
     } finally {
       setInspectorBusy(null);
     }
-  }, [inspectorId, shareOrigin, shareStepUp, addToast]);
+  }, [inspectorId, shareOrigin, addToast]);
 
   /* ------------------------------------------------------------- refresh */
 
@@ -726,6 +714,16 @@ export default function EvidenceLibraryScreen() {
             options={SCOPE_OPTIONS as Array<{ value: LibraryScope; label: string }>}
             onChange={(v) => setFilter("scope", v)}
           />
+          {filters.scope === "trash" ? (
+            // RETENTION ARCHIVE (owner decision 2026-10-14) — records leave Trash
+            // after 90 days for the archive while retention still applies.
+            <ProovraButton
+              label="Archived evidence (retention)"
+              variant="ghost"
+              fullWidth={false}
+              onPress={() => router.push("/evidence-archive" as never)}
+            />
+          ) : null}
           <ProovraFilterChips<LibrarySort> label="Sort" value={filters.sort} options={SORT_OPTIONS} onChange={(v) => setFilter("sort", v)} />
           <View style={styles.row}>
             <ProovraButton
@@ -886,7 +884,6 @@ export default function EvidenceLibraryScreen() {
       </ProovraCard>
 
       {inspectorId ? inspector("modal") : null}
-      <ChallengeStepUpSheet stepUp={shareStepUp} />
     </ProovraShell>
   );
 }

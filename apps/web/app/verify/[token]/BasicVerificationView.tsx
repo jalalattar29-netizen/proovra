@@ -116,7 +116,110 @@ export function StoredBytesNotice({ integrity }: { integrity: NonNullable<BasicV
 }
 
 /** What the Verify answer says about the link that was used (ET-PKG-07). */
-export type VerifyLinkInfo = { kind: "SHARE_TOKEN" | "LEGACY_RECORD_ID"; expiresAtUtc: string | null };
+export type VerifyLinkInfo = { kind: "SHARE_TOKEN" | "LEGACY_RECORD_ID" | "CANONICAL"; expiresAtUtc: string | null };
+
+/**
+ * CANONICAL VERIFICATION (owner decision 2026-10-14) — the verification-safe
+ * facts the canonical page adds: the permanent reference, the signing key
+ * reference, the preservation state and the page's stated limitations.
+ */
+export type CanonicalVerificationFacts = {
+  reference: string | null;
+  status: "AVAILABLE";
+  issuedAtUtc: string | null;
+  signature: { keyId: string | null; keyVersion: number | null; keyFingerprintSha256: string | null };
+  preservation: { objectLockMode: string | null; retainUntilUtc: string | null };
+  lastUpdatedAtUtc: string | null;
+  limitations: string[];
+};
+
+/** A canonical reference the page cannot show as an active record — said truthfully. */
+export type CanonicalVerificationState =
+  | "PURGED"
+  | "WITHDRAWN"
+  | "TEMPORARILY_UNAVAILABLE"
+  | "RETAINED"
+  | "LEGACY_LINK_RETIRED";
+
+const CANONICAL_STATE_COPY: Record<CanonicalVerificationState, { title: string; body: string }> = {
+  PURGED: {
+    title: "Record permanently deleted",
+    body: "This record was permanently deleted after its retention ended. This page remains as a minimal record that it existed; the evidence and its artifacts are no longer held, so they cannot be verified here.",
+  },
+  WITHDRAWN: {
+    title: "Verification page withdrawn",
+    body: "This verification page was withdrawn following a legal, privacy or security action. Its reference is preserved and will never point to another record.",
+  },
+  TEMPORARILY_UNAVAILABLE: {
+    title: "Temporarily unavailable",
+    body: "This verification page is temporarily unavailable. Try again later.",
+  },
+  RETAINED: {
+    title: "Record retained",
+    body: "The record's owner has removed it from active use. It remains preserved under its retention protection and is no longer shown as an active record.",
+  },
+  LEGACY_LINK_RETIRED: {
+    title: "This link format has been retired",
+    body: "Use the verification reference (pvr_…) or the QR code printed in the current report, or ask the record's owner for its verification link.",
+  },
+};
+
+export function CanonicalVerificationStateView({ state }: { state: CanonicalVerificationState }) {
+  const copy = CANONICAL_STATE_COPY[state];
+  return (
+    <main
+      className="page verify-enterprise-font"
+      style={{ maxWidth: 760, margin: "0 auto", padding: "32px 16px 64px" }}
+      data-verify-canonical-state={state}
+    >
+      <h1 style={{ fontSize: 26, lineHeight: 1.25, margin: "0 0 8px" }}>{copy.title}</h1>
+      <p style={{ color: "#475569", margin: "0 0 20px" }}>{copy.body}</p>
+    </main>
+  );
+}
+
+function CanonicalFactsSection({ canonical }: { canonical: CanonicalVerificationFacts }) {
+  return (
+    <section
+      aria-labelledby="verify-canonical"
+      data-verify-canonical
+      style={{ marginTop: 16, background: "#fff", borderRadius: 16, padding: "8px 20px 16px", border: "1px solid rgba(15,23,42,0.08)" }}
+    >
+      <h2 id="verify-canonical" style={{ fontSize: 17, margin: "14px 0 4px" }}>Verification reference</h2>
+      <div style={{ fontSize: 14, color: "#334155", overflowWrap: "anywhere" }}>
+        {canonical.reference ? (
+          <div>
+            Reference: <code data-verify-canonical-reference>{canonical.reference}</code>
+          </div>
+        ) : null}
+        {canonical.issuedAtUtc ? <div>Issued: {fmt(canonical.issuedAtUtc)}</div> : null}
+        {canonical.lastUpdatedAtUtc ? <div>Latest report issued: {fmt(canonical.lastUpdatedAtUtc)}</div> : null}
+        {canonical.signature.keyId ? (
+          <div>
+            Record signing key: <code>{canonical.signature.keyId}</code>
+            {canonical.signature.keyVersion != null ? " (version " + canonical.signature.keyVersion + ")" : ""}
+          </div>
+        ) : null}
+        {canonical.signature.keyFingerprintSha256 ? (
+          <div>
+            Signing key fingerprint (SHA-256): <code>{canonical.signature.keyFingerprintSha256}</code>
+          </div>
+        ) : null}
+        <div data-verify-canonical-preservation>
+          Storage protection:{" "}
+          {canonical.preservation.objectLockMode
+            ? `Object Lock (${canonical.preservation.objectLockMode.toLowerCase()})${canonical.preservation.retainUntilUtc ? ` until ${fmt(canonical.preservation.retainUntilUtc)}` : ""}`
+            : "Not recorded for this record"}
+        </div>
+      </div>
+      <ul style={{ margin: "12px 0 0", paddingLeft: 18, fontSize: 13, color: "#475569" }} data-verify-canonical-limitations>
+        {canonical.limitations.map((l) => (
+          <li key={l}>{l}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 /**
  * ET-PKG-07 — a LEGACY record-id link says when it stops working, so whoever
@@ -149,11 +252,14 @@ export default function BasicVerificationView({
   data,
   link,
   matrix,
+  canonical,
 }: {
   data: BasicVerification;
   link?: VerifyLinkInfo | null;
   /** THE verification matrix from the API; null/absent from an older API. */
   matrix?: VerificationMatrix | null;
+  /** The canonical page's extra verification-safe facts, when opened by reference. */
+  canonical?: CanonicalVerificationFacts | null;
 }) {
   const o = data.original;
   const originalDetail =
@@ -223,6 +329,8 @@ export default function BasicVerificationView({
       <VerifyLinkNotice link={link} />
 
       {matrix ? <VerificationMatrixSection matrix={matrix} /> : null}
+
+      {canonical ? <CanonicalFactsSection canonical={canonical} /> : null}
 
       <section aria-labelledby="verify-original" style={{ background: "#fff", borderRadius: 16, padding: "8px 20px 16px", border: "1px solid rgba(15,23,42,0.08)" }}>
         <h2 id="verify-original" style={{ fontSize: 17, margin: "14px 0 4px" }}>Original evidence</h2>

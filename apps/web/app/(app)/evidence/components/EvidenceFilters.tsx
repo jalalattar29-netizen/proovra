@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { Search } from "lucide-react";
 import { AppListbox, type AppListboxOption } from "../../../../components/app-primitives";
 import type { EvidenceListScope } from "../lib/evidence-library-types";
@@ -127,6 +128,14 @@ export function EvidenceFilters({
             { value: "trash", label: "Trash" },
           ]}
         />
+        {value.scope === "trash" ? (
+          // RETENTION ARCHIVE (owner decision 2026-10-14) — after 90 days in
+          // Trash a record moves to the retention archive while its retention
+          // protection still applies; it is listed and restored there.
+          <Link href="/evidence/archive" className="evidence-detail-inline-link" data-evidence-archive-link>
+            Retention archive →
+          </Link>
+        ) : null}
         <FilterChip
           id="status-filter"
           label="Status"

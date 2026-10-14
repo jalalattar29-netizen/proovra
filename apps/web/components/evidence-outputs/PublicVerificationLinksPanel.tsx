@@ -1,10 +1,15 @@
 "use client";
 
 /**
- * PUBLIC VERIFICATION LINKS — the owner's controls (ET-PKG-07, 2026-09-30).
+ * RECIPIENT LINKS — restricted sharing, the owner's controls (ET-PKG-07,
+ * 2026-09-30; separated from canonical verification 2026-10-14).
  *
- * A record is private until its owner publishes it, and a public link is an
- * opaque share token, never the record's id. This panel is where that is done:
+ * Every record with an issued report already has its permanent canonical
+ * verification page (VerificationAccessPanel) — it needs no link from here and
+ * no publication. THIS panel is the separate, advanced feature: a link for a
+ * named recipient, with an expiry, a use limit and revocation, that may show
+ * more of the record than the verification page does. It is an opaque share
+ * token, never the record's id:
  *
  *   create   name the audience, choose an expiry, and get the link ONCE
  *   copy     only at creation or rotation — the server keeps a hash, not the link
@@ -157,10 +162,10 @@ export function PublicVerificationLinksPanel({
     if (!listing || !canCreate) return;
     if (!published) {
       const ok = await confirm({
-        title: "Publish this record and create the link?",
+        title: "Allow recipient links for this record?",
         description:
-          "This record is not public. Creating its first verification link publishes it: anyone who holds the link can open its public verification page until you revoke the link or unpublish the record. The record's id alone opens nothing.",
-        confirmLabel: "Publish and create link",
+          "A recipient link can show more of this record than its verification page. Anyone who holds the link can open it until it expires, reaches its use limit or you revoke it. The record's id alone opens nothing.",
+        confirmLabel: "Allow and create link",
         testId: "verification-link-publish",
       });
       if (!ok) return;
@@ -277,11 +282,15 @@ export function PublicVerificationLinksPanel({
 
   // UC-OUT-001 — the server's projection decides whether a link answers; an
   // older API without the field falls back to the record's publication state.
+  // CANONICAL VERIFICATION (2026-10-14) — a link printed in a report or
+  // package opens the record's canonical page whatever the publication state.
+  const printedLink = (link: VerificationLink): boolean => link.purpose === "REPORT" || link.purpose === "PACKAGE";
   const linkUsable = (link: VerificationLink): boolean =>
-    link.usable ?? (link.state === "ACTIVE" && published);
+    link.usable ?? (link.state === "ACTIVE" && (published || printedLink(link)));
   const linkNotPublished = (link: VerificationLink): boolean =>
     link.state === "ACTIVE" &&
-    (link.inactiveReason === "RECORD_NOT_PUBLISHED" || (link.inactiveReason === undefined && !published));
+    (link.inactiveReason === "RECORD_NOT_PUBLISHED" ||
+      (link.inactiveReason === undefined && !published && !printedLink(link)));
 
   const row = (link: VerificationLink) => (
     <li
@@ -344,18 +353,18 @@ export function PublicVerificationLinksPanel({
       aria-labelledby="public-verification-links-title"
     >
       <h2 id="public-verification-links-title" className="evidence-detail-verify-card__title">
-        Public verification links
+        Recipient links
       </h2>
 
       {loadState === "loading" ? <p className="app-field__help">Loading links…</p> : null}
       {loadState === "forbidden" ? (
         <p className="app-field__help" data-verification-links-forbidden>
-          Managing public verification links needs a role with the publish permission in this workspace.
+          Managing recipient links needs a role with the publish permission in this workspace.
         </p>
       ) : null}
       {loadState === "unavailable" ? (
         <p className="app-field__help" data-verification-links-unavailable>
-          Public verification links are not available for this record yet.
+          Recipient links are not available for this record yet.
         </p>
       ) : null}
       {loadState === "error" ? (
@@ -371,8 +380,8 @@ export function PublicVerificationLinksPanel({
         <>
           <p className="app-field__help" data-verification-links-state={published ? "published" : "private"}>
             {published
-              ? "This record is published. Only someone holding one of the links below can open its public verification page — the record's id alone opens nothing."
-              : "This record is private. It has no public verification page until you create a link, which publishes it. Links printed in reports or packages do not open while the record is private."}
+              ? "Recipient links are allowed for this record. Each link below works only for the person you gave it to, until it expires, reaches its use limit or you revoke it."
+              : "A recipient link is for one named person and can show more of the record than the verification page. The verification page itself is always available and needs no link from here."}
           </p>
 
           {created ? (
@@ -578,7 +587,7 @@ export function PublicVerificationLinksPanel({
                 ) : null}
               </div>
               <button type="submit" className="app-secondary-action" disabled={!canCreate} data-verification-link-action="create">
-                {busy === "create" ? "Creating…" : published ? "Create link" : "Publish and create link"}
+                {busy === "create" ? "Creating…" : "Create recipient link"}
               </button>
             </form>
           ) : (

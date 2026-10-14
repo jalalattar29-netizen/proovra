@@ -45,8 +45,11 @@ import {
 } from "../../../components/ui";
 import CaptureLocationMapPanel from "../../../components/capture-location/CaptureLocationMapPanel";
 import BasicVerificationView, {
+  CanonicalVerificationStateView,
   StoredBytesNotice,
   VerifyLinkNotice,
+  type CanonicalVerificationFacts,
+  type CanonicalVerificationState,
   type VerifyLinkInfo,
 } from "./BasicVerificationView";
 import type { BasicVerification } from "@proovra/shared";
@@ -2314,6 +2317,10 @@ export default function VerifyPage() {
   const [loading, setLoading] = useState(true);
   // Decision B — a BASIC answer carries only the basic projection.
   const [basicOnly, setBasicOnly] = useState<BasicVerification | null>(null);
+  // CANONICAL VERIFICATION (owner decision 2026-10-14) — the canonical page's
+  // facts, or the truthful state of a reference it cannot show as active.
+  const [canonicalFacts, setCanonicalFacts] = useState<CanonicalVerificationFacts | null>(null);
+  const [canonicalState, setCanonicalState] = useState<CanonicalVerificationState | null>(null);
   // ET-PKG-07 — which kind of link was used, and when it stops working.
   const [verifyLink, setVerifyLink] = useState<VerifyLinkInfo | null>(null);
   // ET-SM-07 — the stored-file recheck state, shown on the rich view too.
@@ -2912,6 +2919,15 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
         if (cancelled || !isMountedRef.current) return;
 
         setVerifyLink((data as { link?: VerifyLinkInfo } | null)?.link ?? null);
+        const canonical = (data as { canonicalVerification?: { status?: string } } | null)?.canonicalVerification;
+        if (canonical?.status === "RETAINED") {
+          setCanonicalState("RETAINED");
+          setError(null);
+          clearPolling();
+          return;
+        }
+        setCanonicalState(null);
+        setCanonicalFacts(canonical?.status === "AVAILABLE" ? (canonical as CanonicalVerificationFacts) : null);
         const tier = (data as { tier?: unknown } | null)?.tier;
         if (tier === "BASIC") {
           setBasicOnly((data as { basicVerification: BasicVerification }).basicVerification);
@@ -2947,6 +2963,29 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
         }
       } catch (err) {
         if (cancelled || !isMountedRef.current) return;
+
+        // CANONICAL VERIFICATION — a reference the page cannot show as an
+        // active record answers with its truthful state, not an error.
+        const stateCode = (err as { code?: string } | null)?.code;
+        const truthful: CanonicalVerificationState | null =
+          stateCode === "VERIFICATION_RECORD_PURGED"
+            ? "PURGED"
+            : stateCode === "VERIFICATION_RECORD_WITHDRAWN"
+              ? "WITHDRAWN"
+              : stateCode === "VERIFICATION_RECORD_TEMPORARILY_UNAVAILABLE"
+                ? "TEMPORARILY_UNAVAILABLE"
+                : (err as { statusCode?: number } | null)?.statusCode === 404 &&
+                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(params.token))
+                  ? // An old record-id link: the API answers the same 404 as for
+                    // anything unknown (anti-enumeration); the page says what it is.
+                    "LEGACY_LINK_RETIRED"
+                  : null;
+        if (truthful) {
+          setCanonicalState(truthful);
+          setError(null);
+          clearPolling();
+          return;
+        }
 
         // ET-PKG-13 — the token is the capability to the record; it never goes
         // to Sentry. The feature tag is enough to find the failure.
@@ -4050,8 +4089,19 @@ const glassPanelStyle: CSSProperties = {
 
   const VERIFY_HEADER_IMAGE = "/assets/branding/report-header.png";
 
+  if (canonicalState && !loading) {
+    return <CanonicalVerificationStateView state={canonicalState} />;
+  }
+
   if (basicOnly && !loading) {
-    return <BasicVerificationView data={basicOnly} link={verifyLink} matrix={serverVerificationMatrix} />;
+    return (
+      <BasicVerificationView
+        data={basicOnly}
+        link={verifyLink}
+        matrix={serverVerificationMatrix}
+        canonical={canonicalFacts}
+      />
+    );
   }
 
   const pageBackgroundStyle: CSSProperties = {

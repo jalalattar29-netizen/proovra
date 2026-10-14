@@ -358,11 +358,13 @@ export type EvidenceRecord = {
  * Every field is a RESULT. Nothing here lets a client re-derive a verdict.
  */
 export type EvidenceLifecycleProjection = {
-  productState: "ACTIVE" | "ARCHIVED" | "TRASHED" | "DESTROYED";
+  productState: "ACTIVE" | "ARCHIVED" | "TRASHED" | "RETENTION_ARCHIVED" | "DESTROYED";
   canArchive: boolean;
   canUnarchive: boolean;
   canTrash: boolean;
   canRestoreFromTrash: boolean;
+  /** RETENTION ARCHIVE — the verified archive restore may be requested. */
+  canRestoreFromArchive: boolean;
   trashBlockReason: EvidenceLifecycleBlockReason | null;
   archiveBlockReason: EvidenceLifecycleBlockReason | null;
   trashGraceUntilUtc: string | null;

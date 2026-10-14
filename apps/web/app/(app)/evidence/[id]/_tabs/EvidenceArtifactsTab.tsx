@@ -30,7 +30,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, Globe, ShieldCheck } from "lucide-react";
+import { Globe } from "lucide-react";
 import {
   NEW_VERSION_ACTION,
   outputActionLabel,
@@ -48,6 +48,7 @@ import { ArtifactHistorySection } from "../components/ArtifactHistorySection";
 import { RuntimeStatusBanner } from "../../../../../components/operational";
 import { formatBytes } from "./_lib";
 import { PublicVerificationLinksPanel } from "../../../../../components/evidence-outputs/PublicVerificationLinksPanel";
+import { VerificationAccessPanel } from "../../../../../components/evidence-outputs/VerificationAccessPanel";
 
 
 /**
@@ -775,7 +776,6 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
     workspace,
     evidenceId,
     publicVerificationState,
-    shareUrl,
     stalePending,
     setStalePending,
     setPollStartedAt,
@@ -981,57 +981,26 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         packageStatus={packageStatus}
       />
 
-      {/* Latest verification link. `shareUrl` is derived from the SAME
-          publicVerificationSummary the rail reads, so the tab and the rail can
-          never disagree about publication state. The link is never
-          synthesised: without a real share path the card shows the state
-          label and its reason instead of an action. */}
-      <section
-        className="evidence-detail-verify-card"
-        data-evidence-section="latest-artifacts"
-      >
-        <span className="evidence-detail-verify-card__icon" aria-hidden="true">
-          <ShieldCheck size={20} strokeWidth={2} />
-        </span>
-        <h2 className="evidence-detail-verify-card__title">
-          {shareUrl ? "Legacy verification link" : "Public verification"}
-        </h2>
-        <div className="evidence-detail-verify-card__action" data-latest-artifact="verify">
-          {shareUrl ? (
-            <a
-              href={shareUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="evidence-detail-inline-link evidence-detail-verify-link"
-              data-evidence-verify-link
-            >
-              Open verification surface
-              <ChevronRight size={16} strokeWidth={2.5} aria-hidden="true" />
-            </a>
-          ) : (
-            <span
-              className="evidence-detail-verify-card__unavailable"
-              data-evidence-verify-unavailable
-            >
-              {publicVerificationState?.label ?? "Not available"}
-            </span>
-          )}
+      {/* CANONICAL VERIFICATION (owner decision 2026-10-14) — the record's
+          permanent verification page: the same link the report's QR code and
+          the package carry, open without login, never published by hand and
+          never expiring. */}
+      <section className="evidence-detail-verify-card-host" data-evidence-section="latest-artifacts">
+        <div data-latest-artifact="verify">
+          <VerificationAccessPanel evidenceId={evidenceId} />
         </div>
-        {!shareUrl && publicVerificationState?.detail ? (
-          <p className="evidence-detail-verify-card__reason">
-            {publicVerificationState.detail}
-          </p>
-        ) : null}
       </section>
 
-      {/* ET-PKG-07 — THE public links. The card above is only the LEGACY
-          record-id link (when this record has one); a public link is a share
-          token, created, revoked and rotated here. */}
-      <PublicVerificationLinksPanel
-        evidenceId={evidenceId}
-        teamId={workspace.reviewWorkflow?.teamId ?? null}
-        onChanged={() => void loadWorkspace()}
-      />
+      {/* Restricted recipient links are a SEPARATE, advanced feature: a link
+          for one named person with an expiry, a use limit and revocation. */}
+      <details className="evidence-detail-advanced" data-evidence-section="advanced-sharing">
+        <summary>Advanced sharing — recipient links</summary>
+        <PublicVerificationLinksPanel
+          evidenceId={evidenceId}
+          teamId={workspace.reviewWorkflow?.teamId ?? null}
+          onChanged={() => void loadWorkspace()}
+        />
+      </details>
 
       {/* Only when something is downloadable: a downloads incident is about
           the download controls below, not about the record. */}
@@ -1099,16 +1068,6 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
               label: "Verification status",
               value: publicVerificationState?.label ?? "State unavailable",
             },
-            {
-              label: "Verification link",
-              value: shareUrl ? "Available" : "Not available",
-            },
-            {
-              label: "Publication detail",
-              value:
-                publicVerificationState?.detail ?? "No publication detail available",
-              wide: true,
-            },
             { label: "Public views", value: counter(summary.publicViewCount) },
             {
               label: "Report downloads",
@@ -1126,7 +1085,6 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             <div
               key={item.label}
               className="evidence-detail-sharing-fact"
-              data-wide={item.wide ? "true" : undefined}
             >
               <span className="evidence-detail-sharing-fact__label">{item.label}</span>
               <span className="evidence-detail-sharing-fact__value">{item.value}</span>

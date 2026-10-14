@@ -1468,7 +1468,7 @@ export const TRASH_COPY = {
   moveTitle: "Move evidence to trash",
   moveBody:
     "Nothing is deleted. The record leaves Active evidence and can be restored from Trash; its content, custody history and verification state are unchanged.",
-  moveBody2: "Any retention or legal hold on this record continues to apply in Trash — moving it here does not shorten either.",
+  moveBody2: "Any retention or legal hold on this record continues to apply in Trash and in the archive — deleting it does not shorten either.",
 } as const;
 
 /** The web's confirm for removing a relationship (EvidenceRelationshipsSection.tsx:196-206). */

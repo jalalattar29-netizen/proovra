@@ -133,6 +133,8 @@ export const HOME_OPERATIONS_SOURCE_IDS = [
   "identity.runtime_block",
   "identity.high_risk_session_surge",
   "governance.destruction_executed",
+  "governance.retention_unverified",
+  "governance.archive_restore_failed",
   "governance.notification_escalated",
   "billing.dependent_cancellation_failed",
   "billing.provider_authorization",
@@ -419,6 +421,18 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     severity: "info",
     domains: ["governance"],
     href: "/governance/destruction",
+  },
+  "governance.retention_unverified": {
+    kind: "ROW",
+    severity: "warning",
+    domains: ["governance"],
+    href: "/evidence/archive",
+  },
+  "governance.archive_restore_failed": {
+    kind: "ROW",
+    severity: "warning",
+    domains: ["governance"],
+    href: "/evidence/archive",
   },
   "governance.notification_escalated": {
     kind: "ROW",

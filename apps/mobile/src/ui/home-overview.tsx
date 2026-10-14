@@ -426,7 +426,7 @@ export function HomeReportProductionCard({
         <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
           {reportsIncluded
             ? "Complete an evidence record to generate your first report."
-            : "Reports are included with Pay-Per-Evidence, Pro, and Team."}
+            : "Complete an evidence record — each of your three Free records includes its report, verification package and verification page."}
         </ProovraText>
       ) : recent.length === 0 ? (
         <ProovraText variant="bodySm" color={theme.color.ink.secondary}>

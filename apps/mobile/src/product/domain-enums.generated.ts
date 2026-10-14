@@ -52,6 +52,7 @@ export const EVIDENCE_LIFECYCLE_STATES = [
   "DESTROYED",
   "ARCHIVED",
   "TRASHED",
+  "RETENTION_ARCHIVED",
 ] as const;
 export type EvidenceLifecycleState = (typeof EVIDENCE_LIFECYCLE_STATES)[number];
 

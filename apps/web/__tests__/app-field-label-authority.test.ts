@@ -158,6 +158,8 @@ const EXPECTED_CONSUMERS = [
   // field label; what it paints under the Evidence Detail route stylesheet is
   // measured in e2e/evidence-detail-layout/public-verification-links.spec.ts.
   "components/evidence-outputs/PublicVerificationLinksPanel.tsx",
+  // CANONICAL VERIFICATION (2026-10-14) — the withdrawal reason field.
+  "components/evidence-outputs/VerificationAccessPanel.tsx",
   "components/search/SearchAuditLogPanel.tsx",
 ];
 

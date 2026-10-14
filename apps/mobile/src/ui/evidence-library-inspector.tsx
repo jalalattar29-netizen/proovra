@@ -353,13 +353,13 @@ export function EvidenceLibraryInspector({
           onPress={onDownloadPackage}
         />
         <View style={styles.linkRow}>
-          {/* ET-PKG-07 — one action: the server creates a share link (30 days,
-              labelled as made from the phone) and the share sheet opens with
-              it. There is nothing to copy beforehand: a link exists only once
-              it has been created, and the record's id is not one. */}
+          {/* CANONICAL VERIFICATION (owner decision 2026-10-14) — one action:
+              share the record's permanent verification page, the same link
+              its report's QR code carries. Nothing is created or expires; the
+              record's id is never the link. */}
           <ProovraButton
-            label="Create & Share Verification Link"
-            accessibilityLabel="Create and share a verification link"
+            label="Share Verification Link"
+            accessibilityLabel="Share the verification link"
             variant="secondary"
             fullWidth={false}
             loading={actionBusy === "share"}

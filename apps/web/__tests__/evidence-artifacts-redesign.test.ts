@@ -240,23 +240,31 @@ test("an absent last-view timestamp is 'Not recorded', not a fabricated date", (
 // E) The verification link is real, or absent
 // ---------------------------------------------------------------------------
 
-test("the link renders only from a real shareUrl", () => {
-  assert.match(TAB, /\{shareUrl \? \(/);
-  assert.match(TAB, /href=\{shareUrl\}/);
-  // No synthesised path, no guessed origin.
+// CANONICAL VERIFICATION (owner decision 2026-10-14) — the verify card IS the
+// Verification access panel: the record's permanent page, from the server.
+const ACCESS_PANEL = read("components/evidence-outputs/VerificationAccessPanel.tsx");
+const ACCESS_PANEL_CODE = code(ACCESS_PANEL);
+
+test("the link renders only from the server's canonical verifyPath", () => {
+  assert.match(TAB, /<VerificationAccessPanel evidenceId=\{evidenceId\} \/>/);
+  assert.match(ACCESS_PANEL, /access\?\.verifyPath \? absoluteVerifyUrl\(access\.verifyPath\) : null/);
+  assert.match(ACCESS_PANEL, /href=\{url\}/);
+  // No synthesised path, no guessed origin, and never the record id.
   assert.doesNotMatch(TAB_CODE, /href="\/verify/);
-  assert.doesNotMatch(TAB_CODE, /`\$\{.*\}\/verify\//);
+  assert.doesNotMatch(ACCESS_PANEL_CODE, /href="\/verify/);
+  assert.doesNotMatch(ACCESS_PANEL_CODE, /\/verify\/\$\{evidenceId\}/);
 });
 
 test("an external link is opened safely", () => {
-  assert.match(TAB, /target="_blank"/);
-  assert.match(TAB, /rel="noreferrer noopener"/);
+  assert.match(ACCESS_PANEL, /target="_blank"/);
+  assert.match(ACCESS_PANEL, /rel="noreferrer noopener"/);
 });
 
 test("without a link the card shows the state and its reason", () => {
-  assert.match(TAB, /data-evidence-verify-unavailable/);
-  assert.match(TAB, /\{publicVerificationState\?\.label \?\? "Not available"\}/);
-  assert.match(TAB, /\{!shareUrl && publicVerificationState\?\.detail \? \(/);
+  assert.match(ACCESS_PANEL, /data-verification-access-status=\{access\.status\}/);
+  assert.match(ACCESS_PANEL, /\{STATUS_DETAIL\[access\.status\]\}/);
+  assert.match(ACCESS_PANEL, /NOT_ISSUED: "Issued with the first report"/);
+  assert.match(ACCESS_PANEL, /It does not publish the original evidence files\./);
 });
 
 // ---------------------------------------------------------------------------

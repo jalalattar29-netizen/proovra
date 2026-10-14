@@ -1,4 +1,4 @@
-import { TRASH_KEEPS_PLAN_CAPACITY_COPY } from "@proovra/shared";
+import { TRASH_KEEPS_PLAN_CAPACITY_COPY, TRASH_LIFECYCLE_COPY } from "@proovra/shared";
 
 /**
  * What moving a record to trash does — the body of the trash confirmation.
@@ -22,9 +22,10 @@ export function EvidenceTrashConsequence() {
         restored from Trash; its content, custody history and verification
         state are unchanged.
       </p>
+      <p data-evidence-trash-lifecycle-note>{TRASH_LIFECYCLE_COPY}</p>
       <p>
         Any retention or legal hold on this record continues to apply in Trash
-        — moving it here does not shorten either.
+        and in the archive — deleting it does not shorten either.
       </p>
       <p data-evidence-trash-capacity-note>{TRASH_KEEPS_PLAN_CAPACITY_COPY}</p>
     </>

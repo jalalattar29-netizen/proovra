@@ -133,3 +133,52 @@ export function absoluteVerifyUrl(verifyPath: string): string {
 }
 
 export { evidencePublicLinksHref } from "../verification-links-href";
+
+/**
+ * THE CANONICAL VERIFICATION PAGE (owner decision 2026-10-14) — the record's
+ * permanent verification reference and its state. Distinct from the recipient
+ * links above: it needs no link creation, no publication and never expires.
+ */
+export type CanonicalVerificationStatus =
+  | "NOT_ISSUED"
+  | "AVAILABLE"
+  | "WITHDRAWN"
+  | "TEMPORARILY_UNAVAILABLE"
+  | "RETAINED"
+  | "PURGED";
+
+export type VerificationWithdrawalReason =
+  | "LEGAL_REQUEST"
+  | "PRIVACY_REQUEST"
+  | "SECURITY_INCIDENT"
+  | "OPERATOR_REVIEW";
+
+export type VerificationAccess = {
+  status: CanonicalVerificationStatus;
+  reference: string | null;
+  verifyPath: string | null;
+  issuedAtUtc: string | null;
+  withdrawal: { state: string; reason: string | null; changedAtUtc: string | null } | null;
+  canWithdraw: boolean;
+};
+
+export function getVerificationAccess(evidenceId: string): Promise<VerificationAccess> {
+  return apiFetch(`/v1/evidence/${encodeURIComponent(evidenceId)}/verification-access`) as Promise<VerificationAccess>;
+}
+
+export function withdrawVerificationAccess(
+  evidenceId: string,
+  reason: VerificationWithdrawalReason,
+): Promise<{ state: string; changed: boolean }> {
+  return apiFetch(`/v1/evidence/${encodeURIComponent(evidenceId)}/verification-access/withdraw`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  }) as Promise<{ state: string; changed: boolean }>;
+}
+
+export function reinstateVerificationAccess(evidenceId: string): Promise<{ state: string; changed: boolean }> {
+  return apiFetch(`/v1/evidence/${encodeURIComponent(evidenceId)}/verification-access/reinstate`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  }) as Promise<{ state: string; changed: boolean }>;
+}

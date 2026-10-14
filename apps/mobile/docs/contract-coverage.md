@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**171 bindings — OK 171, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**173 bindings — OK 173, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -94,7 +94,9 @@ top level of it.
 | OK | `parseReportUrl` | `GET /v1/evidence/:id/report/latest` | evidenceId, generatedAtUtc, reviewerSnapshot, snapshots, storage, url, version | url |
 | OK | `parseReviewerWorkflow` | `GET /v1/evidence/:id/reviewer-workflow` | available, workflow | available, workflow |
 | OK | `parseReviewerWorkflowEvents` | `GET /v1/evidence/:id/reviewer-workflow/events` | items | items |
+| OK | `parseVerificationAccess` | `GET /v1/evidence/:id/verification-access` | canWithdraw, issuedAtUtc, reference, status, verifyPath, withdrawal | reference, status, verifyPath |
 | OK | `parseReportUrl` | `GET /v1/evidence/:id/verification-package` | action, code, disclosureProfile, evidenceId, generatedAtUtc, latestAvailablePackageVersi… | url |
+| OK | `parseRetentionArchive` | `GET /v1/evidence/retention-archive` | items, nextCursor | items, nextCursor |
 | OK | `parseValidatedIntake` | `GET /v1/external-intake/:token` | link, parts, request, resumed, session | link, request, session |
 | OK | `parseExportEligibility` | `GET /v1/governance/export-eligibility` | lifecycleState, outcome, reason | lifecycleState, outcome, reason |
 | OK | `parseContactFactors` | `GET /v1/identity-security/contact-factors` | factors | factors |
