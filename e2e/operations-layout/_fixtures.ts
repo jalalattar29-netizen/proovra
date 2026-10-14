@@ -450,6 +450,11 @@ type IncidentOver = {
   firstSeenHoursAgo?: number;
   occurrences?: number;
   requestId?: string | null;
+  /**
+   * Diagnostics the PLATFORM audience receives (2026-10-14). A workspace
+   * reader gets none: only `supportReference`.
+   */
+  technicalReferences?: Array<{ key: string; value: string }>;
   /** OPERATOR_DECISION (default), SOURCE_TRUTH or NO_DIRECT_RESOLUTION. */
   resolutionAuthority?: string;
 };
@@ -492,6 +497,8 @@ export function incident(i: number, over: IncidentOver = {}) {
      * refusal the surface has to render correctly.
      */
     sla: slaFor(over.status ?? "OPEN", over.firstSeenHoursAgo ?? 5),
+    supportReference: `OPS-55555555`,
+    ...(over.technicalReferences ? { technicalReferences: over.technicalReferences } : {}),
     lifecycle: lifecycleFor(over.resolutionAuthority ?? "OPERATOR_DECISION"),
   };
 }
@@ -617,7 +624,7 @@ function incidentsFor(scenario: OpsScenario, longGerman: boolean) {
       return german([incident(1, { title: LONG_TITLE }), ...MIXED.slice(1)]);
     case "long-identifiers":
       return german([
-        incident(1, { requestId: LONG_REQUEST_ID }),
+        incident(1, { requestId: LONG_REQUEST_ID, technicalReferences: [{ key: "requestId", value: LONG_REQUEST_ID }] }),
         ...MIXED.slice(1),
       ]);
     case "overdue":
