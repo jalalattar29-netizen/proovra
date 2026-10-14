@@ -735,3 +735,45 @@ describe("raw-schema ownership — the extension_auth_codes user_id foreign key"
     ).toEqual([]);
   });
 });
+
+// RETENTION ARCHIVE (owner decision 2026-10-14) — one OPEN restore request per
+// record. The predicate is what lets a record be restored again after an
+// earlier request COMPLETED or FAILED; `migrate diff` cannot see it, so these
+// assertions hold it.
+describe("raw-schema ownership — the archive-restore one-open partial UNIQUE index", () => {
+  const MIGRATION = resolve(
+    API_ROOT,
+    "prisma/migrations/20281014000000_free_outputs_canonical_verification_retention_archive/migration.sql",
+  );
+
+  it("is registered exactly once as a partial unique with its predicate", () => {
+    const matches = manifest.objects.filter(
+      (o) =>
+        o.table === "evidence_archive_restore_requests" &&
+        o.sign === "-" &&
+        o.object === "Removed unique index on columns (evidence_id)",
+    );
+    expect(matches).toHaveLength(1);
+    const entry = matches[0]!;
+    expect(entry.category).toBe("PARTIAL_UNIQUE_DECLARATION");
+    expect(entry.indexName).toBe("evidence_archive_restore_requests_one_open_per_evidence");
+    expect(entry.columns).toEqual(["evidence_id"]);
+    expect(entry.predicate).toBe("status IN ('REQUESTED', 'RUNNING')");
+    expect(entry.prismaExpressible).toBe(false);
+  });
+
+  it("the creating migration still declares that exact index, name and predicate", () => {
+    const sql = readFileSync(MIGRATION, "utf8");
+    expect(sql).toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS "evidence_archive_restore_requests_one_open_per_evidence"\s+ON "evidence_archive_restore_requests"\("evidence_id"\)\s+WHERE "status" IN \('REQUESTED', 'RUNNING'\);/,
+    );
+  });
+
+  it("the datamodel does NOT declare an unconditional unique on evidenceId", () => {
+    const start = SCHEMA.indexOf("model EvidenceArchiveRestoreRequest {");
+    expect(start).toBeGreaterThan(-1);
+    const body = SCHEMA.slice(start, SCHEMA.indexOf("\n}", start));
+    expect(body).not.toMatch(/@@unique\(\[evidenceId\]\)/);
+    expect(body).not.toMatch(/evidenceId\s+String[^\n]*@unique/);
+  });
+});

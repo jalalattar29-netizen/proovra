@@ -94,12 +94,12 @@
     "INDEX_NAME_CONVENTION": 271,
     "UNIQUE_DECLARATION": 5,
     "PARTIAL_INDEX_DECLARATION": 2,
-    "PARTIAL_UNIQUE_DECLARATION": 8,
+    "PARTIAL_UNIQUE_DECLARATION": 9,
     "EXTENSION_CONDITIONAL_COLUMN": 2,
     "EXTENSION_CONDITIONAL_INDEX": 2,
     "ENUM_LABEL_RESIDUAL": 1
   },
-  "totalRegisteredObjects": 887,
+  "totalRegisteredObjects": 888,
   "objects": [
     {
       "table": "access_review_campaigns",
@@ -1952,6 +1952,23 @@
       "sign": "+",
       "object": "Added index on columns (parent_annotation_id)",
       "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_archive_restore_requests",
+      "sign": "-",
+      "object": "Removed unique index on columns (evidence_id)",
+      "category": "PARTIAL_UNIQUE_DECLARATION",
+      "indexName": "evidence_archive_restore_requests_one_open_per_evidence",
+      "columns": [
+        "evidence_id"
+      ],
+      "unique": true,
+      "predicate": "status IN ('REQUESTED', 'RUNNING')",
+      "owningMigration": "services/api/prisma/migrations/20281014000000_free_outputs_canonical_verification_retention_archive/migration.sql",
+      "reason": "One OPEN archive-restore request per record (Retention Archive, owner decision 2026-10-14). Concurrent restore clicks from web, mobile or the API collapse at the DATABASE into one durable request; a COMPLETED or FAILED request no longer blocks a new one, which is why the index is PARTIAL. Prisma cannot express a partial unique index.",
+      "createdBy": "20281014000000_free_outputs_canonical_verification_retention_archive",
+      "prismaExpressible": false,
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unconditional `@@unique([evidenceId])` would forbid a second restore after a completed or failed one."
     },
     {
       "table": "evidence_credit_ledger_entries",
