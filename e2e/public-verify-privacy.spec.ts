@@ -89,14 +89,18 @@ test.describe("public verify privacy @critical", () => {
       const byId = await request.get(`${API_BASE}/public/verify/${id}`);
       expect(byId.status(), "a record's id is not a public link").toBe(404);
 
-      const res = await request.get(`${API_BASE}/public/verify/${mintVerifyLink(id)}`);
+      // A BASIC-projection link: the public answer with nothing about who
+      // submitted the record. (Owner decision 2026-10-14: a FREE record is now
+      // one of three COMPLETE records, so an unrestricted recipient link to it
+      // answers the full projection exactly as a paid record does; the BASIC
+      // contract is pinned through the link that asks for it.)
+      const res = await request.get(`${API_BASE}/public/verify/${mintVerifyLink(id, "BASIC")}`);
       expect(res.status()).toBe(200);
       const text = await res.text();
       const body = JSON.parse(text) as Record<string, unknown>;
 
-      // A guest record is not entitled to issued outputs, so it answers the
-      // BASIC tier: the original-integrity result and nothing that describes
-      // who submitted it. The identity fields the RICH projection gates
+      // It answers the BASIC tier: the original-integrity result and nothing
+      // that describes who submitted it. The identity fields the RICH projection gates
       // (overview.submittedByEmail / workspaceName / organizationName, and
       // the raw submittedByAuthProviderCode) must not exist ANYWHERE in the
       // answer — asserted on the serialized body, so no nesting can hide one.
@@ -137,7 +141,7 @@ test.describe("public verify privacy @critical", () => {
     const session = await createGuestSession();
     try {
       const id = await signedEvidence(session);
-      const res = await request.get(`${API_BASE}/public/verify/${mintVerifyLink(id)}`);
+      const res = await request.get(`${API_BASE}/public/verify/${mintVerifyLink(id, "BASIC")}`);
       expect(res.ok()).toBe(true);
       const body = (await res.json()) as {
         tier?: string;

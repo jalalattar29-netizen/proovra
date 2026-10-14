@@ -170,8 +170,13 @@ export default defineConfig({
    * goes wrong next, the run STOPS and the reporter still writes its summary
    * and its artifacts, so the next reader is told which tests failed rather
    * than only how long they took.
+   *
+   * 50 minutes (was 40): a healthy run measured 30–36 minutes on main before
+   * the three-decisions full-stack journey (real worker report and package,
+   * archive and restore) joined it, and setup takes about five of the job's
+   * sixty minutes.
    */
-  globalTimeout: process.env.CI ? 40 * 60_000 : undefined,
+  globalTimeout: process.env.CI ? 50 * 60_000 : undefined,
   expect: { timeout: 10_000 },
   use: {
     baseURL: WEB_BASE,
