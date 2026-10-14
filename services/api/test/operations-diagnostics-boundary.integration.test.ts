@@ -17,7 +17,12 @@
  *   3. Another workspace gets 404.
  *   4. The write boundary refuses the legacy identity and a dedicated event
  *      through the bridge shape, normalizes a message/source mismatch, and a
- *      genuine upload stall and an intake failure stay distinct sources.
+ *      genuine upload stall and an upload-START failure stay distinct sources.
+ *   6. `intake.delivery_failed` is the upload service failing to start or
+ *      resume an upload (its id is historical): written by the real producer,
+ *      it reads as that failure — never as an intake link that was not
+ *      delivered — offers no intake-link action, and a genuine intake-link
+ *      delivery failure files under communications.provider_failure instead.
  *   5. The `legacy_upload_session_source` rule: dry run writes nothing, apply
  *      corrects only the source, a second dry run reports zero, the note and
  *      status are untouched, nothing is deleted.
@@ -176,7 +181,7 @@ describe("operations diagnostics boundary (live PostgreSQL 16)", () => {
     expect(r.body).not.toContain(JOB_ID);
   });
 
-  it("4. the write boundary refuses or normalizes incompatible pairs; stall and intake stay distinct", async () => {
+  it("4. the write boundary refuses or normalizes incompatible pairs; a stall and a start failure stay distinct", async () => {
     const { recordIncident } = await import("../src/services/observability/incident.service.js");
     const w = await workspaceFor("TEAM", "diag-write");
 
@@ -207,8 +212,9 @@ describe("operations diagnostics boundary (live PostgreSQL 16)", () => {
     );
     expect((await c.prisma.operationalIncident.findUniqueOrThrow({ where: { id: stall.id } })).sourceId).toBe("capture.upload_stalled");
 
-    // A genuine intake-side failure stays the intake source, never an upload stall.
-    const { incident: intake } = await recordIncident(
+    // The upload service failing to START an upload stays its own source
+    // (historical id `intake.delivery_failed`), never an upload stall.
+    const { incident: startFailure } = await recordIncident(
       {
         teamId: w.teamId,
         sourceId: "intake.delivery_failed" as never,
@@ -220,9 +226,64 @@ describe("operations diagnostics boundary (live PostgreSQL 16)", () => {
       } as never,
       c.prisma as never,
     );
-    const intakeRow = await c.prisma.operationalIncident.findUniqueOrThrow({ where: { id: intake.id } });
-    expect(intakeRow.sourceId).toBe("intake.delivery_failed");
-    expect(intakeRow.id).not.toBe(stall.id);
+    const startRow = await c.prisma.operationalIncident.findUniqueOrThrow({ where: { id: startFailure.id } });
+    expect(startRow.sourceId).toBe("intake.delivery_failed");
+    expect(startRow.id).not.toBe(stall.id);
+  });
+
+  it("6. intake.delivery_failed is an upload-start/resume failure end to end; an intake-link delivery failure is not", async () => {
+    const w = await workspaceFor("TEAM", "diag-upload-start");
+    const { safeEmitSecurityEvent } = await import("../src/services/security/security-event.service.js");
+    const settle = () => new Promise((r) => setTimeout(r, 400));
+
+    // The REAL producers: the upload service failing to start, then to resume.
+    for (const eventType of ["upload_session_create_failed", "upload_session_resume_failed"]) {
+      safeEmitSecurityEvent({ teamId: w.teamId, eventType, severity: "WARNING", details: { reason: "storage_unavailable" } } as never);
+    }
+    await settle();
+    const rows = await c.prisma.operationalIncident.findMany({ where: { teamId: w.teamId }, orderBy: { fingerprint: "asc" } });
+    expect(rows.map((r) => [r.sourceId, r.fingerprint])).toEqual([
+      ["intake.delivery_failed", "upload:security_event:upload_session_create_failed"],
+      ["intake.delivery_failed", "upload:security_event:upload_session_resume_failed"],
+    ]);
+
+    const titles: Record<string, string> = {
+      "upload:security_event:upload_session_create_failed": "An upload could not be started",
+      "upload:security_event:upload_session_resume_failed": "An upload could not be resumed",
+    };
+    const INTAKE = /intake|invitation|resend|copy link|link could not|recipient|not delivered/i;
+    for (const row of rows) {
+      const d = await c.inj("GET", `/v1/ops/incidents/${row.id}?teamId=${w.teamId}`, w.owner.token);
+      expect(d.statusCode).toBe(200);
+      const body = d.json() as {
+        incident: { title: string; safeSummary: string; message: { code: string; params: Record<string, unknown> } };
+        remediation: { disposition: string; actions: unknown[]; deepLink: unknown; guidance: string };
+      };
+      expect(body.incident.title).toBe(titles[row.fingerprint]);
+      expect(body.incident.message.code).toBe("ops.security.signal");
+      expect(body.incident.safeSummary).toMatch(/^The upload service failed while (starting|resuming)/);
+      // Guidance only: nothing to press, nowhere to go.
+      expect(body.remediation.disposition).toBe("READ_ONLY_GUIDANCE");
+      expect(body.remediation.actions).toEqual([]);
+      expect(body.remediation.deepLink).toBeNull();
+      expect(body.remediation.guidance).toMatch(/^The upload service failed while starting or resuming an upload/);
+      // No customer-facing word of an intake link, and no intake route.
+      const words = [body.incident.title, body.incident.safeSummary, body.remediation.guidance].join(" ");
+      expect(words).not.toMatch(INTAKE);
+      expect(d.body).not.toMatch(/\/intake-links|intakeLink/);
+    }
+    // The grouped view names the source by its upload-specific label.
+    const g = await c.inj("GET", `/v1/ops/incident-groups?teamId=${w.teamId}`, w.owner.token);
+    expect(g.statusCode).toBe(200);
+    expect(g.body).not.toMatch(/\/intake-links|Intake link/i);
+
+    // A GENUINE intake-link delivery failure: the messaging provider failed to
+    // deliver the link. It is a communications condition, never this source.
+    safeEmitSecurityEvent({ teamId: w.teamId, eventType: "communication_message_failed", severity: "WARNING", details: { purpose: "INTAKE_LINK", channel: "EMAIL", reason: "provider_rejected", attempt: 1, retry: false } } as never);
+    await settle();
+    const delivery = await c.prisma.operationalIncident.findFirstOrThrow({ where: { teamId: w.teamId, fingerprint: { endsWith: ":security_event:communication_message_failed" } } });
+    expect(delivery.sourceId).toBe("communications.provider_failure");
+    expect(await c.prisma.operationalIncident.count({ where: { teamId: w.teamId, sourceId: "intake.delivery_failed" } })).toBe(2);
   });
 
   it("5. the legacy_upload_session_source rule: dry run, apply, zero on a second dry run, note untouched", async () => {

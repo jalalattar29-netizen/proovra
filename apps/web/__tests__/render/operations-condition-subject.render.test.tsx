@@ -29,6 +29,7 @@ vi.mock("../../app/providers", async (importOriginal) => ({
 }));
 vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
 
+import { operationsCopyFor } from "@proovra/shared";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
 import { IncidentInspector } from "../../app/(app)/operations/_components/IncidentInspector";
 import { buildRowModel } from "../../app/(app)/operations/_lib/rowModel";
@@ -99,6 +100,8 @@ function mount(i: Incident, timeline: IncidentDetail["timeline"] = [], remediati
     viewerUserId: null,
     operatorLabels: new Map(),
     now: NOW,
+    // As the page does: the reader's dictionary AND locale.
+    copy: operationsCopyFor(localeState.locale),
     locale: localeState.locale,
   });
   const detail = { kind: "ready" as const, data: { ...i, timeline, timelineComplete: true } as IncidentDetail };
@@ -308,6 +311,80 @@ describe("the condition drawer", () => {
       expect(none.container.textContent, loc).not.toMatch(/upload_stalled|stuck-upload|ops\.capture/);
       expect(none.container.querySelector("[data-ops-support-reference]")!.textContent, loc).toContain("OPS-C0000000");
       none.unmount();
+    }
+  });
+
+  // 2026-10-14 — `intake.delivery_failed` is the upload service failing to
+  // start or resume an upload (the id is historical). The drawer reads as that
+  // failure in every locale and offers nothing to press and nowhere to go —
+  // never an intake link that could not be delivered, resent or copied.
+  it("an upload-start failure (intake.delivery_failed) reads as an upload failure in EN/DE/AR, with no intake-link action", () => {
+    const GUIDANCE =
+      "The upload service failed while starting or resuming an upload. The person uploading saw an error at the time and can try again; nothing needs to be done here unless it keeps happening, in which case contact support.";
+    const expected = {
+      en: {
+        title: "An upload could not be started",
+        summary: "The upload service failed while starting an upload in this workspace.",
+        source: "Capture and upload",
+        guidance: "nothing needs to be done here unless it keeps happening",
+        intake: /intake|invitation|resend|copy link|link could not|recipient|not delivered/i,
+      },
+      de: {
+        title: "Ein Upload konnte nicht gestartet werden",
+        summary: "Der Upload-Dienst ist beim Starten eines Uploads in diesem Arbeitsbereich fehlgeschlagen.",
+        source: "Erfassung und Upload",
+        guidance: "hier ist nichts zu tun, es sei denn, es tritt wiederholt auf",
+        intake: /intake|einladung|erneut senden|link kopieren|empfänger|nicht zugestellt/i,
+      },
+      ar: {
+        title: "تعذّر بدء رفع",
+        summary: "أخفقت خدمة الرفع أثناء بدء رفع في مساحة العمل هذه.",
+        source: "الالتقاط والرفع",
+        guidance: "لا حاجة لأي إجراء هنا ما لم يتكرر ذلك",
+        intake: /رابط|روابط|دعوة|إعادة إرسال|نسخ الرابط|مستلم|تعذّر تسليم/,
+      },
+    } as const;
+    for (const loc of ["en", "de", "ar"] as const) {
+      localeState.locale = loc;
+      const { container, unmount } = mount(
+        condition({
+          category: "UPLOAD",
+          severity: "WARNING",
+          title: "An upload could not be started",
+          safeSummary: "stored",
+          message: { code: "ops.security.signal", params: { eventType: "upload_session_create_failed", severity: "WARNING" }, titleSource: "CONDITION" },
+          relatedEvidenceId: null,
+          lifecycle: {
+            sourceId: "intake.delivery_failed",
+            sourceMatch: "DECLARED",
+            resolutionAuthority: "OPERATOR_DECISION",
+            audience: "TENANT_ACTIONABLE",
+            cardinality: "EVENT",
+            recoveryPolicy: "OPERATOR_CLOSES",
+            manualResolution: true,
+          } as never,
+          subject: { kind: "UPLOADS", name: null, reference: null, version: null, state: "NOT_APPLICABLE" },
+          technicalReferences: undefined,
+          fingerprint: undefined,
+          runbookSlug: undefined,
+          supportReference: "OPS-C0000000",
+        }),
+        [],
+        { disposition: "READ_ONLY_GUIDANCE", actions: [], deepLink: null, guidance: GUIDANCE, unsafeReason: null } as never,
+      );
+      const e = expected[loc];
+      expect(container.querySelector("h2")!.textContent, loc).toBe(e.title);
+      const text = container.textContent ?? "";
+      expect(text, loc).toContain(e.summary);
+      expect(text, loc).toContain(e.source);
+      expect(text, loc).toContain(e.guidance);
+      if (loc !== "en") expect(text, loc).not.toContain(GUIDANCE);
+      expect(text, loc).not.toMatch(e.intake);
+      // Nothing to press and nowhere to go.
+      expect(container.querySelector("[data-ops-remediation-link]"), loc).toBeNull();
+      expect(container.querySelectorAll(".opsw-remediation__action"), loc).toHaveLength(0);
+      expect(container.querySelector('a[href*="intake-links"]'), loc).toBeNull();
+      unmount();
     }
   });
 

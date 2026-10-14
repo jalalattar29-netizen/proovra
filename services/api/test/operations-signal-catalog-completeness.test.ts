@@ -37,6 +37,7 @@ import {
   SECURITY_SIGNAL_EVENT_TYPES,
   conditionSourceLabel,
   conditionSubjectLabel,
+  localizeRemediationText,
   renderConditionMessage,
 } from "@proovra/shared";
 import { OPERATIONS_SOURCE_LIFECYCLES, decideConditionSourceForWrite } from "@proovra/shared-runtime";
@@ -535,5 +536,144 @@ describe("the write decision: a signal is filed only under a source its message 
     expect(
       decideConditionSourceForWrite({ sourceId: "intake.delivery_failed", fingerprint: "upload:security_event:upload_session_create_failed", messageCode: "ops.security.signal" }),
     ).toEqual({ ok: true, sourceId: "intake.delivery_failed", normalizedFrom: null });
+  });
+});
+
+/**
+ * `intake.delivery_failed` IS AN UPLOAD-SERVICE FAILURE (2026-10-14).
+ *
+ * The id is historical. Its only producers are the security-event bridge's
+ * `upload_session_create_failed` and `upload_session_resume_failed`: the
+ * upload service failing to START or RESUME an upload session. Every word a
+ * customer reads for it — title, explanation, source label, remediation, Home —
+ * is upload-specific in every locale, and it offers no intake-link action.
+ * (A genuine intake-link delivery failure is a CommunicationMessage FAILED row
+ * on the Intake Links page; in Operations it is `communications.provider_failure`
+ * — "A message could not be delivered" — never this source.)
+ */
+describe("intake.delivery_failed reads as the upload-service failure it is, in EN/DE/AR", () => {
+  // Words that would say or imply an intake link / invitation was not delivered,
+  // or offer to resend or copy one.
+  const INTAKE_WORDS: Record<"en" | "de" | "ar", RegExp> = {
+    en: /intake|invitation|link|resend|re-send|copy|recipient|deliver/i,
+    de: /intake|einladung|link|erneut senden|kopieren|empfänger|zustell/i,
+    ar: /رابط|روابط|دعوة|إعادة إرسال|نسخ|مستلم|تسليم|استلام/,
+  };
+  const EXPECTED = {
+    upload_session_create_failed: {
+      en: {
+        title: "An upload could not be started",
+        summary: "The upload service failed while starting an upload in this workspace. The person uploading saw an error and can try again; if it keeps happening, contact support.",
+      },
+      de: {
+        title: "Ein Upload konnte nicht gestartet werden",
+        summary: "Der Upload-Dienst ist beim Starten eines Uploads in diesem Arbeitsbereich fehlgeschlagen. Die hochladende Person hat eine Fehlermeldung gesehen und kann es erneut versuchen; tritt es wiederholt auf, wenden Sie sich an den Support.",
+      },
+      ar: {
+        title: "تعذّر بدء رفع",
+        summary: "أخفقت خدمة الرفع أثناء بدء رفع في مساحة العمل هذه. رأى من يرفع الملف رسالة خطأ ويمكنه المحاولة مجددًا؛ وإن تكرر ذلك فتواصل مع الدعم.",
+      },
+    },
+    upload_session_resume_failed: {
+      en: {
+        title: "An upload could not be resumed",
+        summary: "The upload service failed while resuming an interrupted upload. The person uploading saw an error and can try again; if it keeps happening, contact support.",
+      },
+      de: {
+        title: "Ein Upload konnte nicht fortgesetzt werden",
+        summary: "Der Upload-Dienst ist beim Fortsetzen eines unterbrochenen Uploads fehlgeschlagen. Die hochladende Person hat eine Fehlermeldung gesehen und kann es erneut versuchen; tritt es wiederholt auf, wenden Sie sich an den Support.",
+      },
+      ar: {
+        title: "تعذّر استئناف رفع",
+        summary: "أخفقت خدمة الرفع أثناء استئناف رفع منقطع. رأى من يرفع الملف رسالة خطأ ويمكنه المحاولة مجددًا؛ وإن تكرر ذلك فتواصل مع الدعم.",
+      },
+    },
+  } as const;
+  const SOURCE_LABEL = {
+    en: "Uploads could not be started or resumed",
+    de: "Uploads konnten nicht gestartet oder fortgesetzt werden",
+    ar: "تعذّر بدء عمليات الرفع أو استئنافها",
+  } as const;
+  const GUIDANCE_EN =
+    "The upload service failed while starting or resuming an upload. The person uploading saw an error at the time and can try again; nothing needs to be done here unless it keeps happening, in which case contact support.";
+  const GUIDANCE = {
+    en: GUIDANCE_EN,
+    de: "Der Upload-Dienst ist beim Starten oder Fortsetzen eines Uploads fehlgeschlagen. Die hochladende Person hat dabei eine Fehlermeldung gesehen und kann es erneut versuchen; hier ist nichts zu tun, es sei denn, es tritt wiederholt auf — dann wenden Sie sich an den Support.",
+    ar: "أخفقت خدمة الرفع أثناء بدء رفع أو استئنافه. رأى من يرفع الملف رسالة خطأ حينها ويمكنه المحاولة مجددًا؛ لا حاجة لأي إجراء هنا ما لم يتكرر ذلك، وعندها تواصل مع الدعم.",
+  } as const;
+
+  it("its producers are exactly the two upload-session failures, and its lifecycle says so", () => {
+    const producing = Object.entries(CLASSIFIED_SECURITY_EVENTS)
+      .filter(([, c]) => c.sourceId === "intake.delivery_failed")
+      .map(([t]) => t)
+      .sort();
+    expect(producing).toEqual(["upload_session_create_failed", "upload_session_resume_failed"]);
+    const lifecycle = OPERATIONS_SOURCE_LIFECYCLES.find((l) => l.sourceId === "intake.delivery_failed")!;
+    expect(lifecycle.displayLabel).toBe(SOURCE_LABEL.en);
+    expect(lifecycle.remediationDisposition).toBe("GUIDANCE_ONLY");
+    expect(lifecycle.rationale).toMatch(/failed to start or resume an upload session/);
+    expect(OPERATIONS_SOURCES.find((x) => x.id === "intake.delivery_failed")!.owner).toMatch(/^Upload sessions/);
+  });
+
+  it("renders the exact upload-specific title and explanation in every locale", () => {
+    for (const [eventType, byLocale] of Object.entries(EXPECTED)) {
+      const row = {
+        sourceId: "intake.delivery_failed",
+        category: "UPLOAD",
+        fingerprint: `upload:security_event:${eventType}`,
+        messageCode: "ops.security.signal",
+        messageParams: { eventType, severity: "WARNING" },
+        title: "stored",
+        safeSummary: "stored",
+      };
+      const msg = conditionMessageFor(row as never)!;
+      expect(msg).toEqual({ code: "ops.security.signal", params: { eventType, severity: "WARNING" } });
+      for (const locale of ["en", "de", "ar"] as const) {
+        const r = renderConditionMessage(locale, msg.code, msg.params)!;
+        expect(r, `${eventType}/${locale}`).toEqual(byLocale[locale]);
+        expect(`${r.title} ${r.summary}`, `${eventType}/${locale}`).not.toMatch(INTAKE_WORDS[locale]);
+      }
+    }
+  });
+
+  it("its source label is upload-specific in every locale", () => {
+    for (const locale of ["en", "de", "ar"] as const) {
+      expect(conditionSourceLabel(locale, "intake.delivery_failed")).toBe(SOURCE_LABEL[locale]);
+      expect(SOURCE_LABEL[locale]).not.toMatch(INTAKE_WORDS[locale]);
+    }
+  });
+
+  it("its remediation is read-only guidance, localized exactly, with no action and no link", () => {
+    for (const eventType of Object.keys(EXPECTED)) {
+      const entry = entryForIncident({ sourceId: "intake.delivery_failed", category: "UPLOAD", fingerprint: `upload:security_event:${eventType}` })!;
+      expect(entry.disposition).toBe("READ_ONLY_GUIDANCE");
+      expect(entry.action).toBeUndefined();
+      expect(entry.secondaryAction).toBeUndefined();
+      expect(entry.deepLink).toBeUndefined();
+      expect(entry.guidance).toBe(GUIDANCE_EN);
+    }
+    for (const locale of ["en", "de", "ar"] as const) {
+      const text = localizeRemediationText(locale, GUIDANCE_EN);
+      expect(text, locale).toBe(GUIDANCE[locale]);
+      expect(text!, locale).not.toMatch(INTAKE_WORDS[locale]);
+    }
+  });
+
+  it("Home names it as an upload failure and links only to Operations", () => {
+    const home = HOME_CONDITION_REPRESENTATION["intake.delivery_failed"] as {
+      kind: string;
+      label: string;
+      whyItMatters: string;
+      recommendedAction: string;
+      href: string;
+    };
+    expect(home.kind).toBe("ROW");
+    expect(home.label).toBe(SOURCE_LABEL.en);
+    expect(home.href).toBe("/operations");
+    expect(`${home.label} ${home.whyItMatters} ${home.recommendedAction}`).not.toMatch(INTAKE_WORDS.en);
+  });
+
+  it("a genuine intake-link delivery failure is the communications source, never this one", () => {
+    expect(CLASSIFIED_SECURITY_EVENTS.communication_message_failed!.sourceId).toBe("communications.provider_failure");
   });
 });
