@@ -411,8 +411,12 @@ afterEach(() => {
 describe("the canonical font has ONE authority, and every consumer asks it", () => {
   it("tokens.css declares --font-sans from the next/font variable, with an RTL variant led by the Arabic face", () => {
     const root = TOKENS_CSS.slice(TOKENS_CSS.indexOf(":root {"));
-    expect(root).toMatch(/--font-sans:\s*var\(--font-jakarta\)/);
-    expect(TOKENS_CSS).toMatch(/:root\[dir="rtl"\]\s*\{\s*--font-sans:\s*var\(--font-arabic\),\s*var\(--font-jakarta\)/);
+    // Each next/font variable carries its family name as a fallback, so the
+    // token is complete for the native token generator too.
+    expect(root).toMatch(/--font-sans:\s*var\(--font-jakarta, "Plus Jakarta Sans"\)/);
+    expect(TOKENS_CSS).toMatch(
+      /:root\[dir="rtl"\]\s*\{\s*--font-sans:\s*var\(--font-arabic, "Noto Sans Arabic"\),\s*var\(--font-jakarta, "Plus Jakarta Sans"\)/,
+    );
     // The composite tokens ask for it.
     for (const token of ["--font-card-title", "--font-meta", "--font-label"]) {
       expect(TOKENS_CSS).toMatch(new RegExp(`${token}:[^;]*var\\(--font-sans`));

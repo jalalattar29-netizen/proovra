@@ -507,11 +507,11 @@
    * It resolves the next/font variable `--font-jakarta` that the root layout
    * puts on <html>, with the same fallback stack `globals.css` declares, and
    * an RTL document leads with the Arabic face (see the `[dir="rtl"]` rule
-   * below). An undefined `--font-jakarta` (a hermetic test, a build without
-   * the class) makes this property invalid, so each consumer's own fallback
-   * still applies — never a blank font.
+   * below). Each next/font variable carries its family NAME as a fallback, so
+   * the token is a complete value everywhere it is read — in a hermetic test,
+   * in a build without the class, and in the native token generator.
    * ------------------------------------------------------------------ */
-  --font-sans: var(--font-jakarta), "Aptos", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  --font-sans: var(--font-jakarta, "Plus Jakarta Sans"), "Aptos", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
   --font-card-title: 600 14px/1.4 var(--font-sans, -apple-system, "Segoe UI", system-ui);
   --font-meta: 500 12.5px/1.4 var(--font-sans, -apple-system, "Segoe UI", system-ui);
   --font-label: 700 10.5px/1 var(--font-sans, -apple-system, "Segoe UI", system-ui);
@@ -560,5 +560,5 @@
    for embedded Latin text — the same family authority, one declaration, so
    the body, the form controls and every composite token above agree. */
 :root[dir="rtl"] {
-  --font-sans: var(--font-arabic), var(--font-jakarta), "Segoe UI", system-ui, sans-serif;
+  --font-sans: var(--font-arabic, "Noto Sans Arabic"), var(--font-jakarta, "Plus Jakarta Sans"), "Segoe UI", system-ui, sans-serif;
 }
