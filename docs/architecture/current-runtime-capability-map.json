@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "a0d5149173f12314f55e4aff9aae1844527f5322ec4536f80f93ff662977201b",
-  "consumerInventoryHash": "5a7bbaa046abb931c2892032c80eb9d4382f2342f858e5762aae9b31af87163c",
+  "consumerInventoryHash": "d9c50e3eaa9be9f05071204edb9cfbc3ddcbe3587594a1ed3fa3651df690a90f",
   "dispositionsHash": "b91e4fd4699fa26a59e2784e582b53fc7407b0b9712580d59c56732b6a28aee5",
   "totals": {
     "RegisteredRoutes": 1187,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 30
     },
-    "TerminalWriters": 1340,
-    "ReachableSensitiveMutations": 1327,
-    "ClassifiedSensitiveMutations": 1327,
+    "TerminalWriters": 1341,
+    "ReachableSensitiveMutations": 1328,
+    "ClassifiedSensitiveMutations": 1328,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 13,
@@ -77,7 +77,7 @@
       "WORKSPACE": 66,
       "WORKSPACE_MEMBERSHIP_INVITATION": 52,
       "CASE": 78,
-      "EVIDENCE_CUSTODY_FINALIZATION": 310,
+      "EVIDENCE_CUSTODY_FINALIZATION": 311,
       "LEGAL_HOLD_RETENTION_DELETION": 51,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 82,
       "BILLING_SUBSCRIPTION_SEAT": 88,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1185,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1186,
       "JOB_ATTRIBUTED_REACHABLE": 132,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 9856,
-      "UNRESOLVED_IDENTIFIER": 1364
+      "METHOD_ON_VALUE": 9869,
+      "UNRESOLVED_IDENTIFIER": 1366
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -12292,7 +12292,7 @@
       "method": "POST",
       "route": "/v1/ops/incidents/:id/unsuppress",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:1313",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:1334",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -58644,8 +58644,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.create@549",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:549",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.create@553",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:553",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "recordIncident",
       "kind": "DATABASE",
@@ -59637,8 +59637,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@1040",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1040",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@1044",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1044",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "markConditionObservationStale",
       "kind": "DATABASE",
@@ -60620,8 +60620,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@1215",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1215",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@1219",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1219",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "assignIncident",
       "kind": "DATABASE",
@@ -61603,8 +61603,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@1509",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1509",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@1513",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1513",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "transitionIncident",
       "kind": "DATABASE",
@@ -62586,8 +62586,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@730",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:730",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@734",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:734",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "recordIncident",
       "kind": "DATABASE",
@@ -63579,8 +63579,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@965",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:965",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@969",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:969",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "resolveConditionFromSourceRecovery",
       "kind": "DATABASE",
@@ -64571,8 +64571,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1226",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1226",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1230",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1230",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "assignIncident",
       "kind": "DATABASE",
@@ -65554,8 +65554,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1518",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1518",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1522",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1522",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "transitionIncident",
       "kind": "DATABASE",
@@ -66537,8 +66537,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@783",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:783",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@787",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:787",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "recordIncident",
       "kind": "DATABASE",
@@ -67530,8 +67530,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@980",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:980",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@984",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:984",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "resolveConditionFromSourceRecovery",
       "kind": "DATABASE",
@@ -76908,8 +76908,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.update@494",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:494",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.update@495",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:495",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "reconcileOperationsTruth",
       "kind": "DATABASE",
@@ -76938,8 +76938,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.update@572",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:572",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.update@573",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:573",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "reconcileOperationsTruth",
       "kind": "DATABASE",
@@ -76968,8 +76968,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.update@690",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:690",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.update@691",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:691",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "reconcileOperationsTruth",
       "kind": "DATABASE",
@@ -76998,8 +76998,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.updateMany@149",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:149",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.updateMany@150",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:150",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "closeWithNote",
       "kind": "DATABASE",
@@ -77028,8 +77028,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@154",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:154",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@155",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:155",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "closeWithNote",
       "kind": "DATABASE",
@@ -77058,8 +77058,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@190",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:190",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@191",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:191",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "flagForOwnerReview",
       "kind": "DATABASE",
@@ -77088,8 +77088,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@498",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:498",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@499",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:499",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "reconcileOperationsTruth",
       "kind": "DATABASE",
@@ -77118,8 +77118,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@581",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:581",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@582",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:582",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "reconcileOperationsTruth",
       "kind": "DATABASE",
@@ -77148,8 +77148,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@694",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:694",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@695",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:695",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "reconcileOperationsTruth",
       "kind": "DATABASE",
@@ -80873,8 +80873,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reliability/upload-session.service.ts#uploadSession.updateMany@172",
-      "terminalLocation": "services/api/src/services/reliability/upload-session.service.ts:172",
+      "writerId": "services/api/src/services/reliability/upload-session.service.ts#uploadSession.updateMany@175",
+      "terminalLocation": "services/api/src/services/reliability/upload-session.service.ts:175",
       "file": "services/api/src/services/reliability/upload-session.service.ts",
       "enclosingDeclaration": "transitionUploadSession",
       "kind": "DATABASE",
@@ -80895,6 +80895,48 @@
         "POST /v1/reliability/reconcile",
         "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned",
         "POST /v1/reliability/upload-sessions/:evidenceId/request-review"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/capture-trust.routes.ts",
+        "MODULE services/api/src/routes/evidence.routes.ts",
+        "MODULE services/api/src/routes/external-intake.routes.ts",
+        "MODULE services/api/src/routes/reliability.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/reliability/upload-session.service.ts#uploadSession.updateMany@331",
+      "terminalLocation": "services/api/src/services/reliability/upload-session.service.ts:331",
+      "file": "services/api/src/services/reliability/upload-session.service.ts",
+      "enclosingDeclaration": "settleCompletedUploadSession",
+      "kind": "DATABASE",
+      "target": "uploadSession",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
+        "POST /v1/capture/direct-sessions/:id/screen-complete",
+        "POST /v1/capture/direct-sessions/:id/web-complete",
+        "POST /v1/evidence/:id/complete",
+        "POST /v1/external-intake/:token/sessions/:sid/submit",
+        "POST /v1/reliability/reconcile"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -88199,15 +88241,26 @@
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
       "insideTransaction": false,
       "entryRoutes": [
-        "POST /v1/lifecycle/archive/transition"
+        "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
+        "POST /v1/capture/direct-sessions/:id/screen-complete",
+        "POST /v1/capture/direct-sessions/:id/web-complete",
+        "POST /v1/evidence/:id/complete",
+        "POST /v1/external-intake/:token/sessions/:sid/submit",
+        "POST /v1/lifecycle/archive/transition",
+        "POST /v1/reliability/reconcile"
       ],
       "entryJobs": [],
       "entryModules": [
-        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
+        "MODULE services/api/src/routes/capture-trust.routes.ts",
+        "MODULE services/api/src/routes/evidence.routes.ts",
+        "MODULE services/api/src/routes/external-intake.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/reliability.routes.ts"
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -88232,17 +88285,26 @@
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
       "insideTransaction": false,
       "entryRoutes": [
+        "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
+        "POST /v1/capture/direct-sessions/:id/screen-complete",
+        "POST /v1/capture/direct-sessions/:id/web-complete",
+        "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/parts",
-        "POST /v1/external-intake/:token/sessions/:sid/parts"
+        "POST /v1/external-intake/:token/sessions/:sid/parts",
+        "POST /v1/external-intake/:token/sessions/:sid/submit",
+        "POST /v1/reliability/reconcile"
       ],
       "entryJobs": [],
       "entryModules": [
+        "MODULE services/api/src/routes/capture-trust.routes.ts",
         "MODULE services/api/src/routes/evidence.routes.ts",
-        "MODULE services/api/src/routes/external-intake.routes.ts"
+        "MODULE services/api/src/routes/external-intake.routes.ts",
+        "MODULE services/api/src/routes/reliability.routes.ts"
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -88267,17 +88329,28 @@
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
       "insideTransaction": false,
       "entryRoutes": [
+        "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
+        "POST /v1/capture/direct-sessions/:id/screen-complete",
+        "POST /v1/capture/direct-sessions/:id/web-complete",
         "POST /v1/cases/:id/siu-export",
-        "POST /v1/lifecycle/destruction/requests/:id/execute"
+        "POST /v1/evidence/:id/complete",
+        "POST /v1/external-intake/:token/sessions/:sid/submit",
+        "POST /v1/lifecycle/destruction/requests/:id/execute",
+        "POST /v1/reliability/reconcile"
       ],
       "entryJobs": [],
       "entryModules": [
+        "MODULE services/api/src/routes/capture-trust.routes.ts",
+        "MODULE services/api/src/routes/evidence.routes.ts",
+        "MODULE services/api/src/routes/external-intake.routes.ts",
         "MODULE services/api/src/routes/product-and-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/reliability.routes.ts",
         "MODULE services/api/src/routes/siu.routes.ts"
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -94082,7 +94155,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1118,
+          "line": 1139,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -94092,7 +94165,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1232 (remove, MOBILE); apps/web/app/(app)/operations/page.tsx:1118 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1232 (remove, MOBILE); apps/web/app/(app)/operations/page.tsx:1139 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -97438,7 +97511,7 @@
       "method": "GET",
       "path": "/v1/admin/incidents",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:363",
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:364",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -97497,7 +97570,7 @@
       "method": "GET",
       "path": "/v1/admin/incidents/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:646",
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:649",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -98399,7 +98472,7 @@
       "method": "GET",
       "path": "/v1/admin/security-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:149",
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:150",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -118602,7 +118675,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 931,
+          "line": 952,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118612,7 +118685,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:403 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:931 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:403 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:952 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -118901,7 +118974,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 667,
+          "line": 688,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118909,7 +118982,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 731,
+          "line": 752,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118919,7 +118992,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:377 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:667 (OperationsWorkbench, WEB); apps/web/app/(app)/operations/page.tsx:731 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:377 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:688 (OperationsWorkbench, WEB); apps/web/app/(app)/operations/page.tsx:752 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -118978,7 +119051,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 795,
+          "line": 816,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118988,7 +119061,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1847 (GroupInspector, MOBILE); apps/web/app/(app)/operations/page.tsx:795 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1847 (GroupInspector, MOBILE); apps/web/app/(app)/operations/page.tsx:816 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -119056,7 +119129,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 872,
+          "line": 893,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119064,7 +119137,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1143,
+          "line": 1164,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119090,7 +119163,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:345 (OperationsWorkspaceScreen, MOBILE); apps/mobile/app/(stack)/operations/index.tsx:435 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:872 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:345 (OperationsWorkspaceScreen, MOBILE); apps/mobile/app/(stack)/operations/index.tsx:435 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:893 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -119151,7 +119224,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 958,
+          "line": 979,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119161,7 +119234,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1417 (IncidentInspector, MOBILE); apps/web/app/(app)/operations/page.tsx:958 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1417 (IncidentInspector, MOBILE); apps/web/app/(app)/operations/page.tsx:979 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -119353,7 +119426,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1004,
+          "line": 1025,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119363,7 +119436,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:415 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1004 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:415 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1025 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -119482,7 +119555,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 868,
+          "line": 889,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119490,7 +119563,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1229,
+          "line": 1250,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -132660,7 +132733,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1083,
+          "line": 1104,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -132670,7 +132743,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1211 (submit, MOBILE); apps/web/app/(app)/operations/page.tsx:1083 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1211 (submit, MOBILE); apps/web/app/(app)/operations/page.tsx:1104 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -135523,7 +135596,7 @@
       "method": "POST",
       "path": "/v1/admin/incidents/:id/acknowledge",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:747",
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:756",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -135580,7 +135653,7 @@
       "method": "POST",
       "path": "/v1/admin/incidents/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:747",
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:756",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -135637,7 +135710,7 @@
       "method": "POST",
       "path": "/v1/admin/incidents/:id/remediate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:691",
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:700",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -135699,7 +135772,7 @@
       "method": "POST",
       "path": "/v1/admin/incidents/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:747",
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:756",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -162159,7 +162232,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1606,
+          "line": 1627,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162177,7 +162250,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:596 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1606 (OperationsWorkbench, WEB); apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:489 (WorkflowOperationsSection, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:596 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1627 (OperationsWorkbench, WEB); apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:489 (WorkflowOperationsSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162260,7 +162333,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1313,
+          "line": 1334,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162338,7 +162411,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1436,
+          "line": 1457,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162348,7 +162421,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:559 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1436 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:559 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1457 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162411,7 +162484,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1489,
+          "line": 1510,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162421,7 +162494,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1453 (remediate, MOBILE); apps/web/app/(app)/operations/page.tsx:1489 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1453 (remediate, MOBILE); apps/web/app/(app)/operations/page.tsx:1510 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162522,7 +162595,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1313,
+          "line": 1334,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162616,7 +162689,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1313,
+          "line": 1334,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162686,7 +162759,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1313,
+          "line": 1334,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162696,7 +162769,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:1313 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:1334 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -163000,7 +163073,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1032,
+          "line": 1053,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -163010,7 +163083,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1206 (submit, MOBILE); apps/web/app/(app)/operations/page.tsx:1032 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1206 (submit, MOBILE); apps/web/app/(app)/operations/page.tsx:1053 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -163890,7 +163963,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1189,
+          "line": 1210,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -163900,7 +163973,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:480 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1189 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:480 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1210 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -167895,6 +167968,8 @@
       "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "evidence",
+        "evidencePart",
         "operationalIncident",
         "operationalIncidentEvent",
         "teamMember",
@@ -167910,19 +167985,18 @@
       "tenantBindingEvidence": [
         "services/api/src/middleware/cron-secret.ts: teamMember.findFirst paired with a lifecycle-status predicate (services/api/src/middleware/cron-secret.ts)",
         "services/api/src/services/reliability/upload-reconciliation.service.ts: uploadSession.findMany — no tenant or self predicate",
-        "services/api/src/services/reliability/upload-session.service.ts: uploadSession.findUnique — no tenant or self predicate",
-        "services/api/src/services/reliability/upload-session.service.ts: uploadSession.updateMany — no tenant or self predicate",
-        "services/api/src/services/reliability/upload-session.service.ts: uploadSession.findUnique — no tenant or self predicate",
-        "services/api/src/services/reliability/upload-session.service.ts: uploadSession.findUnique — no tenant or self predicate",
         "services/api/src/services/reliability/upload-reconciliation.service.ts: uploadSession.findMany — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.updateMany — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.findUniqueOrThrow — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate"
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/services/reliability/upload-reconciliation.service.ts: uploadSession.findMany — no tenant or self predicate",
+        "services/api/src/services/reliability/upload-reconciliation.service.ts: uploadSession.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
-      "crossTenantRefusalSemantics": "refusal raised by the named authority",
+      "crossTenantRefusalSemantics": "refuses with 404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },

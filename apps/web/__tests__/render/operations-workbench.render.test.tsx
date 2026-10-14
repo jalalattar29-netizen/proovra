@@ -155,7 +155,12 @@ vi.mock("../../app/providers", async (importOriginal) => ({
 let currentSearch = "";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
-    push: () => {},
+    /* A filter, presentation or reset change PUSHES a history entry (2026-10-14);
+       a drawer only rewrites the address. Both move the page's URL. */
+    push: (href: string) => {
+      replaced.push(href);
+      currentSearch = href.includes("?") ? href.slice(href.indexOf("?") + 1) : "";
+    },
     replace: (href: string) => {
       replaced.push(href);
       currentSearch = href.includes("?") ? href.slice(href.indexOf("?") + 1) : "";

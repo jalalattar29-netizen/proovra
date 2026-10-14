@@ -302,6 +302,9 @@ function OperationsWorkbench() {
 
   // -------------------------------------------------------------------------
   // FILTERS — the URL is the state, so a filtered queue is a shareable link.
+  // A deliberate change of filters, presentation or reset is a NEW history
+  // entry (router.push), so Back and Forward step through exactly the views
+  // the reader chose; opening or closing a drawer only rewrites the address.
   // -------------------------------------------------------------------------
   const searchKey = searchParams?.toString() ?? "";
   // The filters are the query WITHOUT `?incident=`: opening or closing a
@@ -344,7 +347,7 @@ function OperationsWorkbench() {
 
   const applyFilters = React.useCallback(
     (next: FilterState) => {
-      router.replace(operationsHref(next, presentation, incidentParam), {
+      router.push(operationsHref(next, presentation, incidentParam), {
         scroll: false,
       });
     },
@@ -551,6 +554,24 @@ function OperationsWorkbench() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchKey]);
+  /**
+   * A CONDITION ADDRESS BELONGS TO ITS WORKSPACE. Switching workspace already
+   * closes the drawer (the render-time reset above); the address loses the
+   * previous tenant's `?incident=` too, so a refresh or a shared link never
+   * asks the new workspace for the old one's condition. Filters stay.
+   */
+  const incidentScopeRef = React.useRef<string | null>(teamId);
+  React.useEffect(() => {
+    const previous = incidentScopeRef.current;
+    incidentScopeRef.current = teamId;
+    if (!previous || !teamId || previous === teamId) return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("incident") && !params.has("incidentId")) return;
+    params.delete("incident");
+    params.delete("incidentId");
+    const qs = params.toString();
+    router.replace(qs ? `/operations?${qs}` : "/operations", { scroll: false });
+  }, [teamId, router]);
   const setIncidentInUrl = React.useCallback(
     (id: string | null) => {
       const params = new URLSearchParams(searchKey);
@@ -586,7 +607,7 @@ function OperationsWorkbench() {
       setGrouped(next === "grouped");
       if (next === "grouped") setOpenId(null);
       else setOpenGroupRef(null);
-      router.replace(
+      router.push(
         operationsHref(filters, next, next === "grouped" ? null : incidentParam),
         { scroll: false },
       );
@@ -601,7 +622,7 @@ function OperationsWorkbench() {
   const resetToDefaults = React.useCallback(() => {
     setGrouped(DEFAULT_PRESENTATION === "grouped");
     setOpenGroupRef(null);
-    router.replace(operationsHref({ ...DEFAULT_FILTERS }, DEFAULT_PRESENTATION, incidentParam), {
+    router.push(operationsHref({ ...DEFAULT_FILTERS }, DEFAULT_PRESENTATION, incidentParam), {
       scroll: false,
     });
   }, [router, incidentParam]);

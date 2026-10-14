@@ -55,7 +55,9 @@ test("the queue opens on EVERY lifecycle state; the grouped sections read the un
   await expect(page.locator("[data-ops-controls]")).toContainText(EN.statusAll);
   await expect(page.locator("[data-ops-controls]")).not.toContainText(EN.statusUnresolvedDefault);
   await showGroupedQueue(page);
-  expect(new URL(page.url()).searchParams.get("view")).toBe("grouped");
+  // A presentation change is a history entry (router.push), committed
+  // asynchronously: wait for the address rather than reading it at once.
+  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("grouped");
   await expect.poll(() => groupReads().length).toBeGreaterThan(0);
   expect(groupReads().at(-1)!.query).toContain("status=UNRESOLVED");
   await expect(page.locator('[data-ops-metric="open"]')).toContainText(EN.metrics.open.note);
@@ -72,7 +74,7 @@ test("the Resolved · all time card opens status RESOLVED; Critical opens UNRESO
   await page.locator('[data-ops-metric="resolved"]').click();
   await expect.poll(() => listReads().at(-1)?.query ?? "").toContain("status=RESOLVED");
   await expect(page.locator('[data-ops-metric="resolved"]')).toHaveAttribute("aria-pressed", "true");
-  expect(new URL(page.url()).searchParams.get("status")).toBe("RESOLVED");
+  await expect.poll(() => new URL(page.url()).searchParams.get("status")).toBe("RESOLVED");
 
   await page.locator('[data-ops-metric="critical"]').click();
   await expect.poll(() => listReads().at(-1)?.query ?? "").toContain("severity=CRITICAL");

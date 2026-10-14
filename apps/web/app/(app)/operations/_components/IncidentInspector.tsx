@@ -42,7 +42,7 @@ import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusB
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { useDialogFocusTrap } from "../../../../components/ui/useDialogFocusTrap";
 import { fillOperationsCopy, useOpsCopy, useOpsLocale, useOpsNumber, useOpsTime } from "../_lib/copy";
-import { conditionTechnicalReferenceLabel } from "@proovra/shared/i18n";
+import { conditionTechnicalReferenceLabel, localizeProjectedRemediation } from "@proovra/shared/i18n";
 import { formatUserDateTime } from "../../../../lib/date";
 import type {
   AssignableOperator,
@@ -129,7 +129,7 @@ export function IncidentInspector({
   onUnsuppress,
   onAssign,
   pending,
-  remediation,
+  remediation: projectedRemediation,
   remediationBusy,
   remediationOutcome,
   onRemediate,
@@ -192,6 +192,11 @@ export function IncidentInspector({
   const fmt = useOpsNumber();
   const time = useOpsTime();
   const locale = useOpsLocale();
+  // The server's projection in the reader's language — only the words change.
+  const remediation = React.useMemo(
+    () => (projectedRemediation ? localizeProjectedRemediation(locale, projectedRemediation) : null),
+    [projectedRemediation, locale],
+  );
   // Technical references: the server's labelled list; an older server's bare
   // fields as the fallback. Never in the sentence, only here.
   const technicalRefs = React.useMemo(() => {

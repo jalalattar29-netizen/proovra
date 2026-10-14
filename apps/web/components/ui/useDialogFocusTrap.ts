@@ -92,9 +92,20 @@ export function useDialogFocusTrap(
     };
     document.addEventListener("keydown", onKey);
 
+    // A MODAL DRAWER OWNS THE SCROLL (2026-10-14). The page behind it does not
+    // move while it is open, so a wheel or touch gesture scrolls the drawer
+    // and never the queue underneath; the previous value is restored on close
+    // (the same contract ConfirmActionModal keeps, so stacking restores in order).
+    // The ROOT element is the page's scroller here (globals.css gives html
+    // `overflow-x: clip`, so body overflow does not propagate to the viewport).
+    const scroller = document.documentElement;
+    const prevOverflow = scroller.style.overflow;
+    scroller.style.overflow = "hidden";
+
     return () => {
       window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", onKey);
+      scroller.style.overflow = prevOverflow;
       // Back to the control that opened this — not to <body>, and not to
       // whatever held focus most recently.
       if (opener && document.body.contains(opener)) {

@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, Linking, View } from "react-native";
-import { fillOperationsCopy, makeClientRequestKey, operationsCopyFor } from "@proovra/shared";
+import { fillOperationsCopy, localizeProjectedRemediation, makeClientRequestKey, operationsCopyFor } from "@proovra/shared";
 import { useOptionalLocale } from "../../../src/locale-context";
 import { useRouter } from "expo-router";
 
@@ -1476,7 +1476,7 @@ function IncidentInspector({
   const i = detail?.incident ?? row;
   const elig = i ? rowEligibility(i, caps, { collaborative }) : null;
   const affected = i ? affectedFor(i, nc) : null;
-  const rem = detail?.remediation ?? null;
+  const rem = detail?.remediation ? localizeProjectedRemediation(locale, detail.remediation) : null;
 
   return (
     <ProovraSheet closeLabel={nc.close} visible title={i ? conditionTitle(i, nc) : nc.conditionFallbackTitle} onClose={onClose}>

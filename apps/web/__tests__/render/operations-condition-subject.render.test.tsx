@@ -10,7 +10,10 @@
  *     language; the signal code appears ONLY under Technical references;
  *   - the affected-record line is the server's subject (a named record links
  *     to it; a record that is gone reads as unavailable and is never linked);
- *   - the legacy workspace-wide row reads as uploads in this workspace;
+ *   - a resolved legacy workspace-wide row reads as HISTORY (never as a
+ *     stall), keeps its conclusion, offers no repair, in en/de/ar;
+ *   - remediation labels and guidance are localized, hrefs unchanged;
+ *   - Arabic technical references stay LTR-isolated;
  *   - a timeline entry with no sentence renders no text.
  */
 import React from "react";
@@ -88,7 +91,7 @@ function condition(over: Partial<Incident> = {}): Incident {
   };
 }
 
-function mount(i: Incident, timeline: IncidentDetail["timeline"] = []) {
+function mount(i: Incident, timeline: IncidentDetail["timeline"] = [], remediation: unknown = null) {
   const row = buildRowModel(i, {
     capabilities: CAPS,
     viewerUserId: null,
@@ -112,7 +115,7 @@ function mount(i: Incident, timeline: IncidentDetail["timeline"] = []) {
         onSuppress={() => {}}
         onAssign={() => {}}
         pending={false}
-        remediation={null}
+        remediation={remediation as never}
         remediationBusy={null}
         remediationOutcome={null}
         onRemediate={() => {}}
@@ -157,9 +160,14 @@ describe("the condition drawer", () => {
     expect(sentences(container)).not.toContain("Site survey.mp4.");
   });
 
-  it("the legacy workspace-wide row reads as uploads in this workspace, never its code", () => {
+  it("a resolved legacy workspace-wide row reads as history: truthful label, its conclusion kept, no repair, the code only as a reference", () => {
+    const LEGACY_GUIDANCE =
+      "This is history recorded by an earlier version of Operations. There is nothing to repair here. Uploads are now checked one at a time, and a genuinely stalled upload appears as its own condition.";
+    const conclusion = "Closed after review: the sessions belonged to records that had already finalized.";
     const { container } = mount(
       condition({
+        status: "RESOLVED",
+        resolvedAtUtc: new Date(NOW - 600_000).toISOString(),
         title: "Security signal: upload_stalled",
         safeSummary: "Severity WARNING · team 6488cb98… · fields: stalledThresholdMinutes, previousStatus",
         message: { code: "ops.security.signal", params: { eventType: "upload_stalled", severity: "WARNING" }, titleSource: "CONDITION" },
@@ -178,12 +186,84 @@ describe("the condition drawer", () => {
         subject: { kind: "UPLOADS", name: null, reference: null, version: null, state: "NOT_APPLICABLE" },
         technicalReferences: [{ key: "signalCode", value: "upload_stalled" }],
       }),
+      [{ id: "e2", eventType: "resolved", safeMessage: conclusion, occurredAtUtc: new Date(NOW - 600_000).toISOString() }],
+      { disposition: "READ_ONLY_GUIDANCE", actions: [], deepLink: null, guidance: LEGACY_GUIDANCE, unsafeReason: null } as never,
     );
-    expect(container.querySelector("h2")!.textContent).toBe("Upload appears stalled");
+    // Never claims a stall happened.
+    expect(container.querySelector("h2")!.textContent).toBe("Legacy upload-session signal");
     const text = sentences(container);
+    expect(text).not.toContain("Upload appears stalled");
+    expect(text).toMatch(/did not confirm that any upload was actually stalled/);
+    // Resolved history, its conclusion preserved.
+    expect(container.querySelector("[data-ops-status]")!.getAttribute("data-ops-status")).toBe("RESOLVED");
+    expect(text).toContain(conclusion);
+    // Nothing to repair and nowhere to go.
+    expect(container.querySelector("[data-ops-remediation-link]")).toBeNull();
+    expect(container.querySelectorAll(".opsw-remediation__action")).toHaveLength(0);
+    expect(text).toContain("There is nothing to repair here.");
+    // No internal language; the code only under Technical references.
     expect(text).toContain("Uploads in this workspace");
     expect(text).not.toMatch(/upload_stalled|Security signal|fields:|team 6488|Intake/);
-    expect(text).toContain("Occurred 4 times");
+    expect(container.querySelector("[data-ops-technical-references]")!.textContent).toContain("upload_stalled");
+  });
+
+  it("the legacy row and its guidance read in German and Arabic, Arabic right-to-left with LTR-isolated references", () => {
+    const LEGACY_GUIDANCE =
+      "This is history recorded by an earlier version of Operations. There is nothing to repair here. Uploads are now checked one at a time, and a genuinely stalled upload appears as its own condition.";
+    const expected = {
+      de: { title: "Älteres Upload-Sitzungssignal", guidance: "Hier ist nichts zu reparieren." },
+      ar: { title: "إشارة قديمة لجلسة رفع", guidance: "لا يوجد ما يُصلح هنا." },
+    } as const;
+    for (const loc of ["de", "ar"] as const) {
+      localeState.locale = loc;
+      document.documentElement.setAttribute("dir", loc === "ar" ? "rtl" : "ltr");
+      const { container, unmount } = mount(
+        condition({
+          status: "RESOLVED",
+          message: { code: "ops.security.signal", params: { eventType: "upload_stalled", severity: "WARNING" }, titleSource: "CONDITION" },
+          fingerprint: "upload:security_event:upload_stalled",
+          relatedEvidenceId: null,
+          subject: { kind: "UPLOADS", name: null, reference: null, version: null, state: "NOT_APPLICABLE" },
+          technicalReferences: [{ key: "signalCode", value: "upload_stalled" }],
+        }),
+        [],
+        { disposition: "READ_ONLY_GUIDANCE", actions: [], deepLink: null, guidance: LEGACY_GUIDANCE, unsafeReason: null } as never,
+      );
+      expect(container.querySelector("h2")!.textContent, loc).toBe(expected[loc].title);
+      const text = sentences(container);
+      expect(text, loc).toContain(expected[loc].guidance);
+      expect(text, loc).not.toContain("There is nothing to repair here.");
+      expect(text, loc).not.toMatch(/upload_stalled/);
+      // A code inside an RTL page is isolated left-to-right so it is not
+      // reordered or copied back-to-front.
+      const code = container.querySelector("[data-ops-technical-references] code")!;
+      expect(code.getAttribute("dir"), loc).toBe("ltr");
+      expect(code.textContent, loc).toBe("upload_stalled");
+      unmount();
+    }
+    document.documentElement.removeAttribute("dir");
+  });
+
+  it("an actionable condition's link label and guidance are localized; the href is unchanged", () => {
+    const GUIDANCE =
+      "No upload progress has been recorded for this record past the inactivity threshold. The person uploading can resume it; an upload that is not resumed is closed as abandoned. This closes on its own when the upload completes, is resumed or abandoned, or the record is finalized or deleted.";
+    const rem = {
+      disposition: "SAFE_DEEP_LINK",
+      actions: [],
+      deepLink: { href: `/evidence/${EVIDENCE}`, label: "Open the record", requiredPermission: "evidence.read", recordScoped: true },
+      guidance: GUIDANCE,
+      unsafeReason: null,
+    } as never;
+    const labels = { en: "Open the record", de: "Datensatz öffnen", ar: "فتح السجل" } as const;
+    for (const loc of ["en", "de", "ar"] as const) {
+      localeState.locale = loc;
+      const { container, unmount } = mount(condition(), [], rem);
+      const link = container.querySelector("[data-ops-remediation-link]") as HTMLAnchorElement;
+      expect(link.textContent, loc).toBe(labels[loc]);
+      expect(link.getAttribute("href"), loc).toBe(`/evidence/${EVIDENCE}`);
+      if (loc !== "en") expect(sentences(container), loc).not.toContain(GUIDANCE);
+      unmount();
+    }
   });
 
   it("German and Arabic readers get their own sentences, with the code still only a reference", () => {
