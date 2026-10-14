@@ -16,7 +16,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { fillOperationsCopy, operationsCopyFor } from "@proovra/shared";
+
+import { useOptionalLocale } from "../../app/providers";
+import { formatOpsNumber } from "../../app/(app)/operations/_lib/format";
 import { formatUserDate } from "../../lib/date";
+import { directionFor } from "../../lib/i18n";
 import { usePlatformContext } from "../../lib/platform-context";
 
 import type {
@@ -33,6 +38,7 @@ import type {
 import { AppListbox } from "../app-primitives/AppListbox";
 import { ACTIVITY_RANGES } from "./home-view-model";
 import { AnnotatedDonut, DonutReadout } from "./AnnotatedDonut";
+import { operationsRowText } from "./operations-condition-map";
 import {
   ANALYTICS_PALETTE,
   HOME_ACCENT,
@@ -398,13 +404,18 @@ export function KpiRow({ kpis }: { kpis: HomeKpi[] }) {
 // Every row is a real operational counter.
 // ============================================================================
 
+/**
+ * The pill's tone, and which word of the Operations severity vocabulary it
+ * reads as (2026-10-14: the word comes from `operationsCopyFor(locale)`, so a
+ * German or Arabic reader never sees an English pill).
+ */
 const PRIORITY_SEVERITY: Record<
   WorkspacePriority["severity"],
-  { label: string; tone: "danger" | "warn" | "neutral" }
+  { severity: "CRITICAL" | "WARNING" | "INFO"; tone: "danger" | "warn" | "neutral" }
 > = {
-  critical: { label: "Critical", tone: "danger" },
-  warning: { label: "Warning", tone: "warn" },
-  info: { label: "Info", tone: "neutral" },
+  critical: { severity: "CRITICAL", tone: "danger" },
+  warning: { severity: "WARNING", tone: "warn" },
+  info: { severity: "INFO", tone: "neutral" },
 };
 
 /** Severity tone -> the three pill fills the stylesheet paints. */
@@ -441,6 +452,16 @@ export function WorkspacePrioritiesCard({
   // severity chip, plain-language reason, and a direct action.
   const top = priorities.slice(0, 3);
   const more = priorities.length - top.length;
+  /*
+   * THE READER'S LANGUAGE (2026-10-14). Every word this card prints about
+   * Operations comes from the canonical Operations copy for the active locale;
+   * an Operations row's words are derived from what it stands for
+   * (`p.operations`) at render time, so neither a locale change nor a
+   * workspace switch can leave stale copy behind.
+   */
+  const locale = useOptionalLocale();
+  const copy = operationsCopyFor(locale);
+  const textOf = (p: WorkspacePriority) => (p.operations ? operationsRowText(p.operations, locale) : p);
 
   // PHASE 2.3 / 4C — MAY THIS CARD SAY "ALL CLEAR"?
   //
@@ -496,66 +517,46 @@ export function WorkspacePrioritiesCard({
   const refusal = operations?.clearRefusalReason ?? null;
   const refusalCopy = ((): { title: string; detail: string } => {
     if (operationsUnavailable) {
-      return {
-        title: "Operations status unavailable",
-        detail:
-          "This workspace's shared operational status could not be loaded, so we can't tell you it's clear.",
-      };
+      return { title: copy.unavailableTitle, detail: copy.health.healthUnavailableNote };
     }
     switch (refusal) {
       // The sweep completed and FOUND things. Not a failure — the opposite.
       case "UNRESOLVED_CONDITIONS":
-        return {
-          title: "Open operational conditions",
-          detail:
-            "Operations is tracking conditions that aren't listed here. Open Operations to see them.",
-        };
-      // Nothing has looked, or not recently enough to describe now.
-      case "NEVER_RUN":
-        return {
-          title: "Operations not scanned yet",
-          detail:
-            "This workspace hasn't been scanned yet, so we can't tell you it's clear.",
-        };
-      case "RUNNING":
-        return {
-          title: "Operations scan in progress",
-          detail: "A scan is running now. This will settle once it finishes.",
-        };
+        return { title: copy.home.unresolvedTitle, detail: copy.home.unresolvedBody };
+      // The last complete check is too old to describe the workspace now.
       case "STALE":
-        return {
-          title: "Operations status out of date",
-          detail:
-            "The last complete scan is too old to describe the workspace now.",
-        };
+        return { title: copy.statusStaleTitle, detail: copy.health.unknownReason.STALE };
+      // Nothing has looked yet, a check is running, or it did not finish.
+      case "NEVER_RUN":
+      case "RUNNING":
       case "FAILED":
       case "STALLED":
-        return {
-          title: "Operations scan did not complete",
-          detail:
-            "The last scan did not finish, so we can't tell you it's clear.",
-        };
-      // The three that genuinely are read failures — the original sentence.
+        return { title: copy.home.unconfirmedTitle, detail: copy.health.unknownReason[refusal] };
+      // The three that genuinely are read failures: a source could not be read
+      // completely, so the picture may be partial.
       case "PARTIAL_SOURCES":
       case "TRUNCATED_SOURCE":
       case "INCIDENT_READ_INCOMPLETE":
+        return { title: copy.home.unconfirmedTitle, detail: copy.health.unknownReason[refusal] };
       case null:
       default:
-        return {
-          title: "Operations status incomplete",
-          detail:
-            "Not every source could be read, so this may not be the full picture.",
-        };
+        return { title: copy.home.unconfirmedTitle, detail: copy.health.unknownReason.DEFAULT };
     }
   })();
   return (
-    <section className="home-card" style={homeCardStyle} data-self-serve-section="workspace-priorities">
+    <section
+      className="home-card"
+      style={homeCardStyle}
+      data-self-serve-section="workspace-priorities"
+      lang={locale}
+      dir={directionFor(locale)}
+    >
       <header style={homeCardHeaderStyle}>
         {/* Phase HOME-COPY — "What needs attention" reads more
             directly than "Workspace priorities" (which sounded like
             an enterprise OKR list). Same ordered priority items;
             clearer title for individuals and journalists alike. */}
-        <h2 style={homeCardTitleStyle}>What needs attention</h2>
+        <h2 style={homeCardTitleStyle}>{copy.home.heading}</h2>
       </header>
       {top.length === 0 && operationsLoading ? (
         /*
@@ -577,10 +578,10 @@ export function WorkspacePrioritiesCard({
                 color: HOME_COLORS.slate,
               }}
             >
-              Checking…
+              {copy.home.checkingTitle}
             </div>
             <div style={{ fontSize: 12, color: HOME_COLORS.slate }}>
-              Reading this workspace's operational status.
+              {copy.home.checkingBody}
             </div>
           </div>
         </div>
@@ -611,10 +612,10 @@ export function WorkspacePrioritiesCard({
           </span>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 650, color: HOME_COLORS.okDeep }}>
-              All clear
+              {copy.home.clearTitle}
             </div>
             <div style={{ fontSize: 12, color: HOME_COLORS.slate }}>
-              No workspace priorities need attention right now.
+              {copy.home.clearBody}
             </div>
           </div>
         </div>
@@ -636,6 +637,7 @@ export function WorkspacePrioritiesCard({
           <ul className="home-attn" style={priorityListStyle}>
             {top.map((p) => {
               const sev = PRIORITY_SEVERITY[p.severity];
+              const text = textOf(p);
               return (
                 <li
                   key={p.key}
@@ -643,26 +645,26 @@ export function WorkspacePrioritiesCard({
                   data-priority={p.key}
                   data-priority-severity={p.severity}
                 >
-                  <span className="home-attn__title">{p.label}</span>
+                  <span className="home-attn__title">{text.label}</span>
                   <span
                     className="home-attn__pill"
                     data-priority-chip={p.severity}
                     data-tone={PRIORITY_PILL_TONE[sev.tone]}
                   >
-                    {sev.label}
+                    {copy.severity[sev.severity].label}
                   </span>
                   {/* Phase HOME-DECISIONS — what it means + what to do. */}
                   <p className="home-attn__text" data-priority-why>
-                    {p.whyItMatters}
+                    {text.whyItMatters}
                   </p>
                   <Link
                     href={p.href}
                     className="home-link"
                     style={{ gridColumn: 1 }}
                     data-priority-action={p.key}
-                    title={p.recommendedAction}
+                    title={text.recommendedAction}
                   >
-                    {p.actionLabel}
+                    {text.actionLabel}
                     <ArrowRight size={14} />
                   </Link>
                 </li>
@@ -682,7 +684,7 @@ export function WorkspacePrioritiesCard({
           </ul>
           {more > 0 ? (
             <span data-priorities-more={more} style={{ display: "block", marginTop: 8, fontSize: 11.5, color: HOME_COLORS.muted }}>
-              +{more} lower-priority item{more === 1 ? "" : "s"} tracked
+              {fillOperationsCopy(more === 1 ? copy.home.moreOne : copy.home.moreMany, { n: formatOpsNumber(more, locale) })}
             </span>
           ) : null}
         </>

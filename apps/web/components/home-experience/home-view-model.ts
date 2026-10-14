@@ -50,7 +50,9 @@ import { evidencePublicLinksHref } from "../../lib/verification-links-href";
 import {
   PLATFORM_ADVISORY_PRIORITY,
   UNRECOGNISED_SOURCE_PRIORITY,
+  operationsRowText,
   representationFor,
+  type HomeOperationsRowSubject,
   type HomeOperationsSourceId,
 } from "./operations-condition-map";
 
@@ -465,6 +467,13 @@ export type WorkspacePriority = {
   /** CTA label for the action button. */
   actionLabel: string;
   href: string;
+  /**
+   * An OPERATIONS row (2026-10-14): what it stands for. Present only on rows
+   * folded in from `/v1/ops/summary`; the card renders their words from it in
+   * the reader's language (`operationsRowText`). The string fields above then
+   * hold the English for non-rendering readers.
+   */
+  operations?: HomeOperationsRowSubject;
   /**
    * The REAL source API fields this decision derives from
    * (endpoint.field notation) — auditability, never marketing.
@@ -2038,18 +2047,23 @@ function mergeOperationalConditions(
     const key = `ops:${group.sourceId}` as WorkspacePriority["key"];
     if (present.has(key)) continue;
     present.add(key);
+    // The condition count is the real one the projection carries; the record
+    // count is used where the source counts records rather than conditions.
+    const count = group.affectedRecordCount ?? group.conditionCount ?? 1;
+    const operations: HomeOperationsRowSubject = {
+      kind: "SOURCE",
+      sourceId: group.sourceId,
+      category: typeof group.category === "string" ? group.category : null,
+      count,
+    };
     out.push({
       key,
       severity: representation.severity,
       domains: [...representation.domains],
-      // The condition count is the real one the projection carries; the record
-      // count is used where the source counts records rather than conditions.
-      count: group.affectedRecordCount ?? group.conditionCount ?? 1,
-      label: representation.label,
-      whyItMatters: representation.whyItMatters,
-      recommendedAction: representation.recommendedAction,
-      actionLabel: representation.actionLabel,
+      count,
+      ...operationsRowText(operations, "en"),
       href: representation.href,
+      operations,
       derivedFrom: [`ops/summary.groups.${group.sourceId}`],
     });
   }
@@ -2057,6 +2071,8 @@ function mergeOperationalConditions(
   if (platformConditions > 0) {
     out.push({
       ...PLATFORM_ADVISORY_PRIORITY,
+      ...operationsRowText({ kind: "PLATFORM_ADVISORY" }, "en"),
+      operations: { kind: "PLATFORM_ADVISORY" },
       key: PLATFORM_ADVISORY_PRIORITY.key as WorkspacePriority["key"],
       domains: [...PLATFORM_ADVISORY_PRIORITY.domains],
       count: platformConditions,
@@ -2066,6 +2082,8 @@ function mergeOperationalConditions(
   if (unrecognised > 0) {
     out.push({
       ...UNRECOGNISED_SOURCE_PRIORITY,
+      ...operationsRowText({ kind: "UNRECOGNISED" }, "en"),
+      operations: { kind: "UNRECOGNISED" },
       key: UNRECOGNISED_SOURCE_PRIORITY.key as WorkspacePriority["key"],
       domains: [...UNRECOGNISED_SOURCE_PRIORITY.domains],
       count: unrecognised,
@@ -3574,6 +3592,8 @@ export type HomeOperationsSummaryInput = {
 export type HomeOperationsConditionGroup = {
   /** The stable registry id. The ONLY thing keyed on — never the title. */
   sourceId: string;
+  /** The group's category (the Operations drawer's "Source"); absent on an older server. */
+  category?: string | null;
   conditionCount: number;
   /** Records behind the group where the source counts records; null otherwise. */
   affectedRecordCount?: number | null;

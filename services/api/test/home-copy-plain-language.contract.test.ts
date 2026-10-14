@@ -19,6 +19,8 @@
  */
 
 import { readFileSync } from "node:fs";
+
+import { operationsCopyFor } from "@proovra/shared";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -171,9 +173,9 @@ describe("Phase HOME-COPY — header CTA + Workspace Priorities title", () => {
   });
 
   it("the priorities card heading reads 'What needs attention' (plain)", () => {
-    expect(HOME_DASH).toMatch(
-      /<h2 style=\{homeCardTitleStyle\}>What needs attention<\/h2>/,
-    );
+    // 2026-10-14 — the heading is the reader's copy; English reads it plainly.
+    expect(HOME_DASH).toMatch(/<h2 style=\{homeCardTitleStyle\}>\{copy\.home\.heading\}<\/h2>/);
+    expect(operationsCopyFor("en").home.heading).toBe("What needs attention");
   });
 
   it("the legacy 'Workspace priorities' h2 is gone", () => {

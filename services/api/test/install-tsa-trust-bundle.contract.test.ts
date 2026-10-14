@@ -102,7 +102,10 @@ describe("install-tsa-trust-bundle.sh", () => {
     const policy = run([], { ENV_BODY: "TSA_ACCEPTED_POLICY_OIDS=1.2.3.4\n" });
     expect(policy.status).toBe(3);
     expect(policy.out).toMatch(/does NOT include the policy GLOBALTRUST tokens carry \(1\.2\.40\.0\.36\.1\.1\.8\.1\)/);
-  });
+    // Three real script runs (bash + openssl + curl each): ~4.4 s unloaded on
+    // Windows against the 5 s default, so a loaded full-suite run timed out.
+    // A harness budget only — every assertion above is unchanged.
+  }, 30_000);
 
   it("the real defaults are the GLOBALTRUST 2015 root and its timestamp CA", () => {
     const src = readFileSync(SCRIPT, "utf8");

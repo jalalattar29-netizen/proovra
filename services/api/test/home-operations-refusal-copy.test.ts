@@ -19,6 +19,8 @@
  */
 
 import { readFileSync } from "node:fs";
+
+import { operationsCopyFor } from "@proovra/shared";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -98,12 +100,15 @@ describe("the card renders the reason it was given", () => {
      * failure — the sweep completed and found open conditions — so it must not
      * produce the read-failure sentence.
      */
-    const branch = CARD.slice(
-      CARD.indexOf('case "UNRESOLVED_CONDITIONS":'),
-      CARD.indexOf('case "NEVER_RUN":'),
-    );
+    // From this case to the NEXT one, whichever it is.
+    const from = CARD.indexOf('case "UNRESOLVED_CONDITIONS":');
+    const branch = CARD.slice(from, CARD.indexOf('case "', from + 1));
     expect(branch).not.toContain("Not every source could be read");
     expect(branch).not.toContain("Operations status incomplete");
+    // 2026-10-14 — the words are the canonical Operations copy: this branch
+    // names the open conditions, never a read-failure reason.
+    expect(branch).toContain("copy.home.unresolvedTitle");
+    expect(branch).not.toContain("unknownReason");
   });
 
   it("keeps the read-failure sentence on the three read failures", () => {
@@ -117,9 +122,15 @@ describe("the card renders the reason it was given", () => {
         `case "${reason}":`,
       );
     }
+    // 2026-10-14 — the sentence is the canonical Operations reason for that
+    // exact refusal, in the reader's language; the English one still says a
+    // source could not be read.
     const tail = CARD.slice(CARD.indexOf('case "PARTIAL_SOURCES":'));
-    expect(tail).toContain("Operations status incomplete");
-    expect(tail).toContain("Not every source could be read");
+    expect(tail.slice(0, tail.indexOf("case null:"))).toContain("copy.health.unknownReason[refusal]");
+    const en = operationsCopyFor("en").health.unknownReason;
+    expect(en.PARTIAL_SOURCES).toMatch(/couldn't read every source/);
+    expect(en.TRUNCATED_SOURCE).toMatch(/couldn't read everything one source returned/);
+    expect(en.INCIDENT_READ_INCOMPLETE).toMatch(/couldn't be read in full/);
   });
 
   it("handles every reason the server can produce", () => {

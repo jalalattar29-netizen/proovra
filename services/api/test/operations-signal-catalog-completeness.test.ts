@@ -52,7 +52,7 @@ import {
 import { entryForIncident, sourceKeyedRemediationIds } from "../src/services/operations/remediation-registry.js";
 import { OPERATIONS_SOURCES } from "../src/services/operations/operations-source-registry.js";
 import { projectIncident } from "../src/services/observability/incident.service.js";
-import { HOME_CONDITION_REPRESENTATION } from "../../../apps/web/components/home-experience/operations-condition-map.js";
+import { HOME_CONDITION_REPRESENTATION, operationsRowText } from "../../../apps/web/components/home-experience/operations-condition-map.js";
 
 const ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const HOSTS = ["services/api/src", "services/worker/src"];
@@ -256,19 +256,16 @@ describe("sources — subject, closure, actions, labels", () => {
     // Home phrases a source as a plain sentence for its own audience; it may
     // word it differently, but never in internal language, and never with a
     // meaning the catalogue has corrected.
+    // 2026-10-14 — Home no longer words a source itself: its title IS the
+    // catalogue label, in every locale, so the two cannot disagree.
     for (const [sourceId, rep] of Object.entries(HOME_CONDITION_REPRESENTATION)) {
       if ((rep as { kind: string }).kind !== "ROW") continue;
-      const label = (rep as { label: string }).label;
-      expect(internalLanguageIn(label), sourceId).toEqual([]);
-      expect(label, sourceId).not.toMatch(/intake/i);
-    }
-    for (const sourceId of ["intake.delivery_failed", "capture.upload_stalled"]) {
-      const rep = HOME_CONDITION_REPRESENTATION[sourceId as keyof typeof HOME_CONDITION_REPRESENTATION] as {
-        kind: string;
-        label: string;
-      };
-      expect(rep.kind, sourceId).toBe("ROW");
-      expect(rep.label, sourceId).toBe(conditionSourceLabel("en", sourceId));
+      for (const locale of ["en", "de", "ar"] as const) {
+        const label = operationsRowText({ kind: "SOURCE", sourceId, category: null, count: 1 }, locale).label;
+        expect(label, `${sourceId}/${locale}`).toBe(conditionSourceLabel(locale, sourceId));
+        expect(internalLanguageIn(label), `${sourceId}/${locale}`).toEqual([]);
+      }
+      expect(conditionSourceLabel("en", sourceId), sourceId).not.toMatch(/intake/i);
     }
   });
 });
@@ -659,18 +656,17 @@ describe("intake.delivery_failed reads as the upload-service failure it is, in E
     }
   });
 
-  it("Home names it as an upload failure and links only to Operations", () => {
-    const home = HOME_CONDITION_REPRESENTATION["intake.delivery_failed"] as {
-      kind: string;
-      label: string;
-      whyItMatters: string;
-      recommendedAction: string;
-      href: string;
-    };
+  it("Home names it as an upload failure in every locale and links only to Operations", () => {
+    const home = HOME_CONDITION_REPRESENTATION["intake.delivery_failed"] as { kind: string; href: string };
     expect(home.kind).toBe("ROW");
-    expect(home.label).toBe(SOURCE_LABEL.en);
     expect(home.href).toBe("/operations");
-    expect(`${home.label} ${home.whyItMatters} ${home.recommendedAction}`).not.toMatch(INTAKE_WORDS.en);
+    const AREA = { en: "Capture and upload", de: "Erfassung und Upload", ar: "الالتقاط والرفع" } as const;
+    for (const locale of ["en", "de", "ar"] as const) {
+      const t = operationsRowText({ kind: "SOURCE", sourceId: "intake.delivery_failed", category: "UPLOAD", count: 2 }, locale);
+      expect(t.label, locale).toBe(SOURCE_LABEL[locale]);
+      expect(t.whyItMatters, locale).toContain(AREA[locale]);
+      expect(`${t.label} ${t.whyItMatters} ${t.recommendedAction} ${t.actionLabel}`, locale).not.toMatch(INTAKE_WORDS[locale]);
+    }
   });
 
   it("a genuine intake-link delivery failure is the communications source, never this one", () => {

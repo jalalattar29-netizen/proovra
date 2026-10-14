@@ -839,6 +839,34 @@ type OperationsVocabularyCopy = {
     openIn: string;
     switchFailed: string;
   };
+  /**
+   * HOME'S OPERATIONS SUMMARY (2026-10-14). Only what has no canonical
+   * counterpart elsewhere in this copy: a Home row's title is the source's
+   * catalogue label, its area the category label, its severity the severity
+   * vocabulary above and its status reason `health.unknownReason`.
+   */
+  home: {
+    heading: string;
+    checkingTitle: string;
+    checkingBody: string;
+    clearTitle: string;
+    clearBody: string;
+    /** The all-clear was refused and Operations is tracking conditions Home does not list. */
+    unresolvedTitle: string;
+    unresolvedBody: string;
+    /** The all-clear was refused for a reason in `health.unknownReason`. */
+    unconfirmedTitle: string;
+    /** {area} is the category label, {count} the condition count phrase. */
+    rowSummary: string;
+    platformAdvisoryTitle: string;
+    platformAdvisoryBody: string;
+    platformAdvisoryAction: string;
+    unrecognisedBody: string;
+    unrecognisedAction: string;
+    /** Rows beyond the top three. {n} */
+    moreOne: string;
+    moreMany: string;
+  };
 };
 
 export type OperationsCopy = OperationsBaseCopy & OperationsVocabularyCopy & OperationsDetailCopy;
@@ -1159,6 +1187,24 @@ const OPERATIONS_VOCAB_EN: OperationsVocabularyCopy = {
     loadMore: "Load more",
     openIn: "Open in {workspace}",
     switchFailed: "Couldn't switch to that workspace. Try again.",
+  },
+  home: {
+    heading: "What needs attention",
+    checkingTitle: "Checking…",
+    checkingBody: "Reading this workspace's operational status.",
+    clearTitle: "All clear",
+    clearBody: "No workspace priorities need attention right now.",
+    unresolvedTitle: "Open operational conditions",
+    unresolvedBody: "Operations is tracking conditions that aren't listed here. Open Operations to see them.",
+    unconfirmedTitle: "Operations status not confirmed",
+    rowSummary: "{area} · {count}",
+    platformAdvisoryTitle: "A platform service is degraded",
+    platformAdvisoryBody: "Part of our infrastructure is not running normally. Your evidence and its integrity records are unaffected.",
+    platformAdvisoryAction: "No action needed here — we are working on it.",
+    unrecognisedBody: "Operations is reporting something this version of the app does not know how to describe yet.",
+    unrecognisedAction: "Open Operations to see it in full, or reload to pick up the latest version.",
+    moreOne: "+{n} lower-priority item tracked",
+    moreMany: "+{n} lower-priority items tracked",
   },
 };
 
@@ -1485,6 +1531,24 @@ const OPERATIONS_VOCAB_DE: OperationsVocabularyCopy = {
     openIn: "In {workspace} öffnen",
     switchFailed: "Wechsel zu diesem Arbeitsbereich fehlgeschlagen. Versuchen Sie es erneut.",
   },
+  home: {
+    heading: "Was Aufmerksamkeit braucht",
+    checkingTitle: "Wird geprüft…",
+    checkingBody: "Der Betriebsstatus dieses Arbeitsbereichs wird gelesen.",
+    clearTitle: "Alles in Ordnung",
+    clearBody: "Derzeit braucht keine Priorität dieses Arbeitsbereichs Aufmerksamkeit.",
+    unresolvedTitle: "Offene betriebliche Zustände",
+    unresolvedBody: "Im Bereich Betrieb werden Zustände verfolgt, die hier nicht aufgeführt sind. Öffnen Sie Betrieb, um sie zu sehen.",
+    unconfirmedTitle: "Betriebsstatus nicht bestätigt",
+    rowSummary: "{area} · {count}",
+    platformAdvisoryTitle: "Ein Plattformdienst ist beeinträchtigt",
+    platformAdvisoryBody: "Ein Teil unserer Infrastruktur läuft nicht normal. Ihre Beweismittel und deren Integritätsnachweise sind nicht betroffen.",
+    platformAdvisoryAction: "Hier ist nichts zu tun — wir arbeiten daran.",
+    unrecognisedBody: "Der Bereich Betrieb meldet etwas, das diese App-Version noch nicht beschreiben kann.",
+    unrecognisedAction: "Öffnen Sie Betrieb, um es vollständig zu sehen, oder laden Sie die Seite neu, um die neueste Version zu erhalten.",
+    moreOne: "+{n} weiterer Eintrag mit niedrigerer Priorität",
+    moreMany: "+{n} weitere Einträge mit niedrigerer Priorität",
+  },
 };
 
 const OPERATIONS_VOCAB_AR: OperationsVocabularyCopy = {
@@ -1789,6 +1853,24 @@ const OPERATIONS_VOCAB_AR: OperationsVocabularyCopy = {
     loadMore: "تحميل المزيد",
     openIn: "فتح في {workspace}",
     switchFailed: "تعذّر الانتقال إلى مساحة العمل تلك. حاول مرة أخرى.",
+  },
+  home: {
+    heading: "ما يحتاج إلى انتباه",
+    checkingTitle: "جارٍ الفحص…",
+    checkingBody: "جارٍ قراءة الوضع التشغيلي لمساحة العمل هذه.",
+    clearTitle: "لا شيء يستدعي الانتباه",
+    clearBody: "لا توجد أولويات في مساحة العمل هذه تحتاج إلى انتباه الآن.",
+    unresolvedTitle: "حالات تشغيلية مفتوحة",
+    unresolvedBody: "تتابع العمليات حالات غير مدرجة هنا. افتح العمليات لرؤيتها.",
+    unconfirmedTitle: "وضع العمليات غير مؤكد",
+    rowSummary: "{area} · {count}",
+    platformAdvisoryTitle: "إحدى خدمات المنصة متدهورة",
+    platformAdvisoryBody: "جزء من بنيتنا التحتية لا يعمل بشكل طبيعي. أدلتك وسجلات سلامتها غير متأثرة.",
+    platformAdvisoryAction: "لا حاجة لأي إجراء هنا — نحن نعمل على ذلك.",
+    unrecognisedBody: "تُبلغ العمليات عن أمر لا يعرف هذا الإصدار من التطبيق كيف يصفه بعد.",
+    unrecognisedAction: "افتح العمليات لرؤيته كاملًا، أو أعد تحميل الصفحة للحصول على أحدث إصدار.",
+    moreOne: "+{n} عنصر آخر بأولوية أقل",
+    moreMany: "+{n} عناصر أخرى بأولوية أقل",
   },
 };
 

@@ -70,6 +70,9 @@
  * is `UNRECOGNISED_SOURCE`, which exists solely for version skew — a deployed
  * web build meeting a server that already knows a newer source — and says so.
  */
+import { conditionSourceLabel, fillOperationsCopy, operationsCopyFor } from "@proovra/shared";
+
+import { formatOpsNumber } from "../../app/(app)/operations/_lib/format";
 
 /*
  * No import from the view model on purpose: the view model imports THIS file,
@@ -83,10 +86,6 @@ export type ConditionPriorityTemplate = {
   readonly key: string;
   readonly severity: ConditionSeverity;
   readonly domains: readonly string[];
-  readonly label: string;
-  readonly whyItMatters: string;
-  readonly recommendedAction: string;
-  readonly actionLabel: string;
   readonly href: string;
 };
 
@@ -179,11 +178,11 @@ export type HomeConditionRepresentation =
       readonly kind: "ROW";
       readonly severity: ConditionSeverity;
       readonly domains: readonly string[];
-      /** Customer-facing. No worker names, queue ids or service internals. */
-      readonly label: string;
-      readonly whyItMatters: string;
-      readonly recommendedAction: string;
-      readonly actionLabel: string;
+      /**
+       * Where the row's action goes. Its WORDS are not here: the title is the
+       * source's catalogue label and the rest is the canonical Operations copy,
+       * in the reader's language (`operationsRowText`).
+       */
       readonly href: string;
     }
   | {
@@ -253,11 +252,6 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     kind: "ROW",
     severity: "warning",
     domains: ["integrity"],
-    label: "Blockchain anchoring has not started",
-    whyItMatters:
-      "These records are signed and preserved, and their trusted timestamp is unaffected — but their public-chain anchor was never requested. The platform re-requests it automatically; a record still here has not been recovered.",
-    recommendedAction: "Open the record to see its anchoring state.",
-    actionLabel: "Open evidence",
     href: "/evidence",
   },
   "evidence_integrity.ots_pending_aged": {
@@ -287,22 +281,12 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     kind: "ROW",
     severity: "critical",
     domains: ["report"],
-    label: "A report could not be generated",
-    whyItMatters:
-      "The record has no report to share or file, and the attempt failed rather than being retried.",
-    recommendedAction: "Open Reports and retry generation for the affected record.",
-    actionLabel: "Open reports",
     href: "/reports",
   },
   "pipeline.package_generation_denied": {
     kind: "ROW",
     severity: "warning",
     domains: ["package"],
-    label: "A verification package was refused",
-    whyItMatters:
-      "Governance refused to build the package, so the record cannot be handed to an external reviewer yet.",
-    recommendedAction: "Open Reports to see which rule refused it.",
-    actionLabel: "Open reports",
     href: "/reports",
   },
   /*
@@ -316,11 +300,6 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     kind: "ROW",
     severity: "warning",
     domains: ["package"],
-    label: "A verification package failed to build",
-    whyItMatters:
-      "The report for these records was generated and stored, but its verification package was not. The evidence and its integrity state are unaffected, and the pipeline retries.",
-    recommendedAction: "Open Reports to see which records are incomplete.",
-    actionLabel: "Open reports",
     href: "/reports",
   },
 
@@ -329,32 +308,18 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     kind: "ROW",
     severity: "warning",
     domains: ["review"],
-    label: "Reviews have stopped progressing",
-    whyItMatters:
-      "Review work has sat without movement long enough that it is unlikely to resume on its own.",
-    recommendedAction: "Open the review queue and pick the stalled items back up.",
-    actionLabel: "Open review queue",
     href: "/review/queues",
   },
   "review.escalation": {
     kind: "ROW",
     severity: "warning",
     domains: ["review"],
-    label: "A review was escalated",
-    whyItMatters: "Someone asked for a decision above the reviewer handling it.",
-    recommendedAction: "Open escalations and resolve the request.",
-    actionLabel: "Open escalations",
     href: "/reviewer-ops/escalations",
   },
   "review.escalation_storm": {
     kind: "ROW",
     severity: "critical",
     domains: ["review"],
-    label: "Reviews are being escalated repeatedly",
-    whyItMatters:
-      "A burst of escalations usually means one underlying problem, not many separate ones.",
-    recommendedAction: "Open escalations and look for the common cause.",
-    actionLabel: "Open escalations",
     href: "/reviewer-ops/escalations",
   },
 
@@ -363,11 +328,6 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     kind: "ROW",
     severity: "warning",
     domains: ["matter"],
-    label: "Coordination work has gone quiet",
-    whyItMatters:
-      "Items waiting on someone else have sat untouched past the point where they usually move.",
-    recommendedAction: "Open Operations to see what is waiting and on whom.",
-    actionLabel: "Open operations",
     href: "/operations",
   },
   // NOT AN INTAKE DELIVERY (2026-10-14): its producers are the upload service
@@ -377,11 +337,6 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     kind: "ROW",
     severity: "warning",
     domains: ["evidence"],
-    label: "Uploads could not be started or resumed",
-    whyItMatters:
-      "The upload service failed while starting or resuming an upload in this workspace. The person uploading saw an error and can try again.",
-    recommendedAction: "If uploads keep failing, review the condition in Operations and contact support.",
-    actionLabel: "Open Operations",
     href: "/operations",
   },
   // ONE stalled upload of a record that is still uploading.
@@ -389,11 +344,6 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     kind: "ROW",
     severity: "warning",
     domains: ["evidence"],
-    label: "Upload appears stalled",
-    whyItMatters:
-      "An upload of a record that is not finished yet has stopped making progress. The record cannot be finalized until its upload completes.",
-    recommendedAction: "Open the record to resume or review the upload.",
-    actionLabel: "Open evidence",
     href: "/evidence",
   },
 
@@ -426,63 +376,36 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     kind: "ROW",
     severity: "warning",
     domains: ["governance"],
-    label: "A sign-in security condition was recorded",
-    whyItMatters: "Account access behaviour crossed a threshold worth checking.",
-    recommendedAction: "Open the security centre to review recent access.",
-    actionLabel: "Open security centre",
     href: "/security-center",
   },
   "identity.idp_outage": {
     kind: "ROW",
     severity: "critical",
     domains: ["governance"],
-    label: "Your sign-in provider is unreachable",
-    whyItMatters: "People in this workspace may not be able to sign in.",
-    recommendedAction: "Open the security centre to check the connection.",
-    actionLabel: "Open security centre",
     href: "/security-center/sso",
   },
   "identity.runtime_block": {
     kind: "ROW",
     severity: "warning",
     domains: ["governance"],
-    label: "A sign-in was blocked",
-    whyItMatters:
-      "Access was refused because it looked risky. A real person may be locked out.",
-    recommendedAction: "Open the security centre to review the block.",
-    actionLabel: "Open security centre",
     href: "/security-center",
   },
   "identity.high_risk_session_surge": {
     kind: "ROW",
     severity: "warning",
     domains: ["governance"],
-    label: "Unusual sign-in activity",
-    whyItMatters: "More risky sessions than usual were seen in a short window.",
-    recommendedAction: "Open the security centre and review active sessions.",
-    actionLabel: "Open security centre",
     href: "/security-center",
   },
   "integration.webhook_destination_disabled": {
     kind: "ROW",
     severity: "warning",
     domains: ["governance"],
-    label: "A webhook destination was switched off",
-    whyItMatters:
-      "Deliveries to it kept failing, so automation stopped sending to it. The receiving system is getting nothing until it is turned back on.",
-    recommendedAction: "Fix the receiving endpoint, then re-enable the destination in Automation.",
-    actionLabel: "Open automation",
     href: "/operations/automation",
   },
   "webhook.security_failure": {
     kind: "ROW",
     severity: "warning",
     domains: ["governance"],
-    label: "A webhook delivery was rejected",
-    whyItMatters:
-      "An outbound notification failed its security check, so the receiving system did not get it.",
-    recommendedAction: "Open Integrations to check the endpoint's signing settings.",
-    actionLabel: "Open integrations",
     href: "/integrations",
   },
 
@@ -495,32 +418,18 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     kind: "ROW",
     severity: "info",
     domains: ["governance"],
-    label: "Evidence was destroyed under policy",
-    whyItMatters:
-      "A disposal ran and completed. The certificate is the record of what was removed.",
-    recommendedAction: "Open Governance to read the destruction record.",
-    actionLabel: "Open governance",
     href: "/governance/destruction",
   },
   "governance.notification_escalated": {
     kind: "ROW",
     severity: "warning",
     domains: ["governance"],
-    label: "A governance notice was escalated",
-    whyItMatters: "A notice went unanswered long enough to be raised.",
-    recommendedAction: "Open Governance to answer it.",
-    actionLabel: "Open governance",
     href: "/governance/notifications",
   },
   "storage.immutable_drift": {
     kind: "ROW",
     severity: "critical",
     domains: ["governance", "storage"],
-    label: "Immutable storage protection has drifted",
-    whyItMatters:
-      "Stored evidence is meant to be write-protected and the protection no longer matches the policy.",
-    recommendedAction: "Open Governance to review retention protection.",
-    actionLabel: "Open governance",
     href: "/governance/retention",
   },
 
@@ -529,11 +438,6 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     kind: "ROW",
     severity: "warning",
     domains: ["collection"],
-    label: "Messages could not be delivered",
-    whyItMatters:
-      "Invitations and evidence requests sent from this workspace are not reaching people.",
-    recommendedAction: "Open Operations to see the failing deliveries.",
-    actionLabel: "Open operations",
     href: "/operations",
   },
   "integration.configuration_failure": {
@@ -544,11 +448,6 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     kind: "ROW",
     severity: "info",
     domains: ["evidence"],
-    label: "Search results may be incomplete",
-    whyItMatters:
-      "Indexing is behind, so recent records may not appear in search yet. Nothing is lost.",
-    recommendedAction: "Open Search once indexing catches up.",
-    actionLabel: "Open search",
     href: "/search",
   },
 
@@ -592,11 +491,6 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     kind: "ROW",
     severity: "info",
     domains: ["governance"],
-    label: "An operational condition is under investigation",
-    whyItMatters:
-      "Something was recorded that we have not finished classifying. Your evidence and its integrity records are unaffected.",
-    recommendedAction: "No action is needed here — Operations shows what is known.",
-    actionLabel: "Open operations",
     href: "/operations",
   },
 
@@ -605,11 +499,6 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     kind: "ROW",
     severity: "info",
     domains: ["governance"],
-    label: "Demonstration condition",
-    whyItMatters:
-      "A seeded example used to show how Operations behaves. It is not a real problem.",
-    recommendedAction: "Open Operations to clear it.",
-    actionLabel: "Open operations",
     href: "/operations",
   },
 };
@@ -619,11 +508,6 @@ export const PLATFORM_ADVISORY_PRIORITY: ConditionPriorityTemplate = {
   key: "platform_service_degraded",
   severity: "info",
   domains: ["report"],
-  label: "A platform service is degraded",
-  whyItMatters:
-    "Part of our infrastructure is not running normally. Your evidence and its integrity records are unaffected.",
-  recommendedAction: "No action needed here — we are working on it.",
-  actionLabel: "Open operations",
   href: "/operations",
 };
 
@@ -639,11 +523,6 @@ export const UNRECOGNISED_SOURCE_PRIORITY: ConditionPriorityTemplate = {
   key: "operations_condition_unrecognised",
   severity: "info",
   domains: ["report"],
-  label: "An operational condition needs the newest app version",
-  whyItMatters:
-    "Operations is reporting something this version of the app does not know how to describe yet.",
-  recommendedAction: "Open Operations to see it in full, or reload to pick up the latest version.",
-  actionLabel: "Open operations",
   href: "/operations",
 };
 
@@ -655,4 +534,68 @@ export function representationFor(
       sourceId
     ] ?? null
   );
+}
+
+/**
+ * WHAT A HOME OPERATIONS ROW STANDS FOR (2026-10-14) — identities only. The
+ * row's words are derived from it at render time, in the reader's language, so
+ * a locale change or a workspace switch can never leave stale copy behind.
+ */
+export type HomeOperationsRowSubject =
+  | {
+      readonly kind: "SOURCE";
+      readonly sourceId: string;
+      /** The group's category as the summary projects it; null when absent. */
+      readonly category: string | null;
+      readonly count: number;
+    }
+  | { readonly kind: "PLATFORM_ADVISORY" }
+  | { readonly kind: "UNRECOGNISED" };
+
+export type HomeOperationsRowText = {
+  label: string;
+  whyItMatters: string;
+  recommendedAction: string;
+  actionLabel: string;
+};
+
+/**
+ * A Home Operations row's words, from the ONE catalogue the Operations page
+ * reads: the title is the source's catalogue label (the Operations group
+ * title), the area its category label (the drawer's "Source"), the count the
+ * Operations count phrase, the action the Operations "Open details". Nothing
+ * here is keyed on a locale, and nothing renders an id: an unlabelled source
+ * reads as the catalogue's unrecognised-condition label.
+ */
+export function operationsRowText(subject: HomeOperationsRowSubject, locale: string): HomeOperationsRowText {
+  const copy = operationsCopyFor(locale);
+  if (subject.kind === "PLATFORM_ADVISORY") {
+    return {
+      label: copy.home.platformAdvisoryTitle,
+      whyItMatters: copy.home.platformAdvisoryBody,
+      recommendedAction: copy.home.platformAdvisoryAction,
+      actionLabel: copy.openDetails,
+    };
+  }
+  const unrecognised = conditionSourceLabel(locale, "unregistered.condition") ?? copy.home.unrecognisedBody;
+  if (subject.kind === "UNRECOGNISED") {
+    return {
+      label: unrecognised,
+      whyItMatters: copy.home.unrecognisedBody,
+      recommendedAction: copy.home.unrecognisedAction,
+      actionLabel: copy.openDetails,
+    };
+  }
+  const label = conditionSourceLabel(locale, subject.sourceId) ?? unrecognised;
+  const area = subject.category ? ((copy.category as Record<string, string | undefined>)[subject.category] ?? null) : null;
+  const count =
+    subject.count === 1
+      ? copy.resultConditionOne
+      : fillOperationsCopy(copy.resultConditions, { n: formatOpsNumber(subject.count, locale) });
+  return {
+    label,
+    whyItMatters: area ? fillOperationsCopy(copy.home.rowSummary, { area, count }) : count,
+    recommendedAction: copy.openDetails,
+    actionLabel: copy.openDetails,
+  };
 }

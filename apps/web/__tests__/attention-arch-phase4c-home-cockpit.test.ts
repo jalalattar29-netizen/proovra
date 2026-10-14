@@ -248,7 +248,8 @@ test("an unavailable summary does NOT fall back to the notification feed", () =>
 test("the priorities card may not print 'All clear' over an unknown read", () => {
   assert.match(SECTIONS_SRC, /const mayAssertAllClear = operations/);
   assert.match(SECTIONS_SRC, /data-priorities-unknown/);
-  assert.match(SECTIONS_SRC, /Operations status unavailable/);
+  // 2026-10-14 — the unavailable title is the canonical Operations copy.
+  assert.match(SECTIONS_SRC, /title: copy\.unavailableTitle/);
 });
 
 // ============================================================================

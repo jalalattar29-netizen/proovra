@@ -14,6 +14,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { conditionSourceLabel } from "@proovra/shared";
+
 import { OPERATIONS_SOURCES } from "../src/services/operations/operations-source-registry.js";
 import {
   OPERATIONS_SOURCE_LIFECYCLES,
@@ -25,6 +27,7 @@ import {
   HOME_OPERATIONS_SOURCE_IDS,
   PLATFORM_ADVISORY_PRIORITY,
   UNRECOGNISED_SOURCE_PRIORITY,
+  operationsRowText,
   representationFor,
 } from "../../../apps/web/components/home-experience/operations-condition-map.js";
 import { normalizeHomeViewModel } from "../../../apps/web/components/home-experience/home-view-model.js";
@@ -177,18 +180,51 @@ describe("each representation matches the source's own lifecycle contract", () =
   });
 });
 
-describe("the customer-facing copy", () => {
+describe("the customer-facing copy — the canonical catalogue, in every locale", () => {
+  /*
+   * 2026-10-14 — Home holds NO copy of its own for an Operations row. The map
+   * carries routing only; the words come from the catalogue the Operations page
+   * reads (`operationsRowText`): the title is the source's catalogue label, the
+   * area its category label, the action the Operations "Open details". These
+   * rules hold in English, German and Arabic.
+   */
   const rows = registryIds
     .map((id) => ({ id, r: representationFor(id)! }))
     .filter((x): x is { id: string; r: Extract<ReturnType<typeof representationFor>, { kind: "ROW" }> } =>
       x.r?.kind === "ROW",
     );
+  const LOCALES = ["en", "de", "ar"] as const;
+  const categoryOf = (id: string) => OPERATIONS_SOURCE_LIFECYCLES.find((l) => l.sourceId === id)?.category ?? null;
+  const textOf = (id: string, locale: string, count = 2) =>
+    operationsRowText({ kind: "SOURCE", sourceId: id, category: categoryOf(id), count }, locale);
+  /** A raw key on screen: snake_case, a dotted key, an UPPER_ENUM or a UUID. */
+  const RAW_KEY = /\b[a-z]+(?:_[a-z0-9]+)+\b|\b[a-z_]+\.[a-z_]+\b|\b[A-Z]{2,}_[A-Z_]+\b|[0-9a-f]{8}-[0-9a-f]{4}-/;
 
-  it("never exposes implementation terminology", () => {
+  it("the map carries routing only — no second copy of any title or sentence", () => {
+    for (const { id, r } of rows) {
+      for (const field of ["label", "whyItMatters", "recommendedAction", "actionLabel"]) {
+        expect(field in r, `${id} still carries its own ${field}`).toBe(false);
+      }
+    }
+    for (const t of [PLATFORM_ADVISORY_PRIORITY, UNRECOGNISED_SOURCE_PRIORITY]) {
+      expect("label" in t || "whyItMatters" in t).toBe(false);
+    }
+  });
+
+  it("titles every row by its source's catalogue label, in the reader's language", () => {
+    for (const { id } of rows) {
+      for (const locale of LOCALES) {
+        expect(conditionSourceLabel(locale, id), `${id} has no ${locale} catalogue label`).toBeTruthy();
+        expect(textOf(id, locale).label, `${id}/${locale}`).toBe(conditionSourceLabel(locale, id));
+      }
+    }
+  });
+
+  it("never exposes implementation terminology or a raw key", () => {
     /*
-     * The registry's own labels are operator-facing and several name internals
-     * — "Queue telemetry sampler delayed", "Worker heartbeat stale". Home
-     * translates rather than forwards.
+     * The registry's own labels for PLATFORM sources name internals ("Worker
+     * heartbeat stale"); those never become rows — they collapse into the
+     * platform advisory. Every ROW source's catalogue words are product words.
      */
     const banned = [
       /\bworker\b/i,
@@ -204,38 +240,37 @@ describe("the customer-facing copy", () => {
       /\bots\b/i,
       /\btsa\b/i,
     ];
-    for (const { id, r } of rows) {
-      for (const pattern of banned) {
-        expect(r.label, `${id} label leaks ${pattern}`).not.toMatch(pattern);
-        expect(r.whyItMatters, `${id} explanation leaks ${pattern}`).not.toMatch(pattern);
+    const advisory = (locale: string) => [
+      operationsRowText({ kind: "PLATFORM_ADVISORY" }, locale),
+      operationsRowText({ kind: "UNRECOGNISED" }, locale),
+    ];
+    for (const locale of LOCALES) {
+      const texts = [...rows.map(({ id }) => ({ id, t: textOf(id, locale) })), ...advisory(locale).map((t) => ({ id: "aggregate", t }))];
+      for (const { id, t } of texts) {
+        const words = [t.label, t.whyItMatters, t.recommendedAction, t.actionLabel].join(" ");
+        expect(words, `${id}/${locale} renders a raw key`).not.toMatch(RAW_KEY);
+        if (locale === "en") for (const pattern of banned) expect(words, `${id} leaks ${pattern}`).not.toMatch(pattern);
       }
-    }
-    for (const t of [PLATFORM_ADVISORY_PRIORITY, UNRECOGNISED_SOURCE_PRIORITY]) {
-      expect(t.label).not.toMatch(/\bworker\b|\bqueue\b|\btelemetry\b/i);
     }
   });
 
-  it("gives every row a real destination", () => {
+  it("gives every row a real destination and an action in every locale", () => {
     for (const { id, r } of rows) {
       expect(r.href, `${id} has no destination`).toMatch(/^\/[a-z0-9/-]*$/);
-      expect(r.actionLabel.length, `${id} has no action label`).toBeGreaterThan(3);
+      for (const locale of LOCALES) {
+        expect(textOf(id, locale).actionLabel.length, `${id}/${locale} has no action label`).toBeGreaterThan(3);
+      }
     }
     expect(PLATFORM_ADVISORY_PRIORITY.href).toMatch(/^\//);
     expect(UNRECOGNISED_SOURCE_PRIORITY.href).toMatch(/^\//);
   });
 
-  it("says something specific — no row reuses the generic sentence", () => {
-    /*
-     * "Open operational conditions" was the fallback that this whole mapping
-     * exists to replace. No KNOWN source may be represented by it.
-     */
-    for (const { id, r } of rows) {
-      expect(r.label, `${id} still uses the generic fallback`).not.toMatch(
-        /open operational conditions/i,
-      );
+  it("says something specific — no row reuses the generic sentence, and no two share a title", () => {
+    for (const locale of LOCALES) {
+      const labels = rows.map(({ id }) => textOf(id, locale).label);
+      for (const label of labels) expect(label).not.toMatch(/open operational conditions/i);
+      expect(new Set(labels).size, `two sources share one ${locale} title`).toBe(labels.length);
     }
-    const labels = rows.map((x) => x.r.label);
-    expect(new Set(labels).size, "two sources share one sentence").toBe(labels.length);
   });
 });
 
@@ -328,8 +363,11 @@ describe("the reported reproduction", () => {
     expect(keys(vm)).toEqual(["ops:integration.webhook_destination_disabled"]);
     const row = vm.workspacePriorities.find(
       (p: { key: string }) => p.key === "ops:integration.webhook_destination_disabled",
-    ) as { label: string; href: string };
-    expect(row.label).toBe("A webhook destination was switched off");
+    ) as { label: string; href: string; operations: unknown };
+    // The catalogue's own title for the source (2026-10-14), and what the row
+    // stands for, so the card can render it in the reader's language.
+    expect(row.label).toBe(conditionSourceLabel("en", "integration.webhook_destination_disabled"));
+    expect(row.operations).toMatchObject({ kind: "SOURCE", sourceId: "integration.webhook_destination_disabled" });
     expect(row.href).toBe("/operations/automation");
   });
 });
