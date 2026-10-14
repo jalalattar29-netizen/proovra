@@ -416,9 +416,10 @@ describe("Phase 3.3 — repeated scans are idempotent", () => {
     expect(second.result.opened).toBe(0);
     expect(third.result.opened).toBe(0);
     expect(second.result.reobserved).toBe(1);
-    // Occurrences are still counted — "how long has this been failing" is
-    // real information and must not be lost to idempotency.
-    expect(fake.incidents[0].occurrenceCount).toBe(3);
+    // (2026-10-14) A missing timestamp is a STATE of the record: three scans
+    // of the same state are one occurrence. "How long has this been failing"
+    // is first-seen to last-seen, which every scan still refreshes.
+    expect(fake.incidents[0].occurrenceCount).toBe(1);
   });
 
   it("first-seen is preserved across re-observation", async () => {
@@ -523,9 +524,9 @@ describe("Phase 3.5 — re-fire after recovery", () => {
     const after = await sync(evidence, fake);
     expect(fake.incidents[0].status).toBe("SUPPRESSED");
     expect(after.result.suppressedUntouched).toBe(1);
-    // The continued failure is still recorded, so "this kept failing while
-    // suppressed" survives in the history.
-    expect(fake.events.map((e) => e.eventType)).toContain(
+    // (2026-10-14) A scan re-checking the same suppressed state adds no
+    // timeline entry per sweep; last-seen still says it is continuing.
+    expect(fake.events.map((e) => e.eventType)).not.toContain(
       "occurrence_while_suppressed",
     );
   });

@@ -104,8 +104,14 @@ describe("the vocabulary is complete", () => {
      * per destination, closed by the destination row. It used to reach
      * Operations only as the unclosable `security.unclassified_signal`.
      */
-    expect(registryIds.length).toBe(41);
-    expect(Object.keys(HOME_CONDITION_REPRESENTATION).length).toBe(41);
+    /*
+     * 41 → 42 (2026-10-14). `capture.upload_stalled`: ONE upload of a record
+     * that is still uploading stopped making progress, closed by its probe.
+     * It used to reach Operations as a per-workspace bridge row with no
+     * subject, filed under intake delivery.
+     */
+    expect(registryIds.length).toBe(42);
+    expect(Object.keys(HOME_CONDITION_REPRESENTATION).length).toBe(42);
   });
 });
 

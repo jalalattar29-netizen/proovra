@@ -179,7 +179,8 @@ for (const width of [1024, 768, 430, 390, 320]) {
 }
 
 // ===========================================================================
-// THE GROUPED SURFACE — the view `/operations` actually opens in.
+// THE GROUPED SURFACE — the view `/operations` opened in until 2026-10-14
+// (the flat list is the default again; `?view=grouped` selects this one).
 //
 // Two passes "moved the status column" and the screenshot kept showing
 // `[Critical] Trusted timestamping failed  Open`. Both passes were telling the

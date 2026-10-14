@@ -142,6 +142,9 @@ const EXPECTED_SUCCEEDED = [
   //                             sits here rather than a claim that it never
   //                             writes.
   "billing.dependent_cancellation_failed",
+  // (2026-10-14) a stalled upload is a per-upload SOURCE_TRUTH condition swept
+  // for recovery like the others; the fixture has none open.
+  "capture.upload_stalled",
   "coordination.backlog_stale",
   //   evidence_integrity.ots_budget_exhausted / ots_initialization_stalled,
   //   identity.idp_outage, pipeline.package_generation_denied,

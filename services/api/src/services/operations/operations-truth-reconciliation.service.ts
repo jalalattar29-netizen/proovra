@@ -65,6 +65,8 @@ export const RECONCILIATION_RULES = [
   "retired_unreachable_signals",
   "disabled_immutable_drift",
   "critical_held_conditions_report",
+  // 2026-10-14 — the stale upload_stalled bridge row.
+  "legacy_upload_stalled_rows",
 ] as const;
 export type ReconciliationRule = (typeof RECONCILIATION_RULES)[number];
 
@@ -235,6 +237,7 @@ const RULE_SOURCES: Readonly<Record<ReconciliationRule, readonly string[] | null
   retired_unreachable_signals: ["pipeline.signed_without_report_aged"],
   disabled_immutable_drift: ["storage.immutable_drift"],
   critical_held_conditions_report: null,
+  legacy_upload_stalled_rows: ["intake.delivery_failed"],
 };
 
 /** Rules whose rows carry no workspace: a `--team` bound cannot select them. */
@@ -1018,6 +1021,90 @@ export async function reconcileOperationsTruth(
           client,
         );
         if (activity === "ACTIVE") detail.sourceActive += 1;
+      },
+    );
+    c.truncated = r.truncated;
+    c.detail = detail;
+  }
+
+  // ---- 2026-10-14 — the workspace-wide upload_stalled bridge row ------------
+  //
+  // `upload_stalled` used to be filed as ONE subject-less "Intake delivery
+  // failed" condition per workspace, and the first production sweep filed it
+  // for upload shadows behind records that had long finalized. The signal is
+  // now its own per-upload source (`capture.upload_stalled`), written at the
+  // stall and closed by its probe. The old row describes no upload, so it is
+  // closed; its history stays. An upload that IS still stalled right now (a
+  // live record in its upload phase, session STALLED) is carried over to its
+  // own per-upload condition — once: an upload that already has one, open or
+  // resolved, is left to it, so a person's resolution is never undone here.
+  if (runs("legacy_upload_stalled_rows")) {
+    const c = rules.legacy_upload_stalled_rows;
+    const detail = { carriedOver: 0 };
+    const r = await pageRows(
+      (afterId, take) =>
+        client.operationalIncident.findMany({
+          where: {
+            status: { in: UNRESOLVED },
+            fingerprint: { endsWith: `${SECURITY_EVENT_MARKER}upload_stalled` },
+            ...byId(afterId),
+            ...tw,
+          },
+          select: { id: true, teamId: true },
+          orderBy: { id: "asc" },
+          take,
+        }),
+      limit,
+      async (row) => {
+        c.matched += 1;
+        c.changed += 1;
+        if (!apply) return;
+        if (row.teamId) {
+          const stalled = await client.uploadSession.findMany({
+            where: {
+              teamId: row.teamId,
+              status: "STALLED",
+              evidence: { deletedAt: null, status: { in: ["CREATED", "UPLOADING", "UPLOADED"] } },
+            },
+            select: {
+              evidenceId: true,
+              stalledAtUtc: true,
+              lastActivityAtUtc: true,
+              evidence: { select: { title: true } },
+            },
+            orderBy: { evidenceId: "asc" },
+            take: 500,
+          });
+          const { recordUploadStalledCondition } = await import("../reliability/upload-reconciliation.service.js");
+          const { getStaleThresholds } = await import("../reliability/upload-limits.service.js");
+          const { stalledMinutes } = getStaleThresholds();
+          for (const s of stalled) {
+            const existing = await client.operationalIncident.findFirst({
+              where: { teamId: row.teamId, fingerprint: `upload_stalled:${s.evidenceId}` },
+              select: { id: true },
+            });
+            if (existing) continue;
+            await recordUploadStalledCondition(
+              {
+                teamId: row.teamId,
+                evidenceId: s.evidenceId,
+                recordTitle: s.evidence.title ?? null,
+                minutes: stalledMinutes,
+                previousStatus: "STALLED",
+                stalledAtUtc: s.stalledAtUtc ?? s.lastActivityAtUtc,
+              },
+              client,
+            );
+            detail.carriedOver += 1;
+          }
+        }
+        await closeWithNote(
+          client,
+          row,
+          "Closed by the Operations truth reconciliation: this workspace-wide row named no upload. Stalled uploads are now reported one per upload as \"Upload appears stalled\"; any upload still stalled is listed there.",
+          now,
+          "legacy_upload_stalled_rows",
+        );
       },
     );
     c.truncated = r.truncated;

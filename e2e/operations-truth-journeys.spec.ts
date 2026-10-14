@@ -304,8 +304,14 @@ test.describe("Journey A — report failure to recovery, through Operations", ()
         intervals: [1000],
       })
       .toBe("RESOLVED");
-    // The page itself moves it, without a reload: out of Action required and
-    // Monitoring, into Recently resolved, and counted as resolved.
+    // The page itself moves it, without a reload. The default view (All
+    // conditions, lifecycle All — 2026-10-14) keeps the row and shows it
+    // RESOLVED; the grouped view moves it out of Action required and
+    // Monitoring into Recently resolved; and it is counted as resolved.
+    await expect(
+      page.locator(`[data-ops-table-surface] [data-ops-row="${incidentId}"] [data-ops-status]`),
+    ).toHaveAttribute("data-ops-status", "RESOLVED", { timeout: 30_000 });
+    await page.locator('[data-ops-view="grouped"]').click();
     const group = '[data-ops-group="pipeline.report_generation_failed"]';
     await expect(page.locator(`[data-ops-section="recently-resolved"] ${group}`)).toBeVisible({ timeout: 30_000 });
     await expect(page.locator(`[data-ops-section="action-required"] ${group}`)).toHaveCount(0);
@@ -515,7 +521,11 @@ test.describe("Journey B — billing/storage mismatch, through Operations and Bi
     await expect
       .poll(() => sql("SELECT status FROM operational_incidents WHERE id = $1", [incidentId])[0]!.status, { timeout: 60_000 })
       .toBe("RESOLVED");
-    await expect(page.locator(`[data-ops-table-surface] [data-ops-row="${incidentId}"]`)).toHaveCount(0, { timeout: 30_000 });
+    // The default view includes history (lifecycle All, 2026-10-14): the row
+    // stays, and says RESOLVED rather than vanishing.
+    await expect(
+      page.locator(`[data-ops-table-surface] [data-ops-row="${incidentId}"] [data-ops-status]`),
+    ).toHaveAttribute("data-ops-status", "RESOLVED", { timeout: 30_000 });
 
     // One condition and one add-on, throughout.
     expect(

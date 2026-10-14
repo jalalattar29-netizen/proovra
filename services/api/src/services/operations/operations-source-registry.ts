@@ -284,15 +284,30 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
   // -------------------------------------------------------------------------
   {
     id: "intake.delivery_failed",
-    owner: "IntakeSession / delivery records",
+    // The id is historical. Its producers are the upload service failing to
+    // start or resume an upload session (bridged security events); no intake
+    // link delivery is recorded anywhere, so none is claimed.
+    owner: "Upload sessions (upload service failures)",
     scopeAuthority: "STRICT_WORKSPACE_COLUMN",
-    discovery: "written directly by the intake domain when a delivery fails",
-    fingerprint: "one condition per failed delivery",
-    resolution: "the delivery succeeds or the link is closed",
+    discovery: "written by the security-event bridge when the upload service fails to start or resume an upload",
+    fingerprint: "one condition per (workspace, failure kind)",
+    resolution: "an operator concludes the failure has been handled",
     // Written by its own domain at the moment of failure, not found by a
     // sweep. Requiring the sweep to attempt it would mean declaring a source
     // this run does not read, which is exactly the kind of claim the
     // accounting exists to prevent.
+    freshnessParticipating: false,
+    surfaces: { home: true, notifications: true, operations: true },
+  },
+  {
+    id: "capture.upload_stalled",
+    owner: "UploadSession",
+    scopeAuthority: "STRICT_WORKSPACE_COLUMN",
+    discovery: "written by the upload reconciler when a live upload of a not-yet-finalized record stops making progress",
+    fingerprint: "one condition per upload (upload_stalled:<evidenceId>)",
+    resolution: "the upload completes, is resumed or abandoned, or the record is finalized or deleted (probe)",
+    // Written at the moment of the stall by the platform maintenance sweep, not
+    // by the workspace operations sweep.
     freshnessParticipating: false,
     surfaces: { home: true, notifications: true, operations: true },
   },

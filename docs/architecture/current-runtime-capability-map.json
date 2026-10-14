@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "a0d5149173f12314f55e4aff9aae1844527f5322ec4536f80f93ff662977201b",
-  "consumerInventoryHash": "cbf29e7ccc39c2aaa2edaef782f3233a47abadbe3ee60a95329d4fe8b1b984e8",
+  "consumerInventoryHash": "5a7bbaa046abb931c2892032c80eb9d4382f2342f858e5762aae9b31af87163c",
   "dispositionsHash": "b91e4fd4699fa26a59e2784e582b53fc7407b0b9712580d59c56732b6a28aee5",
   "totals": {
     "RegisteredRoutes": 1187,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 9839,
-      "UNRESOLVED_IDENTIFIER": 1360
+      "METHOD_ON_VALUE": 9856,
+      "UNRESOLVED_IDENTIFIER": 1364
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -12292,7 +12292,7 @@
       "method": "POST",
       "route": "/v1/ops/incidents/:id/unsuppress",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:1234",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:1313",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -28894,8 +28894,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/ops.routes.ts#bulkOperationalActionRun.update@3636",
-      "terminalLocation": "services/api/src/routes/ops.routes.ts:3636",
+      "writerId": "services/api/src/routes/ops.routes.ts#bulkOperationalActionRun.update@3655",
+      "terminalLocation": "services/api/src/routes/ops.routes.ts:3655",
       "file": "services/api/src/routes/ops.routes.ts",
       "enclosingDeclaration": "opsRoutes",
       "kind": "DATABASE",
@@ -28927,8 +28927,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/ops.routes.ts#communicationMessage.update@456",
-      "terminalLocation": "services/api/src/routes/ops.routes.ts:456",
+      "writerId": "services/api/src/routes/ops.routes.ts#communicationMessage.update@457",
+      "terminalLocation": "services/api/src/routes/ops.routes.ts:457",
       "file": "services/api/src/routes/ops.routes.ts",
       "enclosingDeclaration": "runMasterReconcile",
       "kind": "DATABASE",
@@ -28960,8 +28960,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/ops.routes.ts#stepUpChallenge.updateMany@399",
-      "terminalLocation": "services/api/src/routes/ops.routes.ts:399",
+      "writerId": "services/api/src/routes/ops.routes.ts#stepUpChallenge.updateMany@400",
+      "terminalLocation": "services/api/src/routes/ops.routes.ts:400",
       "file": "services/api/src/routes/ops.routes.ts",
       "enclosingDeclaration": "runMasterReconcile",
       "kind": "DATABASE",
@@ -28993,8 +28993,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/ops.routes.ts#trustedDevice.updateMany@408",
-      "terminalLocation": "services/api/src/routes/ops.routes.ts:408",
+      "writerId": "services/api/src/routes/ops.routes.ts#trustedDevice.updateMany@409",
+      "terminalLocation": "services/api/src/routes/ops.routes.ts:409",
       "file": "services/api/src/routes/ops.routes.ts",
       "enclosingDeclaration": "runMasterReconcile",
       "kind": "DATABASE",
@@ -58644,8 +58644,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.create@540",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:540",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.create@549",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:549",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "recordIncident",
       "kind": "DATABASE",
@@ -59637,8 +59637,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@1013",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1013",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@1040",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1040",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "markConditionObservationStale",
       "kind": "DATABASE",
@@ -60620,8 +60620,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@1188",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1188",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@1215",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1215",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "assignIncident",
       "kind": "DATABASE",
@@ -61603,8 +61603,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@1482",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1482",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@1509",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1509",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "transitionIncident",
       "kind": "DATABASE",
@@ -62586,8 +62586,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@711",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:711",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@730",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:730",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "recordIncident",
       "kind": "DATABASE",
@@ -63579,8 +63579,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@938",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:938",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@965",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:965",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "resolveConditionFromSourceRecovery",
       "kind": "DATABASE",
@@ -64571,8 +64571,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1199",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1199",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1226",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1226",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "assignIncident",
       "kind": "DATABASE",
@@ -65554,8 +65554,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1491",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1491",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1518",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1518",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "transitionIncident",
       "kind": "DATABASE",
@@ -66537,8 +66537,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@756",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:756",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@783",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:783",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "recordIncident",
       "kind": "DATABASE",
@@ -67530,8 +67530,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@953",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:953",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@980",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:980",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "resolveConditionFromSourceRecovery",
       "kind": "DATABASE",
@@ -76908,8 +76908,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.update@491",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:491",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.update@494",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:494",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "reconcileOperationsTruth",
       "kind": "DATABASE",
@@ -76938,8 +76938,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.update@569",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:569",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.update@572",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:572",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "reconcileOperationsTruth",
       "kind": "DATABASE",
@@ -76968,8 +76968,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.update@687",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:687",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.update@690",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:690",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "reconcileOperationsTruth",
       "kind": "DATABASE",
@@ -76998,8 +76998,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.updateMany@147",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:147",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncident.updateMany@149",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:149",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "closeWithNote",
       "kind": "DATABASE",
@@ -77028,8 +77028,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@152",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:152",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@154",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:154",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "closeWithNote",
       "kind": "DATABASE",
@@ -77058,8 +77058,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@188",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:188",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@190",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:190",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "flagForOwnerReview",
       "kind": "DATABASE",
@@ -77088,8 +77088,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@495",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:495",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@498",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:498",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "reconcileOperationsTruth",
       "kind": "DATABASE",
@@ -77118,8 +77118,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@578",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:578",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@581",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:581",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "reconcileOperationsTruth",
       "kind": "DATABASE",
@@ -77148,8 +77148,8 @@
       "nonRequestDisposition": "RECONCILER_OR_SWEEP"
     },
     {
-      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@691",
-      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:691",
+      "writerId": "services/api/src/services/operations/operations-truth-reconciliation.service.ts#operationalIncidentEvent.create@694",
+      "terminalLocation": "services/api/src/services/operations/operations-truth-reconciliation.service.ts:694",
       "file": "services/api/src/services/operations/operations-truth-reconciliation.service.ts",
       "enclosingDeclaration": "reconcileOperationsTruth",
       "kind": "DATABASE",
@@ -89080,8 +89080,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncident.updateMany@544",
-      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:544",
+      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncident.updateMany@550",
+      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:550",
       "file": "services/worker/src/governance/incident-emitter.ts",
       "enclosingDeclaration": "recordWorkerIncident",
       "kind": "DATABASE",
@@ -89172,8 +89172,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncidentEvent.create@584",
-      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:584",
+      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncidentEvent.create@591",
+      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:591",
       "file": "services/worker/src/governance/incident-emitter.ts",
       "enclosingDeclaration": "recordWorkerIncident",
       "kind": "DATABASE",
@@ -94061,7 +94061,7 @@
       "method": "DELETE",
       "path": "/v1/ops/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3396",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3415",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -94082,7 +94082,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1046,
+          "line": 1118,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -94092,7 +94092,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1232 (remove, MOBILE); apps/web/app/(app)/operations/page.tsx:1046 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1232 (remove, MOBILE); apps/web/app/(app)/operations/page.tsx:1118 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -95394,7 +95394,7 @@
       "method": "GET",
       "path": "/healthz",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:597",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:598",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -95439,7 +95439,7 @@
       "method": "GET",
       "path": "/metrics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:836",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:837",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "handler body -> handler: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)"
@@ -95672,7 +95672,7 @@
       "method": "GET",
       "path": "/readyz",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:606",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:607",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -98238,7 +98238,7 @@
       "method": "GET",
       "path": "/v1/admin/runtime/schema-status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:916",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:917",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -118538,7 +118538,7 @@
       "method": "GET",
       "path": "/v1/ops/alerts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:885",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:886",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -118581,7 +118581,7 @@
       "method": "GET",
       "path": "/v1/ops/assignable-operators",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2272",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2291",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -118602,7 +118602,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 859,
+          "line": 931,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118612,7 +118612,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:403 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:859 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:403 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:931 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -118648,7 +118648,7 @@
       "method": "GET",
       "path": "/v1/ops/bulk-actions/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3668",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3687",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -118698,7 +118698,7 @@
       "method": "GET",
       "path": "/v1/ops/causality/chains",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2996",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3015",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -118757,7 +118757,7 @@
       "method": "GET",
       "path": "/v1/ops/causality/chains/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3019",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3038",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -118818,7 +118818,7 @@
       "method": "GET",
       "path": "/v1/ops/health",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:696",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:697",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolvePlatformAdmin -> services/api/src/services/platform-admin.service.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -118880,7 +118880,7 @@
       "method": "GET",
       "path": "/v1/ops/incident-groups",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1572",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1584",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -118901,7 +118901,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 598,
+          "line": 667,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118909,7 +118909,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 662,
+          "line": 731,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118919,7 +118919,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:377 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:598 (OperationsWorkbench, WEB); apps/web/app/(app)/operations/page.tsx:662 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:377 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:667 (OperationsWorkbench, WEB); apps/web/app/(app)/operations/page.tsx:731 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -118957,7 +118957,7 @@
       "method": "GET",
       "path": "/v1/ops/incident-groups/:groupKey/affected",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1750",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1762",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -118978,7 +118978,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 723,
+          "line": 795,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118988,7 +118988,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1847 (GroupInspector, MOBILE); apps/web/app/(app)/operations/page.tsx:723 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1847 (GroupInspector, MOBILE); apps/web/app/(app)/operations/page.tsx:795 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -119001,6 +119001,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess + isPlatformAdmin",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "evidence",
         "operationalIncident",
         "team",
         "teamMember"
@@ -119012,7 +119013,8 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/platform-context/capability-registry.ts: platform-admin scope (multi-tenant by design)"
+        "services/api/src/services/platform-context/capability-registry.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/services/operations/condition-presentation.service.ts: evidence.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -119025,7 +119027,7 @@
       "method": "GET",
       "path": "/v1/ops/incidents",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1377",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1384",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -119054,7 +119056,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 800,
+          "line": 872,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119062,7 +119064,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1071,
+          "line": 1143,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119088,7 +119090,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:345 (OperationsWorkspaceScreen, MOBILE); apps/mobile/app/(stack)/operations/index.tsx:435 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:800 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:345 (OperationsWorkspaceScreen, MOBILE); apps/mobile/app/(stack)/operations/index.tsx:435 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:872 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -119101,6 +119103,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess + isPlatformAdmin",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "evidence",
         "operationalIncident",
         "operationalIncidentSlaCycle",
         "team",
@@ -119113,7 +119116,8 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/platform-context/capability-registry.ts: platform-admin scope (multi-tenant by design)"
+        "services/api/src/services/platform-context/capability-registry.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/services/operations/condition-presentation.service.ts: evidence.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -119126,7 +119130,7 @@
       "method": "GET",
       "path": "/v1/ops/incidents/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1800",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1812",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -119147,7 +119151,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 886,
+          "line": 958,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119157,7 +119161,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1417 (IncidentInspector, MOBILE); apps/web/app/(app)/operations/page.tsx:886 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1417 (IncidentInspector, MOBILE); apps/web/app/(app)/operations/page.tsx:958 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -119199,6 +119203,7 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/platform-context/capability-registry.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/services/operations/condition-presentation.service.ts: evidence.findMany — no tenant or self predicate",
         "services/api/src/services/reports/output-recovery.service.ts: evidence.findMany — no tenant or self predicate",
         "services/api/src/services/reports/output-recovery.service.ts: report.findMany — no tenant or self predicate",
         "services/api/src/services/reports/output-recovery.service.ts: verificationPackage.findMany — no tenant or self predicate",
@@ -119207,8 +119212,7 @@
         "services/api/src/services/reports/output-recovery.service.ts: team.findMany — no tenant or self predicate",
         "services/api/src/services/reports/output-recovery.service.ts: verificationPackage.findMany — no tenant or self predicate",
         "services/api/src/services/reports/output-recovery.service.ts: organization.findMany — no tenant or self predicate",
-        "services/api/src/services/billing/evidence-output-eligibility.service.ts: evidence.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate"
+        "services/api/src/services/billing/evidence-output-eligibility.service.ts: evidence.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -119221,7 +119225,7 @@
       "method": "GET",
       "path": "/v1/ops/media-intelligence/runs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3782",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3801",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -119276,7 +119280,7 @@
       "method": "GET",
       "path": "/v1/ops/metrics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:817",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:818",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -119328,7 +119332,7 @@
       "method": "GET",
       "path": "/v1/ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3223",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3242",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -119349,7 +119353,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 932,
+          "line": 1004,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119359,7 +119363,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:415 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:932 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:415 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1004 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -119443,7 +119447,7 @@
       "method": "GET",
       "path": "/v1/ops/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1026",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1027",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -119478,7 +119482,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 796,
+          "line": 868,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119486,7 +119490,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1157,
+          "line": 1229,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119540,7 +119544,7 @@
       "method": "GET",
       "path": "/v1/ops/workflows",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2544",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2563",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -119599,7 +119603,7 @@
       "method": "GET",
       "path": "/v1/ops/workflows/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2582",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2601",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -120323,7 +120327,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/operations/incidents",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1206",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1207",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -120369,6 +120373,7 @@
       "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess + evaluateMemberAccess + teamMemberStatusGrantsAccess + isPlatformAdmin",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "evidence",
         "operationalIncident",
         "organization",
         "organizationMembership",
@@ -120385,7 +120390,8 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/platform-context/capability-registry.ts: platform-admin scope (multi-tenant by design)",
-        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate"
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate",
+        "services/api/src/services/operations/condition-presentation.service.ts: evidence.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -120398,7 +120404,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/operations/rollup",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1100",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1101",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -127882,7 +127888,7 @@
       "method": "GET",
       "path": "/v1/teams/:workspaceId/operations/alerts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workspace-operations.routes.ts:198",
+      "registrationEvidence": "services/api/src/routes/workspace-operations.routes.ts:199",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireWorkspaceMember -> services/api/src/routes/case-workspace.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -127956,7 +127962,7 @@
       "method": "GET",
       "path": "/v1/teams/:workspaceId/operations/health",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workspace-operations.routes.ts:102",
+      "registrationEvidence": "services/api/src/routes/workspace-operations.routes.ts:103",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireWorkspaceMember -> services/api/src/routes/case-workspace.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132633,7 +132639,7 @@
       "method": "PATCH",
       "path": "/v1/ops/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3318",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3337",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -132654,7 +132660,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1011,
+          "line": 1083,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -132664,7 +132670,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1211 (submit, MOBILE); apps/web/app/(app)/operations/page.tsx:1011 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1211 (submit, MOBILE); apps/web/app/(app)/operations/page.tsx:1083 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162132,7 +162138,7 @@
       "method": "POST",
       "path": "/v1/ops/bulk-actions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3507",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3526",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -162153,7 +162159,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1521,
+          "line": 1606,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162171,7 +162177,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:596 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1521 (OperationsWorkbench, WEB); apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:489 (WorkflowOperationsSection, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:596 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1606 (OperationsWorkbench, WEB); apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:489 (WorkflowOperationsSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162217,7 +162223,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/ack",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2142",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2161",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -162254,7 +162260,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1234,
+          "line": 1313,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162311,7 +162317,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2303",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2322",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -162332,7 +162338,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1351,
+          "line": 1436,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162342,7 +162348,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:559 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1351 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:559 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1436 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162384,7 +162390,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/remediate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2007",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2026",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -162405,7 +162411,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1404,
+          "line": 1489,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162415,7 +162421,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1453 (remediate, MOBILE); apps/web/app/(app)/operations/page.tsx:1404 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1453 (remediate, MOBILE); apps/web/app/(app)/operations/page.tsx:1489 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162479,7 +162485,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2166",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2185",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -162516,7 +162522,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1234,
+          "line": 1313,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162573,7 +162579,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2191",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2210",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -162610,7 +162616,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1234,
+          "line": 1313,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162667,7 +162673,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/unsuppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2226",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2245",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -162680,7 +162686,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1234,
+          "line": 1313,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162690,7 +162696,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:1234 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:1313 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162737,7 +162743,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/dlq/replay",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3937",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3956",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -162795,7 +162801,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/runs/:runId/dismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3912",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3931",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -162850,7 +162856,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/runs/:runId/retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3852",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3871",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -162908,7 +162914,7 @@
       "method": "POST",
       "path": "/v1/ops/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:958",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:959",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -162920,7 +162926,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/ops.routes.ts:958 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/ops.routes.ts:959 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -162973,7 +162979,7 @@
       "method": "POST",
       "path": "/v1/ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3241",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3260",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -162994,7 +163000,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 960,
+          "line": 1032,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -163004,7 +163010,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1206 (submit, MOBILE); apps/web/app/(app)/operations/page.tsx:960 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1206 (submit, MOBILE); apps/web/app/(app)/operations/page.tsx:1032 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -163136,7 +163142,7 @@
       "method": "POST",
       "path": "/v1/ops/upload-telemetry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4040",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4059",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -163191,7 +163197,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2640",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2659",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -163275,7 +163281,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/escalate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2739",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2758",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -163359,7 +163365,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/mitigation",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2781",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2800",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -163443,7 +163449,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/reopen",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2909",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2928",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -163527,7 +163533,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2824",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2843",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -163611,7 +163617,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/schedule-retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2951",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2970",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -163695,7 +163701,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2697",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2716",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -163779,7 +163785,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2867",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2886",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -163863,7 +163869,7 @@
       "method": "POST",
       "path": "/v1/ops/workspace-reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1322",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1329",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -163884,7 +163890,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1117,
+          "line": 1189,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -163894,7 +163900,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:480 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1117 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:480 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1189 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -167889,10 +167895,14 @@
       "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "operationalIncident",
+        "operationalIncidentEvent",
         "teamMember",
         "uploadSession"
       ],
       "modelsWritten": [
+        "operationalIncident",
+        "operationalIncidentEvent",
         "securityEvent",
         "uploadSession"
       ],
@@ -167905,7 +167915,10 @@
         "services/api/src/services/reliability/upload-session.service.ts: uploadSession.findUnique — no tenant or self predicate",
         "services/api/src/services/reliability/upload-session.service.ts: uploadSession.findUnique — no tenant or self predicate",
         "services/api/src/services/reliability/upload-reconciliation.service.ts: uploadSession.findMany — no tenant or self predicate",
-        "services/api/src/services/reliability/upload-reconciliation.service.ts: uploadSession.findMany — no tenant or self predicate"
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.updateMany — no tenant or self predicate",
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.findUniqueOrThrow — no tenant or self predicate",
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",

@@ -11,8 +11,7 @@
  *     undeclared param refuses the code;
  *   - unknown codes, bad params and legacy rows render the STORED text —
  *     never a raw key, never an empty string; English always renders stored;
- *   - the English the writer stores is byte-identical to what the writers
- *     stored before codes existed (legacy compatibility, pinned verbatim);
+ *   - the reviewed English names no internal code, enum, field or error class;
  *   - every registered source has a label in every locale, and the English
  *     label is the registry's own.
  */
@@ -85,6 +84,7 @@ const SAMPLE: Record<ConditionMessageCode, Record<string, unknown>> = {
   "ops.search.not_built": {},
   "ops.search.reconciliation_failing": {},
   "ops.platform.operational_seed": { seedRunId: "5e0c1b2a-0000-4000-8000-000000000003", scenario: "escalation_storm" },
+  "ops.capture.upload_stalled": { recordTitle: "Site survey.mp4", recordRef: "9f1d2c3b", minutes: 90 },
 };
 
 const FSI = "\u2068";
@@ -136,7 +136,9 @@ describe("every code renders in every locale", () => {
     })!;
     expect(r.title).toContain(`${FSI}v4${PDI}`);
     expect(r.title).toContain(`${FSI}9f1d2c3b${PDI}`);
-    expect(r.summary).toContain(`${FSI}REPORT_RENDER_TIMEOUT${PDI}`);
+    // The error class is a technical reference, never part of the sentence.
+    expect(r.summary).not.toContain("REPORT_RENDER_TIMEOUT");
+    expect(r.summary).toContain(`${FSI}4${PDI}`);
     // Every isolate is closed.
     for (const code of CONDITION_MESSAGE_CODES) {
       const ar = renderConditionMessage("ar", code, SAMPLE[code])!;
@@ -213,17 +215,18 @@ describe("the reader falls back to the stored text — never a raw key", () => {
     expect(r.localized).toBe(false);
   });
 
-  it("English renders the stored text even when the code is known", () => {
+  it("English renders the CURRENT reviewed sentence when the code is valid, not the stored text", () => {
     const r = localizeCondition("en", {
       ...stored,
       message: { code: "ops.platform.worker_heartbeat_stale", params: {} },
     });
-    expect(r.title).toBe(stored.title);
+    expect(r.title).toBe("Worker heartbeat stale");
+    expect(r.localized).toBe(true);
   });
 
-  it("an unsupported locale falls back to English, i.e. the stored text", () => {
+  it("an unsupported locale falls back to the English catalogue sentence", () => {
     const r = localizeCondition("fr", { ...stored, message: { code: "ops.platform.worker_heartbeat_stale", params: {} } });
-    expect(r.title).toBe(stored.title);
+    expect(r.title).toBe("Worker heartbeat stale");
   });
 
   it("a known code renders the locale's sentence", () => {
@@ -256,8 +259,9 @@ describe("the reader falls back to the stored text — never a raw key", () => {
   });
 });
 
-describe("the stored English is unchanged from before codes existed (legacy compatibility)", () => {
-  // Pinned verbatim from the writers' pre-code literals.
+describe("the reviewed English names no internal code (2026-10-14)", () => {
+  // The writers' sentences as they now read. Codes, enums, field names and
+  // error classes are technical references, never part of a sentence.
   it.each([
     [
       "ops.integration.webhook_destination_disabled",
@@ -269,31 +273,31 @@ describe("the stored English is unchanged from before codes existed (legacy comp
       "ops.pipeline.report_generation_failed.not_retriable",
       { version: 3, recordRef: "9f1d2c3b", errorClass: "UNCLASSIFIED" },
       "Report v3 generation failed — record 9f1d2c3b",
-      "Report version 3 of this record could not be generated and will not be retried automatically (UNCLASSIFIED). The evidence is unaffected. An operator can recover it from Operations; the condition clears only when report version 3 exists.",
+      "Report version 3 of this record could not be generated and will not be retried automatically. The evidence is unaffected. An operator can recover it from Operations; the condition clears only when report version 3 exists.",
     ],
     [
       "ops.evidence_integrity.tsa_failed",
       { recordTitle: "Roof", recordRef: "9f1d2c3b", failureClass: "CONFIGURATION" },
-      'RFC3161 timestamp missing for "Roof"',
-      "This record has no RFC3161 timestamp: the provider rejected our credentials or configuration. It stays unresolved until the record's timestamp is validated. Each affected record is tracked separately — this condition covers one record only.",
-    ],
-    [
-      "ops.evidence_integrity.ots_failed",
-      { recordTitle: null, recordRef: "9f1d2c3b", failureClass: "UNKNOWN" },
-      "OpenTimestamps anchor missing for record 9f1d2c3b",
-      "This record has no OpenTimestamps anchor: the failure reason is not one we classify. It stays unresolved until the record's OpenTimestamps proof is anchored. Each affected record is tracked separately — this condition covers one record only.",
+      'Trusted timestamp missing for "Roof"',
+      "This record has no trusted timestamp: the provider rejected our credentials or configuration. It stays open until the record's timestamp is validated. Each affected record is tracked separately — this condition covers one record only.",
     ],
     [
       "ops.billing.provider_authorization",
       { provider: "PAYPAL", operation: "CAPTURE" },
-      "PAYPAL refused our credentials",
-      "PAYPAL answered 401/403 during CAPTURE. Payment states cannot be verified until the credential is restored. No customer payment has been changed.",
+      "PayPal refused our credentials",
+      "PayPal rejected the platform's credentials during a payment check. Payment states cannot be verified until the credentials are restored. No customer payment has been changed.",
     ],
     [
       "ops.security.signal",
-      { eventType: "idp_outage_detected", severity: "HIGH", teamRef: "1a2b3c4d", fields: "connectionId, provider" },
-      "Security signal: idp_outage_detected",
-      "Severity HIGH · team 1a2b3c4d… · fields: connectionId, provider",
+      { eventType: "upload_stalled", severity: "WARNING", teamRef: "6488cb98", fields: "stalledThresholdMinutes, previousStatus" },
+      "Upload appears stalled",
+      "An upload in this workspace stopped making progress. This older condition does not record which upload it was; newer conditions name the affected record.",
+    ],
+    [
+      "ops.capture.upload_stalled",
+      { recordTitle: "Site survey.mp4", recordRef: "9f1d2c3b", minutes: 60 },
+      "Upload appears stalled",
+      'No upload progress has been recorded for 1 hour on "Site survey.mp4". The person uploading can resume it from the record; if it is not resumed it is closed as abandoned. This condition closes on its own when the upload completes or is closed.',
     ],
   ] as const)("%s", (code, params, title, summary) => {
     const stamped = stampConditionMessage({ code, params })!;
@@ -324,6 +328,28 @@ describe("source labels", () => {
     for (const l of registered) {
       expect(conditionSourceLabel("de", l.sourceId), l.sourceId).not.toBe(l.displayLabel);
       expect(conditionSourceLabel("ar", l.sourceId), l.sourceId).toMatch(/[؀-ۿ]/);
+    }
+  });
+});
+
+describe("no internal language in any rendered sentence (2026-10-14)", () => {
+  // A reader sees sentences. Signal codes, enum constants, field lists, team
+  // ids and diagnostics belong under Technical references, never here.
+  const INTERNAL: Array<[string, RegExp]> = [
+    ["snake_case identifier", /\b[a-z]+(?:_[a-z0-9]+)+\b/],
+    ["enum constant", /\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b/],
+    ["field list", /\bfields:/i],
+    ["raw security-signal label", /Security signal:/i],
+    ["team id", /\bteam [0-9a-f]{6,}/i],
+    ["UUID", /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i],
+    ["key=value diagnostic", /\b[a-z][a-zA-Z]*=[A-Za-z0-9]/],
+  ];
+  it.each([...CONDITION_MESSAGE_CODES])("%s", (code) => {
+    for (const loc of LOCALES) {
+      const r = renderConditionMessage(loc, code, SAMPLE[code])!;
+      const text = `${r.title} ${r.summary}`.replaceAll(FSI, "").replaceAll(PDI, "");
+      const found = INTERNAL.filter(([, re]) => re.test(text)).map(([n]) => n);
+      expect(found, `${code}/${loc}: ${text}`).toEqual([]);
     }
   });
 });

@@ -336,6 +336,9 @@ export const ACTIVITY_PROBE_KEYS = [
    * is written, whichever one it is.
    */
   "evidence.ots_initialization_stalled",
+  // `upload_stalled:<evidenceId>` — the upload session is still STALLED and
+  // its record is still uploading (not finalized, not deleted).
+  "upload.session_stalled",
   "evidence.report_present",
   "evidence.package_present",
   // OPS-018 — the canonical package-eligibility decision for one record.
@@ -463,6 +466,23 @@ export type OperationsSourceLifecycle = {
   readonly requiredCapability: string;
   readonly audience: OperationsAudience;
   readonly cardinality: SourceCardinality;
+  /**
+   * WHAT A REPEATED WRITE MEANS (2026-10-14).
+   *
+   * STATE — the producer re-checks a persisted state (a sweep, a probe-backed
+   * reconciler). Seeing the same unresolved condition again is NOT a new
+   * occurrence: it refreshes `lastSeenAtUtc`, the text and the metric, and
+   * neither increments the occurrence count nor writes an "increment" event. A
+   * scanner check is not an observation of something new.
+   *
+   * EVENT — every write is a genuine new occurrence (a job failed again, a
+   * security event fired again, an escalation was raised): it is counted and
+   * recorded in the history.
+   *
+   * Either way, a write against a RESOLVED condition is a later occurrence and
+   * follows the recurrence policy (reopen once, recorded).
+   */
+  readonly observationModel: "STATE" | "EVENT";
   readonly workspaceApplicability: SourceWorkspaceApplicability;
   readonly metricContract: SourceMetricContract;
   readonly drillDownContract: SourceDrillDownContract;
@@ -520,6 +540,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "evidence.read",
       audience: "TENANT_ACTIONABLE",
       cardinality: "PER_RECORD",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -550,6 +571,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "evidence.publish_verify",
       audience: "TENANT_ACTIONABLE",
       cardinality: "PER_RECORD",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -581,6 +603,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "evidence.publish_verify",
       audience: "TENANT_ACTIONABLE",
       cardinality: "PER_RECORD",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -638,6 +661,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "evidence.publish_verify",
       audience: "TENANT_ACTIONABLE",
       cardinality: "PER_RECORD",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -676,6 +700,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "evidence.generate_report",
       audience: "TENANT_ACTIONABLE",
       cardinality: "PER_RECORD",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -704,6 +729,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "evidence.publish_verify",
       audience: "TENANT_ACTIONABLE",
       cardinality: "PER_RECORD",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -736,6 +762,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "evidence.generate_report",
       audience: "TENANT_ACTIONABLE",
       cardinality: "AGGREGATE",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "AGGREGATE_THRESHOLD",
       drillDownContract: "AFFECTED_RECORDS",
@@ -763,6 +790,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "evidence.generate_report",
       audience: "TENANT_ACTIONABLE",
       cardinality: "AGGREGATE",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "AGGREGATE_THRESHOLD",
       drillDownContract: "AFFECTED_RECORDS",
@@ -797,6 +825,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "operations.view",
       audience: "PLATFORM_INTERNAL",
       cardinality: "AGGREGATE",
+      observationModel: "STATE",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -826,6 +855,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "evidence.generate_report",
       audience: "TENANT_ACTIONABLE",
       cardinality: "PER_RECORD",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -859,6 +889,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "evidence.generate_report",
       audience: "TENANT_ACTIONABLE",
       cardinality: "PER_RECORD",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -888,6 +919,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "review.queue.read",
       audience: "TENANT_ACTIONABLE",
       cardinality: "AGGREGATE",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "AGGREGATE_THRESHOLD",
       drillDownContract: "AFFECTED_RECORDS",
@@ -915,6 +947,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "review.queue.read",
       audience: "TENANT_ACTIONABLE",
       cardinality: "PER_RECORD",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -945,6 +978,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "review.queue.read",
       audience: "TENANT_ACTIONABLE",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -971,6 +1005,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "evidence.read",
       audience: "TENANT_ACTIONABLE",
       cardinality: "AGGREGATE",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "AGGREGATE_THRESHOLD",
       drillDownContract: "AFFECTED_RECORDS",
@@ -1002,6 +1037,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "operations.view",
       audience: "PLATFORM_INTERNAL",
       cardinality: "AGGREGATE",
+      observationModel: "STATE",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -1043,6 +1079,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "operations.view",
       audience: "PLATFORM_INTERNAL",
       cardinality: "AGGREGATE",
+      observationModel: "STATE",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -1074,6 +1111,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "operations.view",
       audience: "PLATFORM_INTERNAL",
       cardinality: "AGGREGATE",
+      observationModel: "STATE",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "AGE_THRESHOLD",
       drillDownContract: "SOURCE_SURFACE",
@@ -1099,9 +1137,13 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     // with" is genuinely the only thing closure can mean here.
     // =======================================================================
     {
+      // THE ID IS HISTORICAL (2026-10-14). Every producer of this source is the
+      // upload service failing to START or RESUME an upload session; nothing in
+      // the product records an intake link failing to reach a recipient, so the
+      // label says what actually happened and no Intake Links action is offered.
       sourceId: "intake.delivery_failed",
       category: "UPLOAD",
-      displayLabel: "Intake delivery failed",
+      displayLabel: "Uploads could not be started or resumed",
       producers: ["services/api/src/services/security/security-event.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "upload:security_event" }],
@@ -1110,17 +1152,48 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       recoveryPolicy: "OPERATOR_CLOSES",
       recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
       suppressionPolicy: "SUPPRESSION_PERSISTS",
-      remediationDisposition: "SAFE_DEEP_LINK",
+      remediationDisposition: "GUIDANCE_ONLY",
       requiredCapability: "evidence.read",
       audience: "TENANT_ACTIONABLE",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
       notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
       requiresResolutionNote: true,
       rationale:
-        "The SecurityEvent bridge records that a class of stuck/failed upload was observed; the fingerprint names the event class and no delivery, so there is no live subject to probe and closure is the recorded investigation outcome.",
+        "The SecurityEvent bridge records that the upload service failed to start or resume an upload session; the fingerprint names the failure kind, not an upload, so there is no live subject to probe and closure is the recorded investigation outcome. (Legacy rows whose event was upload_stalled predate the per-upload capture.upload_stalled source.)",
+    },
+    {
+      // ONE UPLOAD THAT STOPPED MAKING PROGRESS (2026-10-14). Written by the
+      // upload reconciler at the STALLED transition — only for a live upload of
+      // a record that is neither finalized nor deleted — and closed by its
+      // probe the moment that stops being true.
+      sourceId: "capture.upload_stalled",
+      category: "UPLOAD",
+      displayLabel: "Upload appears stalled",
+      producers: ["services/api/src/services/reliability/upload-reconciliation.service.ts"],
+      discoveryState: "ACTIVE",
+      // No row before this source existed carries its fingerprint shape.
+      legacyFingerprints: [],
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "upload.session_stalled",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SAFE_DEEP_LINK",
+      requiredCapability: "evidence.read",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "PER_RECORD",
+      observationModel: "STATE",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "NONE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: false,
+      rationale:
+        "A record still in its upload phase whose upload session stopped recording progress past the inactivity threshold; the session and record rows answer recovery directly.",
     },
     {
       sourceId: "communications.provider_failure",
@@ -1140,6 +1213,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "operations.view",
       audience: "TENANT_ACTIONABLE",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -1164,6 +1238,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "integration.webhook.manage",
       audience: "TENANT_ACTIONABLE",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -1190,6 +1265,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "audit.read",
       audience: "TENANT_ACTIONABLE",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -1223,6 +1299,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "governance.policy.read",
       audience: "TENANT_ADVISORY",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -1262,6 +1339,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "operations.view",
       audience: "PLATFORM_INTERNAL",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -1296,6 +1374,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "audit.read",
       audience: "TENANT_ACTIONABLE",
       cardinality: "PER_RECORD",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -1324,6 +1403,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "audit.read",
       audience: "TENANT_ACTIONABLE",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -1353,6 +1433,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "audit.read",
       audience: "TENANT_ACTIONABLE",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -1385,6 +1466,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "governance.policy.read",
       audience: "TENANT_ACTIONABLE",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -1411,6 +1493,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "governance.policy.read",
       audience: "TENANT_ACTIONABLE",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -1476,6 +1559,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       // for exactly that reason, and no customer should be shown it.
       audience: "PLATFORM_INTERNAL",
       cardinality: "AGGREGATE",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -1524,6 +1608,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "operations.view",
       audience: "TENANT_ACTIONABLE",
       cardinality: "PER_RECORD",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -1586,6 +1671,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "governance.policy.read",
       audience: "TENANT_ACTIONABLE",
       cardinality: "PER_RECORD",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -1614,6 +1700,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "operations.view",
       audience: "TENANT_ACTIONABLE",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -1658,6 +1745,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       // control — the next successful run closes it.
       audience: "TENANT_ADVISORY",
       cardinality: "AGGREGATE",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       // The run row counts scanned and failed documents, but those are counts
       // of ONE run's work rather than a standing population measured against a
@@ -1712,6 +1800,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "integration.webhook.manage",
       audience: "TENANT_ACTIONABLE",
       cardinality: "PER_RECORD",
+      observationModel: "STATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -1758,6 +1847,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "integration.webhook.manage",
       audience: "TENANT_ADVISORY",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
@@ -1786,6 +1876,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "operations.view",
       audience: "PLATFORM_INTERNAL",
       cardinality: "AGGREGATE",
+      observationModel: "STATE",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "AGGREGATE_THRESHOLD",
       drillDownContract: "SOURCE_SURFACE",
@@ -1810,6 +1901,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "operations.view",
       audience: "PLATFORM_INTERNAL",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -1834,6 +1926,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "operations.view",
       audience: "PLATFORM_INTERNAL",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -1858,6 +1951,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiredCapability: "operations.view",
       audience: "PLATFORM_INTERNAL",
       cardinality: "EVENT",
+      observationModel: "EVENT",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "NONE",
       drillDownContract: "NONE",
@@ -1910,6 +2004,7 @@ export const UNREGISTERED_CONDITION_LIFECYCLE: OperationsSourceLifecycle =
     // control that would claim more than the platform knows.
     audience: "TENANT_ADVISORY",
     cardinality: "EVENT",
+    observationModel: "EVENT",
     workspaceApplicability: "ALL_WORKSPACES",
     metricContract: "NONE",
     drillDownContract: "NONE",

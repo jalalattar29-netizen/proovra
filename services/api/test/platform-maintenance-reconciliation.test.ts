@@ -53,6 +53,7 @@ const UPLOAD_SUMMARY = {
   markedStalled: 0,
   markedAbandoned: 0,
   flaggedReviewRequired: 0,
+  settledSuperseded: 0,
 };
 
 /** A lease with the real one's contract: one holder per key, released after. */

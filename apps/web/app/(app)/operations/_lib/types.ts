@@ -12,6 +12,8 @@
  * top of `page.tsx`.
  */
 
+import type { ConditionSubject, ConditionTechnicalReference } from "@proovra/shared";
+
 /** Canonical severities, in escalating order. */
 export const INCIDENT_SEVERITIES = [
   "INFO",
@@ -139,6 +141,17 @@ export type Incident = {
    * against a default nobody agreed to.
    */
   sla?: IncidentSla;
+  /**
+   * WHAT this condition is about — the affected-record line. Resolved and
+   * confirmed for this workspace by the server; rendered through the shared
+   * `conditionSubjectLabel`, never a signal code. Absent from an older server.
+   */
+  subject?: ConditionSubject;
+  /**
+   * Identifiers for support (signal code, job, request, trace). Shown ONLY
+   * under Technical references, labelled by `conditionTechnicalReferenceLabel`.
+   */
+  technicalReferences?: ConditionTechnicalReference[];
 };
 
 /**
@@ -260,6 +273,8 @@ export type AffectedRecord = {
   title: string;
   /** Absent from a server older than the message codes: the stored title is shown. */
   message?: ConditionMessageRef | null;
+  /** WHAT this record is about, confirmed for this workspace. Absent from an older server. */
+  subject?: ConditionSubject;
   severity: string;
   status: string;
   firstSeenAtUtc: string;
@@ -337,7 +352,8 @@ export type SlaEnvelope = {
 export type IncidentTimelineEntry = {
   id: string;
   eventType: string;
-  safeMessage: string;
+  /** Null when the entry carries no sentence worth showing (a bare severity line). */
+  safeMessage: string | null;
   occurredAtUtc: string;
 };
 

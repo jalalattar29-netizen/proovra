@@ -204,17 +204,22 @@ describe("Operations truth closure — platform conditions (live PostgreSQL 16 +
     const mine = { sourceId: "billing.provider_authorization", updatedAt: { gte: t0 } };
     recordProviderFailureSignal({ provider: "PAYPAL" as never, operation: "RECHECK_PAYMENT", failure: "AUTHORIZATION_FAILED" as never, paymentId: "p-1" });
     await waitFor(async () => (await c.prisma.operationalIncident.count({ where: mine })) > 0);
+    const firstSeen = await c.prisma.operationalIncident.findFirstOrThrow({ where: { ...mine, fingerprint: "billing-provider-auth:PAYPAL" }, select: { lastSeenAtUtc: true } });
+    await new Promise((r) => setTimeout(r, 20));
     recordProviderFailureSignal({ provider: "PAYPAL" as never, operation: "ABANDON_PAYMENT", failure: "AUTHORIZATION_FAILED" as never, paymentId: "p-2" });
     await waitFor(async () => {
-      const r = await c.prisma.operationalIncident.findFirst({ where: { ...mine, fingerprint: "billing-provider-auth:PAYPAL" }, select: { occurrenceCount: true } });
-      return (r?.occurrenceCount ?? 0) >= 2;
+      // (2026-10-14) Refused credentials are a STATE: the second refusal is a
+      // further sighting of the same state (last seen advances), not a second
+      // occurrence.
+      const r = await c.prisma.operationalIncident.findFirst({ where: { ...mine, fingerprint: "billing-provider-auth:PAYPAL" }, select: { lastSeenAtUtc: true } });
+      return !!r && r.lastSeenAtUtc.getTime() > firstSeen.lastSeenAtUtc.getTime();
     });
     const rows = await c.prisma.operationalIncident.findMany({
       where: mine,
       select: { teamId: true, scope: true, fingerprint: true, status: true, occurrenceCount: true },
     });
     expect(rows).toEqual([
-      { teamId: null, scope: "PLATFORM", fingerprint: "billing-provider-auth:PAYPAL", status: "OPEN", occurrenceCount: 2 },
+      { teamId: null, scope: "PLATFORM", fingerprint: "billing-provider-auth:PAYPAL", status: "OPEN", occurrenceCount: 1 },
     ]);
 
     recordProviderObservationSuccess({ provider: "PAYPAL" as never });

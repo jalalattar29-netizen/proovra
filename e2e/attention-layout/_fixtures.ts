@@ -1335,11 +1335,12 @@ export async function installApi(
 /**
  * Select "All conditions" — the FLAT list — the way an operator does.
  *
- * The workbench opens on the grouped queue (36cc44c0e, 2026-08-26). Every
+ * The workbench opened on the grouped queue from 36cc44c0e (2026-08-26)
+ * until 2026-10-14, when the flat list became the default again. Every
  * per-row control this project measures — the owner cell, the row menu, the
- * inspector trigger — lives in the flat list, which does not render until it
- * is asked for. The Operations tests here were written before that default
- * and waited sixty seconds each for rows the page was no longer showing.
+ * inspector trigger — lives in the flat list; pressing the control when it is
+ * already selected is harmless, so this keeps the tests independent of which
+ * presentation is the default.
  *
  * This presses the real header control (`data-ops-view="flat"`); it does not
  * poke state. A context with no workbench (Personal Free) has no such control

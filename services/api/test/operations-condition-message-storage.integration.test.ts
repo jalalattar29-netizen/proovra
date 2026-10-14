@@ -156,7 +156,9 @@ describe("condition message codes are stored, projected and localized (live Post
       message: { code: "ops.integration.webhook_destination_disabled", params: { failures: 11 } },
     });
     const row = await prisma.operationalIncident.findUniqueOrThrow({ where: { id: incident.id } });
-    expect(row.occurrenceCount).toBe(2);
+    // (2026-10-14) A disabled destination is a STATE: the re-observation
+    // restamps the words and code without counting a second occurrence.
+    expect(row.occurrenceCount).toBe(1);
     expect(row.messageCode).toBe("ops.integration.webhook_destination_disabled");
     expect(row.title).toBe("Webhook destination disabled after repeated failures");
     // The history keeps what was written then.

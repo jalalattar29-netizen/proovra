@@ -124,7 +124,10 @@ describe("the defect wording is gone from the modules", () => {
       resolve(APP_ROOT, "..", "..", "packages", "shared", "src", "i18n.ts"),
       "utf8",
     );
-    assert.match(dict, /observedInChecks: "Observed in \{n\} checks"/);
+    // 2026-10-14 — the number counts OCCURRENCES (an opening and each genuine
+    // recurrence); a repeated check of an unchanged state no longer adds one,
+    // so "Observed in N checks" would now misdescribe it.
+    assert.match(dict, /observedInChecks: "Occurred \{n\} times"/);
     // CODE only: the comment beside the replacement quotes the old label in
     // order to explain what it replaced, and a check that read the raw file
     // would fail on the sentence documenting the very property it asserts.

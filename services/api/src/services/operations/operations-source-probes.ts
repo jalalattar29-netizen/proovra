@@ -652,6 +652,44 @@ async function observeOtsPendingAged(
  * record never started does not start it; the only writes any caller makes from
  * this answer are to OperationalIncident and its satellites.
  */
+/** `upload_stalled:<evidenceId>` → the evidence id, or null for any other shape. */
+export function parseUploadStalledFingerprint(fingerprint: string): string | null {
+  const m = /^upload_stalled:([0-9a-f-]{36})$/i.exec(fingerprint);
+  return m ? m[1]! : null;
+}
+
+/**
+ * `capture.upload_stalled` — ACTIVE only while the upload session is still
+ * STALLED and its record is still in its upload phase (CREATED / UPLOADING /
+ * UPLOADED) and not deleted. Anything else is RECOVERED: the upload completed,
+ * was resumed or abandoned, or the record finalized or is gone — there is no
+ * stalled upload left, whatever happened.
+ */
+async function observeUploadStalled(ctx: ProbeContext): Promise<SourceObservation> {
+  const base = { observedAtUtc: ctx.now } as const;
+  const evidenceId = parseUploadStalledFingerprint(ctx.fingerprint);
+  if (!evidenceId) return { ...base, activity: "NOT_APPLICABLE" };
+  try {
+    const record = await ctx.client.evidence.findFirst({
+      // Bound to the workspace as well as the id: a fingerprint is not an
+      // authorization.
+      where: { AND: [{ id: evidenceId }, ctx.evidenceWhere] },
+      select: { status: true, deletedAt: true },
+    });
+    if (!record || record.deletedAt != null) return { ...base, activity: "RECOVERED" };
+    if (!["CREATED", "UPLOADING", "UPLOADED"].includes(record.status)) {
+      return { ...base, activity: "RECOVERED" };
+    }
+    const session = await ctx.client.uploadSession.findUnique({
+      where: { evidenceId },
+      select: { status: true },
+    });
+    return { ...base, activity: session?.status === "STALLED" ? "ACTIVE" : "RECOVERED" };
+  } catch {
+    return { ...base, activity: "UNKNOWN" };
+  }
+}
+
 async function observeOtsInitializationStalled(
   ctx: ProbeContext,
 ): Promise<SourceObservation> {
@@ -1340,6 +1378,10 @@ const PROBE_HANDLERS: Readonly<
   // `ots_initialization_stalled:<evidenceId>` — resolved by ANY OTS state.
   "evidence.ots_initialization_stalled": (ctx) =>
     observeOtsInitializationStalled(ctx),
+
+  // `upload_stalled:<evidenceId>` — the session still STALLED behind a record
+  // that is still uploading.
+  "upload.session_stalled": (ctx) => observeUploadStalled(ctx),
 
   // `REPORT:<evidenceId>:<errorClass>`, `PACKAGE:<evidenceId>:v<N>:<class>`,
   // legacy `PACKAGE:<evidenceId>:<class>` and

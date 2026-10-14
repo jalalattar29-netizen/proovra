@@ -156,7 +156,15 @@ export default async function RootLayout({
         ) : null}
       </head>
 
-      <body className="antialiased" style={{ fontFamily: "var(--font-jakarta)" }}>
+      {/* The body asks the ONE family authority (`--font-sans`, tokens.css):
+          Plus Jakarta Sans, led by the Arabic face in RTL. It named
+          `--font-jakarta` directly, which beat the RTL rule and left the
+          composite type tokens on a different (system) family. Every
+          portal and overlay mounts inside <body> and inherits this. */}
+      <body
+        className="antialiased"
+        style={{ fontFamily: "var(--font-sans, var(--font-jakarta), system-ui, sans-serif)" }}
+      >
         <CookieConsentInit />
         <Providers>{children}</Providers>
         <ServiceWorkerUpdatePrompt />

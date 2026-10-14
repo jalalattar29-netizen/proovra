@@ -52,6 +52,7 @@ import {
   latestWorkspaceOperationsRun,
   mayAssertOperationsClear,
 } from "@proovra/shared-runtime";
+import { conditionMessageFor, conditionTextFor } from "../services/operations/condition-presentation.service.js";
 
 const ALERTS_CAP = 100;
 
@@ -242,6 +243,14 @@ export async function workspaceOperationsRoutes(
           // client renders the alert in its reader's language.
           messageCode: true,
           messageParams: true,
+          // Read for the server's own presentation only (a legacy bridge row's
+          // message is proven by it); stripped below, never sent.
+          fingerprint: true,
+          sourceId: true,
+          relatedEvidenceId: true,
+          relatedJobId: true,
+          requestId: true,
+          traceId: true,
         },
         }),
         prisma.operationalIncident.groupBy({
@@ -257,18 +266,29 @@ export async function workspaceOperationsRoutes(
       return reply.code(200).send({
         scope: "WORKSPACE",
         workspaceId,
-        items: rows.slice(0, ALERTS_CAP).map(({ messageCode, messageParams, ...row }) => ({
-          ...row,
-          message: {
-            code: messageCode ?? null,
-            params:
-              messageParams && typeof messageParams === "object" && !Array.isArray(messageParams)
-                ? messageParams
-                : null,
-            // This surface shows each row's own stored title.
-            titleSource: "CONDITION" as const,
-          },
-        })),
+        items: rows.slice(0, ALERTS_CAP).map((r) => {
+          const message = conditionMessageFor(r);
+          const text = conditionTextFor(message);
+          return {
+            id: r.id,
+            category: r.category,
+            severity: r.severity,
+            status: r.status,
+            // The current reviewed sentence; the stored text only for a row with
+            // no valid message.
+            title: text?.title ?? r.title,
+            safeSummary: text?.summary ?? r.safeSummary,
+            firstSeenAtUtc: r.firstSeenAtUtc,
+            lastSeenAtUtc: r.lastSeenAtUtc,
+            occurrenceCount: r.occurrenceCount,
+            runbookSlug: r.runbookSlug,
+            message: {
+              code: message?.code ?? null,
+              params: message?.params ?? null,
+              titleSource: "CONDITION" as const,
+            },
+          };
+        }),
         // Counts are over EVERY unresolved condition, not the capped rows.
         counts: {
           total: bySeverity.reduce((n, r) => n + r._count._all, 0),

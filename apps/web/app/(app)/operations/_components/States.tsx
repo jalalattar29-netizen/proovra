@@ -53,7 +53,13 @@ export function LoadingState() {
 }
 
 /**
- * The workspace is genuinely clear.
+ * STATE A — the workspace holds NO conditions at all (2026-10-14).
+ *
+ * The page renders this ONLY when the authoritative, unfiltered retained total
+ * (the summary's unresolved count plus its all-time resolved count) is zero
+ * and the server licensed "clear". A workspace with resolved history is NOT
+ * empty: it gets its history on screen and at most one quiet line, never this
+ * panel and never its navigation links.
  *
  * The two destinations offered are the ones a tenant can actually open. The
  * previous surface offered "Open observability" and "Open runbooks", both of
@@ -81,16 +87,26 @@ export function ClearState() {
   );
 }
 
-/** The filters excluded everything. Not the same statement as "clear". */
-export function NoMatchState({ onClear }: { onClear: () => void }) {
+/**
+ * STATE D — the filters excluded everything. Not the same statement as
+ * "clear", and never an onboarding card: no icon, no navigation links, one
+ * sentence and the one action that answers it — "Reset filters", back to the
+ * page defaults (every lifecycle state, the flat list).
+ */
+export function NoMatchState({ onReset }: { onReset: () => void }) {
   const copy = useOpsCopy();
   return (
-    <div className="app-empty" data-ops-empty="filtered">
+    <div className="app-empty" data-ops-empty="filtered" role="status">
       <strong>{copy.noMatchTitle}</strong>
       <p>{copy.noMatchBody}</p>
       <div className="app-empty__actions">
-        <button type="button" className="app-primary-action" onClick={onClear}>
-          {copy.clearFilters}
+        <button
+          type="button"
+          className="app-primary-action"
+          onClick={onReset}
+          data-ops-reset-filters
+        >
+          {copy.resetFilters}
         </button>
       </div>
     </div>
@@ -105,12 +121,28 @@ export function NoMatchState({ onClear }: { onClear: () => void }) {
  * `readiness: NEVER_RUN` as its honest floor, and claiming a first check is
  * running would be invented), nor "no match" (no filter is narrowing).
  */
-export function UnconfirmedEmptyState({ onRetry }: { onRetry: () => void }) {
+export function UnconfirmedEmptyState({
+  onRetry,
+  reason = "summary",
+}: {
+  onRetry: () => void;
+  /**
+   * WHY "clear" is not licensed: the summary could not be read, or it was read
+   * but the last check (partial, stale, a resolved count that could not be
+   * read) did not confirm the workspace. Either way, never an all-clear.
+   */
+  reason?: "summary" | "check";
+}) {
   const copy = useOpsCopy();
   return (
-    <div className="app-empty" data-ops-empty="unconfirmed" role="status">
+    <div
+      className="app-empty"
+      data-ops-empty="unconfirmed"
+      data-ops-unconfirmed-reason={reason}
+      role="status"
+    >
       <strong>{copy.unconfirmedTitle}</strong>
-      <p>{copy.unconfirmedBody}</p>
+      <p>{reason === "check" ? copy.unconfirmedCheckBody : copy.unconfirmedBody}</p>
       <div className="app-empty__actions">
         <button type="button" className="app-primary-action" onClick={onRetry}>
           {copy.refresh}

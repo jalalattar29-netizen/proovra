@@ -611,11 +611,26 @@ const SOURCE_ENTRIES: Readonly<Record<string, RemediationEntry>> = Object.freeze
     guidance:
       "Sign-ins through this identity provider have been failing. This closes on the first successful sign-in through it.",
   },
+  // NOT AN INTAKE-LINK DELIVERY (2026-10-14). Every producer of this source is
+  // the upload service failing to start or resume an upload session — nothing
+  // in the product records an intake link failing to reach a recipient — so the
+  // guidance says what happened, and no Intake Links action is offered.
   "intake.delivery_failed": {
-    disposition: "SAFE_DEEP_LINK",
-    deepLink: { href: "/intake-links", label: "Open intake links", requiredPermission: null },
+    disposition: "READ_ONLY_GUIDANCE",
     guidance:
-      "An intake link could not be delivered to its recipient. Resend it or copy the link from Intake links.",
+      "The upload service failed while starting or resuming an upload. The person uploading saw an error at the time and can try again; nothing needs to be done here unless it keeps happening, in which case contact support.",
+  },
+  // ONE stalled upload (2026-10-14): its own record, where the upload is.
+  "capture.upload_stalled": {
+    disposition: "SAFE_DEEP_LINK",
+    deepLink: {
+      href: "/evidence",
+      label: "Open the record",
+      requiredPermission: "evidence.read",
+      recordScoped: true,
+    },
+    guidance:
+      "No upload progress has been recorded for this record past the inactivity threshold. The person uploading can resume it; an upload that is not resumed is closed as abandoned. This closes on its own when the upload completes, is resumed or abandoned, or the record is finalized or deleted.",
   },
   "integration.webhook_destination_disabled": {
     disposition: "SAFE_DEEP_LINK",
@@ -724,6 +739,12 @@ export type RemediationContext = {
   workspaceCanMutate: boolean;
   /** Incident lifecycle: a closed condition is not remediated. */
   incidentStatus: string;
+  /**
+   * False when the condition's subject is gone (deleted, expired, not in this
+   * workspace). A record-scoped link is then withheld: a link to a record that
+   * no longer exists is a broken route, not guidance. Absent = not known.
+   */
+  subjectAvailable?: boolean;
 };
 
 export type ProjectedRemediation = {
@@ -764,6 +785,7 @@ export function resolveRemediations(
   const linkFor = (link: RemediationDeepLink | undefined): RemediationDeepLink | null => {
     if (!link) return null;
     if (link.requiredPermission !== null && !ctx.hasPermission(link.requiredPermission)) return null;
+    if (link.recordScoped && ctx.subjectAvailable === false) return null;
     const recordId = incident.relatedEvidenceId ?? null;
     return link.recordScoped && recordId && /^[0-9a-f-]{36}$/i.test(recordId)
       ? {

@@ -43,10 +43,17 @@
  * ===========================================================================
  * THE 2026-10-12 CONTRACT (this revision)
  * ===========================================================================
- *   * EVERY KPI OPENS THE LIST WITH THE PREDICATE THAT COUNTED IT. The queue
- *     defaults to status UNRESOLVED (open, acknowledged or suppressed) — the
- *     same set the summary counts — and resolved history appears only when
- *     asked for ("All, including resolved", or the Resolved card).
+ *   * EVERY KPI OPENS THE LIST WITH THE PREDICATE THAT COUNTED IT. Each card
+ *     writes its whole predicate (the unresolved cards status UNRESOLVED,
+ *     Resolved status RESOLVED) into the address.
+ *   * (2026-10-14) `/operations` with no query opens the flat "All
+ *     conditions" list with lifecycle ALL — history included, and said so.
+ *     Presentation (`?view=grouped`) and lifecycle (`?status=`) are separate
+ *     dimensions in the URL, so refresh and Back/Forward restore both.
+ *   * (2026-10-14) EMPTINESS IS DECIDED FROM AUTHORITATIVE, UNFILTERED COUNTS:
+ *     the summary's unresolved count plus its all-time resolved count. Only a
+ *     retained total of zero may render the first-use panel; a workspace with
+ *     only resolved history sees that history and at most one quiet line.
  *   * A SUMMARY THAT COULD NOT BE READ IS UNKNOWN. Its counts are null and the
  *     strip says "Unavailable"; a bounded scan says "at least N". Neither may
  *     produce a 0, an all-clear, or an automatic re-check.
@@ -111,16 +118,20 @@ import {
 import { IconOperations, IconRefresh } from "./_components/icons";
 import {
   DEFAULT_FILTERS,
+  DEFAULT_PRESENTATION,
   PAGE_SIZE,
+  VIEW_PARAM,
   anyFilterActive,
   anyNarrowingFilter,
   filtersForMetric,
   filtersFromParams,
-  filtersToParams,
   groupsQuery,
   incidentsQuery,
   metricForFilters,
+  operationsHref,
+  presentationFromParams,
   type FilterState,
+  type Presentation,
 } from "./_lib/filters";
 import { buildRowModel } from "./_lib/rowModel";
 import {
@@ -300,6 +311,9 @@ function OperationsWorkbench() {
     p.delete("incident");
     // The legacy alias is a drawer address too, never a filter.
     p.delete("incidentId");
+    // The PRESENTATION is not a filter either: switching between the flat
+    // list and the grouped view must not re-read the queue.
+    p.delete(VIEW_PARAM);
     return p.toString();
   }, [searchKey]);
   const filters = React.useMemo(
@@ -307,14 +321,34 @@ function OperationsWorkbench() {
     [filterKey],
   );
 
+  // -------------------------------------------------------------------------
+  // PRESENTATION — flat "All conditions" (the default) or grouped, a separate
+  // dimension from the lifecycle filter. The URL is its authority (refresh
+  // keeps it, Back/Forward restores it); the local mirror is what a click
+  // flips at once, re-synced whenever the address changes.
+  // -------------------------------------------------------------------------
+  const urlPresentation: Presentation = React.useMemo(
+    () => presentationFromParams(new URLSearchParams(searchKey)),
+    [searchKey],
+  );
+  const [grouped, setGrouped] = React.useState(urlPresentation === "grouped");
+  React.useEffect(() => {
+    setGrouped(urlPresentation === "grouped");
+  }, [urlPresentation]);
+  const presentation: Presentation = grouped ? "grouped" : "flat";
+  /** The drawer address on screen, kept across a filter change. */
+  const incidentParam = React.useMemo(
+    () => new URLSearchParams(searchKey).get("incident"),
+    [searchKey],
+  );
+
   const applyFilters = React.useCallback(
     (next: FilterState) => {
-      const qs = filtersToParams(next).toString();
-      router.replace(qs ? `/operations?${qs}` : "/operations", {
+      router.replace(operationsHref(next, presentation, incidentParam), {
         scroll: false,
       });
     },
-    [router],
+    [router, presentation, incidentParam],
   );
   const patchFilters = React.useCallback(
     (patch: Partial<FilterState>) => applyFilters({ ...filters, ...patch }),
@@ -381,8 +415,8 @@ function OperationsWorkbench() {
   const openIdRef = React.useRef<string | null>(openId);
   openIdRef.current = openId;
 
-  // THE GROUPED QUEUE — the default view.
-  const [grouped, setGrouped] = React.useState(true);
+  // THE GROUPED QUEUE — one presentation of the selected conditions (the
+  // flat list is the default; `grouped` is declared with the URL above).
   const [groups, setGroups] = React.useState<IncidentGroup[]>([]);
   const [groupTotals, setGroupTotals] = React.useState<IncidentGroupTotals | null>(
     null,
@@ -542,6 +576,37 @@ function OperationsWorkbench() {
   }, [setIncidentInUrl]);
 
   /**
+   * SWITCH PRESENTATION. The filters travel unchanged — presentation and
+   * lifecycle are separate dimensions. Grouped closes a condition drawer (its
+   * rows are groups); the flat list closes a group drawer and keeps an open
+   * condition's address.
+   */
+  const switchPresentation = React.useCallback(
+    (next: Presentation) => {
+      setGrouped(next === "grouped");
+      if (next === "grouped") setOpenId(null);
+      else setOpenGroupRef(null);
+      router.replace(
+        operationsHref(filters, next, next === "grouped" ? null : incidentParam),
+        { scroll: false },
+      );
+    },
+    [router, filters, incidentParam],
+  );
+
+  /**
+   * "Reset filters" — back to the page DEFAULTS: every lifecycle state, the
+   * flat "All conditions" list, no search, no severity, source or commitment.
+   */
+  const resetToDefaults = React.useCallback(() => {
+    setGrouped(DEFAULT_PRESENTATION === "grouped");
+    setOpenGroupRef(null);
+    router.replace(operationsHref({ ...DEFAULT_FILTERS }, DEFAULT_PRESENTATION, incidentParam), {
+      scroll: false,
+    });
+  }, [router, incidentParam]);
+
+  /**
    * EACH READ OWNS ITS SEQUENCE. Sharing one counter means the second read to
    * finish invalidates the first (OPS-007): a detail read discarded a list
    * response and Refresh stayed disabled for good. Every handler checks its
@@ -593,9 +658,13 @@ function OperationsWorkbench() {
     const seq = ++groupsSeq.current;
     const controller = new AbortController();
     setGroupsLoading(true);
-    // The SAME predicate the flat list sends (status included), so the grouped
-    // and flat views select the same conditions.
-    void apiFetch(`/v1/ops/incident-groups?${groupsQuery({ teamId: team, filters })}`, {
+    // A FILTERED grouped view sends the SAME predicate as the flat list
+    // (status included), so both presentations select the same conditions.
+    // The unfiltered grouped view is SECTIONS — "Action required" and
+    // "Monitoring" partition the unresolved set — so that read asks for the
+    // unresolved set, and resolved history has its own section and read.
+    const sections = !anyNarrowingFilter(filters);
+    void apiFetch(`/v1/ops/incident-groups?${groupsQuery({ teamId: team, filters, sections })}`, {
       method: "GET",
       signal: controller.signal,
     })
@@ -686,15 +755,18 @@ function OperationsWorkbench() {
 
   /**
    * THE DRILL-DOWN'S STATUS CONTEXT: the read the clicked section came from.
-   * A resolved section pages RESOLVED members; every other section pages the
-   * active status filter (UNRESOLVED by default) and severity — so the
-   * members listed are the ones the row counted.
+   * A resolved section pages RESOLVED members; "Action required" and
+   * "Monitoring" page UNRESOLVED members (the set their read counted); a
+   * filtered grouped view pages the active status filter and severity — so
+   * the members listed are always the ones the row counted.
    */
   const affectedContext = React.useCallback(
     (ref: OpenGroupRef): { status: string; severity: string } =>
       ref.section === "resolved"
         ? { status: "RESOLVED", severity: "" }
-        : { status: filters.status || DEFAULT_FILTERS.status, severity: filters.severity },
+        : ref.section === "action" || ref.section === "monitoring"
+          ? { status: "UNRESOLVED", severity: filters.severity }
+          : { status: filters.status || DEFAULT_FILTERS.status, severity: filters.severity },
     [filters.status, filters.severity],
   );
 
@@ -1209,8 +1281,14 @@ function OperationsWorkbench() {
   // -------------------------------------------------------------------------
   type TransitionAction = "ack" | "resolve" | "suppress" | "unsuppress";
   const runTransitionRef = React.useRef<
-    (id: string, action: TransitionAction, extra?: { resolutionNote?: string; reason?: string }) => Promise<void>
-  >(async () => {});
+    (id: string, action: TransitionAction, extra?: { resolutionNote?: string; reason?: string }) => Promise<boolean>
+  >(async () => false);
+  /**
+   * ONE TRANSITION AT A TIME, decided synchronously. `busy` is React state,
+   * so two presses inside one frame both read `busy === false`; this ref is
+   * what makes a double-clicked Resolve one request.
+   */
+  const transitionInFlight = React.useRef(false);
   const runTransition = React.useCallback(
     async (
       incidentId: string,
@@ -1218,8 +1296,9 @@ function OperationsWorkbench() {
       // the POST path from it, one route per member.
       action: "ack" | "resolve" | "suppress" | "unsuppress",
       extra?: { resolutionNote?: string; reason?: string },
-    ) => {
-      if (!teamId || busy) return;
+    ): Promise<boolean> => {
+      if (!teamId || busy || transitionInFlight.current) return false;
+      transitionInFlight.current = true;
       const team = teamId;
       // The control the operator actually pressed, captured BEFORE anything
       // disables it, so focus can be returned after a refusal dialog.
@@ -1243,7 +1322,7 @@ function OperationsWorkbench() {
             }),
           },
         );
-        if (team !== teamRef.current) return;
+        if (team !== teamRef.current) return false;
         announce(
           action === "ack"
             ? copy.announceAcknowledged
@@ -1253,9 +1332,13 @@ function OperationsWorkbench() {
                 ? copy.announceResumed
                 : copy.announceSuppressed,
         );
+        // The lists, the summary counts, the grouped sections and the open
+        // drawer all re-read NOW — no page refresh is needed to see the
+        // condition in its new state.
         refresh();
+        return true;
       } catch (err) {
-        if (team !== teamRef.current) return;
+        if (team !== teamRef.current) return false;
         const cls = classifyOpsError(err);
         // ---------------------------------------------------------------
         // THE SOURCE-CONTRACT REFUSALS GET A DIALOG. They are answers to what
@@ -1314,7 +1397,7 @@ function OperationsWorkbench() {
               done();
             }, 0);
           });
-          return;
+          return false;
         }
         const fallback = toSafeUserError(err, { message: copy.errors.actionFailed });
         showMutationError(
@@ -1329,7 +1412,9 @@ function OperationsWorkbench() {
         // A REFUSED transition re-reads too: the row must show what the
         // server actually holds.
         refresh();
+        return false;
       } finally {
+        transitionInFlight.current = false;
         if (team === teamRef.current) {
           setBusy(false);
           setPendingId(null);
@@ -1693,9 +1778,37 @@ function OperationsWorkbench() {
   const narrowing = anyNarrowingFilter(filters);
 
   /**
-   * The all-clear predicate, stated once: the read succeeded, reached the end,
-   * is empty, nothing narrowed it — and the SERVER licensed the word "clear"
-   * (a fresh, complete discovery run; a readable summary).
+   * THE AUTHORITATIVE RETAINED TOTAL (2026-10-14) — every condition this
+   * workspace holds, in any lifecycle state: the summary's unresolved count
+   * (OPEN + ACKNOWLEDGED + SUPPRESSED) plus its all-time RESOLVED count. Both
+   * are the server's own counts against the canonical tenant predicate,
+   * UNFILTERED — so global emptiness is never inferred from the page of rows
+   * the current filters happened to return.
+   *
+   * Null when either count is unknown (an unreadable summary, a resolved count
+   * that could not be read): unknown never becomes 0. A bounded scan makes
+   * `open` a floor at its bound, so a floor total can never be 0 either.
+   */
+  const summaryRead =
+    summary.kind === "ready" && !summaryIsUnknown ? summary.data : null;
+  const retainedTotal =
+    summaryRead &&
+    typeof summaryRead.open === "number" &&
+    typeof summaryRead.resolved === "number"
+      ? summaryRead.open + summaryRead.resolved
+      : null;
+  /** Unresolved work, exactly zero — and the summary that says so was read. */
+  const noActiveWork =
+    summaryRead !== null &&
+    summaryRead.open === 0 &&
+    summaryRead.complete !== false;
+
+  /**
+   * STATE A — the ONLY state that may render the large first-use panel and its
+   * navigation links: the read succeeded, reached the end and is empty,
+   * nothing narrowed it, the SERVER licensed the word "clear" (a fresh,
+   * complete discovery run; a readable summary) — and the authoritative
+   * retained total is ZERO. A workspace with resolved history is not empty.
    */
   const mayAssertClear =
     incidents.kind === "ready" &&
@@ -1703,9 +1816,16 @@ function OperationsWorkbench() {
     rows.length === 0 &&
     !narrowing &&
     !summaryIsUnknown &&
-    serverPermitsClear;
+    serverPermitsClear &&
+    retainedTotal === 0;
 
-  // The grouped header counts. A floor says so.
+  /**
+   * COUNTS SAY WHAT THEY COUNT. Each result line names its scope: "all
+   * statuses" under the default lifecycle, "unresolved" for the grouped
+   * sections (they partition the unresolved set), and "filtered" whenever a
+   * filter narrowed the selection — so a filtered count, zero included, never
+   * reads as the workspace total.
+   */
   const groupCount = groupTotals?.groups ?? groups.length;
   const conditionCount = groupTotals?.conditions ?? 0;
   const groupsFloor = groupTotals?.complete === false;
@@ -1718,17 +1838,24 @@ function OperationsWorkbench() {
       : conditionCount === 1
         ? copy.resultConditionOne
         : fillOperationsCopy(copy.resultConditions, { n: fmt(conditionCount) }),
-    ...(filters.status === "ALL" ? [copy.resultAllStatuses] : []),
+    ...(!narrowing
+      ? [copy.resultUnresolvedScope]
+      : filters.status === "ALL"
+        ? [copy.resultAllStatuses, copy.resultFiltered]
+        : [copy.resultFiltered]),
   ].join(" · ");
-  const flatSummary =
+  const flatSummary = [
     rows.length === 1 && !nextCursor
       ? copy.resultConditionOne
       : fillOperationsCopy(nextCursor ? copy.resultConditionsMore : copy.resultConditions, {
           n: fmt(rows.length),
-        });
+        }),
+    ...(filters.status === "ALL" ? [copy.resultAllStatuses] : []),
+    ...(narrowing ? [copy.resultFiltered] : []),
+  ].join(" · ");
 
-  // THE DEFAULT GROUPED VIEW'S SECTIONS, partitioned from ONE read (the
-  // UNRESOLVED groups): a group is in exactly one of them.
+  // THE GROUPED VIEW'S SECTIONS, partitioned from ONE read (the UNRESOLVED
+  // groups): a group is in exactly one of them.
   const actionGroups = groups.filter((g) => g.statusPosture === "OPEN");
   const monitoringGroups = groups.filter(
     (g) => g.statusPosture === "ACKNOWLEDGED" || g.statusPosture === "SUPPRESSED",
@@ -1738,15 +1865,47 @@ function OperationsWorkbench() {
   const openFrom = (section: GroupSection) => (groupKey: string) =>
     setOpenGroupRef({ section, groupKey });
 
-  const emptyState = mayAssertClear ? (
+  /**
+   * WHAT AN EMPTY SURFACE SAYS — decided from authoritative facts, never from
+   * the filtered page alone:
+   *
+   *   narrowed by a filter        → "No conditions match these filters." +
+   *                                 Reset filters (state D). No onboarding.
+   *   retained total 0, licensed  → the first-use panel (state A).
+   *   summary unreadable          → unconfirmed, never clear.
+   *   never scanned               → preparing.
+   *   anything else               → not confirmed (a partial/stale check, a
+   *                                 resolved count that could not be read).
+   */
+  const emptyState = narrowing ? (
+    <NoMatchState onReset={resetToDefaults} />
+  ) : mayAssertClear ? (
     <ClearState />
-  ) : summaryIsUnknown && !narrowing ? (
+  ) : summaryIsUnknown ? (
     <UnconfirmedEmptyState onRetry={refresh} />
-  ) : readiness === "NEVER_RUN" && !narrowing ? (
+  ) : readiness === "NEVER_RUN" ? (
     // Nothing has scanned this workspace — and the summary SAID so.
     <PreparingState />
   ) : (
-    <NoMatchState onClear={clearFilters} />
+    <UnconfirmedEmptyState onRetry={refresh} reason="check" />
+  );
+
+  /**
+   * STATE B — no unresolved work, but the workspace HAS history. One quiet
+   * line, licensed exactly like the word "clear" is (a readable summary that
+   * reached the end, and the server's permission), never a panel and never a
+   * navigation card. The history itself is on screen below it.
+   */
+  const showQuietNoActive =
+    !narrowing && noActiveWork && serverPermitsClear && (retainedTotal ?? 0) > 0;
+
+  /** One section of the grouped view: full when populated, one line when empty. */
+  const collapsedSection = (key: string, text: string) => (
+    <div className="opsw-section-collapsed" data-ops-section={key} data-ops-section-collapsed="true">
+      <p className="opsw-muted" data-ops-section-empty>
+        {text}
+      </p>
+    </div>
   );
 
   return (
@@ -1847,36 +2006,33 @@ function OperationsWorkbench() {
             }
           />
 
-          {/* GROUPED / ALL CONDITIONS — one control, not a plan fork. */}
+          {/* ALL CONDITIONS / GROUPED — the PRESENTATION, one control, not a
+              plan fork and not a filter. The flat list is the default, so it
+              comes first; the choice is in the URL (`?view=grouped`). */}
           <div
             className="opsw-view-toggle"
             role="group"
             aria-label={copy.viewToggleLabel}
             data-ops-view-toggle
+            data-ops-presentation={presentation}
           >
-            <button
-              type="button"
-              className={grouped ? "app-primary-action" : "app-secondary-action"}
-              aria-pressed={grouped}
-              onClick={() => {
-                setGrouped(true);
-                closeIncident();
-              }}
-              data-ops-view="grouped"
-            >
-              {copy.viewGrouped}
-            </button>
             <button
               type="button"
               className={grouped ? "app-secondary-action" : "app-primary-action"}
               aria-pressed={!grouped}
-              onClick={() => {
-                setGrouped(false);
-                setOpenGroupRef(null);
-              }}
+              onClick={() => switchPresentation("flat")}
               data-ops-view="flat"
             >
               {copy.viewAll}
+            </button>
+            <button
+              type="button"
+              className={grouped ? "app-primary-action" : "app-secondary-action"}
+              aria-pressed={grouped}
+              onClick={() => switchPresentation("grouped")}
+              data-ops-view="grouped"
+            >
+              {copy.viewGrouped}
             </button>
           </div>
 
@@ -1899,7 +2055,8 @@ function OperationsWorkbench() {
             outcome={bulkOutcome}
           />
 
-          {/* EMPTINESS IS DECIDED BY THE SURFACE BEING SHOWN. */}
+          {/* EMPTINESS IS DECIDED BY THE SURFACE BEING SHOWN — and by
+              authoritative unfiltered counts, never by the filtered page. */}
           {grouped && groupsError ? (
             <div data-ops-groups-unavailable>
               <UnavailableState
@@ -1911,36 +2068,67 @@ function OperationsWorkbench() {
           ) : grouped && groupsLoading && groups.length === 0 ? (
             // LOADING IS NOT EMPTY — never a one-frame false all-clear.
             <PreparingState />
+          ) : grouped && !narrowing ? (
+            // THE GROUPED SECTIONS. "Action required" (posture OPEN) is the
+            // primary content; "Monitoring" (acknowledged or silenced) is
+            // secondary; "Resolved in the last 7 days" is quiet reference
+            // below. All from the one UNRESOLVED read, so no group is in two
+            // sections — and an EMPTY section is one compact line, never a
+            // block, and never a global empty card.
+            groups.length === 0 &&
+            (mayAssertClear || summaryIsUnknown || readiness === "NEVER_RUN") &&
+            resolvedGroups.length === 0 ? (
+              emptyState
+            ) : groups.length === 0 ? (
+              // Nothing unresolved, but there is history (state B) or the
+              // check did not license "nothing needs action".
+              serverPermitsClear && !summaryIsUnknown && !groupsFloor ? (
+                <div className="opsw-section-collapsed" data-ops-section="active" data-ops-section-collapsed="true">
+                  <p className="opsw-muted" data-ops-section-empty data-ops-quiet-clear>
+                    {copy.sectionEmptyActive}
+                  </p>
+                </div>
+              ) : (
+                <UnconfirmedEmptyState onRetry={refresh} reason={summaryIsUnknown ? "summary" : "check"} />
+              )
+            ) : (
+              <>
+                {actionGroups.length > 0 ? (
+                  <section
+                    className="opsw-section opsw-section--primary"
+                    aria-labelledby="opsw-section-action"
+                    data-ops-section="action-required"
+                    data-ops-section-rank="primary"
+                  >
+                    <h2 className="opsw-section__title" id="opsw-section-action">
+                      {copy.sectionActionRequired}
+                    </h2>
+                    <p className="opsw-muted opsw-section__hint">{copy.sectionActionRequiredHint}</p>
+                    <GroupSurface groups={actionGroups} openGroupKey={sectionKey("action")} onOpen={openFrom("action")} />
+                  </section>
+                ) : (
+                  collapsedSection("action-required", copy.sectionEmptyAction)
+                )}
+                {monitoringGroups.length > 0 ? (
+                  <section
+                    className="opsw-section opsw-section--secondary"
+                    aria-labelledby="opsw-section-monitoring"
+                    data-ops-section="monitoring"
+                    data-ops-section-rank="secondary"
+                  >
+                    <h2 className="opsw-section__title" id="opsw-section-monitoring">
+                      {copy.sectionMonitoring}
+                    </h2>
+                    <p className="opsw-muted opsw-section__hint">{copy.sectionMonitoringHint}</p>
+                    <GroupSurface groups={monitoringGroups} openGroupKey={sectionKey("monitoring")} onOpen={openFrom("monitoring")} />
+                  </section>
+                ) : (
+                  collapsedSection("monitoring", copy.sectionEmptyMonitoring)
+                )}
+              </>
+            )
           ) : (grouped ? groups.length : rows.length) === 0 ? (
             emptyState
-          ) : grouped && !narrowing ? (
-            // THE SIMPLE PAGE. "Action required" holds the groups whose
-            // posture is OPEN; "Monitoring" those acknowledged or suppressed —
-            // all from the one UNRESOLVED read, so no group is in both.
-            <>
-              <section className="opsw-section" aria-labelledby="opsw-section-action" data-ops-section="action-required">
-                <h2 className="opsw-section__title" id="opsw-section-action">
-                  {copy.sectionActionRequired}
-                </h2>
-                <p className="opsw-muted opsw-section__hint">{copy.sectionActionRequiredHint}</p>
-                {actionGroups.length > 0 ? (
-                  <GroupSurface groups={actionGroups} openGroupKey={sectionKey("action")} onOpen={openFrom("action")} />
-                ) : (
-                  <p className="opsw-muted" data-ops-section-empty>{copy.sectionEmptyAction}</p>
-                )}
-              </section>
-              <section className="opsw-section" aria-labelledby="opsw-section-monitoring" data-ops-section="monitoring">
-                <h2 className="opsw-section__title" id="opsw-section-monitoring">
-                  {copy.sectionMonitoring}
-                </h2>
-                <p className="opsw-muted opsw-section__hint">{copy.sectionMonitoringHint}</p>
-                {monitoringGroups.length > 0 ? (
-                  <GroupSurface groups={monitoringGroups} openGroupKey={sectionKey("monitoring")} onOpen={openFrom("monitoring")} />
-                ) : (
-                  <p className="opsw-muted" data-ops-section-empty>{copy.sectionEmptyMonitoring}</p>
-                )}
-              </section>
-            </>
           ) : grouped ? (
             // A FILTERED grouped view: exactly what the filters asked for.
             <GroupSurface
@@ -1949,51 +2137,68 @@ function OperationsWorkbench() {
               onOpen={openFrom("filtered")}
             />
           ) : (
-            <IncidentSurface
-              rows={rows}
-              openId={openId}
-              markedIds={markedIds}
-              showOwnerColumn={collaborative}
-              showSelection={
-                capabilities.canAcknowledge || capabilities.canSuppress
-              }
-              handlers={{
-                onOpen: openIncident,
-                onAcknowledge: (id) => void runTransition(id, "ack"),
-                // OPS-029 — a source that needs a written conclusion is
-                // resolved from its drawer, where the note is asked for.
-                onResolve: (id) =>
-                  rows.find((r) => r.id === id)?.requiresResolutionNote
-                    ? openIncident(id)
-                    : void runTransition(id, "resolve"),
-                // OPS-030 — stopping notifications needs a reason.
-                onSuppress: openIncident,
-                onAssign: openIncident,
-                onToggleMark: toggleMark,
-                pendingId,
-              }}
-            />
+            <>
+              {showQuietNoActive ? (
+                <p className="opsw-muted opsw-quiet-line" role="status" data-ops-quiet-clear>
+                  {copy.quietNoActive}
+                </p>
+              ) : null}
+              <IncidentSurface
+                rows={rows}
+                openId={openId}
+                markedIds={markedIds}
+                showOwnerColumn={collaborative}
+                showSelection={
+                  capabilities.canAcknowledge || capabilities.canSuppress
+                }
+                handlers={{
+                  onOpen: openIncident,
+                  onAcknowledge: (id) => void runTransition(id, "ack"),
+                  // OPS-029 — a source that needs a written conclusion is
+                  // resolved from its drawer, where the note is asked for.
+                  onResolve: (id) =>
+                    rows.find((r) => r.id === id)?.requiresResolutionNote
+                      ? openIncident(id)
+                      : void runTransition(id, "resolve"),
+                  // OPS-030 — stopping notifications needs a reason.
+                  onSuppress: openIncident,
+                  onAssign: openIncident,
+                  onToggleMark: toggleMark,
+                  pendingId,
+                }}
+              />
+            </>
           )}
 
-          {grouped && !groupsError && !narrowing ? (
-            <section className="opsw-section" aria-labelledby="opsw-section-resolved" data-ops-section="recently-resolved">
-              <h2 className="opsw-section__title" id="opsw-section-resolved">
-                {copy.sectionRecentlyResolved}
-              </h2>
-              <p className="opsw-muted opsw-section__hint">{copy.sectionRecentlyResolvedHint}</p>
-              {resolvedUnavailable ? (
+          {/* RESOLVED IN THE LAST 7 DAYS — quiet reference content under the
+              grouped sections. Not rendered under the first-use panel (there
+              is no history to show), and one line when it is empty. */}
+          {grouped && !groupsError && !narrowing && !mayAssertClear ? (
+            resolvedUnavailable ? (
+              <div className="opsw-section-collapsed" data-ops-section="recently-resolved" data-ops-section-collapsed="true">
                 <p className="opsw-muted" role="status" data-ops-section-unavailable>{copy.sectionResolvedUnavailable}</p>
-              ) : resolvedGroups.length > 0 ? (
+              </div>
+            ) : resolvedGroups.length > 0 ? (
+              <section
+                className="opsw-section opsw-section--quiet"
+                aria-labelledby="opsw-section-resolved"
+                data-ops-section="recently-resolved"
+                data-ops-section-rank="reference"
+              >
+                <h2 className="opsw-section__title" id="opsw-section-resolved">
+                  {copy.sectionRecentlyResolved}
+                </h2>
+                <p className="opsw-muted opsw-section__hint">{copy.sectionRecentlyResolvedHint}</p>
                 <GroupSurface
                   groups={resolvedGroups}
                   openGroupKey={sectionKey("resolved")}
                   onOpen={openFrom("resolved")}
                   timeline="resolution"
                 />
-              ) : (
-                <p className="opsw-muted" data-ops-section-empty>{copy.sectionEmptyResolved}</p>
-              )}
-            </section>
+              </section>
+            ) : (
+              collapsedSection("recently-resolved", copy.sectionEmptyResolved)
+            )
           ) : null}
 
           {/* OPS-020 — the flat list's pager only. */}
@@ -2051,8 +2256,10 @@ function OperationsWorkbench() {
           pending={busy}
           onClose={closeIncident}
           onAcknowledge={() => void runTransition(openRow.id, "ack")}
+          // Returns the outcome, so the drawer keeps a note the server
+          // refused and clears one it accepted.
           onResolve={(resolutionNote) =>
-            void runTransition(openRow.id, "resolve", { resolutionNote })
+            runTransition(openRow.id, "resolve", { resolutionNote })
           }
           onSuppress={(reason) => void runTransition(openRow.id, "suppress", { reason })}
           onUnsuppress={() => void runTransition(openRow.id, "unsuppress")}

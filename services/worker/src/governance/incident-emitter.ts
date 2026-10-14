@@ -537,6 +537,12 @@ export async function recordWorkerIncident(
     });
     const willReopen = decisionIsReopen(decision);
     const reopenReason = reopenReasonFor(decision);
+    // Exactly as the API writer: a STATE source re-checking a condition the
+    // decision does not reopen observed nothing new — refreshed, not counted,
+    // no event.
+    const stateReobservation =
+      !willReopen &&
+      lifecycle.observationModel === "STATE";
     // COMPARE-AND-SET on the status the decision was made against. A
     // resolution, reopen or acknowledgement that landed in between makes this
     // a no-op, and the observation is retried once against the new state.
@@ -545,7 +551,7 @@ export async function recordWorkerIncident(
       where: { id: existing.id, status: existing.status },
       data: {
         lastSeenAtUtc: observedAt,
-        occurrenceCount: { increment: 1 },
+        ...(stateReobservation ? {} : { occurrenceCount: { increment: 1 } }),
         // The words and their code are refreshed together, so a row written
         // before codes existed is stamped by its next observation and the
         // code always describes the stored text.
@@ -580,6 +586,7 @@ export async function recordWorkerIncident(
     }
     const row = await prisma.operationalIncident.findUniqueOrThrow({ where: { id: existing.id } });
     if (willReopen) await startSlaCycle(row, observedAt, true);
+    if (stateReobservation) return row;
     try {
       await prisma.operationalIncidentEvent.create({
         data: {

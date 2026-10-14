@@ -507,7 +507,7 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
     expect(summary.mayAssertAllClear).toBe(false);
   });
 
-  it("a re-observed condition ticks its occurrence rather than creating a twin", async () => {
+  it("a re-observed condition updates in place rather than creating a twin", async () => {
     const fingerprint = `reopen-probe:${randomUUID()}`;
     const first = await incidents.recordIncident({
       sourceId: "pipeline.report_backlog",
@@ -529,9 +529,9 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
     });
 
     expect(second.incident.id).toBe(first.incident.id);
-    expect(second.incident.occurrenceCount).toBeGreaterThan(
-      first.incident.occurrenceCount,
-    );
+    // (2026-10-14) A backlog is a STATE source: a second observation of the
+    // same live state updates the row and is not a second occurrence.
+    expect(second.incident.occurrenceCount).toBe(first.incident.occurrenceCount);
     expect(second.created).toBe(false);
   });
 });

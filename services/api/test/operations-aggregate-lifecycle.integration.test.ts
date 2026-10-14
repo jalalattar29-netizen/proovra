@@ -582,9 +582,10 @@ describe("Aggregate Operations conditions (live PostgreSQL 16)", () => {
     expect(acked.status).toBe("ACKNOWLEDGED");
     expect(acked.acknowledgedByUserId).toBe(team.ownerUserId);
     expect(acked.acknowledgedAtUtc).not.toBeNull();
-    // The occurrence WAS recorded — the observation is not lost, only the
-    // status is left alone.
-    expect(acked.occurrenceCount).toBeGreaterThan(opened.occurrenceCount);
+    // The observation is recorded as a sighting (lastSeen), and — a backlog
+    // being a STATE source (2026-10-14) — not as a new occurrence; the status
+    // is left alone.
+    expect(acked.occurrenceCount).toBe(opened.occurrenceCount);
   }, 300_000);
 
   it("SUPPRESSED stays suppressed while the backlog persists", async () => {
@@ -604,9 +605,10 @@ describe("Aggregate Operations conditions (live PostgreSQL 16)", () => {
 
     const suppressed = await backlogCondition(team.teamId);
     expect(suppressed.status).toBe("SUPPRESSED");
-    expect(await eventTypes(opened.id)).toContain(
-      "occurrence_while_suppressed",
-    );
+    // (2026-10-14) A sweep re-observing the same live backlog is a check, not
+    // an occurrence: it neither counts nor adds a timeline entry per sweep.
+    expect(suppressed.occurrenceCount).toBe(opened.occurrenceCount);
+    expect(await eventTypes(opened.id)).not.toContain("occurrence_while_suppressed");
   }, 300_000);
 
   it("a suppressed backlog that actually recovers IS resolved", async () => {

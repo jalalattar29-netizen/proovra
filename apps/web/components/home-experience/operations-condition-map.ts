@@ -110,6 +110,7 @@ export const HOME_OPERATIONS_SOURCE_IDS = [
   "platform.telemetry_stale",
   "platform.worker_heartbeat_stale",
   "intake.delivery_failed",
+  "capture.upload_stalled",
   "communications.provider_failure",
   "webhook.security_failure",
   "integration.webhook_destination_disabled",
@@ -368,11 +369,31 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     actionLabel: "Open operations",
     href: "/operations",
   },
+  // NOT AN INTAKE DELIVERY (2026-10-14): its producers are the upload service
+  // failing to start or resume an upload. The person uploading already saw
+  // the error; Home does not ask anyone to act on it.
   "intake.delivery_failed": {
-    kind: "MERGE",
-    into: "review_submissions",
-    because:
-      "Home already surfaces intake state from the submissions and collection projections.",
+    kind: "ROW",
+    severity: "warning",
+    domains: ["evidence"],
+    label: "Uploads could not be started or resumed",
+    whyItMatters:
+      "The upload service failed while starting or resuming an upload in this workspace. The person uploading saw an error and can try again.",
+    recommendedAction: "If uploads keep failing, review the condition in Operations and contact support.",
+    actionLabel: "Open Operations",
+    href: "/operations",
+  },
+  // ONE stalled upload of a record that is still uploading.
+  "capture.upload_stalled": {
+    kind: "ROW",
+    severity: "warning",
+    domains: ["evidence"],
+    label: "Upload appears stalled",
+    whyItMatters:
+      "An upload of a record that is not finished yet has stopped making progress. The record cannot be finalized until its upload completes.",
+    recommendedAction: "Open the record to resume or review the upload.",
+    actionLabel: "Open evidence",
+    href: "/evidence",
   },
 
   // ---- Queue / processing --------------------------------------------------

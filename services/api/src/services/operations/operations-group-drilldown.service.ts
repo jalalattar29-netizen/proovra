@@ -43,6 +43,13 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { workspaceIncidentWhereWith } from "../observability/incident-scope.js";
 import { incidentStatusFilterWhere } from "./incident-open-statuses.js";
+import {
+  conditionMessageFor,
+  conditionSubjectFor,
+  conditionTextFor,
+  resolveConditionSubjectAvailability,
+} from "./condition-presentation.service.js";
+import type { ConditionSubject } from "@proovra/shared";
 
 /**
  * The group key the resolver gives a condition no registered source claims.
@@ -99,6 +106,11 @@ export type AffectedRecordRow = {
   title: string;
   /** The code and params the title was rendered from (null on a legacy row). */
   message: { code: string | null; params: Record<string, unknown> | null; titleSource: "CONDITION" };
+  /**
+   * WHAT this record is about — the affected-record line. Resolved and
+   * confirmed for this workspace by the server; never a signal code.
+   */
+  subject: ConditionSubject;
   severity: string;
   status: string;
   firstSeenAtUtc: string;
@@ -191,7 +203,14 @@ export async function listGroupAffectedRecords(
     ),
     select: {
       id: true,
+      teamId: true,
+      sourceId: true,
+      category: true,
+      fingerprint: true,
       relatedEvidenceId: true,
+      relatedJobId: true,
+      requestId: true,
+      traceId: true,
       title: true,
       messageCode: true,
       messageParams: true,
@@ -211,26 +230,34 @@ export async function listGroupAffectedRecords(
   const hasMore = rows.length > limit;
   const page = hasMore ? rows.slice(0, limit) : rows;
 
-  return {
-    records: page.map((r) => ({
+  const records = page.map((r) => {
+    const message = conditionMessageFor(r);
+    const text = conditionTextFor(message);
+    return {
       conditionId: r.id,
       evidenceId: r.relatedEvidenceId,
-      title: r.title,
+      // The current reviewed sentence when the row carries a valid message.
+      title: text?.title ?? r.title,
       message: {
-        code: r.messageCode ?? null,
-        params:
-          r.messageParams && typeof r.messageParams === "object" && !Array.isArray(r.messageParams)
-            ? (r.messageParams as Record<string, unknown>)
-            : null,
+        code: message?.code ?? null,
+        params: message?.params ?? null,
         titleSource: "CONDITION" as const,
       },
+      subject: conditionSubjectFor(r, r.sourceId ?? input.sourceId, message),
       severity: r.severity,
       status: r.status,
       firstSeenAtUtc: r.firstSeenAtUtc.toISOString(),
       lastSeenAtUtc: r.lastSeenAtUtc.toISOString(),
       occurrenceCount: r.occurrenceCount,
       assignedOperatorUserId: r.assignedOperatorUserId,
-    })),
+    };
+  });
+  await resolveConditionSubjectAvailability(
+    records.map((rec) => ({ teamId: input.teamId, relatedEvidenceId: rec.evidenceId, subject: rec.subject })),
+    client,
+  );
+  return {
+    records,
     nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
   };
 }

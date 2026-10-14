@@ -338,9 +338,13 @@ describe("Grouped Operations projection at scale (live PostgreSQL 16)", () => {
           "occurrenceCount",
           "severity",
           "status",
+          // WHAT the record is about, resolved and confirmed for this workspace
+          // (2026-10-14) — reviewed: kind, name, reference, version, state.
+          "subject",
           "title",
         ].sort(),
       );
+      expect(Object.keys(r.subject).sort()).toEqual(["kind", "name", "reference", "state", "version"]);
       // `message` is the code + structured params the title was rendered from
       // (shared catalogue) — reviewed: exactly these three keys, nothing else.
       expect(Object.keys(r.message).sort()).toEqual(["code", "params", "titleSource"]);

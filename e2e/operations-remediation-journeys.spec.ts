@@ -201,7 +201,7 @@ test.describe("Operations remediation — executed browser journeys", () => {
     await expect(page.locator(".wsh__state[data-wsh-state]")).toHaveAttribute("data-wsh-state", "CRITICAL", { timeout: 30_000 });
   });
 
-  test("C. five resolved conditions under two sources: 5 all-time, two recent groups, none in the default queue", async ({ page }) => {
+  test("C. five resolved conditions under two sources: 5 all-time, all five listed by default, two recent groups, no clear panel", async ({ page }) => {
     const s = await createGuestSession({ plan: "PRO" });
     const space = personalSpaceOf(s.userId);
     for (let i = 0; i < 5; i++) {
@@ -216,6 +216,14 @@ test.describe("Operations remediation — executed browser journeys", () => {
     await page.goto("/operations");
     await expect(page.locator('[data-ops-metric="resolved"]')).toHaveAttribute("data-ops-metric-value", "5", { timeout: 30_000 });
     await expect(page.locator('[data-ops-metric="open"]')).toHaveAttribute("data-ops-metric-value", "0");
+    // 2026-10-14 — the default view is All conditions + lifecycle All: the
+    // resolved history is ON SCREEN, and the first-use "clear" panel (with
+    // its navigation links) is not — this workspace is not empty.
+    await expect(page.locator("[data-ops-table-surface] [data-ops-row]")).toHaveCount(5, { timeout: 30_000 });
+    await expect(page.locator('[data-ops-empty="clear"]')).toHaveCount(0);
+    await expect(page.locator('[data-ops-empty] a[href="/evidence"]')).toHaveCount(0);
+    // The grouped presentation: the resolved section holds the two sources.
+    await page.locator('[data-ops-view="grouped"]').click();
     const recent = page.locator('[data-ops-section="recently-resolved"]');
     await expect(recent.locator("[data-ops-group]")).toHaveCount(2, { timeout: 30_000 });
     await expect(page.locator('[data-ops-section="action-required"] [data-ops-group]')).toHaveCount(0);

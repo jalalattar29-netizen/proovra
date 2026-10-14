@@ -494,7 +494,24 @@
 
   /* ------------------------------------------------------------------
    * TYPOGRAPHY
+   *
+   * --font-sans IS THE APPLICATION'S CANONICAL FAMILY, declared HERE and
+   * nowhere else (2026-10-14). The three composite tokens below always
+   * asked for it, but nothing declared it — so every `font: var(--font-meta)`
+   * / `var(--font-label)` / `var(--font-card-title)` silently took the
+   * fallback (-apple-system, "Segoe UI", system-ui): the operating system's
+   * UI face, not Plus Jakarta Sans. The Operations drawers are built almost
+   * entirely from those tokens (section titles, facts, timeline, notes), which
+   * is why they read as a different product from the page behind them.
+   *
+   * It resolves the next/font variable `--font-jakarta` that the root layout
+   * puts on <html>, with the same fallback stack `globals.css` declares, and
+   * an RTL document leads with the Arabic face (see the `[dir="rtl"]` rule
+   * below). An undefined `--font-jakarta` (a hermetic test, a build without
+   * the class) makes this property invalid, so each consumer's own fallback
+   * still applies — never a blank font.
    * ------------------------------------------------------------------ */
+  --font-sans: var(--font-jakarta), "Aptos", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
   --font-card-title: 600 14px/1.4 var(--font-sans, -apple-system, "Segoe UI", system-ui);
   --font-meta: 500 12.5px/1.4 var(--font-sans, -apple-system, "Segoe UI", system-ui);
   --font-label: 700 10.5px/1 var(--font-sans, -apple-system, "Segoe UI", system-ui);
@@ -537,4 +554,11 @@
   --nav-active-bg: rgba(255, 255, 255, 0.06);
   --nav-divider: rgba(255, 255, 255, 0.08);
   --brand-accent: var(--accent-500);
+}
+
+/* A right-to-left document leads with the Arabic face and keeps the Latin one
+   for embedded Latin text — the same family authority, one declaration, so
+   the body, the form controls and every composite token above agree. */
+:root[dir="rtl"] {
+  --font-sans: var(--font-arabic), var(--font-jakarta), "Segoe UI", system-ui, sans-serif;
 }

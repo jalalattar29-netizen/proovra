@@ -392,14 +392,17 @@ describe("every KPI opens the list with the exact predicate that counted it", ()
       const f = filtersForMetric(key);
       // Every unresolved KPI is UNRESOLVED; Resolved is RESOLVED.
       expect(f.status).toBe(key === "resolved" ? "RESOLVED" : "UNRESOLVED");
-      // The default view (Unresolved) is not "a card selected".
-      expect(metricForFilters(f)).toBe(key === "open" ? null : key);
+      // Every card round-trips — the Unresolved card included, now that the
+      // default lifecycle (ALL) is not its predicate (2026-10-14).
+      expect(metricForFilters(f)).toBe(key);
     }
+    // The DEFAULT view is not "a card selected".
+    expect(metricForFilters(DEFAULT_FILTERS)).toBeNull();
     expect(filtersForMetric("critical")).toMatchObject({ severity: "CRITICAL", sla: "", owner: "any" });
     expect(filtersForMetric("slaBreached")).toMatchObject({ sla: "BREACHED", severity: "" });
     expect(filtersForMetric("slaAtRisk")).toMatchObject({ sla: "AT_RISK" });
     expect(filtersForMetric("unassigned")).toMatchObject({ owner: "unassigned" });
-    expect(DEFAULT_FILTERS.status).toBe("UNRESOLVED");
+    expect(DEFAULT_FILTERS.status).toBe("ALL");
   });
 
   it("pressing each card re-reads with status, severity, SLA and owner exactly as counted", async () => {
@@ -422,16 +425,19 @@ describe("every KPI opens the list with the exact predicate that counted it", ()
       await settle();
       for (const re of must) expect(lastList(), `${key}: ${re}`).toMatch(re);
       for (const re of mustNot) expect(lastList(), `${key}: not ${re}`).not.toMatch(re);
-      if (key !== "open") {
-        expect(q(`[data-ops-metric="${key}"]`)?.getAttribute("aria-pressed")).toBe("true");
-      }
+      expect(q(`[data-ops-metric="${key}"]`)?.getAttribute("aria-pressed")).toBe("true");
     }
   });
 
   it("the Unresolved card says what it counts, and the status filter names the default", async () => {
     await mount(<OperationsPage />, envelope(TEAM_ADMIN));
     expect(q('[data-ops-metric="open"]')?.textContent).toContain("Open, acknowledged or suppressed.");
-    expect(document.body.textContent).toContain(EN.statusUnresolvedDefault);
+    // The lifecycle control reads "All" by default — every state, history
+    // included — and the "Unresolved (default)" wording is gone from it.
+    const controls = q("[data-ops-controls]") as HTMLElement;
+    expect(controls.textContent).toContain(EN.statusAll);
+    expect(controls.textContent).not.toContain(EN.statusUnresolvedDefault);
+    expect(q('[data-ops-metric="open"]')?.getAttribute("aria-pressed")).toBe("false");
   });
 });
 
@@ -523,6 +529,8 @@ describe("a workspace switch discards every late response from the previous work
       return defaultHandler()(path, method, body);
     };
 
+    // The grouped presentation, by address — it is not the default any more.
+    currentSearch = "view=grouped";
     await mount(<OperationsPage />, envelope(TEAM_ADMIN));
     // A's reads are all in flight. Switch to B.
     await act(async () => {
@@ -634,7 +642,7 @@ describe("a remediation answer is bound to the condition and workspace that aske
 
 describe("a saved view keeps its SLA filter", () => {
   it("is SENT on save and RESTORED on apply", async () => {
-    currentSearch = "sla=BREACHED&owner=unassigned";
+    currentSearch = "status=UNRESOLVED&sla=BREACHED&owner=unassigned";
     handler = defaultHandler({
       "/v1/ops/saved-views": (_p, method) =>
         method === "GET"
@@ -685,7 +693,10 @@ describe("a saved view keeps its SLA filter", () => {
     await mount(<OperationsPage />, envelope(TEAM_ADMIN));
     expect(lastList()).toMatch(/sla=AT_RISK/);
     expect(lastList()).toMatch(/severity=HIGH/);
-    expect(lastList()).toMatch(/status=UNRESOLVED/);
+    // v-1 is a LEGACY view stored without a status — saved when the queue's
+    // default was every status — so it replays as ALL, which is what it
+    // meant. A view saved since stores its status explicitly (above).
+    expect(lastList()).toMatch(/status=ALL/);
   });
 });
 
@@ -977,10 +988,12 @@ describe("the Enterprise roll-up", () => {
 });
 
 // ===========================================================================
-// 10. The grouped default view: sections, and a drill-down in its own context
+// 10. The grouped view: sections, and a drill-down in its own context
+//     (one address away — `?view=grouped` — since the flat list became the
+//     default presentation on 2026-10-14)
 // ===========================================================================
 
-describe("the grouped default view", () => {
+describe("the grouped view", () => {
   it("one source in Action required AND Resolved opens the group from the section clicked, and drills down in that section's status", async () => {
     handler = defaultHandler({
       "/v1/ops/incident-groups?": (path) =>
@@ -999,7 +1012,13 @@ describe("the grouped default view", () => {
               completeness: { complete: true },
             },
     });
+    currentSearch = "view=grouped";
     await mount(<OperationsPage />, envelope(TEAM_ADMIN));
+    // The sections read asks for the UNRESOLVED set they partition, whatever
+    // the lifecycle default is.
+    expect(
+      gets().find((p) => p.startsWith("/v1/ops/incident-groups?") && !p.includes("resolvedWithinDays")),
+    ).toMatch(/status=UNRESOLVED/);
     const action = q('[data-ops-section="action-required"]') as HTMLElement;
     const monitoring = q('[data-ops-section="monitoring"]') as HTMLElement;
     const resolved = q('[data-ops-section="recently-resolved"]') as HTMLElement;
@@ -1034,7 +1053,7 @@ describe("the grouped default view", () => {
   });
 
   it("the sort control is not offered where it cannot apply, so it cannot hide the sections", async () => {
-    currentSearch = "sort=oldest";
+    currentSearch = "view=grouped&sort=oldest";
     handler = defaultHandler({
       "/v1/ops/incident-groups?": (path) =>
         path.includes("resolvedWithinDays")
@@ -1042,7 +1061,7 @@ describe("the grouped default view", () => {
           : { groups: [group("a.source")], totals: { groups: 1, conditions: 2 }, completeness: { complete: true } },
     });
     await mount(<OperationsPage />, envelope(TEAM_ADMIN));
-    // Grouped (default): no sort control, and the sections still render.
+    // Grouped: no sort control, and the sections still render.
     expect(q("[data-ops-sort]")).toBeNull();
     expect(q('[data-ops-section="action-required"]')).not.toBeNull();
     await act(async () => {
@@ -1108,7 +1127,10 @@ describe("a saved view may hold ALL statuses", () => {
       fireEvent.click(q('[data-ops-saved-view="v-all"]') as HTMLElement);
     });
     await settle();
-    expect(replaced.at(-1)).toContain("status=ALL");
+    // ALL is the page default (2026-10-14), so the address carries no
+    // status at all — and it still reads, and sends, ALL.
+    expect(replaced.at(-1)).toContain("severity=CRITICAL");
+    expect(replaced.at(-1)).not.toContain("status=");
     await mount(<OperationsPage />, envelope(TEAM_ADMIN));
     expect(lastList()).toMatch(/status=ALL/);
   });
@@ -1176,6 +1198,7 @@ describe("the remaining Operations text is localized", () => {
                 completeness: { complete: true },
               },
       });
+      currentSearch = "view=grouped";
       await mount(<OperationsPage />, envelope(TEAM_ADMIN));
       const row = q('[data-ops-group="ar.source"]')?.textContent ?? "";
       const AR = operationsDict.ar;

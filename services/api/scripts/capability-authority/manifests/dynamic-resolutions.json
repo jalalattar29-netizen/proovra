@@ -229,9 +229,9 @@
       "reviewedAtUtc": "2026-10-01"
     },
     {
-      "site": "apps/web/app/(app)/operations/page.tsx:2059",
+      "site": "apps/web/app/(app)/operations/page.tsx:2266",
       "class": "PROP_CALLBACK",
-      "evidence": "onAssign={(userId) => void assign(openRow.id, userId)} — the drawer's assign callback; the path is built where the handler is defined, apps/web/app/(app)/operations/page.tsx:1352 `/v1/ops/incidents/${encodeURIComponent(incidentId)}/assign` (POST), and is counted there.",
+      "evidence": "onAssign={(userId) => void assign(openRow.id, userId)} — the drawer's assign callback; the path is built where the handler is defined, apps/web/app/(app)/operations/page.tsx:1437 `/v1/ops/incidents/${encodeURIComponent(incidentId)}/assign` (POST), and is counted there.",
       "reviewedAtUtc": "2026-10-12"
     }
   ]

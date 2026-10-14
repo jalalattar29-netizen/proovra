@@ -43,16 +43,14 @@ body[data-dialog-open="true"] [data-testid="privacy-preferences-launcher"] {
   display: none !important;
 }
 
+/* THE FAMILY AUTHORITY is `--font-sans` (lib/design-tokens/tokens.css): the
+   next/font Plus Jakarta Sans variable with its fallback stack, led by the
+   Arabic face in an RTL document. Every rule below asks for it in the
+   `var(--font-sans, <fallback>)` form, so an undefined variable falls back to
+   a real stack instead of invalidating the whole declaration. */
 html,
 body {
-  font-family:
-    var(--font-jakarta),
-    "Aptos",
-    "Inter",
-    "SF Pro Display",
-    "Segoe UI",
-    system-ui,
-    sans-serif;
+  font-family: var(--font-sans, "Aptos", "Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif);
 }
 
 button,
@@ -390,7 +388,7 @@ body {
   min-height: 100%;
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* `clip`, not `hidden`. Both stop horizontal overflow, but `hidden` makes
@@ -403,7 +401,7 @@ body {
 }
 
 html[dir="rtl"] body {
-  font-family: var(--font-arabic), var(--font-inter), sans-serif;
+  font-family: var(--font-sans, var(--font-arabic, system-ui), sans-serif);
 }
 
 body {
@@ -472,7 +470,9 @@ input,
 select,
 textarea,
 button {
-font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
+  /* Form controls do not inherit a family by default; they get the canonical
+     one explicitly, RTL included. */
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
   letter-spacing: 0.1px;
 }
 

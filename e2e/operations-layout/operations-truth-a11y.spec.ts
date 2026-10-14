@@ -54,8 +54,13 @@ for (const locale of LOCALES) {
 
       await expect(page.locator("h1").first()).toHaveText(copy.pageTitle);
       await expect(page.locator('[data-ops-section="action-required"] h2')).toHaveText(copy.sectionActionRequired);
-      await expect(page.locator('[data-ops-section="monitoring"] h2')).toHaveText(copy.sectionMonitoring);
-      await expect(page.locator('[data-ops-section="recently-resolved"] h2')).toHaveText(copy.sectionRecentlyResolved);
+      // The fixture has nothing acknowledged or silenced and nothing resolved
+      // in the window: those sections are ONE compact line each (2026-10-14),
+      // in the reader's language, with no heading and no empty block.
+      await expect(page.locator('[data-ops-section="monitoring"]')).toHaveText(copy.sectionEmptyMonitoring);
+      await expect(page.locator('[data-ops-section="monitoring"] h2')).toHaveCount(0);
+      await expect(page.locator('[data-ops-section="recently-resolved"]')).toHaveText(copy.sectionEmptyResolved);
+      await expect(page.locator('[data-ops-section="recently-resolved"] h2')).toHaveCount(0);
       expect(await page.evaluate(() => document.documentElement.dir)).toBe(locale === "ar" ? "rtl" : "ltr");
       expect(await hasHorizontalOverflow(page), `horizontal scroll at ${width}px in ${locale}`).toBe(false);
     });

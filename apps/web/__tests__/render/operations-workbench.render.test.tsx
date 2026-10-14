@@ -443,10 +443,11 @@ async function settleTimers() {
 /**
  * Mount the page.
  *
- * The grouped queue is the DEFAULT now, and the pre-existing cases in this
- * file are all about the FLAT surface — the table, the row menus, the
- * inspector. `view` lets a case say which surface it is about instead of
- * every one of them learning to press a toggle.
+ * The flat "All conditions" list is the DEFAULT presentation (2026-10-14),
+ * and most cases in this file are about it — the table, the row menus, the
+ * inspector. `view` lets a case about the grouped surface say so instead of
+ * every one of them learning to press a toggle; it presses the real control,
+ * the way an operator does.
  */
 async function mount(env: unknown, view: "grouped" | "flat" = "flat") {
   cleanup();
@@ -460,9 +461,9 @@ async function mount(env: unknown, view: "grouped" | "flat" = "flat") {
     </PlatformContextProvider>,
   );
   await settle();
-  if (view === "flat") {
-    const toggle = document.querySelector('[data-ops-view="flat"]');
-    if (toggle) {
+  if (view === "grouped") {
+    const toggle = document.querySelector('[data-ops-view="grouped"]');
+    if (toggle && toggle.getAttribute("aria-pressed") !== "true") {
       await act(async () => {
         fireEvent.click(toggle as HTMLElement);
       });
@@ -720,19 +721,18 @@ describe("Operations — one design, three densities", () => {
 // ===========================================================================
 
 describe("Operations — filtering asks the server, not the page", () => {
-  it("opens on UNRESOLVED work, says so, and still sends a chosen status", async () => {
+  it("opens on EVERY lifecycle state, says so, and still sends a chosen status", async () => {
     /*
-     * THE DEFAULT IS THE KPI PREDICATE (2026-10-12).
+     * THE DEFAULT IS ALL (2026-10-14).
      *
-     * The queue opened on every status ("" = ALL) while the card above it
-     * counted UNRESOLVED work, so resolved history sat in a list captioned
-     * by an Unresolved count. The default is now status UNRESOLVED (open,
-     * acknowledged or suppressed) — the same set the summary counts — and it
-     * is SENT explicitly, so the list never depends on a server default to
-     * mean what the card meant. The URL stays clean: the default is absent.
+     * `/operations` with no query reads lifecycle ALL — open, acknowledged,
+     * silenced and resolved — and SENDS it explicitly, so the list never
+     * depends on a server default. The URL stays clean: the default is
+     * absent. The KPI cards still open the list with exactly the predicate
+     * that counted them (status=UNRESOLVED is written for those).
      */
     await mount(envelope(TEAM_ADMIN));
-    expect(lastListQuery()).toMatch(/status=UNRESOLVED/);
+    expect(lastListQuery()).toMatch(/status=ALL/);
     expect(lastListQuery()).toMatch(/limit=50/);
     expect(replaced.every((href) => !/status=/.test(href))).toBe(true);
 
@@ -742,8 +742,12 @@ describe("Operations — filtering asks the server, not the page", () => {
     await mount(envelope(TEAM_ADMIN));
     expect(lastListQuery()).toMatch(/status=OPEN/);
 
-    // "All, including resolved" is the only way history enters the queue,
-    // and a legacy `status=all` link still means exactly that.
+    cleanup();
+    currentSearch = "status=UNRESOLVED";
+    await mount(envelope(TEAM_ADMIN));
+    expect(lastListQuery()).toMatch(/status=UNRESOLVED/);
+
+    // A legacy `status=all` link still means exactly ALL.
     cleanup();
     currentSearch = "status=all";
     await mount(envelope(TEAM_ADMIN));
@@ -848,7 +852,9 @@ describe("Operations — filtering asks the server, not the page", () => {
 describe("Operations — an all-clear is a claim about a COMPLETE read", () => {
   it("an empty, complete, unfiltered read is genuinely clear", async () => {
     incidentsReply = () => list([]);
-    summaryReply = () => summary({ open: 0, critical: 0, high: 0, overdue: 0 });
+    // State A needs the AUTHORITATIVE retained total to be zero: nothing
+    // unresolved AND nothing resolved, all time.
+    summaryReply = () => summary({ open: 0, critical: 0, high: 0, overdue: 0, resolved: 0 });
     await mount(envelope(TEAM_ADMIN));
     expect(q('[data-ops-empty="clear"]')).not.toBeNull();
     expect(document.body.textContent).toMatch(/Workspace operations are clear/);
@@ -856,6 +862,7 @@ describe("Operations — an all-clear is a claim about a COMPLETE read", () => {
 
   it("the clear state offers only destinations a tenant can open", async () => {
     incidentsReply = () => list([]);
+    summaryReply = () => summary({ open: 0, critical: 0, high: 0, overdue: 0, resolved: 0 });
     await mount(envelope(TEAM_ADMIN));
     const panel = q('[data-ops-empty="clear"]') as HTMLElement;
     const hrefs = Array.from(panel.querySelectorAll("a")).map((a) =>
@@ -2152,7 +2159,8 @@ describe("Operations — the current value is live, labelled, and not the occurr
     // name it. "4 occurrences" named nothing — an occurrence of what, counted
     // how — while sitting one span away from "26 affected records", which is
     // also a 26-shaped number about the same row.
-    expect(row.textContent).toContain("Observed in 4 checks");
+    // 2026-10-14 — occurrences, not checks: a repeated check adds none.
+    expect(row.textContent).toContain("Occurred 4 times");
     expect(row.textContent).not.toContain("occurrences");
   });
 
@@ -2904,17 +2912,41 @@ describe("Operations — an unregistered condition has no Resolve", () => {
   });
 });
 
-describe("Operations — grouped is the PRODUCT default", () => {
-  it("a fresh mount renders groups with no toggle pressed", async () => {
-    // The `mount` helper above defaults to the FLAT surface because that is
-    // what sixty pre-existing cases are about — the table, the row menus, the
-    // condition inspector — and teaching every one of them to press a toggle
-    // would be churn that proves nothing.
-    //
-    // The PRODUCT's default is the opposite, and it is asserted here, once,
-    // without the helper: a workspace with five thousand identical rows and no
-    // grouping is the defect, so grouping cannot be something an operator has
-    // to find.
+describe("Operations — the flat list is the PRODUCT default; grouped is one address away", () => {
+  it("a fresh mount with no query renders the flat All conditions list, with no toggle pressed", async () => {
+    // 2026-10-14 — the default presentation is "All conditions" (the flat
+    // list) with lifecycle ALL, asserted here once WITHOUT the helper. A
+    // workspace whose only conditions were resolved history opened on a
+    // grouped, unresolved-only view and saw an empty queue.
+    groupsReply = () => ({
+      groups: [group({ groupKey: "evidence_integrity.tsa_failed" })],
+      conservation: { conditions: 5000, grouped: 5000 },
+      completeness: { complete: true, mayAssertAllClear: true },
+    });
+    cleanup();
+    render(
+      <PlatformContextProvider testEnvelope={envelope(TEAM_ADMIN) as never}>
+        <ToastProvider>
+          <ConfirmActionProvider>
+            <OperationsPage />
+          </ConfirmActionProvider>
+        </ToastProvider>
+      </PlatformContextProvider>,
+    );
+    await settle();
+
+    expect(qa("[data-ops-row]").length).toBe(3);
+    expect(qa("[data-ops-group]").length).toBe(0);
+    // The flat view reads no groups at all.
+    expect(gets().some((p) => p.startsWith("/v1/ops/incident-groups?"))).toBe(false);
+    expect(lastListQuery()).toMatch(/status=ALL/);
+    // …and the toggle says so, so a screen reader is told which view is live.
+    expect(q('[data-ops-view="flat"]')!.getAttribute("aria-pressed")).toBe("true");
+    expect(q('[data-ops-view="grouped"]')!.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("?view=grouped opens the grouped view directly (a shared or reloaded address)", async () => {
+    currentSearch = "view=grouped";
     groupsReply = () => ({
       groups: [group({ groupKey: "evidence_integrity.tsa_failed" })],
       conservation: { conditions: 5000, grouped: 5000 },
@@ -2934,7 +2966,6 @@ describe("Operations — grouped is the PRODUCT default", () => {
 
     expect(qa("[data-ops-group]").length).toBe(1);
     expect(qa("[data-ops-row]").length).toBe(0);
-    // …and the toggle says so, so a screen reader is told which view is live.
     expect(
       q('[data-ops-view="grouped"]')!.getAttribute("aria-pressed"),
     ).toBe("true");
@@ -3202,12 +3233,16 @@ describe("Operations — the Warning card", () => {
     });
     await settle();
     expect(replaced.at(-1)).toContain("severity=WARNING");
+    // The card counted UNRESOLVED work, and the address says so.
+    expect(replaced.at(-1)).toContain("status=UNRESOLVED");
   });
 
   it("8. AND A RELOAD OF THAT URL RESTORES IT", async () => {
     // The other half of the contract: a pasted link has to come back to the
     // same view, with the same card showing as the one driving the queue.
-    currentSearch = "severity=WARNING";
+    // The card writes its WHOLE predicate (2026-10-14: the lifecycle default
+    // is ALL, so the card's unresolved scope is explicit in the address).
+    currentSearch = "status=UNRESOLVED&severity=WARNING";
     await mount(envelope(TEAM_ADMIN));
     expect(lastListQuery()).toMatch(/severity=WARNING/);
     expect(metric("warning")?.getAttribute("aria-pressed")).toBe("true");
@@ -3479,7 +3514,7 @@ describe("Operations — the cards' interactive states are real", () => {
   });
 
   it("the SELECTED card carries its own tone, not a generic highlight", async () => {
-    currentSearch = "severity=WARNING";
+    currentSearch = "status=UNRESOLVED&severity=WARNING";
     await mount(envelope(TEAM_ADMIN));
     const card = metric("warning") as HTMLButtonElement;
     expect(card.getAttribute("aria-pressed")).toBe("true");
@@ -4106,7 +4141,7 @@ describe("Operations truth closure — web", () => {
     expect(section.querySelector("[data-ops-section-empty]")).toBeNull();
   });
 
-  it("the grouped header counts sources and conditions, and names 'all statuses' only when chosen", async () => {
+  it("the grouped header counts sources and conditions, and names its scope", async () => {
     groupsReply = () => ({
       groups: [
         group({ groupKey: "evidence_integrity.tsa_failed", statusPosture: "OPEN" }),
@@ -4117,13 +4152,17 @@ describe("Operations truth closure — web", () => {
       completeness: { complete: true, mayAssertAllClear: true },
     });
     await mount(envelope(TEAM_ADMIN), "grouped");
-    expect(document.body.textContent).toContain("2 sources · 5 conditions");
-    expect(document.body.textContent).not.toContain("all statuses");
+    // The unfiltered grouped view is the unresolved SECTIONS, and its count
+    // says so — it is not the workspace total.
+    const resultLine = () => q("[data-ops-result-summary]")?.textContent ?? "";
+    expect(resultLine()).toBe("2 sources · 5 conditions · unresolved");
+    expect(resultLine()).not.toContain("all statuses");
 
+    // A FILTERED grouped view under lifecycle ALL says both.
     cleanup();
-    currentSearch = "status=ALL";
+    currentSearch = "severity=HIGH";
     await mount(envelope(TEAM_ADMIN), "grouped");
-    expect(document.body.textContent).toContain("2 sources · 5 conditions · all statuses");
+    expect(resultLine()).toBe("2 sources · 5 conditions · all statuses · filtered");
   });
 
   it("a group whose members are all resolved is never shown as being monitored", async () => {

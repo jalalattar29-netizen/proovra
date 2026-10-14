@@ -12,7 +12,7 @@ import type { AppTone } from "../../../../components/app-primitives/AppStatusBad
 import { opsDuration } from "./time";
 
 import type { Incident, OperationsCapabilities, SlaPosture } from "./types";
-import { localizeCondition, operationsDict, type OperationsCopy } from "@proovra/shared/i18n";
+import { conditionSubjectLabel, localizeCondition, operationsDict, type OperationsCopy } from "@proovra/shared/i18n";
 
 import { formatOpsNumber } from "./format";
 import {
@@ -157,14 +157,28 @@ export type OperationsRowModel = {
 /**
  * Where a condition's affected record lives.
  *
+ * The server's `subject` decides when present; the fields below are the
+ * fallback for a server older than it.
+ *
  * Only Evidence has a stable tenant destination today. A job id and a provider
  * name are operator context, not navigable resources, and rendering them as
  * links would be three affordances that cannot do what they say.
  */
-function affectedFor(i: Incident, copy: OperationsCopy): {
+function affectedFor(i: Incident, copy: OperationsCopy, locale: string): {
   label: string | null;
   href: string | null;
 } {
+  // THE SERVER'S SUBJECT FIRST: what the condition is about, confirmed for
+  // this workspace, in the reader's language. A record that is gone (deleted,
+  // not in this workspace) reads as unavailable and is never linked.
+  const subjectLabel = conditionSubjectLabel(locale, i.subject ?? null);
+  if (i.subject && subjectLabel) {
+    const linkable = i.subject.state === "AVAILABLE" && i.relatedEvidenceId;
+    return {
+      label: subjectLabel,
+      href: linkable ? `/evidence/${encodeURIComponent(i.relatedEvidenceId!)}` : null,
+    };
+  }
   if (i.relatedEvidenceId) {
     return {
       // The EXACT record: its reference, the same eight characters the
@@ -308,7 +322,7 @@ export function buildRowModel(
   const locale = ctx.locale ?? "en";
   const severity = severityEntry(i.severity, copy);
   const status = statusEntry(i.status, copy);
-  const affected = affectedFor(i, copy);
+  const affected = affectedFor(i, copy, locale);
 
   const isOpen = i.status === "OPEN";
   const isUnresolved = isOpen || i.status === "ACKNOWLEDGED";

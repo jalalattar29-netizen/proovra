@@ -41,7 +41,8 @@ import Link from "next/link";
 import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusBadge";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { useDialogFocusTrap } from "../../../../components/ui/useDialogFocusTrap";
-import { fillOperationsCopy, useOpsCopy, useOpsNumber, useOpsTime } from "../_lib/copy";
+import { fillOperationsCopy, useOpsCopy, useOpsLocale, useOpsNumber, useOpsTime } from "../_lib/copy";
+import { conditionTechnicalReferenceLabel } from "@proovra/shared/i18n";
 import { formatUserDateTime } from "../../../../lib/date";
 import type {
   AssignableOperator,
@@ -55,6 +56,16 @@ import type { OperationsRowModel } from "../_lib/rowModel";
 import { timelineEventLabel } from "../_lib/vocabulary";
 import { AssignmentControl } from "./AssignmentControl";
 import { IconClose, IconExternal, IconSpinner } from "./icons";
+
+/**
+ * The resolution note's bound — the SERVER's, mirrored: the resolve route
+ * validates `resolutionNote` as z.string().min(1).max(400), and the column
+ * that stores it is VARCHAR(400). A longer client bound would be a note the
+ * server refuses; a shorter one would refuse notes the server accepts.
+ */
+export const RESOLUTION_NOTE_MAX = 400;
+/** The counter appears this close to the bound, not before. */
+const RESOLUTION_NOTE_WARN_WITHIN = 80;
 
 /** A bounded, LTR-isolated, copyable identifier. */
 function Identifier({ label, value }: { label: string; value: string }) {
@@ -142,8 +153,12 @@ export function IncidentInspector({
   selfUserId: string | null;
   onClose: () => void;
   onAcknowledge: () => void;
-  /** OPS-029 — carries the note when the source requires one. */
-  onResolve: (resolutionNote?: string) => void;
+  /**
+   * OPS-029 — carries the note when the source requires one. May return the
+   * outcome (true = the server accepted it): an accepted note is cleared, a
+   * refused one is kept so the operator does not have to write it again.
+   */
+  onResolve: (resolutionNote?: string) => void | Promise<boolean | void>;
   /** OPS-030 — always carries the operator's reason. */
   onSuppress: (reason: string) => void;
   /** OPS-030 — "Resume notifications" for a SUPPRESSED condition. */
@@ -176,17 +191,53 @@ export function IncidentInspector({
   const copy = useOpsCopy();
   const fmt = useOpsNumber();
   const time = useOpsTime();
+  const locale = useOpsLocale();
+  // Technical references: the server's labelled list; an older server's bare
+  // fields as the fallback. Never in the sentence, only here.
+  const technicalRefs = React.useMemo(() => {
+    if (detail.kind !== "ready") return [];
+    const d = detail.data;
+    if (d.technicalReferences) {
+      return d.technicalReferences.map((r) => ({
+        key: r.key,
+        value: r.value,
+        label: conditionTechnicalReferenceLabel(locale, r.key),
+      }));
+    }
+    const legacy: Array<{ key: string; value: string | null; label: string }> = [
+      { key: "provider", value: d.relatedProvider, label: copy.drawer.identProvider },
+      { key: "jobId", value: d.relatedJobId, label: copy.drawer.identJob },
+      { key: "requestId", value: d.requestId, label: copy.drawer.identRequest },
+      { key: "traceId", value: d.traceId, label: copy.drawer.identTrace },
+    ];
+    return legacy.filter((r): r is { key: string; value: string; label: string } => !!r.value);
+  }, [detail, locale, copy]);
   // The operator's stated reason, per action that requires one. It is
   // recorded in the audit trail and on the condition's timeline.
   const [reasons, setReasons] = React.useState<Record<string, string>>({});
   // OPS-029 / OPS-030 — the note a Resolve needs, and the reason a
   // suppression needs. Both are recorded in the condition's history.
   const [resolutionNote, setResolutionNote] = React.useState("");
+  /**
+   * A Resolve is in flight from THIS drawer. Set synchronously (the ref) so a
+   * double click cannot send two requests before `pending` re-renders.
+   */
+  const [resolveSubmitting, setResolveSubmitting] = React.useState(false);
+  const resolveSubmittingRef = React.useRef(false);
+  const mountedRef = React.useRef(true);
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   const [suppressOpen, setSuppressOpen] = React.useState(false);
   const [suppressReason, setSuppressReason] = React.useState("");
   const panelRef = React.useRef<HTMLElement | null>(null);
   const titleId = React.useId();
   const resolveHintId = React.useId();
+  const resolveHelperId = React.useId();
+  const resolveCounterId = React.useId();
   const suppressHintId = React.useId();
 
   // OPS-020 — focus moves INTO the drawer, Tab stays inside it, Escape closes
@@ -194,6 +245,33 @@ export function IncidentInspector({
   // captured once: this used to re-capture whenever `onClose` changed
   // identity (every render), so Escape returned focus to a row checkbox.
   useDialogFocusTrap(panelRef, onClose);
+
+  // THE NOTE'S BOUNDS — the server's own: `ResolveBody.resolutionNote` is
+  // z.string().min(1).max(400) and the column is VARCHAR(400). The note is
+  // TRIMMED before it is judged or sent, so whitespace alone is not a note.
+  const noteTrimmed = resolutionNote.trim();
+  const noteEmpty = noteTrimmed.length === 0;
+  const noteTooLong = noteTrimmed.length > RESOLUTION_NOTE_MAX;
+  const noteNearLimit =
+    resolutionNote.length >= RESOLUTION_NOTE_MAX - RESOLUTION_NOTE_WARN_WITHIN;
+  const noteInvalid = row.requiresResolutionNote && (noteEmpty || noteTooLong);
+  const noteDescribedBy = [resolveHelperId, noteNearLimit || noteTooLong ? resolveCounterId : null]
+    .filter(Boolean)
+    .join(" ");
+
+  const submitResolve = () => {
+    if (resolveSubmittingRef.current || pending || noteInvalid) return;
+    resolveSubmittingRef.current = true;
+    setResolveSubmitting(true);
+    void Promise.resolve(onResolve(row.requiresResolutionNote ? noteTrimmed : undefined))
+      .then((accepted) => {
+        if (accepted === true && mountedRef.current) setResolutionNote("");
+      })
+      .finally(() => {
+        resolveSubmittingRef.current = false;
+        if (mountedRef.current) setResolveSubmitting(false);
+      });
+  };
 
   return (
     <div
@@ -650,30 +728,20 @@ export function IncidentInspector({
           </section>
 
           {/* ---------------------------------------------------------- */}
-          {/* Technical references                                        */}
+          {/* Technical references — the ONLY place a signal code, job,   */}
+          {/* request or trace id reaches the reader, each labelled by    */}
+          {/* the shared vocabulary. An older server's fields are the     */}
+          {/* fallback.                                                   */}
           {/* ---------------------------------------------------------- */}
-          {detail.kind === "ready" &&
-          (detail.data.requestId ||
-            detail.data.traceId ||
-            detail.data.relatedJobId ||
-            detail.data.relatedProvider) ? (
-            <section className="opsw-drawer__section">
+          {detail.kind === "ready" && technicalRefs.length > 0 ? (
+            <section className="opsw-drawer__section" data-ops-technical-references>
               <h3 className="opsw-drawer__section-title">
                 {copy.technicalReferences}
               </h3>
               <p className="opsw-muted">{copy.drawer.technicalHint}</p>
-              {detail.data.relatedProvider ? (
-                <Identifier label={copy.drawer.identProvider} value={detail.data.relatedProvider} />
-              ) : null}
-              {detail.data.relatedJobId ? (
-                <Identifier label={copy.drawer.identJob} value={detail.data.relatedJobId} />
-              ) : null}
-              {detail.data.requestId ? (
-                <Identifier label={copy.drawer.identRequest} value={detail.data.requestId} />
-              ) : null}
-              {detail.data.traceId ? (
-                <Identifier label={copy.drawer.identTrace} value={detail.data.traceId} />
-              ) : null}
+              {technicalRefs.map((ref) => (
+                <Identifier key={`${ref.key}:${ref.value}`} label={ref.label} value={ref.value} />
+              ))}
             </section>
           ) : null}
         </div>
@@ -686,12 +754,37 @@ export function IncidentInspector({
             <textarea
               className="app-form-input"
               rows={2}
-              maxLength={400}
+              maxLength={RESOLUTION_NOTE_MAX}
               value={resolutionNote}
               onChange={(e) => setResolutionNote(e.target.value)}
+              aria-describedby={noteDescribedBy}
+              aria-invalid={noteTooLong ? true : undefined}
+              required
+              readOnly={resolveSubmitting}
               data-ops-resolution-note-input
             />
-            {resolutionNote.trim().length === 0 ? (
+            {/* What the note is FOR — always shown. It asks for a
+                conclusion; it never supplies one. */}
+            <span id={resolveHelperId} className="opsw-muted" data-ops-resolution-note-helper>
+              {copy.resolveNoteHelper}
+            </span>
+            {noteNearLimit || noteTooLong ? (
+              <span
+                id={resolveCounterId}
+                className="opsw-muted"
+                aria-live="polite"
+                data-ops-resolution-note-counter
+                data-ops-resolution-note-too-long={noteTooLong ? "true" : undefined}
+              >
+                {noteTooLong
+                  ? fillOperationsCopy(copy.resolveNoteTooLong, { max: fmt(RESOLUTION_NOTE_MAX) })
+                  : fillOperationsCopy(copy.resolveNoteCounter, {
+                      n: fmt(resolutionNote.length),
+                      max: fmt(RESOLUTION_NOTE_MAX),
+                    })}
+              </span>
+            ) : null}
+            {noteEmpty ? (
               <span id={resolveHintId} className="opsw-muted" data-ops-disabled-reason>
                 {copy.resolveNoteRequiredHint}
               </span>
@@ -751,21 +844,27 @@ export function IncidentInspector({
               <button
                 type="button"
                 className="app-primary-action"
-                disabled={pending || (row.requiresResolutionNote && resolutionNote.trim().length === 0)}
+                // Disabled ONLY while the note is invalid (empty, whitespace
+                // or over the bound) or a request is in flight (`pending`).
+                // A second press inside the same frame — before `pending`
+                // has rendered — is stopped by the synchronous ref in
+                // `submitResolve`, so a double click is one request.
+                disabled={pending || noteInvalid}
+                aria-busy={resolveSubmitting || undefined}
                 // A disabled control says WHY: the note is required first.
                 aria-describedby={
-                  row.requiresResolutionNote && resolutionNote.trim().length === 0
+                  row.requiresResolutionNote && noteEmpty
                     ? resolveHintId
-                    : undefined
+                    : row.requiresResolutionNote && noteTooLong
+                      ? resolveCounterId
+                      : undefined
                 }
                 title={
-                  row.requiresResolutionNote && resolutionNote.trim().length === 0
+                  row.requiresResolutionNote && noteEmpty
                     ? copy.resolveNoteRequiredHint
                     : undefined
                 }
-                onClick={() =>
-                  onResolve(row.requiresResolutionNote ? resolutionNote.trim() : undefined)
-                }
+                onClick={submitResolve}
                 data-ops-action="resolve"
               >
                 {copy.resolve}

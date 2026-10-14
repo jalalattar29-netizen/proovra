@@ -80,21 +80,28 @@ export function FilterToolbar({
   const copy = useOpsCopy();
 
   /*
-   * THE STATUS VOCABULARY IS THE KPI VOCABULARY (2026-10-12).
+   * THE LIFECYCLE FILTER (2026-10-14).
    *
-   * "Unresolved (default)" is the canonical set every count on this page uses
-   * — open, acknowledged or suppressed — and "All, including resolved" is the
-   * only way resolved history enters the queue. "Any status" used to mean
-   * ALL and was the default, so the queue mixed history into a list captioned
-   * by an Unresolved count.
+   * "All" is the DEFAULT and is first: every lifecycle state, history
+   * included, so nothing is withheld by a filter the operator cannot see —
+   * and the result count says "all statuses" beside it. "Unresolved" is the
+   * canonical set every KPI counts (open, acknowledged or silenced); each
+   * card still opens the list with exactly that predicate. Then the four
+   * stored states, in lifecycle order. SUPPRESSED is offered as what it
+   * means here: silenced notifications, still monitored.
+   *
+   * The PRESENTATION (flat list or grouped) is a separate control and never
+   * changes which statuses are selected.
    */
+  const statusLabel = (s: (typeof INCIDENT_STATUSES)[number]): string =>
+    s === "SUPPRESSED" ? copy.statusSilencedOption : copy.status[s].label;
+  const LIFECYCLE_ORDER = ["OPEN", "ACKNOWLEDGED", "SUPPRESSED", "RESOLVED"] as const;
   const statusOptions = [
-    { value: "UNRESOLVED", label: copy.statusUnresolvedDefault },
     { value: "ALL", label: copy.statusAll },
-    ...INCIDENT_STATUSES.map((s) => ({
-      value: s as string,
-      label: copy.status[s].label,
-    })),
+    { value: "UNRESOLVED", label: copy.statusUnresolved },
+    ...LIFECYCLE_ORDER.filter((s) => (INCIDENT_STATUSES as readonly string[]).includes(s)).map(
+      (s) => ({ value: s as string, label: statusLabel(s) }),
+    ),
   ];
 
   const severityOptions = [
@@ -158,7 +165,7 @@ export function FilterToolbar({
             {copy.filterStatusLabel}
           </span>
           <AppListbox
-            value={filters.status || "UNRESOLVED"}
+            value={filters.status || "ALL"}
             options={statusOptions}
             ariaLabelledby={labelId("status")}
             disabled={busy}
@@ -258,12 +265,12 @@ export function FilterToolbar({
                  They are lifecycle states that the SLA projection also reports
                  — ownership belongs to the owner filter, resolution to the
                  Status filter and the Resolved summary card. Offering
-                 "Resolved" here was worse than redundant: the queue's default
-                 status scope is unresolved work, so selecting it narrowed an
-                 already-unresolved list to the resolved ones and returned
-                 nothing, which reads as "there are none" rather than as a
-                 filter asking the wrong axis. This dropdown now offers only
-                 states a commitment can actually be in. */
+                 "Resolved" here was worse than redundant: it asked the
+                 lifecycle question on the commitment axis, and combined with
+                 an unresolved lifecycle it returned nothing, which reads as
+                 "there are none" rather than as a filter asking the wrong
+                 axis. This dropdown now offers only states a commitment can
+                 actually be in. */
               { value: "UNTRACKED_LEGACY", label: copy.sla.UNTRACKED_LEGACY },
               { value: "NOT_APPLICABLE", label: copy.sla.NOT_APPLICABLE },
             ]}

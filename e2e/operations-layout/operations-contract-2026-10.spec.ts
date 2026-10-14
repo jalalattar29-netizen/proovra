@@ -4,7 +4,9 @@
  * The production build, an intercepted API (`_fixtures.ts`), and only the
  * properties the contract changed:
  *
- *   * the queue's default status is UNRESOLVED (open, acknowledged or
+ *   * (2026-10-14) the queue opens on lifecycle ALL in the flat list, and
+ *     the grouped sections read the UNRESOLVED set they partition;
+ *   * the KPI cards' predicate is UNRESOLVED (open, acknowledged or
  *     suppressed) and is SENT, for the list and the grouped read alike;
  *   * every KPI opens the list with the predicate that counted it — the
  *     "Resolved · all time" card opens status RESOLVED;
@@ -39,18 +41,23 @@ const groupReads = () =>
     (c) => c.method === "GET" && c.path.endsWith("/v1/ops/incident-groups") && !c.query.includes("resolvedWithinDays"),
   );
 
-test("the queue opens on UNRESOLVED work and sends it, for the list and the grouped read", async ({ page }) => {
+test("the queue opens on EVERY lifecycle state; the grouped sections read the unresolved set they partition", async ({ page }) => {
   await openOperations(page, "team-admin");
-  await showGroupedQueue(page);
+  // The default presentation is the flat "All conditions" list, lifecycle ALL.
+  await expect(page.locator('[data-ops-view="flat"]')).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => listReads().length).toBeGreaterThan(0);
-  expect(listReads().at(-1)!.query).toContain("status=UNRESOLVED");
+  expect(listReads().at(-1)!.query).toContain("status=ALL");
+  // The address stays clean: the defaults are not written into the URL.
+  expect(new URL(page.url()).searchParams.get("status")).toBeNull();
+  expect(new URL(page.url()).searchParams.get("view")).toBeNull();
+  // The status control says "All" — no hidden unresolved filter — and the
+  // Unresolved card says what it counts.
+  await expect(page.locator("[data-ops-controls]")).toContainText(EN.statusAll);
+  await expect(page.locator("[data-ops-controls]")).not.toContainText(EN.statusUnresolvedDefault);
+  await showGroupedQueue(page);
+  expect(new URL(page.url()).searchParams.get("view")).toBe("grouped");
   await expect.poll(() => groupReads().length).toBeGreaterThan(0);
   expect(groupReads().at(-1)!.query).toContain("status=UNRESOLVED");
-  // The address stays clean: the default is not written into the URL.
-  expect(new URL(page.url()).searchParams.get("status")).toBeNull();
-  // The status control names the default, and the Unresolved card says what
-  // it counts.
-  await expect(page.locator("[data-ops-controls]")).toContainText(EN.statusUnresolvedDefault);
   await expect(page.locator('[data-ops-metric="open"]')).toContainText(EN.metrics.open.note);
   // Resolved history is its OWN section, never mixed into the two above.
   const resolvedInActive = page.locator(

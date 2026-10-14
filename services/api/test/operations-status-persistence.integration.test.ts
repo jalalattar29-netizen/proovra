@@ -240,7 +240,7 @@ describe("Operator state survives reconciliation (live PostgreSQL 16)", () => {
   // 1 + 2. An active observation records an occurrence and nothing else.
   // =======================================================================
 
-  it("OPEN + repeated active observation stays OPEN and only counts", async () => {
+  it("OPEN + repeated active observation stays OPEN and adds no occurrence (a STATE source)", async () => {
     const ctx = primary();
     const { evidenceId } = await failingRecord(ctx);
     await reconcile(ctx.teamId);
@@ -252,8 +252,10 @@ describe("Operator state survives reconciliation (live PostgreSQL 16)", () => {
 
     expect(second.id).toBe(first.id);
     expect(second.status).toBe("OPEN");
-    expect(second.occurrenceCount).toBeGreaterThan(first.occurrenceCount);
-    expect(await eventTypes(first.id)).toEqual(["opened", "increment"]);
+    // (2026-10-14) A missing timestamp is a STATE: re-checking it is not a
+    // new occurrence and writes no timeline entry.
+    expect(second.occurrenceCount).toBe(first.occurrenceCount);
+    expect(await eventTypes(first.id)).toEqual(["opened"]);
   });
 
   it("ACKNOWLEDGED + repeated active observations stays ACKNOWLEDGED, owner intact", async () => {
@@ -283,7 +285,8 @@ describe("Operator state survives reconciliation (live PostgreSQL 16)", () => {
     expect(after.acknowledgedAtUtc?.toISOString()).toBe(
       acked.acknowledgedAtUtc?.toISOString(),
     );
-    expect(after.occurrenceCount).toBeGreaterThan(acked.occurrenceCount);
+    // (2026-10-14) Three checks of the same state are not three occurrences.
+    expect(after.occurrenceCount).toBe(acked.occurrenceCount);
     // No reopen was invented on the way.
     expect(await eventTypes(after.id)).not.toContain("reopened");
   });
@@ -474,9 +477,10 @@ describe("Operator state survives reconciliation (live PostgreSQL 16)", () => {
     const after = await conditionFor(evidenceId);
     expect(after.id).toBe(opened.id);
     expect(after.status).toBe("SUPPRESSED");
-    expect(after.occurrenceCount).toBeGreaterThan(opened.occurrenceCount);
+    // (2026-10-14) A STATE re-check is neither an occurrence nor an event.
+    expect(after.occurrenceCount).toBe(opened.occurrenceCount);
     const events = await eventTypes(opened.id);
-    expect(events).toContain("occurrence_while_suppressed");
+    expect(events).not.toContain("occurrence_while_suppressed");
     expect(events).not.toContain("reopened");
   });
 
@@ -485,7 +489,9 @@ describe("Operator state survives reconciliation (live PostgreSQL 16)", () => {
     created.teamIds.add(ctx.teamId);
     const fingerprint = `identity:probe:${Math.random().toString(36).slice(2, 10)}`;
     const first = await incidents.recordIncident({
-      sourceId: "pipeline.report_backlog",
+      // An EVENT source (each report is an occurrence), so the suppressed
+      // occurrence is recorded on the timeline.
+      sourceId: "identity.security_condition",
       teamId: ctx.teamId,
       category: "IDENTITY_SECURITY",
       severity: "HIGH",
@@ -504,7 +510,9 @@ describe("Operator state survives reconciliation (live PostgreSQL 16)", () => {
     // The very observation that used to erase it. This source never had the
     // private guard evidence-integrity carried, which is why it is here.
     await incidents.recordIncident({
-      sourceId: "pipeline.report_backlog",
+      // An EVENT source (each report is an occurrence), so the suppressed
+      // occurrence is recorded on the timeline.
+      sourceId: "identity.security_condition",
       teamId: ctx.teamId,
       category: "IDENTITY_SECURITY",
       severity: "HIGH",

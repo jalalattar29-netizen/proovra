@@ -638,8 +638,13 @@ type OperationsVocabularyCopy = {
   filterOwnerLabel: string;
   filterSortLabel: string;
   filterSlaLabel: string;
-  statusUnresolvedDefault: string;
+  /** The lifecycle filter's options (2026-10-14). ALL is the default. */
   statusAll: string;
+  statusUnresolved: string;
+  /** The Enterprise roll-up, whose default IS still the unresolved set. */
+  statusUnresolvedDefault: string;
+  /** SUPPRESSED, named for what it means in the filter: silenced, still monitored. */
+  statusSilencedOption: string;
   anySeverity: string;
   anySource: string;
   anyCommitment: string;
@@ -654,6 +659,10 @@ type OperationsVocabularyCopy = {
   resultSourceOne: string;
   resultSources: string;
   resultAllStatuses: string;
+  /** Appended to a count that a filter narrowed, so it never reads as the workspace total. */
+  resultFiltered: string;
+  /** Appended to the grouped sections' count: it covers unresolved work only. */
+  resultUnresolvedScope: string;
   viewToggleLabel: string;
   tableCaption: string;
   colSelect: string;
@@ -688,8 +697,15 @@ type OperationsVocabularyCopy = {
   clearOverviewLink: string;
   noMatchTitle: string;
   noMatchBody: string;
+  resetFilters: string;
+  /** A quiet line: nothing unresolved, resolved history is listed. Never a panel. */
+  quietNoActive: string;
+  /** One compact line for the grouped view when both active sections are empty. */
+  sectionEmptyActive: string;
   unconfirmedTitle: string;
   unconfirmedBody: string;
+  /** Empty, but the last check did not license "clear" (partial, stale, unreadable resolved count). */
+  unconfirmedCheckBody: string;
   restrictedTitle: string;
   restricted: Record<OpsRestrictedKey, string>;
   degradedSummary: string;
@@ -720,6 +736,9 @@ type OperationsVocabularyCopy = {
     failedGeneric: string;
   };
   resolveNoteRequiredHint: string;
+  resolveNoteHelper: string;
+  resolveNoteCounter: string;
+  resolveNoteTooLong: string;
   suppressReasonTooShort: string;
   /** Refusal and failure copy, one sentence per distinct fact. */
   errors: {
@@ -895,8 +914,10 @@ const OPERATIONS_VOCAB_EN: OperationsVocabularyCopy = {
   filterOwnerLabel: "Filter by who owns the condition",
   filterSortLabel: "Sort conditions",
   filterSlaLabel: "Filter by time commitment",
+  statusAll: "All",
+  statusUnresolved: "Unresolved",
   statusUnresolvedDefault: "Unresolved (default)",
-  statusAll: "All, including resolved",
+  statusSilencedOption: "Silenced (monitoring)",
   anySeverity: "Any severity",
   anySource: "Any source",
   anyCommitment: "Any commitment",
@@ -911,6 +932,8 @@ const OPERATIONS_VOCAB_EN: OperationsVocabularyCopy = {
   resultSourceOne: "1 source",
   resultSources: "{n} sources",
   resultAllStatuses: "all statuses",
+  resultFiltered: "filtered",
+  resultUnresolvedScope: "unresolved",
   viewToggleLabel: "How to show the conditions",
   tableCaption: "Operational conditions in this workspace",
   colSelect: "Select",
@@ -926,7 +949,7 @@ const OPERATIONS_VOCAB_EN: OperationsVocabularyCopy = {
   openDetails: "Open details",
   changeOwner: "Change owner",
   stopNotifyingAbout: "Stop notifying about this",
-  observedInChecks: "Observed in {n} checks",
+  observedInChecks: "Occurred {n} times",
   bulkRegionLabel: "Actions for the selected conditions",
   bulkSelectedOne: "1 condition selected",
   bulkSelectedMany: "{n} conditions selected",
@@ -940,14 +963,19 @@ const OPERATIONS_VOCAB_EN: OperationsVocabularyCopy = {
   saveView: "Save this view",
   loadingConditions: "Loading operational conditions…",
   clearTitle: "Workspace operations are clear",
-  clearBody: "There are no unresolved operational conditions requiring action in this workspace.",
+  clearBody: "No operational conditions have been recorded in this workspace.",
   clearEvidenceLink: "Evidence library",
   clearOverviewLink: "Workspace overview",
-  noMatchTitle: "No operational conditions match these filters",
-  noMatchBody: "This workspace may still have unresolved work. Widen the filters to see it.",
+  noMatchTitle: "No conditions match these filters.",
+  noMatchBody: "Reset the filters to see every condition in this workspace.",
+  resetFilters: "Reset filters",
+  quietNoActive: "Nothing needs action right now. Resolved history is listed below.",
+  sectionEmptyActive: "Nothing needs action or is being monitored right now.",
   unconfirmedTitle: "No conditions were returned, but this workspace's status is unconfirmed",
   unconfirmedBody:
     "The queue summary could not be read, so this is not an all-clear. Refresh to check again.",
+  unconfirmedCheckBody:
+    "The last check did not confirm that this workspace is clear, so this is not an all-clear. Refresh to check again.",
   restrictedTitle: "Operations isn't available for this workspace",
   restricted: {
     not_included:
@@ -992,6 +1020,9 @@ const OPERATIONS_VOCAB_EN: OperationsVocabularyCopy = {
     failedGeneric: "The check couldn't be completed.",
   },
   resolveNoteRequiredHint: "Write a resolution note to enable Resolve.",
+  resolveNoteHelper: "Add a short conclusion so future reviewers know why this condition was closed.",
+  resolveNoteCounter: "{n} of {max} characters",
+  resolveNoteTooLong: "Shorten the note to {max} characters or fewer.",
   suppressReasonTooShort: "Write a reason of at least 3 characters to enable this.",
   errors: {
     checkTemporary: "Couldn't start a new check. Try again shortly.",
@@ -1197,8 +1228,10 @@ const OPERATIONS_VOCAB_DE: OperationsVocabularyCopy = {
   filterOwnerLabel: "Nach zuständiger Person filtern",
   filterSortLabel: "Zustände sortieren",
   filterSlaLabel: "Nach Zeitzusage filtern",
+  statusAll: "Alle",
+  statusUnresolved: "Ungelöst",
   statusUnresolvedDefault: "Ungelöst (Standard)",
-  statusAll: "Alle, einschließlich behobener",
+  statusSilencedOption: "Stummgeschaltet (Beobachtung)",
   anySeverity: "Jeder Schweregrad",
   anySource: "Jede Quelle",
   anyCommitment: "Jede Zusage",
@@ -1213,6 +1246,8 @@ const OPERATIONS_VOCAB_DE: OperationsVocabularyCopy = {
   resultSourceOne: "1 Quelle",
   resultSources: "{n} Quellen",
   resultAllStatuses: "alle Status",
+  resultFiltered: "gefiltert",
+  resultUnresolvedScope: "ungelöst",
   viewToggleLabel: "Darstellung der Zustände",
   tableCaption: "Betriebliche Zustände in diesem Arbeitsbereich",
   colSelect: "Auswählen",
@@ -1228,7 +1263,7 @@ const OPERATIONS_VOCAB_DE: OperationsVocabularyCopy = {
   openDetails: "Details öffnen",
   changeOwner: "Zuständigkeit ändern",
   stopNotifyingAbout: "Benachrichtigungen dazu stoppen",
-  observedInChecks: "In {n} Prüfungen beobachtet",
+  observedInChecks: "{n}-mal aufgetreten",
   bulkRegionLabel: "Aktionen für die ausgewählten Zustände",
   bulkSelectedOne: "1 Zustand ausgewählt",
   bulkSelectedMany: "{n} Zustände ausgewählt",
@@ -1242,14 +1277,19 @@ const OPERATIONS_VOCAB_DE: OperationsVocabularyCopy = {
   saveView: "Diese Ansicht speichern",
   loadingConditions: "Betriebliche Zustände werden geladen…",
   clearTitle: "Im Arbeitsbereich ist alles in Ordnung",
-  clearBody: "In diesem Arbeitsbereich gibt es keine ungelösten betrieblichen Zustände, die eine Aktion erfordern.",
+  clearBody: "In diesem Arbeitsbereich wurden keine betrieblichen Zustände erfasst.",
   clearEvidenceLink: "Beweisbibliothek",
   clearOverviewLink: "Arbeitsbereichsübersicht",
-  noMatchTitle: "Keine betrieblichen Zustände entsprechen diesen Filtern",
-  noMatchBody: "Dieser Arbeitsbereich kann dennoch ungelöste Arbeit haben. Erweitern Sie die Filter, um sie zu sehen.",
+  noMatchTitle: "Keine Zustände entsprechen diesen Filtern.",
+  noMatchBody: "Setzen Sie die Filter zurück, um alle Zustände in diesem Arbeitsbereich zu sehen.",
+  resetFilters: "Filter zurücksetzen",
+  quietNoActive: "Derzeit ist nichts zu tun. Der Verlauf behobener Zustände steht unten.",
+  sectionEmptyActive: "Derzeit ist nichts zu tun und nichts wird beobachtet.",
   unconfirmedTitle: "Es wurden keine Zustände zurückgegeben, aber der Status dieses Arbeitsbereichs ist unbestätigt",
   unconfirmedBody:
     "Die Übersicht konnte nicht gelesen werden, daher ist dies keine Entwarnung. Aktualisieren Sie, um erneut zu prüfen.",
+  unconfirmedCheckBody:
+    "Die letzte Prüfung hat nicht bestätigt, dass dieser Arbeitsbereich ohne Befund ist, daher ist dies keine Entwarnung. Aktualisieren Sie, um erneut zu prüfen.",
   restrictedTitle: "Betrieb ist für diesen Arbeitsbereich nicht verfügbar",
   restricted: {
     not_included:
@@ -1295,6 +1335,9 @@ const OPERATIONS_VOCAB_DE: OperationsVocabularyCopy = {
     failedGeneric: "Die Prüfung konnte nicht abgeschlossen werden.",
   },
   resolveNoteRequiredHint: "Schreiben Sie eine Abschlussnotiz, um „Beheben“ zu aktivieren.",
+  resolveNoteHelper: "Fügen Sie ein kurzes Fazit hinzu, damit spätere Prüfer wissen, warum dieser Zustand geschlossen wurde.",
+  resolveNoteCounter: "{n} von {max} Zeichen",
+  resolveNoteTooLong: "Kürzen Sie die Notiz auf höchstens {max} Zeichen.",
   suppressReasonTooShort: "Schreiben Sie eine Begründung mit mindestens 3 Zeichen, um dies zu aktivieren.",
   errors: {
     checkTemporary: "Eine neue Prüfung konnte nicht gestartet werden. Versuchen Sie es in Kürze erneut.",
@@ -1501,8 +1544,10 @@ const OPERATIONS_VOCAB_AR: OperationsVocabularyCopy = {
   filterOwnerLabel: "التصفية حسب المسؤول عن الحالة",
   filterSortLabel: "ترتيب الحالات",
   filterSlaLabel: "التصفية حسب الالتزام الزمني",
+  statusAll: "الكل",
+  statusUnresolved: "غير محلولة",
   statusUnresolvedDefault: "غير محلولة (افتراضي)",
-  statusAll: "الكل، بما في ذلك المحلولة",
+  statusSilencedOption: "مُسكتة (قيد المراقبة)",
   anySeverity: "أي خطورة",
   anySource: "أي مصدر",
   anyCommitment: "أي التزام",
@@ -1517,6 +1562,8 @@ const OPERATIONS_VOCAB_AR: OperationsVocabularyCopy = {
   resultSourceOne: "مصدر واحد",
   resultSources: "{n} مصادر",
   resultAllStatuses: "كل الحالات",
+  resultFiltered: "مُصفّاة",
+  resultUnresolvedScope: "غير المحلولة",
   viewToggleLabel: "طريقة عرض الحالات",
   tableCaption: "الحالات التشغيلية في مساحة العمل هذه",
   colSelect: "تحديد",
@@ -1532,7 +1579,7 @@ const OPERATIONS_VOCAB_AR: OperationsVocabularyCopy = {
   openDetails: "فتح التفاصيل",
   changeOwner: "تغيير المسؤول",
   stopNotifyingAbout: "إيقاف الإشعارات بشأن هذه الحالة",
-  observedInChecks: "رُصدت في {n} فحوصات",
+  observedInChecks: "حدثت {n} مرات",
   bulkRegionLabel: "إجراءات الحالات المحددة",
   bulkSelectedOne: "حالة واحدة محددة",
   bulkSelectedMany: "{n} حالات محددة",
@@ -1546,13 +1593,17 @@ const OPERATIONS_VOCAB_AR: OperationsVocabularyCopy = {
   saveView: "حفظ طريقة العرض هذه",
   loadingConditions: "جارٍ تحميل الحالات التشغيلية…",
   clearTitle: "عمليات مساحة العمل سليمة",
-  clearBody: "لا توجد حالات تشغيلية غير محلولة تتطلب إجراءً في مساحة العمل هذه.",
+  clearBody: "لم تُسجَّل أي حالات تشغيلية في مساحة العمل هذه.",
   clearEvidenceLink: "مكتبة الأدلة",
   clearOverviewLink: "نظرة عامة على مساحة العمل",
-  noMatchTitle: "لا توجد حالات تشغيلية تطابق عوامل التصفية هذه",
-  noMatchBody: "قد تظل في مساحة العمل هذه أعمال غير محلولة. وسّع عوامل التصفية لرؤيتها.",
+  noMatchTitle: "لا توجد حالات تطابق عوامل التصفية هذه.",
+  noMatchBody: "أعد ضبط عوامل التصفية لرؤية كل الحالات في مساحة العمل هذه.",
+  resetFilters: "إعادة ضبط عوامل التصفية",
+  quietNoActive: "لا شيء يتطلب إجراءً الآن. سجل الحالات المحلولة مدرج أدناه.",
+  sectionEmptyActive: "لا شيء يتطلب إجراءً أو قيد المراقبة الآن.",
   unconfirmedTitle: "لم تُعرض أي حالات، لكن وضع مساحة العمل هذه غير مؤكد",
   unconfirmedBody: "تعذّرت قراءة ملخص قائمة الانتظار، لذا هذا ليس تأكيدًا بالسلامة. حدّث الصفحة للتحقق مجددًا.",
+  unconfirmedCheckBody: "لم يؤكد الفحص الأخير خلو مساحة العمل هذه من الحالات، لذا هذا ليس تأكيدًا بالسلامة. حدّث الصفحة للتحقق مجددًا.",
   restrictedTitle: "العمليات غير متاحة لمساحة العمل هذه",
   restricted: {
     not_included:
@@ -1594,6 +1645,9 @@ const OPERATIONS_VOCAB_AR: OperationsVocabularyCopy = {
     failedGeneric: "تعذّر إكمال الفحص.",
   },
   resolveNoteRequiredHint: "اكتب ملاحظة الحل لتفعيل «حلّ».",
+  resolveNoteHelper: "أضف خلاصة قصيرة ليعرف المراجعون لاحقًا سبب إغلاق هذه الحالة.",
+  resolveNoteCounter: "{n} من {max} حرفًا",
+  resolveNoteTooLong: "اختصر الملاحظة إلى {max} حرفًا أو أقل.",
   suppressReasonTooShort: "اكتب سببًا من 3 أحرف على الأقل لتفعيل هذا.",
   errors: {
     checkTemporary: "تعذّر بدء فحص جديد. حاول مرة أخرى بعد قليل.",
@@ -1889,7 +1943,7 @@ const OPERATIONS_DETAIL_EN: OperationsDetailCopy = {
       "— the most recent check could not reach this source, so this is the last confirmed value.",
     factFirstSeen: "First seen",
     factLatestOccurrence: "Latest occurrence",
-    factSourceObservations: "Source observations",
+    factSourceObservations: "Occurrences",
     factTimeCommitment: "Time commitment",
     due: "due {when}",
     wasDue: "was due {when}",
@@ -2062,7 +2116,7 @@ const OPERATIONS_DETAIL_DE: OperationsDetailCopy = {
       "– die letzte Prüfung konnte diese Quelle nicht erreichen, daher ist dies der zuletzt bestätigte Wert.",
     factFirstSeen: "Zuerst gesehen",
     factLatestOccurrence: "Letztes Auftreten",
-    factSourceObservations: "Quellbeobachtungen",
+    factSourceObservations: "Vorkommen",
     factTimeCommitment: "Zeitzusage",
     due: "fällig {when}",
     wasDue: "war fällig {when}",
@@ -2236,7 +2290,7 @@ const OPERATIONS_DETAIL_AR: OperationsDetailCopy = {
     metricStaleNote: "— تعذّر على آخر فحص الوصول إلى هذا المصدر، لذا هذه آخر قيمة مؤكَّدة.",
     factFirstSeen: "أول ظهور",
     factLatestOccurrence: "آخر حدوث",
-    factSourceObservations: "مرات الرصد من المصدر",
+    factSourceObservations: "مرات الحدوث",
     factTimeCommitment: "الالتزام الزمني",
     due: "مستحقة {when}",
     wasDue: "كانت مستحقة {when}",

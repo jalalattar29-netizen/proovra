@@ -436,6 +436,11 @@ export const DEDICATED_SOURCE_EVENT_TYPES: Readonly<Record<string, string>> =
     // `review.escalation` for HIGH/CRITICAL escalations; a WARNING escalation
     // lives in the reviewer escalation queue, which is its owner.
     reviewer_escalation_created: "review.escalation",
+    // `upload-reconciliation.service.ts` records ONE condition per stalled
+    // upload (`capture.upload_stalled`) at the transition, then emits this
+    // event for the security log only. The per-workspace bridge row it used to
+    // become named no upload and was filed as an intake delivery failure.
+    upload_stalled: "capture.upload_stalled",
     // `adaptive-auth.service.ts` emits it inside `decideAdaptiveAuth`, whose
     // only caller — `runtimeAdaptiveGate` — records `identity.runtime_block`
     // for the same BLOCK decision.
@@ -874,11 +879,6 @@ export const CLASSIFIED_SECURITY_EVENTS: Readonly<
     runbookSlug: "stuck-upload",
   },
   upload_session_resume_failed: {
-    sourceId: "intake.delivery_failed",
-    category: "UPLOAD",
-    runbookSlug: "stuck-upload",
-  },
-  upload_stalled: {
     sourceId: "intake.delivery_failed",
     category: "UPLOAD",
     runbookSlug: "stuck-upload",

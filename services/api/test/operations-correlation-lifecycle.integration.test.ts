@@ -179,15 +179,17 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
     it("a PER-WORKSPACE source stays ONE condition however deep the queue", async () => {
       // 200 observations of the same backlog is one operational fact seen 200
       // times, and this is where "one root-cause incident is correct" applies.
+      // (2026-10-14) A backlog is a STATE source: re-observing the same live
+      // state is a check, not a new occurrence — 200 checks are one occurrence.
       await emitBacklog(A.teamId, 200);
       const rows = await prisma.operationalIncident.findMany({
         where: { teamId: A.teamId, category: "REPORT" },
       });
       expect(rows).toHaveLength(1);
-      expect(rows[0].occurrenceCount).toBe(200);
+      expect(rows[0].occurrenceCount).toBe(1);
     }, 60_000);
 
-    it("a repeated occurrence INCREMENTS rather than inserting", async () => {
+    it("a repeated observation of a live STATE updates the row rather than inserting or counting", async () => {
       await emitProviderOutage(A.teamId, 1);
       const first = await prisma.operationalIncident.findFirstOrThrow({
         where: { teamId: A.teamId },
@@ -199,7 +201,9 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
         where: { teamId: A.teamId },
       });
       expect(again.id).toBe(first.id);
-      expect(again.occurrenceCount).toBe(2);
+      // (2026-10-14) A missing timestamp is a STATE of the record: seeing it
+      // again is a check, not a second occurrence.
+      expect(again.occurrenceCount).toBe(1);
       expect(again.lastSeenAtUtc.getTime()).toBeGreaterThanOrEqual(
         first.lastSeenAtUtc.getTime(),
       );

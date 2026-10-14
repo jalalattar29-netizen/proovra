@@ -132,6 +132,7 @@ import {
   suppressIncident,
   unsuppressIncident,
 } from "../services/observability/incident.service.js";
+import { resolveConditionSubjectAvailability } from "../services/operations/condition-presentation.service.js";
 import {
   buildCanonicalJobId,
   INCIDENT_CATEGORIES,
@@ -1275,12 +1276,18 @@ export async function opsRoutes(app: FastifyInstance) {
       const page = rows.slice(0, limit);
       const last = page[page.length - 1];
       const nameById = new Map(readable.map((t) => [t.id, t.name]));
+      const orgRows = page.map((row) => ({
+        ...projectIncident(row),
+        workspaceId: row.teamId,
+        workspaceName: row.teamId ? nameById.get(row.teamId) ?? null : null,
+      }));
+      // Each workspace's subjects confirmed within that workspace's own scope.
+      await resolveConditionSubjectAvailability(
+        orgRows.map((r) => ({ teamId: r.teamId, relatedEvidenceId: r.relatedEvidenceId, subject: r.subject })),
+        prisma,
+      );
       return reply.code(200).send({
-        incidents: page.map((row) => ({
-          ...projectIncident(row),
-          workspaceId: row.teamId,
-          workspaceName: row.teamId ? nameById.get(row.teamId) ?? null : null,
-        })),
+        incidents: orgRows,
         pagination: {
           nextCursor:
             rows.length > limit && last
@@ -1459,6 +1466,11 @@ export async function opsRoutes(app: FastifyInstance) {
       const slaNow = slaNowForFilter;
       const projectedRows = page.incidents.map((row) =>
         withSla(projectIncident(row), slaCycles, slaNow),
+      );
+      // WHAT each condition is about, confirmed for THIS workspace in one read.
+      await resolveConditionSubjectAvailability(
+        projectedRows.map((r) => ({ teamId: r.teamId, relatedEvidenceId: r.relatedEvidenceId, subject: r.subject })),
+        prisma,
       );
       /**
        * THE FILTER AND THE BADGE AGREE, BY CONSTRUCTION.
@@ -1938,6 +1950,8 @@ export async function opsRoutes(app: FastifyInstance) {
           // workspace; `requireOpsActor` refuses a suspended or revoked one.
           workspaceCanMutate: true,
           incidentStatus: detail.status,
+          // A record that is gone is never linked to.
+          subjectAvailable: detail.subject.state !== "UNAVAILABLE",
         },
       );
 
@@ -1956,7 +1970,12 @@ export async function opsRoutes(app: FastifyInstance) {
 
   const TeamIdOnly = z.object({ teamId: z.string().uuid() });
   const ResolveBody = TeamIdOnly.extend({
-    resolutionNote: z.string().min(1).max(400).optional(),
+    // Trimmed; whitespace-only is NO note (a note-required source then answers
+    // RESOLUTION_NOTE_REQUIRED). Bounded by the column (VARCHAR(400)).
+    resolutionNote: z.preprocess(
+      (v) => (typeof v === "string" ? (v.trim() === "" ? undefined : v.trim()) : v),
+      z.string().min(1).max(400).optional(),
+    ),
   });
 
   function handleIncidentError(reply: FastifyReply, err: unknown): boolean {

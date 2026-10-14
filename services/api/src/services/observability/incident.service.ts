@@ -78,6 +78,15 @@ import {
   resolveIncidentSourceWorkspace,
 } from "./incident-scope.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import {
+  conditionMessageFor,
+  conditionSubjectFor,
+  conditionTechnicalReferencesFor,
+  conditionTextFor,
+  presentTimelineMessage,
+  resolveConditionSubjectAvailability,
+} from "../operations/condition-presentation.service.js";
+import type { ConditionSubject, ConditionTechnicalReference } from "@proovra/shared";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { reportUnregisteredConditionSource } from "../operations/unregistered-condition-diagnostic.js";
 import { incidentStatusFilterWhere } from "../operations/incident-open-statuses.js";
@@ -561,6 +570,7 @@ export async function recordIncident(
   // against the new state. Without it an observation decided on OPEN could
   // overwrite a resolution or acknowledgement written a moment earlier.
   let casAttempts = 0;
+  let stateReobservation = false;
   while (existing) {
     // ---------------------------------------------------------------------
     // ONE AUTHORITY DECIDES WHAT AN OBSERVATION MAY DO.
@@ -593,6 +603,15 @@ export async function recordIncident(
       recurrencePolicy: lifecycleForSourceId(existing.sourceId ?? input.sourceId)?.recurrencePolicy ?? null,
     });
     const reopening = decisionIsReopen(decision);
+    // A STATE source re-checking a condition has observed nothing NEW unless
+    // the recurrence decision reopens it: the row's freshness, text and metric
+    // are refreshed, but the occurrence is not counted again and no history
+    // event is written. A genuinely new occurrence of a state (it recovered,
+    // then came back) is exactly what the decision above reopens, once; a
+    // resolution the decision does not undo is not re-counted by every check.
+    stateReobservation =
+      !reopening &&
+      lifecycleForSourceId(existing.sourceId ?? input.sourceId)?.observationModel === "STATE";
 
     // ---------------------------------------------------------------------
     // THE CURRENT VALUE IS REWRITTEN. THE IDENTITY IS NOT.
@@ -633,7 +652,7 @@ export async function recordIncident(
 
     const data: Record<string, unknown> = {
       lastSeenAtUtc: new Date(),
-      occurrenceCount: { increment: 1 },
+      ...(stateReobservation ? {} : { occurrenceCount: { increment: 1 } }),
       title: safeTitle,
       safeSummary,
       // Re-stamped with the text: the code always describes the stored words.
@@ -727,7 +746,9 @@ export async function recordIncident(
     bump(
       reopening
         ? "operational_incident_reopened"
-        : "operational_incident_increment",
+        : stateReobservation
+          ? "operational_incident_reobserved"
+          : "operational_incident_increment",
     );
     break;
   }
@@ -735,6 +756,12 @@ export async function recordIncident(
     // The row the observation raced vanished between reads. Never report an
     // observation as recorded when nothing was written.
     throw new Error("operational_incident_observation_lost");
+  }
+
+  // A state re-observation changed nothing anyone needs to read about: no
+  // event, no notification of "it happened again" (it did not).
+  if (stateReobservation) {
+    return { created, incident: row };
   }
 
   // Persist the event-history row.
@@ -1903,6 +1930,18 @@ export type IncidentProjection = {
     params: Record<string, unknown> | null;
     titleSource: "SOURCE_LABEL" | "CONDITION";
   };
+  /**
+   * WHAT THE CONDITION IS ABOUT — resolved by the server, never inferred by a
+   * client from a signal code. A record-backed subject is confirmed for this
+   * workspace by `resolveConditionSubjectAvailability` on list and detail
+   * reads; a deleted or missing one is UNAVAILABLE (truthful text, no link).
+   */
+  subject: ConditionSubject;
+  /**
+   * The raw codes and ids, for support only — the one place a signal code
+   * reaches a reader, labelled as a technical reference.
+   */
+  technicalReferences: ConditionTechnicalReference[];
   fingerprint: string;
   occurrenceCount: number;
   firstSeenAtUtc: string;
@@ -2023,6 +2062,9 @@ export function projectIncident(
     category: i.category,
     fingerprint: i.fingerprint,
   });
+  const message = conditionMessageFor(i);
+  const text = conditionTextFor(message);
+  const titleSource = conditionTitleSource({ lifecycle, match, diagnostic: null });
   return {
     id: i.id,
     // ADM-010 — the tenant this condition belongs to. See the type comment.
@@ -2076,16 +2118,23 @@ export function projectIncident(
     // same holds for EVENT sources). A
     // condition no source claims keeps its stored title. The rows already in
     // production are repaired by this read: no migration, no stored rewrite.
-    title: conditionTitle({ lifecycle, match, diagnostic: null }, i.title),
-    safeSummary: i.safeSummary,
+    // THE CURRENT REVIEWED SENTENCE (2026-10-14). A row whose message is valid
+    // — stored, or proven by its identity for a legacy bridge row — reads as
+    // the catalogue's English now, not as whatever text was stored when it was
+    // written (which could name an internal code). A SOURCE_LABEL title stays
+    // the source's own label.
+    title:
+      titleSource === "CONDITION" && text
+        ? text.title
+        : conditionTitle({ lifecycle, match, diagnostic: null }, i.title),
+    safeSummary: text?.summary ?? i.safeSummary,
     message: {
-      code: i.messageCode ?? null,
-      params:
-        i.messageParams && typeof i.messageParams === "object" && !Array.isArray(i.messageParams)
-          ? (i.messageParams as Record<string, unknown>)
-          : null,
-      titleSource: conditionTitleSource({ lifecycle, match, diagnostic: null }),
+      code: message?.code ?? null,
+      params: message?.params ?? null,
+      titleSource,
     },
+    subject: conditionSubjectFor(i, lifecycle.sourceId, message),
+    technicalReferences: conditionTechnicalReferencesFor(i, lifecycle.sourceId, message),
     fingerprint: i.fingerprint,
     occurrenceCount: i.occurrenceCount,
     firstSeenAtUtc: i.firstSeenAtUtc.toISOString(),
@@ -2125,7 +2174,8 @@ export function projectIncident(
 export type IncidentTimelineEntry = {
   id: string;
   eventType: string;
-  safeMessage: string;
+  /** Null when the stored text was the bridge's old machine summary (see presentTimelineMessage). */
+  safeMessage: string | null;
   occurredAtUtc: string;
 };
 
@@ -2171,8 +2221,13 @@ export async function getIncidentDetail(
   const timelineComplete = events.length <= TIMELINE_BOUND;
   const bounded = timelineComplete ? events : events.slice(0, TIMELINE_BOUND);
 
+  const projected = projectIncident(incident);
+  await resolveConditionSubjectAvailability(
+    [{ teamId: incident.teamId, relatedEvidenceId: incident.relatedEvidenceId, subject: projected.subject }],
+    client,
+  );
   return {
-    ...projectIncident(incident),
+    ...projected,
     // `metadataJson` is deliberately NOT projected. It is sanitised at write
     // time, but "sanitised" is a property somebody has to keep true on every
     // future writer, and `safeMessage` is the bounded field that was designed
@@ -2181,7 +2236,7 @@ export async function getIncidentDetail(
     timeline: bounded.map((e) => ({
       id: e.id,
       eventType: e.eventType,
-      safeMessage: e.safeMessage,
+      safeMessage: presentTimelineMessage(e.safeMessage),
       occurredAtUtc: e.createdAt.toISOString(),
     })),
     timelineComplete,

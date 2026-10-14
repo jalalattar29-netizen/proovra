@@ -1271,6 +1271,44 @@
   margin: 0 0 4px;
 }
 
+/* THE GROUPED VIEW'S HIERARCHY (2026-10-14). "Action required" is the
+   primary content, "Monitoring" secondary, "Resolved in the last 7 days"
+   quiet reference. One type scale, three weights of attention — no new
+   component, no new font. */
+.opsw-section--primary .opsw-section__title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+.opsw-section--secondary .opsw-section__title {
+  font-size: 0.9375rem;
+  color: var(--ink-secondary);
+}
+.opsw-section--quiet {
+  gap: 6px;
+  margin-block-start: 22px;
+  padding-block-start: 14px;
+  border-block-start: 1px solid var(--border-subtle);
+}
+.opsw-section--quiet .opsw-section__title {
+  font: var(--font-label);
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* An EMPTY section is one line, not a block: no heading, no hint, no card. */
+.opsw-section-collapsed {
+  margin-block-start: 10px;
+}
+.opsw-section-collapsed > .opsw-muted {
+  margin: 0;
+}
+
+/* State B — nothing unresolved, history listed below. One quiet line. */
+.opsw-quiet-line {
+  margin: 0 0 8px;
+}
+
 /* OPS-029 / OPS-030 — the note a Resolve needs and the reason a suppression
    needs, directly above the actions they gate. */
 .opsw-drawer__form {

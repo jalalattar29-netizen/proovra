@@ -131,7 +131,7 @@ async function settleN(n = 8) {
 
 /* ------------------------------------------------------------- the resolver */
 
-test("conditionTitle / conditionSummary resolve a code in de and ar, and keep English stored", () => {
+test("conditionTitle / conditionSummary resolve a code in every locale, English included", () => {
   const de = OPS.opsCopyFor("de");
   const ar = OPS.opsCopyFor("ar");
   const en = OPS.opsCopyFor("en");
@@ -140,8 +140,14 @@ test("conditionTitle / conditionSummary resolve a code in de and ar, and keep En
   assert.match(OPS.conditionSummary(row, de), /9 aufeinanderfolgenden/);
   assert.equal(OPS.conditionTitle(row, ar), "عُطّلت وجهة Webhook بعد إخفاقات متكررة");
   assert.match(OPS.conditionSummary(row, ar), /\u20689\u2069/, "the Arabic count is isolated");
-  assert.equal(OPS.conditionTitle(row, en), CODED.title);
-  assert.equal(OPS.conditionSummary(row, en), CODED.safeSummary);
+  // 2026-10-14 — English renders the reviewed catalogue too (the stored text
+  // is only the fallback for a row with no valid code), so a row stored
+  // before a sentence was reviewed reads the current sentence.
+  assert.equal(OPS.conditionTitle(row, en), "Webhook destination disabled after repeated failures");
+  assert.equal(
+    OPS.conditionSummary(row, en),
+    "Automation stopped delivering to this webhook destination after 9 consecutive failed deliveries. Fix the receiving endpoint, then re-enable the destination in Automation.",
+  );
 });
 
 test("a legacy row, an unknown code and malformed params keep the stored text — never a raw key", () => {

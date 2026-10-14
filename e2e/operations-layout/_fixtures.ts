@@ -1248,9 +1248,11 @@ export async function openOperations(
   await page.waitForLoadState("networkidle").catch(() => undefined);
 
   /*
-   * THE WORKBENCH OPENS GROUPED, AND THIS PROJECT MEASURES ROWS.
+   * THIS PROJECT MEASURES ROWS, SO IT ENSURES THE FLAT LIST.
    *
-   * `36cc44c0e` (2026-08-26) made the grouped queue the default view. Every
+   * The flat "All conditions" list is the default again since 2026-10-14
+   * (with lifecycle ALL); pressing it when already selected is harmless.
+   * From `36cc44c0e` (2026-08-26) the grouped queue was the default. Every
    * per-row instrument this project owns — the row menu, the checkbox, the
    * SLA badge, the inspector, the owner cell — lives in `IncidentSurface`,
    * which renders only in the FLAT view. Nothing in the suite switched, so
@@ -1521,9 +1523,10 @@ export function capabilitiesFor(context: OpsContext): Record<string, boolean> {
 /**
  * Select the GROUPED queue.
  *
- * `openOperations` establishes the flat list, because that is the view this
- * project was written against. A test about the grouped renderer says so
- * with this, rather than depending on which view happens to be the default.
+ * The flat "All conditions" list is the product default (2026-10-14), and
+ * `openOperations` confirms it. A test about the grouped renderer says so
+ * with this (it writes `?view=grouped`), rather than depending on which view
+ * happens to be the default.
  */
 export async function showGroupedQueue(page: Page): Promise<void> {
   const grouped = page.locator('[data-ops-view="grouped"]');

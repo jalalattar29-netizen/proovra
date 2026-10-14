@@ -50,6 +50,7 @@ import { IconClose, IconExternal, IconSpinner } from "./icons";
 import { useDialogFocusTrap } from "../../../../components/ui/useDialogFocusTrap";
 import { fillOperationsCopy, useOpsCopy, useOpsLocale, useOpsNumber, useOpsTime } from "../_lib/copy";
 import { localizedGroupTitle, localizedRecordTitle } from "../_lib/groupTitle";
+import { conditionSubjectLabel } from "@proovra/shared/i18n";
 
 export function GroupInspector({
   group,
@@ -289,6 +290,13 @@ export function GroupInspector({
                   data-ops-affected-row={r.conditionId}
                 >
                   <span className="opsw-affected__title">{localizedRecordTitle(r, locale)}</span>
+                  {/* WHAT this member is about, confirmed for this workspace by
+                      the server — never a signal code. */}
+                  {conditionSubjectLabel(locale, r.subject ?? null) ? (
+                    <span className="opsw-affected__subject opsw-muted" data-ops-affected-subject={r.subject!.state}>
+                      {conditionSubjectLabel(locale, r.subject ?? null)}
+                    </span>
+                  ) : null}
                   <span className="opsw-affected__meta">
                     <AppStatusBadge tone={severityEntry(r.severity, copy).tone}>
                       {severityEntry(r.severity, copy).label}
@@ -313,7 +321,7 @@ export function GroupInspector({
                       type="button"
                       className="app-ghost-action opsw-affected__open"
                       onClick={() => onOpenCondition(r.conditionId)}
-                      aria-label={`${copy.openCondition}: ${r.title}`}
+                      aria-label={`${copy.openCondition}: ${localizedRecordTitle(r, locale)}`}
                       data-ops-affected-open={r.conditionId}
                     >
                       {copy.openCondition}
@@ -324,7 +332,7 @@ export function GroupInspector({
                       Evidence; an aggregate condition names nothing, and a
                       link to nowhere is worse than no link.
                     */}
-                    {r.evidenceId && canOpenRecords ? (
+                    {r.evidenceId && canOpenRecords && r.subject?.state !== "UNAVAILABLE" ? (
                       <>
                         <span aria-hidden="true">·</span>
                         <Link

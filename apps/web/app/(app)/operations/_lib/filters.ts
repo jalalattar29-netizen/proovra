@@ -56,7 +56,7 @@ export type FilterState = {
   /**
    * One stored status, the canonical unresolved set (UNRESOLVED = OPEN +
    * ACKNOWLEDGED + SUPPRESSED), or ALL (history included). Never "": an
-   * absent status is the server default, UNRESOLVED, and the state says so.
+   * absent `?status=` is the page default, ALL, and the state says so.
    */
   status: IncidentStatusFilter;
   severity: IncidentSeverity | "";
@@ -67,20 +67,25 @@ export type FilterState = {
 };
 
 /**
- * The default view is UNRESOLVED work (2026-10-12).
+ * The default view is EVERY lifecycle state (2026-10-14).
  *
- * The SAME predicate every KPI counts with: OPEN, ACKNOWLEDGED or SUPPRESSED
- * (`UNRESOLVED_INCIDENT_STATUSES`). It used to be "" (every status), which
- * mixed resolved history into the queue under an "Unresolved" count, and
- * before that OPEN, which silently withheld acknowledged and suppressed work.
- * The Status control names it — "Unresolved (default)" — and "All, including
- * resolved" is one choice away.
+ * `/operations` with no query opens the flat "All conditions" list with
+ * lifecycle ALL — open, acknowledged, silenced and resolved — so a workspace
+ * whose only conditions are resolved history SEES that history instead of an
+ * empty queue under a reassuring panel. The Status control says "All", and
+ * the result count says "all statuses", so nothing is hidden by an invisible
+ * unresolved filter.
+ *
+ * The 2026-10-12 contract is kept where it belongs: every KPI card still
+ * opens the list with EXACTLY the predicate it counted (`filtersForMetric`
+ * sets UNRESOLVED explicitly), and the grouped sections are partitions of the
+ * unresolved set (see `groupsQuery`'s `sections` flag).
  *
  * An explicit `?status=` in the URL still wins — see `filtersFromParams`.
  */
 export const DEFAULT_FILTERS: FilterState = Object.freeze({
   sla: "",
-  status: "UNRESOLVED",
+  status: "ALL",
   severity: "",
   category: "",
   owner: "any",
@@ -185,7 +190,8 @@ export function filtersFromParams(
  *
  * Only non-default values are written, so the ordinary view has a clean URL
  * and a pasted link carries exactly the deviations the sender chose. An
- * ABSENT status means the default (UNRESOLVED), never "no filter".
+ * ABSENT status means the default (ALL); every narrower lifecycle — the
+ * unresolved set included — is written explicitly.
  */
 export function filtersToParams(f: FilterState): URLSearchParams {
   const p = new URLSearchParams();
@@ -197,6 +203,44 @@ export function filtersToParams(f: FilterState): URLSearchParams {
   if (f.q.trim()) p.set("q", f.q.trim());
   if (f.sort !== DEFAULT_FILTERS.sort) p.set("sort", f.sort);
   return p;
+}
+
+// ---------------------------------------------------------------------------
+// PRESENTATION — a separate dimension from the lifecycle filter (2026-10-14)
+// ---------------------------------------------------------------------------
+
+/**
+ * How the selected conditions are SHOWN: the flat "All conditions" list (the
+ * default) or grouped by source. Orthogonal to every filter above — it never
+ * changes which conditions are selected, so it is not part of `FilterState`
+ * and never reaches the API query.
+ *
+ * Carried in the URL as `?view=grouped` (the default is absent), so refresh
+ * keeps it and browser Back/Forward restores it exactly.
+ */
+export type Presentation = "flat" | "grouped";
+export const DEFAULT_PRESENTATION: Presentation = "flat";
+export const VIEW_PARAM = "view";
+
+export function presentationFromParams(params: URLSearchParams | null): Presentation {
+  return params?.get(VIEW_PARAM) === "grouped" ? "grouped" : DEFAULT_PRESENTATION;
+}
+
+/**
+ * The address for a filter state and a presentation. The drawer address
+ * (`?incident=`) is preserved when given, so changing a filter never closes
+ * a condition the operator is reading, and opening one never resets filters.
+ */
+export function operationsHref(
+  filters: FilterState,
+  presentation: Presentation,
+  incidentId?: string | null,
+): string {
+  const p = filtersToParams(filters);
+  if (presentation !== DEFAULT_PRESENTATION) p.set(VIEW_PARAM, presentation);
+  if (incidentId) p.set("incident", incidentId);
+  const qs = p.toString();
+  return qs ? `/operations?${qs}` : "/operations";
 }
 
 // ---------------------------------------------------------------------------
@@ -218,9 +262,24 @@ export const PAGE_SIZE = 50;
  * list (minus sort and paging), so the grouped and flat views select the same
  * conditions.
  */
-export function groupsQuery(input: { teamId: string; filters: FilterState }): string {
+export function groupsQuery(input: {
+  teamId: string;
+  filters: FilterState;
+  /**
+   * The grouped SECTIONS read (no narrowing filter): "Action required" and
+   * "Monitoring" are partitions of the UNRESOLVED set, so this read asks for
+   * exactly that set whatever the lifecycle default is. Under ALL a group's
+   * posture would be OPEN while its count also carried resolved members —
+   * a section count that is not what its heading says. Resolved history has
+   * its own section and its own read.
+   */
+  sections?: boolean;
+}): string {
   const p = new URLSearchParams({ teamId: input.teamId });
-  p.set("status", input.filters.status || DEFAULT_FILTERS.status);
+  p.set(
+    "status",
+    input.sections ? "UNRESOLVED" : input.filters.status || DEFAULT_FILTERS.status,
+  );
   if (input.filters.severity) p.set("severity", input.filters.severity);
   if (input.filters.category) p.set("category", input.filters.category);
   if (input.filters.owner && input.filters.owner !== "any") p.set("owner", input.filters.owner);
@@ -279,6 +338,10 @@ export function metricForFilters(f: FilterState): QueueMetricKey | null {
   if (f.severity === "WARNING" && onlySeverity) return "warning";
   if (f.owner === "me" && onlyOwner) return "assignedToMe";
   if (f.owner === "unassigned" && onlyOwner) return "unassigned";
+  // The Unresolved card's predicate is the unresolved set and nothing else.
+  // Since the default lifecycle became ALL (2026-10-14) that is a CHOSEN
+  // view, so the card that opened it shows as the one driving the queue.
+  if (f.sla === "" && f.severity === "" && f.owner === "any") return "open";
   return null;
 }
 
