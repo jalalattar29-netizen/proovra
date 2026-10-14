@@ -393,7 +393,7 @@ const OPERATIONS_EN: OperationsBaseCopy = {
   sectionMonitoring: "Monitoring",
   sectionMonitoringHint: "Acknowledged or silenced conditions that are still being checked.",
   sectionRecentlyResolved: "Resolved in the last 7 days",
-  sectionRecentlyResolvedHint: "Sources with a condition closed in the last 7 days. The Resolved count above is all-time.",
+  sectionRecentlyResolvedHint: "Closed in the last 7 days. The Resolved card above counts all time.",
   sectionEmptyAction: "Nothing needs action right now.",
   sectionEmptyMonitoring: "Nothing is being monitored.",
   sectionEmptyResolved: "Nothing was resolved in the last 7 days.",
@@ -451,7 +451,7 @@ const OPERATIONS_DE: OperationsBaseCopy = {
   sectionMonitoring: "Beobachtung",
   sectionMonitoringHint: "Bestätigte oder stummgeschaltete Zustände, die weiterhin geprüft werden.",
   sectionRecentlyResolved: "In den letzten 7 Tagen behoben",
-  sectionRecentlyResolvedHint: "Quellen mit einem in den letzten 7 Tagen geschlossenen Zustand. Die Zahl „Behoben“ oben gilt für den gesamten Zeitraum.",
+  sectionRecentlyResolvedHint: "In den letzten 7 Tagen geschlossen. Die Karte „Behoben“ oben zählt den gesamten Zeitraum.",
   sectionEmptyAction: "Derzeit ist nichts zu tun.",
   sectionEmptyMonitoring: "Derzeit wird nichts beobachtet.",
   sectionEmptyResolved: "In den letzten 7 Tagen wurde nichts behoben.",
@@ -510,7 +510,7 @@ const OPERATIONS_AR: OperationsBaseCopy = {
   sectionMonitoring: "قيد المراقبة",
   sectionMonitoringHint: "حالات مؤكَّدة أو مكتومة ما زالت قيد الفحص.",
   sectionRecentlyResolved: "حُلّت خلال آخر 7 أيام",
-  sectionRecentlyResolvedHint: "مصادر لها حالة أُغلقت خلال آخر 7 أيام. عدد «تم الحل» أعلاه يشمل كل الفترات.",
+  sectionRecentlyResolvedHint: "أُغلقت خلال آخر 7 أيام. بطاقة «تم الحل» أعلاه تحسب كل الفترات.",
   sectionEmptyAction: "لا شيء يتطلب إجراءً الآن.",
   sectionEmptyMonitoring: "لا شيء قيد المراقبة.",
   sectionEmptyResolved: "لم تُحلّ أي حالة خلال آخر 7 أيام.",
@@ -706,6 +706,18 @@ type OperationsVocabularyCopy = {
   unconfirmedBody: string;
   /** Empty, but the last check did not license "clear" (partial, stale, unreadable resolved count). */
   unconfirmedCheckBody: string;
+  /** The last check is older than the freshness window (STALE). A compact notice, never a panel. */
+  statusStaleTitle: string;
+  /** {time} is the last complete check. */
+  statusStaleBody: string;
+  /** STALE, and that last check did not see every source. {time} is when it finished. */
+  statusStaleIncompleteBody: string;
+  /** No open conditions, and the last check did not license "clear": one compact line, never a panel. */
+  notConfirmedLine: string;
+  /** The user-facing names of the sources the last check could not see. {sources} */
+  partialSourcesList: string;
+  /** Announced when a check the reader asked for finished. */
+  checkFinished: string;
   restrictedTitle: string;
   restricted: Record<OpsRestrictedKey, string>;
   degradedSummary: string;
@@ -976,6 +988,12 @@ const OPERATIONS_VOCAB_EN: OperationsVocabularyCopy = {
     "The queue summary could not be read, so this is not an all-clear. Refresh to check again.",
   unconfirmedCheckBody:
     "The last check did not confirm that this workspace is clear, so this is not an all-clear. Refresh to check again.",
+  statusStaleTitle: "Status may be out of date.",
+  statusStaleBody: "Last complete check: {time}.",
+  statusStaleIncompleteBody: "The last check finished {time} and did not see every source.",
+  notConfirmedLine: "No open conditions were returned, but the last check did not confirm this workspace.",
+  partialSourcesList: "Not checked: {sources}.",
+  checkFinished: "Check finished.",
   restrictedTitle: "Operations isn't available for this workspace",
   restricted: {
     not_included:
@@ -1290,6 +1308,12 @@ const OPERATIONS_VOCAB_DE: OperationsVocabularyCopy = {
     "Die Übersicht konnte nicht gelesen werden, daher ist dies keine Entwarnung. Aktualisieren Sie, um erneut zu prüfen.",
   unconfirmedCheckBody:
     "Die letzte Prüfung hat nicht bestätigt, dass dieser Arbeitsbereich ohne Befund ist, daher ist dies keine Entwarnung. Aktualisieren Sie, um erneut zu prüfen.",
+  statusStaleTitle: "Der Status ist möglicherweise veraltet.",
+  statusStaleBody: "Letzte vollständige Prüfung: {time}.",
+  statusStaleIncompleteBody: "Die letzte Prüfung endete {time} und hat nicht alle Quellen erfasst.",
+  notConfirmedLine: "Es wurden keine offenen Zustände zurückgegeben, aber die letzte Prüfung hat diesen Arbeitsbereich nicht bestätigt.",
+  partialSourcesList: "Nicht geprüft: {sources}.",
+  checkFinished: "Prüfung abgeschlossen.",
   restrictedTitle: "Betrieb ist für diesen Arbeitsbereich nicht verfügbar",
   restricted: {
     not_included:
@@ -1604,6 +1628,12 @@ const OPERATIONS_VOCAB_AR: OperationsVocabularyCopy = {
   unconfirmedTitle: "لم تُعرض أي حالات، لكن وضع مساحة العمل هذه غير مؤكد",
   unconfirmedBody: "تعذّرت قراءة ملخص قائمة الانتظار، لذا هذا ليس تأكيدًا بالسلامة. حدّث الصفحة للتحقق مجددًا.",
   unconfirmedCheckBody: "لم يؤكد الفحص الأخير خلو مساحة العمل هذه من الحالات، لذا هذا ليس تأكيدًا بالسلامة. حدّث الصفحة للتحقق مجددًا.",
+  statusStaleTitle: "قد يكون الوضع غير محدّث.",
+  statusStaleBody: "آخر فحص كامل: {time}.",
+  statusStaleIncompleteBody: "انتهى الفحص الأخير {time} ولم يشمل كل المصادر.",
+  notConfirmedLine: "لم تُعرض أي حالات مفتوحة، لكن الفحص الأخير لم يؤكد وضع مساحة العمل هذه.",
+  partialSourcesList: "لم يُفحص: {sources}.",
+  checkFinished: "انتهى الفحص.",
   restrictedTitle: "العمليات غير متاحة لمساحة العمل هذه",
   restricted: {
     not_included:

@@ -57,7 +57,7 @@
 
 import { prisma } from "../db.js";
 import {
-  OPERATIONS_FRESHNESS_WINDOW_MS,
+  OPERATIONS_REFRESH_DUE_MS,
   WORKSPACE_OPERATIONS_RUN_KIND,
   safeOperationsFailureCategory,
 } from "@proovra/shared-runtime";
@@ -113,7 +113,10 @@ export async function workspacesNeedingReconciliation(
   limit: number,
   now: Date,
 ): Promise<{ ids: string[]; due: number }> {
-  const cutoff = new Date(now.getTime() - OPERATIONS_FRESHNESS_WINDOW_MS);
+  // DUE BEFORE STALE (2026-10-14): a workspace is looked at again once its
+  // last run is older than the refresh age — before its picture expires — not
+  // only after it has already turned STALE.
+  const cutoff = new Date(now.getTime() - OPERATIONS_REFRESH_DUE_MS);
 
   // OPS-008 — RANKED IN SQL, OVER EVERY WORKSPACE.
   //
@@ -162,7 +165,9 @@ export async function operationsSweepCoverage(now: Date = new Date()): Promise<{
   oldestLastRunAtUtc: string | null;
   newestRunAtUtc: string | null;
 }> {
-  const cutoff = new Date(now.getTime() - OPERATIONS_FRESHNESS_WINDOW_MS);
+  // The SAME threshold the ranking selects by, so "due" here is what the
+  // next tick will pick up.
+  const cutoff = new Date(now.getTime() - OPERATIONS_REFRESH_DUE_MS);
   const [row] = await prisma.$queryRaw<
     Array<{ workspaces: bigint; due: bigint; never_run: bigint; oldest: Date | null; newest: Date | null }>
   >`

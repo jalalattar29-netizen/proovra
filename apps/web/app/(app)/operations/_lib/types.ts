@@ -385,6 +385,28 @@ export type IncidentListResponse = {
  * all-clear over a read that may have failed, which is the one thing an
  * operations surface may never do.
  */
+/** Mirrors `OperationsStatus` in @proovra/shared-runtime. */
+export type OperationsStatus = {
+  state:
+    | "ACTIVE_CONDITIONS"
+    | "CONFIRMED_CLEAR"
+    | "PARTIAL"
+    | "STALE"
+    | "CHECKING"
+    | "NEVER_CHECKED"
+    | "CHECK_FAILED"
+    | "UNAVAILABLE";
+  reason: string | null;
+  checkedAtUtc: string;
+  lastCheckAtUtc: string | null;
+  lastCompleteCheckAtUtc: string | null;
+  freshness: "FRESH" | "STALE" | "NONE";
+  failedSourceIds: string[];
+  truncatedSourceIds: string[];
+  activeCount: number | null;
+  resolvedCount: number | null;
+};
+
 export type OperationsSummary = {
   workspaceId: string;
   generatedAtUtc: string;
@@ -444,6 +466,12 @@ export type OperationsSummary = {
   readiness?: OperationsReadiness;
   /** Bounded reason the all-clear is refused. Null when it is permitted. */
   clearRefusalReason?: ClearRefusalReason | null;
+  /**
+   * THE ONE STATUS (2026-10-14), decided by the server from the same facts as
+   * `mayAssertAllClear`. Both presentations render from it; neither infers
+   * workspace health from an empty list. Absent from an older server.
+   */
+  status?: OperationsStatus;
   /** The durable run facts, for the operator-facing detail line. */
   reconciliation?: {
     startedAtUtc: string;

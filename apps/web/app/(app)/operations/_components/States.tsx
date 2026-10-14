@@ -124,8 +124,14 @@ export function NoMatchState({ onReset }: { onReset: () => void }) {
 export function UnconfirmedEmptyState({
   onRetry,
   reason = "summary",
+  busy = false,
+  showAction = true,
 }: {
   onRetry: () => void;
+  /** False when a state notice above already offers the re-check. */
+  showAction?: boolean;
+  /** A re-check or re-read is in flight: the button shows it and refuses a second press. */
+  busy?: boolean;
   /**
    * WHY "clear" is not licensed: the summary could not be read, or it was read
    * but the last check (partial, stale, a resolved count that could not be
@@ -134,6 +140,36 @@ export function UnconfirmedEmptyState({
   reason?: "summary" | "check";
 }) {
   const copy = useOpsCopy();
+  // A CHECK that did not license "clear" (partial, stale, a check that failed)
+  // is ONE compact line, never a panel: the state itself is stated by the
+  // notice above the queue, and any history the workspace has stays the
+  // primary content. Only an UNREADABLE summary — nothing is known at all —
+  // keeps the panel.
+  if (reason === "check") {
+    return (
+      <p
+        className="opsw-muted opsw-not-confirmed"
+        data-ops-empty="unconfirmed"
+        data-ops-unconfirmed-reason="check"
+        role="status"
+      >
+        <span>{copy.notConfirmedLine}</span>
+        {showAction ? " " : null}
+        {showAction ? (
+        <button
+          type="button"
+          className="app-ghost-action"
+          onClick={onRetry}
+          disabled={busy}
+          aria-busy={busy}
+          data-ops-check-now
+        >
+          {busy ? copy.refreshing : copy.checkAgain}
+        </button>
+        ) : null}
+      </p>
+    );
+  }
   return (
     <div
       className="app-empty"
@@ -142,10 +178,16 @@ export function UnconfirmedEmptyState({
       role="status"
     >
       <strong>{copy.unconfirmedTitle}</strong>
-      <p>{reason === "check" ? copy.unconfirmedCheckBody : copy.unconfirmedBody}</p>
+      <p>{copy.unconfirmedBody}</p>
       <div className="app-empty__actions">
-        <button type="button" className="app-primary-action" onClick={onRetry}>
-          {copy.refresh}
+        <button
+          type="button"
+          className="app-primary-action"
+          onClick={onRetry}
+          disabled={busy}
+          aria-busy={busy}
+        >
+          {busy ? copy.refreshing : copy.refresh}
         </button>
       </div>
     </div>
@@ -376,10 +418,15 @@ export function PartialCoverageNotice({
   truncatedCount,
   onRetry,
   retryable = true,
+  sourceNames = [],
+  busy = false,
 }: {
   failedCount: number;
   truncatedCount: number;
   onRetry?: () => void;
+  /** The user-facing names of the sources the last check could not see. */
+  sourceNames?: ReadonlyArray<string>;
+  busy?: boolean;
   /**
    * Could running the same check again plausibly succeed?
    *
@@ -405,6 +452,12 @@ export function PartialCoverageNotice({
     >
       <div>
         <strong>{what}.</strong> <span>{copy.reconcile.partialBody}</span>
+        {sourceNames.length > 0 ? (
+          <span data-ops-partial-sources>
+            {" "}
+            {copy.partialSourcesList.replace("{sources}", sourceNames.join(", "))}
+          </span>
+        ) : null}
         {!retryable ? (
           <span data-ops-partial-nonretryable="true">
             {" "}
@@ -413,10 +466,63 @@ export function PartialCoverageNotice({
         ) : null}
       </div>
       {onRetry && retryable ? (
-        <button type="button" className="app-secondary-action" onClick={onRetry}>
-          {copy.checkAgain}
+        <button
+          type="button"
+          className="app-secondary-action"
+          onClick={onRetry}
+          disabled={busy}
+          aria-busy={busy}
+        >
+          {busy ? copy.refreshing : copy.checkAgain}
         </button>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * THE LAST CHECK IS OLDER THAN THE FRESHNESS WINDOW (2026-10-14).
+ *
+ * A compact notice, never a panel: it states that the status may be out of
+ * date, when the last complete check was (or that the last check did not see
+ * everything), and offers a real re-check. It never says "clear", and the
+ * conditions and resolved history on the page stay where they are.
+ */
+export function StaleStatusNotice({
+  lastCompleteCheckLabel,
+  lastCheckLabel,
+  onCheck,
+  busy = false,
+}: {
+  /** Formatted time of the last complete check, or null when it was not complete. */
+  lastCompleteCheckLabel: string | null;
+  /** Formatted time the last check finished. */
+  lastCheckLabel: string | null;
+  onCheck: () => void;
+  busy?: boolean;
+}) {
+  const copy = useOpsCopy();
+  const detail = lastCompleteCheckLabel
+    ? copy.statusStaleBody.replace("{time}", lastCompleteCheckLabel)
+    : lastCheckLabel
+      ? copy.statusStaleIncompleteBody.replace("{time}", lastCheckLabel)
+      : null;
+  return (
+    <div className="app-alert app-alert--warn" data-ops-stale="true" role="status">
+      <div>
+        <strong>{copy.statusStaleTitle}</strong>
+        {detail ? <span data-ops-stale-detail> {detail}</span> : null}
+      </div>
+      <button
+        type="button"
+        className="app-secondary-action"
+        onClick={onCheck}
+        disabled={busy}
+        aria-busy={busy}
+        data-ops-check-now
+      >
+        {busy ? copy.refreshing : copy.checkAgain}
+      </button>
     </div>
   );
 }
@@ -427,7 +533,7 @@ export function PartialCoverageNotice({
  * The most misleading state of all before this existed: an abandoned run looks
  * exactly like a busy one, and nobody investigates busy.
  */
-export function ReconciliationStalledNotice({ onRetry }: { onRetry?: () => void }) {
+export function ReconciliationStalledNotice({ onRetry, busy = false }: { onRetry?: () => void; busy?: boolean }) {
   const copy = useOpsCopy();
   return (
     <div
@@ -440,8 +546,8 @@ export function ReconciliationStalledNotice({ onRetry }: { onRetry?: () => void 
         <span>{copy.reconcile.stalledBody}</span>
       </div>
       {onRetry ? (
-        <button type="button" className="app-secondary-action" onClick={onRetry}>
-          {copy.checkAgain}
+        <button type="button" className="app-secondary-action" onClick={onRetry} disabled={busy} aria-busy={busy}>
+          {busy ? copy.refreshing : copy.checkAgain}
         </button>
       ) : null}
     </div>
@@ -459,9 +565,11 @@ export function ReconciliationStalledNotice({ onRetry }: { onRetry?: () => void 
 export function ReconciliationFailedNotice({
   category,
   onRetry,
+  busy = false,
 }: {
   category: string | null;
   onRetry?: () => void;
+  busy?: boolean;
 }) {
   const copy = useOpsCopy();
   // `schema_mismatch` and `permission_denied` describe a deployment, not a
@@ -493,8 +601,8 @@ export function ReconciliationFailedNotice({
         </span>
       </div>
       {onRetry && retryable ? (
-        <button type="button" className="app-secondary-action" onClick={onRetry}>
-          {copy.retry}
+        <button type="button" className="app-secondary-action" onClick={onRetry} disabled={busy} aria-busy={busy}>
+          {busy ? copy.refreshing : copy.retry}
         </button>
       ) : null}
     </div>

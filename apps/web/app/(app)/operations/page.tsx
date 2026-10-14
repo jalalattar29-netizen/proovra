@@ -112,6 +112,7 @@ import {
   ReconciliationStalledNotice,
   RefreshingNotice,
   RestrictedState,
+  StaleStatusNotice,
   UnavailableState,
   UnconfirmedEmptyState,
 } from "./_components/States";
@@ -139,6 +140,7 @@ import {
   useOpsCopy,
   useOpsLocale,
   useOpsNumber,
+  useOpsTime,
   type OperationsCopy,
 } from "./_lib/copy";
 import {
@@ -150,6 +152,7 @@ import {
 import {
   bulkActionItemSettled,
   bulkActionItemSucceeded,
+  conditionSourceLabel,
   makeClientRequestKey,
 } from "@proovra/shared";
 import type {
@@ -224,6 +227,7 @@ function OperationsWorkbench() {
   // OPS-020 / D10 — the page in the reader's language (shared dictionary).
   const copy = useOpsCopy();
   const locale = useOpsLocale();
+  const time = useOpsTime();
   const fmt = useOpsNumber();
 
   /**
@@ -1254,6 +1258,7 @@ function OperationsWorkbench() {
         if (team !== teamRef.current) return;
         if (polled?.summary?.readiness !== "RUNNING") break;
       }
+      if (team === teamRef.current) announce(copy.checkFinished);
     } catch (err) {
       if (team !== teamRef.current) return;
       const cls = classifyOpsError(err);
@@ -1275,7 +1280,7 @@ function OperationsWorkbench() {
         refresh();
       }
     }
-  }, [teamId, refreshing, refresh, showMutationError, copy]);
+  }, [teamId, refreshing, refresh, showMutationError, copy, announce]);
   checkAgainRef.current = checkAgain;
 
   /**
@@ -1790,6 +1795,30 @@ function OperationsWorkbench() {
     summary.kind === "ready" && !summaryIsUnknown ? (summary.data.reconciliation ?? null) : null;
   const serverPermitsClear =
     summary.kind === "ready" ? summary.data.mayAssertAllClear === true : false;
+  /**
+   * THE ONE STATUS (2026-10-14) — the server's, read once and shared by the
+   * flat and grouped presentations, so switching views can never turn a
+   * confirmed workspace into an unconfirmed one. STALE is its own state now:
+   * it used to fall through to the generic "unconfirmed" panel, which then
+   * sat above the very resolved history it claimed was not there.
+   */
+  const opsStatus =
+    summary.kind === "ready" && !summaryIsUnknown ? (summary.data.status ?? null) : null;
+  const isStale = opsStatus ? opsStatus.state === "STALE" || opsStatus.freshness === "STALE" : readiness === "STALE";
+  /** A state notice (failed, stalled, partial, stale) is above the queue and offers the re-check. */
+  const stateNoticeShown =
+    readiness === "FAILED" || readiness === "STALLED" || readiness === "PARTIAL" || isStale;
+  const checkTimeLabel = (iso: string | null | undefined) =>
+    iso ? `${formatUserDateTime(iso)} (${time.ago(iso)})` : null;
+  /** User-facing names of the sources the last check could not see. */
+  const unseenSourceNames = Array.from(
+    new Set([
+      ...(opsStatus?.failedSourceIds ?? reconciliation?.sources.failedSources ?? []),
+      ...(opsStatus?.truncatedSourceIds ?? reconciliation?.sources.truncatedSources ?? []),
+    ]),
+  )
+    .map((id) => conditionSourceLabel(locale, id))
+    .filter((name): name is string => typeof name === "string" && name.length > 0);
 
   /** Is a PARTIAL run worth re-running? Only if EVERY recorded failure is. */
   const partialIsRetryable =
@@ -1903,12 +1932,15 @@ function OperationsWorkbench() {
   ) : mayAssertClear ? (
     <ClearState />
   ) : summaryIsUnknown ? (
-    <UnconfirmedEmptyState onRetry={refresh} />
+    <UnconfirmedEmptyState onRetry={refresh} busy={refreshing} />
   ) : readiness === "NEVER_RUN" ? (
     // Nothing has scanned this workspace — and the summary SAID so.
     <PreparingState />
   ) : (
-    <UnconfirmedEmptyState onRetry={refresh} reason="check" />
+    // A CHECK that did not license "clear": one compact line whose button asks
+    // for a NEW check (re-reading the same stale run changed nothing), never
+    // the panel.
+    <UnconfirmedEmptyState onRetry={() => void checkAgain()} busy={refreshing} reason="check" showAction={!stateNoticeShown} />
   );
 
   /**
@@ -1958,16 +1990,28 @@ function OperationsWorkbench() {
       {readiness === "FAILED" ? (
         <ReconciliationFailedNotice
           category={reconciliation?.safeFailureCategory ?? null}
-          onRetry={checkAgain}
+          onRetry={() => void checkAgain()}
+          busy={refreshing}
         />
       ) : readiness === "STALLED" ? (
-        <ReconciliationStalledNotice onRetry={checkAgain} />
+        <ReconciliationStalledNotice onRetry={() => void checkAgain()} busy={refreshing} />
       ) : readiness === "PARTIAL" ? (
         <PartialCoverageNotice
           failedCount={reconciliation?.sources.failedSources.length ?? 0}
           truncatedCount={reconciliation?.sources.truncatedSources.length ?? 0}
-          onRetry={checkAgain}
+          onRetry={() => void checkAgain()}
           retryable={partialIsRetryable}
+          sourceNames={unseenSourceNames}
+          busy={refreshing}
+        />
+      ) : isStale ? (
+        <StaleStatusNotice
+          lastCompleteCheckLabel={checkTimeLabel(opsStatus?.lastCompleteCheckAtUtc)}
+          lastCheckLabel={checkTimeLabel(
+            opsStatus ? opsStatus.lastCheckAtUtc : (reconciliation?.completedAtUtc ?? null),
+          )}
+          onCheck={() => void checkAgain()}
+          busy={refreshing}
         />
       ) : null}
 
@@ -2110,7 +2154,11 @@ function OperationsWorkbench() {
                   </p>
                 </div>
               ) : (
-                <UnconfirmedEmptyState onRetry={refresh} reason={summaryIsUnknown ? "summary" : "check"} />
+                summaryIsUnknown ? (
+                  <UnconfirmedEmptyState onRetry={refresh} busy={refreshing} />
+                ) : (
+                  <UnconfirmedEmptyState onRetry={() => void checkAgain()} busy={refreshing} reason="check" showAction={!stateNoticeShown} />
+                )
               )
             ) : (
               <>

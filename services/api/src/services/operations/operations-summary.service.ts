@@ -52,7 +52,9 @@ import {
   decodeConditionMetric,
   latestWorkspaceOperationsRun,
   mayAssertOperationsClear,
+  operationsStatusFor,
   type ClearRefusalReason,
+  type OperationsStatus,
   type OperationsReadiness,
   type WorkspaceOperationsRunSnapshot,
 } from "@proovra/shared-runtime";
@@ -182,6 +184,14 @@ export type OperationsSummary = {
    * strictly stronger question.
    */
   clearRefusalReason: ClearRefusalReason | null;
+  /**
+   * THE ONE STATUS a surface renders (2026-10-14): active / confirmed clear /
+   * partial / stale / checking / never checked / check failed / unavailable,
+   * with the check times and the sources the last check could not see. Both
+   * the flat and grouped presentations read this; neither infers workspace
+   * health from an empty list.
+   */
+  status: OperationsStatus;
 };
 
 /**
@@ -462,6 +472,14 @@ export async function buildOperationsSummary(
     readiness: run?.readiness ?? "NEVER_RUN",
     reconciliation: run,
     clearRefusalReason: clearVerdict.clear ? null : clearVerdict.reason,
+    status: operationsStatusFor({
+      now,
+      run,
+      summaryReadable: true,
+      incidentReadComplete: complete,
+      unresolvedCount: bounded.length,
+      resolvedCount: resolved,
+    }),
   };
 }
 
@@ -505,5 +523,13 @@ export function unavailableSummary(
     readiness: "NEVER_RUN",
     reconciliation: null,
     clearRefusalReason: "NEVER_RUN",
+    status: operationsStatusFor({
+      now,
+      run: null,
+      summaryReadable: false,
+      incidentReadComplete: false,
+      unresolvedCount: null,
+      resolvedCount: null,
+    }),
   };
 }

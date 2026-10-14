@@ -1844,8 +1844,16 @@ describe("Operations — reconciliation state is visible, and gates the all-clea
     FAILED, STALLED and PARTIAL keep their notices — see the two tests above.
     Those are not "we are already fixing it": a run that failed or stopped
     halfway is a condition of the workspace, and the operator has to know.
+
+    2026-10-14 — THE PREMISE ABOVE NO LONGER HOLDS. The summary GET was made
+    side-effect free (it no longer calls ensureWorkspaceOperationsFresh), so a
+    STALE picture was neither handled by the read nor announced — and with no
+    STALE state of its own, the grouped view fell through to the large
+    "status unconfirmed" panel above the workspace's resolved history. STALE
+    is now ONE compact notice: the last complete check, and a real re-check.
+    Still never an all-clear, and the queue is untouched.
   */
-  it("a STALE run neither claims clear nor lectures the operator about it", async () => {
+  it("a STALE run is stated in one compact notice, never claims clear, and leaves the queue untouched", async () => {
     summaryReply = () =>
       summary({
         readiness: "STALE",
@@ -1853,9 +1861,11 @@ describe("Operations — reconciliation state is visible, and gates the all-clea
         clearRefusalReason: "STALE",
       });
     await mount(envelope(TEAM_ADMIN));
-    expect(q('[data-ops-stale="true"]')).toBeNull();
-    expect(document.body.textContent).not.toMatch(/may be out of date/i);
-    // The queue itself is untouched: removing the banner removed a banner.
+    const notice = q('[data-ops-stale="true"]');
+    expect(notice).not.toBeNull();
+    expect(notice!.closest(".app-empty")).toBeNull();
+    expect(notice!.querySelector("[data-ops-check-now]")).not.toBeNull();
+    expect(q('[data-ops-empty="clear"]')).toBeNull();
     expect(rowIds()).toEqual(["i-crit", "i-high", "i-old"]);
   });
 
@@ -4127,7 +4137,8 @@ describe("Operations truth closure — web", () => {
         expect(read?.path, clock).toContain("resolvedWithinDays=7");
         const section = q('[data-ops-section="recently-resolved"]') as HTMLElement;
         expect(section.querySelector("h2")?.textContent).toBe("Resolved in the last 7 days");
-        expect(section.textContent).toContain("The Resolved count above is all-time.");
+        // 2026-10-14 — concise and secondary: the window, and that the card counts all time.
+        expect(section.textContent).toContain("Closed in the last 7 days. The Resolved card above counts all time.");
         expect(section.querySelector('[data-ops-group="pipeline.report_generation_failed"]'), clock).not.toBeNull();
         expect(section.querySelector("[data-ops-group-resolved-at]")?.getAttribute("data-ops-group-resolved-at")).toBe("2026-10-12T09:00:00.000Z");
       } finally {

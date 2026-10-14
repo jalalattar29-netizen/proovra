@@ -101,6 +101,20 @@ export type OperationsReadiness =
 export const OPERATIONS_FRESHNESS_WINDOW_MS = 45 * 60 * 1000;
 
 /**
+ * When the scheduler should look at a workspace AGAIN (2026-10-14) — well
+ * before its picture turns STALE.
+ *
+ * The sweep used to select only workspaces whose last run was already older
+ * than the freshness window, so every workspace was guaranteed to spend part
+ * of every cycle STALE (and a large deployment most of it): the scheduler
+ * only ever reached a workspace after its picture had expired. Refreshing at
+ * this age leaves one full tick (15 minutes by default) plus margin before
+ * the window closes, so a deployment the batch can cover never shows STALE,
+ * and one it cannot cover still reaches the oldest first.
+ */
+export const OPERATIONS_REFRESH_DUE_MS = 20 * 60 * 1000;
+
+/**
  * The per-source accounting a run records.
  *
  * `required` is the set the workspace's picture DEPENDS on. A source that
@@ -638,4 +652,114 @@ export function mayAssertOperationsClear(input: {
     return { clear: false, reason: "UNRESOLVED_CONDITIONS" };
   }
   return { clear: true };
+}
+
+// ===========================================================================
+// THE ONE OPERATIONS STATUS (2026-10-14)
+// ===========================================================================
+
+/**
+ * What the Operations surfaces may SAY about a workspace, decided once, here,
+ * from the same facts that decide `mayAssertAllClear`.
+ *
+ *   ACTIVE_CONDITIONS  unresolved conditions exist (whatever the freshness).
+ *   CONFIRMED_CLEAR    none unresolved, and a fresh, complete check says so.
+ *   PARTIAL            the latest check could not see every source (failed or
+ *                      truncated), or the incident read hit its bound.
+ *   STALE              the latest check is older than the freshness window:
+ *                      what it saw may no longer be current.
+ *   CHECKING           a check is running now.
+ *   NEVER_CHECKED      nothing has checked this workspace yet.
+ *   CHECK_FAILED       the latest check failed or died holding its lock.
+ *   UNAVAILABLE        the summary itself could not be read.
+ *
+ * A surface renders from this; it never infers health from an empty list.
+ */
+export type OperationsStatusState =
+  | "ACTIVE_CONDITIONS"
+  | "CONFIRMED_CLEAR"
+  | "PARTIAL"
+  | "STALE"
+  | "CHECKING"
+  | "NEVER_CHECKED"
+  | "CHECK_FAILED"
+  | "UNAVAILABLE";
+
+export type OperationsStatus = {
+  state: OperationsStatusState;
+  /** Why "clear" is not licensed; null exactly when it is. */
+  reason: ClearRefusalReason | "SUMMARY_UNAVAILABLE" | null;
+  /** When this answer was produced. */
+  checkedAtUtc: string;
+  /** When the latest check observed the sources (finished), or null. */
+  lastCheckAtUtc: string | null;
+  /**
+   * When the latest check that saw EVERY required source finished, if the
+   * latest check was one. A STALE answer shows this time; a PARTIAL one does
+   * not have it.
+   */
+  lastCompleteCheckAtUtc: string | null;
+  freshness: "FRESH" | "STALE" | "NONE";
+  /** Registry ids of sources the latest check could not see (failed). */
+  failedSourceIds: string[];
+  /** Registry ids of sources the latest check could not finish (bounded). */
+  truncatedSourceIds: string[];
+  activeCount: number | null;
+  resolvedCount: number | null;
+};
+
+export function operationsStatusFor(input: {
+  now: Date;
+  run: WorkspaceOperationsRunSnapshot | null;
+  /** False when the summary itself could not be produced. */
+  summaryReadable: boolean;
+  incidentReadComplete: boolean;
+  unresolvedCount: number | null;
+  resolvedCount: number | null;
+}): OperationsStatus {
+  const run = input.run;
+  const lastCheckAtUtc = run ? (run.sourceSnapshotAtUtc ?? run.completedAtUtc) : null;
+  const sawEverything =
+    run !== null &&
+    run.sources.failedSources.length === 0 &&
+    run.sources.truncatedSources.length === 0 &&
+    run.sources.requiredSources.every((s) => run.sources.successfulSources.includes(s));
+  const base = {
+    checkedAtUtc: input.now.toISOString(),
+    lastCheckAtUtc,
+    lastCompleteCheckAtUtc:
+      run && (run.readiness === "READY" || run.readiness === "STALE") && sawEverything ? lastCheckAtUtc : null,
+    freshness: !run || !lastCheckAtUtc ? ("NONE" as const) : run.readiness === "STALE" ? ("STALE" as const) : ("FRESH" as const),
+    failedSourceIds: run ? [...run.sources.failedSources] : [],
+    truncatedSourceIds: run ? [...run.sources.truncatedSources] : [],
+    activeCount: input.unresolvedCount,
+    resolvedCount: input.resolvedCount,
+  };
+  if (!input.summaryReadable || input.unresolvedCount === null) {
+    return { ...base, state: "UNAVAILABLE", reason: "SUMMARY_UNAVAILABLE" };
+  }
+  const verdict = mayAssertOperationsClear({
+    run,
+    incidentReadComplete: input.incidentReadComplete,
+    unresolvedCount: input.unresolvedCount,
+  });
+  if (input.unresolvedCount > 0) {
+    return { ...base, state: "ACTIVE_CONDITIONS", reason: verdict.clear ? null : verdict.reason };
+  }
+  if (verdict.clear) return { ...base, state: "CONFIRMED_CLEAR", reason: null };
+  switch (verdict.reason) {
+    case "STALE":
+      return { ...base, state: "STALE", reason: verdict.reason };
+    case "RUNNING":
+      return { ...base, state: "CHECKING", reason: verdict.reason };
+    case "NEVER_RUN":
+      return { ...base, state: "NEVER_CHECKED", reason: verdict.reason };
+    case "FAILED":
+    case "STALLED":
+      return { ...base, state: "CHECK_FAILED", reason: verdict.reason };
+    default:
+      // PARTIAL_SOURCES, TRUNCATED_SOURCE, INCIDENT_READ_INCOMPLETE — the
+      // picture is a floor, not a total.
+      return { ...base, state: "PARTIAL", reason: verdict.reason };
+  }
 }
