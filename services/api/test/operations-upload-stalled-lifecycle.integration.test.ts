@@ -22,7 +22,8 @@
  *      stall of the same upload reopens it exactly once. A resolution note is
  *      trimmed and bounded, and a blank note is no note.
  *   6. The API presents it humanly: title, subject (confirmed for this
- *      workspace), no raw code outside Technical references, no Intake Links.
+ *      workspace), one support reference and no raw code or diagnostics for
+ *      the workspace (those are platform-admin only), no Intake Links.
  *      A subject outside the workspace reads as unavailable and is not linked.
  *   7. The existing-data reconciliation closes the legacy workspace-wide row
  *      (dry run writes nothing; a rerun is a no-op) and carries a still-live
@@ -298,11 +299,19 @@ describe("upload stalled — production reproduction and lifecycle (live Postgre
     expect(detail.statusCode).toBe(200);
     const full = detail.json() as { incident: unknown };
     const body = full.incident as Record<string, unknown> & {
-      technicalReferences: Array<{ key: string; value: string }>;
+      technicalReferences?: unknown;
+      supportReference: string;
       remediation?: { actions?: Array<{ deepLink?: { href: string } | null }> } | Array<unknown>;
     };
-    expect(body.technicalReferences).toContainEqual({ key: "signalCode", value: "upload_stalled" });
+    // 2026-10-14 — diagnostics are platform-admin only; the workspace gets a
+    // support reference.
+    expect(body.technicalReferences).toBeUndefined();
+    expect(body.supportReference).toMatch(/^OPS-[0-9A-F]{8}$/);
     const bodyText = JSON.stringify(full);
+    // The fingerprint and signal code stay server-side; only closed-vocabulary
+    // localization keys reach the client.
+    expect(bodyText).not.toContain(`upload_stalled:${ev.id}`);
+    expect(bodyText).not.toMatch(/signalCode|"fingerprint"/);
     expect(bodyText).not.toMatch(/intake-links/);
     expect(bodyText).toContain(`/evidence/${ev.id}`);
 
@@ -342,15 +351,17 @@ describe("upload stalled — production reproduction and lifecycle (live Postgre
       title: string;
       safeSummary: string;
       subject: { kind: string };
-      technicalReferences: Array<{ key: string; value: string }>;
+      technicalReferences?: unknown;
+      supportReference: string;
     };
     // History, never a claim that a stall happened.
     expect(body.title).toBe("Legacy upload-session signal");
     expect(body.safeSummary).toMatch(/did not confirm that any upload was actually stalled/);
     expect(body.safeSummary).not.toMatch(/fields:|team 6488|upload_stalled/);
     expect(body.subject.kind).toBe("UPLOADS");
-    expect(body.technicalReferences).toContainEqual({ key: "signalCode", value: "upload_stalled" });
-    expect(JSON.stringify(d.json())).not.toMatch(/intake-links|Open intake links/);
+    expect(body.technicalReferences).toBeUndefined();
+    expect(body.supportReference).toBe(`OPS-${legacy.id.slice(0, 8).toUpperCase()}`);
+    expect(JSON.stringify(d.json())).not.toMatch(/intake-links|Open intake links|upload_stalled|intake\.delivery_failed/);
     // No repair and nowhere to go; the conclusion stays in its history.
     const rem = (d.json() as { remediation: { actions: unknown[]; deepLink: unknown; guidance: string } }).remediation;
     expect(rem.actions).toEqual([]);

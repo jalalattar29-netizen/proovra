@@ -80,3 +80,32 @@ export function reportUnregisteredConditionSource(
     /* a diagnostic must never break the path it is describing */
   }
 }
+
+/**
+ * A condition was written under a source its signal does not belong to
+ * (2026-10-14): normalized to its own source, or refused. Bounded fields only
+ * — the declared and decided source ids, the workspace and the writer; never
+ * the fingerprint, title, payload or any record identifier.
+ */
+export function reportConditionSourceDecision(report: {
+  outcome: "NORMALIZED" | "REFUSED";
+  declaredSourceId: string;
+  decidedSourceId: string | null;
+  reason: string | null;
+  teamId: string | null;
+  writer: string;
+}): void {
+  try {
+    bump(report.outcome === "NORMALIZED" ? "operations_condition_source_normalized" : "operations_condition_source_refused");
+    logWarn("operations.condition_source_decision", {
+      outcome: report.outcome,
+      declaredSourceId: report.declaredSourceId.slice(0, 120),
+      decidedSourceId: report.decidedSourceId ? report.decidedSourceId.slice(0, 120) : null,
+      reason: report.reason,
+      workspaceId: report.teamId,
+      writer: report.writer,
+    });
+  } catch {
+    /* a diagnostic must never break the path it is describing */
+  }
+}

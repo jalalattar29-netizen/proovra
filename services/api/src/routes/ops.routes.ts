@@ -1933,10 +1933,16 @@ export async function opsRoutes(app: FastifyInstance) {
               : "NONE";
         }
       }
+      // The condition's identity, read here for the remediation decision only —
+      // it is a platform diagnostic and is never sent to a workspace reader.
+      const identity = await prisma.operationalIncident.findUnique({
+        where: { id: detail.id },
+        select: { fingerprint: true },
+      });
       const remediation = resolveRemediations(
         {
           category: detail.category,
-          fingerprint: detail.fingerprint,
+          fingerprint: identity?.fingerprint ?? "",
           sourceId: detail.lifecycle.sourceId,
           relatedEvidenceId: detail.relatedEvidenceId,
         },

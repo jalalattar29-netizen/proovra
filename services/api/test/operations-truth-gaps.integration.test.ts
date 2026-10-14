@@ -57,9 +57,13 @@ describe("Operations truth closure — remaining contract points (live PostgreSQ
     const viewer = await c.inj("POST", `/v1/ops/incidents/${row.id}/unsuppress`, a.viewerToken, { teamId: a.teamId });
     expect(viewer.statusCode).toBe(403);
     const detail = (await c.inj("GET", `/v1/ops/incidents/${row.id}?teamId=${a.teamId}`, a.ownerToken)).json();
-    const messages = detail.incident.timeline.map((e: { safeMessage: string }) => e.safeMessage).join(" | ");
-    expect(messages).toContain("Planned maintenance");
-    expect(messages).toContain("Notifications resumed by an operator.");
+    const timeline = detail.incident.timeline as Array<{ eventType: string; safeMessage: string | null }>;
+    // Both moves are in history, each named by its localized event label. The
+    // person's reason is shown; the system's English template is not
+    // (2026-10-14: a workspace reader gets only human text in the timeline).
+    expect(timeline.map((e) => e.eventType)).toEqual(expect.arrayContaining(["suppressed", "unsuppressed"]));
+    expect(timeline.find((e) => e.eventType === "suppressed")?.safeMessage).toBe("Planned maintenance");
+    expect(timeline.find((e) => e.eventType === "unsuppressed")?.safeMessage ?? null).toBeNull();
   });
 
   it("OPS-031 an integrity condition links to the record's Integrity tab", async () => {

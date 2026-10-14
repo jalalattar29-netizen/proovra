@@ -156,15 +156,13 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
    * The fingerprints a list response returned, in order.
    *
    * The row identity the server actually projects per row. Titles used to
-   * serve this purpose and cannot any more — see the note on `seed` — and the
-   * fingerprint is a better marker regardless: it is unique by construction,
-   * so an assertion built on it cannot pass by two rows coincidentally sharing
-   * a string.
+   * serve this purpose and cannot any more — see the note on `seed`. The
+   * fingerprint did until 2026-10-14, when diagnostics became platform-admin
+   * only; the id is unique by construction too, so an assertion built on it
+   * cannot pass by two rows coincidentally sharing a string.
    */
-  function fingerprints(res: { body: string }): string[] {
-    return (
-      JSON.parse(res.body).incidents as Array<{ fingerprint: string }>
-    ).map((i) => i.fingerprint);
+  function rowIds(res: { body: string }): string[] {
+    return (JSON.parse(res.body).incidents as Array<{ id: string }>).map((i) => i.id);
   }
 
   /**
@@ -325,7 +323,7 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
         A.ownerToken,
       );
       expect(res.statusCode).toBe(200);
-      expect(fingerprints(res)).toEqual([aRow.fingerprint]);
+      expect(rowIds(res)).toEqual([aRow.id]);
     });
 
     it("the new detail read is scoped by the WHERE clause, not by a check after it", async () => {
@@ -515,7 +513,7 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
         `/v1/ops/incidents?teamId=${A.teamId}&owner=unassigned`,
         A.ownerToken,
       );
-      expect(fingerprints(res)).toEqual([free.fingerprint]);
+      expect(rowIds(res)).toEqual([free.id]);
     });
 
     it("owner=me resolves to the CALLER, so two callers get two answers", async () => {
@@ -538,8 +536,8 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
         `/v1/ops/incidents?teamId=${A.teamId}&owner=me`,
         A.memberToken,
       );
-      expect(fingerprints(asOwner)).toEqual([ownerRow.fingerprint]);
-      expect(fingerprints(asMember)).toEqual([memberRow.fingerprint]);
+      expect(rowIds(asOwner)).toEqual([ownerRow.id]);
+      expect(rowIds(asMember)).toEqual([memberRow.id]);
     });
 
     it("search matches the operator-facing strings and nothing else", async () => {
@@ -635,12 +633,7 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
       // The ORDER is what this pins, and the rows are named by the identity
       // the server actually returns per row rather than by a display label
       // every row of a source now shares.
-      expect(fingerprints(res)).toEqual([
-        crit.fingerprint,
-        high.fingerprint,
-        warn.fingerprint,
-        info.fingerprint,
-      ]);
+      expect(rowIds(res)).toEqual([crit.id, high.id, warn.id, info.id]);
     });
 
     it("every order is TOTAL — identical rows still page without skipping or repeating", async () => {

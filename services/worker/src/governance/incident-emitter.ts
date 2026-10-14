@@ -21,6 +21,7 @@ import * as prismaPkg from "@prisma/client";
 import { type ConditionMessage, stampConditionMessage } from "@proovra/shared";
 
 import {
+  decideConditionSourceForWrite,
   decideObservationTransition,
   decisionIsReopen,
   OCCURRENCE_WHILE_SUPPRESSED_EVENT,
@@ -300,9 +301,42 @@ async function startSlaCycle(
  * `prisma.operationalIncident.upsert(...)` / `findUnique` + `create`
  * logic with this helper.
  */
+function canonicalWorkerSource(input: RecordWorkerIncidentInput): RecordWorkerIncidentInput | null {
+  const stamped = input.message ? stampConditionMessage(input.message) : null;
+  const decision = decideConditionSourceForWrite({
+    sourceId: String(input.sourceId),
+    fingerprint: input.fingerprint ?? "",
+    messageCode: stamped?.code ?? null,
+  });
+  if (!decision.ok) {
+    logger.warn(
+      { outcome: "REFUSED", declaredSourceId: String(input.sourceId).slice(0, 120), reason: decision.reason, writer: "worker.recordWorkerIncident" },
+      "operations.condition_source_decision",
+    );
+    return null;
+  }
+  if (decision.sourceId === input.sourceId) return input;
+  logger.warn(
+    {
+      outcome: "NORMALIZED",
+      declaredSourceId: String(input.sourceId).slice(0, 120),
+      decidedSourceId: decision.sourceId,
+      writer: "worker.recordWorkerIncident",
+    },
+    "operations.condition_source_decision",
+  );
+  return { ...input, sourceId: decision.sourceId as OperationsSourceId };
+}
+
 export async function recordWorkerIncident(
-  input: RecordWorkerIncidentInput,
+  declaredInput: RecordWorkerIncidentInput,
 ): Promise<prismaPkg.OperationalIncident | null> {
+  // A SIGNAL IS FILED ONLY UNDER ITS OWN SOURCE (2026-10-14) — the same write
+  // boundary the API writer applies: a message under a source it does not
+  // belong to is normalized to its one permitted source or refused, and a
+  // retired legacy identity is never written again.
+  const input = canonicalWorkerSource(declaredInput);
+  if (!input) return null;
   if (!input.fingerprint || input.fingerprint.length === 0) {
     logger.warn(
       { correlationId: input.correlationId ?? null },

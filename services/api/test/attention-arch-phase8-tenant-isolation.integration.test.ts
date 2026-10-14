@@ -112,11 +112,10 @@ describe("Phase 8.3 — tenant isolation (live PostgreSQL 16)", () => {
 
     const a = await get(`/v1/ops/incidents?teamId=${A.teamId}`, A.ownerToken);
     expect(a.status).toBe(200);
-    const fingerprints = (
-      a.body.incidents as Array<{ fingerprint: string }>
-    ).map((i) => i.fingerprint);
-    expect(fingerprints).toContain(aRow.fingerprint);
-    expect(fingerprints).not.toContain(bRow.fingerprint);
+    // Named by id: the fingerprint is a platform-only diagnostic (2026-10-14).
+    const ids = (a.body.incidents as Array<{ id: string }>).map((i) => i.id);
+    expect(ids).toContain(aRow.id);
+    expect(ids).not.toContain(bRow.id);
   });
 
   it("the Operations SUMMARY counts only the caller's workspace", async () => {

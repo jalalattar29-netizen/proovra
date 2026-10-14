@@ -110,8 +110,11 @@ describe("the vocabulary is complete", () => {
      * It used to reach Operations as a per-workspace bridge row with no
      * subject, filed under intake delivery.
      */
-    expect(registryIds.length).toBe(42);
-    expect(Object.keys(HOME_CONDITION_REPRESENTATION).length).toBe(42);
+    // 2026-10-14 — 42 → 43. capture.legacy_upload_session_signal: the HISTORICAL
+    // source that owns the old per-workspace upload-session bridge rows, which
+    // that bridge had filed under intake.delivery_failed.
+    expect(registryIds.length).toBe(43);
+    expect(Object.keys(HOME_CONDITION_REPRESENTATION).length).toBe(43);
   });
 });
 
@@ -149,6 +152,12 @@ describe("each representation matches the source's own lifecycle contract", () =
       const kind = representationFor(id)?.kind;
       // A source NOTHING produces is not advertised at all.
       // (The UNREGISTERED fallback is not a source: real rows land there.)
+      // A HISTORICAL source is never produced again: its rows are history,
+      // never Home attention.
+      if (lifecycle.discoveryState === "HISTORICAL") {
+        expect(kind, `${id} is history and must not be a Home row`).toBe("NOT_PRODUCED");
+        continue;
+      }
       if (lifecycle.discoveryState === "NOT_YET_DISCOVERED" && id !== "unregistered.condition") {
         expect(kind, `${id} is not produced and must not be a Home row`).toBe("NOT_PRODUCED");
         continue;

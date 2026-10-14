@@ -394,8 +394,9 @@ export const TIMELINE_EVENT_LABEL: Readonly<Record<string, string>> =
 export function timelineEventLabel(raw: string, copy: OperationsCopy = operationsDict.en): string {
   const known = (copy.timeline as Record<string, string | undefined>)[raw];
   if (known) return known;
-  const lower = raw.replace(/[_.]/g, " ").toLowerCase();
-  return lower.charAt(0).toUpperCase() + lower.slice(1);
+  // An event type the vocabulary does not know yet reads as a generic,
+  // localized "Updated" — never its raw type (2026-10-14).
+  return copy.timeline.updated;
 }
 
 // ---------------------------------------------------------------------------

@@ -80,6 +80,8 @@ export const COUNTER_NAMES = [
   "operational_incident_increment",
   // A STATE source re-checked an unresolved condition: refreshed, not counted.
   "operational_incident_reobserved",
+  "operations_condition_source_normalized",
+  "operations_condition_source_refused",
   // A reopen is not an increment, and the metric must not say it is: the
   // whole point of the correction is that the two are different events.
   "operational_incident_reopened",

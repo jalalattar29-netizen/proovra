@@ -115,6 +115,14 @@ export const OPERATIONS_FRESHNESS_WINDOW_MS = 45 * 60 * 1000;
 export const OPERATIONS_REFRESH_DUE_MS = 20 * 60 * 1000;
 
 /**
+ * The scheduler's default cadence (`OPERATIONS_RECONCILER_INTERVAL_MS`
+ * defaults to it). The sweep runs every workspace whose last run is older than
+ * the freshness window minus one tick, so none can pass the window before the
+ * next tick.
+ */
+export const OPERATIONS_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
+
+/**
  * The per-source accounting a run records.
  *
  * `required` is the set the workspace's picture DEPENDS on. A source that

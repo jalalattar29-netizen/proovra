@@ -404,7 +404,7 @@ describe("Operations persona proofs (live PostgreSQL 16)", () => {
       const sec = await writeCondition(t.teamId, {
         sourceId: "identity.security_condition",
         category: "IDENTITY_SECURITY",
-        fingerprint: "identity_security:security_event:suspicious_login_burst",
+        fingerprint: "identity_security:security_event:suspicious_login_detected",
       });
       const noNote = await c.inj("POST", `/v1/ops/incidents/${sec.id}/resolve`, t.admin.token, { teamId: t.teamId });
       expect(noNote.statusCode).toBe(409);

@@ -1704,8 +1704,24 @@ function IncidentInspector({
               ) : null}
             </ProovraSection>
 
+            {/* The one safe reference every reader may quote to support. The
+                raw identifiers below are platform diagnostics the API sends only
+                to a platform-authorized projection — never to a workspace reader. */}
+            {detail && i.supportReference ? (
+              <ProovraSection title={copy.drawer.supportReference} heading>
+                <ProovraText variant="label" color={theme.color.ink.secondary}>
+                  {copy.drawer.supportReferenceHint}
+                </ProovraText>
+                <OpsIdentifier
+                  label={copy.drawer.supportReference}
+                  value={i.supportReference}
+                  copyLabel={copyLabel(copy.drawer.supportReference)}
+                />
+              </ProovraSection>
+            ) : null}
+
             {detail && (i.relatedProvider || i.relatedJobId || i.requestId || i.traceId) ? (
-              <ProovraSection title={copy.technicalReferences} heading>
+              <ProovraSection title={copy.drawer.advancedDiagnostics} heading>
                 <ProovraText variant="label" color={theme.color.ink.secondary}>
                   {nc.stateTechRefsIntro}
                 </ProovraText>

@@ -73,6 +73,7 @@
  */
 
 import type { IncidentCategory } from "@proovra/shared";
+import { permittedSourcesForMessage } from "@proovra/shared";
 
 // ===========================================================================
 // VOCABULARY
@@ -290,6 +291,9 @@ export type NotApplicableDisposition =
  *                      describes is on the roadmap instead of forgotten — and
  *                      it may NEVER be reported as production-complete;
  * DISABLED             a producer exists in the tree and is switched off.
+ * HISTORICAL           no producer, ever again: the source exists so a tenant's
+ *                      own historical rows stay classified, truthful and
+ *                      visible to that tenant as history (2026-10-14).
  */
 export const SOURCE_DISCOVERY_STATES = [
   "ACTIVE",
@@ -303,6 +307,14 @@ export const SOURCE_DISCOVERY_STATES = [
    * with a note that says the condition was retired — never that it recovered.
    */
   "RETIRED",
+  /**
+   * HISTORY THE TENANT KEEPS (2026-10-14). Unlike RETIRED (a false signal,
+   * removed from every tenant surface), these rows describe something that
+   * did happen in the workspace and may carry a person's resolution note, so
+   * they stay visible to that workspace — described as history, never as a
+   * live condition, never written again, never offered a repair.
+   */
+  "HISTORICAL",
 ] as const;
 export type SourceDiscoveryState = (typeof SOURCE_DISCOVERY_STATES)[number];
 
@@ -1196,6 +1208,38 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
         "A record still in its upload phase whose upload session stopped recording progress past the inactivity threshold; the session and record rows answer recovery directly.",
     },
     {
+      // HISTORY ONLY (2026-10-14). The old security-event bridge filed every
+      // `upload_stalled` sweep signal of a workspace as ONE condition under
+      // `intake.delivery_failed` — a different condition entirely — without
+      // naming an upload or confirming a stall. Those rows are this source's:
+      // its EXACT legacy identity outranks the source the bridge declared (see
+      // `resolveConditionSource`), so they are never presented as an intake
+      // delivery failure, nor as a genuine stall. Nothing produces it.
+      sourceId: "capture.legacy_upload_session_signal",
+      category: "UPLOAD",
+      displayLabel: "Legacy upload-session signals",
+      producers: [],
+      discoveryState: "HISTORICAL",
+      legacyFingerprints: [{ kind: "EXACT", fingerprint: "upload:security_event:upload_stalled" }],
+      resolutionAuthority: "NO_DIRECT_RESOLUTION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "NO_RECOVERY_SIGNAL",
+      recurrencePolicy: "NOT_APPLICABLE",
+      suppressionPolicy: "SUPPRESSION_NOT_OFFERED",
+      remediationDisposition: "NOT_APPLICABLE",
+      requiredCapability: "operations.view",
+      audience: "TENANT_ADVISORY",
+      cardinality: "EVENT",
+      observationModel: "EVENT",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "NONE",
+      notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
+      rationale:
+        "History from the retired per-workspace upload-session bridge: retained, resolved, and described as what it was. Genuine stalls are capture.upload_stalled.",
+    },
+    {
       sourceId: "communications.provider_failure",
       category: "COMMUNICATIONS",
       displayLabel: "Communications provider failure",
@@ -2058,6 +2102,10 @@ export const UNREGISTERED_CONDITION_DIAGNOSTIC =
     if (s.discoveryState === "NOT_YET_DISCOVERED" && s.producers.length > 0) {
       throw new Error(`${s.sourceId}: NOT_YET_DISCOVERED but names a producer`);
     }
+    // A historical source is never written again; its rows stay the tenant's history.
+    if (s.discoveryState === "HISTORICAL" && s.producers.length > 0) {
+      throw new Error(`${s.sourceId}: HISTORICAL must have no producer`);
+    }
     // A retired source is never written and is never shown to a tenant.
     if (s.discoveryState === "RETIRED" && (s.producers.length > 0 || s.audience !== "PLATFORM_INTERNAL")) {
       throw new Error(`${s.sourceId}: RETIRED must have no producer and a PLATFORM_INTERNAL audience`);
@@ -2170,6 +2218,21 @@ export function resolveConditionSource(condition: {
   category?: string;
   fingerprint?: string;
 }): ResolvedConditionSource {
+  // 0. An EXACT legacy identity is the row's identity (2026-10-14). The old
+  //    bridge declared some rows under the wrong source (an upload-session
+  //    stall filed as an intake delivery failure); the exact fingerprint of
+  //    such a row names its true source, and that outranks the declaration.
+  const fingerprintForIdentity = condition.fingerprint ?? "";
+  if (fingerprintForIdentity) {
+    for (const lifecycle of OPERATIONS_SOURCE_LIFECYCLES) {
+      for (const p of lifecycle.legacyFingerprints) {
+        if (p.kind === "EXACT" && p.fingerprint === fingerprintForIdentity && lifecycle.sourceId !== condition.sourceId) {
+          return { lifecycle, match: "LEGACY_FINGERPRINT", diagnostic: null };
+        }
+      }
+    }
+  }
+
   // 1. The row says what it is.
   const declared = lifecycleForSourceId(condition.sourceId);
   if (declared) {
@@ -2335,4 +2398,45 @@ export function platformInternalSourceIds(): string[] {
   return OPERATIONS_SOURCE_LIFECYCLES.filter(
     (s) => s.audience === "PLATFORM_INTERNAL",
   ).map((s) => s.sourceId);
+}
+
+// ===========================================================================
+// THE WRITE BOUNDARY — a signal is only ever filed under its own source
+// ===========================================================================
+
+export type ConditionSourceWriteDecision =
+  | { readonly ok: true; readonly sourceId: string; readonly normalizedFrom: string | null }
+  | {
+      readonly ok: false;
+      readonly reason: "RETIRED_SIGNAL" | "SOURCE_NOT_PERMITTED_FOR_MESSAGE";
+    };
+
+/**
+ * Decide the source a condition is WRITTEN under (2026-10-14), for both
+ * incident writers.
+ *
+ *   - An exact legacy identity owned by a RETIRED or HISTORICAL source is history: nothing
+ *     may write it again.
+ *   - A message written under a source it does not belong to is normalized to
+ *     its one permitted source, or refused when it has several (the writer
+ *     records a safe diagnostic either way).
+ *   - A row with no valid message keeps the source its writer declared.
+ */
+export function decideConditionSourceForWrite(input: {
+  sourceId: string;
+  fingerprint: string;
+  messageCode: string | null;
+}): ConditionSourceWriteDecision {
+  for (const lifecycle of OPERATIONS_SOURCE_LIFECYCLES) {
+    if (lifecycle.discoveryState !== "RETIRED" && lifecycle.discoveryState !== "HISTORICAL") continue;
+    for (const p of lifecycle.legacyFingerprints) {
+      if (p.kind === "EXACT" && p.fingerprint === input.fingerprint) return { ok: false, reason: "RETIRED_SIGNAL" };
+    }
+  }
+  const permitted = permittedSourcesForMessage(input.messageCode);
+  if (permitted.length === 0 || permitted.includes(input.sourceId)) {
+    return { ok: true, sourceId: input.sourceId, normalizedFrom: null };
+  }
+  if (permitted.length === 1) return { ok: true, sourceId: permitted[0]!, normalizedFrom: input.sourceId };
+  return { ok: false, reason: "SOURCE_NOT_PERMITTED_FOR_MESSAGE" };
 }

@@ -118,6 +118,7 @@ import {
   type OtsFailureCode,
 } from "@proovra/shared";
 import { evidenceScopeForMany } from "@proovra/shared-runtime";
+import { conditionMessageFor, conditionTextFor } from "../services/operations/condition-presentation.service.js";
 
 /**
  * Phase IA-enterprise — server-driven filter enum. Every chip the
@@ -2092,9 +2093,16 @@ export async function buildInboxAggregation(
                     occurrenceCount: true,
                     relatedEvidenceId: true,
                     relatedJobId: true,
+                    requestId: true,
+                    traceId: true,
                     lastSeenAtUtc: true,
                     firstSeenAtUtc: true,
-                    runbookSlug: true,
+                    // For the catalogue sentence only; never sent.
+                    sourceId: true,
+                    category: true,
+                    fingerprint: true,
+                    messageCode: true,
+                    messageParams: true,
                   },
                   orderBy: { lastSeenAtUtc: "desc" },
                   take: PER_CATEGORY_TAKE,
@@ -2129,9 +2137,16 @@ export async function buildInboxAggregation(
                     occurrenceCount: true,
                     relatedEvidenceId: true,
                     relatedJobId: true,
+                    requestId: true,
+                    traceId: true,
                     lastSeenAtUtc: true,
                     firstSeenAtUtc: true,
-                    runbookSlug: true,
+                    // For the catalogue sentence only; never sent.
+                    sourceId: true,
+                    category: true,
+                    fingerprint: true,
+                    messageCode: true,
+                    messageParams: true,
                   },
                   orderBy: { lastSeenAtUtc: "desc" },
                   take: PER_CATEGORY_TAKE,
@@ -2876,7 +2891,9 @@ export async function buildInboxAggregation(
           category: "report_failure",
           tone: incidentSeverityTone[inc.severity] ?? "high",
           title: `Report generation failure — ${teamName}${status}`,
-          body: `${inc.safeSummary}${occBlurb}`,
+          // The ONE catalogue's sentence (2026-10-14), the stored text only for a
+          // row with no valid message.
+          body: `${conditionTextFor(conditionMessageFor(inc))?.summary ?? inc.safeSummary}${occBlurb}`,
           href: inc.relatedEvidenceId
             ? `/evidence/${encodeURIComponent(inc.relatedEvidenceId)}?tab=integrity`
             : `/operations?incident=${encodeURIComponent(inc.id)}`,
@@ -2887,9 +2904,7 @@ export async function buildInboxAggregation(
             teamName,
             incidentId: inc.id,
             evidenceId: inc.relatedEvidenceId ?? null,
-            jobId: inc.relatedJobId ?? null,
             occurrenceCount: inc.occurrenceCount,
-            runbook: inc.runbookSlug ?? null,
             incidentStatus: inc.status,
           },
         });
@@ -2913,7 +2928,9 @@ export async function buildInboxAggregation(
           category: "verification_package_failure",
           tone: incidentSeverityTone[inc.severity] ?? "high",
           title: `Verification package failure — ${teamName}${status}`,
-          body: `${inc.safeSummary}${occBlurb}`,
+          // The ONE catalogue's sentence (2026-10-14), the stored text only for a
+          // row with no valid message.
+          body: `${conditionTextFor(conditionMessageFor(inc))?.summary ?? inc.safeSummary}${occBlurb}`,
           href: inc.relatedEvidenceId
             ? `/evidence/${encodeURIComponent(inc.relatedEvidenceId)}?tab=integrity`
             : `/operations?incident=${encodeURIComponent(inc.id)}`,
@@ -2924,9 +2941,7 @@ export async function buildInboxAggregation(
             teamName,
             incidentId: inc.id,
             evidenceId: inc.relatedEvidenceId ?? null,
-            jobId: inc.relatedJobId ?? null,
             occurrenceCount: inc.occurrenceCount,
-            runbook: inc.runbookSlug ?? null,
             incidentStatus: inc.status,
           },
         });

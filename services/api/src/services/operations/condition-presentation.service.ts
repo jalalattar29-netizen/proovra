@@ -23,7 +23,7 @@ import {
   securitySignalSubjectKind,
   validateConditionParams,
 } from "@proovra/shared";
-import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { OPERATIONS_SOURCE_LIFECYCLES, resolveConditionSource, workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 export type ConditionMessageRef = { code: string; params: Record<string, string | number> };
 
@@ -52,19 +52,33 @@ function paramsObject(v: unknown): Record<string, string | number> | null {
  * "Security signal: <code>". Anything else stays null (stored text is shown).
  */
 /**
- * THE OLD PER-WORKSPACE UPLOAD-STALLED BRIDGE ROW — one identity, used by
- * presentation, remediation and the truth reconciliation alike.
+ * THE OLD PER-WORKSPACE UPLOAD-SESSION BRIDGE ROW — one identity, owned by the
+ * retired `capture.legacy_upload_session_signal` source (its EXACT legacy
+ * fingerprint, in the lifecycle table) and read through the canonical source
+ * resolution by presentation, remediation and the truth reconciliation alike.
  *
  * `upload_stalled` is a DEDICATED event now (per-upload `capture.upload_stalled`),
- * so nothing writes this fingerprint any more: a row carrying it is history
- * from the old bridge, which never named an upload or confirmed a stall.
+ * and the write boundary refuses this identity, so nothing writes it again: a
+ * row carrying it is history from the old bridge, which filed it under
+ * `intake.delivery_failed`, named no upload and confirmed no stall.
  */
-export const LEGACY_UPLOAD_STALLED_FINGERPRINT_SUFFIX = ":security_event:upload_stalled";
-export function isLegacyUploadStalledBridgeRow(fingerprint: string | null | undefined): boolean {
-  return typeof fingerprint === "string" && fingerprint.endsWith(LEGACY_UPLOAD_STALLED_FINGERPRINT_SUFFIX);
+export const LEGACY_UPLOAD_SESSION_SOURCE_ID = "capture.legacy_upload_session_signal";
+export const LEGACY_UPLOAD_SESSION_FINGERPRINTS: readonly string[] = Object.freeze(
+  (OPERATIONS_SOURCE_LIFECYCLES.find((l) => l.sourceId === LEGACY_UPLOAD_SESSION_SOURCE_ID)?.legacyFingerprints ?? [])
+    .filter((p): p is { kind: "EXACT"; fingerprint: string } => p.kind === "EXACT")
+    .map((p) => p.fingerprint),
+);
+export function isLegacyUploadSessionRow(row: { sourceId?: string | null; fingerprint: string; category?: string }): boolean {
+  return (
+    resolveConditionSource({ sourceId: row.sourceId ?? null, category: row.category, fingerprint: row.fingerprint }).lifecycle.sourceId ===
+    LEGACY_UPLOAD_SESSION_SOURCE_ID
+  );
 }
 
 export function conditionMessageFor(row: RowLike): ConditionMessageRef | null {
+  // History is described as history — never as the security signal or the
+  // source the old bridge filed it under.
+  if (isLegacyUploadSessionRow(row)) return { code: "ops.legacy.upload_session_signal", params: {} };
   const stored = paramsObject(row.messageParams);
   if (row.messageCode && isConditionMessageCode(row.messageCode)) {
     const valid = validateConditionParams(row.messageCode, stored ?? {});
@@ -126,6 +140,8 @@ export function conditionSubjectFor(row: RowLike, sourceId: string, message: Con
     case "evidence_integrity.ots_initialization_stalled":
     case "evidence_integrity.ots_budget_exhausted":
       return subject("EVIDENCE", { name: recordTitle, reference: recordRef });
+    case LEGACY_UPLOAD_SESSION_SOURCE_ID:
+      return subject("UPLOADS");
     case "capture.upload_stalled":
       return subject("UPLOAD", { name: recordTitle, reference: recordRef });
     case "pipeline.report_generation_failed":
@@ -185,6 +201,8 @@ export function conditionSubjectFor(row: RowLike, sourceId: string, message: Con
 /** Sources whose condition IS one internal signal: named among the references. */
 const SOURCE_SIGNAL_CODE: Readonly<Record<string, string>> = {
   "capture.upload_stalled": "upload_stalled",
+  // Platform diagnostics only: the signal the old bridge filed this row from.
+  [LEGACY_UPLOAD_SESSION_SOURCE_ID]: "upload_stalled",
 };
 
 /** Params that are user content or already part of the sentence — never repeated as references. */
@@ -347,12 +365,33 @@ const PLATFORM_READABLE_EVENTS: ReadonlySet<string> = new Set([
   "requires_owner_review",
 ]);
 
+/** The fixed sentences the transition writer stores when no person wrote anything. */
+const OPERATOR_TEMPLATE_MESSAGE = /^Incident [a-z_]+ by operator\.$/;
+const SUPPRESSION_REASON_PREFIX = "Notifications stopped by an operator: ";
+
+/**
+ * A history entry's text, for the reader (2026-10-14).
+ *
+ *   WORKSPACE — only what a PERSON wrote: a resolution's conclusion and a
+ *   silencing reason, exactly as written. Everything the system wrote
+ *   (observation summaries, reconciliation notes, template sentences) is
+ *   omitted: it is English-only and can carry internal identifiers, and the
+ *   event's localized label already says what happened.
+ *
+ *   PLATFORM — operator and system actions verbatim; observation entries,
+ *   which carried a writer's stored summary, withheld.
+ */
 export function presentTimelineMessageForAudience(
   eventType: string,
   message: string | null,
   audience: ConditionAudience,
 ): string | null {
   const shown = presentTimelineMessage(message);
-  if (audience === "WORKSPACE") return shown;
-  return PLATFORM_READABLE_EVENTS.has(eventType) ? shown : null;
+  if (audience === "PLATFORM") return PLATFORM_READABLE_EVENTS.has(eventType) ? shown : null;
+  if (!shown) return null;
+  if (eventType === "resolved") return OPERATOR_TEMPLATE_MESSAGE.test(shown) ? null : shown;
+  if (eventType === "suppressed") {
+    return shown.startsWith(SUPPRESSION_REASON_PREFIX) ? shown.slice(SUPPRESSION_REASON_PREFIX.length) || null : null;
+  }
+  return null;
 }

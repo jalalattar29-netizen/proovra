@@ -277,15 +277,36 @@ test("a failed history read keeps the condition on screen, with its support refe
   r.unmount();
 });
 
-test("technical references carry their own Copy control (IncidentInspector Identifier)", async () => {
+// 2026-10-14 — rendered only when the server sends diagnostics (platform
+// audience), under the same "Advanced diagnostics" heading as the web drawer.
+test("advanced diagnostics carry their own Copy control (IncidentInspector Identifier)", async () => {
   const r = await renderOps();
   await flatList(r);
   await r.press(INCIDENT.title);
   await settleN(3);
-  assert.ok(r.hasText("Technical references"));
+  assert.ok(r.hasText("Advanced diagnostics"));
   await r.press("Copy request");
   await settle();
   assert.equal(globalThis.__CLIPBOARD__, "req-incident-1");
+  r.unmount();
+});
+
+// 2026-10-14 — a workspace reader: the server sends no diagnostics, only one
+// support reference. Nothing is derived from other fields.
+test("a workspace reader gets one support reference and no advanced diagnostics", async () => {
+  const workspaceIncident = { ...INCIDENT, requestId: undefined, traceId: undefined, relatedJobId: undefined, relatedProvider: undefined, supportReference: "OPS-11111111" };
+  handlers["GET /v1/ops/incidents/"] = () => ({
+    body: { incident: { ...workspaceIncident, timeline: [], timelineComplete: true }, remediation: null },
+  });
+  handlers["GET /v1/ops/incidents"] = () => ({ body: listBody([workspaceIncident]) });
+  const r = await renderOps();
+  await flatList(r);
+  await r.press(INCIDENT.title);
+  await settleN(3);
+  assert.ok(r.hasText("Support reference"));
+  assert.ok(r.hasText("OPS-11111111"));
+  assert.ok(!r.hasText("Advanced diagnostics"), "diagnostics rendered without the server sending them");
+  assert.ok(!r.hasText("req-incident-1"));
   r.unmount();
 });
 

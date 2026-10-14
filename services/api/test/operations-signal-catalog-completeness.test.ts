@@ -28,7 +28,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   CONDITION_MESSAGE_CODES,
+  CONDITION_MESSAGE_SOURCES,
   CONDITION_SUBJECT_KINDS,
+  OPS_TIMELINE_EVENT_TYPES,
+  operationsCopyFor,
   PERMISSIONS,
   SECURITY_EVENT_TYPES,
   SECURITY_SIGNAL_EVENT_TYPES,
@@ -36,7 +39,7 @@ import {
   conditionSubjectLabel,
   renderConditionMessage,
 } from "@proovra/shared";
-import { OPERATIONS_SOURCE_LIFECYCLES } from "@proovra/shared-runtime";
+import { OPERATIONS_SOURCE_LIFECYCLES, decideConditionSourceForWrite } from "@proovra/shared-runtime";
 
 import { classifySecurityEvent, CLASSIFIED_SECURITY_EVENTS } from "../src/services/security/security-event.service.js";
 import {
@@ -135,9 +138,11 @@ describe("conservation — user-visible emitted = completely registered", () => 
     expect(Object.keys(CLASSIFIED_SECURITY_EVENTS).filter((t) => !reviewed.has(t))).toEqual([]);
   });
 
-  it("the only reviewed sentence for a non-classified event is the legacy upload_stalled row", () => {
+  it("every reviewed security sentence belongs to a classified event; upload_stalled is its own writer's", () => {
+    // 2026-10-14 — the legacy row has its own catalogue code now, so the
+    // security table carries exactly the classified events, nothing else.
     const classified = new Set(Object.keys(CLASSIFIED_SECURITY_EVENTS));
-    expect(SECURITY_SIGNAL_EVENT_TYPES.filter((t) => !classified.has(t))).toEqual(["upload_stalled"]);
+    expect(SECURITY_SIGNAL_EVENT_TYPES.filter((t) => !classified.has(t))).toEqual([]);
     // …which is now owned by its dedicated per-upload source.
     expect(classifySecurityEvent("upload_stalled")).toEqual({ kind: "DEDICATED", sourceId: "capture.upload_stalled" });
   });
@@ -304,7 +309,7 @@ describe("the exact Production shape — a legacy bridge row", () => {
     updatedAt: new Date("2026-10-14T01:00:00Z"),
   };
 
-  it("reads truthfully: no raw code as title, subject or summary; the code only as a technical reference", () => {
+  it("reads truthfully to the workspace: history wording, its own source, one support reference, no diagnostics", () => {
     const p = projectIncident(legacy as never);
     expect(p.title).toBe("Legacy upload-session signal");
     expect(p.title).not.toMatch(/Security signal|upload_stalled/);
@@ -312,6 +317,19 @@ describe("the exact Production shape — a legacy bridge row", () => {
     expect(internalLanguageIn(p.title + " " + p.safeSummary)).toEqual([]);
     expect(p.subject.kind).toBe("UPLOADS");
     expect(conditionSubjectLabel("en", p.subject)).toBe("Uploads in this workspace");
+    expect(p.supportReference).toBe("OPS-03EC1E2F");
+    // The identity outranks the persisted (wrong) sourceId; nothing raw remains.
+    const wire = JSON.stringify(p);
+    for (const raw of ["upload_stalled", "intake.delivery_failed", "73f4ec87-6d39-46c7-aee4-ecf0b8c8a85b", "upload:security_event", "stuck-upload", "stalledThresholdMinutes"]) {
+      expect(wire, raw).not.toContain(raw);
+    }
+    expect(p.technicalReferences).toBeUndefined();
+    expect(p.relatedJobId).toBeUndefined();
+    expect(p.fingerprint).toBeUndefined();
+  });
+
+  it("the platform audience keeps the raw diagnostics", () => {
+    const p = projectIncident(legacy as never, { audience: "PLATFORM" });
     expect(p.technicalReferences).toContainEqual({ key: "signalCode", value: "upload_stalled" });
     expect(p.technicalReferences).toContainEqual({ key: "jobId", value: "73f4ec87-6d39-46c7-aee4-ecf0b8c8a85b" });
   });
@@ -319,7 +337,7 @@ describe("the exact Production shape — a legacy bridge row", () => {
   it("a row written before message codes existed is still proven by its identity", () => {
     const older = { ...legacy, messageCode: null, messageParams: null };
     const msg = conditionMessageFor(older as never);
-    expect(msg).toEqual({ code: "ops.security.signal", params: { eventType: "upload_stalled", severity: "WARNING" } });
+    expect(msg).toEqual({ code: "ops.legacy.upload_session_signal", params: {} });
     expect(conditionTextFor(msg)!.title).toBe("Legacy upload-session signal");
   });
 
@@ -400,13 +418,122 @@ describe("conservation counts — exact, executable, printed", () => {
     expect(counts.stateSources + counts.eventSources).toBe(counts.operationsSources);
   });
 
-  it("the one legacy compatibility definition is upload_stalled, and it is still needed", () => {
-    // Needed: rows written by the old per-workspace bridge still carry
-    // `ops.security.signal` + `upload_stalled` and must render truthfully.
-    expect(securityOrphans).toEqual(["upload_stalled"]);
+  it("no legacy compatibility definition remains in the security table", () => {
+    // 2026-10-14 — the old per-workspace bridge rows render through their
+    // HISTORICAL source and its own code (ops.legacy.upload_session_signal).
+    expect(securityOrphans).toEqual([]);
   });
 
   it("every source has exactly one lifecycle and one registry row", () => {
     expect([...registryIds].sort()).toEqual([...lifecycleIds].sort());
+  });
+});
+
+describe("one signal/source authority, enforced at the write boundary (2026-10-14)", () => {
+  const sources = new Set(OPERATIONS_SOURCE_LIFECYCLES.map((l) => l.sourceId));
+
+  it("every catalogue code names its permitted sources, and every one is a registered source", () => {
+    expect(Object.keys(CONDITION_MESSAGE_SOURCES).sort()).toEqual([...CONDITION_MESSAGE_CODES].sort());
+    for (const code of CONDITION_MESSAGE_CODES) {
+      const permitted = CONDITION_MESSAGE_SOURCES[code];
+      expect(permitted.length, code).toBeGreaterThan(0);
+      for (const id of permitted) expect(sources.has(id), `${code} → ${id}`).toBe(true);
+    }
+  });
+
+  it("the generic security sentence is permitted exactly for the classified security sources", () => {
+    const classifiedSources = [...new Set(Object.values(CLASSIFIED_SECURITY_EVENTS).map((c) => c.sourceId))].sort();
+    expect([...CONDITION_MESSAGE_SOURCES["ops.security.signal"]].sort()).toEqual(classifiedSources);
+  });
+
+  it("an upload-stall sentence never belongs to an intake source, and the history code only to its HISTORICAL source", () => {
+    expect(CONDITION_MESSAGE_SOURCES["ops.capture.upload_stalled"]).toEqual(["capture.upload_stalled"]);
+    expect(CONDITION_MESSAGE_SOURCES["ops.legacy.upload_session_signal"]).toEqual(["capture.legacy_upload_session_signal"]);
+    const legacy = OPERATIONS_SOURCE_LIFECYCLES.find((l) => l.sourceId === "capture.legacy_upload_session_signal")!;
+    expect(legacy.discoveryState).toBe("HISTORICAL");
+    expect(legacy.producers).toEqual([]);
+  });
+});
+
+describe("every timeline event a writer records has a label in every locale (2026-10-14)", () => {
+  // Discovered from the writers: every `eventType` in an
+  // operationalIncidentEvent write, string literals and *_EVENT constants.
+  const root = fileURLToPath(new URL("../../..", import.meta.url));
+  const dirs = ["services/api/src", "services/worker/src", "packages/shared-runtime/src"].map((d) => join(root, d));
+  const files: string[] = [];
+  const walk = (d: string) => {
+    for (const n of readdirSync(d)) {
+      const p = join(d, n);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (p.endsWith(".ts")) files.push(p);
+    }
+  };
+  dirs.forEach(walk);
+  const constants = new Map<string, string>();
+  const written = new Set<string>();
+  for (const f of files) {
+    const src = readFileSync(f, "utf8");
+    for (const m of src.matchAll(/const ([A-Z_]+_EVENT)\s*=\s*"([a-z_]+)"/g)) constants.set(m[1]!, m[2]!);
+  }
+  for (const f of files) {
+    const src = readFileSync(f, "utf8");
+    for (const m of src.matchAll(/operationalIncidentEvent[\s\S]{0,400}?eventType:\s*([\s\S]*?)(?:,\s*\n\s*[a-zA-Z]+:|\n\s*\})/g)) {
+      const expr = m[1]!;
+      for (const l of expr.matchAll(/"([a-z_]+)"/g)) written.add(l[1]!);
+      for (const c of expr.matchAll(/\b([A-Z_]+_EVENT)\b/g)) if (constants.has(c[1]!)) written.add(constants.get(c[1]!)!);
+    }
+    // Writers that take the type as a typed parameter (e.g. transitionIncident).
+    if (src.includes("operationalIncidentEvent")) {
+      for (const m of src.matchAll(/eventType:\s*("[a-z_]+"(?:\s*\|\s*"[a-z_]+")+)/g)) {
+        for (const l of m[1]!.matchAll(/"([a-z_]+)"/g)) written.add(l[1]!);
+      }
+    }
+  }
+
+  it("discovers the writers' event types", () => {
+    for (const t of ["opened", "increment", "acknowledged", "resolved", "suppressed", "assigned", "reopened", "closed_record_trashed"]) expect(written.has(t), t).toBe(true);
+  });
+
+  it("each is in the closed timeline vocabulary with a distinct label in en/de/ar", () => {
+    const vocab = new Set<string>(OPS_TIMELINE_EVENT_TYPES);
+    expect([...written].filter((t) => !vocab.has(t))).toEqual([]);
+    for (const locale of ["en", "de", "ar"]) {
+      const labels = operationsCopyFor(locale).timeline as Record<string, string>;
+      for (const t of OPS_TIMELINE_EVENT_TYPES) {
+        expect(labels[t], `${locale}.${t}`).toBeTruthy();
+        expect(labels[t], `${locale}.${t}`).not.toMatch(/_/);
+      }
+    }
+  });
+});
+
+describe("the write decision: a signal is filed only under a source its message permits (2026-10-14)", () => {
+  it("refuses the exact legacy identity whatever source is declared", () => {
+    for (const sourceId of ["intake.delivery_failed", "capture.legacy_upload_session_signal", "capture.upload_stalled"]) {
+      expect(
+        decideConditionSourceForWrite({ sourceId, fingerprint: "upload:security_event:upload_stalled", messageCode: null }),
+      ).toEqual({ ok: false, reason: "RETIRED_SIGNAL" });
+    }
+  });
+
+  it("normalizes an upload-stall sentence declared under the intake source to the stall source", () => {
+    expect(
+      decideConditionSourceForWrite({ sourceId: "intake.delivery_failed", fingerprint: "upload_stalled:e1", messageCode: "ops.capture.upload_stalled" }),
+    ).toEqual({ ok: true, sourceId: "capture.upload_stalled", normalizedFrom: "intake.delivery_failed" });
+  });
+
+  it("refuses a sentence permitted for several sources when the declared one is none of them", () => {
+    expect(
+      decideConditionSourceForWrite({ sourceId: "capture.upload_stalled", fingerprint: "x:security_event:y", messageCode: "ops.security.signal" }),
+    ).toEqual({ ok: false, reason: "SOURCE_NOT_PERMITTED_FOR_MESSAGE" });
+  });
+
+  it("accepts a compatible pair unchanged, including a genuine intake failure", () => {
+    expect(
+      decideConditionSourceForWrite({ sourceId: "capture.upload_stalled", fingerprint: "upload_stalled:e1", messageCode: "ops.capture.upload_stalled" }),
+    ).toEqual({ ok: true, sourceId: "capture.upload_stalled", normalizedFrom: null });
+    expect(
+      decideConditionSourceForWrite({ sourceId: "intake.delivery_failed", fingerprint: "upload:security_event:upload_session_create_failed", messageCode: "ops.security.signal" }),
+    ).toEqual({ ok: true, sourceId: "intake.delivery_failed", normalizedFrom: null });
   });
 });

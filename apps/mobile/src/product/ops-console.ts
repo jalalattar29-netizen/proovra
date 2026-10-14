@@ -578,6 +578,8 @@ export interface Incident {
   readonly relatedEvidenceId: string | null;
   readonly relatedJobId: string | null;
   readonly relatedProvider: string | null;
+  /** The one safe reference every reader may quote to support (2026-10-14). */
+  readonly supportReference: string | null;
   readonly assignedOperatorUserId: string | null;
   readonly resolutionAuthority: string | null;
   readonly manualResolution: boolean;
@@ -643,6 +645,7 @@ export function parseIncident(v: unknown): Incident | null {
     relatedEvidenceId: str(i["relatedEvidenceId"]),
     relatedJobId: str(i["relatedJobId"]),
     relatedProvider: str(i["relatedProvider"]),
+    supportReference: str(i["supportReference"]),
     assignedOperatorUserId: str(i["assignedOperatorUserId"]),
     resolutionAuthority: str(lifecycle["resolutionAuthority"]),
     manualResolution: lifecycle["manualResolution"] === true,
@@ -1050,7 +1053,6 @@ export function affectedFor(i: Incident, t: OpsCopy = OPS_COPY_EN): { label: str
   if (i.relatedEvidenceId)
     return { label: fillOpsCopy(t.evidenceRecordShort, { id: i.relatedEvidenceId.slice(0, 8) }), href: `/evidence/${encodeURIComponent(i.relatedEvidenceId)}` };
   if (i.relatedJobId) return { label: t.backgroundJob, href: null };
-  if (i.relatedProvider) return { label: i.relatedProvider, href: null };
   return { label: null, href: null };
 }
 

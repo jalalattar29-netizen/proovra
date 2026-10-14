@@ -197,26 +197,19 @@ export function IncidentInspector({
     () => (projectedRemediation ? localizeProjectedRemediation(locale, projectedRemediation) : null),
     [projectedRemediation, locale],
   );
-  // Technical references: the server's labelled list; an older server's bare
-  // fields as the fallback. Never in the sentence, only here.
-  const technicalRefs = React.useMemo(() => {
+  // ADVANCED DIAGNOSTICS (2026-10-14): only what the SERVER authorized and
+  // sent. Workspace routes never send them — Owner and Admin included — so
+  // this renders only for a projection the platform authority produced. There
+  // is no client-side fallback to raw fields.
+  const diagnostics = React.useMemo(() => {
     if (detail.kind !== "ready") return [];
-    const d = detail.data;
-    if (d.technicalReferences) {
-      return d.technicalReferences.map((r) => ({
-        key: r.key,
-        value: r.value,
-        label: conditionTechnicalReferenceLabel(locale, r.key),
-      }));
-    }
-    const legacy: Array<{ key: string; value: string | null; label: string }> = [
-      { key: "provider", value: d.relatedProvider, label: copy.drawer.identProvider },
-      { key: "jobId", value: d.relatedJobId, label: copy.drawer.identJob },
-      { key: "requestId", value: d.requestId, label: copy.drawer.identRequest },
-      { key: "traceId", value: d.traceId, label: copy.drawer.identTrace },
-    ];
-    return legacy.filter((r): r is { key: string; value: string; label: string } => !!r.value);
-  }, [detail, locale, copy]);
+    return (detail.data.technicalReferences ?? []).map((r) => ({
+      key: r.key,
+      value: r.value,
+      label: conditionTechnicalReferenceLabel(locale, r.key),
+    }));
+  }, [detail, locale]);
+  const supportReference = detail.kind === "ready" ? (detail.data.supportReference ?? null) : null;
   // The operator's stated reason, per action that requires one. It is
   // recorded in the audit trail and on the condition's timeline.
   const [reasons, setReasons] = React.useState<Record<string, string>>({});
@@ -733,18 +726,22 @@ export function IncidentInspector({
           </section>
 
           {/* ---------------------------------------------------------- */}
-          {/* Technical references — the ONLY place a signal code, job,   */}
-          {/* request or trace id reaches the reader, each labelled by    */}
-          {/* the shared vocabulary. An older server's fields are the     */}
-          {/* fallback.                                                   */}
+          {/* SUPPORT REFERENCE — the one safe identifier every reader     */}
+          {/* gets, to quote to support.                                   */}
           {/* ---------------------------------------------------------- */}
-          {detail.kind === "ready" && technicalRefs.length > 0 ? (
+          {supportReference ? (
+            <section className="opsw-drawer__section" data-ops-support-reference>
+              <h3 className="opsw-drawer__section-title">{copy.drawer.supportReference}</h3>
+              <p className="opsw-muted">{copy.drawer.supportReferenceHint}</p>
+              <Identifier label={copy.drawer.supportReference} value={supportReference} />
+            </section>
+          ) : null}
+          {/* ADVANCED DIAGNOSTICS — rendered only when the server sent them. */}
+          {diagnostics.length > 0 ? (
             <section className="opsw-drawer__section" data-ops-technical-references>
-              <h3 className="opsw-drawer__section-title">
-                {copy.technicalReferences}
-              </h3>
+              <h3 className="opsw-drawer__section-title">{copy.drawer.advancedDiagnostics}</h3>
               <p className="opsw-muted">{copy.drawer.technicalHint}</p>
-              {technicalRefs.map((ref) => (
+              {diagnostics.map((ref) => (
                 <Identifier key={`${ref.key}:${ref.value}`} label={ref.label} value={ref.value} />
               ))}
             </section>

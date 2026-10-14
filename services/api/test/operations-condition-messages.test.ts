@@ -85,6 +85,7 @@ const SAMPLE: Record<ConditionMessageCode, Record<string, unknown>> = {
   "ops.search.reconciliation_failing": {},
   "ops.platform.operational_seed": { seedRunId: "5e0c1b2a-0000-4000-8000-000000000003", scenario: "escalation_storm" },
   "ops.capture.upload_stalled": { recordTitle: "Site survey.mp4", recordRef: "9f1d2c3b", minutes: 90 },
+  "ops.legacy.upload_session_signal": {},
 };
 
 const FSI = "\u2068";
@@ -288,10 +289,11 @@ describe("the reviewed English names no internal code (2026-10-14)", () => {
       "PayPal rejected the platform's credentials during a payment check. Payment states cannot be verified until the credentials are restored. No customer payment has been changed.",
     ],
     [
-      "ops.security.signal",
-      { eventType: "upload_stalled", severity: "WARNING", teamRef: "6488cb98", fields: "stalledThresholdMinutes, previousStatus" },
-      // HISTORY ONLY: the old per-workspace bridge row never named an upload
-      // or confirmed a stall, and is never presented as one.
+      // HISTORY ONLY (its own code since 2026-10-14): the old per-workspace
+      // bridge row never named an upload or confirmed a stall, and is never
+      // presented as one.
+      "ops.legacy.upload_session_signal",
+      {},
       "Legacy upload-session signal",
       "Recorded by an earlier version of Operations, which grouped upload-session signals for this whole workspace into one condition. It named no upload, and it did not confirm that any upload was actually stalled. Uploads are now checked one at a time; a genuinely stalled upload appears as its own condition.",
     ],

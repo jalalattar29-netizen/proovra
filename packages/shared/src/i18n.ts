@@ -1800,14 +1800,34 @@ const OPERATIONS_VOCAB_AR: OperationsVocabularyCopy = {
 // ---------------------------------------------------------------------------
 
 type OpsAffectedUnitKey = "records" | "conditions" | "workflows" | "items";
-type OpsTimelineKey =
-  | "opened"
-  | "reopened"
-  | "occurrence"
-  | "acknowledged"
-  | "resolved"
-  | "suppressed"
-  | "assigned";
+/**
+ * EVERY event type a condition's history can carry (2026-10-14), each with a
+ * reviewed label in every locale. `updated` is the generic label for an event
+ * type this list does not know yet — a history entry never shows its raw type.
+ */
+export const OPS_TIMELINE_EVENT_TYPES = [
+  "opened",
+  "increment",
+  "occurrence",
+  "reopened",
+  "acknowledged",
+  "resolved",
+  "suppressed",
+  "unsuppressed",
+  "assigned",
+  "unassigned",
+  "occurrence_while_suppressed",
+  "occurrence_after_resolution",
+  "resolved_by_domain_truth",
+  "resolved_by_reconciliation",
+  "rescoped_by_reconciliation",
+  "summary_sanitized_by_reconciliation",
+  "source_corrected_by_reconciliation",
+  "requires_owner_review",
+  "remediation_queued",
+  "closed_record_trashed",
+] as const;
+type OpsTimelineKey = (typeof OPS_TIMELINE_EVENT_TYPES)[number] | "updated";
 type OpsEvidenceSurfaceKey = "report" | "package" | "storage" | "timestamping" | "anchoring";
 
 type OperationsDetailCopy = {
@@ -1843,6 +1863,11 @@ type OperationsDetailCopy = {
     historyEmpty: string;
     historyTruncated: string;
     technicalHint: string;
+    /** The one safe reference a workspace reader quotes to support (2026-10-14). */
+    supportReference: string;
+    supportReferenceHint: string;
+    /** Platform diagnostics — rendered only when the server authorized and sent them. */
+    advancedDiagnostics: string;
     identProvider: string;
     identJob: string;
     identRequest: string;
@@ -1987,6 +2012,9 @@ const OPERATIONS_DETAIL_EN: OperationsDetailCopy = {
     historyEmpty: "Nothing has happened to this condition since it opened.",
     historyTruncated: "Older history exists beyond what is shown here.",
     technicalHint: "Identifiers to quote if you contact support about this condition.",
+    supportReference: "Support reference",
+    supportReferenceHint: "Quote this reference if you contact support about this condition.",
+    advancedDiagnostics: "Advanced diagnostics",
     identProvider: "Provider",
     identJob: "Job",
     identRequest: "Request",
@@ -2069,12 +2097,26 @@ const OPERATIONS_DETAIL_EN: OperationsDetailCopy = {
   },
   timeline: {
     opened: "Opened",
-    reopened: "Reopened",
+    increment: "Happened again",
     occurrence: "Happened again",
+    reopened: "Reopened",
     acknowledged: "Acknowledged",
     resolved: "Resolved",
     suppressed: "Suppressed",
+    unsuppressed: "Notifications resumed",
     assigned: "Owner changed",
+    unassigned: "Owner removed",
+    occurrence_while_suppressed: "Happened again while silenced",
+    occurrence_after_resolution: "Happened again after it was resolved",
+    resolved_by_domain_truth: "Resolved automatically — the cause cleared",
+    resolved_by_reconciliation: "Closed by a system review",
+    rescoped_by_reconciliation: "Moved to its workspace by a system review",
+    summary_sanitized_by_reconciliation: "Description updated by a system review",
+    source_corrected_by_reconciliation: "Classification corrected by a system review",
+    requires_owner_review: "Needs a decision from the owner",
+    remediation_queued: "Recovery requested",
+    closed_record_trashed: "Closed: the record was moved to trash",
+    updated: "Updated",
   },
   views: {
     shared: "Shared",
@@ -2161,6 +2203,9 @@ const OPERATIONS_DETAIL_DE: OperationsDetailCopy = {
     historyEmpty: "Seit der Öffnung ist mit diesem Zustand nichts passiert.",
     historyTruncated: "Es gibt älteren Verlauf, der hier nicht angezeigt wird.",
     technicalHint: "Kennungen, die Sie bei einer Anfrage an den Support zu diesem Zustand angeben können.",
+    supportReference: "Support-Referenz",
+    supportReferenceHint: "Geben Sie diese Referenz an, wenn Sie sich wegen dieses Zustands an den Support wenden.",
+    advancedDiagnostics: "Erweiterte Diagnose",
     identProvider: "Anbieter",
     identJob: "Job",
     identRequest: "Anfrage",
@@ -2243,12 +2288,26 @@ const OPERATIONS_DETAIL_DE: OperationsDetailCopy = {
   },
   timeline: {
     opened: "Geöffnet",
-    reopened: "Wieder geöffnet",
+    increment: "Erneut aufgetreten",
     occurrence: "Erneut aufgetreten",
+    reopened: "Wieder geöffnet",
     acknowledged: "Bestätigt",
     resolved: "Behoben",
     suppressed: "Stummgeschaltet",
+    unsuppressed: "Benachrichtigungen fortgesetzt",
     assigned: "Zuständigkeit geändert",
+    unassigned: "Zuständigkeit entfernt",
+    occurrence_while_suppressed: "Erneut aufgetreten, während stummgeschaltet",
+    occurrence_after_resolution: "Nach der Behebung erneut aufgetreten",
+    resolved_by_domain_truth: "Automatisch behoben — die Ursache ist beseitigt",
+    resolved_by_reconciliation: "Durch eine Systemprüfung geschlossen",
+    rescoped_by_reconciliation: "Durch eine Systemprüfung dem Arbeitsbereich zugeordnet",
+    summary_sanitized_by_reconciliation: "Beschreibung durch eine Systemprüfung aktualisiert",
+    source_corrected_by_reconciliation: "Einordnung durch eine Systemprüfung korrigiert",
+    requires_owner_review: "Entscheidung der verantwortlichen Person erforderlich",
+    remediation_queued: "Wiederherstellung angefordert",
+    closed_record_trashed: "Geschlossen: Der Datensatz wurde in den Papierkorb verschoben",
+    updated: "Aktualisiert",
   },
   views: {
     shared: "Geteilt",
@@ -2333,6 +2392,9 @@ const OPERATIONS_DETAIL_AR: OperationsDetailCopy = {
     historyEmpty: "لم يحدث شيء لهذه الحالة منذ فتحها.",
     historyTruncated: "يوجد سجل أقدم مما يظهر هنا.",
     technicalHint: "معرّفات يمكنك ذكرها إذا تواصلت مع الدعم بشأن هذه الحالة.",
+    supportReference: "مرجع الدعم",
+    supportReferenceHint: "اذكر هذا المرجع إذا تواصلت مع الدعم بشأن هذه الحالة.",
+    advancedDiagnostics: "تشخيصات متقدمة",
     identProvider: "المزوّد",
     identJob: "المهمة",
     identRequest: "الطلب",
@@ -2411,12 +2473,26 @@ const OPERATIONS_DETAIL_AR: OperationsDetailCopy = {
   },
   timeline: {
     opened: "فُتحت",
-    reopened: "أُعيد فتحها",
+    increment: "تكررت",
     occurrence: "تكررت",
-    acknowledged: "أُكّدت",
-    resolved: "حُلّت",
+    reopened: "أُعيد فتحها",
+    acknowledged: "تم الإقرار",
+    resolved: "تم الحل",
     suppressed: "كُتمت",
+    unsuppressed: "استؤنفت الإشعارات",
     assigned: "تغيّر المسؤول",
+    unassigned: "أُزيل المسؤول",
+    occurrence_while_suppressed: "تكررت أثناء الكتم",
+    occurrence_after_resolution: "تكررت بعد حلها",
+    resolved_by_domain_truth: "حُلّت تلقائيًا — زال السبب",
+    resolved_by_reconciliation: "أُغلقت بمراجعة النظام",
+    rescoped_by_reconciliation: "نُقلت إلى مساحة عملها بمراجعة النظام",
+    summary_sanitized_by_reconciliation: "حُدّث الوصف بمراجعة النظام",
+    source_corrected_by_reconciliation: "صُحّح التصنيف بمراجعة النظام",
+    requires_owner_review: "تحتاج إلى قرار من المسؤول",
+    remediation_queued: "طُلبت الاستعادة",
+    closed_record_trashed: "أُغلق: نُقل السجل إلى سلة المهملات",
+    updated: "تحديث",
   },
   views: {
     shared: "مشتركة",

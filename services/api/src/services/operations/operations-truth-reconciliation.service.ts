@@ -40,7 +40,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { probeConditionActivity } from "../observability/incident.service.js";
 import { classifySecurityEvent } from "../security/security-event.service.js";
-import { LEGACY_UPLOAD_STALLED_FINGERPRINT_SUFFIX } from "./condition-presentation.service.js";
+import { LEGACY_UPLOAD_SESSION_FINGERPRINTS, LEGACY_UPLOAD_SESSION_SOURCE_ID } from "./condition-presentation.service.js";
 import {
   closeRecoveredConditions,
   probeRecoverablePerRecordSourceIds,
@@ -68,6 +68,8 @@ export const RECONCILIATION_RULES = [
   "critical_held_conditions_report",
   // 2026-10-14 — the stale upload_stalled bridge row.
   "legacy_upload_stalled_rows",
+  // 2026-10-14 — the same rows' declared source, corrected to their identity.
+  "legacy_upload_session_source",
 ] as const;
 export type ReconciliationRule = (typeof RECONCILIATION_RULES)[number];
 
@@ -238,7 +240,8 @@ const RULE_SOURCES: Readonly<Record<ReconciliationRule, readonly string[] | null
   retired_unreachable_signals: ["pipeline.signed_without_report_aged"],
   disabled_immutable_drift: ["storage.immutable_drift"],
   critical_held_conditions_report: null,
-  legacy_upload_stalled_rows: ["intake.delivery_failed"],
+  legacy_upload_stalled_rows: ["intake.delivery_failed", LEGACY_UPLOAD_SESSION_SOURCE_ID],
+  legacy_upload_session_source: ["intake.delivery_failed", LEGACY_UPLOAD_SESSION_SOURCE_ID],
 };
 
 /** Rules whose rows carry no workspace: a `--team` bound cannot select them. */
@@ -1051,14 +1054,14 @@ export async function reconcileOperationsTruth(
     //                       (their wording is a read-time presentation, not a write)
     const detail = { liveStalls: 0, carriedOver: 0, refused: 0, resolvedHistory: 0 };
     detail.resolvedHistory = await client.operationalIncident.count({
-      where: { status: S.RESOLVED, fingerprint: { endsWith: LEGACY_UPLOAD_STALLED_FINGERPRINT_SUFFIX }, ...tw },
+      where: { status: S.RESOLVED, fingerprint: { in: [...LEGACY_UPLOAD_SESSION_FINGERPRINTS] }, ...tw },
     });
     const r = await pageRows(
       (afterId, take) =>
         client.operationalIncident.findMany({
           where: {
             status: { in: UNRESOLVED },
-            fingerprint: { endsWith: LEGACY_UPLOAD_STALLED_FINGERPRINT_SUFFIX },
+            fingerprint: { in: [...LEGACY_UPLOAD_SESSION_FINGERPRINTS] },
             ...byId(afterId),
             ...tw,
           },
@@ -1131,6 +1134,62 @@ export async function reconcileOperationsTruth(
     );
     c.truncated = r.truncated;
     c.detail = detail;
+  }
+
+  // ---- 2026-10-14 — the legacy upload-session rows' DECLARED source --------
+  //
+  // The old bridge declared these rows under `intake.delivery_failed`, a
+  // different condition. Their exact legacy identity already resolves to the
+  // HISTORICAL `capture.legacy_upload_session_signal` source at read time; this
+  // persists that correction so every reader — grouping, filters, exports —
+  // agrees without consulting the fingerprint. It changes ONLY `source_id`:
+  // status, notes (a person's resolution note above all), timestamps and
+  // history are untouched, and one appended event records the source the row
+  // was declared under. Bounded, idempotent, counts only.
+  if (runs("legacy_upload_session_source")) {
+    const c = rules.legacy_upload_session_source;
+    const r = await pageRows(
+      (afterId, take) =>
+        client.operationalIncident.findMany({
+          where: {
+            fingerprint: { in: [...LEGACY_UPLOAD_SESSION_FINGERPRINTS] },
+            OR: [{ sourceId: null }, { sourceId: { not: LEGACY_UPLOAD_SESSION_SOURCE_ID } }],
+            ...byId(afterId),
+            ...tw,
+          },
+          select: { id: true, sourceId: true },
+          orderBy: { id: "asc" },
+          take,
+        }),
+      limit,
+      async (row) => {
+        c.matched += 1;
+        c.changed += 1;
+        if (!apply) return;
+        const moved = await client.operationalIncident.updateMany({
+          where: { id: row.id, sourceId: row.sourceId },
+          data: { sourceId: LEGACY_UPLOAD_SESSION_SOURCE_ID },
+        });
+        if (moved.count !== 1) {
+          c.changed -= 1;
+          return;
+        }
+        await client.operationalIncidentEvent.create({
+          data: {
+            incidentId: row.id,
+            eventType: "source_corrected_by_reconciliation",
+            safeMessage:
+              "Classification corrected by the Operations truth reconciliation: this history row was filed under a different condition by an earlier version of Operations.",
+            metadataJson: {
+              rule: "legacy_upload_session_source",
+              previousSourceId: row.sourceId,
+              sourceId: LEGACY_UPLOAD_SESSION_SOURCE_ID,
+            } as prismaPkg.Prisma.InputJsonValue,
+          },
+        });
+      },
+    );
+    c.truncated = r.truncated;
   }
 
   return { mode: apply ? "apply" : "dry-run", limitPerRule: limit, scope, rules };

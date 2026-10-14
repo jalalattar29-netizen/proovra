@@ -294,20 +294,15 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
     it("paging all the way through 1,000 sees each condition exactly once", async () => {
       const emitted = await emitProviderOutage(A.teamId, 1000);
       const seen = new Set<string>();
-      const seenFingerprints = new Set<string>();
       let cursor: string | null = null;
       for (let page = 0; page < 30; page += 1) {
         const url =
           `/v1/ops/incidents?teamId=${A.teamId}&limit=100` +
           (cursor ? `&cursor=${cursor}` : "");
         const body = JSON.parse((await get(url, A.ownerToken)).body);
-        for (const i of body.incidents as Array<{
-          id: string;
-          fingerprint: string;
-        }>) {
+        for (const i of body.incidents as Array<{ id: string }>) {
           expect(seen.has(i.id), `${i.id} was returned twice`).toBe(false);
           seen.add(i.id);
-          seenFingerprints.add(i.fingerprint);
         }
         cursor = body.pagination.nextCursor;
         if (!cursor) break;
@@ -324,11 +319,15 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
       // What IS being pinned, and now exactly: every emitted condition was
       // reached, and no id was returned twice. Both survive a concurrent
       // sweep; a page boundary that skipped or repeated a record still fails.
-      for (const fingerprint of emitted) {
-        expect(
-          seenFingerprints.has(fingerprint),
-          `${fingerprint} was never reached by the traversal`,
-        ).toBe(true);
+      // The fingerprint is not on the workspace wire (2026-10-14: diagnostics
+      // are platform-admin only), so each emitted identity is named by its id.
+      const emittedRows = await prisma.operationalIncident.findMany({
+        where: { teamId: A.teamId, fingerprint: { in: [...emitted] } },
+        select: { id: true, fingerprint: true },
+      });
+      expect(emittedRows).toHaveLength(emitted.length);
+      for (const row of emittedRows) {
+        expect(seen.has(row.id), `${row.fingerprint} was never reached by the traversal`).toBe(true);
       }
       expect(seen.size).toBeGreaterThanOrEqual(1000);
     }, 180_000);

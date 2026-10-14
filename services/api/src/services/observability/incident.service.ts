@@ -57,6 +57,7 @@ import {
   REOPENED_EVENT,
   reopenReasonFor,
   isRegisteredOperationsSource,
+  decideConditionSourceForWrite,
   resolveConditionSource,
   RESOLUTION_EVENT_ORIGINS as SHARED_RESOLUTION_EVENT_ORIGINS,
   RESOLVED_BY_DOMAIN_TRUTH_EVENT,
@@ -86,13 +87,16 @@ import {
   conditionTextFor,
   messageForAudience,
   PLATFORM_WITHHELD_SUMMARY,
-  presentTimelineMessage,
+  presentTimelineMessageForAudience,
   resolveConditionSubjectAvailability,
   type ConditionAudience,
 } from "../operations/condition-presentation.service.js";
 import type { ConditionSubject, ConditionTechnicalReference } from "@proovra/shared";
 import { bump, setGauge } from "../ops/metrics.service.js";
-import { reportUnregisteredConditionSource } from "../operations/unregistered-condition-diagnostic.js";
+import {
+  reportConditionSourceDecision,
+  reportUnregisteredConditionSource,
+} from "../operations/unregistered-condition-diagnostic.js";
 import { incidentStatusFilterWhere } from "../operations/incident-open-statuses.js";
 import { safeJsonSnapshot } from "./redact.js";
 
@@ -110,6 +114,8 @@ export type IncidentErrorCode =
    */
   | "SUPPRESSION_REASON_REQUIRED"
   | "invalid_status_transition"
+  /** A signal was written under a source it does not belong to and could not be normalized (2026-10-14). */
+  | "SIGNAL_SOURCE_INCOMPATIBLE"
   /** The assignee is not an ACTIVE, eligible operator of the condition's workspace. */
   | "invalid_assignee"
   /** The source declares SUPPRESSION_NOT_OFFERED. */
@@ -341,18 +347,78 @@ export function resolveRecordIncidentText(input: RecordIncidentText & { sourceId
   return { title: input.title ?? "", summary: input.safeSummary ?? "", messageCode: null, messageParams: null };
 }
 
+/**
+ * THE WRITE BOUNDARY (2026-10-14). The old security-event bridge filed every
+ * `upload_stalled` sweep signal of a workspace under `intake.delivery_failed`
+ * — a different condition. Nothing may file a signal under another source:
+ *
+ *   - a security-event fingerprint is written only under the source its event
+ *     type is CLASSIFIED to (a mismatch is normalized); an event owned by a
+ *     DEDICATED writer, a ROUTINE one, or an unclassified one is refused —
+ *     its own writer, or nothing, records it;
+ *   - the message's catalogue entry names its permitted source(s); a mismatch
+ *     is normalized to the one permitted source or refused
+ *     (`decideConditionSourceForWrite`, shared with the worker writer);
+ *   - an exact legacy identity of a RETIRED or HISTORICAL source is never written again.
+ *
+ * Every normalization and refusal records a bounded diagnostic.
+ */
+async function canonicalSourceForWrite(input: RecordIncidentInput): Promise<RecordIncidentInput> {
+  const refuse = (reason: string): never => {
+    reportConditionSourceDecision({
+      outcome: "REFUSED",
+      declaredSourceId: input.sourceId,
+      decidedSourceId: null,
+      reason,
+      teamId: input.teamId ?? null,
+      writer: "api.recordIncident",
+    });
+    throw new IncidentError("SIGNAL_SOURCE_INCOMPATIBLE");
+  };
+  let sourceId = input.sourceId;
+  const securityEvent = /:security_event:([a-z0-9_]+)$/.exec(input.fingerprint)?.[1];
+  if (securityEvent) {
+    const { classifySecurityEvent } = await import("../security/security-event.service.js");
+    const disposition = classifySecurityEvent(securityEvent);
+    if (disposition.kind !== "CLASSIFIED") refuse(`SECURITY_EVENT_${disposition.kind}`);
+    else sourceId = disposition.classification.sourceId;
+  }
+  const stamped = input.message ? stampConditionMessage(input.message) : null;
+  const decision = decideConditionSourceForWrite({
+    sourceId,
+    fingerprint: input.fingerprint,
+    messageCode: stamped?.code ?? null,
+  });
+  if (!decision.ok) refuse(decision.reason);
+  const decided = decision.ok ? decision.sourceId : sourceId;
+  if (decided !== input.sourceId) {
+    reportConditionSourceDecision({
+      outcome: "NORMALIZED",
+      declaredSourceId: input.sourceId,
+      decidedSourceId: decided,
+      reason: securityEvent ? "SECURITY_EVENT_CLASSIFICATION" : "MESSAGE_SOURCE",
+      teamId: input.teamId ?? null,
+      writer: "api.recordIncident",
+    });
+  }
+  return decided === input.sourceId ? input : { ...input, sourceId: decided };
+}
+
 export async function recordIncident(
-  input: RecordIncidentInput,
+  declaredInput: RecordIncidentInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<RecordIncidentResult> {
-  if (!isValidIncidentFingerprint(input.fingerprint)) {
+  if (!isValidIncidentFingerprint(declaredInput.fingerprint)) {
     throw new IncidentError("invalid_fingerprint");
   }
-  if (input.platform && input.teamId) {
+  if (declaredInput.platform && declaredInput.teamId) {
     // A platform declaration with a workspace is the contradiction the scope
     // column exists to prevent.
     throw new IncidentError("invalid_fingerprint");
   }
+  // A SIGNAL IS FILED ONLY UNDER ITS OWN SOURCE (2026-10-14) — decided here,
+  // at the write boundary, before anything is read or written.
+  const input = await canonicalSourceForWrite(declaredInput);
   const text = resolveRecordIncidentText(input);
   const safeTitle = clipSafeSummary(text.title).slice(0, 180);
   const safeSummary = clipSafeSummary(text.summary);
@@ -1945,17 +2011,30 @@ export type IncidentProjection = {
    * The raw codes and ids, for support only — the one place a signal code
    * reaches a reader, labelled as a technical reference.
    */
-  technicalReferences: ConditionTechnicalReference[];
-  fingerprint: string;
+  /**
+   * ONE SAFE REFERENCE for support (2026-10-14): `OPS-` + the first eight
+   * characters of the condition id. Everyone who may read the condition gets
+   * it; it identifies the condition to support without exposing anything else.
+   */
+  supportReference: string;
+  /**
+   * PLATFORM DIAGNOSTICS (2026-10-14) — signal code, source key, job, request
+   * and trace ids, provider, fingerprint and runbook. Projected ONLY for the
+   * PLATFORM audience (the platform-admin routes, behind requirePlatformAdmin).
+   * A workspace reader — Owner and Admin included, on any plan — never
+   * receives them: workspace authority is not platform-support authority.
+   */
+  technicalReferences?: ConditionTechnicalReference[];
+  fingerprint?: string;
   occurrenceCount: number;
   firstSeenAtUtc: string;
   lastSeenAtUtc: string;
-  requestId: string | null;
-  traceId: string | null;
+  requestId?: string | null;
+  traceId?: string | null;
   relatedEvidenceId: string | null;
-  relatedJobId: string | null;
-  relatedProvider: string | null;
-  runbookSlug: string | null;
+  relatedJobId?: string | null;
+  relatedProvider?: string | null;
+  runbookSlug?: string | null;
   acknowledgedByUserId: string | null;
   resolvedByUserId: string | null;
   /**
@@ -2151,17 +2230,22 @@ export function projectIncident(
       titleSource,
     },
     subject: audience === "PLATFORM" ? { ...subject, name: null } : subject,
-    technicalReferences: conditionTechnicalReferencesFor(i, lifecycle.sourceId, message),
-    fingerprint: i.fingerprint,
+    supportReference: `OPS-${i.id.slice(0, 8).toUpperCase()}`,
+    ...(audience === "PLATFORM"
+      ? {
+          technicalReferences: conditionTechnicalReferencesFor(i, lifecycle.sourceId, message),
+          fingerprint: i.fingerprint,
+          requestId: i.requestId,
+          traceId: i.traceId,
+          relatedJobId: i.relatedJobId,
+          relatedProvider: i.relatedProvider,
+          runbookSlug: i.runbookSlug,
+        }
+      : {}),
     occurrenceCount: i.occurrenceCount,
     firstSeenAtUtc: i.firstSeenAtUtc.toISOString(),
     lastSeenAtUtc: i.lastSeenAtUtc.toISOString(),
-    requestId: i.requestId,
-    traceId: i.traceId,
     relatedEvidenceId: i.relatedEvidenceId,
-    relatedJobId: i.relatedJobId,
-    relatedProvider: i.relatedProvider,
-    runbookSlug: i.runbookSlug,
     acknowledgedByUserId: i.acknowledgedByUserId,
     resolvedByUserId: i.resolvedByUserId,
     acknowledgedAtUtc: i.acknowledgedAtUtc ? i.acknowledgedAtUtc.toISOString() : null,
@@ -2253,7 +2337,7 @@ export async function getIncidentDetail(
     timeline: bounded.map((e) => ({
       id: e.id,
       eventType: e.eventType,
-      safeMessage: presentTimelineMessage(e.safeMessage),
+      safeMessage: presentTimelineMessageForAudience(e.eventType, e.safeMessage, "WORKSPACE"),
       occurredAtUtc: e.createdAt.toISOString(),
     })),
     timelineComplete,

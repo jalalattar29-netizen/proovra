@@ -57,7 +57,9 @@
 
 import { prisma } from "../db.js";
 import {
+  OPERATIONS_FRESHNESS_WINDOW_MS,
   OPERATIONS_REFRESH_DUE_MS,
+  OPERATIONS_SWEEP_INTERVAL_MS,
   WORKSPACE_OPERATIONS_RUN_KIND,
   safeOperationsFailureCategory,
 } from "@proovra/shared-runtime";
@@ -75,6 +77,13 @@ import { reconcilePlatformConditions } from "../services/operations/platform-con
  * Workspaces not reached this tick are reached on the next, oldest first.
  */
 const WORKSPACE_BATCH = 25;
+
+/**
+ * The most workspaces one tick will ever touch, however many are about to
+ * pass the freshness window (2026-10-14). Bounds one tick's work; the leases
+ * keep a long tick from overlapping the next.
+ */
+const MAX_WORKSPACE_BATCH = 200;
 
 export type OperationsSweepResult = {
   ok: boolean;
@@ -117,6 +126,15 @@ export async function workspacesNeedingReconciliation(
   // last run is older than the refresh age — before its picture expires — not
   // only after it has already turned STALE.
   const cutoff = new Date(now.getTime() - OPERATIONS_REFRESH_DUE_MS);
+  // MUST RUN THIS TICK (2026-10-14): a workspace whose last run is already this
+  // old would pass the freshness window before the NEXT tick. A fixed batch of
+  // 25 per 15-minute tick is 100 runs an hour, which kept every workspace of a
+  // deployment over 75 workspaces past the 45-minute contract on every cycle,
+  // with no bound — measured at 135 minutes for 100 workspaces. The batch now
+  // grows to cover every such workspace (still oldest first), bounded by
+  // MAX_WORKSPACE_BATCH so one tick stays bounded; a deployment beyond that
+  // bound shows it in `due` / the coverage metric rather than silently.
+  const mustRunCutoff = new Date(now.getTime() - (OPERATIONS_FRESHNESS_WINDOW_MS - OPERATIONS_SWEEP_INTERVAL_MS));
 
   // OPS-008 — RANKED IN SQL, OVER EVERY WORKSPACE.
   //
@@ -140,11 +158,14 @@ export async function workspacesNeedingReconciliation(
     ),
     due AS (
       SELECT id, last FROM last_run WHERE last IS NULL OR last <= ${cutoff}
+    ),
+    must_run AS (
+      SELECT count(*) AS n FROM due WHERE last IS NULL OR last <= ${mustRunCutoff}
     )
     SELECT id::text AS id, (SELECT count(*) FROM due) AS due
       FROM due
      ORDER BY last ASC NULLS FIRST, id ASC
-     LIMIT ${limit}
+     LIMIT GREATEST(${limit}::bigint, LEAST(${MAX_WORKSPACE_BATCH}::bigint, (SELECT n FROM must_run)))
   `;
   return { ids: rows.map((r) => r.id), due: rows.length > 0 ? Number(rows[0]!.due) : 0 };
 }

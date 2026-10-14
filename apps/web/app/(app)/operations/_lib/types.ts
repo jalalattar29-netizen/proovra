@@ -94,16 +94,19 @@ export type Incident = {
   safeSummary: string;
   /** Absent from a server older than the message codes: the stored text is shown. */
   message?: ConditionMessageRef | null;
-  fingerprint: string;
+  /** Platform diagnostic: never sent to a workspace reader (2026-10-14). */
+  fingerprint?: string;
+  /** The one safe reference every reader may quote to support. */
+  supportReference?: string;
   occurrenceCount: number;
   firstSeenAtUtc: string;
   lastSeenAtUtc: string;
-  requestId: string | null;
-  traceId: string | null;
+  requestId?: string | null;
+  traceId?: string | null;
   relatedEvidenceId: string | null;
-  relatedJobId: string | null;
-  relatedProvider: string | null;
-  runbookSlug: string | null;
+  relatedJobId?: string | null;
+  relatedProvider?: string | null;
+  runbookSlug?: string | null;
   acknowledgedByUserId: string | null;
   resolvedByUserId: string | null;
   assignedOperatorUserId: string | null;

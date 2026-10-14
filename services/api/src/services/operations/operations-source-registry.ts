@@ -311,6 +311,19 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     freshnessParticipating: false,
     surfaces: { home: true, notifications: true, operations: true },
   },
+  // HISTORY ONLY (2026-10-14): rows the retired per-workspace upload-session
+  // bridge filed under intake.delivery_failed. Never produced again; shown to
+  // their workspace as resolved history, never on Home or as a notification.
+  {
+    id: "capture.legacy_upload_session_signal",
+    owner: "(retired — history only)",
+    scopeAuthority: "STRICT_WORKSPACE_COLUMN",
+    discovery: "retired: not discovered",
+    fingerprint: "the old bridge identity upload:security_event:upload_stalled",
+    resolution: "history: closed by the truth reconciliation",
+    freshnessParticipating: false,
+    surfaces: { home: false, notifications: false, operations: true },
+  },
   {
     id: "communications.provider_failure",
     owner: "NotificationDelivery",

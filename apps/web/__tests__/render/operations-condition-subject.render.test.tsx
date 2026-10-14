@@ -7,7 +7,9 @@
  * record at all. Proven here, on the real drawer and the real row model:
  *
  *   - the title and summary are the catalogue's sentences in the reader's
- *     language; the signal code appears ONLY under Technical references;
+ *     language; the signal code appears ONLY under Advanced diagnostics,
+ *     which render only when the server sends them (platform audience);
+ *   - a workspace reader gets one support reference and no diagnostics;
  *   - the affected-record line is the server's subject (a named record links
  *     to it; a record that is gone reads as unavailable and is never linked);
  *   - a resolved legacy workspace-wide row reads as HISTORY (never as a
@@ -170,21 +172,24 @@ describe("the condition drawer", () => {
         resolvedAtUtc: new Date(NOW - 600_000).toISOString(),
         title: "Security signal: upload_stalled",
         safeSummary: "Severity WARNING · team 6488cb98… · fields: stalledThresholdMinutes, previousStatus",
-        message: { code: "ops.security.signal", params: { eventType: "upload_stalled", severity: "WARNING" }, titleSource: "CONDITION" },
-        fingerprint: "upload:security_event:upload_stalled",
+        message: { code: "ops.legacy.upload_session_signal", params: {}, titleSource: "CONDITION" },
         relatedEvidenceId: null,
         occurrenceCount: 4,
         lifecycle: {
-          sourceId: "intake.delivery_failed",
-          sourceMatch: "DECLARED",
-          resolutionAuthority: "OPERATOR_DECISION",
-          audience: "TENANT_ACTIONABLE",
+          sourceId: "capture.legacy_upload_session_signal",
+          sourceMatch: "LEGACY_FINGERPRINT",
+          resolutionAuthority: "NO_DIRECT_RESOLUTION",
+          audience: "TENANT_ADVISORY",
           cardinality: "EVENT",
-          recoveryPolicy: "OPERATOR_CLOSES",
-          manualResolution: true,
+          recoveryPolicy: "NO_RECOVERY_SIGNAL",
+          manualResolution: false,
         } as never,
         subject: { kind: "UPLOADS", name: null, reference: null, version: null, state: "NOT_APPLICABLE" },
-        technicalReferences: [{ key: "signalCode", value: "upload_stalled" }],
+        technicalReferences: undefined,
+        relatedJobId: undefined,
+        runbookSlug: undefined,
+        fingerprint: undefined,
+        supportReference: "OPS-03EC1E2F",
       }),
       [{ id: "e2", eventType: "resolved", safeMessage: conclusion, occurredAtUtc: new Date(NOW - 600_000).toISOString() }],
       { disposition: "READ_ONLY_GUIDANCE", actions: [], deepLink: null, guidance: LEGACY_GUIDANCE, unsafeReason: null } as never,
@@ -201,13 +206,15 @@ describe("the condition drawer", () => {
     expect(container.querySelector("[data-ops-remediation-link]")).toBeNull();
     expect(container.querySelectorAll(".opsw-remediation__action")).toHaveLength(0);
     expect(text).toContain("There is nothing to repair here.");
-    // No internal language; the code only under Technical references.
+    // No internal language and no diagnostics for a workspace reader: one
+    // support reference instead.
     expect(text).toContain("Uploads in this workspace");
-    expect(text).not.toMatch(/upload_stalled|Security signal|fields:|team 6488|Intake/);
-    expect(container.querySelector("[data-ops-technical-references]")!.textContent).toContain("upload_stalled");
+    expect(container.textContent).not.toMatch(/upload_stalled|Security signal|fields:|team 6488|Intake|Advanced diagnostics/);
+    expect(container.querySelector("[data-ops-technical-references]")).toBeNull();
+    expect(container.querySelector("[data-ops-support-reference]")!.textContent).toContain("OPS-03EC1E2F");
   });
 
-  it("the legacy row and its guidance read in German and Arabic, Arabic right-to-left with LTR-isolated references", () => {
+  it("the legacy row and its guidance read in German and Arabic, Arabic right-to-left with an LTR-isolated support reference", () => {
     const LEGACY_GUIDANCE =
       "This is history recorded by an earlier version of Operations. There is nothing to repair here. Uploads are now checked one at a time, and a genuinely stalled upload appears as its own condition.";
     const expected = {
@@ -220,11 +227,12 @@ describe("the condition drawer", () => {
       const { container, unmount } = mount(
         condition({
           status: "RESOLVED",
-          message: { code: "ops.security.signal", params: { eventType: "upload_stalled", severity: "WARNING" }, titleSource: "CONDITION" },
-          fingerprint: "upload:security_event:upload_stalled",
+          message: { code: "ops.legacy.upload_session_signal", params: {}, titleSource: "CONDITION" },
+          fingerprint: undefined,
           relatedEvidenceId: null,
           subject: { kind: "UPLOADS", name: null, reference: null, version: null, state: "NOT_APPLICABLE" },
-          technicalReferences: [{ key: "signalCode", value: "upload_stalled" }],
+          technicalReferences: undefined,
+          supportReference: "OPS-03EC1E2F",
         }),
         [],
         { disposition: "READ_ONLY_GUIDANCE", actions: [], deepLink: null, guidance: LEGACY_GUIDANCE, unsafeReason: null } as never,
@@ -233,12 +241,15 @@ describe("the condition drawer", () => {
       const text = sentences(container);
       expect(text, loc).toContain(expected[loc].guidance);
       expect(text, loc).not.toContain("There is nothing to repair here.");
-      expect(text, loc).not.toMatch(/upload_stalled/);
-      // A code inside an RTL page is isolated left-to-right so it is not
+      expect(container.textContent, loc).not.toMatch(/upload_stalled/);
+      expect(container.querySelector("[data-ops-technical-references]"), loc).toBeNull();
+      // A reference inside an RTL page is isolated left-to-right so it is not
       // reordered or copied back-to-front.
-      const code = container.querySelector("[data-ops-technical-references] code")!;
+      const ref = container.querySelector("[data-ops-support-reference]")!;
+      expect(ref.textContent, loc).toContain(loc === "de" ? "Support-Referenz" : "مرجع الدعم");
+      const code = ref.querySelector("code")!;
       expect(code.getAttribute("dir"), loc).toBe("ltr");
-      expect(code.textContent, loc).toBe("upload_stalled");
+      expect(code.textContent, loc).toBe("OPS-03EC1E2F");
       unmount();
     }
     document.documentElement.removeAttribute("dir");
@@ -274,6 +285,29 @@ describe("the condition drawer", () => {
       expect(text, loc).not.toMatch(/upload_stalled|Upload appears stalled/);
       expect(container.querySelector("[data-ops-technical-references]")!.textContent, loc).toContain("upload_stalled");
       unmount();
+    }
+  });
+
+  it("advanced diagnostics render only when the server sends them, under their own heading, in every locale", () => {
+    const headings = { en: "Advanced diagnostics", de: "Erweiterte Diagnose", ar: "تشخيصات متقدمة" } as const;
+    for (const loc of ["en", "de", "ar"] as const) {
+      localeState.locale = loc;
+      // Platform audience: the server sent diagnostics.
+      const withRefs = mount(condition({ supportReference: "OPS-C0000000" }));
+      const refs = withRefs.container.querySelector("[data-ops-technical-references]")!;
+      expect(refs.querySelector("h3")!.textContent, loc).toBe(headings[loc]);
+      expect(refs.textContent, loc).toContain("upload_stalled");
+      withRefs.unmount();
+      // Workspace audience: none sent, none rendered, nothing derived from
+      // other fields — the support reference only.
+      const none = mount(
+        condition({ technicalReferences: undefined, runbookSlug: undefined, fingerprint: undefined, relatedJobId: undefined, supportReference: "OPS-C0000000" }),
+      );
+      expect(none.container.querySelector("[data-ops-technical-references]"), loc).toBeNull();
+      expect(none.container.textContent, loc).not.toContain(headings[loc]);
+      expect(none.container.textContent, loc).not.toMatch(/upload_stalled|stuck-upload|ops\.capture/);
+      expect(none.container.querySelector("[data-ops-support-reference]")!.textContent, loc).toContain("OPS-C0000000");
+      none.unmount();
     }
   });
 

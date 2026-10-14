@@ -44,7 +44,6 @@ import {
 import type { IncidentCategory } from "@proovra/shared";
 import { resolveConditionSource } from "@proovra/shared-runtime";
 
-import { isLegacyUploadStalledBridgeRow } from "./condition-presentation.service.js";
 
 // ===========================================================================
 // VOCABULARY
@@ -619,11 +618,18 @@ const SOURCE_ENTRIES: Readonly<Record<string, RemediationEntry>> = Object.freeze
   // the upload service failing to start or resume an upload session — nothing
   // in the product records an intake link failing to reach a recipient — so the
   // guidance says what happened, and no Intake Links action is offered.
-  // (keyed by identity, not source: see LEGACY_UPLOAD_STALLED_ENTRY below)
   "intake.delivery_failed": {
     disposition: "READ_ONLY_GUIDANCE",
     guidance:
       "The upload service failed while starting or resuming an upload. The person uploading saw an error at the time and can try again; nothing needs to be done here unless it keeps happening, in which case contact support.",
+  },
+  // History from the old per-workspace upload-session bridge (2026-10-14):
+  // it named no upload and confirmed no stall, so it offers no repair and no
+  // link — only what it is and where a real stall appears.
+  "capture.legacy_upload_session_signal": {
+    disposition: "READ_ONLY_GUIDANCE",
+    guidance:
+      "This is history recorded by an earlier version of Operations. There is nothing to repair here. Uploads are now checked one at a time, and a genuinely stalled upload appears as its own condition.",
   },
   // ONE stalled upload (2026-10-14): its own record, where the upload is.
   "capture.upload_stalled": {
@@ -677,13 +683,6 @@ export function integrityClassOf(fingerprint: string): IntegrityClass | null {
 }
 
 /** The registry entry governing one incident. Never throws; never guesses. */
-/** History from the old bridge: nothing to repair, nothing to open. */
-const LEGACY_UPLOAD_STALLED_ENTRY: RemediationEntry = {
-  disposition: "READ_ONLY_GUIDANCE",
-  guidance:
-    "This is history recorded by an earlier version of Operations. There is nothing to repair here. Uploads are now checked one at a time, and a genuinely stalled upload appears as its own condition.",
-};
-
 export function entryForIncident(input: {
   /** OPS-031 — the declared source; resolved from the fingerprint when absent. */
   sourceId?: string | null;
@@ -698,10 +697,6 @@ export function entryForIncident(input: {
   // whose generic guidance says records "recover when it does" — false for a
   // terminal state. It is an OTS failure of one record, and gets that entry.
   if (parseOtsBudgetExhaustedFingerprint(input.fingerprint)) return INTEGRITY_ENTRIES.ots_failure;
-  // The old per-workspace upload-stalled bridge row is HISTORY (2026-10-14):
-  // it named no upload and confirmed no stall, so it offers no repair and no
-  // link — only what it is and where a real stall appears.
-  if (isLegacyUploadStalledBridgeRow(input.fingerprint)) return LEGACY_UPLOAD_STALLED_ENTRY;
   // The SOURCE, by its declared id or — for a row written before the column
   // existed — by the same fingerprint resolution the lifecycle uses.
   const resolved = resolveConditionSource({
@@ -910,7 +905,6 @@ export function allRemediationTexts(): ReadonlyArray<string> {
   for (const e of Object.values(INTEGRITY_ENTRIES)) visit(e);
   for (const e of Object.values(CATEGORY_ENTRIES)) visit(e);
   for (const e of Object.values(SOURCE_ENTRIES)) visit(e);
-  visit(LEGACY_UPLOAD_STALLED_ENTRY);
   for (const a of [RESUME_OTS, REGENERATE_ARTIFACTS, SUPERSEDE_FAILED_GENERATION]) {
     out.add(a.label);
     out.add(a.description);

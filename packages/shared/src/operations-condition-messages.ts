@@ -380,19 +380,6 @@ const SECURITY_SIGNAL_COPY: Readonly<Record<string, SecurityCopy>> = {
     { title: "Ein Upload konnte nicht fortgesetzt werden", summary: "Der Upload-Dienst ist beim Fortsetzen eines unterbrochenen Uploads fehlgeschlagen. Die hochladende Person hat eine Fehlermeldung gesehen und kann es erneut versuchen; tritt es wiederholt auf, wenden Sie sich an den Support." },
     { title: "تعذّر استئناف رفع", summary: "أخفقت خدمة الرفع أثناء استئناف رفع منقطع. رأى من يرفع الملف رسالة خطأ ويمكنه المحاولة مجددًا؛ وإن تكرر ذلك فتواصل مع الدعم." },
   ),
-  // HISTORY ONLY (2026-10-14). Stalls are per-upload conditions now
-  // (`ops.capture.upload_stalled`); `upload_stalled` is no longer filed by the
-  // bridge, so only rows written by the old per-workspace bridge render this.
-  // That bridge filed upload-SESSION sweep signals without naming an upload
-  // or confirming that any upload was actually stalled (the production row
-  // was four stale sessions behind finalized records), so this copy claims
-  // neither: it says what the row is, and where a real stall would appear.
-  upload_stalled: sc(
-    "UPLOADS",
-    { title: "Legacy upload-session signal", summary: "Recorded by an earlier version of Operations, which grouped upload-session signals for this whole workspace into one condition. It named no upload, and it did not confirm that any upload was actually stalled. Uploads are now checked one at a time; a genuinely stalled upload appears as its own condition." },
-    { title: "Älteres Upload-Sitzungssignal", summary: "Von einer früheren Version von Operations erfasst, die Upload-Sitzungssignale dieses gesamten Arbeitsbereichs zu einer Meldung zusammenfasste. Sie nannte keinen Upload und bestätigte nicht, dass ein Upload tatsächlich feststeckte. Uploads werden jetzt einzeln geprüft; ein tatsächlich feststeckender Upload erscheint als eigene Meldung." },
-    { title: "إشارة قديمة لجلسة رفع", summary: "سجّلها إصدار سابق من العمليات كان يجمع إشارات جلسات الرفع لمساحة العمل كلها في حالة واحدة. لم تسمِّ أي رفع، ولم تؤكد أن أي رفع كان متوقفًا فعلًا. تُفحص عمليات الرفع الآن كلٌّ على حدة؛ ويظهر الرفع المتوقف فعلًا كحالة مستقلة." },
-  ),
   // ---- sign-in security --------------------------------------------------------
   step_up_denied: sc(
     "SIGN_IN_SECURITY",
@@ -1257,6 +1244,27 @@ const CATALOGUE = {
     }),
   }),
 
+  // ---- history -------------------------------------------------------------
+  // The old per-workspace upload-session bridge row (2026-10-14). That bridge
+  // filed upload-SESSION sweep signals for a whole workspace without naming an
+  // upload or confirming a stall; a genuine stall is `ops.capture.upload_stalled`
+  // under the Capture and upload source. History only: nothing writes this.
+  "ops.legacy.upload_session_signal": def({
+    params: {},
+    en: () => ({
+      title: "Legacy upload-session signal",
+      summary: "Recorded by an earlier version of Operations, which grouped upload-session signals for this whole workspace into one condition. It named no upload, and it did not confirm that any upload was actually stalled. Uploads are now checked one at a time; a genuinely stalled upload appears as its own condition.",
+    }),
+    de: () => ({
+      title: "Älteres Upload-Sitzungssignal",
+      summary: "Von einer früheren Version von Operations erfasst, die Upload-Sitzungssignale dieses gesamten Arbeitsbereichs zu einer Meldung zusammenfasste. Sie nannte keinen Upload und bestätigte nicht, dass ein Upload tatsächlich feststeckte. Uploads werden jetzt einzeln geprüft; ein tatsächlich feststeckender Upload erscheint als eigene Meldung.",
+    }),
+    ar: () => ({
+      title: "إشارة قديمة لجلسة رفع",
+      summary: "سجّلها إصدار سابق من العمليات كان يجمع إشارات جلسات الرفع لمساحة العمل كلها في حالة واحدة. لم تسمِّ أي رفع، ولم تؤكد أن أي رفع كان متوقفًا فعلًا. تُفحص عمليات الرفع الآن كلٌّ على حدة؛ ويظهر الرفع المتوقف فعلًا كحالة مستقلة.",
+    }),
+  }),
+
   // ---- platform -----------------------------------------------------------
   "ops.platform.worker_heartbeat_stale": def({
     params: {},
@@ -1373,6 +1381,86 @@ export type ConditionMessage = {
 export const CONDITION_MESSAGE_CODES: readonly ConditionMessageCode[] = Object.freeze(
   Object.keys(CATALOGUE) as ConditionMessageCode[],
 );
+
+/**
+ * WHICH SOURCE EACH MESSAGE MAY BE WRITTEN UNDER (2026-10-14).
+ *
+ * One table, read by both incident writers at the write boundary: a message
+ * written under a source it does not belong to is normalized to its one
+ * permitted source, or refused when it has several. This is what keeps a
+ * signal from being filed as a different condition — the old bridge filed
+ * upload-session stalls as an intake delivery failure. `ops.security.signal`
+ * is the bridge's generic message; its exact source per event type is the
+ * security-event classification, which the API checks first.
+ */
+const PIPELINE_REPORT = ["pipeline.report_generation_failed"] as const;
+const PIPELINE_PACKAGE = ["pipeline.package_generation_failed"] as const;
+const DEPENDENT_CANCELLATION = ["billing.dependent_cancellation_failed"] as const;
+const GOVERNANCE_NOTICE = ["governance.notification_escalated"] as const;
+const REVIEW_ESCALATION = ["review.escalation"] as const;
+export const CONDITION_MESSAGE_SOURCES: Readonly<Record<ConditionMessageCode, readonly string[]>> = Object.freeze({
+  "ops.identity.runtime_block": ["identity.runtime_block"],
+  "ops.identity.high_risk_session_surge": ["identity.high_risk_session_surge"],
+  "ops.identity.idp_outage": ["identity.idp_outage"],
+  "ops.security.signal": [
+    "identity.security_condition",
+    "webhook.security_failure",
+    "communications.provider_failure",
+    "intake.delivery_failed",
+  ],
+  "ops.integration.webhook_destination_disabled": ["integration.webhook_destination_disabled"],
+  "ops.billing.provider_authorization": ["billing.provider_authorization"],
+  "ops.billing.dependent_cancellation.ungrantable_manual": DEPENDENT_CANCELLATION,
+  "ops.billing.dependent_cancellation.ungrantable_stopping": DEPENDENT_CANCELLATION,
+  "ops.billing.dependent_cancellation.pending": DEPENDENT_CANCELLATION,
+  "ops.billing.dependent_cancellation.retry_provider_unreachable": DEPENDENT_CANCELLATION,
+  "ops.billing.dependent_cancellation.retry": DEPENDENT_CANCELLATION,
+  "ops.billing.dependent_cancellation.manual": DEPENDENT_CANCELLATION,
+  "ops.billing.dependent_cancellation.unconfirmed": DEPENDENT_CANCELLATION,
+  "ops.pipeline.report_backlog": ["pipeline.report_backlog"],
+  "ops.pipeline.package_backlog": ["pipeline.package_backlog"],
+  "ops.review.stale_workflows": ["review.stale_workflows"],
+  "ops.coordination.backlog_stale": ["coordination.backlog_stale"],
+  "ops.review.escalation": REVIEW_ESCALATION,
+  "ops.review.escalation.overdue_auto": REVIEW_ESCALATION,
+  "ops.review.escalation.stuck_auto": REVIEW_ESCALATION,
+  "ops.review.escalation_storm": ["review.escalation_storm"],
+  "ops.governance.destruction_executed": ["governance.destruction_executed"],
+  "ops.governance.notification.destruction_executed": GOVERNANCE_NOTICE,
+  "ops.governance.notification.destruction_blocked": GOVERNANCE_NOTICE,
+  "ops.governance.notification.immutable_drift": GOVERNANCE_NOTICE,
+  "ops.governance.notification.destruction_pending": GOVERNANCE_NOTICE,
+  "ops.governance.notification.retention_blocked": GOVERNANCE_NOTICE,
+  "ops.governance.notification.retention_extended": GOVERNANCE_NOTICE,
+  "ops.governance.notification.lifecycle_drift": GOVERNANCE_NOTICE,
+  "ops.storage.immutable_drift": ["storage.immutable_drift"],
+  "ops.evidence_integrity.tsa_failed": ["evidence_integrity.tsa_failed"],
+  "ops.evidence_integrity.ots_failed": ["evidence_integrity.ots_failed"],
+  "ops.evidence_integrity.ots_pending_aged": ["evidence_integrity.ots_pending_aged"],
+  "ops.evidence_integrity.ots_initialization_stalled": ["evidence_integrity.ots_initialization_stalled"],
+  "ops.evidence_integrity.ots_budget_exhausted": ["evidence_integrity.ots_budget_exhausted"],
+  "ops.pipeline.report_generation_failed.retries_exhausted": PIPELINE_REPORT,
+  "ops.pipeline.report_generation_failed.not_retriable": PIPELINE_REPORT,
+  "ops.pipeline.report_generation_failed.retry_budget_exhausted": PIPELINE_REPORT,
+  "ops.pipeline.report_generation_failed.sanitized": PIPELINE_REPORT,
+  "ops.pipeline.package_generation_failed.sanitized": PIPELINE_PACKAGE,
+  "ops.pipeline.package_generation_failed.storage_rejected": PIPELINE_PACKAGE,
+  "ops.pipeline.package_generation_failed.failed": PIPELINE_PACKAGE,
+  "ops.pipeline.package_generation_failed.retry_budget_exhausted": PIPELINE_PACKAGE,
+  "ops.pipeline.package_generation_denied": ["pipeline.package_generation_denied"],
+  "ops.capture.upload_stalled": ["capture.upload_stalled"],
+  "ops.legacy.upload_session_signal": ["capture.legacy_upload_session_signal"],
+  "ops.platform.worker_heartbeat_stale": ["platform.worker_heartbeat_stale"],
+  "ops.job.background_failure": ["job.background_failure"],
+  "ops.search.not_built": ["search.indexing_failure"],
+  "ops.search.reconciliation_failing": ["search.indexing_failure"],
+  "ops.platform.operational_seed": ["platform.operational_seed"],
+});
+
+/** The sources a message may be written under (empty for an unknown code). */
+export function permittedSourcesForMessage(code: string | null | undefined): readonly string[] {
+  return isConditionMessageCode(code) ? CONDITION_MESSAGE_SOURCES[code] : [];
+}
 
 export function isConditionMessageCode(code: unknown): code is ConditionMessageCode {
   return typeof code === "string" && Object.prototype.hasOwnProperty.call(CATALOGUE, code);
@@ -1565,6 +1653,7 @@ const SOURCE_LABELS: Record<ConditionMessageLocale, Readonly<Record<string, stri
     "platform.worker_heartbeat_stale": "Worker heartbeat stale",
     "intake.delivery_failed": "Uploads could not be started or resumed",
     "capture.upload_stalled": "Upload appears stalled",
+    "capture.legacy_upload_session_signal": "Legacy upload-session signals",
     "communications.provider_failure": "Communications provider failure",
     "webhook.security_failure": "Webhook security event",
     "identity.security_condition": "Identity security condition",
@@ -1609,6 +1698,7 @@ const SOURCE_LABELS: Record<ConditionMessageLocale, Readonly<Record<string, stri
     "platform.worker_heartbeat_stale": "Worker-Lebenszeichen veraltet",
     "intake.delivery_failed": "Uploads konnten nicht gestartet oder fortgesetzt werden",
     "capture.upload_stalled": "Upload scheint festzustecken",
+    "capture.legacy_upload_session_signal": "Ältere Upload-Sitzungssignale",
     "communications.provider_failure": "Störung beim Kommunikationsanbieter",
     "webhook.security_failure": "Sicherheitsereignis bei Webhook",
     "identity.security_condition": "Sicherheitsmeldung zur Identität",
@@ -1653,6 +1743,7 @@ const SOURCE_LABELS: Record<ConditionMessageLocale, Readonly<Record<string, stri
     "platform.worker_heartbeat_stale": "نبضات العامل متأخرة",
     "intake.delivery_failed": "تعذّر بدء عمليات الرفع أو استئنافها",
     "capture.upload_stalled": "يبدو أن الرفع متوقف",
+    "capture.legacy_upload_session_signal": "إشارات قديمة لجلسات الرفع",
     "communications.provider_failure": "عطل لدى مزوّد الاتصالات",
     "webhook.security_failure": "حدث أمني في Webhook",
     "identity.security_condition": "حالة أمنية للهوية",

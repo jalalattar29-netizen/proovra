@@ -188,7 +188,6 @@ function affectedFor(i: Incident, copy: OperationsCopy, locale: string): {
     };
   }
   if (i.relatedJobId) return { label: copy.drawer.backgroundJob, href: null };
-  if (i.relatedProvider) return { label: i.relatedProvider, href: null };
   return { label: null, href: null };
 }
 

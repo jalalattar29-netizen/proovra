@@ -111,6 +111,7 @@ export const HOME_OPERATIONS_SOURCE_IDS = [
   "platform.worker_heartbeat_stale",
   "intake.delivery_failed",
   "capture.upload_stalled",
+  "capture.legacy_upload_session_signal",
   "communications.provider_failure",
   "webhook.security_failure",
   "integration.webhook_destination_disabled",
@@ -399,6 +400,13 @@ export const HOME_CONDITION_REPRESENTATION: Record<
   // ---- Queue / processing --------------------------------------------------
   // OPS-001 / OPS-002 — RETIRED. Neither source is produced any more; a stored
   // row of either is platform history, never a workspace's Home attention.
+  // 2026-10-14 — HISTORICAL: rows from the old per-workspace upload-session
+  // bridge. Nothing produces it again; its rows are Operations history, never
+  // Home attention. Genuine stalls are capture.upload_stalled.
+  "capture.legacy_upload_session_signal": {
+    kind: "NOT_PRODUCED",
+    because: "HISTORICAL: never produced again; its rows are Operations history only.",
+  },
   "queue.retry_storm": {
     kind: "RETIRED",
     because: "RETIRED: counted re-observed conditions, not job retries (OPS-002).",
