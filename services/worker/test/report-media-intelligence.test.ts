@@ -930,7 +930,7 @@ describe("retired media-intelligence section module", () => {
 describe("UC-0 — How this record entered PROOVRA (report acquisition statement)", () => {
   const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 
-  it("states the recorded channel's observation boundary once, in Capture Context (2026-10-13)", async () => {
+  it("no longer prints the channel's observation-boundary sentence (2026-10-14)", async () => {
     const vm = await buildReportViewModel(
       buildInput({
         evidence: { ...buildInput().evidence, acquisitionMode: "PROOVRA_MOBILE_APP" },
@@ -938,7 +938,7 @@ describe("UC-0 — How this record entered PROOVRA (report acquisition statement
     );
     const t = text(renderReportHtml(vm));
     const boundary = resolveEvidenceAcquisition({ acquisitionMode: "PROOVRA_MOBILE_APP" }).boundary;
-    expect(t.split(boundary).length - 1).toBe(1);
+    expect(t).not.toContain(boundary);
     // The five-row provenance essay is gone.
     expect(t).not.toMatch(/How this record entered PROOVRA|Observed by PROOVRA|Not observed by PROOVRA/);
   });
@@ -955,11 +955,11 @@ describe("UC-0 — How this record entered PROOVRA (report acquisition statement
       }),
     );
     const html = renderReportHtml(vm);
-    const panel = html.match(/<section class="capture-context-panel"[^>]*data-capture-context[^>]*>[\s\S]*?<\/section>/);
-    expect(panel).not.toBeNull();
-    const t = text(panel![0]);
-    expect(t).toContain("How this record entered PROOVRA was not recorded.");
-    expect(t).not.toContain("PROOVRA Web Upload");
+    // The Executive Summary prints no capture-context panel for a record
+    // without location or client report (2026-10-14) …
+    expect(html).not.toContain("data-capture-context");
+    // … and nothing guesses the channel.
+    expect(text(html)).not.toContain("PROOVRA Web Upload");
   });
 
   it("the statement never claims capture verification or retired class labels", async () => {

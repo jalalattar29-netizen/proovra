@@ -4,7 +4,7 @@
  * This is NOT a generic media-metadata section. It deliberately does NOT
  * repeat anything already in the report: no evidence type / item count /
  * structure, no "Mixed", no files-analysed, no metadata-complete/partial,
- * no global resolution, no hashes, no EXIF GPS / location (Capture Context
+ * no global resolution, no hashes, no EXIF GPS / location (the Executive Summary
  * owns location), and no network/IP.
  *
  * It shows only the genuinely-enriching device facts:
@@ -248,7 +248,7 @@ export function renderTechnicalSummarySection(vm: ReportViewModel): string {
   return renderPageSection(
     "Technical Summary",
     `
-      <p class="section-intro">Device and camera context for the recorded material. Advisory enrichment for reviewers; it does not change the integrity verdict, and location (where recorded) is shown in the Capture Context above.</p>
+      <p class="section-intro">Device and camera context for the recorded material. Advisory enrichment for reviewers; it does not change the integrity verdict, and location (where recorded) is shown on the Executive Summary.</p>
       ${buildExifNotesHtml(b.mediaFilesTotal, isIntake)}
       ${b.groupsHtml}
     `,

@@ -8,6 +8,7 @@
  */
 import { readFileSync } from "node:fs";
 
+import { deriveCanonicalArtifactFacts } from "@proovra/shared";
 import { buildEvidenceAcquisitionContext, toPublicAcquisition } from "@proovra/shared-runtime/technical-metadata";
 
 import type { ReportEvidenceAsset, ReportV2Input } from "../../src/report-v2/types.js";
@@ -306,6 +307,8 @@ type VariantOptions = {
   mode?: "web_upload" | "browser_capture" | "mobile_capture";
   supersession?: boolean;
   maxLimitation?: boolean;
+  /** The generator issues this version's verification package after the report (2026-10-14). */
+  pairedPackage?: boolean;
 };
 
 export function layoutVariant(o: VariantOptions): LayoutVariant {
@@ -323,6 +326,7 @@ export function layoutVariant(o: VariantOptions): LayoutVariant {
     ...tsa(o.tsaStamped !== false),
     ...ots(o.ots ?? "pending"),
     latestReportVersion: version,
+    ...(o.pairedPackage ? { verificationPackageVersion: version, verificationPackageGeneratedAtUtc: AT } : {}),
     ...(o.maxLimitation
       ? {
           limitations: { short: MAX_LIMITATION, detailed: `${MAX_LIMITATION} ${MAX_LIMITATION}` },
@@ -408,6 +412,7 @@ export function regressionRecordInput(
     custodyEvents: 23,
     ots: "anchored",
     supersession: true,
+    pairedPackage: true,
   });
   const gps =
     location === "recorded"
@@ -457,4 +462,40 @@ export function regressionRecordInput(
       ? { ...input.supersession, changes: [], reason: "OTS STATUS" }
       : null,
   };
+}
+
+/**
+ * THE CANONICAL FACTS the generator derives for an input (2026-10-14): from
+ * the record's columns and its creation-time custody event
+ * IDENTITY_SNAPSHOT_RECORDED — the event the input's capture-time identity
+ * snapshot was read from — exactly as the processor derives them before
+ * rendering (deriveCanonicalArtifactFacts over the record and its chain).
+ */
+export function canonicalFactsOf(input: ReportV2Input) {
+  const e = input.evidence;
+  const s = e.acquisitionIdentity;
+  const custody =
+    s && s.basis === "OBSERVED_AT_CAPTURE"
+      ? [
+          {
+            eventType: "IDENTITY_SNAPSHOT_RECORDED",
+            atUtc: s.recordedAtUtc,
+            payload: {
+              identityLevelSnapshot: s.identityLevel,
+              submittedByAuthProvider: s.authProvider,
+              submittedByEmail: s.submittedByEmail,
+              submittedByUserId: s.submittedByUserId,
+              emailVerified: s.emailVerified,
+              workspaceKind: s.workspaceKind,
+              workspaceNameSnapshot: s.workspaceName,
+              organizationNameSnapshot: s.organizationName,
+              organizationVerifiedSnapshot: s.organizationVerified,
+              actorKind: s.actorKind,
+              accountRole: s.accountRole,
+              contributorEmailProvided: s.contributorEmailProvided,
+            },
+          },
+        ]
+      : [];
+  return deriveCanonicalArtifactFacts({ ...e, tsaTokenPresent: Boolean(e.tsaTokenBase64) } as never, custody);
 }

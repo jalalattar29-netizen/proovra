@@ -168,8 +168,8 @@ describe("evidence claims (2026-10-08) — the rendered report states a verifica
     expect(findForbiddenCustomerClaims(text)).toEqual([]);
     expect(text).not.toMatch(/Technical Confidence|Trust Decision|Overall trust decision|STRONGLY/);
     expect(text).toContain(VERIFICATION_LIMITATION);
-    // Upload is not capture: the upload boundary, once.
-    expect(text.split("PROOVRA observed the files from upload onward; creation and editing before upload were not observed.").length - 1).toBe(1);
+    // (2026-10-14) The upload's observation-boundary sentence is no longer printed.
+    expect(text).not.toContain("PROOVRA observed the files from upload onward; creation and editing before upload were not observed.");
   });
 
   it("a proof that executes to a Bitcoin attestation is Bitcoin anchoring — Anchored, stated without any score", async () => {

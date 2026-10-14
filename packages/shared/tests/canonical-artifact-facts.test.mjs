@@ -16,6 +16,7 @@ import {
   checkSealedPackageFacts,
   compareCanonicalFacts,
   deriveCanonicalArtifactFacts,
+  isAccountAuthenticationVerified,
 } from "../dist/index.js";
 import { REAL, proofSha256, upgradedProof } from "./helpers/ots-fixtures.mjs";
 
@@ -103,14 +104,58 @@ const otsCard = (facts) =>
     ? `Bitcoin anchoring Anchored ${OTS_STATE_SENTENCES.ANCHORED} ${OTS_ANCHORED_BOUNDARY}`
     : `Bitcoin anchoring Pending ${OTS_STATE_SENTENCES[facts.otsState]}`;
 
+/** The account card as the report prints it (2026-10-14). */
+const accountCard = (facts) =>
+  isAccountAuthenticationVerified(facts.acquisition)
+    ? "Account authentication Verified Authenticated email account recorded at submission"
+    : "Account authentication Recorded Email account recorded at submission";
+
 const goodText = (facts) =>
   [
     "PROOVRA Verification Report v1",
     `SHA-256 ${SHA}`,
     facts.tsaState === "PASSED" ? `RFC 3161 timestamp verified. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}` : "Timestamp token obtained; not validated",
     otsCard(facts),
+    accountCard(facts),
     VERIFICATION_LIMITATION,
   ].join("\n");
+
+test("AFTER RENDERING (2026-10-14): the account row states the snapshot's verification; no self-attested package; no removed section", () => {
+  const f = record();
+  const unverified = deriveCanonicalArtifactFacts({ fileSha256: SHA }, [
+    { ...snapshotEvent, payload: { ...snapshotEvent.payload, emailVerified: false, identityLevelSnapshot: "BASIC_ACCOUNT" } },
+  ]);
+  const legacy = deriveCanonicalArtifactFacts({ fileSha256: SHA, submittedByAuthProvider: "EMAIL", identityLevelSnapshot: "VERIFIED_EMAIL" }, []);
+  assert.equal(isAccountAuthenticationVerified(f.acquisition), true);
+  assert.equal(isAccountAuthenticationVerified(unverified.acquisition), false);
+  assert.equal(legacy.acquisition.basis, "RECORDED_ON_RECORD");
+  assert.equal(isAccountAuthenticationVerified(legacy.acquisition), false);
+  const checks = (text, facts) => checkRenderedReportText(text, facts, { reportVersion: 1 }).map((x) => x.check);
+  // A verified snapshot must be stated as verified …
+  assert.ok(!checks(goodText(f), f).includes("IDENTITY_STATUS"));
+  assert.ok(checks(goodText(f).replace("Account authentication Verified", "Account authentication Recorded"), f).includes("IDENTITY_STATUS"));
+  // … and an unverified or legacy one never is.
+  for (const facts of [unverified, legacy]) {
+    assert.ok(!checks(goodText(facts), facts).includes("IDENTITY_STATUS"));
+    assert.ok(checks(`${goodText(facts)} Account authentication Verified`, facts).includes("IDENTITY_STATUS"));
+  }
+  // The package is sealed after the report: the report never verifies it.
+  assert.ok(checks(`${goodText(f)} Verification package Verified`, f).includes("PACKAGE_SELF_ATTESTATION"));
+  assert.ok(!checks(`${goodText(f)} Verification package Paired`, f).includes("PACKAGE_SELF_ATTESTATION"));
+  // The removed sections stay removed.
+  for (const phrase of [
+    "What this report is",
+    "What it does not establish",
+    "Embedded previews are reviewer aids; rely on the preserved originals and the verification package.",
+    "Location metadata was not recorded for this evidence.",
+    "PROOVRA observed the files from upload onward; creation and editing before upload were not observed.",
+    "Workspace identity",
+  ]) {
+    assert.ok(checks(`${goodText(f)} ${phrase}`, f).includes("RETIRED_SECTION"), phrase);
+  }
+  // The cover's one-line boundary is not a removed section.
+  assert.ok(!checks(`${goodText(f)} Report boundary.`, f).includes("RETIRED_SECTION"));
+});
 
 test("AFTER RENDERING: the PDF text states the facts and nothing stronger", () => {
   const f = record();

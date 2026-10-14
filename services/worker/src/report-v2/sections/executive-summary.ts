@@ -1,6 +1,5 @@
 import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
-import { resolveEvidenceAcquisition } from "@proovra/shared";
 import {
   getCaptureContextTimestampLabel,
   captureMethodDisplayLabel,
@@ -13,10 +12,9 @@ import {
 } from "../ui.js";
 import { supersessionStatement } from "../required-statements.js";
 import { buildSignalCards } from "../signal-cards.js";
-import { renderReportBoundary } from "./legal-interpretation.js";
 
 /**
- * Server-time label for the Capture Context — never says "intake" for
+ * Server-time label for the capture location panel — never says "intake" for
  * non-intake (web/mobile) evidence. Uppercased to match the panel styling.
  */
 function captureTimestampLabel(vm: ReportViewModel): string {
@@ -188,7 +186,7 @@ function formatExecutiveLeadItem(vm: ReportViewModel): string {
 
 /**
  * Compact Evidence Acquisition table — how the evidence reached PROOVRA.
- * Lives INSIDE the Executive Summary (near Capture Context), NOT a new page
+ * Lives INSIDE the Executive Summary (above the capture location panel), NOT a new page
  * or section. Public-safe: NO recipient value, NO provider IDs. Only
  * meaningful rows render; returns "" when there is nothing to show.
  */
@@ -202,7 +200,7 @@ function renderEvidenceAcquisition(vm: ReportViewModel): string {
   // the Executive Summary from overflowing. NEVER any recipient value (phone/
   // email/masked/hash) or provider ID — those are not in this list and live
   // only in the package/internal surfaces. Location is NOT here — it belongs
-  // to Capture Context.
+  // to the capture location panel.
   const grid = renderFieldGrid(
     [
       { label: "Acquisition Method", value: a.method },
@@ -231,15 +229,22 @@ function renderEvidenceAcquisition(vm: ReportViewModel): string {
 }
 
 /**
- * CAPTURE CONTEXT — the recorded location (map and coordinates from the same
- * stored values), or a plain statement that none was recorded; what the
- * capture client reported; and the record's observation boundary, stated once.
+ * THE RECORDED CAPTURE FACTS on the Executive Summary (2026-10-14): the stored
+ * location (map and coordinates from the same stored values) and what the
+ * capture client reported. A record with neither prints no panel at all — no
+ * heading, no "not recorded" line and no observation-boundary sentence; the
+ * canonical facts and the verification package are unchanged.
  */
-function renderCaptureContext(vm: ReportViewModel): string {
+function renderCaptureLocation(vm: ReportViewModel): string {
   const cc = vm.meta.captureContext;
-  const boundary = resolveEvidenceAcquisition({ acquisitionMode: vm.meta.acquisitionMode ?? null }).boundary;
+  const manifest = renderCaptureManifestFacts(vm);
+  if (!cc && !manifest) return "";
   const location = cc
     ? `
+      <div class="capture-context-header">
+        <div class="executive-confirmation-kicker">Capture location</div>
+        <div class="capture-context-intro">${escapeHtml(cc.description)}</div>
+      </div>
       <div class="capture-context-layout" data-capture-location="recorded">
         <div class="capture-context-map-shell">
           <img class="capture-context-map" src="${cc.mapPreviewDataUrl}" alt="Capture location preview" />
@@ -264,20 +269,11 @@ function renderCaptureContext(vm: ReportViewModel): string {
         </div>
       </div>
       <div class="capture-context-note">${escapeHtml(cc.legalBoundary)}</div>`
-    : `<div class="capture-context-note" data-capture-location="${escapeHtml(vm.meta.captureLocationState ?? "absent")}">${escapeHtml(
-        vm.meta.captureLocationState === "incomplete"
-          ? "Location metadata was recorded incompletely and is not shown."
-          : "Location metadata was not recorded for this evidence.",
-      )}</div>`;
+    : "";
   return `
     <section class="capture-context-panel" data-capture-context>
-      <div class="capture-context-header">
-        <div class="executive-confirmation-kicker">Capture Context</div>
-        ${cc ? `<div class="capture-context-intro">${escapeHtml(cc.description)}</div>` : ""}
-      </div>
       ${location}
-      ${renderCaptureManifestFacts(vm)}
-      <div class="capture-context-note" data-observation-boundary>${escapeHtml(boundary)}</div>
+      ${manifest}
     </section>
   `;
 }
@@ -318,7 +314,6 @@ function renderCourtReviewIndexPage(vm: ReportViewModel): string {
           ${renderKeyValueGrid(vm.meta.courtAppendixRows ?? [])}
         </section>
 
-        ${renderReportBoundary(vm)}
       </div>
     `,
     {
@@ -413,7 +408,7 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
 
         ${renderEvidenceAcquisition(vm)}
 
-        ${renderCaptureContext(vm)}
+        ${renderCaptureLocation(vm)}
 
         ${renderUnifiedExecutiveGrid(buildCaptureDeviceRows(vm), executiveRows)}
 

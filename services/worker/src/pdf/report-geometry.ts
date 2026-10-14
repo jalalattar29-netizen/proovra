@@ -16,8 +16,8 @@
  *   BLANK_PAGE        a page with nothing but its footer;
  *   ORPHANED_HEADING  a section title with nothing under it on its page;
  *   REQUIRED_STATEMENT a statement the report must carry that is absent or
- *                     cut (the limitation, the provenance boundary, an updated
- *                     report's supersession notice).
+ *                     cut (the limitation, an updated report's
+ *                     supersession notice).
  *
  * Clipping inside the page — an element cutting its own text — leaves no
  * trace in PDF text positions (Chromium emits the clipped run, or drops it

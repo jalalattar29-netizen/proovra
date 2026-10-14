@@ -965,7 +965,6 @@ function buildPresentationDecisions(params: {
     showAllPreviewableItems: true,
     showSupportingPreviewCards: contentSummary.previewableItemCount > 1,
     compactExecutiveSummary: presentationMode === "simple",
-    compactLegalSection: presentationMode !== "heavy",
     compactForensicStatement: presentationMode === "simple",
     showHashChainDetailsInMainFlow: false,
     showEvidenceContentSection: presentationMode !== "simple",
@@ -1696,6 +1695,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
     integrityVerified,
     trustDecision,
     verificationMatrix,
+    acquisitionIdentity: input.evidence.acquisitionIdentity ?? null,
     // Phase 2/3 — canonical materials snapshot. Renderers consume this
     // for reviewer-evidence-type, OTS effective status, workspace
     // scope, legal boundary copy. Sealed at report-snapshot time.

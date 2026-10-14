@@ -232,6 +232,22 @@ function otsRow(signal: VerificationSignalInput | undefined): VerificationMatrix
   };
 }
 
+/**
+ * (2026-10-14) Whether the submission-time snapshot positively verifies the
+ * submitting account — the one condition a surface may print "Account
+ * authentication — Verified" on: the matrix's account row is VERIFIED, read
+ * from the creation-time snapshot, for an account user (never an intake
+ * contributor or a guest).
+ */
+export function isAccountAuthenticationVerified(identity: VerificationIdentityInput | null): boolean {
+  return (
+    identity != null &&
+    identity.basis === "OBSERVED_AT_CAPTURE" &&
+    identity.actorKind === "ACCOUNT_USER" &&
+    identityRows(identity)[0]!.status === "VERIFIED"
+  );
+}
+
 function identityRows(identity: VerificationIdentityInput | null): VerificationMatrixRow[] {
   if (!identity || identity.basis === "UNAVAILABLE") {
     return [
@@ -259,8 +275,26 @@ function identityRows(identity: VerificationIdentityInput | null): VerificationM
     default: {
       const provider = (identity.authProvider ?? "").toUpperCase();
       const label = acquisitionAccountLabel(identity);
+      const level = identity.identityLevel;
+      // (2026-10-14) VERIFIED only on the submission-time snapshot, and only
+      // when it states the verification itself: an email account whose
+      // snapshot recorded emailVerified true (or, for a snapshot that predates
+      // that field, the VERIFIED_EMAIL level computed from the same moment),
+      // and a sign-in provider the recorded level does not contradict. A
+      // legacy record's own columns (not bound to the capture time), an
+      // unknown verification state or an inconsistent snapshot stays NOT_CHECKED.
       const emailVerified =
-        provider === "EMAIL" && identity.emailVerified !== false && identity.identityLevel !== "BASIC_ACCOUNT";
+        bound &&
+        provider === "EMAIL" &&
+        level !== "BASIC_ACCOUNT" &&
+        level !== "OAUTH_BACKED_IDENTITY" &&
+        (identity.emailVerified === true || (identity.emailVerified === null && level === "VERIFIED_EMAIL"));
+      const oauthVerified =
+        bound &&
+        (provider === "GOOGLE" || provider === "APPLE") &&
+        identity.emailVerified !== false &&
+        level !== "VERIFIED_EMAIL" &&
+        level !== "BASIC_ACCOUNT";
       if (emailVerified) {
         account = row(
           "account_identity",
@@ -268,14 +302,14 @@ function identityRows(identity: VerificationIdentityInput | null): VerificationM
           `${label}: the account's email address was verified when the record was created${tail}. This identifies the account, not the person.`,
           at,
         );
-      } else if (provider === "GOOGLE" || provider === "APPLE") {
+      } else if (oauthVerified) {
         account = row(
           "account_identity",
           "VERIFIED",
           `${label}: signed in through ${provider === "GOOGLE" ? "Google" : "Apple"} when the record was created${tail}. This identifies the account, not the person.`,
           at,
         );
-      } else if (provider === "EMAIL") {
+      } else if (provider === "EMAIL" || provider === "GOOGLE" || provider === "APPLE") {
         account = row("account_identity", "NOT_CHECKED", `${label}${tail}.`, at);
       } else {
         account = row("account_identity", "UNAVAILABLE", `Account type not recorded${tail}.`, at);

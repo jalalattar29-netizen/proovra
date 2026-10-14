@@ -42,7 +42,6 @@ import {
   type CanonicalFactsFinding,
   type SealEntryDigest,
   VERIFICATION_LIMITATION,
-  ACQUISITION_BOUNDARY_STATEMENTS,
 } from "@proovra/shared";
 import { findRegisteredSigningKey } from "@proovra/shared-runtime";
 
@@ -330,8 +329,6 @@ export async function assertRenderedReport(
     ...checkReportGeometry(geometry, {
       requiredStatements: [
         { name: "verification limitation", text: VERIFICATION_LIMITATION },
-        // The record's observation boundary, stated once (its channel's sentence).
-        { name: "observation boundary", text: ACQUISITION_BOUNDARY_STATEMENTS[0]!, anyOf: ACQUISITION_BOUNDARY_STATEMENTS },
         ...(options.supersedesVersion != null
           ? [{ name: "supersession notice", text: supersessionStatement(options.supersedesVersion) }]
           : []),

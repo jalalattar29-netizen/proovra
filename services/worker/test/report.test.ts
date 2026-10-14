@@ -241,7 +241,8 @@ describe("report v2 pipeline", () => {
     expect(html).not.toContain("Important boundary");
     expect(html).toContain(VERIFICATION_LIMITATION);
     expect(html).toContain("Chain of Custody");
-    expect(html).toContain("data-report-boundary");
+    // (2026-10-14) The review index no longer carries a Report boundary block.
+    expect(html).not.toContain("data-report-boundary");
     expect(html).toContain("Technical Appendix");
     // The cover advises the reader about the report's scope once: the
     // canonical limitation closing its verification summary (2026-10-12).
@@ -258,8 +259,7 @@ describe("report v2 pipeline", () => {
       "Executive Summary",
       "executive-conclusion-card",
       "Trust Signal Analysis",
-      // (2026-10-13) The report boundary, once, on the review index page.
-      "data-report-boundary",
+      "Court &amp; Technical Review Index",
       "Chain of Custody",
       "Technical Appendix",
     ]);
@@ -418,13 +418,10 @@ describe("report v2 pipeline", () => {
     // distinction now lives in callout text + per-item badges, not
     // the section heading).
     expect(html).toContain("Evidence Gallery");
-    // The Integrity Control Checklist page (which carried the
-    // "reviewer-facing checklist" disclaimer) was removed as redundant
-    // presentation. The same reviewer-boundary intent — that the report's
-    // previews and checks are reviewer-facing aids, not substitutes for
-    // the preserved original — remains in the Legal Interpretation section,
-    // stated once (2026-10-12).
-    expect(html).toContain("What it does not establish");
+    // (2026-10-14) The review index's "Report boundary" block is removed;
+    // the cover's one-line limitation is the report's only boundary.
+    expect(html).not.toContain("What it does not establish");
+    expect(html).not.toContain("Embedded previews are reviewer aids");
     expect(html).toContain("supporting.pdf");
     expect(html).toContain("note.txt");
     expect(html).toContain(FULL_HASH_A);
@@ -583,7 +580,7 @@ describe("report v2 pipeline", () => {
     expect(html).toContain("receipt.pdf");
   });
 
-  it("keeps the cover boundary note compact while preserving the full legal boundary later", async () => {
+  it("keeps the cover boundary note compact — the report's only boundary block (2026-10-14)", async () => {
     const vm = await buildReportViewModel(
       buildInput({
         evidence: {
@@ -658,6 +655,6 @@ describe("report v2 pipeline", () => {
     expect(coverHtml).toContain("Report boundary.");
     expect(coverHtml).not.toContain("court acceptance");
     expect(coverHtml).not.toContain("examiner-grade forensic acquisition");
-    expect(html).toContain("What it does not establish");
+    expect(html).not.toContain("What it does not establish");
   });
 });

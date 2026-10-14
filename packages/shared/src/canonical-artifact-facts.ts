@@ -31,7 +31,13 @@ import {
   toVerificationStatus,
   type TrustSignalState,
 } from "./trust-signal-state.js";
-import { VERIFICATION_LIMITATION, findForbiddenCustomerClaims, parseVerificationMatrix } from "./verification-matrix.js";
+import { ACQUISITION_BOUNDARY_STATEMENTS } from "./evidence-acquisition.js";
+import {
+  VERIFICATION_LIMITATION,
+  findForbiddenCustomerClaims,
+  isAccountAuthenticationVerified,
+  parseVerificationMatrix,
+} from "./verification-matrix.js";
 
 /** The record's own columns that decide the trust and identity states. */
 export type CanonicalFactsSource = {
@@ -215,6 +221,27 @@ export const RETIRED_REPORT_CARDS = [
   "PROOVRA custody chain",
   "Account identity",
 ] as const;
+/** (2026-10-14) The account card's verified statement (label and status). */
+export const ACCOUNT_AUTHENTICATION_VERIFIED = "Account authentication Verified";
+/** A report never verifies the package sealed after it. */
+const PACKAGE_SELF_ATTESTATION = "Verification package Verified";
+/**
+ * (2026-10-14) Sections removed from the report: the review index's
+ * three-card "Report boundary" block (the cover keeps its one-line form), the
+ * Executive Summary's capture-context statements of absent location and of
+ * the observation boundary, and the retired identity and package wording.
+ */
+export const RETIRED_REPORT_SECTIONS: readonly string[] = [
+  "What this report is",
+  "What it does not establish",
+  "Embedded previews are reviewer aids",
+  "Location metadata was not recorded for this evidence",
+  "Location metadata was recorded incompletely",
+  "Workspace identity",
+  "paired with this report",
+  ...ACQUISITION_BOUNDARY_STATEMENTS.filter((s) => s.startsWith("PROOVRA observed")),
+];
+const clipPhrase = (s: string) => (s.length > 48 ? `${s.slice(0, 48)}…` : s);
 const TSA_VALIDATED_PHRASES =["RFC 3161 timestamp verified", TSA_VALIDATED_QUALIFICATION_STATEMENT];
 /** Raw codes that must never reach a reader. */
 const RAW_CODES = /\b(ORGANIZATION_ACCOUNT|VERIFIED_EMAIL|BITCOIN_VERIFIED|PROOF_STRUCTURE|PRESENT_NOT_INDEPENDENTLY_VERIFIED|OBSERVED_AT_CAPTURE|RECORDED_ON_RECORD|INTAKE_CONTRIBUTOR|INTAKE_LINK_ISSUER|ACCOUNT_USER|GUEST_SESSION|NOT_CHECKED|NOT_APPLICABLE|NOT_CONFIGURED|INSUFFICIENT_CONFIRMATIONS|ANCHORED_NOT_CHECKED|ATTESTATION_PRESENT_NOT_VERIFIED|ATTESTATION_RECORDED|INDEPENDENTLY_VERIFIED|NOT_REQUESTED|PROOF_HASH_MISMATCH|MALFORMED_PROOF|CHAIN_VERIFICATION_UNAVAILABLE|CHAIN_VERIFICATION_FAILED|CHAIN_VERIFIED|UNKNOWN_OR_STALE|PROOF_INVALID|RECORDED_NOT_VALIDATED|tsa_[a-z_]+)\b/;
@@ -268,6 +295,25 @@ export function checkRenderedReportText(
   }
   if (!new RegExp(`\\bv${expect.reportVersion}\\b`).test(text)) out.push({ check: "REPORT_VERSION", detail: `v${expect.reportVersion} is not stated` });
   if (/OAuth/.test(text) && facts.acquisition.authProvider === "EMAIL") out.push({ check: "IDENTITY_WORDING", detail: "an email account is described as OAuth" });
+  // (2026-10-14) The account card states the snapshot's verification exactly:
+  // "Verified" when the submission-time snapshot verifies the account, and
+  // never otherwise.
+  const accountVerified = isAccountAuthenticationVerified(facts.acquisition);
+  if (accountVerified !== text.includes(ACCOUNT_AUTHENTICATION_VERIFIED)) {
+    out.push({
+      check: "IDENTITY_STATUS",
+      detail: accountVerified
+        ? `does not state "${ACCOUNT_AUTHENTICATION_VERIFIED}" for a verified submission-time account`
+        : `states "${ACCOUNT_AUTHENTICATION_VERIFIED}" while the submission-time snapshot does not verify the account`,
+    });
+  }
+  // The paired package is sealed after the report: a report never verifies it.
+  if (text.includes(PACKAGE_SELF_ATTESTATION)) {
+    out.push({ check: "PACKAGE_SELF_ATTESTATION", detail: `states "${PACKAGE_SELF_ATTESTATION}" for a package sealed after it` });
+  }
+  for (const phrase of RETIRED_REPORT_SECTIONS) {
+    if (text.includes(phrase)) out.push({ check: "RETIRED_SECTION", detail: `states the retired "${clipPhrase(phrase)}"` });
+  }
   const raw = text.match(RAW_CODES);
   if (raw) out.push({ check: "RAW_CODE", detail: `raw code "${raw[0]}"` });
   if (STORAGE_KEY.test(text)) out.push({ check: "INFRASTRUCTURE", detail: "a storage key is printed" });

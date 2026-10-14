@@ -4265,6 +4265,10 @@ async function runReportGeneration(
           recordedIntegrityVerifiedAtUtc: effectiveRecordedIntegrityVerifiedAtUtc,
           reportGeneratedAtUtc: prepared.now.toISOString(),
           latestReportVersion: prepared.version,
+          // The package issued with this report is the one for THIS reserved
+          // version (the provisional number of the prep step can differ under
+          // a concurrent issuance); the report's package card names it.
+          ...(prepared.verificationPackageIncluded ? { verificationPackageVersion: prepared.version } : {}),
           reviewReadyAtUtc: prepared.now.toISOString(),
           reviewerSummaryVersion: effectiveIdentitySnapshot.reviewerSummaryVersion,
         };

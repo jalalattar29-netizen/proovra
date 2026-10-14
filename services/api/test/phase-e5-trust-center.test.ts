@@ -247,17 +247,17 @@ describe("E5 Test 4 — existing safe surfaces stay aligned with the Trust Cente
     // reachable only through a barrel production does not import (processor.ts
     // names the concrete section modules directly), so it never rendered into
     // any report and could not carry a claim to sweep.
-    {
-      label: "report-v2 legal-interpretation",
-      path: "src/report-v2/sections/legal-interpretation.ts",
-      reader: readWorker,
-    },
     // Phase 12 Point 4 — `sections/legal-limitations.ts` was deleted: it
     // was never wired into `render-html.ts`, and the wired
-    // `legal-interpretation.ts` above renders the same three callouts
+    // `legal-interpretation.ts` rendered the same three callouts
     // ("This report does not prove", "Legal review posture", the
     // preview note). No trust-claim surface was lost; the list may only
     // shrink when the removed surface's copy is proven duplicated.
+    // 2026-10-14 — `sections/legal-interpretation.ts` (the review index's
+    // three-card "Report boundary" block) was REMOVED: its limitation
+    // duplicated the cover's one-line report boundary ("report-v2 cover"
+    // above, VERIFICATION_LIMITATION), which every report still carries and
+    // the release gate still requires.
     {
       label: "ai capture assistant",
       path: "components/ai/CaptureAiAssistant.tsx",

@@ -1445,13 +1445,6 @@ letter-spacing: -0.005em;
       border-color: rgba(138, 106, 47, 0.22);
     }
 
-    .executive-outcome-title {
-      color: ${c.ink};
-      font-size: 11px;
-      font-weight: 900;
-      margin-bottom: 5px;
-    }
-
     .executive-outcome-body {
       color: ${c.muted};
       font-size: 9.8px;
@@ -2109,99 +2102,6 @@ letter-spacing: -0.005em;
   white-space: normal !important;
 }
 
-        .legal-interpretation-page {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .legal-interpretation-hero {
-      border: 1px solid ${c.softLine};
-      border-left: 5px solid ${c.warning};
-      border-radius: 10px;
-      padding: 14px 16px;
-      background: ${c.warningSoft};
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
-
-    .legal-interpretation-kicker {
-      color: ${c.warning};
-      font-size: 8.5px;
-      font-weight: 800;
-      letter-spacing: 0.075em;
-      text-transform: uppercase;
-      margin-bottom: 5px;
-    }
-
-    .legal-interpretation-title {
-      color: ${c.ink};
-      font-size: 13.5px;
-      font-weight: 800;
-      line-height: 1.28;
-      margin-bottom: 6px;
-    }
-
-    .legal-interpretation-copy {
-      color: ${c.ink};
-      font-size: 9.8px;
-      font-weight: 700;
-      line-height: 1.5;
-      word-break: break-word;
-      overflow-wrap: anywhere;
-    }
-
-    .legal-interpretation-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .legal-interpretation-card {
-      border: 1px solid ${c.softLine};
-      border-radius: 10px;
-      padding: 12px 13px;
-      background: ${c.white};
-      min-height: 118px;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
-
-    .legal-interpretation-card-verify {
-      border-left: 4px solid ${c.success};
-    }
-
-    .legal-interpretation-card-limit {
-      border-left: 4px solid ${c.warning};
-      background: ${c.warningSoft};
-    }
-
-    .legal-interpretation-card-neutral {
-      border-left: 4px solid ${c.accent};
-    }
-
-    .legal-interpretation-card-title {
-      margin: 0 0 7px;
-      color: ${c.accent};
-      font-size: 11px;
-      font-weight: 800;
-      line-height: 1.25;
-    }
-
-    .legal-interpretation-card-limit .legal-interpretation-card-title {
-      color: ${c.warning};
-    }
-
-    .legal-interpretation-card-body {
-      color: ${c.muted};
-      font-size: 9.3px;
-      font-weight: 400;
-      line-height: 1.48;
-      word-break: break-word;
-      overflow-wrap: anywhere;
-      white-space: pre-wrap;
-    }
-
         .cover-status-subtitle {
       margin: 7px auto 0;
       max-width: 520px;
@@ -2460,7 +2360,6 @@ letter-spacing: -0.005em;
 .report-page,
 .section-sheet,
 .technical-appendix-block,
-.legal-interpretation-page,
 .executive-summary-page,
 .integrity-summary-page,
 .custody-page {
@@ -2624,8 +2523,6 @@ body {
 .technical-verification-card,
 .technical-access-panel,
 .technical-access-url-block,
-.legal-interpretation-hero,
-.legal-interpretation-card,
 .primary-evidence-card,
 .primary-evidence-preview,
 .primary-evidence-details,
@@ -2653,7 +2550,6 @@ body {
 .technical-access-kicker,
 .technical-appendix-block-title,
 .technical-verification-title,
-.legal-interpretation-card-title,
 .integrity-detail-label,
 .integrity-check-label,
 .cover-panel-title,
@@ -3073,7 +2969,6 @@ body {
   border-color: rgba(12, 28, 25, 0.22) !important;
 }
 
-
 /* FINAL REPORT POLISH — STABLE RAILS + BOTTOM PLACEMENT */
 
 .cover-premium-body {
@@ -3162,17 +3057,6 @@ body {
   border-left-width: 5px !important;
   border-left-style: solid !important;
   border-left-color: #0b2e27 !important;
-}
-
-/* Legal bronze rails */
-.legal-interpretation-page .legal-interpretation-hero,
-.legal-interpretation-page .legal-interpretation-card,
-.legal-interpretation-page .legal-interpretation-card-verify,
-.legal-interpretation-page .legal-interpretation-card-limit,
-.legal-interpretation-page .legal-interpretation-card-neutral {
-  border-left-width: 5px !important;
-  border-left-style: solid !important;
-  border-left-color: rgba(96, 66, 24, 0.95) !important;
 }
 
 /* All neutral/info callouts bronze */
@@ -4356,11 +4240,6 @@ body {
   padding: 2.2mm 2.8mm !important;
 }
 
-.executive-outcome-title {
-  font-size: 9.6px !important;
-  margin-bottom: 0.8mm !important;
-}
-
 .executive-outcome-body {
   font-size: 8.35px !important;
   line-height: 1.3 !important;
@@ -4802,7 +4681,6 @@ body {
     print-color-adjust: exact !important;
   }
 }
-
 
 /* ===========================================================================
    (2026-10-13) THE PAGE, THE CARDS AND THE BREAKS — last, so it wins.

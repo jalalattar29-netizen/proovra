@@ -181,10 +181,15 @@ test("J1 v1 — capture-time identity, upload wording and timestamp truth; both 
   expect(text).toContain("Personal workspace");
   expect(text).toMatch(/Organization Verification\s+Not established/i);
   expect(text).not.toMatch(IDENTITY_OVERCLAIM);
-  // (2026-10-13) The upload's observation boundary, stated once in Capture Context.
-  const boundary = "PROOVRA observed the files from upload onward; creation and editing before upload were not observed.";
-  expect(text.replace(/\s+/g, " ").split(boundary).length - 1).toBe(1);
-  expect(text).toContain("Location metadata was not recorded for this evidence.");
+  // (2026-10-14) The Executive Summary's capture-context statements and the
+  // review index's Report boundary block are removed; the account row states
+  // the submission-time verification; the package row only its pairing.
+  const flat = text.replace(/\s+/g, " ");
+  expect(flat).not.toContain("PROOVRA observed the files from upload onward; creation and editing before upload were not observed.");
+  expect(flat).not.toContain("Location metadata was not recorded for this evidence.");
+  expect(flat).not.toContain("What it does not establish");
+  expect(flat).toContain("Account authentication Verified Authenticated email account recorded at submission");
+  expect(flat).toMatch(/Verification package Paired Verification package v1 is produced after this report/);
   expect(text).not.toMatch(/secure capture/i);
   expect(text).toContain("Timestamp token obtained; not validated");
   expect(text).not.toMatch(/could not be obtained/i);

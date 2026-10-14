@@ -179,6 +179,22 @@ test("a verified email stays a verified email — never an organization, never O
   assert.equal(statusOf(matrix({ identity: null }), "account_identity"), "UNAVAILABLE");
 });
 
+test("account VERIFIED only from a submission-time snapshot that states the verification (2026-10-14)", () => {
+  const acc = (identity) => statusOf(matrix({ identity: { ...EMAIL_PERSONAL, ...identity } }), "account_identity");
+  assert.equal(acc({}), "VERIFIED");
+  // An unknown verification state in a shared workspace (level ORGANIZATION_ACCOUNT) proves nothing.
+  assert.equal(acc({ emailVerified: null, identityLevel: "ORGANIZATION_ACCOUNT", workspaceKind: "SHARED" }), "NOT_CHECKED");
+  // A snapshot predating the field: the VERIFIED_EMAIL level was computed at the same moment.
+  assert.equal(acc({ emailVerified: null }), "VERIFIED");
+  // The record's own columns (not bound to the capture time) never verify.
+  assert.equal(acc({ basis: "RECORDED_ON_RECORD", recordedAtUtc: null }), "NOT_CHECKED");
+  assert.equal(acc({ basis: "RECORDED_ON_RECORD", authProvider: "GOOGLE", identityLevel: "OAUTH_BACKED_IDENTITY" }), "NOT_CHECKED");
+  // An internally inconsistent snapshot never verifies.
+  assert.equal(acc({ identityLevel: "OAUTH_BACKED_IDENTITY" }), "NOT_CHECKED");
+  assert.equal(acc({ authProvider: "GOOGLE", identityLevel: "VERIFIED_EMAIL" }), "NOT_CHECKED");
+  assert.equal(acc({ authProvider: "GOOGLE", identityLevel: "OAUTH_BACKED_IDENTITY" }), "VERIFIED");
+});
+
 test("upload is not capture: PROOVRA did not observe creation or editing before submission", () => {
   const m = matrix({ acquisitionMode: "PROOVRA_WEB_UPLOAD" });
   const method = rowOf(m, "capture_method");

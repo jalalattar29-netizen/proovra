@@ -614,7 +614,6 @@ export type ReportPresentationDecisions = {
   showAllPreviewableItems: boolean;
   showSupportingPreviewCards: boolean;
   compactExecutiveSummary: boolean;
-  compactLegalSection: boolean;
   compactForensicStatement: boolean;
   showHashChainDetailsInMainFlow: boolean;
   showEvidenceContentSection: boolean;
@@ -662,6 +661,11 @@ export type ReportViewModel = {
    * seal and publication as not attestable by itself.
    */
   verificationMatrix: VerificationMatrix;
+  /**
+   * The submission-time identity snapshot the matrix's account rows were
+   * built from (custody IDENTITY_SNAPSHOT_RECORDED); null when none exists.
+   */
+  acquisitionIdentity: AcquisitionIdentitySnapshot | null;
   /**
    * Phase 2/3 — canonical evidence materials bundle sealed at report
    * generation time. Sections consume this for reviewer evidence

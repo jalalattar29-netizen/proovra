@@ -14,7 +14,7 @@
  * overflow page back, or removing a required statement each refuses the
  * report; a long manifest URL and a v2 supersession notice still pass.
  */
-import { ACQUISITION_BOUNDARY_STATEMENTS, deriveCanonicalArtifactFacts, VERIFICATION_LIMITATION } from "@proovra/shared";
+import { VERIFICATION_LIMITATION } from "@proovra/shared";
 import { describe, expect, it } from "vitest";
 
 import { OutputVerificationError } from "../src/output-verification-error.js";
@@ -28,7 +28,7 @@ import { openPdf } from "../src/pdf/pdfjs-runtime.js";
 import { supersessionStatement } from "../src/report-v2/required-statements.js";
 import { getReportCss } from "../src/report-v2/templates/report.css.js";
 import type { ReportV2Input } from "../src/report-v2/types.js";
-import { LAYOUT_VARIANTS, LONG_MANIFEST_URL, layoutVariant, regressionRecordInput } from "./fixtures/report-layout-variants.js";
+import { canonicalFactsOf, LAYOUT_VARIANTS, LONG_MANIFEST_URL, layoutVariant, regressionRecordInput } from "./fixtures/report-layout-variants.js";
 
 const BROWSER = resolveBrowserExecutablePath();
 // CI runners carry Chrome; a CI run without one is a broken gate, not a skip.
@@ -38,7 +38,6 @@ const RENDER_TIMEOUT = 180_000;
 function required(input: ReportV2Input) {
   return [
     { name: "verification limitation", text: VERIFICATION_LIMITATION },
-    { name: "observation boundary", text: ACQUISITION_BOUNDARY_STATEMENTS[0]!, anyOf: ACQUISITION_BOUNDARY_STATEMENTS },
     ...(input.supersession ? [{ name: "supersession notice", text: supersessionStatement(input.supersession.previousVersion) }] : []),
   ];
 }
@@ -47,13 +46,7 @@ async function htmlOf(input: ReportV2Input): Promise<string> {
   return renderReportHtml(await buildReportViewModel(input));
 }
 
-function factsOf(input: ReportV2Input) {
-  const e = input.evidence;
-  return deriveCanonicalArtifactFacts(
-    { ...e, tsaTokenPresent: Boolean(e.tsaTokenBase64) } as never,
-    [],
-  );
-}
+const factsOf = canonicalFactsOf;
 
 async function refusal(run: () => Promise<unknown>): Promise<OutputVerificationError> {
   try {
@@ -148,12 +141,12 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
   }
 
   it(
-    "a Web Upload states its observation boundary once, in Capture Context — no provenance essay",
+    "a Web Upload prints no observation-boundary sentence and no provenance essay (2026-10-14)",
     async () => {
       const { input } = layoutVariant(LAYOUT_VARIANTS[0]!);
       const text = (await extractPdfText(await renderPdfFromHtml(await htmlOf(input)))).replace(/\s+/g, " ");
       const sentence = "PROOVRA observed the files from upload onward; creation and editing before upload were not observed.";
-      expect(text.split(sentence).length - 1).toBe(1);
+      expect(text).not.toContain(sentence);
       expect(text).not.toMatch(/How this record entered PROOVRA|Observed by PROOVRA|Not observed by PROOVRA|Pre-PROOVRA provenance/);
     },
     RENDER_TIMEOUT,
@@ -292,13 +285,11 @@ describe.skipIf(!BROWSER)("mutation proofs", () => {
   );
 
   it(
-    "removing the observation boundary or the supersession notice is refused",
+    "removing the supersession notice is refused",
     async () => {
       const html = await htmlOf(v2);
-      const withoutBoundary = html.replace(ACQUISITION_BOUNDARY_STATEMENTS[0]!, "");
       const withoutNotice = html.replace(supersessionStatement(v2.supersession!.previousVersion), "This version");
       for (const [mutated, name] of [
-        [withoutBoundary, "observation boundary"],
         [withoutNotice, "supersession notice"],
       ] as const) {
         const pdf = await renderPdfFromHtml(mutated);
@@ -420,11 +411,94 @@ describe.skipIf(!BROWSER)("the restored evidence report, rendered", () => {
       for (const [mutated, check] of [
         [html.replace("OpenTimestamps proof anchored in Bitcoin.", "OpenTimestamps proof is awaiting Bitcoin anchoring."), "OTS_CONTRADICTION"],
         [html.replace("Bitcoin anchored", "Attestation recorded"), "OTS_RETIRED_WORDING"],
-        [html.replace("Workspace identity", "Pre-PROOVRA provenance"), "RETIRED_SIGNAL"],
+        [html.replace("Account authentication", "Pre-PROOVRA provenance"), "RETIRED_SIGNAL"],
       ] as const) {
         const pdf = await renderPdfFromHtml(mutated);
         const err = await refusal(() =>
           assertRenderedReport(Buffer.from(pdf), factsOf(input), input.version, { supersedesVersion: input.supersession!.previousVersion }),
+        );
+        expect(err.findings.map((f) => f.check)).toContain(check);
+      }
+    },
+    RENDER_TIMEOUT,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// (2026-10-14) The removed sections and the corrected account and package
+// rows, through Chromium: absent from the PDF's own text, no gap where they
+// were, the canonical gate accepts the report — and refuses a restored block.
+// ---------------------------------------------------------------------------
+
+/** The largest vertical gap between consecutive body lines of a page (footer excluded), in points. */
+function largestInnerGap(page: PageGeometry): number {
+  const body = page.items.filter((it) => !/^Page \d+\/\d+$/.test(it.str.trim()) && it.bottom < page.height - REPORT_PAGE_PT.footerZone);
+  const sorted = [...body].sort((a, b) => a.top - b.top);
+  let bottom = sorted[0]?.bottom ?? 0;
+  let gap = 0;
+  for (const it of sorted.slice(1)) {
+    gap = Math.max(gap, it.top - bottom);
+    bottom = Math.max(bottom, it.bottom);
+  }
+  return gap;
+}
+
+describe.skipIf(!BROWSER)("the corrected rows and the removed sections, rendered (2026-10-14)", () => {
+  const REMOVED = [
+    "What this report is",
+    "What it does not establish",
+    "Embedded previews are reviewer aids",
+    "Location metadata was not recorded for this evidence.",
+    "PROOVRA observed the files from upload onward",
+    "Workspace identity",
+    "paired with this report",
+  ];
+
+  for (const location of ["absent", "recorded"] as const) {
+    it(
+      `regression record, location ${location}: rows state the canonical facts, removed text is gone, no gap is left`,
+      async () => {
+        const input = regressionRecordInput(location);
+        const pdf = await renderPdfFromHtml(await htmlOf(input));
+        const pages = await readReportGeometry(pdf);
+        const pageText = pages.map((p) => p.items.map((i) => i.str).join(" ").replace(/\s+/g, " "));
+        const all = pageText.join(" ");
+        expect(all).toMatch(/Account authentication (?:✓ )?Verified Authenticated email account recorded at submission This verifies the account context, not the person's real-world identity\./);
+        expect(all).toMatch(/Verification package (?:i )?Paired Verification package v2 is produced after this report/);
+        for (const phrase of REMOVED) expect(all, phrase).not.toContain(phrase);
+        expect(all.split("Report boundary.").length - 1).toBe(1);
+        expect(all.includes("CAPTURE LOCATION") || all.includes("Capture location")).toBe(location === "recorded");
+        // The Executive Summary and the review index close cleanly: no gap
+        // where the removed blocks stood.
+        for (const title of ["Executive Summary", "Court & Technical Review Index"]) {
+          const i = pageText.findIndex((t) => t.includes(title));
+          expect(i, title).toBeGreaterThan(0);
+          expect(largestInnerGap(pages[i]!), title).toBeLessThan(40);
+        }
+        await assertRenderedReport(Buffer.from(pdf), factsOf(input), input.version, { supersedesVersion: input.supersession!.previousVersion });
+      },
+      RENDER_TIMEOUT,
+    );
+  }
+
+  it(
+    "MUTATION: the review index's Report boundary block restored, or a Verified account the snapshot does not support, is refused",
+    async () => {
+      const input = regressionRecordInput("absent");
+      const html = await htmlOf(input);
+      const restored = html.replace(
+        '<section class="executive-trust-decision-panel">',
+        '<section><div>Report boundary</div><div>What it does not establish</div><div>Factual truth, authorship, intent, context, completeness, admissibility or evidentiary weight.</div></section><section class="executive-trust-decision-panel">',
+      );
+      const unverified = { ...input, evidence: { ...input.evidence, acquisitionIdentity: { ...input.evidence.acquisitionIdentity!, emailVerified: false, identityLevel: "BASIC_ACCOUNT" } } } as ReportV2Input;
+      for (const [mutatedHtml, facts, check] of [
+        [restored, factsOf(input), "RETIRED_SECTION"],
+        // The report printed for a verified snapshot, checked against a record whose snapshot is not verified.
+        [html, factsOf(unverified), "IDENTITY_STATUS"],
+      ] as const) {
+        const pdf = await renderPdfFromHtml(mutatedHtml);
+        const err = await refusal(() =>
+          assertRenderedReport(Buffer.from(pdf), facts, input.version, { supersedesVersion: input.supersession!.previousVersion }),
         );
         expect(err.findings.map((f) => f.check)).toContain(check);
       }
