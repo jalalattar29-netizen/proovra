@@ -290,8 +290,10 @@ describe("the reviewed English names no internal code (2026-10-14)", () => {
     [
       "ops.security.signal",
       { eventType: "upload_stalled", severity: "WARNING", teamRef: "6488cb98", fields: "stalledThresholdMinutes, previousStatus" },
-      "Upload appears stalled",
-      "An upload in this workspace stopped making progress. This older condition does not record which upload it was; newer conditions name the affected record.",
+      // HISTORY ONLY: the old per-workspace bridge row never named an upload
+      // or confirmed a stall, and is never presented as one.
+      "Legacy upload-session signal",
+      "Recorded by an earlier version of Operations, which grouped upload-session signals for this whole workspace into one condition. It named no upload, and it did not confirm that any upload was actually stalled. Uploads are now checked one at a time; a genuinely stalled upload appears as its own condition.",
     ],
     [
       "ops.capture.upload_stalled",

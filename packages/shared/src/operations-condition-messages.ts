@@ -380,14 +380,18 @@ const SECURITY_SIGNAL_COPY: Readonly<Record<string, SecurityCopy>> = {
     { title: "Ein Upload konnte nicht fortgesetzt werden", summary: "Der Upload-Dienst ist beim Fortsetzen eines unterbrochenen Uploads fehlgeschlagen. Die hochladende Person hat eine Fehlermeldung gesehen und kann es erneut versuchen; tritt es wiederholt auf, wenden Sie sich an den Support." },
     { title: "تعذّر استئناف رفع", summary: "أخفقت خدمة الرفع أثناء استئناف رفع منقطع. رأى من يرفع الملف رسالة خطأ ويمكنه المحاولة مجددًا؛ وإن تكرر ذلك فتواصل مع الدعم." },
   ),
-  // Legacy rows only: stalls are per-upload conditions now
-  // (`ops.capture.upload_stalled`). The older per-workspace row never
-  // recorded WHICH upload stalled, and says so.
+  // HISTORY ONLY (2026-10-14). Stalls are per-upload conditions now
+  // (`ops.capture.upload_stalled`); `upload_stalled` is no longer filed by the
+  // bridge, so only rows written by the old per-workspace bridge render this.
+  // That bridge filed upload-SESSION sweep signals without naming an upload
+  // or confirming that any upload was actually stalled (the production row
+  // was four stale sessions behind finalized records), so this copy claims
+  // neither: it says what the row is, and where a real stall would appear.
   upload_stalled: sc(
     "UPLOADS",
-    { title: "Upload appears stalled", summary: "An upload in this workspace stopped making progress. This older condition does not record which upload it was; newer conditions name the affected record." },
-    { title: "Upload scheint festzustecken", summary: "Ein Upload in diesem Arbeitsbereich hat keinen Fortschritt mehr gemacht. Diese ältere Meldung erfasst nicht, welcher Upload betroffen war; neuere Meldungen nennen den betroffenen Datensatz." },
-    { title: "يبدو أن الرفع متوقف", summary: "توقف رفع في مساحة العمل هذه عن التقدم. لا تسجّل هذه الحالة القديمة أي رفع كان؛ الحالات الأحدث تسمّي السجل المتأثر." },
+    { title: "Legacy upload-session signal", summary: "Recorded by an earlier version of Operations, which grouped upload-session signals for this whole workspace into one condition. It named no upload, and it did not confirm that any upload was actually stalled. Uploads are now checked one at a time; a genuinely stalled upload appears as its own condition." },
+    { title: "Älteres Upload-Sitzungssignal", summary: "Von einer früheren Version von Operations erfasst, die Upload-Sitzungssignale dieses gesamten Arbeitsbereichs zu einer Meldung zusammenfasste. Sie nannte keinen Upload und bestätigte nicht, dass ein Upload tatsächlich feststeckte. Uploads werden jetzt einzeln geprüft; ein tatsächlich feststeckender Upload erscheint als eigene Meldung." },
+    { title: "إشارة قديمة لجلسة رفع", summary: "سجّلها إصدار سابق من العمليات كان يجمع إشارات جلسات الرفع لمساحة العمل كلها في حالة واحدة. لم تسمِّ أي رفع، ولم تؤكد أن أي رفع كان متوقفًا فعلًا. تُفحص عمليات الرفع الآن كلٌّ على حدة؛ ويظهر الرفع المتوقف فعلًا كحالة مستقلة." },
   ),
   // ---- sign-in security --------------------------------------------------------
   step_up_denied: sc(

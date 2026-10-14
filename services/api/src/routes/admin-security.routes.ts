@@ -18,6 +18,7 @@ import {
 import { probeConditionActivity, projectIncident } from "../services/observability/incident.service.js";
 import { resolveIncidentSourceWorkspace } from "../services/observability/incident-scope.js";
 import { incidentRecordTarget } from "../services/operations/operations-source-probes.js";
+import { presentTimelineMessageForAudience } from "../services/operations/condition-presentation.service.js";
 
 /**
  * Platform Control Center P1 — Platform Security & Incidents aggregate.
@@ -460,7 +461,9 @@ export async function adminSecurityRoutes(app: FastifyInstance) {
 
       return reply.code(200).send({
         items: rows.map((row) => {
-          const projected = projectIncident(row);
+          // A platform reader: identifiers and operational facts, never a
+          // tenant's words (record titles, notes).
+          const projected = projectIncident(row, { audience: "PLATFORM" });
           const subject = row.teamId ? subjectById.get(row.teamId) : undefined;
           return {
             ...projected,
@@ -606,7 +609,7 @@ export async function adminSecurityRoutes(app: FastifyInstance) {
         },
       }).catch(() => null);
 
-      return reply.code(200).send({ incident: projectIncident(updated) });
+      return reply.code(200).send({ incident: projectIncident(updated, { audience: "PLATFORM" }) });
     } catch (err) {
       const code = (err as { code?: string })?.code ?? "incident_action_failed";
       await emitPlatformAudit({
@@ -671,13 +674,19 @@ export async function adminSecurityRoutes(app: FastifyInstance) {
         select: { eventType: true, safeMessage: true, createdAt: true },
       });
       return reply.code(200).send({
-        incident: projectIncident(row),
+        incident: projectIncident(row, { audience: "PLATFORM" }),
         target,
         // Where the condition's source is read — the record's workspace.
         recordWorkspaceId,
         // What the source says NOW: ACTIVE (still missing), RECOVERED, UNKNOWN.
         sourceActivity: activity,
-        events: events.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
+        // Observation entries carried the writer's stored summary (which could
+        // name a record) and are withheld; operator and system actions show.
+        events: events.map((e) => ({
+          eventType: e.eventType,
+          safeMessage: presentTimelineMessageForAudience(e.eventType, e.safeMessage, "PLATFORM"),
+          createdAt: e.createdAt.toISOString(),
+        })),
       });
     },
   );

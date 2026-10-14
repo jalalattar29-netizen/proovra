@@ -46,6 +46,7 @@ import {
   conditionTextFor,
 } from "../src/services/operations/condition-presentation.service.js";
 import { entryForIncident, sourceKeyedRemediationIds } from "../src/services/operations/remediation-registry.js";
+import { OPERATIONS_SOURCES } from "../src/services/operations/operations-source-registry.js";
 import { projectIncident } from "../src/services/observability/incident.service.js";
 import { HOME_CONDITION_REPRESENTATION } from "../../../apps/web/components/home-experience/operations-condition-map.js";
 
@@ -305,7 +306,7 @@ describe("the exact Production shape — a legacy bridge row", () => {
 
   it("reads truthfully: no raw code as title, subject or summary; the code only as a technical reference", () => {
     const p = projectIncident(legacy as never);
-    expect(p.title).toBe("Upload appears stalled");
+    expect(p.title).toBe("Legacy upload-session signal");
     expect(p.title).not.toMatch(/Security signal|upload_stalled/);
     expect(p.safeSummary).not.toMatch(/fields:|team 6488|upload_stalled/);
     expect(internalLanguageIn(p.title + " " + p.safeSummary)).toEqual([]);
@@ -319,7 +320,7 @@ describe("the exact Production shape — a legacy bridge row", () => {
     const older = { ...legacy, messageCode: null, messageParams: null };
     const msg = conditionMessageFor(older as never);
     expect(msg).toEqual({ code: "ops.security.signal", params: { eventType: "upload_stalled", severity: "WARNING" } });
-    expect(conditionTextFor(msg)!.title).toBe("Upload appears stalled");
+    expect(conditionTextFor(msg)!.title).toBe("Legacy upload-session signal");
   });
 
   it("no Intake Links action and no intake-delivery wording for this source", () => {
@@ -337,5 +338,75 @@ describe("the exact Production shape — a legacy bridge row", () => {
     );
     expect(refs.map((r) => r.value)).not.toContain("Private matter");
     expect(refs).toContainEqual({ key: "signalCode", value: "upload_stalled" });
+  });
+});
+
+describe("conservation counts — exact, executable, printed", () => {
+  // The numbers are computed from code on every run and printed with the
+  // test output; nothing is written to disk. The required equalities are
+  // asserted, so a drift fails here rather than in a report.
+  const classified = new Set(Object.keys(CLASSIFIED_SECURITY_EVENTS));
+  const dispositions = SECURITY_EVENT_TYPES.map((t) => ({ t, d: classifySecurityEvent(t) }));
+  const count = (k: string) => dispositions.filter((x) => x.d.kind === k).length;
+  const registered = new Set<string>(CONDITION_MESSAGE_CODES);
+  const userVisibleEmitted = [...NAMED_MESSAGE_CODES];
+  const uncovered = userVisibleEmitted.filter((c) => !registered.has(c));
+  const orphaned = CONDITION_MESSAGE_CODES.filter((c) => !NAMED_MESSAGE_CODES.has(c));
+  const dupes = <T,>(xs: readonly T[]) => xs.filter((x, i) => xs.indexOf(x) !== i);
+  const lifecycleIds = OPERATIONS_SOURCE_LIFECYCLES.map((l) => l.sourceId);
+  const registryIds = OPERATIONS_SOURCES.map((s) => s.id);
+  const reviewedSecurity = new Set(SECURITY_SIGNAL_EVENT_TYPES);
+  const securityOrphans = SECURITY_SIGNAL_EVENT_TYPES.filter((t) => !classified.has(t));
+  const counts = {
+    userVisibleMessageCodesDiscovered: userVisibleEmitted.length,
+    userVisibleMessageCodesRegistered: CONDITION_MESSAGE_CODES.length,
+    securityEventTypesDiscovered: SECURITY_EVENT_TYPES.length,
+    securityEventTypesEmittedByProducers: EMITTED_SECURITY_EVENTS.size,
+    securityEventsUserVisible_classified: count("CLASSIFIED"),
+    securityEventsDedicatedSource: count("DEDICATED"),
+    securityEventsRoutine: count("ROUTINE"),
+    securityEventsUnclassifiedInternal: count("UNCLASSIFIED"),
+    operationsSources: OPERATIONS_SOURCE_LIFECYCLES.length,
+    stateSources: OPERATIONS_SOURCE_LIFECYCLES.filter((l) => l.observationModel === "STATE").length,
+    eventSources: OPERATIONS_SOURCE_LIFECYCLES.filter((l) => l.observationModel === "EVENT").length,
+    platformInternalSources: OPERATIONS_SOURCE_LIFECYCLES.filter((l) => l.audience === "PLATFORM_INTERNAL").length,
+    internalOnlySecurityCodes: count("ROUTINE") + count("UNCLASSIFIED"),
+    uncoveredUserVisibleCodes: uncovered.length + [...classified].filter((t) => !reviewedSecurity.has(t)).length,
+    orphanedCatalogueCodes: orphaned.length,
+    legacyCompatibilityDefinitions: securityOrphans.length,
+    conflictingDuplicateDefinitions:
+      dupes(CONDITION_MESSAGE_CODES).length + dupes(lifecycleIds).length + dupes(registryIds).length + dupes([...SECURITY_EVENT_TYPES]).length,
+  };
+
+  it("prints the counts", () => {
+    console.log(`OPERATIONS SIGNAL CONSERVATION ${JSON.stringify(counts, null, 2)}`);
+    expect(counts.userVisibleMessageCodesDiscovered).toBeGreaterThan(0);
+  });
+
+  it("uncovered = 0, orphaned = 0, conflicting = 0", () => {
+    expect(uncovered).toEqual([]);
+    expect(orphaned).toEqual([]);
+    expect(counts.uncoveredUserVisibleCodes).toBe(0);
+    expect(counts.conflictingDuplicateDefinitions).toBe(0);
+  });
+
+  it("dispositions partition the security vocabulary exactly", () => {
+    expect(
+      counts.securityEventsUserVisible_classified +
+        counts.securityEventsDedicatedSource +
+        counts.securityEventsRoutine +
+        counts.securityEventsUnclassifiedInternal,
+    ).toBe(counts.securityEventTypesDiscovered);
+    expect(counts.stateSources + counts.eventSources).toBe(counts.operationsSources);
+  });
+
+  it("the one legacy compatibility definition is upload_stalled, and it is still needed", () => {
+    // Needed: rows written by the old per-workspace bridge still carry
+    // `ops.security.signal` + `upload_stalled` and must render truthfully.
+    expect(securityOrphans).toEqual(["upload_stalled"]);
+  });
+
+  it("every source has exactly one lifecycle and one registry row", () => {
+    expect([...registryIds].sort()).toEqual([...lifecycleIds].sort());
   });
 });

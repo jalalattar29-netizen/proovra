@@ -98,7 +98,9 @@ describe("Phase P1 admin-security — NO secrets / tokens / raw IP / metadata", 
     // teamId entirely and an operator looking at forty open incidents could not
     // tell whether they belonged to forty customers or to one. The enrichment
     // adds names; it removes nothing and re-derives no incident field.
-    expect(SRC).toContain("projectIncident(row)");
+    // 2026-10-14 — with the PLATFORM audience: a platform reader never sees a
+    // tenant's words (record titles, notes), only identifiers and facts.
+    expect(SRC).toContain('projectIncident(row, { audience: "PLATFORM" })');
     expect(SRC).toContain("affected");
   });
 });

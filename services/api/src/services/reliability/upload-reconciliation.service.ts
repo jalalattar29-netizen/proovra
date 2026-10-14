@@ -28,7 +28,9 @@
  *   - We NEVER delete an evidence row, mutate fileSha256 / fingerprint,
  *     or fabricate completion metadata.
  *   - We NEVER auto-mark COMPLETED. The forensic chain owns that
- *     transition.
+ *     transition: a session behind a FINALIZED record is closed only by
+ *     `settleCompletedUploadSession`, which re-proves the finalization
+ *     (record, workspace, digest, parts, stored bytes) and refuses otherwise.
  *   - When an evidence row is in an unambiguous bad shape (e.g. DB
  *     SIGNED but object missing) we move the UploadSession to
  *     REVIEW_REQUIRED and emit a HIGH-severity security/reliability
@@ -46,6 +48,7 @@ import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { getStaleThresholds } from "./upload-limits.service.js";
 import {
   safeTransitionUploadSession,
+  settleCompletedUploadSession,
 } from "./upload-session.service.js";
 
 const NON_TERMINAL_NON_STALLED: ReadonlyArray<UploadSessionStatus> = [
@@ -279,6 +282,7 @@ export async function settleSupersededSessions(
       ],
     },
     select: { evidenceId: true, evidence: { select: { status: true, deletedAt: true } } },
+    orderBy: { evidenceId: "asc" },
     take: batchSize,
   });
   let settled = 0;
@@ -286,17 +290,22 @@ export async function settleSupersededSessions(
     const finalized =
       row.evidence.deletedAt == null &&
       (row.evidence.status === "SIGNED" || row.evidence.status === "REPORTED");
+    if (finalized) {
+      // The ONE guarded completion: it proves the upload completed from the
+      // record itself (and refuses, writing nothing, when it cannot).
+      const out = await settleCompletedUploadSession(row.evidenceId, client);
+      if (out.outcome === "COMPLETED") settled += 1;
+      continue;
+    }
     const out = await safeTransitionUploadSession(
-      finalized
-        ? { evidenceId: row.evidenceId, to: "COMPLETED", reason: "record_finalized" }
-        : {
-            evidenceId: row.evidenceId,
-            to: "ABANDONED",
-            reason: row.evidence.deletedAt != null ? "record_deleted" : "record_integrity_failed",
-          },
+      {
+        evidenceId: row.evidenceId,
+        to: "ABANDONED",
+        reason: row.evidence.deletedAt != null ? "record_deleted" : "record_integrity_failed",
+      },
       client,
     );
-    if (out && (out.status === "COMPLETED" || out.status === "ABANDONED")) settled += 1;
+    if (out && out.status === "ABANDONED") settled += 1;
   }
   return settled;
 }

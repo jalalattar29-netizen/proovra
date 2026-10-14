@@ -104,7 +104,10 @@ describe("registry coverage", () => {
       fingerprint: "tsa_failure:abc",
     })!;
     expect(tsa.disposition).toBe("NO_SAFE_REMEDIATION_AUTHORITY");
-    expect(tsa.unsafeReason ?? "").toMatch(/genTime|later than the evidence/i);
+    // Reader-facing (web and mobile show it): the WHY, in words — a new
+    // timestamp would date the record later than it really is.
+    expect(tsa.unsafeReason ?? "").toMatch(/later than it really is/i);
+    expect(tsa.unsafeReason ?? "").not.toMatch(/genTime|tsaStatus|repair-tsa|`/);
     expect(tsa.action).toBeUndefined();
   });
 

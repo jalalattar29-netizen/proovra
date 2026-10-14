@@ -44,6 +44,8 @@ import {
 import type { IncidentCategory } from "@proovra/shared";
 import { resolveConditionSource } from "@proovra/shared-runtime";
 
+import { isLegacyUploadStalledBridgeRow } from "./condition-presentation.service.js";
+
 // ===========================================================================
 // VOCABULARY
 // ===========================================================================
@@ -317,8 +319,10 @@ export type IntegrityClass =
   | "ots_pending_aged"
   | "ots_initialization_stalled";
 
+// Reader-facing (web and mobile show it): no column names, CLI names or
+// protocol fields. The engineering rationale lives in the TSA repair runbook.
 const TSA_UNSAFE_REASON =
-  "A timestamp proves a record existed at a moment. Re-contacting the authority now would mint a token whose genTime is later than the evidence it certifies, and presenting that as the record's timestamp would assert something untrue. The provider is therefore never re-contacted for finalized evidence: `tsaStatus` is written inside the finalize claim, and there is no TSA queue or job in the canonical registry to re-run. The one later writer is the operator validation CLI (repair-tsa-failed-with-token), which never contacts the provider: it only validates the token already kept, with the same validator as issuance.";
+  "A trusted timestamp proves when a record existed. Requesting a new one now would date the record later than it really is, so the timestamp authority is never contacted again for finalized evidence. If a timestamp reply was received at finalization, support can validate that kept reply; nothing is requested again.";
 
 const OTS_PROOF_INVALID_GUIDANCE =
   "The recorded OpenTimestamps proof does not match this record or could not be read, so re-running anchoring cannot repair it and none is offered. The evidence, its signature and its RFC 3161 timestamp are unaffected; the record is reported without a Bitcoin anchor.";
@@ -615,6 +619,7 @@ const SOURCE_ENTRIES: Readonly<Record<string, RemediationEntry>> = Object.freeze
   // the upload service failing to start or resume an upload session — nothing
   // in the product records an intake link failing to reach a recipient — so the
   // guidance says what happened, and no Intake Links action is offered.
+  // (keyed by identity, not source: see LEGACY_UPLOAD_STALLED_ENTRY below)
   "intake.delivery_failed": {
     disposition: "READ_ONLY_GUIDANCE",
     guidance:
@@ -672,6 +677,13 @@ export function integrityClassOf(fingerprint: string): IntegrityClass | null {
 }
 
 /** The registry entry governing one incident. Never throws; never guesses. */
+/** History from the old bridge: nothing to repair, nothing to open. */
+const LEGACY_UPLOAD_STALLED_ENTRY: RemediationEntry = {
+  disposition: "READ_ONLY_GUIDANCE",
+  guidance:
+    "This is history recorded by an earlier version of Operations. There is nothing to repair here. Uploads are now checked one at a time, and a genuinely stalled upload appears as its own condition.",
+};
+
 export function entryForIncident(input: {
   /** OPS-031 — the declared source; resolved from the fingerprint when absent. */
   sourceId?: string | null;
@@ -686,6 +698,10 @@ export function entryForIncident(input: {
   // whose generic guidance says records "recover when it does" — false for a
   // terminal state. It is an OTS failure of one record, and gets that entry.
   if (parseOtsBudgetExhaustedFingerprint(input.fingerprint)) return INTEGRITY_ENTRIES.ots_failure;
+  // The old per-workspace upload-stalled bridge row is HISTORY (2026-10-14):
+  // it named no upload and confirmed no stall, so it offers no repair and no
+  // link — only what it is and where a real stall appears.
+  if (isLegacyUploadStalledBridgeRow(input.fingerprint)) return LEGACY_UPLOAD_STALLED_ENTRY;
   // The SOURCE, by its declared id or — for a row written before the column
   // existed — by the same fingerprint resolution the lifecycle uses.
   const resolved = resolveConditionSource({
@@ -870,6 +886,37 @@ export function actionById(id: string): RemediationAction | null {
   if (id === REGENERATE_ARTIFACTS.actionId) return REGENERATE_ARTIFACTS;
   if (id === SUPERSEDE_FAILED_GENERATION.actionId) return SUPERSEDE_FAILED_GENERATION;
   return null;
+}
+
+/**
+ * EVERY reader-facing string this registry can project — guidance, unsafe
+ * reasons, deep-link labels, action labels and descriptions — for the
+ * localization gate: each must have its reviewed de/ar translation in the
+ * shared remediation copy.
+ */
+export function allRemediationTexts(): ReadonlyArray<string> {
+  const out = new Set<string>();
+  const visit = (e: RemediationEntry | undefined) => {
+    if (!e) return;
+    if (e.guidance) out.add(e.guidance);
+    if (e.unsafeReason) out.add(e.unsafeReason);
+    if (e.deepLink) out.add(e.deepLink.label);
+    for (const a of [e.action, e.secondaryAction]) {
+      if (!a) continue;
+      out.add(a.label);
+      out.add(a.description);
+    }
+  };
+  for (const e of Object.values(INTEGRITY_ENTRIES)) visit(e);
+  for (const e of Object.values(CATEGORY_ENTRIES)) visit(e);
+  for (const e of Object.values(SOURCE_ENTRIES)) visit(e);
+  visit(LEGACY_UPLOAD_STALLED_ENTRY);
+  for (const a of [RESUME_OTS, REGENERATE_ARTIFACTS, SUPERSEDE_FAILED_GENERATION]) {
+    out.add(a.label);
+    out.add(a.description);
+  }
+  out.add(OTS_PROOF_INVALID_GUIDANCE);
+  return [...out];
 }
 
 /** Every category the table governs — for the coverage gate. */

@@ -28,6 +28,8 @@
  *      (dry run writes nothing; a rerun is a no-op) and carries a still-live
  *      stall over to its own per-upload condition.
  */
+import { createHash, randomUUID } from "node:crypto";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { bootOps, makeUser, makeWorkspace, seedEvidence, seedIncident, type Ctx } from "./operations-truth-fixtures.js";
@@ -57,8 +59,22 @@ describe("upload stalled — production reproduction and lifecycle (live Postgre
     return { owner, ...w };
   }
 
+  /**
+   * A record with its bytes really in the store (finalization verifies them,
+   * and the guarded completion re-checks them), plus its upload session.
+   */
   async function shadow(teamId: string, ownerId: string, evidence: Record<string, unknown>, session: Record<string, unknown>) {
-    const ev = await seedEvidence(c, teamId, ownerId, evidence);
+    const body = Buffer.from(`evidence-${randomUUID()}`);
+    const key = `lifecycle/${randomUUID()}.bin`;
+    const { putObjectBuffer } = await import("../src/storage.js");
+    await putObjectBuffer({ bucket: process.env.S3_BUCKET!, key, body, contentType: "application/octet-stream" });
+    const ev = await seedEvidence(c, teamId, ownerId, {
+      fileSha256: createHash("sha256").update(body).digest("hex"),
+      sizeBytes: BigInt(body.length),
+      storageBucket: process.env.S3_BUCKET!,
+      storageKey: key,
+      ...evidence,
+    });
     await c.prisma.uploadSession.create({
       data: { evidenceId: ev.id, teamId, status: "UPLOADING", lastActivityAtUtc: HOURS_AGO(3), ...session } as never,
     });
@@ -328,11 +344,55 @@ describe("upload stalled — production reproduction and lifecycle (live Postgre
       subject: { kind: string };
       technicalReferences: Array<{ key: string; value: string }>;
     };
-    expect(body.title).toBe("Upload appears stalled");
+    // History, never a claim that a stall happened.
+    expect(body.title).toBe("Legacy upload-session signal");
+    expect(body.safeSummary).toMatch(/did not confirm that any upload was actually stalled/);
     expect(body.safeSummary).not.toMatch(/fields:|team 6488|upload_stalled/);
     expect(body.subject.kind).toBe("UPLOADS");
     expect(body.technicalReferences).toContainEqual({ key: "signalCode", value: "upload_stalled" });
     expect(JSON.stringify(d.json())).not.toMatch(/intake-links|Open intake links/);
+    // No repair and nowhere to go; the conclusion stays in its history.
+    const rem = (d.json() as { remediation: { actions: unknown[]; deepLink: unknown; guidance: string } }).remediation;
+    expect(rem.actions).toEqual([]);
+    expect(rem.deepLink).toBeNull();
+    expect(rem.guidance).toMatch(/history recorded by an earlier version/);
+  });
+
+  it("6c. a resolved legacy row keeps its conclusion and is never reopened by the same old signal", async () => {
+    const w = await workspace("legacy-history");
+    const legacy = await seedIncident(c, w.teamId, {
+      sourceId: "intake.delivery_failed",
+      category: "UPLOAD",
+      severity: "WARNING",
+      status: "RESOLVED",
+      fingerprint: "upload:security_event:upload_stalled",
+      title: "Security signal: upload_stalled",
+      occurrenceCount: 4,
+    });
+    const conclusion = "Closed after review: the sessions belonged to records that had already finalized.";
+    await c.prisma.operationalIncident.update({ where: { id: legacy.id }, data: { resolutionNote: conclusion, resolvedAtUtc: new Date() } });
+    await c.prisma.operationalIncidentEvent.create({ data: { incidentId: legacy.id, eventType: "resolved", safeMessage: conclusion } });
+
+    // The same old signal arrives again — the event type that once fed it —
+    // and the sweeps run: it is a dedicated per-upload source now.
+    const { safeEmitSecurityEvent } = await import("../src/services/security/security-event.service.js");
+    safeEmitSecurityEvent({ teamId: w.teamId, eventType: "upload_stalled", severity: "WARNING", details: { stalledThresholdMinutes: 30, previousStatus: "UPLOADING" } });
+    await settle();
+    await recon();
+    const { reconcileOperationsTruth } = await import("../src/services/operations/operations-truth-reconciliation.service.js");
+    await reconcileOperationsTruth({ apply: true, teamId: w.teamId, rules: ["legacy_upload_stalled_rows"] }, c.prisma as never);
+
+    const after = await c.prisma.operationalIncident.findUniqueOrThrow({ where: { id: legacy.id } });
+    expect(after.status).toBe("RESOLVED");
+    expect(after.occurrenceCount).toBe(4);
+    expect(after.resolutionNote).toBe(conclusion);
+    expect(await c.prisma.operationalIncident.count({ where: { teamId: w.teamId } })).toBe(1);
+
+    const d = await c.inj("GET", `/v1/ops/incidents/${legacy.id}?teamId=${w.teamId}`, w.owner.token);
+    const detail = (d.json() as { incident: { title: string; status: string; timeline: Array<{ eventType: string; safeMessage: string | null }> } }).incident;
+    expect(detail.title).toBe("Legacy upload-session signal");
+    expect(detail.status).toBe("RESOLVED");
+    expect(detail.timeline.find((e) => e.eventType === "resolved")?.safeMessage).toBe(conclusion);
   });
 
   it("7. the existing-data reconciliation closes the legacy row and carries a live stall over, once", async () => {
@@ -352,11 +412,14 @@ describe("upload stalled — production reproduction and lifecycle (live Postgre
     const { reconcileOperationsTruth } = await import("../src/services/operations/operations-truth-reconciliation.service.js");
     const dry = await reconcileOperationsTruth({ apply: false, teamId: w.teamId, rules: ["legacy_upload_stalled_rows"] }, c.prisma as never);
     expect(dry.rules.legacy_upload_stalled_rows.changed).toBe(1);
+    // The dry run reports what apply would do — one live stall to carry over,
+    // nothing written yet, nothing refused.
+    expect(dry.rules.legacy_upload_stalled_rows.detail).toMatchObject({ liveStalls: 1, carriedOver: 0, refused: 0 });
     expect((await c.prisma.operationalIncident.findUniqueOrThrow({ where: { id: legacy.id } })).status).toBe("OPEN");
     expect(await conditionsIn(w.teamId)).toHaveLength(1);
 
     const applied = await reconcileOperationsTruth({ apply: true, teamId: w.teamId, rules: ["legacy_upload_stalled_rows"] }, c.prisma as never);
-    expect(applied.rules.legacy_upload_stalled_rows.detail).toMatchObject({ carriedOver: 1 });
+    expect(applied.rules.legacy_upload_stalled_rows.detail).toMatchObject({ liveStalls: 1, carriedOver: 1, refused: 0 });
     const closed = await c.prisma.operationalIncident.findUniqueOrThrow({ where: { id: legacy.id } });
     expect(closed.status).toBe("RESOLVED");
     expect(closed.resolutionNote).toMatch(/named no upload/);

@@ -47,7 +47,7 @@ import {
   runScan,
 } from "./security/file-security-scan.service.js";
 import { safeEmitSecurityEvent } from "./security/security-event.service.js";
-import { safeTransitionUploadSession } from "./reliability/upload-session.service.js";
+import { safeTransitionUploadSession, settleCompletedUploadSession } from "./reliability/upload-session.service.js";
 import { evaluateUploadSessionFinalizeGate } from "./uploads/upload-session.service.js";
 import { enqueueGraphReconcileJob } from "../queue/graph-reconcile-queue.js";
 import { warn as logWarn } from "../utils/logger.js";
@@ -1829,11 +1829,11 @@ const captureMethod =
     });
   }
 
-  // Phase 12 — operations-side session reached its terminal good state.
-  safeTransitionUploadSession({
-    evidenceId: final.result.id,
-    to: "COMPLETED",
-  }).catch(() => null);
+  // Phase 12 — operations-side session reached its terminal good state,
+  // through the ONE guarded completion: it re-reads this record's finalization
+  // truth (and the stored bytes) and completes the session from whatever live
+  // state its best-effort writes reached. Best effort; never fails finalize.
+  settleCompletedUploadSession(final.result.id).catch(() => null);
 
   // ET-ACQ-03 — the one-time completion fan-out runs EXACTLY ONCE per record,
   // on whichever finalize reaches it first. (2026-09-29, audit D11) stopped a

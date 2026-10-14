@@ -40,6 +40,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { probeConditionActivity } from "../observability/incident.service.js";
 import { classifySecurityEvent } from "../security/security-event.service.js";
+import { LEGACY_UPLOAD_STALLED_FINGERPRINT_SUFFIX } from "./condition-presentation.service.js";
 import {
   closeRecoveredConditions,
   probeRecoverablePerRecordSourceIds,
@@ -1040,13 +1041,24 @@ export async function reconcileOperationsTruth(
   // resolved, is left to it, so a person's resolution is never undone here.
   if (runs("legacy_upload_stalled_rows")) {
     const c = rules.legacy_upload_stalled_rows;
-    const detail = { carriedOver: 0 };
+    // Every count the owner needs to judge the run, in dry run AND apply:
+    //   matched / changed   unresolved legacy rows read / that would close (or did)
+    //   liveStalls          uploads genuinely stalled right now in those workspaces
+    //                       with no per-upload condition yet (carried over on apply)
+    //   carriedOver         per-upload conditions written (apply only)
+    //   refused             rows a concurrent transition took first (apply only)
+    //   resolvedHistory     legacy rows already resolved: left exactly as they are
+    //                       (their wording is a read-time presentation, not a write)
+    const detail = { liveStalls: 0, carriedOver: 0, refused: 0, resolvedHistory: 0 };
+    detail.resolvedHistory = await client.operationalIncident.count({
+      where: { status: S.RESOLVED, fingerprint: { endsWith: LEGACY_UPLOAD_STALLED_FINGERPRINT_SUFFIX }, ...tw },
+    });
     const r = await pageRows(
       (afterId, take) =>
         client.operationalIncident.findMany({
           where: {
             status: { in: UNRESOLVED },
-            fingerprint: { endsWith: `${SECURITY_EVENT_MARKER}upload_stalled` },
+            fingerprint: { endsWith: LEGACY_UPLOAD_STALLED_FINGERPRINT_SUFFIX },
             ...byId(afterId),
             ...tw,
           },
@@ -1058,7 +1070,7 @@ export async function reconcileOperationsTruth(
       async (row) => {
         c.matched += 1;
         c.changed += 1;
-        if (!apply) return;
+        const toCarry: Array<{ evidenceId: string; stalledAtUtc: Date | null; lastActivityAtUtc: Date; evidence: { title: string | null } }> = [];
         if (row.teamId) {
           const stalled = await client.uploadSession.findMany({
             where: {
@@ -1075,15 +1087,21 @@ export async function reconcileOperationsTruth(
             orderBy: { evidenceId: "asc" },
             take: 500,
           });
-          const { recordUploadStalledCondition } = await import("../reliability/upload-reconciliation.service.js");
-          const { getStaleThresholds } = await import("../reliability/upload-limits.service.js");
-          const { stalledMinutes } = getStaleThresholds();
           for (const s of stalled) {
             const existing = await client.operationalIncident.findFirst({
               where: { teamId: row.teamId, fingerprint: `upload_stalled:${s.evidenceId}` },
               select: { id: true },
             });
-            if (existing) continue;
+            if (!existing) toCarry.push(s);
+          }
+        }
+        detail.liveStalls += toCarry.length;
+        if (!apply) return;
+        if (row.teamId && toCarry.length > 0) {
+          const { recordUploadStalledCondition } = await import("../reliability/upload-reconciliation.service.js");
+          const { getStaleThresholds } = await import("../reliability/upload-limits.service.js");
+          const { stalledMinutes } = getStaleThresholds();
+          for (const s of toCarry) {
             await recordUploadStalledCondition(
               {
                 teamId: row.teamId,
@@ -1098,13 +1116,17 @@ export async function reconcileOperationsTruth(
             detail.carriedOver += 1;
           }
         }
-        await closeWithNote(
+        const closed = await closeWithNote(
           client,
           row,
           "Closed by the Operations truth reconciliation: this workspace-wide row named no upload. Stalled uploads are now reported one per upload as \"Upload appears stalled\"; any upload still stalled is listed there.",
           now,
           "legacy_upload_stalled_rows",
         );
+        if (!closed) {
+          detail.refused += 1;
+          c.changed -= 1;
+        }
       },
     );
     c.truncated = r.truncated;

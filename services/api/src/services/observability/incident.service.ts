@@ -30,6 +30,7 @@ import {
   type IncidentStatus,
   type ConditionMessage,
   clipSafeSummary,
+  conditionSourceLabel,
   isAllowedIncidentStatusTransition,
   isValidIncidentFingerprint,
   stampConditionMessage,
@@ -83,8 +84,11 @@ import {
   conditionSubjectFor,
   conditionTechnicalReferencesFor,
   conditionTextFor,
+  messageForAudience,
+  PLATFORM_WITHHELD_SUMMARY,
   presentTimelineMessage,
   resolveConditionSubjectAvailability,
+  type ConditionAudience,
 } from "../operations/condition-presentation.service.js";
 import type { ConditionSubject, ConditionTechnicalReference } from "@proovra/shared";
 import { bump, setGauge } from "../ops/metrics.service.js";
@@ -2056,15 +2060,26 @@ export type IncidentProjection = {
 
 export function projectIncident(
   i: prismaPkg.OperationalIncident,
+  /**
+   * WHO is reading. PLATFORM (the admin routes) never sees a tenant's words —
+   * record titles, notes — in the sentence or the subject, and never the
+   * stored text a writer may have worded with them.
+   */
+  opts: { audience?: ConditionAudience } = {},
 ): IncidentProjection {
+  const audience: ConditionAudience = opts.audience ?? "WORKSPACE";
   const { lifecycle, match } = resolveConditionSource({
     sourceId: i.sourceId,
     category: i.category,
     fingerprint: i.fingerprint,
   });
-  const message = conditionMessageFor(i);
+  const message = messageForAudience(conditionMessageFor(i), audience);
   const text = conditionTextFor(message);
   const titleSource = conditionTitleSource({ lifecycle, match, diagnostic: null });
+  // A platform reader with no renderable message gets the source's label and
+  // a withheld summary — never stored text that may name a record.
+  const withheld = audience === "PLATFORM" && !text;
+  const subject = conditionSubjectFor(i, lifecycle.sourceId, message);
   return {
     id: i.id,
     // ADM-010 — the tenant this condition belongs to. See the type comment.
@@ -2126,14 +2141,16 @@ export function projectIncident(
     title:
       titleSource === "CONDITION" && text
         ? text.title
-        : conditionTitle({ lifecycle, match, diagnostic: null }, i.title),
-    safeSummary: text?.summary ?? i.safeSummary,
+        : withheld
+          ? (conditionSourceLabel("en", lifecycle.sourceId) ?? conditionTitle({ lifecycle, match, diagnostic: null }, ""))
+          : conditionTitle({ lifecycle, match, diagnostic: null }, i.title),
+    safeSummary: text?.summary ?? (withheld ? PLATFORM_WITHHELD_SUMMARY : i.safeSummary),
     message: {
       code: message?.code ?? null,
       params: message?.params ?? null,
       titleSource,
     },
-    subject: conditionSubjectFor(i, lifecycle.sourceId, message),
+    subject: audience === "PLATFORM" ? { ...subject, name: null } : subject,
     technicalReferences: conditionTechnicalReferencesFor(i, lifecycle.sourceId, message),
     fingerprint: i.fingerprint,
     occurrenceCount: i.occurrenceCount,

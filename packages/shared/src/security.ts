@@ -436,11 +436,10 @@ export const SECURITY_EVENT_TYPES = [
   "password_changed",
   "password_change_failed",
   "auth_login_failed",
-  "sso_login_succeeded",
-  "sso_login_failed",
+  // sso_login_succeeded / sso_login_failed / scim_group_synced are declared
+  // once, above, with the SSO and SCIM vocabulary.
   "scim_user_provisioned",
   "scim_user_deprovisioned",
-  "scim_group_synced",
   "api_key_issued",
   "api_key_revoked",
   // Phase R8.1.3 — durable MFA challenge + org enforcement vocabulary.

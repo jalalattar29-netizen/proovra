@@ -51,6 +51,19 @@ function paramsObject(v: unknown): Record<string, string | number> | null {
  * written before codes existed reads as its reviewed sentence instead of
  * "Security signal: <code>". Anything else stays null (stored text is shown).
  */
+/**
+ * THE OLD PER-WORKSPACE UPLOAD-STALLED BRIDGE ROW — one identity, used by
+ * presentation, remediation and the truth reconciliation alike.
+ *
+ * `upload_stalled` is a DEDICATED event now (per-upload `capture.upload_stalled`),
+ * so nothing writes this fingerprint any more: a row carrying it is history
+ * from the old bridge, which never named an upload or confirmed a stall.
+ */
+export const LEGACY_UPLOAD_STALLED_FINGERPRINT_SUFFIX = ":security_event:upload_stalled";
+export function isLegacyUploadStalledBridgeRow(fingerprint: string | null | undefined): boolean {
+  return typeof fingerprint === "string" && fingerprint.endsWith(LEGACY_UPLOAD_STALLED_FINGERPRINT_SUFFIX);
+}
+
 export function conditionMessageFor(row: RowLike): ConditionMessageRef | null {
   const stored = paramsObject(row.messageParams);
   if (row.messageCode && isConditionMessageCode(row.messageCode)) {
@@ -280,4 +293,66 @@ export function presentTimelineMessage(message: string | null): string | null {
   if (!message) return null;
   if (/^Severity (INFO|WARNING|HIGH|CRITICAL)(\s·\s|$)/.test(message)) return null;
   return message;
+}
+
+// ---------------------------------------------------------------------------
+// WHO IS READING — the platform audience never sees tenant content
+// ---------------------------------------------------------------------------
+
+/**
+ * The reader of a projected condition. WORKSPACE: a member of the condition's
+ * own workspace (the canonical member authority already admitted them).
+ * PLATFORM: a platform administrator reading across tenants through the admin
+ * routes — who, by the platform's own rule, is never shown evidence CONTENT
+ * (titles, notes); identifiers and operational facts only.
+ */
+export type ConditionAudience = "WORKSPACE" | "PLATFORM";
+
+/** Message params that are a tenant's own words, never shown to the platform. */
+export const USER_CONTENT_PARAMS: ReadonlySet<string> = new Set(["recordTitle", "note"]);
+
+/** The message a platform reader may see: the same code, without tenant words. */
+export function messageForAudience(
+  message: ConditionMessageRef | null,
+  audience: ConditionAudience,
+): ConditionMessageRef | null {
+  if (!message || audience === "WORKSPACE" || !message.params) return message;
+  const params = Object.fromEntries(Object.entries(message.params).filter(([k]) => !USER_CONTENT_PARAMS.has(k)));
+  return { code: message.code, params };
+}
+
+/** What a platform reader is told when only stored (possibly tenant-worded) text exists. */
+export const PLATFORM_WITHHELD_SUMMARY =
+  "The details of this condition are shown to its workspace. Its identifiers are listed under Technical references.";
+
+/**
+ * Timeline entries a platform reader may read verbatim: operator and system
+ * actions, whose words are the platform's or an operator's conclusion. An
+ * OBSERVATION entry carried the writer's stored summary — which could name a
+ * record — and is withheld from the platform.
+ */
+const PLATFORM_READABLE_EVENTS: ReadonlySet<string> = new Set([
+  "acknowledged",
+  "resolved",
+  "suppressed",
+  "unsuppressed",
+  "assigned",
+  "unassigned",
+  "reopened",
+  "resolved_by_reconciliation",
+  "resolved_by_domain_truth",
+  "rescoped_by_reconciliation",
+  "summary_sanitized_by_reconciliation",
+  "remediation_queued",
+  "requires_owner_review",
+]);
+
+export function presentTimelineMessageForAudience(
+  eventType: string,
+  message: string | null,
+  audience: ConditionAudience,
+): string | null {
+  const shown = presentTimelineMessage(message);
+  if (audience === "WORKSPACE") return shown;
+  return PLATFORM_READABLE_EVENTS.has(eventType) ? shown : null;
 }

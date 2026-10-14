@@ -2456,3 +2456,4 @@ export function fillOperationsCopy(template: string, values: Record<string, stri
 // Operations condition titles and summaries: semantic codes written by the
 // server, resolved here in en/de/ar (see operations-condition-messages.ts).
 export * from "./operations-condition-messages.js";
+export * from "./operations-remediation-copy.js";

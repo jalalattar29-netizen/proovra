@@ -62,23 +62,25 @@ test("STALLED and REVIEW_REQUIRED are NOT terminal", () => {
 // Transition matrix
 // -----------------------------------------------------------------------------
 
-test("CREATED → PRESIGNED is allowed", () => {
+test("CREATED → PRESIGNED is allowed; CREATED → COMPLETED is NOT", () => {
   assert.equal(isAllowedUploadSessionTransition("CREATED", "PRESIGNED"), true);
+  assert.equal(isAllowedUploadSessionTransition("CREATED", "COMPLETED"), false);
 });
 
-// 2026-10-14 — FINALIZATION IS THE AUTHORITY ON COMPLETION. A session is the
-// shadow of its record's upload; when the record finalizes, its session
-// completes from whatever live state its best-effort transitions reached.
-// Only a terminal or held session (ABANDONED / FAILED / REVIEW_REQUIRED) can
-// never be completed.
-test("every live upload state may complete; terminal and held states may not", () => {
-  for (const from of ["CREATED", "PRESIGNED", "UPLOADING", "PARTIAL", "STALLED", "VERIFYING"]) {
-    assert.equal(isAllowedUploadSessionTransition(from, "COMPLETED"), true, `${from} -> COMPLETED`);
-  }
+// 2026-10-14 — and even this edge is not a request: services/api refuses a
+// generic COMPLETED and completes a session only through the guarded
+// `settleCompletedUploadSession`, which proves the record finalized.
+test("VERIFYING is the only on-ramp to COMPLETED", () => {
   for (const from of UPLOAD_SESSION_STATUSES) {
-    if (["CREATED", "PRESIGNED", "UPLOADING", "PARTIAL", "STALLED", "VERIFYING", "COMPLETED"].includes(from)) continue;
-    assert.equal(isAllowedUploadSessionTransition(from, "COMPLETED"), false, `unexpectedly allowed: ${from} -> COMPLETED`);
+    // Self-transitions are intentional no-op heartbeats; skip COMPLETED.
+    if (from === "VERIFYING" || from === "COMPLETED") continue;
+    assert.equal(
+      isAllowedUploadSessionTransition(from, "COMPLETED"),
+      false,
+      `unexpectedly allowed: ${from} -> COMPLETED`,
+    );
   }
+  assert.equal(isAllowedUploadSessionTransition("VERIFYING", "COMPLETED"), true);
 });
 
 test("STALLED is recoverable: STALLED → UPLOADING is allowed", () => {
@@ -133,7 +135,7 @@ test("listAllowedUploadSessionTransitions surfaces the matrix", () => {
   const fromUploading = listAllowedUploadSessionTransitions("UPLOADING");
   assert.ok(fromUploading.includes("VERIFYING"));
   assert.ok(fromUploading.includes("STALLED"));
-  assert.ok(fromUploading.includes("COMPLETED"));
+  assert.ok(!fromUploading.includes("COMPLETED"));
 });
 
 // -----------------------------------------------------------------------------

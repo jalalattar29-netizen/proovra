@@ -67,21 +67,20 @@ export function isTerminalUploadSessionStatus(
 //     recovery is possible.
 // -----------------------------------------------------------------------------
 
-// FINALIZATION IS THE AUTHORITY ON COMPLETION (2026-10-14). COMPLETED was
-// reachable only from VERIFYING, and both the VERIFYING step and the COMPLETED
-// step are best-effort writes the finalize path does not await. A session that
-// had not reached VERIFYING when the record finalized was refused COMPLETED and
-// stayed PRESIGNED/UPLOADING forever behind a SIGNED record — which the stalled
-// sweep then reported as a stalled upload. A record that finalized IS complete,
-// so COMPLETED is reachable from every non-terminal state (REVIEW_REQUIRED is a
-// deliberate human hold and keeps its own exits).
+// COMPLETION IS NOT A REQUEST (2026-10-14). The generic graph reaches COMPLETED
+// from VERIFYING alone — the in-flight finalize window — so no caller can
+// complete a session merely by asking. A session whose best-effort VERIFYING
+// write never landed behind a record that DID finalize is closed by exactly one
+// guarded operation, `settleCompletedUploadSession` (services/api), which reads
+// the record's own finalization truth (finalized, same workspace, digest,
+// parts, stored bytes) and refuses otherwise. VERIFYING may also be abandoned:
+// a record deleted mid-finalize has no upload left.
 const TRANSITIONS: Readonly<
   Record<UploadSessionStatus, ReadonlyArray<UploadSessionStatus>>
 > = {
-  CREATED: ["PRESIGNED", "COMPLETED", "FAILED", "ABANDONED", "REVIEW_REQUIRED"],
+  CREATED: ["PRESIGNED", "FAILED", "ABANDONED", "REVIEW_REQUIRED"],
   PRESIGNED: [
     "UPLOADING",
-    "COMPLETED",
     "PARTIAL",
     "VERIFYING",
     "FAILED",
@@ -91,7 +90,6 @@ const TRANSITIONS: Readonly<
   ],
   UPLOADING: [
     "PARTIAL",
-    "COMPLETED",
     "VERIFYING",
     "FAILED",
     "STALLED",
@@ -100,21 +98,19 @@ const TRANSITIONS: Readonly<
   ],
   PARTIAL: [
     "UPLOADING",
-    "COMPLETED",
     "VERIFYING",
     "FAILED",
     "STALLED",
     "ABANDONED",
     "REVIEW_REQUIRED",
   ],
-  // ABANDONED: the record was deleted before its upload completed.
   VERIFYING: ["COMPLETED", "FAILED", "ABANDONED", "REVIEW_REQUIRED"],
   COMPLETED: [],
   FAILED: [
     // Operators may explicitly re-queue a failed session for review.
     "REVIEW_REQUIRED",
   ],
-  STALLED: ["UPLOADING", "COMPLETED", "ABANDONED", "REVIEW_REQUIRED"],
+  STALLED: ["UPLOADING", "ABANDONED", "REVIEW_REQUIRED"],
   ABANDONED: [],
   REVIEW_REQUIRED: ["UPLOADING", "VERIFYING", "ABANDONED", "FAILED"],
 };

@@ -199,7 +199,7 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
       // Rebaselined 2026-09-30: 69,911 -> 71,631 — ET-SM-07 / ET-PKG-07: the completion transaction records the first integrity check and finalizes every record NOT_PUBLISHED
       // Rebaselined 2026-10-01: 71,631 -> 79,841 — UC-ARCH-003: completeEvidence is the ONE finalization authority (EVIDENCE_COMPLETED custody, reviewer workflow and evidence.complete audit moved in from the web route, exactly once for every channel); UC-TRUST-003 persists the signing-key fingerprint; UC-STR-002 refuses a part set that differs from the claimed seal plan.
       // Rebaselined 2026-10-07: 79,841 -> 80,111 — the TIMESTAMP_APPLIED custody payload records what the RFC 3161 validation established (tsaValidation: trust anchor, token certificates, nonce, policy) for timestamp-validation.json.
-      { rel: "src/services/evidence-complete.service.ts", expected: 81775 }, // up from 78,882 (2026-10-12): retention AccessDenied is HEAD-confirmed, never assumed locked. Earlier: down from 80,111 (2026-10-07): timestamp custody payload extracted
+      { rel: "src/services/evidence-complete.service.ts", expected: 81999 }, // 2026-10-14: 81,775 -> 81,999 — the session COMPLETED write moved behind settleCompletedUploadSession (proves finalization before completing); up from 78,882 (2026-10-12): retention AccessDenied is HEAD-confirmed, never assumed locked. Earlier: down from 80,111 (2026-10-07): timestamp custody payload extracted
       {
               // Rebaselined 2026-07-31 (PHASE 12 POINT 3): Case-Evidence physical
       // convergence. The artifact query filtered `prisma.evidence` by the legacy
