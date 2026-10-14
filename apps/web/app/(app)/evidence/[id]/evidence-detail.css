@@ -2715,6 +2715,9 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
    the same surface as the verify card above it; every colour is a token. */
 .evidence-detail-links-panel {
   display: grid;
+  /* One shrinkable track: a long unbreakable value (a link, a verification
+     reference) must wrap inside the panel, never widen the record column. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   min-inline-size: 0;
   padding: 18px 22px;
@@ -2750,6 +2753,22 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+/* CANONICAL VERIFICATION (2026-10-14) — the Verification access panel. */
+.evidence-detail-verify-card-host {
+  min-inline-size: 0;
+}
+.evidence-detail-links-panel [data-verification-access-status] {
+  display: grid;
+  gap: 10px;
+  min-inline-size: 0;
+}
+.evidence-detail-links-panel [data-verification-access-url] {
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+.evidence-detail-links-panel [data-verification-access-reference] {
+  overflow-wrap: anywhere;
 }
 .evidence-detail-link-form {
   display: grid;
