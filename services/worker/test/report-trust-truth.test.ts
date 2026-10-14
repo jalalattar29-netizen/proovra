@@ -13,27 +13,30 @@ import { reportInputFixture } from "./fixtures/report-v2-input.js";
 
 const TOKEN_URL = "https://app.proovra.com/verify/pvs_" + "k".repeat(43);
 
-describe("UC-OUT-001 — no live-looking verification link for an unpublished record", () => {
-  it("unpublished at issuance: no link, no QR, an explicit 'Not published' caveat", async () => {
+describe("CANONICAL VERIFICATION — the report prints the permanent page, or says why it cannot", () => {
+  const CANONICAL_URL = "https://app.proovra.com/verify/pvr_" + "c".repeat(27);
+
+  it("withdrawn at issuance: no link, no QR, an explicit withdrawal statement", async () => {
     const vm = await buildReportViewModel(
-      reportInputFixture({ verifyUrl: TOKEN_URL, publicVerificationPublished: false }),
+      reportInputFixture({ verifyUrl: CANONICAL_URL, publicVerificationPublished: false }),
     );
     expect(vm.qr.publicDataUrl).toBeNull();
     const html = renderReportHtml(vm);
-    expect(html).toContain('data-public-verification="not-published"');
-    expect(html).toContain("Not published — the owner can create a verification link");
-    expect(html).not.toContain("pvs_" + "k".repeat(43));
+    expect(html).toContain('data-public-verification="withdrawn"');
+    expect(html).toContain("Verification page withdrawn");
+    expect(html).not.toContain("pvr_" + "c".repeat(27));
     expect(html).not.toContain("Scan QR code or open verification page");
   });
 
-  it("published at issuance: the link and QR are printed", async () => {
+  it("every other report prints the canonical link and its QR — no publication involved", async () => {
     const vm = await buildReportViewModel(
-      reportInputFixture({ verifyUrl: TOKEN_URL, publicVerificationPublished: true }),
+      reportInputFixture({ verifyUrl: CANONICAL_URL, publicVerificationPublished: true }),
     );
     expect(vm.qr.publicDataUrl).toMatch(/^data:image/);
     const html = renderReportHtml(vm);
-    expect(html).toContain("pvs_" + "k".repeat(43));
+    expect(html).toContain("pvr_" + "c".repeat(27));
     expect(html).toContain("Scan QR code or open verification page");
+    expect(html).toContain("does not publish the original evidence files");
   });
 });
 

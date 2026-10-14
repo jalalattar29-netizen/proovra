@@ -152,7 +152,7 @@ describe("lapsed paid plan — FREE-equivalent creation, earned outputs kept (li
       })
     ).json();
 
-  it("PRO → lapsed, below the Free allowance: a new record is admitted and plan-funded as Free (no plan outputs)", async () => {
+  it("PRO → lapsed, below the Free allowance: a new record is admitted into a FREE slot and earns the FREE outputs", async () => {
     const { t } = await proTenantHolding(1);
     await lapse(t);
 
@@ -161,11 +161,13 @@ describe("lapsed paid plan — FREE-equivalent creation, earned outputs kept (li
     const id = res.json().id as string;
     const done = await finalize(t, id);
     expect(done.funding).toBe("PLAN");
-    expect(done.decision).toMatchObject({ decision: "NOT_ENTITLED", basis: "FREE_PLAN" });
-    // Nothing was earned, so nothing is stored and nothing is owed.
+    // FREE THREE-RECORD CONTRACT (2026-10-14): the lapsed account records on
+    // the FREE allowance, and a record settled into a FREE slot is one of the
+    // three complete records — report, package and verification page.
+    expect(done.decision).toMatchObject({ decision: "ENTITLED", basis: "FREE_ALLOWANCE" });
     const row = await prisma.evidence.findUniqueOrThrow({ where: { id } });
-    expect(row.outputEarnedBasis).toBeNull();
-    expect((await eligibility(t, id)).issuance.decision).toBe("NOT_ENTITLED");
+    expect(row.outputEarnedBasis).toBe("FREE_ALLOWANCE");
+    expect((await eligibility(t, id)).issuance.decision).toBe("ENTITLED");
 
     const b = await billing(t);
     expect(b.evidenceAdmission).toMatchObject({

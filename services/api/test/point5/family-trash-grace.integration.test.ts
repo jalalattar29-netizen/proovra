@@ -50,6 +50,15 @@ function disposableStore() {
   };
 }
 
+/**
+ * RETENTION ARCHIVE (owner decision 2026-10-14) — the sweep now reads storage
+ * retention (the authority) before deciding archive vs purge-eligible. These
+ * cases are about the sweep's scheduling, so it reads a disposable store that
+ * holds none of their objects: every reading is complete and carries no
+ * retention, which is exactly the "no storage barrier" world they assert in.
+ */
+const RECONCILER_STORE = disposableStore();
+
 describe("POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
   let prisma: (typeof import("../../src/db.js"))["prisma"];
@@ -155,7 +164,7 @@ describe("POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16)", (
     expect(persisted.lifecycleState).toBe("TRASHED");
     expect(persisted.deleteScheduledForUtc!.getTime()).toBeLessThan(Date.now());
 
-    const report = await reconciler.runTrashGraceReconciliation({
+    const report = await reconciler.runTrashGraceReconciliation({ storage: RECONCILER_STORE.port,
       teamId: ownTeamId,
       dryRun: true,
       trigger: "point5-proof",
@@ -172,7 +181,7 @@ describe("POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16)", (
 
   it("trashgrace: the candidate's workspace is read from the evidence row", async () => {
     const rec = await expiredTrash();
-    const report = await reconciler.runTrashGraceReconciliation({
+    const report = await reconciler.runTrashGraceReconciliation({ storage: RECONCILER_STORE.port,
       teamId: ownTeamId,
       dryRun: true,
       trigger: "point5-proof",
@@ -197,7 +206,7 @@ describe("POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16)", (
     const mine = await expiredTrash("own");
     const theirs = await expiredTrash("foreign");
 
-    const report = await reconciler.runTrashGraceReconciliation({
+    const report = await reconciler.runTrashGraceReconciliation({ storage: RECONCILER_STORE.port,
       teamId: ownTeamId,
       dryRun: true,
       trigger: "point5-proof",
@@ -303,7 +312,7 @@ describe("POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16)", (
     const rec = await expiredTrash();
 
     for (let i = 0; i < 3; i += 1) {
-      await reconciler.runTrashGraceReconciliation({
+      await reconciler.runTrashGraceReconciliation({ storage: RECONCILER_STORE.port,
         teamId: ownTeamId,
         trigger: `point5-proof-${i}`,
       });
@@ -347,7 +356,7 @@ describe("POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16)", (
 
     // The sweep scans by lifecycle_state, so a tombstone — which still carries
     // `deleted_at` from its time in the trash — cannot reappear as a candidate.
-    const report = await reconciler.runTrashGraceReconciliation({
+    const report = await reconciler.runTrashGraceReconciliation({ storage: RECONCILER_STORE.port,
       teamId: ownTeamId,
       dryRun: true,
       trigger: "point5-proof",
@@ -401,22 +410,32 @@ describe("POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16)", (
     const eligible = (await expiredTrash("own", { deleteScheduledForUtc: new Date(Date.now() - 5990 * DAY) })).id;
     try {
 
-    const first = await reconciler.runTrashGraceReconciliation({ batchSize: 3, trigger: "q05-1" });
-    expect(first.candidates.map((c) => c.evidenceId)).toEqual(blocked);
-    expect(first.candidates.every((c) => c.disposition === "BLOCKED" || c.disposition.startsWith("BLOCKED"))).toBe(true);
-
-    const second = await reconciler.runTrashGraceReconciliation({ batchSize: 3, trigger: "q05-2" });
-    const ids = second.candidates.map((c) => c.evidenceId);
-    expect(ids, "the next tick continues past the blocked rows").toContain(eligible);
-    expect(ids).not.toContain(blocked[0]);
-    // A dry run neither reads nor moves the shared cursor.
-    const dry = await reconciler.runTrashGraceReconciliation({ batchSize: 3, dryRun: true, trigger: "q05-dry" });
+    // RETENTION ARCHIVE (owner decision 2026-10-14) — a retention-blocked
+    // record whose Trash ended LEAVES the Trash for the archive: it no longer
+    // heads every tick as "blocked", which is the starvation ET-Q-05 guards.
+    // A dry run first: it reports the same rows and moves nothing.
+    const dry = await reconciler.runTrashGraceReconciliation({ storage: RECONCILER_STORE.port, batchSize: 3, dryRun: true, trigger: "q05-dry" });
     expect(dry.candidates.map((c) => c.evidenceId).slice(0, 3)).toEqual(blocked);
+    expect(dry.candidates.slice(0, 3).every((c) => c.disposition === "RETENTION_ARCHIVED")).toBe(true);
+    expect(await prisma.evidence.count({ where: { id: { in: blocked }, lifecycleState: "TRASHED" } })).toBe(3);
+
+    const first = await reconciler.runTrashGraceReconciliation({ storage: RECONCILER_STORE.port, batchSize: 3, trigger: "q05-1" });
+    expect(first.candidates.map((c) => c.evidenceId).slice(0, 3)).toEqual(blocked);
+    expect(first.candidates.slice(0, 3).every((c) => c.disposition === "RETENTION_ARCHIVED" && c.retentionBarrier === "APP_RETENTION")).toBe(true);
+    expect(await prisma.evidence.count({ where: { id: { in: blocked }, lifecycleState: "RETENTION_ARCHIVED" } })).toBe(3);
+
+    const second = await reconciler.runTrashGraceReconciliation({ storage: RECONCILER_STORE.port, batchSize: 3, trigger: "q05-2" });
+    const ids = second.candidates.map((c) => c.evidenceId);
+    expect(ids, "the next tick reaches the record behind them").toContain(eligible);
+    expect(ids).not.toContain(blocked[0]);
     } finally {
       // These rows carry the OLDEST deadlines in the database by design; left
       // behind they would head every later unscoped sweep, including a rerun
       // of this case.
-      await prisma.evidence.deleteMany({ where: { id: { in: [...blocked, eligible] } } });
+      // The archived rows carry an append-only custody event and have LEFT the
+      // Trash scan (the archive scan re-reads them only when due), so only the
+      // still-TRASHED eligible row could head a later sweep.
+      await prisma.evidence.deleteMany({ where: { id: { in: [...blocked, eligible] }, lifecycleState: "TRASHED" } });
       await prisma.workerSweepCursor.deleteMany({});
     }
   });
@@ -457,7 +476,7 @@ describe("POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16)", (
       // The unscoped sweep resumes from a persisted cursor (ET-Q-05); start
       // this case from the oldest so it does not depend on earlier runs.
       await prisma.workerSweepCursor.deleteMany({});
-      const report = await reconciler.runTrashGraceReconciliation({
+      const report = await reconciler.runTrashGraceReconciliation({ storage: RECONCILER_STORE.port,
         trigger: "point5-proof-flag",
       });
       expect(report.observeOnly).toBe(true);

@@ -85,6 +85,7 @@ function databaseWith(present: {
   signingKeyPurpose?: boolean;
   otsTruthColumns?: boolean;
   incidentMessageCode?: boolean;
+  threeDecisions?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (sql.includes("WORKSPACE_OPERATIONS")) return present.reconciliationEnumValue === true;
@@ -150,6 +151,13 @@ function databaseWith(present: {
     if (sql.includes("table_name = 'signing_keys'") && sql.includes("column_name = 'purpose'")) {
       return present.signingKeyPurpose === true;
     }
+    // 20281014000000 — canonical verification identity + archive restore requests.
+    if (
+      (sql.includes("table_name = 'evidence'") && sql.includes("column_name = 'verification_ref'")) ||
+      sql.includes("table_name = 'evidence_archive_restore_requests'")
+    ) {
+      return present.threeDecisions === true;
+    }
     // 20281013000000 — the condition message code and params.
     if (sql.includes("table_name = 'operational_incidents'") && sql.includes("column_name = 'message_code'")) {
       return present.incidentMessageCode === true;
@@ -205,6 +213,7 @@ const FULLY_MIGRATED = {
   signingKeyPurpose: true,
   otsTruthColumns: true,
   incidentMessageCode: true,
+  threeDecisions: true,
 };
 
 describe("runtime schema requirements", () => {

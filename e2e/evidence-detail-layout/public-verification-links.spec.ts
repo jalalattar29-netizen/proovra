@@ -30,6 +30,10 @@ const NARROW = { width: 390, height: 844 };
 async function openLinksPanel(page: Page): Promise<void> {
   await installApi(page, "organization");
   await page.goto(`/evidence/${EVIDENCE_ID}?tab=artifacts`);
+  // Recipient links are the ADVANCED sharing feature (2026-10-14): open it.
+  const advanced = page.locator('[data-evidence-section="advanced-sharing"] > summary');
+  await advanced.waitFor({ timeout: 30_000 });
+  await advanced.click();
   await page.waitForSelector(
     '[data-evidence-section="public-verification-links"] [data-verification-link-form]',
     { timeout: 30_000 },

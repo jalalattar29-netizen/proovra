@@ -1425,6 +1425,9 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // OPERATIONS MESSAGE CODE (2026-10-13) — two nullable
       // operational_incidents columns. EXPAND only.
       "20281013000000_operational_incident_message_code",
+      // THREE PRODUCT DECISIONS (2026-10-14) — canonical verification identity,
+      // retention archive state and restore requests. EXPAND only.
+      "20281014000000_free_outputs_canonical_verification_retention_archive",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

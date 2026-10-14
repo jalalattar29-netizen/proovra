@@ -98,7 +98,9 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
   FREE: {
     professionalSurfaces: false,
     cases: false,
-    reports: false,
+    // FREE THREE-RECORD CONTRACT (owner decision 2026-10-14): included for the
+    // three records the FREE allowance covers.
+    reports: true,
     intake: false,
     reviewerOperations: false,
     maxWorkspaceSeats: 1,

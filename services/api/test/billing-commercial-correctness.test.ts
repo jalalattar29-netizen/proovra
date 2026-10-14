@@ -23,6 +23,7 @@ import {
   resolveEvidenceOutputEntitlements,
   resolvePersonalEvidenceAdmission,
   type PlanType,
+  resolveOutputIssuanceEntitlement,
 } from "@proovra/shared-billing";
 
 import {
@@ -209,9 +210,11 @@ describe("evidence credits — the PAYG contract", () => {
 
 describe("evidence outputs follow the RECORD's funding, not the account plan", () => {
   it("a credit-funded record earns report + package + public verify on FREE", () => {
+    // FREE THREE-RECORD CONTRACT (2026-10-14): the catalogue states that FREE
+    // includes outputs; WHICH FREE records carry them is a per-record fact.
     const free = getPlanCapabilities("FREE");
-    expect(free.reportsIncluded).toBe(false);
-    expect(free.verificationPackageIncluded).toBe(false);
+    expect(free.reportsIncluded).toBe(true);
+    expect(free.verificationPackageIncluded).toBe(true);
 
     expect(
       resolveEvidenceOutputEntitlements({ plan: "FREE", funding: "EVIDENCE_CREDIT" }),
@@ -222,14 +225,26 @@ describe("evidence outputs follow the RECORD's funding, not the account plan", (
     });
   });
 
-  it("a plan-funded record on FREE still gets no report or package", () => {
+  it("a plan-funded FREE record is covered only through its FREE_ALLOWANCE slot", () => {
+    // Outside the three included records: finalized and verifiable, no new issuance.
     expect(
-      resolveEvidenceOutputEntitlements({ plan: "FREE", funding: "PLAN" }),
-    ).toEqual({
-      reportsIncluded: false,
-      verificationPackageIncluded: false,
-      publicVerifyIncluded: true,
-    });
+      resolveOutputIssuanceEntitlement({ plan: "FREE", funding: "PLAN", lifecycle: null }),
+    ).toMatchObject({ decision: "NOT_ENTITLED", basis: "FREE_PLAN", reportsIncluded: false });
+    // Settled into one of the three slots at finalization.
+    expect(
+      resolveOutputIssuanceEntitlement({ plan: "FREE", funding: "PLAN", lifecycle: null, freeAllowanceSlot: true }),
+    ).toMatchObject({ decision: "ENTITLED", basis: "FREE_ALLOWANCE", reportsIncluded: true, verificationPackageIncluded: true });
+    // Every later reader learns it from the stored fact — upgrade or downgrade.
+    for (const plan of ["FREE", "PRO", "TEAM"] as const) {
+      expect(
+        resolveOutputIssuanceEntitlement({
+          plan,
+          funding: "PLAN",
+          lifecycle: { state: "CANCELLED", providerStatus: "CANCELED" },
+          earned: { plan: "FREE", basis: "FREE_ALLOWANCE" },
+        }),
+      ).toMatchObject({ decision: "ENTITLED", basis: "EARNED_AT_FINALIZATION", reportsIncluded: true });
+    }
   });
 
   it("paying for one record does not upgrade the account's plan outputs", () => {

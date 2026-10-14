@@ -88,6 +88,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281012000000_evidence_ots_truth_columns",
       // Operations condition message code + params, EXPAND only.
       "20281013000000_operational_incident_message_code",
+      // FREE outputs, canonical verification identity, retention archive — EXPAND only.
+      "20281014000000_free_outputs_canonical_verification_retention_archive",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

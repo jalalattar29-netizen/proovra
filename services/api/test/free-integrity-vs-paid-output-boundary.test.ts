@@ -190,11 +190,13 @@ describe("one record, one logical OTS lifecycle", () => {
 describe("FREE — the plan-level output matrix", () => {
   const free = getPlanCapabilities("FREE");
 
-  it("Report and Verification Package are still NOT included", () => {
-    // The decoupling gave Free an anchor. It must not have given it an
-    // artifact: OTS is integrity, and integrity grants no commercial output.
-    expect(free.reportsIncluded).toBe(false);
-    expect(free.verificationPackageIncluded).toBe(false);
+  it("Report and Verification Package are included for the three FREE records — through the record, not OTS", () => {
+    // FREE THREE-RECORD CONTRACT (owner decision 2026-10-14): FREE includes
+    // three complete records. OTS is still integrity and grants nothing by
+    // itself: WHICH records carry outputs is the stored FREE_ALLOWANCE fact.
+    expect(free.reportsIncluded).toBe(true);
+    expect(free.verificationPackageIncluded).toBe(true);
+    expect(free.maxEvidenceRecords).toBe(3);
   });
 
   it("Public Verify IS included, and does not depend on either artifact", () => {

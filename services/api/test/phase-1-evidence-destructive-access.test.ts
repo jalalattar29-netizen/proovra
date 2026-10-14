@@ -307,7 +307,7 @@ describe("evidence.routes — archive/unarchive/delete compose the canonical gat
       ["ARCHIVE", "evidence.archive"],
       ["UNARCHIVE", "evidence.archive"],
       ["TRASH", "evidence.delete"],
-      ["RESTORE_FROM_TRASH", "evidence.delete"],
+      ["RESTORE_FROM_TRASH", "evidence.restore_from_trash"],
     ] as const) {
       expect(SERVICE).toContain(`${action}: "${permission}"`);
     }

@@ -95,10 +95,12 @@ describe("Phase 37.95 — public verify enumeration safety", () => {
     // the assembled body.
     const handler = routeSource(EVIDENCE_ROUTES, "GET", "/public/verify/:id");
     // 2026-09-29: TWO success responses — the BASIC tier (Decision B: minimal,
-    // subscription-independent) and the RICH tier. Neither may echo storage.
+    // subscription-independent) and the RICH tier. 2026-10-14: THREE — the
+    // canonical verification page (verification-safe facts only). None may
+    // echo storage.
     const marker = "return reply.code(200).send({";
     const count = handler.split(marker).length - 1;
-    expect(count).toBe(2);
+    expect(count).toBe(3);
     for (let occurrence = 0; occurrence < count; occurrence++) {
       const slice = enclosingSource(handler, marker, "statement", {
         occurrence,

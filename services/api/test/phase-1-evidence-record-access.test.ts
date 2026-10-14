@@ -232,7 +232,7 @@ describe("evidence.routes — the 10 former owner-gate callers are classified", 
     expect(service).toContain('ARCHIVE: "evidence.archive"');
     expect(service).toContain('UNARCHIVE: "evidence.archive"');
     expect(service).toContain('TRASH: "evidence.delete"');
-    expect(service).toContain('RESTORE_FROM_TRASH: "evidence.delete"');
+    expect(service).toContain('RESTORE_FROM_TRASH: "evidence.restore_from_trash"');
     // cert request + cert attest + cert revoke = 3 (the attest route was wired
     // in Phase 12 Point 4 Pass H — the service, request schema and
     // CERTIFICATION_ATTESTED custody event already existed, but no route

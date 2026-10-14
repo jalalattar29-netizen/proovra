@@ -117,12 +117,20 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     expect(await prisma.verificationShareToken.count({ where: { evidenceId: id } })).toBe(0);
   });
 
+  // A record id outside its legacy grace answers the SAME 404 as anything
+  // unknown (anti-enumeration).
+  const expectRecordIdEnded = (res: { statusCode: number; body: string }) => {
+    expect(res.statusCode).toBe(404);
+    expect(res.body).toBe(NOT_FOUND);
+  };
+
   it("a PUBLISHED record is still not reachable by its id — only a share token opens it", async () => {
     const A = h.fixtures.teamA;
     const id = await published(A);
     const byId = await verify(id);
-    expect(byId.statusCode).toBe(404);
-    expect(byId.body).toBe(NOT_FOUND);
+    expectRecordIdEnded(byId);
+    // ...and byte-identical to an id that never existed.
+    expect(byId.body).toBe((await verify(randomUUID())).body);
 
     const { token, verifyPath, link } = await createLink(A, id);
     expect(token).toMatch(/^pvs_[A-Za-z0-9_-]{43}$/);
@@ -150,18 +158,19 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     expect(listed.json().links[0]).toMatchObject({ id: link.id, state: "ACTIVE", audience: "Opposing counsel" });
   });
 
-  it("a random token, a malformed one and an unknown id are byte-identical 404s", async () => {
+  it("a random token, a malformed one, an unknown reference and an unknown id are byte-identical 404s", async () => {
     const neverIssued = `pvs_${randomBytes(32).toString("base64url")}`;
     const answers = await Promise.all([
       verify(neverIssued),
       verify("pvs_too-short"),
       verify("not-a-token"),
-      verify(randomUUID()),
+      verify(`pvr_${randomBytes(20).toString("base64url")}`),
     ]);
     for (const a of answers) {
       expect(a.statusCode).toBe(404);
       expect(a.body).toBe(NOT_FOUND);
     }
+    expectRecordIdEnded(await verify(randomUUID()));
   });
 
   it("an expired link answers 410 and releases nothing; the record's other links still work", async () => {
@@ -267,15 +276,14 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     // The grace has run out: the id is no longer a capability.
     const lapsed = await published(A, { legacyVerifyUuidUntilUtc: new Date(Date.now() - 60_000) });
     const after = await verify(lapsed);
-    expect(after.statusCode).toBe(404);
-    expect(after.body).toBe(NOT_FOUND);
+    expectRecordIdEnded(after);
 
     // The owner ends the legacy link early; a share link on the same record is unaffected.
     const share = await createLink(A, legacy);
     const ended = await api("POST", `/v1/evidence/${legacy}/verify-links/legacy/revoke`, A.ownerToken);
     expect(ended.statusCode, ended.body).toBe(200);
     expect(ended.json()).toMatchObject({ changed: true, legacy: { active: false } });
-    expect((await verify(legacy)).statusCode).toBe(404);
+    expectRecordIdEnded(await verify(legacy));
     expect((await verify(share.token)).statusCode).toBe(200);
     // Nothing brings it back, and a record without one never gains one.
     const again = await api("POST", `/v1/evidence/${legacy}/verify-links/legacy/revoke`, A.ownerToken);
@@ -429,7 +437,7 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     await createLink(A, id, { audience: "Fits now" });
   });
   describe("UC-OUT-001 / UC-OUT-005 — printed links on private records, and NULL-team records", () => {
-    it("UC-OUT-001: a valid REPORT link on an unpublished record answers the documented 404, and the owner listing marks it unusable", async () => {
+    it("CANONICAL VERIFICATION: a REPORT link printed by an earlier report opens the canonical page on an unpublished record, and the listing marks it usable", async () => {
       const A = h.fixtures.teamA;
       const id = await signedRecord(A);
       const { mintVerificationShareTokenTx } = await import("@proovra/shared-runtime");
@@ -442,12 +450,13 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
           audience: "Report version 1",
         }),
       );
-      // Documented response: a private record answers exactly like a missing one
-      // (no state is disclosed to an unauthenticated caller). The report that
-      // would carry this link prints "Not published" instead (worker test).
+      // (2026-10-14) A link a report printed is the record's canonical page,
+      // whatever the publication state — the verification-only projection,
+      // never the internal id.
       const res = await verify(minted.token);
-      expect(res.statusCode).toBe(404);
-      expect(res.body).toBe(NOT_FOUND);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json().link).toEqual({ kind: "CANONICAL", expiresAtUtc: null });
+      expect(res.body).not.toContain(id);
 
       const listing = await api("GET", `/v1/evidence/${id}/verify-links`, A.ownerToken);
       expect(listing.statusCode, listing.body).toBe(200);
@@ -455,8 +464,8 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
         (l) => l.purpose === "REPORT",
       )!;
       expect(link.state).toBe("ACTIVE");
-      expect(link.usable).toBe(false);
-      expect(link.inactiveReason).toBe("RECORD_NOT_PUBLISHED");
+      expect(link.usable).toBe(true);
+      expect(link.inactiveReason).toBeNull();
 
       // Publishing makes the same link usable.
       await prisma.evidence.update({ where: { id }, data: { publicVerifyState: "PUBLISHED" } });

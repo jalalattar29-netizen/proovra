@@ -84,7 +84,8 @@ describe("owed-output backlog agreement (live PostgreSQL 16)", () => {
     expect(await outputEntitledEvidenceWhere({ teamId: B.teamId })).toEqual({
       OR: [
         { id: { in: [] } },
-        { outputEarnedBasis: { in: ["PAID_SUBSCRIPTION", "TRIAL", "PAYMENT_GRACE"] } },
+        // FREE_ALLOWANCE (2026-10-14): a FREE-included record is owed its outputs too.
+        { outputEarnedBasis: { in: ["PAID_SUBSCRIPTION", "TRIAL", "PAYMENT_GRACE", "FREE_ALLOWANCE"] } },
       ],
     });
     const risk = await computeCaseRisk({ teamId: B.teamId, caseId });

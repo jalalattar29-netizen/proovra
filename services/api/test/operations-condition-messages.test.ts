@@ -56,6 +56,8 @@ const SAMPLE: Record<ConditionMessageCode, Record<string, unknown>> = {
   "ops.review.escalation.overdue_auto": { reason: "REVIEW_OVERDUE" },
   "ops.review.escalation.stuck_auto": { reason: "WORKFLOW_STALLED", stuck: "assigned_never_opened" },
   "ops.review.escalation_storm": { count: 12 },
+  "ops.governance.retention_unverified": { evidenceId: "9f1d2c3b-0000-4000-8000-000000000002", cause: "metadata_missing" },
+  "ops.governance.archive_restore_failed": { evidenceId: "9f1d2c3b-0000-4000-8000-000000000002", failure: "digest_mismatch" },
   "ops.governance.destruction_executed": { reviewId: "5e0c1b2a-0000-4000-8000-000000000001", evidenceId: "9f1d2c3b-0000-4000-8000-000000000002" },
   "ops.governance.notification.destruction_executed": { evidenceRef: "9f1d2c3b", certificateRef: "ab12cd34ef56ab78" },
   "ops.governance.notification.destruction_blocked": { cause: "hold" },

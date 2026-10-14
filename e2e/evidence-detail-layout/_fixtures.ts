@@ -564,6 +564,17 @@ function respond(path: string): unknown {
   // ET-PKG-07 — the public-links panel. The fixture record was published
   // before share links existed, so it carries the legacy record-id link (the
   // `sharePath` above) and one active share link.
+  // CANONICAL VERIFICATION (2026-10-14) — the Verification access panel.
+  if (path.includes("/verification-access")) {
+    return {
+      status: "AVAILABLE",
+      reference: "pvr_FixtureReferenceAAAAAAAAAAAA",
+      verifyPath: "/verify/pvr_FixtureReferenceAAAAAAAAAAAA",
+      issuedAtUtc: "2026-07-04T05:23:22Z",
+      withdrawal: null,
+      canWithdraw: true,
+    };
+  }
   if (path.includes("/verify-links")) {
     const iso = (s: string) => s;
     return {

@@ -184,17 +184,20 @@ describe("trash keeps the allowance slot (live PostgreSQL 16, real HTTP)", () =>
     expect(await meters(t)).toEqual({ gate: 4, usage: 4 });
   });
 
-  it("a permanently DESTROYED record releases its slot; a record pending destruction does not", async () => {
+  // FREE THREE-RECORD CONTRACT (owner decision 2026-10-14): a FINALIZED
+  // record never releases its slot — not pending destruction, not archived,
+  // not even once it is permanently purged. (It used to release on DESTROYED.)
+  it("a finalized record keeps its slot through pending destruction, the retention archive and final purge", async () => {
     const { t, ids } = await freeTenantHolding(3);
     expect((await trash(t, ids[0]!)).statusCode).toBe(200);
 
-    await prisma.evidence.update({ where: { id: ids[0]! }, data: { lifecycleState: "PENDING_DESTRUCTION" } });
-    expect((await meters(t)).gate).toBe(3);
-    expect((await create(t)).statusCode).toBe(409);
-
-    await prisma.evidence.update({ where: { id: ids[0]! }, data: { lifecycleState: "DESTROYED" } });
-    expect(await meters(t)).toEqual({ gate: 2, usage: 2 });
-    expect((await create(t)).statusCode).toBe(201);
+    for (const lifecycleState of ["PENDING_DESTRUCTION", "RETENTION_ARCHIVED", "DESTROYED"] as const) {
+      await prisma.evidence.update({ where: { id: ids[0]! }, data: { lifecycleState } });
+      expect((await meters(t)).gate, lifecycleState).toBe(3);
+      const fourth = await create(t);
+      expect(fourth.statusCode, lifecycleState).toBe(409);
+      expect(fourth.json().code).toBe("FREE_LIMIT_REACHED");
+    }
   });
 
   it("a released unsealed reservation holds no slot", async () => {

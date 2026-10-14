@@ -874,10 +874,10 @@ jobs:
           # is stored only as a hash, so it cannot be replayed. The runner owns
           # this disposable database, so the account is verified directly.
           sql "UPDATE users SET email_verified_at = now() WHERE email = '$email'"
-          # Reports are a plan entitlement. A new personal workspace is FREE
-          # and the worker refuses REPORT_NOT_INCLUDED_IN_PLAN, which is
-          # correct product behaviour, so this throwaway account is put on PRO.
-          sql "UPDATE entitlements SET plan = 'PRO' WHERE user_id = (SELECT id FROM users WHERE email = '$email')"
+          # FREE THREE-RECORD CONTRACT (owner decision 2026-10-14) — the
+          # throwaway account stays on FREE: each of its three records includes
+          # Report v1, the verification package and the verification page, so
+          # finalization itself enqueues the report this smoke waits for.
 
           echo "--- sign in"
           req 200 POST /v1/auth/email/login "{\"email\":\"${email}\",\"password\":\"${password}\"}"
@@ -933,11 +933,7 @@ jobs:
           test -n "$(field signatureBase64)"
           test "$(field 'fingerprintHash.length')" = "64"
 
-          echo "--- report"
-          # 202, not 200: regeneration is ACCEPTED and handed to the worker,
-          # and the message says so — "Poll /v1/evidence/:id/artifacts/status
-          # for progress". Measured; the first version expected 200.
-          req 202 POST "/v1/evidence/$id/reports/regenerate" '{}'
+          echo "--- report (enqueued by finalization for a FREE-included record)"
           url=""
           for _ in $(seq 1 45); do
             if req 200 GET "/v1/evidence/$id/report/latest" > /dev/null 2>&1; then
@@ -959,25 +955,25 @@ jobs:
           head=$($COMPOSE exec -T proovra-api sh -c "wget -qO /tmp/report.pdf '$url' && head -c 4 /tmp/report.pdf")
           test "$head" = "%PDF"
 
-          echo "--- public verification"
+          echo "--- canonical verification page"
+          # CANONICAL VERIFICATION (owner decision 2026-10-14) — the worker
+          # issued the record's permanent reference before rendering Report v1;
+          # the owner reads it, and the page opens WITHOUT login.
+          req 200 GET "/v1/evidence/$id/verification-access"
+          ref=$(field reference)
+          case "$ref" in pvr_*) ;; *) echo "::error::no canonical verification reference for $id"; cat /tmp/resp.json; exit 1 ;; esac
+          test "$(field status)" = "AVAILABLE"
           token=""
-          # ET-PKG-07 — a record is private by default and its id is not a
-          # public link: asked for by id, it must answer 404.
+          req 200 GET "/public/verify/$ref"
+          test "$(field 'canonicalVerification.reference')" = "$ref"
+          test "$(field 'basicVerification.report.latestVersion')" = "1"
+          if grep -q "$id" /tmp/resp.json; then
+            echo "::error::the canonical page exposes the internal evidence id"
+            exit 1
+          fi
+          # The internal id is never the page: the same 404 as anything unknown.
           req 404 GET "/public/verify/$id"
-          # A public link is an opaque share token stored only as its SHA-256.
-          # The product route that creates one publishes the record and needs a
-          # step-up proof this throwaway account does not hold, so the runner —
-          # which owns this disposable database — publishes the record and
-          # stores the token's hash exactly as the share authority does.
-          share="pvs_$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("base64url"))')"
-          share_hash=$(node -e 'process.stdout.write(require("crypto").createHash("sha256").update(process.argv[1], "utf8").digest("hex"))' "$share")
-          sql "UPDATE evidence SET public_verify_state = 'PUBLISHED' WHERE id = '$id'"
-          sql "INSERT INTO verification_share_tokens (evidence_id, team_id, token_hash, purpose, projection, audience) SELECT id, team_id, '$share_hash', 'OWNER_SHARE', 'STANDARD', 'ci smoke' FROM evidence WHERE id = '$id'"
-          req 200 GET "/public/verify/$share"
-          test "$(field 'versioning.latestReportVersion')" = "1"
-          # Published or not, the id still opens nothing.
-          req 404 GET "/public/verify/$id"
-          echo "smoke OK — evidence $id signed, report v1 produced and verifiable"
+          echo "smoke OK — FREE evidence $id signed, report v1 produced, canonical page $ref verifiable"
 
       - name: Logs on failure
         if: failure()

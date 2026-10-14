@@ -269,12 +269,14 @@ describe("publication service", () => {
       "utf8",
     );
     // The verify route reads publicVerifyState and short-circuits 404
-    // before the finalized check or any data return.
+    // before the finalized check or any data return. CANONICAL VERIFICATION
+    // (2026-10-14): the gate applies to restricted recipient links and legacy
+    // record-id links; the canonical reference never depends on publication.
     expect(src).toMatch(/publicVerifyState: true,/);
     expect(src).toMatch(/publication_not_available/);
     // The early-return 404 is BEFORE the finalized check.
     const stateIdx = src.indexOf(
-      'if (evidence.publicVerifyState !== "PUBLISHED")',
+      'if (!canonical && evidence.publicVerifyState !== "PUBLISHED")',
     );
     const finalizedIdx = src.indexOf("const isFinalized");
     expect(stateIdx).toBeGreaterThan(-1);

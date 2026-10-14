@@ -397,6 +397,9 @@ describe("Phase IA-home-operational — useful empty states", () => {
     expect(SECTIONS).toMatch(/data-trust-empty/);
   });
   it("report production empty is plan-aware", () => {
-    expect(SECTIONS).toMatch(/Pay-Per-Evidence, Pro, and Team/);
+    // FREE THREE-RECORD CONTRACT (2026-10-14): a Free account is told its
+    // three records include their outputs — not upsold a report it has.
+    expect(SECTIONS).toMatch(/each of your three Free records includes its report, verification package and verification page/);
+    expect(SECTIONS).not.toMatch(/Reports are included with Pay-Per-Evidence, Pro, and Team/);
   });
 });

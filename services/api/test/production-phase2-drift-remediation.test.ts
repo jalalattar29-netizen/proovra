@@ -1204,7 +1204,13 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // own because it is the only unauthenticated, workspace-free reader of the
 // package and key registries; folding it into evidence.routes.ts would put an
 // anonymous surface inside the authenticated evidence plugin.
-const ROUTE_COUNT_PHASE_2_BASELINE = 134;
+//
+// 2026-10-14 — 135: evidence-retention-verification.routes.ts. The retention
+// archive (list, verified restore request) and the canonical verification
+// access surface (status, withdraw, reinstate) are owner surfaces with their
+// own permissions (evidence.archive.*, evidence.verification.withdraw); a file
+// of their own keeps them out of the 15k-line evidence plugin.
+const ROUTE_COUNT_PHASE_2_BASELINE = 135;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

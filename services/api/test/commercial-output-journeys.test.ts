@@ -47,6 +47,7 @@ import {
 import {
   getPlanCapabilities,
   resolveEvidenceOutputEntitlements,
+  resolveOutputIssuanceEntitlement,
   resolvePersonalEvidenceAdmission,
   resolveWorkspaceEffectivePlan,
 } from "@proovra/shared-billing";
@@ -70,7 +71,7 @@ const strip = (s: string) =>
 // ===========================================================================
 
 describe("SCENARIO 1 — FREE captures evidence and nothing looks broken", () => {
-  it("BEHAVIOUR: the record is admitted, and its outputs are NOT_INCLUDED rather than pending", () => {
+  it("BEHAVIOUR: one of the three included records is admitted and earns its report and package", () => {
     expect(
       resolvePersonalEvidenceAdmission({
         plan: "FREE",
@@ -80,10 +81,20 @@ describe("SCENARIO 1 — FREE captures evidence and nothing looks broken", () =>
       }),
     ).toEqual({ allowed: true, funding: "PLAN" });
 
+    // FREE THREE-RECORD CONTRACT (2026-10-14): the record settled into a FREE
+    // slot earns Report v1, Verification Package v1 and the verification page.
     const outputs = resolveEvidenceOutputEntitlements({ plan: "FREE", funding: "PLAN" });
-    expect(outputs.reportsIncluded).toBe(false);
-    // Public verification is INCLUDED on Free and is not lost with the outputs.
+    expect(outputs.reportsIncluded).toBe(true);
+    expect(outputs.verificationPackageIncluded).toBe(true);
     expect(outputs.publicVerifyIncluded).toBe(true);
+    expect(
+      resolveOutputIssuanceEntitlement({ plan: "FREE", funding: "PLAN", lifecycle: null, freeAllowanceSlot: true }),
+    ).toMatchObject({ decision: "ENTITLED", basis: "FREE_ALLOWANCE" });
+    // A FREE record outside the three (historical, not covered) is not included,
+    // and says so rather than looking pending.
+    expect(
+      resolveOutputIssuanceEntitlement({ plan: "FREE", funding: "PLAN", lifecycle: null }),
+    ).toMatchObject({ decision: "NOT_ENTITLED", basis: "FREE_PLAN" });
 
     expect(
       deriveEvidenceOutputState({
@@ -95,12 +106,12 @@ describe("SCENARIO 1 — FREE captures evidence and nothing looks broken", () =>
     ).toBe("NOT_INCLUDED");
   });
 
-  it("WIRING: no generation is requested at completion, and the state carries a reason", () => {
-    // The completion fan-out is gated on the RECORD's entitlement, so a Free
-    // record produces no request at all — which is why "no row" had to stop
-    // meaning "pending".
+  it("WIRING: completion enqueues exactly what the issuance decision entitles, and the state carries a reason", () => {
+    // The completion fan-out is gated on the RECORD's issuance decision: a
+    // record in a FREE slot is enqueued; one outside it produces no request.
     const complete = strip(api("services/evidence-complete.service.ts"));
-    expect(complete).toMatch(/shouldEnqueueReport:\s*resolveEvidenceOutputEntitlements\(/);
+    expect(complete).toMatch(/shouldEnqueueReport:\s*finalizationIssuance\.reportsIncluded/);
+    expect(complete).toMatch(/freeAllowanceSlot|resolveFinalizationIssuance\(/);
     expect(complete).toMatch(/if \(final\.shouldEnqueueReport\)/);
 
     const status = strip(api("services/evidence-artifact-status.service.ts"));

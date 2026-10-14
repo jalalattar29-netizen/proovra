@@ -486,8 +486,11 @@ describe("trash unpublishes as a stated rule", () => {
     // soft-deleted outside the lifecycle — legacy routes set deletedAt without
     // moving it to TRASHED — is not served either; restore clears deletedAt,
     // so a restored record is unaffected.
+    // RETENTION ARCHIVE (2026-10-14): a retention-archived record and one
+    // under a destruction claim are not served as active records either; the
+    // canonical reference answers them with a truthful RETAINED state instead.
     expect(EVIDENCE_ROUTES).toContain(
-      'where: { id, deletedAt: null, lifecycleState: { notIn: ["TRASHED", "DESTROYED"] } }',
+      'where: { id, deletedAt: null, lifecycleState: { notIn: ["TRASHED", "DESTROYED", "RETENTION_ARCHIVED", "PENDING_DESTRUCTION"] } }',
     );
   });
 
@@ -513,14 +516,17 @@ describe("trash unpublishes as a stated rule", () => {
 // ===========================================================================
 
 describe("trashed bytes still consume storage", () => {
-  it("both usage authorities draw the line at DESTROYED", () => {
+  it("both usage authorities draw the line at DESTROYED — and classify the retention archive separately", () => {
     for (const rel of [
       "services/api/src/services/workspace-usage.service.ts",
       "services/worker/src/workspace-billing.ts",
     ]) {
       const body = code(src(rel));
-      expect(body, `${rel} must count everything that is not destroyed`).toContain(
-        'lifecycleState: { not: "DESTROYED" as const }',
+      // RETENTION ARCHIVE (owner decision 2026-10-14): bytes the platform keeps
+      // under baseline retention after the 90-day Trash are not the customer's
+      // working storage; trash still counts.
+      expect(body, `${rel} must count everything that is not destroyed or retention-archived`).toContain(
+        'lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] }',
       );
       // The old line — a record stopped counting the moment a user clicked
       // trash, while its bytes sat in the bucket for years.

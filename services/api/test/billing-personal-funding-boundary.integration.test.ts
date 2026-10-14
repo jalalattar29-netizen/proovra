@@ -373,9 +373,14 @@ describe("BILLING — personal evidence funding boundary (live PostgreSQL 16)", 
         select: { plan: true },
       });
       expect(entitlement?.plan).toBe("FREE");
-      const planOnly = resolveOutputs({ plan: "FREE", funding: "PLAN" });
-      expect(planOnly.reportsIncluded).toBe(false);
-      expect(planOnly.verificationPackageIncluded).toBe(false);
+      // FREE THREE-RECORD CONTRACT (2026-10-14): the plan includes outputs for
+      // its three records; WHICH records is the stored FREE_ALLOWANCE fact, so
+      // the fourth (credit-funded) record is covered by its credit, not the plan.
+      const { resolveOutputIssuanceEntitlement } = await import("@proovra/shared-billing");
+      expect(resolveOutputIssuanceEntitlement({ plan: "FREE", funding: "PLAN", lifecycle: null })).toMatchObject({
+        decision: "NOT_ENTITLED",
+        basis: "FREE_PLAN",
+      });
     });
   });
 

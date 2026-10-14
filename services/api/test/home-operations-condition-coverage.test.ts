@@ -116,8 +116,12 @@ describe("the vocabulary is complete", () => {
     // 2026-10-14 — 42 → 43. capture.legacy_upload_session_signal: the HISTORICAL
     // source that owns the old per-workspace upload-session bridge rows, which
     // that bridge had filed under intake.delivery_failed.
-    expect(registryIds.length).toBe(43);
-    expect(Object.keys(HOME_CONDITION_REPRESENTATION).length).toBe(43);
+    // 2026-10-14 — 43 → 45. governance.retention_unverified (storage retention
+    // could not be read completely: the record is kept, never purged) and
+    // governance.archive_restore_failed (a verified archive restore refused to
+    // reactivate a record). Both are rows on the governance domain.
+    expect(registryIds.length).toBe(45);
+    expect(Object.keys(HOME_CONDITION_REPRESENTATION).length).toBe(45);
   });
 });
 

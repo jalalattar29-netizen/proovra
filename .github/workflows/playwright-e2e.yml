@@ -285,6 +285,9 @@ jobs:
           # drives a real storage outage through that budget, so this stack
           # ticks every 20s. The tick's work is idempotent.
           LIFECYCLE_RECOVERY_INTERVAL_MS: "20000"
+          # RETENTION ARCHIVE (2026-10-14) — the restore sweep ticks fast enough
+          # for a browser journey to wait on it.
+          ARCHIVE_RESTORE_INTERVAL_MS: "5000"
           # The key paths above are relative to services/api (see the note
           # there). The worker starts in services/worker, where `keys/` does
           # not exist: report signing fell back, but the verification package

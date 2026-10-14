@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "a0d5149173f12314f55e4aff9aae1844527f5322ec4536f80f93ff662977201b",
+  "capabilityRouteInventoryHash": "fd792624a00d7154c19c965c8897975083b189f67fea53dfc0d723a2d7af6b89",
   "totals": {
-    "routes": 1187,
+    "routes": 1193,
     "routesWithAnyTestCaller": 43,
     "testOnlyRoutes": 4,
     "testCallSites": 82,
@@ -1257,6 +1257,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/evidence/:id/archive-restore",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/evidence/:id/artifacts/status",
       "testCallerCount": 0,
       "testOnly": false,
@@ -1365,6 +1371,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/evidence/:id/verification-access",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/evidence/:id/verification-package",
       "testCallerCount": 1,
       "testOnly": false,
@@ -1392,6 +1404,12 @@
     },
     {
       "routeId": "GET /v1/evidence/library-summary",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/evidence/retention-archive",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -4786,6 +4804,12 @@
       ]
     },
     {
+      "routeId": "POST /v1/evidence/:id/archive-restore",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/evidence/:id/certifications/attest",
       "testCallerCount": 0,
       "testOnly": false,
@@ -4859,6 +4883,18 @@
     },
     {
       "routeId": "POST /v1/evidence/:id/unlock",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/verification-access/reinstate",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/verification-access/withdraw",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7228,5 +7264,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "7f7fa6806a34d6c31f7bc940c193c4d15fb52177839fdec3e3bb578c7af850cf"
+  "contentHash": "18e194ed1ed10c5f187124543ea29d974513106bda7d079307ba0eb594d3c9ee"
 }

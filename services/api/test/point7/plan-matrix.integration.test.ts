@@ -233,7 +233,9 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
         t.expected.lifetimeRecordCap,
       );
       expect(ctx.capabilities.casesIncluded).toBe(false);
-      expect(ctx.capabilities.reportsIncluded).toBe(false);
+      // FREE THREE-RECORD CONTRACT (2026-10-14): reports are included for the
+      // three FREE records (the per-record FREE_ALLOWANCE fact decides which).
+      expect(ctx.capabilities.reportsIncluded).toBe(true);
       provenScenario("SERVER", "p7.free.no_fallback.plan_resolves_free");
     });
 

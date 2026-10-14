@@ -167,15 +167,16 @@ describe("output eligibility is a per-record question", () => {
     expect(outputs.publicVerifyIncluded).toBe(true);
   });
 
-  it("a plan-funded FREE record does not", () => {
+  it("a plan-funded FREE record is included through the FREE allowance (three records)", () => {
+    // FREE THREE-RECORD CONTRACT (2026-10-14): the plan includes the outputs;
+    // the issuance decision decides WHICH records (the stored FREE_ALLOWANCE
+    // fact — see output-issuance-entitlement.test.ts).
     const outputs = resolveEvidenceOutputEntitlements({
       plan: "FREE",
       funding: "PLAN",
     });
-    expect(outputs.reportsIncluded).toBe(false);
-    expect(outputs.verificationPackageIncluded).toBe(false);
-    // Public verification is included on FREE and is never the thing a paid
-    // record loses.
+    expect(outputs.reportsIncluded).toBe(true);
+    expect(outputs.verificationPackageIncluded).toBe(true);
     expect(outputs.publicVerifyIncluded).toBe(true);
   });
 
