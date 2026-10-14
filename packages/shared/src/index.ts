@@ -853,6 +853,7 @@ export {
   CANONICAL_ROLES,
   DB_TEAM_ROLES,
   PERMISSIONS,
+  SERVICE_ONLY_PERMISSIONS,
   CanonicalRoleSchema,
   PermissionSchema,
   listRolePermissions,
@@ -2475,6 +2476,7 @@ export {
   computeEvidenceDestructionEligibility,
   computeEvidenceLifecycleCapabilities,
   evaluateDestructionCandidate,
+  evaluateTrashExit,
   toEvidenceLifecycleProjection,
   EVIDENCE_LIFECYCLE_RESPONSE_FIELD,
 } from "./evidence-retention-lifecycle.js";
@@ -2486,6 +2488,9 @@ export type {
   EvidenceLifecycleCapabilities,
   DestructionCandidateEvaluation,
   EvidenceLifecycleProjection,
+  StorageRetentionTruth,
+  TrashExitDecision,
+  TrashExitEvaluation,
 } from "./evidence-retention-lifecycle.js";
 
 // PROOVRA Phase 2 — Canonical Evidence Materials.

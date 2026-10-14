@@ -176,6 +176,7 @@ import { automationWebhooksRoutes } from "./routes/automation-webhooks.routes.js
 import { analyticsOperationsRoutes } from "./routes/analytics-operations.routes.js";
 import { governanceRoutes } from "./routes/governance.routes.js";
 import { verificationShareRoutes } from "./routes/verification-share.routes.js";
+import { evidenceRetentionVerificationRoutes } from "./routes/evidence-retention-verification.routes.js";
 import { publicPackageVerificationRoutes } from "./routes/public-package-verification.routes.js";
 import { workspaceAiPolicyRoutes } from "./routes/workspace-ai-policy.routes.js";
 import { aiCaseRoutes } from "./routes/ai-case.routes.js";
@@ -1360,6 +1361,7 @@ allowedHeaders: [
   await app.register(governanceRoutes);
   // ET-PKG-07 — owner controls for public verification links.
   await app.register(verificationShareRoutes);
+  await app.register(evidenceRetentionVerificationRoutes);
   // PROOVRA's public package + signing-key record (README key binding).
   await app.register(publicPackageVerificationRoutes);
   await app.register(workspaceAiPolicyRoutes);

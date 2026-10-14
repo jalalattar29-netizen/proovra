@@ -124,6 +124,10 @@ const ENTRYPOINTS = Object.freeze({
     // EVIDENCE OUTPUT RECOVERY — first issuance / package recovery through the
     // canonical report authority (pnpm --filter proovra-api ops:recover-evidence-outputs).
     "services/api/src/scripts/recover-evidence-outputs.ts",
+    // THREE PRODUCT DECISIONS (2026-10-14) — the owner-run, dry-run-first
+    // backfill for FREE three-record coverage and canonical verification
+    // references (pnpm --filter proovra-api ops:three-decisions-backfill).
+    "services/api/src/scripts/three-decisions-backfill.ts",
     "services/api/src/seed-signing-key.ts",
     "services/api/prisma/scripts/org-security-policy-readiness.ts",
     // OTS INTEGRITY DECOUPLING (2026-09-09) — the bounded reconciliation for

@@ -133,6 +133,16 @@ export type PlanCapabilities = {
    * Enterprise-contract question is asked in exactly one place.
    */
   externalReviewIncluded: boolean;
+  /**
+   * Whether the plan includes the tenant OPERATIONS workbench (a shared view
+   * of unresolved operational conditions). Stated on its own since the FREE
+   * three-record contract (owner decision 2026-10-14): FREE now includes
+   * report + package for its three records, but a single operator with three
+   * records keeps notifications and each record's own remediation — the
+   * workbench was never part of FREE, and "reports included" is not a proxy
+   * for it. A SHARED workspace qualifies regardless (capability registry).
+   */
+  operationsWorkbenchIncluded: boolean;
 
   /**
    * Lifetime cap on evidence records. `null` = no lifetime cap (the
@@ -328,8 +338,16 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     monthlyPriceCents: 0,
     includedStorageBytes: 250n * MB,
     includedSeats: 0,
-    reportsIncluded: false,
-    verificationPackageIncluded: false,
+    /*
+     * FREE THREE-RECORD CONTRACT (owner decision 2026-10-14). FREE includes
+     * three COMPLETE evidence records: each one finalized inside the FREE
+     * allowance earns Report v1, Verification Package v1 and the canonical
+     * Verification Page. Coverage is a per-record fact (`FREE_ALLOWANCE`,
+     * stored at finalization), never "the plan is FREE" — a FREE record outside
+     * the three is not covered; see `resolveOutputIssuanceEntitlement`.
+     */
+    reportsIncluded: true,
+    verificationPackageIncluded: true,
     publicVerifyIncluded: true,
     intakeIncluded: false,
     casesIncluded: false,
@@ -337,6 +355,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     professionalSurfacesIncluded: false,
     reviewQueuesIncluded: false,
     externalReviewIncluded: false,
+    operationsWorkbenchIncluded: false,
     maxEvidenceRecords: 3,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
@@ -403,6 +422,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     professionalSurfacesIncluded: false,
     reviewQueuesIncluded: false,
     externalReviewIncluded: false,
+    operationsWorkbenchIncluded: true,
     maxEvidenceRecords: null,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 1,
@@ -433,6 +453,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     professionalSurfacesIncluded: true,
     reviewQueuesIncluded: false,
     externalReviewIncluded: true,
+    operationsWorkbenchIncluded: true,
     maxEvidenceRecords: 100,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
@@ -463,6 +484,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     professionalSurfacesIncluded: true,
     reviewQueuesIncluded: true,
     externalReviewIncluded: true,
+    operationsWorkbenchIncluded: true,
     maxEvidenceRecords: null,
     maxEvidenceRecordsPerMonth: 500,
     paygCreditsRequiredPerCompletion: 0,
@@ -493,6 +515,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     professionalSurfacesIncluded: true,
     reviewQueuesIncluded: true,
     externalReviewIncluded: true,
+    operationsWorkbenchIncluded: true,
     maxEvidenceRecords: null,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
@@ -911,6 +934,8 @@ export const OUTPUT_ISSUANCE_BASES = [
   "TRIAL",
   "PAYMENT_GRACE",
   "FREE_PLAN",
+  /** FREE THREE-RECORD CONTRACT — finalized inside the FREE allowance. */
+  "FREE_ALLOWANCE",
   "PAYMENT_LAPSED",
   "SUBSCRIPTION_ENDED",
   /**
@@ -956,7 +981,12 @@ export type OutputIssuanceEntitlement = {
  * every record finalized while not entitled); the current lifecycle then
  * decides, exactly as before.
  */
-export const OUTPUT_EARNED_BASES = ["PAID_SUBSCRIPTION", "TRIAL", "PAYMENT_GRACE"] as const;
+export const OUTPUT_EARNED_BASES = [
+  "PAID_SUBSCRIPTION",
+  "TRIAL",
+  "PAYMENT_GRACE",
+  "FREE_ALLOWANCE",
+] as const;
 export type OutputEarnedBasis = (typeof OUTPUT_EARNED_BASES)[number];
 export type OutputEarnedFact = { plan: PlanType; basis: OutputEarnedBasis } | null;
 
@@ -992,6 +1022,12 @@ export function resolveOutputIssuanceEntitlement(input: {
   lifecycle: OutputIssuanceLifecycle;
   /** The stored funding fact, when the record has one. */
   earned?: OutputEarnedFact;
+  /**
+   * FREE THREE-RECORD CONTRACT — true ONLY at finalization, when the record
+   * was just settled into one of the FREE allowance's slots. Every later
+   * reader learns coverage from the stored `earned` fact instead.
+   */
+  freeAllowanceSlot?: boolean;
 }): OutputIssuanceEntitlement {
   if (input.funding === "EVIDENCE_CREDIT") {
     return {
@@ -1002,7 +1038,9 @@ export function resolveOutputIssuanceEntitlement(input: {
       mayIssueHistoricalFirstOutputs: true,
     };
   }
-  if (input.earned) {
+  // A FREE fact means something only as a FREE_ALLOWANCE slot: FREE has no
+  // paid basis, so any other basis on a FREE fact is not a fact.
+  if (input.earned && !(input.earned.plan === "FREE" && input.earned.basis !== "FREE_ALLOWANCE")) {
     const earnedOutputs = resolveEvidenceOutputEntitlements({
       plan: input.earned.plan,
       funding: "PLAN",
@@ -1021,6 +1059,30 @@ export function resolveOutputIssuanceEntitlement(input: {
   }
   if (input.plan === null || input.funding === null) {
     return unresolvedIssuance();
+  }
+  if (input.plan === "FREE") {
+    /*
+     * FREE has no commercial lifecycle to read: its outputs are earned per
+     * record. A record settled inside the allowance is covered; any other
+     * plan-funded FREE record (beyond the three, or historical and not among
+     * the first three) is not — it stays finalized, accessible and verifiable,
+     * but earns no new issuance.
+     */
+    return input.freeAllowanceSlot === true
+      ? {
+          decision: "ENTITLED",
+          basis: "FREE_ALLOWANCE",
+          reportsIncluded: true,
+          verificationPackageIncluded: true,
+          mayIssueHistoricalFirstOutputs: true,
+        }
+      : {
+          decision: "NOT_ENTITLED",
+          basis: "FREE_PLAN",
+          reportsIncluded: false,
+          verificationPackageIncluded: false,
+          mayIssueHistoricalFirstOutputs: false,
+        };
   }
   const outputs = resolveEvidenceOutputEntitlements({
     plan: input.plan,

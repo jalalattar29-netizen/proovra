@@ -182,6 +182,13 @@ export interface ExecuteEvidenceDestructionInput {
   destructionApproved?: boolean;
   /** The effective legal-hold verdict, fail-closed, resolved by the caller. */
   legalHold: boolean;
+  /**
+   * RETENTION ARCHIVE (owner decision 2026-10-14) — whether this deployment
+   * writes Object Lock retention. When true, a REQUIRED object whose current
+   * version carries no retain-until is missing metadata and blocks destruction
+   * (fail closed). Read by the host from its own configuration.
+   */
+  objectLockExpected?: boolean;
   now?: Date;
   correlationId?: string | null;
 }
@@ -256,7 +263,134 @@ export type ExecuteEvidenceDestructionResult =
       failedKeys: string[];
     };
 
-type StorageTarget = { bucket: string; key: string };
+type StorageTarget = { bucket: string; key: string; required?: boolean };
+
+/**
+ * RETENTION ARCHIVE (owner decision 2026-10-14) — THE STORAGE-TRUTH READING of
+ * a record's retention, read-only. Uses exactly the executor's own target
+ * enumeration and version listing, so the reconciler's archive/purge decision
+ * and the executor's final refusal can never read different objects.
+ *
+ *   latestRequiredRetainUntil  max retain-until over every DATA version of
+ *                              every target (originals, parts, every report,
+ *                              every package, derived assets, residue)
+ *   legalHoldVersion           any version under an S3 legal hold
+ *   truth                      VERIFIED, or why the reading cannot be trusted:
+ *     UNAVAILABLE   any listing threw (a partial listing is never permission)
+ *     MISSING       Object Lock is expected and a REQUIRED object (one a row
+ *                   points at) has a current data version with no retain-until
+ *     INCONSISTENT  storage reports an earlier retain-until than PROOVRA
+ *                   recorded for that row, or the record's signed original has
+ *                   a newer data version than the one recorded and signed
+ */
+export type RequiredObjectRetentionReading = {
+  truth: "VERIFIED" | "MISSING" | "INCONSISTENT" | "UNAVAILABLE";
+  latestRequiredRetainUntil: Date | null;
+  legalHoldVersion: boolean;
+  objectCount: number;
+  /** Bounded detail for an operational condition. Never a storage key. */
+  detail: string | null;
+};
+
+export async function readRequiredObjectRetention(
+  prisma: PrismaClient,
+  evidenceId: string,
+  storage: EvidenceDestructionStoragePort,
+  options: { objectLockExpected: boolean; now?: Date },
+): Promise<RequiredObjectRetentionReading> {
+  const nowMs = (options.now ?? new Date()).getTime();
+  const evidence = await prisma.evidence.findUnique({
+    where: { id: evidenceId },
+    select: {
+      storageBucket: true,
+      storageKey: true,
+      storageVersionId: true,
+      storageObjectLockRetainUntilUtc: true,
+    },
+  });
+  if (!evidence) {
+    return { truth: "UNAVAILABLE", latestRequiredRetainUntil: null, legalHoldVersion: false, objectCount: 0, detail: "EVIDENCE_NOT_FOUND" };
+  }
+  let targets: StorageTarget[];
+  try {
+    targets = await enumerateStorageTargets(prisma, evidenceId, evidence, storage);
+  } catch {
+    return { truth: "UNAVAILABLE", latestRequiredRetainUntil: null, legalHoldVersion: false, objectCount: 0, detail: "TARGET_LISTING_FAILED" };
+  }
+  // What PROOVRA recorded per row, so a storage reading can never shorten it.
+  const [parts, reports, packages] = await Promise.all([
+    prisma.evidencePart.findMany({
+      where: { evidenceId },
+      select: { storageKey: true, storageVersionId: true, storageObjectLockRetainUntilUtc: true },
+    }),
+    prisma.report.findMany({
+      where: { evidenceId },
+      select: { storageKey: true, storageObjectLockRetainUntilUtc: true },
+    }),
+    prisma.verificationPackage.findMany({
+      where: { evidenceId },
+      select: { storageKey: true, storageObjectLockRetainUntilUtc: true },
+    }),
+  ]);
+  const recordedUntil = new Map<string, number>();
+  const signedVersion = new Map<string, string>();
+  const note = (key: string | null, until: Date | null, version?: string | null) => {
+    if (!key) return;
+    if (until) recordedUntil.set(key, Math.max(recordedUntil.get(key) ?? 0, until.getTime()));
+    if (version) signedVersion.set(key, version);
+  };
+  note(evidence.storageKey, evidence.storageObjectLockRetainUntilUtc, evidence.storageVersionId);
+  for (const r of parts) note(r.storageKey, r.storageObjectLockRetainUntilUtc, r.storageVersionId);
+  for (const r of [...reports, ...packages]) note(r.storageKey, r.storageObjectLockRetainUntilUtc);
+
+  let latest: number | null = null;
+  let legalHoldVersion = false;
+  let truth: RequiredObjectRetentionReading["truth"] = "VERIFIED";
+  let detail: string | null = null;
+  for (const target of targets) {
+    let versions: ObjectVersionInfo[];
+    try {
+      versions = await storage.listObjectVersions(target);
+    } catch {
+      return { truth: "UNAVAILABLE", latestRequiredRetainUntil: null, legalHoldVersion: false, objectCount: targets.length, detail: "VERSION_LISTING_FAILED" };
+    }
+    const data = versions.filter((v) => !v.isDeleteMarker);
+    let keyLatest: number | null = null;
+    for (const v of data) {
+      if (v.legalHold) legalHoldVersion = true;
+      if (v.retainUntil) {
+        keyLatest = Math.max(keyLatest ?? 0, v.retainUntil.getTime());
+        latest = Math.max(latest ?? 0, v.retainUntil.getTime());
+      }
+    }
+    if (!target.required) continue;
+    if (data.length === 0) continue; // a missing object is the restore check's concern, not a retention barrier
+    const current = data.find((v) => v.isLatest) ?? data[0];
+    if (options.objectLockExpected && current && current.retainUntil === null && truth === "VERIFIED") {
+      truth = "MISSING";
+      detail = "REQUIRED_VERSION_WITHOUT_RETENTION";
+    }
+    // Only a recorded retention STILL IN FORCE can be shortened by a storage
+    // answer; one that has already passed protects nothing either way.
+    const recorded = recordedUntil.get(target.key);
+    if (recorded !== undefined && recorded > nowMs && (keyLatest === null || keyLatest < recorded)) {
+      truth = "INCONSISTENT";
+      detail = "STORAGE_RETENTION_EARLIER_THAN_RECORDED";
+    }
+    const signed = signedVersion.get(target.key);
+    if (signed && current && current.versionId !== signed && data.some((v) => v.versionId === signed)) {
+      truth = "INCONSISTENT";
+      detail = "NEWER_DATA_VERSION_THAN_SIGNED";
+    }
+  }
+  return {
+    truth,
+    latestRequiredRetainUntil: latest === null ? null : new Date(latest),
+    legalHoldVersion,
+    objectCount: targets.length,
+    detail,
+  };
+}
 
 function sha256Hex(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
@@ -314,6 +448,17 @@ export async function executeEvidenceDestruction(
 
   const priorState = preflight.lifecycleState;
 
+  // 0. THE STORAGE-TRUTH READING (owner decision 2026-10-14). Object-version
+  //    retain-until read from storage is the authority, not a column. It is
+  //    read before the claim (storage round-trips do not belong inside the
+  //    decision transaction) and enters the decision below as an input: a
+  //    later report, package or proof with a later retain-until extends the
+  //    boundary, and a missing, inconsistent or failed reading refuses.
+  const retentionReading = await readRequiredObjectRetention(prisma, input.evidenceId, storage, {
+    objectLockExpected: input.objectLockExpected === true,
+    now,
+  });
+
   // 1–4. THE DECISION — one transaction under the evidence lock.
   //
   //    ET-SEC-01 (Invariant E, legal hold wins). The claim, the reload, the
@@ -349,6 +494,10 @@ export async function executeEvidenceDestruction(
           id: input.evidenceId,
           OR: [
             { lifecycleState: "TRASHED" },
+            // RETENTION ARCHIVE (owner decision 2026-10-14) — a record that left
+            // the Trash for the archive; eligible only once every barrier ended,
+            // which the recompute below decides.
+            { lifecycleState: "RETENTION_ARCHIVED" },
             // COMPATIBILITY, and it is load-bearing during a rolling deploy: a
             // record trashed by a build that predates the state pointer carries
             // `deleted_at` and a `lifecycle_state` that never caught up. The
@@ -388,8 +537,19 @@ export async function executeEvidenceDestruction(
       // authority resolves the product state from the lifecycle timestamps and
       // sees TRASHED. Every boundary (trash grace, application retention, Object
       // Lock, legal hold, approval, permanent lock) is the authority's answer.
+      // RETENTION ARCHIVE — restore and purge must never both succeed: an
+      // open archive-restore request blocks the purge (and the restore
+      // workflow refuses a record under a destruction claim).
+      const openRestores = await tx.evidenceArchiveRestoreRequest.count({
+        where: { evidenceId: row.id, status: { in: ["REQUESTED", "RUNNING"] } },
+      });
       const eligibility = computeEvidenceDestructionEligibility(
         {
+          // The authority reads the state the record was CLAIMED from: the
+          // claim wrote PENDING_DESTRUCTION, which it accepts on its own.
+          archiveRestoreInProgress: openRestores > 0,
+          requiredObjectRetainUntil: retentionReading.latestRequiredRetainUntil,
+          storageRetentionTruth: retentionReading.truth,
           lifecycleState: row.lifecycleState,
           archivedAt: row.archivedAt,
           trashedAt: row.deletedAt,
@@ -399,7 +559,7 @@ export async function executeEvidenceDestruction(
           appRetentionUntil: row.retentionUntilUtc,
           objectLockRetainUntil: row.storageObjectLockRetainUntilUtc,
           objectLockMode: row.storageObjectLockMode,
-          legalHold: input.legalHold || heldNow,
+          legalHold: input.legalHold || heldNow || retentionReading.legalHoldVersion,
           destructionApprovalRequired: input.destructionApprovalRequired ?? false,
           destructionApproved: input.destructionApproved ?? false,
         },
@@ -736,9 +896,14 @@ async function enumerateStorageTargets(
       : Promise.resolve([] as Array<{ artifactStorageBucket: string | null; artifactStorageKey: string | null }>),
   ]);
 
-  const all: Array<{ bucket: string | null; key: string | null }> = [
-    { bucket: evidence.storageBucket, key: evidence.storageKey },
-    ...[...parts, ...reports, ...packages, ...derivatives, ...derivedAssets].map((row) => ({
+  const all: Array<{ bucket: string | null; key: string | null; required?: boolean }> = [
+    { bucket: evidence.storageBucket, key: evidence.storageKey, required: true },
+    ...[...parts, ...reports, ...packages].map((row) => ({
+      bucket: row.storageBucket,
+      key: row.storageKey,
+      required: true,
+    })),
+    ...[...derivatives, ...derivedAssets].map((row) => ({
       bucket: row.storageBucket,
       key: row.storageKey,
     })),
@@ -772,7 +937,7 @@ async function enumerateStorageTargets(
     const id = `${row.bucket} ${row.key}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    targets.push({ bucket: row.bucket, key: row.key });
+    targets.push({ bucket: row.bucket, key: row.key, required: row.required === true });
   }
   return targets;
 }

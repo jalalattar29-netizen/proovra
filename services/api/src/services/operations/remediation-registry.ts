@@ -602,6 +602,16 @@ const SOURCE_ENTRIES: Readonly<Record<string, RemediationEntry>> = Object.freeze
     guidance:
       "Comments and annotations have stayed unresolved longer than the coordination window. Resolve them on their records and cases; this closes when the unresolved count falls below the threshold.",
   },
+  "governance.retention_unverified": {
+    disposition: "READ_ONLY_GUIDANCE",
+    guidance:
+      "Storage could not confirm this record's retention completely and consistently, so the record is kept and will not be purged. Check the stored versions of the record's objects and their retention dates; this closes when an operator records the investigation.",
+  },
+  "governance.archive_restore_failed": {
+    disposition: "READ_ONLY_GUIDANCE",
+    guidance:
+      "A restore from the retention archive stopped because a stored object or digest did not verify. The record stays archived and nothing partial was activated. Investigate the stored versions before requesting the restore again.",
+  },
   "storage.immutable_drift": {
     disposition: "SAFE_DEEP_LINK",
     deepLink: EVIDENCE_INTEGRITY_LINK,

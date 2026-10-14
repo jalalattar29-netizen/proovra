@@ -328,7 +328,7 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
   FREE_LIMIT_REACHED: {
     title: "Free record limit reached",
     message:
-      "The Free plan includes 3 evidence records and this account has used them all. Your existing records remain available — buy evidence credits or upgrade to add more.",
+      "The Free plan includes 3 complete evidence records, each with its report, verification package and verification page, and this account has used them all. Deleting a record does not restore a slot. Your existing records remain available — buy evidence credits or upgrade to add more.",
     severity: "warning",
     actionLabel: "View plans",
     actionHref: "/billing",
@@ -462,6 +462,69 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
   },
   // ET-PKG-07 — a public verification link that was issued and no longer
   // works. Shown on the public Verify page to whoever holds the old link.
+  // THREE PRODUCT DECISIONS (owner decisions 2026-10-14) — the canonical
+  // verification page's truthful states, the FREE regeneration rule and the
+  // retention archive.
+  VERIFICATION_RECORD_PURGED: {
+    title: "This record was permanently deleted",
+    message:
+      "The record was permanently deleted after its retention ended. Its verification page remains as a minimal record that it existed.",
+    severity: "info",
+  },
+  VERIFICATION_RECORD_WITHDRAWN: {
+    title: "This verification page was withdrawn",
+    message:
+      "The page was withdrawn following a legal, privacy or security action. Its reference is preserved and never points to another record.",
+    severity: "warning",
+  },
+  VERIFICATION_RECORD_TEMPORARILY_UNAVAILABLE: {
+    title: "Verification is temporarily unavailable",
+    message:
+      "This verification page is temporarily unavailable. Try again later.",
+    severity: "warning",
+  },
+  VERIFICATION_RECORD_RETAINED: {
+    title: "This record is retained",
+    message:
+      "The record's owner removed it from active use. It remains preserved under its retention protection.",
+    severity: "info",
+  },
+  NEW_VERSION_NO_MATERIAL_CHANGE: {
+    title: "The report is already current",
+    message:
+      "A new version is issued automatically when a new verification fact is recorded for this record.",
+    severity: "info",
+  },
+  EVIDENCE_NOT_IN_RETENTION_ARCHIVE: {
+    title: "This record is not in the retention archive",
+    message:
+      "There is nothing to restore from the retention archive for this record.",
+    severity: "warning",
+  },
+  ARCHIVE_RESTORE_NOT_PERMITTED: {
+    title: "You can't restore this record",
+    message:
+      "Restoring a record from the retention archive needs an owner or administrator. Ask a workspace admin.",
+    severity: "warning",
+  },
+  ARCHIVE_VIEW_NOT_PERMITTED: {
+    title: "You can't view the retention archive",
+    message:
+      "Viewing the retention archive needs an owner or administrator. Ask a workspace admin.",
+    severity: "warning",
+  },
+  VERIFICATION_WITHDRAWAL_NOT_PERMITTED: {
+    title: "You can't change this verification page",
+    message:
+      "Withdrawing or reinstating a verification page needs an owner or administrator. Ask a workspace admin.",
+    severity: "warning",
+  },
+  NOT_PERMITTED: {
+    title: "You don't have access to this",
+    message:
+      "Your role does not allow this action on this record. Ask a workspace admin.",
+    severity: "warning",
+  },
   VERIFICATION_LINK_REVOKED: {
     title: "This verification link was withdrawn",
     message:

@@ -96,6 +96,11 @@ export function projectVerificationLink(
   // Without the record's publication state the answer is not known; every
   // owner-facing listing passes it.
   const published = publication === null ? null : publication.publicVerifyState === "PUBLISHED";
+  // CANONICAL VERIFICATION (owner decision 2026-10-14) — a link an issued
+  // report or package printed opens the record's canonical page, which never
+  // depends on publication. Only a recipient link still needs it.
+  const printed = row.purpose === "REPORT" || row.purpose === "PACKAGE";
+  const needsPublication = !printed && published === false;
   return {
     id: row.id,
     purpose: row.purpose,
@@ -103,8 +108,8 @@ export function projectVerificationLink(
     audience: row.audience,
     reportVersion: row.reportVersion,
     state,
-    usable: state === "ACTIVE" && published !== false,
-    inactiveReason: state === "ACTIVE" && published === false ? "RECORD_NOT_PUBLISHED" : null,
+    usable: state === "ACTIVE" && !needsPublication,
+    inactiveReason: state === "ACTIVE" && needsPublication ? "RECORD_NOT_PUBLISHED" : null,
     createdAtUtc: row.createdAtUtc.toISOString(),
     createdByUserId: row.createdByUserId,
     expiresAtUtc: iso(row.expiresAtUtc),

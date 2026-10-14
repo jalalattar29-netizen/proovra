@@ -72,22 +72,23 @@ function countedEvidenceRecordWhere(now: Date = new Date()): Prisma.EvidenceWher
  * without limit. A trashed record therefore keeps its slot and its original
  * funding; restoring it consumes nothing, because nothing was released.
  *
- * A slot is released by exactly two things:
- *   - governed permanent destruction (`DESTROYED`) — the tombstone holds none;
- *   - the release of an UNSEALED reservation (a soft delete of a record that
- *     was never finalized), which is what `deletedAt` means outside trash.
+ * A FINALIZED RECORD NEVER RELEASES ITS SLOT (FREE three-record contract,
+ * owner decision 2026-10-14). A slot is consumed when finalization succeeds,
+ * and Trash, the Retention Archive and final purge (`DESTROYED`) all keep it:
+ * the record's report, package and verification page were issued against it,
+ * and deleting evidence must never turn into a way to mint more included
+ * records. Restoring a record therefore consumes nothing either.
  *
- * `PENDING_DESTRUCTION` still holds the slot: a destruction claim can be
- * abandoned, and the slot is only free once the record is actually destroyed.
+ * The ONLY release is of an UNSEALED reservation (a soft delete of a record
+ * that was never finalized — a discarded draft, an abandoned upload, an
+ * expired reservation), which is what `deletedAt` means before sealing. Such a
+ * reservation never consumed a slot; it only held one while it was live.
  */
-const SLOT_HELD_WHILE_DELETED: prismaPkg.EvidenceLifecycleState[] = ["TRASHED", "PENDING_DESTRUCTION"];
-
 export function allowanceSlotEvidenceWhere(now: Date = new Date()): Prisma.EvidenceWhereInput {
   return {
-    AND: [
-      countedEvidenceRecordWhere(now),
-      { lifecycleState: { not: "DESTROYED" } },
-      { OR: [{ deletedAt: null }, { lifecycleState: { in: SLOT_HELD_WHILE_DELETED } }] },
+    OR: [
+      { status: { notIn: UNSEALED } },
+      { AND: [countedEvidenceRecordWhere(now), { status: { in: UNSEALED } }, { deletedAt: null }] },
     ],
   };
 }

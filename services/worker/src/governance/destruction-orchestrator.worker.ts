@@ -257,6 +257,7 @@ export async function runDestructionOrchestration(
               actorUserId: review.decidedByUserId ?? null,
               destructionReviewId: review.id,
               legalHold: facts.hasActiveDirectHold || facts.hasActiveCaseHold,
+              objectLockExpected: String(process.env.S3_OBJECT_LOCK_ENABLED ?? "").trim().toLowerCase() === "true",
               destructionApprovalRequired: approval.required,
               destructionApproved: approval.approved,
               correlationId,

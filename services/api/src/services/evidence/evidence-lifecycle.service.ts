@@ -138,7 +138,7 @@ const ACTION_PERMISSION = {
   ARCHIVE: "evidence.archive",
   UNARCHIVE: "evidence.archive",
   TRASH: "evidence.delete",
-  RESTORE_FROM_TRASH: "evidence.delete",
+  RESTORE_FROM_TRASH: "evidence.restore_from_trash",
 } as const;
 
 /**
@@ -165,6 +165,10 @@ const BLOCK_MESSAGE: Record<EvidenceLifecycleBlockReason, string> = {
     "An approved destruction request is required for this record.",
   DESTRUCTION_IN_PROGRESS:
     "This record is being destroyed under an approved destruction decision. Its lifecycle cannot be changed.",
+  RETENTION_METADATA_UNVERIFIED:
+    "Storage retention for this record could not be confirmed, so it is kept. Nothing has been deleted.",
+  ARCHIVE_RESTORE_IN_PROGRESS:
+    "A restore of this record from the retention archive is in progress.",
 };
 
 function addDays(from: Date, days: number): Date {

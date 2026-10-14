@@ -59,12 +59,10 @@ function scopeFromKind(kind: ResolvedWorkspaceKind): WorkspaceScope | null {
 /** The commercial half of the Operations qualifier. One definition. */
 export function planProducesOperationalConditions(plan: WorkspacePlan | null): boolean {
   const caps = getPlanCapabilities((plan ?? "FREE") as Parameters<typeof getPlanCapabilities>[0]);
-  return (
-    caps.reportsIncluded ||
-    caps.verificationPackageIncluded ||
-    caps.intakeIncluded ||
-    caps.reviewerOperationsIncluded
-  );
+  // The catalogue states it explicitly (FREE three-record contract,
+  // 2026-10-14): reports/packages are no longer a proxy, because FREE includes
+  // them for its three records without including the workbench.
+  return caps.operationsWorkbenchIncluded;
 }
 
 /** Prisma `_count` selector for ACTIVE memberships only (OPS-021). */

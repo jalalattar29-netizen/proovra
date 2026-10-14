@@ -52,9 +52,17 @@
 import { randomUUID } from "node:crypto";
 import {
   evaluateDestructionCandidate,
+  evaluateTrashExit,
   type EvidenceLifecycleBlockReason,
+  type TrashExitEvaluation,
 } from "@proovra/shared";
-import { resolveDestructionApproval } from "@proovra/shared-runtime";
+import {
+  appendCustodyEventTx,
+  readRequiredObjectRetention,
+  resolveDestructionApproval,
+  type EvidenceDestructionStoragePort,
+  type RequiredObjectRetentionReading,
+} from "@proovra/shared-runtime";
 
 import { prisma } from "../db.js";
 import { logger } from "../logger.js";
@@ -113,6 +121,10 @@ export function automaticDestructionEnabled(): boolean {
 }
 
 export type TrashGraceDisposition =
+  /** RETENTION ARCHIVE — left the Trash for the archive (a barrier remains). */
+  | "RETENTION_ARCHIVED"
+  /** RETENTION ARCHIVE — still archived; the barrier has not ended. */
+  | "ARCHIVE_BARRIER_ACTIVE"
   | "ELIGIBLE_ENQUEUED"
   | "ELIGIBLE_OBSERVE_ONLY"
   | "APPROVAL_REQUESTED"
@@ -131,6 +143,10 @@ export interface TrashGraceCandidate {
   approvalRequired: boolean;
   approved: boolean;
   blockReason: EvidenceLifecycleBlockReason | null;
+  /** RETENTION ARCHIVE — the barrier keeping the record, when there is one. */
+  retentionBarrier: TrashExitEvaluation["barrier"];
+  /** RETENTION ARCHIVE — how trustworthy the storage reading was. */
+  storageRetentionTruth: RequiredObjectRetentionReading["truth"];
   disposition: TrashGraceDisposition;
 }
 
@@ -141,6 +157,8 @@ export interface TrashGraceReconciliationResult {
   enqueued: number;
   approvalRequested: number;
   blocked: number;
+  /** RETENTION ARCHIVE — moved from Trash to the archive this run. */
+  archived: number;
   observeOnly: boolean;
   candidates: TrashGraceCandidate[];
 }
@@ -156,6 +174,14 @@ export interface TrashGraceReconciliationOptions {
    */
   dryRun?: boolean;
   trigger?: string;
+  /**
+   * The storage port the retention reading uses. Defaults to the worker's own
+   * (loaded lazily, so a dry run without storage credentials still runs and
+   * reports every record as STORAGE_UNAVAILABLE rather than guessing).
+   */
+  storage?: EvidenceDestructionStoragePort;
+  /** Whether this deployment writes Object Lock retention (defaults to env). */
+  objectLockExpected?: boolean;
 }
 
 /**
@@ -174,8 +200,126 @@ const CANDIDATE_SELECT = {
   storageObjectLockMode: true,
   storageObjectLockRetainUntilUtc: true,
   activeDestructionReviewId: true,
+  retentionBarrierState: true,
   caseLinks: { select: { caseId: true } },
 } as const;
+
+/** Re-read an archived record's storage retention at most this often. */
+const ARCHIVE_REEVALUATE_MS = 24 * 60 * 60 * 1000;
+
+const BARRIER_STATE: Readonly<Record<NonNullable<TrashExitEvaluation["barrier"]>, string>> = {
+  LEGAL_HOLD: "LEGAL_HOLD",
+  APP_RETENTION: "APP_RETENTION",
+  OBJECT_RETENTION: "OBJECT_RETENTION",
+  EVIDENCE_LOCKED: "EVIDENCE_LOCKED",
+  METADATA_MISSING: "METADATA_MISSING",
+  METADATA_INCONSISTENT: "METADATA_INCONSISTENT",
+  STORAGE_UNAVAILABLE: "STORAGE_UNAVAILABLE",
+};
+
+function objectLockExpectedFromEnv(): boolean {
+  return String(process.env.S3_OBJECT_LOCK_ENABLED ?? "").trim().toLowerCase() === "true";
+}
+
+async function resolveStoragePort(
+  options: TrashGraceReconciliationOptions,
+): Promise<EvidenceDestructionStoragePort | null> {
+  if (options.storage) return options.storage;
+  try {
+    return (await import("./destruction-storage-port.js")).workerEvidenceDestructionStorage;
+  } catch {
+    return null;
+  }
+}
+
+async function readRetention(
+  evidenceId: string,
+  storage: EvidenceDestructionStoragePort | null,
+  objectLockExpected: boolean,
+  now: Date,
+): Promise<RequiredObjectRetentionReading> {
+  if (!storage) {
+    return { truth: "UNAVAILABLE", latestRequiredRetainUntil: null, legalHoldVersion: false, objectCount: 0, detail: "STORAGE_PORT_UNAVAILABLE" };
+  }
+  try {
+    return await readRequiredObjectRetention(prisma, evidenceId, storage, { objectLockExpected, now });
+  } catch {
+    return { truth: "UNAVAILABLE", latestRequiredRetainUntil: null, legalHoldVersion: false, objectCount: 0, detail: "RETENTION_READ_FAILED" };
+  }
+}
+
+/**
+ * Raise the actionable condition for a storage reading that cannot be trusted.
+ * One condition per record and cause (fingerprinted), never a purge.
+ */
+async function raiseRetentionUnverified(
+  row: { id: string; teamId: string | null },
+  reading: RequiredObjectRetentionReading,
+): Promise<void> {
+  const cause =
+    reading.truth === "MISSING"
+      ? "metadata_missing"
+      : reading.truth === "INCONSISTENT"
+        ? "metadata_inconsistent"
+        : "storage_unavailable";
+  try {
+    const { recordWorkerIncident } = await import("./incident-emitter.js");
+    await recordWorkerIncident({
+      sourceId: "governance.retention_unverified",
+      teamId: row.teamId,
+      category: "GOVERNANCE",
+      severity: reading.truth === "UNAVAILABLE" ? "WARNING" : "HIGH",
+      fingerprint: `retention_unverified:${row.id}:${cause}`,
+      relatedEvidenceId: row.id,
+      message: { code: "ops.governance.retention_unverified", params: { evidenceId: row.id, cause } },
+      metadata: { detail: reading.detail, objectCount: reading.objectCount },
+    } as never);
+  } catch (err) {
+    logger.warn({ err, evidenceId: row.id }, "trash_grace.reconciler.retention_condition_failed");
+  }
+}
+
+/**
+ * TRASHED -> RETENTION_ARCHIVED, conditional on the record still being
+ * TRASHED (a concurrent restore wins), with the custody event in the same
+ * transaction. Nothing in storage is touched.
+ */
+async function moveToRetentionArchive(
+  row: { id: string },
+  exit: TrashExitEvaluation,
+  reading: RequiredObjectRetentionReading,
+  now: Date,
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${row.id}))`;
+    const moved = await tx.evidence.updateMany({
+      where: { id: row.id, lifecycleState: "TRASHED" },
+      data: {
+        lifecycleState: "RETENTION_ARCHIVED",
+        retentionArchivedAtUtc: now,
+        latestRequiredRetainUntilUtc: reading.latestRequiredRetainUntil,
+        purgeEligibleAtUtc: exit.purgeEligibleAt,
+        retentionBarrierState: exit.barrier ? BARRIER_STATE[exit.barrier] : null,
+        retentionBarrierEvaluatedAtUtc: now,
+      },
+    });
+    if (moved.count !== 1) return false;
+    await appendCustodyEventTx(tx, {
+      evidenceId: row.id,
+      eventType: "RETENTION_ARCHIVED",
+      atUtc: now,
+      payload: {
+        reason: "RETENTION",
+        barrier: exit.barrier,
+        purgeEligibleAtUtc: exit.purgeEligibleAt ? exit.purgeEligibleAt.toISOString() : null,
+        latestRequiredRetainUntilUtc: reading.latestRequiredRetainUntil
+          ? reading.latestRequiredRetainUntil.toISOString()
+          : null,
+      },
+    });
+    return true;
+  });
+}
 
 export const TRASH_GRACE_CURSOR_KEY = "trash_grace";
 
@@ -252,13 +396,37 @@ export async function runTrashGraceReconciliation(
     );
   }
 
+  // RETENTION ARCHIVE — archived records whose earliest purge date has
+  // arrived, whose barrier is not a dated one (a hold, unverified metadata),
+  // or whose storage reading is stale. Bounded like the Trash scan.
+  const reevaluateBefore = new Date(now.getTime() - ARCHIVE_REEVALUATE_MS);
+  const archivedRows = await prisma.evidence.findMany({
+    where: {
+      lifecycleState: "RETENTION_ARCHIVED",
+      ...(options.teamId ? { teamId: options.teamId } : {}),
+      OR: [
+        { purgeEligibleAtUtc: null },
+        { purgeEligibleAtUtc: { lte: now } },
+        { retentionBarrierEvaluatedAtUtc: null },
+        { retentionBarrierEvaluatedAtUtc: { lt: reevaluateBefore } },
+      ],
+    },
+    orderBy: [{ retentionBarrierEvaluatedAtUtc: { sort: "asc", nulls: "first" } }, { id: "asc" }],
+    take: batchSize,
+    select: CANDIDATE_SELECT,
+  });
+
+  const storage = await resolveStoragePort(options);
+  const objectLockExpected = options.objectLockExpected ?? objectLockExpectedFromEnv();
+
   const candidates: TrashGraceCandidate[] = [];
   let enqueued = 0;
   let approvalRequested = 0;
   let blocked = 0;
   let eligible = 0;
+  let archived = 0;
 
-  for (const row of rows) {
+  for (const row of [...rows, ...archivedRows]) {
     // FAIL CLOSED on the hold lookup: an error means "held", which makes the
     // record blocked for this tick rather than a candidate for destruction.
     let legalHold = true;
@@ -276,32 +444,78 @@ export async function runTrashGraceReconciliation(
       );
     }
 
+    // THE STORAGE TRUTH (owner decision 2026-10-14): every required object
+    // version's retain-until, read from storage. A failed or partial reading
+    // is never permission to purge.
+    const reading = await readRetention(row.id, storage, objectLockExpected, now);
+    if (reading.truth !== "VERIFIED" && !dryRun) {
+      await raiseRetentionUnverified({ id: row.id, teamId: row.teamId ?? null }, reading);
+    }
+
     const approval = await resolveDestructionApproval(prisma, {
       evidenceId: row.id,
       teamId: row.teamId ?? null,
     });
 
-    const verdict = evaluateDestructionCandidate(
-      {
-        lifecycleState: row.lifecycleState,
-        archivedAt: row.archivedAt,
-        trashedAt: row.deletedAt,
-        destroyedAt: row.destroyedAtUtc,
-        lockedAt: row.lockedAt,
-        trashGraceUntil: row.deleteScheduledForUtc,
-        appRetentionUntil: row.retentionUntilUtc,
-        objectLockRetainUntil: row.storageObjectLockRetainUntilUtc,
-        objectLockMode: row.storageObjectLockMode,
-        legalHold,
-        destructionApprovalRequired: approval.required,
-        destructionApproved: approval.approved,
-      },
+    const lifecycleInput = {
+      lifecycleState: row.lifecycleState,
+      archivedAt: row.archivedAt,
+      trashedAt: row.deletedAt,
+      destroyedAt: row.destroyedAtUtc,
+      lockedAt: row.lockedAt,
+      trashGraceUntil: row.deleteScheduledForUtc,
+      appRetentionUntil: row.retentionUntilUtc,
+      objectLockRetainUntil: row.storageObjectLockRetainUntilUtc,
+      objectLockMode: row.storageObjectLockMode,
+      requiredObjectRetainUntil: reading.latestRequiredRetainUntil,
+      storageRetentionTruth: reading.truth,
+      legalHold: legalHold || reading.legalHoldVersion,
+      destructionApprovalRequired: approval.required,
+      destructionApproved: approval.approved,
+    };
+    // The barrier view is the same for both states: what still prevents purge.
+    const exit = evaluateTrashExit(
+      { ...lifecycleInput, lifecycleState: "TRASHED", trashedAt: row.deletedAt ?? now },
       now,
     );
+    const verdict = evaluateDestructionCandidate(lifecycleInput, now);
 
     let disposition: TrashGraceDisposition;
 
-    if (verdict.eligible) {
+    if (row.lifecycleState === "TRASHED" && exit.decision === "RETENTION_ARCHIVE") {
+      // TRASH ENDED, A BARRIER REMAINS -> RETENTION ARCHIVE. Never deleted;
+      // still self-service recoverable through the verified archive restore.
+      if (!dryRun && (await moveToRetentionArchive(row, exit, reading, now))) archived += 1;
+      disposition = "RETENTION_ARCHIVED";
+    } else if (row.lifecycleState === "RETENTION_ARCHIVED" && !verdict.eligible) {
+      if (!dryRun) {
+        await prisma.evidence.updateMany({
+          where: { id: row.id, lifecycleState: "RETENTION_ARCHIVED" },
+          data: {
+            latestRequiredRetainUntilUtc: reading.latestRequiredRetainUntil,
+            purgeEligibleAtUtc: exit.purgeEligibleAt,
+            retentionBarrierState: exit.barrier
+              ? BARRIER_STATE[exit.barrier]
+              : verdict.blockReason === "DESTRUCTION_APPROVAL_REQUIRED"
+                ? "CLEAR"
+                : (row.retentionBarrierState ?? null),
+            retentionBarrierEvaluatedAtUtc: now,
+          },
+        });
+      }
+      if (verdict.blockReason === "DESTRUCTION_APPROVAL_REQUIRED") {
+        if (row.activeDestructionReviewId || dryRun) {
+          disposition = "APPROVAL_PENDING";
+        } else {
+          const created = await ensureDestructionReview(row.id, row.teamId, now, row.lifecycleState);
+          if (created) approvalRequested += 1;
+          disposition = created ? "APPROVAL_REQUESTED" : "APPROVAL_PENDING";
+        }
+      } else {
+        blocked += 1;
+        disposition = "ARCHIVE_BARRIER_ACTIVE";
+      }
+    } else if (verdict.eligible) {
       eligible += 1;
       if (observeOnly) {
         disposition = "ELIGIBLE_OBSERVE_ONLY";
@@ -331,7 +545,7 @@ export async function runTrashGraceReconciliation(
       if (row.activeDestructionReviewId || dryRun) {
         disposition = "APPROVAL_PENDING";
       } else {
-        const created = await ensureDestructionReview(row.id, row.teamId, now);
+        const created = await ensureDestructionReview(row.id, row.teamId, now, row.lifecycleState);
         if (created) approvalRequested += 1;
         disposition = created ? "APPROVAL_REQUESTED" : "APPROVAL_PENDING";
       }
@@ -356,6 +570,8 @@ export async function runTrashGraceReconciliation(
       approvalRequired: approval.required,
       approved: approval.approved,
       blockReason: verdict.blockReason,
+      retentionBarrier: exit.barrier,
+      storageRetentionTruth: reading.truth,
       disposition,
     });
   }
@@ -364,11 +580,12 @@ export async function runTrashGraceReconciliation(
     {
       runId,
       trigger: options.trigger ?? "manual",
-      scanned: rows.length,
+      scanned: rows.length + archivedRows.length,
       eligible,
       enqueued,
       approvalRequested,
       blocked,
+      archived,
       observeOnly,
     },
     observeOnly
@@ -378,11 +595,12 @@ export async function runTrashGraceReconciliation(
 
   return {
     runId,
-    scanned: rows.length,
+    scanned: rows.length + archivedRows.length,
     eligible,
     enqueued,
     approvalRequested,
     blocked,
+    archived,
     observeOnly,
     candidates,
   };
@@ -402,6 +620,7 @@ async function ensureDestructionReview(
   evidenceId: string,
   teamId: string | null,
   now: Date,
+  fromState: "TRASHED" | "RETENTION_ARCHIVED" | string = "TRASHED",
 ): Promise<boolean> {
   if (!teamId) return false;
   try {
@@ -445,8 +664,8 @@ async function ensureDestructionReview(
         data: {
           teamId,
           evidenceId,
-          fromState: "TRASHED",
-          toState: "TRASHED",
+          fromState: fromState as "TRASHED",
+          toState: fromState as "TRASHED",
           eventType: "destruction_review_created",
           summary:
             "Trash recovery period elapsed; destruction review opened for approval",

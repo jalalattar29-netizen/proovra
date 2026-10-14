@@ -179,15 +179,16 @@ export function renderCoverSection(vm: ReportViewModel): string {
       </div>`
     : "";
 
-  // UC-OUT-001 — a private record's report prints no verification link: the
-  // page would answer "not found" to every reader. It says so, and who can
-  // change it.
+  // CANONICAL VERIFICATION IDENTITY (owner decision 2026-10-14) — every
+  // report prints the record's permanent verification link and QR code. The
+  // only exception is a page withdrawn at issuance for a legal, privacy or
+  // security reason, and the report says exactly that.
   const verificationBlock = vm.publicVerificationPublished === false
     ? `
-    <div class="cover-verify-texts" data-public-verification="not-published">
+    <div class="cover-verify-texts" data-public-verification="withdrawn">
       <div class="cover-verify-title">Public Verification</div>
-      <div class="cover-verify-hint">Not published — the owner can create a verification link</div>
-      <div class="cover-verify-hint">This record was private when this report was issued, so no public verification link is printed. Its owner can publish it and share a verification link.</div>
+      <div class="cover-verify-hint">Verification page withdrawn</div>
+      <div class="cover-verify-hint">This record's verification page was withdrawn when this report was issued (a legal, privacy or security action), so no verification link is printed.</div>
       ${certifiedBlock}
     </div>
   `
@@ -201,7 +202,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
     </div>
     <div class="cover-verify-texts">
       <div class="cover-verify-title">Public Verification</div>
-      <div class="cover-verify-hint">Scan QR code or open verification page</div>
+      <div class="cover-verify-hint">Scan QR code or open verification page — no login required. The page verifies this record; it does not publish the original evidence files.</div>
       ${certifiedBlock}
       <a
         class="cover-verify-url"

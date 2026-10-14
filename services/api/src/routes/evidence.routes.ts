@@ -257,7 +257,10 @@ import {
   appendCustodyEventTx,
   isEvidenceReservationExpiredTx,
   isVerificationShareTokenShape,
+  isVerificationRefShape,
   legacyVerifyLinkActive,
+  resolveCanonicalVerificationStatus,
+  type CanonicalVerificationStatus,
   readStoredBytesIntegrity,
   recordVerificationShareUse,
   requestIntegrityRecheck,
@@ -1454,6 +1457,43 @@ const VERIFICATION_LINK_GONE_BODIES = {
 function verificationLinkGoneBody(state: Exclude<VerificationShareState, "ACTIVE">) {
   return VERIFICATION_LINK_GONE_BODIES[state];
 }
+
+/**
+ * CANONICAL VERIFICATION PAGE STATES (owner decision 2026-10-14). A canonical
+ * reference may be printed in a report years old, so a page that cannot show
+ * the record says WHY, truthfully — never a misleading "not found" while a safe
+ * tombstone exists. Only someone holding a real reference reaches these
+ * answers (an unknown reference is the ordinary 404), so they enumerate
+ * nothing, and each carries only the reference and the state.
+ */
+const CANONICAL_STATE_BODIES = {
+  PURGED: {
+    code: "VERIFICATION_RECORD_PURGED",
+    message:
+      "This record has been permanently deleted after its retention ended. Its verification page remains as a minimal record that it existed; the evidence and its artifacts are no longer held.",
+  },
+  WITHDRAWN: {
+    code: "VERIFICATION_RECORD_WITHDRAWN",
+    message:
+      "This verification page has been withdrawn following a legal, privacy or security action. The reference is preserved and will never point to another record.",
+  },
+  TEMPORARILY_UNAVAILABLE: {
+    code: "VERIFICATION_RECORD_TEMPORARILY_UNAVAILABLE",
+    message: "This verification page is temporarily unavailable. Try again later.",
+  },
+  RETAINED: {
+    code: "VERIFICATION_RECORD_RETAINED",
+    message:
+      "The record's owner has removed it from active use. It remains preserved under its retention protection, so it is not shown as an active record.",
+  },
+} as const satisfies Record<Exclude<CanonicalVerificationStatus, "AVAILABLE">, { code: string; message: string }>;
+
+const CANONICAL_STATE_HTTP: Readonly<Record<Exclude<CanonicalVerificationStatus, "AVAILABLE">, number>> = {
+  PURGED: 410,
+  WITHDRAWN: 410,
+  TEMPORARILY_UNAVAILABLE: 503,
+  RETAINED: 200,
+};
 
 function getPublicVerifyIdentityExposure(): {
   exposeAttribution: boolean;
@@ -11345,6 +11385,51 @@ if (
             })) !== null
           : false;
       /*
+       * FREE THREE-RECORD CONTRACT (owner decision 2026-10-14) — a FREE
+       * record's report and package are included, and so is every update a
+       * LATER MATERIAL VERIFICATION FACT requires (an RFC 3161 validation, OTS
+       * anchoring, a newer custody or integrity fact). A new version with NO
+       * such fact is a free re-render, and without this a FREE record could be
+       * re-rendered indefinitely. The fact test is the canonical freshness
+       * authority (deriveReportFreshness) the updated-report offer uses.
+       * Recovery of a missing or failed output is never refused here.
+       *
+       * ORDER: a confirmation that carries an offer revision is first checked
+       * for staleness (RGA-02 below) — a stale offer is the more specific
+       * answer — and this rule runs after it; without a revision this rule
+       * answers first, so the refusal names the real reason.
+       */
+      const refuseFreeRenderWithoutNewFacts = async (): Promise<boolean> => {
+        const eligibility = await resolveEvidenceOutputEligibility({
+          evidenceId: id,
+          ownerUserId: evidenceRecord.ownerUserId,
+          teamId: evidenceRecord.teamId ?? null,
+        }).catch(() => null);
+        if (eligibility && eligibility.plan === "FREE" && eligibility.funding !== "EVIDENCE_CREDIT") {
+          const reportable = await loadReportableFacts(id);
+          if (!reportable.freshness.hasNewerFacts) {
+            auditEvidenceAction(req, {
+              userId,
+              action: "evidence.report.regenerate_requested",
+              outcome: "blocked",
+              resourceId: id,
+              teamId: evidenceRecord.teamId ?? null,
+              metadata: { reason: "no_material_change", requestedIntent: intent ?? null },
+            });
+            reply.code(409).send({
+              code: "NEW_VERSION_NO_MATERIAL_CHANGE",
+              message:
+                "This record's report is already current. A new version is issued automatically when a new verification fact is recorded.",
+            });
+            return true;
+          }
+        }
+        return false;
+      };
+      if (!isReplay && isNewVersion && !offerRevision && (await refuseFreeRenderWithoutNewFacts())) {
+        return reply;
+      }
+      /*
        * RGA-02 — A STALE CONFIRMATION IS REFUSED BEFORE IT SPENDS ANYTHING.
        *
        * An updated report must carry the offer revision its confirmation showed;
@@ -11393,6 +11478,9 @@ if (
             return reply.code(409).send(staleOfferBody(refusal));
           }
         }
+      }
+      if (!isReplay && isNewVersion && offerRevision && (await refuseFreeRenderWithoutNewFacts())) {
+        return reply;
       }
       if (!isReplay) {
         const window = readPositiveIntEnv("ARTIFACT_GENERATION_RATE_WINDOW_SEC", 3600);
@@ -13005,8 +13093,43 @@ action: "evidence.certification_requested",
      */
     const presented = String((req.params as ParamsId).id ?? "");
     let shareLink: VerificationShareRow | null = null;
+    /**
+     * CANONICAL VERIFICATION IDENTITY (owner decision 2026-10-14). A `pvr_`
+     * reference is the record's permanent public verification identity. It
+     * opens without login and without owner publication, and it ALWAYS answers
+     * with the verification-only projection below — never content, files or the
+     * internal id. A legacy per-version REPORT/PACKAGE token printed by an
+     * earlier report is the same kind of link and gets the same projection.
+     */
+    let canonical: {
+      reference: string | null;
+      issuedAtUtc: Date | null;
+      status: CanonicalVerificationStatus;
+      via: "REFERENCE" | "LEGACY_REPORT_TOKEN";
+    } | null = null;
     let id: string;
-    if (isVerificationShareTokenShape(presented)) {
+    if (isVerificationRefShape(presented)) {
+      const row = await prisma.evidence.findUnique({
+        where: { verificationRef: presented },
+        select: {
+          id: true,
+          lifecycleState: true,
+          destroyedAtUtc: true,
+          verificationAccessState: true,
+          verificationRefIssuedAtUtc: true,
+        },
+      });
+      if (!row) {
+        return reply.code(404).send({ message: "Evidence not found" });
+      }
+      canonical = {
+        reference: presented,
+        issuedAtUtc: row.verificationRefIssuedAtUtc ?? null,
+        status: resolveCanonicalVerificationStatus(row),
+        via: "REFERENCE",
+      };
+      id = row.id;
+    } else if (isVerificationShareTokenShape(presented)) {
       const resolved = await resolveVerificationShareToken(prisma, presented);
       if (resolved.outcome === "UNKNOWN") {
         return reply.code(404).send({ message: "Evidence not found" });
@@ -13025,6 +13148,29 @@ action: "evidence.certification_requested",
       }
       shareLink = resolved.row;
       id = resolved.row.evidenceId;
+      if (shareLink.purpose === "REPORT" || shareLink.purpose === "PACKAGE") {
+        // A link an issued report or package carries: the record's canonical
+        // page, reached through the link format that report version printed.
+        const row = await prisma.evidence.findUnique({
+          where: { id },
+          select: {
+            lifecycleState: true,
+            destroyedAtUtc: true,
+            verificationAccessState: true,
+            verificationRef: true,
+            verificationRefIssuedAtUtc: true,
+          },
+        });
+        if (!row) {
+          return reply.code(404).send({ message: "Evidence not found" });
+        }
+        canonical = {
+          reference: row.verificationRef ?? null,
+          issuedAtUtc: row.verificationRefIssuedAtUtc ?? null,
+          status: resolveCanonicalVerificationStatus(row),
+          via: "LEGACY_REPORT_TOKEN",
+        };
+      }
     } else {
       const idParse = z.string().uuid().safeParse(presented);
       if (!idParse.success) {
@@ -13052,6 +13198,25 @@ action: "evidence.certification_requested",
     (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
     req.log = req.log.child({ evidenceId: id });
 
+    if (canonical && canonical.status !== "AVAILABLE") {
+      auditVerificationAction(req, {
+        userId: null,
+        action: "verification.page_opened",
+        outcome: "denied",
+        denialReason: `canonical_${canonical.status.toLowerCase()}`,
+        resourceId: id,
+        metadata: { outcome: `canonical_${canonical.status.toLowerCase()}`, via: canonical.via },
+      });
+      return reply.code(CANONICAL_STATE_HTTP[canonical.status]).send({
+        ...CANONICAL_STATE_BODIES[canonical.status],
+        canonicalVerification: {
+          reference: canonical.reference,
+          status: canonical.status,
+          issuedAtUtc: canonical.issuedAtUtc ? canonical.issuedAtUtc.toISOString() : null,
+        },
+      });
+    }
+
     const evidence = await prisma.evidence.findFirst({
       // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the gate is the LIFECYCLE
       // STATE, not the trash timestamp. `deleted_at IS NULL` happened to
@@ -13062,7 +13227,7 @@ action: "evidence.certification_requested",
       // page for evidence that no longer exists.
       // (2026-09-29, audit M4) …and a soft-deleted record (a legacy deletedAt
       // outside the trash lifecycle) is not served either: 404, no body.
-      where: { id, deletedAt: null, lifecycleState: { notIn: ["TRASHED", "DESTROYED"] } },
+      where: { id, deletedAt: null, lifecycleState: { notIn: ["TRASHED", "DESTROYED", "RETENTION_ARCHIVED", "PENDING_DESTRUCTION"] } },
       select: {
         id: true,
         // Phase 31.12 — needed for the public Verify media-intelligence
@@ -13182,7 +13347,7 @@ action: "evidence.certification_requested",
     // legacy grace. Outside it (every record published since, and every legacy
     // record once its grace ends or its owner ends it) the answer is the same
     // 404 an unknown id gets.
-    if (!shareLink && !legacyVerifyLinkActive(evidence)) {
+    if (!shareLink && !canonical && !legacyVerifyLinkActive(evidence)) {
       auditVerificationAction(req, {
         userId: null,
         action: "verification.page_opened",
@@ -13192,6 +13357,9 @@ action: "evidence.certification_requested",
         teamId: evidence.teamId,
         metadata: { outcome: "record_id_is_not_a_capability" },
       });
+      // Byte-identical to an id that never existed and to an invalid segment
+      // (anti-enumeration). The web page, which holds the URL it was given,
+      // tells a holder of an old record-id link that the format is retired.
       return reply.code(404).send({ message: "Evidence not found" });
     }
     // Phase 14 — additive publication gate. When the evidence is not
@@ -13199,7 +13367,10 @@ action: "evidence.certification_requested",
     // return 404 with no leak of state. This is BEFORE finalization
     // and policy checks so suspension is fast-fail and the response
     // body never contains governance state.
-    if (evidence.publicVerifyState !== "PUBLISHED") {
+    // CANONICAL VERIFICATION IDENTITY — the canonical page never depends on
+    // owner publication; only a restricted recipient link and a legacy
+    // record-id link still do.
+    if (!canonical && evidence.publicVerifyState !== "PUBLISHED") {
       auditVerificationAction(req, {
         userId: null,
         action: "verification.page_opened",
@@ -14680,6 +14851,48 @@ const link = shareLink
       // owner for a share link before it does.
       expiresAtUtc: evidence.legacyVerifyUuidUntilUtc ? evidence.legacyVerifyUuidUntilUtc.toISOString() : null,
     };
+if (canonical) {
+  /*
+   * THE CANONICAL PAGE'S DISCLOSURE BOUNDARY (owner decision 2026-10-14).
+   * Verification-safe facts only: the original-integrity verdict, digests,
+   * signature and custody checks, RFC 3161 and OTS states, report/package
+   * versions and digests, the signing key reference, and the preservation
+   * state. Never the internal evidence id, the owner, workspace or account,
+   * identity rows, location, device details, storage keys, bucket names, file
+   * names, content previews or any download. Originals and artifacts stay
+   * behind authenticated access or a separate restricted recipient link.
+   */
+  return reply.code(200).send({
+    tier: "BASIC",
+    basicVerification,
+    verificationMatrix: withholdIdentityRows(verificationMatrix),
+    link: { kind: "CANONICAL" as const, expiresAtUtc: null },
+    canonicalVerification: {
+      reference: canonical.reference,
+      status: "AVAILABLE" as const,
+      issuedAtUtc: canonical.issuedAtUtc ? canonical.issuedAtUtc.toISOString() : null,
+      signature: {
+        keyId: evidence.signingKeyId ?? null,
+        keyVersion: evidence.signingKeyVersion ?? null,
+        keyFingerprintSha256: evidence.signingKeySha256 ?? null,
+      },
+      preservation: {
+        objectLockMode: evidence.storageObjectLockMode ?? null,
+        retainUntilUtc: evidence.storageObjectLockRetainUntilUtc
+          ? evidence.storageObjectLockRetainUntilUtc.toISOString()
+          : null,
+      },
+      lastUpdatedAtUtc: latestReport?.generatedAtUtc
+        ? new Date(latestReport.generatedAtUtc).toISOString()
+        : null,
+      limitations: [
+        "This page verifies the record and its artifacts. It does not publish the original evidence files.",
+        "Verification states what PROOVRA's records and stored proofs show; it is not a legal finding.",
+      ],
+    },
+  });
+}
+
 // A link can narrow the projection, never widen it.
 if (!richVerifyEntitled || shareLink?.projection === "BASIC") {
   return reply.code(200).send({

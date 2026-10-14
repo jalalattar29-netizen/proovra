@@ -572,7 +572,7 @@ export async function assertWorkspaceAllowsEvidenceCreation(
       // is the copy, not the assertion — nothing the rewrite added is lost
       // here: the number, the reassurance and the remedy all remain.
       publicMessage: isFree
-        ? "You have reached the record limit included in the Free plan: 3 records. Existing records remain available — buy evidence credits or upgrade to add more."
+        ? "You have reached the record limit included in the Free plan: 3 records. Deleting a record does not restore a slot. Existing records remain available — buy evidence credits or upgrade to add more."
         : "You have reached the record limit included in your current plan. Existing records remain available — buy evidence credits or upgrade to add more.",
       reportability: "EXPECTED_DENIAL",
       severity: "info",
@@ -1054,6 +1054,12 @@ export function resolveFinalizationIssuance(
           providerStatus: life.providerStatus ?? null,
         } as OutputIssuanceLifecycle)
       : null,
+    // FREE THREE-RECORD CONTRACT — settlement only returns PLAN under the FREE
+    // creation plan when the record was admitted into a FREE allowance slot
+    // (under the capacity lock, this record excluded from the count), so this
+    // is the one moment coverage is decided. It is then stored as the record's
+    // FREE_ALLOWANCE fact in the same transaction.
+    freeAllowanceSlot: scope.plan === prismaPkg.PlanType.FREE && funding === "PLAN",
   });
 }
 

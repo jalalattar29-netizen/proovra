@@ -28,8 +28,7 @@ import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 // and the ONE approval rule. The purge job is a trigger for them now.
 import {
   executeEvidenceDestruction,
-  generateVerificationShareToken,
-  mintVerificationShareTokenTx,
+  ensureVerificationRefTx,
   resolveDestructionApproval,
 } from "@proovra/shared-runtime";
 import { workerEvidenceDestructionStorage } from "./governance/destruction-storage-port.js";
@@ -433,12 +432,17 @@ type PreparedReportArtifacts = {
   pdfSigningOutcome: import("./pdf/signPdf.js").PdfSigningOutcome;
   verificationZip: Buffer | null;
   verifyUrl: string;
-  /** ET-PKG-07 — the share token inside `verifyUrl`; stored (hashed) when the report commits. */
-  reportShareToken: string;
   /**
-   * UC-OUT-001 — was the record PUBLISHED when this report was prepared? Only
-   * then is a REPORT link minted and printed; a private record's report says
-   * "Not published — the owner can create a verification link".
+   * CANONICAL VERIFICATION IDENTITY (owner decision 2026-10-14) — the record's
+   * permanent `pvr_` reference inside `verifyUrl`, issued before this
+   * report was rendered and identical for every version of the record.
+   */
+  verificationRef: string;
+  /**
+   * The canonical page is available for every issued report (it no longer
+   * depends on owner publication), so the report and package always print the
+   * link and QR. Kept as a field so the renderers' honest "not available"
+   * branch stays reachable for a record whose page was withdrawn at issuance.
    */
   publicVerifyPublishedAtIssuance: boolean;
   downloadUrl: string;
@@ -566,9 +570,10 @@ function buildPublicUrl(key: string): string | null {
 //
 // ET-PKG-07 (2026-09-30) — this took the EVIDENCE ID. A report's link and QR
 // code therefore carried the record's primary key as a permanent public
-// capability. It now takes the share token minted for this report version
-// (see `reportShareToken` in prepareReportArtifacts): revocable and rotatable
-// on its own, and inert until the owner publishes the record.
+// capability. It now takes the record's canonical verification reference
+// (owner decision 2026-10-14; see `verificationRef` in prepareReportArtifacts):
+// a random 160-bit public reference, never the evidence id, the same for every
+// report version, opening a page that verifies without serving any file.
 /**
  * What changed between the previous report version and now, from the recorded
  * facts only (deriveReportFreshness — the same authority that offers the
@@ -648,13 +653,13 @@ function buildPackageVerificationUrl(packageId: string): string {
   return absoluteInternalUrl(base, `/package/${encodeURIComponent(packageId)}`);
 }
 
-function buildVerifyUrl(shareToken: string): string {
+function buildVerifyUrl(verificationRef: string): string {
   const base = envValue(
     "REPORT_VERIFY_BASE_URL",
     "https://app.proovra.com/verify"
   ).replace(/\/+$/, "");
 
-  return absoluteInternalUrl(base, `/${encodeURIComponent(shareToken)}`);
+  return absoluteInternalUrl(base, `/${encodeURIComponent(verificationRef)}`);
 }
 
 // PHASE 11 — canonical resource-id path for the authenticated evidence
@@ -2148,8 +2153,9 @@ async function prepareReportArtifacts(
       recordedIntegrityVerifiedAtUtc: true,
       lastVerifiedAtUtc: true,
       lastVerifiedSource: true,
-      // UC-OUT-001 — a link is printed only for a published record.
+      // A withdrawn canonical page is the only reason a report prints no link.
       publicVerifyState: true,
+      verificationAccessState: true,
       verificationPackageGeneratedAtUtc: true,
       verificationPackageVersion: true,
       // Phase D Blocker 3 — per-component artifact presence record.
@@ -2899,16 +2905,23 @@ await recordIntegrityObservation({
   const verificationKey = `verification/${evidence.id}/v${provisionalVersion}.zip`;
   const publicUrl = storageKey ? buildPublicUrl(storageKey) : null;
   const evidenceDetailUrl = buildEvidenceDetailUrl(evidence.id);
-  // ET-PKG-07 — the link this report version will carry. The token is
-  // generated now (the PDF must contain it) and its HASH is stored only when
-  // the report row commits, in the same transaction: a run that fails leaves
-  // no link behind, and a retry generates a fresh one.
-  const reportShareToken = generateVerificationShareToken();
-  const verifyUrl = buildVerifyUrl(reportShareToken);
-  // UC-OUT-001 — Public Verify answers only for a PUBLISHED record. A private
-  // record's report prints no link (and no REPORT link is minted): printing
-  // one would hand every reader a page that answers "Evidence not found".
-  const publicVerifyPublishedAtIssuance = evidence.publicVerifyState === "PUBLISHED";
+  // CANONICAL VERIFICATION IDENTITY (owner decision 2026-10-14) — the record's
+  // ONE permanent reference is ensured BEFORE anything is rendered, in its own
+  // committed transaction: the PDF must print it, and a render that later
+  // fails must not leave a report version pointing at a reference nobody
+  // stored. Every later version reuses it; nothing here ever mints a second.
+  const { ref: verificationRef } = await prisma.$transaction((tx) =>
+    ensureVerificationRefTx(tx, evidence.id, {
+      now,
+      source: provisionalVersion === 1 ? "REPORT_V1" : "REPORT_VERSION",
+    }),
+  );
+  const verifyUrl = buildVerifyUrl(verificationRef);
+  // The canonical page opens without login and without owner publication. Only
+  // a legal/privacy/security withdrawal makes it unavailable, and a report
+  // issued then says so instead of printing a link that would not open.
+  const publicVerifyPublishedAtIssuance =
+    evidence.verificationAccessState !== "WITHDRAWN";
 
 
   // THE ACQUISITION IDENTITY SNAPSHOT — what was true when the record was
@@ -3255,7 +3268,7 @@ return {
   pdfSigningOutcome,
   verificationZip,
   verifyUrl,
-  reportShareToken,
+  verificationRef,
   publicVerifyPublishedAtIssuance,
   downloadUrl: evidenceDetailUrl,
   reportKey,
@@ -4620,23 +4633,11 @@ async function runReportGeneration(
               } as Prisma.InputJsonValue,
             });
 
-            // ET-PKG-07 — the link printed in this report (and its QR code)
-            // exists from the moment the report does, and not before. Only
-            // the hash is stored. It opens nothing until the owner publishes
-            // the record, and the owner can revoke or rotate it on its own.
-            // UC-OUT-001 — minted only when the report PRINTS it, i.e. the
-            // record was published at issuance.
-            if (prepared.publicVerifyPublishedAtIssuance) {
-              await mintVerificationShareTokenTx(tx, {
-                evidenceId: prepared.evidenceId,
-                teamId: prepared.packageMetadataContext.teamId ?? null,
-                purpose: "REPORT",
-                reportVersion: prepared.version,
-                audience: `Report version ${prepared.version}`,
-                token: prepared.reportShareToken,
-                now: prepared.now,
-              });
-            }
+            // CANONICAL VERIFICATION IDENTITY — the link printed in this
+            // report is the record's permanent reference (ensured before the
+            // render). No per-version REPORT token is minted any more; legacy
+            // REPORT tokens printed by earlier versions keep resolving to the
+            // same record through the public route.
 
             await tx.report.create({
               data: {
@@ -5316,6 +5317,7 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
               ? { sourceFullPackageId: reservedFull.packageId }
               : {}),
             packageVerificationUrl: buildPackageVerificationUrl(profile.packageId),
+            recordVerificationUrl: prepared.verifyUrl,
           });
           // AFTER SEALING: the final ZIP, read back from disk, is verified
           // before anything is published.
@@ -6275,6 +6277,7 @@ export async function processPurgeDeletedEvidence(job: Job<unknown>) {
         evidenceId: evidence.id,
         trigger: "purge_job",
         legalHold: hold.held,
+        objectLockExpected: String(process.env.S3_OBJECT_LOCK_ENABLED ?? "").trim().toLowerCase() === "true",
         destructionApprovalRequired: approval.required,
         destructionApproved: approval.approved,
         destructionReviewId: approval.destructionReviewId,

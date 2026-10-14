@@ -590,6 +590,7 @@ export async function executeDestruction(
           actorUserId: input.executorUserId,
           destructionRequestId: input.requestId,
           legalHold: hold.held,
+          objectLockExpected: String(process.env.S3_OBJECT_LOCK_ENABLED ?? "").trim().toLowerCase() === "true",
           // An APPROVED DestructionRequest with a recorded approver chain IS
           // the approval for this path — that is what `executeDestruction`
           // means. The requirement is still declared so the executor's fail-

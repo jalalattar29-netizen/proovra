@@ -7,13 +7,21 @@ import { test } from "node:test";
 import {
   PLAN_LAPSE_STATES,
   TRASH_KEEPS_PLAN_CAPACITY_COPY,
+  TRASH_LIFECYCLE_COPY,
   planLapseCopy,
   recordsInTrashAllowanceCopy,
 } from "../dist/index.js";
 
-test("the trash sentence says trash frees no plan capacity, and what does", () => {
-  assert.match(TRASH_KEEPS_PLAN_CAPACITY_COPY, /does not free plan capacity/);
-  assert.match(TRASH_KEEPS_PLAN_CAPACITY_COPY, /until it is permanently destroyed/);
+test("the trash sentence says deleting never restores an evidence slot — purge included", () => {
+  assert.match(TRASH_KEEPS_PLAN_CAPACITY_COPY, /does not restore an evidence slot/);
+  assert.match(TRASH_KEEPS_PLAN_CAPACITY_COPY, /final purge included/);
+  assert.doesNotMatch(TRASH_KEEPS_PLAN_CAPACITY_COPY, /until it is permanently destroyed/);
+});
+
+test("the lifecycle sentence states Trash, the retention archive and the purge barrier, never 'permanently deleted' as done", () => {
+  assert.match(TRASH_LIFECYCLE_COPY, /90 days/);
+  assert.match(TRASH_LIFECYCLE_COPY, /retention archive/);
+  assert.match(TRASH_LIFECYCLE_COPY, /cannot be permanently deleted before every retention period and legal hold ends/);
 });
 
 test("the Billing trash line appears only for a real positive count", () => {
@@ -23,11 +31,11 @@ test("the Billing trash line appears only for a real positive count", () => {
   assert.equal(recordsInTrashAllowanceCopy(Number.NaN), null);
   assert.equal(
     recordsInTrashAllowanceCopy(1),
-    "Includes 1 record in Trash — trash does not free plan capacity.",
+    "Includes 1 record in Trash — deleting a record does not restore an evidence slot.",
   );
   assert.equal(
     recordsInTrashAllowanceCopy(4),
-    "Includes 4 records in Trash — trash does not free plan capacity.",
+    "Includes 4 records in Trash — deleting a record does not restore an evidence slot.",
   );
 });
 

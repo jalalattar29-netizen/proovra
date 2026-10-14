@@ -258,6 +258,15 @@ export type WorkspaceUsage = {
   evidenceStorageBytes: bigint;
   reportStorageBytes: bigint;
   verificationPackageStorageBytes: bigint;
+  /**
+   * RETENTION ARCHIVE (owner decision 2026-10-14) — bytes the PLATFORM keeps
+   * under its baseline retention after the record left the 90-day Trash
+   * (RETENTION_ARCHIVED). Classified explicitly and NOT counted in
+   * `storageBytesUsed`: they are not the customer's working storage, they do
+   * not consume plan or add-on capacity, and they never keep a storage add-on
+   * alive after cancellation. Shown so the meter is truthful about them.
+   */
+  retainedArchiveStorageBytes: bigint;
   evidenceCount: number;
   teamMemberCount: number;
 
@@ -354,11 +363,21 @@ export async function getWorkspaceUsage(
 
   // STORAGE ACCOUNTING — only a DESTROYED tombstone stops consuming storage
   // (EVIDENCE LIFECYCLE CONVERGENCE, 2026-08-24, above).
+  //
+  // RETENTION ARCHIVE (owner decision 2026-10-14) — a record that left the
+  // 90-day Trash for the Retention Archive is held by the PLATFORM's baseline
+  // retention, not by the customer's working storage. Its bytes are measured
+  // separately (`retainedArchiveStorageBytes`) and excluded from the active
+  // figure that quota, add-ons and invoices read. Trash still counts: it is
+  // the customer's self-service recoverable storage.
   const evidenceWhere = {
-    AND: [populationWhere, { lifecycleState: { not: "DESTROYED" as const } }],
+    AND: [populationWhere, { lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] } }],
   } as prismaPkg.Prisma.EvidenceWhereInput;
   const reportWhere = { evidence: evidenceWhere };
   const verificationPackageWhere = { evidence: evidenceWhere };
+  const retainedWhere = {
+    AND: [populationWhere, { lifecycleState: "RETENTION_ARCHIVED" as const }],
+  } as prismaPkg.Prisma.EvidenceWhereInput;
 
   const [
     evidenceAggregate,
@@ -367,6 +386,9 @@ export async function getWorkspaceUsage(
     evidenceCount,
     teamMemberCount,
     derivedStorageBytes,
+    retainedEvidenceAggregate,
+    retainedReportAggregate,
+    retainedPackageAggregate,
   ] = await Promise.all([
     prisma.evidence.aggregate({
       where: evidenceWhere,
@@ -405,7 +427,17 @@ export async function getWorkspaceUsage(
     sumDerivedAssetStorageBytes(prisma, {
       teamId: scope.teamId ?? personalTeamForUsage?.id ?? null,
     }),
+    prisma.evidence.aggregate({ where: retainedWhere, _sum: { sizeBytes: true } }),
+    prisma.report.aggregate({ where: { evidence: retainedWhere }, _sum: { sizeBytes: true } }),
+    prisma.verificationPackage.aggregate({
+      where: publishedPackageWhere({ evidence: retainedWhere }),
+      _sum: { sizeBytes: true },
+    }),
   ]);
+  const retainedArchiveStorageBytes =
+    toBigIntOrZero(retainedEvidenceAggregate._sum.sizeBytes) +
+    toBigIntOrZero(retainedReportAggregate._sum.sizeBytes) +
+    toBigIntOrZero(retainedPackageAggregate._sum.sizeBytes);
 
   const evidenceStorageBytes = toBigIntOrZero(evidenceAggregate._sum.sizeBytes);
   const reportStorageBytes = toBigIntOrZero(reportAggregate._sum.sizeBytes);
@@ -488,6 +520,7 @@ export async function getWorkspaceUsage(
     evidenceStorageBytes,
     reportStorageBytes,
     verificationPackageStorageBytes,
+    retainedArchiveStorageBytes,
     evidenceCount,
     teamMemberCount,
 

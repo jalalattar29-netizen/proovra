@@ -712,6 +712,7 @@ async function executeApprovedReview(
       actorUserId: input.actorUserId,
       destructionReviewId: existing.id,
       legalHold: hold.held,
+      objectLockExpected: String(process.env.S3_OBJECT_LOCK_ENABLED ?? "").trim().toLowerCase() === "true",
       // The APPROVED review IS the approval. Declaring the requirement rather
       // than omitting it keeps the executor's fail-closed branch live: if this
       // review ever stops being the thing that satisfies approval, the executor

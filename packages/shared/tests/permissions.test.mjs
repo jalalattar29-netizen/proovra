@@ -5,6 +5,7 @@ import {
   CANONICAL_ROLES,
   DB_TEAM_ROLES,
   PERMISSIONS,
+  SERVICE_ONLY_PERMISSIONS,
   PermissionSchema,
   listRolePermissions,
   mapTeamRoleToCanonical,
@@ -84,8 +85,14 @@ test("mapTeamRoleToCanonical maps each DB role to its canonical counterpart", ()
 // roleHasPermission — owner is the superset
 // -----------------------------------------------------------------------------
 
-test("OWNER holds every permission", () => {
+test("OWNER holds every permission except the platform-service-only ones", () => {
   for (const perm of PERMISSIONS) {
+    if (SERVICE_ONLY_PERMISSIONS.includes(perm)) {
+      // evidence.purge is performed by the canonical destruction executor once
+      // every retention barrier has ended; no workspace role holds it.
+      assert.equal(roleHasPermission("OWNER", perm), false, `OWNER must not hold service-only ${perm}`);
+      continue;
+    }
     assert.equal(
       roleHasPermission("OWNER", perm),
       true,

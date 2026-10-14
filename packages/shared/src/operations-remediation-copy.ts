@@ -158,6 +158,14 @@ export const REMEDIATION_TEXT_TRANSLATIONS: Readonly<Record<string, Translation>
     de: "Der Schutz des unveränderlichen Speichers für das gespeicherte Objekt dieses Datensatzes entsprach beim letzten Abgleich nicht seinem Aufbewahrungs- oder Sperrstatus. Der Plattformabgleich prüft dies erneut; dies schließt sich, wenn ein Abgleich den Schutz vorfindet. Bis dahin werden Pakete für den Datensatz zurückgehalten.",
     ar: "لم تطابق حماية التخزين غير القابل للتعديل لكائن هذا السجل حالة الاحتفاظ أو الحجز القانوني عند آخر مطابقة. تعيد مطابقة المنصة فحصها؛ وتُغلق هذه الحالة عندما تجد مطابقةٌ الحماية قائمة. تُحجب حزم السجل حتى ذلك الحين.",
   },
+  "Storage could not confirm this record's retention completely and consistently, so the record is kept and will not be purged. Check the stored versions of the record's objects and their retention dates; this closes when an operator records the investigation.": {
+    de: "Der Speicher konnte die Aufbewahrung dieses Datensatzes nicht vollständig und widerspruchsfrei bestätigen, daher bleibt der Datensatz erhalten und wird nicht endgültig gelöscht. Prüfen Sie die gespeicherten Versionen der Objekte des Datensatzes und ihre Aufbewahrungsdaten; dies schließt sich, wenn ein Operator die Prüfung erfasst.",
+    ar: "تعذّر على التخزين تأكيد مدة الاحتفاظ بهذا السجل بشكل كامل ومتّسق، لذا يبقى السجل محفوظًا ولن يُحذف نهائيًا. تحقّق من النسخ المخزّنة لكائنات السجل وتواريخ الاحتفاظ بها؛ وتُغلق هذه الحالة عندما يسجّل مشغّل نتيجة التحقق.",
+  },
+  "A restore from the retention archive stopped because a stored object or digest did not verify. The record stays archived and nothing partial was activated. Investigate the stored versions before requesting the restore again.": {
+    de: "Eine Wiederherstellung aus dem Aufbewahrungsarchiv wurde angehalten, weil ein gespeichertes Objekt oder ein Hashwert nicht verifiziert werden konnte. Der Datensatz bleibt archiviert und nichts wurde teilweise aktiviert. Prüfen Sie die gespeicherten Versionen, bevor Sie die Wiederherstellung erneut anfordern.",
+    ar: "توقفت استعادة من أرشيف الاحتفاظ لأن كائنًا مخزّنًا أو بصمة لم يُتحقق منهما. يبقى السجل مؤرشفًا ولم يُفعَّل أي جزء منه. تحقّق من النسخ المخزّنة قبل طلب الاستعادة مجددًا.",
+  },
   "Sign-ins through this identity provider have been failing. This closes on the first successful sign-in through it.": {
     de: "Anmeldungen über diesen Identitätsanbieter schlagen fehl. Dies schließt sich bei der ersten erfolgreichen Anmeldung darüber.",
     ar: "تفشل عمليات تسجيل الدخول عبر مزوّد الهوية هذا. تُغلق هذه الحالة عند أول تسجيل دخول ناجح عبره.",

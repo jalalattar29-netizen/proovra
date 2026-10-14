@@ -195,6 +195,12 @@ type PackageManifest = {
   evidenceFileSha256Semantics: string | null;
   /** Where PROOVRA publishes this package's identity and seal key. */
   packageVerificationUrl: string | null;
+  /**
+   * CANONICAL VERIFICATION IDENTITY (owner decision 2026-10-14) — the record's
+   * permanent verification page: the same URL the report's QR code and text
+   * carry, for every version. It verifies the record; it serves no files.
+   */
+  recordVerificationUrl: string | null;
   evidenceId: string | null;
   reportVersion: number | null;
   signingKeyId: string | null;
@@ -1856,6 +1862,7 @@ function buildPackageManifest(params: {
   sourceFullPackageId: string | null;
   evidenceFileSha256: string | null;
   packageVerificationUrl: string | null;
+  recordVerificationUrl?: string | null;
   evidenceId?: string;
   reportVersion?: number;
   signingKeyId?: string;
@@ -1918,6 +1925,7 @@ function buildPackageManifest(params: {
         : "SHA-256 of the original evidence file."
       : null,
     packageVerificationUrl: params.packageVerificationUrl,
+    recordVerificationUrl: params.recordVerificationUrl ?? null,
     evidenceId: params.evidenceId ?? null,
     reportVersion: params.reportVersion ?? null,
     signingKeyId: params.signingKeyId ?? null,
@@ -2038,13 +2046,14 @@ function buildReadme(params: {
     proofMaterialsObservedAtUtc: string;
     assembly: "WITH_REPORT_ISSUE" | "AFTER_REPORT_ISSUE";
   } | null;
-  /** UC-OUT-001 — the record's publication state when the package was assembled. */
+  /** False only when the record's canonical verification page was withdrawn at assembly. */
   publicVerificationPublished?: boolean | null;
   packageId?: string | null;
   disclosureProfile?: DisclosureProfile;
   supersedesPackage?: { packageId: string; reportVersion: number } | null;
   sourceFullPackageId?: string | null;
   packageVerificationUrl?: string | null;
+  recordVerificationUrl?: string | null;
   /** package-manifest.json → evidenceFileSha256 (the certified digest). */
   evidenceFileSha256?: string | null;
   /** The record's timestamp trust state label (resolveTsaTrustState). */
@@ -2058,21 +2067,25 @@ function buildReadme(params: {
   const profile: DisclosureProfile = params.disclosureProfile ?? "FULL_FORENSIC";
   const external = profile === "EXTERNAL_DISCLOSURE";
   const digest = params.evidenceFileSha256 ?? null;
-  // UC-OUT-001 — Public Verify answers only for a PUBLISHED record. The steps
-  // that compare with it say so, and what to do when it is private.
+  // CANONICAL VERIFICATION IDENTITY (owner decision 2026-10-14) — every
+  // record with an issued report has a permanent verification page that opens
+  // without login. Only a legal/privacy/security withdrawal makes it answer
+  // "withdrawn", and the package says so when that was the case at assembly.
+  const recordVerifyLine = params.recordVerificationUrl
+    ? `
+   The record's verification page (the same link as the report's QR code):
+   ${params.recordVerificationUrl}
+   It verifies the record and its artifacts without login. It does not
+   publish the original evidence files.`
+    : "";
   const publicVerifyNote =
     params.publicVerificationPublished === false
       ? `
-   NOTE: this record was NOT published for public verification when this
-   package was assembled, so its Public Verify page does not answer yet. Ask
-   the record's owner to publish it and share a verification link; until then
-   the seal key fingerprint and the package SHA-256 cannot be confirmed from
-   outside this package.`
-      : params.publicVerificationPublished === true
-        ? ""
-        : `
-   Public Verify answers only while the record's owner has published it; for
-   a private record ask the owner to publish it and share a verification link.`;
+   NOTE: this record's verification page was withdrawn when this package was
+   assembled (a legal, privacy or security action), so it answers "withdrawn".
+   The seal key fingerprint and the package SHA-256 can then not be confirmed
+   from outside this package.`
+      : recordVerifyLine;
   const multipart = params.evidenceFiles.length > 1;
   /*
    * CHRONOLOGY (2026-09-29). A package assembled after its report — a
@@ -2835,6 +2848,8 @@ export async function createVerificationPackage(data: {
   sourceFullPackageId?: string | null;
   /** The Public Verify page that publishes this package's identity and seal key. */
   packageVerificationUrl?: string | null;
+  /** The record's canonical verification page (the report's QR target). */
+  recordVerificationUrl?: string | null;
   /** timestamp-validation.json (@proovra/shared buildTimestampValidationRecord). */
   timestampValidation?: TimestampValidationRecord | null;
 }): Promise<{
@@ -3264,6 +3279,7 @@ export async function createVerificationPackage(data: {
       sourceFullPackageId: data.sourceFullPackageId ?? null,
       evidenceFileSha256: data.seal?.fileSha256 ?? null,
       packageVerificationUrl: data.packageVerificationUrl ?? null,
+      recordVerificationUrl: data.recordVerificationUrl ?? null,
       evidenceId: data.evidenceId,
       reportVersion: data.reportVersion,
       signingKeyId: data.signingKeyId,
@@ -3599,6 +3615,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           supersedesPackage: data.supersedesPackage ?? null,
           sourceFullPackageId: data.sourceFullPackageId ?? null,
           packageVerificationUrl: data.packageVerificationUrl ?? null,
+          recordVerificationUrl: data.recordVerificationUrl ?? null,
           evidenceFileSha256: data.seal?.fileSha256 ?? null,
           timestampStateLabel: data.timestampValidation?.statusLabel ?? null,
           hasTimestampValidationRecord: Boolean(data.timestampValidation),

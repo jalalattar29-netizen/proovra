@@ -1,5 +1,6 @@
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "./db.js";
+import { resolveEvidenceOutputIssuance } from "./output-issuance.js";
 import {
   getPlanCapabilities,
   resolveEvidenceOutputEntitlements,
@@ -302,26 +303,26 @@ export async function getWorkspaceUsage(
   const evidenceWhere = scope.teamId
     ? {
         teamId: scope.teamId,
-        lifecycleState: { not: "DESTROYED" as const },
+        lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] },
       }
     : {
         ownerUserId: scope.ownerUserId,
         teamId: null,
-        lifecycleState: { not: "DESTROYED" as const },
+        lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] },
       };
 
   const reportWhere = scope.teamId
     ? {
         evidence: {
           teamId: scope.teamId,
-          lifecycleState: { not: "DESTROYED" as const },
+          lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] },
         },
       }
     : {
         evidence: {
           ownerUserId: scope.ownerUserId,
           teamId: null,
-          lifecycleState: { not: "DESTROYED" as const },
+          lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] },
         },
       };
 
@@ -329,14 +330,14 @@ export async function getWorkspaceUsage(
     ? {
         evidence: {
           teamId: scope.teamId,
-          lifecycleState: { not: "DESTROYED" as const },
+          lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] },
         },
       }
     : {
         evidence: {
           ownerUserId: scope.ownerUserId,
           teamId: null,
-          lifecycleState: { not: "DESTROYED" as const },
+          lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] },
         },
       };
 
@@ -510,12 +511,17 @@ export async function assertWorkspaceAllowsReportArtifact(params: {
   evidenceId?: string | null;
 }) {
   const scope = await resolveWorkspaceScopeForEvidence(params);
-  const outputs = resolveEvidenceOutputEntitlements({
-    plan: scope.plan,
-    funding: params.evidenceId
-      ? await resolveEvidenceFundingSource(params.evidenceId)
-      : "PLAN",
-  });
+  // FREE THREE-RECORD CONTRACT — a single record is answered by THE issuance
+  // decision (funding, the stored earned fact, lifecycle), exactly as the
+  // generation claim asked it; a plan-only answer here could refuse a record
+  // the claim had just entitled (or entitle a FREE record outside the three).
+  const outputs = params.evidenceId
+    ? await resolveEvidenceOutputIssuance({
+        id: params.evidenceId,
+        ownerUserId: params.ownerUserId,
+        teamId: params.teamId ?? null,
+      })
+    : resolveEvidenceOutputEntitlements({ plan: scope.plan, funding: "PLAN" });
 
   if (!outputs.reportsIncluded) {
     const err: Error & { statusCode?: number; code?: string } = new Error(
@@ -545,12 +551,17 @@ export async function assertWorkspaceAllowsVerificationPackageArtifact(params: {
   evidenceId?: string | null;
 }) {
   const scope = await resolveWorkspaceScopeForEvidence(params);
-  const outputs = resolveEvidenceOutputEntitlements({
-    plan: scope.plan,
-    funding: params.evidenceId
-      ? await resolveEvidenceFundingSource(params.evidenceId)
-      : "PLAN",
-  });
+  // FREE THREE-RECORD CONTRACT — a single record is answered by THE issuance
+  // decision (funding, the stored earned fact, lifecycle), exactly as the
+  // generation claim asked it; a plan-only answer here could refuse a record
+  // the claim had just entitled (or entitle a FREE record outside the three).
+  const outputs = params.evidenceId
+    ? await resolveEvidenceOutputIssuance({
+        id: params.evidenceId,
+        ownerUserId: params.ownerUserId,
+        teamId: params.teamId ?? null,
+      })
+    : resolveEvidenceOutputEntitlements({ plan: scope.plan, funding: "PLAN" });
 
   if (!outputs.verificationPackageIncluded) {
     const err: Error & { statusCode?: number; code?: string } = new Error(

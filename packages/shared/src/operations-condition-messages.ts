@@ -97,6 +97,8 @@ const PACKAGE_DENIAL_OUTCOMES = [
 type PackageDenialOutcome = (typeof PACKAGE_DENIAL_OUTCOMES)[number];
 
 const BLOCK_CAUSES = ["hold", "immutable"] as const;
+const RETENTION_UNVERIFIED_CAUSES = ["storage_unavailable", "metadata_missing", "metadata_inconsistent"] as const;
+const ARCHIVE_RESTORE_FAILURES = ["object_missing", "digest_mismatch", "artifact_invalid", "storage_unavailable"] as const;
 
 // ---------------------------------------------------------------------------
 // Shared phrase tables (per locale, never per client)
@@ -809,6 +811,72 @@ const CATALOGUE = {
   }),
 
   // ---- governance ---------------------------------------------------------
+  "ops.governance.retention_unverified": def({
+    params: { evidenceId: REF, cause: { kind: RETENTION_UNVERIFIED_CAUSES } },
+    en: (p) => ({
+      title: "Evidence retention could not be verified",
+      summary:
+        p.cause === "storage_unavailable"
+          ? "The stored versions of an evidence record could not be listed, so its retention could not be confirmed. The record is kept and will not be purged until storage answers completely."
+          : p.cause === "metadata_missing"
+            ? "A required stored version of an evidence record carries no retention date although Object Lock is enabled. The record is kept and will not be purged until this is investigated."
+            : "Storage reports a different retention for an evidence record than PROOVRA recorded. The record is kept and will not be purged until this is investigated.",
+    }),
+    de: (p) => ({
+      title: "Aufbewahrung eines Beweismittels nicht bestätigt",
+      summary:
+        p.cause === "storage_unavailable"
+          ? "Die gespeicherten Versionen eines Beweisdatensatzes konnten nicht aufgelistet werden, daher ist seine Aufbewahrung nicht bestätigt. Der Datensatz bleibt erhalten und wird nicht endgültig gelöscht, bis der Speicher vollständig antwortet."
+          : p.cause === "metadata_missing"
+            ? "Eine erforderliche gespeicherte Version eines Beweisdatensatzes hat trotz aktivem Object Lock kein Aufbewahrungsdatum. Der Datensatz bleibt erhalten und wird bis zur Klärung nicht endgültig gelöscht."
+            : "Der Speicher meldet für einen Beweisdatensatz eine andere Aufbewahrung, als PROOVRA erfasst hat. Der Datensatz bleibt erhalten und wird bis zur Klärung nicht endgültig gelöscht.",
+    }),
+    ar: (p) => ({
+      title: "تعذّر التحقق من الاحتفاظ بالدليل",
+      summary:
+        p.cause === "storage_unavailable"
+          ? "تعذّر سرد النسخ المخزّنة لسجل دليل، فلم يُتحقق من مدة الاحتفاظ به. يبقى السجل محفوظًا ولن يُحذف نهائيًا حتى يستجيب التخزين بالكامل."
+          : p.cause === "metadata_missing"
+            ? "نسخة مخزّنة مطلوبة من سجل دليل لا تحمل تاريخ احتفاظ رغم تفعيل قفل الكائنات. يبقى السجل محفوظًا ولن يُحذف نهائيًا حتى يُتحقق من ذلك."
+            : "يُبلغ التخزين عن مدة احتفاظ لسجل دليل تختلف عمّا سجّله PROOVRA. يبقى السجل محفوظًا ولن يُحذف نهائيًا حتى يُتحقق من ذلك.",
+    }),
+  }),
+  "ops.governance.archive_restore_failed": def({
+    params: { evidenceId: REF, failure: { kind: ARCHIVE_RESTORE_FAILURES } },
+    en: (p) => ({
+      title: "Archive restore failed verification",
+      summary:
+        p.failure === "object_missing"
+          ? "A record could not be restored from the retention archive because a required stored version is missing. It stays archived; nothing was activated."
+          : p.failure === "digest_mismatch"
+            ? "A record could not be restored from the retention archive because stored bytes did not match the recorded digest. It stays archived; nothing was activated."
+            : p.failure === "storage_unavailable"
+              ? "A record could not be restored from the retention archive because storage did not answer. It stays archived; the restore can be requested again."
+              : "A record could not be restored from the retention archive because its report, package or signature references did not check out. It stays archived; nothing was activated.",
+    }),
+    de: (p) => ({
+      title: "Wiederherstellung aus dem Archiv nicht verifiziert",
+      summary:
+        p.failure === "object_missing"
+          ? "Ein Datensatz konnte nicht aus dem Aufbewahrungsarchiv wiederhergestellt werden, weil eine erforderliche gespeicherte Version fehlt. Er bleibt archiviert; nichts wurde aktiviert."
+          : p.failure === "digest_mismatch"
+            ? "Ein Datensatz konnte nicht aus dem Aufbewahrungsarchiv wiederhergestellt werden, weil gespeicherte Bytes nicht dem erfassten Hashwert entsprachen. Er bleibt archiviert; nichts wurde aktiviert."
+            : p.failure === "storage_unavailable"
+              ? "Ein Datensatz konnte nicht aus dem Aufbewahrungsarchiv wiederhergestellt werden, weil der Speicher nicht antwortete. Er bleibt archiviert; die Wiederherstellung kann erneut angefordert werden."
+              : "Ein Datensatz konnte nicht aus dem Aufbewahrungsarchiv wiederhergestellt werden, weil Bericht, Paket oder Signaturverweise nicht stimmten. Er bleibt archiviert; nichts wurde aktiviert.",
+    }),
+    ar: (p) => ({
+      title: "فشل التحقق من الاستعادة من الأرشيف",
+      summary:
+        p.failure === "object_missing"
+          ? "تعذّرت استعادة سجل من أرشيف الاحتفاظ لأن نسخة مخزّنة مطلوبة مفقودة. يبقى مؤرشفًا ولم يُفعَّل شيء."
+          : p.failure === "digest_mismatch"
+            ? "تعذّرت استعادة سجل من أرشيف الاحتفاظ لأن البايتات المخزّنة لا تطابق البصمة المسجّلة. يبقى مؤرشفًا ولم يُفعَّل شيء."
+            : p.failure === "storage_unavailable"
+              ? "تعذّرت استعادة سجل من أرشيف الاحتفاظ لأن التخزين لم يستجب. يبقى مؤرشفًا ويمكن طلب الاستعادة مجددًا."
+              : "تعذّرت استعادة سجل من أرشيف الاحتفاظ لأن مراجع التقرير أو الحزمة أو التوقيع لم تتطابق. يبقى مؤرشفًا ولم يُفعَّل شيء.",
+    }),
+  }),
   "ops.governance.destruction_executed": def({
     // The review and evidence ids are technical references.
     params: { reviewId: REF, evidenceId: REF },
@@ -1399,6 +1467,8 @@ const DEPENDENT_CANCELLATION = ["billing.dependent_cancellation_failed"] as cons
 const GOVERNANCE_NOTICE = ["governance.notification_escalated"] as const;
 const REVIEW_ESCALATION = ["review.escalation"] as const;
 export const CONDITION_MESSAGE_SOURCES: Readonly<Record<ConditionMessageCode, readonly string[]>> = Object.freeze({
+  "ops.governance.retention_unverified": ["governance.retention_unverified"],
+  "ops.governance.archive_restore_failed": ["governance.archive_restore_failed"],
   "ops.identity.runtime_block": ["identity.runtime_block"],
   "ops.identity.high_risk_session_surge": ["identity.high_risk_session_surge"],
   "ops.identity.idp_outage": ["identity.idp_outage"],
@@ -1663,6 +1733,8 @@ const SOURCE_LABELS: Record<ConditionMessageLocale, Readonly<Record<string, stri
     "identity.runtime_block": "Sign-in blocked by runtime risk",
     "identity.high_risk_session_surge": "High-risk session surge",
     "governance.destruction_executed": "Evidence destruction executed",
+    "governance.retention_unverified": "Evidence retention could not be verified",
+    "governance.archive_restore_failed": "Archive restore failed verification",
     "governance.notification_escalated": "Governance notification escalated",
     "billing.provider_authorization": "Payment provider refused our credentials",
     "billing.dependent_cancellation_failed": "Storage add-on still billing after cancellation",
@@ -1708,6 +1780,8 @@ const SOURCE_LABELS: Record<ConditionMessageLocale, Readonly<Record<string, stri
     "identity.runtime_block": "Anmeldung durch Laufzeitrisiko gesperrt",
     "identity.high_risk_session_surge": "Anstieg risikoreicher Sitzungen",
     "governance.destruction_executed": "Vernichtung von Beweismitteln ausgeführt",
+    "governance.retention_unverified": "Aufbewahrung eines Beweismittels nicht bestätigt",
+    "governance.archive_restore_failed": "Wiederherstellung aus dem Archiv nicht verifiziert",
     "governance.notification_escalated": "Governance-Benachrichtigung eskaliert",
     "billing.provider_authorization": "Zahlungsanbieter hat unsere Zugangsdaten abgelehnt",
     "billing.dependent_cancellation_failed": "Speichererweiterung wird nach Kündigung weiter abgerechnet",
@@ -1753,6 +1827,8 @@ const SOURCE_LABELS: Record<ConditionMessageLocale, Readonly<Record<string, stri
     "identity.runtime_block": "حُظر تسجيل الدخول بسبب مخاطر وقت التشغيل",
     "identity.high_risk_session_surge": "ارتفاع في الجلسات عالية المخاطر",
     "governance.destruction_executed": "نُفّذ إتلاف الدليل",
+    "governance.retention_unverified": "تعذّر التحقق من الاحتفاظ بالدليل",
+    "governance.archive_restore_failed": "فشل التحقق من الاستعادة من الأرشيف",
     "governance.notification_escalated": "صُعّد إشعار حوكمة",
     "billing.provider_authorization": "رفض مزوّد الدفع بيانات الاعتماد الخاصة بنا",
     "billing.dependent_cancellation_failed": "إضافة التخزين ما زالت تُفوتر بعد الإلغاء",

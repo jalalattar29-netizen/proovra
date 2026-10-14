@@ -9,7 +9,6 @@ import {
 import { canonicalJson, sha256Hex } from "../crypto.js";
 import {
   outputEarnedFactFromDecision,
-  resolveEvidenceOutputEntitlements,
   type PlanType,
 } from "@proovra/shared-billing";
 import { getEvidenceSigner } from "../signing/signer.js";
@@ -21,7 +20,7 @@ import {
   resolveFinalizationIssuance,
   settleEvidenceCompletionFunding,
 } from "./billing-enforcement.service.js";
-import { resolveEvidenceFunding } from "./billing/evidence-credits.service.js";
+import { resolveEvidenceOutputEligibility } from "./billing/evidence-output-eligibility.service.js";
 import {
   applyDefaultObjectRetention,
   getObjectStream,
@@ -799,10 +798,15 @@ export async function completeEvidence(params: {
           // account's plan. A credit-funded record on a FREE account still
           // earns its report; asking `canPlanGenerateReports(FREE)` here
           // silently withheld the output the customer had paid for.
-          shouldEnqueueReport: resolveEvidenceOutputEntitlements({
-            plan: scope.plan,
-            funding: await resolveEvidenceFunding(evidence.id),
-          }).reportsIncluded,
+          // FREE THREE-RECORD CONTRACT — and the record's stored earned fact
+          // (a FREE_ALLOWANCE record included): the one issuance decision.
+          shouldEnqueueReport: (
+            await resolveEvidenceOutputEligibility({
+              evidenceId: evidence.id,
+              ownerUserId: evidence.ownerUserId,
+              teamId: evidence.teamId ?? null,
+            })
+          ).reportsIncluded,
           retentionTargets,
         };
       }

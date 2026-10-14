@@ -39,6 +39,28 @@ export const PERMISSIONS = [
   "evidence.download_original",
   "evidence.download_report",
   "evidence.download_package",
+  /*
+   * TRASH -> RETENTION ARCHIVE -> PURGE (owner decision 2026-10-14).
+   *
+   *   evidence.restore_from_trash   bring a TRASHED record back (90-day Trash)
+   *   evidence.archive.view         see the Retention Archive
+   *   evidence.archive.restore      request the verified archive restore
+   *   evidence.purge                SERVICE ONLY — held by no workspace role
+   *                                 (OWNER included); final purge is performed
+   *                                 by the canonical destruction executor once
+   *                                 every retention barrier has ended
+   *   evidence.verification.withdraw  withdraw / reinstate the canonical
+   *                                 verification page (legal, privacy or
+   *                                 security action; the identity is kept)
+   *
+   * Legal holds and retention policy keep their existing authorities:
+   * governance.legal_hold.manage and governance.retention.manage.
+   */
+  "evidence.restore_from_trash",
+  "evidence.archive.view",
+  "evidence.archive.restore",
+  "evidence.purge",
+  "evidence.verification.withdraw",
 
   // Workflow / templates / intake links
   "workflow.template.manage",
@@ -319,8 +341,11 @@ export function mapTeamRoleToCanonical(role: DbTeamRole): CanonicalRole {
 // here. Removing one requires audit (might break route enforcement).
 // -----------------------------------------------------------------------------
 
+/** Permissions no workspace role holds: performed by the platform's own services. */
+export const SERVICE_ONLY_PERMISSIONS: ReadonlyArray<Permission> = ["evidence.purge"];
+
 const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>>> = {
-  OWNER: [...PERMISSIONS],
+  OWNER: PERMISSIONS.filter((p) => !SERVICE_ONLY_PERMISSIONS.includes(p)),
 
   ADMIN: [
     "evidence.read",
@@ -328,6 +353,10 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "evidence.update_metadata",
     "evidence.delete",
     "evidence.archive",
+    "evidence.restore_from_trash",
+    "evidence.archive.view",
+    "evidence.archive.restore",
+    "evidence.verification.withdraw",
     "evidence.generate_report",
     "evidence.generate_package",
     "evidence.publish_verify",

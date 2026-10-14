@@ -63,7 +63,7 @@ const LABELS: Readonly<Record<string, string>> = {
   PUBLIC_VERIFY_SUSPENDED: "Public verification suspended",
   PUBLIC_VERIFY_RESTORED: "Public verification restored",
   RETENTION_CANDIDATE_IDENTIFIED: "Retention period ended (review required)",
-  RETENTION_ARCHIVED: "Archived at end of retention",
+  RETENTION_ARCHIVED: "Moved to the retention archive",
   REPORT_PDF_SIGNED: "Report PDF signed",
   REPORT_PDF_UNSIGNED_OPT_OUT: "Report PDF issued unsigned (workspace setting)",
   INTEGRITY_REJECTED_HASH_MISMATCH: "Integrity check failed (digest mismatch)",
@@ -82,6 +82,14 @@ const LABELS: Readonly<Record<string, string>> = {
   REDACTION_RECORDED: "Redaction step recorded",
   REVIEW_DECISION_RECORDED: "Review decision recorded",
   RETENTION_POLICY_APPLIED: "Retention policy applied",
+  ARCHIVE_RESTORE_REQUESTED: "Restore from retention archive requested",
+  ARCHIVE_RESTORE_STARTED: "Restore from retention archive started",
+  ARCHIVE_RESTORE_VERIFIED: "Archived record verified for restore",
+  ARCHIVE_RESTORE_COMPLETED: "Restored from retention archive",
+  ARCHIVE_RESTORE_FAILED: "Restore from retention archive failed verification",
+  VERIFICATION_REFERENCE_ISSUED: "Verification reference issued",
+  VERIFICATION_ACCESS_WITHDRAWN: "Verification page withdrawn",
+  VERIFICATION_ACCESS_REINSTATED: "Verification page reinstated",
 };
 
 /**

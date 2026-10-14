@@ -1490,6 +1490,65 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     // GOVERNANCE AND STORAGE — written by their own domains, at the moment.
     // =======================================================================
     {
+      // RETENTION ARCHIVE (owner decision 2026-10-14) — a record's storage
+      // retention could not be read completely and consistently (a listing
+      // failed, a required version carries no retain-until under Object Lock,
+      // or storage reports an earlier retain-until than PROOVRA recorded). The
+      // record is kept — nothing is purged — and an operator must establish
+      // the storage truth. Closure is that recorded investigation.
+      sourceId: "governance.retention_unverified",
+      category: "GOVERNANCE",
+      displayLabel: "Evidence retention could not be verified",
+      producers: ["services/worker/src/governance/trash-grace-reconciler.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [],
+      resolutionAuthority: "OPERATOR_DECISION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "OPERATOR_CLOSES",
+      recurrencePolicy: "NEW_CONDITION",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "GUIDANCE_ONLY",
+      requiredCapability: "governance.policy.read",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "EVENT",
+      observationModel: "EVENT",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
+      rationale:
+        "Storage retention truth was unreadable or contradictory, so the record was kept and not purged; only a recorded operator investigation of the stored versions closes it.",
+    },
+    {
+      // RETENTION ARCHIVE — a verified archive restore refused to reactivate a
+      // record because a required object version or digest did not check out.
+      // The record stays archived and nothing partial is activated.
+      sourceId: "governance.archive_restore_failed",
+      category: "GOVERNANCE",
+      displayLabel: "Archive restore failed verification",
+      producers: ["services/worker/src/governance/archive-restore.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [],
+      resolutionAuthority: "OPERATOR_DECISION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "OPERATOR_CLOSES",
+      recurrencePolicy: "NEW_CONDITION",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "GUIDANCE_ONLY",
+      requiredCapability: "governance.policy.read",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "EVENT",
+      observationModel: "EVENT",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
+      rationale:
+        "A restore that failed byte or artifact verification left the record archived; the stored versions must be investigated before another restore is requested.",
+    },
+    {
       sourceId: "governance.destruction_executed",
       category: "GOVERNANCE",
       displayLabel: "Evidence destruction executed",

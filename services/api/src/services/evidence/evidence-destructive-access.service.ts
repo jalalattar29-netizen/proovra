@@ -56,15 +56,23 @@ export type EvidenceDestructiveAccessResult =
 
 /**
  * Destructive façade over the general canonical wrapper
- * (`resolveEvidenceRecordAccess`) — narrows the permission to the two
- * destructive evidence capabilities. Same decision model, one source of
+ * (`resolveEvidenceRecordAccess`) — narrows the permission to the destructive and
+ * lifecycle-recovery evidence capabilities. Same decision model, one source of
  * truth for the logic.
  */
 export async function resolveEvidenceDestructiveAccess(
   input: {
     userId: string;
     evidenceId: string;
-    permission: Extract<Permission, "evidence.archive" | "evidence.delete">;
+    permission: Extract<
+      Permission,
+      | "evidence.archive"
+      | "evidence.delete"
+      | "evidence.restore_from_trash"
+      | "evidence.archive.view"
+      | "evidence.archive.restore"
+      | "evidence.verification.withdraw"
+    >;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<EvidenceDestructiveAccessResult> {

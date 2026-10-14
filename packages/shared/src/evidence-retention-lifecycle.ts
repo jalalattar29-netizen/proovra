@@ -54,7 +54,32 @@
  * on `EvidenceLifecycleState` in the schema and surfaced only to governance
  * users; they are NOT product states and are not returned here.
  */
-export type EvidenceProductState = "ACTIVE" | "ARCHIVED" | "TRASHED" | "DESTROYED";
+export type EvidenceProductState =
+  | "ACTIVE"
+  | "ARCHIVED"
+  | "TRASHED"
+  /**
+   * RETENTION ARCHIVE (owner decision 2026-10-14). The 90-day Trash has ended
+   * but a retention barrier still prevents final purge. Listed in Archived
+   * evidence, read-only, restorable only through the verified archive-restore
+   * workflow. Never "permanently deleted": the preserved versions still exist.
+   */
+  | "RETENTION_ARCHIVED"
+  | "DESTROYED";
+
+/**
+ * How trustworthy the caller's reading of STORAGE retention is. Object-version
+ * retain-until metadata read from storage is the authority; a database column
+ * is a cache. Anything other than VERIFIED fails closed: no purge.
+ *
+ *   VERIFIED      every required object version was listed and its retention
+ *                 read (Object Lock off by configuration counts: no barrier)
+ *   MISSING       a required version under Object Lock carries no retain-until
+ *   INCONSISTENT  storage reports an earlier retain-until than PROOVRA recorded,
+ *                 or a newer data version appeared that is not recorded
+ *   UNAVAILABLE   the listing or a read failed / was partial
+ */
+export type StorageRetentionTruth = "VERIFIED" | "MISSING" | "INCONSISTENT" | "UNAVAILABLE";
 
 /**
  * The reason a lifecycle capability is unavailable. Stable string literals —
@@ -74,7 +99,12 @@ export type EvidenceLifecycleBlockReason =
   // ET-SEC-06 — the canonical destruction executor holds a decided claim on the
   // record (PENDING_DESTRUCTION with a claim stamp). No other lifecycle change
   // may interleave: restore and destruction must never both succeed.
-  | "DESTRUCTION_IN_PROGRESS";
+  | "DESTRUCTION_IN_PROGRESS"
+  // RETENTION ARCHIVE — storage retention could not be read completely and
+  // consistently, so nothing may be purged (fail closed).
+  | "RETENTION_METADATA_UNVERIFIED"
+  // RETENTION ARCHIVE — an archive restore is in progress for this record.
+  | "ARCHIVE_RESTORE_IN_PROGRESS";
 
 /**
  * The subset of persisted Evidence columns + resolved verdicts the authority
@@ -104,6 +134,23 @@ export interface EvidenceRetentionLifecycleInput {
   objectLockRetainUntil?: Date | string | null;
   /** S3 Object Lock mode (`Evidence.storageObjectLockMode`) — GOVERNANCE|COMPLIANCE. */
   objectLockMode?: string | null;
+  /**
+   * RETENTION ARCHIVE — the latest retain-until across EVERY required stored
+   * object version (originals, parts, every report, every package, every
+   * derived artifact), as read from storage. When supplied it is the
+   * authoritative object-retention bound; a later-created artifact with a
+   * later retain-until therefore extends the boundary.
+   */
+  requiredObjectRetainUntil?: Date | string | null;
+  /**
+   * How complete and consistent that storage reading was. When supplied and
+   * not VERIFIED, destruction fails closed (RETENTION_METADATA_UNVERIFIED).
+   * Absent = the caller did not read storage (projection only, no purge
+   * decision is taken from it).
+   */
+  storageRetentionTruth?: StorageRetentionTruth | null;
+  /** RETENTION ARCHIVE — an archive restore request is open (REQUESTED/RUNNING). */
+  archiveRestoreInProgress?: boolean | null;
 
   /**
    * The EFFECTIVE legal-hold verdict the caller resolved from the union of
@@ -169,6 +216,7 @@ export function resolveEvidenceProductState(
   // `lifecycle_state` IS the product-state authority once the convergence
   // migration has run. A pointer that names a product state is taken verbatim.
   if (state === "TRASHED") return "TRASHED";
+  if (state === "RETENTION_ARCHIVED") return "RETENTION_ARCHIVED";
   if (state === "ARCHIVED") return "ARCHIVED";
 
   // ACTIVE is deliberately NOT taken verbatim, and the asymmetry is the
@@ -209,7 +257,10 @@ export function resolveEvidenceProductState(
 export function computeEffectiveRetentionUntil(
   input: EvidenceRetentionLifecycleInput,
 ): Date | null {
-  return maxDate(toDate(input.appRetentionUntil), toDate(input.objectLockRetainUntil));
+  return maxDate(
+    toDate(input.appRetentionUntil),
+    maxDate(toDate(input.objectLockRetainUntil), toDate(input.requiredObjectRetainUntil)),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -253,7 +304,13 @@ export function computeEvidenceDestructionEligibility(
 ): EvidenceDestructionEligibility {
   const trashGraceUntil = toDate(input.trashGraceUntil);
   const appRetentionUntil = toDate(input.appRetentionUntil);
-  const objectLockRetainUntil = toDate(input.objectLockRetainUntil);
+  // The recorded column and the storage reading are combined by MAX: a
+  // storage reading never shortens what PROOVRA recorded (an earlier reading
+  // than the record is INCONSISTENT and fails closed below).
+  const objectLockRetainUntil = maxDate(
+    toDate(input.objectLockRetainUntil),
+    toDate(input.requiredObjectRetainUntil),
+  );
   const effectiveRetentionUntil = computeEffectiveRetentionUntil(input);
   const legalHold = input.legalHold === true;
 
@@ -291,8 +348,13 @@ export function computeEvidenceDestructionEligibility(
   // requirement is the one that makes this route deliberate.
   const pendingDestruction =
     String(input.lifecycleState ?? "").toUpperCase() === "PENDING_DESTRUCTION";
-  if (state !== "TRASHED" && !pendingDestruction) {
+  // RETENTION ARCHIVE — a record that left the Trash for the archive becomes
+  // purge-eligible exactly when every barrier that put it there has ended.
+  if (state !== "TRASHED" && state !== "RETENTION_ARCHIVED" && !pendingDestruction) {
     return { ...base, eligible: false, blockReason: "NOT_TRASHED" };
+  }
+  if (input.archiveRestoreInProgress === true) {
+    return { ...base, eligible: false, blockReason: "ARCHIVE_RESTORE_IN_PROGRESS" };
   }
   // A permanent record lock is a hard, non-expiring block on destruction (it
   // also blocks trash upstream). Checked before the time boundaries because it
@@ -314,6 +376,10 @@ export function computeEvidenceDestructionEligibility(
   if (isFuture(objectLockRetainUntil, now)) {
     return { ...base, eligible: false, blockReason: "OBJECT_LOCK_RETENTION_ACTIVE" };
   }
+  // A partial, failed or inconsistent storage reading is never permission.
+  if (input.storageRetentionTruth != null && input.storageRetentionTruth !== "VERIFIED") {
+    return { ...base, eligible: false, blockReason: "RETENTION_METADATA_UNVERIFIED" };
+  }
   if (input.destructionApprovalRequired === true && input.destructionApproved !== true) {
     return { ...base, eligible: false, blockReason: "DESTRUCTION_APPROVAL_REQUIRED" };
   }
@@ -331,6 +397,8 @@ export interface EvidenceLifecycleCapabilities {
   canUnarchive: boolean;
   canTrash: boolean;
   canRestoreFromTrash: boolean;
+  /** RETENTION ARCHIVE — the verified archive restore may be requested. */
+  canRestoreFromArchive: boolean;
   canDestroy: boolean;
 
   /**
@@ -388,6 +456,7 @@ export function computeEvidenceLifecycleCapabilities(
   const active = productState === "ACTIVE";
   const archived = productState === "ARCHIVED";
   const trashed = productState === "TRASHED";
+  const inArchive = productState === "RETENTION_ARCHIVED";
   const destroyed = productState === "DESTROYED";
 
   // The trash verdict, computed once and reported both as a boolean and as a
@@ -404,7 +473,7 @@ export function computeEvidenceLifecycleCapabilities(
   // preserves the protection the pre-convergence code already had.
   const trashBlockReason: EvidenceLifecycleBlockReason | null = destroyed
     ? "TERMINAL_DESTROYED"
-    : trashed
+    : trashed || inArchive
       ? "ALREADY_IN_STATE"
       : locked
         ? "EVIDENCE_LOCKED"
@@ -432,7 +501,7 @@ export function computeEvidenceLifecycleCapabilities(
   // hold block trash while a retention deadline does not.
   const archiveBlockReason: EvidenceLifecycleBlockReason | null = destroyed
     ? "TERMINAL_DESTROYED"
-    : archived || trashed
+    : archived || trashed || inArchive
       ? "ALREADY_IN_STATE"
       : locked
         ? "EVIDENCE_LOCKED"
@@ -452,6 +521,7 @@ export function computeEvidenceLifecycleCapabilities(
     // or a terminal state.
     canTrash: (active || archived) && trashBlockReason === null,
     canRestoreFromTrash: trashed && !locked,
+    canRestoreFromArchive: inArchive && !locked && input.archiveRestoreInProgress !== true,
     canDestroy: elig.eligible,
     trashBlockReason,
     archiveBlockReason,
@@ -476,6 +546,72 @@ export interface DestructionCandidateEvaluation extends EvidenceDestructionEligi
   productState: EvidenceProductState;
   /** True when the trash grace window has elapsed (the worker's scan trigger). */
   trashGraceExpired: boolean;
+}
+
+/**
+ * RETENTION ARCHIVE — what happens to a TRASHED record when its 90-day Trash
+ * ends (owner decision 2026-10-14). Pure; the reconciler supplies the storage
+ * reading and the hold verdict.
+ *
+ *   STAY_IN_TRASH       the Trash period has not ended (or the record is not
+ *                       TRASHED)
+ *   RETENTION_ARCHIVE   at least one barrier remains: a legal hold, app or
+ *                       contractual retention, an unexpired retain-until on any
+ *                       required object version, a permanent lock — or a
+ *                       storage reading that is not VERIFIED (fail closed: the
+ *                       record stays recoverable, nothing is deleted)
+ *   PURGE_ELIGIBLE      every barrier has ended; the canonical purge path may
+ *                       take it (it re-checks everything under its lease)
+ */
+export type TrashExitDecision = "STAY_IN_TRASH" | "RETENTION_ARCHIVE" | "PURGE_ELIGIBLE";
+
+export interface TrashExitEvaluation {
+  decision: TrashExitDecision;
+  /** max(trash end, required retain-until, app retention) — the earliest possible purge. */
+  purgeEligibleAt: Date | null;
+  /** The barrier that keeps the record, for RETENTION_ARCHIVE. */
+  barrier:
+    | "LEGAL_HOLD"
+    | "APP_RETENTION"
+    | "OBJECT_RETENTION"
+    | "EVIDENCE_LOCKED"
+    | "METADATA_MISSING"
+    | "METADATA_INCONSISTENT"
+    | "STORAGE_UNAVAILABLE"
+    | null;
+}
+
+export function evaluateTrashExit(
+  input: EvidenceRetentionLifecycleInput,
+  now: Date,
+): TrashExitEvaluation {
+  const state = resolveEvidenceProductState(input);
+  const trashGraceUntil = toDate(input.trashGraceUntil);
+  const elig = computeEvidenceDestructionEligibility(input, now);
+  const purgeEligibleAt = elig.destructionEligibleAt;
+  if (state !== "TRASHED" || trashGraceUntil === null || isFuture(trashGraceUntil, now)) {
+    return { decision: "STAY_IN_TRASH", purgeEligibleAt, barrier: null };
+  }
+  const truth = input.storageRetentionTruth ?? "UNAVAILABLE";
+  const barrier: TrashExitEvaluation["barrier"] =
+    toDate(input.lockedAt) !== null
+      ? "EVIDENCE_LOCKED"
+      : input.legalHold === true
+        ? "LEGAL_HOLD"
+        : truth === "UNAVAILABLE"
+          ? "STORAGE_UNAVAILABLE"
+          : truth === "MISSING"
+            ? "METADATA_MISSING"
+            : truth === "INCONSISTENT"
+              ? "METADATA_INCONSISTENT"
+              : isFuture(toDate(input.appRetentionUntil), now)
+                ? "APP_RETENTION"
+                : isFuture(elig.objectLockRetainUntil, now)
+                  ? "OBJECT_RETENTION"
+                  : null;
+  return barrier === null
+    ? { decision: "PURGE_ELIGIBLE", purgeEligibleAt, barrier: null }
+    : { decision: "RETENTION_ARCHIVE", purgeEligibleAt, barrier };
 }
 
 export function evaluateDestructionCandidate(
@@ -518,6 +654,7 @@ export interface EvidenceLifecycleProjection {
   canUnarchive: boolean;
   canTrash: boolean;
   canRestoreFromTrash: boolean;
+  canRestoreFromArchive: boolean;
 
   /** Why trash is unavailable, or null. NEVER a retention deadline. */
   trashBlockReason: EvidenceLifecycleBlockReason | null;
@@ -560,6 +697,7 @@ export function toEvidenceLifecycleProjection(
     canUnarchive: caps.canUnarchive,
     canTrash: caps.canTrash,
     canRestoreFromTrash: caps.canRestoreFromTrash,
+    canRestoreFromArchive: caps.canRestoreFromArchive,
     trashBlockReason: caps.trashBlockReason,
     archiveBlockReason: caps.archiveBlockReason,
     trashGraceUntilUtc: iso(caps.trashGraceUntil),

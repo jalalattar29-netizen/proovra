@@ -1105,6 +1105,25 @@ async function runTrashGraceReconcilerTick() {
     trashGraceReconcilerRunning = false;
   }
 }
+// RETENTION ARCHIVE RESTORE (owner decision 2026-10-14) — part of the same
+// lifecycle sweep. The request row is the durable outbox (claimed under a
+// lease, resumable after a restart), so no queue is involved; it only runs on
+// a tighter tick than the trash boundary because a person is waiting for it.
+const archiveRestoreIntervalMs = envNumber("ARCHIVE_RESTORE_INTERVAL_MS", 60 * 1000);
+let archiveRestoreTimer: ReturnType<typeof setInterval> | null = null;
+let archiveRestoreRunning = false;
+async function runArchiveRestoreTick() {
+  if (archiveRestoreRunning) return;
+  archiveRestoreRunning = true;
+  try {
+    const { processArchiveRestoreRequests } = await import("./governance/archive-restore.js");
+    await withCronLock("archive-restore", () => processArchiveRestoreRequests());
+  } catch (err) {
+    logger.error({ err }, "archive_restore.sweep.failed");
+  } finally {
+    archiveRestoreRunning = false;
+  }
+}
 function startTrashGraceReconcilerScheduler() {
   if (!trashGraceReconcilerEnabled) {
     logger.info({}, "trash_grace.reconciler.scheduler.disabled");
@@ -1114,6 +1133,10 @@ function startTrashGraceReconcilerScheduler() {
     void runTrashGraceReconcilerTick();
   }, trashGraceReconcilerIntervalMs);
   trashGraceReconcilerTimer.unref?.();
+  archiveRestoreTimer = setInterval(() => {
+    void runArchiveRestoreTick();
+  }, archiveRestoreIntervalMs);
+  archiveRestoreTimer.unref?.();
   logger.info(
     {
       intervalMs: trashGraceReconcilerIntervalMs,
@@ -1124,6 +1147,7 @@ function startTrashGraceReconcilerScheduler() {
 }
 // ET-Q-06: started by openConsumers() after the bootstrap chain.
 void trashGraceReconcilerTimer;
+void archiveRestoreTimer;
 
 // ===========================================================================
 // PHASE 12 — POINT 5: stranded-work reconcilers for the projection and

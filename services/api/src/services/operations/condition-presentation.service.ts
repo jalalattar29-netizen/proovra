@@ -151,6 +151,10 @@ export function conditionSubjectFor(row: RowLike, sourceId: string, message: Con
       return subject("VERIFICATION_PACKAGE", { reference: recordRef, version });
     case "storage.immutable_drift":
       return subject("EVIDENCE", { reference: typeof p.evidenceRef === "string" ? p.evidenceRef : recordRef });
+    case "governance.retention_unverified":
+    case "governance.archive_restore_failed":
+      // The record is kept (archived or retained) and named by reference.
+      return subject("EVIDENCE", { reference: recordRef });
     case "governance.destruction_executed":
       // The record was destroyed: truthfully gone, and never linked.
       return subject("EVIDENCE", { reference: recordRef, state: "UNAVAILABLE" });
