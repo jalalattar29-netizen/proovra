@@ -241,9 +241,10 @@ test.describe("Journey A — report failure to recovery, through Operations", ()
     const drawer = page.locator(`[data-ops-inspector="${incidentId}"]`);
     await expect(drawer).toBeVisible({ timeout: 30_000 });
     await expect(drawer).toContainText(`Report v1 stopped after its retry budget was exhausted — record ${evidenceId.slice(0, 8)}`);
-    // The affected resource is the exact record, and it opens that record.
+    // The affected resource is the exact record's report — named by the
+    // server-confirmed subject (2026-10-14) — and it opens that record.
     const affected = drawer.locator("[data-ops-affected-link]");
-    await expect(affected).toHaveText(`Evidence record ${evidenceId.slice(0, 8)}`);
+    await expect(affected).toHaveText(`Report: version 1 — record ${evidenceId.slice(0, 8)}`);
     await expect(affected).toHaveAttribute("href", `/evidence/${evidenceId}`);
     await expect(drawer.locator("[data-ops-status]")).toHaveAttribute("data-ops-status", "OPEN");
 
