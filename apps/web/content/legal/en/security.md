@@ -1,6 +1,6 @@
 # Security and Responsible Disclosure Policy
 
-Last Updated: 2026-06-23
+Last Updated: 2026-10-15
 
 PROOVRA is designed for trust-sensitive workflows involving digital evidence preservation, integrity verification, custody recording, and controlled review. This page describes PROOVRA's security posture at a practical level and explains how researchers can responsibly report vulnerabilities affecting the platform.
 
@@ -51,7 +51,7 @@ Data-protection measures may include, as appropriate:
 
 - TLS / encryption in transit on supported channels
 - server-side encryption at rest where supported by the storage provider and the deployment configuration
-- object-storage controls (including immutability or Object Lock) where configured by the customer or deployment
+- S3 Object Lock in COMPLIANCE mode for ordinary evidence originals, for a minimum of 2,920 days (eight years) from sealing; the minimum cannot be shortened and legal hold blocks purge
 - protection of secrets and tokens via secret-management controls
 - environment-appropriate handling of sensitive material
 

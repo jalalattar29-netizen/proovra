@@ -1,6 +1,6 @@
 # Technical and Organizational Measures (TOMs)
 
-Last Updated: 2026-06-23
+Last Updated: 2026-10-15
 
 This page summarizes the technical and organizational measures PROOVRA may implement to protect personal data, support service availability, and preserve evidence-integrity functions. The measures below describe the platform's intended design; specific configuration may depend on customer choice, plan capabilities, and deployment configuration. Wording such as "where configured", "where enabled", "where supported by the provider", and "where deployed" reflects that not every measure is active in every environment.
 
@@ -50,7 +50,7 @@ Measures may include, as appropriate:
 
 - encryption in transit (TLS) on supported channels
 - server-side encryption at rest where supported by the storage provider
-- Object Lock / immutable storage controls where configured by the customer
+- S3 Object Lock in COMPLIANCE mode for ordinary evidence originals, for a minimum of 2,920 days (eight years) from sealing; the minimum cannot be shortened and legal hold blocks purge
 - protection of secrets and tokens via secret-management controls
 
 ## 6. EVIDENCE-INTEGRITY CONTROLS

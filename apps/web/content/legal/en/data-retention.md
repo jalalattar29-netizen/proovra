@@ -1,6 +1,6 @@
 # Data Retention Policy
 
-Last Updated: 2026-06-23
+Last Updated: 2026-10-15
 
 This Data Retention Policy explains how PROOVRA approaches retention of account data, uploaded materials, technical logs, billing data, audit material, and evidence-related verification artifacts.
 
@@ -32,7 +32,7 @@ The matrix below describes retention basis, normal retention, and extension cond
 | Support requests and communications | Contract performance; legitimate interests | Retention period sufficient to support resolution and reasonable follow-up | Pending dispute; legal hold |
 | Privacy requests and data-subject communications | Legal obligation (demonstration of GDPR compliance) | Retention sufficient to demonstrate handling of the request, normally a defined number of years | Pending complaint or regulatory inquiry |
 | Billing and transaction records | Legal obligation (accounting, tax) | Period required by applicable accounting and tax law (commonly several years) | Pending audit; pending tax authority review |
-| Evidence content (files uploaded or captured into a customer workspace) | Customer instruction (processor role); contract performance | Per customer-configured retention; until workspace deletion; until customer-controlled lifecycle action | Customer-applied legal hold; preservation request; integrity-record dependency (see Section 4) |
+| Evidence content (files uploaded or captured into a customer workspace) | Customer instruction (processor role); contract performance | Sealed evidence originals: a minimum of 2,920 days (eight years) from sealing, under S3 Object Lock in COMPLIANCE mode; this minimum cannot be shortened. Content that was never sealed follows customer-controlled lifecycle actions | Longer contractual or workspace retention; customer-applied legal hold (blocks purge while active); preservation request; integrity-record dependency (see Section 4) |
 | Custody records (Chain of Custody events, hash-chained logs) | Service operation; evidence integrity | Retained for the lifetime of the underlying evidence record, and may be retained separately to preserve auditability of records already shared externally | Legal hold; record already shared externally via Public Verification URL or Verification Package |
 | Digital signatures and signing-key references | Service operation; evidence integrity | Retained for the lifetime of the integrity record; signing-key material retained under key-management controls | Cryptographic-rotation events; security incident; legal hold |
 | Verification Reports | Service operation; evidence integrity | Retained for the lifetime of the underlying record and any external reviewer dependency | Record already shared externally; legal hold |
@@ -83,7 +83,9 @@ PROOVRA may rely on these obligations as a lawful basis for retention beyond the
 
 ## 6. CUSTOMER-CONFIGURED RETENTION
 
-Customers may configure retention controls within their workspace where the relevant feature is available on the plan. Customer-configured retention controls do not override PROOVRA's own retention obligations under applicable law or under this policy.
+Customers may configure retention controls within their workspace where the relevant feature is available on the plan. Customer-configured retention controls do not override PROOVRA's own retention obligations under applicable law or under this policy, and they can only extend — never shorten — the minimum retention of sealed evidence originals.
+
+Ordinary evidence originals are retained under S3 Object Lock in COMPLIANCE mode for a minimum of 2,920 days (eight years) from sealing (finalization). This minimum cannot be shortened by any customer setting, plan, or administrator, including PROOVRA; a longer contractual or workspace retention extends it. Records under legal hold are not purged while the hold is active.
 
 ## 7. SUBPROCESSOR RETENTION
 
