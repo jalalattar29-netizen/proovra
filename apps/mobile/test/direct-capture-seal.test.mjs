@@ -152,14 +152,13 @@ test("every surface that seals a direct capture goes through the rule", () => {
   // released on failure, and the other two are why this file exists.
   const read = (rel) => readFileSync(resolve(HERE, rel), "utf8");
 
-  const sealers = [["../src/screen-capture.ts", "UC-2 screen capture"]];
-  for (const [file, what] of sealers) {
-    assert.match(
-      read(file),
-      /sealDirectCapture\(/,
-      `${what} seals a direct session without going through sealDirectCapture`,
-    );
-  }
+  // UC-2 (AUD-005, 2026-10-15): a screen staging KEEPS its session on a
+  // RETRYABLE failure (network, timeout, 5xx) so the only copy of the frames is
+  // not destroyed by one dropped connection, and RELEASES it through the
+  // primitive on a terminal refusal — the rule, split by the one classifier.
+  const screen = read("../src/screen-capture.ts");
+  assert.match(screen, /if \(classifyCaptureError\(err\) === "RETRYABLE"\) \{\s*\/\/[^\n]*\n\s*throw new ScreenStagingError\(err, true, state\);/);
+  assert.match(screen, /if \(state\.session\) await discardDirectCaptureSession\(state\.session\)\.catch\(\(\) => undefined\);\s*await discardScreenCaptureFiles\(state\.result\);\s*throw new ScreenStagingError\(err, false, null\);/);
   // UC-3/UC-5 (UC-STR-001 / UC-STR-004, 2026-09-30): a continuous recording's
   // segments are uploaded and verified WHILE it records, so a staging failure
   // KEEPS the session (retry) instead of releasing every verified segment —

@@ -33,7 +33,11 @@ const RESULT = {
 };
 
 before(async () => {
-  M = await loadModule("app/(stack)/screen-capture.tsx", ["test/support/providers.tsx", "test/support/expo-stub.mjs"]);
+  M = await loadModule("app/(stack)/screen-capture.tsx", [
+    "test/support/providers.tsx",
+    "test/support/expo-stub.mjs",
+    "src/capture/screen-staging-store.ts",
+  ]);
 });
 
 const mounted = [];
@@ -130,7 +134,7 @@ test("UC-AND-010: Discard deletes the captured screenshots from the device", asy
   assert.deepEqual(globalThis.__DELETED__.sort(), FRAMES.map((f) => f.uri).sort());
 });
 
-test("UC-AND-010: staging deletes each screenshot after its upload, and the manifest file", async () => {
+test("UC-AND-010 / AUD-005: once staged and committed, every screenshot and the manifest file are deleted", async () => {
   const r = await render();
   await r.press("Start Screen Capture");
   await settle();
@@ -140,4 +144,90 @@ test("UC-AND-010: staging deletes each screenshot after its upload, and the mani
   await settle();
   for (const f of FRAMES) assert.ok(globalThis.__DELETED__.includes(f.uri), `${f.uri} was left on the device`);
   assert.ok(globalThis.__DELETED__.some((u) => u.includes("proovra-screen-manifest-cs-1.json")), "the manifest file was left");
+});
+
+/* ---------------------------------------------------------------- AUD-005 -- */
+
+test("AUD-005: a network failure keeps the frames and offers Retry; Retry stages them into the same session", async () => {
+  let declarationsDown = true;
+  const base = routes["/v1/capture/direct-sessions"];
+  let opens = 0;
+  routes["/v1/capture/direct-sessions"] = (path, init) => {
+    if (path.includes("/declaration") && declarationsDown) return undefined; // 500: retryable
+    if (path === "/v1/capture/direct-sessions") opens += 1;
+    return base(path, init);
+  };
+  const r = await render();
+  await r.press("Start Screen Capture");
+  await settle();
+  await r.press("Stop & Review");
+  await settle();
+  await r.press("Add to capture session");
+  // Bounded retries with backoff (1 s + 2 s + 4 s), then the staging is kept.
+  for (let i = 0; i < 90 && !r.hasText("Retry upload"); i += 1) {
+    await act(async () => { await new Promise((x) => setTimeout(x, 100)); });
+  }
+  assert.ok(r.hasText("Retry upload"), "Retry is offered");
+  assert.ok(r.texts().some((t) => t.includes("Your frames are kept on this device")));
+  assert.deepEqual(globalThis.__DELETED__.filter((u) => u.endsWith(".png")), [], "no frame was deleted");
+
+  declarationsDown = false;
+  await r.press("Retry upload");
+  await settle();
+  assert.equal(opens, 1, "Retry resumed the same session");
+  for (const f of FRAMES) assert.ok(globalThis.__DELETED__.includes(f.uri), "committed: now the frames go");
+  assert.equal(await M.loadPendingScreenStaging(), null, "the staging record is cleared");
+});
+
+test("AUD-005: a staging kept before an app restart is offered again and resumes", async () => {
+  // The signed-in user's staging, written by an earlier run of the app.
+  const before = await render();
+  await act(async () => before.renderer.unmount());
+  mounted.splice(mounted.indexOf(before), 1);
+  await M.savePendingScreenStaging({
+    result: RESULT,
+    teamId: null,
+    session: { captureSessionId: "cs-1", expiresAtUtc: "2026-09-30T11:00:00.000Z" },
+    evidenceId: "ev-1",
+    declared: [],
+    manifest: null,
+    updatedAtIso: "2026-09-30T10:00:03.000Z",
+  });
+  const opened = [];
+  const base = routes["/v1/capture/direct-sessions"];
+  routes["/v1/capture/direct-sessions"] = (path, init) => {
+    if (path === "/v1/capture/direct-sessions") opened.push(path);
+    return base(path, init);
+  };
+  const r = await render();
+  assert.ok(r.hasText("Retry upload"));
+  assert.ok(r.texts().some((t) => t.includes("has not finished uploading")));
+  await r.press("Retry upload");
+  await settle();
+  assert.deepEqual(opened, [], "the persisted session is reused");
+  assert.ok(FRAMES.every((f) => globalThis.__DELETED__.includes(f.uri)));
+});
+
+test("AUD-005: Discard of a kept staging releases its session and deletes its frames", async () => {
+  // The signed-in user's staging, written by an earlier run of the app.
+  const before = await render();
+  await act(async () => before.renderer.unmount());
+  mounted.splice(mounted.indexOf(before), 1);
+  await M.savePendingScreenStaging({
+    result: RESULT, teamId: null,
+    session: { captureSessionId: "cs-1", expiresAtUtc: "2026-09-30T11:00:00.000Z" },
+    evidenceId: "ev-1", declared: [], manifest: null, updatedAtIso: "2026-09-30T10:00:03.000Z",
+  });
+  const discarded = [];
+  const base = routes["/v1/capture/direct-sessions"];
+  routes["/v1/capture/direct-sessions"] = (path, init) => {
+    if (path.endsWith("/discard")) { discarded.push(path); return { result: { discarded: true } }; }
+    return base(path, init);
+  };
+  const r = await render();
+  await r.press("Discard");
+  await settle();
+  assert.deepEqual(discarded, ["/v1/capture/direct-sessions/cs-1/discard"]);
+  assert.ok(FRAMES.every((f) => globalThis.__DELETED__.includes(f.uri)));
+  assert.equal(await M.loadPendingScreenStaging(), null);
 });

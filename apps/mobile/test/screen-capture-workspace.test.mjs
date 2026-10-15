@@ -97,7 +97,8 @@ test("UC-3 / UC-5: a continuous capture opens its session in the active workspac
 
 test("both screens pass the platform context's active workspace", () => {
   for (const [screenFile, call] of [
-    ["../app/(stack)/screen-capture.tsx", "stageScreenCapture(result, { teamId })"],
+    // AUD-005 — a resumed staging keeps the workspace it was started in.
+    ["../app/(stack)/screen-capture.tsx", "teamId: resume ? resume.teamId : teamId,"],
     ["../app/(stack)/continuous-capture.tsx", "beginContinuousSession({ teamId })"],
   ]) {
     const src = readFileSync(resolve(HERE, screenFile), "utf8");

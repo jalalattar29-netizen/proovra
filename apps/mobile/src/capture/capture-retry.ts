@@ -145,3 +145,18 @@ export async function retryCapture<T>(work: (attempt: number) => Promise<T>, pol
   }
   throw lastErr instanceof Error ? lastErr : new Error("capture upload failed");
 }
+
+/** Server refusals that mean the SESSION is gone (expired, reaped, discarded). */
+const SESSION_GONE_CODES = new Set([
+  "SESSION_EXPIRED",
+  "SESSION_NOT_ACTIVE",
+  "SESSION_NOT_FOUND",
+  "SESSION_NOT_RESERVED",
+  "EVIDENCE_NOT_OPEN",
+]);
+
+/** PURE — the server closed the session the upload belongs to. */
+export function isSessionGone(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  return typeof code === "string" && SESSION_GONE_CODES.has(code);
+}

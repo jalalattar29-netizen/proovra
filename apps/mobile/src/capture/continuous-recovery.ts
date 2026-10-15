@@ -34,7 +34,7 @@
  */
 import type { DeclaredSegment } from "../continuous-manifest";
 import type { DirectCaptureSession } from "../direct-capture";
-import { classifyCaptureError } from "./capture-retry";
+import { classifyCaptureError, isSessionGone } from "./capture-retry";
 
 /** Structural copies of the native binding's types (kept free of React Native for node tests). */
 export type RecoverySegment = {
@@ -161,21 +161,6 @@ export function planContinuousRecovery(
     clientLimitations: live?.clientLimitations ?? [],
     stagedManifest: live?.stagedManifest ?? null,
   };
-}
-
-/** Server refusals that mean the SESSION is gone (expired, reaped, discarded). */
-const SESSION_GONE_CODES = new Set([
-  "SESSION_EXPIRED",
-  "SESSION_NOT_ACTIVE",
-  "SESSION_NOT_FOUND",
-  "SESSION_NOT_RESERVED",
-  "EVIDENCE_NOT_OPEN",
-]);
-
-/** PURE — the server closed the session this recording is bound to. */
-export function isSessionGone(err: unknown): boolean {
-  const code = (err as { code?: unknown } | null)?.code;
-  return typeof code === "string" && SESSION_GONE_CODES.has(code);
 }
 
 export type StagedRecovery = {
