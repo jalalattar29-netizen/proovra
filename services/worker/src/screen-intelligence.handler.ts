@@ -33,7 +33,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import type { OcrExtractResult, ScreenOcrStatus } from "@proovra/shared";
+import type { OcrExtractResult, ScreenOcrLanguages, ScreenOcrStatus } from "@proovra/shared";
 import {
   captureSessionAcquisitionComplete,
   parseScreenReconstructionGeneration,
@@ -49,10 +49,11 @@ import {
   createTesseractOcrProvider,
   TESSERACT_PAGE_SEGMENTATION_MODE,
 } from "./tesseract-ocr-provider.js";
-import { detectTesseractCapability } from "./tesseract-capability.js";
-
-/** Bilingual by default — the worker image installs eng + ara language packs. */
-const OCR_LANG = process.env.UC4_OCR_LANG?.trim() || "eng+ara";
+import {
+  detectTesseractCapability,
+  requestedOcrLanguages,
+  resolveOcrLanguages,
+} from "./tesseract-capability.js";
 
 type ScreenJobInput = {
   jobId: string | undefined;
@@ -192,12 +193,22 @@ export async function processReconstructScreenJob(
   // missing engine is RUNTIME_UNAVAILABLE, never "disabled by policy".
   const ocrAllowed = await mi.resolveWorkspaceOcrAllowed(teamId, prisma);
   const tesseractCap = ocrAllowed ? await detectTesseractCapability() : null;
+  // AUD-019 — requested ∩ installed. No installed requested model means OCR
+  // cannot run: RUNTIME_UNAVAILABLE with the missing models recorded, which
+  // the shared assessment reports as LANGUAGE_UNAVAILABLE (not "engine").
+  const ocrLanguages: ScreenOcrLanguages | null = tesseractCap?.ok
+    ? // The PROOVRA locales by default (the image installs eng + ara + deu).
+      resolveOcrLanguages(requestedOcrLanguages(), tesseractCap.languages)
+    : null;
   const ocrStatus: ScreenOcrStatus = !ocrAllowed
     ? "DISABLED_BY_POLICY"
-    : tesseractCap?.ok
+    : tesseractCap?.ok && ocrLanguages?.effective
       ? "ENABLED"
       : "RUNTIME_UNAVAILABLE";
-  const ocrProvider = ocrStatus === "ENABLED" ? await createTesseractOcrProvider(OCR_LANG) : null;
+  const ocrProvider =
+    ocrStatus === "ENABLED" && ocrLanguages?.effective
+      ? await createTesseractOcrProvider(ocrLanguages.effective)
+      : null;
   const tesseractVersion = tesseractCap?.ok ? tesseractCap.version ?? null : null;
   const ffmpegVersion = await getFfmpegVersion();
 
@@ -243,7 +254,8 @@ export async function processReconstructScreenJob(
           local: true,
           enabled: ocrStatus === "ENABLED",
           status: ocrStatus,
-          language: ocrStatus === "ENABLED" ? OCR_LANG : null,
+          language: ocrStatus === "ENABLED" ? ocrLanguages?.effective ?? null : null,
+          languages: ocrLanguages ?? undefined,
           parameters: ocrStatus === "ENABLED" ? { psm: TESSERACT_PAGE_SEGMENTATION_MODE } : undefined,
           extractFromBytes: async (bytes: Buffer): Promise<OcrExtractResult> => {
             if (!ocrProvider) return { regions: [] };

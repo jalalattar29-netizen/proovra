@@ -78,8 +78,14 @@ vi.mock("../src/ffmpeg-derived-assets.js", async (orig) => ({
   })),
 }));
 
-vi.mock("../src/tesseract-capability.js", () => ({
-  detectTesseractCapability: vi.fn(async () => ({ ok: true, tesseractPath: "tesseract", version: "5.3.4" })),
+vi.mock("../src/tesseract-capability.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/tesseract-capability.js")>()),
+  detectTesseractCapability: vi.fn(async () => ({
+    ok: true,
+    tesseractPath: "tesseract",
+    version: "5.3.4",
+    languages: ["ara", "deu", "eng", "osd"],
+  })),
 }));
 
 vi.mock("../src/tesseract-ocr-provider.js", () => ({

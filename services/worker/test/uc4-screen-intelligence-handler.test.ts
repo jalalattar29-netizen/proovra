@@ -29,8 +29,8 @@ const state = vi.hoisted(() => ({
   eligibility: { eligible: true } as { eligible: boolean; reason?: string },
   claim: { ok: true, fence: 1 } as { ok: true; fence: number } | { ok: false; reason: string },
   ocrAllowed: true,
-  tesseract: { ok: true, tesseractPath: "tesseract", version: "5.3.4" } as
-    | { ok: true; tesseractPath: string; version: string | null }
+  tesseract: { ok: true, tesseractPath: "tesseract", version: "5.3.4", languages: ["ara", "deu", "eng", "osd"] } as
+    | { ok: true; tesseractPath: string; version: string | null; languages: string[] }
     | { ok: false; reason: string },
   objects: new Map<string, Buffer>(),
   streamCalls: [] as Array<{ bucket: string; key: string; versionId?: string | null }>,
@@ -88,7 +88,9 @@ vi.mock("../src/queue.js", () => ({
   enqueueSearchIndexingJob: vi.fn(async () => ({ enqueued: true })),
 }));
 
-vi.mock("../src/tesseract-capability.js", () => ({
+vi.mock("../src/tesseract-capability.js", async (importOriginal) => ({
+  // The pure language resolution is REAL; only the binary probe is faked.
+  ...(await importOriginal<typeof import("../src/tesseract-capability.js")>()),
   detectTesseractCapability: vi.fn(async () => state.tesseract),
 }));
 
@@ -174,7 +176,7 @@ beforeEach(() => {
   state.eligibility = { eligible: true };
   state.claim = { ok: true, fence: 1 };
   state.ocrAllowed = true;
-  state.tesseract = { ok: true, tesseractPath: "tesseract", version: "5.3.4" };
+  state.tesseract = { ok: true, tesseractPath: "tesseract", version: "5.3.4", languages: ["ara", "deu", "eng", "osd"] };
   state.objects = new Map([["b::originals/seg-0", Buffer.alloc(40, 1)]]);
   state.streamCalls = [];
   state.orchestratorCalls = [];
@@ -253,6 +255,39 @@ describe("processReconstructScreenJob — DER-008 OCR status", () => {
     expect(ocr.enabled).toBe(true);
     expect(ocr.language).toBeTruthy();
     expect(ocr.parameters).toEqual({ psm: 6 });
+  });
+});
+
+describe("processReconstructScreenJob — AUD-019 OCR languages: requested ∩ installed", () => {
+  it("all three locale models installed → OCR runs with deu+eng+ara and records exactly that", async () => {
+    await job();
+    const ocr = state.orchestratorCalls[0]!.deps.ocr;
+    expect(ocr.status).toBe("ENABLED");
+    expect(ocr.language).toBe("deu+eng+ara");
+    expect(ocr.languages).toEqual({ requested: "deu+eng+ara", effective: "deu+eng+ara", missing: [] });
+    const { createTesseractOcrProvider } = await import("../src/tesseract-ocr-provider.js");
+    expect(vi.mocked(createTesseractOcrProvider)).toHaveBeenLastCalledWith("deu+eng+ara");
+  });
+
+  it("a missing model is never run or recorded: OCR runs with the installed subset and names the gap", async () => {
+    state.tesseract = { ok: true, tesseractPath: "tesseract", version: "5.3.4", languages: ["eng", "osd"] };
+    await job();
+    const ocr = state.orchestratorCalls[0]!.deps.ocr;
+    expect(ocr.status).toBe("ENABLED");
+    expect(ocr.language).toBe("eng");
+    expect(ocr.languages).toEqual({ requested: "deu+eng+ara", effective: "eng", missing: ["deu", "ara"] });
+    const { createTesseractOcrProvider } = await import("../src/tesseract-ocr-provider.js");
+    expect(vi.mocked(createTesseractOcrProvider)).toHaveBeenLastCalledWith("eng");
+  });
+
+  it("no requested model installed → OCR does not run; RUNTIME_UNAVAILABLE with every model listed missing", async () => {
+    state.tesseract = { ok: true, tesseractPath: "tesseract", version: "5.3.4", languages: ["osd"] };
+    await job();
+    const ocr = state.orchestratorCalls[0]!.deps.ocr;
+    expect(ocr.enabled).toBe(false);
+    expect(ocr.status).toBe("RUNTIME_UNAVAILABLE");
+    expect(ocr.language).toBeNull();
+    expect(ocr.languages).toEqual({ requested: "deu+eng+ara", effective: null, missing: ["deu", "eng", "ara"] });
   });
 });
 

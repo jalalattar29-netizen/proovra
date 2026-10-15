@@ -501,8 +501,11 @@ jobs:
           UC4_REQUIRE_TESSERACT: "1"
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-eng
+          # AUD-019 — the same three models the worker image ships, so the
+          # multilingual recognition test runs here too.
+          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-eng tesseract-ocr-ara tesseract-ocr-deu
           tesseract --version | head -1
+          tesseract --list-langs
           set +e
           npx vitest run test/uc4-tesseract-ocr.test.ts \
             --reporter=default --reporter=json --outputFile=/tmp/worker-ocr.json
@@ -512,7 +515,7 @@ jobs:
             const r = require("/tmp/worker-ocr.json");
             const s = { total: r.numTotalTests, passed: r.numPassedTests, failed: r.numFailedTests, pending: r.numPendingTests + (r.numTodoTests || 0) };
             console.log("tesseract OCR:", JSON.stringify(s));
-            if (!(s.total >= 5)) { console.log("::error::tesseract OCR executed " + s.total + " tests (expected >= 5)"); process.exit(1); }
+            if (!(s.total >= 10)) { console.log("::error::tesseract OCR executed " + s.total + " tests (expected >= 10)"); process.exit(1); }
             if (s.pending > 0) { console.log("::error::tesseract OCR SKIPPED " + s.pending + " tests"); process.exit(1); }
             if (s.failed > 0 || s.passed !== s.total) { console.log("::error::tesseract OCR failed"); process.exit(1); }
           '

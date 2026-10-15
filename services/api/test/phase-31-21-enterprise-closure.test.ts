@@ -203,18 +203,20 @@ describe("Phase 31.21 — Reviewer Console projection", () => {
     expect(slice).toMatch(/WHERE "team_id" = \$1/);
   });
 
-  it("returns localExtractorCapability with NOT_ENABLED defaults + secondary framing", () => {
+  it("returns localExtractorCapability as the WORKER's reported OCR probe + secondary framing (AUD-019)", () => {
     const slice = enclosingSource(MI_ROUTES_SRC, "const localExtractorCapability", "statement", {
       unique: true,
       fileName: "media-intelligence.routes.ts",
     });
-    expect(slice).toMatch(/tesseract:[\s\S]*?ok: false[\s\S]*?reason: "not_enabled"/);
+    // AUD-019 — Tesseract is never a constant: it comes from the worker's
+    // heartbeat report, and with none it is "not_reported".
+    expect(slice).toMatch(/summary: localOcrCapabilitySummary\(localOcr\)/);
+    expect(slice).toMatch(/source: "worker_heartbeat"/);
+    expect(slice).toMatch(/"not_reported"/);
+    expect(slice).not.toMatch(/tesseract: \{ ok: false as const, reason: "not_enabled"/);
+    // No local transcript runtime exists, so Whisper stays not_enabled.
     expect(slice).toMatch(/whisper:[\s\S]*?ok: false[\s\S]*?reason: "not_enabled"/);
-    // Phase Repair — the route now flags the local tile as a SECONDARY
-    // capability and ships honest user-facing summary copy.
     expect(slice).toMatch(/role:\s*"secondary"/);
-    expect(slice).toMatch(/Local OCR\/transcript runtime is not enabled/);
-    expect(slice).toMatch(/Cloud provider is the active path/);
   });
 
   it("the route NEVER reads or projects raw OCR or transcript text", () => {

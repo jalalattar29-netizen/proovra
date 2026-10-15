@@ -104,13 +104,19 @@ export function renderIntelligenceSummarySection(
 
   const intro = renderCallout({
     tone: "neutral",
-    title: "AI-assisted intelligence · governed by reviewer judgement",
+    // AUD-019 — claim no review that did not happen: a provider suggestion
+    // being recorded does not mean a person checked it, and a diarised
+    // speaker label is not an identified person.
+    title: "AI-assisted intelligence · machine suggestions, not reviewed findings",
     body:
-      "PROOVRA's intelligence layer surfaces provider suggestions to " +
-      "human reviewers. The summaries below report bounded counts and " +
+      "PROOVRA's intelligence layer records machine-generated provider " +
+      "suggestions. Their presence does not mean a person has reviewed " +
+      "them; the correction counts below are the only record of reviewer " +
+      "input, and a correction is appended alongside the provider record, " +
+      "which is preserved. Speaker counts are provider-assigned labels, " +
+      "not identified persons. The summaries report bounded counts and " +
       "confidence bands — they NEVER reproduce raw OCR, transcript " +
-      "text, or extracted entity values. Reviewer corrections are " +
-      "appended alongside the provider record and preserved.",
+      "text, or extracted entity values.",
   });
 
   const documentTable = section.document
@@ -126,7 +132,7 @@ export function renderIntelligenceSummarySection(
   const transcriptTable = section.transcript
     ? `
       <h4>Transcript intelligence</h4>
-      <p class="muted small">${section.transcript.totalSegments} segments · ${section.transcript.totalSpeakers} speakers · ${Math.round(section.transcript.totalDurationMs / 1000)}s · ${section.transcript.correctionCount} corrections</p>
+      <p class="muted small">${section.transcript.totalSegments} segments · ${section.transcript.totalSpeakers} speaker labels · ${Math.round(section.transcript.totalDurationMs / 1000)}s · ${section.transcript.correctionCount} corrections</p>
       ${chipRow(section.transcript.perProvider)}
     `
     : "";
