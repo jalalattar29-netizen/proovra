@@ -20,7 +20,15 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useToast } from "../../src/toast-context";
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
 import { usePlatformContext } from "../../src/product/platform-context";
-import { discardScreenCaptureFiles, stageScreenCapture } from "../../src/screen-capture";
+import { useAuth } from "../../src/auth-context";
+import { discardScreenCaptureFiles, ScreenStagingError, stageScreenCapture } from "../../src/screen-capture";
+import {
+  clearPendingScreenStaging,
+  loadPendingScreenStaging,
+  savePendingScreenStaging,
+  type PendingScreenStaging,
+} from "../../src/capture/screen-staging-store";
+import { discardDirectCaptureSession } from "../../src/direct-capture";
 import {
   ensureCaptureNotificationPermission,
   NOTIFICATION_DENIED_COPY,
@@ -59,11 +67,16 @@ export default function ScreenCaptureScreen() {
   const personalSpace = usePersonalSpaceAllowed();
   // ET-DC-08 — the capture belongs to the ACTIVE workspace, as on /capture.
   const teamId = usePlatformContext().context?.activeTeamId ?? null;
+  // The kept staging is per user (screen-staging-store): offered once the user is known.
+  const userId = useAuth().user?.id ?? null;
   const [state, dispatch] = useReducer(screenFlowReducer, INITIAL_SCREEN_FLOW);
   const [busy, setBusy] = useState(false);
   const [notificationDenied, setNotificationDenied] = useState(false);
   // The last native result, so Discard can delete its frame files (UC-AND-010).
   const lastResultRef = useRef<ScreenCaptureResult | null>(null);
+  // AUD-005 — a staging stopped by a retryable failure (or found after an app
+  // restart): Retry resumes it, Discard releases it.
+  const pendingRef = useRef<PendingScreenStaging | null>(null);
   const supported = Platform.OS === "android" && isScreenCaptureSupported();
 
   useEffect(() => {
@@ -80,16 +93,29 @@ export default function ScreenCaptureScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      let cancelled = false;
       const s = getScreenCaptureState();
       if (s.active) {
         dispatch({ type: "STARTED" });
         if (s.frameCount > 0) dispatch({ type: "FRAME", frameCount: s.frameCount });
+        return undefined;
       }
-    }, []),
+      // AUD-005 — a staging the app was closed during is offered again.
+      if (!userId) return undefined;
+      void loadPendingScreenStaging().then((pending) => {
+        if (cancelled || !pending) return;
+        pendingRef.current = pending;
+        dispatch({ type: "RESUME_PENDING", frameCount: pending.result.frames.length, message: PENDING_COPY.resumed });
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [userId]),
   );
 
   useEffect(() => {
-    const inFlight = state.phase === "active" || state.phase === "review" || state.phase === "uploading";
+    const inFlight =
+      state.phase === "active" || state.phase === "review" || state.phase === "uploading" || state.phase === "pending";
     setCaptureActive(inFlight);
     return () => setCaptureActive(false);
   }, [state.phase]);
@@ -152,11 +178,17 @@ export default function ScreenCaptureScreen() {
    */
   const stageForReview = useCallback(async () => {
     dispatch({ type: "FINALIZE" });
+    const resume = pendingRef.current;
     try {
-      const result = await stopScreenCapture();
+      const result = resume ? (resume.result as unknown as ScreenCaptureResult) : await stopScreenCapture();
       lastResultRef.current = result;
-      const staged = await stageScreenCapture(result, { teamId });
-      lastResultRef.current = null; // staged: its files were deleted after upload
+      // AUD-005 — durable and retryable: progress is persisted as it happens,
+      // a resumed staging reuses its session, and no frame is deleted here.
+      const staged = await stageScreenCapture(result, {
+        teamId: resume ? resume.teamId : teamId,
+        pending: resume,
+        persist: savePendingScreenStaging,
+      });
 
       // The canonical draft — the product's record of what this session holds.
       const item = toScreenDraftItem({
@@ -195,19 +227,51 @@ export default function ScreenCaptureScreen() {
         },
       });
 
+      // Committed to the canonical record: only NOW may the on-device
+      // screenshots go (UC-AND-010), and the staging record with them.
+      await discardScreenCaptureFiles(result);
+      await clearPendingScreenStaging();
+      pendingRef.current = null;
+      lastResultRef.current = null;
+
       dispatch({ type: "FINALIZED", evidenceId: staged.evidenceId });
       toast.addToast("Screen capture staged — review and finish in Capture", "success");
       router.replace("/capture");
     } catch (err) {
+      const terminal = err instanceof ScreenStagingError && !err.retryable;
+      const pending = err instanceof ScreenStagingError ? err.pending : await loadPendingScreenStaging();
+      if (!terminal && pending) {
+        // AUD-005 — kept: the frames, the session and every confirmed upload.
+        pendingRef.current = pending;
+        dispatch({
+          type: "STAGE_PENDING",
+          frameCount: pending.result.frames.length,
+          message: `${PENDING_COPY.failed} (${toSafeUserError(err, { message: "" }).message || "network"})`,
+        });
+        return;
+      }
+      // A terminal refusal released the session and deleted the frames.
+      pendingRef.current = null;
+      lastResultRef.current = null;
+      await clearPendingScreenStaging();
       dispatch({ type: "FAIL", message: toSafeUserError(err, { message: "Could not stage the capture." }).message });
     }
-  }, [toast, teamId]);
+  }, [toast, teamId, router]);
 
   /** Discard / Try Again / Capture Another: the local screenshots go too (UC-AND-010). */
   const reset = useCallback(() => {
     const last = lastResultRef.current;
+    const pending = pendingRef.current;
     lastResultRef.current = null;
+    pendingRef.current = null;
     void discardScreenCaptureFiles(last);
+    if (pending) {
+      // AUD-005 — the user's explicit discard of a kept staging: release its
+      // session (no empty reserved record left behind) and delete its frames.
+      void discardScreenCaptureFiles(pending.result);
+      if (pending.session) void discardDirectCaptureSession(pending.session).catch(() => undefined);
+    }
+    void clearPendingScreenStaging();
     setNotificationDenied(false);
     dispatch({ type: "RESET" });
   }, []);
@@ -286,6 +350,15 @@ export default function ScreenCaptureScreen() {
           </ProovraCard>
         )}
 
+        {state.phase === "pending" && (
+          <ProovraCard style={styles.card}>
+            <ProovraBadge tone="pending" label={`Upload paused (${state.frameCount} frame(s) kept)`} />
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{state.message}</ProovraText>
+            <ProovraButton label="Retry upload" onPress={() => void stageForReview()} />
+            <ProovraButton label="Discard" variant="ghost" onPress={reset} />
+          </ProovraCard>
+        )}
+
         {state.phase === "uploading" && (
           <ProovraLoadingState label={`Uploading ${state.frameCount} frame(s) and verifying integrity`} />
         )}
@@ -312,6 +385,14 @@ export default function ScreenCaptureScreen() {
     </ProovraScreen>
   );
 }
+
+/** AUD-005 — what a kept (retryable) staging tells the user. */
+const PENDING_COPY = {
+  failed:
+    "The upload could not finish. Your frames are kept on this device and nothing was discarded — tap Retry upload when you are back online.",
+  resumed:
+    "A screen capture from earlier has not finished uploading. Its frames are kept on this device — tap Retry upload to continue, or Discard.",
+} as const;
 
 function Bullet({ text }: { text: string }) {
   return (

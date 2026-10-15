@@ -34,8 +34,9 @@ test("UC-AND-007: a segment whose MediaRecorder.stop() threw is deleted, recorde
   assert.match(continuous, /closeSegment\(\s*stop = \{ r\.stop\(\) \}/);
   assert.match(continuous, /if \(outcome == SegmentClose\.DISCARD_WRITE_FAILED\) \{\s*limitations\.add\("SEGMENT_WRITE_FAILED"\)[\s\S]*?return\s*\}/);
   assert.ok(!/try \{ r\.stop\(\) \} catch \(_: Throwable\) \{\}/.test(continuous), "the swallowed stop() is back");
-  // A clean stop over a lost stretch is not COMPLETE.
-  assert.match(continuous, /val complete = cleanEnd && limitations\.none \{ it in INCOMPLETE_LIMITATIONS \}/);
+  // A clean stop over a lost stretch is not COMPLETE (sessionCompleteness, JVM-tested).
+  assert.match(continuous, /val completeness = sessionCompleteness\(reason, limitations\)/);
+  assert.match(decisions, /val complete = reason in CLEAN_TERMINATIONS && limitations\.none \{ it in INCOMPLETE_LIMITATIONS \}/);
 });
 
 test("UC-AND-011: a frame failure is FRAME_CAPTURE_FAILED; secure content is never claimed", () => {
@@ -63,12 +64,100 @@ test("UC-AND-013: a setup failure after consent REJECTS the start (both services
     assert.match(src, /is ProjectionOutcome\.Refused -> [\s\S]{0,20}failStart\(outcome\.code, outcome\.message\)/, name);
   }
   assert.match(decisions, /if \(projection == null\) \{\s*ProjectionOutcome\.Refused\(PROJECTION_UNAVAILABLE/);
-  assert.equal((module.match(/onStartFailed = \{ code, message -> promise\.reject\(CodedException\(code, message, null\)\) \}/g) ?? []).length, 2);
+  assert.equal((module.match(/onStartFailed = \{ code, message -> pending\.rejectWith\(code, message\) \}/g) ?? []).length, 2);
 });
 
 test("UC-AND-004: the recorder's segments are listable and callbacks re-bind to a recreated module", () => {
   assert.match(module, /Function\("getContinuousSegments"\) \{ ContinuousScreenCaptureService\.segmentsSnapshot\(\) \}/);
-  assert.match(module, /OnCreate \{ bindContinuousCallbacks\(\) \}/);
+  assert.match(module, /OnCreate \{\s*bindContinuousCallbacks\(\)/);
   assert.match(module, /AsyncFunction\("discardContinuousSpool"\)/);
-  assert.match(continuous, /fun segmentsSnapshot\(\): List<Map<String, Any\?>> = segments\.toList\(\)/);
+  // AUD-004 — the in-memory list while the process lives; the durable
+  // ledger's unconfirmed segments after a process death.
+  assert.match(continuous, /fun segmentsSnapshot\(\): List<Map<String, Any\?>> \{\s*if \(segments\.isNotEmpty\(\) \|\| active\) return segments\.toList\(\)/);
+  assert.match(continuous, /return ledgerSegmentsToJs\(l\)\.filter \{ it\["uploadState"\] == SEGMENT_RECORDED \}/);
+});
+
+/* ---------------------------------------------------------------- AUD-029 -- */
+
+test("AUD-029(a): a recreated module re-binds BOTH services and rejects what a dead context awaited", () => {
+  assert.match(module, /OnCreate \{\s*bindContinuousCallbacks\(\)\s*bindFrameCallbacks\(\)/);
+  assert.match(module, /OnDestroy \{ rejectOrphanedPromises\(\) \}/);
+  assert.match(module, /p\.rejectWith\(MODULE_RELOADED, /);
+  assert.match(module, /const val MODULE_RELOADED = "MODULE_RELOADED"/);
+  // Every held promise settles at most once (SettleOnce, JVM-tested).
+  assert.match(module, /private typealias Pending = SettleOnce<Promise>/);
+  assert.ok(!/private var \w+Promise: Promise\?/.test(module), "a raw Promise field is back: it can double-settle");
+  // The frame callbacks are bound by ONE function, used by start and OnCreate.
+  assert.equal((module.match(/(?<!Continuous)ScreenCaptureService\.onStopped = /g) ?? []).length, 1);
+});
+
+test("AUD-029(b): the recorder is configured inside the encoder's capabilities", () => {
+  assert.match(continuous, /MediaCodecList\(MediaCodecList\.REGULAR_CODECS\)/);
+  assert.match(continuous, /getCapabilitiesForType\(MediaFormat\.MIMETYPE_VIDEO_AVC\)\.videoCapabilities/);
+  assert.match(continuous, /val config = clampEncoderConfig\(segW, segH, BITRATE, FRAME_RATE, avcEncoderCaps\(\)\)/);
+  assert.match(continuous, /segmentStartFailure = ENCODER_UNSUPPORTED_SIZE/);
+  assert.match(continuous, /r\.setVideoSize\(config\.width, config\.height\)/);
+  assert.match(continuous, /r\.setVideoEncodingBitRate\(config\.bitrate\)/);
+  assert.ok(!/setVideoSize\(segW, segH\)/.test(continuous), "the raw display size reaches the encoder again");
+});
+
+test("AUD-029(b): a rollover whose next segment cannot start is recorded and ends as ERROR", () => {
+  assert.match(
+    continuous,
+    /if \(!startNextSegment\(\)\) \{\s*limitations\.add\("SEGMENT_WRITE_FAILED"\)\s*finish\("ERROR", segmentStartFailure \?: SEGMENT_START_FAILED\)\s*\}/,
+  );
+  assert.ok(!/finalizeCurrentSegment\(\)\s*startNextSegment\(\)\s*\}/.test(continuous), "the ignored startNextSegment() is back");
+});
+
+test("AUD-029(c): failures carry stable codes, never raw exception prose", () => {
+  for (const [name, src] of [["continuous", continuous], ["frames", frames], ["module", module]]) {
+    assert.ok(!/t\.message/.test(src), `${name} surfaces a raw t.message`);
+  }
+  assert.match(decisions, /internal fun startFailureMessage\(t: Throwable\): String/);
+  assert.match(continuous, /r\.setOnErrorListener \{ _, what, extra ->\s*recorderErrorExtra = extra\s*finish\("ERROR", recorderErrorCode\(what\)\)/);
+  assert.match(continuous, /"terminationDetail" to terminationDetail/);
+});
+
+test("AUD-029: both services run as mediaProjection foreground services, declared and permitted, with no audio", () => {
+  const manifest = readFileSync(resolve(KT, "../../../../AndroidManifest.xml"), "utf8");
+  for (const [name, src] of [["ContinuousScreenCaptureService", continuous], ["ScreenCaptureService", frames]]) {
+    assert.match(src, /startForeground\(NOTIF_ID, notification, ServiceInfo\.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION\)/, name);
+    assert.match(
+      manifest,
+      new RegExp(`android:name="com\\.proovra\\.screencapture\\.${name}"\\s+android:exported="false"\\s+android:foregroundServiceType="mediaProjection"`),
+      name,
+    );
+  }
+  assert.match(manifest, /android\.permission\.FOREGROUND_SERVICE_MEDIA_PROJECTION/);
+  assert.ok(!/RECORD_AUDIO/.test(manifest), "screen capture must not request the microphone");
+  assert.ok(!/setAudioSource/.test(continuous), "the continuous recorder configures an audio source");
+});
+
+/* ---------------------------------------------------------------- AUD-004 -- */
+
+test("AUD-004: the service writes the durable ledger at start, at every segment close (before JS hears) and at finish", () => {
+  assert.match(continuous, /ContinuousLedgerKeeper\.replace\(\s*ContinuousLedger\(/);
+  assert.match(continuous, /ContinuousLedgerKeeper\.update \{\s*ledgerWithSegment\([\s\S]*?\}\s*segments\.add\(seg\)\s*updateNotification\(seq \+ 1\)\s*onSegment\?\.invoke\(seg\)/);
+  assert.match(continuous, /ContinuousLedgerKeeper\.update \{\s*ledgerFinished\(it, reason, terminationDetail, limitations\.toList\(\), completeness, totalMs, endedAtUtc\)\s*\}\s*last = outcome\s*onStopped\?\.invoke\(outcome\)/);
+  // The spool lives in filesDir (cacheDir can be purged under storage pressure).
+  assert.match(continuous, /fun spoolDir\(context: Context\): File = File\(context\.filesDir, SPOOL_DIR\)/);
+  assert.ok(!/File\(cacheDir, "proovra-continuous-/.test(continuous), "segments are written to cacheDir again");
+});
+
+test("AUD-004: nothing is deleted on lost JS memory — only a confirmed upload, a bound commit, or an explicit discard", () => {
+  // Confirmation: the ledger first, then only a path the ledger says is confirmed.
+  assert.match(continuous, /if \(seg != null && seg\.path in automaticallyDeletablePaths\(after\)\)/);
+  // Commit: only for exactly the bound session.
+  assert.match(continuous, /if \(!ledgerBoundTo\(ContinuousLedgerKeeper\.get\(\), captureSessionId\)\) return false/);
+  // A new recording never overwrites a ledger that holds segments.
+  assert.match(module, /if \(ContinuousScreenCaptureService\.newRecordingBlocked\(\)\) \{\s*promise\.reject\(CodedException\("PENDING_RECORDING"/);
+  // Binding mismatch is a refusal, never a merge.
+  assert.match(module, /promise\.reject\(CodedException\("BINDING_MISMATCH"/);
+});
+
+test("AUD-004: stop after a process death answers the ledger's outcome, never an empty map", () => {
+  assert.ok(!/lastOutcome\(\) \?: emptyMap<String, Any\?>\(\)/.test(module), "the empty continuous outcome is back");
+  assert.match(module, /promise\.reject\(CodedException\("NO_RECORDING"/);
+  assert.match(continuous, /val l = recoveredLedger\(\) \?: return null\s*return ledgerOutcome\(l\)/);
+  assert.match(module, /Function\("getContinuousLedger"\) \{ ContinuousScreenCaptureService\.ledgerForJs\(\) \}/);
 });

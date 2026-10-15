@@ -55,8 +55,18 @@ const MANIFEST_STUB = dataUrl(`
   export class ContinuousManifestError extends Error {}
 `);
 
+// The real retry rule (no imports); the native binding is not what this file tests.
+const RETRY_URL = dataUrl(compile("../src/capture/capture-retry.ts"));
+const NATIVE_STUB = dataUrl(
+  "export const markContinuousSegmentUploaded = async () => null;\n" +
+    "export const commitContinuousSpool = async () => null;\n" +
+    "export const discardContinuousSpool = async () => {};",
+);
+
 const load = async (file) => {
   const src = compile(file)
+    .replace(/from ["']\.\/capture\/capture-retry["']/g, `from "${RETRY_URL}"`)
+    .replace(/from ["']\.\.\/modules\/proovra-screen-capture["']/g, `from "${NATIVE_STUB}"`)
     .replace(/from ["']\.\/direct-capture["']/g, `from "${DIRECT_CAPTURE_STUB}"`)
     .replace(/from ["']\.\/continuous-manifest["']/g, `from "${MANIFEST_STUB}"`)
     .replace(/from ["']react-native["']/g, `from "${RN_STUB}"`)
@@ -87,7 +97,8 @@ test("UC-3 / UC-5: a continuous capture opens its session in the active workspac
 
 test("both screens pass the platform context's active workspace", () => {
   for (const [screenFile, call] of [
-    ["../app/(stack)/screen-capture.tsx", "stageScreenCapture(result, { teamId })"],
+    // AUD-005 — a resumed staging keeps the workspace it was started in.
+    ["../app/(stack)/screen-capture.tsx", "teamId: resume ? resume.teamId : teamId,"],
     ["../app/(stack)/continuous-capture.tsx", "beginContinuousSession({ teamId })"],
   ]) {
     const src = readFileSync(resolve(HERE, screenFile), "utf8");

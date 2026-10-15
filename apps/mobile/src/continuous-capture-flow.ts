@@ -129,3 +129,55 @@ export function continuousFlowReducer(
       return state;
   }
 }
+
+/**
+ * How long Stop / Finalize waits for the bounded upload queue before it
+ * proceeds without what is still pending. Each request is itself bounded
+ * (capture-retry.ts), so this is the ceiling on a whole backlog, not on one
+ * stalled request.
+ */
+export const CONTINUOUS_DRAIN_DEADLINE_MS = 120_000;
+
+export type DrainOutcome =
+  /** Queue empty and no upload in flight. */
+  | "DRAINED"
+  /** The session is gone: nothing can upload any more (the old loop spun forever). */
+  | "NO_SESSION"
+  /**
+   * The deadline passed with uploads still pending. They stay recoverable on
+   * disk (the native ledger holds them); the manifest states them as lost
+   * only if they are still undeclared after finalize's own retry.
+   */
+  | "DEADLINE";
+
+/**
+ * Wait until the upload queue is drained — bounded. The previous loop
+ * (`while (queue || workers) sleep(100)`) never ended when the session ref was
+ * cleared (pump() then returns without taking anything) or when an upload
+ * hung, so Stop and Finalize could wait forever.
+ */
+export async function drainUploadQueue(io: {
+  pending: () => number;
+  inFlight: () => number;
+  hasSession: () => boolean;
+  pump: () => void;
+  deadlineMs: number;
+  pollMs?: number;
+  now?: () => number;
+  sleep?: (ms: number) => Promise<void>;
+}): Promise<DrainOutcome> {
+  // Monotonic (AUD-018): a wall-clock change cannot stretch or end the wait.
+  const now =
+    io.now ??
+    (() => (typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now()));
+  const sleep = io.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const pollMs = io.pollMs ?? 100;
+  const startedAt = now();
+  io.pump();
+  while (io.pending() > 0 || io.inFlight() > 0) {
+    if (!io.hasSession()) return "NO_SESSION";
+    if (now() - startedAt >= io.deadlineMs) return "DEADLINE";
+    await sleep(pollMs);
+  }
+  return "DRAINED";
+}

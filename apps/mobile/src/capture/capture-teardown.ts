@@ -29,6 +29,7 @@ import {
 import { discardDirectCaptureSession } from "../direct-capture";
 import { clearCaptureSession, loadCaptureSession, setCaptureSessionOwner } from "./capture-session-store";
 import { clearLiveContinuousSession, loadLiveContinuousSession } from "./continuous-session-store";
+import { clearPendingScreenStaging, loadPendingScreenStaging } from "./screen-staging-store";
 
 async function quietly(step: () => Promise<unknown>): Promise<void> {
   try {
@@ -68,6 +69,12 @@ export async function teardownCaptureOnSignOut(): Promise<void> {
     sessions.set(staged.captureSessionId, staged.expiresAtUtc);
     for (const it of staged.items) if (it.uri) localFiles.add(it.uri);
   }
+  // AUD-005 — a screen staging kept for Retry belongs to this account too.
+  const screenStaging = await loadPendingScreenStaging();
+  if (screenStaging) {
+    if (screenStaging.session) sessions.set(screenStaging.session.captureSessionId, screenStaging.session.expiresAtUtc);
+    for (const f of screenStaging.result.frames) localFiles.add(f.uri);
+  }
   for (const [captureSessionId, expiresAtUtc] of sessions) {
     await quietly(() => discardDirectCaptureSession({ captureSessionId, expiresAtUtc }));
   }
@@ -79,5 +86,6 @@ export async function teardownCaptureOnSignOut(): Promise<void> {
   // 4. The durable records, then the owner binding.
   await quietly(() => clearLiveContinuousSession());
   await quietly(() => clearCaptureSession());
+  await quietly(() => clearPendingScreenStaging());
   setCaptureSessionOwner(null);
 }

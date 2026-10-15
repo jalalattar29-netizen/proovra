@@ -36,8 +36,9 @@ class CaptureDecisionsTest {
     val outcome = obtainProjection<String, FakeProjection>("consent") {
       throw SecurityException("Media projections require a foreground service of type mediaProjection")
     }
+    // AUD-029 — a STABLE message naming the failure kind, never the platform prose.
     assertEquals(
-      ProjectionOutcome.Refused(START_FAILED, "Media projections require a foreground service of type mediaProjection"),
+      ProjectionOutcome.Refused(START_FAILED, "Screen capture could not start (SecurityException)."),
       outcome,
     )
   }

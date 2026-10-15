@@ -40,6 +40,8 @@
 import * as FileSystem from "expo-file-system";
 import * as Crypto from "expo-crypto";
 
+import { CAPTURE_PUT_TIMEOUT_MS, CaptureTimeoutError, withTimeout } from "./capture/capture-retry";
+
 /** Bytes read per chunk when assembling the file for hashing (3 MiB, base64-aligned). */
 const READ_CHUNK_BYTES = 3 * 1024 * 1024;
 
@@ -214,6 +216,8 @@ export async function uploadWithPut(params: {
   mimeType: string;
   checksumSha256Base64?: string;
   contentMd5Base64?: string;
+  /** AUD-004 / AUD-005 — the PUT's deadline; a stalled upload is cancelled and rejects TIMEOUT. */
+  timeoutMs?: number;
 }) {
   const prepared =
     params.checksumSha256Base64 && params.contentMd5Base64
@@ -224,7 +228,7 @@ export async function uploadWithPut(params: {
         }
       : await computeFileIntegrity(params.uri);
 
-  const result = await FileSystem.uploadAsync(params.putUrl, prepared.fileUri, {
+  const options: FileSystem.FileSystemUploadOptions = {
     httpMethod: "PUT",
     headers: {
       "content-type": params.mimeType,
@@ -232,7 +236,24 @@ export async function uploadWithPut(params: {
       "Content-MD5": prepared.contentMd5Base64,
     },
     uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-  });
+  };
+  // A cancellable task where the platform offers one, so a timed-out PUT stops
+  // sending instead of finishing in the background.
+  const task =
+    typeof FileSystem.createUploadTask === "function"
+      ? FileSystem.createUploadTask(params.putUrl, prepared.fileUri, options)
+      : null;
+  const timeoutMs = params.timeoutMs ?? CAPTURE_PUT_TIMEOUT_MS;
+  const result = await withTimeout(
+    () => (task ? task.uploadAsync() : FileSystem.uploadAsync(params.putUrl, prepared.fileUri, options)),
+    timeoutMs,
+    "The upload",
+    () => {
+      void task?.cancelAsync().catch(() => undefined);
+    },
+  );
+  // A cancelled task resolves with nothing: that is the timeout, not a success.
+  if (!result) throw new CaptureTimeoutError("The upload", timeoutMs);
 
   if (![200, 201, 204].includes(result.status)) {
     throw new Error(`Upload failed (${result.status})`);

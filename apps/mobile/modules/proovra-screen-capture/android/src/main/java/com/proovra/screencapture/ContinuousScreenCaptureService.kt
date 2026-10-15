@@ -10,6 +10,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.media.MediaCodecList
+import android.media.MediaFormat
 import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
@@ -18,10 +20,6 @@ import android.os.IBinder
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
 
 /**
  * UC-3 — the foreground service that records a CONTINUOUS screen session as
@@ -56,14 +54,15 @@ class ContinuousScreenCaptureService : Service() {
     private const val BITRATE = 6_000_000
     private const val FRAME_RATE = 12
     private const val MAX_SEGMENT_BYTES = 64L * 1024L * 1024L
-    // Total wall-clock ceiling (ms), kept below the server capture-session TTL so a
-    // session always stops with margin to finalize. Agrees with maxSessionMs.
+    // AUD-004 — the durable spool (segment files + ledger.json) under filesDir.
+    private const val SPOOL_DIR = "proovra-continuous"
+    private const val SEGMENT_PREFIX = "proovra-continuous-"
+    // Total recording ceiling (ms, MONOTONIC — AUD-018), kept below the server
+    // capture-session TTL so a session always stops with margin to finalize.
+    // Agrees with maxSessionMs.
     private const val MAX_SESSION_MS = 50L * 60L * 1000L
-    // Limitations that make a session INTERRUPTED whatever ended it (the
-    // manifest validator refuses them on a COMPLETE session).
-    private val INCOMPLETE_LIMITATIONS = setOf(
-      "CAPTURE_INTERRUPTED", "SEGMENT_UPLOAD_LOST", "SEGMENT_WRITE_FAILED", "BROADCAST_PAUSED",
-    )
+    // Limitations that make a session INTERRUPTED whatever ended it are
+    // INCOMPLETE_LIMITATIONS, decided by sessionCompleteness (CaptureDecisions.kt).
 
     private var projection: MediaProjection? = null
     private var recorder: MediaRecorder? = null
@@ -71,7 +70,9 @@ class ContinuousScreenCaptureService : Service() {
 
     private val segments = mutableListOf<Map<String, Any?>>()
     private val limitations = linkedSetOf<String>()
-    private var startedAtMs = 0L
+    // AUD-018 — durations, offsets and the session bound are monotonic
+    // (elapsedRealtime); the wall clock only names the session's instants.
+    private val timeline = SessionTimeline(SystemCaptureClock)
     private var startedAtUtc = ""
     private var segmentMs = DEFAULT_SEGMENT_MS
     private var maxSegments = MAX_SEGMENTS
@@ -84,8 +85,19 @@ class ContinuousScreenCaptureService : Service() {
     private var segW = 0
     private var segH = 0
     private var segDpi = 0
+    // AUD-029 — what the encoder actually records the current segment at: the
+    // display geometry scaled (aspect kept, aligned) into the device's H.264
+    // encoder capabilities. Each segment reports this, its true geometry.
+    private var encW = 0
+    private var encH = 0
+    // AUD-029 — the stable reason the last segment could not start
+    // (ENCODER_UNSUPPORTED_SIZE, SEGMENT_START_FAILED), and the stable detail of
+    // how the session ended (RECORDER_ERROR_<what>, ...), never raw prose.
+    private var segmentStartFailure: String? = null
+    private var terminationDetail: String? = null
+    private var recorderErrorExtra: Int? = null
     private var currentFile: File? = null
-    private var segmentStartMs = 0L
+    private var segmentStartElapsedMs = 0L
     @Volatile private var active = false
     private var terminationReason = "USER_STOPPED"
     private var last: Map<String, Any?>? = null
@@ -102,25 +114,134 @@ class ContinuousScreenCaptureService : Service() {
 
     fun isActive(): Boolean = active
     fun segmentCount(): Int = segments.size
-    fun lastOutcome(): Map<String, Any?>? = last
+
+    /**
+     * AUD-004 — the segment files and the durable ledger live in filesDir (the
+     * OS may purge cacheDir under storage pressure, and these may be the only
+     * copy of a recording). The ledger is attached by the module at creation
+     * and by every start.
+     */
+    fun spoolDir(context: Context): File = File(context.filesDir, SPOOL_DIR)
+
+    fun attachLedger(context: Context) {
+      ContinuousLedgerKeeper.attach(spoolDir(context))
+    }
+
+    /**
+     * The last session's outcome: the in-memory one, or — after a process
+     * death wiped it — the one the durable ledger proves (INTERRUPTED unless
+     * the recorder recorded a clean finish). Null when there is no recording.
+     */
+    fun lastOutcome(): Map<String, Any?>? {
+      last?.let { return it }
+      if (active) return null
+      val l = recoveredLedger() ?: return null
+      return ledgerOutcome(l)
+    }
+
+    /**
+     * AUD-004 — the durable ledger, recovered: a ledger still RECORDING with no
+     * active recorder is a process death, persisted as INTERRUPTED (idempotent).
+     */
+    internal fun recoveredLedger(): ContinuousLedger? {
+      val l = ContinuousLedgerKeeper.get() ?: return null
+      val recovered = recoverLedger(l, active)
+      if (recovered != l) ContinuousLedgerKeeper.replace(recovered)
+      return recovered
+    }
+
+    fun ledgerForJs(): Map<String, Any?>? = recoveredLedger()?.let { ledgerToJs(it, active) }
+
     /**
      * UC-AND-004 — every segment finalised in the current (or last) session, so
      * a recreated JS context can resume uploading them instead of orphaning a
      * live recording. The static callbacks are re-bound by each new module.
+     * AUD-004 — after a process death the in-memory list is empty: the durable
+     * ledger's not-yet-uploaded segments are returned instead.
      */
-    fun segmentsSnapshot(): List<Map<String, Any?>> = segments.toList()
+    fun segmentsSnapshot(): List<Map<String, Any?>> {
+      if (segments.isNotEmpty() || active) return segments.toList()
+      val l = ContinuousLedgerKeeper.get() ?: return emptyList()
+      return ledgerSegmentsToJs(l).filter { it["uploadState"] == SEGMENT_RECORDED }
+    }
 
-    /** Delete every local segment file of the last session and forget it. */
+    /** A new recording may not overwrite a ledger that still holds segments (AUD-004). */
+    fun newRecordingBlocked(): Boolean = blocksNewRecording(ContinuousLedgerKeeper.get(), active)
+
+    /**
+     * AUD-004 — bind the recording to the PROOVRA session JS opened for it.
+     * False when the ledger is bound to another session (never merged).
+     */
+    fun bindSession(captureSessionId: String, evidenceId: String, ownerUserId: String?): Boolean {
+      var ok = false
+      ContinuousLedgerKeeper.update { l ->
+        when (val outcome = bindLedger(l, captureSessionId, evidenceId, ownerUserId)) {
+          is BindOutcome.Bound -> { ok = true; outcome.ledger }
+          BindOutcome.Mismatch -> null
+        }
+      }
+      return ok
+    }
+
+    /**
+     * AUD-004 — PROOVRA confirmed a segment: the ledger says so FIRST, and only
+     * then is the local file (no longer the only copy) deleted. False when the
+     * ledger is bound to another session or refuses the confirmation.
+     */
+    fun markSegmentUploaded(captureSessionId: String, sequence: Int, sha256Hex: String, sizeBytes: Long): Boolean {
+      var ok = false
+      val after = ContinuousLedgerKeeper.update { l ->
+        val next = ledgerMarkUploaded(l, captureSessionId, sequence, sha256Hex, sizeBytes)
+        ok = next != null
+        next
+      }
+      if (!ok || after == null) return false
+      val seg = after.segments.firstOrNull { it.sequence == sequence }
+      if (seg != null && seg.path in automaticallyDeletablePaths(after)) {
+        try { File(seg.path).delete() } catch (_: Throwable) {}
+      }
+      return true
+    }
+
+    /**
+     * AUD-004 — the bound session's segments are staged (declared, stored, and
+     * its manifest uploaded): the spool is released. Refused (false, nothing
+     * deleted) unless the ledger is bound to exactly this session.
+     */
+    fun commitSpool(context: Context?, captureSessionId: String): Boolean {
+      if (active) return false
+      if (!ledgerBoundTo(ContinuousLedgerKeeper.get(), captureSessionId)) return false
+      deleteSpoolFiles(context)
+      return true
+    }
+
+    /**
+     * The user's EXPLICIT discard of the last recording: every local segment
+     * file and the durable ledger. Never automatic (AUD-004).
+     */
     fun discardSpool(context: Context?) {
       if (active) return
+      deleteSpoolFiles(context)
+    }
+
+    private fun deleteSpoolFiles(context: Context?) {
       for (seg in segments) {
         val uri = seg["uri"] as? String ?: continue
         try { File(uri.removePrefix("file://")).delete() } catch (_: Throwable) {}
       }
+      for (seg in ContinuousLedgerKeeper.get()?.segments ?: emptyList()) {
+        try { File(seg.path).delete() } catch (_: Throwable) {}
+      }
       try {
-        context?.cacheDir?.listFiles()?.filter { it.name.startsWith("proovra-continuous-") && it.name.endsWith(".mp4") }
-          ?.forEach { it.delete() }
+        if (context != null) {
+          spoolDir(context).listFiles()?.filter { it.name.startsWith(SEGMENT_PREFIX) && it.name.endsWith(".mp4") }
+            ?.forEach { it.delete() }
+          // Files written by builds that spooled into cacheDir.
+          context.cacheDir?.listFiles()?.filter { it.name.startsWith(SEGMENT_PREFIX) && it.name.endsWith(".mp4") }
+            ?.forEach { it.delete() }
+        }
       } catch (_: Throwable) {}
+      ContinuousLedgerKeeper.clear()
       segments.clear()
       last = null
     }
@@ -134,7 +255,12 @@ class ContinuousScreenCaptureService : Service() {
       maxSegments = maxSeg.coerceIn(1, MAX_SEGMENTS)
       onStartedCb = onStarted; onStartFailedCb = onStartFailed
       terminationReason = "USER_STOPPED"
+      terminationDetail = null; recorderErrorExtra = null; segmentStartFailure = null
       segments.clear(); limitations.clear(); last = null
+      // AUD-004 — the module refused the start if a ledger still holds segments
+      // (blocksNewRecording); an empty one (nothing was recorded) is released.
+      attachLedger(context)
+      if (ContinuousLedgerKeeper.get()?.segments?.isEmpty() == true) ContinuousLedgerKeeper.clear()
       val intent = Intent(context, ContinuousScreenCaptureService::class.java)
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
       else context.startService(intent)
@@ -160,7 +286,7 @@ class ContinuousScreenCaptureService : Service() {
     try {
       beginProjection()
     } catch (t: Throwable) {
-      failStart("START_FAILED", t.message ?: "Screen recording could not start.")
+      failStart(START_FAILED, startFailureMessage(t))
     }
     return START_NOT_STICKY
   }
@@ -175,6 +301,8 @@ class ContinuousScreenCaptureService : Service() {
     try { projection?.stop() } catch (_: Throwable) {}
     virtualDisplay = null; projection = null
     currentFile?.delete(); currentFile = null
+    // AUD-004 — a start that never recorded a segment leaves no ledger behind.
+    if (ContinuousLedgerKeeper.get()?.segments?.isEmpty() == true) ContinuousLedgerKeeper.clear()
     val cb = onStartFailedCb
     onStartedCb = null; onStartFailedCb = null
     cb?.invoke(code, message)
@@ -221,7 +349,7 @@ class ContinuousScreenCaptureService : Service() {
     (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(metrics)
     widthPx = metrics.widthPixels; heightPx = metrics.heightPixels; densityDpi = metrics.densityDpi
     segW = widthPx; segH = heightPx; segDpi = densityDpi
-    startedAtMs = System.currentTimeMillis(); startedAtUtc = iso(startedAtMs)
+    timeline.start(); startedAtUtc = timeline.startUtc()
 
     mp.registerCallback(object : MediaProjection.Callback() {
       override fun onStop() { finish("PERMISSION_REVOKED") }
@@ -233,9 +361,18 @@ class ContinuousScreenCaptureService : Service() {
 
     active = true
     if (!startNextSegment()) {
-      failStart("RECORDER_UNAVAILABLE", "The screen recorder could not start.")
+      failStart(segmentStartFailure ?: "RECORDER_UNAVAILABLE", "The screen recorder could not start.")
       return
     }
+    // AUD-004 — the durable ledger exists from the moment recording does.
+    ContinuousLedgerKeeper.replace(
+      ContinuousLedger(
+        recordingId = "${timeline.startWallMs}-${java.util.UUID.randomUUID()}",
+        startedAtUtc = startedAtUtc,
+        startedAtWallMs = timeline.startWallMs,
+        device = deviceBlock(),
+      ),
+    )
     onStartedCb?.invoke(startedAtUtc)
     onStartedCb = null; onStartFailedCb = null
   }
@@ -259,17 +396,48 @@ class ContinuousScreenCaptureService : Service() {
     try { (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager).unregisterDisplayListener(l) } catch (_: Throwable) {}
   }
 
-  private fun newRecorder(outFile: File): MediaRecorder {
+  /**
+   * AUD-029 — the device's H.264 encoder capabilities (MediaCodecList,
+   * REGULAR_CODECS), or null when none is listed. clampEncoderConfig
+   * (EncoderClamp.kt, JVM-tested) decides from them.
+   */
+  private fun avcEncoderCaps(): EncoderCaps? = try {
+    var found: EncoderCaps? = null
+    for (info in MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos) {
+      if (!info.isEncoder) continue
+      if (info.supportedTypes.none { it.equals(MediaFormat.MIMETYPE_VIDEO_AVC, ignoreCase = true) }) continue
+      val vc = info.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).videoCapabilities ?: continue
+      found = EncoderCaps(
+        widthAlignment = vc.widthAlignment,
+        heightAlignment = vc.heightAlignment,
+        maxWidth = vc.supportedWidths.upper,
+        maxHeight = vc.supportedHeights.upper,
+        minWidth = vc.supportedWidths.lower,
+        minHeight = vc.supportedHeights.lower,
+        minBitrate = vc.bitrateRange.lower,
+        maxBitrate = vc.bitrateRange.upper,
+        maxFrameRate = vc.supportedFrameRates.upper,
+        isSizeSupported = { w, h -> vc.isSizeSupported(w, h) },
+      )
+      break
+    }
+    found
+  } catch (_: Throwable) {
+    null
+  }
+
+  private fun newRecorder(outFile: File, config: EncoderConfig): MediaRecorder {
     val r = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(this) else @Suppress("DEPRECATION") MediaRecorder()
     // SCREEN ONLY — no audio source is configured on purpose.
     r.setVideoSource(MediaRecorder.VideoSource.SURFACE)
     r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
     r.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-    // Each segment records at ITS OWN geometry (segW/segH), so a segment started
-    // after a rotation encodes at the new geometry — never a stretched/cropped frame.
-    r.setVideoSize(segW, segH)
-    r.setVideoFrameRate(FRAME_RATE)
-    r.setVideoEncodingBitRate(BITRATE)
+    // Each segment records at ITS OWN geometry (the current display, clamped into
+    // the encoder's capabilities), so a segment started after a rotation encodes
+    // at the new geometry — never a stretched/cropped frame.
+    r.setVideoSize(config.width, config.height)
+    r.setVideoFrameRate(config.frameRate)
+    r.setVideoEncodingBitRate(config.bitrate)
     r.setOutputFile(outFile.absolutePath)
     r.setMaxDuration(segmentMs)
     // Defence-in-depth byte bound: if a segment reaches the size ceiling before its
@@ -283,14 +451,19 @@ class ContinuousScreenCaptureService : Service() {
         rolloverSegment()
       }
     }
-    r.setOnErrorListener { _, _, _ -> finish("ERROR") }
+    // AUD-029 — a runtime recorder/encoder error ends the session with a STABLE
+    // detail (RECORDER_ERROR_<what>, plus the extra), never a bare "ERROR".
+    r.setOnErrorListener { _, what, extra ->
+      recorderErrorExtra = extra
+      finish("ERROR", recorderErrorCode(what))
+    }
     return r
   }
 
   /** Start recording the next segment; returns false on setup failure. */
   private fun startNextSegment(): Boolean {
     if (!active) return false
-    if (segments.size >= maxSegments || (System.currentTimeMillis() - startedAtMs) >= MAX_SESSION_MS) {
+    if (segments.size >= maxSegments || timeline.boundReached(MAX_SESSION_MS)) {
       limitations.add("SESSION_BOUNDS_REACHED")
       finish("BOUNDS_REACHED")
       return true
@@ -304,27 +477,44 @@ class ContinuousScreenCaptureService : Service() {
     (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(m)
     segW = m.widthPixels; segH = m.heightPixels; segDpi = m.densityDpi
     if ((segW >= segH) != (widthPx >= heightPx)) limitations.add("ORIENTATION_CHANGED_DURING_CAPTURE")
+    // AUD-029 — never ask the encoder for a size, bitrate or rate it cannot do.
+    val config = clampEncoderConfig(segW, segH, BITRATE, FRAME_RATE, avcEncoderCaps())
+    if (config == null) {
+      segmentStartFailure = ENCODER_UNSUPPORTED_SIZE
+      return false
+    }
+    encW = config.width; encH = config.height
+    var started: MediaRecorder? = null
     return try {
-      val file = File(cacheDir, "proovra-continuous-${startedAtMs}-${segments.size}.mp4")
+      val dir = spoolDir(this)
+      if (!dir.exists()) dir.mkdirs()
+      val file = File(dir, "$SEGMENT_PREFIX${timeline.startWallMs}-${segments.size}.mp4")
       currentFile = file
-      val r = newRecorder(file)
+      val r = newRecorder(file, config)
+      started = r
       r.prepare()
       val vd = virtualDisplay
       if (vd == null) {
         virtualDisplay = projection!!.createVirtualDisplay(
-          "proovra-continuous", segW, segH, segDpi,
+          "proovra-continuous", encW, encH, segDpi,
           DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, r.surface, null, null,
         )
       } else {
         // Resize to the current geometry FIRST, then bind the new segment's surface.
-        try { vd.resize(segW, segH, segDpi) } catch (_: Throwable) {}
+        try { vd.resize(encW, encH, segDpi) } catch (_: Throwable) {}
         vd.surface = r.surface
       }
       r.start()
       recorder = r
-      segmentStartMs = System.currentTimeMillis()
+      segmentStartElapsedMs = timeline.nowElapsedMs()
       true
     } catch (t: Throwable) {
+      // A recorder that could not prepare/start is released and its empty file
+      // removed; the caller records the failure (AUD-029).
+      try { started?.reset(); started?.release() } catch (_: Throwable) {}
+      try { currentFile?.delete() } catch (_: Throwable) {}
+      currentFile = null
+      segmentStartFailure = SEGMENT_START_FAILED
       false
     }
   }
@@ -333,7 +523,13 @@ class ContinuousScreenCaptureService : Service() {
   private fun rolloverSegment() {
     if (!active) return
     finalizeCurrentSegment()
-    startNextSegment()
+    if (!active) return
+    // AUD-029 — a next segment that cannot start is a RECORDED failure that ends
+    // the session as ERROR, never a silent stall later sealed as COMPLETE_SESSION.
+    if (!startNextSegment()) {
+      limitations.add("SEGMENT_WRITE_FAILED")
+      finish("ERROR", segmentStartFailure ?: SEGMENT_START_FAILED)
+    }
   }
 
   /**
@@ -372,18 +568,33 @@ class ContinuousScreenCaptureService : Service() {
     }
     if (outcome == SegmentClose.EMIT && file != null) {
       val seq = segments.size
-      // Record THIS segment's own geometry (segW/segH), which reflects any rotation
-      // that took effect at its start boundary — so the manifest's per-segment
-      // orientation is truthful across transitions.
+      // Record THIS segment's own encoded geometry (encW/encH), which reflects any
+      // rotation that took effect at its start boundary — so the manifest's
+      // per-segment orientation is truthful across transitions.
+      val offset = timeline.offsetOf(segmentStartElapsedMs)
+      val duration = timeline.since(segmentStartElapsedMs)
+      val orientation = if (encW >= encH) "landscape" else "portrait"
       val seg = mapOf<String, Any?>(
         "uri" to "file://${file.absolutePath}",
         "sequence" to seq,
-        "startedAtOffsetMs" to (segmentStartMs - startedAtMs),
-        "durationMs" to (System.currentTimeMillis() - segmentStartMs),
-        "widthPx" to segW,
-        "heightPx" to segH,
-        "orientation" to if (segW >= segH) "landscape" else "portrait",
+        "startedAtOffsetMs" to offset,
+        "durationMs" to duration,
+        "widthPx" to encW,
+        "heightPx" to encH,
+        "orientation" to orientation,
       )
+      // AUD-004 — durable BEFORE JS hears of it: a death right after this close
+      // still leaves the segment recoverable (and countable).
+      ContinuousLedgerKeeper.update {
+        ledgerWithSegment(
+          it,
+          LedgerSegment(
+            sequence = seq, path = file.absolutePath, sizeBytes = file.length(), sha256Hex = null,
+            startedAtOffsetMs = offset, durationMs = duration, widthPx = encW, heightPx = encH,
+            orientation = orientation, uploadState = SEGMENT_RECORDED,
+          ),
+        )
+      }
       segments.add(seg)
       updateNotification(seq + 1)
       onSegment?.invoke(seg)
@@ -411,8 +622,9 @@ class ContinuousScreenCaptureService : Service() {
     )
   }
 
-  private fun finish(reason: String) {
+  private fun finish(reason: String, detail: String? = null) {
     if (!active && last != null) return
+    if (detail != null && terminationDetail == null) terminationDetail = detail
     active = false
     unregisterDisplayListener()
     finalizeCurrentSegment()
@@ -420,29 +632,38 @@ class ContinuousScreenCaptureService : Service() {
     try { projection?.stop() } catch (_: Throwable) {}
     virtualDisplay = null; projection = null
 
-    val cleanEnd = reason == "USER_STOPPED" || reason == "BOUNDS_REACHED"
-    if (!cleanEnd) limitations.add("CAPTURE_INTERRUPTED")
+    if (reason !in CLEAN_TERMINATIONS) limitations.add("CAPTURE_INTERRUPTED")
     // A clean stop over a lost stretch (a segment that could not be written) is
-    // still not a complete session.
-    val complete = cleanEnd && limitations.none { it in INCOMPLETE_LIMITATIONS }
+    // still not a complete session: sessionCompleteness (CaptureDecisions.kt).
+    val completeness = sessionCompleteness(reason, limitations)
+    val totalMs = timeline.offsetMs()
+    val endedAtUtc = timeline.utcAtOffset(totalMs)
+    val device = deviceBlock()
     val outcome = mapOf<String, Any?>(
       "osConsentGranted" to true,
       "captureStartedAtUtc" to startedAtUtc,
-      "captureEndedAtUtc" to iso(System.currentTimeMillis()),
+      "captureEndedAtUtc" to endedAtUtc,
       "device" to mapOf(
-        "platform" to "android",
-        "osVersion" to (Build.VERSION.RELEASE ?: "unknown"),
-        "model" to ((Build.MANUFACTURER ?: "") + " " + (Build.MODEL ?: "")).trim().ifEmpty { "Android device" },
-        "appVersion" to appVersionName(),
-        "screenW" to widthPx, "screenH" to heightPx, "densityDpi" to densityDpi,
-        "orientation" to if (widthPx >= heightPx) "landscape" else "portrait",
+        "platform" to device.platform,
+        "osVersion" to device.osVersion,
+        "model" to device.model,
+        "appVersion" to device.appVersion,
+        "screenW" to device.screenW, "screenH" to device.screenH, "densityDpi" to device.densityDpi,
+        "orientation" to device.orientation,
       ),
-      "totalDurationMs" to (System.currentTimeMillis() - startedAtMs),
+      "totalDurationMs" to totalMs,
       "segmentCount" to segments.size,
-      "sessionCompleteness" to if (complete) "COMPLETE_SESSION" else "INTERRUPTED_SESSION",
+      "sessionCompleteness" to completeness,
       "terminationReason" to reason,
+      // AUD-029 — the stable code of what failed (null on a clean end).
+      "terminationDetail" to terminationDetail,
+      "recorderErrorExtra" to recorderErrorExtra,
       "limitations" to limitations.toList(),
     )
+    // AUD-004 — the clean (or unclean) finish is durable before anyone is told.
+    ContinuousLedgerKeeper.update {
+      ledgerFinished(it, reason, terminationDetail, limitations.toList(), completeness, totalMs, endedAtUtc)
+    }
     last = outcome
     onStopped?.invoke(outcome)
 
@@ -451,15 +672,21 @@ class ContinuousScreenCaptureService : Service() {
     stopSelf()
   }
 
+  /** The session-INITIAL device block (manifest + ledger). */
+  private fun deviceBlock(): LedgerDevice = LedgerDevice(
+    platform = "android",
+    osVersion = Build.VERSION.RELEASE ?: "unknown",
+    model = ((Build.MANUFACTURER ?: "") + " " + (Build.MODEL ?: "")).trim().ifEmpty { "Android device" },
+    appVersion = appVersionName(),
+    screenW = widthPx,
+    screenH = heightPx,
+    densityDpi = densityDpi,
+    orientation = if (widthPx >= heightPx) "landscape" else "portrait",
+  )
+
   private fun appVersionName(): String = try {
     packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown"
   } catch (_: Throwable) { "unknown" }
-
-  private fun iso(ms: Long): String {
-    val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
-    fmt.timeZone = TimeZone.getTimeZone("UTC")
-    return fmt.format(Date(ms))
-  }
 
   override fun onDestroy() {
     if (active) finish("INTERRUPTED")

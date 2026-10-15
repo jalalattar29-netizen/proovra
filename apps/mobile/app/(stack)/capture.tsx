@@ -112,6 +112,7 @@ import { useAuth } from "../../src/auth-context";
 // Personal fallback) with a bounded explanation.
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
 import { setCaptureActive } from "../../src/capture/active-capture";
+import { elapsedSinceMs, monotonicNowMs } from "../../src/capture/monotonic-clock";
 import type { ScreenAcquisitionMode } from "../../src/capture/screen-acquisition";
 import {
   saveCaptureSession,
@@ -1174,7 +1175,8 @@ hasActiveDraft: isSessionActive || isRecording,
       setIsRecording(true);
       addToast("Recording started", "info");
 
-      const startedAt = Date.now();
+      // AUD-018 — a monotonic mark: a clock change mid-recording moves no duration.
+      const startedAt = monotonicNowMs();
       const result = await cameraRef.current.recordAsync();
       const recordResult = result as { uri?: string; duration?: number };
 
@@ -1183,7 +1185,7 @@ hasActiveDraft: isSessionActive || isRecording,
         const durationMs =
           typeof recordResult.duration === "number"
             ? Math.max(0, Math.round(recordResult.duration * 1000))
-            : Math.max(0, Date.now() - startedAt);
+            : elapsedSinceMs(startedAt);
 
         await addCapturedItemToSession({
           uri: recordResult.uri,
@@ -1237,7 +1239,7 @@ hasActiveDraft: isSessionActive || isRecording,
       });
 
       await audioRecorder.prepareToRecordAsync();
-      audioStartedAtRef.current = Date.now();
+      audioStartedAtRef.current = monotonicNowMs();
       audioRecorder.record();
       recorderLiveRef.current = true;
       setIsRecording(true);
@@ -1304,8 +1306,8 @@ if (!isRecording || busy) return;
       const durationMs =
         typeof statusDurationMs === "number" && statusDurationMs > 0
           ? Math.max(0, Math.round(statusDurationMs))
-          : startedAt
-            ? Math.max(0, Date.now() - startedAt)
+          : startedAt !== null
+            ? elapsedSinceMs(startedAt)
             : undefined;
 
       if (!uri) {

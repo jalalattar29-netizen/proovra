@@ -29,6 +29,7 @@
 
 import { apiFetch } from "./api";
 import { computeFileIntegrityBase64, uploadWithPut } from "./upload-utils";
+import { CAPTURE_PUT_TIMEOUT_MS, CAPTURE_REQUEST_TIMEOUT_MS, withTimeout } from "./capture/capture-retry";
 import {
   buildScreenCompletePath,
   buildContinuousCompletePath,
@@ -66,10 +67,17 @@ export async function openDirectCaptureSession(
    */
   options: { teamId?: string | null } = {},
 ): Promise<DirectCaptureSession> {
-  const res = await apiFetch("/v1/capture/direct-sessions", {
-    method: "POST",
-    body: JSON.stringify(options.teamId ? { mode, teamId: options.teamId } : { mode }),
-  });
+  // AUD-005 — every capture request is time-bounded (capture-retry.ts).
+  const res = await withTimeout(
+    (signal) =>
+      apiFetch("/v1/capture/direct-sessions", {
+        method: "POST",
+        body: JSON.stringify(options.teamId ? { mode, teamId: options.teamId } : { mode }),
+        signal,
+      }),
+    CAPTURE_REQUEST_TIMEOUT_MS,
+    "Opening the capture session",
+  );
   const session = res?.session as
     | { captureSessionId?: string; expiresAtUtc?: string }
     | undefined;
@@ -91,9 +99,15 @@ export async function reserveDirectCaptureEvidence(
     gps?: { lat: number; lng: number; accuracyMeters?: number };
   },
 ): Promise<string> {
-  const res = await apiFetch(
-    `/v1/capture/direct-sessions/${session.captureSessionId}/evidence`,
-    { method: "POST", body: JSON.stringify(input) },
+  const res = await withTimeout(
+    (signal) =>
+      apiFetch(`/v1/capture/direct-sessions/${session.captureSessionId}/evidence`, {
+        method: "POST",
+        body: JSON.stringify(input),
+        signal,
+      }),
+    CAPTURE_REQUEST_TIMEOUT_MS,
+    "Reserving the evidence record",
   );
   const evidenceId = res?.evidence?.evidenceId as string | undefined;
   if (!evidenceId) throw new Error("Could not reserve the evidence record.");
@@ -150,45 +164,61 @@ export async function uploadDirectCaptureItem(
      */
     recordedThrough?: number;
   },
-): Promise<{ partIndex: number; sha256Hex: string }> {
+  /**
+   * AUD-004 / AUD-005 — per-request deadlines. A stalled declare, presign or
+   * PUT now rejects with code TIMEOUT instead of hanging its caller forever.
+   */
+  timeouts: { requestMs?: number; putMs?: number } = {},
+): Promise<{ partIndex: number; sha256Hex: string; sizeBytes: number }> {
+  const requestMs = timeouts.requestMs ?? CAPTURE_REQUEST_TIMEOUT_MS;
+  const putMs = timeouts.putMs ?? CAPTURE_PUT_TIMEOUT_MS;
   // The integrity layer returns the hex digest directly — it no longer round-
   // trips through `globalThis.atob`, which is not guaranteed on Hermes.
   const integrity = await computeFileIntegrityBase64(item.uri);
   const sha256Hex = integrity.sha256Hex;
 
-  const declared = await apiFetch(
-    `/v1/capture/direct-sessions/${session.captureSessionId}/parts/${item.partIndex}/declaration`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        sha256: sha256Hex,
-        clientReportedSource: item.source,
-        ...(typeof item.recordedThrough === "number" ? { recordedThrough: item.recordedThrough } : {}),
-        // UC-ARCH-007 — declarations are UNSIGNED: this app registers no device
-        // key and submits no platform attestation (no shipped client does), so
-        // the server records every declaration as signatureVerdict MISSING.
-        signed: null,
+  const declared = await withTimeout(
+    (signal) =>
+      apiFetch(`/v1/capture/direct-sessions/${session.captureSessionId}/parts/${item.partIndex}/declaration`, {
+        method: "POST",
+        body: JSON.stringify({
+          sha256: sha256Hex,
+          clientReportedSource: item.source,
+          ...(typeof item.recordedThrough === "number" ? { recordedThrough: item.recordedThrough } : {}),
+          // UC-ARCH-007 — declarations are UNSIGNED: this app registers no device
+          // key and submits no platform attestation (no shipped client does), so
+          // the server records every declaration as signatureVerdict MISSING.
+          signed: null,
+        }),
+        signal,
       }),
-    },
+    requestMs,
+    "The part declaration",
   );
   adoptServerSessionExpiry(session, declared);
 
-  const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
-    method: "POST",
-    body: JSON.stringify({
-      partIndex: item.partIndex,
-      mimeType: item.mimeType,
-      durationMs: item.durationMs ?? undefined,
-      originalFileName: item.originalFilename ?? undefined,
-      checksumSha256Base64: integrity.checksumSha256Base64,
-      contentMd5Base64: integrity.contentMd5Base64,
-      // The schema takes min(1) strings, so an empty value is omitted, not sent.
-      privateRole: item.privateRole?.trim() || undefined,
-      privateNote: item.privateNote?.trim() || undefined,
-      checklistStepId: item.checklistStepId?.trim() || undefined,
-      sourceLabel: item.sourceLabel?.trim() || undefined,
-    }),
-  });
+  const part = await withTimeout(
+    (signal) =>
+      apiFetch(`/v1/evidence/${evidenceId}/parts`, {
+        method: "POST",
+        signal,
+        body: JSON.stringify({
+          partIndex: item.partIndex,
+          mimeType: item.mimeType,
+          durationMs: item.durationMs ?? undefined,
+          originalFileName: item.originalFilename ?? undefined,
+          checksumSha256Base64: integrity.checksumSha256Base64,
+          contentMd5Base64: integrity.contentMd5Base64,
+          // The schema takes min(1) strings, so an empty value is omitted, not sent.
+          privateRole: item.privateRole?.trim() || undefined,
+          privateNote: item.privateNote?.trim() || undefined,
+          checklistStepId: item.checklistStepId?.trim() || undefined,
+          sourceLabel: item.sourceLabel?.trim() || undefined,
+        }),
+      }),
+    requestMs,
+    "The part upload request",
+  );
 
   await uploadWithPut({
     putUrl: part.upload.putUrl,
@@ -196,9 +226,10 @@ export async function uploadDirectCaptureItem(
     mimeType: item.mimeType,
     checksumSha256Base64: integrity.checksumSha256Base64,
     contentMd5Base64: integrity.contentMd5Base64,
+    timeoutMs: putMs,
   });
 
-  return { partIndex: item.partIndex, sha256Hex };
+  return { partIndex: item.partIndex, sha256Hex, sizeBytes: integrity.sizeBytes };
 }
 
 export async function completeDirectCapture(
@@ -317,9 +348,15 @@ export async function sealDirectCapture<T>(
 export async function discardDirectCaptureSession(
   session: DirectCaptureSession,
 ): Promise<{ releasedEvidenceId: string | null; discarded: boolean }> {
-  const res = await apiFetch(
-    `/v1/capture/direct-sessions/${session.captureSessionId}/discard`,
-    { method: "POST", body: JSON.stringify({}) },
+  const res = await withTimeout(
+    (signal) =>
+      apiFetch(`/v1/capture/direct-sessions/${session.captureSessionId}/discard`, {
+        method: "POST",
+        body: JSON.stringify({}),
+        signal,
+      }),
+    CAPTURE_REQUEST_TIMEOUT_MS,
+    "Releasing the capture session",
   );
   const result = res?.result as
     | { releasedEvidenceId?: string | null; discarded?: boolean }

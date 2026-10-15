@@ -57,7 +57,11 @@ globalThis.__tx = async (path, init) => {
   const method = init?.method ?? "GET";
   requests.push({ path, method, body: init?.body ? JSON.parse(init.body) : null });
   for (const [fragment, error] of failures) {
-    if (path.includes(fragment)) throw new Error(error);
+    if (!path.includes(fragment)) continue;
+    // A string is a transport failure (no HTTP answer); an object is an HTTP
+    // refusal carrying the status and code apiFetch would surface (AUD-005).
+    if (typeof error === "string") throw new Error(error);
+    throw Object.assign(new Error(error.code), { statusCode: error.status, code: error.code });
   }
   if (path === "/v1/capture/direct-sessions") {
     return { session: { captureSessionId: "cs-1", expiresAtUtc: "2099-01-01T00:00:00.000Z" } };
@@ -89,19 +93,21 @@ const FS_STUB = dataUrl(
   [
     "export const cacheDirectory = 'file:///cache/';",
     "export const writeAsStringAsync = async () => {};",
-    "export const deleteAsync = async () => {};",
+    "export const deleteAsync = async (uri) => { (globalThis.__e2eDeleted ??= []).push(uri); };",
     "export const getInfoAsync = async () => ({ exists: true, size: 1024 });",
   ].join("\n"),
 );
 
 const ACQUISITION_URL = dataUrl(compile("../src/capture/screen-acquisition.ts"));
+const RETRY_URL = dataUrl(compile("../src/capture/capture-retry.ts"));
 
 const directCapture = await import(
   dataUrl(
     compile("../src/direct-capture.ts")
       .replace(/from ["']\.\/api["']/g, `from "${API_STUB}"`)
       .replace(/from ["']\.\/upload-utils["']/g, `from "${UPLOAD_STUB}"`)
-      .replace('from "./capture/screen-acquisition"', `from "${ACQUISITION_URL}"`),
+      .replace('from "./capture/screen-acquisition"', `from "${ACQUISITION_URL}"`)
+      .replace('from "./capture/capture-retry"', `from "${RETRY_URL}"`),
   )
 );
 
@@ -109,11 +115,13 @@ const screenCapture = await import(
   dataUrl(
     compile("../src/screen-capture.ts")
       .replace(/from ["']expo-file-system["']/g, `from "${FS_STUB}"`)
+      .replace('from "./capture/capture-retry"', `from "${RETRY_URL}"`)
       .replace(/from ["']\.\/direct-capture["']/g, `from "${dataUrl(
         compile("../src/direct-capture.ts")
           .replace(/from ["']\.\/api["']/g, `from "${API_STUB}"`)
           .replace(/from ["']\.\/upload-utils["']/g, `from "${UPLOAD_STUB}"`)
-          .replace('from "./capture/screen-acquisition"', `from "${ACQUISITION_URL}"`),
+          .replace('from "./capture/screen-acquisition"', `from "${ACQUISITION_URL}"`)
+      .replace('from "./capture/capture-retry"', `from "${RETRY_URL}"`),
       )}"`)
       .replace(/from ["']\.\.\/modules\/proovra-screen-capture["']/g, `from "${dataUrl("export {};")}"`),
   )
@@ -339,15 +347,50 @@ test("6b. an acquisition naming a mode this build cannot map is dropped, not gue
  * 7. Upload failure and safe retry
  * ======================================================================== */
 
-test("7. a staging failure releases the reservation and keeps the real reason", async () => {
+const FAST_RETRY = { attempts: 2, baseDelayMs: 0, maxDelayMs: 0 };
+
+test("7. a NETWORK failure keeps the session, the reservation and every frame — and the retry resumes them (AUD-005)", async () => {
+  globalThis.__e2eDeleted = [];
   failures.set("/parts/1/declaration", "the network went away");
+  let pending = null;
+  const persist = async (p) => {
+    pending = JSON.parse(JSON.stringify(p));
+  };
 
-  await assert.rejects(() => screenCapture.stageScreenCapture(result(3)), /the network went away/);
+  const err = await screenCapture
+    .stageScreenCapture(result(3), { retry: FAST_RETRY, persist })
+    .then(() => null, (e) => e);
+  // The caller is told the CAPTURE failed, with its real reason, and that it can retry.
+  assert.match(err.message, /the network went away/);
+  assert.equal(err.retryable, true);
+  // Nothing was released and no local frame was deleted: they may be the only copy.
+  assert.equal(discards().length, 0, "a retryable failure must not release the reservation");
+  assert.deepEqual(globalThis.__e2eDeleted, [], "no frame is deleted before the staging is committed");
+  assert.equal(pending.session.captureSessionId, "cs-1");
+  assert.deepEqual(pending.declared.map((d) => d.partIndex), [0]);
 
-  // The reservation is released rather than left as a custody-logged empty
-  // record, and the caller is told the CAPTURE failed — not that a cleanup did.
-  assert.equal(discards().length, 1, "a failed stage must release its reservation");
+  // Back online: Retry resumes the SAME session — no second open, no second reserve.
+  failures = new Map();
+  requests = [];
+  const staged = await screenCapture.stageScreenCapture(result(3), { retry: FAST_RETRY, persist, pending });
+  assert.equal(staged.session.captureSessionId, "cs-1");
+  assert.equal(requests.filter((r) => r.path === "/v1/capture/direct-sessions").length, 0, "no second session");
+  assert.equal(requests.filter((r) => /\/evidence$/.test(r.path)).length, 0, "no second reservation");
+  assert.deepEqual(
+    requests.filter((r) => /\/declaration$/.test(r.path)).map((r) => r.path.match(/parts\/(\d+)/)[1]),
+    ["1", "2", "3"],
+    "only what was not confirmed is sent, then the manifest",
+  );
   assert.deepEqual(sealCalls(), []);
+});
+
+test("7b. a TERMINAL refusal (4xx validation) releases the reservation and deletes the frames", async () => {
+  globalThis.__e2eDeleted = [];
+  failures.set("/parts/1/declaration", { status: 422, code: "INVALID_DIGEST" });
+  const err = await screenCapture.stageScreenCapture(result(3), { retry: FAST_RETRY }).then(() => null, (e) => e);
+  assert.equal(err.retryable, false);
+  assert.equal(discards().length, 1, "a terminal refusal releases its reservation");
+  assert.deepEqual(globalThis.__e2eDeleted, ["file:///f0.png", "file:///f1.png", "file:///f2.png"]);
 });
 
 /* ==========================================================================
@@ -381,7 +424,7 @@ test("8b. an ordinary capture completes through /complete, not a screen route", 
 test("9. a refusal at reserve surfaces the refusal and leaves nothing behind", async () => {
   // An inactive membership or a revoked workspace is refused by the canonical
   // primitive at reserve, before a single byte moves.
-  failures.set("/evidence", "FORBIDDEN");
+  failures.set("/evidence", { status: 403, code: "FORBIDDEN" });
 
   await assert.rejects(() => screenCapture.stageScreenCapture(result(2)), /FORBIDDEN/);
   assert.deepEqual(sealCalls(), []);
@@ -390,7 +433,7 @@ test("9. a refusal at reserve surfaces the refusal and leaves nothing behind", a
 });
 
 test("9b. a refusal at session open never reaches a reservation", async () => {
-  failures.set("/v1/capture/direct-sessions", "FORBIDDEN");
+  failures.set("/v1/capture/direct-sessions", { status: 403, code: "FORBIDDEN" });
   await assert.rejects(() => screenCapture.stageScreenCapture(result(2)), /FORBIDDEN/);
   assert.equal(
     requests.filter((r) => /\/evidence$/.test(r.path)).length,

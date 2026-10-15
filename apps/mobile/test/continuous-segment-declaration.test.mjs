@@ -51,8 +51,8 @@ test("AUD-017: the segment declaration sends recordedThrough = the segment's own
 });
 
 test("AUD-017: a higher recorder count at declaration time is sent; a lower one never undercuts the segment", async () => {
-  await C.uploadContinuousSegment(session(), "ev-1", seg(1), 0, 7);
-  await C.uploadContinuousSegment(session(), "ev-1", seg(5), 0, 2);
+  await C.uploadContinuousSegment(session(), "ev-1", seg(1), 0, {}, 7);
+  await C.uploadContinuousSegment(session(), "ev-1", seg(5), 0, {}, 2);
   assert.deepEqual(declarations.map((d) => d.body.recordedThrough), [7, 6]);
   assert.equal(C.continuousRecordedThrough({ sequence: 0 }), 1);
   assert.equal(C.continuousRecordedThrough({ sequence: 0 }, Number.NaN), 1);

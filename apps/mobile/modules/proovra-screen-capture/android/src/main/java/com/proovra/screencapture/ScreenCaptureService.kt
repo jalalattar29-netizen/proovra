@@ -23,10 +23,6 @@ import android.util.DisplayMetrics
 import android.view.WindowManager
 import java.io.File
 import java.io.FileOutputStream
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
 
 /**
  * UC-2 — the foreground service that holds one MediaProjection session and takes
@@ -65,7 +61,8 @@ class ScreenCaptureService : Service() {
     private var projection: MediaProjection? = null
     private val frames = mutableListOf<FrameOut>()
     private val limitations = linkedSetOf<String>()
-    private var startedAtMs = 0L
+    // AUD-018 — offsets are monotonic (elapsedRealtime); the wall clock only names instants.
+    private val timeline = SessionTimeline(SystemCaptureClock)
     private var startedAtUtc = ""
     private var maxFrames = 20
     // Session-INITIAL display geometry (the manifest's device block).
@@ -138,7 +135,7 @@ class ScreenCaptureService : Service() {
         try {
           beginProjection()
         } catch (t: Throwable) {
-          failStart("START_FAILED", t.message ?: "Screen capture could not start.")
+          failStart(START_FAILED, startFailureMessage(t))
         }
       }
     }
@@ -228,8 +225,8 @@ class ScreenCaptureService : Service() {
     frameW = widthPx
     frameH = heightPx
     frameDpi = densityDpi
-    startedAtMs = System.currentTimeMillis()
-    startedAtUtc = iso(startedAtMs)
+    timeline.start()
+    startedAtUtc = timeline.startUtc()
 
     // The OS revoking the projection (e.g. the user ends casting) fails closed.
     mp.registerCallback(object : MediaProjection.Callback() {
@@ -335,7 +332,7 @@ class ScreenCaptureService : Service() {
       val cropped = Bitmap.createBitmap(bitmap, 0, 0, w, h)
       bitmap.recycle()
 
-      val file = File(cacheDir, "proovra-screen-${startedAtMs}-$index.png")
+      val file = File(cacheDir, "proovra-screen-${timeline.startWallMs}-$index.png")
       FileOutputStream(file).use { out -> cropped.compress(Bitmap.CompressFormat.PNG, 100, out) }
       cropped.recycle()
 
@@ -345,7 +342,7 @@ class ScreenCaptureService : Service() {
           frameIndex = index,
           widthPx = w,
           heightPx = h,
-          capturedAtOffsetMs = System.currentTimeMillis() - startedAtMs,
+          capturedAtOffsetMs = timeline.offsetMs(),
         ),
       )
       onFrame?.invoke(index, frames.size)
@@ -378,7 +375,7 @@ class ScreenCaptureService : Service() {
     val outcome = ScreenCaptureOutcome(
       osConsentGranted = true,
       startedAtUtc = startedAtUtc,
-      endedAtUtc = iso(System.currentTimeMillis()),
+      endedAtUtc = timeline.utcAtOffset(timeline.offsetMs()),
       osVersion = Build.VERSION.RELEASE ?: "unknown",
       model = ((Build.MANUFACTURER ?: "") + " " + (Build.MODEL ?: "")).trim().ifEmpty { "Android device" },
       appVersion = appVersionName(),
@@ -402,12 +399,6 @@ class ScreenCaptureService : Service() {
     packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown"
   } catch (_: Throwable) {
     "unknown"
-  }
-
-  private fun iso(ms: Long): String {
-    val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
-    fmt.timeZone = TimeZone.getTimeZone("UTC")
-    return fmt.format(Date(ms))
   }
 
   override fun onDestroy() {

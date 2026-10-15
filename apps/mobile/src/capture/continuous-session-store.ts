@@ -30,6 +30,11 @@ export type LiveContinuousSession = {
   clientLimitations: string[];
   openedAtIso: string;
   ownerUserId: string;
+  /**
+   * AUD-004 — the continuity manifest once it is FIXED (persisted before its
+   * first upload). A restart during finalization stages exactly this again.
+   */
+  stagedManifest?: { manifestJson: string; manifestPartIndex: number } | null;
 };
 
 export function liveContinuousSessionKey(userId: string): string {
@@ -72,7 +77,16 @@ export function parseLiveContinuousSession(raw: unknown, ownerUserId: string | n
       : [],
     openedAtIso: typeof o.openedAtIso === "string" ? o.openedAtIso : new Date(0).toISOString(),
     ownerUserId,
+    stagedManifest: parseStagedManifest(o.stagedManifest),
   };
+}
+
+function parseStagedManifest(v: unknown): LiveContinuousSession["stagedManifest"] {
+  if (!v || typeof v !== "object") return null;
+  const m = v as Record<string, unknown>;
+  if (typeof m.manifestJson !== "string" || !m.manifestJson) return null;
+  if (typeof m.manifestPartIndex !== "number" || !Number.isInteger(m.manifestPartIndex) || m.manifestPartIndex < 0) return null;
+  return { manifestJson: m.manifestJson, manifestPartIndex: m.manifestPartIndex };
 }
 
 export async function saveLiveContinuousSession(

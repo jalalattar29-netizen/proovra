@@ -13,6 +13,12 @@ export type ScreenFlowState =
   | { phase: "active"; frameCount: number }
   | { phase: "review"; frameCount: number; stopReason: string }
   | { phase: "uploading"; frameCount: number }
+  /**
+   * AUD-005 — staging stopped on a RETRYABLE failure (network, timeout, a
+   * transient server answer). The frames, the session and every confirmed
+   * upload are kept on this device; Retry resumes them, Discard releases them.
+   */
+  | { phase: "pending"; frameCount: number; message: string }
   | { phase: "success"; evidenceId: string; frameCount: number }
   | { phase: "error"; message: string; recoverable: boolean };
 
@@ -23,6 +29,10 @@ export type ScreenFlowEvent =
   | { type: "FINALIZE" } // user asked to seal
   | { type: "FINALIZED"; evidenceId: string }
   | { type: "FAIL"; message: string; recoverable?: boolean }
+  /** AUD-005 — a retryable staging failure: the capture is kept for Retry. */
+  | { type: "STAGE_PENDING"; frameCount: number; message: string }
+  /** AUD-005 — a staging persisted before an app restart is offered again. */
+  | { type: "RESUME_PENDING"; frameCount: number; message: string }
   | { type: "RESET" }; // start over from intro
 
 export const INITIAL_SCREEN_FLOW: ScreenFlowState = { phase: "intro" };
@@ -60,7 +70,19 @@ export function screenFlowReducer(
       return { phase: "review", frameCount: event.frameCount, stopReason: event.stopReason };
 
     case "FINALIZE":
-      return state.phase === "review" ? { phase: "uploading", frameCount: state.frameCount } : state;
+      return state.phase === "review" || state.phase === "pending"
+        ? { phase: "uploading", frameCount: state.frameCount }
+        : state;
+
+    case "STAGE_PENDING":
+      return state.phase === "uploading"
+        ? { phase: "pending", frameCount: event.frameCount, message: event.message }
+        : state;
+
+    case "RESUME_PENDING":
+      return state.phase === "intro"
+        ? { phase: "pending", frameCount: event.frameCount, message: event.message }
+        : state;
 
     case "FINALIZED":
       return state.phase === "uploading"
