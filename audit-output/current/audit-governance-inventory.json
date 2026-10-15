@@ -66,7 +66,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 363,
+    "AuditFilesInventoried": 367,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -115,7 +115,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 278
+    "ProductBehaviorTestsInventoried": 282
   },
   "reportRoles": {
     "counts": {
@@ -132,7 +132,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 278,
+    "PRODUCT_BEHAVIOR_TEST": 282,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "CURRENT_GENERATED_REPORT": 1,
     "DIAGNOSTIC_NOT_AUTHORITY": 1,
@@ -377,6 +377,21 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "apps/web/__tests__/legal-evidence-retention-disclosure.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "apps/web/__tests__/legal-screen-capture-disclosure.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
@@ -582,6 +597,23 @@
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "apps/web/__tests__/render/verify-record-tab-fields.render.test.tsx",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [
+        "apps/web/app/verify/[token]/_verify-record-tab.ts"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -2246,6 +2278,21 @@
     },
     {
       "path": "services/api/test/attention-arch-phase8-closure-matrix.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/aud-019-local-ocr-capability.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
@@ -5830,6 +5877,21 @@
     },
     {
       "path": "services/api/test/workspace-surface-audit.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/worker/test/artifact-gate-requires-record.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
