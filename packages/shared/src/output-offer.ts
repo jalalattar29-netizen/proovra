@@ -24,7 +24,7 @@
  * with the list of what changed) unless every bound field is equal. The client
  * never decides staleness; it renders what the server says changed.
  */
-import type { OtsState } from "./ots-anchoring.js";
+import type { OtsState, OtsVerificationKey } from "./ots-anchoring.js";
 
 // ===========================================================================
 // OFFER BINDING
@@ -270,7 +270,7 @@ export const REPORTABLE_CUSTODY_EVENT_TYPES: ReadonlyArray<string> = [
 export const REPORT_FRESHNESS_CHANGE_CODES = [
   "TSA_VALIDATED_AFTER_REPORT",
   "TSA_STATUS_CHANGED_AFTER_REPORT",
-  "OTS_ANCHORED_AFTER_REPORT",
+  "OTS_CHAIN_VERIFIED_AFTER_REPORT",
   "CUSTODY_CHANGED_AFTER_REPORT",
   "INTEGRITY_REVERIFIED_AFTER_REPORT",
 ] as const;
@@ -305,6 +305,12 @@ export type ReportFreshnessInput = {
     anchoredAtUtc: string | null;
     /** The state the report stated (anchorSnapshot.otsState); null for legacy reports. */
     reportState?: OtsState | null;
+    /** The canonical verification now (CHAIN_VERIFIED is the only positive claim). */
+    verification?: OtsVerificationKey | null;
+    /** The verification the report stated (anchorSnapshot.otsVerification); null for legacy reports. */
+    reportVerification?: OtsVerificationKey | null;
+    /** When the chain verification was established, when it was. */
+    verifiedAtUtc?: string | null;
   };
   /** Reportable custody events recorded after the report's custody horizon. */
   custodyAfterReport: { count: number; latestAtUtc: string | null };
@@ -336,13 +342,13 @@ export function deriveReportFreshness(input: ReportFreshnessInput): ReportFreshn
   ) {
     changes.push({ code: "TSA_STATUS_CHANGED_AFTER_REPORT", atUtc: null });
   }
-  // A proof that became ANCHORED after the report the report could only call
-  // pending. A legacy report without a stated state compares by time.
-  if (
-    input.ots.state === "ANCHORED" &&
-    (input.ots.reportState != null ? input.ots.reportState !== "ANCHORED" : after(input.ots.anchoredAtUtc, base))
-  ) {
-    changes.push({ code: "OTS_ANCHORED_AFTER_REPORT", atUtc: input.ots.anchoredAtUtc });
+  // Only an INDEPENDENT Bitcoin-chain verification the report could not state
+  // is a newer fact worth a new version. An attestation the proof merely names
+  // is not: it is not a verification, and offering a version for it would
+  // carry the same unchecked claim. A report that already stated
+  // CHAIN_VERIFIED needs nothing.
+  if (input.ots.verification === "CHAIN_VERIFIED" && input.ots.reportVerification !== "CHAIN_VERIFIED") {
+    changes.push({ code: "OTS_CHAIN_VERIFIED_AFTER_REPORT", atUtc: input.ots.verifiedAtUtc ?? null });
   }
   if (input.custodyAfterReport.count > 0) {
     changes.push({
@@ -371,8 +377,8 @@ export function reportFreshnessChangeCopy(
       return `The trusted timestamp was validated after ${v} was generated.`;
     case "TSA_STATUS_CHANGED_AFTER_REPORT":
       return `The trusted timestamp's status changed after ${v} was generated.`;
-    case "OTS_ANCHORED_AFTER_REPORT":
-      return `The OpenTimestamps proof was anchored in Bitcoin after ${v} was generated.`;
+    case "OTS_CHAIN_VERIFIED_AFTER_REPORT":
+      return `The Bitcoin anchor was independently verified against the Bitcoin main chain after ${v} was generated.`;
     case "CUSTODY_CHANGED_AFTER_REPORT":
       return `${change.count ?? "Some"} reportable custody event${change.count === 1 ? " was" : "s were"} recorded after ${v}.`;
     case "INTEGRITY_REVERIFIED_AFTER_REPORT":

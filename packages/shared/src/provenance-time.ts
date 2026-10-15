@@ -95,7 +95,7 @@ export const PROVENANCE_TIME_LABELS: Readonly<Record<ProvenanceTimeKind, string>
   FINALIZED: "Finalized and signed",
   TSA: "RFC 3161 timestamp time",
   // (2026-10-13) A PROOVRA server time, not a Bitcoin block time.
-  OTS_ANCHORED: "Bitcoin anchoring recorded by PROOVRA",
+  OTS_ANCHORED: "Bitcoin attestation recorded by PROOVRA",
 };
 
 /** The one sentence for "no capture time is known". */

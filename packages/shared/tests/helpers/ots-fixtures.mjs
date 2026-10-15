@@ -145,3 +145,41 @@ export function tooLarge() {
   const real = Buffer.from(REAL.boundProofBase64, "base64");
   return Buffer.concat([real, Buffer.alloc(300 * 1024, 0)]).toString("base64");
 }
+
+/**
+ * An independent Bitcoin-chain check bound to `up` (the proof it was made
+ * for): the verifier identity names the proof's SHA-256 prefix and the block
+ * is the proof's own attested height. A test fixture only — the worker is
+ * the one writer of these columns in the product.
+ */
+export function chainRecordFor(up, o = {}) {
+  const status = o.status ?? "VERIFIED";
+  const blockOutcome = status === "VERIFIED" || status === "INSUFFICIENT_CONFIRMATIONS";
+  return {
+    status,
+    checkedAtUtc: o.checkedAtUtc ?? "2026-10-15T08:00:00.000Z",
+    verifiedAtUtc: status === "VERIFIED" ? (o.verifiedAtUtc ?? "2026-10-15T08:00:00.000Z") : null,
+    blockHeight: o.blockHeight ?? (blockOutcome || status === "FAILED" ? up.blockHeight : null),
+    blockHash: blockOutcome ? (o.blockHash ?? "00000000000000000001a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7") : null,
+    blockTimeUtc: blockOutcome ? (o.blockTimeUtc ?? "2024-05-01T12:00:00.000Z") : null,
+    confirmations: blockOutcome ? (o.confirmations ?? (status === "VERIFIED" ? 120 : 2)) : null,
+    verifier: o.verifier ?? `proovra-ots-chain/1;core=310100;min=${o.min ?? 6};proof=${(o.proofSha256 ?? up.proofSha256).slice(0, 16)}`,
+    failureCode: o.failureCode ?? (status === "INSUFFICIENT_CONFIRMATIONS" ? "INSUFFICIENT_CONFIRMATIONS" : status === "FAILED" ? "ROOT_MISMATCH" : status === "UNAVAILABLE" ? "BTC_RPC_TIMEOUT" : null),
+  };
+}
+
+/** The same check as evidence-row columns (evidence.ots_chain_*). */
+export function chainColumnsFor(up, o = {}) {
+  const c = chainRecordFor(up, o);
+  return {
+    otsChainVerificationStatus: c.status,
+    otsChainCheckedAtUtc: c.checkedAtUtc,
+    otsChainVerifiedAtUtc: c.verifiedAtUtc,
+    otsChainBlockHeight: c.blockHeight,
+    otsChainBlockHash: c.blockHash,
+    otsChainBlockTimeUtc: c.blockTimeUtc,
+    otsChainConfirmations: c.confirmations,
+    otsChainVerifier: c.verifier,
+    otsChainFailureCode: c.failureCode,
+  };
+}

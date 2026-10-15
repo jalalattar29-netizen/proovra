@@ -8,6 +8,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   OTS_ANCHORED_BOUNDARY,
+  OTS_CHAIN_VERIFIED_BOUNDARY,
+  OTS_VERIFICATION_LABELS,
+  OTS_VERIFICATION_WORDS,
+  otsBoundaryFor,
   OTS_STATE_SENTENCES,
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   VERIFICATION_LIMITATION,
@@ -18,7 +22,7 @@ import {
   deriveCanonicalArtifactFacts,
   isAccountAuthenticationVerified,
 } from "../dist/index.js";
-import { REAL, proofSha256, upgradedProof } from "./helpers/ots-fixtures.mjs";
+import { REAL, chainColumnsFor, proofSha256, upgradedProof } from "./helpers/ots-fixtures.mjs";
 
 const SHA = "a".repeat(64);
 const FP = REAL.boundFingerprintHash;
@@ -101,7 +105,7 @@ test("BEFORE RENDERING: a payload that disagrees with the record is refused", ()
 /** The Bitcoin anchoring card as the report prints it for each state. */
 const otsCard = (facts) =>
   facts.otsState === "ANCHORED"
-    ? `Bitcoin anchoring Anchored ${OTS_STATE_SENTENCES.ANCHORED} ${OTS_ANCHORED_BOUNDARY}`
+    ? `Bitcoin anchoring ${OTS_VERIFICATION_WORDS[facts.otsVerification]} ${OTS_VERIFICATION_LABELS[facts.otsVerification]} ${otsBoundaryFor({ verification: facts.otsVerification }) ?? ""}`
     : `Bitcoin anchoring Pending ${OTS_STATE_SENTENCES[facts.otsState]}`;
 
 /** The account card as the report prints it (2026-10-14). */
@@ -163,18 +167,26 @@ test("AFTER RENDERING: the PDF text states the facts and nothing stronger", () =
   assert.deepEqual(checkRenderedReportText(goodText(f), f, { reportVersion: 1 }), []);
   assert.deepEqual(checkRenderedReportText(goodText(pending), pending, { reportVersion: 1 }), []);
   // ANCHORED requires "Bitcoin anchoring", the anchored sentence and the boundary.
-  const noSentence = checkRenderedReportText(goodText(f).replace(OTS_STATE_SENTENCES.ANCHORED, ""), f, { reportVersion: 1 });
+  const noSentence = checkRenderedReportText(goodText(f).replace(OTS_VERIFICATION_LABELS.ATTESTATION_RECORDED, ""), f, { reportVersion: 1 });
   assert.ok(noSentence.some((x) => x.check === "OTS_ANCHORED"));
-  const noTitle = checkRenderedReportText(goodText(f).replace("Bitcoin anchoring Anchored", "Anchored"), f, { reportVersion: 1 });
+  const noTitle = checkRenderedReportText(goodText(f).replace("Bitcoin anchoring Attestation recorded", "Attestation recorded"), f, { reportVersion: 1 });
   assert.ok(noTitle.some((x) => x.check === "OTS_ANCHORED"));
   const noBoundary = checkRenderedReportText(goodText(f).replace(OTS_ANCHORED_BOUNDARY, ""), f, { reportVersion: 1 });
   assert.ok(noBoundary.some((x) => x.check === "OTS_BOUNDARY"));
-  // A proof that is not anchored may never read as anchored.
-  const over = checkRenderedReportText(`${goodText(pending)}\n${OTS_STATE_SENTENCES.ANCHORED}`, pending, { reportVersion: 1 });
+  // An unchecked attestation may never state the chain-verified label, while a chain-verified record states it with its own boundary.
+  assert.ok(checkRenderedReportText(`${goodText(f)}
+${OTS_VERIFICATION_LABELS.CHAIN_VERIFIED}`, f, { reportVersion: 1 }).some((x) => x.check === "OTS_OVERCLAIM"));
+  const v = record(chainColumnsFor(ANCHORED_PROOF));
+  assert.equal(v.otsVerification, "CHAIN_VERIFIED");
+  assert.deepEqual(checkRenderedReportText(goodText(v), v, { reportVersion: 1 }), []);
+  assert.ok(checkRenderedReportText(goodText(v).replace(OTS_CHAIN_VERIFIED_BOUNDARY, ""), v, { reportVersion: 1 }).some((x) => x.check === "OTS_BOUNDARY"));
+  // A proof that is not anchored may never read as verified.
+  const over = checkRenderedReportText(`${goodText(pending)}
+${OTS_VERIFICATION_LABELS.CHAIN_VERIFIED}`, pending, { reportVersion: 1 });
   assert.ok(over.some((x) => x.check === "OTS_OVERCLAIM"));
-  // The retired chain-verifier / attestation wording is refused in every state, anchored included.
+  // The retired overclaiming wording is refused in every state, anchored included.
   for (const retired of [
-    "Attestation recorded",
+    "OpenTimestamps proof anchored in Bitcoin.",
     "Bitcoin attestation independently verified",
     "independently verified against the Bitcoin blockchain",
     "OpenTimestamps Bitcoin anchoring verified",

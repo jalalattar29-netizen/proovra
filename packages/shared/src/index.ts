@@ -516,6 +516,18 @@ export {
   readOtsAnchoringView,
   OTS_ANCHORING_COPY,
   otsAnchoringCopy,
+  OTS_VERIFICATION_KEYS,
+  OTS_VERIFICATION_WORDS,
+  OTS_VERIFICATION_LABELS,
+  OTS_VERIFICATION_TONES,
+  OTS_CHAIN_VERIFIED_BOUNDARY,
+  parseOtsVerificationKey,
+  otsVerificationKeyOfState,
+  deriveOtsVerificationKey,
+  isOtsChainVerified,
+  otsChainRecordOf,
+  otsVerificationSentence,
+  otsBoundaryFor,
 } from "./ots-anchoring.js";
 export type {
   OtsState,
@@ -528,7 +540,11 @@ export type {
   OtsAnchoringView,
   OtsAnchoringCopy,
   OtsCopyLocale,
+  OtsVerificationKey,
+  OtsChainView,
+  OtsBitcoinAttestationFact,
 } from "./ots-anchoring.js";
+export * from "./ots-chain-verification.js";
 export {
   OTS_PROOF_VALIDATOR,
   OtsDigestBindingError,

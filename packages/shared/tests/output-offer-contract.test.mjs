@@ -74,34 +74,34 @@ test("each bound fact maps to its own change code", () => {
   }
 });
 
-test("freshness: TSA validated and OTS anchored after the report are reported; nothing is invented", () => {
+test("freshness: TSA validated and a Bitcoin chain verification after the report are reported; nothing is invented", () => {
   const base = {
     reportVersion: 1,
     reportGeneratedAtUtc: "2026-10-06T10:00:00.000Z",
     tsa: { status: "STAMPED", validatedAtUtc: "2026-10-06T11:00:00.000Z" },
-    ots: { state: "ANCHORED", anchoredAtUtc: "2026-10-06T12:00:00.000Z", reportState: "PENDING" },
+    ots: { state: "ANCHORED", anchoredAtUtc: "2026-10-06T12:00:00.000Z", reportState: "PENDING", verification: "CHAIN_VERIFIED", reportVerification: "PENDING", verifiedAtUtc: "2026-10-06T12:30:00.000Z" },
     custodyAfterReport: { count: 0, latestAtUtc: null },
     integrity: { lastVerifiedAtUtc: null, reportLastVerifiedAtUtc: null },
   };
   const fresh = deriveReportFreshness(base);
   assert.equal(fresh.hasNewerFacts, true);
-  assert.deepEqual(fresh.changes.map((c) => c.code), ["TSA_VALIDATED_AFTER_REPORT", "OTS_ANCHORED_AFTER_REPORT"]);
-  assert.equal(fresh.changes[1].atUtc, "2026-10-06T12:00:00.000Z");
+  assert.deepEqual(fresh.changes.map((c) => c.code), ["TSA_VALIDATED_AFTER_REPORT", "OTS_CHAIN_VERIFIED_AFTER_REPORT"]);
+  assert.equal(fresh.changes[1].atUtc, "2026-10-06T12:30:00.000Z");
 
-  // OTS freshness is decided by the canonical state, not by a time or a status string.
+  // OTS freshness is decided by the canonical VERIFICATION, not by a time, a status string or an attestation.
   const otsCodes = (ots) => deriveReportFreshness({ ...base, tsa: { status: "STAMPED", validatedAtUtc: null }, ots }).changes.map((c) => c.code);
-  // The report already stated ANCHORED: nothing newer, whatever the recorded time.
-  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: "2026-10-06T12:00:00.000Z", reportState: "ANCHORED" }), []);
-  // Anchored now, the report said pending — even without a recorded anchoring time.
-  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: null, reportState: "PENDING" }), ["OTS_ANCHORED_AFTER_REPORT"]);
-  // Not anchored now: never reported as anchored after the report, whatever the time says.
-  for (const state of ["PENDING", "FAILED", "UNAVAILABLE", "NOT_REQUESTED"]) {
-    assert.deepEqual(otsCodes({ state, anchoredAtUtc: "2026-10-06T12:00:00.000Z", reportState: "PENDING" }), [], state);
+  // An attestation the proof only names is never a newer fact worth a version — whatever the report said.
+  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: "2026-10-06T12:00:00.000Z", reportState: "PENDING", verification: "ATTESTATION_RECORDED", reportVerification: "PENDING" }), []);
+  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: "2026-10-06T12:00:00.000Z", reportState: null }), []);
+  // The report already stated CHAIN_VERIFIED: nothing newer.
+  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: null, verification: "CHAIN_VERIFIED", reportVerification: "CHAIN_VERIFIED" }), []);
+  // Verified now; the report stated an unchecked attestation (or is legacy): one change.
+  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: null, verification: "CHAIN_VERIFIED", reportVerification: "ATTESTATION_RECORDED" }), ["OTS_CHAIN_VERIFIED_AFTER_REPORT"]);
+  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: null, verification: "CHAIN_VERIFIED", reportVerification: null }), ["OTS_CHAIN_VERIFIED_AFTER_REPORT"]);
+  // Pending confirmations, unavailable or failed chain checks are never "verified after the report".
+  for (const verification of ["CHAIN_CONFIRMATIONS_PENDING", "CHAIN_UNAVAILABLE", "CHAIN_FAILED", "PENDING", "FAILED", "UNAVAILABLE", "NOT_REQUESTED"]) {
+    assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: "2026-10-06T12:00:00.000Z", verification, reportVerification: null }), [], verification);
   }
-  // A legacy report (no stated state) compares by the recorded anchoring time; no time → nothing invented.
-  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: "2026-10-06T12:00:00.000Z", reportState: null }), ["OTS_ANCHORED_AFTER_REPORT"]);
-  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: "2026-10-06T09:00:00.000Z" }), []);
-  assert.deepEqual(otsCodes({ state: "ANCHORED", anchoredAtUtc: null, reportState: null }), []);
 
   // Validated BEFORE the report: no false freshness.
   const before = deriveReportFreshness({

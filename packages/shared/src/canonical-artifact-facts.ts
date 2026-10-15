@@ -17,11 +17,16 @@
  */
 import { resolveAcquisitionIdentitySnapshot, type AcquisitionIdentitySnapshot } from "./acquisition-identity.js";
 import {
-  OTS_ANCHORED_BOUNDARY,
   OTS_STATE_SENTENCES,
+  OTS_VERIFICATION_LABELS,
+  otsBoundaryFor,
+  otsChainRecordOf,
+  otsVerificationKeyOfState,
   parseOtsState,
+  parseOtsVerificationKey,
   resolveOtsAnchoring,
   type OtsState,
+  type OtsVerificationKey,
 } from "./ots-anchoring.js";
 import { presentedTsaStatus } from "./tsa-validation-state.js";
 import {
@@ -53,6 +58,16 @@ export type CanonicalFactsSource = {
   otsStatus?: string | null;
   otsAnchoredAtUtc?: Date | string | null;
   otsUpgradedAtUtc?: Date | string | null;
+  /** The independent Bitcoin-chain check (evidence.ots_chain_*). */
+  otsChainVerificationStatus?: string | null;
+  otsChainCheckedAtUtc?: Date | string | null;
+  otsChainVerifiedAtUtc?: Date | string | null;
+  otsChainBlockHeight?: number | null;
+  otsChainBlockHash?: string | null;
+  otsChainBlockTimeUtc?: Date | string | null;
+  otsChainConfirmations?: number | null;
+  otsChainVerifier?: string | null;
+  otsChainFailureCode?: string | null;
   otsFailureReason?: string | null;
   fingerprintHash?: string | null;
   otsHash?: string | null;
@@ -72,6 +87,8 @@ export type CanonicalArtifactFacts = {
   tsaState: TrustSignalState;
   /** The canonical OpenTimestamps state (ots-anchoring.ts). */
   otsState: OtsState;
+  /** The canonical OpenTimestamps verification (CHAIN_VERIFIED is the only positive claim). */
+  otsVerification: OtsVerificationKey;
   /** SHA-256 of the stored proof the state was resolved from. */
   otsProofSha256: string | null;
   /** The bounded failure / unavailability code; null otherwise. */
@@ -101,11 +118,13 @@ export function deriveCanonicalArtifactFacts(source: CanonicalFactsSource, custo
     anchoredAtUtc: source.otsAnchoredAtUtc ?? null,
     upgradedAtUtc: source.otsUpgradedAtUtc ?? null,
     submittedAtUtc: custody.submittedAtUtc,
+    chain: otsChainRecordOf(source),
   });
   return {
     evidenceFileSha256: source.fileSha256 ? source.fileSha256.toLowerCase() : null,
     tsaState: tsa.state,
     otsState: ots.state,
+    otsVerification: ots.verification,
     otsProofSha256: ots.proofSha256,
     otsFailureCode: ots.failureCode,
     acquisition: resolveAcquisitionIdentitySnapshot({
@@ -118,6 +137,12 @@ export function deriveCanonicalArtifactFacts(source: CanonicalFactsSource, custo
 
 export type CanonicalFactsFinding = { check: string; detail: string };
 
+/** A document's stated verification; a document without one states the conservative reading of its state. */
+function manifestVerification(doc: Record<string, unknown>, field = "otsVerification"): OtsVerificationKey {
+  const stated = parseOtsVerificationKey(doc[field]);
+  return stated ?? otsVerificationKeyOfState(parseOtsState(doc.otsState ?? doc.state));
+}
+
 /**
  * BEFORE RENDERING: the facts the record yields and the facts the payload
  * about to be rendered yields must be the same.
@@ -126,6 +151,9 @@ export function compareCanonicalFacts(record: CanonicalArtifactFacts, rendered: 
   const out: CanonicalFactsFinding[] = [];
   if (record.tsaState !== rendered.tsaState) out.push({ check: "TSA_STATE", detail: `record ${record.tsaState}, payload ${rendered.tsaState}` });
   if (record.otsState !== rendered.otsState) out.push({ check: "OTS_STATE", detail: `record ${record.otsState}, payload ${rendered.otsState}` });
+  if (record.otsState === rendered.otsState && record.otsVerification !== rendered.otsVerification) {
+    out.push({ check: "OTS_VERIFICATION", detail: `record ${record.otsVerification}, payload ${rendered.otsVerification}` });
+  }
   if (record.otsState === rendered.otsState && record.otsProofSha256 !== rendered.otsProofSha256) {
     out.push({ check: "OTS_PROOF", detail: "payload proof differs from the record's stored proof" });
   }
@@ -203,7 +231,9 @@ const OTS_RETIRED_PHRASES = [
   /Bitcoin anchoring verified/i,
   /Bitcoin attestation independently verified/i,
   /independently verified against the Bitcoin blockchain/i,
-  /Attestation recorded/i,
+  // The pre-chain-verification claim: a proof that only NAMES a block was
+  // printed as anchored in Bitcoin.
+  /OpenTimestamps proof anchored in Bitcoin/i,
   /anchored to a Bitcoin block/i,
   /\bOTS Anchored At\b/i,
   /not independently chain-verified/i,
@@ -262,16 +292,20 @@ export function checkRenderedReportText(
 ): CanonicalFactsFinding[] {
   const text = norm(rawText);
   const out: CanonicalFactsFinding[] = [];
-  // THE BITCOIN ANCHORING CARD (2026-10-13): an anchored proof states its
-  // sentence and the boundary once; any other state never states it.
-  const anchoredSentence = OTS_STATE_SENTENCES.ANCHORED.replace(/.$/, "");
+  // THE BITCOIN ANCHORING CARD: the report states the record's verification
+  // label and, for an anchored proof, its boundary once. Only a chain-verified
+  // record may state the chain-verified label.
+  const verifiedLabel = OTS_VERIFICATION_LABELS.CHAIN_VERIFIED;
   if (facts.otsState === "ANCHORED") {
-    if (!text.includes("Bitcoin anchoring") || !text.includes(anchoredSentence)) {
-      out.push({ check: "OTS_ANCHORED", detail: `does not state "Bitcoin anchoring" with "${anchoredSentence}"` });
+    const label = OTS_VERIFICATION_LABELS[facts.otsVerification];
+    if (!text.includes("Bitcoin anchoring") || !text.includes(label)) {
+      out.push({ check: "OTS_ANCHORED", detail: `does not state "Bitcoin anchoring" with "${label}"` });
     }
-    if (!text.includes(norm(OTS_ANCHORED_BOUNDARY))) out.push({ check: "OTS_BOUNDARY", detail: "the anchoring boundary is not stated" });
-  } else if (text.includes(anchoredSentence)) {
-    out.push({ check: "OTS_OVERCLAIM", detail: `states "${anchoredSentence}" while anchoring is ${facts.otsState}` });
+    const boundary = otsBoundaryFor({ verification: facts.otsVerification });
+    if (boundary && !text.includes(norm(boundary))) out.push({ check: "OTS_BOUNDARY", detail: "the anchoring boundary is not stated" });
+  }
+  if (facts.otsVerification !== "CHAIN_VERIFIED" && text.includes(verifiedLabel)) {
+    out.push({ check: "OTS_OVERCLAIM", detail: `states "${verifiedLabel}" while anchoring is ${facts.otsVerification}` });
   }
   if (facts.otsState !== "PENDING" && text.includes(OTS_STATE_SENTENCES.PENDING)) {
     out.push({ check: "OTS_CONTRADICTION", detail: `states "${OTS_STATE_SENTENCES.PENDING}" while the proof is ${facts.otsState}` });
@@ -339,6 +373,8 @@ export function checkSealedPackageFacts(
   if (isObj(manifest)) {
     if (parseOtsState(manifest.otsState) !== facts.otsState) {
       out.push({ check: "OTS_STATE", detail: `manifest otsState=${String(manifest.otsState)}, record ${facts.otsState}` });
+    } else if (manifestVerification(manifest) !== facts.otsVerification) {
+      out.push({ check: "OTS_VERIFICATION", detail: `manifest otsVerification=${String(manifest.otsVerification)}, record ${facts.otsVerification}` });
     }
     if ("publicAnchoringVerified" in manifest) {
       out.push({ check: "OTS_RETIRED_FIELD", detail: "manifest states the retired publicAnchoringVerified" });
@@ -356,11 +392,16 @@ export function checkSealedPackageFacts(
   if (ots && ots.otsState !== facts.otsState) {
     out.push({ check: "OTS_STATE", detail: `matrix anchoring ${String(ots.otsState)}, record ${facts.otsState}` });
   }
+  if (ots && ots.otsState === facts.otsState && ots.otsVerification !== facts.otsVerification) {
+    out.push({ check: "OTS_VERIFICATION", detail: `matrix anchoring ${String(ots.otsVerification)}, record ${facts.otsVerification}` });
+  }
   const otsDoc = docs.get("opentimestamps.json");
   if (facts.otsState !== "NOT_REQUESTED") {
     if (!isObj(otsDoc)) out.push({ check: "OTS_RECORD", detail: "opentimestamps.json is missing" });
     else if (parseOtsState(otsDoc.state) !== facts.otsState) {
       out.push({ check: "OTS_STATE", detail: `opentimestamps.json ${String(otsDoc.state)}, record ${facts.otsState}` });
+    } else if (manifestVerification(otsDoc, "verification") !== facts.otsVerification) {
+      out.push({ check: "OTS_VERIFICATION", detail: `opentimestamps.json verification ${String(otsDoc.verification)}, record ${facts.otsVerification}` });
     } else if ((isObj(otsDoc.proof) ? (otsDoc.proof.sha256 ?? null) : null) !== facts.otsProofSha256) {
       out.push({ check: "OTS_PROOF", detail: "opentimestamps.json proofSha256 differs from the record's stored proof" });
     }

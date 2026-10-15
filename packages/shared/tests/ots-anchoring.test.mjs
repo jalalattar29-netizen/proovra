@@ -234,8 +234,12 @@ test("(12) wire contract: view round trip, conservative reads, client-owned word
   const view = toOtsAnchoringView(anchored);
   assert.equal(view.state, "ANCHORED");
   assert.equal(view.title, "Bitcoin anchoring");
-  assert.equal(view.status, "Anchored");
-  assert.equal(view.sentence, "OpenTimestamps proof anchored in Bitcoin.");
+  assert.equal(view.status, "Attestation recorded");
+  assert.equal(view.verification, "ATTESTATION_RECORDED");
+  assert.equal(view.secondaryStatus, "Not independently checked against Bitcoin");
+  assert.equal(view.tone, "neutral");
+  assert.equal(view.sentence, `The proof names Bitcoin block ${up.blockHeight}; PROOVRA has not checked it against the Bitcoin main chain.`);
+  assert.equal(view.chain, null);
   assert.equal(view.bitcoinTxid, up.txid);
   assert.equal(view.bitcoinBlockHeight, up.blockHeight);
   assert.equal(view.anchoredAtUtc, "2026-10-12T10:00:00.000Z");
@@ -271,8 +275,8 @@ test("(12) wire contract: view round trip, conservative reads, client-owned word
     failureCode: "MALFORMED_PROOF",
   });
   assert.equal(forged.status, "Pending");
-  assert.equal(forged.label, "Bitcoin anchoring pending");
-  assert.equal(forged.sentence, "OpenTimestamps proof is awaiting Bitcoin anchoring.");
+  assert.equal(forged.label, "OpenTimestamps proof pending");
+  assert.equal(forged.sentence, "Submitted to OpenTimestamps calendars; no Bitcoin attestation yet.");
   assert.equal(forged.tone, "neutral");
   // txid / height / anchoredAt dropped unless ANCHORED; a failure code only on FAILED/UNAVAILABLE.
   assert.equal(forged.bitcoinTxid, null);
@@ -293,9 +297,13 @@ test("(12) wire contract: view round trip, conservative reads, client-owned word
   // presentOtsAnchoring.
   const p = presentOtsAnchoring({ state: "ANCHORED" });
   assert.equal(p.title, "Bitcoin anchoring");
-  assert.equal(p.status, "Anchored");
-  assert.equal(p.tone, "success");
-  assert.equal(p.sentence, "OpenTimestamps proof anchored in Bitcoin.");
+  assert.equal(p.status, "Attestation recorded");
+  assert.equal(p.tone, "neutral");
+  assert.equal(p.sentence, "The proof names a Bitcoin block; PROOVRA has not checked it against the Bitcoin main chain.");
+  // A payload that claims CHAIN_VERIFIED without a chain fact that says so is an unchecked attestation.
+  const claimed = readOtsAnchoringView({ ...JSON.parse(JSON.stringify(view)), verification: "CHAIN_VERIFIED", tone: "success" });
+  assert.equal(claimed.verification, "ATTESTATION_RECORDED");
+  assert.notEqual(claimed.tone, "success");
   assert.equal(presentOtsAnchoring({ state: "FAILED" }).tone, "danger");
   for (const s of ["PENDING", "NOT_REQUESTED", "UNAVAILABLE"]) assert.equal(presentOtsAnchoring({ state: s }).tone, "neutral");
 
@@ -314,7 +322,20 @@ test("(12) wire contract: view round trip, conservative reads, client-owned word
     for (const k of Object.keys(OTS_FAILURE_LABELS)) assert.ok(c.failureLabels[k]?.trim(), `${locale} ${k}`);
   }
   assert.equal(en.boundary, OTS_ANCHORED_BOUNDARY);
-  assert.equal(en.sentences.ANCHORED, "OpenTimestamps proof anchored in Bitcoin.");
+  assert.equal(en.sentences.ANCHORED, "The proof names a Bitcoin block; PROOVRA has not checked it against the Bitcoin main chain.");
+  for (const locale of ["en", "de", "ar"]) {
+    const c = otsAnchoringCopy(locale);
+    assert.ok(c.notCheckedStatus.trim(), locale);
+    assert.ok(c.chainVerifiedBoundary.trim(), locale);
+    for (const k of Object.keys(en.verificationWords)) {
+      assert.ok(c.verificationWords[k]?.trim(), `${locale} word ${k}`);
+      assert.ok(c.verificationLabels[k]?.trim(), `${locale} label ${k}`);
+      assert.ok(c.verificationSentences[k]?.trim(), `${locale} sentence ${k}`);
+      assert.ok(c.verificationSentencesPlain[k]?.trim(), `${locale} plain ${k}`);
+      // Every placeholder a template uses is one the presenter fills.
+      for (const m of c.verificationSentences[k].matchAll(/{(w+)}/g)) assert.ok(["height", "confirmations", "minimum", "checkedAt"].includes(m[1]), `${locale} ${k} {${m[1]}}`);
+    }
+  }
   assert.equal(otsAnchoringCopy("de-AT").title, "Bitcoin-Verankerung");
   assert.equal(otsAnchoringCopy("fr"), en);
   assert.equal(otsAnchoringCopy(null), en);
@@ -391,13 +412,19 @@ test("deriveAnchorSemantics projects the canonical state and never decides it", 
     transactionId: "ab".repeat(32),
     hasTransactionId: true,
     otsState: "ANCHORED",
-    anchoringLabel: "Bitcoin anchored",
-    anchorMode: "anchored",
+    otsVerification: "ATTESTATION_RECORDED",
+    anchoringLabel: "Bitcoin attestation recorded",
+    anchorMode: "attestation_recorded",
   });
+  const verified = deriveAnchorSemantics({ otsState: "ANCHORED", otsVerification: "CHAIN_VERIFIED" });
+  assert.equal(verified.anchorMode, "chain_verified");
+  assert.equal(verified.anchoringLabel, "Independently verified against the Bitcoin main chain");
+  // A chain claim over a non-ANCHORED state is never believed.
+  assert.equal(deriveAnchorSemantics({ otsState: "PENDING", otsVerification: "CHAIN_VERIFIED" }).anchorMode, "bitcoin_anchoring_pending");
   // A txid on a PENDING record does not make it anchored.
   const pending = deriveAnchorSemantics({ transactionId: "ab".repeat(32), otsState: "PENDING" });
   assert.equal(pending.anchorMode, "bitcoin_anchoring_pending");
-  assert.equal(pending.anchoringLabel, "Bitcoin anchoring pending");
+  assert.equal(pending.anchoringLabel, "OpenTimestamps proof pending");
   assert.equal(deriveAnchorSemantics({ transactionId: "  ", otsState: "ANCHORED" }).hasTransactionId, false);
   assert.equal(deriveAnchorSemantics({ otsState: "FAILED" }).anchorMode, "failed");
   assert.equal(deriveAnchorSemantics({ otsState: "UNAVAILABLE" }).anchorMode, "unavailable");
@@ -473,6 +500,11 @@ test("mutation: swapping a merkle sibling changes the merkle root and stays ANCH
   // The leaf side is untouched, so the transaction is the same.
   assert.equal(a.bitcoinTxid, up.txid);
   assert.notEqual(a.proofSha256, up.proofSha256);
-  // That boundary is stated wherever ANCHORED is.
-  assert.match(OTS_ANCHORED_BOUNDARY, /does not claim independent canonical-chain verification/);
+  // Parsing alone cannot see the change — which is exactly why ANCHORED is an
+  // attestation RECORDED, never a verification: the resolver states it as
+  // not independently checked, and only the chain check (ots-chain-verification)
+  // can reject the swapped root (see ots-chain-verification.test.mjs).
+  assert.equal(a.verification, "ATTESTATION_RECORDED");
+  assert.notEqual(presentOtsAnchoring(a).tone, "success");
+  assert.match(OTS_ANCHORED_BOUNDARY, /not independently checked against the Bitcoin main chain/);
 });

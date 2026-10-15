@@ -25,14 +25,17 @@ import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { canonicalJsonValue } from "@proovra/shared/custody-hash";
 import {
-  OTS_STATE_LABELS,
+  OTS_ANCHORING_RECORD_SELECT,
   PROVENANCE_CHAIN_SCHEMA_VERSION,
+  presentOtsAnchoring,
+  resolveRecordOtsAnchoring,
   TSA_PROOF_STATUS_LABELS,
-  resolveOtsAnchoring,
+
   resolveTsaProofStatus,
   selectCaptureManifestFacts,
   type CaptureManifestFacts,
   type OtsState,
+  type OtsVerificationKey,
   type TsaProofStatus,
   STANDING_PROVENANCE_LIMITATIONS,
   derivedAssetTransformationForKind,
@@ -233,7 +236,7 @@ export function evaluateTrustEventChain(rows: ReadonlyArray<TrustRow>): TrustEve
 export type ProvenanceChainTrustExtensions = {
   time: {
     rfc3161: { status: TsaProofStatus; statusLabel: string };
-    ots: { status: OtsState; statusLabel: string };
+    ots: { status: OtsState; verification: OtsVerificationKey; statusLabel: string };
   };
   trustEventChain: TrustEventChainVerdict;
   derivedArtifactsTotalCount: number;
@@ -278,13 +281,7 @@ export async function loadProvenanceChain(
       tsaValidatedAtUtc: true,
       tsaGenTimeUtc: true,
       tsaUrl: true,
-      otsStatus: true,
-      otsAnchoredAtUtc: true,
-      otsUpgradedAtUtc: true,
-      otsProofBase64: true,
-      otsHash: true,
-      otsFailureReason: true,
-      fingerprintHash: true,
+      ...OTS_ANCHORING_RECORD_SELECT,
     },
   });
   const acquisition = resolveEvidenceAcquisition({
@@ -445,16 +442,9 @@ export async function loadProvenanceChain(
     tsaStatus: evidence?.tsaStatus ?? null,
     tsaValidatedAtUtc: evidence?.tsaValidatedAtUtc ?? null,
   });
-  // THE ONE OTS AUTHORITY (2026-10-13): resolved from the stored proof bytes.
-  const ots = resolveOtsAnchoring({
-    status: evidence?.otsStatus ?? null,
-    proofBase64: evidence?.otsProofBase64 ?? null,
-    fingerprintHash: evidence?.fingerprintHash ?? null,
-    otsHash: evidence?.otsHash ?? null,
-    failureReason: evidence?.otsFailureReason ?? null,
-    anchoredAtUtc: evidence?.otsAnchoredAtUtc ?? null,
-    upgradedAtUtc: evidence?.otsUpgradedAtUtc ?? null,
-  });
+  // THE ONE OTS AUTHORITY: resolved from the stored proof bytes and the
+  // independent chain fact bound to them.
+  const ots = resolveRecordOtsAnchoring(evidence ?? {});
   const otsAnchored = ots.state === "ANCHORED";
 
   // ----- V1 record-level derivation edges -------------------------------
@@ -540,7 +530,8 @@ export async function loadProvenanceChain(
         appliedAtUtc: otsAnchored ? ots.anchoredAtUtc : null,
         bitcoinBlockHeight: otsAnchored ? ots.bitcoinBlockHeight : null,
         status: ots.state,
-        statusLabel: OTS_STATE_LABELS[ots.state],
+        verification: ots.verification,
+        statusLabel: presentOtsAnchoring(ots).label,
       },
     },
     trustEventChain,

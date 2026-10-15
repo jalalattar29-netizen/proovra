@@ -25,7 +25,7 @@ import {
   resolveOtsAnchoring,
   toOtsAnchoringView,
 } from "../dist/index.js";
-import { REAL, upgradedProof } from "./helpers/ots-fixtures.mjs";
+import { REAL, chainRecordFor, upgradedProof } from "./helpers/ots-fixtures.mjs";
 
 const D = "a".repeat(64);
 const OTHER = "b".repeat(64);
@@ -101,13 +101,18 @@ test("ET-TSA-01: a kept token that was never validated is not_checked, never ver
   );
 });
 
-test("D8: one badge per claim — green only when the proof is anchored", () => {
+test("D8: one badge per claim — green only when the anchor is independently verified against the Bitcoin main chain", () => {
+  // No lifecycle state on its own is green — not even ANCHORED (a block the proof only names).
   for (const state of OTS_STATES) {
     const p = presentOtsAnchoring({ state });
-    assert.equal(p.tone === "success", state === "ANCHORED", state);
+    assert.notEqual(p.tone, "success", state);
     assert.equal(p.title, "Bitcoin anchoring");
   }
-  assert.equal(presentOtsAnchoring({ state: "ANCHORED" }).status, "Anchored");
+  assert.equal(presentOtsAnchoring({ state: "ANCHORED" }).status, "Attestation recorded");
+  assert.equal(presentOtsAnchoring({ state: "ANCHORED" }).secondaryStatus, "Not independently checked against Bitcoin");
+  // A client-claimed CHAIN_VERIFIED over a non-ANCHORED state is never believed.
+  assert.notEqual(presentOtsAnchoring({ state: "PENDING", verification: "CHAIN_VERIFIED" }).tone, "success");
+  assert.equal(presentOtsAnchoring({ state: "ANCHORED", verification: "CHAIN_VERIFIED" }).tone, "success");
   assert.equal(presentOtsAnchoring({ state: "FAILED" }).tone, "danger");
   assert.equal(parseOtsState("ANCHORED"), "ANCHORED");
   // Anything a client does not know — a lower-case value, a retired claim, nothing — is Unavailable.
@@ -122,11 +127,15 @@ test("D8: a stored ANCHORED status with an anchor time over a pending proof is P
   const claim = resolveOtsAnchoring({ status: "ANCHORED", anchoredAtUtc: AT, proofBase64: REAL.boundProofBase64, fingerprintHash: FP });
   assert.equal(claim.state, "PENDING");
   assert.notEqual(presentOtsAnchoring(claim).tone, "success");
-  // An upgraded proof whose path has no transaction is ANCHORED with no txid — never "pending".
-  const noTx = resolveOtsAnchoring({ status: "ANCHORED", anchoredAtUtc: AT, proofBase64: upgradedProof({ withTransaction: false }).base64, fingerprintHash: FP });
+  // An upgraded proof whose path has no transaction is ANCHORED with no txid — never "pending" —
+  // and green only once a chain verification is bound to it.
+  const p = upgradedProof({ withTransaction: false });
+  const noTx = resolveOtsAnchoring({ status: "ANCHORED", anchoredAtUtc: AT, proofBase64: p.base64, fingerprintHash: FP });
   assert.equal(noTx.state, "ANCHORED");
   assert.equal(noTx.bitcoinTxid, null);
-  assert.equal(presentOtsAnchoring(noTx).tone, "success");
+  assert.notEqual(presentOtsAnchoring(noTx).tone, "success");
+  const verified = resolveOtsAnchoring({ status: "ANCHORED", anchoredAtUtc: AT, proofBase64: p.base64, fingerprintHash: FP, chain: chainRecordFor(p) });
+  assert.equal(presentOtsAnchoring(verified).tone, "success");
 });
 
 test("txid: shown only when the executed proof derives it, and only for ANCHORED; nothing is promoted", () => {

@@ -23,7 +23,15 @@
  * Disclosure packages build it from the same inputs and differ only in what
  * they disclose, never in a status.
  */
-import { OTS_STATE_SENTENCES, OTS_STATE_WORDS, parseOtsState, type OtsState } from "./ots-anchoring.js";
+import {
+  OTS_VERIFICATION_WORDS,
+  otsAnchoringCopy,
+  otsVerificationKeyOfState,
+  parseOtsState,
+  parseOtsVerificationKey,
+  type OtsState,
+  type OtsVerificationKey,
+} from "./ots-anchoring.js";
 import {
   acquisitionAccountLabel,
   acquisitionActorLabel,
@@ -32,6 +40,8 @@ import {
 import { resolveEvidenceAcquisition } from "./evidence-acquisition.js";
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
+  OTS_TRUST_BY_VERIFICATION,
+  otsVerificationOfSignalState,
   resolveSnapshotSignalState,
   toVerificationStatus,
   type TrustSignalState,
@@ -82,12 +92,16 @@ export type VerificationMatrixRow = {
   measuredAtUtc: string | null;
   /**
    * The word a reader sees when it differs from the generic status word:
-   * OpenTimestamps says Not requested / Pending / Anchored / Failed /
-   * Unavailable (ots-anchoring OTS_STATE_WORDS). Absent for every other row.
+   * OpenTimestamps says the verification word (ots-anchoring
+   * OTS_VERIFICATION_WORDS): "Attestation recorded" for a proof that only
+   * names a block, "Independently verified" only for a chain-verified one.
+   * Absent for every other row.
    */
   statusLabel?: string;
   /** The canonical OpenTimestamps state, on the ots_anchoring row only. */
   otsState?: OtsState;
+  /** The canonical OpenTimestamps verification key, on the ots_anchoring row only. */
+  otsVerification?: OtsVerificationKey;
 };
 
 export type VerificationMatrix = {
@@ -138,6 +152,10 @@ export type VerificationSignalInput = {
   status?: string | null;
   summary?: string | null;
   measuredAtUtc?: string | null;
+  /** bitcoin_anchoring only: the canonical OTS verification key. */
+  otsVerification?: string | null;
+  /** bitcoin_anchoring only: the one sentence with its facts. */
+  detail?: string | null;
 };
 
 export type VerificationIdentityInput = Pick<
@@ -185,18 +203,21 @@ function signalRow(
 }
 
 /**
- * THE OTS ROW (2026-10-13): the canonical anchoring state (ots-anchoring.ts),
- * read back from the anchoring signal's state — never from its words.
+ * THE OTS ROW: the canonical anchoring verification (ots-anchoring.ts), read
+ * back from the anchoring signal — its state and its verification marker,
+ * never from its words. VERIFIED only for CHAIN_VERIFIED.
  *
- *   PASSED          ANCHORED       "Anchored"       (machine status VERIFIED)
- *   PENDING         PENDING        "Pending"        (NOT_CHECKED)
- *   FAILED          FAILED         "Failed"         (FAILED)
- *   NOT_APPLICABLE  NOT_REQUESTED  "Not requested"  (NOT_APPLICABLE)
- *   anything else   UNAVAILABLE    "Unavailable"    (UNAVAILABLE)
+ *   PASSED                              CHAIN_VERIFIED               VERIFIED
+ *   PRESENT_NOT_INDEPENDENTLY_VERIFIED  ATTESTATION_RECORDED         NOT_CHECKED
+ *   PENDING                             PENDING / CONFIRMATIONS      NOT_CHECKED
+ *   FAILED                              FAILED / CHAIN_FAILED        FAILED
+ *   NOT_APPLICABLE                      NOT_REQUESTED                NOT_APPLICABLE
+ *   anything else                       UNAVAILABLE / CHAIN_UNAVAIL. UNAVAILABLE
  */
 export function otsStateFromTrustState(state: TrustSignalState): OtsState {
   switch (state) {
     case "PASSED":
+    case "PRESENT_NOT_INDEPENDENTLY_VERIFIED":
       return "ANCHORED";
     case "PENDING":
       return "PENDING";
@@ -209,27 +230,42 @@ export function otsStateFromTrustState(state: TrustSignalState): OtsState {
   }
 }
 
-const OTS_STATE_MATRIX_STATUS: Readonly<Record<OtsState, VerificationStatus>> = {
-  ANCHORED: "VERIFIED",
-  PENDING: "NOT_CHECKED",
+const OTS_LIFECYCLE_OF_VERIFICATION: Readonly<Record<OtsVerificationKey, OtsState>> = {
+  NOT_REQUESTED: "NOT_REQUESTED",
+  PENDING: "PENDING",
+  ATTESTATION_RECORDED: "ANCHORED",
+  CHAIN_CONFIRMATIONS_PENDING: "ANCHORED",
+  CHAIN_UNAVAILABLE: "ANCHORED",
+  CHAIN_FAILED: "ANCHORED",
+  CHAIN_VERIFIED: "ANCHORED",
   FAILED: "FAILED",
-  NOT_REQUESTED: "NOT_APPLICABLE",
   UNAVAILABLE: "UNAVAILABLE",
 };
+
+/** The OTS row's machine status for a verification key: VERIFIED only for CHAIN_VERIFIED. */
+export function otsMatrixStatusOf(verification: OtsVerificationKey): VerificationStatus {
+  return toVerificationStatus(OTS_TRUST_BY_VERIFICATION[verification]);
+}
 
 /** The OTS row's machine status for a trust state. */
 export function otsVerificationStatus(state: TrustSignalState): VerificationStatus {
   return toVerificationStatus(state);
 }
 
+function otsRowOf(verification: OtsVerificationKey, statement: string | null, measuredAtUtc: string | null): VerificationMatrixRow {
+  return {
+    ...row("ots_anchoring", otsMatrixStatusOf(verification), statement || otsAnchoringCopy("en").verificationSentencesPlain[verification], measuredAtUtc),
+    statusLabel: OTS_VERIFICATION_WORDS[verification],
+    otsState: OTS_LIFECYCLE_OF_VERIFICATION[verification],
+    otsVerification: verification,
+  };
+}
+
 function otsRow(signal: VerificationSignalInput | undefined): VerificationMatrixRow {
   const state = signal ? resolveSnapshotSignalState(signal) : "UNAVAILABLE";
-  const ots = parseOtsState(otsStateFromTrustState(state));
-  return {
-    ...row("ots_anchoring", otsVerificationStatus(state), OTS_STATE_SENTENCES[ots], signal?.measuredAtUtc ?? null),
-    statusLabel: OTS_STATE_WORDS[ots],
-    otsState: ots,
-  };
+  const verification = otsVerificationOfSignalState(state, signal?.otsVerification);
+  const detail = typeof signal?.detail === "string" && signal.detail.trim() ? signal.detail.trim() : null;
+  return otsRowOf(verification, detail, signal?.measuredAtUtc ?? null);
 }
 
 /**
@@ -522,18 +558,19 @@ export function parseVerificationMatrix(value: unknown): VerificationMatrix | nu
     const status = String(o.status);
     if (!["VERIFIED", "FAILED", "NOT_CHECKED", "NOT_APPLICABLE", "UNAVAILABLE"].includes(status)) return null;
     if (o.key === "ots_anchoring") {
-      // The canonical state travels with the row; a legacy row without it
-      // (or with an unknown value) reads as Unavailable — never re-derived
-      // from a legacy status word.
+      // The canonical state and verification travel with the row; a legacy
+      // row without them reads conservatively — an ANCHORED row without a
+      // chain verification key is an unchecked attestation, whatever its
+      // stored status word says — never re-derived from a legacy status.
       const ots = parseOtsState(o.otsState);
+      const claimed = parseOtsVerificationKey(o.otsVerification);
+      const verification =
+        ots === "ANCHORED" && claimed && (claimed === "ATTESTATION_RECORDED" || claimed.startsWith("CHAIN_"))
+          ? claimed
+          : otsVerificationKeyOfState(ots);
       rows.push({
-        key: "ots_anchoring",
+        ...otsRowOf(verification, typeof o.statement === "string" && verification === claimed ? o.statement : null, typeof o.measuredAtUtc === "string" ? o.measuredAtUtc : null),
         label: VERIFICATION_MATRIX_LABELS.ots_anchoring,
-        status: OTS_STATE_MATRIX_STATUS[ots],
-        statement: OTS_STATE_SENTENCES[ots],
-        measuredAtUtc: typeof o.measuredAtUtc === "string" ? o.measuredAtUtc : null,
-        statusLabel: OTS_STATE_WORDS[ots],
-        otsState: ots,
       });
       continue;
     }

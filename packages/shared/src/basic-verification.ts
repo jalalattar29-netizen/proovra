@@ -18,12 +18,12 @@
  * performed and passed — never "a record of it exists".
  */
 import {
-  OTS_STATE_LABELS,
-  OTS_STATE_SENTENCES,
-  OTS_STATE_WORDS,
   resolveOtsAnchoring,
+  toOtsAnchoringView,
   type OtsAnchoringInput,
+  type OtsChainView,
   type OtsState,
+  type OtsVerificationKey,
 } from "./ots-anchoring.js";
 
 import { buildProvenanceTimeline, CAPTURE_TIME_NOT_AVAILABLE } from "./provenance-time.js";
@@ -52,11 +52,16 @@ export const COMPONENT_VERIFICATION_STATES = [
 ] as const;
 export type ComponentVerificationState = (typeof COMPONENT_VERIFICATION_STATES)[number];
 
-const OTS_COMPONENT_STATE: Readonly<Record<OtsState, ComponentVerificationState>> = {
-  ANCHORED: "verified",
-  PENDING: "pending",
-  FAILED: "failed",
+/** "verified" ONLY for an anchor independently verified against the Bitcoin main chain. */
+export const OTS_COMPONENT_STATE: Readonly<Record<OtsVerificationKey, ComponentVerificationState>> = {
   NOT_REQUESTED: "not_issued",
+  PENDING: "pending",
+  ATTESTATION_RECORDED: "not_checked",
+  CHAIN_CONFIRMATIONS_PENDING: "pending",
+  CHAIN_UNAVAILABLE: "not_checked",
+  CHAIN_FAILED: "failed",
+  CHAIN_VERIFIED: "verified",
+  FAILED: "failed",
   UNAVAILABLE: "not_checked",
 };
 
@@ -160,11 +165,17 @@ export type BasicVerification = {
   anchoring: {
     state: ComponentVerificationState;
     otsState: OtsState;
-    /** "Not requested" | "Pending" | "Anchored" | "Failed" | "Unavailable". */
+    /** The canonical verification key (CHAIN_VERIFIED is the only "verified"). */
+    otsVerification: OtsVerificationKey;
+    /** "Attestation recorded" | "Independently verified" | "Pending" | … */
     status: string;
-    /** "Bitcoin anchoring pending" | "Bitcoin anchored" | … */
+    /** "Bitcoin attestation recorded" | "Independently verified against the Bitcoin main chain" | … */
     label: string;
     sentence: string;
+    /** "Not independently checked against Bitcoin" for an unchecked attestation, else null. */
+    secondaryStatus: string | null;
+    /** The bounded chain facts, when a chain check is recorded for this proof. */
+    chain: OtsChainView | null;
     /** Bounded failure / unavailability code; null otherwise. */
     failureCode: string | null;
     proofSha256: string | null;
@@ -288,7 +299,8 @@ export function buildBasicVerification(input: {
   // THE ONE OTS AUTHORITY (2026-10-13): the state is resolved from the stored
   // proof bytes, never from a status, a txid or a recording time.
   const ots = resolveOtsAnchoring(input.ots);
-  const anchoringState: ComponentVerificationState = OTS_COMPONENT_STATE[ots.state];
+  const anchoringState: ComponentVerificationState = OTS_COMPONENT_STATE[ots.verification];
+  const otsView = toOtsAnchoringView(ots);
   const anchored = ots.state === "ANCHORED";
 
   const latest = input.latestReport;
@@ -359,9 +371,12 @@ export function buildBasicVerification(input: {
     anchoring: {
       state: anchoringState,
       otsState: ots.state,
-      status: OTS_STATE_WORDS[ots.state],
-      label: OTS_STATE_LABELS[ots.state],
-      sentence: OTS_STATE_SENTENCES[ots.state],
+      otsVerification: ots.verification,
+      status: otsView.status,
+      label: otsView.label,
+      sentence: otsView.sentence,
+      secondaryStatus: otsView.secondaryStatus,
+      chain: otsView.chain,
       failureCode: ots.failureCode,
       proofSha256: ots.proofSha256,
       attestationType: ots.attestationType,

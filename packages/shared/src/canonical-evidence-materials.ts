@@ -37,7 +37,8 @@ import {
   type TrustDecision,
 } from "./trust-decision.js";
 import { getReviewerEvidenceTypeLabel } from "./reviewer-evidence.js";
-import { resolveOtsAnchoring, type OtsState } from "./ots-anchoring.js";
+import { otsChainRecordOf, resolveOtsAnchoring, type OtsState, type OtsVerificationKey } from "./ots-anchoring.js";
+import type { OtsChainFacts } from "./ots-chain-verification.js";
 import { classifyCustodyEventType } from "./custody.js";
 
 // Local alias so the public type names read consistently with the
@@ -213,6 +214,10 @@ export type CanonicalOtsStateMaterial = {
   otsStatus: string | null;
   otsHash: string | null;
   state: OtsState;
+  /** The canonical verification (CHAIN_VERIFIED is the only positive claim). */
+  verification: OtsVerificationKey;
+  /** The independent chain fact bound to the stored proof, when checked. */
+  chain: OtsChainFacts | null;
   failureCode: string | null;
   proofPresent: boolean;
   /** SHA-256 of the stored proof bytes. */
@@ -391,6 +396,16 @@ export type CanonicalMaterialsBuildInput = {
     otsFailureReason?: string | null;
     /** The stored proof bytes; the state is resolved from them. */
     otsProofBase64: string | null;
+    /** The independent Bitcoin-chain check (evidence.ots_chain_*); omitted = never checked. */
+    otsChainVerificationStatus?: string | null;
+    otsChainCheckedAtUtc?: string | Date | null;
+    otsChainVerifiedAtUtc?: string | Date | null;
+    otsChainBlockHeight?: number | null;
+    otsChainBlockHash?: string | null;
+    otsChainBlockTimeUtc?: string | Date | null;
+    otsChainConfirmations?: number | null;
+    otsChainVerifier?: string | null;
+    otsChainFailureCode?: string | null;
     identityLevelSnapshot: string | null;
     workspaceNameSnapshot: string | null;
     organizationNameSnapshot: string | null;
@@ -683,6 +698,7 @@ export function buildCanonicalOtsState(
     failureReason: e.otsFailureReason ?? null,
     anchoredAtUtc: e.otsAnchoredAtUtc ?? null,
     upgradedAtUtc: e.otsUpgradedAtUtc ?? null,
+    chain: otsChainRecordOf(e),
   });
   const anchored = ots.state === "ANCHORED";
   return {
@@ -690,6 +706,8 @@ export function buildCanonicalOtsState(
     otsStatus: nonEmptyOrNull(e.otsStatus),
     otsHash: nonEmptyOrNull(e.otsHash),
     state: ots.state,
+    verification: ots.verification,
+    chain: ots.chain,
     failureCode: ots.failureCode,
     proofPresent: Boolean(nonEmptyOrNull(e.otsProofBase64)),
     proofSha256: ots.proofSha256,

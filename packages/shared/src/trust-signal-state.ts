@@ -29,7 +29,7 @@
  * passed nor degraded). No state carries points: PROOVRA reports what was
  * checked, never a confidence score.
  */
-import { OTS_STATE_SENTENCES, resolveOtsAnchoring, type OtsAnchoring, type OtsAnchoringInput, type OtsState } from "./ots-anchoring.js";
+import { parseOtsVerificationKey, presentOtsAnchoring, resolveOtsAnchoring, type OtsAnchoring, type OtsAnchoringInput, type OtsState, type OtsVerificationKey } from "./ots-anchoring.js";
 
 export const TRUST_SIGNAL_STATES = [
   "PASSED",
@@ -151,8 +151,20 @@ export function resolveSnapshotSignalState(signal: {
   state?: unknown;
   status?: string | null;
   summary?: string | null;
+  otsVerification?: unknown;
 }): TrustSignalState {
   const explicit = parseTrustSignalState(signal.state);
+  // An anchoring PASSED is a chain verification ONLY when the snapshot says so.
+  // Snapshots written before independent Bitcoin verification existed stored
+  // PASSED for a proof that merely NAMED a block: that is an attestation
+  // present but never independently verified.
+  if (
+    signal.key === "bitcoin_anchoring" &&
+    explicit === "PASSED" &&
+    parseOtsVerificationKey(signal.otsVerification) !== "CHAIN_VERIFIED"
+  ) {
+    return "PRESENT_NOT_INDEPENDENTLY_VERIFIED";
+  }
   if (explicit) return explicit;
   const status = String(signal.status ?? "").toLowerCase();
   if (signal.key === "verification_package") {
@@ -290,23 +302,55 @@ export function resolveTsaTrustState(input: TsaTrustStateInput): TsaTrustState {
 export type OtsTrustState = {
   state: TrustSignalState;
   otsState: OtsState;
+  /** The derived presentation (CHAIN_VERIFIED is the only PASSED). */
+  otsVerification: OtsVerificationKey;
   label: string;
   measuredAtUtc: string | null;
 };
 
-const OTS_TRUST: Readonly<Record<OtsState, TrustSignalState>> = {
-  ANCHORED: "PASSED",
+/**
+ * The anchoring signal per verification key. An attestation the proof merely
+ * NAMES is present but not independently verified; only a proof matched to a
+ * confirmed block of the active Bitcoin main chain is PASSED.
+ */
+export const OTS_TRUST_BY_VERIFICATION: Readonly<Record<OtsVerificationKey, TrustSignalState>> = {
+  NOT_REQUESTED: "NOT_APPLICABLE",
   PENDING: "PENDING",
+  ATTESTATION_RECORDED: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
+  CHAIN_CONFIRMATIONS_PENDING: "PENDING",
+  CHAIN_UNAVAILABLE: "UNAVAILABLE",
+  CHAIN_FAILED: "FAILED",
+  CHAIN_VERIFIED: "PASSED",
   FAILED: "FAILED",
   UNAVAILABLE: "UNAVAILABLE",
-  NOT_REQUESTED: "NOT_APPLICABLE",
 };
 
 /**
- * The anchoring signal is the canonical OTS state (resolveOtsAnchoring): a
- * stored proof that executes from the record's digest to a valid Bitcoin
- * block attestation is ANCHORED, a success. Nothing else is.
+ * The verification key a STORED anchoring signal states: its own marker when
+ * that marker is coherent with the (conservatively re-read) state, otherwise
+ * the reading of the state itself. A PASSED without a CHAIN_VERIFIED marker
+ * never survives resolveSnapshotSignalState, so it cannot reach here.
  */
+export function otsVerificationOfSignalState(state: TrustSignalState, marker: unknown): OtsVerificationKey {
+  const claimed = parseOtsVerificationKey(marker);
+  if (claimed && OTS_TRUST_BY_VERIFICATION[claimed] === state) return claimed;
+  switch (state) {
+    case "PASSED":
+      return "CHAIN_VERIFIED";
+    case "PRESENT_NOT_INDEPENDENTLY_VERIFIED":
+      return "ATTESTATION_RECORDED";
+    case "PENDING":
+      return "PENDING";
+    case "FAILED":
+      return "FAILED";
+    case "NOT_APPLICABLE":
+      return "NOT_REQUESTED";
+    default:
+      return "UNAVAILABLE";
+  }
+}
+
+/** The canonical OTS state (resolveOtsAnchoring) as a trust state. */
 export function resolveOtsTrustState(input: OtsAnchoringInput): OtsTrustState {
   return otsTrustStateOf(resolveOtsAnchoring(input));
 }
@@ -314,14 +358,21 @@ export function resolveOtsTrustState(input: OtsAnchoringInput): OtsTrustState {
 /**
  * The trust state of an ALREADY RESOLVED anchoring — for a caller that holds
  * the resolution (the verification package resolves the proof it ships once,
- * and every document in it states that one result).
+ * and every document in it states that one result). A caller that passes no
+ * `verification` is read conservatively: ANCHORED is an unchecked attestation.
  */
-export function otsTrustStateOf(ots: Pick<OtsAnchoring, "state" | "anchoredAtUtc">): OtsTrustState {
+export function otsTrustStateOf(
+  ots: Pick<OtsAnchoring, "state" | "anchoredAtUtc"> & Partial<Pick<OtsAnchoring, "verification" | "chain" | "bitcoinBlockHeight">>,
+): OtsTrustState {
+  const presentation = presentOtsAnchoring(ots);
+  const verification = presentation.verification;
+  const chainTime = ots.chain?.checkedAtUtc ?? null;
   return {
-    state: OTS_TRUST[ots.state],
-    otsState: ots.state,
-    label: OTS_STATE_SENTENCES[ots.state],
-    measuredAtUtc: ots.state === "ANCHORED" ? ots.anchoredAtUtc : null,
+    state: OTS_TRUST_BY_VERIFICATION[verification],
+    otsState: presentation.state,
+    otsVerification: verification,
+    label: presentation.sentence,
+    measuredAtUtc: verification.startsWith("CHAIN_") ? chainTime : verification === "ATTESTATION_RECORDED" ? ots.anchoredAtUtc : null,
   };
 }
 

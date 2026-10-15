@@ -16,7 +16,7 @@ import {
   parseVerificationMatrix,
 } from "../dist/index.js";
 
-import { REAL, upgradedProof } from "./helpers/ots-fixtures.mjs";
+import { REAL, chainColumnsFor, upgradedProof } from "./helpers/ots-fixtures.mjs";
 
 /**
  * (2026-10-13) The OTS row is the canonical anchoring state resolved from real
@@ -103,7 +103,7 @@ test("every required signal is a row, in one of the five statuses", () => {
   }
 });
 
-test("a pending OTS proof is NOT_CHECKED — never verified, passed or scored; only a valid upgraded proof is VERIFIED", () => {
+test("a pending OTS proof is NOT_CHECKED — never verified, passed or scored; only a chain-verified proof is VERIFIED", () => {
   // A stored ANCHORED status over the real pending proof, and a plain pending record.
   for (const evidence of [{ otsProofBase64: REAL.boundProofBase64 }, { otsStatus: "PENDING", otsAnchoredAtUtc: null, otsProofBase64: REAL.boundProofBase64 }]) {
     const m = matrix({ evidence });
@@ -111,16 +111,20 @@ test("a pending OTS proof is NOT_CHECKED — never verified, passed or scored; o
     assert.equal(ots.status, "NOT_CHECKED");
     assert.equal(ots.otsState, "PENDING");
     assert.equal(ots.statusLabel, "Pending");
-    assert.equal(ots.statement, "OpenTimestamps proof is awaiting Bitcoin anchoring.");
+    assert.equal(ots.statement, "Submitted to OpenTimestamps calendars; no Bitcoin attestation yet.");
     assert.doesNotMatch(ots.statement, /independently verified|anchored in Bitcoin/i);
     const json = JSON.stringify(m);
     assert.doesNotMatch(json, /"(points|maxPoints|score|verdict)"/);
-    assert.doesNotMatch(json, /Attestation recorded/);
+    assert.doesNotMatch(json, /Attestation recorded|CHAIN_VERIFIED/);
     assert.deepEqual(findForbiddenCustomerClaims(json), []);
   }
-  // Only a valid upgraded proof is VERIFIED — with or without a derivable txid.
-  assert.equal(statusOf(matrix(), "ots_anchoring"), "VERIFIED");
-  assert.equal(statusOf(matrix({ evidence: { otsProofBase64: upgradedProof({ withTransaction: false }).base64 } }), "ots_anchoring"), "VERIFIED");
+  // A valid upgraded proof that was never chain-checked is NOT_CHECKED — an attestation recorded.
+  assert.equal(statusOf(matrix(), "ots_anchoring"), "NOT_CHECKED");
+  // Only a proof independently verified against the Bitcoin main chain is VERIFIED — with or without a derivable txid.
+  assert.equal(statusOf(matrix({ evidence: chainColumnsFor(ANCHORED_PROOF) }), "ots_anchoring"), "VERIFIED");
+  const noTx = upgradedProof({ withTransaction: false });
+  assert.equal(statusOf(matrix({ evidence: { otsProofBase64: noTx.base64 } }), "ots_anchoring"), "NOT_CHECKED");
+  assert.equal(statusOf(matrix({ evidence: { otsProofBase64: noTx.base64, ...chainColumnsFor(noTx) } }), "ots_anchoring"), "VERIFIED");
   // Status ANCHORED with no proof bytes is UNAVAILABLE, never verified.
   assert.equal(statusOf(matrix({ evidence: { otsProofBase64: null } }), "ots_anchoring"), "UNAVAILABLE");
 });
@@ -299,15 +303,36 @@ test("OTS projection per state: pending, anchored, failed, unavailable and not r
   assert.equal(pending.status, "NOT_CHECKED");
   assert.equal(pending.otsState, "PENDING");
   assert.equal(pending.statusLabel, "Pending");
-  assert.equal(pending.statement, "OpenTimestamps proof is awaiting Bitcoin anchoring.");
+  assert.equal(pending.statement, "Submitted to OpenTimestamps calendars; no Bitcoin attestation yet.");
   assert.doesNotMatch(pending.statement, /verified against the Bitcoin|anchored in Bitcoin|still being prepared/i);
 
+  // ANCHORED with no chain check: an attestation the proof names — NOT_CHECKED, never VERIFIED.
   const anchored = ots({});
-  assert.equal(anchored.status, "VERIFIED");
+  assert.equal(anchored.status, "NOT_CHECKED");
   assert.equal(anchored.otsState, "ANCHORED");
-  assert.equal(anchored.statusLabel, "Anchored");
-  assert.equal(anchored.statement, "OpenTimestamps proof anchored in Bitcoin.");
+  assert.equal(anchored.otsVerification, "ATTESTATION_RECORDED");
+  assert.equal(anchored.statusLabel, "Attestation recorded");
+  assert.equal(anchored.statement, `The proof names Bitcoin block ${ANCHORED_PROOF.blockHeight}; PROOVRA has not checked it against the Bitcoin main chain.`);
   assert.doesNotMatch(anchored.statement, /independently verified/i);
+
+  // Independently verified against the Bitcoin main chain: the ONLY VERIFIED OTS row.
+  const verified = ots(chainColumnsFor(ANCHORED_PROOF));
+  assert.equal(verified.status, "VERIFIED");
+  assert.equal(verified.otsVerification, "CHAIN_VERIFIED");
+  assert.equal(verified.statusLabel, "Independently verified");
+  assert.match(verified.statement, new RegExp(`^Merkle root matches Bitcoin block ${ANCHORED_PROOF.blockHeight}; 120 confirmations at `));
+
+  const confirming = ots(chainColumnsFor(ANCHORED_PROOF, { status: "INSUFFICIENT_CONFIRMATIONS" }));
+  assert.equal(confirming.status, "NOT_CHECKED");
+  assert.equal(confirming.statusLabel, "Verification pending");
+  assert.equal(confirming.statement, `The proof matches Bitcoin block ${ANCHORED_PROOF.blockHeight}; 2 of 6 confirmations recorded.`);
+  const nodeDown = ots(chainColumnsFor(ANCHORED_PROOF, { status: "UNAVAILABLE" }));
+  assert.equal(nodeDown.status, "UNAVAILABLE");
+  assert.equal(nodeDown.statusLabel, "Verification unavailable");
+  const contradicted = ots(chainColumnsFor(ANCHORED_PROOF, { status: "FAILED" }));
+  assert.equal(contradicted.status, "FAILED");
+  assert.equal(contradicted.statusLabel, "Verification failed");
+  assert.equal(contradicted.statement, "The OpenTimestamps proof does not match the referenced block in the active Bitcoin main chain.");
 
   // A proof that commits to another digest is FAILED on its own row …
   const failedMatrix = matrix({ evidence: { otsProofBase64: REAL.otherProofBase64 } });
@@ -338,7 +363,7 @@ test("OTS projection per state: pending, anchored, failed, unavailable and not r
   assert.equal(none.statement, "No OpenTimestamps anchoring was requested for this record.");
 
   // Each row round-trips through a package read with its state; a legacy row without one is Unavailable.
-  for (const row of [pending, anchored, failed, unavailable, none]) {
+  for (const row of [pending, anchored, verified, confirming, nodeDown, contradicted, failed, unavailable, none]) {
     const m = { schema: "PROOVRA_VERIFICATION_MATRIX_V1", rows: [row], summary: "", limitation: "" };
     assert.deepEqual(parseVerificationMatrix(JSON.parse(JSON.stringify(m))).rows[0], row, row.otsState);
   }
@@ -346,4 +371,10 @@ test("OTS projection per state: pending, anchored, failed, unavailable and not r
   assert.equal(legacy.rows[0].otsState, "UNAVAILABLE");
   assert.equal(legacy.rows[0].status, "UNAVAILABLE");
   assert.equal(legacy.rows[0].statement, "The OpenTimestamps proof material cannot currently be read.");
+  // A row issued before chain verification existed (ANCHORED, machine VERIFIED,
+  // no verification key) reads as an unchecked attestation — never VERIFIED.
+  const preChain = parseVerificationMatrix({ schema: "PROOVRA_VERIFICATION_MATRIX_V1", rows: [{ key: "ots_anchoring", label: "OpenTimestamps", status: "VERIFIED", statement: "OpenTimestamps proof anchored in Bitcoin.", otsState: "ANCHORED", statusLabel: "Anchored" }] });
+  assert.equal(preChain.rows[0].status, "NOT_CHECKED");
+  assert.equal(preChain.rows[0].otsVerification, "ATTESTATION_RECORDED");
+  assert.equal(preChain.rows[0].statusLabel, "Attestation recorded");
 });

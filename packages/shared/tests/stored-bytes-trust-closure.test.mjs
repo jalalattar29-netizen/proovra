@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 
 import * as shared from "../dist/index.js";
-import { REAL, upgradedProof } from "./helpers/ots-fixtures.mjs";
+import { REAL, chainRecordFor, upgradedProof } from "./helpers/ots-fixtures.mjs";
 
 const sha = (t) => createHash("sha256").update(t).digest("hex");
 const HOUR = 60 * 60 * 1000;
@@ -195,13 +195,21 @@ test("TRUST-002: a PENDING OTS proof is never anchored; unvalidated STAMPED is n
   }).anchoring;
   assert.equal(claimed.otsState, "PENDING");
   assert.equal(claimed.anchoredAtUtc, null);
-  // Only a valid upgraded proof is ANCHORED, with the facts its path yields.
+  // Only a valid upgraded proof is ANCHORED, with the facts its path yields —
+  // an attestation recorded, "not_checked", never "verified" without a chain check.
   const up = upgradedProof();
   const anchored = basic(null, { ots: { status: "ANCHORED", proofBase64: up.base64, fingerprintHash: FP, anchoredAtUtc: now } }).anchoring;
   assert.equal(anchored.otsState, "ANCHORED");
-  assert.equal(anchored.state, "verified");
-  assert.equal(anchored.status, "Anchored");
-  assert.equal(anchored.sentence, "OpenTimestamps proof anchored in Bitcoin.");
+  assert.equal(anchored.otsVerification, "ATTESTATION_RECORDED");
+  assert.equal(anchored.state, "not_checked");
+  assert.equal(anchored.status, "Attestation recorded");
+  assert.equal(anchored.secondaryStatus, "Not independently checked against Bitcoin");
+  assert.equal(anchored.sentence, `The proof names Bitcoin block ${up.blockHeight}; PROOVRA has not checked it against the Bitcoin main chain.`);
+  const verified = basic(null, { ots: { status: "ANCHORED", proofBase64: up.base64, fingerprintHash: FP, anchoredAtUtc: now, chain: chainRecordFor(up) } }).anchoring;
+  assert.equal(verified.state, "verified");
+  assert.equal(verified.otsVerification, "CHAIN_VERIFIED");
+  assert.equal(verified.label, "Independently verified against the Bitcoin main chain");
+  assert.equal(verified.chain.blockHeight, up.blockHeight);
   assert.equal(anchored.bitcoinTxid, up.txid);
   assert.equal(anchored.bitcoinBlockHeight, up.blockHeight);
   assert.equal(anchored.anchoredAtUtc, now.toISOString());

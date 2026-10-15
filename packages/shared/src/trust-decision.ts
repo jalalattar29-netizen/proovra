@@ -2,12 +2,19 @@ import {
   classifyCustodyEventType,
   type CustodyEventCategory,
 } from "./custody.js";
-import { OTS_STATE_WORDS, type OtsAnchoring } from "./ots-anchoring.js";
+import {
+  OTS_STATE_WORDS,
+  OTS_VERIFICATION_WORDS,
+  otsChainRecordOf,
+  type OtsAnchoring,
+  type OtsVerificationKey,
+} from "./ots-anchoring.js";
 import { presentedTsaStatus } from "./tsa-validation-state.js";
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   TRUST_SIGNAL_STATE_PRESENTATION,
   otsTrustStateOf,
+  otsVerificationOfSignalState,
   resolveOtsTrustState,
   resolveSnapshotSignalState,
   resolveTsaTrustState,
@@ -47,8 +54,16 @@ export type TrustPresentationState =
   | "FAILED_VERIFICATION"
   | "REVIEW_REQUIRED";
 
-/** The anchoring bucket — the canonical OTS state (ots-anchoring.ts), lower-cased. */
-export type TrustAnchoringState = "anchored" | "pending" | "failed" | "unavailable" | "not_requested";
+/**
+ * The anchoring bucket, from the canonical OTS verification (ots-anchoring.ts):
+ *   verified       independently verified against the Bitcoin main chain (the ONLY positive bucket)
+ *   recorded       the proof names a Bitcoin block; not independently checked
+ *   pending        calendar proof pending, or chain confirmations pending
+ *   failed         proof defect or chain contradiction
+ *   unavailable    material or verifier unavailable
+ *   not_requested  anchoring not requested
+ */
+export type TrustAnchoringState = "verified" | "recorded" | "pending" | "failed" | "unavailable" | "not_requested";
 
 export type TrustSignalKey =
   | "core_integrity"
@@ -76,6 +91,8 @@ export type TrustSignal = {
   tone: TrustDecisionTone;
   summary: string;
   detail: string;
+  /** bitcoin_anchoring only: the canonical OTS verification key (CHAIN_VERIFIED is the only PASSED). */
+  otsVerification?: OtsVerificationKey;
 };
 
 /**
@@ -158,7 +175,8 @@ export function getTrustSignalPresentationLabel(
 }
 
 const ANCHORING_STATE_LABELS: Readonly<Record<TrustAnchoringState, string>> = {
-  anchored: OTS_STATE_WORDS.ANCHORED,
+  verified: OTS_VERIFICATION_WORDS.CHAIN_VERIFIED,
+  recorded: OTS_STATE_WORDS.ANCHORED,
   pending: OTS_STATE_WORDS.PENDING,
   failed: OTS_STATE_WORDS.FAILED,
   unavailable: OTS_STATE_WORDS.UNAVAILABLE,
@@ -214,6 +232,16 @@ export type TrustDecisionEvidenceInput = {
   otsHash?: string | null;
   otsAnchoredAtUtc?: string | null;
   otsUpgradedAtUtc?: string | null;
+  /** The independent Bitcoin-chain check (evidence.ots_chain_*). Omitted = never checked. */
+  otsChainVerificationStatus?: string | null;
+  otsChainCheckedAtUtc?: string | Date | null;
+  otsChainVerifiedAtUtc?: string | Date | null;
+  otsChainBlockHeight?: number | null;
+  otsChainBlockHash?: string | null;
+  otsChainBlockTimeUtc?: string | Date | null;
+  otsChainConfirmations?: number | null;
+  otsChainVerifier?: string | null;
+  otsChainFailureCode?: string | null;
   otsCalendar?: string | null;
   otsFailureReason?: string | null;
   /**
@@ -321,8 +349,10 @@ function makeSignal(params: {
   // recorded (but not independently verified) contributor identity renders
   // as "Recorded" rather than "Verified".
   tone?: TrustDecisionTone;
+  otsVerification?: OtsVerificationKey;
 }): TrustSignal {
   return {
+    ...(params.otsVerification ? { otsVerification: params.otsVerification } : {}),
     key: params.key,
     label: params.label,
     state: params.state,
@@ -575,9 +605,10 @@ function buildTimestampSignal(
 function buildAnchoringSignal(
   evidence: TrustDecisionEvidenceInput
 ): TrustSignal {
-  // THE CANONICAL OTS STATE (2026-10-13): a stored proof that executes from
-  // the record's digest to a valid Bitcoin block attestation is ANCHORED — a
-  // passed signal. Nothing else (a txid, a time, a status string) decides it.
+  // THE CANONICAL OTS STATE: a stored proof that executes from the record's
+  // digest to a Bitcoin block attestation is ANCHORED — an attestation the
+  // proof NAMES. Only the independent chain fact bound to that proof makes the
+  // signal PASSED. Nothing else (a txid, a time, a status string) decides it.
   const ots = resolveOtsTrustState({
     status: evidence.otsStatus,
     proofBase64: evidence.otsProofBase64,
@@ -587,6 +618,7 @@ function buildAnchoringSignal(
     calendar: evidence.otsCalendar ?? null,
     anchoredAtUtc: evidence.otsAnchoredAtUtc ?? null,
     upgradedAtUtc: evidence.otsUpgradedAtUtc ?? null,
+    chain: otsChainRecordOf(evidence),
   });
   return anchoringSignalOf(ots);
 }
@@ -597,8 +629,9 @@ function anchoringSignalOf(ots: ReturnType<typeof otsTrustStateOf>): TrustSignal
     label: "Bitcoin anchoring",
     state: ots.state,
     measuredAtUtc: ots.measuredAtUtc,
-    summary: OTS_STATE_WORDS[ots.otsState],
+    summary: OTS_VERIFICATION_WORDS[ots.otsVerification],
     detail: ots.label,
+    otsVerification: ots.otsVerification,
   });
 }
 
@@ -936,7 +969,9 @@ export function deriveTrustPresentation(
   const corePassed = core.state === "PASSED";
   const anchoringState: TrustAnchoringState =
     anchoring.state === "PASSED"
-      ? "anchored"
+      ? "verified"
+      : anchoring.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED"
+        ? "recorded"
       : anchoring.state === "PENDING"
         ? "pending"
         : anchoring.state === "FAILED"
@@ -946,7 +981,8 @@ export function deriveTrustPresentation(
             : "unavailable";
   // Every time-and-anchoring layer PASSED its own check: an unvalidated token
   // never puts a record in the finalized bucket.
-  const finalizable = anchoringState === "anchored" && timestamp.state === "PASSED";
+  // Only an INDEPENDENTLY VERIFIED Bitcoin anchor (chain-checked) finalizes.
+  const finalizable = anchoringState === "verified" && timestamp.state === "PASSED";
 
   // Internal presentation bucket — decided by the states themselves, never by
   // a weighted total. It picks a tone; it is not a conclusion and not shown.
@@ -1009,8 +1045,11 @@ export function readStoredTrustDecision(value: unknown): TrustDecision | null {
       state: o.state,
       status: typeof o.status === "string" ? o.status : null,
       summary: typeof o.summary === "string" ? o.summary : null,
+      otsVerification: o.otsVerification,
     });
+    const otsVerification = o.key === "bitcoin_anchoring" ? otsVerificationOfSignalState(state, o.otsVerification) : null;
     signals.push({
+      ...(otsVerification ? { otsVerification } : {}),
       key: o.key as TrustSignalKey,
       label: typeof o.label === "string" ? o.label : o.key,
       state,
@@ -1054,9 +1093,10 @@ const TRUST_LAYER_STATE_LABELS: Readonly<
     FAILED: "Validation failed",
     UNAVAILABLE: "Not obtained",
   },
-  // The customer-facing OTS vocabulary (ots-anchoring OTS_STATE_WORDS).
+  // The customer-facing OTS vocabulary (ots-anchoring OTS_VERIFICATION_WORDS).
   bitcoin_anchoring: {
-    PASSED: OTS_STATE_WORDS.ANCHORED,
+    PASSED: OTS_VERIFICATION_WORDS.CHAIN_VERIFIED,
+    PRESENT_NOT_INDEPENDENTLY_VERIFIED: OTS_STATE_WORDS.ANCHORED,
     PENDING: OTS_STATE_WORDS.PENDING,
     STALE: OTS_STATE_WORDS.UNAVAILABLE,
     FAILED: OTS_STATE_WORDS.FAILED,

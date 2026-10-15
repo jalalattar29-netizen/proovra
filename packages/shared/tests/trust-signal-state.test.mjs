@@ -20,13 +20,14 @@ import {
   trustSignalStateIsPassed,
 } from "../dist/index.js";
 
-import { REAL, upgradedProof } from "./helpers/ots-fixtures.mjs";
+import { REAL, chainColumnsFor, chainRecordFor, upgradedProof } from "./helpers/ots-fixtures.mjs";
 
 /**
  * (2026-10-13) The OTS signal is the canonical anchoring state resolved from
  * real proof bytes: the `ots stamp` proof is PENDING; ANCHORED only from an
- * upgraded proof (tests/helpers/ots-fixtures.mjs). ANCHORED→PASSED,
- * PENDING→PENDING, FAILED→FAILED, NOT_REQUESTED→NOT_APPLICABLE,
+ * upgraded proof (tests/helpers/ots-fixtures.mjs). An ANCHORED proof only
+ * NAMES a block: PRESENT_NOT_INDEPENDENTLY_VERIFIED; only a chain fact bound
+ * to the proof (VERIFIED) makes it PASSED. PENDING→PENDING, FAILED→FAILED, NOT_REQUESTED→NOT_APPLICABLE,
  * UNAVAILABLE→UNAVAILABLE.
  */
 const FP = REAL.boundFingerprintHash;
@@ -76,8 +77,15 @@ test("legacy snapshots without a state are re-read conservatively", () => {
     "UNAVAILABLE",
   );
   assert.equal(resolveSnapshotSignalState({ key: "bitcoin_anchoring", status: "passed", summary: "Anchored in Bitcoin" }), "UNAVAILABLE");
-  // Only an explicit PASSED (written from a valid upgraded proof) is anchored.
-  assert.equal(resolveSnapshotSignalState({ key: "bitcoin_anchoring", state: "PASSED", status: "passed" }), "PASSED");
+  // An explicit PASSED stored before independent chain verification existed
+  // is an attestation the proof named — present, never verified. Only a
+  // snapshot that marks the chain verification keeps PASSED.
+  assert.equal(resolveSnapshotSignalState({ key: "bitcoin_anchoring", state: "PASSED", status: "passed" }), "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
+  assert.equal(
+    resolveSnapshotSignalState({ key: "bitcoin_anchoring", state: "PASSED", status: "passed", otsVerification: "ATTESTATION_RECORDED" }),
+    "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
+  );
+  assert.equal(resolveSnapshotSignalState({ key: "bitcoin_anchoring", state: "PASSED", status: "passed", otsVerification: "CHAIN_VERIFIED" }), "PASSED");
   assert.equal(resolveSnapshotSignalState({ key: "bitcoin_anchoring", status: "pending" }), "PENDING");
   assert.equal(resolveSnapshotSignalState({ key: "bitcoin_anchoring", status: "failed" }), "FAILED");
   assert.equal(resolveSnapshotSignalState({ key: "verification_package", status: "passed" }), "NOT_APPLICABLE");
@@ -107,12 +115,26 @@ test("TSA: only a validated token is PASSED; a kept token without an anchor is p
 
 test("OTS: the state comes from the proof bytes; only a valid upgraded proof is PASSED", () => {
   const ots = (over) => resolveOtsTrustState({ status: "ANCHORED", fingerprintHash: FP, ...over });
-  // A valid upgraded proof: ANCHORED → PASSED, measured at PROOVRA's recorded anchoring time.
+  // A valid upgraded proof with no chain check: ANCHORED, an attestation
+  // recorded — present, NOT independently verified, measured at PROOVRA's recording time.
   const anchored = ots({ proofBase64: ANCHORED_PROOF.base64, anchoredAtUtc: "2026-10-02T00:00:00Z" });
-  assert.equal(anchored.state, "PASSED");
+  assert.equal(anchored.state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
   assert.equal(anchored.otsState, "ANCHORED");
-  assert.equal(anchored.label, "OpenTimestamps proof anchored in Bitcoin.");
+  assert.equal(anchored.otsVerification, "ATTESTATION_RECORDED");
+  assert.equal(anchored.label, `The proof names Bitcoin block ${ANCHORED_PROOF.blockHeight}; PROOVRA has not checked it against the Bitcoin main chain.`);
   assert.equal(anchored.measuredAtUtc, "2026-10-02T00:00:00.000Z");
+  // The same proof WITH a chain verification bound to it: the only PASSED.
+  const verified = ots({ proofBase64: ANCHORED_PROOF.base64, anchoredAtUtc: "2026-10-02T00:00:00Z", chain: chainRecordFor(ANCHORED_PROOF) });
+  assert.equal(verified.state, "PASSED");
+  assert.equal(verified.otsVerification, "CHAIN_VERIFIED");
+  assert.equal(verified.measuredAtUtc, "2026-10-15T08:00:00.000Z");
+  // A chain record about ANOTHER proof is ignored — never borrowed.
+  const borrowed = ots({ proofBase64: ANCHORED_PROOF.base64, chain: chainRecordFor(ANCHORED_PROOF, { proofSha256: "f".repeat(64) }) });
+  assert.equal(borrowed.state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
+  // Pending confirmations, verifier unavailable and a chain contradiction are never PASSED.
+  assert.equal(ots({ proofBase64: ANCHORED_PROOF.base64, chain: chainRecordFor(ANCHORED_PROOF, { status: "INSUFFICIENT_CONFIRMATIONS" }) }).state, "PENDING");
+  assert.equal(ots({ proofBase64: ANCHORED_PROOF.base64, chain: chainRecordFor(ANCHORED_PROOF, { status: "UNAVAILABLE" }) }).state, "UNAVAILABLE");
+  assert.equal(ots({ proofBase64: ANCHORED_PROOF.base64, chain: chainRecordFor(ANCHORED_PROOF, { status: "FAILED" }) }).state, "FAILED");
   // Status ANCHORED + anchored-at over the real pending proof: PENDING, no measured time.
   const claimed = ots({ proofBase64: REAL.boundProofBase64, anchoredAtUtc: "2026-10-01T00:00:00Z" });
   assert.equal(claimed.state, "PENDING");
@@ -211,19 +233,41 @@ test("TSA valid + stored ANCHORED status over a pending proof → PENDING, no an
   assertNoOverclaim(d);
 });
 
-test("TSA valid + OTS anchored from a valid upgraded proof → every time layer VERIFIED and finalized", () => {
+test("TSA valid + OTS attestation recorded but NOT chain-checked → not verified, not passed, never finalized", () => {
   const d = decide({ otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-10-01T02:00:00Z", otsProofBase64: ANCHORED_PROOF.base64 });
+  assert.equal(anchoring(d).state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
+  assert.equal(anchoring(d).otsVerification, "ATTESTATION_RECORDED");
+  assert.equal(toVerificationStatus(anchoring(d).state), "NOT_CHECKED");
+  assert.notEqual(getTrustSignalPresentationLabel(anchoring(d)), "Verified");
+  assert.equal(d.anchoringState, "recorded");
+  assert.equal(d.anchoringStatusLabel, "Attestation recorded");
+  assert.notEqual(d.presentationState, "VERIFIED_FINALIZED");
+  assert.notEqual(d.tone, "success");
+  assertNoOverclaim(d);
+});
+
+test("TSA valid + OTS independently verified against the Bitcoin main chain → every time layer VERIFIED and finalized", () => {
+  const d = decide({
+    otsStatus: "ANCHORED",
+    otsAnchoredAtUtc: "2026-10-01T02:00:00Z",
+    otsProofBase64: ANCHORED_PROOF.base64,
+    ...chainColumnsFor(ANCHORED_PROOF),
+  });
   assert.equal(anchoring(d).state, "PASSED");
-  assert.equal(anchoring(d).measuredAtUtc, "2026-10-01T02:00:00.000Z");
+  assert.equal(anchoring(d).otsVerification, "CHAIN_VERIFIED");
+  assert.equal(anchoring(d).measuredAtUtc, "2026-10-15T08:00:00.000Z");
   assert.equal(toVerificationStatus(anchoring(d).state), "VERIFIED");
-  assert.equal(d.anchoringState, "anchored");
-  assert.equal(d.anchoringStatusLabel, "Anchored");
+  assert.equal(d.anchoringState, "verified");
+  assert.equal(d.anchoringStatusLabel, "Independently verified");
   assert.equal(d.presentationState, "VERIFIED_FINALIZED");
   assertNoOverclaim(d);
 });
 
-test("an upgraded proof with NO transaction step is still anchored; the txid is never what decides", () => {
-  const d = decide({ otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-10-01T02:00:00Z", otsProofBase64: upgradedProof({ withTransaction: false }).base64 });
+test("an upgraded proof with NO transaction step is chain-verifiable; the txid is never what decides", () => {
+  const p = upgradedProof({ withTransaction: false });
+  const unchecked = decide({ otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-10-01T02:00:00Z", otsProofBase64: p.base64 });
+  assert.equal(anchoring(unchecked).state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
+  const d = decide({ otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-10-01T02:00:00Z", otsProofBase64: p.base64, ...chainColumnsFor(p) });
   assert.equal(anchoring(d).state, "PASSED");
   assert.equal(d.presentationState, "VERIFIED_FINALIZED");
   assertNoOverclaim(d);
