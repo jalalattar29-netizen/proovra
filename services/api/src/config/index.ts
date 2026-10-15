@@ -29,6 +29,11 @@
  *     unless S3_ALLOW_INSECURE=true is explicitly set.
  */
 
+import {
+  objectLockPostureViolations,
+  type ObjectLockPostureViolation,
+} from "@proovra/shared";
+
 const PROD = (): boolean => process.env.NODE_ENV === "production";
 
 export type HashSecretName =
@@ -216,8 +221,78 @@ export type StartupConfigViolation = {
     // upload and into PutObjectLegalHold, so one character placed native holds
     // this codebase cannot release. The read is gone; this violation stops an
     // operator believing the switch still does something.
-    | "s3_native_legal_hold_unsupported";
+    | "s3_native_legal_hold_unsupported"
+    // Session tokens are HS256 — anyone who knows or guesses the secret mints a
+    // session for any user. Presence alone is not enough in production.
+    | "jwt_secret_too_short"
+    | "jwt_secret_placeholder"
+    | "jwt_secret_low_entropy"
+    // AUD-010 — production evidence storage must state the retention
+    // contract: Object Lock on, COMPLIANCE, period absent or >= 2920 days.
+    | ObjectLockPostureViolation;
 };
+
+const OBJECT_LOCK_VIOLATION_ENV: Record<ObjectLockPostureViolation, string> = {
+  object_lock_disabled: "S3_OBJECT_LOCK_ENABLED",
+  object_lock_mode_not_compliance: "S3_OBJECT_LOCK_MODE",
+  object_lock_retain_days_below_contract: "S3_OBJECT_LOCK_RETAIN_DAYS",
+};
+
+/** Minimum AUTH_JWT_SECRET length in production (HS256: 256-bit key). */
+export const JWT_SECRET_MIN_LENGTH = 32;
+
+/**
+ * Values (and fragments of values) that only ever appear in examples,
+ * templates and tutorials. A production secret containing one of these was
+ * copied, not generated.
+ */
+const JWT_SECRET_PLACEHOLDER_MARKERS: ReadonlyArray<string> = [
+  "changeme",
+  "change-me",
+  "change_me",
+  "replace-me",
+  "replace_me",
+  "replaceme",
+  "placeholder",
+  "your-secret",
+  "your_secret",
+  "yoursecret",
+  "example",
+  "do-not-use",
+  "do_not_use",
+  "not-a-real",
+  "not_a_real",
+  "dummy",
+  "insecure",
+  "supersecret",
+  "super-secret",
+  "super_secret",
+  "secretkey",
+  "secret-key",
+  "secret_key",
+  "jwtsecret",
+  "jwt-secret-here",
+];
+
+/**
+ * Pure: why this value is unfit to sign production sessions, or null when it
+ * is acceptable. Length first (an HS256 key under 32 bytes is weak whatever it
+ * contains), then template markers, then a crude entropy floor — a value drawn
+ * from fewer than 12 distinct characters (`aaaa…`, `abcabc…`, `0101…`) was
+ * not produced by a generator.
+ */
+export function assessJwtSecretStrength(
+  value: string,
+): "jwt_secret_too_short" | "jwt_secret_placeholder" | "jwt_secret_low_entropy" | null {
+  const v = value.trim();
+  if (v.length < JWT_SECRET_MIN_LENGTH) return "jwt_secret_too_short";
+  const lower = v.toLowerCase();
+  if (JWT_SECRET_PLACEHOLDER_MARKERS.some((m) => lower.includes(m))) {
+    return "jwt_secret_placeholder";
+  }
+  if (new Set(v).size < 12) return "jwt_secret_low_entropy";
+  return null;
+}
 
 /**
  * Pure: returns the violations the validator would raise. Used by both
@@ -244,6 +319,23 @@ export function collectStartupViolations(): StartupConfigViolation[] {
   for (const name of CORE_REQUIRED_PROD) {
     if ((process.env[name] ?? "").trim().length === 0) {
       out.push({ envName: name, reason: "required_missing" });
+    }
+  }
+  // AUD-010 — evidence retention contract (production). The same rule the
+  // worker's config and both startup bootstraps apply.
+  if (PROD()) {
+    for (const violation of objectLockPostureViolations(process.env)) {
+      out.push({ envName: OBJECT_LOCK_VIOLATION_ENV[violation], reason: violation });
+    }
+  }
+  // AUTH_JWT_SECRET strength — production only (dev/test use deterministic
+  // fixture values). Presence is checked above; a present-but-weak secret is
+  // its own violation so the operator is told exactly what is wrong.
+  if (PROD()) {
+    const jwtSecret = (process.env.AUTH_JWT_SECRET ?? "").trim();
+    if (jwtSecret.length > 0) {
+      const weakness = assessJwtSecretStrength(jwtSecret);
+      if (weakness) out.push({ envName: "AUTH_JWT_SECRET", reason: weakness });
     }
   }
   // Hash secrets — required whenever the corresponding feature is on.

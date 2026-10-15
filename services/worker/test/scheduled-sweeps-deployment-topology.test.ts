@@ -58,7 +58,8 @@ describe("the worker sweeps are deployed and started", () => {
     expect(worker, "docker-compose.prod.yml must define the proovra-worker service").not.toBe("");
     expect(worker).toMatch(/image: ghcr\.io\/\$\{GHCR_OWNER[^}]*\}\/proovra-worker:\$\{IMAGE_TAG/);
     expect(worker).toMatch(/restart: unless-stopped/);
-    expect(worker).toMatch(/healthcheck:\s*\n\s*test: \[.*localhost:8090\/health/);
+    // AUD-023 — health-checked on READINESS (database, Redis, storage).
+    expect(worker).toMatch(/healthcheck:\s*\n\s*test: \[.*localhost:8090\/readyz/);
     // It is not profile-gated or scaled to zero.
     expect(worker).not.toMatch(/^\s+profiles:/m);
     expect(worker).not.toMatch(/replicas:\s*0/);

@@ -213,16 +213,14 @@ describe("Phase P2.0B — Sentry env-driven sample rates + scrubbing", () => {
   });
 
   it("Sentry beforeSendTransaction redacts auth-bearing headers", () => {
+    // AUD-022 — through the ONE shared scrubber, which redacts every
+    // credential location (behaviour proven in sentry-scrub-every-location).
     const apiSrc = readSource("../src/observability/sentry.ts");
     const workerSrc = readSource("../../worker/src/sentry.ts");
     for (const src of [apiSrc, workerSrc]) {
       expect(src).toContain("beforeSendTransaction");
-      expect(src).toContain('"authorization"');
-      expect(src).toContain('"cookie"');
-      expect(src).toContain('"token"');
-      expect(src).toContain('"secret"');
-      expect(src).toContain('"api-key"');
-      expect(src).toContain('"[REDACTED]"');
+      expect(src).toMatch(/SentryBeforeSendTransaction<T>\(event: T\): T \| null \{\s*return scrubTelemetryEvent\(event\);/);
+      expect(src).toContain("sendDefaultPii: false");
     }
   });
 

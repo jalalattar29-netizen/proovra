@@ -28,8 +28,10 @@ import {
 } from "../services/jwt.js";
 import { getSecret } from "../config/runtime-secrets.js";
 import { EXTENSION_CAPTURE_SCOPE } from "../services/auth/extension-scope.js";
-import { recordAuthenticatedSession } from "../services/access-control/session-inventory.service.js";
-import { revokeSession } from "../services/identity-security/session-revocation.service.js";
+import {
+  endOwnSession,
+  recordAuthenticatedSession,
+} from "../services/access-control/session-inventory.service.js";
 import {
   EXTENSION_ACCESS_TOKEN_TTL_SECONDS,
   EXTENSION_OAUTH_CODE_MAX_LENGTH,
@@ -375,24 +377,11 @@ export async function extensionOAuthRoutes(app: FastifyInstance) {
       }
       if (!u.sessionIdHash)
         return reply.code(400).send({ error: "no_session" });
-      const row = await prisma.authenticatedSession.findFirst({
-        where: { userId, sessionIdHash: u.sessionIdHash },
-        select: { teamId: true },
-      });
-      await revokeSession({
+      await endOwnSession({
         userId,
         sessionIdHash: u.sessionIdHash,
-        teamId: row?.teamId ?? null,
         reason: "USER_LOGGED_OUT",
-        actorUserId: userId,
-      });
-      await prisma.authenticatedSession.updateMany({
-        where: { userId, sessionIdHash: u.sessionIdHash, revokedAtUtc: null },
-        data: {
-          revokedAtUtc: new Date(),
-          revokedByUserId: userId,
-          revokedReason: "EXTENSION_SIGN_OUT",
-        },
+        inventoryReason: "EXTENSION_SIGN_OUT",
       });
       return reply.code(200).send({ revoked: true });
     },

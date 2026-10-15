@@ -66,7 +66,7 @@ services:
       [
         "/bin/sh",
         "-c",
-        "mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} && mc mb --ignore-existing local/proovra-prod-assets"
+        "mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} && mc mb --ignore-existing --with-lock local/proovra-prod-assets"
       ]
 
   proovra-api:
@@ -106,6 +106,13 @@ services:
       S3_BUCKET: ${S3_BUCKET}
       S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
       S3_ALLOW_INSECURE: ${S3_ALLOW_INSECURE}
+      # AUD-010 — a production process refuses to start unless evidence
+      # storage states the retention contract: Object Lock on, COMPLIANCE, and
+      # a period unset or >= 2920 days, on a bucket created with Object Lock
+      # (minio-init above: `mc mb --with-lock`). Passed through, never defaulted.
+      S3_OBJECT_LOCK_ENABLED: ${S3_OBJECT_LOCK_ENABLED}
+      S3_OBJECT_LOCK_MODE: ${S3_OBJECT_LOCK_MODE}
+      S3_OBJECT_LOCK_RETAIN_DAYS: ${S3_OBJECT_LOCK_RETAIN_DAYS:-}
       SIGNING_KEY_ID: ${SIGNING_KEY_ID}
       SIGNING_KEY_VERSION: ${SIGNING_KEY_VERSION}
       SIGNING_PRIVATE_KEY_PATH: ${SIGNING_PRIVATE_KEY_PATH}
@@ -172,11 +179,21 @@ services:
       - ${SIGNING_KEY_DIR:?SIGNING_KEY_DIR must name a host directory holding the signing keypair — the image ships none by design}:/run/signing:ro
     ports:
       - "8080:8080"
+    # AUD-023 — the healthcheck is READINESS (`/readyz`: database, Redis and
+    # evidence storage, plus the Object Lock contract in production), because what reads it is
+    # `depends_on: service_healthy` and the deploy gate: neither should proceed
+    # against an instance that cannot serve. It is not a restart trigger —
+    # `restart: unless-stopped` restarts on EXIT, and Docker never restarts a
+    # merely unhealthy container (no autoheal runs here) — so a Redis or S3
+    # outage marks the container unhealthy instead of starting a restart storm.
+    # `/health` remains the liveness endpoint. start_period covers boot (schema
+    # validation, Object Lock bootstrap); retries x interval tolerates a blip.
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/readyz || exit 1"]
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
   proovra-worker:
     build:
@@ -213,6 +230,10 @@ services:
       S3_BUCKET: ${S3_BUCKET}
       S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
       S3_ALLOW_INSECURE: ${S3_ALLOW_INSECURE}
+      # AUD-010 — same contract as the API (see above).
+      S3_OBJECT_LOCK_ENABLED: ${S3_OBJECT_LOCK_ENABLED}
+      S3_OBJECT_LOCK_MODE: ${S3_OBJECT_LOCK_MODE}
+      S3_OBJECT_LOCK_RETAIN_DAYS: ${S3_OBJECT_LOCK_RETAIN_DAYS:-}
       WORKER_BUILD_INFO: ${WORKER_BUILD_INFO}
       WORKER_PORT: ${WORKER_PORT}
       # THE PACKAGE SIGNER'S IDENTITY AND KEY PATHS.
@@ -273,8 +294,18 @@ services:
       - ${SIGNING_KEY_DIR:?SIGNING_KEY_DIR must name a host directory holding the signing keypair — the image ships none by design}:/run/signing:ro
     ports:
       - "8090:8090"
+    # AUD-023 — the healthcheck is READINESS (`/readyz`: database, Redis and
+    # evidence storage), because what reads it is
+    # `depends_on: service_healthy` and the deploy gate: neither should proceed
+    # against an instance that cannot serve. It is not a restart trigger —
+    # `restart: unless-stopped` restarts on EXIT, and Docker never restarts a
+    # merely unhealthy container (no autoheal runs here) — so a Redis or S3
+    # outage marks the container unhealthy instead of starting a restart storm.
+    # `/health` remains the liveness endpoint. start_period covers boot (schema
+    # validation, Object Lock bootstrap); retries x interval tolerates a blip.
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/readyz || exit 1"]
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 12
+      start_period: 60s

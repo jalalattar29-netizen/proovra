@@ -28,6 +28,8 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { isProovraProductionRequest } from "../http/cors-origin-policy.js";
+import { getSecret } from "../config/runtime-secrets.js";
 import { z } from "zod";
 
 import { prisma } from "../db.js";
@@ -204,7 +206,7 @@ function setSessionCookie(
   const origin = req.headers["origin"] ?? "";
   const productionDomain =
     process.env["SSO_COOKIE_DOMAIN"] ||
-    (host.includes("proovra.com") || origin.includes("proovra.com")
+    (isProovraProductionRequest(host, origin)
       ? ".proovra.com"
       : undefined);
   const secure =
@@ -371,7 +373,9 @@ function buildAcsUrl(req: FastifyRequest): string {
 // ---------------------------------------------------------------------------
 
 export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
-  const jwtSecret = process.env["AUTH_JWT_SECRET"];
+  // The canonical accessor (secrets cache, then env) — the same key
+  // requireAuth verifies with; a direct env read could diverge from it.
+  const jwtSecret = getSecret("AUTH_JWT_SECRET");
   if (!jwtSecret) {
     throw new Error("AUTH_JWT_SECRET is not set");
   }
@@ -799,7 +803,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           const origin = req.headers["origin"] ?? "";
           const productionDomain =
             process.env["SSO_COOKIE_DOMAIN"] ||
-            (host.includes("proovra.com") || origin.includes("proovra.com")
+            (isProovraProductionRequest(host, origin)
               ? ".proovra.com"
               : undefined);
           const secure =

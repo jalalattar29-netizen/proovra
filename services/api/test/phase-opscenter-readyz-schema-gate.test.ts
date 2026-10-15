@@ -40,7 +40,31 @@ const H = vi.hoisted(() => ({
    */
   writerLegacyColumns: false,
   writerDedupeIndexMissing: false,
+  /**
+   * AUD-023 — the dependency probes /readyz composes (the real ones are proven
+   * against live Redis and storage in readyz-dependency-outage.integration).
+   */
+  redis: "HEALTHY" as "HEALTHY" | "redis_unreachable" | "redis_not_configured",
+  storage: "HEALTHY" as "HEALTHY" | "storage_unreachable" | "s3_env_missing" | "object_lock_unverified",
 }));
+
+vi.mock("../src/runtime/runtime-readiness.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/runtime/runtime-readiness.js")>();
+  const probe = (id: "redis" | "s3_object_lock", state: string) => async () => ({
+    id,
+    status:
+      state === "HEALTHY" ? "HEALTHY" : state === "redis_not_configured" ? "DEGRADED" : "CRITICAL",
+    reasonCode: state === "HEALTHY" ? "ok" : state,
+    detail: "",
+    remediationHint: null,
+    metadata: {},
+  });
+  return {
+    ...actual,
+    checkRedis: async () => probe("redis", H.redis)(),
+    checkEvidenceStorage: async () => probe("s3_object_lock", H.storage)(),
+  };
+});
 
 vi.mock("../src/db.js", () => {
   const genericModel = {
@@ -114,6 +138,8 @@ beforeEach(async () => {
   H.scheduleTableMissing = false;
   H.writerLegacyColumns = false;
   H.writerDedupeIndexMissing = false;
+  H.redis = "HEALTHY";
+  H.storage = "HEALTHY";
   // The contract result is cached per process; each case must start from a
   // fresh look or it would assert against the previous case's answer.
   const readiness = await import(
@@ -192,6 +218,53 @@ describe("/readyz — required-schema gate (Operations Center migrations)", () =
       status: "degraded",
       reason: "db_unreachable",
     });
+    await app.close();
+  });
+
+  it("AUD-023 — an unreachable Redis is 503 redis_unreachable", async () => {
+    H.redis = "redis_unreachable";
+    const app = await buildApp();
+    const res = await app.inject({ method: "GET", url: "/readyz" });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({ status: "degraded", reason: "redis_unreachable" });
+    await app.close();
+  });
+
+  it("AUD-023 — unreachable evidence storage is 503 storage_unreachable", async () => {
+    H.storage = "storage_unreachable";
+    const app = await buildApp();
+    const res = await app.inject({ method: "GET", url: "/readyz" });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({ status: "degraded", reason: "storage_unreachable" });
+    await app.close();
+  });
+
+  it("AUD-023 — a bucket that does not hold the Object Lock contract is 503 object_lock_unverified", async () => {
+    H.storage = "object_lock_unverified";
+    const app = await buildApp();
+    const res = await app.inject({ method: "GET", url: "/readyz" });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({ status: "degraded", reason: "object_lock_unverified" });
+    await app.close();
+  });
+
+  it("AUD-023 — outside production an UNCONFIGURED Redis or S3 is not a refusal; in production it is", async () => {
+    H.redis = "redis_not_configured";
+    H.storage = "s3_env_missing";
+    const app = await buildApp();
+    expect((await app.inject({ method: "GET", url: "/readyz" })).statusCode).toBe(200);
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const configModule = await import("../src/config/index.js");
+      const spy = vi.spyOn(configModule, "collectStartupViolations").mockReturnValue([]);
+      const res = await app.inject({ method: "GET", url: "/readyz" });
+      spy.mockRestore();
+      expect(res.statusCode).toBe(503);
+      expect(res.json().reason).toBe("redis_not_configured");
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
     await app.close();
   });
 

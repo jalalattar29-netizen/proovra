@@ -1,6 +1,6 @@
 # Data Processing Addendum (DPA)
 
-Last Updated: 2026-06-23
+Last Updated: 2026-10-15
 
 This Data Processing Addendum ("DPA") forms part of the agreement between PROOVRA and the customer ("Customer") using the Services where PROOVRA processes personal data on behalf of that Customer. Where there is a conflict between this DPA and the main agreement on data protection matters, this DPA prevails to the extent of the conflict.
 
@@ -170,7 +170,7 @@ PROOVRA implements technical and organizational measures designed to support the
 
 - Encryption in transit (TLS) on supported channels
 - Server-side encryption at rest where supported by the storage provider
-- Object Lock / immutable storage controls where configured by the Customer
+- S3 Object Lock in COMPLIANCE mode for ordinary evidence originals, for a minimum of 2,920 days (eight years) from sealing; the minimum cannot be shortened by the Customer or by PROOVRA, and legal hold blocks purge
 
 ### B.6 Evidence Integrity Controls
 

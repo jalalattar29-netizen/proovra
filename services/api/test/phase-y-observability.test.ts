@@ -537,10 +537,8 @@ describe("Phase Y — Sentry tag enrichment", () => {
   });
 
   it("redaction still scrubs token / secret / authorization / cookie keys", () => {
-    expect(src).toContain('lowered.includes("token")');
-    expect(src).toContain('lowered.includes("secret")');
-    expect(src).toContain('lowered.includes("authorization")');
-    expect(src).toContain('lowered.includes("cookie")');
+    // AUD-022 — through the shared scrubber (keys AND free-text shapes).
+    expect(src).toContain("const safeContext = scrubTelemetryValue(context) as Record<string, unknown>;");
   });
 });
 

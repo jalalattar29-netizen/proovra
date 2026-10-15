@@ -93,6 +93,12 @@ export type WorkspaceCapabilitySnapshot = {
   workspaceName: string;
   plan: string;
   effectivePlan?: string | null;
+  /**
+   * Whether THIS record's output eligibility could be resolved. UNRESOLVED
+   * means every per-record output flag below is false because the authority
+   * could not answer — not because the plan excludes it.
+   */
+  recordOutputEligibility?: "RESOLVED" | "UNRESOLVED";
   reportsIncluded: boolean;
   verificationPackageIncluded: boolean;
   publicVerifyIncluded: boolean;

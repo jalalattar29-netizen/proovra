@@ -34,15 +34,39 @@ function readCookie(header: string | undefined, name: string): string | null {
   return null;
 }
 
+/**
+ * AUD-020 — the ONE reading of "which session credential did this request
+ * present". A bearer header wins over the cookie (mobile, extension and API
+ * clients); a browser presents the `proovra_session` cookie. `requireAuth`,
+ * sign-out and the cookie-origin guard all read it from here, so they can never
+ * disagree about which token — and therefore which session — is in play.
+ */
+export type SessionCredential = { token: string; source: "bearer" | "cookie" };
+
+export function bearerTokenOf(req: FastifyRequest): string {
+  const auth = req.headers.authorization ?? "";
+  return auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+}
+
+export function sessionCookieOf(req: FastifyRequest): string | null {
+  return (
+    (req.cookies as { proovra_session?: string } | undefined)?.proovra_session ??
+    readCookie(req.headers.cookie, "proovra_session")
+  );
+}
+
+export function resolveSessionCredential(req: FastifyRequest): SessionCredential | null {
+  const bearer = bearerTokenOf(req);
+  if (bearer) return { token: bearer, source: "bearer" };
+  const cookie = sessionCookieOf(req);
+  if (cookie) return { token: cookie, source: "cookie" };
+  return null;
+}
+
 export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
   try {
-    const auth = req.headers.authorization ?? "";
-    const bearerToken = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
-    const cookieToken =
-      (req.cookies as { proovra_session?: string } | undefined)?.proovra_session ??
-      readCookie(req.headers.cookie, "proovra_session");
-
-    const token = bearerToken || cookieToken;
+    const cookieToken = sessionCookieOf(req);
+    const token = resolveSessionCredential(req)?.token ?? "";
 
     if (!token) {
       req.log.info(
@@ -114,8 +138,23 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
     // Phase 19 — session revocation registry check. Fast: single
     // findFirst keyed by userId. Fails CLOSED on the rare case
     // where the deny list can't be read (Prisma outage).
-    const sid = typeof payload.sid === "string" ? payload.sid : null;
+    const sid = typeof payload.sid === "string" && payload.sid.length > 0 ? payload.sid : null;
     const iat = typeof payload.iat === "number" ? payload.iat : null;
+    // AUD-020 — a token the revocation registry cannot address is a token
+    // nobody can sign out. Every token `signJwt` mints carries both claims; one
+    // without them was not minted by this service in its current form, and it
+    // is refused rather than accepted as an unrevocable session.
+    if (sid === null || iat === null) {
+      req.log.info(
+        { requestId: req.id, userId: payload.sub },
+        "auth.unrevocable_token_rejected",
+      );
+      return reply.code(401).send(
+        createErrorResponse(ErrorCode.UNAUTHORIZED, req.id, {
+          reason: "reauthentication_required",
+        }),
+      );
+    }
     try {
       const revoked = await isSessionRevoked({
         userId: payload.sub,
@@ -164,8 +203,11 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
       // gate and the Phase 3 session-timeout policy enforcement below,
       // so the hot path adds at most one lookup. `lastSeenAtUtc` feeds
       // the idle-timeout computation.
-      let sessionRow: { teamId: string | null; lastSeenAtUtc: Date } | null =
-        null;
+      let sessionRow: {
+        teamId: string | null;
+        lastSeenAtUtc: Date;
+        revokedAtUtc?: Date | null;
+      } | null = null;
       // PHASE 10 §1 — SESSION STATE READ. Infra failure here means we cannot
       // classify the request's workspace context → FAIL CLOSED with a generic
       // 503 (never allow-through). The route handler is not reached.
@@ -175,7 +217,7 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
             userId: payload.sub,
             sessionIdHash: hashSessionId(sid),
           },
-          select: { teamId: true, lastSeenAtUtc: true },
+          select: { teamId: true, lastSeenAtUtc: true, revokedAtUtc: true },
         });
       } catch (err) {
         req.log.error(
@@ -189,6 +231,20 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
         return reply
           .code(503)
           .send(createErrorResponse(ErrorCode.SECURITY_CONTEXT_UNAVAILABLE, req.id));
+      }
+
+      // AUD-020 — an ENDED inventory row is an ended session. `RevokedSession`
+      // (checked above) is what every revoking path writes; the row mirrors the
+      // same fact, and a session the inventory records as signed out is never
+      // served even if a writer only ever reached the mirror.
+      if (sessionRow?.revokedAtUtc) {
+        req.log.info(
+          { requestId: req.id, userId: payload.sub },
+          "auth.session_ended",
+        );
+        return reply
+          .code(401)
+          .send(createErrorResponse(ErrorCode.UNAUTHORIZED, req.id));
       }
 
       const teamId = sessionRow?.teamId ?? null;

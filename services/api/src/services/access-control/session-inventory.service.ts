@@ -387,6 +387,57 @@ export async function revokeAllSessionsForUserAdmin(
   return { revokedCount: result.count };
 }
 
+/**
+ * AUD-020 — a person ending THEIR OWN session: web/mobile sign-out and the
+ * extension's revoke. Exactly one session, by its own hash:
+ *
+ *   1. `revokeSession` (SINGLE_SESSION) — the authority `requireAuth` consults,
+ *      so the token is refused from the next request on;
+ *   2. the inventory row is ended (`revokedAtUtc`), so the Security page stops
+ *      listing it and the auth middleware's mirror check agrees.
+ *
+ * Never ALL_FOR_USER: that scope invalidates every token issued before it,
+ * which would sign the person out of their other devices. "Sign out all
+ * devices" is a separate, explicit action. Throws on any store failure — the
+ * caller must not report a sign-out that did not happen.
+ */
+export async function endOwnSession(
+  input: {
+    userId: string;
+    /** HMAC of the session id (`hashSessionId(sid)`), never the raw sid. */
+    sessionIdHash: string;
+    reason: SessionRevocationReason;
+    /** Bounded inventory label (e.g. USER_LOGOUT, EXTENSION_SIGN_OUT). */
+    inventoryReason: string;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ sessionIdHash: string }> {
+  const { sessionIdHash } = input;
+  const row = await client.authenticatedSession.findFirst({
+    where: { userId: input.userId, sessionIdHash },
+    select: { teamId: true },
+  });
+  await revokeSession(
+    {
+      userId: input.userId,
+      sessionIdHash,
+      teamId: row?.teamId ?? null,
+      reason: input.reason,
+      actorUserId: input.userId,
+    },
+    client,
+  );
+  await client.authenticatedSession.updateMany({
+    where: { userId: input.userId, sessionIdHash, revokedAtUtc: null },
+    data: {
+      revokedAtUtc: new Date(),
+      revokedByUserId: input.userId,
+      revokedReason: input.inventoryReason.slice(0, 64),
+    },
+  });
+  return { sessionIdHash };
+}
+
 // -----------------------------------------------------------------------------
 // Phase 26.5 — Sampled heartbeat
 //

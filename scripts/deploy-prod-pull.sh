@@ -51,7 +51,9 @@ main() {
   local COMPOSE_ENV_FILE="${COMPOSE_ENV_FILE:-${REPO_ROOT}/.env}"
   local STATE_DIR="${STATE_DIR:-${REPO_ROOT}/.deploy-state}"
   local API_READY_URL="${API_READY_URL:-http://127.0.0.1:8080/readyz}"
-  local WORKER_HEALTH_URL="${WORKER_HEALTH_URL:-http://127.0.0.1:8090/health}"
+  # AUD-023 — the worker is gated on READINESS (database, Redis, storage), as
+  # the API is; /health is liveness only. WORKER_HEALTH_URL is still honoured.
+  local WORKER_HEALTH_URL="${WORKER_READY_URL:-${WORKER_HEALTH_URL:-http://127.0.0.1:8090/readyz}}"
   local HEALTH_TIMEOUT_S="${HEALTH_TIMEOUT_S:-180}"
   local API_SVC="proovra-api" WORKER_SVC="proovra-worker"
 

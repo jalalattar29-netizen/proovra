@@ -4,6 +4,7 @@ import {
   HeadObjectCommand,
   GetObjectCommand,
   GetObjectLockConfigurationCommand,
+  HeadBucketCommand,
   PutObjectRetentionCommand,
   CopyObjectCommand,
   RestoreObjectCommand,
@@ -732,6 +733,46 @@ export async function verifyObjectLockConfiguration(): Promise<ObjectLockVerific
       mode: "skipped",
       reason: `GetObjectLockConfiguration probe failed: ${code || msg || "unknown"}`,
     };
+  }
+}
+
+// -----------------------------------------------------------------------------
+// AUD-023 — readiness: is the evidence bucket reachable with these credentials?
+// -----------------------------------------------------------------------------
+
+export type EvidenceBucketProbe =
+  | { ok: true; latencyMs: number }
+  | { ok: false; reason: "bucket_not_configured" | "storage_unreachable"; detail: string };
+
+/**
+ * A bounded `HeadBucket` against the configured evidence bucket. Never throws:
+ * a timeout, a refused connection, missing credentials or a missing bucket are
+ * all `storage_unreachable` with a bounded, credential-free detail (the error
+ * class or S3 code only). The request is aborted at the deadline so a hung
+ * endpoint cannot hold a readiness probe open.
+ */
+export async function probeEvidenceBucket(timeoutMs = 2_000): Promise<EvidenceBucketProbe> {
+  const bucket = clean(process.env.S3_BUCKET);
+  if (!bucket) return { ok: false, reason: "bucket_not_configured", detail: "S3_BUCKET is not set" };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
+  try {
+    await s3.send(new HeadBucketCommand({ Bucket: bucket }), { abortSignal: controller.signal });
+    return { ok: true, latencyMs: Date.now() - startedAt };
+  } catch (err) {
+    const e = err as { name?: unknown; Code?: unknown; code?: unknown; $metadata?: { httpStatusCode?: unknown } };
+    const code = String(e?.Code ?? e?.code ?? e?.name ?? "unknown").slice(0, 64);
+    const status = e?.$metadata?.httpStatusCode;
+    return {
+      ok: false,
+      reason: "storage_unreachable",
+      detail: controller.signal.aborted
+        ? `HeadBucket timed out after ${timeoutMs}ms`
+        : `HeadBucket failed: ${code}${typeof status === "number" ? ` (HTTP ${status})` : ""}`,
+    };
+  } finally {
+    clearTimeout(timer);
   }
 }
 

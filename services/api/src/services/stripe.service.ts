@@ -170,11 +170,18 @@ export function verifyStripeSignature(
   options: { nowMs?: number } = {},
 ) {
   const secret = must("STRIPE_WEBHOOK_SECRET");
-  const items = signature.split(",");
+  const items = signature.split(",").map((item) => item.trim());
   const timestamp = items.find((item) => item.startsWith("t="))?.slice(2);
-  const sig = items.find((item) => item.startsWith("v1="))?.slice(3);
+  // Stripe sends one `v1=` per active endpoint secret — during a secret roll
+  // the header carries the signature under the old AND the new secret, in no
+  // guaranteed order. Reading only the first meant a valid event was refused
+  // whenever the matching signature was not first.
+  const signatures = items
+    .filter((item) => item.startsWith("v1="))
+    .map((item) => item.slice(3))
+    .filter((value) => value.length > 0);
 
-  if (!timestamp || !sig) {
+  if (!timestamp || signatures.length === 0) {
     throw new StripeSignatureError(
       "Invalid signature header",
       "MISSING_FIELDS",
@@ -213,16 +220,23 @@ export function verifyStripeSignature(
     .update(signedPayload)
     .digest("hex");
 
-  // timingSafeEqual requires equal-length buffers; reject mismatched
-  // length BEFORE the compare so we don't leak length via the throw
-  // path (defensive — Stripe's signature is always 64 hex chars).
-  if (expected.length !== sig.length) {
-    throw new StripeSignatureError(
-      "Invalid webhook signature",
-      "BAD_SIGNATURE",
+  // Every candidate is compared in constant time, and every candidate is
+  // compared (no early exit), so neither timing nor position reveals which
+  // one matched. timingSafeEqual needs equal lengths; a candidate of another
+  // length cannot match and is compared against itself to keep the work
+  // uniform.
+  const expectedBuf = Buffer.from(expected);
+  let matched = false;
+  for (const candidate of signatures) {
+    const candidateBuf = Buffer.from(candidate);
+    const sameLength = candidateBuf.length === expectedBuf.length;
+    const equal = crypto.timingSafeEqual(
+      sameLength ? expectedBuf : candidateBuf,
+      candidateBuf,
     );
+    matched = (sameLength && equal) || matched;
   }
-  if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) {
+  if (!matched) {
     throw new StripeSignatureError(
       "Invalid webhook signature",
       "BAD_SIGNATURE",

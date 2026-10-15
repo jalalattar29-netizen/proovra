@@ -157,7 +157,9 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
     // Rebaselined 2026-09-16 (D13): 56683 -> 59567. A password reset now ends
     // every session issued before it (revokeAllSessionsForUser after the
     // token is spent); the file had already grown to the edge of the band.
-    { rel: "src/routes/auth.routes.ts", expected: 59567, tolerance: 0.05 },
+    // Rebaselined 2026-10-15 (AUD-020): 59567 -> 62873. Sign-out now revokes the
+    // presented session (bearer or cookie) and fails closed when it cannot.
+    { rel: "src/routes/auth.routes.ts", expected: 62873, tolerance: 0.05 },
   ];
   for (const { rel, expected, tolerance } of POST_E10_1_PINS) {
     it(`${rel} unchanged at the post-E10.1 baseline`, () => {

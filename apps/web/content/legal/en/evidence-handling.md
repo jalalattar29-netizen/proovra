@@ -1,6 +1,6 @@
 # Evidence Handling Policy
 
-Last Updated: 2026-06-23
+Last Updated: 2026-10-15
 
 This document explains how PROOVRA captures, processes, preserves, organizes, and verifies digital materials submitted to the platform.
 
@@ -38,7 +38,7 @@ The table below summarizes how material may move through the platform. Not every
 | Timestamp / Anchoring | RFC 3161 or OpenTimestamps context may be attached where configured or available | Timestamp token, anchoring status, related metadata | Availability depends on configured services and successful workflow completion |
 | Custody Logging | Platform actions are recorded as custody events | Hash-chained custody events, actor / time / action metadata | Custody log records platform activity, not every real-world handoff outside PROOVRA |
 | Review / Verification | Reviewers may inspect Verification Reports, Verification Packages, or Public Verification URLs | Report, package, reviewer-access events | Review surfaces do not determine admissibility or truth |
-| Retention / Legal Hold | Records may be retained, deleted, or placed under legal hold depending on customer settings and legal requirements | Retention status, legal-hold status, audit events | Deletion may be limited by legal, security, fraud, or integrity-preservation needs |
+| Retention / Legal Hold | Sealed evidence originals are retained for a minimum of 2,920 days (eight years) from sealing under S3 Object Lock in COMPLIANCE mode; longer retention and legal hold extend this | Retention status, legal-hold status, audit events | The minimum cannot be shortened; a legal hold blocks purge while active; deletion may additionally be limited by legal, security, fraud, or integrity-preservation needs |
 | Deletion / Export | User-facing content may be deleted or exported where supported | Deletion and export records, remaining integrity or audit artifacts where justified | Some logs or artifacts may remain where legally or operationally necessary |
 
 ## 3. EVIDENCE FILE VS EVIDENCE RECORD
@@ -134,7 +134,7 @@ The custody record is designed to support auditability of system-recorded events
 
 ## 9. STORAGE AND PRESERVATION
 
-Storage may use configured infrastructure and subprocessors (see the Subprocessors page for the current set). Object-storage controls (including retention and immutability features such as Object Lock) may be applied where configured for the deployment; not every deployment has the same storage controls. Preservation metadata may be surfaced on Verification Reports where available.
+Storage may use configured infrastructure and subprocessors (see the Subprocessors page for the current set). Ordinary evidence originals are retained under S3 Object Lock in COMPLIANCE mode for a minimum of 2,920 days (eight years) from sealing (finalization). This minimum cannot be shortened by any customer setting, plan, or administrator, including PROOVRA; a longer contractual or workspace retention extends it. Records under legal hold are not purged while the hold is active. The production service refuses to start if its evidence storage does not enforce this. Preservation metadata may be surfaced on Verification Reports where available.
 
 Legal hold may pause deletion where supported and configured. Storage controls support technical integrity preservation; they do not, by themselves, prove content truth or admissibility.
 

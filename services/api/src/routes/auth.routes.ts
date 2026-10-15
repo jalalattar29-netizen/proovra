@@ -28,7 +28,7 @@ import {
 
 import { getEmailService } from "../services/email.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, resolveSessionCredential } from "../middleware/auth.js";
 import { toAuthUserProjection } from "../http/auth-user-projection.js";
 import { prisma } from "../db.js";
 import {
@@ -60,11 +60,17 @@ import { enforceRateLimit, clearAllRateLimitBuckets } from "../services/rate-lim
 // Phase 2.5 — record the AuthenticatedSession row for non-SAML/SSO
 // login paths so the user-facing `/v1/users/me/sessions` list is not
 // empty for email-password users (Phase 2.4 finding).
-import { recordAuthenticatedSession } from "../services/access-control/session-inventory.service.js";
+import {
+  endOwnSession,
+  recordAuthenticatedSession,
+} from "../services/access-control/session-inventory.service.js";
 // PHASE 11 — canonical internal URL builder (destination-URL construction
 // only; this file's identity/session/MFA logic is untouched).
 import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
-import { revokeAllSessionsForUser } from "../services/identity-security/session-revocation.service.js";
+import {
+  hashSessionId,
+  revokeAllSessionsForUser,
+} from "../services/identity-security/session-revocation.service.js";
 
 // Phase E10.1 — DEF-037 closure. Per-IP rate limits on the public,
 // unauthenticated email login and password-reset-request surfaces.
@@ -452,10 +458,11 @@ export async function authRoutes(app: FastifyInstance) {
     reply: FastifyReply,
     token: string,
   ) {
-    const host = req.headers.host ?? "";
-    const origin = req.headers.origin ?? "";
-    const isProductionDomain =
-      host.includes("proovra.com") || origin.includes("proovra.com");
+    // AUD-021 — exact host/origin parsing, never a substring test.
+    const isProductionDomain = isProovraProductionRequest(
+      req.headers.host,
+      typeof req.headers.origin === "string" ? req.headers.origin : undefined,
+    );
     const cookieOpts = isProductionDomain
       ? {
           httpOnly: true,
@@ -477,10 +484,11 @@ export async function authRoutes(app: FastifyInstance) {
   }
 
   function clearMfaPendingCookie(req: FastifyRequest, reply: FastifyReply) {
-    const host = req.headers.host ?? "";
-    const origin = req.headers.origin ?? "";
-    const isProductionDomain =
-      host.includes("proovra.com") || origin.includes("proovra.com");
+    // AUD-021 — exact host/origin parsing, never a substring test.
+    const isProductionDomain = isProovraProductionRequest(
+      req.headers.host,
+      typeof req.headers.origin === "string" ? req.headers.origin : undefined,
+    );
     reply.clearCookie("proovra_mfa_pending", {
       path: "/",
       domain: isProductionDomain ? ".proovra.com" : undefined,
@@ -1600,33 +1608,82 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.code(200).send({ token, user: toAuthUserProjection(user) });
   });
 
+  // AUD-020 — sign-out ENDS the session; it does not merely forget the cookie.
+  //
+  // This used to clear the browser cookie and answer 200 while the token itself
+  // stayed valid for the rest of its 30 days: a copied bearer, or the same
+  // cookie value replayed, kept working after the person had signed out.
+  //
+  // Now the presented credential — bearer first, else the session cookie, the
+  // same resolution `requireAuth` uses — is verified and THAT session is
+  // revoked through the canonical registry (SINGLE_SESSION by its sid) and its
+  // inventory row ended. Only this session: the person stays signed in on their
+  // other devices; "sign out all devices" remains its own explicit action.
+  //
+  // FAIL CLOSED: when the revocation cannot be recorded the response is 503
+  // `logout_incomplete`, never a 200 that claims the token is dead. The cookie
+  // is still cleared, because forgetting it locally is never wrong.
   app.post("/v1/auth/logout", async (req, reply) => {
     let userId: string | null = null;
-
-    try {
-      const authHeader = req.headers.authorization ?? "";
-      const bearer = authHeader.startsWith("Bearer ")
-        ? authHeader.slice(7).trim()
-        : "";
-
-      if (bearer) {
-        const payload = verifyJwt(bearer, jwtSecret);
+    const credential = resolveSessionCredential(req);
+    let payload: ReturnType<typeof verifyJwt> | null = null;
+    if (credential) {
+      try {
+        payload = verifyJwt(credential.token, jwtSecret);
         userId = payload.sub;
+      } catch {
+        // An invalid or expired token has no live session to end.
+        payload = null;
       }
-    } catch {
-      // noop
     }
 
-    if (req.headers["x-web-client"] === "1") {
-      const host = req.headers.host ?? "";
-      const origin = req.headers.origin ?? "";
-      const isProductionDomain =
-        host.includes("proovra.com") || origin.includes("proovra.com");
+    if (req.headers["x-web-client"] === "1" || credential?.source === "cookie") {
+      // AUD-021 — exact host/origin parsing, never a substring test.
+      const isProductionDomain = isProovraProductionRequest(
+        req.headers.host,
+        typeof req.headers.origin === "string" ? req.headers.origin : undefined,
+      );
 
       reply.clearCookie("proovra_session", {
         path: "/",
         domain: isProductionDomain ? ".proovra.com" : undefined,
       });
+    }
+
+    let sessionEnded = false;
+    if (
+      payload &&
+      payload.mfa !== "pending" &&
+      typeof payload.sid === "string" &&
+      payload.sid.length > 0
+    ) {
+      try {
+        await endOwnSession({
+          userId: payload.sub,
+          sessionIdHash: hashSessionId(payload.sid),
+          reason: "USER_LOGGED_OUT",
+          inventoryReason: "USER_LOGOUT",
+        });
+        sessionEnded = true;
+      } catch (err) {
+        req.log.error(
+          {
+            requestId: req.id,
+            errorMessage: err instanceof Error ? err.message : "logout_revocation_failed",
+          },
+          "auth.logout_revocation_failed",
+        );
+        auditAuthEvent(req, {
+          userId,
+          action: "auth.logout",
+          outcome: "failure",
+          metadata: { reason: "revocation_unavailable" },
+        });
+        return reply.code(503).send({
+          ok: false,
+          error: { code: "logout_incomplete" },
+        });
+      }
     }
 
     auditAuthEvent(req, {
@@ -1635,6 +1692,7 @@ export async function authRoutes(app: FastifyInstance) {
       outcome: "success",
       metadata: {
         webClient: req.headers["x-web-client"] === "1",
+        sessionEnded,
       },
     });
 

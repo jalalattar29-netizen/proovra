@@ -2507,6 +2507,8 @@ export {
   resolveObjectLockModeName,
   computeEvidenceRetentionHorizon,
   resolveObjectRetainUntil,
+  objectLockPostureViolations,
+  decideObjectLockBootstrap,
 } from "./evidence-retention-lifecycle.js";
 export type {
   EvidenceProductState,
@@ -2521,6 +2523,9 @@ export type {
   TrashExitEvaluation,
   ObjectLockModeName,
   EvidenceRetentionHorizonInput,
+  ObjectLockPostureViolation,
+  ObjectLockBucketProbe,
+  ObjectLockBootstrapDecision,
 } from "./evidence-retention-lifecycle.js";
 
 // PROOVRA Phase 2 — Canonical Evidence Materials.
@@ -2694,3 +2699,16 @@ export {
   bulkActionItemSucceeded,
   type BulkActionItemStatus,
 } from "./operations-bulk.js";
+
+// AUD-022 — the ONE error-telemetry (Sentry) scrubber for API, worker, web and
+// mobile. Also importable alone as `@proovra/shared/telemetry-scrub`.
+export {
+  TELEMETRY_REDACTED,
+  isSensitiveTelemetryKey,
+  scrubTelemetryBreadcrumb,
+  scrubTelemetryEvent,
+  scrubTelemetryText,
+  scrubTelemetryUrl,
+  scrubTelemetryValue,
+  type TelemetryScrubOptions,
+} from "./telemetry-scrub.js";

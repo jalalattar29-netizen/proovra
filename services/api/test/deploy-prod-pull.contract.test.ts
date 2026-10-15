@@ -182,7 +182,8 @@ describe("deploy-prod-pull.sh — a release deploy", () => {
       at(/compose --env-file \S+ -f \S+ up -d --no-deps proovra-api$/),
       at(/^curl .*8080\/readyz$/),
       at(/compose --env-file \S+ -f \S+ up -d --no-deps proovra-worker$/),
-      at(/^curl .*8090\/health$/),
+      // AUD-023 — the worker is gated on readiness, like the API.
+      at(/^curl .*8090\/readyz$/),
     ];
     expect(order.every((i) => i >= 0), `${order}\n${r.log.join("\n")}`).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);

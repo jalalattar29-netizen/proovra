@@ -6,7 +6,8 @@
  *    every line the request log writes (intake, external review, org invite,
  *    team invite, verify share token, extension OAuth code).
  *  - SEC-005: in production no `*.vercel.app` origin and no localhost origin is
- *    a credentialed CORS origin; the Proovra origins still are.
+ *    a credentialed CORS origin; the Proovra origins still are. AUD-021: a
+ *    sibling `*.proovra.com` is admitted only when named in CORS_ORIGINS.
  *  - SEC-002: a pinned extension origin passes the preflight (with the headers
  *    the extension sends) in production; an unpinned one is refused; with no
  *    extension configuration every extension origin is refused.
@@ -104,19 +105,31 @@ describe("booted server: CORS origin policy + request-log redaction", () => {
 
   it("SEC-005: production refuses *.vercel.app and localhost; keeps the Proovra origins", async () => {
     await withEnv({ NODE_ENV: "production", CORS_ORIGINS: "" }, async () => {
-      for (const origin of ["https://evil.vercel.app", "http://localhost:3000", "https://proovra.com.evil.example"]) {
+      // AUD-021 — a sibling subdomain is not an application origin: it is
+      // refused unless an operator names it in CORS_ORIGINS.
+      for (const origin of [
+        "https://evil.vercel.app",
+        "http://localhost:3000",
+        "https://proovra.com.evil.example",
+        "https://staging.proovra.com",
+      ]) {
         const res = await preflight(origin);
         expect(res.headers["access-control-allow-origin"], origin).toBeUndefined();
       }
-      for (const origin of ["https://app.proovra.com", "https://www.proovra.com", "https://staging.proovra.com"]) {
+      for (const origin of ["https://app.proovra.com", "https://www.proovra.com", "https://proovra.com"]) {
         const res = await preflight(origin);
         expect(res.headers["access-control-allow-origin"], origin).toBe(origin);
       }
     });
-    await withEnv({ NODE_ENV: "production", CORS_ORIGINS: "https://proovra-preview.vercel.app" }, async () => {
-      const res = await preflight("https://proovra-preview.vercel.app");
-      expect(res.headers["access-control-allow-origin"]).toBe("https://proovra-preview.vercel.app");
-    });
+    await withEnv(
+      { NODE_ENV: "production", CORS_ORIGINS: "https://proovra-preview.vercel.app,https://staging.proovra.com" },
+      async () => {
+        for (const origin of ["https://proovra-preview.vercel.app", "https://staging.proovra.com"]) {
+          const res = await preflight(origin);
+          expect(res.headers["access-control-allow-origin"], origin).toBe(origin);
+        }
+      },
+    );
   });
 
   it("SEC-002: a pinned extension origin is admitted in production; unpinned / unconfigured are refused", async () => {

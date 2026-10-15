@@ -45,6 +45,7 @@ import {
 import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
+import { getSecret } from "../../config/runtime-secrets.js";
 import type { LoadedOutputFacts } from "./output-recovery.service.js";
 
 // ===========================================================================
@@ -264,7 +265,7 @@ const PREFIX = "ofr1";
 
 function offerKey(): Buffer {
   const secret =
-    process.env.OUTPUT_OFFER_SECRET?.trim() || process.env.AUTH_JWT_SECRET?.trim() || "";
+    process.env.OUTPUT_OFFER_SECRET?.trim() || getSecret("AUTH_JWT_SECRET")?.trim() || "";
   if (secret.length < 16) {
     // Fail closed: without a key no revision can be issued or accepted.
     throw new Error("OUTPUT_OFFER_KEY_UNAVAILABLE");

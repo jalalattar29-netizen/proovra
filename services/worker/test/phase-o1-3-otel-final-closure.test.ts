@@ -226,8 +226,9 @@ describe("O1.3 — Sentry coexistence preserved", () => {
       expect(src).toMatch(/Sentry\.init\s*\(\s*\{/);
       expect(src).toMatch(/captureException/);
       // Bounded beforeSend / beforeSendTransaction still present.
-      expect(src).toContain("beforeSend(event, hint)");
-      expect(src).toContain("beforeSendTransaction(event)");
+      // AUD-022 — wired as named, exported (and behaviour-tested) hooks.
+      expect(src).toMatch(/beforeSend: (api|worker)SentryBeforeSend,/);
+      expect(src).toMatch(/beforeSendTransaction: (api|worker)SentryBeforeSendTransaction,/);
       // Sample rate env names still wired.
       expect(src).toContain('"SENTRY_TRACES_SAMPLE_RATE"');
       expect(src).toContain('"SENTRY_PROFILES_SAMPLE_RATE"');

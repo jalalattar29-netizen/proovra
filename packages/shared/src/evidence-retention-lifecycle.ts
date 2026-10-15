@@ -877,3 +877,130 @@ export function resolveObjectRetainUntil(input: {
   }
   return horizon;
 }
+
+// ---------------------------------------------------------------------------
+// AUD-010 — PRODUCTION OBJECT LOCK POSTURE (fail closed).
+//
+// The contract above is only as good as the deployment that writes under it.
+// `S3_OBJECT_LOCK_ENABLED` used to default to false and `S3_OBJECT_LOCK_MODE`
+// accepted GOVERNANCE, so a production deployment could boot writing evidence
+// with no lock, or with a lock an administrator can remove. In production the
+// deployment must state exactly the contract: enabled, COMPLIANCE, and a
+// period that is absent (the 2920-day default) or at least 2920 days.
+// ---------------------------------------------------------------------------
+
+export type ObjectLockPostureViolation =
+  | "object_lock_disabled"
+  | "object_lock_mode_not_compliance"
+  | "object_lock_retain_days_below_contract";
+
+/**
+ * Pure: the ways this environment's Object Lock configuration falls short of
+ * the evidence retention contract. Empty when it states the contract exactly.
+ * Callers decide WHEN it applies (production); the rule is the same for the
+ * API and the worker.
+ */
+export function objectLockPostureViolations(
+  env: Readonly<Record<string, string | undefined>>,
+): ObjectLockPostureViolation[] {
+  const out: ObjectLockPostureViolation[] = [];
+  if (String(env.S3_OBJECT_LOCK_ENABLED ?? "").trim().toLowerCase() !== "true") {
+    out.push("object_lock_disabled");
+  }
+  if (resolveObjectLockModeName(env.S3_OBJECT_LOCK_MODE) !== "COMPLIANCE") {
+    out.push("object_lock_mode_not_compliance");
+  }
+  const rawDays = String(env.S3_OBJECT_LOCK_RETAIN_DAYS ?? "").trim();
+  if (rawDays.length > 0) {
+    const days = Number(rawDays);
+    if (!Number.isInteger(days) || days < EVIDENCE_OBJECT_RETENTION_DAYS) {
+      out.push("object_lock_retain_days_below_contract");
+    }
+  }
+  return out;
+}
+
+/** What a startup probe of the evidence bucket's Object Lock found. */
+export type ObjectLockBucketProbe =
+  | { mode: "disabled" }
+  | { mode: "skipped"; reason: string }
+  | { mode: "claimed-but-unsupported"; bucket: string; reason: string }
+  | {
+      mode: "verified";
+      configured: {
+        bucket: string;
+        defaultMode: string | null;
+        defaultRetainDays: number | null;
+      };
+    };
+
+export type ObjectLockBootstrapDecision =
+  | { action: "start"; level: "info" | "warn"; event: string }
+  | { action: "refuse"; event: string; reason: string };
+
+/**
+ * THE startup decision for the API and the worker (AUD-010). In production
+ * every shortfall refuses to start — there is no bypass:
+ *
+ *   - the environment does not state the contract (see above);
+ *   - the probe was skipped (the bucket could not be asked) or found the
+ *     bucket cannot hold locks;
+ *   - the bucket carries a DEFAULT retention that is not COMPLIANCE for at
+ *     least 2920 days (an object written without an explicit lock would
+ *     inherit it). No default retention is acceptable: every writer sends an
+ *     explicit COMPLIANCE lock.
+ *
+ * Outside production the same findings are reported as warnings so local
+ * development and CI fixtures still boot.
+ */
+export function decideObjectLockBootstrap(
+  probe: ObjectLockBucketProbe,
+  options: { production: boolean; env: Readonly<Record<string, string | undefined>> },
+): ObjectLockBootstrapDecision {
+  if (!options.production) {
+    if (probe.mode === "disabled") return { action: "start", level: "info", event: "object_lock.disabled" };
+    if (probe.mode === "verified") return { action: "start", level: "info", event: "object_lock.verified" };
+    if (probe.mode === "skipped") {
+      return { action: "start", level: "warn", event: "object_lock.verification_skipped" };
+    }
+    return { action: "start", level: "warn", event: "object_lock.claimed_but_unsupported" };
+  }
+  const config = objectLockPostureViolations(options.env);
+  if (config.length > 0) {
+    return { action: "refuse", event: "object_lock.bootstrap_failed", reason: config.join(",") };
+  }
+  switch (probe.mode) {
+    case "disabled":
+      return { action: "refuse", event: "object_lock.bootstrap_failed", reason: "object_lock_disabled" };
+    case "skipped":
+      return {
+        action: "refuse",
+        event: "object_lock.bootstrap_failed",
+        reason: `object_lock_unverified: ${probe.reason}`,
+      };
+    case "claimed-but-unsupported":
+      return {
+        action: "refuse",
+        event: "object_lock.bootstrap_failed",
+        reason: `object_lock_unsupported_by_bucket: ${probe.reason}`,
+      };
+    case "verified": {
+      const { defaultMode, defaultRetainDays } = probe.configured;
+      if (defaultMode !== null && resolveObjectLockModeName(defaultMode) !== "COMPLIANCE") {
+        return {
+          action: "refuse",
+          event: "object_lock.bootstrap_failed",
+          reason: "bucket_default_retention_not_compliance",
+        };
+      }
+      if (defaultRetainDays !== null && defaultRetainDays < EVIDENCE_OBJECT_RETENTION_DAYS) {
+        return {
+          action: "refuse",
+          event: "object_lock.bootstrap_failed",
+          reason: "bucket_default_retention_below_contract",
+        };
+      }
+      return { action: "start", level: "info", event: "object_lock.verified" };
+    }
+  }
+}

@@ -8,6 +8,7 @@ import { runbookDenialHtml } from "./lib/runbooks/denial-page";
 const RUNBOOK_DETAIL_PATH = /^\/admin\/platform\/runbooks\/([^/]+)\/?$/;
 
 import { findSurfaceTierRule } from "./lib/surface/tiers";
+import { isLocalOrPreviewHost } from "./lib/security/request-host";
 
 const APP_BASE = process.env.NEXT_PUBLIC_APP_BASE;
 const WEB_BASE = process.env.NEXT_PUBLIC_WEB_BASE;
@@ -325,7 +326,7 @@ export async function middleware(req: NextRequest) {
     // if (!isProd) console.info(`[csp] ...`);
 
     // dev / vercel preview: no host switching
-    if (!host || host.includes("localhost") || host.includes("127.0.0.1") || host.endsWith(".vercel.app")) {
+    if (!host || isLocalOrPreviewHost(host)) {
       const res = nextWithNonce(req, nonce, csp);
       if (isProd) applySecurityHeaders(res, csp, pathname);
       return res;

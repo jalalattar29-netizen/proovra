@@ -314,7 +314,9 @@ describe("R8.1.2 Part 7 — login flow integration LIVE (was deferred in R8.1.1)
     // DELETED — the /v1/auth/guest route + handler + guest comments were removed.
     // 2026-09-16 (D13) rebaselined 56683→59567: a password reset now ends
     // every session issued before it.
-    const expected = 59567;
+    // 2026-10-15 (AUD-020) rebaselined 59567→62873: sign-out revokes the
+    // presented session and fails closed when it cannot.
+    const expected = 62873;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);

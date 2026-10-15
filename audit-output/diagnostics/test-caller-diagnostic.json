@@ -8,9 +8,9 @@
   "capabilityRouteInventoryHash": "fd792624a00d7154c19c965c8897975083b189f67fea53dfc0d723a2d7af6b89",
   "totals": {
     "routes": 1193,
-    "routesWithAnyTestCaller": 43,
+    "routesWithAnyTestCaller": 44,
     "testOnlyRoutes": 4,
-    "testCallSites": 82,
+    "testCallSites": 90,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -329,9 +329,11 @@
     },
     {
       "routeId": "GET /readyz",
-      "testCallerCount": 0,
+      "testCallerCount": 8,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "services/worker/test/worker-readyz-outage.docker.test.ts"
+      ]
     },
     {
       "routeId": "GET /v1/admin/adoption",
@@ -7264,5 +7266,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "18e194ed1ed10c5f187124543ea29d974513106bda7d079307ba0eb594d3c9ee"
+  "contentHash": "ce4727b22572424deb00320485c8e9ca97b36e3743b38a7fe98066573045d15f"
 }

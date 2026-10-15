@@ -1,15 +1,16 @@
 /**
  * Phase C #1 — Object Lock startup bootstrap (worker).
  *
- * Mirrors services/api/src/bootstrap/object-lock-verification.ts so the
- * worker applies the same policy: in production-shaped envs, fail to start
- * when S3_OBJECT_LOCK_ENABLED=true but the bucket cannot accept retention
- * writes.
+ * Applies the same decision as services/api/src/bootstrap/object-lock-verification.ts
+ * (one shared rule): in production-shaped envs, refuse to start unless
+ * evidence storage meets the retention contract.
  */
+import { decideObjectLockBootstrap } from "@proovra/shared";
+
 import { logger } from "./logger.js";
 import { verifyObjectLockConfiguration } from "./storage.js";
 
-function isProductionShapedEnv(): boolean {
+export function isProductionShapedEnv(): boolean {
   const candidates = [
     process.env.PROOVRA_ENV,
     process.env.APP_ENV,
@@ -27,63 +28,38 @@ function isProductionShapedEnv(): boolean {
   return false;
 }
 
+/**
+ * The SAME startup decision the API applies (`decideObjectLockBootstrap`,
+ * @proovra/shared). In production every shortfall refuses to start — Object
+ * Lock disabled, not COMPLIANCE, under 2920 days, unverifiable, unsupported by
+ * the bucket, or a weaker bucket default — and there is no bypass (AUD-010).
+ */
 export async function bootstrapObjectLockVerification(): Promise<void> {
   const result = await verifyObjectLockConfiguration();
-
-  switch (result.mode) {
-    case "disabled":
-      logger.info({ phase: "startup.object_lock", mode: "disabled" }, "object_lock.disabled");
-      return;
-    case "verified":
-      logger.info(
-        {
-          phase: "startup.object_lock",
-          mode: "verified",
+  const production = isProductionShapedEnv();
+  const decision = decideObjectLockBootstrap(result, { production, env: process.env });
+  const detail = {
+    phase: "startup.object_lock",
+    mode: result.mode,
+    isProduction: production,
+    ...(result.mode === "verified"
+      ? {
           bucket: result.configured.bucket,
           defaultMode: result.configured.defaultMode,
           defaultRetainDays: result.configured.defaultRetainDays,
-        },
-        "object_lock.verified"
-      );
-      return;
-    case "skipped":
-      logger.warn(
-        { phase: "startup.object_lock", mode: "skipped", reason: result.reason },
-        "object_lock.verification_skipped"
-      );
-      return;
-    case "claimed-but-unsupported": {
-      const inProd = isProductionShapedEnv();
-      const bypass =
-        (process.env.OBJECT_LOCK_VERIFICATION_BYPASS ?? "")
-          .trim()
-          .toLowerCase() === "true";
-      if (inProd && !bypass) {
-        logger.error(
-          {
-            phase: "startup.object_lock",
-            mode: "claimed-but-unsupported",
-            bucket: result.bucket,
-            reason: result.reason,
-          },
-          "object_lock.bootstrap_failed"
-        );
-        throw new Error(
-          `OBJECT_LOCK_BOOTSTRAP_FAILED: S3_OBJECT_LOCK_ENABLED=true but bucket "${result.bucket}" cannot accept Object Lock retention. ${result.reason}. Set OBJECT_LOCK_VERIFICATION_BYPASS=true to start anyway.`
-        );
-      }
-      logger.warn(
-        {
-          phase: "startup.object_lock",
-          mode: "claimed-but-unsupported",
-          bucket: result.bucket,
-          reason: result.reason,
-          isProduction: inProd,
-          forced: bypass,
-        },
-        "object_lock.claimed_but_unsupported"
-      );
-      return;
-    }
+        }
+      : {}),
+    ...(result.mode === "claimed-but-unsupported" ? { bucket: result.bucket } : {}),
+    ...(result.mode === "skipped" || result.mode === "claimed-but-unsupported"
+      ? { reason: result.reason }
+      : {}),
+  };
+  if (decision.action === "refuse") {
+    logger.error({ ...detail, refusal: decision.reason }, decision.event);
+    throw new Error(
+      `OBJECT_LOCK_BOOTSTRAP_FAILED: evidence storage does not meet the retention contract (S3 Object Lock COMPLIANCE, at least 2920 days): ${decision.reason}`,
+    );
   }
+  if (decision.level === "warn") logger.warn(detail, decision.event);
+  else logger.info(detail, decision.event);
 }

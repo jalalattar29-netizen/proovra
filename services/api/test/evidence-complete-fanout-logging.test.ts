@@ -58,7 +58,7 @@ vi.mock("../src/crypto.js", () => ({
   canonicalJson: () => "",
   sha256Hex: () => "",
 }));
-vi.mock("@proovra/shared-billing", () => ({ canPlanGenerateReports: () => false }));
+vi.mock("@proovra/shared-billing", () => ({}));
 vi.mock("../src/signing/signer.js", () => ({ getEvidenceSigner: () => null }));
 vi.mock("../src/services/billing-enforcement.service.js", () => ({
   assertWorkspaceAllowsStorageGrowth: vi.fn(),

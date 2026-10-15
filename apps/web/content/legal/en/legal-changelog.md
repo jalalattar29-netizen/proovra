@@ -1,6 +1,6 @@
 # Legal Changelog
 
-Last Updated: 2026-06-23
+Last Updated: 2026-10-15
 
 This page provides a version history for PROOVRA's legal and compliance documentation. It is intended to improve transparency around material updates to policies, terms, privacy notices, cookie practices, and related compliance documents.
 
@@ -49,6 +49,12 @@ This version is currently associated with the following core documents:
 Where required by PROOVRA's implementation, users may be asked to re-accept updated legal terms after a material revision.
 
 ## 3. CHANGE HISTORY
+
+### 2026-10-15 — Evidence retention minimum stated exactly
+
+**Data Retention Policy, Evidence Handling Policy, Security Policy, TOMs, DPA**
+- Stated that ordinary evidence originals are retained under S3 Object Lock in COMPLIANCE mode for a minimum of 2,920 days (eight years) from sealing, that this minimum cannot be shortened by any customer setting, plan, or administrator, that longer contractual or workspace retention extends it, and that a legal hold blocks purge while active.
+- Removed wording that described evidence retention as customer-configured and Object Lock as applied only "where configured".
 
 ### 2026-06-23 — Enterprise hardening pass
 

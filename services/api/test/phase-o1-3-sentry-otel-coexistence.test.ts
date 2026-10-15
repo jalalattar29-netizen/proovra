@@ -129,8 +129,10 @@ describe("O1.3 — Sentry init still wires error reporting + scrubbing + sample 
     });
 
     it(`${label} preserves beforeSend + beforeSendTransaction`, () => {
-      expect(src).toContain("beforeSend(event, hint)");
-      expect(src).toContain("beforeSendTransaction(event)");
+      // AUD-022 — wired as named, exported (and behaviour-tested) hooks.
+      expect(src).toMatch(/beforeSend: (api|worker)SentryBeforeSend,/);
+      expect(src).toMatch(/beforeSendTransaction: (api|worker)SentryBeforeSendTransaction,/);
+      expect(src).toMatch(/beforeBreadcrumb: (api|worker)SentryBeforeBreadcrumb,/);
     });
 
     it(`${label} preserves env-driven SENTRY_TRACES_SAMPLE_RATE + SENTRY_PROFILES_SAMPLE_RATE`, () => {

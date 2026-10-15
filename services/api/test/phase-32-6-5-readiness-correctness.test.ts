@@ -157,11 +157,13 @@ describe("Phase 32.6.5 — Sentry filter catches `Stream isn't writeable`", () =
       // protection (exactly one fallthrough `return event;` inside
       // the bounded beforeSend filter), scope the count to the
       // `beforeSend(event, hint)` block only.
-      const beforeSendStart = src.indexOf("beforeSend(event, hint)");
+      // AUD-022 — the hook is a named, exported function.
+      const beforeSendStart = src.search(/SentryBeforeSend<T>\(event: T, hint/);
       expect(beforeSendStart).toBeGreaterThan(-1);
       // Find the matching closing brace of the beforeSend block by
       // walking braces forward from the opening one.
-      const openBrace = src.indexOf("{", beforeSendStart);
+      // The body brace, not the `hint` parameter type literal.
+      const openBrace = src.indexOf("{", src.indexOf("): T | null", beforeSendStart));
       let depth = 0;
       let cursor = openBrace;
       let closeBrace = -1;
@@ -184,9 +186,12 @@ describe("Phase 32.6.5 — Sentry filter catches `Stream isn't writeable`", () =
       // that did NOT match any bounded signature). The fact that
       // `beforeSendTransaction` also returns event is fine — that's
       // a separate hook with its own intentional return.
+      // AUD-022 — the fallthrough sends the event through the shared
+      // scrubber; nothing in the filter returns it raw.
       const returnEventCount =
-        (beforeSendBlock.match(/return\s+event;/g) ?? []).length;
+        (beforeSendBlock.match(/return\s+scrubTelemetryEvent\(event\);/g) ?? []).length;
       expect(returnEventCount).toBe(1);
+      expect(beforeSendBlock).not.toMatch(/return\s+event;/);
       // Phase CAPTURE-HARDENING + 400-CLIENT-ERROR-HARDENING — the
       // API's beforeSend now has FIVE bounded drop paths:
       //   (1) PHASE 12 POINT 7 CORRECTIVE PASS — the reportability

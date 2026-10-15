@@ -34,6 +34,7 @@ import type {
   FastifyReply,
   FastifyRequest,
 } from "fastify";
+import { isProovraProductionRequest } from "../http/cors-origin-policy.js";
 import { z } from "zod";
 import * as prismaPkg from "@prisma/client";
 import {
@@ -462,8 +463,8 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         userAgentForAudit: requestUa(req),
       });
       if (minted) {
-        const host = (req.headers.host ?? "").toLowerCase();
-        const isProdDomain = host.includes("proovra.com");
+        // AUD-021 — exact host parsing, never a substring test.
+        const isProdDomain = isProovraProductionRequest(req.headers.host, undefined);
         reply.setCookie(DEVICE_CORRELATION_COOKIE, deviceCookieValue, {
           httpOnly: true,
           secure: isProdDomain,

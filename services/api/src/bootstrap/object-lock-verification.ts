@@ -4,19 +4,18 @@
  * Decides what to do with the verifyObjectLockConfiguration() result based on
  * the deployment environment. The intent is:
  *
- *   - In production-shaped environments, refuse to start the service when
- *     S3_OBJECT_LOCK_ENABLED=true but the bucket cannot accept retention
- *     writes. Operators get a loud failure rather than silent per-record
- *     downgrades.
+ *   - In production-shaped environments, refuse to start unless evidence
+ *     storage meets the retention contract (AUD-010): Object Lock enabled,
+ *     COMPLIANCE, at least 2920 days, verified against the bucket.
  *
  *   - In dev / local / preview, log a clear warning so the developer sees
  *     the gap without blocking iteration.
  *
- *   - When Object Lock was never claimed (env unset/false), this is a no-op.
- *
  * This module is shared between the API and the worker so both surfaces
  * apply the same policy.
  */
+
+import { decideObjectLockBootstrap } from "@proovra/shared";
 
 import {
   verifyObjectLockConfiguration,
@@ -50,85 +49,45 @@ function isProductionShapedEnv(): boolean {
   return false;
 }
 
-export interface BootstrapObjectLockOptions {
-  /** Hard-disable strict mode for tests / explicit operator opt-out. */
-  bypass?: boolean;
-}
-
 /**
- * Run the verification and apply the policy. Throws in strict mode when the
- * bucket fails the check. Always returns the verification result.
+ * Run the verification and apply the ONE startup decision
+ * (`decideObjectLockBootstrap`, @proovra/shared — the worker applies the same
+ * one). Throws in production on every shortfall: Object Lock disabled, a mode
+ * other than COMPLIANCE, a period under 2920 days, a probe that was skipped,
+ * a bucket that cannot hold locks, or a bucket default retention weaker than
+ * the contract. There is no bypass in production (AUD-010): the old
+ * OBJECT_LOCK_VERIFICATION_BYPASS let a production deployment start writing
+ * evidence it then had to describe as unprotected record by record.
  */
 export async function bootstrapObjectLockVerification(
   logger: ObjectLockBootstrapLogger,
-  options: BootstrapObjectLockOptions = {}
 ): Promise<ObjectLockVerificationResult> {
   const result = await verifyObjectLockConfiguration();
-
-  switch (result.mode) {
-    case "disabled":
-      logger.info(
-        { phase: "startup.object_lock", mode: "disabled" },
-        "object_lock.disabled"
-      );
-      return result;
-
-    case "verified":
-      logger.info(
-        {
-          phase: "startup.object_lock",
-          mode: "verified",
+  const production = isProductionShapedEnv();
+  const decision = decideObjectLockBootstrap(result, { production, env: process.env });
+  const detail = {
+    phase: "startup.object_lock",
+    mode: result.mode,
+    isProduction: production,
+    ...(result.mode === "verified"
+      ? {
           bucket: result.configured.bucket,
           defaultMode: result.configured.defaultMode,
           defaultRetainDays: result.configured.defaultRetainDays,
-        },
-        "object_lock.verified"
-      );
-      return result;
-
-    case "skipped":
-      logger.warn(
-        { phase: "startup.object_lock", mode: "skipped", reason: result.reason },
-        "object_lock.verification_skipped"
-      );
-      return result;
-
-    case "claimed-but-unsupported": {
-      // This is the dangerous case. Env says enabled, bucket says no.
-      const inProd = isProductionShapedEnv();
-      const bypassAck =
-        (process.env.OBJECT_LOCK_VERIFICATION_BYPASS ?? "")
-          .trim()
-          .toLowerCase() === "true";
-      const force = options.bypass === true || bypassAck;
-
-      if (inProd && !force) {
-        logger.error(
-          {
-            phase: "startup.object_lock",
-            mode: "claimed-but-unsupported",
-            bucket: result.bucket,
-            reason: result.reason,
-          },
-          "object_lock.bootstrap_failed"
-        );
-        throw new Error(
-          `OBJECT_LOCK_BOOTSTRAP_FAILED: S3_OBJECT_LOCK_ENABLED=true but the configured bucket "${result.bucket}" cannot accept Object Lock retention. ${result.reason}. Set OBJECT_LOCK_VERIFICATION_BYPASS=true to start anyway and accept that EVIDENCE_LOCKED claims will be downgraded per-record.`
-        );
-      }
-
-      logger.warn(
-        {
-          phase: "startup.object_lock",
-          mode: "claimed-but-unsupported",
-          bucket: result.bucket,
-          reason: result.reason,
-          isProduction: inProd,
-          forced: force,
-        },
-        "object_lock.claimed_but_unsupported"
-      );
-      return result;
-    }
+        }
+      : {}),
+    ...(result.mode === "claimed-but-unsupported" ? { bucket: result.bucket } : {}),
+    ...(result.mode === "skipped" || result.mode === "claimed-but-unsupported"
+      ? { reason: result.reason }
+      : {}),
+  };
+  if (decision.action === "refuse") {
+    logger.error({ ...detail, refusal: decision.reason }, decision.event);
+    throw new Error(
+      `OBJECT_LOCK_BOOTSTRAP_FAILED: evidence storage does not meet the retention contract (S3 Object Lock COMPLIANCE, at least 2920 days): ${decision.reason}`,
+    );
   }
+  if (decision.level === "warn") logger.warn(detail, decision.event);
+  else logger.info(detail, decision.event);
+  return result;
 }

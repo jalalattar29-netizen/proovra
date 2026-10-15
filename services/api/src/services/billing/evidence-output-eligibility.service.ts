@@ -32,7 +32,6 @@
 
 import {
   OUTPUT_EARNED_BASES,
-  getPlanCapabilities,
   readOutputEarnedFact,
   resolveEvidenceOutputEntitlements,
   type OutputEarnedFact,
@@ -600,14 +599,45 @@ export type OwedOutputEvidenceWhere = {
 };
 
 /**
- * Does this workspace's PLAN include reports at all, ignoring per-record
- * funding?
+ * The per-record output flags a record projection serves, from the record's
+ * OWN eligibility — or UNRESOLVED when that could not be resolved.
  *
- * The narrow question a WORKSPACE-level surface asks — "should this workspace
- * see report features" — as opposed to the per-record question above. Kept here
- * so both readings live beside each other and a caller has to pick one on
- * purpose rather than by reaching for whatever was in scope.
+ * FAIL CLOSED. The Evidence Detail projection used to write
+ * `recordEligibility?.reportsIncluded ?? caps.reportsIncluded` with the
+ * per-record call wrapped in `.catch(() => null)`, so any failure fell back to
+ * the PLAN's answer — and FREE's plan row includes reports, so an unresolvable
+ * record was offered every output. An unresolved record now offers none, and
+ * says why (`recordOutputEligibility: "UNRESOLVED"`), rather than reading as
+ * "not included in your plan".
+ *
+ * Public verification is the one exception, and not by fallback: the authority
+ * answers it from the plan alone (never gated on funding or the subscription),
+ * so the plan's answer IS the record's answer.
  */
-export function planIncludesReports(plan: PlanType): boolean {
-  return getPlanCapabilities(plan).reportsIncluded;
+export function recordOutputFlags(
+  record: Pick<
+    EvidenceOutputEligibility,
+    "reportsIncluded" | "verificationPackageIncluded" | "publicVerifyIncluded"
+  > | null,
+  planCaps: { publicVerifyIncluded: boolean },
+): {
+  recordOutputEligibility: "RESOLVED" | "UNRESOLVED";
+  reportsIncluded: boolean;
+  verificationPackageIncluded: boolean;
+  publicVerifyIncluded: boolean;
+} {
+  if (!record) {
+    return {
+      recordOutputEligibility: "UNRESOLVED",
+      reportsIncluded: false,
+      verificationPackageIncluded: false,
+      publicVerifyIncluded: Boolean(planCaps.publicVerifyIncluded),
+    };
+  }
+  return {
+    recordOutputEligibility: "RESOLVED",
+    reportsIncluded: record.reportsIncluded === true,
+    verificationPackageIncluded: record.verificationPackageIncluded === true,
+    publicVerifyIncluded: record.publicVerifyIncluded === true,
+  };
 }
