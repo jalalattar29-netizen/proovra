@@ -4,7 +4,8 @@
  * target to the generated Xcode project during `expo prebuild`.
  *
  * It:
- *   1. copies the extension source (SampleHandler.swift, Info.plist, entitlements)
+ *   1. copies the extension source (SampleHandler.swift, Info.plist, entitlements,
+ *      its PrivacyInfo.xcprivacy)
  *      and the shared Foundation-only spool (ProovraBroadcastSpool.swift, from the
  *      app module) into ios/ProovraBroadcast/;
  *   2. creates a broadcast-upload app-extension target
@@ -33,7 +34,15 @@ const { withXcodeProject, withDangerousMod } = require("expo/config-plugins");
 const EXT_NAME = "ProovraBroadcast";
 const EXT_SUFFIX = "broadcast";
 const SRC_DIR = path.join(__dirname, "broadcast-extension");
-const EXT_FILES = ["SampleHandler.swift", "Info.plist", "ProovraBroadcast.entitlements"];
+/**
+ * AUD-007 — PrivacyInfo.xcprivacy is the extension's OWN privacy manifest: an
+ * app extension is a separate bundle, so the app's manifest does not cover it.
+ * It is a Resources member of the extension target, so it lands in
+ * ProovraBroadcast.appex (native-build.yml checks the built bundle).
+ */
+const PRIVACY_MANIFEST = "PrivacyInfo.xcprivacy";
+const EXT_FILES = ["SampleHandler.swift", "Info.plist", "ProovraBroadcast.entitlements", PRIVACY_MANIFEST];
+const EXT_RESOURCES = [PRIVACY_MANIFEST];
 /**
  * AUD-006 — Foundation-only files the extension compiles FROM the app module, so
  * app, extension and the SwiftPM XCTest package share one copy of the spool
@@ -104,7 +113,13 @@ function applyBroadcastExtensionTarget(proj, options) {
 
   // Compile SampleHandler.swift + the shared spool in the extension; declare Resources + Frameworks.
   proj.addBuildPhase(EXT_SOURCES, "PBXSourcesBuildPhase", "Sources", target.uuid);
-  proj.addBuildPhase([], "PBXResourcesBuildPhase", "Resources", target.uuid);
+  proj.addBuildPhase(EXT_RESOURCES, "PBXResourcesBuildPhase", "Resources", target.uuid);
+  // node-xcode has no file type for .xcprivacy ("unknown"); Xcode's own is text.xml.
+  const fileRefs = proj.hash.project.objects.PBXFileReference;
+  for (const child of group.pbxGroup.children) {
+    const ref = fileRefs[child.value];
+    if (ref && unquote(ref.path) === PRIVACY_MANIFEST) ref.lastKnownFileType = "text.xml";
+  }
   proj.addBuildPhase(
     ["ReplayKit.framework", "AVFoundation.framework"],
     "PBXFrameworksBuildPhase",
@@ -190,3 +205,5 @@ module.exports.EXT_NAME = EXT_NAME;
 module.exports.EXT_SUFFIX = EXT_SUFFIX;
 module.exports.EXT_SOURCES = EXT_SOURCES;
 module.exports.SHARED_FILES = SHARED_FILES;
+module.exports.EXT_RESOURCES = EXT_RESOURCES;
+module.exports.PRIVACY_MANIFEST = PRIVACY_MANIFEST;

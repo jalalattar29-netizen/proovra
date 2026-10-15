@@ -149,6 +149,30 @@ jobs:
           echo "extension: $APPEX"
           ls -la "$APPEX"
 
+      # AUD-007 — App Store Connect refuses an upload whose app or extension
+      # bundle uses a required-reason API without a privacy manifest. The app's
+      # comes from app.json ios.privacyManifests (Expo's PrivacyInfo mod); the
+      # extension's is a Resources member of its target (the config plugin).
+      # Checked in the BUILT bundles: the .app and the .appex embedded in it.
+      - name: Refuse a build without the privacy manifests (app + ProovraBroadcast.appex)
+        working-directory: apps/mobile/ios
+        run: |
+          APP=$(find build/Build/Products -maxdepth 2 -name "*.app" -type d | head -1)
+          if [ -z "$APP" ]; then echo "::error::no .app was produced"; exit 1; fi
+          APPEX="$APP/PlugIns/ProovraBroadcast.appex"
+          for bundle in "$APP" "$APPEX"; do
+            manifest="$bundle/PrivacyInfo.xcprivacy"
+            if [ ! -f "$manifest" ]; then echo "::error::$manifest is missing"; exit 1; fi
+            plutil -lint "$manifest" || { echo "::error::$manifest is not a valid property list"; exit 1; }
+            tracking=$(/usr/libexec/PlistBuddy -c "Print :NSPrivacyTracking" "$manifest")
+            if [ "$tracking" != "false" ]; then echo "::error::$manifest declares NSPrivacyTracking=$tracking"; exit 1; fi
+            echo "$manifest:"; plutil -p "$manifest"
+          done
+          plutil -p "$APPEX/PrivacyInfo.xcprivacy" | grep -q "NSPrivacyAccessedAPICategoryDiskSpace" \
+            || { echo "::error::the extension manifest does not declare its DiskSpace API use"; exit 1; }
+          plutil -p "$APP/PrivacyInfo.xcprivacy" | grep -q "NSPrivacyAccessedAPICategorySystemBootTime" \
+            || { echo "::error::the app manifest does not carry app.json ios.privacyManifests"; exit 1; }
+
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
