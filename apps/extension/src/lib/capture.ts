@@ -99,6 +99,23 @@ export async function assertSamePage(tabId: number, windowId: number, startedUrl
   if (now === null || now !== documentUrl(startedUrl)) throw new CaptureInterruptedError("PAGE_NAVIGATED");
 }
 
+/**
+ * A navigation or tab switch can land while a content-script message or a
+ * screenshot is in flight; the browser then fails THAT call ("Receiving end
+ * does not exist", "Cannot access contents of the page") before the next
+ * re-check runs. So a failed step re-checks the tab: if the page or tab moved,
+ * the capture stops with that stable reason; otherwise the original failure
+ * stands.
+ */
+async function samePageOr<T>(tabId: number, windowId: number, startedUrl: string, step: () => Promise<T>): Promise<T> {
+  try {
+    return await step();
+  } catch (err) {
+    await assertSamePage(tabId, windowId, startedUrl);
+    throw err;
+  }
+}
+
 // ONE scheduler for the whole service worker: two captures (in different
 // windows) still share Chrome's per-extension quota.
 const scheduler: CaptureScheduler = createCaptureScheduler({
@@ -191,7 +208,7 @@ export async function captureViewport(tabId: number, windowId: number, signal?: 
   const info = await ask<PageInfo>(tabId, { kind: "GET_PAGE_INFO" });
   throwIfCancelled(signal);
   await assertSamePage(tabId, windowId, info.url);
-  const blob = await captureVisible(windowId);
+  const blob = await samePageOr(tabId, windowId, info.url, () => captureVisible(windowId));
   // Re-checked AFTER the shot too: a switch between the check and the shot
   // would otherwise photograph the other tab.
   await assertSamePage(tabId, windowId, info.url);
@@ -200,6 +217,9 @@ export async function captureViewport(tabId: number, windowId: number, signal?: 
   const artifacts: CapturedArtifact[] = [shot];
   await assertSamePage(tabId, windowId, info.url);
   const dom = await domArtifact(tabId, limitations, notes);
+  // A DOM step that failed because the page left is a navigation, not a
+  // missing snapshot.
+  await assertSamePage(tabId, windowId, info.url);
   if (dom) artifacts.push(dom);
   return {
     artifacts,
@@ -242,10 +262,12 @@ export async function captureFullPage(tabId: number, windowId: number, signal?: 
         );
         break;
       }
-      const scroll = await ask<{ ok: boolean; actualY: number; heightChanged: boolean }>(tabId, {
-        kind: "SCROLL_TO",
-        y: plan.offsets[i],
-      });
+      const scroll = await samePageOr(tabId, windowId, info.url, () =>
+        ask<{ ok: boolean; actualY: number; heightChanged: boolean }>(tabId, {
+          kind: "SCROLL_TO",
+          y: plan.offsets[i],
+        }),
+      );
       if (scroll.heightChanged) mutated = true;
       await new Promise((r) => setTimeout(r, CAPTURE_LIMITS.tileSettleMs));
       await assertSamePage(tabId, windowId, info.url);
@@ -255,6 +277,8 @@ export async function captureFullPage(tabId: number, windowId: number, signal?: 
       } catch (err) {
         // The quota retries are exhausted (or the tab became uncapturable). With
         // tiles already taken the capture ends PARTIAL; with none it failed.
+        // A refusal caused by a switch or navigation is that interruption.
+        await assertSamePage(tabId, windowId, info.url);
         if (artifacts.length === 0) throw err;
         pushOnce(limitations, "CAPTURE_INTERRUPTED");
         notes.push(
@@ -276,6 +300,7 @@ export async function captureFullPage(tabId: number, windowId: number, signal?: 
   if (mutated) pushOnce(limitations, "PAGE_MUTATED_DURING_CAPTURE");
   await assertSamePage(tabId, windowId, info.url);
   const dom = await domArtifact(tabId, limitations, notes);
+  await assertSamePage(tabId, windowId, info.url);
   if (dom) artifacts.push(dom);
 
   return {

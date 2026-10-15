@@ -146,3 +146,49 @@ test("AUD-026: iframe and shadow-DOM boundaries are recorded as limitations, not
   assert.ok(r.limitations.includes("CROSS_ORIGIN_IFRAME_NOT_CAPTURED"));
   assert.ok(r.limitations.includes("SHADOW_DOM_NOT_FULLY_REPRESENTED"));
 });
+
+test("AUD-026: a navigation that breaks the content-script message mid-capture is PAGE_NAVIGATED, not a generic error", async () => {
+  // Edge, observed: the page navigates while SCROLL_TO is in flight, the
+  // message fails with "Receiving end does not exist", and only then would the
+  // next tab re-check have run.
+  let navigated = false;
+  installChrome({ tabAt: () => ({ active: true, windowId: 1, url: navigated ? "https://other.example/" : "https://example.com/long" }) });
+  const send = globalThis.chrome.tabs.sendMessage;
+  globalThis.chrome.tabs.sendMessage = async (tabId, msg) => {
+    if (msg.kind === "SCROLL_TO" && msg.y > 0) {
+      navigated = true;
+      throw new Error("Could not establish connection. Receiving end does not exist.");
+    }
+    return send(tabId, msg);
+  };
+  const { captureFullPage, CaptureInterruptedError } = await import("./dist/capture.js");
+  await assert.rejects(captureFullPage(1, 1), (err) => err instanceof CaptureInterruptedError && err.code === "PAGE_NAVIGATED");
+});
+
+test("AUD-026: a screenshot refused because the tab switched is TAB_CHANGED, not a PARTIAL record", async () => {
+  let switched = false;
+  installChrome({ tabAt: () => ({ active: !switched, windowId: 1, url: "https://example.com/long" }) });
+  const capture = globalThis.chrome.tabs.captureVisibleTab;
+  let shots = 0;
+  globalThis.chrome.tabs.captureVisibleTab = async (...a) => {
+    shots += 1;
+    if (shots === 2) {
+      switched = true;
+      throw new Error("Cannot access contents of the page.");
+    }
+    return capture(...a);
+  };
+  const { captureFullPage, CaptureInterruptedError } = await import("./dist/capture.js");
+  await assert.rejects(captureFullPage(1, 1), (err) => err instanceof CaptureInterruptedError && err.code === "TAB_CHANGED");
+});
+
+test("AUD-026: a failed message on an unchanged page keeps its own error", async () => {
+  installChrome();
+  const send = globalThis.chrome.tabs.sendMessage;
+  globalThis.chrome.tabs.sendMessage = async (tabId, msg) => {
+    if (msg.kind === "SCROLL_TO" && msg.y > 0) throw new Error("content script crashed");
+    return send(tabId, msg);
+  };
+  const { captureFullPage } = await import("./dist/capture.js");
+  await assert.rejects(captureFullPage(1, 1), /content script crashed/);
+});
