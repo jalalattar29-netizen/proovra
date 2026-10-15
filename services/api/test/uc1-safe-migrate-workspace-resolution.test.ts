@@ -50,7 +50,12 @@ function runWrapperFromRepoRoot(subcommand: string) {
   });
 }
 
-describe("UC-1 safe-migrate — Prisma CLI resolves from the repository root", () => {
+// Each case spawns the real Prisma CLI (bounded by the spawn's own 120 s
+// timeout above); the 5 s vitest default could not hold that under a loaded
+// full-suite run, so the case budget matches the spawn's.
+const SPAWN_CASE_TIMEOUT_MS = 120_000;
+
+describe("UC-1 safe-migrate — Prisma CLI resolves from the repository root", { timeout: SPAWN_CASE_TIMEOUT_MS }, () => {
   it("does NOT fail with 'prisma not found' when run from the repo root", () => {
     const res = runWrapperFromRepoRoot("status");
     const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
