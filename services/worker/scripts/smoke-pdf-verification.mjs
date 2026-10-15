@@ -142,6 +142,12 @@ const INERT_CONFIG = {
   S3_ACCESS_KEY: "smoke",
   S3_SECRET_KEY: "smoke",
   S3_BUCKET: "smoke",
+  // The image runs as production, where the worker refuses to load unless its
+  // Object Lock configuration states the evidence retention contract (AUD-010).
+  // The smoke never writes an object; it states the contract so it can load.
+  S3_OBJECT_LOCK_ENABLED: "true",
+  S3_OBJECT_LOCK_MODE: "COMPLIANCE",
+  S3_OBJECT_LOCK_RETAIN_DAYS: "2920",
 };
 for (const [k, v] of Object.entries(INERT_CONFIG)) process.env[k] ||= v;
 
@@ -276,7 +282,14 @@ async function main() {
     },
   };
   const stressedPdf = await buildReportPdfV2(stressed);
-  await verification.assertRenderedReport(stressedPdf, facts, 2, { supersedesVersion: 1 });
+  // The stressed record is a web capture, so its facts come from the same
+  // acquisition mode it is rendered with — as production derives both from one
+  // row. (The acquisition boundary is checked per mode since AUD-015.)
+  const stressedFacts = shared.deriveCanonicalArtifactFacts(
+    { ...ROW, fileSha256: DIGEST, tsaTokenPresent: false, acquisitionMode: stressed.evidence.acquisitionMode },
+    CUSTODY,
+  );
+  await verification.assertRenderedReport(stressedPdf, stressedFacts, 2, { supersedesVersion: 1 });
   const stressedText = (await verification.extractPdfText(stressedPdf)).replace(/\s+/g, "");
   const stressedHtmlRows = stressCustody.filter((e) => stressedText.includes(e.eventHash)).length;
   step("pages", { bytes: stressedPdf.length, custodyRowsPrinted: stressedHtmlRows, longUrlPrinted: stressedText.includes(LONG_URL) });
