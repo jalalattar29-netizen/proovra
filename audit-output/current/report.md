@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 3109d2305d4165eb3d69389acca7f45d71899f4f5485d23206a96f27d450f7c4 |
+| engineHash    | 352449a77c9a5ef980ef955928e08d0481cdc8ec8a627fffe5ae1e431bda329c |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -36,7 +36,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | dispositionedNonProductRoutes | 204   |
 | undisposedRoutes              | 2     |
 | authorizationUnresolved       | 0     |
-| publicUnguardedRoutes         | 35    |
+| publicUnguardedRoutes         | 34    |
 
 ## Instrument integrity
 
@@ -73,7 +73,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 360   |
+| AuditFilesInventoried                      | 365   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -122,7 +122,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 277   |
+| ProductBehaviorTestsInventoried            | 280   |
 
 ### Report roles
 

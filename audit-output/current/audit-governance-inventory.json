@@ -66,7 +66,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 360,
+    "AuditFilesInventoried": 365,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -115,7 +115,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 277
+    "ProductBehaviorTestsInventoried": 280
   },
   "reportRoles": {
     "counts": {
@@ -132,11 +132,11 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 277,
+    "PRODUCT_BEHAVIOR_TEST": 280,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "CURRENT_GENERATED_REPORT": 1,
     "DIAGNOSTIC_NOT_AUTHORITY": 1,
-    "DOMAIN_AUTHORITY": 51,
+    "DOMAIN_AUTHORITY": 53,
     "CANONICAL_ENGINE_COMPONENT": 11,
     "CANONICAL_ORCHESTRATOR": 1,
     "DEPRECATED_DELEGATE": 1,
@@ -363,6 +363,21 @@
     },
     {
       "path": "apps/web/__tests__/governance-policy-copy.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "apps/web/__tests__/legal-evidence-retention-disclosure.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
@@ -1058,6 +1073,40 @@
       "declaresArtifacts": [],
       "packageScripts": [],
       "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/release/image-publish-gate.d.mts",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/release/image-publish-gate.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [
+        "services/api/test/deploy-images-gate.test.ts"
+      ],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [
+        "ci"
+      ],
       "sourceOfTruthFor": [],
       "disposition": "RETAINED"
     },
@@ -2562,6 +2611,23 @@
       "role": "DOMAIN_AUTHORITY",
       "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
       "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/deploy-images-gate.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [
+        "scripts/release/image-publish-gate.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -5779,6 +5845,21 @@
     },
     {
       "path": "services/api/test/workspace-surface-audit.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/worker/test/artifact-gate-requires-record.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],

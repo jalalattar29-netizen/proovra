@@ -149,7 +149,7 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/stripe.service.ts:240",
+      "site": "services/api/src/services/stripe.service.ts:254",
       "verdict": "EXTERNAL",
       "originBinding": "stripeApiBase()",
       "evidence": "services/api/src/services/stripe.service.ts",
