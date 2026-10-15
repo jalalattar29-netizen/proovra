@@ -209,6 +209,10 @@ export interface ReleaseExpiredReservationsResult {
   sessionsExpired: number;
   reservationsReleased: number;
   objectDeletesRequested: number;
+  /** Object versions a post-delete listing proved removed (AUD-028). */
+  objectVersionsDeleted: number;
+  /** Objects whose versions retention or a legal hold kept — never attempted, never counted removed. */
+  objectsRetained: number;
   objectDeletesFailed: number;
   failed: number;
   /** Rows selected by this pass (sessions + reservations). */
@@ -220,12 +224,20 @@ export interface ReleaseExpiredReservationsResult {
 }
 
 /**
- * Removes the storage keys of released reservations. Best-effort and after
- * commit: the release is the record's truth. On a versioned (Object Lock)
- * bucket a key delete only adds a delete marker; a retained version persists
- * until its own retention ends — that is the bucket's guarantee, not a leak.
+ * Removes the storage objects of released reservations. Best-effort and after
+ * commit: the release is the record's truth. Version-aware (AUD-028): every
+ * version is removed by its VersionId, a version under retention or legal hold
+ * is RETAINED (never attempted) and reported as such, and only versions a
+ * post-delete listing proves gone are counted. A key-only delete used to add a
+ * delete marker over a locked version and count it deleted.
  */
-export type ReservationObjectDeleter = (p: { bucket: string; key: string }) => Promise<unknown>;
+export type ReservationObjectDeleter = (p: { bucket: string; key: string }) => Promise<{
+  deleted: boolean;
+  deletedVersions: number;
+  retainedVersions: number;
+  deleteMarkerOnly: boolean;
+  failed: number;
+}>;
 
 /**
  * THE reservation sweep. Two passes, both through THE reservation authority
@@ -261,6 +273,8 @@ export async function releaseExpiredReservations(
     sessionsExpired: 0,
     reservationsReleased: 0,
     objectDeletesRequested: 0,
+    objectVersionsDeleted: 0,
+    objectsRetained: 0,
     objectDeletesFailed: 0,
     failed: 0,
     scanned: 0,
@@ -381,7 +395,10 @@ export async function releaseExpiredReservations(
     for (const o of keys.values()) {
       result.objectDeletesRequested++;
       try {
-        await options.deleteObject(o);
+        const removal = await options.deleteObject(o);
+        result.objectVersionsDeleted += removal.deletedVersions;
+        if (removal.retainedVersions > 0) result.objectsRetained++;
+        if (removal.failed > 0) result.objectDeletesFailed++;
       } catch {
         result.objectDeletesFailed++;
       }

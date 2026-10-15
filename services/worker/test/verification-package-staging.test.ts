@@ -109,13 +109,33 @@ describe("streaming verification-package staging writer", () => {
       },
       deleteObject: async ({ key }) => {
         deletedKeys.push(key);
+        return { deleted: true, deletedVersions: 1, retainedVersions: 0, failed: 0 };
       },
     });
     expect(res.scanned).toBe(3);
     expect(res.deleted).toBe(1);
+    expect(res.retained).toBe(0);
     expect(deletedKeys).toEqual([`${STAGING_PREFIX}ev-1/v1.zip`]);
     // Never touches the canonical `verification/` namespace or fresh/unknown objects.
     expect(deletedKeys.some((k) => k.startsWith("verification/"))).toBe(false);
+  });
+
+  it("reconcileStaleStaging counts a retained or failed removal as NOT reclaimed (AUD-028)", async () => {
+    const now = 2_000_000_000_000;
+    const stale = new Date(now - STAGING_RECONCILE_TTL_MS - 1);
+    const res = await reconcileStaleStaging({
+      bucket: "b",
+      now,
+      listObjects: async () => [
+        { key: `${STAGING_PREFIX}locked.zip`, lastModified: stale, sizeBytes: 1 },
+        { key: `${STAGING_PREFIX}broken.zip`, lastModified: stale, sizeBytes: 1 },
+      ],
+      deleteObject: async ({ key }) =>
+        key.endsWith("locked.zip")
+          ? { deleted: false, deletedVersions: 0, retainedVersions: 1, failed: 0 }
+          : { deleted: false, deletedVersions: 0, retainedVersions: 0, failed: 1 },
+    });
+    expect(res).toEqual({ scanned: 2, deleted: 0, retained: 1, failed: 1 });
   });
 
   // The staging-key test was retired with the staging path (2026-09-29): packages are

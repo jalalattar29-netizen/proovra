@@ -143,7 +143,13 @@ export type StagingReconcileDeps = {
   listObjects: (p: { bucket: string; prefix: string; maxKeys?: number }) => Promise<
     Array<{ key: string; lastModified: Date | null; sizeBytes: number }>
   >;
-  deleteObject: (p: { bucket: string; key: string }) => Promise<unknown>;
+  /** Version-aware removal (AUD-028): reports what a post-delete listing proves. */
+  deleteObject: (p: { bucket: string; key: string }) => Promise<{
+    deleted: boolean;
+    deletedVersions: number;
+    retainedVersions: number;
+    failed: number;
+  }>;
   now?: number;
   ttlMs?: number;
   limit?: number;
@@ -154,18 +160,25 @@ export type StagingReconcileDeps = {
  * single bounded page under the staging prefix and deletes only those OLDER than the
  * TTL (crash residue) — it never touches a fresh in-flight staging object, never a
  * canonical package (different prefix), and never an ORIGINAL artifact. Safe to run
- * repeatedly; returns how many orphans it reclaimed.
+ * repeatedly; returns how many orphans it reclaimed — counted only when every
+ * version is verifiably gone — how many retention kept, and how many failed.
  */
-export async function reconcileStaleStaging(deps: StagingReconcileDeps): Promise<{ scanned: number; deleted: number }> {
+export async function reconcileStaleStaging(
+  deps: StagingReconcileDeps,
+): Promise<{ scanned: number; deleted: number; retained: number; failed: number }> {
   const now = deps.now ?? Date.now();
   const ttlMs = deps.ttlMs ?? STAGING_RECONCILE_TTL_MS;
   const objects = await deps.listObjects({ bucket: deps.bucket, prefix: STAGING_PREFIX, maxKeys: deps.limit ?? 1000 });
   let deleted = 0;
+  let retained = 0;
+  let failed = 0;
   for (const o of objects) {
     if (isStaleStagingObject(o.lastModified, now, ttlMs)) {
-      await deps.deleteObject({ bucket: deps.bucket, key: o.key });
-      deleted += 1;
+      const removal = await deps.deleteObject({ bucket: deps.bucket, key: o.key });
+      if (removal.deleted) deleted += 1;
+      else if (removal.retainedVersions > 0) retained += 1;
+      if (removal.failed > 0) failed += 1;
     }
   }
-  return { scanned: objects.length, deleted };
+  return { scanned: objects.length, deleted, retained, failed };
 }
