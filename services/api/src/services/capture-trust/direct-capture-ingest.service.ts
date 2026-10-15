@@ -210,6 +210,10 @@ export const DIRECT_CAPTURE_DENIALS = {
   // enumeration: the same answer as a missing case) or may not file into.
   CASE_NOT_FOUND: 404,
   CASE_LINK_NOT_PERMITTED: 403,
+  // AUD-017 — a running recorder count that cannot be true for this part
+  // (fewer recorded segments than this one's position), or one sent with a
+  // part that is not a screen segment.
+  INVALID_RECORDED_THROUGH: 400,
 } as const;
 export type DirectCaptureDenial = keyof typeof DIRECT_CAPTURE_DENIALS;
 
@@ -587,6 +591,13 @@ export type DeclareDirectCapturePartInput = {
   partIndex: number;
   sha256: string;
   clientReportedSource: DirectCaptureClientSource;
+  /**
+   * AUD-017 — a continuous recorder's running count when this segment was
+   * declared. Optional (a legacy client never sends it); recorded with the
+   * declaration so the seal can refuse a manifest whose recorded count is
+   * lower than the count the client already declared.
+   */
+  recordedThrough?: number | null;
   signed: { payload: CaptureSignaturePayload; signatureHex: string } | null;
   now?: Date;
 };
@@ -597,6 +608,8 @@ export type PartDeclaration = {
   signatureVerdict: string;
   /** What the client said the part is (SCREEN_SEGMENT, CONTINUOUS_MANIFEST, …). */
   clientReportedSource: string | null;
+  /** AUD-017 — the recorder's running count the client declared with this part, if any. */
+  recordedThrough: number | null;
 };
 
 export async function declareDirectCapturePart(
@@ -609,6 +622,16 @@ export async function declareDirectCapturePart(
     throw new DirectCaptureError("INVALID_PART_INDEX");
   }
   if (!SHA256_HEX.test(sha256)) throw new DirectCaptureError("INVALID_DIGEST");
+  const recordedThrough = input.recordedThrough ?? null;
+  if (
+    recordedThrough !== null &&
+    (input.clientReportedSource !== "SCREEN_SEGMENT" ||
+      !Number.isInteger(recordedThrough) ||
+      recordedThrough < input.partIndex + 1 ||
+      recordedThrough > MAX_PARTS)
+  ) {
+    throw new DirectCaptureError("INVALID_RECORDED_THROUGH");
+  }
 
   const session = await requireActive(
     db,
@@ -744,6 +767,8 @@ async function declareUnderSessionLock(
       declaredSha256: sha256,
       signatureVerdict,
       clientReportedSource: input.clientReportedSource,
+      // AUD-017 — the client's running recorder count, stored as its statement.
+      ...(input.recordedThrough != null ? { clientReportedRecordedThrough: input.recordedThrough } : {}),
       ...(input.signed
         ? {
             algorithm: input.signed.payload.algorithm,
@@ -767,6 +792,7 @@ async function declareUnderSessionLock(
       sha256,
       signatureVerdict,
       clientReportedSource: input.clientReportedSource,
+      recordedThrough: input.recordedThrough ?? null,
     },
     created: true,
     sessionExpiresAtUtc: expiresAt ? expiresAt.toISOString() : null,
@@ -819,6 +845,12 @@ export async function readPartDeclarations(
         signatureVerdict: typeof p["signatureVerdict"] === "string" ? p["signatureVerdict"] : "MISSING",
         clientReportedSource:
           typeof p["clientReportedSource"] === "string" ? p["clientReportedSource"] : null,
+        recordedThrough:
+          typeof p["clientReportedRecordedThrough"] === "number" &&
+          Number.isInteger(p["clientReportedRecordedThrough"]) &&
+          p["clientReportedRecordedThrough"] > 0
+            ? p["clientReportedRecordedThrough"]
+            : null,
       });
     }
   }

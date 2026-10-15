@@ -187,3 +187,115 @@ test("UC-IOS-001: the device block is ONE contract with specific errors", () => 
   assert.equal(validateContinuousDeviceBlock({ ...manifest(1).device, densityDpi: 0 }).error, "invalid device.densityDpi");
   assert.equal(validateContinuousDeviceBlock({ ...manifest(1).device, screenW: 2400 }).error, "device.orientation does not match its dimensions");
 });
+
+// ---------------------------------------------------------------- AUD-017
+//
+// Completeness is the client's statement. The server refuses what it CAN see
+// (sequence holes, bad offsets, a duration longer than its own session window,
+// a recorded count below the running count declared with the segments) and
+// every surface states the rest as client-reported.
+
+const interrupted = (n, over = {}) =>
+  manifest(n, { sessionCompleteness: "INTERRUPTED_SESSION", terminationReason: "INTERRUPTED", limitations: ["CAPTURE_INTERRUPTED"], ...over });
+
+test("AUD-017: a hidden tail with a lowered recorded count passes the shape check — and is only ever client-reported", async () => {
+  const { continuousCaptureManifestFacts, captureCompletenessRows, captureCompletenessNote } = await import("../dist/index.js");
+  // The recorder made 5, the client uploaded 2 and claims it recorded 2.
+  const m = manifest(2);
+  const v = validateScreenContinuousManifest(m);
+  assert.equal(v.ok, true, "the server cannot see segments that were never declared");
+  const facts = continuousCaptureManifestFacts(v.manifest, { manifestSha256: "a".repeat(64), manifestPartIndex: 2 });
+  const rows = captureCompletenessRows(facts);
+  assert.deepEqual(rows, [
+    { label: "Completeness (client-reported)", value: "Reported complete by the capture client" },
+    { label: "Segments (client-reported)", value: "Segments delivered 2 of 2 recorded (client-reported)" },
+  ]);
+  for (const r of rows) assert.doesNotMatch(r.value, /verified|independent|proven/i);
+  assert.match(captureCompletenessNote(facts), /cannot verify segments the client never declared/);
+});
+
+test("AUD-017: an internal sequence hole is refused unless named as a loss, whatever the completeness", () => {
+  const m = interrupted(4);
+  m.segments = [m.segments[0], m.segments[1], m.segments[3]];
+  assert.match(validateScreenContinuousManifest(m).error, /not contiguous/);
+  assert.match(validateScreenContinuousManifest({ ...m, sessionCompleteness: "COMPLETE_SESSION", terminationReason: "USER_STOPPED", limitations: [] }).error, /not contiguous|recorded/);
+});
+
+test("AUD-017: overlapping or non-monotonic offsets are refused for an INTERRUPTED session too", () => {
+  const overlap = interrupted(3);
+  overlap.segments[1] = { ...overlap.segments[1], startedAtOffsetMs: 6000 - SCREEN_CONTINUOUS_MANIFEST_BOUNDS.maxOverlapMs - 1 };
+  assert.match(validateScreenContinuousManifest(overlap).error, /overlap/);
+  const backwards = interrupted(3);
+  backwards.segments[2] = { ...backwards.segments[2], startedAtOffsetMs: 0 };
+  assert.match(validateScreenContinuousManifest(backwards).error, /overlap/);
+});
+
+test("AUD-017: a segment ending after totalDurationMs is refused for every session (0 stays the iOS 'unknown' fallback)", () => {
+  const m = interrupted(3, { totalDurationMs: 2 * 6000 });
+  assert.match(validateScreenContinuousManifest(m).error, /ends after totalDurationMs/);
+  assert.equal(validateScreenContinuousManifest(interrupted(3, { totalDurationMs: 0 })).ok, true);
+  assert.equal(validateScreenContinuousManifest(interrupted(3)).ok, true);
+});
+
+test("AUD-017: a duration (or a segment) longer than the server-observed session window is refused", () => {
+  const opened = Date.parse("2026-09-17T09:59:59.000Z");
+  const B = SCREEN_CONTINUOUS_MANIFEST_BOUNDS;
+  // 3 x 6 s claimed, but the server saw the session open for only 10 s.
+  const shortWindow = { openedAtMs: opened, nowMs: opened + 10_000 };
+  for (const m of [manifest(3), interrupted(3)]) {
+    assert.match(validateScreenContinuousManifest(m, { sessionWindow: shortWindow }).error, /server-observed session window/);
+  }
+  const zeroDuration = interrupted(3, { totalDurationMs: 0 });
+  assert.match(validateScreenContinuousManifest(zeroDuration, { sessionWindow: shortWindow }).error, /server-observed session window/);
+  // Within the slack it holds.
+  const enough = { openedAtMs: opened, nowMs: opened + 18_000 - B.timingSlackMs };
+  assert.equal(validateScreenContinuousManifest(manifest(3), { sessionWindow: enough }).ok, true);
+});
+
+test("AUD-017: a recorded count below the running recordedThrough the client declared is refused", () => {
+  for (const m of [manifest(2), interrupted(2)]) {
+    const r = validateScreenContinuousManifest(m, { declaredRecordedThroughMax: 5 });
+    assert.equal(r.ok, false);
+    assert.match(r.error, /below the recorder count declared/);
+  }
+  assert.equal(validateScreenContinuousManifest(manifest(2), { declaredRecordedThroughMax: 2 }).ok, true);
+  const lost = manifest(5, { sessionCompleteness: "INTERRUPTED_SESSION", terminationReason: "INTERRUPTED", limitations: ["SEGMENT_UPLOAD_LOST"] });
+  lost.segments = lost.segments.slice(0, 2);
+  assert.equal(validateScreenContinuousManifest(lost, { declaredRecordedThroughMax: 5 }).ok, true, "the honest loss seals");
+});
+
+test("AUD-017: a legacy client without recordedThrough is accepted and stays client-reported", async () => {
+  const { continuousCaptureManifestFacts, readCaptureManifestFacts, captureCompletenessRows } = await import("../dist/index.js");
+  assert.equal(validateScreenContinuousManifest(manifest(2), { declaredRecordedThroughMax: null }).ok, true);
+  const facts = continuousCaptureManifestFacts(manifest(2), { manifestSha256: "a".repeat(64), manifestPartIndex: 2 });
+  assert.equal(facts.screen.declaredRecordedThroughMax, null);
+  // Facts recorded before AUD-017 carry no such field and read back as null.
+  const historical = JSON.parse(JSON.stringify(facts));
+  delete historical.screen.declaredRecordedThroughMax;
+  const read = readCaptureManifestFacts(historical);
+  assert.equal(read.screen.declaredRecordedThroughMax, null);
+  assert.equal(captureCompletenessRows(read)[1].value, "Segments delivered 2 of 2 recorded (client-reported)");
+});
+
+test("AUD-017: the segment line is ONE wording — delivered of the larger recorded count; none for other kinds", async () => {
+  const { continuousSegmentCountsText, captureCompletenessRows, captureCompletenessNote } = await import("../dist/index.js");
+  const base = { kind: "SCREEN_CONTINUOUS", completeness: "INTERRUPTED_SESSION", reportedComplete: false };
+  assert.equal(
+    continuousSegmentCountsText({ ...base, screen: { artifactCount: 2, recordedSegmentCount: 4, declaredRecordedThroughMax: 3 } }),
+    "Segments delivered 2 of 4 recorded (client-reported)",
+  );
+  assert.equal(
+    continuousSegmentCountsText({ ...base, screen: { artifactCount: 2, recordedSegmentCount: 2, declaredRecordedThroughMax: 5 } }),
+    "Segments delivered 2 of 5 recorded (client-reported)",
+  );
+  assert.equal(
+    continuousSegmentCountsText({ ...base, screen: { artifactCount: 2, recordedSegmentCount: null } }),
+    "Segments delivered 2; recorded count not reported (client-reported)",
+  );
+  assert.equal(captureCompletenessRows({ ...base, screen: { artifactCount: 2, recordedSegmentCount: 4 } })[0].value,
+    "Reported not complete by the capture client (Interrupted session)");
+  const frames = { kind: "SCREEN_FRAMES", completeness: "CAPTURED", reportedComplete: true, screen: { artifactCount: 3, recordedSegmentCount: null } };
+  assert.equal(continuousSegmentCountsText(frames), null);
+  assert.equal(captureCompletenessRows(frames).length, 1);
+  assert.equal(captureCompletenessNote(frames), null);
+});

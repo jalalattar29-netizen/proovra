@@ -362,6 +362,13 @@ export type CaptureManifestFacts = {
     recordedSegmentCount: number | null;
     /** Continuous only: the client's total recorded duration. */
     totalDurationMs: number | null;
+    /**
+     * AUD-017 — continuous only: the highest running recorder count the
+     * client declared with its segment declarations (`recordedThrough`), as
+     * the server recorded them. Still the client's statement; null for a
+     * legacy client that never declared one, and for facts recorded before it.
+     */
+    declaredRecordedThroughMax: number | null;
   } | null;
 };
 
@@ -470,6 +477,7 @@ export function readCaptureManifestFacts(payload: unknown): CaptureManifestFacts
       artifactCount,
       recordedSegmentCount: factInt(s["recordedSegmentCount"]),
       totalDurationMs: factInt(s["totalDurationMs"]),
+      declaredRecordedThroughMax: factInt(s["declaredRecordedThroughMax"]),
     };
   }
   return {
@@ -529,4 +537,78 @@ export function publicCaptureManifestFacts(f: CaptureManifestFacts): PublicCaptu
       ? { domain: f.web.domain, captureMode: f.web.captureMode, pageMutatedDuringCapture: f.web.pageMutatedDuringCapture }
       : null,
   };
+}
+
+// =============================================================================
+// AUD-017 — THE reviewer-facing wording of a capture's completeness.
+//
+// Completeness, the recorded segment count and the duration are the capture
+// client's statements. The server checks what it can at seal (every delivered
+// segment's digest and size, sequence holes, overlapping or out-of-range
+// offsets, a duration longer than the session it saw, a recorded count below
+// the running count the client declared with its segments), but it holds no
+// independently established boundary for a session: a tail the client never
+// declared is invisible to it. So every surface — owner provenance, report,
+// package, public Verify, mobile — states completeness as CLIENT-REPORTED and
+// shows delivered against recorded, from this ONE formatter.
+// =============================================================================
+
+/** The facts fields the completeness wording reads (tolerant of older payloads). */
+export type CaptureCompletenessInput = {
+  kind: string;
+  completeness: string;
+  reportedComplete: boolean;
+  screen?: {
+    artifactCount: number;
+    recordedSegmentCount?: number | null;
+    declaredRecordedThroughMax?: number | null;
+  } | null;
+};
+
+export type CaptureCompletenessRow = { label: string; value: string };
+
+export const CAPTURE_COMPLETENESS_LABEL = "Completeness (client-reported)" as const;
+export const CAPTURE_SEGMENTS_LABEL = "Segments (client-reported)" as const;
+/** The boundary a continuous session's completeness cannot cross. */
+export const CONTINUOUS_COMPLETENESS_BOUNDARY_NOTE =
+  "PROOVRA verified every delivered segment and checked their order, offsets and timing for gaps. The recorded segment count and completeness are the capture client's own report: PROOVRA cannot verify segments the client never declared." as const;
+
+function humaniseCompleteness(code: string): string {
+  const s = code.replace(/_/g, " ").toLowerCase();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * "Segments delivered N of M recorded (client-reported)" — continuous captures
+ * only; null otherwise. M is the larger of the manifest's recorded count and
+ * the running count the client declared with its segments.
+ */
+export function continuousSegmentCountsText(f: CaptureCompletenessInput): string | null {
+  if (f.kind !== "SCREEN_CONTINUOUS" || !f.screen) return null;
+  const delivered = f.screen.artifactCount;
+  const counts = [f.screen.recordedSegmentCount, f.screen.declaredRecordedThroughMax].filter(
+    (n): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0,
+  );
+  if (counts.length === 0) return `Segments delivered ${delivered}; recorded count not reported (client-reported)`;
+  return `Segments delivered ${delivered} of ${Math.max(...counts)} recorded (client-reported)`;
+}
+
+/** The completeness rows every surface renders, in order. */
+export function captureCompletenessRows(f: CaptureCompletenessInput): CaptureCompletenessRow[] {
+  const rows: CaptureCompletenessRow[] = [
+    {
+      label: CAPTURE_COMPLETENESS_LABEL,
+      value: f.reportedComplete
+        ? "Reported complete by the capture client"
+        : `Reported not complete by the capture client (${humaniseCompleteness(f.completeness)})`,
+    },
+  ];
+  const segments = continuousSegmentCountsText(f);
+  if (segments) rows.push({ label: CAPTURE_SEGMENTS_LABEL, value: segments });
+  return rows;
+}
+
+/** The note that goes with the rows (continuous captures only). */
+export function captureCompletenessNote(f: CaptureCompletenessInput): string | null {
+  return f.kind === "SCREEN_CONTINUOUS" ? CONTINUOUS_COMPLETENESS_BOUNDARY_NOTE : null;
 }

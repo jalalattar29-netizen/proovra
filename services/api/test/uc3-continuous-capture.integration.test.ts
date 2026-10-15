@@ -174,6 +174,10 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
       platform?: "android" | "ios";
       /** ET-DC-09 — a window that is not this session's. */
       staleWindow?: boolean;
+      /** AUD-017 — segment 2 starts back at 0 (non-monotonic, overlapping offsets). */
+      overlap?: boolean;
+      /** AUD-017 — state this totalDurationMs (and a client window to match). */
+      totalDurationMs?: number;
     } = {},
   ) {
     const token = owner().ownerToken;
@@ -234,7 +238,7 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
           opts.tamperManifestDigest && i === 0 ? "f".repeat(64) : declared.sha256,
         sizeBytes: opts.misstateSize && i === 0 ? declared.sizeBytes + 1 : declared.sizeBytes,
         mediaType: "video/mp4",
-        startedAtOffsetMs: i * 1000,
+        startedAtOffsetMs: opts.overlap && i === 2 ? 0 : i * 1000,
         durationMs: 1000,
         widthPx: isLandscape ? 2400 : 1080,
         heightPx: isLandscape ? 1080 : 2400,
@@ -249,7 +253,7 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
       // ET-DC-09 — the window is checked against the server session, so it is
       // the one this session actually spans (it opened moments ago).
       captureStartedAtUtc: new Date(captureStartMs).toISOString(),
-      captureEndedAtUtc: new Date(captureStartMs + segCount * 1000).toISOString(),
+      captureEndedAtUtc: new Date(captureStartMs + (opts.totalDurationMs ?? segCount * 1000)).toISOString(),
       device: {
         platform: opts.platform ?? "android",
         osVersion: "14",
@@ -261,7 +265,7 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
         orientation: "portrait",
       },
       osConsentGranted: true,
-      totalDurationMs: segCount * 1000,
+      totalDurationMs: opts.totalDurationMs ?? segCount * 1000,
       // V2 (UC-STR-002): the recorder's own count. These fixtures state the
       // segments they list; the loss cases live in
       // uc3-continuous-completeness.integration.test.ts.
@@ -363,6 +367,33 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
     expect(await endReason(complete.sessionId)).toMatchObject({ endReason: "CONTINUOUS_COMPLETE_SESSION" });
     // The session is BOUND either way; the end reason is what says it was not complete.
     expect(await endReason(interrupted.sessionId)).toMatchObject({ endReason: "CONTINUOUS_INTERRUPTED_SESSION" });
+  });
+
+  // ---- AUD-017 — offsets and duration are checked for EVERY session ---------
+
+  it("AUD-017: overlapping / non-monotonic segment offsets are refused, even for an INTERRUPTED session", async () => {
+    const { token, sessionId, evidenceId, manifestJson } = await stageContinuous({ segments: 3, interrupted: true, overlap: true });
+    const done = await completeContinuous(token, sessionId, manifestJson);
+    expect(done.statusCode, done.body).toBe(422);
+    expect(done.json().denial).toBe("CONTINUOUS_MANIFEST_INVALID");
+    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { status: true } })).status).not.toBe("SIGNED");
+  });
+
+  it("AUD-017: a totalDurationMs longer than the server-observed session window is refused (INTERRUPTED too)", async () => {
+    // The session opened moments ago on the server's clock; the client claims
+    // two minutes of recording (its own window agrees, within clock skew).
+    const { token, sessionId, evidenceId, manifestJson } = await stageContinuous({
+      segments: 2,
+      interrupted: true,
+      totalDurationMs: 120_000,
+    });
+    const done = await completeContinuous(token, sessionId, manifestJson);
+    expect(done.statusCode, done.body).toBe(422);
+    expect(done.json().denial).toBe("CONTINUOUS_MANIFEST_INVALID");
+    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { status: true } })).status).not.toBe("SIGNED");
+    // Control: the same session shape within the server window seals.
+    const control = await stageContinuous({ segments: 2, interrupted: true });
+    expect((await completeContinuous(control.token, control.sessionId, control.manifestJson)).statusCode).toBe(200);
   });
 
   it("refuses a manifest that omits a declared segment", async () => {
