@@ -53,7 +53,8 @@ export function pageRestriction(url: string | null | undefined): PageRestriction
 export function isRestrictedScriptingError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : typeof err === "string" ? err : "";
   return (
-    /Cannot access a (chrome|edge|about|chrome-extension|devtools|view-source)[-a-z]*:/i.test(message) ||
+    // Chrome: "Cannot access a chrome:// URL"; Edge: "Cannot access chrome:// and edge:// URLs".
+    /Cannot access (?:a )?(?:chrome|edge|about|chrome-extension|devtools|view-source)[-a-z]*:\/\//i.test(message) ||
     /extensions gallery cannot be scripted/i.test(message) ||
     /Cannot access contents of url "(chrome|edge|about|view-source)/i.test(message)
   );

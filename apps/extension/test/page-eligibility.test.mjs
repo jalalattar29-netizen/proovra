@@ -32,6 +32,8 @@ test("ordinary pages — including look-alike hosts — are capturable", () => {
 
 test("the browser's own scripting refusals are recognised", () => {
   assert.equal(isRestrictedScriptingError(new Error("Cannot access a chrome:// URL")), true);
+  // Edge's own wording, observed in Edge 14x (the acceptance found it).
+  assert.equal(isRestrictedScriptingError(new Error("Cannot access chrome:// and edge:// URLs")), true);
   assert.equal(isRestrictedScriptingError(new Error("Cannot access a chrome-extension:// URL of different extension")), true);
   assert.equal(isRestrictedScriptingError(new Error("The extensions gallery cannot be scripted.")), true);
   assert.equal(isRestrictedScriptingError(new Error("Frame with ID 0 was removed.")), false);
