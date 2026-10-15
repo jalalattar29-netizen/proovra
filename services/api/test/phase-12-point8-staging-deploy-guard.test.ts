@@ -199,7 +199,9 @@ describe("PHASE 12 — POINT 8 B2: the committed staging workflow satisfies its 
 
   it("the PRODUCTION workflow is untouched and still the only main-triggered one", () => {
     const prod = readFileSync(resolve(REPO, ".github/workflows/deploy-images.yml"), "utf8");
-    expect(prod).toMatch(/branches: \[main\]/);
+    // Production images publish only after the required workflows complete on
+    // main (see deploy-images-gate.test.ts), never on a raw push.
+    expect(prod).toMatch(/workflow_run:[\s\S]*branches: \[main\]/);
     // The staging path must not have acquired a main trigger.
     expect(code).not.toMatch(/branches:/);
   });

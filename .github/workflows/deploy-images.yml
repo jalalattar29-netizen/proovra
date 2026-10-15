@@ -1,26 +1,90 @@
 # Build and push proovra-api and proovra-worker container images
 # to GitHub Container Registry (GHCR).
 #
-# Triggered automatically on every push to `main` and manually via
-# `workflow_dispatch` so an operator can re-tag images (e.g. promote
-# an existing SHA to `latest`) without forcing a code change.
+# PUBLICATION IS GATED ON THE REQUIRED WORKFLOWS, FOR THE EXACT SHA.
+#
+# This workflow used to run on `push` to main, in parallel with CI, so a commit
+# whose tests failed still published `sha-<short>` and moved `latest`. It now
+# runs only after a required workflow COMPLETES for a push to main, and the
+# `gate` job (scripts/release/image-publish-gate.mjs) publishes nothing unless
+#
+#   1. every required workflow (ci, playwright-e2e, schema-reproducibility)
+#      has a successful push run for that exact commit, and
+#   2. that commit is still the head of main — a slow completion for a
+#      superseded commit cannot publish, and cannot move `latest` backwards.
+#
+# Each required workflow's completion re-evaluates the gate; the evaluation
+# that finds all three green publishes. `workflow_dispatch` re-runs the same
+# gate for a named SHA — it is a retry, never an override.
 name: deploy-images
 
 on:
-  push:
+  workflow_run:
+    workflows: [ci, playwright-e2e, schema-reproducibility]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      sha:
+        description: "Full 40-character main commit SHA to re-evaluate and publish"
+        required: true
+        type: string
 
-# Cancel an in-progress build for the same ref when a new push arrives,
-# so the freshest commit on main supersedes the previous one.
+# Least privilege by default; each job asks for exactly what it uses.
+permissions: {}
+
+# One publication at a time, never cancelled half-way: a cancel between the
+# api and worker pushes would leave `latest` pointing at two different SHAs.
+# The gate's main-HEAD check is what retires superseded commits.
 concurrency:
-  group: deploy-images-${{ github.ref }}
-  cancel-in-progress: true
+  group: deploy-images-main
+  cancel-in-progress: false
 
 jobs:
+  gate:
+    name: gate (required workflows green on main HEAD)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # A failed or cancelled required run never reaches the API calls.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      publish: ${{ steps.decide.outputs.publish }}
+      tag_latest: ${{ steps.decide.outputs.tag_latest }}
+      sha: ${{ steps.decide.outputs.sha }}
+      reason: ${{ steps.decide.outputs.reason }}
+    steps:
+      - name: Checkout (gate script only)
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/release
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Decide
+        id: decide
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || github.event.workflow_run.head_sha }}
+        run: node scripts/release/image-publish-gate.mjs
+
   build-and-push:
     name: build-and-push (${{ matrix.service }})
+    needs: gate
+    if: needs.gate.outputs.publish == 'true'
     runs-on: ubuntu-latest
+    # Protection rules (required reviewers, branch policy) are configured on
+    # this environment in the repository settings.
+    environment: production-images
 
     # GITHUB_TOKEN needs `packages: write` to push to ghcr.io;
     # `contents: read` is the standard minimum for actions/checkout.
@@ -30,17 +94,27 @@ jobs:
 
     timeout-minutes: 60
     strategy:
-      fail-fast: false
+      # Both images or neither: one failing service must stop the other from
+      # moving `latest` on its own.
+      fail-fast: true
       matrix:
         service: [api, worker]
 
+    env:
+      RELEASE_SHA: ${{ needs.gate.outputs.sha }}
+
     steps:
-      - name: Checkout
+      - name: Checkout the gated commit
         uses: actions/checkout@v7
         with:
-          # Full history so docker/metadata-action's sha tag resolves
-          # the real commit SHA rather than a shallow-clone placeholder.
-          fetch-depth: 0
+          ref: ${{ needs.gate.outputs.sha }}
+          persist-credentials: false
+
+      - name: Confirm the checkout is the gated commit
+        run: |
+          test "$(git rev-parse HEAD)" = "${RELEASE_SHA}" || {
+            echo "checked out $(git rev-parse HEAD), gate approved ${RELEASE_SHA}"; exit 1; }
+          echo "SHORT_SHA=${RELEASE_SHA:0:7}" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -56,15 +130,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Tags and the revision label come from the GATED sha, never from
+      # `github.sha`: under workflow_run that is main's tip at trigger time,
+      # which is exactly the commit this gate has not approved.
       - name: Compute image tags
         id: meta
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/proovra-${{ matrix.service }}
           tags: |
-            type=sha,format=short
-            type=ref,event=branch
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+            type=raw,value=sha-${{ env.SHORT_SHA }}
+            type=raw,value=main,enable=${{ needs.gate.outputs.tag_latest == 'true' }}
+            type=raw,value=latest,enable=${{ needs.gate.outputs.tag_latest == 'true' }}
+          labels: |
+            org.opencontainers.image.revision=${{ env.RELEASE_SHA }}
 
       # Build args note:
       # Both services/api/Dockerfile and services/worker/Dockerfile declare
@@ -88,15 +167,15 @@ jobs:
           tags: proovra-worker:smoke
           build-args: |
             DATABASE_URL=postgres://buildtime:buildtime@localhost:5432/buildtime
-            APP_RELEASE_SHA=${{ github.sha }}
+            APP_RELEASE_SHA=${{ env.RELEASE_SHA }}
           cache-from: type=gha
 
-      - name: Smoke — PDF verification in the worker image
+      - name: Smoke — PDF verification and OCR languages in the worker image
         if: matrix.service == 'worker'
         run: |
           docker run --rm \
             -e PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK=true \
-            -e SMOKE_EXPECT_RELEASE_SHA="${GITHUB_SHA}" \
+            -e SMOKE_EXPECT_RELEASE_SHA="${RELEASE_SHA}" \
             proovra-worker:smoke node scripts/smoke-pdf-verification.mjs
 
       - name: Build and push image
@@ -112,17 +191,11 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # APP_RELEASE_SHA is the release identity the running service reports
-          # (heartbeat, Sentry, OTel) and the image label below; it was never
-          # passed here, so production images reported an unknown release.
+          # (heartbeat, Sentry, OTel) and the image label below.
           build-args: |
             DATABASE_URL=postgres://buildtime:buildtime@localhost:5432/buildtime
-            APP_RELEASE_SHA=${{ github.sha }}
+            APP_RELEASE_SHA=${{ env.RELEASE_SHA }}
           # PROVENANCE IS STATED, NOT INHERITED.
-          #
-          # It was previously left to the action's default. A default is a fine
-          # thing to rely on until you change majors — and this step just moved
-          # v5 → v7. Declaring it means the attestation cannot quietly turn off
-          # under a future bump.
           #
           # `mode=min` and NOT `mode=max`, deliberately: max records the full
           # build definition, INCLUDING build arguments, which would publish the
