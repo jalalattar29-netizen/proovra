@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "fd792624a00d7154c19c965c8897975083b189f67fea53dfc0d723a2d7af6b89",
-  "consumerInventoryHash": "e91c71388cc0639882c0ae2074ae6d04a10bf7da32ed4cbec5ab90e3e342ce17",
+  "consumerInventoryHash": "fa4cb037dc1b24ec0ab5008db7aa054f77ccb86b57fac8f4ba3571cf0585d209",
   "dispositionsHash": "b91e4fd4699fa26a59e2784e582b53fc7407b0b9712580d59c56732b6a28aee5",
   "totals": {
     "RegisteredRoutes": 1193,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 10028,
-      "UNRESOLVED_IDENTIFIER": 1399
+      "METHOD_ON_VALUE": 10067,
+      "UNRESOLVED_IDENTIFIER": 1403
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -18029,8 +18029,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#evidenceExtractedText.create@1064",
-      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:1064",
+      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#evidenceExtractedText.create@1129",
+      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:1129",
       "file": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
       "enclosingDeclaration": "persistDerivedText",
       "kind": "DATABASE",
@@ -18061,8 +18061,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#evidenceExtractedText.create@1083",
-      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:1083",
+      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#evidenceExtractedText.create@1148",
+      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:1148",
       "file": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
       "enclosingDeclaration": "persistDerivedText",
       "kind": "DATABASE",
@@ -18093,8 +18093,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#evidenceExtractedText.deleteMany@1056",
-      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:1056",
+      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#evidenceExtractedText.deleteMany@1121",
+      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:1121",
       "file": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
       "enclosingDeclaration": "persistDerivedText",
       "kind": "DATABASE",
@@ -18125,8 +18125,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#OBJECT_STORAGE.deleteObject@535",
-      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:535",
+      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#OBJECT_STORAGE.deleteObject@569",
+      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:569",
       "file": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
       "enclosingDeclaration": "produceGeneration",
       "kind": "EXTERNAL",
@@ -18157,8 +18157,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#OBJECT_STORAGE.deleteObject@834",
-      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:834",
+      "writerId": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts#OBJECT_STORAGE.deleteObject@897",
+      "terminalLocation": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:897",
       "file": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
       "enclosingDeclaration": "produceGeneration",
       "kind": "EXTERNAL",
@@ -92470,8 +92470,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/screen-intelligence.handler.ts#OBJECT_STORAGE.deleteObject@236",
-      "terminalLocation": "services/worker/src/screen-intelligence.handler.ts:236",
+      "writerId": "services/worker/src/screen-intelligence.handler.ts#OBJECT_STORAGE.deleteObject@260",
+      "terminalLocation": "services/worker/src/screen-intelligence.handler.ts:260",
       "file": "services/worker/src/screen-intelligence.handler.ts",
       "enclosingDeclaration": "processReconstructScreenJob",
       "kind": "EXTERNAL",
@@ -92892,8 +92892,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/telemetry.ts#queueTelemetrySnapshot.create@167",
-      "terminalLocation": "services/worker/src/telemetry.ts:167",
+      "writerId": "services/worker/src/telemetry.ts#queueTelemetrySnapshot.create@168",
+      "terminalLocation": "services/worker/src/telemetry.ts:168",
       "file": "services/worker/src/telemetry.ts",
       "enclosingDeclaration": "sampleOnce",
       "kind": "DATABASE",
@@ -92923,8 +92923,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/telemetry.ts#workerTelemetrySnapshot.create@190",
-      "terminalLocation": "services/worker/src/telemetry.ts:190",
+      "writerId": "services/worker/src/telemetry.ts#workerTelemetrySnapshot.create@200",
+      "terminalLocation": "services/worker/src/telemetry.ts:200",
       "file": "services/worker/src/telemetry.ts",
       "enclosingDeclaration": "sampleOnce",
       "kind": "DATABASE",
@@ -106369,7 +106369,7 @@
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/derived-assets",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1368",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1400",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -106434,7 +106434,7 @@
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1431",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1463",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -106499,7 +106499,7 @@
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/derived-review",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1789",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1821",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -106520,7 +106520,7 @@
         },
         {
           "file": "apps/web/lib/media-intelligence/useDerivedReview.ts",
-          "line": 140,
+          "line": 179,
           "caller": "useDerivedReview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -106530,7 +106530,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/derived-review-tab.tsx:108 (DerivedReviewTab, MOBILE); apps/web/lib/media-intelligence/useDerivedReview.ts:140 (useDerivedReview, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/derived-review-tab.tsx:108 (DerivedReviewTab, MOBILE); apps/web/lib/media-intelligence/useDerivedReview.ts:179 (useDerivedReview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -117060,7 +117060,7 @@
         },
         {
           "file": "apps/web/app/(app)/investigation/reviewers/page.tsx",
-          "line": 251,
+          "line": 278,
           "caller": "load",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -117070,7 +117070,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/investigation/page.tsx:337 (load, WEB); apps/web/app/(app)/investigation/reviewers/page.tsx:251 (load, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/investigation/page.tsx:337 (load, WEB); apps/web/app/(app)/investigation/reviewers/page.tsx:278 (load, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147960,7 +147960,7 @@
       "method": "POST",
       "path": "/v1/evidence/:evidenceId/derived-assets/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1554",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1586",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -148026,7 +148026,7 @@
       "method": "POST",
       "path": "/v1/evidence/:evidenceId/derived-review/generate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1635",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1667",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -148047,7 +148047,7 @@
         },
         {
           "file": "apps/web/lib/media-intelligence/useDerivedReview.ts",
-          "line": 166,
+          "line": 205,
           "caller": "useDerivedReview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148057,7 +148057,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/derived-review-tab.tsx:138 (DerivedReviewTab, MOBILE); apps/web/lib/media-intelligence/useDerivedReview.ts:166 (useDerivedReview, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/derived-review-tab.tsx:138 (DerivedReviewTab, MOBILE); apps/web/lib/media-intelligence/useDerivedReview.ts:205 (useDerivedReview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162267,7 +162267,7 @@
         },
         {
           "file": "apps/web/app/(app)/investigation/reviewers/page.tsx",
-          "line": 207,
+          "line": 234,
           "caller": "performSignalAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162285,7 +162285,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/media-intelligence-panel.tsx:184 (act, MOBILE); apps/web/app/(app)/investigation/page.tsx:415 (handleSignalAction, WEB); apps/web/app/(app)/investigation/reviewers/page.tsx:207 (performSignalAction, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/media-intelligence-panel.tsx:184 (act, MOBILE); apps/web/app/(app)/investigation/page.tsx:415 (handleSignalAction, WEB); apps/web/app/(app)/investigation/reviewers/page.tsx:234 (performSignalAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
