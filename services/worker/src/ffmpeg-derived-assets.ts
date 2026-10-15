@@ -212,7 +212,7 @@ export type KeyframesProducerResult =
 export function parseShowinfoPtsTimes(lines: ReadonlyArray<string>): number[] {
   const out: number[] = [];
   for (const line of lines) {
-    const m = /\bn:\s*(\d+)\s+pts:\s*-?\d+\s+pts_time:(-?[0-9.]+(?:e[-+]?\d+)?)/i.exec(line);
+    const m = line.match(/\bn:\s*(\d+)\s+pts:\s*-?\d+\s+pts_time:(-?[0-9.]+(?:e[-+]?\d+)?)/i);
     if (!m) continue;
     const n = Number(m[1]);
     const t = Number(m[2]);
