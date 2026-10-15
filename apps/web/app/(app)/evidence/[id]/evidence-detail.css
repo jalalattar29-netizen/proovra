@@ -5682,6 +5682,7 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 .rga-truth__fact dd { margin: 0; font-size: 14px; line-height: 21px; font-weight: 600; color: var(--rga-ink); overflow-wrap: anywhere; }
 .rga-truth__fact[data-tone="ok"] dd { color: var(--rga-ok); }
 .rga-truth__fact[data-tone="warn"] dd { color: var(--rga-warn); }
+.rga-truth__fact[data-tone="danger"] dd { color: var(--rga-bad); }
 .rga-truth__actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .rga-truth__actions > * { max-inline-size: 100%; }
 

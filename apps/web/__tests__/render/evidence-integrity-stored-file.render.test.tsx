@@ -101,25 +101,115 @@ describe("Integrity tab — Stored file (current)", () => {
   });
 });
 
-describe("Integrity tab — Bitcoin anchoring is the server's state (2026-10-13)", () => {
+describe("Integrity tab — Bitcoin anchoring is the server's verification (2026-10-15)", () => {
   const otsRow = () => document.querySelector('[data-evidence-matrix-row="Bitcoin anchoring"]') as HTMLElement;
   const otsWord = () => otsRow().querySelector(".evidence-detail-matrix-cell__state");
   const detail = () => (document.querySelector('[data-evidence-matrix-row="Bitcoin anchoring detail"]') as HTMLElement).textContent ?? "";
-
-  it("ANCHORED renders green ✓ Anchored with 'OpenTimestamps proof anchored in Bitcoin.'", () => {
-    render(<EvidenceIntegrityTab ctx={ctx(undefined, { state: "ANCHORED", bitcoinBlockHeight: 812345 })} />);
-    expect(otsWord()?.textContent).toBe("✓ Anchored");
-    expect(otsWord()?.getAttribute("data-tone")).toBe("green");
-    expect(otsRow().textContent).toContain("Bitcoin anchored");
-    expect(detail()).toContain("OpenTimestamps proof anchored in Bitcoin.");
-    expect(document.body.textContent).not.toMatch(/Attestation recorded|Independently verified|chain-verified/i);
+  const chain = (over: Record<string, unknown>) => ({
+    status: "VERIFIED",
+    failureCode: null,
+    blockHeight: 812345,
+    blockHash: "0".repeat(8) + "f".repeat(56),
+    blockTimeUtc: "2026-09-01T00:00:00Z",
+    confirmations: 12,
+    minConfirmations: 6,
+    checkedAtUtc: "2026-09-02T10:00:00Z",
+    verifiedAtUtc: "2026-09-02T10:00:00Z",
+    verifier: "bitcoin-core",
+    ...over,
   });
 
-  it("PENDING is a neutral 'Pending' awaiting Bitcoin anchoring", () => {
+  it("ANCHORED without a chain check is 'Bitcoin attestation recorded', not independently checked, neutral — never Verified", () => {
+    render(<EvidenceIntegrityTab ctx={ctx(undefined, { state: "ANCHORED", bitcoinBlockHeight: 812345 })} />);
+    expect(otsWord()?.textContent).toBe("Attestation recorded");
+    expect(otsWord()?.getAttribute("data-tone")).toBe("slate");
+    expect(otsRow().getAttribute("data-evidence-matrix-state")).toBe("recorded");
+    expect(otsRow().textContent).toContain("Bitcoin attestation recorded");
+    expect(otsRow().textContent).toContain("Not independently checked against Bitcoin");
+    expect(detail()).toContain("The proof names Bitcoin block 812345; PROOVRA has not checked it against the Bitcoin main chain.");
+    expect(otsRow().textContent).not.toMatch(/✓|Verified/);
+  });
+
+  it("an ANCHORED payload that CLAIMS CHAIN_VERIFIED without a chain fact is still only an attestation recorded", () => {
+    render(<EvidenceIntegrityTab ctx={ctx(undefined, { state: "ANCHORED", verification: "CHAIN_VERIFIED", bitcoinBlockHeight: 812345 })} />);
+    expect(otsWord()?.textContent).toBe("Attestation recorded");
+    expect(otsWord()?.getAttribute("data-tone")).toBe("slate");
+  });
+
+  it("CHAIN_VERIFIED is the only green ✓: independently verified with height, confirmations and check time", () => {
+    render(
+      <EvidenceIntegrityTab
+        ctx={ctx(undefined, { state: "ANCHORED", verification: "CHAIN_VERIFIED", bitcoinBlockHeight: 812345, chain: chain({}) })}
+      />,
+    );
+    expect(otsWord()?.textContent).toBe("✓ Independently verified");
+    expect(otsWord()?.getAttribute("data-tone")).toBe("green");
+    expect(otsRow().getAttribute("data-evidence-matrix-state")).toBe("verified");
+    expect(otsRow().textContent).toContain("Independently verified against the Bitcoin main chain");
+    expect(otsRow().textContent).not.toContain("Not independently checked");
+    expect(detail()).toMatch(/Merkle root matches Bitcoin block 812345; 12 confirmations at 2026-09-02/);
+  });
+
+  it("insufficient confirmations is a neutral 'Bitcoin verification pending' with m of n", () => {
+    render(
+      <EvidenceIntegrityTab
+        ctx={ctx(undefined, {
+          state: "ANCHORED",
+          verification: "CHAIN_CONFIRMATIONS_PENDING",
+          bitcoinBlockHeight: 812345,
+          chain: chain({ status: "INSUFFICIENT_CONFIRMATIONS", confirmations: 2, verifiedAtUtc: null }),
+        })}
+      />,
+    );
+    expect(otsWord()?.getAttribute("data-tone")).toBe("slate");
+    expect(otsRow().textContent).toContain("Bitcoin verification pending");
+    expect(detail()).toContain("The proof matches Bitcoin block 812345; 2 of 6 confirmations recorded.");
+  });
+
+  it("CHAIN_FAILED is danger: 'Bitcoin verification failed'", () => {
+    render(
+      <EvidenceIntegrityTab
+        ctx={ctx(undefined, {
+          state: "ANCHORED",
+          verification: "CHAIN_FAILED",
+          bitcoinBlockHeight: 812345,
+          chain: chain({ status: "FAILED", failureCode: "ROOT_MISMATCH", verifiedAtUtc: null }),
+        })}
+      />,
+    );
+    expect(otsWord()?.getAttribute("data-tone")).toBe("red");
+    expect(otsRow().getAttribute("data-evidence-matrix-state")).toBe("failed");
+    expect(otsRow().textContent).toContain("Bitcoin verification failed");
+    expect(detail()).toContain("The OpenTimestamps proof does not match the referenced block in the active Bitcoin main chain.");
+  });
+
+  it("CHAIN_UNAVAILABLE is neutral: the attestation remains recorded", () => {
+    render(
+      <EvidenceIntegrityTab
+        ctx={ctx(undefined, {
+          state: "ANCHORED",
+          verification: "CHAIN_UNAVAILABLE",
+          chain: chain({ status: "UNAVAILABLE", failureCode: "BTC_RPC_TIMEOUT", verifiedAtUtc: null }),
+        })}
+      />,
+    );
+    expect(otsWord()?.getAttribute("data-tone")).toBe("slate");
+    expect(otsRow().textContent).toContain("Bitcoin verification temporarily unavailable");
+    expect(detail()).toContain("The Bitcoin attestation remains recorded but could not be independently checked.");
+  });
+
+  it("FAILED is danger", () => {
+    render(<EvidenceIntegrityTab ctx={ctx(undefined, { state: "FAILED", failureCode: "PROOF_HASH_MISMATCH" })} />);
+    expect(otsWord()?.getAttribute("data-tone")).toBe("red");
+    expect(otsRow().getAttribute("data-evidence-matrix-state")).toBe("failed");
+  });
+
+  it("PENDING is a neutral 'Pending' — never danger", () => {
     render(<EvidenceIntegrityTab ctx={ctx(undefined, { state: "PENDING" })} />);
     expect(otsWord()?.textContent).toBe("Pending");
     expect(otsWord()?.getAttribute("data-tone")).toBe("slate");
-    expect(detail()).toContain("OpenTimestamps proof is awaiting Bitcoin anchoring.");
+    expect(otsRow().textContent).toContain("OpenTimestamps proof pending");
+    expect(detail()).toContain("Submitted to OpenTimestamps calendars; no Bitcoin attestation yet.");
   });
 
   it("an unknown state from the server renders 'Unavailable' — never anchored", () => {

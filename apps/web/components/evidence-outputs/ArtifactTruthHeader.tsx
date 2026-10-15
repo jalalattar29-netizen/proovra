@@ -15,6 +15,7 @@ import { FileCheck2, RefreshCcw } from "lucide-react";
 import {
   TRUST_SIGNAL_STATE_PRESENTATION,
   getTrustLayerStateLabel,
+  OTS_TRUST_BY_VERIFICATION,
   presentedTsaStatus,
   readOtsAnchoringView,
   reportFreshnessChangeCopy,
@@ -22,6 +23,7 @@ import {
   toVerificationStatus,
   VERIFICATION_STATUS_LABELS,
   type OtsState,
+  type OtsVerificationKey,
   type ReportFreshness,
   type TrustSignalState,
   type VerificationStatus,
@@ -29,7 +31,7 @@ import {
 
 import type { ArtifactActiveRequest, ArtifactTrust, MatchedVersion } from "./artifact-status-types";
 
-type TruthTone = "ok" | "warn" | "neutral";
+type TruthTone = "ok" | "warn" | "danger" | "neutral";
 
 /**
  * One trust fact: its wording, tone and canonical state, plus THE customer
@@ -79,30 +81,37 @@ export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): TruthFact 
   };
 }
 
-/** THE Bitcoin anchoring state as a trust state (ANCHORED is the only PASSED). */
-const OTS_TRUST_STATE: Readonly<Record<OtsState, TrustSignalState>> = {
-  ANCHORED: "PASSED",
-  PENDING: "PENDING",
-  FAILED: "FAILED",
-  UNAVAILABLE: "UNAVAILABLE",
-  NOT_REQUESTED: "NOT_APPLICABLE",
-};
-
 /**
- * Bitcoin anchoring (2026-10-13): the server's OtsAnchoringView, read — never
+ * Bitcoin anchoring (2026-10-15): the server's OtsAnchoringView, read — never
  * derived. A missing object or an unknown state reads as Unavailable.
+ *
+ * The trust state follows the VERIFICATION key, not the lifecycle state: an
+ * ANCHORED proof PROOVRA has not checked against the Bitcoin main chain is
+ * present but not independently verified (NOT_CHECKED), never PASSED. Only
+ * CHAIN_VERIFIED is "ok" (green, with ✓); FAILED and CHAIN_FAILED are danger.
  */
-export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): TruthFact & { otsState: OtsState; word: string } {
+export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): TruthFact & {
+  otsState: OtsState;
+  verification: OtsVerificationKey;
+  word: string;
+  secondaryStatus: string | null;
+  sentence: string;
+  checkedAtUtc: string | null;
+} {
   const view = readOtsAnchoringView(o);
-  const state = OTS_TRUST_STATE[view.state];
+  const state = OTS_TRUST_BY_VERIFICATION[view.verification];
   return {
-    label: view.tone === "success" ? `✓ ${view.status}` : view.status,
-    tone: view.tone === "success" ? "ok" : view.tone === "danger" ? "warn" : "neutral",
+    label: view.tone === "success" ? `✓ ${view.label}` : view.label,
+    tone: view.tone === "success" ? "ok" : view.tone === "danger" ? "danger" : "neutral",
     state,
     status: toVerificationStatus(state),
     measuredAtUtc: view.anchoredAtUtc,
     otsState: view.state,
+    verification: view.verification,
     word: view.status,
+    secondaryStatus: view.secondaryStatus,
+    sentence: view.sentence,
+    checkedAtUtc: view.chain?.checkedAtUtc ?? null,
   };
 }
 
@@ -116,7 +125,10 @@ export function tsaNote(t: ReturnType<typeof tsaLabel>, fmt: (v: string) => stri
 }
 
 export function otsNote(o: ReturnType<typeof otsLabel>, fmt: (v: string) => string): string | null {
-  return o.otsState === "ANCHORED" && o.measuredAtUtc ? `Anchoring recorded by PROOVRA ${fmt(o.measuredAtUtc)}` : null;
+  if (o.verification === "CHAIN_VERIFIED" && o.checkedAtUtc) {
+    return `Checked against the Bitcoin main chain ${fmt(o.checkedAtUtc)}`;
+  }
+  return o.otsState === "ANCHORED" && o.measuredAtUtc ? `Attestation recorded by PROOVRA ${fmt(o.measuredAtUtc)}` : null;
 }
 
 function Fact({
@@ -131,7 +143,7 @@ function Fact({
 }: {
   label: string;
   value: ReactNode;
-  tone?: "ok" | "warn" | "neutral";
+  tone?: TruthTone;
   testId?: string;
   /** THE canonical verification status, stated beside the wording. */
   status?: VerificationStatus | null;
@@ -259,9 +271,10 @@ export function ArtifactTruthHeader({
           tone={ots.tone}
           testId="truth-ots"
           status={ots.status}
-          // The value IS its status word (Anchored, Pending, …).
-          statusText={ots.word}
-          statusHidden
+          // The value IS its label; an unchecked attestation also states
+          // "Not independently checked against Bitcoin" beside it.
+          statusText={ots.secondaryStatus ?? ots.word}
+          statusHidden={!ots.secondaryStatus}
           note={otsNote(ots, formatDateTime)}
         />
         <Fact

@@ -9,6 +9,7 @@
  * nothing is derived here. A projection for another record is never shown.
  */
 import { otsAnchoringCopy, parseOtsState, type OtsState } from "@proovra/shared";
+import { otsCardForVerification, otsStatusLine, otsVerificationOf, type OtsVerificationKey } from "./ots-anchoring";
 
 export function buildProvenancePath(evidenceId: string): string {
   return `/v1/provenance/${encodeURIComponent(evidenceId)}`;
@@ -33,6 +34,12 @@ export interface ProvenanceView {
    * read as sent; anything missing or unknown reads as UNAVAILABLE.
    */
   otsStatus: OtsState;
+  /**
+   * `time.ots.verification` — the derived verification key, believed only when
+   * coherent with the state (ANCHORED without one is an unchecked attestation).
+   * Only CHAIN_VERIFIED is a verification.
+   */
+  otsVerification: OtsVerificationKey;
   /** Only when the server sent it for an ANCHORED state. */
   otsAnchorTxId: string | null;
   /** When PROOVRA recorded the anchor — never a Bitcoin block time. */
@@ -74,6 +81,7 @@ export function parseProvenanceChain(payload: unknown, evidenceId: string): Prov
     rfc3161Status: s(rfc.status),
     otsApplied: ots.applied === true,
     otsStatus: parseOtsState(ots.status),
+    otsVerification: otsVerificationOf(ots.status, ots.verification),
     otsAnchorTxId: parseOtsState(ots.status) === "ANCHORED" ? s(ots.anchorTxId) : null,
     otsAppliedAtUtc: parseOtsState(ots.status) === "ANCHORED" ? s(ots.appliedAtUtc) : null,
     otsBlockHeight:
@@ -132,13 +140,14 @@ export function provenancePreservationRows(
   fmt: (iso: string) => string,
   locale?: string | null,
 ): Array<{ label: string; value: string }> {
-  // Bitcoin anchoring: the server's state in the locale's words (ANCHORED with ✓).
+  // Bitcoin anchoring: the server's verification in the locale's words. Only
+  // CHAIN_VERIFIED carries a ✓; an unchecked attestation says so.
   const ots = otsAnchoringCopy(locale);
-  const word = ots.words[p.otsStatus];
+  const card = otsCardForVerification(p.otsVerification ?? otsVerificationOf(p.otsStatus, null), locale);
   const rows = [
     { label: "PROOVRA countersignature", value: p.countersigned ? `Applied${p.countersignedAtUtc ? ` · ${fmt(p.countersignedAtUtc)}` : ""}` : "Not applied" },
     { label: "Independent timestamp", value: rfc3161Text(p, fmt) },
-    { label: ots.title, value: p.otsStatus === "ANCHORED" ? `${word} ✓` : word },
+    { label: ots.title, value: otsStatusLine(card) },
   ];
   if (p.otsBlockHeight !== null) rows.push({ label: ots.facts.blockHeight, value: String(p.otsBlockHeight) });
   if (p.otsAnchorTxId) rows.push({ label: ots.facts.txid, value: p.otsAnchorTxId });

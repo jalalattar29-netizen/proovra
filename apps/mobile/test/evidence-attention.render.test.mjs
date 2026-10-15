@@ -137,6 +137,56 @@ test("the Technical tab states each signal's verification status and the bounded
   assert.ok(r.hasText("No further detail was recorded for this signal."));
 });
 
+test("the Technical tab's Bitcoin anchoring signal: an unchecked attestation is never verified; only CHAIN_VERIFIED carries the ✓", async () => {
+  const decision = (state, otsVerification, anchoringState) => ({
+    artifactVersions: {
+      trustDecision: {
+        anchoringState,
+        signals: [
+          { key: "core_integrity", label: "Content hash", state: "PASSED", status: "passed", summary: "Matches.", detail: "" },
+          { key: "bitcoin_anchoring", label: "Bitcoin anchoring", state, status: "passed", otsVerification, summary: "server words", detail: "" },
+        ],
+      },
+    },
+  });
+  const badge = (r) => [...new Set(r.byTestId("trust-signal-bitcoin_anchoring")[0].findAll((n) => typeof n.props?.label === "string").map((n) => n.props.label))];
+  const texts = (r) => r.byTestId("trust-signal-bitcoin_anchoring")[0].findAll((n) => n.type === "Text").map((n) => [].concat(n.props.children).join(""));
+
+  routes["/v1/evidence/ev-1/review-workspace"] = () => RW(decision("PRESENT_NOT_INDEPENDENTLY_VERIFIED", "ATTESTATION_RECORDED", "recorded"));
+  let r = await render();
+  await r.press("Technical");
+  await settle();
+  assert.deepEqual(badge(r), ["Attestation recorded"]);
+  assert.ok(texts(r).includes("Not independently checked against Bitcoin"));
+  assert.ok(!texts(r).some((t) => t.includes("✓") || /\bverified\b/i.test(t)), texts(r).join(" | "));
+  assert.ok(r.hasText("Bitcoin attestation recorded — Not independently checked against Bitcoin"));
+  r.unmount();
+
+  // A stored PASSED without a CHAIN_VERIFIED marker (written before chain verification existed) is not verified.
+  routes["/v1/evidence/ev-1/review-workspace"] = () => RW(decision("PASSED", undefined, "verified"));
+  r = await render();
+  await r.press("Technical");
+  await settle();
+  assert.deepEqual(badge(r), ["Attestation recorded"]);
+  r.unmount();
+
+  routes["/v1/evidence/ev-1/review-workspace"] = () => RW(decision("PASSED", "CHAIN_VERIFIED", "verified"));
+  r = await render();
+  await r.press("Technical");
+  await settle();
+  assert.deepEqual(badge(r), ["Independently verified ✓"]);
+  assert.ok(r.hasText("Independently verified against the Bitcoin main chain ✓"));
+  r.unmount();
+
+  routes["/v1/evidence/ev-1/review-workspace"] = () => RW(decision("FAILED", "CHAIN_FAILED", "failed"));
+  r = await render();
+  await r.press("Technical");
+  await settle();
+  assert.deepEqual(badge(r), ["Verification failed"]);
+  const tone = r.byTestId("trust-signal-bitcoin_anchoring")[0].findAll((n) => typeof n.props?.label === "string" && typeof n.props?.tone === "string")[0].props.tone;
+  assert.equal(tone, "risk");
+});
+
 /* ---- T-14 (EvidenceIntegrityTab :427 Boundary, EvidenceReviewTab :287 Boundary, LocationContextCard :76) ---- */
 
 test("Integrity states the source boundary and the location facts, with the default location boundary", async () => {

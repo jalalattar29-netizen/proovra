@@ -661,10 +661,10 @@ export default function AdminEvidenceOpsPage() {
                 note="Evidence with tsaStatus = FAILED."
               />
               <MetricCard
-                label="OTS anchoring failures"
+                label="Bitcoin anchoring failures"
                 value={snapshot.preservation.otsAnchoringFailures}
                 sense="problem"
-                note="Evidence with otsStatus = FAILED."
+                note="Records whose OpenTimestamps proof failed (Bitcoin anchoring failed)."
               />
             </div>
           </PageSection>

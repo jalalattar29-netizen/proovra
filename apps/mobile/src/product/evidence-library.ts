@@ -9,7 +9,7 @@
  */
 import type { ProovraStatusTone } from "@proovra/ui";
 import type { EvidenceBulkActionName } from "@proovra/shared";
-import { evidenceRecordStatusLabel } from "@proovra/shared";
+import { evidenceRecordStatusLabel, OTS_STATES, otsAnchoringCopy, type OtsState } from "@proovra/shared";
 
 /** Server sort values (EvidenceListSortSchema). */
 export const LIBRARY_SORTS = ["newest", "oldest", "priority"] as const;
@@ -256,11 +256,27 @@ function humaniseTrustFilterValue(raw: string): string {
     .join(" / ");
 }
 
+/**
+ * An OTS filter value in words: a canonical lifecycle state reads its shared
+ * label (ANCHORED is "Bitcoin attestation recorded" — never "Anchored" or
+ * "Verified"); a legacy value is humanised. Never a raw code.
+ */
+function otsFilterValueLabel(raw: string): string {
+  const labels = otsAnchoringCopy("en").labels;
+  return raw
+    .split(",")
+    .map((v) => {
+      const code = v.trim().toUpperCase();
+      return (OTS_STATES as readonly string[]).includes(code) ? labels[code as OtsState] : humaniseTrustFilterValue(code);
+    })
+    .join(" / ");
+}
+
 /** ActiveTrustFilterChips (page.tsx:164) — the reason a deep-linked list is reduced. */
 export function activeTrustChips(f: LibraryFilters): Array<{ key: TrustChipKey; label: string }> {
   const chips: Array<{ key: TrustChipKey; label: string }> = [];
   if (refined(f.tsaStatus)) chips.push({ key: "tsaStatus", label: `Trust timestamp: ${humaniseTrustFilterValue(f.tsaStatus)}` });
-  if (refined(f.otsStatus)) chips.push({ key: "otsStatus", label: `Blockchain anchor: ${humaniseTrustFilterValue(f.otsStatus)}` });
+  if (refined(f.otsStatus)) chips.push({ key: "otsStatus", label: `${otsAnchoringCopy("en").title}: ${otsFilterValueLabel(f.otsStatus)}` });
   if (refined(f.publicVerifyState)) chips.push({ key: "publicVerifyState", label: `Public verification: ${humaniseTrustFilterValue(f.publicVerifyState)}` });
   if (refined(f.verificationStatus)) {
     chips.push({

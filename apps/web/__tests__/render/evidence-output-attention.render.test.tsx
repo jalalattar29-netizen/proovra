@@ -183,8 +183,11 @@ describe("Evidence outputs card", () => {
     expect(getByTestId("evidence-outputs-report").textContent).toBe("v1");
     expect(getByTestId("evidence-outputs-package").textContent).toBe("v1");
     expect(getByTestId("evidence-outputs-tsa").textContent).toBe("Validated");
-    // The server says ANCHORED: the one success word, with its ✓.
-    expect(getByTestId("evidence-outputs-ots").textContent).toBe("✓ Anchored");
+    // The server says ANCHORED with no chain check: an attestation recorded,
+    // not independently checked — never a ✓ or "Verified".
+    expect(getByTestId("evidence-outputs-ots").textContent).toBe(
+      "Bitcoin attestation recorded · Not independently checked against Bitcoin",
+    );
     expect(queryByText("All generated outputs reflect the latest verified facts.")).not.toBeNull();
     expect(queryByText(/New verification facts/)).toBeNull();
     fireEvent.click(getByTestId("evidence-outputs-view"));

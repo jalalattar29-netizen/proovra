@@ -48,15 +48,36 @@ test("Verify: an old-API OTS object (status string, txid, no state) reads as Una
   assert.equal(badge.label, "Bitcoin anchoring unavailable");
 });
 
-test("Verify: the server's ANCHORED state is the only success — 'Bitcoin anchored'", () => {
+test("Verify: an ANCHORED state without a chain check is a neutral 'Bitcoin attestation recorded' — never success", () => {
   const badge = otsTone({ state: "ANCHORED", bitcoinTxid: TXID });
-  assert.equal(badge.tone, "success");
-  assert.equal(badge.label, "Bitcoin anchored");
+  assert.equal(badge.tone, "neutral");
+  assert.equal(badge.label, "Bitcoin attestation recorded");
+  // A CHAIN_VERIFIED claim without its chain fact is not believed.
+  assert.deepEqual(otsTone({ state: "ANCHORED", verification: "CHAIN_VERIFIED", bitcoinTxid: TXID }), {
+    label: "Bitcoin attestation recorded",
+    tone: "neutral",
+  });
+});
+
+test("Verify: only CHAIN_VERIFIED with a coherent chain fact is the success badge; CHAIN_FAILED is danger", () => {
+  const chain = { status: "VERIFIED", blockHeight: 812345, blockHash: "f".repeat(64), confirmations: 7, minConfirmations: 6, checkedAtUtc: "2026-09-02T00:00:00Z" };
+  assert.deepEqual(otsTone({ state: "ANCHORED", verification: "CHAIN_VERIFIED", chain }), {
+    label: "Independently verified against the Bitcoin main chain",
+    tone: "success",
+  });
+  assert.deepEqual(otsTone({ state: "ANCHORED", verification: "CHAIN_FAILED", chain: { ...chain, status: "FAILED", failureCode: "ROOT_MISMATCH" } }), {
+    label: "Bitcoin verification failed",
+    tone: "danger",
+  });
+  assert.deepEqual(otsTone({ state: "ANCHORED", verification: "CHAIN_UNAVAILABLE", chain: { ...chain, status: "UNAVAILABLE" } }), {
+    label: "Bitcoin verification temporarily unavailable",
+    tone: "neutral",
+  });
 });
 
 test("Verify: PENDING / FAILED / NOT_REQUESTED / unknown / nothing read from the server's state", () => {
-  assert.deepEqual(otsTone({ state: "PENDING" }), { label: "Bitcoin anchoring pending", tone: "neutral" });
-  assert.deepEqual(otsTone({ state: "FAILED" }), { label: "Bitcoin anchoring failed", tone: "warning" });
+  assert.deepEqual(otsTone({ state: "PENDING" }), { label: "OpenTimestamps proof pending", tone: "neutral" });
+  assert.deepEqual(otsTone({ state: "FAILED" }), { label: "Bitcoin anchoring failed", tone: "danger" });
   assert.deepEqual(otsTone({ state: "NOT_REQUESTED" }), { label: "Not requested", tone: "neutral" });
   assert.deepEqual(otsTone({ state: "CHAIN_VERIFIED" }), { label: "Bitcoin anchoring unavailable", tone: "neutral" });
   assert.deepEqual(otsTone(null), { label: "Bitcoin anchoring unavailable", tone: "neutral" });
@@ -70,13 +91,21 @@ test("Notes: an old-API output with no terminalReasonCode reads its reason's own
   }
 });
 
-test("Web source carries none of the removed OpenTimestamps chain-verifier vocabulary (2026-10-13)", async () => {
+/*
+ * (2026-10-15) Independent Bitcoin-chain verification is back as ONE shared
+ * vocabulary (ots-anchoring.ts: "Attestation recorded", "Independently
+ * verified against the Bitcoin main chain", OTS_CHAIN_VERIFIED_AFTER_REPORT),
+ * so those words are no longer retired. What stays retired is the rest of the
+ * 2026-10-13 removal list, plus the "anchored after report" freshness code
+ * the chain-verified one replaced.
+ */
+test("Web source carries none of the removed OpenTimestamps vocabulary (2026-10-13 / 2026-10-15)", async () => {
   const { readdirSync, readFileSync, statSync } = await import("node:fs");
   const { join, resolve, dirname } = await import("node:path");
   const { fileURLToPath } = await import("node:url");
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const RETIRED =
-    /Attestation recorded|Independently verified|Bitcoin anchoring verified|chain-verified|proof still being prepared|OTS_CHAIN_VERIFIED_AFTER_REPORT|resolveOtsTruth|OTS_TRUTH_|resolveOtsAnchorClaim|otsClaimBadge|parseOtsAnchorClaim|OTS_PROOF_STATUS_LABELS|resolveEffectiveOtsStatus\(|anchorClaim|truthState/;
+    /Bitcoin anchoring verified|chain-verified|proof still being prepared|OTS_ANCHORED_AFTER_REPORT|resolveOtsTruth|OTS_TRUTH_|resolveOtsAnchorClaim|otsClaimBadge|parseOtsAnchorClaim|OTS_PROOF_STATUS_LABELS|resolveEffectiveOtsStatus\(|anchorClaim|truthState/;
   const offenders: string[] = [];
   const walk = (dir: string) => {
     for (const name of readdirSync(dir)) {

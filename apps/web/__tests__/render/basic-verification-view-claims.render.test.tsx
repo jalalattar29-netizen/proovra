@@ -49,14 +49,28 @@ function otsBadge(container: HTMLElement): HTMLElement {
   return badge;
 }
 
-describe("Basic Verify — Bitcoin anchoring is the server's state (2026-10-13)", () => {
-  it("ANCHORED renders a green ✓ 'Anchored' with 'OpenTimestamps proof anchored in Bitcoin.'", () => {
+describe("Basic Verify — Bitcoin anchoring is the server's verification (2026-10-15)", () => {
+  const CHAIN = {
+    status: "VERIFIED",
+    failureCode: null,
+    blockHeight: 812345,
+    blockHash: "f".repeat(64),
+    blockTimeUtc: AT,
+    confirmations: 11,
+    minConfirmations: 6,
+    checkedAtUtc: "2026-09-02T00:00:00.000Z",
+    verifiedAtUtc: "2026-09-02T00:00:00.000Z",
+    verifier: "bitcoin-core",
+  };
+
+  it("ANCHORED without a chain check renders a neutral 'Attestation recorded', not independently checked — never Verified", () => {
     const { container } = render(
       <BasicVerificationView
         data={data({
           anchoring: {
-            state: "verified",
+            state: "not_checked",
             otsState: "ANCHORED",
+            otsVerification: "ATTESTATION_RECORDED",
             bitcoinBlockHeight: 812345,
             bitcoinTxid: "c".repeat(64),
             anchoredAtUtc: AT,
@@ -65,19 +79,76 @@ describe("Basic Verify — Bitcoin anchoring is the server's state (2026-10-13)"
       />,
     );
     const text = container.textContent ?? "";
-    expect(container.querySelector("[data-verify-ots-state='ANCHORED']")).not.toBeNull();
-    expect(text).toContain("Bitcoin anchoring");
-    expect(text).toContain("OpenTimestamps proof anchored in Bitcoin.");
-    expect(otsBadge(container).textContent).toBe("✓ Anchored");
-    expect(otsBadge(container).style.color).toBe("rgb(11, 93, 59)");
+    expect(container.querySelector("[data-verify-ots-verification='ATTESTATION_RECORDED']")).not.toBeNull();
+    expect(container.querySelector("[data-verify-ots-tone='neutral']")).not.toBeNull();
+    expect(otsBadge(container).textContent).toBe("Attestation recorded");
+    expect(otsBadge(container).style.color).toBe("rgb(75, 85, 99)");
+    expect(text).toContain("Not independently checked against Bitcoin");
+    expect(text).toContain("The proof names Bitcoin block 812345; PROOVRA has not checked it against the Bitcoin main chain.");
     expect(text).toContain("Bitcoin block height: 812345");
     expect(text).toContain(`Bitcoin transaction: ${"c".repeat(64)}`);
     // The recorded time is PROOVRA's recording, never a block time.
-    expect(text).toContain("Anchoring recorded by PROOVRA (UTC): 2026-09-01 00:00:00 UTC");
-    expect(text).not.toMatch(/Attestation recorded|Independent Bitcoin verification|chain-verified|Not checked/i);
+    expect(text).toContain("Attestation recorded by PROOVRA (UTC): 2026-09-01 00:00:00 UTC");
+    expect(otsBadge(container).textContent).not.toMatch(/✓|Verified/);
+    expect(text).not.toMatch(/Independently verified against the Bitcoin main chain/);
   });
 
-  it("PENDING renders a neutral 'Pending' with the awaiting sentence, and no anchor facts", () => {
+  it("a CHAIN_VERIFIED claim without its chain fact is read as an attestation recorded", () => {
+    const { container } = render(
+      <BasicVerificationView
+        data={data({ anchoring: { state: "verified", otsState: "ANCHORED", otsVerification: "CHAIN_VERIFIED", bitcoinBlockHeight: 812345 } })}
+      />,
+    );
+    expect(otsBadge(container).textContent).toBe("Attestation recorded");
+    expect(container.textContent).not.toMatch(/Independently verified/);
+  });
+
+  it("CHAIN_VERIFIED renders the only green ✓ — independently verified, with height, confirmations and check time", () => {
+    const { container } = render(
+      <BasicVerificationView
+        data={data({
+          anchoring: {
+            state: "verified",
+            otsState: "ANCHORED",
+            otsVerification: "CHAIN_VERIFIED",
+            bitcoinBlockHeight: 812345,
+            anchoredAtUtc: AT,
+            chain: CHAIN,
+          },
+        })}
+      />,
+    );
+    const text = container.textContent ?? "";
+    expect(otsBadge(container).textContent).toBe("✓ Independently verified");
+    expect(otsBadge(container).style.color).toBe("rgb(11, 93, 59)");
+    expect(text).toMatch(/Merkle root matches Bitcoin block 812345; 11 confirmations at 2026-09-02/);
+    expect(text).toContain(`Bitcoin block hash: ${"f".repeat(64)}`);
+    expect(text).toContain("Confirmations: 11 (minimum 6)");
+    expect(text).not.toContain("Not independently checked");
+  });
+
+  it("CHAIN_FAILED renders danger: 'Bitcoin verification failed'", () => {
+    const { container } = render(
+      <BasicVerificationView
+        data={data({
+          anchoring: {
+            state: "failed",
+            otsState: "ANCHORED",
+            otsVerification: "CHAIN_FAILED",
+            bitcoinBlockHeight: 812345,
+            chain: { ...CHAIN, status: "FAILED", failureCode: "ROOT_MISMATCH", verifiedAtUtc: null },
+          },
+        })}
+      />,
+    );
+    expect(otsBadge(container).textContent).toBe("Verification failed");
+    expect(otsBadge(container).style.color).toBe("rgb(155, 28, 28)");
+    expect(container.textContent).toContain(
+      "The OpenTimestamps proof does not match the referenced block in the active Bitcoin main chain.",
+    );
+  });
+
+  it("PENDING renders a neutral 'Pending' (never danger) with the calendar sentence, and no anchor facts", () => {
     const { container } = render(
       <BasicVerificationView
         data={data({
@@ -94,8 +165,8 @@ describe("Basic Verify — Bitcoin anchoring is the server's state (2026-10-13)"
     const text = container.textContent ?? "";
     expect(otsBadge(container).textContent).toBe("Pending");
     expect(otsBadge(container).style.color).toBe("rgb(75, 85, 99)");
-    expect(text).toContain("OpenTimestamps proof is awaiting Bitcoin anchoring.");
-    expect(text).not.toMatch(/Bitcoin transaction|Anchoring recorded by PROOVRA|Attestation recorded/);
+    expect(text).toContain("Submitted to OpenTimestamps calendars; no Bitcoin attestation yet.");
+    expect(text).not.toMatch(/Bitcoin transaction|recorded by PROOVRA/);
   });
 
   it("an unknown state from the server renders 'Unavailable' — never anchored", () => {

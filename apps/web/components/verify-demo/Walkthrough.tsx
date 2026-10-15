@@ -274,7 +274,7 @@ function OpenTimestampPanel() {
           { label: "Submitted", value: "May 17, 2026 09:16 UTC" },
           { label: "Confirmed Block Height", value: "841,927" },
           { label: "Network", value: "Bitcoin" },
-          { label: "Result", value: "Anchored" },
+          { label: "Result", value: "Bitcoin attestation recorded" },
         ].map((r) => (
           <div key={r.label} className="rounded-xl bg-[#F8FAFC] p-3">
             <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">

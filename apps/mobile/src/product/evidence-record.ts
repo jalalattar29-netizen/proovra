@@ -15,7 +15,7 @@ import {
   type OutputProgressView,
   type ReportFreshness,
 } from "@proovra/shared";
-import { otsBadgeLabel, otsCard, readOts, type OtsState } from "./ots-anchoring";
+import { isOtsSummaryFact, otsCard, otsStatusLine, readOts, type OtsState, type OtsVerificationKey } from "./ots-anchoring";
 type Obj = Record<string, unknown>;
 const o = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
@@ -785,17 +785,28 @@ export interface MatrixRow {
  * (`preservationMatrix.ots`, an OtsAnchoringView) in the locale's words.
  * Unknown or missing reads as Unavailable; never re-derived here.
  */
-export function describeOtsStatus(ots: unknown, locale?: string | null): { label: string; detail: string; state: OtsState } {
+export function describeOtsStatus(
+  ots: unknown,
+  locale?: string | null,
+): { label: string; detail: string; state: OtsState; verification: OtsVerificationKey } {
   const card = otsCard(ots, locale);
-  return { label: otsBadgeLabel(card), detail: card.sentence, state: card.state };
+  return { label: otsStatusLine(card), detail: card.sentence, state: card.state, verification: card.verification };
 }
 
-/** The native integrity state of an OTS state: ANCHORED is the only verified one. */
-const OTS_INTEGRITY_STATE: Readonly<Record<OtsState, IntegrityState>> = {
-  ANCHORED: "verified",
-  PENDING: "pending",
-  FAILED: "failed",
+/**
+ * The native integrity state of an OTS verification key: ONLY an attestation
+ * independently verified against the Bitcoin main chain is "verified". An
+ * attestation the proof merely names is "recorded" — never verified.
+ */
+export const OTS_INTEGRITY_STATE: Readonly<Record<OtsVerificationKey, IntegrityState>> = {
   NOT_REQUESTED: "not-applicable",
+  PENDING: "pending",
+  ATTESTATION_RECORDED: "recorded",
+  CHAIN_CONFIRMATIONS_PENDING: "pending",
+  CHAIN_UNAVAILABLE: "unavailable",
+  CHAIN_FAILED: "failed",
+  CHAIN_VERIFIED: "verified",
+  FAILED: "failed",
   UNAVAILABLE: "unavailable",
 };
 
@@ -840,11 +851,14 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
   const tsaStatus = s(tsa["status"]);
   const tsaState: IntegrityState = tsaAvailable ? "recorded" : tsaStatus === "FAILED" ? "failed" : tsaStatus ? "pending" : "unavailable";
   const otsView = otsCard(ots, locale, fmt);
-  const otsState: IntegrityState = OTS_INTEGRITY_STATE[otsView.state];
-  const otsDesc = { label: otsBadgeLabel(otsView), detail: otsView.sentence };
+  const otsState: IntegrityState = OTS_INTEGRITY_STATE[otsView.verification];
+  const otsDesc = {
+    label: otsStatusLine(otsView),
+    detail: otsView.sentence,
+  };
   // Only the facts the proof itself yields; the txid only when present.
   const otsFacts: MatrixRow[] = otsView.facts
-    .filter((f) => f.key === "blockHeight" || f.key === "txid" || f.key === "anchoredAt")
+    .filter(isOtsSummaryFact)
     .map((f) => ({ label: f.label, value: f.value, state: "recorded" as IntegrityState }));
   const rAvail = aReport["available"] === true;
   const rPending = aReport["pending"] === true;

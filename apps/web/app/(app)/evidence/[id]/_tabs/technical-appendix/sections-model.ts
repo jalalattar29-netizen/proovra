@@ -12,7 +12,7 @@
  * content-credential acronyms are intentionally excluded.
  */
 
-import { OTS_ANCHORING_COPY, readOtsAnchoringView } from "@proovra/shared";
+import { OTS_ANCHORING_COPY, otsBoundaryFor, readOtsAnchoringView } from "@proovra/shared";
 import type { AppendixRow, TechnicalMetadataInternal } from "./types";
 
 const NON_MEANINGFUL = new Set([
@@ -384,7 +384,7 @@ export function timestampStatusLabel(status: string | null | undefined): string 
 /**
  * Bitcoin anchoring → reviewer label (2026-10-13): the server's state
  * (`preservationMatrix.ots`, an OtsAnchoringView) in its one label —
- * "Bitcoin anchored", "Bitcoin anchoring pending", … A missing or unknown
+ * "Bitcoin attestation recorded", "OpenTimestamps proof pending", … A missing or unknown
  * state reads as unavailable; nothing here re-derives it.
  */
 export function anchoringStatusLabel(ots: unknown): string {
@@ -452,17 +452,38 @@ export function buildIntegrityRows(input: {
     { label: "Trusted timestamp", value: timestampStatusLabel(p.tsa.status) },
     { label: "Timestamp provider", value: p.tsa.provider },
     { label: "Timestamp serial", value: e.tsaSerialNumber, mono: true },
-    { label: ots.title, value: ots.label },
+    { label: ots.title, value: ots.secondaryStatus ? `${ots.label} — ${ots.secondaryStatus}` : ots.label },
+    // The one sentence, with its facts (height, confirmations, check time).
+    { label: `${ots.title} detail`, value: ots.state === "NOT_REQUESTED" ? null : ots.sentence },
     {
       label: otsFacts.blockHeight,
       value: ots.bitcoinBlockHeight != null ? String(ots.bitcoinBlockHeight) : null,
       mono: true,
     },
-    // A transaction id only when the executed proof derived it.
+    // A transaction id only when the executed proof derived it. It names
+    // where the proof points; it is not a verification.
     { label: otsFacts.txid, value: ots.bitcoinTxid, mono: true, copyable: true },
-    // When PROOVRA recorded anchoring — never a Bitcoin block time.
+    // When PROOVRA recorded the attestation — never a Bitcoin block time.
     { label: otsFacts.anchoredAt, value: ots.anchoredAtUtc },
     { label: otsFacts.proofSha256, value: ots.proofSha256, mono: true, copyable: true },
+    // The bounded Bitcoin main-chain check, when one is recorded.
+    { label: otsFacts.chainStatus, value: ots.chain ? ots.status : null },
+    { label: otsFacts.blockHash, value: ots.chain?.blockHash ?? null, mono: true, copyable: true },
+    { label: otsFacts.blockTime, value: ots.chain?.blockTimeUtc ?? null },
+    {
+      label: otsFacts.confirmations,
+      value:
+        ots.chain?.confirmations != null
+          ? ots.chain.minConfirmations != null
+            ? `${ots.chain.confirmations} (minimum ${ots.chain.minConfirmations})`
+            : String(ots.chain.confirmations)
+          : null,
+    },
+    { label: otsFacts.checkedAt, value: ots.chain?.checkedAtUtc ?? null },
+    { label: otsFacts.verifiedAt, value: ots.verification === "CHAIN_VERIFIED" ? (ots.chain?.verifiedAtUtc ?? null) : null },
+    { label: otsFacts.verifier, value: ots.chain?.verifier ?? null },
+    // The boundary, stated ONCE, in this technical material.
+    { label: "Bitcoin anchoring boundary", value: otsBoundaryFor(ots) },
     {
       label: "Immutable storage",
       value: mapObjectLockLabel(e.storageObjectLockMode),

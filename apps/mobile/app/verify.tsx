@@ -86,7 +86,7 @@ import { AuthBrandHeader } from "../src/ui/brand";
 import { BasicVerificationView } from "../src/ui/basic-verification-view";
 import { VERIFICATION_STATUS_LABELS, otsAnchoringCopy, type BasicVerification, type VerificationStatus } from "@proovra/shared";
 import { useOptionalLocale } from "../src/locale-context";
-import { otsBadgeLabel, otsCard } from "../src/product/ots-anchoring";
+import { otsCard, otsStatusLine } from "../src/product/ots-anchoring";
 import { CaptureLocationMap } from "../src/ui/capture-location-map";
 import { parseVerifyCaptureContext } from "../src/product/public-verify";
 
@@ -609,10 +609,10 @@ export default function VerifyScreen() {
           <Row k="Public key" value={v.materials.publicKeyPem} mono />
           <Row k="Timestamp (RFC 3161)" value={[v.tsa.status, v.tsa.provider, v.tsa.genTimeUtc ? formatUserDateTime(v.tsa.genTimeUtc) : null].filter(Boolean).join(" · ") || null} />
           <Row k="Timestamp serial" value={v.tsa.serialNumber} mono />
-          {/* Bitcoin anchoring: the server's state in the locale's words; the txid only when present. */}
-          <Row k={otsC.title} value={`${otsBadgeLabel(otsC)} — ${otsC.sentence}`} />
+          {/* Bitcoin anchoring: the server's verification in the locale's words (only CHAIN_VERIFIED is verified); the txid only when present. */}
+          <Row k={otsC.title} value={`${otsStatusLine(otsC)} — ${otsC.sentence}`} />
           {otsC.facts
-            .filter((f) => f.key === "txid" || f.key === "anchoredAt")
+            .filter((f) => f.key === "txid" || f.key === "anchoredAt" || f.key === "confirmations" || f.key === "checkedAt")
             .map((f) => (
               <Row key={f.key} k={f.label} value={f.value} mono={f.mono} />
             ))}

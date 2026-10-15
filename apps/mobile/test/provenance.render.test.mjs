@@ -102,6 +102,36 @@ test("UC-TRUST-002: a PENDING OTS proof is never 'Anchored'; an unvalidated toke
   });
   const r = await openIntegrity();
   assert.ok(!r.hasText("Anchored"), "a pending proof was shown as anchored");
-  assert.ok(r.hasText("Pending"));
+  assert.ok(r.hasText("OpenTimestamps proof pending"));
   assert.ok(r.hasText("Recorded, not validated"));
+});
+
+test("an ANCHORED provenance proof without a chain verification is an attestation recorded, never verified", async () => {
+  routes["/v1/provenance/ev-1"] = () => ({
+    body: CHAIN({
+      time: {
+        rfc3161: { applied: true, appliedAtUtc: "2026-09-20T10:02:00Z" },
+        ots: { applied: true, anchorTxId: null, appliedAtUtc: "2026-09-21T10:00:00Z", bitcoinBlockHeight: 860123, status: "ANCHORED", verification: "ATTESTATION_RECORDED", statusLabel: "server words" },
+      },
+    }),
+  });
+  const r = await openIntegrity();
+  assert.ok(r.hasText("Bitcoin attestation recorded — Not independently checked against Bitcoin"));
+  assert.ok(!r.hasText("Independently verified against the Bitcoin main chain ✓"));
+  assert.ok(!r.texts().some((t) => t.includes("✓") && t.includes("Bitcoin")), "a check mark beside an unchecked attestation");
+  assert.ok(r.hasText("860123"));
+});
+
+test("only a CHAIN_VERIFIED provenance proof reads independently verified, with its check mark", async () => {
+  routes["/v1/provenance/ev-1"] = () => ({
+    body: CHAIN({
+      time: {
+        rfc3161: { applied: true, appliedAtUtc: "2026-09-20T10:02:00Z" },
+        ots: { applied: true, anchorTxId: null, appliedAtUtc: "2026-09-21T10:00:00Z", bitcoinBlockHeight: 860123, status: "ANCHORED", verification: "CHAIN_VERIFIED", statusLabel: "server words" },
+      },
+    }),
+  });
+  const r = await openIntegrity();
+  assert.ok(r.hasText("Independently verified against the Bitcoin main chain ✓"));
+  assert.ok(!r.hasText("Not independently checked against Bitcoin"));
 });

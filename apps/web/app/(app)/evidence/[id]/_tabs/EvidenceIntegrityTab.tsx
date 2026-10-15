@@ -46,6 +46,7 @@ import {
   describeVerificationPackageStatus,
   formatValue,
   type EvidenceDetailCtx,
+  type OtsStatusPresentation,
 } from "./_lib";
 import { EvidenceProvenanceChainSection } from "./EvidenceProvenanceChainSection";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -99,6 +100,31 @@ const STATE_PRESENTATION: Record<
   failed: { label: "Failed", tone: "red" },
   "not-applicable": { label: "Not applicable", tone: "slate" },
 };
+
+/**
+ * (2026-10-15) Bitcoin anchoring in this card's states, from THE verification
+ * key — never the lifecycle state. Only CHAIN_VERIFIED (an independent check
+ * against the Bitcoin main chain) is "verified"; an attestation the proof
+ * merely names is "recorded"; FAILED and CHAIN_FAILED are "failed".
+ */
+export function otsIntegrityState(p: Pick<OtsStatusPresentation, "verification"> | null | undefined): IntegrityState {
+  switch (p?.verification) {
+    case "CHAIN_VERIFIED":
+      return "verified";
+    case "ATTESTATION_RECORDED":
+      return "recorded";
+    case "PENDING":
+    case "CHAIN_CONFIRMATIONS_PENDING":
+      return "pending";
+    case "FAILED":
+    case "CHAIN_FAILED":
+      return "failed";
+    case "NOT_REQUESTED":
+      return "not-applicable";
+    default:
+      return "unavailable";
+  }
+}
 
 type MatrixItem = {
   label: string;
@@ -293,19 +319,11 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         ? "pending"
         : "unavailable";
 
-  // (2026-10-13) Bitcoin anchoring: the server's state in the one vocabulary.
-  // Anchored is the only success (green ✓); Failed is danger; every other
-  // state is neutral.
-  const otsState: IntegrityState =
-    otsStatusPresentation?.state === "ANCHORED"
-      ? "verified"
-      : otsStatusPresentation?.state === "FAILED"
-        ? "failed"
-        : otsStatusPresentation?.state === "NOT_REQUESTED"
-          ? "not-applicable"
-          : otsStatusPresentation?.state === "PENDING"
-            ? "pending"
-            : "unavailable";
+  // (2026-10-15) Bitcoin anchoring: the server's verification key in the one
+  // vocabulary. Only an independent Bitcoin main-chain check is a success
+  // (green ✓); FAILED / CHAIN_FAILED are danger; every other key — including
+  // a recorded attestation nobody checked — is neutral.
+  const otsState: IntegrityState = otsIntegrityState(otsStatusPresentation);
   const otsTone: AppTone =
     otsStatusPresentation?.tone === "success" ? "green" : otsStatusPresentation?.tone === "danger" ? "red" : "slate";
   const otsStateLabel = otsStatusPresentation
@@ -559,7 +577,13 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             },
             {
               label: "Bitcoin anchoring",
-              value: otsStatusPresentation?.label ?? "Bitcoin anchoring unavailable",
+              // The label, and for an unchecked attestation the secondary
+              // status "Not independently checked against Bitcoin".
+              value: otsStatusPresentation
+                ? otsStatusPresentation.secondaryStatus
+                  ? `${otsStatusPresentation.label} · ${otsStatusPresentation.secondaryStatus}`
+                  : otsStatusPresentation.label
+                : "Bitcoin anchoring unavailable",
               state: otsState,
               stateLabel: otsStateLabel,
               tone: otsTone,

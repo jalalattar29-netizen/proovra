@@ -151,17 +151,19 @@ export function buildTrustRows(t: TrustState): TrustRow[] {
     },
     {
       key: "ots",
-      // The canonical OTS vocabulary (ots-anchoring.ts): Anchored is the only
-      // success, Failed the only danger; Pending / Unavailable / Not requested are neutral.
+      // The canonical OTS vocabulary (ots-anchoring.ts): the summary's
+      // `anchored` count is the ANCHORED lifecycle state — a Bitcoin attestation
+      // recorded, NOT independently checked against the Bitcoin main chain — so
+      // it is neutral, never green. Failed is the only danger.
       label: "Bitcoin anchoring",
       segments: [
-        { text: `${t.otsAnchored} anchored`, tone: "ok" },
+        { text: `${t.otsAnchored} attestation${t.otsAnchored === 1 ? "" : "s"} recorded`, tone: "neutral" },
         ...(t.otsPending ? [{ text: `${t.otsPending} pending`, tone: "neutral" as const }] : []),
         ...(t.otsFailed ? [{ text: `${t.otsFailed} failed`, tone: "danger" as const }] : []),
         ...(t.otsUnavailable ? [{ text: `${t.otsUnavailable} unavailable`, tone: "neutral" as const }] : []),
         ...(t.otsNone ? [{ text: `${t.otsNone} not requested`, tone: "neutral" as const }] : []),
       ],
-      tone: t.otsFailed > 0 ? "danger" : t.otsAnchored > 0 && t.otsPending === 0 && t.otsUnavailable === 0 ? "ok" : "neutral",
+      tone: t.otsFailed > 0 ? "danger" : "neutral",
     },
     { key: "signed", label: "Signed records", segments: [{ text: `${t.signed} of ${t.totalEvidence}`, tone: "neutral" }], tone: "neutral" },
     { key: "verify", label: "Public verification links live", segments: [{ text: `${t.verifyPublished}`, tone: "neutral" }], tone: "neutral" },

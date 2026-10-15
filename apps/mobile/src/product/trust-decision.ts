@@ -20,7 +20,7 @@ import {
   type TrustSignalState,
   type VerificationStatus,
 } from "@proovra/shared";
-import { otsStateFromAnchoringBucket, otsStateFromTrustSignal, type OtsState } from "./ots-anchoring";
+import { otsVerificationFromAnchoringBucket, otsVerificationFromTrustSignal, type OtsVerificationKey } from "./ots-anchoring";
 
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
@@ -35,8 +35,12 @@ export interface TrustSignal {
   status: VerificationStatus;
   summary: string | null;
   detail: string | null;
-  /** bitcoin_anchoring only: the canonical OTS state the signal carries (render via ots-anchoring.ts). */
-  otsState?: OtsState;
+  /**
+   * bitcoin_anchoring only: the canonical OTS verification key the signal
+   * carries (render via ots-anchoring.ts otsCardForVerification). Only
+   * CHAIN_VERIFIED is a verification; ATTESTATION_RECORDED is not.
+   */
+  otsVerification?: OtsVerificationKey;
 }
 
 export interface TrustDecision {
@@ -45,8 +49,8 @@ export interface TrustDecision {
   /** The fixed limitation, shown on its own when the summary does not carry it. */
   limitation: string;
   reviewerAction: string | null;
-  /** The canonical OTS state of the decision's anchoring bucket (render via ots-anchoring.ts). */
-  anchoring: OtsState | null;
+  /** The canonical OTS verification key of the decision's anchoring bucket (render via ots-anchoring.ts). */
+  anchoring: OtsVerificationKey | null;
   /** A file-integrity, record-signature or custody check FAILED. */
   integrityReviewRequired: boolean;
   signals: TrustSignal[];
@@ -60,7 +64,7 @@ export function projectTrustDecision(rw: unknown): TrustDecision | null {
     summary: decision.summary,
     limitation: VERIFICATION_LIMITATION,
     reviewerAction: str(decision.reviewerAction),
-    anchoring: decision.anchoringState ? otsStateFromAnchoringBucket(decision.anchoringState) : null,
+    anchoring: decision.anchoringState ? otsVerificationFromAnchoringBucket(decision.anchoringState) : null,
     integrityReviewRequired: decision.integrityReviewRequired,
     signals: decision.signals.map((s) => ({
       key: s.key,
@@ -69,7 +73,7 @@ export function projectTrustDecision(rw: unknown): TrustDecision | null {
       status: toVerificationStatus(s.state),
       summary: str(s.summary),
       detail: str(s.detail),
-      ...(s.key === "bitcoin_anchoring" ? { otsState: otsStateFromTrustSignal(s.state) } : {}),
+      ...(s.key === "bitcoin_anchoring" ? { otsVerification: otsVerificationFromTrustSignal(s.state, s.otsVerification) } : {}),
     })),
   };
 }

@@ -33,9 +33,13 @@ import {
 } from "lucide-react";
 import {
   getReviewerArtifactRoleLabel,
+  OTS_VERIFICATION_TONES,
+  parseOtsVerificationKey,
   readOtsAnchoringView,
+  type OtsChainView,
   type OtsState,
   type OtsStateTone,
+  type OtsVerificationKey,
 } from "@proovra/shared";
 import type { EvidenceOutputState } from "@proovra/shared";
 import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
@@ -310,13 +314,22 @@ export function mediaKindTone(kind: string): AppTone {
 export function pillTone(status: string) {
   const normalized = status.trim().toUpperCase();
 
+  // OpenTimestamps (2026-10-15): the OTS keys speak their own tones
+  // (OTS_VERIFICATION_TONES). Only CHAIN_VERIFIED is success; an ANCHORED
+  // proof or a recorded attestation was not checked against Bitcoin.
+  const otsKey = parseOtsVerificationKey(normalized);
+  if (otsKey) {
+    const tone = OTS_VERIFICATION_TONES[otsKey];
+    return tone === "success" ? "success" : tone === "danger" ? "danger" : otsKey === "PENDING" ? "warning" : "neutral";
+  }
+  if (normalized.includes("ANCHORED") || normalized.includes("NOT_INDEPENDENTLY")) return "neutral";
+
   if (
     normalized.includes("READY") ||
     normalized.includes("VERIFIED") ||
     normalized.includes("ACTIVE") ||
     normalized.includes("AVAILABLE") ||
-    normalized.includes("RECORDED") ||
-    normalized.includes("ANCHORED")
+    normalized.includes("RECORDED")
   ) {
     return "success";
   }
@@ -583,28 +596,41 @@ export function describePackageManifestStatus(
 /** The Bitcoin anchoring card, in the server's state and the one vocabulary. */
 export type OtsStatusPresentation = {
   state: OtsState;
-  /** The status word beside "Bitcoin anchoring" (Anchored, Pending, …). */
+  /** THE verification key; only CHAIN_VERIFIED is a positive Bitcoin claim. */
+  verification: OtsVerificationKey;
+  /** The status word beside "Bitcoin anchoring" (Attestation recorded, Pending, …). */
   status: string;
-  /** The standalone label (Bitcoin anchored, Bitcoin anchoring pending, …). */
+  /** The standalone label (Bitcoin attestation recorded, Independently verified against the Bitcoin main chain, …). */
   label: string;
+  /** "Not independently checked against Bitcoin" for an unchecked attestation, else null. */
+  secondaryStatus: string | null;
+  /** The one sentence with its facts (block height, confirmations, check time). */
+  sentence: string;
   /** The one sentence, plus the bounded failure label when there is one. */
   detail: string;
   tone: OtsStateTone;
+  /** The bounded Bitcoin main-chain check, when one is recorded. */
+  chain: OtsChainView | null;
 };
 
 /**
- * (2026-10-13) THE Bitcoin anchoring state is the server's
+ * (2026-10-15) THE Bitcoin anchoring state is the server's
  * (`preservationMatrix.ots`, an OtsAnchoringView): read, never re-derived. A
- * missing or unknown state reads as Unavailable.
+ * missing or unknown state reads as Unavailable; a CHAIN_* key is believed
+ * only with a coherent chain fact (readOtsAnchoringView).
  */
 export function describeOtsStatus(workspace: ReviewWorkspaceResponse): OtsStatusPresentation {
   const view = readOtsAnchoringView(workspace.preservationMatrix?.ots);
   return {
     state: view.state,
+    verification: view.verification,
     status: view.status,
     label: view.label,
+    secondaryStatus: view.secondaryStatus,
+    sentence: view.sentence,
     detail: view.failureLabel ? `${view.sentence} ${view.failureLabel}` : view.sentence,
     tone: view.tone,
+    chain: view.chain,
   };
 }
 

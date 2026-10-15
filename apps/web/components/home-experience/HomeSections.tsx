@@ -1251,6 +1251,37 @@ type TrustRow = {
   tone: TrustTone;
 };
 
+/**
+ * The OpenTimestamps trust row (2026-10-15).
+ *
+ * The dashboard's `ots.anchored` count is records whose stored proof NAMES a
+ * Bitcoin block — an attestation recorded, not independently checked against
+ * the Bitcoin main chain. It is therefore NOT a success: the segment is
+ * neutral and worded "attestation(s) recorded", never "anchored" in green.
+ * (This supersedes the 2026-09-04 "ANCHORED IS SUCCESS" decision: only an
+ * independent Bitcoin-chain verification may be green, and this count does
+ * not carry one.)
+ *
+ * `pending` keeps the attention tone (amber) — never danger: a proof waiting
+ * on the calendars is healthy work in flight. "Not anchored yet" is neutral
+ * for the same reason. Only `failed` is danger.
+ */
+export function otsTrustRow(trust: Pick<TrustState, "otsAnchored" | "otsPending" | "otsFailed" | "otsNone">): TrustRow {
+  const recorded = `${trust.otsAnchored} ${trust.otsAnchored === 1 ? "attestation" : "attestations"} recorded`;
+  return {
+    key: "ots",
+    label: "OpenTimestamps (OTS)",
+    value: `${recorded}${trust.otsPending ? ` · ${trust.otsPending} pending` : ""}${trust.otsFailed ? ` · ${trust.otsFailed} failed` : ""}${trust.otsNone ? ` · ${trust.otsNone} not anchored yet` : ""}`,
+    segments: [
+      { text: recorded, tone: "neutral" as const },
+      ...(trust.otsPending ? [{ text: `${trust.otsPending} pending`, tone: "warn" as const }] : []),
+      ...(trust.otsFailed ? [{ text: `${trust.otsFailed} failed`, tone: "danger" as const }] : []),
+      ...(trust.otsNone ? [{ text: `${trust.otsNone} not anchored yet`, tone: "neutral" as const }] : []),
+    ],
+    tone: trust.otsFailed > 0 ? "danger" : trust.otsPending > 0 ? "warn" : "neutral",
+  };
+}
+
 function trustRows(
   trust: TrustState,
 ): TrustRow[] {
@@ -1281,37 +1312,7 @@ function trustRows(
       ],
       tone: trust.tsaFailed > 0 ? "danger" : trust.tsaPending > 0 ? "warn" : trust.empty ? "neutral" : "ok",
     },
-    {
-      key: "ots",
-      label: "OpenTimestamps (OTS)",
-      value: `${trust.otsAnchored} anchored${trust.otsPending ? ` · ${trust.otsPending} pending` : ""}${trust.otsFailed ? ` · ${trust.otsFailed} failed` : ""}${trust.otsNone ? ` · ${trust.otsNone} not anchored yet` : ""}`,
-      /*
-        ANCHORED IS SUCCESS. (Product decision, 2026-09-04.)
-
-        This row previously painted "anchored" with the attention tone, on the
-        reasoning that an OpenTimestamps attestation is submitted to a calendar
-        and becomes provable only once Bitcoin confirms it — so "anchored" was
-        treated as work in flight rather than a finished guarantee.
-
-        That reading is superseded. The distinction it was drawing already has
-        its own segment: `pending` is the one still waiting on confirmation,
-        and it keeps the attention tone. Once a record IS anchored the work
-        succeeded, and painting the good news amber sat it in the same colour
-        as the thing an operator has to chase.
-
-        Only this segment changes. `pending` stays attention, `failed` and
-        "not anchored yet" stay error, and the TSA row is untouched.
-      */
-      segments: [
-        { text: `${trust.otsAnchored} anchored`, tone: "ok" as const },
-        ...(trust.otsPending ? [{ text: `${trust.otsPending} pending`, tone: "warn" as const }] : []),
-        ...(trust.otsFailed ? [{ text: `${trust.otsFailed} failed`, tone: "danger" as const }] : []),
-        ...(trust.otsNone
-          ? [{ text: `${trust.otsNone} not anchored yet`, tone: "danger" as const }]
-          : []),
-      ],
-      tone: trust.otsFailed > 0 ? "danger" : trust.otsPending > 0 ? "warn" : trust.empty ? "neutral" : "ok",
-    },
+    otsTrustRow(trust),
     { key: "signed", label: "Signed records", value: `${trust.signed} of ${trust.totalEvidence}`, tone: "neutral" },
     { key: "verify", label: "Public verification links live", value: `${trust.verifyPublished}`, tone: "neutral" },
   ];

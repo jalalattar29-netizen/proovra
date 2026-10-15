@@ -22,18 +22,51 @@ describe("provenance time layers (UC-TRUST-002)", () => {
   it("a pending OTS proof is 'Pending', never anchored", () => {
     const text = otsLayerText(chain({ rfc3161: {}, ots: { applied: false, status: "PENDING", anchorTxId: null } }), fmt);
     expect(text).toBe("Pending");
-    expect(text).not.toMatch(/Anchored/);
+    expect(text).not.toMatch(/Anchored|attestation recorded/i);
   });
 
-  it("ANCHORED reads ✓ Anchored with the proof's block height and PROOVRA's recording time", () => {
+  it("ANCHORED without a chain check is 'Bitcoin attestation recorded', not independently checked — no ✓", () => {
     const text = otsLayerText(
       chain({
         rfc3161: {},
-        ots: { applied: true, status: "ANCHORED", statusLabel: "Anchored", bitcoinBlockHeight: 812345, appliedAtUtc: "2026-09-01T00:00:00Z" },
+        ots: {
+          applied: true,
+          status: "ANCHORED",
+          verification: "ATTESTATION_RECORDED",
+          statusLabel: "Bitcoin attestation recorded",
+          bitcoinBlockHeight: 812345,
+          appliedAtUtc: "2026-09-01T00:00:00Z",
+        },
       }),
       fmt,
     );
-    expect(text).toBe("✓ Anchored · block 812345 · recorded by PROOVRA 2026-09-01T00:00:00Z");
+    expect(text).toBe(
+      "Bitcoin attestation recorded · Not independently checked against Bitcoin · The proof names Bitcoin block 812345; PROOVRA has not checked it against the Bitcoin main chain · attestation recorded by PROOVRA 2026-09-01T00:00:00Z",
+    );
+    expect(text).not.toMatch(/✓|Verified|Anchored/);
+  });
+
+  it("a CHAIN_VERIFIED claim without its chain fact is not believed; with it, it is the only ✓", () => {
+    const ots = { applied: true, status: "ANCHORED", verification: "CHAIN_VERIFIED", bitcoinBlockHeight: 812345, appliedAtUtc: null };
+    expect(otsLayerText(chain({ rfc3161: {}, ots }), fmt)).toMatch(/^Bitcoin attestation recorded · Not independently checked/);
+    const verified = otsLayerText(
+      chain({
+        rfc3161: {},
+        ots: {
+          ...ots,
+          chain: {
+            status: "VERIFIED",
+            blockHeight: 812345,
+            blockHash: "f".repeat(64),
+            confirmations: 9,
+            minConfirmations: 6,
+            checkedAtUtc: "2026-09-02T10:00:00Z",
+          },
+        },
+      }),
+      fmt,
+    );
+    expect(verified).toMatch(/^✓ Independently verified against the Bitcoin main chain · Merkle root matches Bitcoin block 812345; 9 confirmations at 2026-09-02/);
   });
 
   it("the removed vocabulary and unknown states read as Unavailable; not requested / failed say so", () => {

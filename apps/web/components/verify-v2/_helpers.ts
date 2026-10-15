@@ -132,20 +132,22 @@ export function timestampTone(
 }
 
 /**
- * The Bitcoin anchoring badge (2026-10-13): the state the server sent, read
- * through `readOtsAnchoringView` — never re-derived from a txid, a time or a
- * status string. ANCHORED ("Bitcoin anchored") is the only success; FAILED
- * warns; every other state is neutral. A missing or unknown state reads as
- * "Bitcoin anchoring unavailable".
+ * The Bitcoin anchoring badge (2026-10-15): the state and verification the
+ * server sent, read through `readOtsAnchoringView` — never re-derived from a
+ * txid, a time or a status string. Only CHAIN_VERIFIED ("Independently
+ * verified against the Bitcoin main chain") is a success; FAILED and
+ * CHAIN_FAILED are danger; every other key — including an ANCHORED proof
+ * nobody checked against the chain ("Bitcoin attestation recorded") — is
+ * neutral. A missing or unknown state reads as "Bitcoin anchoring unavailable".
  */
 export function otsTone(otsAnchoring: unknown): {
   label: string;
-  tone: "success" | "warning" | "neutral" | "info";
+  tone: "success" | "danger" | "neutral";
 } {
   const view = readOtsAnchoringView(otsAnchoring);
   return {
     label: view.label,
-    tone: view.tone === "success" ? "success" : view.tone === "danger" ? "warning" : "neutral",
+    tone: view.tone,
   };
 }
 

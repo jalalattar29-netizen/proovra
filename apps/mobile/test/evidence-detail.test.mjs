@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve } from "node:path";
 import ts from "typescript";
 
@@ -17,9 +17,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
  * The shared verb table, inlined — a data URL cannot resolve "@proovra/shared".
  * The REAL built module, so the words asserted are the ones the product ships.
  */
-const SHARED_COPY_URL =
-  "data:text/javascript," +
-  encodeURIComponent(readFileSync(resolve(HERE, "../../../packages/shared/dist/output-action-copy.js"), "utf8"));
+// The built shared entry (output-action copy + the OpenTimestamps reader), by file URL:
+// a data-URL module resolves an absolute file: specifier, and the dist modules resolve their own siblings.
+const SHARED_COPY_URL = pathToFileURL(resolve(HERE, "../../../packages/shared/dist/index.js")).href;
 
 const compile = (file) =>
   ts.transpileModule(readFileSync(resolve(HERE, file), "utf8"), {
@@ -49,7 +49,7 @@ const src = readFileSync(resolve(HERE, "../src/product/evidence-detail.ts"), "ut
   .replace('from "./envelope"', `from "${ENVELOPE_URL}"`)
   .replace(/from ["']\.\/domain-display["']/g, `from "${DISPLAY_URL}"`)
   .replace(/from ["']\.\/domain-enums\.generated["']/g, `from "${ENUMS_URL}"`)
-  .replace('"@proovra/shared"', JSON.stringify(SHARED_COPY_URL));
+  .replaceAll('"@proovra/shared"', JSON.stringify(SHARED_COPY_URL));
 const js = ts.transpileModule(src, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;
@@ -97,6 +97,10 @@ test("preservation binds TSA/OTS/signature/custody-chain from preservationMatrix
   assert.equal(p.tsa.provider, "FreeTSA");
   assert.equal(p.ots.state, "ANCHORED");
   assert.equal(p.ots.bitcoinTxid, "abc123");
+  // ANCHORED without a chain verification is an attestation recorded, never verified.
+  assert.equal(p.ots.verification, "ATTESTATION_RECORDED");
+  const claimed = mod.projectPreservation({ preservationMatrix: { ots: { state: "ANCHORED", verification: "CHAIN_VERIFIED", chain: null } } });
+  assert.equal(claimed.ots.verification, "ATTESTATION_RECORDED", "a CHAIN_VERIFIED claim without its chain fact");
   // A txid is kept only for an ANCHORED state.
   const pending = mod.projectPreservation({ preservationMatrix: { ots: { state: "PENDING", bitcoinTxid: "abc123", anchoredAtUtc: "2026-09-19T10:05:00Z" } } });
   assert.equal(pending.ots.bitcoinTxid, null);

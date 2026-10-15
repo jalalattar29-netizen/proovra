@@ -48,6 +48,7 @@ import {
   getCaseName,
 } from "./lib/evidence-library-helpers";
 import { buildReviewPriority } from "./lib/evidence-library-alerts";
+import { trustFilterChips, type TrustChipKey } from "./lib/evidence-trust-filter-chips";
 import { evidencePublicLinksHref } from "../../../lib/verification-links-href";
 
 const SERVER_PAGE_LIMIT = 50;
@@ -154,15 +155,6 @@ function buildEvidenceListPath(query: EvidenceListQuery) {
  * the active filter visible (so the user understands *why* the list
  * is reduced) and dismissable in one click.
  */
-type TrustChipKey = "tsaStatus" | "otsStatus" | "publicVerifyState" | "verificationStatus" | "status" | "type";
-
-function humaniseTrustFilterValue(raw: string): string {
-  return raw
-    .split(",")
-    .map((v) => v.trim().toUpperCase().replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()))
-    .join(" / ");
-}
-
 function ActiveTrustFilterChips({
   filters,
   onClear,
@@ -170,26 +162,7 @@ function ActiveTrustFilterChips({
   filters: EvidenceFilterState;
   onClear: (key: TrustChipKey) => void;
 }) {
-  const chips: Array<{ key: TrustChipKey; label: string }> = [];
-  if (filters.tsaStatus && filters.tsaStatus !== "all") {
-    chips.push({ key: "tsaStatus", label: `Trust timestamp: ${humaniseTrustFilterValue(filters.tsaStatus)}` });
-  }
-  if (filters.otsStatus && filters.otsStatus !== "all") {
-    chips.push({ key: "otsStatus", label: `Bitcoin anchoring: ${humaniseTrustFilterValue(filters.otsStatus)}` });
-  }
-  if (filters.publicVerifyState && filters.publicVerifyState !== "all") {
-    chips.push({ key: "publicVerifyState", label: `Public verification: ${humaniseTrustFilterValue(filters.publicVerifyState)}` });
-  }
-  // Phase HOME-CLOSURE — render the "needs integrity review" filter
-  // with a friendlier label than its raw enum union ("REVIEW_REQUIRED,
-  // FAILED"). This is the new filter the Home Review integrity
-  // priority deep-links into.
-  if (filters.verificationStatus && filters.verificationStatus !== "all") {
-    const vsLabel = /REVIEW_REQUIRED.*FAILED|FAILED.*REVIEW_REQUIRED/i.test(filters.verificationStatus)
-      ? "Needs integrity review"
-      : humaniseTrustFilterValue(filters.verificationStatus);
-    chips.push({ key: "verificationStatus", label: vsLabel });
-  }
+  const chips = trustFilterChips(filters);
   if (chips.length === 0) return null;
   return (
     // Part 3 — this strip used to describe itself with inline style objects

@@ -23,7 +23,9 @@ import {
   isAccessCustodyEventType,
   maskPublicEmail,
   maskPublicEmailsInText,
+  OTS_ANCHORING_COPY,
   OTS_STATE_WORDS,
+  otsBoundaryFor,
   parseOtsState,
   readOtsAnchoringView,
   storedBytesCheckStatusOf,
@@ -132,6 +134,7 @@ import {
   VerificationSummaryCard,
   matrixRequiresIntegrityReview,
   resolveVerifyMatrix,
+  VERIFY_MATRIX_INTRO,
 } from "./VerifyMatrixPanels";
 
 // Re-export the mediaIntelligenceAdvisory shape inline so test contracts can
@@ -434,6 +437,9 @@ function buildVerificationPackageIntegrity(params: {
   };
 }
 
+/** The OpenTimestamps fact labels, from the one shared copy. */
+const OTS_VERIFY_FACTS = OTS_ANCHORING_COPY.en.facts;
+
 function CopyMiniButton({
   value,
   successMessage,
@@ -476,13 +482,19 @@ function Badge({
   muted = false,
 }: {
   label: string;
-  tone?: "success" | "neutral" | "info" | "warning";
+  tone?: "success" | "neutral" | "info" | "warning" | "danger";
   muted?: boolean;
 }) {
   const effectiveTone = muted && tone === "success" ? "info" : tone;
 
   const palette =
-    effectiveTone === "success"
+    effectiveTone === "danger"
+      ? {
+          bg: VERIFY_BRAND.dangerSoft,
+          color: VERIFY_BRAND.danger,
+          border: "rgba(181,71,56,0.30)",
+        }
+      : effectiveTone === "success"
       ? {
           bg: VERIFY_BRAND.successSoft,
           color: VERIFY_BRAND.success,
@@ -508,6 +520,7 @@ function Badge({
 
   return (
     <span
+      data-badge-tone={effectiveTone}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -3853,11 +3866,18 @@ tone={
         },
         {
           label: "Bitcoin anchoring",
+          // Only CHAIN_VERIFIED is the green ✓; FAILED / CHAIN_FAILED are
+          // danger; an unchecked attestation says it was not checked.
           content: (
-            <Badge
-              label={otsBadge.tone === "success" ? `✓ ${otsBadge.label}` : otsBadge.label}
-              tone={otsBadge.tone}
-            />
+            <span data-verify-ots-badge={otsView.verification} style={{ display: "grid", gap: 6 }}>
+              <Badge
+                label={otsBadge.tone === "success" ? `✓ ${otsBadge.label}` : otsBadge.label}
+                tone={otsBadge.tone}
+              />
+              {otsView.secondaryStatus ? (
+                <span style={{ ...VERIFY_TYPO.small, fontSize: 12 }}>{otsView.secondaryStatus}</span>
+              ) : null}
+            </span>
           ),
           show: true,
         },
@@ -3933,16 +3953,39 @@ tone={
           show: otsProofPresent !== null,
         },
         // The proof's own facts, as the server's view states them. The
-        // recorded time is when PROOVRA recorded anchoring — never a block time.
+        // recorded time is when PROOVRA recorded the attestation — never a
+        // block time.
         {
           label: "Bitcoin Block Height",
           content: otsView.bitcoinBlockHeight != null ? String(otsView.bitcoinBlockHeight) : null,
           show: otsView.bitcoinBlockHeight != null,
         },
         {
-          label: "Anchoring Recorded by PROOVRA (UTC)",
+          label: OTS_VERIFY_FACTS.anchoredAt,
           content: otsView.anchoredAtUtc ? formatDateTime(otsView.anchoredAtUtc) : null,
           show: Boolean(otsView.anchoredAtUtc),
+        },
+        // The Bitcoin main-chain check, when one is recorded (block hash,
+        // confirmations, when PROOVRA checked). Absent, nothing is claimed.
+        {
+          label: OTS_VERIFY_FACTS.blockHash,
+          content: otsView.chain?.blockHash ? truncateHash(otsView.chain.blockHash) : null,
+          show: Boolean(otsView.chain?.blockHash),
+        },
+        {
+          label: OTS_VERIFY_FACTS.confirmations,
+          content:
+            otsView.chain?.confirmations != null
+              ? otsView.chain.minConfirmations != null
+                ? `${otsView.chain.confirmations} (minimum ${otsView.chain.minConfirmations})`
+                : String(otsView.chain.confirmations)
+              : null,
+          show: otsView.chain?.confirmations != null,
+        },
+        {
+          label: OTS_VERIFY_FACTS.checkedAt,
+          content: otsView.chain?.checkedAtUtc ? formatDateTime(otsView.chain.checkedAtUtc) : null,
+          show: Boolean(otsView.chain?.checkedAtUtc),
         },
         {
           label: "OTS Proof SHA-256",
@@ -3983,9 +4026,12 @@ tone={
       otsView.bitcoinBlockHeight,
       otsView.anchoredAtUtc,
       otsView.proofSha256,
+      otsView.chain,
       otsHashMatches,
       otsBadge.label,
       otsBadge.tone,
+      otsView.verification,
+      otsView.secondaryStatus,
       storagePresentation,
       verdictRequiresReview,
       tsaStatus,
@@ -4052,7 +4098,10 @@ tone={
           "OTS Calendar",
           "OTS Proof",
           "Bitcoin Block Height",
-          "Anchoring Recorded by PROOVRA (UTC)",
+          OTS_VERIFY_FACTS.anchoredAt,
+          OTS_VERIFY_FACTS.blockHash,
+          OTS_VERIFY_FACTS.confirmations,
+          OTS_VERIFY_FACTS.checkedAt,
           "OTS Proof SHA-256",
           "OTS Hash Check",
         ].includes(card.label)
@@ -4340,11 +4389,8 @@ with this evidence record.
       >
         What was checked, signal by signal
       </div>
-      <div style={{ ...VERIFY_TYPO.small, maxWidth: 860 }}>
-        Each signal is stated in exactly one status: Verified, Failed, Not checked, Not applicable
-        or Unavailable. A signal marked “Not checked” was not independently verified. A failed or
-        unchecked timestamp/anchoring layer does not by itself invalidate core hashes, signatures,
-        custody records, or preserved originals.
+      <div data-testid="verify-matrix-intro" style={{ ...VERIFY_TYPO.small, maxWidth: 860 }}>
+        {VERIFY_MATRIX_INTRO}
       </div>
     </div>
 
@@ -4946,9 +4992,11 @@ Reviewer Action
       {liveAnchoringAdvanced ? (
         <div
           style={{
-            border: "1px solid rgba(33,117,93,0.28)",
-            borderLeft: `5px solid ${VERIFY_BRAND.success}`,
-            background: VERIFY_BRAND.successSoft,
+            // Informational: an advanced anchoring state is not by itself a
+            // verification, so it is green only for CHAIN_VERIFIED.
+            border: `1px solid ${VERIFY_BRAND.line}`,
+            borderLeft: `5px solid ${otsView.tone === "success" ? VERIFY_BRAND.success : VERIFY_BRAND.accent}`,
+            background: otsView.tone === "success" ? VERIFY_BRAND.successSoft : "rgba(255,255,255,0.44)",
             borderRadius: 18,
             padding: 16,
             ...VERIFY_TYPO.small,
@@ -4960,12 +5008,32 @@ Reviewer Action
         </div>
       ) : null}
 
-      {otsView.state === "PENDING" ? (
+      {otsView.state !== "NOT_REQUESTED" ? (
+        // The one sentence for the server's verification key. Pending is
+        // amber (never danger); only CHAIN_VERIFIED is green; FAILED /
+        // CHAIN_FAILED are danger; an unchecked attestation is neutral.
         <div
+          data-verify-ots-sentence={otsView.verification}
+          data-tone={otsView.tone}
           style={{
-            border: "1px solid rgba(138,106,47,0.28)",
-            borderLeft: `5px solid ${VERIFY_BRAND.warning}`,
-            background: VERIFY_BRAND.warningSoft,
+            border: `1px solid ${VERIFY_BRAND.line}`,
+            borderLeft: `5px solid ${
+              otsView.tone === "danger"
+                ? VERIFY_BRAND.danger
+                : otsView.tone === "success"
+                  ? VERIFY_BRAND.success
+                  : otsView.state === "PENDING"
+                    ? VERIFY_BRAND.warning
+                    : VERIFY_BRAND.accent
+            }`,
+            background:
+              otsView.tone === "danger"
+                ? VERIFY_BRAND.dangerSoft
+                : otsView.tone === "success"
+                  ? VERIFY_BRAND.successSoft
+                  : otsView.state === "PENDING"
+                    ? VERIFY_BRAND.warningSoft
+                    : "rgba(255,255,255,0.44)",
             borderRadius: 18,
             padding: 16,
             ...VERIFY_TYPO.small,
@@ -4974,6 +5042,14 @@ Reviewer Action
           }}
         >
           {otsView.sentence}
+          {otsView.failureLabel ? ` ${otsView.failureLabel}` : null}
+        </div>
+      ) : null}
+
+      {otsBoundaryFor(otsView) ? (
+        // The boundary of what the anchoring shows, stated once here.
+        <div data-verify-ots-boundary style={{ ...VERIFY_TYPO.small, fontSize: 12.5, color: VERIFY_BRAND.ink }}>
+          {otsBoundaryFor(otsView)}
         </div>
       ) : null}
 
@@ -4984,9 +5060,12 @@ Reviewer Action
           gap: 12,
         }}
       >
-        <SummaryField label="Bitcoin anchoring" value={otsView.status} />
         <SummaryField
-          label="Anchoring Recorded by PROOVRA (UTC)"
+          label="Bitcoin anchoring"
+          value={otsView.secondaryStatus ? `${otsView.label} — ${otsView.secondaryStatus}` : otsView.label}
+        />
+        <SummaryField
+          label={OTS_VERIFY_FACTS.anchoredAt}
           value={otsView.anchoredAtUtc ? formatDateTime(otsView.anchoredAtUtc) : "Not recorded"}
         />
         {otsView.bitcoinBlockHeight != null ? (
@@ -4994,6 +5073,22 @@ Reviewer Action
         ) : null}
         {otsView.bitcoinTxid ? (
           <SummaryField label="Bitcoin Transaction" value={otsView.bitcoinTxid} />
+        ) : null}
+        {otsView.chain?.blockHash ? (
+          <SummaryField label={OTS_VERIFY_FACTS.blockHash} value={otsView.chain.blockHash} />
+        ) : null}
+        {otsView.chain?.confirmations != null ? (
+          <SummaryField
+            label={OTS_VERIFY_FACTS.confirmations}
+            value={
+              otsView.chain.minConfirmations != null
+                ? `${otsView.chain.confirmations} (minimum ${otsView.chain.minConfirmations})`
+                : String(otsView.chain.confirmations)
+            }
+          />
+        ) : null}
+        {otsView.chain?.checkedAtUtc ? (
+          <SummaryField label={OTS_VERIFY_FACTS.checkedAt} value={formatDateTime(otsView.chain.checkedAtUtc)} />
         ) : null}
         <SummaryField
           label="Last Anchoring Update"
@@ -5157,16 +5252,20 @@ Reviewer Action
                           color: VERIFY_BRAND.ink,
                         }}
                       >
-                        Recorded integrity is verified. Bitcoin anchoring is pending: the OpenTimestamps proof is awaiting Bitcoin anchoring. Recheck later if a Bitcoin anchor matters to the review.
+                        Recorded integrity is verified. {otsView.label}: {otsView.sentence} Recheck later if independent Bitcoin verification matters to the review.
                       </div>
                     </div>
                   ) : null}
 
                   {anchorTransactionId ? (
+                    // The transaction the proof names. A txid is where the
+                    // proof points, not a verification: the card is green
+                    // only when the server's view is CHAIN_VERIFIED.
                     <div
+                      data-verify-ots-txid-card={otsView.verification}
                       style={{
                         ...glassCardStyle,
-                        borderLeft: `5px solid ${VERIFY_BRAND.success}`,
+                        borderLeft: `5px solid ${otsView.tone === "success" ? VERIFY_BRAND.success : otsView.tone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.accent}`,
                         padding: 18,
                         display: "grid",
                         gap: 8,
@@ -5176,7 +5275,7 @@ Reviewer Action
                         style={{
                           ...VERIFY_TYPO.kicker,
                           fontSize: 10.5,
-                          color: VERIFY_BRAND.success,
+                          color: otsView.tone === "success" ? VERIFY_BRAND.success : otsView.tone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.accent,
                         }}
                       >
                         Bitcoin Anchoring
@@ -5189,8 +5288,13 @@ Reviewer Action
                             color: VERIFY_BRAND.ink,
                           }}
                         >
-                          {otsView.label}
+                          {otsView.tone === "success" ? `✓ ${otsView.label}` : otsView.label}
                         </div>
+                        {otsView.secondaryStatus ? (
+                          <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.ink }}>
+                            {otsView.secondaryStatus}
+                          </div>
+                        ) : null}
                         <div
                           style={{
                             ...VERIFY_TYPO.small,

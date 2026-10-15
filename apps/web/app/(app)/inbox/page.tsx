@@ -397,7 +397,7 @@ const CATEGORY_LABELS: Record<InboxCategory, string> = {
   // Phase IA-enterprise — operational failures.
   report_failure: "Report failure",
   verification_package_failure: "Package failure",
-  ots_failure: "OTS failure",
+  ots_failure: "Bitcoin anchoring failure",
   // Phase IA-reliability — intake actions.
   intake_submission_pending_review: "Intake review",
   intake_required_items_missing: "Intake incomplete",
@@ -518,7 +518,7 @@ const TRUNCATION_LABELS: Record<keyof InboxTruncated, string> = {
   security_event_high: "Security alerts",
   report_failure: "Report failures",
   verification_package_failure: "Package failures",
-  ots_failure: "OTS failures",
+  ots_failure: "Bitcoin anchoring failures",
   intake_submission_pending_review: "Intake awaiting review",
   intake_required_items_missing: "Intake incomplete",
   intake_link_expiring: "Intake link expiring",

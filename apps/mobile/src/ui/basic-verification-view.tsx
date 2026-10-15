@@ -22,7 +22,7 @@ import {
 } from "@proovra/shared";
 
 import { useOptionalLocale } from "../locale-context";
-import { otsBadgeLabel, otsCard } from "../product/ots-anchoring";
+import { isOtsSummaryFact, otsBadgeLabel, otsCard } from "../product/ots-anchoring";
 
 import type { VerifyMatrixView, VerifyWebTone } from "../product/public-verify";
 import { ProovraBadge, ProovraCard, ProovraSection, ProovraText } from "./index";
@@ -109,16 +109,30 @@ function Row({
 }
 
 /**
- * THE BITCOIN ANCHORING CARD (2026-10-13) — the state the server resolved
- * (`anchoring.otsState`), in the active locale's words. A reply without it
- * reads as Unavailable; nothing here re-derives the state.
+ * THE BITCOIN ANCHORING CARD — the state and verification the server resolved
+ * (`anchoring.otsState` + `anchoring.otsVerification`), in the active locale's
+ * words. A reply without otsState reads as Unavailable; an ANCHORED proof
+ * without a chain verification reads "Bitcoin attestation recorded" / "Not
+ * independently checked against Bitcoin". Only CHAIN_VERIFIED is green.
  */
 function AnchoringRow({ anchoring }: { anchoring: BasicVerification["anchoring"] }) {
   const locale = useOptionalLocale();
-  const card = otsCard({ ...anchoring, state: (anchoring as { otsState?: unknown }).otsState }, locale, fmt);
-  const shown = card.facts.filter((f) => f.key === "blockHeight" || f.key === "txid" || f.key === "anchoredAt");
+  const a = anchoring as Partial<BasicVerification["anchoring"]> & { otsState?: unknown; otsVerification?: unknown };
+  const card = otsCard({ ...a, state: a.otsState, verification: a.otsVerification }, locale, fmt);
+  const shown = card.facts.filter(isOtsSummaryFact);
   return (
-    <Row label={card.title} state={anchoring.state} detail={card.sentence} badge={otsBadgeLabel(card)} tone={card.badgeTone} testID={`basic-verification-ots-${card.state}`}>
+    <Row
+      label={card.title}
+      state={anchoring.state}
+      detail={card.sentence}
+      badge={otsBadgeLabel(card)}
+      tone={card.badgeTone}
+      testID={`basic-verification-ots-${card.verification}`}
+    >
+      <ProovraText variant="label" weight="semibold" testID="basic-verification-ots-label">{card.check ? `${card.label} ✓` : card.label}</ProovraText>
+      {card.secondaryStatus ? (
+        <ProovraText variant="label" testID="basic-verification-ots-secondary">{card.secondaryStatus}</ProovraText>
+      ) : null}
       {shown.map((f) => (
         <ProovraText key={f.key} variant="label" mono={f.mono} selectable>{`${f.label}: ${f.value}`}</ProovraText>
       ))}

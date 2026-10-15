@@ -230,20 +230,23 @@ test("integrity rows: canonical digest, fingerprint, signature, anchoring status
   assert.equal(byLabel["Recorded integrity"], "Recorded integrity verified");
   assert.equal(byLabel["Digital signature"], "Digital signature recorded");
   assert.equal(byLabel["Trusted timestamp"], "Trusted timestamp recorded");
-  assert.equal(byLabel["Bitcoin anchoring"], "Bitcoin anchoring pending");
+  assert.equal(byLabel["Bitcoin anchoring"], "OpenTimestamps proof pending");
+  assert.equal(byLabel["Bitcoin anchoring detail"], "Submitted to OpenTimestamps calendars; no Bitcoin attestation yet.");
+  // Pending: no boundary (nothing names a block yet).
+  assert.equal(byLabel["Bitcoin anchoring boundary"], undefined);
   assert.equal(byLabel["Proof SHA-256"], "a".repeat(64));
   // Pending: no block height, transaction or anchoring time is stated.
   assert.equal(byLabel["Bitcoin block height"], undefined);
   assert.equal(byLabel["Bitcoin transaction"], undefined);
-  assert.equal(byLabel["Anchoring recorded by PROOVRA (UTC)"], undefined);
+  assert.equal(byLabel["Attestation recorded by PROOVRA (UTC)"], undefined);
   assert.equal(byLabel["Immutable storage"], "Compliance retention lock");
 });
 
-test("anchoring label is the server's Bitcoin anchoring state (2026-10-13); timestamp labels map correctly", () => {
+test("anchoring label is the server's Bitcoin anchoring verification (2026-10-15); timestamp labels map correctly", () => {
   const TXID = "e".repeat(64);
-  // ANCHORED as the server sent it: "Bitcoin anchored", with the proof's facts.
-  assert.equal(anchoringStatusLabel({ state: "ANCHORED", bitcoinTxid: TXID }), "Bitcoin anchored");
-  assert.equal(anchoringStatusLabel({ state: "PENDING" }), "Bitcoin anchoring pending");
+  // ANCHORED as the server sent it, with no chain check: an attestation recorded.
+  assert.equal(anchoringStatusLabel({ state: "ANCHORED", bitcoinTxid: TXID }), "Bitcoin attestation recorded");
+  assert.equal(anchoringStatusLabel({ state: "PENDING" }), "OpenTimestamps proof pending");
   assert.equal(anchoringStatusLabel({ state: "FAILED" }), "Bitcoin anchoring failed");
   assert.equal(anchoringStatusLabel({ state: "NOT_REQUESTED" }), "Not requested");
   // The client never re-derives a state from a status string, txid or time:
@@ -279,14 +282,80 @@ test("anchoring label is the server's Bitcoin anchoring state (2026-10-13); time
     },
   });
   const byLabel = Object.fromEntries(rows.map((r) => [r.label, r.value]));
-  assert.equal(byLabel["Bitcoin anchoring"], "Bitcoin anchored");
+  assert.equal(byLabel["Bitcoin anchoring"], "Bitcoin attestation recorded — Not independently checked against Bitcoin");
+  assert.equal(
+    byLabel["Bitcoin anchoring detail"],
+    "The proof names Bitcoin block 812345; PROOVRA has not checked it against the Bitcoin main chain.",
+  );
   assert.equal(byLabel["Bitcoin block height"], "812345");
   assert.equal(byLabel["Bitcoin transaction"], TXID);
-  assert.equal(byLabel["Anchoring recorded by PROOVRA (UTC)"], "2026-06-02T00:00:00.000Z");
-  assert.doesNotMatch(JSON.stringify(rows), /Attestation recorded|Verified|chain/i);
+  assert.equal(byLabel["Attestation recorded by PROOVRA (UTC)"], "2026-06-02T00:00:00.000Z");
+  // The boundary is stated once, for an unchecked attestation.
+  assert.match(byLabel["Bitcoin anchoring boundary"] ?? "", /not independently checked against the Bitcoin main chain/);
+  // No chain check is recorded: no chain facts, and nothing says verified.
+  assert.equal(byLabel["Bitcoin main-chain check"], undefined);
+  assert.equal(byLabel["Confirmations"], undefined);
+  assert.doesNotMatch(JSON.stringify(rows), /Independently verified|✓/);
 
   assert.equal(timestampStatusLabel("STAMPED"), "Trusted timestamp recorded");
   assert.equal(timestampStatusLabel("PENDING"), "Trusted timestamp pending");
+});
+
+test("integrity rows: CHAIN_VERIFIED states the chain facts and the chain-verified boundary; CHAIN_FAILED says failed", () => {
+  const base = {
+    recordedIntegrityVerifiedAtUtc: null,
+    signature: { recorded: false, valid: false, keyId: null, keyVersion: null },
+    tsa: { status: null, provider: null, timestampedDigestLabel: "" },
+    storage: {},
+  };
+  const evidence = {
+    evidenceRef: null,
+    fileSha256: null,
+    fingerprintHash: null,
+    tsaSerialNumber: null,
+    storageObjectLockMode: null,
+    storageObjectLockRetainUntilUtc: null,
+  };
+  const chain = {
+    status: "VERIFIED",
+    failureCode: null,
+    blockHeight: 812345,
+    blockHash: "f".repeat(64),
+    blockTimeUtc: "2026-06-01T23:50:00Z",
+    confirmations: 12,
+    minConfirmations: 6,
+    checkedAtUtc: "2026-06-03T08:00:00Z",
+    verifiedAtUtc: "2026-06-03T08:00:00Z",
+    verifier: "bitcoin-core",
+  };
+  const verified = Object.fromEntries(
+    buildIntegrityRows({
+      multipart: false,
+      preservation: { ...base, ots: { state: "ANCHORED", verification: "CHAIN_VERIFIED", bitcoinBlockHeight: 812345, chain } },
+      evidence,
+    }).map((r) => [r.label, r.value]),
+  );
+  assert.equal(verified["Bitcoin anchoring"], "Independently verified against the Bitcoin main chain");
+  assert.match(verified["Bitcoin anchoring detail"] ?? "", /^Merkle root matches Bitcoin block 812345; 12 confirmations at 2026-06-03/);
+  assert.equal(verified["Bitcoin main-chain check"], "Independently verified");
+  assert.equal(verified["Bitcoin block hash"], "f".repeat(64));
+  assert.equal(verified["Confirmations"], "12 (minimum 6)");
+  assert.equal(verified["Checked (UTC)"], "2026-06-03T08:00:00Z");
+  assert.match(verified["Bitcoin anchoring boundary"] ?? "", /merkle root of the named block in the active Bitcoin main chain/);
+
+  const failed = Object.fromEntries(
+    buildIntegrityRows({
+      multipart: false,
+      preservation: {
+        ...base,
+        ots: { state: "ANCHORED", verification: "CHAIN_FAILED", chain: { ...chain, status: "FAILED", failureCode: "ROOT_MISMATCH", verifiedAtUtc: null } },
+      },
+      evidence,
+    }).map((r) => [r.label, r.value]),
+  );
+  assert.equal(failed["Bitcoin anchoring"], "Bitcoin verification failed");
+  assert.equal(failed["Verified (UTC)"], undefined);
+  assert.equal(failed["Bitcoin anchoring boundary"], undefined);
 });
 
 // ---------------------------------------------------------------------------

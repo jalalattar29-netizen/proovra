@@ -290,10 +290,21 @@ export default function BasicVerificationView({
           : "No trusted timestamp was issued for this record.";
   // (2026-10-13) Bitcoin anchoring: the server's state (`otsState`), read —
   // never derived — and stated in the one vocabulary with one sentence.
-  const ots = readOtsAnchoringView({ ...data.anchoring, state: data.anchoring.otsState });
+  // The verification key is the server's (`otsVerification`); a CHAIN_* key is
+  // believed only with its coherent chain fact. Only CHAIN_VERIFIED is green.
+  const ots = readOtsAnchoringView({
+    ...data.anchoring,
+    state: data.anchoring.otsState,
+    verification: data.anchoring.otsVerification,
+  });
   const otsFacts = OTS_ANCHORING_COPY.en.facts;
   const otsDetail = (
     <>
+      {ots.secondaryStatus ? (
+        <span data-verify-ots-secondary style={{ display: "block", fontWeight: 600 }}>
+          {ots.secondaryStatus}
+        </span>
+      ) : null}
       {ots.sentence}
       {ots.failureLabel ? <> {ots.failureLabel}</> : null}
       {ots.state === "ANCHORED" && ots.bitcoinBlockHeight != null ? (
@@ -309,6 +320,22 @@ export default function BasicVerificationView({
       {ots.anchoredAtUtc ? (
         <span data-verify-ots-fact="anchored-at" style={{ display: "block" }}>
           {otsFacts.anchoredAt}: {fmt(ots.anchoredAtUtc)}
+        </span>
+      ) : null}
+      {ots.chain?.blockHash ? (
+        <span data-verify-ots-fact="block-hash" style={{ display: "block" }}>
+          {otsFacts.blockHash}: <code>{ots.chain.blockHash}</code>
+        </span>
+      ) : null}
+      {ots.chain?.confirmations != null ? (
+        <span data-verify-ots-fact="confirmations" style={{ display: "block" }}>
+          {otsFacts.confirmations}: {ots.chain.confirmations}
+          {ots.chain.minConfirmations != null ? ` (minimum ${ots.chain.minConfirmations})` : ""}
+        </span>
+      ) : null}
+      {ots.chain?.checkedAtUtc ? (
+        <span data-verify-ots-fact="checked-at" style={{ display: "block" }}>
+          {otsFacts.checkedAt}: {fmt(ots.chain.checkedAtUtc)}
         </span>
       ) : null}
     </>
@@ -348,7 +375,7 @@ export default function BasicVerificationView({
           </div>
         ) : null}
         <Row label="Trusted timestamp (RFC 3161)" state={data.timestamp.state} detail={tsaDetail} />
-        <div data-verify-ots-state={ots.state}>
+        <div data-verify-ots-state={ots.state} data-verify-ots-verification={ots.verification} data-verify-ots-tone={ots.tone}>
           <Row
             label={ots.title}
             state={data.anchoring.state}

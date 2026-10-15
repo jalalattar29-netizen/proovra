@@ -12,7 +12,7 @@
  * web's rule (`rows()`), so a card says "not recorded" once instead of eight
  * times.
  */
-import { otsBadgeLabel, otsCard } from "./ots-anchoring";
+import { otsCard, otsStatusLine } from "./ots-anchoring";
 
 type Obj = Record<string, unknown>;
 const o = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
@@ -219,7 +219,7 @@ export function buildTechnicalAppendix(technicalPayload: unknown, rw: unknown, l
   // Section 9 — Security & Integrity (buildIntegrityRows).
   const sig = o(pm["signature"]);
   const tsa = o(pm["tsa"]);
-  // THE BITCOIN ANCHORING CARD (2026-10-13): the server's OtsAnchoringView, in the locale's words.
+  // THE BITCOIN ANCHORING CARD: the server's OtsAnchoringView, drawn from its verification key (only CHAIN_VERIFIED is verified).
   const ots = otsCard(pm["ots"], locale);
   const keyId = s(sig["keyId"]);
   const keyVersion = n(sig["keyVersion"]);
@@ -236,7 +236,7 @@ export function buildTechnicalAppendix(technicalPayload: unknown, rw: unknown, l
     { label: "Trusted timestamp", value: timestampStatusLabel(s(tsa["status"])) },
     { label: "Timestamp provider", value: s(tsa["provider"]) },
     { label: "Timestamp serial", value: s(ev["tsaSerialNumber"]), mono: true },
-    { label: ots.title, value: otsBadgeLabel(ots) },
+    { label: ots.title, value: otsStatusLine(ots) },
     { label: ots.label, value: [ots.sentence, ots.failureLabel, ots.boundary].filter(Boolean).join(" ") },
     // Only the facts the proof yields; the txid only when the proof path derived it.
     ...ots.facts.map((f) => ({ label: f.label, value: f.value, mono: f.mono, copyable: f.mono })),

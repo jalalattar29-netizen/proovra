@@ -34,10 +34,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Link2, ShieldCheck } from "lucide-react";
 
 import {
-  OTS_STATE_WORDS,
   TSA_PROOF_STATUS_LABELS,
-  parseOtsState,
   parseTsaProofStatus,
+  readOtsAnchoringView,
   type CaptureManifestFacts,
   type ProvenanceChain,
 } from "@proovra/shared";
@@ -51,8 +50,18 @@ import {
 type ProvenanceChainView = ProvenanceChain & {
   time: {
     rfc3161: ProvenanceChain["time"]["rfc3161"] & { status?: string };
-    /** `status` is THE OtsState the server resolved; `statusLabel` its word. */
-    ots: ProvenanceChain["time"]["ots"] & { status?: string; statusLabel?: string };
+    /**
+     * `status` is THE OtsState the server resolved, `verification` its
+     * verification key and `statusLabel` its label. `chain` (the bounded
+     * Bitcoin main-chain check) is read when a server sends it; without it a
+     * CHAIN_* key is not believed.
+     */
+    ots: ProvenanceChain["time"]["ots"] & {
+      status?: string;
+      verification?: string;
+      statusLabel?: string;
+      chain?: unknown;
+    };
   };
   trustEventChain?: { valid: boolean | null; checked: number; unverifiableLegacy: number };
   captureManifestFacts?: CaptureManifestFacts | null;
@@ -69,18 +78,28 @@ export function rfc3161LayerText(chain: ProvenanceChainView, fmt: (iso: string) 
 }
 
 /**
- * Bitcoin anchoring (2026-10-13): the server's OtsState in its one word — a
- * missing or unknown state reads as Unavailable. Only ANCHORED adds the
- * proof's block height and when PROOVRA recorded anchoring (never a block time).
+ * Bitcoin anchoring (2026-10-15): the server's state and verification key,
+ * read through readOtsAnchoringView — a missing or unknown state reads as
+ * Unavailable, and a CHAIN_* key is believed only with a coherent chain fact.
+ * A state other than ANCHORED is its one word. ANCHORED states its label, the
+ * secondary status of an unchecked attestation ("Not independently checked
+ * against Bitcoin"), its one sentence (with the block height) and when PROOVRA
+ * recorded the attestation (never a block time). Only CHAIN_VERIFIED carries ✓.
  */
 export function otsLayerText(chain: ProvenanceChainView, fmt?: (iso: string) => string): string {
   const ots = chain.time.ots;
-  const state = parseOtsState(ots.status);
-  const word = OTS_STATE_WORDS[state];
-  if (state !== "ANCHORED") return word;
-  const parts = [`✓ ${word}`];
-  if (ots.bitcoinBlockHeight != null) parts.push(`block ${ots.bitcoinBlockHeight}`);
-  if (ots.appliedAtUtc && fmt) parts.push(`recorded by PROOVRA ${fmt(ots.appliedAtUtc)}`);
+  const view = readOtsAnchoringView({
+    state: ots.status,
+    verification: ots.verification,
+    bitcoinBlockHeight: ots.bitcoinBlockHeight,
+    anchoredAtUtc: ots.appliedAtUtc,
+    chain: ots.chain,
+  });
+  if (view.state !== "ANCHORED") return view.status;
+  const parts = [view.tone === "success" ? `✓ ${view.label}` : view.label];
+  if (view.secondaryStatus) parts.push(view.secondaryStatus);
+  parts.push(view.sentence.replace(/\.$/, ""));
+  if (view.anchoredAtUtc && fmt) parts.push(`attestation recorded by PROOVRA ${fmt(view.anchoredAtUtc)}`);
   return parts.join(" · ");
 }
 

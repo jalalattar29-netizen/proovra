@@ -896,7 +896,7 @@ export default function AdminOverviewPage() {
                 emphasis="critical"
               />
               <AdminStat
-                label="OTS failures"
+                label="Bitcoin anchoring failures"
                 figure={evidenceFigure(
                   ov.evidenceOps?.preservation?.otsAnchoringFailures,
                   "OTS_FAILED",

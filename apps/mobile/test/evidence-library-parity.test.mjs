@@ -7,14 +7,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve } from "node:path";
 import ts from "typescript";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SHARED_STATUS_URL =
-  "data:text/javascript," +
-  encodeURIComponent(readFileSync(resolve(HERE, "../../../packages/shared/dist/evidence-record-status.js"), "utf8"));
+// The built shared entry (record-status labels + the OpenTimestamps copy), by file URL:
+// a data-URL module resolves an absolute file: specifier, and the dist modules resolve their own siblings.
+const SHARED_STATUS_URL = pathToFileURL(resolve(HERE, "../../../packages/shared/dist/index.js")).href;
 const src = readFileSync(resolve(HERE, "../src/product/evidence-library.ts"), "utf8")
   .replace(/^import type .*$/gm, "")
   .replace('"@proovra/shared"', JSON.stringify(SHARED_STATUS_URL));

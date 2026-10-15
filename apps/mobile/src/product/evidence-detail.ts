@@ -12,6 +12,7 @@
  * NOT projected (they need a teamId / enterprise surface). `reviewerAudit` is
  * sent on every review-workspace reply and IS projected (projectReviewerAudit).
  */
+import { readOtsAnchoringView, type OtsVerificationKey } from "@proovra/shared";
 
 export interface CustodyEvent {
   sequence: number;
@@ -29,9 +30,18 @@ export interface PreservationView {
    * `preservationMatrix.ots` — an OtsAnchoringView (2026-10-13). `state` is the
    * server's canonical OTS state as sent (render it through
    * src/product/ots-anchoring.ts, which reads anything unknown as UNAVAILABLE);
-   * the anchor facts are kept only for an ANCHORED state.
+   * the anchor facts are kept only for an ANCHORED state. `verification` is
+   * the derived key read through the shared reader: ANCHORED alone is only an
+   * attestation recorded, CHAIN_VERIFIED the only verification.
    */
-  ots: { state: string | null; proofPresent: boolean; anchoredAtUtc: string | null; bitcoinTxid: string | null; failureCode: string | null };
+  ots: {
+    state: string | null;
+    verification: OtsVerificationKey;
+    proofPresent: boolean;
+    anchoredAtUtc: string | null;
+    bitcoinTxid: string | null;
+    failureCode: string | null;
+  };
   signature: { recorded: boolean; valid: boolean | null; keyId: string | null };
   custodyChain: { valid: boolean | null; mode: string | null; reason: string | null };
 }
@@ -112,6 +122,7 @@ export function projectPreservation(rw: unknown): PreservationView {
       const anchored = state === "ANCHORED";
       return {
         state,
+        verification: readOtsAnchoringView(ots).verification,
         proofPresent: b(ots["proofPresent"]),
         anchoredAtUtc: anchored ? s(ots["anchoredAtUtc"]) : null,
         bitcoinTxid: anchored ? s(ots["bitcoinTxid"]) : null,

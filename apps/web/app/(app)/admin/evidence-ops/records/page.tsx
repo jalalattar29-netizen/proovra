@@ -47,7 +47,8 @@ import {
   formatUserDateTime,
 } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
-import { identifierLabel } from "@proovra/shared";
+import { identifierLabel, type OtsStateTone } from "@proovra/shared";
+import { otsRawStatusPresentation } from "../../../../../lib/ots-presentation";
 import { resolveRunbookSlug } from "../../../../../lib/runbooks/slugs.generated";
 import { useUrlFilterSync } from "../../../../../lib/use-url-filter-sync";
 
@@ -127,6 +128,13 @@ const COHORT_SHORT: Record<string, string> = {
 };
 
 const PAGE_SIZE = 50;
+
+/** OpenTimestamps tones in this table: only an independent chain check is "verified". */
+const OTS_BADGE_TONE: Record<OtsStateTone, BadgeTone> = {
+  success: "verified",
+  danger: "risk",
+  neutral: "neutral",
+};
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   FAILED: "risk",
@@ -270,8 +278,15 @@ export default function AdminEvidenceRecordsPage() {
               </Badge>
             ) : null}
             {r.otsStatus ? (
-              <Badge tone={STATUS_TONE[r.otsStatus] ?? "neutral"} subtle>
-                OTS {r.otsStatus}
+              // The API sends the OTS verification key (e.g.
+              // ATTESTATION_RECORDED); it is said in the shared words, never
+              // as the raw code, and only CHAIN_VERIFIED is green.
+              <Badge
+                tone={OTS_BADGE_TONE[otsRawStatusPresentation(r.otsStatus).tone]}
+                subtle
+                data-ots-verification={otsRawStatusPresentation(r.otsStatus).verification}
+              >
+                {otsRawStatusPresentation(r.otsStatus).label}
               </Badge>
             ) : null}
             {r.verificationStatus ? (

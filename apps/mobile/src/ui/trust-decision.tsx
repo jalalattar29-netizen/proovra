@@ -9,7 +9,7 @@ import { View } from "react-native";
 
 import { TRUST_STATUS_BOUNDARY, verificationStatusBadge, type TrustDecision } from "../product/trust-decision";
 import { useOptionalLocale } from "../locale-context";
-import { otsBadgeLabel, otsCard } from "../product/ots-anchoring";
+import { otsBadgeLabel, otsCardForVerification, otsStatusLine } from "../product/ots-anchoring";
 import { theme } from "../theme/theme";
 import { ProovraBadge, ProovraCard, ProovraText } from "./index";
 
@@ -30,8 +30,8 @@ export function TrustDecisionCard({ trust }: { trust: TrustDecision | null }) {
         <ProovraText variant="bodySm" testID="trust-summary">{trust.summary}</ProovraText>
         {trust.anchoring ? (
           <View style={{ flexDirection: locale === "ar" ? "row-reverse" : "row", justifyContent: "space-between", gap: theme.space.s2 }}>
-            <ProovraText variant="label" color={theme.color.ink.secondary}>{otsCard({ state: trust.anchoring }, locale).title}</ProovraText>
-            <ProovraText variant="label" weight="semibold">{otsBadgeLabel(otsCard({ state: trust.anchoring }, locale))}</ProovraText>
+            <ProovraText variant="label" color={theme.color.ink.secondary}>{otsCardForVerification(trust.anchoring, locale).title}</ProovraText>
+            <ProovraText variant="label" weight="semibold">{otsStatusLine(otsCardForVerification(trust.anchoring, locale))}</ProovraText>
           </View>
         ) : null}
         {trust.reviewerAction ? (
@@ -46,7 +46,7 @@ export function TrustDecisionCard({ trust }: { trust: TrustDecision | null }) {
             <ProovraText variant="bodySm" weight="semibold">Per-signal detail</ProovraText>
             <ProovraText variant="label" color={theme.color.ink.muted}>{TRUST_STATUS_BOUNDARY}</ProovraText>
             {trust.signals.map((s) => {
-              const ots = s.otsState ? otsCard({ state: s.otsState }, locale) : null;
+              const ots = s.otsVerification ? otsCardForVerification(s.otsVerification, locale) : null;
               const badge = ots ? { label: otsBadgeLabel(ots), tone: ots.badgeTone } : verificationStatusBadge(s.status);
               return (
                 <View key={s.key} style={{ gap: 2 }} testID={`trust-signal-${s.key}`}>
@@ -55,7 +55,12 @@ export function TrustDecisionCard({ trust }: { trust: TrustDecision | null }) {
                     <ProovraBadge label={badge.label} tone={badge.tone} />
                   </View>
                   {ots ? (
-                    <ProovraText variant="label" color={theme.color.ink.secondary}>{ots.sentence}</ProovraText>
+                    <>
+                      {ots.secondaryStatus ? (
+                        <ProovraText variant="label" color={theme.color.ink.secondary}>{ots.secondaryStatus}</ProovraText>
+                      ) : null}
+                      <ProovraText variant="label" color={theme.color.ink.secondary}>{ots.sentence}</ProovraText>
+                    </>
                   ) : s.summary ? (
                     <ProovraText variant="label" color={theme.color.ink.secondary}>{s.summary}</ProovraText>
                   ) : null}

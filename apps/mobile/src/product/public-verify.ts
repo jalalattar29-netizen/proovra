@@ -30,17 +30,21 @@ import {
   formatCaptureLocationCoordinate,
   hasCaptureLocationMetadata,
   otsAnchoringCopy,
-  parseOtsState,
   type OtsState,
 } from "@proovra/shared";
 import {
+  isOtsSummaryFact,
   otsBadgeLabel,
   otsCard,
-  otsStateFromAnchoringBucket,
-  otsStateFromTrustSignal,
+  otsCardForVerification,
+  otsDetail,
+  otsStateWord,
+  otsStatusLine,
+  otsVerificationFromAnchoringBucket,
+  otsVerificationFromTrustSignal,
   readOts,
   type OtsAnchoringView,
-  type OtsFact,
+  type OtsVerificationKey,
 } from "./ots-anchoring";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
@@ -494,13 +498,18 @@ export function verifyTimestampTone(status?: string | null): { label: string; to
 }
 
 /**
- * The Bitcoin anchoring badge (2026-10-13): the state the server resolved
+ * The Bitcoin anchoring badge: the verification the server resolved
  * (`storageAndTimestamping.ots`, an OtsAnchoringView), in the locale's words.
- * ANCHORED is the only success (with ✓), FAILED the only danger.
+ * CHAIN_VERIFIED is the only success (with ✓); FAILED / CHAIN_FAILED are
+ * danger; an unchecked attestation reads "Bitcoin attestation recorded — Not
+ * independently checked against Bitcoin", neutral.
  */
-export function verifyOtsTone(ots: unknown, locale?: string | null): { label: string; tone: VerifyWebTone; state: OtsState } {
+export function verifyOtsTone(
+  ots: unknown,
+  locale?: string | null,
+): { label: string; tone: VerifyWebTone; state: OtsState; verification: OtsVerificationKey } {
   const card = otsCard(ots, locale);
-  return { label: otsBadgeLabel(card), tone: card.tone, state: card.state };
+  return { label: otsStatusLine(card), tone: card.tone, state: card.state, verification: card.verification };
 }
 
 function isPositiveTsa(status?: string | null): boolean {
@@ -528,8 +537,12 @@ export interface VerifyIntegritySignals {
   custodyChainMode: string | null;
   custodyChainFailureReason: string | null;
   timestampDigestMatches: boolean | null;
-  /** THE canonical OTS state the server sent (unknown → UNAVAILABLE). */
+  /** THE canonical OTS state the server sent (unknown → UNAVAILABLE). ANCHORED is NOT a verification. */
   otsState: OtsState;
+  /** THE derived verification key; CHAIN_VERIFIED is the only positive Bitcoin claim. */
+  otsVerification: OtsVerificationKey;
+  /** The proof does not match the referenced block in the active Bitcoin main chain (CHAIN_FAILED). */
+  otsChainFailed: boolean;
   /** The stored proof does not commit to the record's digest (FAILED / PROOF_HASH_MISMATCH). */
   otsProofMismatch: boolean;
   tsaStatus: string | null;
@@ -554,6 +567,8 @@ export function parseVerifyIntegritySignals(payload: unknown): VerifyIntegritySi
     custodyChainFailureReason: str(proof["custodyChainFailureReason"]),
     timestampDigestMatches: bool(proof["timestampDigestMatches"]) ?? bool(tsa["digestMatchesTimestampInput"]),
     otsState: otsView.state,
+    otsVerification: otsView.verification,
+    otsChainFailed: otsView.verification === "CHAIN_FAILED",
     otsProofMismatch: otsView.state === "FAILED" && otsView.failureCode === "PROOF_HASH_MISMATCH",
     tsaStatus: upper(tsa["status"]),
     storage: { immutable: bool(storage["immutable"]), verified: bool(storage["verified"]), mode: str(storage["mode"]) },
@@ -574,7 +589,7 @@ export interface VerifyTrustSignalView {
   detail: string;
   /** The word the badge shows: the status itself, never a score or a verdict. */
   presentationLabel: VerificationStatus;
-  /** bitcoin_anchoring only: the localized OTS word ("Anchored ✓", "Pending", …). */
+  /** bitcoin_anchoring only: the localized OTS status word ("Attestation recorded", "Independently verified ✓", "Pending", …). */
   statusLabel?: string;
 }
 export interface VerifyTrustDecisionView {
@@ -590,9 +605,9 @@ export interface VerifyTrustDecisionView {
   signals: VerifyTrustSignalView[];
 }
 
-/** The bitcoin_anchoring signal's card: its canonical OTS state, in the locale's words. */
-function anchoringSignalCard(state: TrustSignalState, locale?: string | null) {
-  return otsCard({ state: otsStateFromTrustSignal(state) }, locale);
+/** The bitcoin_anchoring signal's card: its canonical OTS verification, in the locale's words. */
+function anchoringSignalCard(signal: { state: TrustSignalState; otsVerification?: unknown }, locale?: string | null) {
+  return otsCardForVerification(otsVerificationFromTrustSignal(signal.state, signal.otsVerification), locale);
 }
 
 /** The tone of one verification status. VERIFIED alone is a success. */
@@ -618,17 +633,17 @@ export function parseVerifyTrustDecision(payload: unknown, locale?: string | nul
       label: s.key === "bitcoin_anchoring" ? copy.title : s.label,
       state: s.state,
       status,
-      // Bitcoin anchoring: Anchored is green, Failed danger, the rest neutral.
-      tone: s.key === "bitcoin_anchoring" ? anchoringSignalCard(s.state, locale).tone : verificationStatusTone(status),
-      summary: s.key === "bitcoin_anchoring" ? anchoringSignalCard(s.state, locale).sentence : s.summary,
+      // Bitcoin anchoring: only CHAIN_VERIFIED is green, FAILED / CHAIN_FAILED danger, the rest neutral.
+      tone: s.key === "bitcoin_anchoring" ? anchoringSignalCard(s, locale).tone : verificationStatusTone(status),
+      summary: s.key === "bitcoin_anchoring" ? otsDetail(anchoringSignalCard(s, locale)) : s.summary,
       detail: s.detail,
       presentationLabel: status,
-      ...(s.key === "bitcoin_anchoring" ? { statusLabel: otsBadgeLabel(anchoringSignalCard(s.state, locale)) } : {}),
+      ...(s.key === "bitcoin_anchoring" ? { statusLabel: otsBadgeLabel(anchoringSignalCard(s, locale)) } : {}),
     };
   });
   return {
     summary: decision.summary,
-    publicationPostureLine: `Publication posture: ${copy.title} — ${copy.words[otsStateFromAnchoringBucket(decision.anchoringState)]}.`,
+    publicationPostureLine: `Publication posture: ${copy.title} — ${otsCardForVerification(otsVerificationFromAnchoringBucket(decision.anchoringState), locale).status}.`,
     reviewerAction: str(decision.reviewerAction),
     integrityReviewRequired: decision.integrityReviewRequired,
     tone: decision.presentationTone as VerifyWebTone,
@@ -644,10 +659,12 @@ export interface VerifyMatrixRowView {
   key: string;
   label: string;
   status: VerificationStatus;
-  /** The Bitcoin anchoring row's word (Pending, Anchored ✓, …), localized. */
+  /** The Bitcoin anchoring row's status word ("Attestation recorded", "Independently verified ✓", …), localized. */
   statusLabel?: string;
   /** The canonical OTS state, on the ots_anchoring row only. */
   otsState?: OtsState;
+  /** The canonical OTS verification key, on the ots_anchoring row only. */
+  otsVerification?: OtsVerificationKey;
   statement: string;
   measuredAtUtc: string | null;
   tone: VerifyWebTone;
@@ -694,7 +711,7 @@ export function parseVerifyMatrix(payload: unknown, locale?: string | null): Ver
     rows: decision.signals.map((s) => {
       const status = toVerificationStatus(s.state);
       if (s.key === "bitcoin_anchoring") {
-        return otsMatrixRow({ key: s.key, status, measuredAtUtc: s.measuredAtUtc, otsState: otsStateFromTrustSignal(s.state) }, locale);
+        return otsMatrixRow({ key: s.key, status, measuredAtUtc: s.measuredAtUtc, otsVerification: otsVerificationFromTrustSignal(s.state, s.otsVerification) }, locale);
       }
       return {
         key: s.key,
@@ -716,17 +733,22 @@ export function parseVerifyMatrix(payload: unknown, locale?: string | null): Ver
  * one reads as UNAVAILABLE in the shared parser), in the locale's words.
  */
 function otsMatrixRow(
-  r: { key: string; status: VerificationStatus; measuredAtUtc: string | null; otsState?: OtsState },
+  r: { key: string; status: VerificationStatus; measuredAtUtc: string | null; otsVerification?: unknown; statement?: string },
   locale?: string | null,
 ): VerifyMatrixRowView {
-  const card = otsCard({ state: r.otsState }, locale);
+  const card = otsCardForVerification(r.otsVerification, locale);
+  // The server row's English statement carries the facts (block height,
+  // confirmations); another locale prints its own words without them.
+  const english = otsAnchoringCopy(locale) === otsAnchoringCopy("en");
+  const sentence = english && r.statement ? r.statement : card.sentence;
   return {
     key: r.key,
     label: card.title,
     status: r.status,
     statusLabel: otsBadgeLabel(card),
     otsState: card.state,
-    statement: card.sentence,
+    otsVerification: card.verification,
+    statement: otsDetail({ sentence, secondaryStatus: card.secondaryStatus }),
     measuredAtUtc: r.measuredAtUtc,
     tone: card.tone,
   };
@@ -842,7 +864,7 @@ export function buildVerifyVerdict(
     s.signatureValid === true,
     s.custodyChainValid === true,
     s.timestampDigestMatches === true,
-    s.otsState === "ANCHORED",
+    s.otsVerification === "CHAIN_VERIFIED",
     s.storage.verified === true || s.storage.immutable === true,
   ].filter(Boolean).length;
   const knownSignals = [
@@ -924,6 +946,8 @@ export function buildVerifyReviewerActions(verdict: VerifyVerdictView, s: Verify
     );
   if (s.otsProofMismatch)
     actions.push("Review the OpenTimestamps proof: it does not commit to this record's evidence digest.");
+  if (s.otsChainFailed)
+    actions.push(`Review the OpenTimestamps proof: ${otsAnchoringCopy("en").verificationSentences.CHAIN_FAILED}`);
   if (s.storage.immutable !== true && s.storage.verified !== true)
     actions.push("Confirm storage immutability or retention status before relying on the storage-protection layer.");
   if (actions.length === 0)
@@ -967,6 +991,12 @@ export function buildVerifyMismatchExplanations(s: VerifyIntegritySignals): Arra
       title: "Bitcoin anchoring failed",
       severity: "warning",
       body: "The OpenTimestamps proof does not commit to this record's evidence digest.",
+    });
+  if (s.otsChainFailed)
+    out.push({
+      title: otsAnchoringCopy("en").verificationLabels.CHAIN_FAILED,
+      severity: "danger",
+      body: otsAnchoringCopy("en").verificationSentences.CHAIN_FAILED,
     });
   return out;
 }
@@ -1100,7 +1130,7 @@ export function parseVerifyAnchoring(payload: unknown, fmt: (iso: string) => str
       { label: "Package Version", value: packageVersion !== null ? `v${packageVersion}` : "Not recorded" },
       {
         label: `${copy.title} (at generation)`,
-        value: snapState ? copy.words[parseOtsState(snapState)] : "Not recorded in snapshot",
+        value: snapState ? otsStateWord(snapState, locale) : "Not recorded in snapshot",
       },
       { label: "Report Signature", value: formatSignatureStatus(str(obj(snap["reportSignature"])["status"])) },
       {
@@ -1111,11 +1141,11 @@ export function parseVerifyAnchoring(payload: unknown, fmt: (iso: string) => str
       { label: "Snapshot Signal Summary", value: readStoredTrustDecision(snap["trustDecisionSnapshot"])?.summary ?? "No fixed signal snapshot" },
     ],
     liveRows: [
-      { label: ots.title, value: otsBadgeLabel(ots) },
+      { label: ots.title, value: otsStatusLine(ots) },
       // Only the facts present; the txid only when the proof path derived it.
       ...ots.facts
-        .filter((f: OtsFact) => f.key === "blockHeight" || f.key === "txid" || f.key === "anchoredAt")
-        .map((f: OtsFact) => ({ label: f.label, value: f.value, mono: f.mono })),
+        .filter(isOtsSummaryFact)
+        .map((f) => ({ label: f.label, value: f.value, mono: f.mono })),
       { label: "Last Anchoring Update", value: liveUpdated ? fmt(liveUpdated) : "Not recorded" },
       { label: "Latest Report", value: live["newerReportAvailable"] === true ? "Latest report available" : "No newer report recorded" },
       { label: "Latest Package", value: live["newerPackageAvailable"] === true ? "Latest package available" : "No newer package recorded" },
@@ -1789,7 +1819,7 @@ export function verifyIntegrityTab(
         ? { value: "Valid (Legacy)", tone: "info" as VerifyWebTone }
         : tri(s.custodyChainValid, "Valid", "Invalid", "Pending", "success")),
     },
-    { label: otsC.title, value: otsBadgeLabel(otsC), tone: otsC.tone },
+    { label: otsC.title, value: otsStatusLine(otsC), tone: otsC.tone },
     { label: "Storage Protection", value: storage.label, tone: storage.tone },
     { label: "Timestamp Status", value: ts.label, tone: ts.tone },
     text("Timestamp Provider", str(tsa["provider"])),

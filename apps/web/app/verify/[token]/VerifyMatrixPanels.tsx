@@ -16,10 +16,12 @@
 import {
   buildVerificationMatrix,
   getTrustDecisionPresentationTone,
-  OTS_STATE_TONES,
-  OTS_STATE_WORDS,
+  otsVerificationKeyOfState,
   parseOtsState,
+  parseOtsVerificationKey,
+  presentOtsAnchoring,
   type OtsStateTone,
+  type OtsVerificationKey,
   VERIFICATION_LIMITATION,
   VERIFICATION_STATUS_LABELS,
   verificationMatrixSummary,
@@ -101,18 +103,43 @@ export function matrixSummarySentence(matrix: VerificationMatrix): string {
 }
 
 /**
- * The Bitcoin anchoring row speaks its own vocabulary (2026-10-13): the
- * server's `otsState` in one word and tone — Anchored is the only success
- * (with ✓), Failed is danger, every other state neutral. Other rows: null.
+ * The words above the verification matrix (2026-10-15). Bitcoin anchoring is
+ * "Verified" only for an independent check against the Bitcoin main chain; a
+ * Bitcoin attestation the proof merely names is "Not checked".
+ */
+export const VERIFY_MATRIX_INTRO =
+  "Each signal is stated in exactly one status: Verified, Failed, Not checked, Not applicable or Unavailable. " +
+  "A signal marked “Not checked” was not independently verified. Bitcoin anchoring is Verified only when PROOVRA " +
+  "independently checked the OpenTimestamps proof against the Bitcoin main chain; a Bitcoin attestation that was " +
+  "recorded but not checked reads “Attestation recorded” and is Not checked. A failed or unchecked timestamp or " +
+  "Bitcoin attestation does not by itself invalidate core hashes, signatures, custody records, or preserved originals.";
+
+/**
+ * The Bitcoin anchoring row speaks its own vocabulary (2026-10-15): the
+ * server's verification key (`otsVerification`, coherent with `otsState` and
+ * the row's matrix status) in one word and tone. Only CHAIN_VERIFIED is a
+ * success (with ✓) and only on a VERIFIED row; FAILED / CHAIN_FAILED are
+ * danger; every other key — including an attestation recorded but never
+ * checked against the chain — is neutral. Other rows: null.
  */
 export function otsMatrixRowPresentation(
-  row: Pick<VerificationMatrixRow, "key" | "otsState">
-): { word: string; badge: string; tone: OtsStateTone } | null {
+  row: Pick<VerificationMatrixRow, "key" | "otsState" | "otsVerification"> & { status?: VerificationStatus }
+): { word: string; badge: string; tone: OtsStateTone; verification: OtsVerificationKey } | null {
   if (row.key !== "ots_anchoring") return null;
   const state = parseOtsState(row.otsState);
-  const tone = OTS_STATE_TONES[state];
-  const word = OTS_STATE_WORDS[state];
-  return { word, badge: tone === "success" ? `✓ ${word}` : word, tone };
+  // presentOtsAnchoring keeps a verification key only when it is coherent
+  // with the lifecycle state; a CHAIN_VERIFIED claim on a row whose matrix
+  // status is not VERIFIED is read as an unchecked attestation.
+  const claimed = parseOtsVerificationKey(row.otsVerification);
+  const believed =
+    claimed === "CHAIN_VERIFIED" && row.status !== undefined && row.status !== "VERIFIED" ? "ATTESTATION_RECORDED" : claimed;
+  const p = presentOtsAnchoring({ state, verification: believed ?? otsVerificationKeyOfState(state) });
+  return {
+    word: p.status,
+    badge: p.tone === "success" ? `✓ ${p.status}` : p.status,
+    tone: p.tone,
+    verification: p.verification,
+  };
 }
 
 function otsToneColor(tone: OtsStateTone): string {

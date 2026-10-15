@@ -356,9 +356,16 @@ test("BASIC tier: the verificationMatrix leads, with its summary as the headline
   assert.equal(headline, matrix.summary);
   assert.ok(headline.endsWith(VERIFICATION_LIMITATION));
   has(r, "Bitcoin anchoring");
-  // The Bitcoin anchoring row reads the canonical OTS state; a legacy state reads Unavailable, never Anchored.
+  // The Bitcoin anchoring row reads the canonical OTS verification: an attestation present but never
+  // independently verified is "Attestation recorded" + "Not independently checked against Bitcoin" — never Verified.
   const ots = r.byTestId("basic-verification-matrix")[0].findAll((n) => typeof n.props?.accessibilityLabel === "string" && n.props.accessibilityLabel.startsWith("Bitcoin anchoring:"));
-  assert.ok(ots.length >= 1 && ots[0].props.accessibilityLabel.startsWith("Bitcoin anchoring: Unavailable. The OpenTimestamps proof material cannot currently be read."), "a legacy OTS state reads Unavailable");
+  assert.ok(
+    ots.length >= 1 &&
+      ots[0].props.accessibilityLabel.startsWith(
+        "Bitcoin anchoring: Attestation recorded. Not independently checked against Bitcoin. The proof names a Bitcoin block; PROOVRA has not checked it against the Bitcoin main chain.",
+      ),
+    ots[0]?.props.accessibilityLabel,
+  );
   // The anchoring card without otsState (an older reply) is Unavailable too.
   assert.equal(r.byTestId("basic-verification-ots-UNAVAILABLE").length, 1);
   lacks(r, "Legacy anchoring words (never printed)");
@@ -388,8 +395,10 @@ test("verificationMatrix, when the reply carries it, is the matrix and the headl
   assert.equal(r.byTestId("verify-matrix").length, 1);
   assert.deepEqual(badges(r, "verify-matrix-file_integrity"), ["Verified"]);
   has(r, "Bitcoin anchoring");
-  assert.deepEqual(badges(r, "verify-matrix-ots_anchoring"), ["Unavailable"], "a legacy OTS state reads Unavailable");
-  assert.ok(textsIn(r, "verify-matrix-ots_anchoring").some((t) => t.includes("The OpenTimestamps proof material cannot currently be read.")));
+  // PRESENT_NOT_INDEPENDENTLY_VERIFIED is an attestation recorded, never verified.
+  assert.deepEqual(badges(r, "verify-matrix-ots_anchoring"), ["Attestation recorded"]);
+  assert.ok(textsIn(r, "verify-matrix-ots_anchoring").some((t) => t.includes("Not independently checked against Bitcoin")));
+  lacks(r, "Independently verified against the Bitcoin main chain");
   lacks(r, "Legacy anchoring words (never printed)");
   has(r, "Public Verify publication");
   assert.deepEqual(findForbiddenCustomerClaims(r.texts().join("\n")), []);
@@ -501,10 +510,10 @@ test("Verification package snapshot vs Live anchoring status, with the 'advanced
     "Live anchoring status",
     "Anchoring has advanced since this package was generated. A newer report/package may be available.",
     "Bitcoin anchoring (at generation)", "Pending",
-    "Bitcoin anchoring", "Anchored ✓", "Bitcoin block height", "860123", "Bitcoin transaction", TXID,
-    "Anchoring recorded by PROOVRA (UTC)", "Last Anchoring Update", "No newer report recorded", "No newer package recorded",
+    "Bitcoin anchoring", "Bitcoin attestation recorded — Not independently checked against Bitcoin", "Bitcoin block height", "860123", "Bitcoin transaction", TXID,
+    "Attestation recorded by PROOVRA (UTC)", "Last Anchoring Update", "No newer report recorded", "No newer package recorded",
   ]) has(r, s);
-  for (const s of ["Current OTS Status", "Bitcoin Anchor Time", "(independently verified)", "Proof Recorded by PROOVRA"]) lacks(r, s);
+  for (const s of ["Current OTS Status", "Bitcoin Anchor Time", "(independently verified)", "Proof Recorded by PROOVRA", "Anchored ✓"]) lacks(r, s);
   lacks(r, "OpenTimestamps public anchoring is pending.");
 });
 
@@ -521,7 +530,7 @@ test("OTS pending: the live pending note and the Publication Posture panel appea
     }),
   });
   const r = await render();
-  has(r, "OpenTimestamps proof is awaiting Bitcoin anchoring.");
+  has(r, "Submitted to OpenTimestamps calendars; no Bitcoin attestation yet.");
   has(r, "Publication Posture");
   has(r, "Publication posture: Bitcoin anchoring — Pending.");
   lacks(r, TXID);
@@ -673,11 +682,11 @@ test("Integrity tab: material fields, status cards, and failure notes only when 
   await r.press("Integrity");
   assert.equal(r.byTestId("verify-tab-integrity").length, 1);
   for (const s of ["Integrity scope", "Original File SHA-256", "SHA-256 digest of the original preserved evidence file.", "Canonical Fingerprint Hash", "Digital Signature",
-    "Public Key", "Signature Status", "Fingerprint Status", "Custody Chain", "Bitcoin anchoring", "Anchored ✓", "Immutable Storage Locked", "Timestamp Status", "GRANTED",
+    "Public Key", "Signature Status", "Fingerprint Status", "Custody Chain", "Bitcoin anchoring", "Bitcoin attestation recorded — Not independently checked against Bitcoin", "Immutable Storage Locked", "Timestamp Status", "GRANTED",
     "Timestamp Provider", "DigiCert", "Hash Algorithm", "Signing Key", "Signing Key Version", "OTS Calendar", "OTS Proof", "Proof Present",
     "Evidence digest (SHA-256)", "Proof SHA-256", "Bitcoin block header", "Bitcoin block height", "860123", "Bitcoin transaction",
-    "Anchoring recorded by PROOVRA (UTC)", "Proof validator", "PROOVRA does not claim independent canonical-chain verification"]) has(r, s);
-  for (const s of ["OTS Hash Check", "Hash Matches", "Bitcoin Anchor Time", "(independently verified)"]) lacks(r, s);
+    "Attestation recorded by PROOVRA (UTC)", "Proof validator", "It is not independently checked against the Bitcoin main chain"]) has(r, s);
+  for (const s of ["OTS Hash Check", "Hash Matches", "Bitcoin Anchor Time", "(independently verified)", "Anchored ✓"]) lacks(r, s);
   lacks(r, "Timestamped Digest / Original File SHA-256"); // inputDigestHex === fileSha256: web hides it
   lacks(r, "Timestamp Failure Reason");
   lacks(r, "OpenTimestamps Status Note");
@@ -698,7 +707,7 @@ test("Integrity tab: material fields, status cards, and failure notes only when 
   const r2 = await render();
   await r2.press("Integrity");
   for (const s of ["File Digest (SHA-256)", "Timestamped Digest / Original File SHA-256", "Legacy mode: this record predates explicit timestamp-input digest storage",
-    "Timestamp Failure Reason", "TSA HTTP 503", "OpenTimestamps Status Note", "Failed",
+    "Timestamp Failure Reason", "TSA HTTP 503", "OpenTimestamps Status Note", "Bitcoin anchoring failed",
     "Bitcoin anchoring did not complete for this record. The proof did not anchor in Bitcoin within the upgrade budget.", "Not Present"]) has(r2, s);
   lacks(r2, "Bitcoin transaction");
   assert.ok(!r2.texts().includes("OTS_GLOBAL_BUDGET_EXHAUSTED"), "technical detail hidden until asked for");

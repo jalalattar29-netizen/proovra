@@ -82,9 +82,11 @@ test("verify page labels snapshot and live anchoring separately", () => {
     VERIFY_PAGE_SOURCE,
     /Anchoring has advanced since this package was generated\. A newer report\/package may be available\./,
   );
-  // The pending note is the server view's one sentence; the live section's
-  // state is the server's Bitcoin anchoring view, never a stored status.
-  assert.match(VERIFY_PAGE_SOURCE, /otsView\.state === "PENDING" \?/);
+  // The live section states the server view's one sentence for every state
+  // but NOT_REQUESTED (2026-10-15), toned by the verification: pending is
+  // amber (never danger), only CHAIN_VERIFIED green, failures danger.
+  assert.match(VERIFY_PAGE_SOURCE, /otsView\.state !== "NOT_REQUESTED" \?/);
+  assert.match(VERIFY_PAGE_SOURCE, /data-verify-ots-sentence=\{otsView\.verification\}/);
   assert.match(VERIFY_PAGE_SOURCE, /\{otsView\.sentence\}/);
   assert.doesNotMatch(VERIFY_PAGE_SOURCE, /currentOtsStatus/);
 });
