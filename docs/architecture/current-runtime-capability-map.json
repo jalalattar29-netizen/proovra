@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 9947,
-      "UNRESOLVED_IDENTIFIER": 1382
+      "METHOD_ON_VALUE": 9952,
+      "UNRESOLVED_IDENTIFIER": 1383
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -15993,8 +15993,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#caseSiuExport.updateMany@752",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:752",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#caseSiuExport.updateMany@760",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:760",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16034,8 +16034,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.updateMany@492",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:492",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.updateMany@500",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:500",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16075,8 +16075,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.updateMany@589",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:589",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.updateMany@597",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:597",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "releaseClaim",
       "kind": "DATABASE",
@@ -16116,8 +16116,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.updateMany@790",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:790",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.updateMany@798",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:798",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16157,8 +16157,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceExtractedText.deleteMany@775",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:775",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceExtractedText.deleteMany@783",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:783",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16198,8 +16198,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceLifecycleEvent.create@815",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:815",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceLifecycleEvent.create@823",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:823",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16239,8 +16239,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceOcrText.deleteMany@771",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:771",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceOcrText.deleteMany@779",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:779",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16280,8 +16280,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidencePart.deleteMany@747",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:747",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidencePart.deleteMany@755",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:755",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16321,8 +16321,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidencePartDerivedAsset.deleteMany@768",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:768",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidencePartDerivedAsset.deleteMany@776",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:776",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16362,8 +16362,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceSearchDocument.deleteMany@781",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:781",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceSearchDocument.deleteMany@789",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:789",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16403,8 +16403,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceSemanticChunk.deleteMany@778",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:778",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceSemanticChunk.deleteMany@786",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:786",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16444,8 +16444,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceTranscriptSegment.deleteMany@772",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:772",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceTranscriptSegment.deleteMany@780",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:780",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16485,8 +16485,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#report.deleteMany@746",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:746",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#report.deleteMany@754",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:754",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16526,8 +16526,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#verificationPackage.deleteMany@743",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:743",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#verificationPackage.deleteMany@751",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:751",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16567,8 +16567,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#verificationView.deleteMany@742",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:742",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#verificationView.deleteMany@750",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:750",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -31631,8 +31631,8 @@
       "nonRequestDisposition": "REGISTERED_CLI"
     },
     {
-      "writerId": "services/api/src/scripts/three-decisions-backfill.ts#evidence.updateMany@412",
-      "terminalLocation": "services/api/src/scripts/three-decisions-backfill.ts:412",
+      "writerId": "services/api/src/scripts/three-decisions-backfill.ts#evidence.updateMany@465",
+      "terminalLocation": "services/api/src/scripts/three-decisions-backfill.ts:465",
       "file": "services/api/src/scripts/three-decisions-backfill.ts",
       "enclosingDeclaration": "reconcileEvidenceLifecycle",
       "kind": "DATABASE",
