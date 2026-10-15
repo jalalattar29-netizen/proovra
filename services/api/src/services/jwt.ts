@@ -171,10 +171,33 @@ export function signJwt(
   return `${signingInput}.${signature}`;
 }
 
+/**
+ * AUD-020 — the header is part of what is verified, not decoration. The only
+ * algorithm this service mints is HS256, so a token naming any other algorithm
+ * (`none`, `RS256` with the HMAC secret presented as a "public key", a case
+ * variant) is refused before the signature is even considered. `typ` is
+ * optional in RFC 7519; when present it must be `JWT`.
+ */
+function assertSupportedHeader(headerB64: string): void {
+  let header: unknown;
+  try {
+    header = JSON.parse(base64UrlDecode(headerB64).toString("utf8"));
+  } catch {
+    throw new Error("Invalid token header");
+  }
+  if (!header || typeof header !== "object" || Array.isArray(header)) {
+    throw new Error("Invalid token header");
+  }
+  const { alg, typ } = header as { alg?: unknown; typ?: unknown };
+  if (alg !== "HS256") throw new Error("Unsupported token algorithm");
+  if (typ !== undefined && typ !== "JWT") throw new Error("Unsupported token type");
+}
+
 export function verifyJwt(token: string, secret: string): JwtPayload {
   const parts = token.split(".");
   if (parts.length !== 3) throw new Error("Invalid token");
   const [headerB64, payloadB64, signatureB64] = parts;
+  assertSupportedHeader(headerB64);
   const signingInput = `${headerB64}.${payloadB64}`;
   const expected = signHmac(signingInput, secret);
   const actual = base64UrlDecode(signatureB64);
@@ -185,7 +208,7 @@ export function verifyJwt(token: string, secret: string): JwtPayload {
     throw new Error("Invalid signature");
   }
   const payload = JSON.parse(base64UrlDecode(payloadB64).toString("utf8")) as JwtPayload;
-  if (!payload.exp || Date.now() / 1000 >= payload.exp) {
+  if (typeof payload.exp !== "number" || Date.now() / 1000 >= payload.exp) {
     throw new Error("Token expired");
   }
   return payload;
