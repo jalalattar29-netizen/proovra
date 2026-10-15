@@ -135,3 +135,37 @@ test("only a CHAIN_VERIFIED provenance proof reads independently verified, with 
   assert.ok(r.hasText("Independently verified against the Bitcoin main chain ✓"));
   assert.ok(!r.hasText("Not independently checked against Bitcoin"));
 });
+
+test("AUD-017: a continuous capture shows delivered of recorded segments, client-reported, with the boundary note", async () => {
+  routes["/v1/provenance/ev-1"] = () => ({
+    body: CHAIN({
+      captureManifestFacts: {
+        schema: "PROOVRA_CAPTURE_MANIFEST_FACTS_V1",
+        kind: "SCREEN_CONTINUOUS",
+        reportedBy: "CAPTURE_CLIENT",
+        manifestSchemaVersion: "PROOVRA_SCREEN_CAPTURE_CONTINUOUS_MANIFEST_V2",
+        manifestSha256: "e".repeat(64),
+        manifestPartIndex: 2,
+        clientCaptureWindow: { startedAtUtc: "2026-10-01T10:00:00.000Z", endedAtUtc: "2026-10-01T10:00:12.000Z" },
+        completeness: "COMPLETE_SESSION",
+        reportedComplete: true,
+        limitations: [],
+        client: { kind: "MOBILE_APP", appVersion: "1.0.0", platform: "android", osVersion: "14", model: "Pixel 7", browserName: null, browserVersion: null },
+        web: null,
+        // Facts recorded before AUD-017 (no declaredRecordedThroughMax).
+        screen: { endReason: "USER_STOPPED", artifactCount: 2, recordedSegmentCount: 2, totalDurationMs: 12000 },
+      },
+    }),
+  });
+  const r = await openIntegrity();
+  assert.equal(r.byTestId("provenance-capture-completeness").length, 1);
+  assert.ok(r.hasText("Completeness (client-reported)"));
+  assert.ok(r.hasText("Reported complete by the capture client"));
+  assert.ok(r.hasText("Segments delivered 2 of 2 recorded (client-reported)"));
+  assert.ok(r.hasText("PROOVRA cannot verify segments the client never declared."), "the boundary note is missing");
+});
+
+test("AUD-017: no capture-manifest facts, no completeness rows", async () => {
+  const r = await openIntegrity();
+  assert.equal(r.byTestId("provenance-capture-completeness").length, 0);
+});

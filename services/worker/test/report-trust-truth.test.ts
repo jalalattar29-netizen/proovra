@@ -126,6 +126,37 @@ describe("UC-PROV-003 — the report states the capture client's reported facts,
   });
 });
 
+describe("AUD-017 — the report states a continuous capture's completeness as client-reported, delivered of recorded", () => {
+  it("prints the shared segment line and the boundary note; never 'Reported complete' alone", async () => {
+    const input = reportInputFixture();
+    const html = renderReportHtml(
+      await buildReportViewModel({
+        ...input,
+        evidence: { ...input.evidence, acquisitionMode: "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS" } as never,
+        captureManifest: {
+          schema: "PROOVRA_CAPTURE_MANIFEST_FACTS_V1",
+          kind: "SCREEN_CONTINUOUS",
+          reportedBy: "CAPTURE_CLIENT",
+          manifestSchemaVersion: "PROOVRA_SCREEN_CAPTURE_CONTINUOUS_MANIFEST_V2",
+          manifestSha256: "e".repeat(64),
+          manifestPartIndex: 2,
+          clientCaptureWindow: { startedAtUtc: "2026-10-01T10:00:00.000Z", endedAtUtc: "2026-10-01T10:00:12.000Z" },
+          completeness: "COMPLETE_SESSION",
+          reportedComplete: true,
+          limitations: [],
+          client: { kind: "MOBILE_APP", appVersion: "1.0.0", platform: "android", osVersion: "14", model: "Pixel 7", browserName: null, browserVersion: null },
+          web: null,
+          screen: { endReason: "USER_STOPPED", artifactCount: 2, recordedSegmentCount: 2, totalDurationMs: 12000, declaredRecordedThroughMax: null },
+        },
+      }),
+    );
+    expect(html).toContain("Completeness (client-reported):");
+    expect(html).toContain("Segments delivered 2 of 2 recorded (client-reported)");
+    expect(html).toContain("data-capture-completeness-note");
+    expect(html).toContain("cannot verify segments the client never declared");
+  });
+});
+
 describe("UC-TRUST-008 — the report states which stored bytes it certifies", () => {
   it("prints the signed digest, the object version(s) and the re-read time", async () => {
     const html = renderReportHtml(

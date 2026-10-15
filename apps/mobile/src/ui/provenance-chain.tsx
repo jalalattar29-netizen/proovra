@@ -72,6 +72,14 @@ export function ProvenanceChainSection({ evidenceId, workspaceId }: { evidenceId
           ) : (
             <>
               <ProovraDetailRows rows={provenanceCaptureRows(state.chain, fmt)} />
+              {state.chain.captureCompleteness ? (
+                <View testID="provenance-capture-completeness" style={{ gap: theme.space.s1 }}>
+                  <ProovraDetailRows rows={state.chain.captureCompleteness.rows} />
+                  {state.chain.captureCompleteness.note ? (
+                    <ProovraText variant="label" color={theme.color.ink.muted}>{state.chain.captureCompleteness.note}</ProovraText>
+                  ) : null}
+                </View>
+              ) : null}
               <ProovraText variant="bodySm" weight="semibold">{COPY.preservation}</ProovraText>
               <ProovraDetailRows rows={provenancePreservationRows(state.chain, fmt, locale)} />
               <ProovraText variant="label" color={theme.color.ink.muted}>{COPY.custodyNote}</ProovraText>

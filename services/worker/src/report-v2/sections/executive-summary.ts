@@ -1,5 +1,6 @@
 import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
+import { captureCompletenessNote, captureCompletenessRows } from "@proovra/shared";
 import {
   getCaptureContextTimestampLabel,
   captureMethodDisplayLabel,
@@ -66,7 +67,9 @@ function renderCaptureManifestFacts(vm: ReportViewModel): string {
     `${f.client.kind === "BROWSER_EXTENSION" ? "PROOVRA browser extension" : "PROOVRA app"} ${f.client.appVersion}${browser ? ` · ${browser}` : ""}${f.client.platform ? ` · ${f.client.platform}` : ""}`,
   ]);
   rows.push(["Capture window", `${f.clientCaptureWindow.startedAtUtc} – ${f.clientCaptureWindow.endedAtUtc}`]);
-  rows.push(["Completeness", f.reportedComplete ? "Reported complete" : `Not complete (${humanise(f.completeness)})`]);
+  // AUD-017 — THE shared completeness wording (client-reported, delivered of recorded).
+  for (const r of captureCompletenessRows(f)) rows.push([r.label, r.value]);
+  const completenessNote = captureCompletenessNote(f);
   if (f.web?.pageMutatedDuringCapture) rows.push(["Page changed during capture", "Yes"]);
   if (f.limitations.length > 0) rows.push(["Limitations detected", f.limitations.map(humanise).join(", ")]);
   const items = rows
@@ -77,7 +80,9 @@ function renderCaptureManifestFacts(vm: ReportViewModel): string {
         <strong>Reported by the capture client</strong> (checked for shape at seal; not proven by PROOVRA)${
           f.reportedComplete ? "" : " — the client reported this capture as NOT complete"
         }:
-        <ul class="acquisition-limitations">${items}</ul>
+        <ul class="acquisition-limitations">${items}</ul>${
+          completenessNote ? `<div class="capture-context-note" data-capture-completeness-note>${escapeHtml(completenessNote)}</div>` : ""
+        }
       </div>`;
 }
 

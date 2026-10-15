@@ -6,7 +6,11 @@
  * labelled as reported by the capture client — none of it is proven by
  * PROOVRA. Renders nothing when the record has no manifest facts.
  */
-import type { PublicCaptureManifestFacts } from "@proovra/shared";
+import {
+  captureCompletenessNote,
+  captureCompletenessRows,
+  type PublicCaptureManifestFacts,
+} from "@proovra/shared";
 
 function humanise(code: string): string {
   const s = code.replace(/_/g, " ").toLowerCase();
@@ -33,7 +37,9 @@ export function VerifyCaptureManifestSection({ facts }: { facts: PublicCaptureMa
     "Capture window",
     `${facts.clientCaptureWindow.startedAtUtc}${facts.clientCaptureWindow.endedAtUtc ? ` – ${facts.clientCaptureWindow.endedAtUtc}` : ""}`,
   ]);
-  rows.push(["Completeness", facts.reportedComplete ? "Reported complete" : `Not complete (${humanise(facts.completeness)})`]);
+  // AUD-017 — THE shared completeness wording (client-reported, delivered of recorded).
+  for (const r of captureCompletenessRows(facts)) rows.push([r.label, r.value]);
+  const completenessNote = captureCompletenessNote(facts);
   if (facts.web?.pageMutatedDuringCapture) rows.push(["Page changed during capture", "Yes"]);
   if (facts.limitations.length > 0) rows.push(["Limitations detected", facts.limitations.map(humanise).join(", ")]);
   return (
@@ -46,6 +52,11 @@ export function VerifyCaptureManifestSection({ facts }: { facts: PublicCaptureMa
       {!facts.reportedComplete ? (
         <p data-verify-capture-partial style={{ color: "#b45309", margin: "0 0 8px", fontSize: 14 }}>
           The capture client reported this capture as not complete.
+        </p>
+      ) : null}
+      {completenessNote ? (
+        <p data-verify-capture-completeness-note style={{ color: "#475569", margin: "0 0 8px", fontSize: 14 }}>
+          {completenessNote}
         </p>
       ) : null}
       <dl style={{ margin: 0 }}>

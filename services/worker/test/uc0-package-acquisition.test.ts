@@ -165,6 +165,71 @@ describe("UC-0 package acquisition.json", () => {
   });
 });
 
+describe("AUD-017 package acquisition.json — completeness is client-reported", () => {
+  const continuousFacts = (screen: Record<string, unknown>, complete: boolean) => ({
+    schema: "PROOVRA_CAPTURE_MANIFEST_FACTS_V1",
+    kind: "SCREEN_CONTINUOUS",
+    reportedBy: "CAPTURE_CLIENT",
+    manifestSchemaVersion: "PROOVRA_SCREEN_CAPTURE_CONTINUOUS_MANIFEST_V2",
+    manifestSha256: "e".repeat(64),
+    manifestPartIndex: 2,
+    clientCaptureWindow: { startedAtUtc: "2026-10-01T10:00:00.000Z", endedAtUtc: "2026-10-01T10:00:12.000Z" },
+    completeness: complete ? "COMPLETE_SESSION" : "INTERRUPTED_SESSION",
+    reportedComplete: complete,
+    limitations: complete ? [] : ["SEGMENT_UPLOAD_LOST"],
+    client: { kind: "MOBILE_APP", appVersion: "1.0.0", platform: "android", osVersion: "14", model: "Pixel 7", browserName: null, browserVersion: null },
+    web: null,
+    screen: { endReason: complete ? "USER_STOPPED" : "INTERRUPTED", totalDurationMs: 12000, ...screen },
+  });
+
+  it("states delivered of recorded segments and the boundary the server cannot cross", () => {
+    const rec = buildPackageAcquisitionRecord({
+      evidenceId: "ev-c",
+      chain: chain({ captureManifestFacts: continuousFacts({ artifactCount: 2, recordedSegmentCount: 5, declaredRecordedThroughMax: 5 }, false) } as never),
+      acquisitionMode: "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS",
+      signedAtUtc: null,
+      evidenceFiles: [{ artifactClass: "ORIGINAL" }, { artifactClass: "ORIGINAL" }, { artifactClass: "CAPTURE_MANIFEST" }],
+    }) as unknown as { captureCompleteness: Record<string, unknown> };
+    expect(rec.captureCompleteness).toMatchObject({
+      reportedBy: "CAPTURE_CLIENT",
+      reportedComplete: false,
+      segmentsDelivered: 2,
+      segmentsRecordedClientReported: 5,
+    });
+    expect(rec.captureCompleteness.statements).toContainEqual({
+      label: "Segments (client-reported)",
+      value: "Segments delivered 2 of 5 recorded (client-reported)",
+    });
+    expect(String(rec.captureCompleteness.note)).toMatch(/cannot verify segments the client never declared/);
+  });
+
+  it("a legacy COMPLETE claim (no recordedThrough, historical facts) is still client-reported, never independently complete", () => {
+    const rec = buildPackageAcquisitionRecord({
+      evidenceId: "ev-l",
+      chain: chain({ captureManifestFacts: continuousFacts({ artifactCount: 2, recordedSegmentCount: 2 }, true) } as never),
+      acquisitionMode: "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS",
+      signedAtUtc: null,
+      evidenceFiles: [],
+    }) as unknown as { captureCompleteness: { statements: Array<{ label: string; value: string }> } };
+    expect(rec.captureCompleteness.statements).toEqual([
+      { label: "Completeness (client-reported)", value: "Reported complete by the capture client" },
+      { label: "Segments (client-reported)", value: "Segments delivered 2 of 2 recorded (client-reported)" },
+    ]);
+    expect(JSON.stringify(rec.captureCompleteness)).not.toMatch(/independently (verified|complete)|proven complete/i);
+  });
+
+  it("no manifest facts: no completeness statement", () => {
+    const rec = buildPackageAcquisitionRecord({
+      evidenceId: "ev-1",
+      chain: chain(),
+      acquisitionMode: "PROOVRA_MOBILE_APP",
+      signedAtUtc: null,
+      evidenceFiles: [],
+    }) as unknown as { captureCompleteness: unknown };
+    expect(rec.captureCompleteness).toBeNull();
+  });
+});
+
 describe("UC-0 package derived/derived-manifest.json", () => {
   it("lists derivatives with their source lineage and never as originals", () => {
     const m = buildDerivedManifest({ evidenceId: "ev-1", chain: chain() }) as unknown as DerivedDoc;

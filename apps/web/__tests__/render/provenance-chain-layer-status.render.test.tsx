@@ -119,3 +119,46 @@ describe("UC-PROV-003 — Public Verify shows the reported capture facts, data-m
     expect(text).toContain("Page mutated during capture");
   });
 });
+
+// AUD-017 — a continuous capture's completeness is the client's statement: the
+// owner section and Public Verify state delivered of recorded segments and the
+// boundary the server cannot cross, in THE shared wording.
+import { captureManifestItems } from "../../app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection";
+
+const continuousFacts = (complete: boolean, screen: Record<string, unknown>) => ({
+  schema: "PROOVRA_CAPTURE_MANIFEST_FACTS_V1",
+  kind: "SCREEN_CONTINUOUS",
+  reportedBy: "CAPTURE_CLIENT",
+  manifestSchemaVersion: "PROOVRA_SCREEN_CAPTURE_CONTINUOUS_MANIFEST_V2",
+  manifestSha256: "e".repeat(64),
+  manifestPartIndex: 2,
+  clientCaptureWindow: { startedAtUtc: "2026-10-01T10:00:00.000Z", endedAtUtc: "2026-10-01T10:00:12.000Z" },
+  completeness: complete ? "COMPLETE_SESSION" : "INTERRUPTED_SESSION",
+  reportedComplete: complete,
+  limitations: complete ? [] : ["SEGMENT_UPLOAD_LOST"],
+  client: { kind: "MOBILE_APP", appVersion: "1.0.0", platform: "android", osVersion: "14", model: "Pixel 7", browserName: null, browserVersion: null },
+  web: null,
+  screen: { endReason: complete ? "USER_STOPPED" : "INTERRUPTED", totalDurationMs: 12000, ...screen },
+});
+
+describe("AUD-017 — continuous completeness is client-reported on owner and public surfaces", () => {
+  it("owner provenance: delivered of recorded, labelled client-reported (legacy facts without recordedThrough)", () => {
+    const items = captureManifestItems(continuousFacts(true, { artifactCount: 2, recordedSegmentCount: 2 }) as never, (iso) => iso);
+    expect(items).toContainEqual({ label: "Completeness (client-reported)", value: "Reported complete by the capture client" });
+    expect(items).toContainEqual({ label: "Segments (client-reported)", value: "Segments delivered 2 of 2 recorded (client-reported)" });
+    expect(items.map((i) => i.label)).not.toContain("Completeness (reported)");
+  });
+
+  it("Public Verify: segment line and the boundary note", () => {
+    const facts = readPublicCaptureManifest({
+      captureManifest: continuousFacts(false, { artifactCount: 2, recordedSegmentCount: 5, declaredRecordedThroughMax: 5 }),
+    });
+    const { container } = render(<VerifyCaptureManifestSection facts={facts} />);
+    const text = container.textContent ?? "";
+    expect(text).toContain("Segments delivered 2 of 5 recorded (client-reported)");
+    expect(text).toContain("Reported not complete by the capture client (Interrupted session)");
+    expect(container.querySelector("[data-verify-capture-completeness-note]")?.textContent).toMatch(
+      /cannot verify segments the client never declared/,
+    );
+  });
+});
