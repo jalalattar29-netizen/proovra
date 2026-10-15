@@ -372,3 +372,45 @@ test("the host app is UNIVERSAL: supports iPhone + iPad, and is not iPad-only", 
   assert.equal(appJson.expo.ios.supportsTablet, true, "host must support iPad");
   assert.notEqual(appJson.expo.ios.isTabletOnly, true, "host must NOT be iPad-only");
 });
+
+// AUD-009 — the extension hard-coded CFBundleShortVersionString 1.0.0 /
+// CFBundleVersion 1 while the host's build number auto-increments (production
+// autoIncrement, appVersionSource remote): every store build after the first
+// shipped an extension whose version did not match its host.
+test("AUD-009: the extension's version comes from build settings equal to the host's, on every prebuild", () => {
+  const info = readFileSync(resolve(HERE, "../plugins/broadcast-extension/Info.plist"), "utf8");
+  assert.match(info, /<key>CFBundleShortVersionString<\/key>\s*<string>\$\(MARKETING_VERSION\)<\/string>/);
+  assert.match(info, /<key>CFBundleVersion<\/key>\s*<string>\$\(CURRENT_PROJECT_VERSION\)<\/string>/);
+
+  const appJson = JSON.parse(readFileSync(resolve(HERE, "../app.json"), "utf8"));
+  const version = appJson.expo.version;
+  const buildNumber = appJson.expo.ios.buildNumber;
+  const proj = freshFixtureProject();
+  applyBroadcastExtensionTarget(proj, { mainBundleId: MAIN_BUNDLE_ID });
+  plugin.syncExtensionVersions(proj, { version, buildNumber });
+  let after = roundTrip(proj);
+
+  const settingsOf = (p) => {
+    const configs = nonComment(p.pbxXCBuildConfigurationSection());
+    const ext = Object.values(configs).filter((c) => c.buildSettings && String(c.buildSettings.PRODUCT_NAME).replace(/"/g, "") === EXT_NAME);
+    const hostList = p.hash.project.objects.XCConfigurationList[p.getFirstTarget().firstTarget.buildConfigurationList];
+    const host = hostList.buildConfigurations.map((c) => configs[c.value]);
+    const v = (c) => [String(c.buildSettings.MARKETING_VERSION).replace(/"/g, ""), String(c.buildSettings.CURRENT_PROJECT_VERSION).replace(/"/g, "")];
+    return { ext: ext.map(v), host: host.map(v) };
+  };
+  let s = settingsOf(after);
+  assert.equal(s.ext.length, 2);
+  assert.ok(s.host.length >= 1);
+  for (const pair of [...s.ext, ...s.host]) assert.deepEqual(pair, [version, buildNumber]);
+
+  // A later prebuild with a new version (the target already exists) still syncs it.
+  plugin.syncExtensionVersions(after, { version: "2.3.4", buildNumber: "57" });
+  assert.equal(applyBroadcastExtensionTarget(after, { mainBundleId: MAIN_BUNDLE_ID }).added, false);
+  after = roundTrip(after);
+  s = settingsOf(after);
+  for (const pair of [...s.ext, ...s.host]) assert.deepEqual(pair, ["2.3.4", "57"]);
+
+  // The prebuild path really calls it with Expo's own version inputs.
+  const src = readFileSync(resolve(HERE, "../plugins/withProovraIosScreenBroadcast.cjs"), "utf8");
+  assert.match(src, /syncExtensionVersions\(cfg\.modResults, \{\s*version: IOSConfig\.Version\.getVersion\(cfg\),\s*buildNumber: IOSConfig\.Version\.getBuildNumber\(cfg\),/);
+});

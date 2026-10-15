@@ -1,0 +1,268 @@
+# AUD-009 — THE path from this repository to a STORE build of the mobile app.
+#
+# Manual only (workflow_dispatch). Three jobs, each with the least privilege it
+# needs:
+#
+#   validate  refuses a release whose configuration is not a store build
+#             (apps/mobile/scripts/validate-mobile-release.mjs: one eas.json,
+#             production profile = store distribution / Release / app-bundle /
+#             no dev client / no simulator, remote auto-incremented versions,
+#             extension version == host version, App Group parity, privacy
+#             manifests) and runs the release-config tests.
+#   build     `eas build --profile production` per platform, in the
+#             `mobile-release` environment. Without EXPO_TOKEN it FAILS with an
+#             explicit message — never a silent pass, never a placeholder token.
+#   submit    `eas submit --profile production` of exactly the build this run
+#             produced, in the protected `mobile-store-submission` environment
+#             (configure required reviewers on it). It runs only when the
+#             dispatcher ticked `submit` AND typed the exact confirmation; store
+#             credentials come from that environment's secrets/variables and a
+#             missing one fails the job by name. Nothing here is automatic.
+#
+# Artifacts of this workflow are the only ones named `store-release-*`; the
+# native-build.yml artifacts are debug/simulator and say so in their names.
+name: mobile-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Store platform(s) to build"
+        type: choice
+        required: true
+        options: [ios, android, all]
+      submit:
+        description: "Also submit the build to App Store Connect / Google Play (waits for mobile-store-submission approval)"
+        type: boolean
+        required: true
+        default: false
+      confirm_submission:
+        description: 'Required when submit is ticked: exactly "SUBMIT <platform> <app.json version>", e.g. "SUBMIT ios 1.0.0"'
+        type: string
+        required: false
+        default: ""
+
+# Least privilege by default; each job asks for exactly what it uses.
+permissions: {}
+
+# One release at a time, never cancelled half-way through a store build or upload.
+concurrency:
+  group: mobile-release
+  cancel-in-progress: false
+
+env:
+  # The eas.json `cli.version` floor (">= 18.0.3"), pinned for reproducibility.
+  EAS_CLI_VERSION: "18.0.3"
+
+jobs:
+  validate:
+    name: Validate the release configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.config.outputs.version }}
+      platforms: ${{ steps.config.outputs.platforms }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.28.2"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Release configuration gate
+        working-directory: apps/mobile
+        run: node scripts/validate-mobile-release.mjs
+
+      - name: Release configuration tests
+        working-directory: apps/mobile
+        run: node --test test/mobile-release-config.test.mjs test/privacy-manifest.test.mjs test/pbxproj-integrity.test.mjs
+
+      - name: Resolve version, platforms and the submission confirmation
+        id: config
+        working-directory: apps/mobile
+        env:
+          PLATFORM: ${{ inputs.platform }}
+          SUBMIT: ${{ inputs.submit }}
+          CONFIRM: ${{ inputs.confirm_submission }}
+        run: |
+          version=$(node -p 'require("./app.json").expo.version')
+          case "$PLATFORM" in
+            ios) platforms='["ios"]' ;;
+            android) platforms='["android"]' ;;
+            all) platforms='["ios","android"]' ;;
+            *) echo "::error::unknown platform '$PLATFORM'"; exit 1 ;;
+          esac
+          if [ "$SUBMIT" = "true" ] && [ "$CONFIRM" != "SUBMIT $PLATFORM $version" ]; then
+            echo "::error::submit was requested but confirm_submission is not exactly \"SUBMIT $PLATFORM $version\". Nothing was built or submitted."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: EAS production build (${{ matrix.platform }})
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: mobile-release
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        platform: ${{ fromJSON(needs.validate.outputs.platforms) }}
+    steps:
+      - name: Require the Expo credential (no silent pass)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not set in the mobile-release environment. A store build cannot run without it; nothing was built."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.28.2"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: eas build --profile production (store distribution)
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -o pipefail
+          npx --yes "eas-cli@${EAS_CLI_VERSION}" build --profile production --platform "$PLATFORM" \
+            --non-interactive --wait --json > "$RUNNER_TEMP/eas-build.json"
+          # Refuse anything that is not a finished STORE build of the production profile.
+          jq -e --arg p "$PLATFORM" 'length == 1 and .[0].status == "FINISHED" and .[0].buildProfile == "production"
+            and .[0].distribution == "STORE" and (.[0].platform | ascii_downcase) == $p' "$RUNNER_TEMP/eas-build.json" \
+            || { echo "::error::EAS did not return one finished production STORE build for $PLATFORM"; cat "$RUNNER_TEMP/eas-build.json"; exit 1; }
+          jq -r '.[0] | "build \(.id) version \(.appVersion) (\(.appBuildVersion))"' "$RUNNER_TEMP/eas-build.json"
+
+      - name: Upload the store build record
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-release-${{ matrix.platform }}-eas-build-${{ github.run_id }}
+          path: ${{ runner.temp }}/eas-build.json
+          if-no-files-found: error
+          retention-days: 90
+
+  submit:
+    name: Submit to the store (${{ matrix.platform }}) — protected, manual
+    needs: [validate, build]
+    if: ${{ inputs.submit == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: mobile-store-submission
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        platform: ${{ fromJSON(needs.validate.outputs.platforms) }}
+    steps:
+      - name: Require the explicit submission confirmation
+        env:
+          PLATFORM_INPUT: ${{ inputs.platform }}
+          VERSION: ${{ needs.validate.outputs.version }}
+          CONFIRM: ${{ inputs.confirm_submission }}
+        run: |
+          if [ "$CONFIRM" != "SUBMIT $PLATFORM_INPUT $VERSION" ]; then
+            echo "::error::confirm_submission is not exactly \"SUBMIT $PLATFORM_INPUT $VERSION\"; nothing was submitted."
+            exit 1
+          fi
+
+      - name: Require the store credentials (no silent pass, nothing fabricated)
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          ASC_APP_ID: ${{ vars.ASC_APP_ID }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_KEY_ISSUER_ID: ${{ secrets.ASC_API_KEY_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          required="EXPO_TOKEN"
+          if [ "$PLATFORM" = "ios" ]; then required="$required ASC_APP_ID ASC_API_KEY_ID ASC_API_KEY_ISSUER_ID ASC_API_KEY_P8"; fi
+          if [ "$PLATFORM" = "android" ]; then required="$required GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"; fi
+          missing=""
+          for name in $required; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::missing in the mobile-store-submission environment:$missing. Nothing was submitted."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.28.2"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Download this run's store build record
+        uses: actions/download-artifact@v4
+        with:
+          name: store-release-${{ matrix.platform }}-eas-build-${{ github.run_id }}
+          path: ${{ runner.temp }}/build-record
+
+      # eas.json keeps submit.production empty: the store identifiers and keys
+      # are written here, for this job only, from the protected environment.
+      - name: Write the submit profile from the environment
+        working-directory: apps/mobile
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ASC_APP_ID: ${{ vars.ASC_APP_ID }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_KEY_ISSUER_ID: ${{ secrets.ASC_API_KEY_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          umask 077
+          if [ "$PLATFORM" = "ios" ]; then
+            printf '%s' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/asc-api-key.p8"
+            jq --arg app "$ASC_APP_ID" --arg key "$RUNNER_TEMP/asc-api-key.p8" --arg kid "$ASC_API_KEY_ID" --arg iss "$ASC_API_KEY_ISSUER_ID" \
+              '.submit.production.ios = {ascAppId: $app, ascApiKeyPath: $key, ascApiKeyId: $kid, ascApiKeyIssuerId: $iss}' eas.json > eas.submit.json
+          else
+            printf '%s' "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play-service-account.json"
+            jq --arg key "$RUNNER_TEMP/play-service-account.json" \
+              '.submit.production.android = {serviceAccountKeyPath: $key}' eas.json > eas.submit.json
+          fi
+          mv eas.submit.json eas.json
+
+      - name: eas submit --profile production (this run's build only)
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          build_id=$(jq -r '.[0].id' "$RUNNER_TEMP/build-record/eas-build.json")
+          if [ -z "$build_id" ] || [ "$build_id" = "null" ]; then echo "::error::no build id in this run's build record"; exit 1; fi
+          npx --yes "eas-cli@${EAS_CLI_VERSION}" submit --profile production --platform "$PLATFORM" \
+            --id "$build_id" --non-interactive --wait

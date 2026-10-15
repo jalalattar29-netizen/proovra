@@ -29,7 +29,7 @@ const fs = require("fs");
 const path = require("path");
 // Import via `expo/config-plugins` (expo is a direct dependency and always
 // resolvable from here); `@expo/config-plugins` is not hoisted under pnpm.
-const { withXcodeProject, withDangerousMod } = require("expo/config-plugins");
+const { withXcodeProject, withDangerousMod, IOSConfig } = require("expo/config-plugins");
 
 const EXT_NAME = "ProovraBroadcast";
 const EXT_SUFFIX = "broadcast";
@@ -166,6 +166,42 @@ function applyBroadcastExtensionTarget(proj, options) {
   return { added: true };
 }
 
+/**
+ * AUD-009 — the extension's version IS the host's. Its Info.plist reads
+ * $(MARKETING_VERSION) / $(CURRENT_PROJECT_VERSION); this sets those build
+ * settings on the extension AND the host target to the values Expo writes into
+ * the host Info.plist (app.json `version` / `ios.buildNumber`, through Expo's
+ * own getVersion / getBuildNumber). With appVersionSource "remote", EAS Build
+ * then writes the remote build number into the Info.plist of EVERY signed
+ * target (host + the declared appExtensions entry), so the two stay equal there
+ * too. Runs on every prebuild (not only when the target is first added), so a
+ * version bump reaches an existing target. Returns the configs it set.
+ */
+function syncExtensionVersions(proj, { version, buildNumber }) {
+  const marketing = `"${String(version)}"`;
+  const build = `"${String(buildNumber)}"`;
+  const hostTarget = proj.getFirstTarget();
+  const hostConfigList = hostTarget && hostTarget.firstTarget && hostTarget.firstTarget.buildConfigurationList;
+  const hostConfigUuids = new Set();
+  if (hostConfigList) {
+    const list = proj.hash.project.objects.XCConfigurationList[hostConfigList];
+    for (const c of (list && list.buildConfigurations) || []) hostConfigUuids.add(c.value);
+  }
+  let set = 0;
+  const configs = proj.pbxXCBuildConfigurationSection();
+  for (const key of Object.keys(configs)) {
+    const cfgObj = configs[key];
+    if (!cfgObj || typeof cfgObj !== "object" || !cfgObj.buildSettings) continue;
+    const bs = cfgObj.buildSettings;
+    if ((bs.PRODUCT_NAME && unquote(bs.PRODUCT_NAME) === EXT_NAME) || hostConfigUuids.has(key)) {
+      bs.MARKETING_VERSION = marketing;
+      bs.CURRENT_PROJECT_VERSION = build;
+      set += 1;
+    }
+  }
+  return set;
+}
+
 function withExtensionFilesCopied(config) {
   return withDangerousMod(config, [
     "ios",
@@ -189,6 +225,10 @@ function withExtensionTarget(config) {
     const mainBundleId =
       (cfg.ios && cfg.ios.bundleIdentifier) || "com.jalalattar29.proovra";
     applyBroadcastExtensionTarget(cfg.modResults, { mainBundleId });
+    syncExtensionVersions(cfg.modResults, {
+      version: IOSConfig.Version.getVersion(cfg),
+      buildNumber: IOSConfig.Version.getBuildNumber(cfg),
+    });
     return cfg;
   });
 }
@@ -201,6 +241,7 @@ module.exports = function withProovraIosScreenBroadcast(config) {
 
 // Exposed for the offline pbxproj-integrity harness (no Expo/prebuild required).
 module.exports.applyBroadcastExtensionTarget = applyBroadcastExtensionTarget;
+module.exports.syncExtensionVersions = syncExtensionVersions;
 module.exports.EXT_NAME = EXT_NAME;
 module.exports.EXT_SUFFIX = EXT_SUFFIX;
 module.exports.EXT_SOURCES = EXT_SOURCES;

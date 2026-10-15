@@ -173,11 +173,28 @@ jobs:
           plutil -p "$APP/PrivacyInfo.xcprivacy" | grep -q "NSPrivacyAccessedAPICategorySystemBootTime" \
             || { echo "::error::the app manifest does not carry app.json ios.privacyManifests"; exit 1; }
 
+      # AUD-009 — the embedded extension carries its host's version and build
+      # number (Info.plist $(MARKETING_VERSION)/$(CURRENT_PROJECT_VERSION),
+      # synced by the config plugin); a mismatch is refused by App Store Connect.
+      - name: Refuse an extension whose version differs from its host
+        working-directory: apps/mobile/ios
+        run: |
+          APP=$(find build/Build/Products -maxdepth 2 -name "*.app" -type d | head -1)
+          APPEX="$APP/PlugIns/ProovraBroadcast.appex"
+          for key in CFBundleShortVersionString CFBundleVersion; do
+            host=$(/usr/libexec/PlistBuddy -c "Print :$key" "$APP/Info.plist")
+            ext=$(/usr/libexec/PlistBuddy -c "Print :$key" "$APPEX/Info.plist")
+            echo "$key: host=$host extension=$ext"
+            if [ -z "$host" ] || [ "$host" != "$ext" ]; then echo "::error::$key: extension '$ext' != host '$host'"; exit 1; fi
+          done
+
+      # A Debug, unsigned SIMULATOR build: its artifacts say so. Store builds
+      # come only from mobile-release.yml (artifacts named store-release-*).
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ios-xcodebuild-log-${{ github.run_id }}
+          name: ios-simulator-debug-xcodebuild-log-${{ github.run_id }}
           path: ${{ runner.temp }}/xcodebuild.log
           if-no-files-found: warn
           retention-days: 14
