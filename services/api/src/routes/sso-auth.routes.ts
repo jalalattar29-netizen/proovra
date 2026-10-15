@@ -32,6 +32,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { isProovraProductionRequest } from "../http/cors-origin-policy.js";
+import { getSecret } from "../config/runtime-secrets.js";
 import { z } from "zod";
 
 import { prisma } from "../db.js";
@@ -199,7 +200,9 @@ function setSessionCookie(
 // -----------------------------------------------------------------------------
 
 export async function ssoAuthRoutes(app: FastifyInstance) {
-  const jwtSecret = process.env["AUTH_JWT_SECRET"];
+  // The canonical accessor (secrets cache, then env) — the same key
+  // requireAuth verifies with; a direct env read could diverge from it.
+  const jwtSecret = getSecret("AUTH_JWT_SECRET");
   if (!jwtSecret) {
     throw new Error("AUTH_JWT_SECRET is not set");
   }

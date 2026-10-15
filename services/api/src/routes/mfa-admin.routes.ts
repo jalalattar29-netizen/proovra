@@ -1408,7 +1408,9 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
       // same `buildMfaDigestSnoozeUrl` helper that the email-side
       // snooze route uses. Returns null if JWT secret is absent.
       const testSnoozeUrl = (() => {
-        const secret = process.env.AUTH_JWT_SECRET;
+        // The canonical accessor (secrets cache, then env) — the same key
+        // requireAuth and every token mint read.
+        const secret = getSecret("AUTH_JWT_SECRET");
         if (!secret) return null;
         return buildMfaDigestSnoozeUrl(
           actorUserId,
