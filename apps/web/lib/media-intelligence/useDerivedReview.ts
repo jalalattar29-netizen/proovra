@@ -43,6 +43,23 @@ export type DerivedReviewBlock = {
   possibleDuplicateOf?: string | null;
 };
 
+/** AUD-003 — what OCR produced (see @proovra/shared SCREEN_OCR_OUTCOMES). */
+export type DerivedReviewOcrOutcome =
+  | "TEXT_FOUND"
+  | "NO_TEXT_PRESENT"
+  | "PARTIAL_FAILURE"
+  | "ATTEMPTED_ALL_FAILED"
+  | "NO_FRAMES_PROCESSED"
+  | "OCR_DISABLED"
+  | "ENGINE_UNAVAILABLE"
+  | "LANGUAGE_UNAVAILABLE";
+
+export type DerivedReviewOcrCounts = {
+  keyframesAttempted: number;
+  keyframesSucceeded: number;
+  keyframesFailed: number;
+};
+
 export type DerivedReviewProjection = {
   schemaVersion: string;
   descriptorVersion: number;
@@ -68,6 +85,13 @@ export type DerivedReviewProjection = {
   /** UC-DER-008 — policy-off and engine-unavailable are different facts. */
   ocrStatus?: "ENABLED" | "DISABLED_BY_POLICY" | "RUNTIME_UNAVAILABLE";
   ocrLanguage?: string | null;
+  /** AUD-003 — the OCR outcome and per-keyframe counts (absent from older APIs). */
+  ocrOutcome?: DerivedReviewOcrOutcome;
+  ocrCounts?: DerivedReviewOcrCounts;
+  /** AUD-019 — requested vs effective vs missing OCR language models. */
+  ocrLanguages?: { requested: string | null; effective: string | null; missing: string[] };
+  /** Block offsets are on the capture SESSION timeline, or ms into each PART. */
+  offsetTimeline?: "SESSION" | "PART";
   /** UC-DER-005/006 — the generation this projection describes. */
   generation?: {
     generation: number;
@@ -86,6 +110,21 @@ export type DerivedReviewResponse = {
   /** UC-DER-002 — byte-release decision for this viewer. */
   release?: { allowed: boolean; code?: string; message?: string | null };
 };
+
+/**
+ * AUD-003 — never show COMPLETE coverage the OCR facts do not support. The
+ * server already applies the rule; this is the client's own guard against an
+ * older API that still sends the stored value.
+ */
+export function derivedReviewCoverage(
+  projection: Pick<DerivedReviewProjection, "coverage" | "ocrOutcome" | "stats" | "blockTotal">,
+): "COMPLETE" | "PARTIAL" {
+  if (projection.coverage !== "COMPLETE") return "PARTIAL";
+  if (projection.ocrOutcome && projection.ocrOutcome !== "TEXT_FOUND") return "PARTIAL";
+  if ((projection.stats?.ocrFailedKeyframes ?? 0) > 0) return "PARTIAL";
+  if ((projection.stats?.observationCount ?? 0) === 0 || projection.blockTotal === 0) return "PARTIAL";
+  return "COMPLETE";
+}
 
 function normalizeKeyframeUrls(
   urls: Record<string, string | null>,

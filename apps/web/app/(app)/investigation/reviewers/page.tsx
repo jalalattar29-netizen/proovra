@@ -132,12 +132,39 @@ type IndexingTotals = {
 // provider chip above is the authoritative producer status). `role`
 // and `summary` are new fields the route emits so the UI can render
 // honest copy verbatim.
+// AUD-019 — Tesseract is the WORKER's own probe (heartbeat), never a constant:
+// ok with the languages that actually run, or a bounded reason
+// (engine_unavailable / language_unavailable / not_reported).
 type LocalExtractorCapability = {
   role?: "secondary";
   summary?: string;
-  tesseract: { ok: false; reason: string } | { ok: true };
+  tesseract:
+    | { ok: false; reason: string }
+    | {
+        ok: true;
+        source?: "worker_heartbeat";
+        version?: string | null;
+        languages?: string;
+        missingLanguages?: string[];
+        reportedAtUtc?: string;
+      };
   whisper: { ok: false; reason: string } | { ok: true };
 };
+
+/** The tesseract pill — only ever as strong as the worker's report. */
+function tesseractPillLabel(t: LocalExtractorCapability["tesseract"]): string {
+  if (t.ok) return t.languages ? `available · ${t.languages}` : "available";
+  switch (t.reason) {
+    case "engine_unavailable":
+      return "not installed";
+    case "language_unavailable":
+      return "no language model";
+    case "not_reported":
+      return "not reported";
+    default:
+      return "not enabled";
+  }
+}
 
 // Phase Repair — bounded read-path quality marker. Empty
 // `degradedBlocks` on the happy path. The page renders a single
@@ -675,16 +702,13 @@ function LocalExtractorCapabilityTile({
   cap: LocalExtractorCapability;
 }) {
   // Phase Repair — local runtimes are SECONDARY. The cloud provider
-  // chip above is the authoritative producer status; this tile only
-  // surfaces whether local binaries are present (they are not, by
-  // policy). Demoted visually + an explicit summary string. The
-  // summary string is rendered verbatim from the route — UI never
-  // invents its own disclaimer copy.
+  // chip above is the authoritative producer status. AUD-019 — the
+  // Tesseract row is what the worker REPORTED (binary + language
+  // models); the summary is rendered verbatim from the route, and with
+  // no summary the tile claims nothing about local OCR.
   const tesseractEnabled = cap.tesseract.ok;
   const whisperEnabled = cap.whisper.ok;
-  const summary =
-    cap.summary ??
-    "Local OCR/transcript runtime is not enabled. Cloud provider is the active path.";
+  const summary = cap.summary ?? "Local OCR state unknown — not reported by the worker.";
   return (
     <div style={secondaryTileStyle}>
       <div style={secondaryTileBadgeStyle}>Secondary</div>
@@ -694,7 +718,7 @@ function LocalExtractorCapabilityTile({
         <li style={tileBreakdownRowStyle}>
           <span style={tileBreakdownLabelStyle}>Local OCR (Tesseract)</span>
           <span style={statusPillStyle(tesseractEnabled)}>
-            {tesseractEnabled ? "enabled" : "not enabled"}
+            {tesseractPillLabel(cap.tesseract)}
           </span>
         </li>
         <li style={tileBreakdownRowStyle}>

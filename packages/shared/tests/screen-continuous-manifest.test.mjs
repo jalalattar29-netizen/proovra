@@ -301,3 +301,32 @@ test("ET-DC-09: a sealed session's completeness is read from its end reason, not
   assert.equal(captureSessionAcquisitionComplete({ status: "BOUND", endReason: continuousEndReasonFor("INTERRUPTED_SESSION") }), false);
   assert.equal(captureSessionAcquisitionComplete({ status: "BOUND", endReason: continuousEndReasonFor("COMPLETE_SESSION") }), true);
 });
+
+// ---------------------------------------------------------------------------
+// UC-4 — segment start offsets for the derived keyframe session timeline.
+// ---------------------------------------------------------------------------
+import { continuousSegmentStartOffsets } from "../dist/screen-continuous-manifest.js";
+
+test("continuousSegmentStartOffsets maps partIndex → startedAtOffsetMs from a V2 manifest", () => {
+  const m = {
+    schemaVersion: "PROOVRA_SCREEN_CAPTURE_CONTINUOUS_MANIFEST_V2",
+    segments: [
+      { partIndex: 0, startedAtOffsetMs: 0 },
+      { partIndex: 1, startedAtOffsetMs: 30250 },
+    ],
+  };
+  assert.deepEqual([...continuousSegmentStartOffsets(m)], [[0, 0], [1, 30250]]);
+});
+
+test("continuousSegmentStartOffsets refuses anything it cannot trust (never a guessed offset)", () => {
+  assert.equal(continuousSegmentStartOffsets(null), null);
+  assert.equal(continuousSegmentStartOffsets({ schemaVersion: "OTHER", segments: [] }), null);
+  const v2 = (segments) => ({ schemaVersion: "PROOVRA_SCREEN_CAPTURE_CONTINUOUS_MANIFEST_V2", segments });
+  assert.equal(continuousSegmentStartOffsets(v2([])), null);
+  assert.equal(continuousSegmentStartOffsets(v2([{ partIndex: 0, startedAtOffsetMs: -5 }])), null);
+  assert.equal(continuousSegmentStartOffsets(v2([{ partIndex: 0, startedAtOffsetMs: 1.5 }])), null);
+  assert.equal(
+    continuousSegmentStartOffsets(v2([{ partIndex: 0, startedAtOffsetMs: 0 }, { partIndex: 0, startedAtOffsetMs: 10 }])),
+    null,
+  );
+});

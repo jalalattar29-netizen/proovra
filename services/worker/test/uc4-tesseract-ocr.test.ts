@@ -10,7 +10,13 @@ import {
   parseTesseractTsv,
   createTesseractOcrProvider,
 } from "../src/tesseract-ocr-provider.js";
-import { detectTesseractCapability } from "../src/tesseract-capability.js";
+import {
+  DEFAULT_OCR_LANGUAGES,
+  detectTesseractCapability,
+  parseTesseractLanguageList,
+  probeLocalOcrCapabilityReport,
+  resolveOcrLanguages,
+} from "../src/tesseract-capability.js";
 
 const TSV = [
   "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext",
@@ -87,5 +93,83 @@ describe("UC-4 tesseract TSV parser (pure, deterministic)", () => {
     for (const r of res.regions) {
       expect(r.bbox!.left + r.bbox!.width).toBeLessThanOrEqual(1080);
     }
+  }, 60_000);
+});
+
+// ---------------------------------------------------------------------------
+// AUD-019 — language truth: requested ∩ installed, and real recognition of
+// the three PROOVRA locales through the worker's provider.
+// ---------------------------------------------------------------------------
+describe("UC-4 OCR languages (AUD-019)", () => {
+  it("parses `tesseract --list-langs` (header skipped, sorted, de-duplicated, junk dropped)", () => {
+    const out = 'List of available languages in "/usr/share/tessdata/" (4):\neng\nara\ndeu\neng\n\nnot a lang!\nosd\n';
+    expect(parseTesseractLanguageList(out)).toEqual(["ara", "deu", "eng", "osd"]);
+    expect(parseTesseractLanguageList("")).toEqual([]);
+  });
+
+  it("runs only installed models, in request order, and names every missing one", () => {
+    expect(resolveOcrLanguages("deu+eng+ara", ["ara", "deu", "eng"])).toEqual({
+      requested: "deu+eng+ara",
+      effective: "deu+eng+ara",
+      missing: [],
+    });
+    expect(resolveOcrLanguages("deu+eng+ara", ["eng"])).toEqual({
+      requested: "deu+eng+ara",
+      effective: "eng",
+      missing: ["deu", "ara"],
+    });
+    // Nothing installed → nothing runs; never a recorded language that did not run.
+    expect(resolveOcrLanguages("deu+eng+ara", [])).toEqual({
+      requested: "deu+eng+ara",
+      effective: null,
+      missing: ["deu", "eng", "ara"],
+    });
+    // Malformed tokens are not passed to the engine argv.
+    expect(resolveOcrLanguages("eng+../x+ara", ["eng", "ara"]).effective).toBe("eng+ara");
+  });
+
+  it("the heartbeat report states the engine and languages THIS process probed — never a constant", async () => {
+    const cap = await detectTesseractCapability();
+    const r = await probeLocalOcrCapabilityReport(new Date("2026-10-15T12:00:00.000Z"));
+    expect(r.engine).toBe("tesseract");
+    expect(r.observedAtUtc).toBe("2026-10-15T12:00:00.000Z");
+    expect(r.requested).toBe("deu+eng+ara");
+    if (cap.ok) {
+      expect(r.available).toBe(true);
+      expect(r.installedLanguages).toEqual(cap.languages);
+      expect(r.effective).toBe(resolveOcrLanguages("deu+eng+ara", cap.languages).effective);
+    } else {
+      expect(r.available).toBe(false);
+      expect(r.effective).toBeNull();
+      expect(r.missing).toEqual(["deu", "eng", "ara"]);
+    }
+  });
+
+  it("the default asks for the three PROOVRA locales, German first", () => {
+    expect(DEFAULT_OCR_LANGUAGES).toBe("deu+eng+ara");
+  });
+
+  it("with the engine installed, the image's models include eng, ara and deu and the provider reads all three scripts", async (ctx) => {
+    const cap = await detectTesseractCapability();
+    if (!cap.ok) {
+      if (process.env.UC4_REQUIRE_TESSERACT === "1") {
+        throw new Error(`tesseract required but unavailable: ${cap.reason}`);
+      }
+      return ctx.skip();
+    }
+    expect(cap.languages).toEqual(expect.arrayContaining(["eng", "ara", "deu"]));
+    const langs = resolveOcrLanguages(DEFAULT_OCR_LANGUAGES, cap.languages);
+    expect(langs).toEqual({ requested: "deu+eng+ara", effective: "deu+eng+ara", missing: [] });
+    const provider = await createTesseractOcrProvider(langs.effective!);
+    // Rendered by the worker image's own Chromium (FreeSerif): English,
+    // German (ä/ö/ü/ß) and Arabic (shaped, RTL). No customer data.
+    const imageRef = fileURLToPath(new URL("./fixtures/uc4/multilingual-screen-deu-eng-ara.png", import.meta.url));
+    const res = await provider.extract({ imageRef });
+    const text = res.regions.map((r) => r.text).join("\n").normalize("NFKC");
+    expect(res.language).toBe("deu+eng+ara");
+    expect(text).toMatch(/Invoice\s+88213\s+confirmed/);
+    expect(text).toMatch(/Größe\s+und\s+Übertragung\s+prüfen/);
+    expect(text).toContain("تأكيد");
+    expect(text).toContain("الدفع");
   }, 60_000);
 });

@@ -112,6 +112,170 @@ export function screenReconstructionVariantKey(generation: number): string {
 /** How OCR stood for a run — policy and runtime are different facts (UC-DER-008). */
 export type ScreenOcrStatus = "ENABLED" | "DISABLED_BY_POLICY" | "RUNTIME_UNAVAILABLE";
 
+/**
+ * AUD-003 — what OCR actually PRODUCED for a run, as one explicit value. The
+ * status above says whether OCR was allowed to run; this says what came of it,
+ * so "the source has no text" is never confused with "OCR never read it":
+ *
+ *   TEXT_FOUND            every attempted keyframe was read and text was recognised
+ *   NO_TEXT_PRESENT       every attempted keyframe was read; none had recognisable text
+ *   PARTIAL_FAILURE       some keyframes were read, the engine failed on others
+ *   ATTEMPTED_ALL_FAILED  OCR was attempted and failed on EVERY keyframe
+ *   NO_FRAMES_PROCESSED   OCR could run but no keyframe reached it
+ *   OCR_DISABLED          the workspace policy keeps OCR off
+ *   ENGINE_UNAVAILABLE    the local OCR engine is missing on the worker
+ *   LANGUAGE_UNAVAILABLE  no requested language model is installed on the worker
+ */
+export const SCREEN_OCR_OUTCOMES = [
+  "TEXT_FOUND",
+  "NO_TEXT_PRESENT",
+  "PARTIAL_FAILURE",
+  "ATTEMPTED_ALL_FAILED",
+  "NO_FRAMES_PROCESSED",
+  "OCR_DISABLED",
+  "ENGINE_UNAVAILABLE",
+  "LANGUAGE_UNAVAILABLE",
+] as const;
+export type ScreenOcrOutcome = (typeof SCREEN_OCR_OUTCOMES)[number];
+
+/** AUD-003 — per-keyframe OCR accounting. attempted = succeeded + failed. */
+export type ScreenOcrCounts = {
+  keyframesAttempted: number;
+  keyframesSucceeded: number;
+  keyframesFailed: number;
+};
+
+/**
+ * AUD-019 — the OCR language models: what was asked for, what actually ran
+ * (requested ∩ installed, "+"-joined in request order; null when nothing ran)
+ * and which requested models were missing. A language that did not run is
+ * never recorded as the effective one.
+ */
+export type ScreenOcrLanguages = {
+  requested: string | null;
+  effective: string | null;
+  missing: string[];
+};
+
+/** PURE — the one rule that turns OCR status + counts into an outcome. */
+export function assessScreenOcrOutcome(input: {
+  ocrStatus: ScreenOcrStatus;
+  counts: ScreenOcrCounts;
+  observationCount: number;
+  languages?: ScreenOcrLanguages | null;
+}): ScreenOcrOutcome {
+  const { ocrStatus, counts, observationCount, languages } = input;
+  if (ocrStatus === "DISABLED_BY_POLICY") return "OCR_DISABLED";
+  if (ocrStatus === "RUNTIME_UNAVAILABLE") {
+    return languages && !languages.effective && languages.missing.length > 0
+      ? "LANGUAGE_UNAVAILABLE"
+      : "ENGINE_UNAVAILABLE";
+  }
+  if (counts.keyframesAttempted <= 0) return "NO_FRAMES_PROCESSED";
+  if (counts.keyframesSucceeded <= 0) return "ATTEMPTED_ALL_FAILED";
+  if (counts.keyframesFailed > 0) return "PARTIAL_FAILURE";
+  return observationCount > 0 ? "TEXT_FOUND" : "NO_TEXT_PRESENT";
+}
+
+/** PURE — the limitations an OCR outcome imposes on the derived result by itself. */
+export function screenOcrLimitations(input: {
+  outcome: ScreenOcrOutcome;
+  counts: ScreenOcrCounts;
+  observationCount: number;
+  languages?: ScreenOcrLanguages | null;
+}): ReconstructionLimitationCode[] {
+  const out: ReconstructionLimitationCode[] = [];
+  if (input.outcome === "ENGINE_UNAVAILABLE") out.push("RECONSTRUCTION_OCR_RUNTIME_UNAVAILABLE");
+  if (input.outcome === "LANGUAGE_UNAVAILABLE" || (input.languages?.missing.length ?? 0) > 0) {
+    out.push("RECONSTRUCTION_OCR_LANGUAGE_UNAVAILABLE");
+  }
+  if (input.counts.keyframesFailed > 0) out.push("RECONSTRUCTION_OCR_EXTRACTION_FAILED");
+  if (input.observationCount === 0) out.push("RECONSTRUCTION_NO_OBSERVATIONS");
+  return out;
+}
+
+/**
+ * PURE — THE derived-coverage rule (AUD-003). COMPLETE only when OCR read every
+ * attempted keyframe AND recognised text, the acquisition was complete, the
+ * reconstruction proved continuity, and nothing else degraded the run. A
+ * labelled possible duplicate is a reading caveat, not missing coverage. Zero
+ * successful OCR, any failed keyframe, or an empty reconstruction is PARTIAL.
+ */
+export function screenDerivedCoverage(input: {
+  outcome: ScreenOcrOutcome;
+  acquisitionComplete: boolean;
+  reconstructionCoverage: ReconstructionCoverage;
+  limitations: ReadonlyArray<ReconstructionLimitationCode>;
+}): ReconstructionCoverage {
+  const degrading = input.limitations.filter((l) => l !== "RECONSTRUCTION_POSSIBLE_DUPLICATE");
+  return input.outcome === "TEXT_FOUND" &&
+    input.acquisitionComplete &&
+    input.reconstructionCoverage === "COMPLETE" &&
+    degrading.length === 0
+    ? "COMPLETE"
+    : "PARTIAL";
+}
+
+/**
+ * The OCR truth of a persisted descriptor, for EVERY read model. Descriptors
+ * written before AUD-003 carry no outcome or counts and may have recorded
+ * COMPLETE over failed or empty OCR; they are re-read here (stored bytes are
+ * never rewritten) so no surface repeats that overclaim.
+ */
+export function resolveScreenOcrTruth(
+  d: Pick<
+    ScreenIntelligenceDescriptor,
+    "ocrEnabled" | "ocrProvider" | "coverage" | "limitations" | "acquisitionComplete" | "stats"
+  > & {
+    ocrStatus?: ScreenOcrStatus;
+    ocrOutcome?: ScreenOcrOutcome;
+    ocrCounts?: ScreenOcrCounts;
+    ocrLanguages?: ScreenOcrLanguages;
+  },
+): {
+  ocrStatus: ScreenOcrStatus;
+  ocrOutcome: ScreenOcrOutcome;
+  ocrCounts: ScreenOcrCounts;
+  ocrLanguages: ScreenOcrLanguages;
+  coverage: ReconstructionCoverage;
+  limitations: ReconstructionLimitationCode[];
+} {
+  const ocrStatus = resolveScreenOcrStatus(d);
+  const failed = Math.max(0, d.stats?.ocrFailedKeyframes ?? 0);
+  const ocrCounts: ScreenOcrCounts = d.ocrCounts ?? (() => {
+    // Legacy: every keyframe up to the OCR bound was attempted when OCR ran.
+    const attempted =
+      ocrStatus === "ENABLED"
+        ? Math.min(Math.max(0, d.stats?.keyframeCount ?? 0), UC4_RESOURCE_BOUNDS.maxOcrKeyframes)
+        : 0;
+    const f = Math.min(failed, attempted);
+    return { keyframesAttempted: attempted, keyframesSucceeded: attempted - f, keyframesFailed: f };
+  })();
+  const ocrLanguages: ScreenOcrLanguages = d.ocrLanguages ?? {
+    requested: d.ocrProvider?.language ?? null,
+    effective: ocrStatus === "ENABLED" ? d.ocrProvider?.language ?? null : null,
+    missing: [],
+  };
+  const observationCount = Math.max(0, d.stats?.observationCount ?? 0);
+  const ocrOutcome =
+    d.ocrOutcome ??
+    assessScreenOcrOutcome({ ocrStatus, counts: ocrCounts, observationCount, languages: ocrLanguages });
+  const limitations = [...(d.limitations ?? [])];
+  for (const l of screenOcrLimitations({ outcome: ocrOutcome, counts: ocrCounts, observationCount, languages: ocrLanguages })) {
+    if (!limitations.includes(l)) limitations.push(l);
+  }
+  const coverage =
+    d.coverage === "COMPLETE"
+      ? screenDerivedCoverage({
+          outcome: ocrOutcome,
+          acquisitionComplete: d.acquisitionComplete,
+          reconstructionCoverage: "COMPLETE",
+          limitations,
+        })
+      : "PARTIAL";
+  return { ocrStatus, ocrOutcome, ocrCounts, ocrLanguages, coverage, limitations };
+}
+
 /** ONE ORIGINAL part as the generation actually READ it (UC-DER-014). */
 export type ScreenSourceRead = {
   evidencePartId: string;
@@ -183,7 +347,8 @@ export type Uc4ResourceBounds = typeof UC4_RESOURCE_BOUNDS;
 
 /** Canonical transformation-version stamp carried by every persisted descriptor. */
 export const SCREEN_INTELLIGENCE_TRANSFORMATION_VERSIONS = {
-  keyframe: "video-keyframe/v1",
+  // v2 — real presentation timestamps of selected frames (v1: index × interval).
+  keyframe: "video-keyframe/v2",
   ocr: "screen-ocr/v1",
   overlap: "screen-overlap-analysis/v1",
   dedup: "SCREEN_CONTENT_DEDUP_V1",
@@ -207,7 +372,13 @@ export type ScreenKeyframeRecord = {
   partIndex: number;
   evidencePartId: string;
   variantKey: string;
+  /** The frame's real presentation time in its ORIGINAL part (ms after the part's first frame). */
   offsetMs: number;
+  /**
+   * Its time on the capture SESSION timeline (segment start from the
+   * continuity manifest + offsetMs); null when the record has no manifest.
+   */
+  sessionOffsetMs?: number | null;
   derivedSha256: string | null;
   /** The derived-asset row id, so View Source resolves the private bytes proxy. */
   derivedAssetId: string | null;
@@ -270,6 +441,18 @@ export type ScreenIntelligenceDescriptor = {
   ocrEnabled: boolean;
   /** UC-DER-008 — policy-off and engine-missing are different facts. */
   ocrStatus?: ScreenOcrStatus;
+  /** AUD-003 — what OCR produced (absent on descriptors written before it). */
+  ocrOutcome?: ScreenOcrOutcome;
+  /** AUD-003 — per-keyframe OCR accounting (absent on earlier descriptors). */
+  ocrCounts?: ScreenOcrCounts;
+  /** AUD-019 — requested vs effective vs missing OCR language models. */
+  ocrLanguages?: ScreenOcrLanguages;
+  /**
+   * Which timeline observation/block offsets are on: SESSION (every source
+   * part's start is known from the continuity manifest) or PART (ms into each
+   * part). Absent on earlier descriptors, which are PART.
+   */
+  offsetTimeline?: "SESSION" | "PART";
   /** ORIGINAL acquisition completeness, carried separately from derived coverage. */
   acquisitionComplete: boolean;
   /** DERIVED reconstruction coverage — NEVER upgrades acquisition completeness. */
@@ -310,7 +493,15 @@ export type ScreenIntelligenceReviewProjection = {
   ocrEnabled: boolean;
   /** UC-DER-008 — why OCR did or did not run. */
   ocrStatus: ScreenOcrStatus;
+  /** AUD-003 — what OCR produced, and the per-keyframe counts behind it. */
+  ocrOutcome: ScreenOcrOutcome;
+  ocrCounts: ScreenOcrCounts;
+  /** AUD-019 — requested vs effective vs missing language models. */
+  ocrLanguages: ScreenOcrLanguages;
+  /** The language model(s) OCR ACTUALLY ran with (null when it did not run). */
   ocrLanguage: string | null;
+  /** Which timeline block offsets are on (SESSION or ms into each PART). */
+  offsetTimeline: "SESSION" | "PART";
   coverage: ReconstructionCoverage;
   acquisitionComplete: boolean;
   limitations: ReconstructionLimitationCode[];
@@ -397,6 +588,9 @@ export function projectScreenIntelligenceForReview(
       };
     });
   const g = descriptor.generation;
+  // AUD-003 — coverage, limitations and the OCR outcome come from the ONE
+  // resolver, so a legacy descriptor's overclaim is corrected on read.
+  const ocr = resolveScreenOcrTruth(descriptor);
   return {
     schemaVersion: descriptor.schemaVersion,
     descriptorVersion: descriptor.descriptorVersion,
@@ -405,11 +599,15 @@ export function projectScreenIntelligenceForReview(
       machineExtracted: DERIVED_TEXT_PROVENANCE,
     },
     ocrEnabled: descriptor.ocrEnabled,
-    ocrStatus: resolveScreenOcrStatus(descriptor),
-    ocrLanguage: descriptor.ocrProvider?.language ?? null,
-    coverage: descriptor.coverage,
+    ocrStatus: ocr.ocrStatus,
+    ocrOutcome: ocr.ocrOutcome,
+    ocrCounts: ocr.ocrCounts,
+    ocrLanguages: ocr.ocrLanguages,
+    ocrLanguage: ocr.ocrLanguages.effective,
+    offsetTimeline: descriptor.offsetTimeline ?? "PART",
+    coverage: ocr.coverage,
     acquisitionComplete: descriptor.acquisitionComplete,
-    limitations: descriptor.limitations,
+    limitations: ocr.limitations,
     transformationVersions: descriptor.transformationVersions,
     generatedAtUtc: descriptor.generatedAtUtc,
     stats: descriptor.stats,

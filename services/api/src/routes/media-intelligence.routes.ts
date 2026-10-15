@@ -1200,21 +1200,53 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
             : 0,
       };
 
-      // 8) Phase Repair — local-extractor capability snapshot.
-      //    SECONDARY signal only. Local Tesseract / Whisper runtimes
-      //    are NOT the intended extraction path — the cloud provider
-      //    chips above are the authoritative producer status. This
-      //    tile exists to make it visible at a glance that the
-      //    platform is NOT spawning local binaries.
+      // 8) Phase Repair — local-extractor capability snapshot. SECONDARY; the
+      //    provider chips above stay the authoritative producer status.
+      //
+      //    AUD-019 — this used to be a constant ("Local OCR ... is not
+      //    enabled") while the worker image ships and runs Tesseract for
+      //    derived screen review. Tesseract is now the WORKER's own probe
+      //    (binary + installed language models) carried on its heartbeat;
+      //    with no fresh report it is "not reported", never a guess.
+      //    Whisper stays `not_enabled`: no local transcript runtime exists
+      //    anywhere in the worker.
       //
       //    The `role: "secondary"` field tells the UI to render this
       //    tile demoted relative to the cloud chip. `summary`
       //    carries operator-facing copy the UI renders verbatim.
+      const { readReportedLocalOcrCapability, localOcrCapabilitySummary } = await import(
+        "../services/media-intelligence/local-ocr-capability.service.js"
+      );
+      let localOcr: Awaited<ReturnType<typeof readReportedLocalOcrCapability>> = {
+        state: "NOT_REPORTED",
+      };
+      try {
+        localOcr = await readReportedLocalOcrCapability();
+      } catch {
+        degradedBlocks.push("local_ocr_capability");
+      }
       const localExtractorCapability = {
         role: "secondary" as const,
-        summary:
-          "Local OCR/transcript runtime is not enabled. Cloud provider is the active path.",
-        tesseract: { ok: false as const, reason: "not_enabled" as const },
+        summary: localOcrCapabilitySummary(localOcr),
+        tesseract:
+          localOcr.state === "AVAILABLE"
+            ? {
+                ok: true as const,
+                source: "worker_heartbeat" as const,
+                version: localOcr.version,
+                languages: localOcr.effectiveLanguages,
+                missingLanguages: localOcr.missingLanguages,
+                reportedAtUtc: localOcr.reportedAtUtc,
+              }
+            : {
+                ok: false as const,
+                reason:
+                  localOcr.state === "ENGINE_UNAVAILABLE"
+                    ? ("engine_unavailable" as const)
+                    : localOcr.state === "LANGUAGE_UNAVAILABLE"
+                      ? ("language_unavailable" as const)
+                      : ("not_reported" as const),
+              },
         whisper: { ok: false as const, reason: "not_enabled" as const },
       };
 

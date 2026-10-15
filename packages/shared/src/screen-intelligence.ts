@@ -19,6 +19,8 @@
 import {
   reconstructScreenConversation,
   type ReconstructionBlockKind,
+  type ReconstructionCoverage,
+  type ReconstructionLimitationCode,
   type ScreenObservation,
   type ScreenReconstructionResult,
 } from "./screen-reconstruction.js";
@@ -29,6 +31,13 @@ import {
   type KeyframeSelectionBounds,
   type SelectedKeyframe,
 } from "./screen-keyframes.js";
+import {
+  assessScreenOcrOutcome,
+  screenDerivedCoverage,
+  screenOcrLimitations,
+  type ScreenOcrCounts,
+  type ScreenOcrOutcome,
+} from "./screen-intelligence-descriptor.js";
 
 export const SCREEN_OCR_TRANSFORMATION = "screen-ocr/v1" as const;
 
@@ -90,6 +99,12 @@ export type ScreenIntelligenceResult = {
   observations: ScreenObservation[];
   reconstruction: ScreenReconstructionResult;
   ocrProvider: { name: string; version: string; local: boolean };
+  /** AUD-003 — what OCR produced, by the same rule the persisted run uses. */
+  ocrOutcome: ScreenOcrOutcome;
+  ocrCounts: ScreenOcrCounts;
+  /** AUD-003 — DERIVED coverage of the run (never COMPLETE over failed OCR). */
+  coverage: ReconstructionCoverage;
+  limitations: ReconstructionLimitationCode[];
   stats: {
     keyframeCount: number;
     ocrRegionCount: number;
@@ -160,12 +175,40 @@ export async function runScreenIntelligence(
   }
 
   const reconstruction = reconstructScreenConversation(observations);
+  const ocrCounts: ScreenOcrCounts = {
+    keyframesAttempted: orderedKeyframes.length,
+    keyframesSucceeded: orderedKeyframes.length - ocrFailedKeyframes,
+    keyframesFailed: ocrFailedKeyframes,
+  };
+  const ocrOutcome = assessScreenOcrOutcome({
+    ocrStatus: "ENABLED",
+    counts: ocrCounts,
+    observationCount: observations.length,
+  });
+  const limitations = [...reconstruction.limitations];
+  if (keyframesByPart.some((p) => p.boundsReached) && !limitations.includes("RECONSTRUCTION_BOUNDS_REACHED")) {
+    limitations.push("RECONSTRUCTION_BOUNDS_REACHED");
+  }
+  for (const l of screenOcrLimitations({ outcome: ocrOutcome, counts: ocrCounts, observationCount: observations.length })) {
+    if (!limitations.includes(l)) limitations.push(l);
+  }
+  // Acquisition completeness is not known here; the persisted run applies it.
+  const coverage = screenDerivedCoverage({
+    outcome: ocrOutcome,
+    acquisitionComplete: true,
+    reconstructionCoverage: reconstruction.coverage,
+    limitations,
+  });
 
   return {
     keyframesByPart,
     observations,
     reconstruction,
     ocrProvider: { name: input.ocr.name, version: input.ocr.version, local: input.ocr.local },
+    ocrOutcome,
+    ocrCounts,
+    coverage,
+    limitations,
     stats: {
       keyframeCount: orderedKeyframes.length,
       ocrRegionCount,

@@ -245,10 +245,10 @@ describe("Phase Repair Task C — local extractor capability is SECONDARY", () =
       fileName: "media-intelligence.routes.ts",
     });
     expect(slice).toMatch(/role:\s*"secondary"/);
-    expect(slice).toMatch(/Local OCR\/transcript runtime is not enabled/);
-    expect(slice).toMatch(/Cloud provider is the active path/);
-    // Still NOT_ENABLED at the underlying capability level.
-    expect(slice).toMatch(/tesseract:[\s\S]*?ok: false[\s\S]*?reason: "not_enabled"/);
+    // AUD-019 — the summary is derived from the worker's reported probe, never
+    // the old constant that contradicted the worker image.
+    expect(slice).toMatch(/summary: localOcrCapabilitySummary\(localOcr\)/);
+    expect(slice).not.toMatch(/Local OCR\/transcript runtime is not enabled/);
     expect(slice).toMatch(/whisper:[\s\S]*?ok: false[\s\S]*?reason: "not_enabled"/);
   });
 
@@ -262,9 +262,10 @@ describe("Phase Repair Task C — local extractor capability is SECONDARY", () =
     const slice = functionSource(REVIEWERS_PAGE, "LocalExtractorCapabilityTile", "page.tsx");
     expect(slice).toContain("function LocalExtractorCapabilityTile(");
     expect(slice).toMatch(/cap\.summary/);
-    // Fallback copy is still operator-grade if the route ever stops
-    // shipping `summary`.
-    expect(slice).toMatch(/Local OCR\/transcript runtime is not enabled/);
+    // Fallback copy, if the route ever stops shipping `summary`, claims
+    // nothing about local OCR (AUD-019).
+    expect(slice).toMatch(/Local OCR state unknown — not reported by the worker/);
+    expect(slice).not.toMatch(/Local OCR\/transcript runtime is not enabled/);
   });
 });
 

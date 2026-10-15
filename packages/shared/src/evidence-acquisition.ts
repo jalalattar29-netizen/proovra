@@ -598,6 +598,9 @@ export const DERIVED_ASSET_TRANSFORMATIONS = [
   // ordinary EvidencePartDerivedAsset rows (destruction + storage accounting already
   // cover them); their per-keyframe identity is the derived-asset variantKey.
   "video-keyframe/v1",
+  // v2 — keyframes are real selected frames stamped with their presentation
+  // time (v1 resampled at a fixed rate and stamped the interval index).
+  "video-keyframe/v2",
   "screen-crop/v1",
   "screen-ocr/v1",
   "screen-overlap-analysis/v1",

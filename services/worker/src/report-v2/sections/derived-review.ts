@@ -9,6 +9,8 @@
  * a report for evidence without UC-4 renders byte-identical to before.
  */
 
+import type { ScreenOcrCounts, ScreenOcrOutcome } from "@proovra/shared";
+
 import { escapeHtml } from "../formatters.js";
 import { renderCallout, renderPageSection } from "../ui.js";
 
@@ -21,6 +23,15 @@ export type DerivedReviewSection = {
    * falls back to the runtime limitation and otherwise claims neither.
    */
   ocrStatus?: "ENABLED" | "DISABLED_BY_POLICY" | "RUNTIME_UNAVAILABLE";
+  /**
+   * AUD-003 — what OCR produced and the per-keyframe counts behind it. When
+   * present the OCR chip states the OUTCOME, never just "enabled".
+   */
+  ocrOutcome?: ScreenOcrOutcome;
+  ocrCounts?: ScreenOcrCounts;
+  /** AUD-019 — the language model(s) OCR actually ran with, and any missing. */
+  ocrLanguage?: string | null;
+  ocrLanguagesMissing?: ReadonlyArray<string>;
   acquisitionComplete: boolean;
   sourcePartCount: number;
   keyframeCount: number;
@@ -39,6 +50,18 @@ export type DerivedReviewSection = {
    * descriptor across regenerations.
    */
   descriptorSha256?: string | null;
+};
+
+/** AUD-003 — the OCR outcome in plain words. Never stronger than the counts. */
+const OCR_OUTCOME_LABELS: Record<ScreenOcrOutcome, string> = {
+  TEXT_FOUND: "text recognised",
+  NO_TEXT_PRESENT: "ran on every keyframe, no text recognised",
+  PARTIAL_FAILURE: "failed on some keyframes",
+  ATTEMPTED_ALL_FAILED: "failed on every keyframe — no text was read",
+  NO_FRAMES_PROCESSED: "no keyframe was processed",
+  OCR_DISABLED: "disabled by workspace policy",
+  ENGINE_UNAVAILABLE: "engine unavailable",
+  LANGUAGE_UNAVAILABLE: "language model unavailable",
 };
 
 export function renderDerivedReviewSection(
@@ -74,14 +97,32 @@ export function renderDerivedReviewSection(
       : section.limitations.includes("RECONSTRUCTION_OCR_RUNTIME_UNAVAILABLE")
         ? "RUNTIME_UNAVAILABLE"
         : null);
-  const ocrLabel =
-    ocrState === "ENABLED"
+  const ocrLabel = section.ocrOutcome
+    ? OCR_OUTCOME_LABELS[section.ocrOutcome]
+    : ocrState === "ENABLED"
       ? "enabled"
       : ocrState === "DISABLED_BY_POLICY"
         ? "disabled by workspace policy"
         : ocrState === "RUNTIME_UNAVAILABLE"
           ? "engine unavailable"
           : "not run";
+
+  const counts = section.ocrCounts;
+  const ocrCountsBlock = counts
+    ? `<p class="muted small">
+        <span class="redaction-chip">OCR keyframes attempted: ${counts.keyframesAttempted}</span>
+        <span class="redaction-chip">read: ${counts.keyframesSucceeded}</span>
+        <span class="redaction-chip">failed: ${counts.keyframesFailed}</span>${
+          section.ocrLanguage
+            ? ` <span class="redaction-chip">OCR language: ${escapeHtml(section.ocrLanguage)}</span>`
+            : ""
+        }${
+          section.ocrLanguagesMissing && section.ocrLanguagesMissing.length > 0
+            ? ` <span class="redaction-chip">Language models not installed: ${escapeHtml(section.ocrLanguagesMissing.join(", "))}</span>`
+            : ""
+        }
+      </p>`
+    : "";
 
   const limitationsBlock =
     section.limitations.length > 0
@@ -99,6 +140,7 @@ export function renderDerivedReviewSection(
         <span class="redaction-chip">OCR: ${ocrLabel}</span>
         <span class="redaction-chip">Acquisition: ${section.acquisitionComplete ? "complete" : "interrupted"}</span>
       </p>
+      ${ocrCountsBlock}
       <p class="muted small">
         <span class="redaction-chip">Source parts: ${section.sourcePartCount}</span>
         <span class="redaction-chip">Keyframes: ${section.keyframeCount}</span>

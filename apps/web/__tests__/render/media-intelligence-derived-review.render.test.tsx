@@ -11,6 +11,9 @@
  *   UC-DER-011  keyframes / the reconstruction JSON are not rendered as
  *               "Derived preview" images in the Technical Appendix strip.
  *   UC-DER-012  keyframe thumbnails load WITH credentials.
+ *   AUD-003     the OCR OUTCOME is stated: total failure is never "no content"
+ *               and never Complete; counts are shown.
+ *   AUD-019     missing OCR language models are named.
  *
  * Drives the REAL components against a mocked transport.
  */
@@ -157,6 +160,95 @@ describe("Derived Review tab", () => {
       review("COMPLETED", projection({ ocrEnabled: false, ocrStatus: "DISABLED_BY_POLICY", blocks: [], blockTotal: 0 }));
     render(<EvidenceDerivedReviewTab ctx={ctx(TEAM_ID)} />);
     await waitFor(() => expect(document.body.textContent).toMatch(/disabled by (this )?workspace('s)? policy/i));
+  });
+
+  it("AUD-003: OCR failing on every keyframe is stated — never 'no machine-readable content', never Complete", async () => {
+    responders["/derived-review?"] = () =>
+      review(
+        "COMPLETED",
+        projection({
+          // An older API that still sends the stored COMPLETE must not be believed.
+          coverage: "COMPLETE",
+          ocrOutcome: "ATTEMPTED_ALL_FAILED",
+          ocrCounts: { keyframesAttempted: 4, keyframesSucceeded: 0, keyframesFailed: 4 },
+          stats: { sourcePartCount: 1, keyframeCount: 4, ocrRegionCount: 0, ocrFailedKeyframes: 4, observationCount: 0, blockCount: 0, derivedBytes: 10 },
+          limitations: ["RECONSTRUCTION_OCR_EXTRACTION_FAILED", "RECONSTRUCTION_NO_OBSERVATIONS"],
+          blocks: [],
+          blockTotal: 0,
+        }),
+      );
+    render(<EvidenceDerivedReviewTab ctx={ctx(TEAM_ID)} />);
+    await waitFor(() => expect(document.body.textContent).toMatch(/OCR failed on every keyframe/i));
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(/no machine-readable content/i);
+    expect(text).not.toMatch(/Coverage Complete/);
+    expect(text).toMatch(/Coverage Partial/);
+    expect(text).toMatch(/OCR read 0 of 4 keyframes · failed on 4/);
+    expect(text).toMatch(/OCR failed on one or more keyframes/);
+  });
+
+  it("AUD-003: a mixed run shows how many keyframes OCR read and failed on, at Partial coverage", async () => {
+    responders["/derived-review?"] = () =>
+      review(
+        "COMPLETED",
+        projection({
+          coverage: "PARTIAL",
+          ocrOutcome: "PARTIAL_FAILURE",
+          ocrCounts: { keyframesAttempted: 3, keyframesSucceeded: 2, keyframesFailed: 1 },
+          limitations: ["RECONSTRUCTION_OCR_EXTRACTION_FAILED"],
+        }),
+      );
+    render(<EvidenceDerivedReviewTab ctx={ctx(TEAM_ID)} />);
+    await waitFor(() => expect(document.body.textContent).toMatch(/OCR read 2 of 3 keyframes · failed on 1/));
+    expect(document.body.textContent).toMatch(/Coverage Partial · OCR failed on some keyframes/);
+  });
+
+  it("AUD-003: a successful read with no text says exactly that, distinct from a failure", async () => {
+    responders["/derived-review?"] = () =>
+      review(
+        "COMPLETED",
+        projection({
+          coverage: "PARTIAL",
+          ocrOutcome: "NO_TEXT_PRESENT",
+          ocrCounts: { keyframesAttempted: 2, keyframesSucceeded: 2, keyframesFailed: 0 },
+          limitations: ["RECONSTRUCTION_NO_OBSERVATIONS"],
+          blocks: [],
+          blockTotal: 0,
+        }),
+      );
+    render(<EvidenceDerivedReviewTab ctx={ctx(TEAM_ID)} />);
+    await waitFor(() => expect(document.body.textContent).toMatch(/OCR read every keyframe and recognised no text/i));
+    expect(document.body.textContent).not.toMatch(/failed on/i);
+  });
+
+  it("AUD-019: missing language models are named and the outcome is not called an engine failure", async () => {
+    responders["/derived-review?"] = () =>
+      review(
+        "COMPLETED",
+        projection({
+          ocrEnabled: false,
+          ocrStatus: "RUNTIME_UNAVAILABLE",
+          ocrOutcome: "LANGUAGE_UNAVAILABLE",
+          ocrLanguages: { requested: "eng+ara+deu", effective: null, missing: ["eng", "ara", "deu"] },
+          coverage: "PARTIAL",
+          limitations: ["RECONSTRUCTION_OCR_LANGUAGE_UNAVAILABLE", "RECONSTRUCTION_NO_OBSERVATIONS"],
+          blocks: [],
+          blockTotal: 0,
+        }),
+      );
+    render(<EvidenceDerivedReviewTab ctx={ctx(TEAM_ID)} />);
+    await waitFor(() => expect(document.body.textContent).toMatch(/OCR language models not installed: eng, ara, deu/));
+    expect(document.body.textContent).toMatch(/requested OCR language models are not installed/);
+  });
+
+  it("continuous capture: block times on the session timeline are labelled as recording time", async () => {
+    responders["/derived-review?"] = () => review("COMPLETED", projection({ offsetTimeline: "SESSION" }));
+    render(<EvidenceDerivedReviewTab ctx={ctx(TEAM_ID)} />);
+    const view = (await screen.findAllByRole("button", { name: "View source" }))[0]!;
+    await act(async () => {
+      fireEvent.click(view);
+    });
+    expect(document.body.textContent).toMatch(/recording time 0\.0s–1\.5s/);
   });
 
   it("DER-012: keyframe thumbnails are requested WITH credentials", async () => {

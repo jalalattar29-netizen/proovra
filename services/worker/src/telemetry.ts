@@ -26,6 +26,7 @@ import {
 import { sweepHeartbeatHistory } from "./heartbeat-retention.js";
 import { logger } from "./logger.js";
 import { publishBitcoinVerifierReadiness } from "./ots-bitcoin-telemetry.js";
+import { probeLocalOcrCapabilityReport } from "./tesseract-capability.js";
 import {
   derivedAssetsQueue,
   evidencePurgeQueue,
@@ -186,6 +187,15 @@ export function startTelemetrySampler(opts?: {
       }
     } finally {
       const duration = Date.now() - startedAt;
+      // AUD-019 — the local OCR engine as THIS worker actually has it (binary
+      // + installed language models), so the API reports the probe, not a
+      // constant. Bounded, credential-free; a failed probe is omitted.
+      let localOcr: Awaited<ReturnType<typeof probeLocalOcrCapabilityReport>> | null = null;
+      try {
+        localOcr = await probeLocalOcrCapabilityReport();
+      } catch {
+        localOcr = null;
+      }
       try {
         await prisma.workerTelemetrySnapshot.create({
           data: {
@@ -204,6 +214,7 @@ export function startTelemetrySampler(opts?: {
               heartbeatIntervalMs: interval,
               queueSubscriptions: queues.map((q) => q.name),
               nodeVersion: process.version,
+              ...(localOcr ? { localOcr } : {}),
             },
           },
         });

@@ -137,7 +137,7 @@ export async function buildVerificationPackageIntelligence(input: {
       const { readScreenReconstructionDescriptor } = await import(
         "@proovra/shared-runtime/media-intelligence"
       );
-      const { UC4_RESOURCE_BOUNDS } = await import("@proovra/shared");
+      const { UC4_RESOURCE_BOUNDS, resolveScreenOcrTruth } = await import("@proovra/shared");
       // UC-DER-015 — the digest is computed from the EXACT bytes read here,
       // never taken from a row listed earlier (a regeneration in between
       // would pair one descriptor's digest with another's content).
@@ -175,7 +175,9 @@ export async function buildVerificationPackageIntelligence(input: {
         reconstruction = {
           descriptorSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : "",
           descriptorSizeBytes: bytes ? bytes.byteLength : 0,
-          coverage: d.coverage,
+          // AUD-003 — never COMPLETE over failed or empty OCR, whatever an
+          // earlier descriptor stored (the stored bytes are not rewritten).
+          coverage: resolveScreenOcrTruth(d).coverage,
           ocrEnabled: d.ocrEnabled,
           acquisitionComplete: d.acquisitionComplete,
           transformationVersions: {

@@ -33,9 +33,10 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import type { OcrExtractResult, ScreenOcrStatus } from "@proovra/shared";
+import type { OcrExtractResult, ScreenOcrLanguages, ScreenOcrStatus } from "@proovra/shared";
 import {
   captureSessionAcquisitionComplete,
+  continuousSegmentStartOffsets,
   parseScreenReconstructionGeneration,
 } from "@proovra/shared";
 
@@ -49,10 +50,11 @@ import {
   createTesseractOcrProvider,
   TESSERACT_PAGE_SEGMENTATION_MODE,
 } from "./tesseract-ocr-provider.js";
-import { detectTesseractCapability } from "./tesseract-capability.js";
-
-/** Bilingual by default — the worker image installs eng + ara language packs. */
-const OCR_LANG = process.env.UC4_OCR_LANG?.trim() || "eng+ara";
+import {
+  detectTesseractCapability,
+  requestedOcrLanguages,
+  resolveOcrLanguages,
+} from "./tesseract-capability.js";
 
 type ScreenJobInput = {
   jobId: string | undefined;
@@ -158,7 +160,19 @@ export async function processReconstructScreenJob(
       mimeType: p.mime_type,
       sha256: p.sha256,
       acquisitionRole: null as string | null,
+      sessionStartOffsetMs: null as number | null,
     }));
+
+  // Continuous capture (UC-3/UC-5): each segment's start on the SESSION
+  // timeline comes from the continuity manifest the record holds, so a
+  // keyframe's time is "segment start + its presentation time", not a time
+  // inside an anonymous part.
+  if (screenParts.some((p) => (p.mimeType ?? "").toLowerCase().startsWith("video/"))) {
+    const offsets = await readSegmentStartOffsets(parts);
+    if (offsets) {
+      for (const sp of screenParts) sp.sessionStartOffsetMs = offsets.get(sp.partIndex) ?? null;
+    }
+  }
 
   if (screenParts.length === 0) {
     // No screen material — the run is truthfully done with nothing to derive.
@@ -192,12 +206,22 @@ export async function processReconstructScreenJob(
   // missing engine is RUNTIME_UNAVAILABLE, never "disabled by policy".
   const ocrAllowed = await mi.resolveWorkspaceOcrAllowed(teamId, prisma);
   const tesseractCap = ocrAllowed ? await detectTesseractCapability() : null;
+  // AUD-019 — requested ∩ installed. No installed requested model means OCR
+  // cannot run: RUNTIME_UNAVAILABLE with the missing models recorded, which
+  // the shared assessment reports as LANGUAGE_UNAVAILABLE (not "engine").
+  const ocrLanguages: ScreenOcrLanguages | null = tesseractCap?.ok
+    ? // The PROOVRA locales by default (the image installs eng + ara + deu).
+      resolveOcrLanguages(requestedOcrLanguages(), tesseractCap.languages)
+    : null;
   const ocrStatus: ScreenOcrStatus = !ocrAllowed
     ? "DISABLED_BY_POLICY"
-    : tesseractCap?.ok
+    : tesseractCap?.ok && ocrLanguages?.effective
       ? "ENABLED"
       : "RUNTIME_UNAVAILABLE";
-  const ocrProvider = ocrStatus === "ENABLED" ? await createTesseractOcrProvider(OCR_LANG) : null;
+  const ocrProvider =
+    ocrStatus === "ENABLED" && ocrLanguages?.effective
+      ? await createTesseractOcrProvider(ocrLanguages.effective)
+      : null;
   const tesseractVersion = tesseractCap?.ok ? tesseractCap.version ?? null : null;
   const ffmpegVersion = await getFfmpegVersion();
 
@@ -243,7 +267,8 @@ export async function processReconstructScreenJob(
           local: true,
           enabled: ocrStatus === "ENABLED",
           status: ocrStatus,
-          language: ocrStatus === "ENABLED" ? OCR_LANG : null,
+          language: ocrStatus === "ENABLED" ? ocrLanguages?.effective ?? null : null,
+          languages: ocrLanguages ?? undefined,
           parameters: ocrStatus === "ENABLED" ? { psm: TESSERACT_PAGE_SEGMENTATION_MODE } : undefined,
           extractFromBytes: async (bytes: Buffer): Promise<OcrExtractResult> => {
             if (!ocrProvider) return { regions: [] };
@@ -293,6 +318,8 @@ export async function processReconstructScreenJob(
         generation,
         coverage: result.coverage,
         ocrStatus,
+        ocrOutcome: result.ocrOutcome,
+        ocrCounts: result.ocrCounts,
         keyframeCount: result.keyframeCount,
         blockCount: result.blockCount,
         observationCount: result.observationCount,
@@ -319,6 +346,49 @@ export async function processReconstructScreenJob(
     );
     throw err;
   }
+}
+
+/** A continuity manifest is small JSON; anything larger is not one. */
+const MAX_MANIFEST_READ_BYTES = 1024 * 1024;
+
+/**
+ * The segment start offsets of a continuous-capture record, from its
+ * continuity manifest part: a non-media part read at its recorded version,
+ * accepted only when the bytes read equal the RECORDED digest and parse as a
+ * V2 continuity manifest. Null when the record has none (single frames,
+ * uploads) — offsets then stay ms into each part.
+ */
+async function readSegmentStartOffsets(
+  parts: Array<{
+    storage_bucket: string | null;
+    storage_key: string | null;
+    storage_version_id: string | null;
+    size_bytes: bigint | number | null;
+    mime_type: string | null;
+    sha256: string | null;
+  }>,
+): Promise<Map<number, number> | null> {
+  for (const p of parts) {
+    const mt = (p.mime_type ?? "").toLowerCase();
+    if (mt.startsWith("image/") || mt.startsWith("video/")) continue;
+    if (!p.storage_bucket || !p.storage_key || !p.sha256) continue;
+    const size = p.size_bytes == null ? null : Number(p.size_bytes);
+    if (size == null || size <= 0 || size > MAX_MANIFEST_READ_BYTES) continue;
+    try {
+      const bytes = await readObjectBounded({
+        bucket: p.storage_bucket,
+        key: p.storage_key,
+        maxBytes: MAX_MANIFEST_READ_BYTES,
+        versionId: p.storage_version_id,
+      });
+      if (createHash("sha256").update(bytes).digest("hex") !== p.sha256.toLowerCase()) continue;
+      const offsets = continuousSegmentStartOffsets(JSON.parse(bytes.toString("utf8")));
+      if (offsets) return offsets;
+    } catch {
+      /* not a readable manifest — offsets stay per part */
+    }
+  }
+  return null;
 }
 
 /**

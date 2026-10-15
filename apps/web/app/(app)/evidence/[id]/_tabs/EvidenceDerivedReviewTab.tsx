@@ -24,6 +24,11 @@
  *     authenticated and cross-origin) and fail visibly;
  *   * an unproven repeat of an adjacent block is labelled, never merged.
  *
+ * AUD-003 — the OCR OUTCOME is stated, not just "OCR enabled": an empty review
+ * after OCR failed on every keyframe says so, and never claims the source had
+ * no machine-readable content. Coverage is never shown Complete over failed,
+ * empty or unread OCR.
+ *
  * Presentation is class-only (evidence-detail.css / .uc4-derived-*): the route
  * forbids inline style objects and raw hex (evidence-shell-cleanup.test).
  */
@@ -35,8 +40,10 @@ import { Sparkles } from "lucide-react";
 
 import { type EvidenceDetailCtx } from "./_lib";
 import {
+  derivedReviewCoverage,
   useDerivedReview,
   type DerivedReviewBlock,
+  type DerivedReviewOcrOutcome,
   type DerivedReviewProjection,
 } from "../../../../../lib/media-intelligence/useDerivedReview";
 import { usePlatformContext } from "../../../../../lib/platform-context/PlatformContextProvider";
@@ -70,7 +77,55 @@ const LIMITATION_LABELS: Record<string, string> = {
     "some blocks may repeat an adjacent block — they are labelled, not merged",
   RECONSTRUCTION_SOURCE_TRUNCATED: "a source part was larger than the processing bound — only its beginning was read",
   RECONSTRUCTION_OCR_RUNTIME_UNAVAILABLE: "the OCR engine was unavailable on the processing server",
+  RECONSTRUCTION_OCR_EXTRACTION_FAILED:
+    "OCR failed on one or more keyframes — any text they showed is missing here",
+  RECONSTRUCTION_OCR_LANGUAGE_UNAVAILABLE:
+    "a requested OCR language model is not installed — text in that script was not recognised",
+  RECONSTRUCTION_NO_OBSERVATIONS: "no text was observed, so nothing could be reconstructed",
 };
+
+/** AUD-003 — the OCR outcome in plain words (never stronger than the counts). */
+const OCR_OUTCOME_LABELS: Record<DerivedReviewOcrOutcome, string> = {
+  TEXT_FOUND: "text recognised",
+  NO_TEXT_PRESENT: "ran, no text recognised",
+  PARTIAL_FAILURE: "failed on some keyframes",
+  ATTEMPTED_ALL_FAILED: "failed on every keyframe",
+  NO_FRAMES_PROCESSED: "no keyframe processed",
+  OCR_DISABLED: "disabled by workspace policy",
+  ENGINE_UNAVAILABLE: "engine unavailable",
+  LANGUAGE_UNAVAILABLE: "language model unavailable",
+};
+
+/** Why a derived review has no reconstructed text — per OCR outcome. */
+function emptyReviewSentence(
+  outcome: DerivedReviewOcrOutcome | null,
+  ocrStatus: OcrStatus | null,
+): string {
+  switch (outcome) {
+    case "NO_TEXT_PRESENT":
+      return "No reconstructed text — OCR read every keyframe and recognised no text in them.";
+    case "ATTEMPTED_ALL_FAILED":
+      return "No text was reconstructed because OCR failed on every keyframe. This says nothing about whether the source contains text; regenerate to try again.";
+    case "PARTIAL_FAILURE":
+      return "No text was reconstructed. OCR failed on some keyframes and recognised no text in the others.";
+    case "NO_FRAMES_PROCESSED":
+      return "No text was reconstructed because no keyframe reached OCR.";
+    case "LANGUAGE_UNAVAILABLE":
+      return "No text was reconstructed because the requested OCR language models are not installed on the processing server. Keyframes were still derived.";
+    case "ENGINE_UNAVAILABLE":
+      return "No text was reconstructed because the OCR engine was unavailable on the processing server. Keyframes were still derived; regenerate once OCR is available.";
+    case "OCR_DISABLED":
+      return "OCR is disabled by this workspace's policy, so no text was reconstructed. Keyframes were still derived.";
+    default:
+      break;
+  }
+  // An older API without an outcome: never claim the source had no text.
+  return ocrStatus === "RUNTIME_UNAVAILABLE"
+    ? "No text was reconstructed because the OCR engine was unavailable on the processing server. Keyframes were still derived; regenerate once OCR is available."
+    : ocrStatus === "DISABLED_BY_POLICY"
+      ? "OCR is disabled by this workspace's policy, so no text was reconstructed. Keyframes were still derived."
+      : "No text was reconstructed. Keyframes were still derived.";
+}
 
 function ocrStatusOf(projection: (DerivedReviewProjection & ProjectionExtras) | null): OcrStatus | null {
   if (!projection) return null;
@@ -117,6 +172,8 @@ export function EvidenceDerivedReviewTab({
   const keyframeUrls = data?.keyframeBytesUrls ?? {};
   const inFlight = status === "PENDING" || status === "PROCESSING";
   const ocrStatus = ocrStatusOf(projection);
+  const ocrOutcome = projection?.ocrOutcome ?? null;
+  const ocrCounts = projection?.ocrCounts ?? null;
 
   const runGenerate = async (regenerate: boolean) => {
     setBusy(true);
@@ -135,7 +192,7 @@ export function EvidenceDerivedReviewTab({
 
   const coverageLabel = useMemo(() => {
     if (!projection) return null;
-    return projection.coverage === "COMPLETE" ? "Complete" : "Partial";
+    return derivedReviewCoverage(projection) === "COMPLETE" ? "Complete" : "Partial";
   }, [projection]);
 
   if (!teamId) {
@@ -234,12 +291,24 @@ export function EvidenceDerivedReviewTab({
       {projection && (
         <div className="evidence-detail-extract-card uc4-derived-card">
           <p className="evidence-detail-muted">
-            Coverage <strong>{coverageLabel}</strong> · OCR {ocrLabel(ocrStatus)}
+            Coverage <strong>{coverageLabel}</strong> · OCR{" "}
+            {ocrOutcome ? OCR_OUTCOME_LABELS[ocrOutcome] : ocrLabel(ocrStatus)}
             {ocrStatus === "ENABLED" && projection.ocrLanguage ? ` (${projection.ocrLanguage})` : ""} ·
             Acquisition {projection.acquisitionComplete ? "complete" : "interrupted"} ·{" "}
             {projection.stats.keyframeCount} keyframes ·{" "}
             {projection.blockTotal} reconstructed blocks
           </p>
+          {ocrCounts && ocrCounts.keyframesAttempted > 0 && (
+            <p className="evidence-detail-muted uc4-derived-ocr-counts">
+              OCR read {ocrCounts.keyframesSucceeded} of {ocrCounts.keyframesAttempted} keyframes
+              {ocrCounts.keyframesFailed > 0 ? ` · failed on ${ocrCounts.keyframesFailed}` : ""}
+            </p>
+          )}
+          {projection.ocrLanguages && projection.ocrLanguages.missing.length > 0 && (
+            <p className="evidence-detail-muted">
+              OCR language models not installed: {projection.ocrLanguages.missing.join(", ")}
+            </p>
+          )}
           {projection.generation && (
             <p className="evidence-detail-muted">
               Generation {projection.generation.generation}
@@ -278,6 +347,7 @@ export function EvidenceDerivedReviewTab({
               <DerivedBlockRow
                 key={b.blockId}
                 block={b as DerivedReviewBlock & BlockExtras}
+                sessionTimeline={projection.offsetTimeline === "SESSION"}
                 keyframeUrls={keyframeUrls}
                 onOpenOriginal={onGoToArtifacts}
               />
@@ -310,13 +380,7 @@ export function EvidenceDerivedReviewTab({
         </>
       ) : projection && projection.blocks.length === 0 ? (
         <p className="evidence-detail-muted uc4-derived-card">
-          {ocrStatus === "ENABLED"
-            ? "No reconstructed text — the source produced no machine-readable content."
-            : ocrStatus === "RUNTIME_UNAVAILABLE"
-              ? "No text was reconstructed because the OCR engine was unavailable on the processing server. Keyframes were still derived; regenerate once OCR is available."
-              : ocrStatus === "DISABLED_BY_POLICY"
-                ? "OCR is disabled by this workspace's policy, so no text was reconstructed. Keyframes were still derived."
-                : "No text was reconstructed. Keyframes were still derived."}
+          {emptyReviewSentence(ocrOutcome, ocrStatus)}
         </p>
       ) : status === "NOT_REQUESTED" ? (
         <p className="evidence-detail-muted uc4-derived-card">
@@ -376,10 +440,13 @@ function DerivedStatusRow({
 
 function DerivedBlockRow({
   block,
+  sessionTimeline,
   keyframeUrls,
   onOpenOriginal,
 }: {
   block: DerivedReviewBlock & BlockExtras;
+  /** Offsets are recording (session) time rather than time into the part. */
+  sessionTimeline?: boolean;
   keyframeUrls: Record<string, string | null>;
   onOpenOriginal?: () => void;
 }) {
@@ -412,6 +479,7 @@ function DerivedBlockRow({
           {block.sources.map((s, i) => (
             <div key={`${s.evidencePartId}-${i}`} className="evidence-detail-muted uc4-derived-source-line">
               Source part <code>{s.evidencePartId.slice(0, 8)}…</code> ·{" "}
+              {sessionTimeline ? "recording time " : ""}
               {(s.offsetMsRange[0] / 1000).toFixed(1)}s–{(s.offsetMsRange[1] / 1000).toFixed(1)}s
             </div>
           ))}

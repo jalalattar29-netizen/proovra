@@ -136,10 +136,38 @@ export interface DerivedBlock {
   sources: Array<{ evidencePartId: string; startMs: number | null; endMs: number | null }>;
 }
 
+/** AUD-003 — what OCR produced (mirrors @proovra/shared SCREEN_OCR_OUTCOMES). */
+export type DerivedOcrOutcome =
+  | "TEXT_FOUND"
+  | "NO_TEXT_PRESENT"
+  | "PARTIAL_FAILURE"
+  | "ATTEMPTED_ALL_FAILED"
+  | "NO_FRAMES_PROCESSED"
+  | "OCR_DISABLED"
+  | "ENGINE_UNAVAILABLE"
+  | "LANGUAGE_UNAVAILABLE";
+
+const OCR_OUTCOMES: ReadonlySet<string> = new Set([
+  "TEXT_FOUND",
+  "NO_TEXT_PRESENT",
+  "PARTIAL_FAILURE",
+  "ATTEMPTED_ALL_FAILED",
+  "NO_FRAMES_PROCESSED",
+  "OCR_DISABLED",
+  "ENGINE_UNAVAILABLE",
+  "LANGUAGE_UNAVAILABLE",
+]);
+
 export interface DerivedProjection {
   coverage: "COMPLETE" | "PARTIAL" | null;
   acquisitionComplete: boolean;
   ocrEnabled: boolean;
+  /** AUD-003 — null when the server predates the outcome (never guessed upward). */
+  ocrOutcome: DerivedOcrOutcome | null;
+  ocrCounts: { keyframesAttempted: number; keyframesSucceeded: number; keyframesFailed: number } | null;
+  /** AUD-019 — the language model(s) OCR actually ran with, and any missing. */
+  ocrLanguage: string | null;
+  ocrLanguagesMissing: string[];
   limitations: string[];
   provenance: { reconstructed: string | null; machineExtracted: string | null };
   generatedAtIso: string | null;
@@ -150,6 +178,7 @@ export interface DerivedProjection {
     keyframeCount: number;
     ocrRegionCount: number;
     ocrFailedKeyframes: number;
+    observationCount: number | null;
     blockCount: number;
   };
 }
@@ -256,16 +285,45 @@ export function parseDerivedReview(payload: unknown, apiBase: string): DerivedRe
   const env = obj(payload);
   const p = obj(env.projection);
 
+  const outcomeRaw = str(p.ocrOutcome);
+  const ocrOutcome = outcomeRaw && OCR_OUTCOMES.has(outcomeRaw) ? (outcomeRaw as DerivedOcrOutcome) : null;
+  const countsRaw = obj(p.ocrCounts);
+  const ocrCounts =
+    num(countsRaw.keyframesAttempted) !== null
+      ? {
+          keyframesAttempted: num(countsRaw.keyframesAttempted) ?? 0,
+          keyframesSucceeded: num(countsRaw.keyframesSucceeded) ?? 0,
+          keyframesFailed: num(countsRaw.keyframesFailed) ?? 0,
+        }
+      : null;
+  const ocrFailedKeyframes = num(obj(p.stats).ocrFailedKeyframes) ?? 0;
+  const observationCount = num(obj(p.stats).observationCount);
+  const blockTotal = num(p.blockTotal) ?? rows(p.blocks).length;
+  // AUD-003 — COMPLETE is accepted only where the OCR facts support it: text
+  // was recognised, no keyframe failed and something was reconstructed.
+  const coverageClaim = str(p.coverage);
+  const coverage: DerivedProjection["coverage"] =
+    coverageClaim === "COMPLETE"
+      ? (ocrOutcome === null || ocrOutcome === "TEXT_FOUND") &&
+        ocrFailedKeyframes === 0 &&
+        (ocrCounts?.keyframesFailed ?? 0) === 0 &&
+        observationCount !== 0 &&
+        blockTotal > 0
+        ? "COMPLETE"
+        : "PARTIAL"
+      : coverageClaim === "PARTIAL"
+        ? "PARTIAL"
+        : null;
+
   const projection: DerivedProjection | null =
     Object.keys(p).length === 0
       ? null
       : {
-          coverage:
-            str(p.coverage) === "COMPLETE"
-              ? "COMPLETE"
-              : str(p.coverage) === "PARTIAL"
-                ? "PARTIAL"
-                : null,
+          coverage,
+          ocrOutcome,
+          ocrCounts,
+          ocrLanguage: str(p.ocrLanguage),
+          ocrLanguagesMissing: strList(obj(p.ocrLanguages).missing),
           acquisitionComplete: p.acquisitionComplete === true,
           ocrEnabled: p.ocrEnabled === true,
           limitations: strList(p.limitations),
@@ -274,13 +332,14 @@ export function parseDerivedReview(payload: unknown, apiBase: string): DerivedRe
             machineExtracted: str(obj(p.provenance).machineExtracted),
           },
           generatedAtIso: str(p.generatedAtUtc) ?? str(p.generatedAt),
-          blockTotal: num(p.blockTotal) ?? rows(p.blocks).length,
+          blockTotal,
           blocks: parseBlocks(p.blocks),
           stats: {
             sourcePartCount: num(obj(p.stats).sourcePartCount) ?? 0,
             keyframeCount: num(obj(p.stats).keyframeCount) ?? 0,
             ocrRegionCount: num(obj(p.stats).ocrRegionCount) ?? 0,
-            ocrFailedKeyframes: num(obj(p.stats).ocrFailedKeyframes) ?? 0,
+            ocrFailedKeyframes,
+            observationCount,
             blockCount: num(obj(p.stats).blockCount) ?? 0,
           },
         };
@@ -365,6 +424,20 @@ export function confidenceTone(confidence: BlockConfidence): ProovraStatusTone {
  * without these would present a machine reconstruction as a record of what was
  * on screen, which is the claim the whole descriptor exists to avoid making.
  */
+/** AUD-003 — one caveat per OCR outcome; TEXT_FOUND needs none of its own. */
+const OCR_OUTCOME_CAVEATS: Record<DerivedOcrOutcome, string | null> = {
+  TEXT_FOUND: null,
+  NO_TEXT_PRESENT: "OCR read every keyframe and recognised no text in them.",
+  PARTIAL_FAILURE: "OCR failed on some keyframes, so the reconstruction is incomplete.",
+  ATTEMPTED_ALL_FAILED:
+    "OCR failed on every keyframe — no text was read. This says nothing about whether the recording contains text.",
+  NO_FRAMES_PROCESSED: "No keyframe reached text extraction.",
+  OCR_DISABLED: "Text extraction is disabled by this workspace's policy.",
+  ENGINE_UNAVAILABLE: "The text-extraction engine was unavailable on the processing server.",
+  LANGUAGE_UNAVAILABLE:
+    "The requested text-extraction language models are not installed on the processing server.",
+};
+
 export function derivedReviewCaveats(projection: DerivedProjection): string[] {
   const out: string[] = [];
 
@@ -375,19 +448,27 @@ export function derivedReviewCaveats(projection: DerivedProjection): string[] {
     out.push(projection.provenance.machineExtracted);
   }
   if (projection.coverage === "PARTIAL") {
-    out.push("Coverage is partial: not every frame of the recording was read.");
+    out.push("Coverage is partial: the reconstruction may not include everything that was on screen.");
   }
   if (!projection.acquisitionComplete) {
     out.push(
       "The acquisition this was derived from is incomplete, so the reconstruction may be missing sections.",
     );
   }
-  if (!projection.ocrEnabled) {
+  const outcomeCaveat = projection.ocrOutcome ? OCR_OUTCOME_CAVEATS[projection.ocrOutcome] : null;
+  if (outcomeCaveat) {
+    out.push(outcomeCaveat);
+  } else if (!projection.ocrOutcome && !projection.ocrEnabled) {
     out.push("Text extraction was not enabled for this record.");
   }
-  if (projection.stats.ocrFailedKeyframes > 0) {
+  const failed = projection.ocrCounts?.keyframesFailed ?? projection.stats.ocrFailedKeyframes;
+  if (failed > 0) {
+    const of = projection.ocrCounts ? ` of ${projection.ocrCounts.keyframesAttempted}` : "";
+    out.push(`${failed}${of} keyframe(s) could not be read, so text from them is absent.`);
+  }
+  if (projection.ocrLanguagesMissing.length > 0) {
     out.push(
-      `${projection.stats.ocrFailedKeyframes} keyframe(s) could not be read, so text from them is absent.`,
+      `OCR language models not installed: ${projection.ocrLanguagesMissing.join(", ")} — text in those scripts was not recognised.`,
     );
   }
 

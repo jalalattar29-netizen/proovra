@@ -173,14 +173,18 @@ RUN apk-install \
     ffmpeg \
     tesseract-ocr \
     tesseract-ocr-data-eng \
-    tesseract-ocr-data-ara
+    tesseract-ocr-data-ara \
+    tesseract-ocr-data-deu
 # UC-4 — `tesseract-ocr` provides the LOCAL, self-hosted OCR engine on PATH for
 # derived screen/keyframe text extraction. It runs entirely in-image: no network,
 # no external OCR processor, no training on evidence. Language data is bounded to the
-# scripts UC-4 advertises (English + Arabic/RTL, matching PROOVRA locales); add more
+# PROOVRA locales — English, Arabic (RTL) and German (eng, ara, deu); add more
 # `tesseract-ocr-data-*` packs deliberately (each adds image size). The worker probes
-# it via `detectTesseractCapability()` and degrades OCR to PARTIAL when absent —
-# evidence completion never depends on it.
+# the binary AND `tesseract --list-langs` via `detectTesseractCapability()`: it runs
+# only the requested languages that are actually installed, records that effective
+# set, and degrades OCR to PARTIAL (LANGUAGE_UNAVAILABLE / ENGINE_UNAVAILABLE) when a
+# pack or the engine is absent — evidence completion never depends on it. The image
+# smoke (scripts/smoke-ocr-languages.mjs) fails the build if eng/ara/deu are missing.
 #
 # `ffmpeg` (Alpine package) provides BOTH the `ffmpeg` and `ffprobe`
 # binaries on PATH. ffprobe powers deterministic video/audio technical

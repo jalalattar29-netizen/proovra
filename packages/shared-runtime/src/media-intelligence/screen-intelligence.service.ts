@@ -30,7 +30,10 @@ import { createHash } from "node:crypto";
 
 import type { PrismaClient } from "@prisma/client";
 import {
+  assessScreenOcrOutcome,
   canonicalParametersJson,
+  screenDerivedCoverage,
+  screenOcrLimitations,
   keyframeVariantKeyForGeneration,
   reconstructScreenConversation,
   reconstructionCoverageLabel,
@@ -43,6 +46,9 @@ import {
   type ScreenObservation,
   type ScreenIntelligenceDescriptor,
   type ScreenIntelligenceGeneration,
+  type ScreenOcrCounts,
+  type ScreenOcrLanguages,
+  type ScreenOcrOutcome,
   type ScreenOcrStatus,
   type ScreenSourcePart,
   type ScreenSourceRead,
@@ -73,6 +79,12 @@ export type ScreenSourcePartInput = {
   storageVersionId?: string | null;
   /** UC-DER-014 — the recorded ORIGINAL size, to tell a whole read from a capped one. */
   sizeBytes?: number | null;
+  /**
+   * Where this part starts on the capture SESSION timeline (continuity
+   * manifest startedAtOffsetMs). When every source part has one, offsets are
+   * on the session timeline; otherwise they stay ms into each part.
+   */
+  sessionStartOffsetMs?: number | null;
 };
 
 export type KeyframeProducerResult =
@@ -113,6 +125,12 @@ export type ScreenOcrRunner = {
   status?: ScreenOcrStatus;
   /** UC-DER-005 — the language model(s) OCR uses (e.g. "eng+ara"). */
   language?: string | null;
+  /**
+   * AUD-019 — requested vs installed language models. When present, the
+   * EFFECTIVE value is what the descriptor records as the OCR language; a
+   * requested model that is not installed is listed as missing, never as run.
+   */
+  languages?: ScreenOcrLanguages;
   /** UC-DER-005 — engine parameters that shape the output (e.g. page segmentation). */
   parameters?: Record<string, unknown>;
   extractFromBytes(bytes: Buffer): Promise<OcrExtractResult>;
@@ -183,6 +201,9 @@ export type ScreenIntelligenceResult =
       coverage: "COMPLETE" | "PARTIAL";
       ocrEnabled: boolean;
       ocrStatus: ScreenOcrStatus;
+      /** AUD-003 — what OCR produced and the per-keyframe counts behind it. */
+      ocrOutcome: ScreenOcrOutcome;
+      ocrCounts: ScreenOcrCounts;
       generation: number;
       keyframeCount: number;
       observationCount: number;
@@ -267,6 +288,9 @@ export async function runAndPersistScreenIntelligence(
   const ocrStatus: ScreenOcrStatus =
     deps.ocr.status ?? (deps.ocr.enabled ? "ENABLED" : "DISABLED_BY_POLICY");
   const ocrRuns = deps.ocr.enabled && ocrStatus === "ENABLED";
+  // AUD-019 — the language that actually runs is the EFFECTIVE one.
+  const ocrLanguages: ScreenOcrLanguages | null = deps.ocr.languages ?? null;
+  const effectiveLanguage = ocrLanguages ? ocrLanguages.effective : deps.ocr.language ?? null;
 
   // UC-DER-005 — the canonical generation parameters: everything that shapes
   // the derived output, hashed as canonical JSON (parameters_sha256).
@@ -284,7 +308,7 @@ export async function runAndPersistScreenIntelligence(
     ocr: ocrRuns
       ? {
           engine: deps.ocr.name,
-          language: deps.ocr.language ?? null,
+          language: effectiveLanguage,
           ...(deps.ocr.parameters ?? {}),
           maxOcrKeyframes: bounds.maxOcrKeyframes,
         }
@@ -365,9 +389,6 @@ export async function runAndPersistScreenIntelligence(
     if (input.parts.length > bounds.maxSourceParts) {
       limitations.add("RECONSTRUCTION_BOUNDS_REACHED");
     }
-    if (ocrStatus === "RUNTIME_UNAVAILABLE") {
-      limitations.add("RECONSTRUCTION_OCR_RUNTIME_UNAVAILABLE");
-    }
 
     const sources: ScreenSourcePart[] = [];
     const sourceReads: ScreenSourceRead[] = [];
@@ -380,10 +401,23 @@ export async function runAndPersistScreenIntelligence(
     let ocrRegionCount = 0;
     let ocrFailedKeyframes = 0;
     let ocrKeyframesProcessed = 0;
+    let ocrKeyframesSucceeded = 0;
     let identicalKeyframesSkipped = 0;
     let frameOrder = 0;
     let obsCounter = 0;
-    let ocrLanguage: string | null = deps.ocr.language ?? null;
+    let ocrLanguage: string | null = effectiveLanguage;
+    // One timeline for the whole descriptor: SESSION only when every source
+    // part's start is known; never a mix of session and part offsets.
+    const sessionTimeline =
+      parts.length > 0 &&
+      parts.every(
+        (p) =>
+          typeof p.sessionStartOffsetMs === "number" &&
+          Number.isInteger(p.sessionStartOffsetMs) &&
+          p.sessionStartOffsetMs >= 0,
+      );
+    const timelineOffset = (part: ScreenSourcePartInput, offsetMs: number) =>
+      sessionTimeline ? (part.sessionStartOffsetMs as number) + offsetMs : offsetMs;
 
     for (const part of parts) {
       const mime = (part.mimeType ?? "").toLowerCase();
@@ -586,6 +620,7 @@ export async function runAndPersistScreenIntelligence(
           evidencePartId: part.evidencePartId,
           variantKey: frame.variantKey,
           offsetMs: frame.offsetMs,
+          sessionOffsetMs: sessionTimeline ? timelineOffset(part, frame.offsetMs) : null,
           derivedSha256: frame.derivedSha256 || null,
           derivedAssetId: frame.derivedAssetId,
           outputVersionId: frame.outputVersionId,
@@ -607,10 +642,13 @@ export async function runAndPersistScreenIntelligence(
         try {
           res = await deps.ocr.extractFromBytes(frame.ocrBytes);
         } catch {
-          // Degrade this frame only — ORIGINAL + other frames unaffected.
+          // Degrade this frame only — ORIGINAL + other frames unaffected. The
+          // failure is COUNTED and degrades coverage (AUD-003): text this
+          // frame carried is absent, which the result must say.
           ocrFailedKeyframes += 1;
           continue;
         }
+        ocrKeyframesSucceeded += 1;
         const widthPx = res.imageWidthPx ?? frame.ocrWidthPx;
         const heightPx = res.imageHeightPx ?? frame.ocrHeightPx;
         record.ocrInput = { widthPx: widthPx ?? null, heightPx: heightPx ?? null };
@@ -629,7 +667,7 @@ export async function runAndPersistScreenIntelligence(
             id,
             keyframeId: frame.keyframeId,
             sourcePartIndex: part.partIndex,
-            sourceOffsetMs: frame.offsetMs,
+            sourceOffsetMs: timelineOffset(part, frame.offsetMs),
             frameOrder: thisFrameOrder,
             rowOrder: region.rowOrder,
             text: region.text,
@@ -642,7 +680,7 @@ export async function runAndPersistScreenIntelligence(
             keyframeId: frame.keyframeId,
             sourcePartIndex: part.partIndex,
             evidencePartId: part.evidencePartId,
-            sourceOffsetMs: frame.offsetMs,
+            sourceOffsetMs: timelineOffset(part, frame.offsetMs),
             frameOrder: thisFrameOrder,
             rowOrder: region.rowOrder,
             text: region.text,
@@ -681,20 +719,41 @@ export async function runAndPersistScreenIntelligence(
       input.acquisitionComplete,
       reconstruction.coverage,
     );
-    // DERIVED coverage is COMPLETE only when NOTHING degraded it: OCR ran, the
-    // acquisition was complete, the reconstruction proved continuity, AND no
-    // bound was hit, no source was truncated and no part failed extraction.
-    // A labelled possible duplicate is a reading caveat, not missing coverage.
-    const coverageLimitations = [...limitations].filter(
-      (l) => l !== "RECONSTRUCTION_POSSIBLE_DUPLICATE",
-    );
-    const coverage: "COMPLETE" | "PARTIAL" =
-      ocrRuns &&
-      input.acquisitionComplete &&
-      baseCoverage === "COMPLETE" &&
-      coverageLimitations.length === 0
-        ? "COMPLETE"
-        : "PARTIAL";
+    // AUD-003 — what OCR produced, from the counts (never from "OCR was on").
+    const ocrCounts: ScreenOcrCounts = {
+      keyframesAttempted: ocrKeyframesProcessed,
+      keyframesSucceeded: ocrKeyframesSucceeded,
+      keyframesFailed: ocrFailedKeyframes,
+    };
+    const resolvedLanguages: ScreenOcrLanguages = ocrLanguages ?? {
+      requested: deps.ocr.language ?? null,
+      effective: ocrRuns ? ocrLanguage : null,
+      missing: [],
+    };
+    const ocrOutcome = assessScreenOcrOutcome({
+      ocrStatus,
+      counts: ocrCounts,
+      observationCount: observationRecords.length,
+      languages: resolvedLanguages,
+    });
+    for (const l of screenOcrLimitations({
+      outcome: ocrOutcome,
+      counts: ocrCounts,
+      observationCount: observationRecords.length,
+      languages: resolvedLanguages,
+    })) {
+      limitations.add(l);
+    }
+    // DERIVED coverage is COMPLETE only when NOTHING degraded it — THE rule
+    // lives in @proovra/shared (screenDerivedCoverage): OCR read every frame
+    // and found text, the acquisition was complete, continuity was proven,
+    // and no bound, truncation, failed frame or missing language degraded it.
+    const coverage = screenDerivedCoverage({
+      outcome: ocrOutcome,
+      acquisitionComplete: input.acquisitionComplete,
+      reconstructionCoverage: baseCoverage,
+      limitations: [...limitations],
+    });
 
     // DERIVED text is computed BEFORE the descriptor so the descriptor carries
     // the digest of exactly the text persisted to the extracted-text authority.
@@ -753,6 +812,10 @@ export async function runAndPersistScreenIntelligence(
       },
       ocrEnabled: ocrRuns,
       ocrStatus,
+      ocrOutcome,
+      ocrCounts,
+      ocrLanguages: resolvedLanguages,
+      offsetTimeline: sessionTimeline ? "SESSION" : "PART",
       acquisitionComplete: input.acquisitionComplete,
       coverage,
       limitations: [...limitations],
@@ -877,6 +940,8 @@ export async function runAndPersistScreenIntelligence(
       coverage,
       ocrEnabled: ocrRuns,
       ocrStatus,
+      ocrOutcome,
+      ocrCounts,
       generation,
       keyframeCount: keyframeRecords.length,
       observationCount: observationRecords.length,

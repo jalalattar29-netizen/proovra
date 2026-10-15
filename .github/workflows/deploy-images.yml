@@ -170,6 +170,10 @@ jobs:
             APP_RELEASE_SHA=${{ env.RELEASE_SHA }}
           cache-from: type=gha
 
+      # AUD-019 — the step's name promised OCR languages but only ran the PDF
+      # smoke. smoke-ocr-languages.mjs fails unless the SHIPPED image has the
+      # tesseract engine with eng, ara and deu installed and the worker's own
+      # provider recognises an English, a German and an Arabic line.
       - name: Smoke — PDF verification and OCR languages in the worker image
         if: matrix.service == 'worker'
         run: |
@@ -177,6 +181,7 @@ jobs:
             -e PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK=true \
             -e SMOKE_EXPECT_RELEASE_SHA="${RELEASE_SHA}" \
             proovra-worker:smoke node scripts/smoke-pdf-verification.mjs
+          docker run --rm proovra-worker:smoke node scripts/smoke-ocr-languages.mjs
 
       - name: Build and push image
         uses: docker/build-push-action@v7
