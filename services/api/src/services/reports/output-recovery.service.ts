@@ -201,6 +201,28 @@ export function clearStoredObjectProbeCache(): void {
   probeCache.clear();
 }
 
+/**
+ * THE one call site that forces a new report version.
+ *
+ * Forcing is never a flag a route sets; it is reached only from the two
+ * decisions in `requestOutputRecovery` that the live offer granted — an
+ * authorized updated report (CREATE_NEW_VERSION, possibly superseding a
+ * TECHNICAL terminal) and the recovery of a proven-missing stored file
+ * (AUD-011). Each passes its own idempotency key, so a repeat replays the same
+ * request instead of minting another version.
+ */
+function requestNewReportVersion(
+  input: Omit<Parameters<typeof requestReportGeneration>[0], "forceRegenerate" | "intent" | "clientRequestKey">,
+  key: string,
+) {
+  return requestReportGeneration({
+    ...input,
+    forceRegenerate: true,
+    intent: "NEW_VERSION",
+    clientRequestKey: key,
+  });
+}
+
 const REQUEST_SELECT = {
   id: true,
   evidenceId: true,
@@ -887,13 +909,7 @@ export async function requestOutputRecovery(input: {
      */
     return fromRequested(
       "NEW_VERSION",
-      await requestReportGeneration({
-        ...base,
-        forceRegenerate: true,
-        intent: "NEW_VERSION",
-        clientRequestKey: key,
-        supersedeTechnicalTerminal: true,
-      }),
+      await requestNewReportVersion({ ...base, supersedeTechnicalTerminal: true }, key),
     );
   }
 
@@ -1060,14 +1076,14 @@ export async function requestOutputRecovery(input: {
   if (chosen.decision.operation === "NEW_VERSION" && latestVersion != null) {
     return fromRequested(
       "NEW_VERSION",
-      await requestReportGeneration({
-        ...base,
-        purpose: "updated_report",
-        regenerateReason: `recover_missing_${chosen.output === "report" ? "report" : "package"}_v${latestVersion}`,
-        forceRegenerate: true,
-        intent: "NEW_VERSION",
-        clientRequestKey: `recover-missing:${input.evidenceId}:v${latestVersion}`,
-      }),
+      await requestNewReportVersion(
+        {
+          ...base,
+          purpose: "updated_report",
+          regenerateReason: `recover_missing_${chosen.output === "report" ? "report" : "package"}_v${latestVersion}`,
+        },
+        `recover-missing:${input.evidenceId}:v${latestVersion}`,
+      ),
     );
   }
 
