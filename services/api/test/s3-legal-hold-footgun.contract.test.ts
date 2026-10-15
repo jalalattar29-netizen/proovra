@@ -102,16 +102,19 @@ describe("no configuration path can place a native S3 legal hold", () => {
 });
 
 describe("Object Lock RETENTION is untouched", () => {
-  it("mode and retain-until are still derived from configuration", () => {
+  it("mode and retain-until are still derived from configuration — through the ONE eight-year resolver", () => {
+    // THE EIGHT-YEAR CONTRACT (2026-10-15): every storage module asks the one
+    // resolver, which reads S3_OBJECT_LOCK_MODE / S3_OBJECT_LOCK_RETAIN_DAYS
+    // under the eight-year floor; none computes a duration of its own.
     for (const rel of STORAGE_MODULES) {
       const body = code(src(rel));
-      expect(body, `${rel} must still read the mode`).toContain(
-        "S3_OBJECT_LOCK_MODE",
-      );
-      expect(body, `${rel} must still read the retain days`).toContain(
-        "S3_OBJECT_LOCK_RETAIN_DAYS",
-      );
+      expect(body, `${rel} must take its lock from the resolver`).toContain("newObjectLock(");
+      expect(body, `${rel} must not compute a duration of its own`).not.toMatch(/retainDays\s*\*\s*24/);
     }
+    const resolver = code(src("packages/shared-runtime/src/evidence-retention/object-retention.ts"));
+    expect(resolver).toContain("S3_OBJECT_LOCK_MODE");
+    expect(resolver).toContain("S3_OBJECT_LOCK_RETAIN_DAYS");
+    expect(resolver).toContain("resolvePlatformRetentionDays");
   });
 
   it("every upload path still stamps ObjectLockMode and ObjectLockRetainUntilDate", () => {

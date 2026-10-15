@@ -5,6 +5,7 @@ import {
   isEvidenceReservationExpiredTx,
   multipartManifestSha256,
   recordIntegrityCheckTx,
+  resolveEvidenceObjectRetention,
 } from "@proovra/shared-runtime";
 import { canonicalJson, sha256Hex } from "../crypto.js";
 import {
@@ -23,6 +24,7 @@ import {
 import { resolveEvidenceOutputEligibility } from "./billing/evidence-output-eligibility.service.js";
 import {
   applyDefaultObjectRetention,
+  applyObjectRetention,
   getObjectStream,
   headObject,
 } from "../storage.js";
@@ -330,7 +332,14 @@ async function safeGetStream(bucket: string, key: string, versionId?: string | n
  * empty so a repeat complete can repair it. Every other error throws as before.
  */
 export async function applyRetentionOrThrow(
-  targets: RetentionTarget[]
+  targets: RetentionTarget[],
+  /**
+   * THE EIGHT-YEAR CONTRACT (2026-10-15): the record's resolved SEAL lock
+   * (`resolveEvidenceObjectRetention`). A repeat finalization resolves to the
+   * record's existing horizon, so it never extends the lock. Omitted only by
+   * callers that have no record (the deployment default then applies).
+   */
+  lock?: { mode: "GOVERNANCE" | "COMPLIANCE"; retainUntil: Date } | null,
 ): Promise<{ anyApplied: boolean; allConfirmed: boolean; reason: string | null }> {
   const deduped = Array.from(
     new Map(targets.map((item) => [`${item.bucket}:${item.key}:${item.versionId ?? ""}`, item])).values()
@@ -342,11 +351,19 @@ export async function applyRetentionOrThrow(
 
   for (const target of deduped) {
     try {
-      const result = await applyDefaultObjectRetention({
-        bucket: target.bucket,
-        key: target.key,
-        versionId: target.versionId ?? null,
-      });
+      const result = lock
+        ? await applyObjectRetention({
+            bucket: target.bucket,
+            key: target.key,
+            versionId: target.versionId ?? null,
+            mode: lock.mode,
+            retainUntilDate: lock.retainUntil,
+          })
+        : await applyDefaultObjectRetention({
+            bucket: target.bucket,
+            key: target.key,
+            versionId: target.versionId ?? null,
+          });
       if (result?.applied === true) {
         anyApplied = true;
       } else {
@@ -1625,7 +1642,10 @@ const captureMethod =
   );
 
   if (final.retentionTargets.length > 0) {
-    const retentionResult = await applyRetentionOrThrow(final.retentionTargets);
+    const retentionResult = await applyRetentionOrThrow(
+      final.retentionTargets,
+      await resolveEvidenceObjectRetention(prisma, final.result.id, { kind: "SEAL" }),
+    );
 
     const primaryTarget = final.retentionTargets[0];
 

@@ -53,6 +53,7 @@ import {
   normalizeMetadata,
   normalizeTagging,
   readObjectLockDefaults,
+  type ResolvedObjectLock,
   s3,
 } from "./storage.js";
 
@@ -69,6 +70,13 @@ export type PublishImmutableArtifactInput = {
   contentType: string;
   metadata?: Record<string, string | null | undefined>;
   tags?: Record<string, string | null | undefined>;
+  /**
+   * THE EIGHT-YEAR CONTRACT (2026-10-15): the record's ARTIFACT lock
+   * (`resolveEvidenceObjectRetention`). A report or package is locked to its
+   * record's fixed horizon — never to "now + eight years", which would ratchet
+   * the record's preservation forward on every regeneration.
+   */
+  lock?: ResolvedObjectLock | null;
 };
 
 export type PublishedArtifact = {
@@ -250,7 +258,11 @@ export async function publishImmutableArtifact(
   }
 
   const lockEnabled = isObjectLockEnabled();
-  const lock = lockEnabled ? readObjectLockDefaults() : {};
+  const lock = !lockEnabled
+    ? {}
+    : input.lock
+      ? { mode: input.lock.mode as ObjectLockMode, retainUntilDate: input.lock.retainUntil }
+      : readObjectLockDefaults();
   const metadata = normalizeMetadata(input.metadata);
   const tagging = normalizeTagging(input.tags);
 

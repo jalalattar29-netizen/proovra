@@ -11,6 +11,7 @@ import {
   type S3ClientConfig,
 } from "@aws-sdk/client-s3";
 import { createHash } from "node:crypto";
+import { newObjectLock } from "@proovra/shared-runtime";
 import { env } from "./config.js";
 // Phase O1.4 — instrument S3 calls with bounded PROOVRA spans so the
 // API → S3 latency / failure surface is visible in Grafana alongside
@@ -119,14 +120,6 @@ export function normalizeTagging(
   return parts.length > 0 ? parts.join("&") : undefined;
 }
 
-function parsePositiveInt(value: string | null | undefined): number | null {
-  const raw = clean(value);
-  if (!raw) return null;
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return parsed;
-}
-
 export function isObjectLockEnabled(): boolean {
   return clean(process.env.S3_OBJECT_LOCK_ENABLED)?.toLowerCase() === "true";
 }
@@ -148,29 +141,15 @@ export function readObjectLockDefaults(): {
   mode?: ObjectLockMode;
   retainUntilDate?: Date;
 } {
-  if (!isObjectLockEnabled()) {
-    return {};
-  }
-
-  const modeRaw = clean(process.env.S3_OBJECT_LOCK_MODE)?.toUpperCase();
-  const retainDays = parsePositiveInt(process.env.S3_OBJECT_LOCK_RETAIN_DAYS);
-
-  const mode: ObjectLockMode | undefined =
-    modeRaw === "GOVERNANCE" || modeRaw === "COMPLIANCE"
-      ? (modeRaw as ObjectLockMode)
-      : undefined;
-
-
-  const retainUntilDate =
-    mode && retainDays
-      ? new Date(Date.now() + retainDays * 24 * 60 * 60 * 1000)
-      : undefined;
-
-  return {
-    mode,
-    retainUntilDate,
-  };
+  // THE EIGHT-YEAR CONTRACT (2026-10-15): one resolver owns mode and
+  // duration for every writer (`@proovra/shared-runtime` object-retention).
+  const lock = newObjectLock();
+  if (!lock) return {};
+  return { mode: lock.mode as ObjectLockMode, retainUntilDate: lock.retainUntil };
 }
+
+/** A record-resolved lock (`resolveEvidenceObjectRetention`), passed through to S3. */
+export type ResolvedObjectLock = { mode: "GOVERNANCE" | "COMPLIANCE"; retainUntil: Date };
 
 function sha256Base64(buffer: Buffer): string {
   return createHash("sha256").update(buffer).digest("base64");
@@ -282,6 +261,13 @@ export async function putObjectBuffer(params: {
   metadata?: Record<string, string | null | undefined>;
   tags?: Record<string, string | null | undefined>;
   immutable?: boolean;
+  /**
+   * The record's ARTIFACT lock. A file written for an evidence record (a
+   * preview, a derivative, an exchange package) is locked to the record's
+   * fixed horizon explicitly, never left to the bucket default — which would
+   * lock it to "now + eight years" on every regeneration.
+   */
+  lock?: ResolvedObjectLock | null;
 }) {
   const bucket = mustClean(params.bucket, "bucket");
   const key = mustClean(params.key, "key");
@@ -292,8 +278,13 @@ export async function putObjectBuffer(params: {
 
   const metadata = normalizeMetadata(params.metadata);
   const tagging = normalizeTagging(params.tags);
-  const objectLock =
-    params.immutable && isObjectLockEnabled() ? readObjectLockDefaults() : {};
+  const objectLock = !isObjectLockEnabled()
+    ? {}
+    : params.lock
+      ? { mode: params.lock.mode as ObjectLockMode, retainUntilDate: params.lock.retainUntil }
+      : params.immutable
+        ? readObjectLockDefaults()
+        : {};
   // Phase O1.5B — bounded integrity.hash.compute span. Wraps the
   // sha256 + md5 compute over the upload body. NEVER the bytes.
   const { checksumSha256Base64, contentMd5Base64 } = withProovraSpanSync(

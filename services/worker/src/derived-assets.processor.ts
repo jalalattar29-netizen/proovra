@@ -43,6 +43,7 @@ import { JOB_NAMES } from "@proovra/shared";
 
 import { decodeCanonicalJob } from "./canonical-job.js";
 import { prisma } from "./db.js";
+import { artifactLockFor } from "./object-retention.js";
 import { logger } from "./logger.js";
 import { getObjectStream, putObjectBuffer } from "./storage.js";
 import { detectDerivedAssetCapability } from "./derived-assets-capability.js";
@@ -451,6 +452,7 @@ export async function processDerivedAssetJob(
   let derivedVersionId: string | null = null;
   try {
     const put = await putObjectBuffer({
+      lock: await artifactLockFor(evidenceId),
       bucket: part.storage_bucket,
       key: derivedKey,
       body: derivedBuffer,
@@ -654,6 +656,7 @@ async function handleFfmpegAssetKind(params: {
     let derivedVersionId: string | null = null;
     try {
       const put = await putObjectBuffer({
+        lock: await artifactLockFor(evidenceId),
         bucket: part.storage_bucket,
         key: derivedKey,
         body: result.bytes,

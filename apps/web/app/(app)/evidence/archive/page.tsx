@@ -11,6 +11,7 @@
  */
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { RETENTION_ARCHIVE_EXPLAINER_COPY } from "@proovra/shared";
 
 import { AppStatusBadge } from "../../../../components/app-primitives";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
@@ -123,7 +124,7 @@ function RetentionArchivePageInner() {
   return (
     <PageShell
       title="Archived evidence"
-      subtitle="Records that left Trash while their retention protection still applies. They are preserved, not deleted, and cannot be permanently deleted before every retention period and legal hold ends."
+      subtitle={RETENTION_ARCHIVE_EXPLAINER_COPY}
     >
       <PageSection>
         {state === "loading" ? <p className="app-field__help">Loading archived evidence…</p> : null}

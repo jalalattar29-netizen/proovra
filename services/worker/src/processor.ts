@@ -108,6 +108,7 @@ import {
 import { appendWorkerAnalyticsEvent } from "./analytics-events.js";
 import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { prisma } from "./db.js";
+import { artifactLockFor } from "./object-retention.js";
 import { env } from "./config.js";
 import { logger, withJobContext } from "./logger.js";
 // `deleteObject` is deliberately NOT imported here any more. This module used
@@ -4462,6 +4463,7 @@ async function runReportGeneration(
         // DURABLE PROGRESS — rendered; publishing + reading back the stored PDF.
         await recordRequestProgress(command, "VERIFYING_REPORT");
         const publishedReport = await publishImmutableArtifact({
+          lock: await artifactLockFor(prepared.evidenceId),
           bucket: env.S3_BUCKET,
           key: buildPublicationKey({
             family: "reports",

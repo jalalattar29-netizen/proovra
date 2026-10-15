@@ -41,6 +41,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { objectLockPolicyFromEnv } from "@proovra/shared-runtime";
 import {
   getObjectLockStatus,
   type ObjectLockStatus,
@@ -222,18 +223,22 @@ function readObjectLockEnabled(): boolean {
   return clean(process.env.S3_OBJECT_LOCK_ENABLED).toLowerCase() === "true";
 }
 
-/** Mirrors services/api/src/storage.ts:187 (S3_OBJECT_LOCK_MODE). */
+/**
+ * The mode every writer actually sends — the one resolver
+ * (`objectLockPolicyFromEnv`), not a second reading of the variable.
+ */
 function readObjectLockMode(): "GOVERNANCE" | "COMPLIANCE" | null {
-  const raw = clean(process.env.S3_OBJECT_LOCK_MODE).toUpperCase();
-  return raw === "GOVERNANCE" || raw === "COMPLIANCE" ? raw : null;
+  const policy = objectLockPolicyFromEnv();
+  return policy.enabled ? policy.mode : null;
 }
 
-/** Mirrors services/api/src/storage.ts:189 parsePositiveInt(RETAIN_DAYS). */
+/**
+ * The retention every writer actually applies: the eight-year contract,
+ * raised (never lowered) by `S3_OBJECT_LOCK_RETAIN_DAYS`.
+ */
 function readObjectLockRetainDays(): number | null {
-  const raw = clean(process.env.S3_OBJECT_LOCK_RETAIN_DAYS);
-  if (!raw) return null;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : null;
+  const policy = objectLockPolicyFromEnv();
+  return policy.enabled ? policy.platformRetentionDays : null;
 }
 
 /**

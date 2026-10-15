@@ -64,6 +64,7 @@ import { PassThrough } from "node:stream";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "./db.js";
 import { deleteObject, putObjectBuffer } from "./storage.js";
+import { artifactLockForAll } from "./object-retention.js";
 import { env } from "./config.js";
 import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
 import { logger } from "./logger.js";
@@ -1001,6 +1002,7 @@ export async function buildExchangePackage(
     // the conditional READY transition below.
     const storageKey = `exchange-packages/${teamId}/${packageId}/${attemptAt.getTime()}-${randomUUID()}.zip`;
     await putObjectBuffer({
+      lock: await artifactLockForAll(evidenceIds),
       bucket: env.S3_BUCKET,
       key: storageKey,
       body: zipBuffer,

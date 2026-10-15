@@ -109,28 +109,37 @@ describe("applying default Object Lock retention", () => {
     expect(sent).toHaveLength(0);
   });
 
-  // Object Lock switched on but its defaults unusable: no PutObjectRetention
-  // can be built, so nothing was applied — reporting `applied: true` claimed a
-  // retention no command ever set.
-  for (const [label, mode, days] of [
-    ["mode missing", undefined, "2920"],
-    ["mode invalid", "FOREVER", "2920"],
-    ["retain days missing", "COMPLIANCE", undefined],
-    ["retain days not a positive integer", "COMPLIANCE", "0"],
+  // THE EIGHT-YEAR CONTRACT (owner decision 2026-10-15). Object Lock switched
+  // on with an incomplete or shorter configuration still writes the contract:
+  // eight years (2920 days), in the configured mode or GOVERNANCE. There is no
+  // configuration under which an enabled lock writes less, and no fallback to
+  // "nothing" that would leave the bucket default to decide.
+  for (const [label, mode, days, expectedMode] of [
+    ["mode missing", undefined, "2920", "GOVERNANCE"],
+    ["mode invalid", "FOREVER", "2920", "GOVERNANCE"],
+    ["retain days missing", "COMPLIANCE", undefined, "COMPLIANCE"],
+    ["retain days not a positive integer", "COMPLIANCE", "0", "COMPLIANCE"],
+    ["retain days shorter than the contract", "GOVERNANCE", "365", "GOVERNANCE"],
   ] as const) {
-    it(`with Object Lock enabled but ${label}: applied=false (object_lock_defaults_incomplete), nothing sent`, async () => {
+    it(`with Object Lock enabled but ${label}: eight years are still applied`, async () => {
       if (mode === undefined) delete process.env.S3_OBJECT_LOCK_MODE;
       else process.env.S3_OBJECT_LOCK_MODE = mode;
       if (days === undefined) delete process.env.S3_OBJECT_LOCK_RETAIN_DAYS;
       else process.env.S3_OBJECT_LOCK_RETAIN_DAYS = days;
 
+      const before = Date.now();
       const result = await applyDefaultObjectRetention({
         bucket: "disposable-test-bucket",
         key: "fictional/object-lock-probe.bin",
       });
 
-      expect(result).toEqual({ applied: false, reason: "object_lock_defaults_incomplete" });
-      expect(sent).toHaveLength(0);
+      expect(result).toEqual({ applied: true });
+      expect(sent).toHaveLength(1);
+      const retention = (sent[0] as unknown as { input: { Retention: { Mode: string; RetainUntilDate: Date } } }).input.Retention;
+      expect(retention.Mode).toBe(expectedMode);
+      const days8 = 2920 * 24 * 60 * 60 * 1000;
+      expect(retention.RetainUntilDate.getTime()).toBeGreaterThanOrEqual(before + days8);
+      expect(retention.RetainUntilDate.getTime()).toBeLessThan(before + days8 + 60_000);
     });
   }
 });

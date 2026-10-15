@@ -713,3 +713,119 @@ export function toEvidenceLifecycleProjection(
 
 /** The canonical response field name. Pinned by tests on both sides. */
 export const EVIDENCE_LIFECYCLE_RESPONSE_FIELD = "lifecycle" as const;
+
+// ---------------------------------------------------------------------------
+// The eight-year preservation contract (owner decision 2026-10-15)
+// ---------------------------------------------------------------------------
+
+/**
+ * EVIDENCE IS PRESERVED FOR EIGHT YEARS.
+ *
+ * Ordinary PROOVRA evidence is held under S3 Object Lock for 2920 days from
+ * the moment it is sealed — the value the deployment has always carried in
+ * `S3_OBJECT_LOCK_RETAIN_DAYS` and the bucket's own default. This constant is
+ * the floor that configuration may raise but never lower: a deployment that
+ * sets a shorter value still writes eight years, and says so (see
+ * `resolvePlatformRetentionDays`).
+ *
+ * Enterprise / workspace contracts extend a record beyond this through the
+ * record's application retention (`Evidence.retentionUntilUtc`); nothing here
+ * shortens an applied lock. S3 itself refuses a shorter retain-until on a
+ * locked version (COMPLIANCE always, GOVERNANCE without bypass), and no
+ * routine path sends a bypass.
+ */
+export const EVIDENCE_OBJECT_RETENTION_DAYS = 2920;
+
+export type ObjectLockModeName = "GOVERNANCE" | "COMPLIANCE";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The retention a deployment writes: `max(eight years, configured days)`.
+ * `configuredBelowContract` is true when configuration asked for less — the
+ * readiness posture reports it; the write never follows it.
+ */
+export function resolvePlatformRetentionDays(configuredDays: number | null | undefined): {
+  days: number;
+  configuredBelowContract: boolean;
+} {
+  const configured =
+    typeof configuredDays === "number" && Number.isInteger(configuredDays) && configuredDays > 0
+      ? configuredDays
+      : null;
+  return {
+    days: Math.max(EVIDENCE_OBJECT_RETENTION_DAYS, configured ?? 0),
+    configuredBelowContract: configured !== null && configured < EVIDENCE_OBJECT_RETENTION_DAYS,
+  };
+}
+
+/**
+ * The lock mode is a deployment fact (`S3_OBJECT_LOCK_MODE`). The contract's
+ * mode is GOVERNANCE; a deployment that configures COMPLIANCE keeps it.
+ */
+export function resolveObjectLockModeName(configured: string | null | undefined): ObjectLockModeName {
+  const v = String(configured ?? "").trim().toUpperCase();
+  return v === "COMPLIANCE" ? "COMPLIANCE" : "GOVERNANCE";
+}
+
+export interface EvidenceRetentionHorizonInput {
+  /** The latest retain-until S3 reported for the sealed original and its parts. */
+  sealedOriginalRetainUntil: Date | string | null | undefined;
+  /** When the record was sealed (signedAt, else its creation). */
+  sealedAt: Date | string | null | undefined;
+  /** Application / contractual retention (`Evidence.retentionUntilUtc`). */
+  appRetentionUntil: Date | string | null | undefined;
+  platformRetentionDays: number;
+}
+
+/**
+ * THE evidence-level retention horizon: the date until which every required
+ * object of the record must stay locked.
+ *
+ *   max(the original's applied lock, the contractual retention,
+ *       sealedAt + the platform period)
+ *
+ * It is FIXED per record. Later artifacts (reports, packages, previews,
+ * derived files) are locked TO it, never to "now + eight years" — so
+ * regenerating a report cannot ratchet a record's preservation forward
+ * without end, and no artifact can make the record purgeable earlier.
+ */
+export function computeEvidenceRetentionHorizon(input: EvidenceRetentionHorizonInput): Date | null {
+  const sealedAt = toDate(input.sealedAt);
+  return maxDate(
+    maxDate(toDate(input.sealedOriginalRetainUntil), toDate(input.appRetentionUntil)),
+    sealedAt ? new Date(sealedAt.getTime() + input.platformRetentionDays * DAY_MS) : null,
+  );
+}
+
+/** S3 only accepts a retain-until in the future; one day is the least a write locks. */
+export const MINIMUM_ARTIFACT_LOCK_MS = DAY_MS;
+
+/**
+ * The retain-until for ONE object write.
+ *
+ *   SEAL      the original/parts at finalization: max(now + platform period,
+ *             contractual retention) — or the record's existing horizon when
+ *             it was already sealed (a repeat finalization never extends).
+ *   ARTIFACT  anything written later for an existing record: its horizon,
+ *             never less than a minimal future lock.
+ */
+export function resolveObjectRetainUntil(input: {
+  kind: "SEAL" | "ARTIFACT";
+  now: Date;
+  platformRetentionDays: number;
+  horizon: Date | null;
+  appRetentionUntil: Date | string | null | undefined;
+  alreadySealed: boolean;
+}): Date {
+  const floor = new Date(input.now.getTime() + MINIMUM_ARTIFACT_LOCK_MS);
+  if (input.kind === "SEAL" && !input.alreadySealed) {
+    return maxDate(
+      new Date(input.now.getTime() + input.platformRetentionDays * DAY_MS),
+      toDate(input.appRetentionUntil),
+    )!;
+  }
+  const base =
+    input.horizon ?? new Date(input.now.getTime() + input.platformRetentionDays * DAY_MS);
+  return base.getTime() > floor.getTime() ? base : floor;
+}

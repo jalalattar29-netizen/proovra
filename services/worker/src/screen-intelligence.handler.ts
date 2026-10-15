@@ -40,6 +40,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma } from "./db.js";
+import { artifactLockFor } from "./object-retention.js";
 import { logger } from "./logger.js";
 import { getObjectStream, putObjectBuffer, deleteObject } from "./storage.js";
 import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
@@ -228,7 +229,7 @@ export async function processReconstructScreenJob(
         produceKeyframes: (kfInput) => produceVideoKeyframes(kfInput),
         // UC-DER-006 — the store's VersionId travels back to the row.
         putKeyframeObject: async ({ bucket, key, body, contentType }) => {
-          const put = await putObjectBuffer({ bucket, key, body, contentType });
+          const put = await putObjectBuffer({ bucket, key, body, contentType, lock: await artifactLockFor(evidenceId) });
           return { versionId: put?.versionId ?? null };
         },
         deleteObject: async ({ bucket, key }) => {

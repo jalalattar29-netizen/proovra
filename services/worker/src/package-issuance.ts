@@ -36,6 +36,7 @@ import {
 
 import { appendCustodyEventTx } from "./custody-events.js";
 import { prisma } from "./db.js";
+import { artifactLockFor } from "./object-retention.js";
 import { env } from "./config.js";
 import {
   buildPublicationKey,
@@ -145,6 +146,7 @@ export async function publishBuiltProfiles(input: {
   const out: PublishedProfile[] = [];
   for (const b of input.built) {
     const head = await publishImmutableArtifact({
+      lock: await artifactLockFor(input.evidenceId),
       bucket: env.S3_BUCKET,
       key: buildPublicationKey({
         family: "verification",

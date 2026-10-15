@@ -7,6 +7,7 @@
  * and comes back only through the verified restore (every stored version and
  * digest is checked first; nothing partial is activated).
  */
+import { RETENTION_ARCHIVE_EXPLAINER_COPY } from "@proovra/shared";
 
 export function buildRetentionArchivePath(): string {
   return "/v1/evidence/retention-archive";
@@ -68,8 +69,8 @@ export const RETENTION_BARRIER_COPY: Readonly<Record<string, string>> = {
   CLEAR: "Awaiting final review",
 };
 
-export const ARCHIVE_EXPLAINER_COPY =
-  "Records that left Trash while their retention protection still applies. They are preserved, not deleted, and cannot be permanently deleted before every retention period and legal hold ends.";
+/** The one shared explainer (`@proovra/shared`), so web and native say the same policy. */
+export const ARCHIVE_EXPLAINER_COPY = RETENTION_ARCHIVE_EXPLAINER_COPY;
 
 export const ARCHIVE_RESTORE_CONFIRM_COPY =
   "PROOVRA first verifies every stored version of the evidence and its reports and packages. If everything checks out, the record returns to your library with the same identity, history and verification page. If anything does not match, it stays archived and nothing changes. Restoring uses no evidence allowance.";

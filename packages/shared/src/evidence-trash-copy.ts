@@ -20,7 +20,15 @@ export const TRASH_KEEPS_PLAN_CAPACITY_COPY =
  * hold still applies.
  */
 export const TRASH_LIFECYCLE_COPY =
-  "The record stays in Trash for 90 days and can be restored there. After that it moves to the retention archive while its preservation requirements still apply, where it can still be restored. It cannot be permanently deleted before every retention period and legal hold ends.";
+  "The record stays in Trash for 90 days and can be restored there. After that it moves to the retention archive while its preservation requirements still apply, where it can still be restored. Evidence is preserved for eight years from sealing, longer under an Enterprise retention policy or a legal hold, and it cannot be permanently deleted before every retention period and legal hold ends.";
+
+/**
+ * The Retention Archive explainer (web and native). States the actual policy
+ * (owner decision 2026-10-15): eight years from sealing, extended — never
+ * shortened — by an Enterprise retention policy or a legal hold.
+ */
+export const RETENTION_ARCHIVE_EXPLAINER_COPY =
+  "Records that left Trash while their retention protection still applies. Evidence is preserved for eight years from sealing, longer under an Enterprise retention policy or a legal hold. These records are preserved, not deleted, and cannot be permanently deleted before every retention period and legal hold ends.";
 
 /**
  * The Billing allowance line for an account holding records in Trash: it says

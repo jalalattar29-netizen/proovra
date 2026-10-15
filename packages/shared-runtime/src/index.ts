@@ -116,5 +116,6 @@ export * from "./integrity-recheck/authority.js";
 export * from "./scheduled-sweep-health.js";
 export * from "./verification-share/authority.js";
 export * from "./verification-share/canonical-identity.js";
+export * from "./evidence-retention/object-retention.js";
 // UC-ARCH-006 — THE integrity digest rules (composite / manifest / stream SHA-256).
 export * from "./integrity/digest.js";

@@ -13,6 +13,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createHash } from "node:crypto";
+import { newObjectLock } from "@proovra/shared-runtime";
 // Phase O1.4 — bounded S3 spans. Attributes carry the bucket name +
 // bounded key prefix (first 64 chars). NEVER the signed URL, body
 // bytes, or credentials.
@@ -160,14 +161,6 @@ function normalizeTagging(
   return parts.length > 0 ? parts.join("&") : undefined;
 }
 
-function parsePositiveInt(value: string | null | undefined): number | null {
-  const raw = clean(value);
-  if (!raw) return null;
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return parsed;
-}
-
 function isObjectLockEnabled(): boolean {
   return clean(process.env.S3_OBJECT_LOCK_ENABLED)?.toLowerCase() === "true";
 }
@@ -209,27 +202,11 @@ function readObjectLockDefaults(): {
   mode?: ObjectLockMode;
   retainUntilDate?: Date;
 } {
-  if (!isObjectLockEnabled()) {
-    return {};
-  }
-
-  const modeRaw = clean(process.env.S3_OBJECT_LOCK_MODE)?.toUpperCase();
-  const retainDays = parsePositiveInt(process.env.S3_OBJECT_LOCK_RETAIN_DAYS);
-
-  const mode: ObjectLockMode | undefined =
-    modeRaw === "GOVERNANCE" || modeRaw === "COMPLIANCE"
-      ? (modeRaw as ObjectLockMode)
-      : undefined;
-
-  const retainUntilDate =
-    mode && retainDays
-      ? new Date(Date.now() + retainDays * 24 * 60 * 60 * 1000)
-      : undefined;
-
-  return {
-    mode,
-    retainUntilDate,
-  };
+  // THE EIGHT-YEAR CONTRACT (2026-10-15): one resolver owns mode and
+  // duration for every writer (`@proovra/shared-runtime` object-retention).
+  const lock = newObjectLock();
+  if (!lock) return {};
+  return { mode: lock.mode as ObjectLockMode, retainUntilDate: lock.retainUntil };
 }
 
 function readPresignExpirySeconds(explicit?: number): number {

@@ -9,6 +9,11 @@
  * archive-restore sweep; the custody chain; the storage accounting authority;
  * the anonymous verification route. Time is CONTROLLED by passing `now` to the
  * reconciler and the executor; retain-until dates are the storage's own.
+ * THE EIGHT-YEAR CONTRACT (owner decision 2026-10-15) is proven here too:
+ * ordinary evidence locked for 2920 days, a shorter configuration never
+ * followed, Enterprise extension, an existing 2034 lock preserved (never
+ * shortened, never ratcheted by later artifacts), Legal Hold, and a later
+ * object VERSION governing purge.
  * WHAT IS DOUBLED: the RFC 3161 authority; one storage port that fails a
  * listing (to prove fail-closed).
  */
@@ -19,6 +24,7 @@ import {
   HeadObjectCommand,
   ListObjectVersionsCommand,
   PutObjectCommand,
+  PutObjectRetentionCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -31,7 +37,7 @@ const LOCK_BUCKET = process.env.P7_LOCK_BUCKET ?? "point7-lock-bucket";
 process.env.S3_BUCKET = LOCK_BUCKET;
 process.env.S3_OBJECT_LOCK_ENABLED = "true";
 process.env.S3_OBJECT_LOCK_MODE = "GOVERNANCE";
-process.env.S3_OBJECT_LOCK_RETAIN_DAYS = "365";
+process.env.S3_OBJECT_LOCK_RETAIN_DAYS = "2920";
 
 vi.mock("../src/services/timestamp.service.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -39,6 +45,8 @@ vi.mock("../src/services/timestamp.service.js", async (importOriginal) => {
 });
 
 const DAY = 24 * 60 * 60 * 1000;
+/** A record sealed in October 2026 under the eight-year contract (Production's own shape). */
+const LEGACY_2034 = new Date("2034-10-14T00:00:00.000Z");
 
 describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + MinIO)", () => {
   let h: IntegrationHarness;
@@ -61,7 +69,7 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     process.env.S3_BUCKET = LOCK_BUCKET;
     process.env.S3_OBJECT_LOCK_ENABLED = "true";
     process.env.S3_OBJECT_LOCK_MODE = "GOVERNANCE";
-    process.env.S3_OBJECT_LOCK_RETAIN_DAYS = "365";
+    process.env.S3_OBJECT_LOCK_RETAIN_DAYS = "2920";
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
@@ -99,7 +107,7 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     process.env.S3_BUCKET = LOCK_BUCKET;
     process.env.S3_OBJECT_LOCK_ENABLED = "true";
     process.env.S3_OBJECT_LOCK_MODE = "GOVERNANCE";
-    process.env.S3_OBJECT_LOCK_RETAIN_DAYS = "365";
+    process.env.S3_OBJECT_LOCK_RETAIN_DAYS = "2920";
     await clearRates();
   });
 
@@ -127,7 +135,7 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     return { key: ev.storageKey!, versionId: ev.storageVersionId ?? null, partId: null };
   }
 
-  /** A record finalized over HTTP: bytes in the lock bucket, 365-day GOVERNANCE retention applied by finalization. */
+  /** A record finalized over HTTP: bytes in the lock bucket, eight-year (2920-day) GOVERNANCE retention applied by finalization. */
   async function finalizedRecord(): Promise<{ id: string; sha256: string }> {
     const created = await call("POST", "/v1/evidence", A().ownerToken, { type: "DOCUMENT", mimeType: "text/plain", teamId: A().teamId });
     expect(created.statusCode, created.body).toBe(201);
@@ -221,14 +229,16 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
       },
     });
 
-  it("ACTIVE → TRASH → (day 91, 365-day storage retention) → RETENTION ARCHIVE, with the storage date as the earliest purge", async () => {
+  it("ACTIVE → TRASH → (day 91, eight-year storage retention) → RETENTION ARCHIVE, with the storage date as the earliest purge", async () => {
     const { id } = await finalizedRecord();
     archivedFromHttp = id;
     const loc = await originalLocation(id);
     const head = await s3.send(new HeadObjectCommand({ Bucket: LOCK_BUCKET, Key: loc.key, ...(loc.versionId ? { VersionId: loc.versionId } : {}) }));
     expect(head.ObjectLockMode).toBe("GOVERNANCE");
     const retainUntil = head.ObjectLockRetainUntilDate!;
-    expect(retainUntil.getTime()).toBeGreaterThan(Date.now() + 300 * DAY);
+    // Eight years from sealing (2920 days) — the preservation contract.
+    expect(retainUntil.getTime()).toBeGreaterThan(Date.now() + 2919 * DAY);
+    expect(retainUntil.getTime()).toBeLessThan(Date.now() + 2921 * DAY);
 
     expect((await call("DELETE", `/v1/evidence/${id}`, A().ownerToken)).statusCode).toBe(200);
     // Day 89: still in Trash.
@@ -325,7 +335,7 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
 
   it("the LATEST required retain-until governs: a later report object extends the boundary", async () => {
     const soon = new Date(Date.now() + 5_000);
-    const late = new Date(Date.now() + 400 * DAY);
+    const late = LEGACY_2034;
     const id = await trashedFixture({ originalRetainUntil: soon, reportRetainUntil: late });
     await new Promise((r) => setTimeout(r, 6_000));
     await reconcile(afterTrash());
@@ -393,9 +403,128 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
   }, 300_000);
 
   it("the API never purges a Governance-locked version early, even if asked directly", async () => {
-    const id = await trashedFixture({ originalRetainUntil: new Date(Date.now() + 400 * DAY) });
+    const id = await trashedFixture({ originalRetainUntil: LEGACY_2034 });
     const res = await runtime.executeEvidenceDestruction(prisma as never, { evidenceId: id, trigger: "manual", legalHold: false, objectLockExpected: true, now: new Date(Date.now() + 91 * DAY) }, port);
     expect(res).toMatchObject({ ok: false, outcome: "BLOCKED", reason: "OBJECT_LOCK_RETENTION_ACTIVE" });
     expect((await port.listObjectVersions({ bucket: LOCK_BUCKET, key: `evidence/${id}/original.txt` })).filter((v) => !v.isDeleteMarker)).toHaveLength(1);
+  }, 120_000);
+
+  // =========================================================================
+  // THE EIGHT-YEAR CONTRACT (owner decision 2026-10-15)
+  // =========================================================================
+
+  const headOf = async (key: string, versionId?: string | null) =>
+    s3.send(new HeadObjectCommand({ Bucket: LOCK_BUCKET, Key: key, ...(versionId ? { VersionId: versionId } : {}) }));
+  const near = (a: Date | undefined | null, b: Date, ms = 2 * DAY) =>
+    expect(Math.abs((a?.getTime() ?? 0) - b.getTime()), `${a?.toISOString()} vs ${b.toISOString()}`).toBeLessThan(ms);
+
+  /** An ACTIVE sealed record whose original is locked until `until` (a legacy record). */
+  async function sealedLegacyRecord(sealedAt: Date, until: Date) {
+    const team = await prisma.team.findUniqueOrThrow({ where: { id: A().teamId }, select: { organizationId: true } });
+    const ev = await prisma.evidence.create({
+      data: { type: "DOCUMENT", status: "REPORTED", teamId: A().teamId, organizationId: team.organizationId, ownerUserId: A().ownerUserId, signedAtUtc: sealedAt, createdAt: sealedAt, sizeBytes: BigInt(64) } as never,
+      select: { id: true },
+    });
+    const key = `evidence/${ev.id}/original.txt`;
+    const versionId = await putObject(key, until);
+    await prisma.evidence.update({
+      where: { id: ev.id },
+      data: { storageBucket: LOCK_BUCKET, storageKey: key, storageVersionId: versionId, storageObjectLockMode: "GOVERNANCE", storageObjectLockRetainUntilUtc: until },
+    });
+    return { id: ev.id, key, versionId };
+  }
+
+  it("EIGHT YEARS: ordinary evidence is sealed for 2920 days, and a shorter configured value is never followed (no 365-day fallback)", async () => {
+    process.env.S3_OBJECT_LOCK_RETAIN_DAYS = "365";
+    try {
+      const { id } = await finalizedRecord();
+      const loc = await originalLocation(id);
+      const head = await headOf(loc.key, loc.versionId);
+      expect(head.ObjectLockMode).toBe("GOVERNANCE");
+      near(head.ObjectLockRetainUntilDate, new Date(Date.now() + 2920 * DAY));
+      // The row mirrors the storage's own answer.
+      const ev = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { storageObjectLockRetainUntilUtc: true } });
+      near(ev.storageObjectLockRetainUntilUtc, head.ObjectLockRetainUntilDate!, 2000);
+      expect(runtime.objectLockPolicyFromEnv()).toMatchObject({ platformRetentionDays: 2920, configuredBelowContract: true });
+    } finally {
+      process.env.S3_OBJECT_LOCK_RETAIN_DAYS = "2920";
+    }
+  }, 300_000);
+
+  it("ENTERPRISE: a contractual retention longer than eight years extends the seal; a shorter one never shortens it", async () => {
+    await prisma.workspaceGovernancePolicy.upsert({
+      where: { teamId: A().teamId },
+      create: { teamId: A().teamId, defaultRetentionDays: 3650 } as never,
+      update: { defaultRetentionDays: 3650 } as never,
+    });
+    try {
+      const { id } = await finalizedRecord();
+      const loc = await originalLocation(id);
+      near((await headOf(loc.key, loc.versionId)).ObjectLockRetainUntilDate, new Date(Date.now() + 3650 * DAY));
+      await prisma.workspaceGovernancePolicy.update({ where: { teamId: A().teamId }, data: { defaultRetentionDays: 30 } as never });
+      const short = await finalizedRecord();
+      const sloc = await originalLocation(short.id);
+      near((await headOf(sloc.key, sloc.versionId)).ObjectLockRetainUntilDate, new Date(Date.now() + 2920 * DAY));
+    } finally {
+      await prisma.workspaceGovernancePolicy.update({ where: { teamId: A().teamId }, data: { defaultRetentionDays: null } as never });
+    }
+  }, 300_000);
+
+  it("an EXISTING 2034 lock stays exactly 2034: later reports are locked TO it (no ratchet), a repeat seal does not move it, and a shorter retention is refused by storage", async () => {
+    const { id, key, versionId } = await sealedLegacyRecord(new Date("2026-10-14T00:00:00.000Z"), LEGACY_2034);
+    const seal = await runtime.resolveEvidenceObjectRetention(prisma as never, id, { kind: "SEAL" });
+    expect(seal?.retainUntil.toISOString()).toBe(LEGACY_2034.toISOString());
+    const { publishImmutableArtifact } = await import("../../worker/src/immutable-publication.js");
+    const { artifactLockFor } = await import("../../worker/src/object-retention.js");
+    const dates: string[] = [];
+    for (const v of [1, 2]) {
+      const body = Buffer.from(`report v${v} for ${id}`);
+      const published = await publishImmutableArtifact({
+        lock: await artifactLockFor(id),
+        bucket: LOCK_BUCKET,
+        key: `reports/${id}/v${v}-${randomUUID()}.pdf`,
+        body: { kind: "buffer", buffer: body },
+        sha256Base64: createHash("sha256").update(body).digest("base64"),
+        contentType: "application/pdf",
+      });
+      dates.push(published.objectLockRetainUntilUtc!.toISOString());
+    }
+    // Both versions carry the record's horizon, not "now + eight years" twice.
+    expect(dates).toEqual([LEGACY_2034.toISOString(), LEGACY_2034.toISOString()]);
+    // A writer asking storage to SHORTEN the lock is refused; the date is unchanged.
+    await expect(
+      s3.send(new PutObjectRetentionCommand({ Bucket: LOCK_BUCKET, Key: key, VersionId: versionId, Retention: { Mode: "GOVERNANCE", RetainUntilDate: new Date(Date.now() + 30 * DAY) } })),
+    ).rejects.toThrow();
+    expect((await headOf(key, versionId)).ObjectLockRetainUntilDate?.toISOString()).toBe(LEGACY_2034.toISOString());
+  }, 300_000);
+
+  it("a record whose horizon ends BEFORE now + eight years keeps it: its new artifact is locked to the record, not extended", async () => {
+    const until = new Date("2033-03-01T00:00:00.000Z");
+    const { id } = await sealedLegacyRecord(new Date("2025-03-01T00:00:00.000Z"), until);
+    const { artifactLockFor } = await import("../../worker/src/object-retention.js");
+    expect((await artifactLockFor(id))?.retainUntil.toISOString()).toBe(until.toISOString());
+  }, 120_000);
+
+  it("LEGAL HOLD blocks purge after every retention date has passed", async () => {
+    const id = await trashedFixture({ originalRetainUntil: new Date(Date.now() + 5_000) });
+    await prisma.evidenceLegalHold.create({
+      data: { teamId: A().teamId, evidenceId: id, title: "Litigation hold", reason: "test", status: "ACTIVE", placedByUserId: A().ownerUserId } as never,
+    });
+    await new Promise((r) => setTimeout(r, 6_000));
+    await reconcile(afterTrash());
+    expect(await row(id)).toMatchObject({ lifecycleState: "RETENTION_ARCHIVED", retentionBarrierState: "LEGAL_HOLD", destroyedAtUtc: null });
+  }, 120_000);
+
+  it("MIXED VERSIONS: a later object VERSION carrying 2034 keeps the record archived; purge is refused before it", async () => {
+    const id = await trashedFixture({ originalRetainUntil: new Date(Date.now() + 5_000) });
+    await putObject(`evidence/${id}/original.txt`, LEGACY_2034);
+    await new Promise((r) => setTimeout(r, 6_000));
+    await reconcile(afterTrash());
+    const r = await row(id);
+    expect(r.lifecycleState).toBe("RETENTION_ARCHIVED");
+    expect(r.destroyedAtUtc).toBeNull();
+    const res = await runtime.executeEvidenceDestruction(prisma as never, { evidenceId: id, trigger: "manual", legalHold: false, objectLockExpected: true, now: new Date(Date.now() + 2000 * DAY) }, port);
+    expect(res.ok).toBe(false);
+    expect((await port.listObjectVersions({ bucket: LOCK_BUCKET, key: `evidence/${id}/original.txt` })).filter((v) => !v.isDeleteMarker)).toHaveLength(2);
   }, 120_000);
 });

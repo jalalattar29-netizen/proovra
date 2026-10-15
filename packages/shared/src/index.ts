@@ -2479,6 +2479,12 @@ export {
   evaluateTrashExit,
   toEvidenceLifecycleProjection,
   EVIDENCE_LIFECYCLE_RESPONSE_FIELD,
+  EVIDENCE_OBJECT_RETENTION_DAYS,
+  MINIMUM_ARTIFACT_LOCK_MS,
+  resolvePlatformRetentionDays,
+  resolveObjectLockModeName,
+  computeEvidenceRetentionHorizon,
+  resolveObjectRetainUntil,
 } from "./evidence-retention-lifecycle.js";
 export type {
   EvidenceProductState,
@@ -2491,6 +2497,8 @@ export type {
   StorageRetentionTruth,
   TrashExitDecision,
   TrashExitEvaluation,
+  ObjectLockModeName,
+  EvidenceRetentionHorizonInput,
 } from "./evidence-retention-lifecycle.js";
 
 // PROOVRA Phase 2 — Canonical Evidence Materials.

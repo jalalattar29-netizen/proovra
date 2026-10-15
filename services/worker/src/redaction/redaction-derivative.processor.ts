@@ -31,6 +31,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma } from "../db.js";
+import { artifactLockFor } from "../object-retention.js";
 import { logger } from "../logger.js";
 import { getObjectRange, putObjectBuffer } from "../storage.js";
 import {
@@ -235,6 +236,7 @@ export async function processRedactionDerivativeJob(
     // ── store to a DISTINCT prefix (never the original key) ───────────────
     const outKey = `${REDACTION_S3_PREFIX}/${teamId}/${version.id}/${outSha.slice(0, 16)}.${extension}`;
     await putObjectBuffer({
+      lock: await artifactLockFor(version.project.evidenceId),
       bucket: evidence.storageBucket,
       key: outKey,
       body: output,

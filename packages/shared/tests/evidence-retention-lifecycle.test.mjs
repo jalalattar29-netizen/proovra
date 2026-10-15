@@ -17,6 +17,11 @@ import {
   computeEvidenceLifecycleCapabilities,
   evaluateDestructionCandidate,
   toEvidenceLifecycleProjection,
+  EVIDENCE_OBJECT_RETENTION_DAYS,
+  resolvePlatformRetentionDays,
+  resolveObjectLockModeName,
+  computeEvidenceRetentionHorizon,
+  resolveObjectRetainUntil,
 } from "../dist/index.js";
 
 const NOW = new Date("2027-01-01T00:00:00.000Z");
@@ -521,4 +526,68 @@ test("the wire projection carries archiveBlockReason", () => {
   const free = toEvidenceLifecycleProjection({ lifecycleState: "ACTIVE" }, CONV_NOW);
   assert.equal(free.canArchive, true);
   assert.equal(free.archiveBlockReason, null);
+});
+
+// ---------------------------------------------------------------------------
+// THE EIGHT-YEAR CONTRACT (owner decision 2026-10-15)
+// ---------------------------------------------------------------------------
+const D = 24 * 60 * 60 * 1000;
+
+test("EIGHT YEARS: the platform period is 2920 days, configuration can extend it and never shorten it", () => {
+  assert.equal(EVIDENCE_OBJECT_RETENTION_DAYS, 2920);
+  assert.deepEqual(resolvePlatformRetentionDays(2920), { days: 2920, configuredBelowContract: false });
+  assert.deepEqual(resolvePlatformRetentionDays(3650), { days: 3650, configuredBelowContract: false });
+  // No 365-day (or any shorter) fallback: a shorter value is reported, not followed.
+  assert.deepEqual(resolvePlatformRetentionDays(365), { days: 2920, configuredBelowContract: true });
+  assert.deepEqual(resolvePlatformRetentionDays(null), { days: 2920, configuredBelowContract: false });
+  assert.deepEqual(resolvePlatformRetentionDays(Number.NaN), { days: 2920, configuredBelowContract: false });
+});
+
+test("the lock mode is the deployment's: COMPLIANCE kept, GOVERNANCE otherwise", () => {
+  assert.equal(resolveObjectLockModeName("COMPLIANCE"), "COMPLIANCE");
+  assert.equal(resolveObjectLockModeName("governance"), "GOVERNANCE");
+  assert.equal(resolveObjectLockModeName(undefined), "GOVERNANCE");
+});
+
+test("SEAL: now + eight years, or the contractual retention when longer", () => {
+  const now = new Date("2026-10-15T00:00:00Z");
+  const seal = resolveObjectRetainUntil({ kind: "SEAL", now, platformRetentionDays: 2920, horizon: null, appRetentionUntil: null, alreadySealed: false });
+  assert.equal(seal.getTime(), now.getTime() + 2920 * D);
+  const enterprise = new Date("2040-01-01T00:00:00Z");
+  assert.equal(
+    resolveObjectRetainUntil({ kind: "SEAL", now, platformRetentionDays: 2920, horizon: null, appRetentionUntil: enterprise, alreadySealed: false }).toISOString(),
+    enterprise.toISOString(),
+  );
+});
+
+test("an EXISTING 2034 horizon is preserved: a repeat seal and every later artifact use it — never now + eight years", () => {
+  const legacy = new Date("2034-10-14T00:00:00Z");
+  const horizon = computeEvidenceRetentionHorizon({
+    sealedOriginalRetainUntil: legacy,
+    sealedAt: "2026-10-14T00:00:00Z",
+    appRetentionUntil: null,
+    platformRetentionDays: 2920,
+  });
+  assert.equal(horizon.toISOString(), legacy.toISOString());
+  const later = new Date("2030-01-01T00:00:00Z");
+  for (const kind of ["SEAL", "ARTIFACT"]) {
+    const until = resolveObjectRetainUntil({ kind, now: later, platformRetentionDays: 2920, horizon, appRetentionUntil: null, alreadySealed: true });
+    assert.equal(until.toISOString(), legacy.toISOString(), kind);
+  }
+});
+
+test("the horizon is the LATEST of the applied lock, the contract and sealing + the period; it never shrinks", () => {
+  const h = computeEvidenceRetentionHorizon({
+    sealedOriginalRetainUntil: "2033-03-01T00:00:00Z",
+    sealedAt: "2025-03-03T00:00:00Z",
+    appRetentionUntil: "2031-01-01T00:00:00Z",
+    platformRetentionDays: 2920,
+  });
+  assert.equal(h.toISOString(), new Date(new Date("2025-03-03T00:00:00Z").getTime() + 2920 * D).toISOString());
+});
+
+test("an artifact for a record past its horizon gets the minimal future lock, not eight new years", () => {
+  const now = new Date("2040-01-01T00:00:00Z");
+  const until = resolveObjectRetainUntil({ kind: "ARTIFACT", now, platformRetentionDays: 2920, horizon: new Date("2034-10-14T00:00:00Z"), appRetentionUntil: null, alreadySealed: true });
+  assert.equal(until.getTime(), now.getTime() + D);
 });

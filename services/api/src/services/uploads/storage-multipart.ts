@@ -50,6 +50,7 @@ import type { Readable } from "node:stream";
 
 import { s3 } from "../../storage.js";
 import { sha256HexFromStream } from "../../stream-hash.js";
+import { newObjectLock } from "@proovra/shared-runtime";
 
 // =============================================================================
 // Bounded denial vocabulary
@@ -138,23 +139,10 @@ function readObjectLockDefaults(): {
   ObjectLockMode?: "GOVERNANCE" | "COMPLIANCE";
   ObjectLockRetainUntilDate?: Date;
 } {
-  if (clean(process.env.S3_OBJECT_LOCK_ENABLED)?.toLowerCase() !== "true") {
-    return {};
-  }
-  const modeRaw = clean(process.env.S3_OBJECT_LOCK_MODE)?.toUpperCase();
-  const retainDays = parsePositiveInt(process.env.S3_OBJECT_LOCK_RETAIN_DAYS);
-  const mode =
-    modeRaw === "GOVERNANCE" || modeRaw === "COMPLIANCE"
-      ? (modeRaw as "GOVERNANCE" | "COMPLIANCE")
-      : undefined;
-  const retainUntilDate =
-    mode && retainDays
-      ? new Date(Date.now() + retainDays * 24 * 60 * 60 * 1000)
-      : undefined;
-  return {
-    ...(mode ? { ObjectLockMode: mode } : {}),
-    ...(retainUntilDate ? { ObjectLockRetainUntilDate: retainUntilDate } : {}),
-  };
+  // The one resolver (eight-year contract) — see services/api/src/storage.ts.
+  const lock = newObjectLock();
+  if (!lock) return {};
+  return { ObjectLockMode: lock.mode, ObjectLockRetainUntilDate: lock.retainUntil };
 }
 
 // =============================================================================
