@@ -63,23 +63,31 @@ jobs:
       - uses: actions/checkout@v4
 
       # UC-IOS-012 — XCTest of ProovraDarwinNotify against the REAL Darwin
-      # notify center on macOS. The package compiles the shipped file (copied
-      # in here, never a second copy in git). Refuses fewer than 6 executed.
-      - name: XCTest — ProovraDarwinNotify (UC-IOS-012)
+      # notify center on macOS; AUD-006 — XCTest of the per-broadcast spool
+      # (ProovraBroadcastSpool: two broadcasts, stale App Group content, restart,
+      # interruption, recovery, idempotent finalisation) on a real file system.
+      # The package compiles the shipped files (copied in here, never a second
+      # copy in git). Refuses fewer than 22 executed (6 + 16).
+      - name: XCTest — ProovraDarwinNotify (UC-IOS-012) + ProovraBroadcastSpool (AUD-006)
         working-directory: apps/mobile/modules/proovra-screen-capture/ios-tests
         run: |
           set -o pipefail
-          mkdir -p Sources/DarwinNotifyBridge
+          mkdir -p Sources/DarwinNotifyBridge Sources/BroadcastSpool
           cp ../ios/ProovraDarwinNotify.swift Sources/DarwinNotifyBridge/
+          cp ../ios/ProovraBroadcastSpool.swift Sources/BroadcastSpool/
           swift test 2>&1 | tee "$RUNNER_TEMP/xctest.log"
           line=$(grep -E "Executed [0-9]+ tests?, with [0-9]+ failures?" "$RUNNER_TEMP/xctest.log" | tail -1)
           echo "xctest: $line"
           executed=$(echo "$line" | sed -E 's/.*Executed ([0-9]+) tests?.*/\1/')
           failures=$(echo "$line" | sed -E 's/.*with ([0-9]+) failures?.*/\1/')
           skipped=$(grep -cE "Test Case .* skipped" "$RUNNER_TEMP/xctest.log" || true)
-          if [ -z "$line" ] || [ "${executed:-0}" -lt 6 ]; then echo "::error::ProovraDarwinNotify XCTest executed ${executed:-0} tests (expected >= 6)"; exit 1; fi
-          if [ "${failures:-1}" -ne 0 ]; then echo "::error::ProovraDarwinNotify XCTest failures: $failures"; exit 1; fi
-          if [ "${skipped:-0}" -ne 0 ]; then echo "::error::ProovraDarwinNotify XCTest skipped $skipped"; exit 1; fi
+          if [ -z "$line" ] || [ "${executed:-0}" -lt 22 ]; then echo "::error::ios-tests XCTest executed ${executed:-0} tests (expected >= 22)"; exit 1; fi
+          # Both suites must have run — a dropped target is not a smaller pass.
+          for suite in ProovraDarwinNotifyTests ProovraBroadcastSpoolTests; do
+            grep -qE "Test Suite .$suite. passed" "$RUNNER_TEMP/xctest.log" || { echo "::error::XCTest suite $suite did not pass"; exit 1; }
+          done
+          if [ "${failures:-1}" -ne 0 ]; then echo "::error::ios-tests XCTest failures: $failures"; exit 1; fi
+          if [ "${skipped:-0}" -ne 0 ]; then echo "::error::ios-tests XCTest skipped $skipped"; exit 1; fi
 
       - uses: actions/setup-node@v4
         with:
@@ -141,11 +149,52 @@ jobs:
           echo "extension: $APPEX"
           ls -la "$APPEX"
 
+      # AUD-007 — App Store Connect refuses an upload whose app or extension
+      # bundle uses a required-reason API without a privacy manifest. The app's
+      # comes from app.json ios.privacyManifests (Expo's PrivacyInfo mod); the
+      # extension's is a Resources member of its target (the config plugin).
+      # Checked in the BUILT bundles: the .app and the .appex embedded in it.
+      - name: Refuse a build without the privacy manifests (app + ProovraBroadcast.appex)
+        working-directory: apps/mobile/ios
+        run: |
+          APP=$(find build/Build/Products -maxdepth 2 -name "*.app" -type d | head -1)
+          if [ -z "$APP" ]; then echo "::error::no .app was produced"; exit 1; fi
+          APPEX="$APP/PlugIns/ProovraBroadcast.appex"
+          for bundle in "$APP" "$APPEX"; do
+            manifest="$bundle/PrivacyInfo.xcprivacy"
+            if [ ! -f "$manifest" ]; then echo "::error::$manifest is missing"; exit 1; fi
+            plutil -lint "$manifest" || { echo "::error::$manifest is not a valid property list"; exit 1; }
+            tracking=$(/usr/libexec/PlistBuddy -c "Print :NSPrivacyTracking" "$manifest")
+            if [ "$tracking" != "false" ]; then echo "::error::$manifest declares NSPrivacyTracking=$tracking"; exit 1; fi
+            echo "$manifest:"; plutil -p "$manifest"
+          done
+          plutil -p "$APPEX/PrivacyInfo.xcprivacy" | grep -q "NSPrivacyAccessedAPICategoryDiskSpace" \
+            || { echo "::error::the extension manifest does not declare its DiskSpace API use"; exit 1; }
+          plutil -p "$APP/PrivacyInfo.xcprivacy" | grep -q "NSPrivacyAccessedAPICategorySystemBootTime" \
+            || { echo "::error::the app manifest does not carry app.json ios.privacyManifests"; exit 1; }
+
+      # AUD-009 — the embedded extension carries its host's version and build
+      # number (Info.plist $(MARKETING_VERSION)/$(CURRENT_PROJECT_VERSION),
+      # synced by the config plugin); a mismatch is refused by App Store Connect.
+      - name: Refuse an extension whose version differs from its host
+        working-directory: apps/mobile/ios
+        run: |
+          APP=$(find build/Build/Products -maxdepth 2 -name "*.app" -type d | head -1)
+          APPEX="$APP/PlugIns/ProovraBroadcast.appex"
+          for key in CFBundleShortVersionString CFBundleVersion; do
+            host=$(/usr/libexec/PlistBuddy -c "Print :$key" "$APP/Info.plist")
+            ext=$(/usr/libexec/PlistBuddy -c "Print :$key" "$APPEX/Info.plist")
+            echo "$key: host=$host extension=$ext"
+            if [ -z "$host" ] || [ "$host" != "$ext" ]; then echo "::error::$key: extension '$ext' != host '$host'"; exit 1; fi
+          done
+
+      # A Debug, unsigned SIMULATOR build: its artifacts say so. Store builds
+      # come only from mobile-release.yml (artifacts named store-release-*).
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ios-xcodebuild-log-${{ github.run_id }}
+          name: ios-simulator-debug-xcodebuild-log-${{ github.run_id }}
           path: ${{ runner.temp }}/xcodebuild.log
           if-no-files-found: warn
           retention-days: 14

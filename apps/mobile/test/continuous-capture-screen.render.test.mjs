@@ -45,6 +45,8 @@ function installNative() {
   native.state = {
     continuous: { active: false, segmentCount: 0 },
     segments: [],
+    recordings: [],
+    bind: async (recordingId, captureSessionId) => ({ recordingId, captureSessionId }),
     start: async () => ({ osConsentGranted: true, captureStartedAtUtc: "2026-09-30T10:00:00.000Z", segmentMs: 6000, maxSegments: 199 }),
     stop: async () => RESULT,
   };
@@ -53,8 +55,20 @@ function installNative() {
       isSupported: () => true,
       isContinuousSupported: () => true,
       getState: () => ({ active: false, frameCount: 0 }),
-      getContinuousState: () => native.state.continuous,
+      getContinuousState: (id) =>
+        typeof native.state.continuous === "function" ? native.state.continuous(id) : native.state.continuous,
       getContinuousSegments: () => native.state.segments,
+      listContinuousRecordings: () => native.state.recordings,
+      // One native name, two shapes: the Kotlin ledger bind takes an object
+      // (AUD-004), the Swift broadcast bind takes (recordingId, captureSessionId) (AUD-006).
+      bindContinuousSession: async (a, b) => {
+        if (a && typeof a === "object") {
+          native.calls.push(`bindLedger:${a.captureSessionId}:${a.evidenceId}:${a.ownerUserId}`);
+          return true;
+        }
+        native.calls.push(`bindContinuousSession:${a}:${b}`);
+        return native.state.bind(a, b);
+      },
       startContinuousCapture: async (o) => {
         native.calls.push("startContinuousCapture");
         return native.state.start(o);
@@ -141,7 +155,8 @@ test("UC-AND-003: Android 13+ asks for POST_NOTIFICATIONS before the native star
   await r.press("Start Continuous Capture");
   await settle();
   assert.deepEqual(globalThis.__PERMISSION_REQUESTS__, ["android.permission.POST_NOTIFICATIONS"]);
-  assert.deepEqual(native.calls, ["startContinuousCapture"]);
+  // AUD-004 — on Android the session binds the durable ledger once opened.
+  assert.deepEqual(native.calls, ["startContinuousCapture", "bindLedger:cs-1:ev-1:user-1"]);
   assert.equal(opens().length, 1, "the session opens once the OS is recording");
 });
 
@@ -156,7 +171,8 @@ test("UC-AND-003: a refused notification permission explains the consequence and
   assert.equal(opens().length, 0);
   await r.press("Continue without the notification");
   await settle();
-  assert.deepEqual(native.calls, ["startContinuousCapture"]);
+  // AUD-004 — on Android the session binds the durable ledger once opened.
+  assert.deepEqual(native.calls, ["startContinuousCapture", "bindLedger:cs-1:ev-1:user-1"]);
 });
 
 test("UC-AND-003: below Android 13 there is no runtime request", async () => {
@@ -165,7 +181,8 @@ test("UC-AND-003: below Android 13 there is no runtime request", async () => {
   await r.press("Start Continuous Capture");
   await settle();
   assert.deepEqual(globalThis.__PERMISSION_REQUESTS__, []);
-  assert.deepEqual(native.calls, ["startContinuousCapture"]);
+  // AUD-004 — on Android the session binds the durable ledger once opened.
+  assert.deepEqual(native.calls, ["startContinuousCapture", "bindLedger:cs-1:ev-1:user-1"]);
 });
 
 test("UC-STR-004: a refused OS consent opens no server session and reserves no record", async () => {
@@ -194,9 +211,16 @@ test("UC-STR-004: Discard from an opened session discards it on the server and r
   assert.ok(native.calls.includes("discardContinuousSpool"));
 });
 
-test("UC-IOS-005: iOS waits for the broadcast to start; the session opens only on the extension's started event", async () => {
+const REC_A = "6F1C2D3E-4A5B-4C6D-8E7F-90A1B2C3D4E5";
+const REC_OTHER = "0B8E2C61-1D2A-4E35-9B44-6A7C8D9E0F12";
+const iosAwaiting = () => {
   globalThis.__RN_OS__ = "ios";
-  native.state.start = async () => ({ osConsentGranted: false, captureStartedAtUtc: null, awaitingSystemStart: true, segmentMs: 6000, maxSegments: 199 });
+  native.state.start = async () => ({ osConsentGranted: false, captureStartedAtUtc: null, awaitingSystemStart: true, segmentMs: 6000, maxSegments: 199, recordingId: REC_A });
+};
+const declarations = () => requests.filter((q) => q.method === "POST" && q.path.includes("/declaration"));
+
+test("UC-IOS-005: iOS waits for the broadcast to start; the session opens only on the extension's started event", async () => {
+  iosAwaiting();
   const r = await render();
   await r.press("Start Continuous Capture");
   await settle();
@@ -204,10 +228,96 @@ test("UC-IOS-005: iOS waits for the broadcast to start; the session opens only o
   assert.ok(!r.hasText("Continuous capture active"), "the picker was treated as a start");
   assert.equal(opens().length, 0);
   assert.deepEqual(globalThis.__PERMISSION_REQUESTS__, [], "iOS has no notification permission to ask for");
-  await act(async () => globalThis.__emitNative("onScreenContinuousStarted", { captureStartedAtUtc: "2026-09-30T10:00:01Z" }));
+  await act(async () =>
+    globalThis.__emitNative("onScreenContinuousStarted", { captureStartedAtUtc: "2026-09-30T10:00:01Z", recordingId: REC_A, binding: "BOUND", appRequested: true }),
+  );
   await settle();
   assert.equal(opens().length, 1);
   assert.ok(r.hasText("Continuous capture active"));
+  assert.ok(native.calls.includes(`bindContinuousSession:${REC_A}:cs-1`), "the session was not recorded on its recording");
+});
+
+test("AUD-006: a broadcast started from Control Center (another, UNBOUND recording) never opens a session", async () => {
+  iosAwaiting();
+  const r = await render();
+  await r.press("Start Continuous Capture");
+  await settle();
+  await act(async () =>
+    globalThis.__emitNative("onScreenContinuousStarted", { captureStartedAtUtc: "2026-09-30T10:00:01Z", recordingId: REC_OTHER, binding: "UNBOUND", appRequested: false }),
+  );
+  // A started note that names no recording is refused too.
+  await act(async () => globalThis.__emitNative("onScreenContinuousStarted", { captureStartedAtUtc: "2026-09-30T10:00:02Z" }));
+  await settle();
+  assert.equal(opens().length, 0, "another broadcast was attached to this screen's capture");
+  assert.ok(r.hasText("Waiting for Start Broadcast"));
+});
+
+test("AUD-006: a segment of another recording is never uploaded into the session", async () => {
+  iosAwaiting();
+  const r = await render();
+  await r.press("Start Continuous Capture");
+  await settle();
+  await act(async () =>
+    globalThis.__emitNative("onScreenContinuousStarted", { captureStartedAtUtc: "2026-09-30T10:00:01Z", recordingId: REC_A, binding: "BOUND", appRequested: true }),
+  );
+  await settle();
+  const seg = (recordingId, i) => ({ recordingId, uri: `file:///group/uc5-broadcast/${recordingId}/seg-${i}.mp4`, sequence: i, startedAtOffsetMs: i * 6000, durationMs: 6000, widthPx: 1179, heightPx: 2556, orientation: "portrait" });
+  await act(async () => globalThis.__emitNative("onScreenSegment", seg(REC_OTHER, 0)));
+  await settle();
+  assert.equal(declarations().length, 0, "another recording's seg-0 was declared into this session");
+  await act(async () => globalThis.__emitNative("onScreenSegment", seg(REC_A, 0)));
+  await settle();
+  assert.equal(declarations().length, 1);
+});
+
+test("AUD-006: a remount REFUSES to reattach its persisted session to another recording's broadcast", async () => {
+  iosAwaiting();
+  const first = await render();
+  await first.press("Start Continuous Capture");
+  await settle();
+  await act(async () =>
+    globalThis.__emitNative("onScreenContinuousStarted", { captureStartedAtUtc: "2026-09-30T10:00:01Z", recordingId: REC_A, binding: "BOUND", appRequested: true }),
+  );
+  await settle();
+  assert.equal(opens().length, 1);
+  await act(async () => first.renderer.unmount());
+  mounted.splice(mounted.indexOf(first), 1);
+
+  // Recording A is gone; a Control Center broadcast (REC_OTHER) is live.
+  native.calls = [];
+  native.state.continuous = (id) =>
+    id === REC_A
+      ? { active: false, segmentCount: 0, stale: false, recordingId: null, binding: "NONE", liveRecordingId: REC_OTHER }
+      : { active: true, segmentCount: 2, stale: false, recordingId: REC_OTHER, binding: "UNBOUND", appRequested: false, liveRecordingId: REC_OTHER };
+  const second = await render();
+  assert.ok(second.hasText("The recording on this device is not this capture session's."), second.texts().join(" / "));
+  assert.ok(!second.hasText("Continuous capture active"), "session A was reattached to broadcast B");
+  assert.ok(!native.calls.some((c) => c.startsWith("bindContinuousSession")), "B was bound to A's session");
+  assert.equal(opens().length, 1, "no second session either");
+  // The explicit release discards the saved session on the server, not the other recording.
+  await second.press("Discard saved session");
+  await settle();
+  assert.equal(discards().length, 1);
+  assert.ok(!native.calls.includes("discardContinuousSpool"), "another recording's spool was discarded");
+});
+
+test("AUD-006: a remount reattaches to its OWN live recording and re-binds it", async () => {
+  iosAwaiting();
+  const first = await render();
+  await first.press("Start Continuous Capture");
+  await settle();
+  await act(async () =>
+    globalThis.__emitNative("onScreenContinuousStarted", { captureStartedAtUtc: "2026-09-30T10:00:01Z", recordingId: REC_A, binding: "BOUND", appRequested: true }),
+  );
+  await settle();
+  await act(async () => first.renderer.unmount());
+  mounted.splice(mounted.indexOf(first), 1);
+  native.calls = [];
+  native.state.continuous = () => ({ active: true, segmentCount: 1, stale: false, recordingId: REC_A, binding: "BOUND", appRequested: true, captureSessionId: "cs-1", liveRecordingId: REC_A });
+  const second = await render();
+  assert.ok(second.hasText("Continuous capture active"), second.texts().join(" / "));
+  assert.ok(native.calls.includes(`bindContinuousSession:${REC_A}:cs-1`));
+  assert.equal(opens().length, 1);
 });
 
 test("UC-IOS-011: the iOS intro describes Apple's picker and controls — not Android's", async () => {

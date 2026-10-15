@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  AUD-007 - privacy manifest of the ProovraBroadcast Broadcast Upload Extension
+  (embedded in ProovraBroadcast.appex by plugins/withProovraIosScreenBroadcast.cjs).
+
+  Required-reason APIs this extension's own code calls:
+    DiskSpace       E174.1  SampleHandler.startSegment reads
+                            volumeAvailableCapacityForImportantUsageKey to refuse a
+                            segment the device cannot hold, and stops the
+                            broadcast with a "running out of storage" message.
+    SystemBootTime  35F9.1  ProcessInfo.systemUptime: the heartbeat and binding
+                            freshness of the broadcast spool
+                            (ProovraBroadcastSpool.swift), elapsed time between
+                            events in the app and its extension; never sent off
+                            the device.
+
+  The extension transmits nothing (it writes segment files into the App Group;
+  the app uploads them and declares that collection), and it does not track.
+-->
+<plist version="1.0">
+<dict>
+  <key>NSPrivacyTracking</key>
+  <false/>
+  <key>NSPrivacyTrackingDomains</key>
+  <array/>
+  <key>NSPrivacyCollectedDataTypes</key>
+  <array/>
+  <key>NSPrivacyAccessedAPITypes</key>
+  <array>
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>E174.1</string>
+      </array>
+    </dict>
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>35F9.1</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>

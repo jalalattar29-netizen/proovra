@@ -4,8 +4,10 @@
  * target to the generated Xcode project during `expo prebuild`.
  *
  * It:
- *   1. copies the extension source (SampleHandler.swift, Info.plist, entitlements)
- *      into ios/ProovraBroadcast/;
+ *   1. copies the extension source (SampleHandler.swift, Info.plist, entitlements,
+ *      its PrivacyInfo.xcprivacy)
+ *      and the shared Foundation-only spool (ProovraBroadcastSpool.swift, from the
+ *      app module) into ios/ProovraBroadcast/;
  *   2. creates a broadcast-upload app-extension target
  *      (bundle id <MAIN_BUNDLE_ID>.broadcast) that compiles SampleHandler.swift,
  *      uses that Info.plist + entitlements (App Group), links ReplayKit +
@@ -27,12 +29,28 @@ const fs = require("fs");
 const path = require("path");
 // Import via `expo/config-plugins` (expo is a direct dependency and always
 // resolvable from here); `@expo/config-plugins` is not hoisted under pnpm.
-const { withXcodeProject, withDangerousMod } = require("expo/config-plugins");
+const { withXcodeProject, withDangerousMod, IOSConfig } = require("expo/config-plugins");
 
 const EXT_NAME = "ProovraBroadcast";
 const EXT_SUFFIX = "broadcast";
 const SRC_DIR = path.join(__dirname, "broadcast-extension");
-const EXT_FILES = ["SampleHandler.swift", "Info.plist", "ProovraBroadcast.entitlements"];
+/**
+ * AUD-007 — PrivacyInfo.xcprivacy is the extension's OWN privacy manifest: an
+ * app extension is a separate bundle, so the app's manifest does not cover it.
+ * It is a Resources member of the extension target, so it lands in
+ * ProovraBroadcast.appex (native-build.yml checks the built bundle).
+ */
+const PRIVACY_MANIFEST = "PrivacyInfo.xcprivacy";
+const EXT_FILES = ["SampleHandler.swift", "Info.plist", "ProovraBroadcast.entitlements", PRIVACY_MANIFEST];
+const EXT_RESOURCES = [PRIVACY_MANIFEST];
+/**
+ * AUD-006 — Foundation-only files the extension compiles FROM the app module, so
+ * app, extension and the SwiftPM XCTest package share one copy of the spool
+ * logic instead of repeating it by value.
+ */
+const SHARED_SRC_DIR = path.join(__dirname, "..", "modules", "proovra-screen-capture", "ios");
+const SHARED_FILES = ["ProovraBroadcastSpool.swift"];
+const EXT_SOURCES = ["SampleHandler.swift", ...SHARED_FILES];
 
 /** Strip node-xcode's surrounding quotes from a stored string value. */
 function unquote(value) {
@@ -66,7 +84,7 @@ function applyBroadcastExtensionTarget(proj, options) {
   }
 
   // Source/resource group for the extension, attached under the project root.
-  const group = proj.addPbxGroup(EXT_FILES, EXT_NAME, EXT_NAME);
+  const group = proj.addPbxGroup([...EXT_FILES, ...SHARED_FILES], EXT_NAME, EXT_NAME);
   const groups = proj.hash.project.objects.PBXGroup;
   for (const key of Object.keys(groups)) {
     const g = groups[key];
@@ -93,9 +111,15 @@ function applyBroadcastExtensionTarget(proj, options) {
   // the main app target and adds the .appex product to it — no manual embed.
   const target = proj.addTarget(EXT_NAME, "app_extension", EXT_NAME, extBundleId);
 
-  // Compile SampleHandler.swift in the extension; declare Resources + Frameworks.
-  proj.addBuildPhase(["SampleHandler.swift"], "PBXSourcesBuildPhase", "Sources", target.uuid);
-  proj.addBuildPhase([], "PBXResourcesBuildPhase", "Resources", target.uuid);
+  // Compile SampleHandler.swift + the shared spool in the extension; declare Resources + Frameworks.
+  proj.addBuildPhase(EXT_SOURCES, "PBXSourcesBuildPhase", "Sources", target.uuid);
+  proj.addBuildPhase(EXT_RESOURCES, "PBXResourcesBuildPhase", "Resources", target.uuid);
+  // node-xcode has no file type for .xcprivacy ("unknown"); Xcode's own is text.xml.
+  const fileRefs = proj.hash.project.objects.PBXFileReference;
+  for (const child of group.pbxGroup.children) {
+    const ref = fileRefs[child.value];
+    if (ref && unquote(ref.path) === PRIVACY_MANIFEST) ref.lastKnownFileType = "text.xml";
+  }
   proj.addBuildPhase(
     ["ReplayKit.framework", "AVFoundation.framework"],
     "PBXFrameworksBuildPhase",
@@ -142,6 +166,42 @@ function applyBroadcastExtensionTarget(proj, options) {
   return { added: true };
 }
 
+/**
+ * AUD-009 — the extension's version IS the host's. Its Info.plist reads
+ * $(MARKETING_VERSION) / $(CURRENT_PROJECT_VERSION); this sets those build
+ * settings on the extension AND the host target to the values Expo writes into
+ * the host Info.plist (app.json `version` / `ios.buildNumber`, through Expo's
+ * own getVersion / getBuildNumber). With appVersionSource "remote", EAS Build
+ * then writes the remote build number into the Info.plist of EVERY signed
+ * target (host + the declared appExtensions entry), so the two stay equal there
+ * too. Runs on every prebuild (not only when the target is first added), so a
+ * version bump reaches an existing target. Returns the configs it set.
+ */
+function syncExtensionVersions(proj, { version, buildNumber }) {
+  const marketing = `"${String(version)}"`;
+  const build = `"${String(buildNumber)}"`;
+  const hostTarget = proj.getFirstTarget();
+  const hostConfigList = hostTarget && hostTarget.firstTarget && hostTarget.firstTarget.buildConfigurationList;
+  const hostConfigUuids = new Set();
+  if (hostConfigList) {
+    const list = proj.hash.project.objects.XCConfigurationList[hostConfigList];
+    for (const c of (list && list.buildConfigurations) || []) hostConfigUuids.add(c.value);
+  }
+  let set = 0;
+  const configs = proj.pbxXCBuildConfigurationSection();
+  for (const key of Object.keys(configs)) {
+    const cfgObj = configs[key];
+    if (!cfgObj || typeof cfgObj !== "object" || !cfgObj.buildSettings) continue;
+    const bs = cfgObj.buildSettings;
+    if ((bs.PRODUCT_NAME && unquote(bs.PRODUCT_NAME) === EXT_NAME) || hostConfigUuids.has(key)) {
+      bs.MARKETING_VERSION = marketing;
+      bs.CURRENT_PROJECT_VERSION = build;
+      set += 1;
+    }
+  }
+  return set;
+}
+
 function withExtensionFilesCopied(config) {
   return withDangerousMod(config, [
     "ios",
@@ -151,6 +211,9 @@ function withExtensionFilesCopied(config) {
       fs.mkdirSync(dest, { recursive: true });
       for (const file of EXT_FILES) {
         fs.copyFileSync(path.join(SRC_DIR, file), path.join(dest, file));
+      }
+      for (const file of SHARED_FILES) {
+        fs.copyFileSync(path.join(SHARED_SRC_DIR, file), path.join(dest, file));
       }
       return cfg;
     },
@@ -162,6 +225,10 @@ function withExtensionTarget(config) {
     const mainBundleId =
       (cfg.ios && cfg.ios.bundleIdentifier) || "com.jalalattar29.proovra";
     applyBroadcastExtensionTarget(cfg.modResults, { mainBundleId });
+    syncExtensionVersions(cfg.modResults, {
+      version: IOSConfig.Version.getVersion(cfg),
+      buildNumber: IOSConfig.Version.getBuildNumber(cfg),
+    });
     return cfg;
   });
 }
@@ -174,5 +241,10 @@ module.exports = function withProovraIosScreenBroadcast(config) {
 
 // Exposed for the offline pbxproj-integrity harness (no Expo/prebuild required).
 module.exports.applyBroadcastExtensionTarget = applyBroadcastExtensionTarget;
+module.exports.syncExtensionVersions = syncExtensionVersions;
 module.exports.EXT_NAME = EXT_NAME;
 module.exports.EXT_SUFFIX = EXT_SUFFIX;
+module.exports.EXT_SOURCES = EXT_SOURCES;
+module.exports.SHARED_FILES = SHARED_FILES;
+module.exports.EXT_RESOURCES = EXT_RESOURCES;
+module.exports.PRIVACY_MANIFEST = PRIVACY_MANIFEST;

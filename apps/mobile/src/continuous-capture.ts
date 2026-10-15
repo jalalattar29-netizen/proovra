@@ -408,9 +408,13 @@ export function continuousRecoveryDeps(persist: ContinuousRecoveryDeps["persist"
 /**
  * AUD-004 — release the device spool of a STAGED session. Through the native
  * ledger, which refuses (nothing deleted) unless it is bound to exactly this
- * session; a platform without a ledger discards its spool as before.
+ * session; a platform without a ledger discards its spool as before (AUD-006 —
+ * on iOS, the spool of exactly this session's recording).
  */
-export async function releaseStagedContinuousSpool(captureSessionId: string): Promise<void> {
+export async function releaseStagedContinuousSpool(
+  captureSessionId: string,
+  recordingId: string | null = null,
+): Promise<void> {
   const committed = await commitContinuousSpool({ captureSessionId }).catch(() => false);
-  if (committed === null) await discardContinuousSpool().catch(() => undefined);
+  if (committed === null) await discardContinuousSpool(recordingId).catch(() => undefined);
 }

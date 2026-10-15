@@ -1,4 +1,4 @@
 .build/
 .swiftpm/
-# Generated in CI from ../ios/ProovraDarwinNotify.swift (the shipped file).
+# Generated in CI from ../ios/ProovraDarwinNotify.swift and ../ios/ProovraBroadcastSpool.swift (the shipped files).
 Sources/

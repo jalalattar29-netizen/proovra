@@ -454,7 +454,7 @@ test("AUD-004: the screen recovers from the ledger and never deletes by prefix w
   assert.match(src, /planContinuousRecovery\(getContinuousLedger\(\), await loadLiveContinuousSession\(\), userId\)/);
   assert.match(src, /executeContinuousRecovery\(/);
   assert.match(src, /recoverOnce\(active\.session\.captureSessionId/);
-  assert.match(src, /await releaseStagedContinuousSpool\(active\.session\.captureSessionId\)/);
+  assert.match(src, /await releaseStagedContinuousSpool\(active\.session\.captureSessionId, recordingIdRef\.current\)/);
   assert.match(src, /await bindContinuousSession\(\{/);
   assert.match(src, /drainUploadQueue\(\{/);
   assert.ok(!/while \(queueRef\.current\.length > 0 \|\| workersRef\.current > 0\)/.test(src), "the unbounded drain loop is back");
