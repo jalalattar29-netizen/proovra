@@ -57,6 +57,12 @@ function runScript(script: string, env: Record<string, string>, backups: string)
     "docker",
     [
       "run", "--rm", "--network", NET, "--add-host", "host.docker.internal:host-gateway",
+      // The scripts write with `umask 077` (a dump is the whole database), so
+      // the files belong to whoever ran them. Run as the invoking user, so this
+      // suite can read what it wrote; as root, a Linux runner gets EACCES.
+      ...(typeof process.getuid === "function" && typeof process.getgid === "function"
+        ? ["--user", `${process.getuid()}:${process.getgid()}`]
+        : []),
       "-v", `${OPS_DIR}:/ops:ro`,
       "-v", `${backups}:/backups`,
       ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
