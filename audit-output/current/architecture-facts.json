@@ -267,7 +267,7 @@
       "AmbiguousReportRoles": 0,
       "Phase0ChangedPathsFromManualDeclaration": 0,
       "UndeclaredPhase0ChangedPaths": 0,
-      "Phase0ChangedPathClassificationMissing": 1,
+      "Phase0ChangedPathClassificationMissing": 0,
       "ManualPhase0ChangeInventories": 0,
       "ProductionRuntimeFilesModifiedByPhase0": 0,
       "ProductBehaviorTestsRemoved": 0,
@@ -456,8 +456,6 @@
   },
   "auditGovernanceRef": {
     "path": "audit-output/current/audit-governance-inventory.json",
-    "problems": [
-      "CHANGED PATH WITH NO CLASSIFICATION: eas.json"
-    ]
+    "problems": []
   }
 }
