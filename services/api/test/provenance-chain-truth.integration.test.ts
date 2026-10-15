@@ -145,7 +145,16 @@ describe("provenance chain truth (live PostgreSQL 16)", () => {
       tsaGenTimeUtc: new Date(),
     });
     const chain = await runtime.loadProvenanceChain(prisma as never, ev.id);
-    expect(chain.time.ots).toMatchObject({ applied: true, status: "ANCHORED", bitcoinBlockHeight: 860000, statusLabel: "Bitcoin anchored" });
+    // (2026-10-15) ANCHORED is an attestation RECORDED; never checked here, so
+    // the projection carries no chain fact and never says verified.
+    expect(chain.time.ots).toMatchObject({
+      applied: true,
+      status: "ANCHORED",
+      verification: "ATTESTATION_RECORDED",
+      bitcoinBlockHeight: 860000,
+      statusLabel: "Bitcoin attestation recorded",
+      chain: null,
+    });
     expect(chain.time.rfc3161).toMatchObject({ applied: true, status: "VALIDATED" });
   });
 

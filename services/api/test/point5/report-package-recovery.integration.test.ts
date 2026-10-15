@@ -1043,7 +1043,8 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     },
   ];
   const MODE_FOR_STATE: Record<string, string> = {
-    ANCHORED: "anchored",
+    // (2026-10-15) No chain check in these cases: an attestation RECORDED.
+    ANCHORED: "attestation_recorded",
     PENDING: "bitcoin_anchoring_pending",
     FAILED: "failed",
     UNAVAILABLE: "unavailable",
@@ -1063,11 +1064,13 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       }
       const companion = json(entries, "opentimestamps.json");
       if (companion) expect(companion.state).toBe(c.state);
-      // The retired chain-verifier vocabulary appears on no surface.
+      // Nothing here was independently checked against the Bitcoin main chain,
+      // so no surface may say verified (2026-10-15: "Attestation recorded" is
+      // now the required wording for an unchecked attestation).
       for (const [name, bytes] of entries) {
         if (/\.(json|txt|md)$/i.test(name)) {
           const text = bytes.toString("utf8");
-          expect(text, name).not.toMatch(/Bitcoin anchoring verified|Attestation recorded|Independently verified|publicAnchoringVerified/);
+          expect(text, name).not.toMatch(/Bitcoin anchoring verified|Independently verified|publicAnchoringVerified/);
         }
       }
     });
@@ -1675,7 +1678,24 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     ((await prisma.report.findUniqueOrThrow({ where: { evidenceId_version: { evidenceId, version } }, select: { anchorSnapshot: true } }))
       .anchorSnapshot ?? {}) as { otsState?: string; otsProofSha256?: string };
 
-  it("OTS JOURNEY: PENDING v1 → the proof anchors → ONE automatic v2 stating ANCHORED; v1 preserved; idempotent; no credit; no OTS condition", async () => {
+  /**
+   * The independent Bitcoin main-chain check, as the worker's chain transition
+   * persists it: VERIFIED, bound to THIS proof (verifier proof prefix) and to
+   * the attested height.
+   */
+  const chainVerifiedColumnsFor = (proofBase64: string) => ({
+    otsChainVerificationStatus: "VERIFIED",
+    otsChainCheckedAtUtc: new Date("2026-10-15T08:00:00.000Z"),
+    otsChainVerifiedAtUtc: new Date("2026-10-15T08:00:00.000Z"),
+    otsChainBlockHeight: 860_000,
+    otsChainBlockHash: "00000000000000000001" + "ab".repeat(22),
+    otsChainBlockTimeUtc: new Date("2026-08-01T00:00:00.000Z"),
+    otsChainConfirmations: 12,
+    otsChainVerifier: `proovra-ots-chain/1;core=310100;min=6;proof=${createHash("sha256").update(Buffer.from(proofBase64, "base64")).digest("hex").slice(0, 16)}`,
+    otsChainFailureCode: null,
+  });
+
+  it("OTS JOURNEY (2026-10-15): PENDING v1 → the proof anchors (attestation RECORDED: no version) → chain VERIFIED → ONE automatic v2 stating it; v1 preserved; idempotent; no credit; no OTS condition", async () => {
     const ev = await signedEvidence();
     await prisma.evidence.update({ where: { id: ev.evidenceId }, data: (await otsPendingFor(ev.evidenceId)) as never });
     const credits = await creditEntries(ev.evidenceId);
@@ -1685,40 +1705,55 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect((await anchorSnapshotOf(ev.evidenceId, 1)).otsState).toBe("PENDING");
     const v1 = (await state(ev.evidenceId)).reports.find((r) => r.version === 1)!;
 
-    // The upgrade's bytes land (as `ots upgrade` leaves them) and the worker
-    // aligns the record from its proof — through the canonical transition.
-    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { otsProofBase64: await anchoredProofFor(ev.evidenceId) } as never });
+    // The upgrade's bytes land and the worker aligns the record from its proof.
+    // ANCHORED is an attestation RECORDED, not independently checked: it is not
+    // a new verifiable fact, so NO automatic version is requested.
+    const proof = await anchoredProofFor(ev.evidenceId);
+    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { otsProofBase64: proof } as never });
     const reconcile = await import("../../../worker/src/scripts/reconcile-ots-state.js");
     const applied = await reconcile.main(["--apply", "--evidence-id", ev.evidenceId]);
-    expect(applied.results[0]).toMatchObject({ state: "ANCHORED", action: "aligned", version: "requested" });
+    expect(applied.results[0]).toMatchObject({ state: "ANCHORED", verification: "ATTESTATION_RECORDED", action: "aligned" });
+    expect(await autoRequests(ev.evidenceId)).toEqual([]);
+    const { reconcileOtsAnchoredReportVersion } = await import("../../../worker/src/ots-anchored-version.js");
+    expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("not_chain_verified");
 
-    // Exactly one automatic request: forced NEW_VERSION, a machine principal, keyed per proof.
+    // The independent check VERIFIES the proof against the Bitcoin main chain.
+    const chain = chainVerifiedColumnsFor(proof);
+    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: chain as never });
+    expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("requested");
+
+    // Exactly one automatic request: forced NEW_VERSION, a machine principal,
+    // keyed per proof AND block, stored whole (VARCHAR(80)).
     const [auto, ...extra] = await autoRequests(ev.evidenceId);
     expect(extra).toEqual([]);
-    expect(auto).toMatchObject({ forceRegenerate: true, requestedByMachineId: "worker.ots-anchored" });
-    expect(auto!.clientRequestKey).toMatch(/^ots-anchored:[0-9a-f]{64}$/);
+    expect(auto).toMatchObject({ forceRegenerate: true, requestedByMachineId: "worker.ots-chain-verified" });
+    expect(auto!.clientRequestKey).toMatch(/^ots-chain-verified:[0-9a-f]{30}:[0-9a-f]{30}$/);
+    expect(auto!.clientRequestKey!.endsWith(chain.otsChainBlockHash.slice(-30))).toBe(true);
 
-    // Duplicate deliveries / a second reconcile collapse onto it.
-    const { reconcileOtsAnchoredReportVersion } = await import("../../../worker/src/ots-anchored-version.js");
+    // Duplicate deliveries collapse onto it.
     expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("already_requested");
-    const again = await reconcile.main(["--apply", "--evidence-id", ev.evidenceId]);
-    expect(again.results[0]).toMatchObject({ action: "none" });
     expect(await autoRequests(ev.evidenceId)).toHaveLength(1);
 
-    // The automatic version renders v2, stating ANCHORED; its packages publish.
+    // The automatic version renders v2, stating the chain verification; its packages publish.
     expect(await run(auto!.id, 0)).toBeNull();
     const after = await state(ev.evidenceId);
     expect(after.reports.map((r) => r.version)).toEqual([1, 2]);
-    expect((await anchorSnapshotOf(ev.evidenceId, 2)).otsState).toBe("ANCHORED");
+    expect(await anchorSnapshotOf(ev.evidenceId, 2)).toMatchObject({ otsState: "ANCHORED", otsVerification: "CHAIN_VERIFIED" });
     expect((await anchoringOf(ev.evidenceId, 2)).state).toBe("PASSED");
     expect((await rowsOf(ev.evidenceId, 2)).map((r) => r.state)).toEqual(["PUBLISHED", "PUBLISHED"]);
     for (const row of await rowsOf(ev.evidenceId, 2)) {
       const entries = readZipEntries(stored(row.storageBucket, row.storageKey)!);
       const manifest = JSON.parse(entries.get("package-manifest.json")!.toString("utf8")) as Record<string, unknown>;
       expect(manifest.otsState).toBe("ANCHORED");
+      expect(manifest.otsVerification).toBe("CHAIN_VERIFIED");
       expect(manifest).not.toHaveProperty("publicAnchoringVerified");
       const otsDoc = JSON.parse(entries.get("opentimestamps.json")!.toString("utf8")) as Record<string, unknown>;
-      expect(otsDoc).toMatchObject({ state: "ANCHORED", status: "Anchored" });
+      expect(otsDoc).toMatchObject({
+        state: "ANCHORED",
+        verification: "CHAIN_VERIFIED",
+        label: "Independently verified against the Bitcoin main chain",
+        chainVerification: { status: "VERIFIED", blockHeight: 860_000, blockHash: chain.otsChainBlockHash, confirmations: 12 },
+      });
       expect(entries.has("opentimestamps-proof.ots")).toBe(true);
     }
 
@@ -1726,14 +1761,19 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     const v1After = after.reports.find((r) => r.version === 1)!;
     expect(v1After.pdfSha256).toBe(v1.pdfSha256);
     expect((await anchorSnapshotOf(ev.evidenceId, 1)).otsState).toBe("PENDING");
-    expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("latest_report_anchored");
+    expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("latest_report_chain_verified");
     expect(await autoRequests(ev.evidenceId)).toHaveLength(1);
     expect(await creditEntries(ev.evidenceId), "no credit moved").toBe(credits);
 
     // The API's own projections agree, and Operations opens no OTS condition.
     const { OTS_ANCHORING_RECORD_SELECT, resolveRecordOtsAnchoring, toOtsAnchoringView } = await import("@proovra/shared");
     const row = await prisma.evidence.findUniqueOrThrow({ where: { id: ev.evidenceId }, select: OTS_ANCHORING_RECORD_SELECT });
-    expect(toOtsAnchoringView(resolveRecordOtsAnchoring(row))).toMatchObject({ state: "ANCHORED", label: "Bitcoin anchored", status: "Anchored" });
+    expect(toOtsAnchoringView(resolveRecordOtsAnchoring(row))).toMatchObject({
+      state: "ANCHORED",
+      verification: "CHAIN_VERIFIED",
+      label: "Independently verified against the Bitcoin main chain",
+      tone: "success",
+    });
     const conditions = await import("../../src/services/operations/evidence-integrity-conditions.service.js");
     expect(conditions.isOtsDefect(row)).toBe(false);
     expect(
@@ -1741,18 +1781,20 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     ).toBe(0);
   });
 
-  it("OTS RACE: anchored BEFORE v1 — v1 states ANCHORED and no automatic version is requested", async () => {
+  it("OTS RACE: anchored BEFORE v1 — v1 states the attestation RECORDED and no automatic version is requested", async () => {
     const ev = await signedEvidence();
     await prisma.evidence.update({
       where: { id: ev.evidenceId },
       data: { ...(await otsPendingFor(ev.evidenceId)), otsStatus: "ANCHORED", otsAnchoredAtUtc: new Date(), otsProofBase64: await anchoredProofFor(ev.evidenceId) } as never,
     });
     expect(await run(await request(ev), 0)).toBeNull();
-    expect((await anchorSnapshotOf(ev.evidenceId, 1)).otsState).toBe("ANCHORED");
+    expect(await anchorSnapshotOf(ev.evidenceId, 1)).toMatchObject({ otsState: "ANCHORED", otsVerification: "ATTESTATION_RECORDED" });
+    // An unchecked attestation is never PASSED.
+    expect((await anchoringOf(ev.evidenceId, 1)).state).not.toBe("PASSED");
     expect((await state(ev.evidenceId)).reports.map((r) => r.version)).toEqual([1]);
     expect(await autoRequests(ev.evidenceId)).toEqual([]);
     const { reconcileOtsAnchoredReportVersion } = await import("../../../worker/src/ots-anchored-version.js");
-    expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("latest_report_anchored");
+    expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("not_chain_verified");
   });
 
   it("OTS PENDING: report v1 and both package profiles publish; OTS is stated PENDING (NOT_CHECKED), never UNAVAILABLE", async () => {
@@ -1776,7 +1818,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       // (2026-10-13) The row carries the ONE OTS state and its words.
       expect(ots.otsState, row.disclosureProfile ?? "").toBe("PENDING");
       expect(ots.statusLabel).toBe("Pending");
-      expect(ots.statement).toBe("OpenTimestamps proof is awaiting Bitcoin anchoring.");
+      expect(ots.statement).toBe("Submitted to OpenTimestamps calendars; no Bitcoin attestation yet.");
     }
     const request_ = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id }, select: { state: true } });
     expect(request_.state).not.toMatch(/FAILED|DLQ/);

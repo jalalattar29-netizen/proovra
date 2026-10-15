@@ -34,6 +34,8 @@ import {
   toOtsAnchoringView,
   type OtsAnchoringView,
   type OtsState,
+  type OtsVerificationKey,
+  parseOtsVerificationKey,
   type OutputOfferBinding,
   type OutputOfferChangeCode,
   type OutputOfferEnvelope,
@@ -74,6 +76,13 @@ function reportOtsStateOf(anchorSnapshot: unknown): OtsState | null {
       ? (anchorSnapshot as Record<string, unknown>).otsState
       : null;
   return typeof raw === "string" && (OTS_STATES as readonly string[]).includes(raw) ? (raw as OtsState) : null;
+}
+
+/** The verification the report stated (anchorSnapshot.otsVerification); null for a legacy report. */
+function reportOtsVerificationOf(anchorSnapshot: unknown): OtsVerificationKey | null {
+  return anchorSnapshot && typeof anchorSnapshot === "object" && !Array.isArray(anchorSnapshot)
+    ? parseOtsVerificationKey((anchorSnapshot as Record<string, unknown>).otsVerification)
+    : null;
 }
 
 const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null);
@@ -169,6 +178,11 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
         state: ots.state,
         anchoredAtUtc: ots.anchoredAtUtc,
         reportState: reportOtsStateOf(latest?.anchorSnapshot),
+        // Only an independent chain VERIFIED after the report is a change worth
+        // a new version; a recorded attestation is not.
+        verification: ots.verification,
+        reportVerification: reportOtsVerificationOf(latest?.anchorSnapshot),
+        verifiedAtUtc: ots.chain?.verifiedAtUtc ?? null,
       },
       custodyAfterReport: {
         count: afterReport?._count._all ?? 0,
@@ -226,7 +240,7 @@ export function buildOutputOfferBinding(
     latestPackageVersion: facts.latestPackageVersion,
     reportableFacts: reportable.fingerprint,
     tsa: `${reportable.tsa.status ?? "-"}|${reportable.tsa.validated ? "validated" : "not-validated"}`,
-    ots: `${reportable.ots.state}|${reportable.ots.proofSha256 ?? "-"}`,
+    ots: `${reportable.ots.state}|${reportable.ots.proofSha256 ?? "-"}|${reportable.ots.verification}|${reportable.ots.chain?.blockHash ?? "-"}`,
     reportAction: decision(actions.report),
     packageAction: decision(actions.verificationPackage),
     newVersionAction: `${actions.newVersion.action}:${actions.newVersion.reason ?? "-"}:v${actions.newVersion.nextVersion ?? "-"}`,

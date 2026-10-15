@@ -11,7 +11,7 @@
  * is answered from the first request.
  */
 
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { otsColumnsFor } from "./helpers/ots-proof-bytes.js";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -179,14 +179,38 @@ describe("RGA-02 confirm-time offer revalidation (live PostgreSQL 16 + Redis, re
     expect(fresh.outputs.trust.tsa.validated).toBe(true);
   });
 
-  it("OTS becomes anchored → stale (OTS_CHANGED)", async () => {
+  it("OTS becomes anchored → stale (OTS_CHANGED); only a chain VERIFIED anchor is a 'verified after the report' change (2026-10-15)", async () => {
     const id = await seedV1();
     const s = await status(id);
     // (2026-10-13) The stored proof now attests a Bitcoin block.
     const fp = (await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { fingerprintHash: true } })).fingerprintHash ?? "c".repeat(64);
-    await prisma.evidence.update({ where: { id }, data: otsColumnsFor(fp, "ANCHORED") });
+    const anchored = otsColumnsFor(fp, "ANCHORED");
+    await prisma.evidence.update({ where: { id }, data: anchored });
     await expectStale(id, s.outputs.offer!.revision, "OTS_CHANGED");
-    expect((await status(id)).outputs.freshness.changes.map((c) => c.code)).toContain("OTS_ANCHORED_AFTER_REPORT");
+    // An attestation RECORDED is not independently checked: no verified-after change.
+    const recorded = (await status(id)).outputs.freshness.changes.map((c) => c.code);
+    expect(recorded).not.toContain("OTS_CHAIN_VERIFIED_AFTER_REPORT");
+    expect(recorded).not.toContain("OTS_ANCHORED_AFTER_REPORT");
+
+    // The independent Bitcoin main-chain check VERIFIES this proof.
+    const proof = String((anchored as { otsProofBase64?: unknown }).otsProofBase64);
+    const s2 = await status(id);
+    await prisma.evidence.update({
+      where: { id },
+      data: {
+        otsChainVerificationStatus: "VERIFIED",
+        otsChainCheckedAtUtc: new Date(),
+        otsChainVerifiedAtUtc: new Date(),
+        otsChainBlockHeight: 860_000,
+        otsChainBlockHash: "00000000000000000001" + "cd".repeat(22),
+        otsChainBlockTimeUtc: new Date("2026-08-01T00:00:00.000Z"),
+        otsChainConfirmations: 12,
+        otsChainVerifier: `proovra-ots-chain/1;core=310100;min=6;proof=${createHash("sha256").update(Buffer.from(proof, "base64")).digest("hex").slice(0, 16)}`,
+        otsChainFailureCode: null,
+      } as never,
+    });
+    await expectStale(id, s2.outputs.offer!.revision, "OTS_CHANGED");
+    expect((await status(id)).outputs.freshness.changes.map((c) => c.code)).toContain("OTS_CHAIN_VERIFIED_AFTER_REPORT");
   });
 
   it("the latest report advances (another member issued v2) → stale (LATEST_REPORT_CHANGED)", async () => {
