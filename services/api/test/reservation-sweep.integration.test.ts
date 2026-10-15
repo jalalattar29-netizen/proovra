@@ -90,7 +90,10 @@ describe("reservation sweep (live PostgreSQL 16)", () => {
   it("ET-ACQ-02: an abandoned web reservation past the window is released, and its part object removal requested", async () => {
     const id = await reservation({ ageMs: 2 * DAY });
     const deleted: string[] = [];
-    await reaper.releaseExpiredReservations({ trigger: "test", deleteObject: async (o) => void deleted.push(o.key) });
+    await reaper.releaseExpiredReservations({ trigger: "test", deleteObject: async (o) => {
+      deleted.push(o.key);
+      return { deleted: true, deletedVersions: 1, retainedVersions: 0, deleteMarkerOnly: false, failed: 0 };
+    } });
     const s = await state(id);
     expect(s.deletedAt).not.toBeNull();
     expect(s.deleted).toEqual(["RESERVATION_EXPIRED"]);

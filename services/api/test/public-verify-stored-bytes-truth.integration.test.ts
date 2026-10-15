@@ -226,7 +226,8 @@ describe("Public Verify — stored-bytes truth against a real object store (live
 
   it("TRUST-005: the original deleted from MinIO -> overallIntegrity false, file integrity FAILED, Basic verdict failed", async () => {
     const ev = await signedRecordInStore();
-    await storage.deleteObject({ bucket: BUCKET, key: ev.key });
+    // Every version removed (AUD-028: version-aware), so the object is truly gone.
+    expect((await storage.deleteObjectVersions({ bucket: BUCKET, key: ev.key })).deleted).toBe(true);
     const result = await recheck.recheckEvidenceIntegrity({ evidenceId: ev.id, trigger: "SCHEDULED", force: true });
     expect(result).toMatchObject({ checked: true, outcome: "FAILED", failureCode: "OBJECT_VERSION_MISSING" });
     expect((await row(ev.id)).status).toBe("SIGNED");
