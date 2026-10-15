@@ -29,6 +29,7 @@ import {
 } from "./governance/department-scope.service.js";
 import { ensurePersonalWorkspace } from "./platform-context/workspace-bootstrap.service.js";
 import {
+  evidenceLocationSourceForAcquisition,
   isEvidenceAcquisitionMode,
   type EvidenceAcquisitionMode,
 } from "@proovra/shared";
@@ -577,6 +578,11 @@ data: {
   lat: params.gps?.lat ?? null,
   lng: params.gps?.lng ?? null,
   accuracyMeters: params.gps?.accuracyMeters ?? null,
+  // The coordinates' provenance, from the canonical location-source
+  // authority: browser geolocation for web, the app's device for app and
+  // screen capture. Without it a null read as "Reported by the submitting
+  // browser" for app GPS.
+  locationSource: params.gps ? evidenceLocationSourceForAcquisition(params.acquisitionMode) : null,
   guestIdentityId: legacyGuestCustodyIdentity?.id ?? null,
 },
       select: {

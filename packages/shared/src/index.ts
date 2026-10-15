@@ -937,6 +937,8 @@ export {
   INTAKE_LINK_LOCATION_POLICY_OPTIONS,
   INTAKE_LINK_LOCATION_PROMPT_COPY,
   INTAKE_LOCATION_CONSENT_STATES,
+  EVIDENCE_LOCATION_SOURCE_NOT_RECORDED_LABEL,
+  evidenceLocationSourceForAcquisition,
   evidenceLocationSourceLabel,
   isEvidenceLocationSource,
   isIntakeLinkLocationPolicy,

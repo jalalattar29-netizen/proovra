@@ -697,6 +697,9 @@ export function buildEvidencePackageFileName(params: {
 
 function safeText(value: string | null | undefined, fallback = "N/A"): string {
   const text = typeof value === "string" ? value.trim() : "";
+  // A stored "null" / "undefined" (a stringified absent value) is absent: the
+  // package's human-readable material never prints it as text.
+  if (/^(?:null|undefined)$/i.test(text)) return fallback;
   return text || fallback;
 }
 
@@ -2624,7 +2627,7 @@ export function buildCourtReadinessChecklist(params: {
   };
 }
 
-function buildCustodianDeclarationTemplate(params: {
+export function buildCustodianDeclarationTemplate(params: {
   evidenceId?: string;
   reportVersion?: number;
   metadata: VerificationPackageMetadata;
@@ -2659,7 +2662,7 @@ Signature: ________________________
 `;
 }
 
-function buildQualifiedPersonTemplate(params: {
+export function buildQualifiedPersonTemplate(params: {
   evidenceId?: string;
   reportVersion?: number;
 }): string {
@@ -2690,7 +2693,7 @@ Signature: ________________________
 `;
 }
 
-function buildSystemProcessDeclaration(params: {
+export function buildSystemProcessDeclaration(params: {
   evidenceFiles: VerificationEvidenceFile[];
   metadata: VerificationPackageMetadata;
 }): string {

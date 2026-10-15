@@ -64,8 +64,8 @@ describe("Intake Links — location collection contract", () => {
     );
     assert.equal(
       evidenceLocationSourceLabel(null),
-      "Reported by the submitting browser",
-      "a null source reads as browser-reported, never as a secure-capture claim",
+      "Location source not recorded",
+      "a null source is not recorded — never a browser or secure-capture claim",
     );
     assert.ok(isIntakeLinkLocationPolicy("OPTIONAL"));
     assert.ok(!isIntakeLinkLocationPolicy("MAYBE"));

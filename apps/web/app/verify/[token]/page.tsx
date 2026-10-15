@@ -55,6 +55,7 @@ import BasicVerificationView, {
   type VerifyLinkInfo,
 } from "./BasicVerificationView";
 import type { BasicVerification } from "@proovra/shared";
+import { selectRecordTabFields } from "./_verify-record-tab";
 import { VerifyCaptureManifestSection, readPublicCaptureManifest } from "./VerifyCaptureManifestSection";
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
@@ -4044,40 +4045,8 @@ tone={
     ]
   );
 
-  const recordTabFields = useMemo(
-    () =>
-      summaryFields.filter((field) =>
-        [
-          "Evidence Status At Report Generation",
-          "Verification Status",
-"Integrity Status",
-"Evidence Title",
-          "Evidence ID",
-          "Evidence Type",
-          "Evidence Structure",
-          "Capture Method",
-          "Submitted By",
-          "Auth Provider",
-          "Identity Level",
-          "Organization",
-          "Organization Verified",
-          "Report Version",
-          "Verification Package Version",
-          "Reviewer Summary Version",
-          "Created At",
-          "Server received at",
-          "Uploaded At",
-          "Signed At",
-          "Generated At",
-          // Match the renamed label from Blocker 1.
-          "Last meaningful verification",
-          "Last public verify page view",
-          "Current public verify page view",
-          "File Type",
-        ].includes(field.label)
-      ),
-    [summaryFields]
-  );
+  // The Record tab's fields (_verify-record-tab.ts names them by label).
+  const recordTabFields = useMemo(() => selectRecordTabFields(summaryFields), [summaryFields]);
 
   const integrityStatusCards = useMemo(
     () =>
