@@ -26,11 +26,23 @@ PROOVRA_SCHEMA_FINGERPRINT_SQL="SELECT line FROM (
     FROM information_schema.columns
    WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
   UNION ALL
-  SELECT format('idx|%s.%s|%s', schemaname, indexname, indexdef)
+  -- A partial index's WHERE predicate is compared by presence only, for the
+  -- same deparser reason as CHECK constraints below; the index name, table,
+  -- uniqueness, method and key columns compare exactly.
+  SELECT format('idx|%s.%s|%s', schemaname, indexname,
+                CASE WHEN position(' WHERE ' in indexdef) > 0
+                     THEN left(indexdef, position(' WHERE ' in indexdef) - 1) || ' WHERE <predicate>'
+                     ELSE indexdef END)
     FROM pg_indexes
    WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
   UNION ALL
-  SELECT format('con|%s.%s|%s', n.nspname, con.conname, pg_get_constraintdef(con.oid))
+  -- CHECK expressions are compared by name and kind only: PostgreSQL's
+  -- deparser does not round-trip them byte-identically through
+  -- dump/restore (ANY(ARRAY[...]::text[]) is re-cast per element), although
+  -- they are semantically the same. Keys, uniques and foreign keys compare
+  -- their full definitions.
+  SELECT format('con|%s.%s|%s|%s', n.nspname, con.conname, con.contype,
+                CASE WHEN con.contype = 'c' THEN 'check' ELSE pg_get_constraintdef(con.oid) END)
     FROM pg_constraint con JOIN pg_namespace n ON n.oid = con.connamespace
    WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
 ) facts ORDER BY line;"

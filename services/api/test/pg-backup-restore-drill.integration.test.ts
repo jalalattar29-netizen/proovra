@@ -1,7 +1,10 @@
 /**
  * AUD-023 — the repository's PostgreSQL backup and restore drill
  * (scripts/ops/pg-backup.sh, scripts/ops/pg-restore-drill.sh), executed for
- * real against disposable PostgreSQL 16 containers.
+ * real. The SOURCE is the canonical disposable integration database
+ * (`acquireIntegrationDatabase` — testcontainers PostgreSQL 16 with the full
+ * migrated schema, or CI's TEST_DATABASE_URL); the drill TARGET is a second,
+ * separate PostgreSQL 16 container this suite starts.
  *
  * The repository had no backup mechanism at all; the DR runbook could only say
  * "assumed / managed platform". These scripts make a snapshot-consistent
@@ -11,7 +14,8 @@
  *
  * Proven here, each through the real scripts in the real PostgreSQL client
  * image (no host tooling):
- *   - backup + drill PASS on a database with tables, an index, a foreign key,
+ *   - backup + drill PASS on the fully migrated product schema plus a probe
+ *     schema with tables, an index, a foreign key,
  *     an extension and an empty table (and a write after the backup that the
  *     drill must NOT see);
  *   - a corrupted dump is refused at the checksum, before any restore;
@@ -31,22 +35,28 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const RUN = randomUUID().slice(0, 8);
 const NET = `aud023-drill-net-${RUN}`;
-const SRC = `aud023-drill-src-${RUN}`;
 const DST = `aud023-drill-dst-${RUN}`;
 const IMAGE = "pgvector/pgvector:pg16";
 const OPS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../../scripts/ops");
-const SRC_URL = `postgresql://drill:drill-pass@${SRC}:5432/proovra`;
 const DST_ADMIN_URL = `postgresql://drill:drill-pass@${DST}:5432/postgres`;
 
 const docker = (...args: string[]) =>
   execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+
+/** The integration database as the client container reaches it (via the host). */
+function fromContainer(url: string): string {
+  const u = new URL(url);
+  if (u.hostname === "127.0.0.1" || u.hostname === "localhost") u.hostname = "host.docker.internal";
+  u.search = "";
+  return u.toString();
+}
 
 /** Run one of the ops scripts in the PostgreSQL client image, on the drill network. */
 function runScript(script: string, env: Record<string, string>, backups: string) {
   const res = spawnSync(
     "docker",
     [
-      "run", "--rm", "--network", NET,
+      "run", "--rm", "--network", NET, "--add-host", "host.docker.internal:host-gateway",
       "-v", `${OPS_DIR}:/ops:ro`,
       "-v", `${backups}:/backups`,
       ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
@@ -57,9 +67,6 @@ function runScript(script: string, env: Record<string, string>, backups: string)
   return { code: res.status, out: `${res.stdout}\n${res.stderr}` };
 }
 
-function psqlSrc(sql: string): string {
-  return docker("exec", SRC, "psql", "-U", "drill", "-d", "proovra", "-X", "-q", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-c", sql);
-}
 
 function waitReady(name: string) {
   const deadline = Date.now() + 90_000;
@@ -77,20 +84,32 @@ function waitReady(name: string) {
 describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable PostgreSQL 16", () => {
   let backups = "";
   let dumpName = "";
+  let SRC_URL = "";
+  let releaseDb: (() => Promise<void>) | null = null;
+  let src: import("pg").Client | null = null;
+  const psqlSrc = async (sql: string) => {
+    await src!.query(sql);
+  };
 
-  beforeAll(() => {
+  beforeAll(async () => {
     backups = mkdtempSync(join(tmpdir(), "aud023-backups-"));
+    const { acquireIntegrationDatabase } = await import("./integration-harness.js");
+    const db = await acquireIntegrationDatabase();
+    releaseDb = db.release;
+    SRC_URL = fromContainer(db.url);
+    const pg = await import("pg");
+    src = new pg.default.Client({ connectionString: db.url });
+    await src.connect();
     docker("network", "create", NET);
-    for (const name of [SRC, DST]) {
-      docker(
-        "run", "-d", "--name", name, "--network", NET,
-        "-e", "POSTGRES_USER=drill", "-e", "POSTGRES_PASSWORD=drill-pass", "-e", "POSTGRES_DB=proovra",
-        IMAGE,
-      );
-    }
-    waitReady(SRC);
+    docker(
+      "run", "-d", "--name", DST, "--network", NET,
+      "-e", "POSTGRES_USER=drill", "-e", "POSTGRES_PASSWORD=drill-pass", "-e", "POSTGRES_DB=proovra",
+      IMAGE,
+    );
     waitReady(DST);
-    psqlSrc(`
+    await psqlSrc(`
+      DROP SCHEMA IF EXISTS app CASCADE;
+      DROP TABLE IF EXISTS public.empty_table;
       CREATE EXTENSION IF NOT EXISTS vector;
       CREATE SCHEMA app;
       CREATE TABLE app.teams (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL UNIQUE);
@@ -111,13 +130,14 @@ describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable Post
     `);
   }, 240_000);
 
-  afterAll(() => {
-    for (const name of [SRC, DST]) {
-      try {
-        docker("rm", "-f", name);
-      } catch {
-        /* gone */
-      }
+  afterAll(async () => {
+    await src?.query("DROP SCHEMA IF EXISTS app CASCADE; DROP TABLE IF EXISTS public.empty_table;").catch(() => undefined);
+    await src?.end().catch(() => undefined);
+    await releaseDb?.();
+    try {
+      docker("rm", "-f", DST);
+    } catch {
+      /* gone */
     }
     try {
       docker("network", "rm", NET);
@@ -142,19 +162,19 @@ describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable Post
     expect(counts).toContain("public.empty_table|0");
     const schema = readFileSync(join(backups, `${stem}.schema`), "utf8");
     expect(schema).toMatch(/idx\|app\.evidence_team_created\|CREATE INDEX evidence_team_created/);
-    expect(schema).toMatch(/con\|app\.evidence_team_id_fkey\|FOREIGN KEY \(team_id\) REFERENCES app\.teams\(id\)/);
+    expect(schema).toMatch(/con\|app\.evidence_team_id_fkey\|f\|FOREIGN KEY \(team_id\) REFERENCES app\.teams\(id\)/);
   }, 180_000);
 
-  it("the drill restores into a fresh database on a disposable server and every fact matches", () => {
+  it("the drill restores into a fresh database on a disposable server and every fact matches", async () => {
     // Writes after the backup must not matter: the drill checks the BACKUP.
-    psqlSrc("INSERT INTO app.teams (name) VALUES ('written-after-backup');");
+    await psqlSrc("INSERT INTO app.teams (name) VALUES ('written-after-backup');");
     const res = runScript(
       "pg-restore-drill.sh",
       { BACKUP_FILE: `/backups/${dumpName}`, DRILL_ADMIN_URL: DST_ADMIN_URL, DATABASE_URL: SRC_URL },
       backups,
     );
     expect(res.code, res.out).toBe(0);
-    expect(res.out).toMatch(/PASS — .*: checksum, \d+ tables \/ 1241 rows and the schema fingerprint match exactly/);
+    expect(res.out).toMatch(/PASS — .*: checksum, \d+ tables \/ \d+ rows and the schema fingerprint match exactly/);
     expect(res.out).not.toContain("drill-pass");
     // The drill database was dropped again.
     const left = docker("exec", DST, "psql", "-U", "drill", "-d", "postgres", "-A", "-t", "-c",
@@ -201,7 +221,7 @@ describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable Post
       "pg-restore-drill.sh",
       {
         BACKUP_FILE: `/backups/${dumpName}`,
-        DRILL_ADMIN_URL: `postgresql://drill:drill-pass@${SRC}:5432/postgres`,
+        DRILL_ADMIN_URL: SRC_URL.replace(/\/[^/]*$/, "/postgres"),
         DATABASE_URL: SRC_URL,
       },
       backups,
