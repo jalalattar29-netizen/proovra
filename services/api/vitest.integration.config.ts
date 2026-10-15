@@ -89,6 +89,8 @@ export default defineConfig({
     // every credential-shaped variable, points dotenv at nothing, and installs
     // the outbound socket guard.
     setupFiles: ["./test/setup/safe-environment.ts"],
+    // The run leaves the tracked tree exactly as it found it (see the guard).
+    globalSetup: ["./test/setup/tracked-tree-guard.mjs"],
     include: ["test/**/*.integration.test.ts"],
     // Container start + `prisma migrate deploy` + Fastify boot.
     hookTimeout: 900_000,
@@ -113,6 +115,10 @@ export default defineConfig({
     env: {
       RUN_LIVE_INTEGRATION: "1",
       POINT5_RUN_ID,
+      // Point-5 proof records, RUN-SCOPED outside the tracked tree. Only
+      // `scripts/point5-record-proof.mjs` names the canonical artifact.
+      POINT5_PROOF_OUT:
+        process.env.POINT5_PROOF_OUT ?? `../../.p7tmp/point5-family-proven-cases.${POINT5_RUN_ID}.json`,
       POINT7_RUN_ID,
       // PHASE 12 — POINT 7 (final pass): the outbound ledger, RUN-SCOPED.
       //

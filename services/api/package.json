@@ -72,7 +72,8 @@
     "db:lifecycle-state-readiness": "node scripts/evidence-lifecycle-state-readiness.mjs",
     "pretypecheck": "pnpm run build:deps",
     "verify:runbook-endpoints": "node scripts/verify-runbook-endpoints.mjs",
-    "ops:operations-truth-reconcile": "tsx src/scripts/operations-truth-reconcile.ts"
+    "ops:operations-truth-reconcile": "tsx src/scripts/operations-truth-reconcile.ts",
+    "test:integration:record-point5-proof": "pnpm run test:integration:prepare && node scripts/point5-record-proof.mjs"
   },
   "keywords": [],
   "author": "",

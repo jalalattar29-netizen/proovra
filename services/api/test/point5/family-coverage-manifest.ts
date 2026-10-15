@@ -29,6 +29,7 @@
  * not in that set: a unit cannot declare itself exempt from them.
  */
 
+import { resolve as resolvePath } from "node:path";
 import { createHash } from "node:crypto";
 
 import {
@@ -139,6 +140,27 @@ export function proofBindingHash(): string {
  */
 export function currentRunId(): string {
   return process.env["POINT5_RUN_ID"]?.trim() ?? "";
+}
+
+/**
+ * WHERE a run writes its proof records.
+ *
+ * An ordinary integration run must not touch the tracked tree: the canonical
+ * artifact above is READ by the unit project's proof gate and by the audit
+ * engine, and a run that rewrites it under them races both. So the integration
+ * config points `POINT5_PROOF_OUT` at a run-scoped file under the git-ignored
+ * `.p7tmp/`, and only an explicit regeneration
+ * (`scripts/point5-record-proof.mjs`) names {@link PROVEN_CASES_ARTIFACT}.
+ * Relative values resolve from `services/api`, like the other run outputs.
+ * Unset means no proof run is in progress: nothing may be written.
+ */
+export function provenCasesOutputPath(
+  apiRoot: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string | null {
+  const out = env["POINT5_PROOF_OUT"]?.trim() ?? "";
+  if (!out) return null;
+  return resolvePath(apiRoot, out);
 }
 
 /**
@@ -441,7 +463,13 @@ export async function recordSuiteProof(suiteModuleUrl: string): Promise<void> {
     .join("/");
   const sha256 = createHash("sha256").update(readFileSync(suiteAbs)).digest("hex");
 
-  const artifactPath = resolve(repoRoot, PROVEN_CASES_ARTIFACT);
+  const artifactPath = provenCasesOutputPath(resolve(repoRoot, "services/api"));
+  if (!artifactPath) {
+    throw new Error(
+      "point5: POINT5_PROOF_OUT is not set. Proof is written only by the " +
+        "integration project (to .p7tmp/) or by scripts/point5-record-proof.mjs.",
+    );
+  }
   let suites: Record<string, ProvenSuiteRecord> = {};
   if (existsSync(artifactPath)) {
     try {
