@@ -1649,13 +1649,10 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
     }
   : null;
 
+  // AUD-025 — never the coordinates: a log line is not evidence storage.
   console.info("[report-v2] capture-context build", {
     evidenceId: input.evidence.id,
     hasCaptureContext,
-    lat: captureLat,
-    lng: captureLng,
-    accuracyMeters: input.evidence.gps.accuracyMeters ?? null,
-    mapPreviewPrefix: captureContext?.mapPreviewDataUrl?.slice(0, 48) ?? null,
     mapPreviewLength: captureContext?.mapPreviewDataUrl?.length ?? 0,
     usesSvgFallback:
       captureContext?.mapPreviewDataUrl?.startsWith("data:image/svg+xml") ?? false,

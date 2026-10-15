@@ -63,7 +63,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { PassThrough } from "node:stream";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "./db.js";
-import { deleteObject, putObjectBuffer } from "./storage.js";
+import { deleteObjectVersions, putObjectBuffer } from "./storage.js";
 import { artifactLockForAll } from "./object-retention.js";
 import { env } from "./config.js";
 import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
@@ -1001,7 +1001,7 @@ export async function buildExchangePackage(
     // already committed READY with its own sha; the pointer now moves only in
     // the conditional READY transition below.
     const storageKey = `exchange-packages/${teamId}/${packageId}/${attemptAt.getTime()}-${randomUUID()}.zip`;
-    await putObjectBuffer({
+    const written = await putObjectBuffer({
       lock: await artifactLockForAll(evidenceIds),
       bucket: env.S3_BUCKET,
       key: storageKey,
@@ -1044,8 +1044,24 @@ export async function buildExchangePackage(
     if (!completed) {
       // The package left BUILDING while we built it (e.g. revoked), or this
       // attempt lost its claim (ET-SEC-27). Nothing was metered; this
-      // attempt's own object is removed (best effort) — no pointer names it.
-      await deleteObject({ bucket: env.S3_BUCKET, key: storageKey }).catch(() => null);
+      // attempt's own object VERSION is removed (best effort) — no pointer
+      // names it. Under the evidence's retention it is kept, and said so: a
+      // key-only delete used to hide the locked version behind a marker.
+      const removal = await deleteObjectVersions({
+        bucket: env.S3_BUCKET,
+        key: storageKey,
+        versionId: written?.versionId ?? null,
+      }).catch(() => null);
+      if (!removal?.deleted) {
+        logger.warn(
+          {
+            packageId: pkg.id,
+            retainedVersions: removal?.retainedVersions ?? null,
+            failed: removal ? removal.failed : null,
+          },
+          "exchange_package.abandoned_object_not_removed",
+        );
+      }
       throw new Error("package_left_building_state_during_build");
     }
 

@@ -7,9 +7,87 @@ import {
 } from "@proovra/shared";
 
 const DEFAULT_TILE_REQUEST_TIMEOUT_MS = 2_500;
-const DEFAULT_MAP_MODE = (
-  process.env.CAPTURE_LOCATION_MAP_MODE?.trim().toLowerCase() || "static"
-) as "static" | "fallback" | "off";
+
+/**
+ * AUD-025 — EVIDENCE COORDINATES NEVER LEAVE FOR A MAP BY DEFAULT.
+ *
+ * The mode defaulted to "static" with tile.openstreetmap.org as the template,
+ * so every report and verification package with GPS evidence fetched tiles
+ * whose x/y/z ARE the evidence location from a public third party, and logged
+ * the tile URLs. The default is now the deterministic local renderer.
+ * "static" draws tiles only from an endpoint a deployment explicitly
+ * configures (CAPTURE_LOCATION_TILE_URL), and a known public provider is
+ * refused even then: a configured endpoint must be the deployment's own,
+ * approved tile server. A refused or missing endpoint renders locally.
+ */
+const PUBLIC_TILE_PROVIDER_HOSTS = [
+  "openstreetmap.org",
+  "openstreetmap.fr",
+  "openstreetmap.de",
+  "osm.org",
+  "opentopomap.org",
+  "mapbox.com",
+  "googleapis.com",
+  "google.com",
+  "gstatic.com",
+  "arcgisonline.com",
+  "arcgis.com",
+  "cartocdn.com",
+  "stadiamaps.com",
+  "stamen.com",
+  "thunderforest.com",
+  "maptiler.com",
+  "here.com",
+  "hereapi.com",
+  "virtualearth.net",
+  "bing.com",
+  "wikimedia.org",
+  "esri.com",
+  "tomtom.com",
+  "mapquest.com",
+];
+
+export type CaptureLocationMapMode = "static" | "fallback" | "off";
+
+/** The approved tile template, or null with the bounded reason it was refused. */
+export function resolveApprovedTileTemplate(
+  raw: string | null | undefined,
+): { template: string | null; refused: "NOT_CONFIGURED" | "INVALID_URL" | "PUBLIC_PROVIDER" | null } {
+  const value = raw?.trim();
+  if (!value) return { template: null, refused: "NOT_CONFIGURED" };
+  if (!value.includes("{z}") || !value.includes("{x}") || !value.includes("{y}")) {
+    return { template: null, refused: "INVALID_URL" };
+  }
+  let host: string;
+  try {
+    const url = new URL(value.replace(/\{[xyzs]\}/g, "0"));
+    if (url.protocol !== "https:" && url.protocol !== "http:") return { template: null, refused: "INVALID_URL" };
+    host = url.hostname.toLowerCase().replace(/\.$/, "");
+  } catch {
+    return { template: null, refused: "INVALID_URL" };
+  }
+  const isPublic = PUBLIC_TILE_PROVIDER_HOSTS.some((h) => host === h || host.endsWith("." + h));
+  return isPublic ? { template: null, refused: "PUBLIC_PROVIDER" } : { template: value, refused: null };
+}
+
+/** Read per call, so the deployment's configuration is the only thing that decides. */
+export function resolveCaptureLocationMapMode(env: NodeJS.ProcessEnv = process.env): {
+  mode: CaptureLocationMapMode;
+  tileTemplate: string | null;
+} {
+  const requested = env.CAPTURE_LOCATION_MAP_MODE?.trim().toLowerCase();
+  if (requested === "off") return { mode: "off", tileTemplate: null };
+  if (requested !== "static") return { mode: "fallback", tileTemplate: null };
+  const approved = resolveApprovedTileTemplate(env.CAPTURE_LOCATION_TILE_URL);
+  if (!approved.template) {
+    // The reason only — never the configured URL, never a coordinate.
+    console.warn("[capture-location-map] static tiles refused; rendering locally", {
+      reason: approved.refused,
+    });
+    return { mode: "fallback", tileTemplate: null };
+  }
+  return { mode: "static", tileTemplate: approved.template };
+}
 
 function buildOverlaySvg(model: CaptureLocationDisplayModel): string {
   const pad = Math.max(22, Math.round(model.width * 0.026));
@@ -100,11 +178,9 @@ async function fetchTileBuffer(
 async function renderFallbackPng(
   input: CaptureLocationInput & { width?: number; height?: number; zoom?: number }
 ): Promise<Buffer | null> {
-  console.info("[capture-location-map] using pdf fallback renderer", {
-    mode: DEFAULT_MAP_MODE,
+  console.info("[capture-location-map] rendering locally", {
     width: input.width ?? null,
     height: input.height ?? null,
-    zoom: input.zoom ?? null,
   });
   const svg = buildCaptureLocationPdfFallbackSvg({
     lat: input.lat ?? 0,
@@ -127,7 +203,8 @@ async function renderStaticTilePreview(
     height?: number;
     zoom?: number;
     tileGrid?: number;
-  }
+  },
+  tileTemplate: string,
 ): Promise<Buffer | null> {
   const model = buildCaptureLocationDisplayModel({
     lat: input.lat ?? 0,
@@ -136,7 +213,7 @@ async function renderStaticTilePreview(
     width: input.width,
     height: input.height,
     zoom: input.zoom,
-    tileTemplate: process.env.CAPTURE_LOCATION_TILE_URL?.trim() || undefined,
+    tileTemplate,
     tileGrid: input.tileGrid,
   });
 
@@ -151,32 +228,12 @@ async function renderStaticTilePreview(
       tile.top + tile.height > 0
   );
 
+  // Counts only: a tile URL encodes the evidence location (AUD-025).
   console.info("[capture-location-map] renderStaticTilePreview start", {
-    mode: DEFAULT_MAP_MODE,
     width: model.width,
     height: model.height,
-    zoom: model.zoom,
-    tileGrid: model.tileGrid,
     tileCount: model.tiles.length,
     visibleTileCount: visibleTiles.length,
-    firstTileUrls: visibleTiles
-      .slice(0, 4)
-      .map((tile) => tile.url)
-      .filter(Boolean),
-    ...(process.env.PROOVRA_CAPTURE_MAP_DEBUG === "true"
-      ? {
-          lat: model.lat,
-          lng: model.lng,
-          markerX: model.markerX,
-          markerY: model.markerY,
-          markerPercentX: Number(((model.markerX / model.width) * 100).toFixed(3)),
-          markerPercentY: Number(((model.markerY / model.height) * 100).toFixed(3)),
-          centerX: Number((model.width / 2).toFixed(3)),
-          centerY: Number((model.height / 2).toFixed(3)),
-          deltaFromCenterX: Number((model.markerX - model.width / 2).toFixed(3)),
-          deltaFromCenterY: Number((model.markerY - model.height / 2).toFixed(3)),
-        }
-      : {}),
   });
 
   const tileBuffers = await Promise.all(
@@ -195,9 +252,7 @@ async function renderStaticTilePreview(
         };
       } catch (error) {
         console.warn("[capture-location-map] tile fetch failed", {
-          tile: tile.key,
-          url: tile.url,
-          error,
+          error: error instanceof Error ? error.message.slice(0, 120) : "unknown",
         });
         return null;
       }
@@ -209,18 +264,8 @@ async function renderStaticTilePreview(
   );
 
   console.info("[capture-location-map] tile fetch result", {
-    requestedTiles: model.tiles.length,
     requestedVisibleTiles: visibleTiles.length,
     validTiles: validTiles.length,
-    width: model.width,
-    height: model.height,
-    zoom: model.zoom,
-    firstValidTiles: validTiles.slice(0, 4).map((tile) => ({
-      width: tile.width,
-      height: tile.height,
-      byteLength: tile.byteLength,
-      contentType: tile.contentType,
-    })),
   });
 
   const minimumUsefulTiles = Math.max(
@@ -234,9 +279,6 @@ async function renderStaticTilePreview(
       requestedVisibleTiles: visibleTiles.length,
       validTiles: validTiles.length,
       minimumUsefulTiles,
-      width: model.width,
-      height: model.height,
-      zoom: model.zoom,
     });
     return null;
   }
@@ -269,11 +311,7 @@ async function renderStaticTilePreview(
 
   console.info("[capture-location-map] using tile mode", {
     validTiles: validTiles.length,
-    requestedTiles: model.tiles.length,
     requestedVisibleTiles: visibleTiles.length,
-    width: model.width,
-    height: model.height,
-    zoom: model.zoom,
   });
 
   const mapBackground = await base
@@ -308,22 +346,22 @@ export async function renderCaptureLocationMapPreviewPng(
     return null;
   }
 
-  if (DEFAULT_MAP_MODE === "off") {
+  const { mode, tileTemplate } = resolveCaptureLocationMapMode();
+  if (mode === "off") {
     return null;
   }
 
-  if (DEFAULT_MAP_MODE === "fallback") {
+  if (mode === "fallback" || !tileTemplate) {
     return renderFallbackPng(input);
   }
 
   try {
-    const tilePreview = await renderStaticTilePreview(input);
+    const tilePreview = await renderStaticTilePreview(input, tileTemplate);
     return tilePreview ?? (await renderFallbackPng(input));
   } catch (error) {
-    console.warn(
-      "[capture-location-map] Falling back to deterministic preview:",
-      error
-    );
+    console.warn("[capture-location-map] Falling back to deterministic preview", {
+      error: error instanceof Error ? error.message.slice(0, 120) : "unknown",
+    });
     return renderFallbackPng(input);
   }
 }

@@ -87,6 +87,12 @@ test("T-12: a recorded capture location renders the map (shared display model) w
   assert.ok(r.byLabel("Capture context map preview").length > 0);
   assert.ok(r.hasText("Boundary: Device-reported position."));
   assert.ok(r.byLabel("Open in map").length > 0, "no way to open the location in a map");
+  // AUD-025 — no tile is requested from a third party with the evidence
+  // coordinates: no remote image source at all, and the map says it is local.
+  const remote = r.root.findAll((n) => typeof n.type === "string" && typeof n.props?.source?.uri === "string");
+  assert.deepEqual(remote.map((n) => n.props.source.uri), []);
+  assert.ok(!JSON.stringify(r.renderer.toJSON()).includes("tile.openstreetmap"));
+  assert.ok(r.hasText("Map imagery unavailable · rendered locally from recorded coordinates"));
 });
 
 test("T-12: no recorded location, no map — never synthesised", async () => {

@@ -311,3 +311,35 @@ describe("controls stay honest", () => {
     expect(container.textContent).not.toMatch(/Retry report generation/);
   });
 });
+
+describe("AUD-011 — the status projection says a stored file is gone (no download needed)", () => {
+  const MISSING: Out = { state: "ARTIFACT_MISSING", action: "RECOVER", actionUnavailableReason: null, version: 1 };
+
+  it("states it persistently and offers ONE new verified version to a caller who may issue outputs", () => {
+    const calls: Array<[string, string]> = [];
+    const ws = workspace(MISSING, { state: "READY", action: "NONE", actionUnavailableReason: "FOLLOWS_REPORT", version: 1 });
+    (ws.artifactStatus.outputs.report as { operation: string | null }).operation = "NEW_VERSION";
+    (ws.artifactStatus.outputs.report as { availability: string }).availability = "MISSING";
+    const { container } = mount(ws, { generateOutputs: (a: string, k: string) => void calls.push([a, k]) } as never);
+    const panel = container.querySelector("[data-evidence-section='reports-artifact-missing']")!;
+    expect(panel).not.toBeNull();
+    expect(panel.textContent).toContain("The stored file of report version 1 is unavailable");
+    expect(panel.textContent).toMatch(/never regenerated in place/);
+    const button = panel.querySelector("[data-evidence-action='generate-outputs']") as HTMLButtonElement;
+    expect(button.textContent).toBe("Issue a new verified version");
+    expect(button.getAttribute("data-evidence-operation")).toBe("NEW_VERSION");
+    act(() => button.click());
+    expect(calls).toEqual([["RECOVER", "report"]]);
+  });
+
+  it("a caller who may not issue outputs is told, with no button", () => {
+    const ws = workspace(
+      { state: "ARTIFACT_MISSING", action: "NONE", actionUnavailableReason: "PERMISSION_DENIED", version: 1 },
+      { state: "READY", action: "NONE", actionUnavailableReason: "FOLLOWS_REPORT", version: 1 },
+    );
+    const { container } = mount(ws);
+    const panel = container.querySelector("[data-evidence-section='reports-artifact-missing']")!;
+    expect(panel).not.toBeNull();
+    expect(panel.querySelector("[data-evidence-action='generate-outputs']")).toBeNull();
+  });
+});

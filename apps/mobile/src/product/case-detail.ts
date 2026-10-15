@@ -55,6 +55,8 @@ export function outputLabel(state: string | null, ready: boolean, noun: "Report"
       return `${noun} generation failed`;
     case "BLOCKED":
       return `${noun} blocked`;
+    case "ARTIFACT_MISSING":
+      return `${noun} file unavailable`;
     default:
       return ready ? `${noun} ready` : `${noun} not available`;
   }

@@ -13,6 +13,7 @@
 import type {
   OutputAction,
   OutputActionUnavailableReason,
+  OutputOperation,
 } from "./evidence-output-lifecycle.js";
 
 export type OutputKind = "report" | "verificationPackage";
@@ -27,9 +28,16 @@ export function outputActionLabel(
   output: OutputKind,
   action: OutputAction,
   variant: "full" | "compact" = "full",
+  /** The server operation the action performs, when the surface has it. */
+  operation?: OutputOperation | null,
 ): string {
   const compact = variant === "compact";
   if (action === "NONE") return "";
+  // AUD-011 — the stored file of an issued version is proven gone: the
+  // recovery is a NEW verified version (the gone one is never re-issued).
+  if (action === "RECOVER" && operation === "NEW_VERSION") {
+    return compact ? "Issue new version" : "Issue a new verified version";
+  }
   if (action === "REGENERATE") return NEW_VERSION_LABEL;
   if (output === "verificationPackage") {
     switch (action) {

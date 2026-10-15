@@ -164,9 +164,12 @@ export type ScreenIntelligenceDeps = {
   /**
    * Retained for the transient-failure path only: an object whose ROW could not
    * be written has no pointer and is removed (unless held). A superseded
-   * generation is NEVER deleted (UC-DER-006).
+   * generation is NEVER deleted (UC-DER-006). AUD-028: the removal names the
+   * VersionId this run wrote, so it can never hide (behind a delete marker) or
+   * remove another generation's version at a shared content-addressed key; a
+   * version under retention is kept by the store and reported, not counted.
    */
-  deleteObject(input: { bucket: string; key: string }): Promise<void>;
+  deleteObject(input: { bucket: string; key: string; versionId?: string | null }): Promise<unknown>;
   ocr: ScreenOcrRunner;
   /** True while the evidence is under an effective legal hold — blocks any removal. */
   holdActive?: boolean;
@@ -566,7 +569,7 @@ export async function runAndPersistScreenIntelligence(
             // generation's row, so only remove it when no row references it.
             if (!deps.holdActive && !(await objectReferenced(prisma, part.storageBucket, key))) {
               try {
-                await deps.deleteObject({ bucket: part.storageBucket, key });
+                await deps.deleteObject({ bucket: part.storageBucket, key, versionId: keyframeVersionId });
               } catch {
                 /* best effort; reconciler will catch a rare residue */
               }
@@ -894,7 +897,7 @@ export async function runAndPersistScreenIntelligence(
     if (!descriptorPersisted.ok) {
       if (!deps.holdActive) {
         try {
-          await deps.deleteObject({ bucket: descriptorBucket, key: descriptorKey });
+          await deps.deleteObject({ bucket: descriptorBucket, key: descriptorKey, versionId: descriptorVersionId });
         } catch {
           /* best effort */
         }

@@ -7,12 +7,18 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  ListObjectVersionsCommand,
   PutObjectRetentionCommand,
   type ObjectLockMode,
   type S3ClientConfig,
 } from "@aws-sdk/client-s3";
 import { createHash } from "node:crypto";
-import { newObjectLock } from "@proovra/shared-runtime";
+import {
+  createVersionAwareDestructionPort,
+  newObjectLock,
+  removeObjectVersions,
+  type VersionedObjectRemoval,
+} from "@proovra/shared-runtime";
 import { env } from "./config.js";
 // Phase O1.4 — instrument S3 calls with bounded PROOVRA spans so the
 // API → S3 latency / failure surface is visible in Grafana alongside
@@ -183,6 +189,14 @@ function buildS3ClientConfig(): S3ClientConfig {
 }
 
 export const s3 = new S3Client(buildS3ClientConfig());
+
+/** The shared version-aware port over this process's client (removals). */
+const versionPort = createVersionAwareDestructionPort({
+  client: s3,
+  ListObjectVersionsCommand: ListObjectVersionsCommand as never,
+  HeadObjectCommand: HeadObjectCommand as never,
+  DeleteObjectCommand: DeleteObjectCommand as never,
+});
 
 export async function getObjectStream(params: {
   bucket: string;
@@ -475,20 +489,22 @@ export async function headObject(params: {
   );
 }
 
-export async function deleteObject(params: { bucket: string; key: string }) {
+/**
+ * VERSION-AWARE REMOVAL (2026-10-15, AUD-028). The key-only `deleteObject`
+ * this replaces answered `{ deleted: true }` for a delete marker written over
+ * a COMPLIANCE-locked version. Every removal now names a VersionId through the
+ * shared destruction port, never attempts a version under retention or legal
+ * hold, and reports what a post-delete listing proves (removeObjectVersions).
+ */
+export async function deleteObjectVersions(params: {
+  bucket: string;
+  key: string;
+  /** Remove only the version this caller wrote; otherwise every version of the key. */
+  versionId?: string | null;
+}): Promise<VersionedObjectRemoval> {
   const bucket = mustClean(params.bucket, "bucket");
   const key = mustClean(params.key, "key");
-
-  await s3.send(
-    new DeleteObjectCommand({
-      Bucket: bucket,
-      Key: key,
-    })
-  );
-
-  return {
-    deleted: true,
-  };
+  return removeObjectVersions(versionPort, { bucket, key, versionId: params.versionId ?? null });
 }
 
 /**

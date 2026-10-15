@@ -110,7 +110,7 @@ describe("the worker sweeps are deployed and started", () => {
   });
 
   it("each scheduler calls the RECORDED run, and a failed run pages an operator", () => {
-    expect(INDEX).toMatch(/await runCaptureReaperSweep\(\{ trigger, deleteObject \}\)/);
+    expect(INDEX).toMatch(/await runCaptureReaperSweep\(\{ trigger, deleteObject: deleteObjectVersions \}\)/);
     expect(INDEX).toMatch(/reason: "capture_reaper_run_failed"/);
     expect(INDEX).toMatch(/await runIntegrityRecheckSweep\(\{ trigger, limit: integrityRecheckBatch \}\)/);
     expect(INDEX).toMatch(/reason: "integrity_recheck_run_failed"/);

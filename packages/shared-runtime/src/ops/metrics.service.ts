@@ -819,6 +819,9 @@ export const COUNTER_NAMES = [
   "report_generation_request_created_total",
   "report_generation_enqueue_total",
   "report_generation_enqueue_failed_total",
+  // AUD-011 — an artifact download whose store did not answer, or refused us.
+  "artifact_storage_unavailable_total",
+  "artifact_storage_access_failed_total",
   "report_generation_reconciled_total",
   /*
    * COMMERCIAL CLOSURE (2026-09-08) — generation refused BEFORE a row exists

@@ -50,8 +50,10 @@ vi.mock("../src/storage.js", async (importOriginal) => {
     putObjectBuffer: async (p: { bucket: string; key: string; body: Buffer }) => {
       objects.set(id(p), Buffer.from(p.body));
     },
-    deleteObject: async (p: { bucket: string; key: string }) => {
-      objects.delete(id(p));
+    // AUD-028 — the worker removal is version-aware and reports what it proved.
+    deleteObjectVersions: async (p: { bucket: string; key: string }) => {
+      const had = objects.delete(id(p));
+      return { deleted: had, deletedVersions: had ? 1 : 0, retainedVersions: 0, deleteMarkerOnly: false, failed: 0 };
     },
   };
 });

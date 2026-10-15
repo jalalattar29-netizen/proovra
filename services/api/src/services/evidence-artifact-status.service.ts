@@ -380,6 +380,9 @@ export async function buildEvidenceArtifactStatus(params: {
       // The Evidence-detail projection: an exhausted TECHNICAL failure is
       // offered as a retry to a caller who holds the supersession right.
       resolveSupersedeRight: true,
+      // AUD-011 — one record: HEAD the recorded versions of the latest pair,
+      // so "available" is never said of a file a HEAD proves gone.
+      probeStoredObjects: true,
     }),
     // Additive projections: a failure to read them degrades to "not known"
     // (null), never to a failed status read for the outputs above.
@@ -439,11 +442,18 @@ export async function buildEvidenceArtifactStatus(params: {
       ? classifyTerminalReason(loaded.reportRequest?.terminalReasonCode ?? null)
       : null;
 
+  // AUD-011 — a row whose recorded object version a HEAD proved gone is
+  // MISSING, not READY. A store that did not answer (transient, permission)
+  // proves nothing and leaves the row's answer standing.
   const reportAvailability: OutputArtifactAvailability = latestReport
-    ? "READY"
+    ? loaded.storedObjects?.report === "NOT_FOUND"
+      ? "MISSING"
+      : "READY"
     : "NO_ARTIFACT";
   const packageAvailability: OutputArtifactAvailability = latestPackage
-    ? "READY"
+    ? latestPackage === loaded.packageAtLatest && loaded.storedObjects?.package === "NOT_FOUND"
+      ? "MISSING"
+      : "READY"
     : "NO_ARTIFACT";
 
   const packageUnavailableForPersonalWorkspace = false;
@@ -675,7 +685,7 @@ export async function buildEvidenceArtifactStatus(params: {
     },
     versions,
     packageAccess,
-    report: latestReport
+    report: latestReport && reportAvailability === "READY"
       ? {
           available: true,
           version: latestReport.version,
@@ -695,7 +705,7 @@ export async function buildEvidenceArtifactStatus(params: {
           pending: reportPending,
           pdfSignature: null,
         },
-    verificationPackage: latestPackage
+    verificationPackage: latestPackage && packageAvailability === "READY"
       ? {
           available: true,
           version: latestPackage.version,

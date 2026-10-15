@@ -91,6 +91,8 @@ export function caseOutputNeedsAttention(state: EvidenceOutputState): boolean {
    *   GENERATING      in flight. The system owes an answer and is producing
    *                   one; a case dashboard that flags this trains its reader
    *                   to ignore the flag.
+   *
+   * ARTIFACT_MISSING (AUD-011) is outstanding: an issued file is proven gone.
    */
   switch (state) {
     case "READY":
@@ -104,6 +106,7 @@ export function caseOutputNeedsAttention(state: EvidenceOutputState): boolean {
     case "RETRYABLE_FAILURE":
     case "TERMINAL_FAILURE":
     case "BLOCKED":
+    case "ARTIFACT_MISSING":
       return true;
   }
 }
@@ -137,5 +140,7 @@ export function caseOutputLabel(
       return `${noun} generation failed`;
     case "BLOCKED":
       return `${noun} blocked`;
+    case "ARTIFACT_MISSING":
+      return `${noun} file unavailable`;
   }
 }

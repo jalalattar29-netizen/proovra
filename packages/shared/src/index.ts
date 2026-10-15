@@ -233,6 +233,7 @@ export type { BillingErrorCode } from "./billing-errors.js";
 
 export {
   CAPTURE_LOCATION_MAP_ATTRIBUTION,
+  CAPTURE_LOCATION_LOCAL_RENDER_LABEL,
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
   CAPTURE_LOCATION_SHORT_BOUNDARY,
@@ -324,6 +325,9 @@ export {
   // customer out of an updated report.
   isTechnicalTerminalReason,
   MAX_TERMINAL_SUPERSESSIONS,
+  MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW,
+  OPERATOR_SUPERSESSION_WINDOW_MS,
+  OPERATOR_SUPERSESSION_INTENT,
 } from "./evidence-output-lifecycle.js";
 // The words for those actions — one table for web, PWA and native.
 export {

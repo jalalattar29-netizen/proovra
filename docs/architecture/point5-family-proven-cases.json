@@ -15,9 +15,9 @@
         "nocfg.transcript.terminal_failed_not_completed",
         "nocfg.transcript.wrong_tenant_concealed"
       ],
-      "runId": "de9b79ee-ea38-44aa-879f-f7aa04a49964",
+      "runId": "738447f4-b96d-492e-8794-d0e60fc07000",
       "binding": "3a6f665d47cd6b0d57b72e13ccbd5f4f27d8e4cf43d0fea5c63dc4c1d5e97178",
-      "recordedAtUtc": "2026-10-15T09:50:10.590Z"
+      "recordedAtUtc": "2026-10-15T18:07:39.362Z"
     },
     "test/point5/family-retention-destruction.integration.test.ts": {
       "sha256": "8b4085b7415a610102c84a7db2d859ae0f8dc524ed44f39254f5b70f0003467a",
@@ -70,9 +70,9 @@
         "retention.tenant.workspace_reloaded",
         "retention.terminal.stale_cannot_overwrite"
       ],
-      "runId": "de9b79ee-ea38-44aa-879f-f7aa04a49964",
+      "runId": "738447f4-b96d-492e-8794-d0e60fc07000",
       "binding": "3a6f665d47cd6b0d57b72e13ccbd5f4f27d8e4cf43d0fea5c63dc4c1d5e97178",
-      "recordedAtUtc": "2026-10-15T09:27:13.911Z"
+      "recordedAtUtc": "2026-10-15T17:44:44.985Z"
     },
     "test/point5/family-reconciliation.integration.test.ts": {
       "sha256": "3dec3bac276e58a5fd998ae376ce9c55a18c30ba51e143657b9c07ad523e08ca",
@@ -138,9 +138,9 @@
         "searchrecon.tenant.workspace_reloaded",
         "searchrecon.terminal.stale_cannot_overwrite"
       ],
-      "runId": "de9b79ee-ea38-44aa-879f-f7aa04a49964",
+      "runId": "738447f4-b96d-492e-8794-d0e60fc07000",
       "binding": "3a6f665d47cd6b0d57b72e13ccbd5f4f27d8e4cf43d0fea5c63dc4c1d5e97178",
-      "recordedAtUtc": "2026-10-15T09:28:59.316Z"
+      "recordedAtUtc": "2026-10-15T17:53:46.122Z"
     },
     "test/point5/family-notifications.integration.test.ts": {
       "sha256": "9255eeb48bf6ecf9944df566eb875353c94ec09f6e66e948b15de20a66b13329",
@@ -172,9 +172,9 @@
         "digest.tenant.workspace_reloaded",
         "digest.terminal.stale_cannot_overwrite"
       ],
-      "runId": "de9b79ee-ea38-44aa-879f-f7aa04a49964",
+      "runId": "738447f4-b96d-492e-8794-d0e60fc07000",
       "binding": "3a6f665d47cd6b0d57b72e13ccbd5f4f27d8e4cf43d0fea5c63dc4c1d5e97178",
-      "recordedAtUtc": "2026-10-15T09:31:39.264Z"
+      "recordedAtUtc": "2026-10-15T17:54:57.423Z"
     },
     "test/point5/family-evidence-finalization.integration.test.ts": {
       "sha256": "5c0f56846b1bad0c634d5fdb1bf51c1dbc9fc7db496fbf9945658e81e09d2e23",
@@ -197,9 +197,9 @@
         "ots.tenant.workspace_reloaded",
         "ots.terminal.stale_cannot_overwrite"
       ],
-      "runId": "de9b79ee-ea38-44aa-879f-f7aa04a49964",
+      "runId": "738447f4-b96d-492e-8794-d0e60fc07000",
       "binding": "3a6f665d47cd6b0d57b72e13ccbd5f4f27d8e4cf43d0fea5c63dc4c1d5e97178",
-      "recordedAtUtc": "2026-10-15T09:28:25.275Z"
+      "recordedAtUtc": "2026-10-15T17:56:32.869Z"
     },
     "test/point5/family-intelligence-operations.integration.test.ts": {
       "sha256": "ee976f1464a9ade1b0383a7c79f54207ebc0b54f63269e60426502c478bcd2a2",
@@ -231,12 +231,12 @@
         "mirun.tenant.workspace_reloaded",
         "mirun.terminal.stale_cannot_overwrite"
       ],
-      "runId": "de9b79ee-ea38-44aa-879f-f7aa04a49964",
+      "runId": "738447f4-b96d-492e-8794-d0e60fc07000",
       "binding": "3a6f665d47cd6b0d57b72e13ccbd5f4f27d8e4cf43d0fea5c63dc4c1d5e97178",
-      "recordedAtUtc": "2026-10-15T09:40:02.390Z"
+      "recordedAtUtc": "2026-10-15T18:02:30.819Z"
     },
     "test/point5/family-exchange-package.integration.test.ts": {
-      "sha256": "070ce52afd80c7f0fd87f5fed0999cf475aaf62c90e9ad7de0f5111acc091bc0",
+      "sha256": "146fbcf1133ed20db1186973ed265b1a31f263411e458e904e2508ee6b6bd0a0",
       "cases": [
         "exchange.claim.active_not_stolen",
         "exchange.claim.one_winner",
@@ -246,9 +246,9 @@
         "exchange.tenant.workspace_reloaded",
         "exchange.terminal.stale_cannot_overwrite"
       ],
-      "runId": "de9b79ee-ea38-44aa-879f-f7aa04a49964",
+      "runId": "738447f4-b96d-492e-8794-d0e60fc07000",
       "binding": "3a6f665d47cd6b0d57b72e13ccbd5f4f27d8e4cf43d0fea5c63dc4c1d5e97178",
-      "recordedAtUtc": "2026-10-15T09:53:19.542Z"
+      "recordedAtUtc": "2026-10-15T17:41:46.406Z"
     },
     "test/point5/family-invite-delivery.integration.test.ts": {
       "sha256": "9cc25039419442543b2affa41aee317bfad284806033db8075d4fb6f247f61da",
@@ -271,9 +271,9 @@
         "invite.terminal.stale_cannot_overwrite",
         "invite.token.never_leaves_persistence"
       ],
-      "runId": "de9b79ee-ea38-44aa-879f-f7aa04a49964",
+      "runId": "738447f4-b96d-492e-8794-d0e60fc07000",
       "binding": "3a6f665d47cd6b0d57b72e13ccbd5f4f27d8e4cf43d0fea5c63dc4c1d5e97178",
-      "recordedAtUtc": "2026-10-15T09:32:38.016Z"
+      "recordedAtUtc": "2026-10-15T18:03:29.382Z"
     },
     "test/point5/family-redaction.integration.test.ts": {
       "sha256": "ae7d62f4e672177949c5fb86b163a91de10f8ff111417cdedac0615bfc8c137c",
@@ -297,9 +297,9 @@
         "redaction.tenant.workspace_reloaded",
         "redaction.terminal.stale_cannot_overwrite"
       ],
-      "runId": "de9b79ee-ea38-44aa-879f-f7aa04a49964",
+      "runId": "738447f4-b96d-492e-8794-d0e60fc07000",
       "binding": "3a6f665d47cd6b0d57b72e13ccbd5f4f27d8e4cf43d0fea5c63dc4c1d5e97178",
-      "recordedAtUtc": "2026-10-15T09:46:55.002Z"
+      "recordedAtUtc": "2026-10-15T18:04:58.587Z"
     },
     "test/phase-12-point5-report-authority.integration.test.ts": {
       "sha256": "a4d45eacf68f768db422678de9c8adc3a0c463a782c46dea48e11db15d9ba0a7",
@@ -312,9 +312,9 @@
         "report.tenant.workspace_reloaded",
         "report.terminal.stale_cannot_overwrite"
       ],
-      "runId": "de9b79ee-ea38-44aa-879f-f7aa04a49964",
+      "runId": "738447f4-b96d-492e-8794-d0e60fc07000",
       "binding": "3a6f665d47cd6b0d57b72e13ccbd5f4f27d8e4cf43d0fea5c63dc4c1d5e97178",
-      "recordedAtUtc": "2026-10-15T09:32:25.897Z"
+      "recordedAtUtc": "2026-10-15T18:06:12.746Z"
     },
     "test/point5/intelligence-run-claim.integration.test.ts": {
       "sha256": "8ccb54947b56a74b1ae5d80ee366b5d384b551ad91b417fec8d4d6c667f10f6f",
@@ -330,9 +330,9 @@
         "mirecon.tenant.workspace_reloaded",
         "mirecon.terminal.stale_cannot_overwrite"
       ],
-      "runId": "de9b79ee-ea38-44aa-879f-f7aa04a49964",
+      "runId": "738447f4-b96d-492e-8794-d0e60fc07000",
       "binding": "3a6f665d47cd6b0d57b72e13ccbd5f4f27d8e4cf43d0fea5c63dc4c1d5e97178",
-      "recordedAtUtc": "2026-10-15T09:47:16.746Z"
+      "recordedAtUtc": "2026-10-15T18:10:57.531Z"
     },
     "test/point5/family-webhooks-providers.integration.test.ts": {
       "sha256": "acf904184bea316df9858dbaa06963362bf66cd23f9f092fca08f1ee19fdb898",
@@ -348,9 +348,9 @@
         "webhook.tenant.workspace_reloaded",
         "webhook.terminal.stale_cannot_overwrite"
       ],
-      "runId": "de9b79ee-ea38-44aa-879f-f7aa04a49964",
+      "runId": "738447f4-b96d-492e-8794-d0e60fc07000",
       "binding": "3a6f665d47cd6b0d57b72e13ccbd5f4f27d8e4cf43d0fea5c63dc4c1d5e97178",
-      "recordedAtUtc": "2026-10-15T09:51:33.100Z"
+      "recordedAtUtc": "2026-10-15T18:09:16.032Z"
     },
     "test/phase-12-arch-005-automation-runtime.integration.test.ts": {
       "sha256": "795d8bd661bceef24fc223b53ed9a2b3e658ca993ec810b5f7afdeaaef9930e6",
@@ -366,9 +366,9 @@
         "auto.tenant.workspace_reloaded",
         "auto.terminal.stale_cannot_overwrite"
       ],
-      "runId": "de9b79ee-ea38-44aa-879f-f7aa04a49964",
+      "runId": "738447f4-b96d-492e-8794-d0e60fc07000",
       "binding": "3a6f665d47cd6b0d57b72e13ccbd5f4f27d8e4cf43d0fea5c63dc4c1d5e97178",
-      "recordedAtUtc": "2026-10-15T09:28:01.300Z"
+      "recordedAtUtc": "2026-10-15T17:36:30.504Z"
     },
     "test/point5/family-trash-grace.integration.test.ts": {
       "sha256": "04874b67814f5afde12516a300438d4b1ea6472d2a007922a763606563c8fc2f",
@@ -382,9 +382,9 @@
         "trashgrace.tenant.workspace_reloaded",
         "trashgrace.terminal.stale_cannot_overwrite"
       ],
-      "runId": "de9b79ee-ea38-44aa-879f-f7aa04a49964",
+      "runId": "738447f4-b96d-492e-8794-d0e60fc07000",
       "binding": "3a6f665d47cd6b0d57b72e13ccbd5f4f27d8e4cf43d0fea5c63dc4c1d5e97178",
-      "recordedAtUtc": "2026-10-15T09:45:44.761Z"
+      "recordedAtUtc": "2026-10-15T18:01:35.582Z"
     }
   }
 }

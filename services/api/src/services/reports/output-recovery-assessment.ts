@@ -26,7 +26,7 @@ import {
 } from "@proovra/shared-runtime/reports";
 
 import { prisma } from "../../db.js";
-import { headObject } from "../../storage.js";
+import { classifyStorageFailure, headRecordedObject } from "../../storage.js";
 import { resolveEvidenceOutputEligibility } from "../billing/evidence-output-eligibility.service.js";
 import { supersessionOrdinalOf } from "./output-recovery.service.js";
 
@@ -37,8 +37,21 @@ export const OUTPUT_RECOVERY_ASSESSMENTS = [
   "REPORT_REGENERATION_REQUIRED",
   "ACTIVE_REQUEST",
   "TERMINAL_FAILURE_REQUIRES_SUPERSESSION",
+  /**
+   * AUD-027 — a TECHNICAL terminal whose CUSTOMER supersession budget is spent.
+   * Not an integrity matter (nothing is wrong with the evidence or its
+   * outputs): an authorized operator supersedes it on the operator's own
+   * bounded budget, with a recorded reason.
+   */
+  "OPERATOR_SUPERSESSION_REQUIRED",
   "NOT_ENTITLED",
   "NOT_APPLICABLE",
+  /**
+   * AUD-011 — the store did not answer about an output object (transient), or
+   * refused us (permission / configuration). Nothing is known to be missing;
+   * nothing is requested. Re-run status; a permission failure is an alert.
+   */
+  "STORAGE_UNAVAILABLE",
   "REFUSED_INTEGRITY_FAILURE",
 ] as const;
 export type OutputRecoveryAssessmentKind = (typeof OUTPUT_RECOVERY_ASSESSMENTS)[number];
@@ -46,8 +59,9 @@ export type OutputRecoveryAssessmentKind = (typeof OUTPUT_RECOVERY_ASSESSMENTS)[
 /** What a HEAD proves about the latest report's object. */
 export type ReportObjectFinding =
   | "VERIFIABLE" // present, size as recorded, and at least one trusted hash source exists
-  | "MISSING" // the store answered not-found
-  | "UNREADABLE" // the store did not answer (transient or permission)
+  | "MISSING" // the store answered not-found for the recorded version
+  | "UNAVAILABLE" // the store did not answer (transient): retry, never "missing"
+  | "ACCESS_DENIED" // the store refused us or was addressed wrongly (permission / configuration)
   | "SIZE_MISMATCH" // present at another size than recorded
   | "HASH_MISMATCH" // two trusted hash sources disagree
   | "UNVERIFIABLE"; // present, but nothing can vouch for its bytes
@@ -62,7 +76,12 @@ export type OutputRecoveryAssessment = {
   latestReportVersion: number | null;
   latestReport: { version: number; finding: ReportObjectFinding; pdfSha256: string | null } | null;
   /** The package paired with the latest report, when one is published. */
-  pairedPackage: { version: number; objectExists: boolean } | null;
+  pairedPackage: {
+    version: number;
+    objectExists: boolean;
+    /** AUD-011 — what the HEAD of its recorded version answered. */
+    object: "PRESENT" | "NOT_FOUND" | "ACCESS_DENIED" | "TRANSIENT";
+  } | null;
   /** The request a recovery would collapse onto or supersede. */
   request: { id: string; state: string; terminalReasonCode: string | null; ordinal: number } | null;
   /** The newest live (QUEUED / PROCESSING / FAILED_RETRYABLE) request of the record, if any. */
@@ -81,17 +100,6 @@ export type AssessmentIo = {
 const LIVE_LIFECYCLE = new Set(["ACTIVE", "UNDER_REVIEW", "ON_HOLD", "RETENTION_LOCKED"]);
 const ACTIVE_STATES = new Set(["QUEUED", "PROCESSING", "FAILED_RETRYABLE"]);
 
-const isNotFound = (err: unknown): boolean => {
-  const e = err as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } } | null;
-  return (
-    e?.name === "NoSuchKey" ||
-    e?.name === "NotFound" ||
-    e?.Code === "NoSuchKey" ||
-    e?.$metadata?.httpStatusCode === 404 ||
-    /NoSuchKey|NotFound|404/.test(String((err as Error | null)?.message ?? ""))
-  );
-};
-
 /** HEAD the object and grade what it proves. Never reads the body. */
 export async function inspectReportObject(
   report: {
@@ -108,7 +116,16 @@ export async function inspectReportObject(
   try {
     head = await io.head({ bucket: report.storageBucket, key: report.storageKey, versionId: report.s3VersionId });
   } catch (err) {
-    return isNotFound(err) ? "MISSING" : "UNREADABLE";
+    // THE shared classifier (status + error name, the bucket confirmed): a
+    // transport or permission failure is never "missing".
+    switch (classifyStorageFailure(err)) {
+      case "NOT_FOUND":
+        return "MISSING";
+      case "ACCESS_DENIED":
+        return "ACCESS_DENIED";
+      default:
+        return "UNAVAILABLE";
+    }
   }
   if (report.sizeBytes != null && head.sizeBytes != null && BigInt(head.sizeBytes) !== report.sizeBytes) {
     return "SIZE_MISMATCH";
@@ -145,7 +162,7 @@ async function chainHead(evidenceId: string, baseKey: string) {
 
 export async function assessEvidenceOutputRecovery(
   ev: { id: string; ownerUserId: string; teamId: string | null },
-  io: AssessmentIo = { head: (p) => headObject({ ...p, withChecksum: true }) },
+  io: AssessmentIo = { head: (p) => headRecordedObject({ ...p, withChecksum: true }) },
 ): Promise<OutputRecoveryAssessment> {
   const row = await prisma.evidence.findUnique({
     where: { id: ev.id },
@@ -188,21 +205,28 @@ export async function assessEvidenceOutputRecovery(
     ? await prisma.verificationPackage
         .findMany({
           where: primaryPublishedPackageWhere({ evidenceId: ev.id, reportVersion: latest.version }),
-          select: { version: true, reportVersion: true, storageBucket: true, storageKey: true, packageSha256: true },
+          select: { version: true, reportVersion: true, storageBucket: true, storageKey: true, packageSha256: true, s3VersionId: true },
           orderBy: { version: "desc" },
           take: 1,
         })
         .then((rows) => rows.map(asPublishedPackage)[0] ?? null)
     : null;
-  let pairedExists = false;
+  // The paired package's RECORDED version, classified like the report's: a
+  // transient or permission failure is not a missing package (AUD-011).
+  let pairedObject: "PRESENT" | "NOT_FOUND" | "ACCESS_DENIED" | "TRANSIENT" = "PRESENT";
   if (paired) {
     try {
-      await io.head({ bucket: paired.storageBucket, key: paired.storageKey });
-      pairedExists = true;
-    } catch {
-      pairedExists = false;
+      const head = await io.head({
+        bucket: paired.storageBucket,
+        key: paired.storageKey,
+        versionId: (paired as { s3VersionId?: string | null }).s3VersionId ?? null,
+      });
+      if (head.sizeBytes != null && head.sizeBytes <= 0) pairedObject = "NOT_FOUND";
+    } catch (err) {
+      pairedObject = classifyStorageFailure(err);
     }
   }
+  const pairedExists = paired != null && pairedObject === "PRESENT";
 
   // The chain a recovery would act on: the package at the latest version, or
   // the record's first report.
@@ -236,7 +260,7 @@ export async function assessEvidenceOutputRecovery(
     lifecycleState: row?.lifecycleState ?? null,
     latestReportVersion: latest?.version ?? null,
     latestReport: latest ? { version: latest.version, finding: finding!, pdfSha256: latest.pdfSha256 } : null,
-    pairedPackage: paired ? { version: paired.version, objectExists: pairedExists } : null,
+    pairedPackage: paired ? { version: paired.version, objectExists: pairedExists, object: pairedObject } : null,
     request: head,
     activeRequestId: live?.id ?? null,
     eligibility: {
@@ -275,8 +299,10 @@ export async function assessEvidenceOutputRecovery(
       case "HASH_MISMATCH":
         // Altered bytes are a person's matter: neither packaged nor replaced.
         return decide("REFUSED_INTEGRITY_FAILURE", `REPORT_${finding}`);
-      case "UNREADABLE":
-        return decide("NOT_APPLICABLE", "REPORT_OBJECT_UNREADABLE_RETRY_STATUS");
+      case "UNAVAILABLE":
+        return decide("STORAGE_UNAVAILABLE", "REPORT_OBJECT_STORAGE_TRANSIENT_RETRY_STATUS");
+      case "ACCESS_DENIED":
+        return decide("STORAGE_UNAVAILABLE", "REPORT_OBJECT_STORAGE_ACCESS_DENIED");
       default:
         break;
     }
@@ -291,7 +317,7 @@ export async function assessEvidenceOutputRecovery(
     if (cls === "INTEGRITY") return decide("REFUSED_INTEGRITY_FAILURE", head.terminalReasonCode ?? "INTEGRITY");
     if (cls === "TECHNICAL") {
       return head.ordinal >= MAX_TERMINAL_SUPERSESSIONS
-        ? decide("REFUSED_INTEGRITY_FAILURE", "SUPERSESSION_BUDGET_EXHAUSTED")
+        ? decide("OPERATOR_SUPERSESSION_REQUIRED", "CUSTOMER_SUPERSESSION_BUDGET_EXHAUSTED")
         : decide("TERMINAL_FAILURE_REQUIRES_SUPERSESSION", head.terminalReasonCode ?? "TECHNICAL");
     }
     // COMMERCIAL / POLICY terminals are superseded by the writer itself once
@@ -304,10 +330,17 @@ export async function assessEvidenceOutputRecovery(
       : decide("NOT_ENTITLED", String(eligibility.reportEligibility));
   }
   if (row.status === "REPORTED" && latest && paired && !pairedExists) {
-    // A PUBLISHED package row whose object is gone: the worker counts the pair
-    // complete from its row, so a recovery request would build nothing. A
-    // person decides — it is never reported as recoverable.
-    return decide("REFUSED_INTEGRITY_FAILURE", "PAIRED_PACKAGE_OBJECT_MISSING");
+    // AUD-011 — the store did not answer, or refused us: nothing is known to
+    // be missing. Never an integrity refusal for a transport failure.
+    if (pairedObject === "TRANSIENT") return decide("STORAGE_UNAVAILABLE", "PAIRED_PACKAGE_STORAGE_TRANSIENT_RETRY_STATUS");
+    if (pairedObject === "ACCESS_DENIED") return decide("STORAGE_UNAVAILABLE", "PAIRED_PACKAGE_STORAGE_ACCESS_DENIED");
+    // A PUBLISHED package row whose recorded version is GONE: the worker counts
+    // the pair complete from its row, so a package-only request would build
+    // nothing, and the row is immutable history. The recovery is one new,
+    // verified, correctly paired version — when entitled.
+    return eligibility.reportEligibility === "ELIGIBLE" && eligibility.packageEligibility === "ELIGIBLE"
+      ? decide("REPORT_REGENERATION_REQUIRED", "PAIRED_PACKAGE_OBJECT_MISSING")
+      : decide("NOT_ENTITLED", `PAIRED_PACKAGE_MISSING_AND_${String(eligibility.packageEligibility)}`);
   }
   if (row.status === "REPORTED" && latest && !paired) {
     return eligibility.packageEligibility === "ELIGIBLE"

@@ -112,8 +112,10 @@ vi.mock("../src/storage.js", async (importOriginal) => {
       return Readable.from([body]);
     },
     applyDefaultObjectRetention: async () => ({ applied: false, reason: "object_lock_disabled" }),
-    deleteObject: async (p: { bucket: string; key: string }) => {
-      objectStore.objects.delete(keyOf(p));
+    // AUD-028 — the worker removal is version-aware and reports what it proved.
+    deleteObjectVersions: async (p: { bucket: string; key: string }) => {
+      const had = objectStore.objects.delete(keyOf(p));
+      return { deleted: had, deletedVersions: had ? 1 : 0, retainedVersions: 0, deleteMarkerOnly: false, failed: 0 };
     },
   };
 });

@@ -510,6 +510,10 @@ describe("legacy report/package recovery (Postgres + Redis + MinIO, real process
     const ev = await legacyIncidentRecord();
     // Same key, different bytes (MinIO keeps the new upload's checksum, so the
     // store alone would agree with them — the issuance record does not).
+    // A legacy row recorded no VersionId, so it names whatever is latest at its
+    // key. (A row that recorded one is pinned to its own bytes: on a versioned
+    // bucket an overwrite at the key does not alter the recorded version.)
+    await prisma.report.update({ where: { evidenceId_version: { evidenceId: ev.evidenceId, version: 7 } }, data: { s3VersionId: null } });
     await workerStorage.putObjectBuffer({ bucket: ev.v7Key.bucket, key: ev.v7Key.key, body: Buffer.from("%PDF-1.7 altered\n"), contentType: "application/pdf" });
     const pre = await assessment.assessEvidenceOutputRecovery({ id: ev.evidenceId, ownerUserId: ev.ownerUserId, teamId: ev.teamId });
     expect(pre.assessment).toBe("REFUSED_INTEGRITY_FAILURE");
@@ -533,7 +537,8 @@ describe("legacy report/package recovery (Postgres + Redis + MinIO, real process
 
   it("MISSING OBJECT (7eddb7d6 shape): status, dry run and apply never select package recovery; --regenerate issues ONE verified new version", async () => {
     const ev = await legacyIncidentRecord();
-    await workerStorage.deleteObject({ bucket: ev.v7Key.bucket, key: ev.v7Key.key });
+    // The actual stored VERSION(S) removed — not a key-only marker over them (AUD-028).
+    expect((await workerStorage.deleteObjectVersions({ bucket: ev.v7Key.bucket, key: ev.v7Key.key })).deleted).toBe(true);
 
     const pre = await assessment.assessEvidenceOutputRecovery({ id: ev.evidenceId, ownerUserId: ev.ownerUserId, teamId: ev.teamId });
     expect(pre).toMatchObject({ assessment: "REPORT_REGENERATION_REQUIRED", reason: "REPORT_OBJECT_MISSING", latestReport: { version: 7, finding: "MISSING" }, complete: false });
@@ -724,5 +729,323 @@ describe("legacy report/package recovery (Postgres + Redis + MinIO, real process
     const ps = await otsSurfaces(p.evidenceId, (await primaryPackages(p.evidenceId))[0]!);
     expect([ps.manifest, ps.matrix, ps.canonicalRecord, ps.api]).toEqual(["PENDING", "PENDING", "PENDING", "PENDING"]);
     void pendingOtsProofFor;
+  }, 240_000);
+  // ===================================================================== AUD-011
+  //
+  // A report/package ROW whose stored object is gone, a store that does not
+  // answer, and a store that refuses us are three different facts. Each
+  // surface — download route, single-record status, assessment, CLI — states
+  // the one that is true, and an entitled caller recovers a missing file by a
+  // NEW verified, correctly paired version through the canonical writer.
+
+  async function issuedPair() {
+    const ev = await signedAnchoredEvidence("ANCHORED");
+    expect(await processFixtureRequest(await rawRequest(ev, false))).toBeNull();
+    const [report] = await prisma.report.findMany({
+      where: { evidenceId: ev.evidenceId },
+      select: { version: true, storageBucket: true, storageKey: true, s3VersionId: true, pdfSha256: true },
+    });
+    const [pkg] = await primaryPackages(ev.evidenceId);
+    expect(report!.version).toBe(1);
+    expect(pkg!.reportVersion).toBe(1);
+    return { ...ev, report: report!, pkg: pkg! };
+  }
+
+  const api = (method: "GET" | "POST", url: string, token: string, payload?: unknown) =>
+    harness.app.inject({ method, url, headers: { authorization: `Bearer ${token}` }, ...(payload ? { payload: payload as never } : {}) });
+  const statusOf = async (evidenceId: string, token = harness.fixtures.teamA.ownerToken) => {
+    const res = await api("GET", `/v1/evidence/${evidenceId}/artifacts/status`, token);
+    expect(res.statusCode, res.body).toBe(200);
+    return res.json() as {
+      outputs: Record<"report" | "verificationPackage", { state: string; availability: string; action: string; operation: string | null; actionUnavailableReason: string | null; version: number | null }>;
+      report: { available: boolean };
+      verificationPackage: { available: boolean };
+    };
+  };
+  async function removeEveryVersion(bucket: string, key: string) {
+    // Delete the actual VERSION(S), not a key-only marker over them (AUD-028).
+    const removal = await workerStorage.deleteObjectVersions({ bucket, key });
+    expect(removal).toMatchObject({ deleted: true, retainedVersions: 0, failed: 0 });
+  }
+  /** Route the API's object-store client through another real client for one case. */
+  async function withApiStorageClient<T>(client: import("@aws-sdk/client-s3").S3Client, fn: () => Promise<T>): Promise<T> {
+    const apiStorage = await import("../src/storage.js");
+    const { clearStoredObjectProbeCache } = await import("../src/services/reports/output-recovery.service.js");
+    clearStoredObjectProbeCache();
+    const spy = vi.spyOn(apiStorage.s3, "send").mockImplementation(((cmd: never) => client.send(cmd)) as never);
+    try {
+      return await fn();
+    } finally {
+      spy.mockRestore();
+      clearStoredObjectProbeCache();
+      client.destroy();
+    }
+  }
+  async function s3ClientFor(endpoint: string, credentials: { accessKeyId: string; secretAccessKey: string }) {
+    const { S3Client } = await import("@aws-sdk/client-s3");
+    return new S3Client({ endpoint, region: "us-east-1", forcePathStyle: true, credentials, maxAttempts: 1 });
+  }
+
+  it("AUD-011 MISSING REPORT FILE: status says missing (not available), download is 410 with the recovery permission, a member recovers ONE new verified pair, a repeat returns the SAME request, a viewer cannot", async () => {
+    const ev = await issuedPair();
+    const { teamA } = harness.fixtures;
+    await removeEveryVersion(ev.report.storageBucket, ev.report.storageKey);
+    const { clearStoredObjectProbeCache } = await import("../src/services/reports/output-recovery.service.js");
+    clearStoredObjectProbeCache();
+
+    // The single-record view HEADs the recorded version: not "available".
+    const before = await statusOf(ev.evidenceId);
+    expect(before.outputs.report).toMatchObject({ state: "ARTIFACT_MISSING", availability: "MISSING", action: "RECOVER", operation: "NEW_VERSION", version: 1 });
+    expect(before.report.available).toBe(false);
+    expect(before.outputs.verificationPackage).toMatchObject({ action: "NONE", actionUnavailableReason: "FOLLOWS_REPORT" });
+
+    // The download: 410 (the version is gone), naming whether this caller may recover.
+    const dl = await api("GET", `/v1/evidence/${ev.evidenceId}/report/latest`, teamA.ownerToken);
+    expect(dl.statusCode).toBe(410);
+    expect(dl.json()).toMatchObject({ code: "report_artifact_missing", recoveryPermitted: true });
+    const dlVersion = await api("GET", `/v1/evidence/${ev.evidenceId}/reports/1`, teamA.ownerToken);
+    expect([dlVersion.statusCode, dlVersion.json().code]).toEqual([410, "report_artifact_missing"]);
+
+    // The assessment agrees.
+    const pre = await assessment.assessEvidenceOutputRecovery({ id: ev.evidenceId, ownerUserId: ev.ownerUserId, teamId: ev.teamId });
+    expect(pre).toMatchObject({ assessment: "REPORT_REGENERATION_REQUIRED", reason: "REPORT_OBJECT_MISSING", latestReport: { version: 1, finding: "MISSING" } });
+
+    // A viewer cannot trigger it; nothing is created.
+    const requestsBefore = await prisma.reportGenerationRequest.count({ where: { evidenceId: ev.evidenceId } });
+    const viewer = await api("POST", `/v1/evidence/${ev.evidenceId}/reports/regenerate`, teamA.viewerToken, { intent: "RECOVER" });
+    expect([403, 404]).toContain(viewer.statusCode);
+    expect(await prisma.reportGenerationRequest.count({ where: { evidenceId: ev.evidenceId } })).toBe(requestsBefore);
+
+    // A member recovers: ONE new version through the canonical writer.
+    const member = await api("POST", `/v1/evidence/${ev.evidenceId}/reports/regenerate`, teamA.memberToken, { intent: "RECOVER" });
+    expect(member.statusCode, member.body).toBe(202);
+    expect(member.json()).toMatchObject({ operation: "NEW_VERSION", enqueued: true });
+    const requestId = member.json().requestId as string;
+    const row = await prisma.reportGenerationRequest.findUniqueOrThrow({
+      where: { id: requestId },
+      select: { forceRegenerate: true, clientRequestKey: true, intent: true, state: true },
+    });
+    expect(row).toMatchObject({ forceRegenerate: true, clientRequestKey: `recover-missing:${ev.evidenceId}:v1`, intent: "NEW_VERSION", state: "QUEUED" });
+
+    // An admin's repeat while it is in flight returns the SAME request (idempotent, no loop).
+    const admin = await api("POST", `/v1/evidence/${ev.evidenceId}/reports/regenerate`, teamA.adminToken, { intent: "RECOVER" });
+    expect(admin.statusCode, admin.body).toBe(202);
+    expect(admin.json().requestId).toBe(requestId);
+    expect(await prisma.reportGenerationRequest.count({ where: { evidenceId: ev.evidenceId } })).toBe(requestsBefore + 1);
+
+    // The worker issues v2 and its package, correctly paired; v1 stays as history.
+    expect(await runJob(await jobFor(requestId), 0)).toBeNull();
+    const reports = await reportsOf(ev.evidenceId);
+    expect(reports.map((r) => r.version)).toEqual([1, 2]);
+    expect(reports[0]).toMatchObject({ storageKey: ev.report.storageKey, pdfSha256: ev.report.pdfSha256 });
+    const pkgs = await primaryPackages(ev.evidenceId);
+    expect(pkgs.map((p) => [p.version, p.reportVersion])).toEqual([[1, 1], [2, 2]]);
+    const v2Bytes = (await readObject(reports[1]!.storageBucket, reports[1]!.storageKey))!;
+    const v2pkg = pkgs.at(-1)!;
+    expect(v2pkg.reportSha256).toBe(sha256Hex(v2Bytes));
+    const entries = readZipEntries((await readObject(v2pkg.storageBucket, v2pkg.storageKey))!);
+    const pdfName = [...entries.keys()].find((k) => k.endsWith("proovra-verification-report-v2.pdf"));
+    expect(pdfName && entries.get(pdfName)!.equals(v2Bytes)).toBe(true);
+
+    clearStoredObjectProbeCache();
+    const after = await statusOf(ev.evidenceId);
+    expect(after.outputs.report).toMatchObject({ state: "READY", availability: "READY", version: 2 });
+    expect(after.outputs.verificationPackage).toMatchObject({ state: "READY", version: 2 });
+    expect((await assessment.assessEvidenceOutputRecovery({ id: ev.evidenceId, ownerUserId: ev.ownerUserId, teamId: ev.teamId })).assessment).toBe("COMPLETE");
+    // Nothing left to recover; and the old missing version is still refused as gone.
+    const third = await api("POST", `/v1/evidence/${ev.evidenceId}/reports/regenerate`, teamA.ownerToken, { intent: "RECOVER" });
+    expect(third.json()).toMatchObject({ outcome: "NOTHING_TO_RECOVER" });
+    expect((await api("GET", `/v1/evidence/${ev.evidenceId}/reports/1`, teamA.ownerToken)).statusCode).toBe(410);
+    expect(await prisma.report.count({ where: { evidenceId: ev.evidenceId } })).toBe(2);
+  }, 240_000);
+
+  it("AUD-011 MISSING PACKAGE FILE: assessed as recoverable (not an integrity refusal), recovered as ONE new correctly paired version", async () => {
+    const ev = await issuedPair();
+    await removeEveryVersion(ev.pkg.storageBucket, ev.pkg.storageKey);
+    const { clearStoredObjectProbeCache } = await import("../src/services/reports/output-recovery.service.js");
+    clearStoredObjectProbeCache();
+    const pre = await assessment.assessEvidenceOutputRecovery({ id: ev.evidenceId, ownerUserId: ev.ownerUserId, teamId: ev.teamId });
+    expect(pre).toMatchObject({ assessment: "REPORT_REGENERATION_REQUIRED", reason: "PAIRED_PACKAGE_OBJECT_MISSING", pairedPackage: { version: 1, objectExists: false, object: "NOT_FOUND" } });
+    const st = await statusOf(ev.evidenceId);
+    expect(st.outputs.report).toMatchObject({ state: "READY", action: "NONE" });
+    expect(st.outputs.verificationPackage).toMatchObject({ state: "ARTIFACT_MISSING", action: "RECOVER", operation: "NEW_VERSION" });
+    expect(st.verificationPackage.available).toBe(false);
+    const dl = await api("GET", `/v1/evidence/${ev.evidenceId}/verification-package`, harness.fixtures.teamA.ownerToken);
+    expect([dl.statusCode, dl.json().code]).toEqual([410, "verification_package_artifact_missing"]);
+
+    const res = await api("POST", `/v1/evidence/${ev.evidenceId}/reports/regenerate`, harness.fixtures.teamA.ownerToken, { intent: "RECOVER", output: "verificationPackage" });
+    expect(res.statusCode, res.body).toBe(202);
+    expect(await runJob(await jobFor(res.json().requestId), 0)).toBeNull();
+    expect((await primaryPackages(ev.evidenceId)).map((p) => [p.version, p.reportVersion])).toEqual([[1, 1], [2, 2]]);
+    clearStoredObjectProbeCache();
+    expect((await assessment.assessEvidenceOutputRecovery({ id: ev.evidenceId, ownerUserId: ev.ownerUserId, teamId: ev.teamId })).assessment).toBe("COMPLETE");
+  }, 240_000);
+
+  it("AUD-011 TRANSIENT STORAGE (unreachable endpoint): 503 STORAGE_UNAVAILABLE, never 410, never 'missing'; status keeps the artifact available; nothing requested", async () => {
+    const ev = await issuedPair();
+    const unreachable = await s3ClientFor("http://127.0.0.1:1", { accessKeyId: "point7-local-minio", secretAccessKey: "point7-local-minio-secret" });
+    await withApiStorageClient(unreachable, async () => {
+      const dl = await api("GET", `/v1/evidence/${ev.evidenceId}/report/latest`, harness.fixtures.teamA.ownerToken);
+      expect(dl.statusCode).toBe(503);
+      expect(dl.json()).toMatchObject({ code: "STORAGE_UNAVAILABLE", retryable: true });
+      expect(dl.headers["retry-after"]).toBe("5");
+      const pkg = await api("GET", `/v1/evidence/${ev.evidenceId}/verification-packages/1`, harness.fixtures.teamA.ownerToken);
+      expect([pkg.statusCode, pkg.json().code]).toEqual([503, "STORAGE_UNAVAILABLE"]);
+      const st = await statusOf(ev.evidenceId);
+      expect(st.outputs.report).toMatchObject({ state: "READY", availability: "READY" });
+      expect(st.outputs.verificationPackage).toMatchObject({ state: "READY" });
+      const a = await assessment.assessEvidenceOutputRecovery({ id: ev.evidenceId, ownerUserId: ev.ownerUserId, teamId: ev.teamId });
+      expect(a).toMatchObject({ assessment: "STORAGE_UNAVAILABLE", reason: "REPORT_OBJECT_STORAGE_TRANSIENT_RETRY_STATUS", latestReport: { finding: "UNAVAILABLE" } });
+      const before = await prisma.reportGenerationRequest.count({ where: { evidenceId: ev.evidenceId } });
+      const applied = await cli.recoverEvidenceOutputs({ evidenceId: ev.evidenceId, apply: true, regenerate: true });
+      expect(applied.results[0]).toMatchObject({ assessment: "STORAGE_UNAVAILABLE", action: "retry_status_storage_unavailable" });
+      expect(await prisma.reportGenerationRequest.count({ where: { evidenceId: ev.evidenceId } })).toBe(before);
+    });
+    // The store answers again: the same record is plainly available.
+    const ok = await api("GET", `/v1/evidence/${ev.evidenceId}/report/latest`, harness.fixtures.teamA.ownerToken);
+    expect(ok.statusCode, ok.body).toBe(200);
+  }, 240_000);
+
+  it("AUD-011 PERMISSION FAILURE (wrong credentials against real MinIO): 503 STORAGE_ACCESS_FAILED alert, never 410, never an integrity refusal", async () => {
+    const ev = await issuedPair();
+    const wrong = await s3ClientFor(process.env.S3_ENDPOINT!, { accessKeyId: "not-a-real-key", secretAccessKey: "not-a-real-secret-0000" });
+    await withApiStorageClient(wrong, async () => {
+      const dl = await api("GET", `/v1/evidence/${ev.evidenceId}/report/latest`, harness.fixtures.teamA.ownerToken);
+      expect(dl.statusCode).toBe(503);
+      expect(dl.json()).toMatchObject({ code: "STORAGE_ACCESS_FAILED", retryable: false });
+      const st = await statusOf(ev.evidenceId);
+      expect(st.outputs.report).toMatchObject({ state: "READY", availability: "READY" });
+      const a = await assessment.assessEvidenceOutputRecovery({ id: ev.evidenceId, ownerUserId: ev.ownerUserId, teamId: ev.teamId });
+      expect(a).toMatchObject({ assessment: "STORAGE_UNAVAILABLE", reason: "REPORT_OBJECT_STORAGE_ACCESS_DENIED", latestReport: { finding: "ACCESS_DENIED" } });
+      expect(a.assessment).not.toBe("REFUSED_INTEGRITY_FAILURE");
+    });
+  }, 240_000);
+
+  // ===================================================================== AUD-027
+
+  /** A report v1 whose package chain is a TECHNICAL terminal at the end of the CUSTOMER budget. */
+  async function exhaustedPackageChain() {
+    const ev = await signedAnchoredEvidence("ANCHORED");
+    seam.retryableBuildFailures = 1;
+    const first = await rawRequest(ev, false);
+    await processFixtureRequest(first);
+    expect((await reportsOf(ev.evidenceId)).map((r) => r.version)).toEqual([1]);
+    expect(await primaryPackages(ev.evidenceId)).toEqual([]);
+    await prisma.reportGenerationRequest.update({
+      where: { id: first },
+      data: { state: "FAILED_TERMINAL", terminalReasonCode: "ACC_PACKAGE_BUILD_FAILED", completedAtUtc: new Date() },
+    });
+    const { MAX_TERMINAL_SUPERSESSIONS } = await import("@proovra/shared");
+    const base = `VERIFICATION_PACKAGE:${ev.evidenceId}:v1`;
+    for (let n = 0; n <= MAX_TERMINAL_SUPERSESSIONS; n += 1) {
+      await prisma.reportGenerationRequest.create({
+        data: {
+          teamId: ev.teamId,
+          evidenceId: ev.evidenceId,
+          artifactType: "VERIFICATION_PACKAGE",
+          purpose: "package_recovery",
+          requestedByMachineId: "legacy-fixture",
+          expectedPolicyVersion: 0,
+          idempotencyKey: n === 0 ? base : `${base}:s${n}`,
+          state: "FAILED_TERMINAL",
+          terminalReasonCode: "ACC_PACKAGE_BUILD_FAILED",
+          reportVersion: 1,
+          createdAtUtc: new Date(Date.now() + n),
+          completedAtUtc: new Date(Date.now() + n),
+        } as never,
+      });
+    }
+    return { ...ev, base, max: MAX_TERMINAL_SUPERSESSIONS };
+  }
+
+  it("AUD-027 an authorized operator recovers AFTER the customer budget is exhausted — on its own bounded budget, recorded with actor, reason and key; no customer loophole", async () => {
+    const ev = await exhaustedPackageChain();
+    const { teamA } = harness.fixtures;
+
+    // The customer budget is spent: escalated, and a customer click creates nothing.
+    const st = await statusOf(ev.evidenceId);
+    expect(st.outputs.verificationPackage).toMatchObject({ action: "NONE", actionUnavailableReason: "ESCALATED_TO_OPERATOR" });
+    const count = () => prisma.reportGenerationRequest.count({ where: { evidenceId: ev.evidenceId } });
+    const before = await count();
+    const customer = await api("POST", `/v1/evidence/${ev.evidenceId}/reports/regenerate`, teamA.ownerToken, { intent: "RETRY", output: "verificationPackage" });
+    expect(customer.statusCode).toBe(409);
+    expect(await count()).toBe(before);
+
+    // The assessment names the operator matter — not an integrity refusal.
+    const pre = await assessment.assessEvidenceOutputRecovery({ id: ev.evidenceId, ownerUserId: ev.ownerUserId, teamId: ev.teamId });
+    expect(pre).toMatchObject({ assessment: "OPERATOR_SUPERSESSION_REQUIRED", reason: "CUSTOMER_SUPERSESSION_BUDGET_EXHAUSTED" });
+    const dry = await cli.recoverEvidenceOutputs({ evidenceId: ev.evidenceId, apply: true });
+    expect(dry.results[0]).toMatchObject({ action: "operator_supersession_via_incident_remediation_with_reason" });
+    expect(dry.code).toBe(0);
+    expect(await count()).toBe(before);
+
+    // The platform operator path (POST /v1/admin/incidents/:id/remediate { supersede, reason }).
+    const { executePlatformRecordRecovery } = await import("../src/services/operations/remediation-executor.js");
+    const owner = (await prisma.team.findUniqueOrThrow({ where: { id: teamA.teamId }, select: { ownerUserId: true } })).ownerUserId;
+    const incidentId = randomUUID();
+    const target = { component: "VERIFICATION_PACKAGE" as const, evidenceId: ev.evidenceId, reportVersion: 1 };
+    // Without a reason it is no operator supersession: the customer ceiling holds.
+    const unreasoned = await executePlatformRecordRecovery({ target, actorUserId: owner, supersede: true, reason: "", incidentId });
+    expect(unreasoned.result).toBe("NOT_ELIGIBLE");
+    expect(await count()).toBe(before);
+
+    const recovered = await executePlatformRecordRecovery({ target, actorUserId: owner, supersede: true, reason: "Package builder fixed in release 2026.10.15", incidentId });
+    expect(recovered.result, recovered.message).toBe("QUEUED");
+    const successor = await prisma.reportGenerationRequest.findUniqueOrThrow({
+      where: { id: recovered.reference! },
+      select: { idempotencyKey: true, intent: true, requestedByUserId: true, regenerateReason: true, clientRequestKey: true, state: true },
+    });
+    expect(successor).toMatchObject({
+      idempotencyKey: `${ev.base}:s${ev.max + 1}`,
+      intent: "OPERATOR_SUPERSEDE",
+      requestedByUserId: owner,
+      state: "QUEUED",
+    });
+    expect(successor.regenerateReason).toBe("operator: Package builder fixed in release 2026.10.15");
+    expect(successor.clientRequestKey).toMatch(new RegExp(`^op:platform-incident:${incidentId}:`));
+    // Idempotent: the same operator request while it is in flight creates nothing new.
+    const again = await executePlatformRecordRecovery({ target, actorUserId: owner, supersede: true, reason: "Package builder fixed in release 2026.10.15", incidentId });
+    expect(again.result).toBe("ALREADY_IN_PROGRESS");
+    expect(await count()).toBe(before + 1);
+
+    // It runs: one package, paired with report v1; the dead rows stay as history.
+    expect(await runJob(await jobFor(recovered.reference!), 0)).toBeNull();
+    expect((await primaryPackages(ev.evidenceId)).map((p) => [p.version, p.reportVersion])).toEqual([[1, 1]]);
+    expect(await prisma.reportGenerationRequest.count({ where: { evidenceId: ev.evidenceId, state: "FAILED_TERMINAL" } })).toBe(ev.max + 2);
+    expect((await assessment.assessEvidenceOutputRecovery({ id: ev.evidenceId, ownerUserId: ev.ownerUserId, teamId: ev.teamId })).assessment).toBe("COMPLETE");
+  }, 240_000);
+
+  it("AUD-027 the operator budget is bounded per record per window, and a customer never draws on it", async () => {
+    const ev = await exhaustedPackageChain();
+    const { MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW } = await import("@proovra/shared");
+    const { executePlatformRecordRecovery } = await import("../src/services/operations/remediation-executor.js");
+    const owner = (await prisma.team.findUniqueOrThrow({ where: { id: harness.fixtures.teamA.teamId }, select: { ownerUserId: true } })).ownerUserId;
+    const target = { component: "VERIFICATION_PACKAGE" as const, evidenceId: ev.evidenceId, reportVersion: 1 };
+    const count = () => prisma.reportGenerationRequest.count({ where: { evidenceId: ev.evidenceId } });
+    for (let i = 0; i < MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW; i += 1) {
+      const r = await executePlatformRecordRecovery({ target, actorUserId: owner, supersede: true, reason: `operator attempt ${i + 1}`, incidentId: randomUUID() });
+      expect(r.result, r.message).toBe("QUEUED");
+      // That attempt fails technically too.
+      await prisma.reportGenerationRequest.update({
+        where: { id: r.reference! },
+        data: { state: "FAILED_TERMINAL", terminalReasonCode: "ACC_PACKAGE_BUILD_FAILED", completedAtUtc: new Date() },
+      });
+    }
+    const spent = await count();
+    const refused = await executePlatformRecordRecovery({ target, actorUserId: owner, supersede: true, reason: "one more try", incidentId: randomUUID() });
+    expect(refused.result).toBe("NOT_ELIGIBLE");
+    expect(refused.message).toMatch(/operator recovery budget/);
+    expect(await count()).toBe(spent);
+    // A customer — even one with the supersession right — cannot use what the operator could not.
+    const customer = await api("POST", `/v1/evidence/${ev.evidenceId}/reports/regenerate`, harness.fixtures.teamA.ownerToken, { intent: "RETRY", output: "verificationPackage" });
+    expect(customer.statusCode).toBe(409);
+    expect(await count()).toBe(spent);
+    // The window moves on: an attempt older than the window no longer counts.
+    await prisma.reportGenerationRequest.updateMany({
+      where: { evidenceId: ev.evidenceId, intent: "OPERATOR_SUPERSEDE" },
+      data: { createdAtUtc: new Date(Date.now() - 25 * 60 * 60 * 1000) } as never,
+    });
+    const nextDay = await executePlatformRecordRecovery({ target, actorUserId: owner, supersede: true, reason: "after investigation", incidentId: randomUUID() });
+    expect(nextDay.result, nextDay.message).toBe("QUEUED");
   }, 240_000);
 });

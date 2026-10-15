@@ -613,8 +613,8 @@ async function runCaptureDraftReaper(trigger: string) {
     // reads. This worker is the only reaper; a failure here is rethrown by the
     // run and reported below, never swallowed inside it.
     {
-      const { deleteObject } = await import("./storage.js");
-      const sweep = await runCaptureReaperSweep({ trigger, deleteObject });
+      const { deleteObjectVersions } = await import("./storage.js");
+      const sweep = await runCaptureReaperSweep({ trigger, deleteObject: deleteObjectVersions });
       if (sweep.failed > 0) {
         logger.warn({ ...sweep, trigger }, "capture.reaper.partial");
       }
@@ -626,9 +626,9 @@ async function runCaptureDraftReaper(trigger: string) {
       const bucket = process.env.S3_BUCKET;
       if (bucket) {
         const { reconcileStaleStaging } = await import("./verification-package-staging.js");
-        const { listObjects, deleteObject } = await import("./storage.js");
-        const res = await reconcileStaleStaging({ bucket, listObjects, deleteObject });
-        if (res.deleted > 0) logger.info({ ...res, trigger }, "package_staging.reconciled");
+        const { listObjects, deleteObjectVersions } = await import("./storage.js");
+        const res = await reconcileStaleStaging({ bucket, listObjects, deleteObject: deleteObjectVersions });
+        if (res.deleted > 0 || res.retained > 0 || res.failed > 0) logger.info({ ...res, trigger }, "package_staging.reconciled");
       }
     } catch (stagingErr) {
       logger.warn(

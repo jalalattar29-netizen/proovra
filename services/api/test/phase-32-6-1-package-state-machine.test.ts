@@ -200,9 +200,10 @@ describe("Phase 32.6.1 — artifact status `blocked` projection", () => {
 
   it("when a package row EXISTS, blocked is forced to false regardless of metadata", () => {
     const code = stripComments(SERVICE_SRC);
-    // The latestPackage branch always returns blocked: false.
+    // The latestPackage branch always returns blocked: false. (AUD-011: the
+    // branch is also conditional on the stored file not being proven missing.)
     expect(code).toMatch(
-      /latestPackage\s*\?\s*\{[\s\S]{0,400}blocked: false,[\s\S]{0,200}blockedOutcome: null,/,
+      /latestPackage(?: && packageAvailability === "READY")?\s*\?\s*\{[\s\S]{0,400}blocked: false,[\s\S]{0,200}blockedOutcome: null,/,
     );
   });
 });

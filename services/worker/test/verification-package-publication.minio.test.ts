@@ -28,7 +28,10 @@
  */
 import { createHash, randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
+import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
+
+const require = createRequire(import.meta.url);
 
 const ENDPOINT = process.env.OBJECT_LOCK_MINIO_ENDPOINT;
 const run = ENDPOINT ? describe : describe.skip;
@@ -138,7 +141,10 @@ run("publication to an Object-Lock bucket with default COMPLIANCE retention", as
     expect(after.filter((v) => !v.isDeleteMarker)).toHaveLength(1);
   });
 
-  it("a key-only delete of a locked object leaves the locked version (delete marker only)", async () => {
+  // AUD-028 — the worker's removal is version-aware and reports what a
+  // post-delete listing proves. The key-only delete it replaced answered
+  // { deleted: true } here while the COMPLIANCE version stayed behind a marker.
+  it("version-aware removal of a COMPLIANCE-locked object: retained, deleted:false, no delete marker written", async () => {
     const key = `reports/${RUN}/v2/req-del.pdf`;
     const a = Buffer.from("%PDF locked");
     await publishImmutableArtifact({
@@ -148,9 +154,77 @@ run("publication to an Object-Lock bucket with default COMPLIANCE retention", as
       sha256Base64: createHash("sha256").update(a).digest("base64"),
       contentType: "application/pdf",
     });
-    await storage.deleteObject({ bucket: BUCKET, key });
+    const removal = await storage.deleteObjectVersions({ bucket: BUCKET, key });
+    expect(removal).toEqual({ deleted: false, deletedVersions: 0, retainedVersions: 1, deleteMarkerOnly: false, failed: 0 });
     const versions = await storage.s3.send(new ListObjectVersionsCommand({ Bucket: BUCKET, Prefix: key }));
-    expect((versions.Versions ?? []).length).toBe(1);
-    expect((versions.DeleteMarkers ?? []).length).toBe(1);
+    expect((versions.Versions ?? []).filter((v) => v.Key === key)).toHaveLength(1);
+    // Never attempted, so the locked bytes are not hidden behind a marker.
+    expect((versions.DeleteMarkers ?? []).filter((m) => m.Key === key)).toHaveLength(0);
+    const head = await storage.headObject({ bucket: BUCKET, key });
+    expect(head.sizeBytes).toBe(a.length);
+  });
+
+  it("the staging reconciler counts a locked orphan as retained, never as reclaimed", async () => {
+    const { reconcileStaleStaging, STAGING_PREFIX } = await import("../src/verification-package-staging.js");
+    const key = `${STAGING_PREFIX}${RUN}/locked-orphan.zip`;
+    await storage.putObjectBuffer({ bucket: BUCKET, key, body: Buffer.from("PK orphan"), contentType: "application/zip" });
+    const res = await reconcileStaleStaging({
+      bucket: BUCKET,
+      listObjects: async (q) => (await storage.listObjects(q)).filter((o) => o.key === key),
+      deleteObject: storage.deleteObjectVersions,
+      ttlMs: 0,
+    });
+    expect(res).toMatchObject({ scanned: 1, deleted: 0, retained: 1, failed: 0 });
+    const versions = await storage.s3.send(new ListObjectVersionsCommand({ Bucket: BUCKET, Prefix: key }));
+    expect((versions.Versions ?? []).filter((v) => v.Key === key)).toHaveLength(1);
+  });
+
+  describe("an UNLOCKED versioned bucket", () => {
+    const { CreateBucketCommand, PutBucketVersioningCommand, PutObjectCommand, DeleteObjectCommand } =
+      require("@aws-sdk/client-s3") as typeof import("@aws-sdk/client-s3");
+    const PLAIN = `plain-${RUN}`.slice(0, 60).toLowerCase();
+    let ready: Promise<void> | null = null;
+    const bucket = () =>
+      (ready ??= (async () => {
+        await storage.s3.send(new CreateBucketCommand({ Bucket: PLAIN }));
+        await storage.s3.send(new PutBucketVersioningCommand({ Bucket: PLAIN, VersioningConfiguration: { Status: "Enabled" } }));
+      })());
+    const put = (key: string, body: string) =>
+      storage.s3.send(new PutObjectCommand({ Bucket: PLAIN, Key: key, Body: Buffer.from(body) }));
+
+    it("removes EVERY version by VersionId and proves it with a listing", async () => {
+      await bucket();
+      const key = "staging/two-versions.zip";
+      await put(key, "first");
+      await put(key, "second");
+      const removal = await storage.deleteObjectVersions({ bucket: PLAIN, key });
+      expect(removal).toEqual({ deleted: true, deletedVersions: 2, retainedVersions: 0, deleteMarkerOnly: false, failed: 0 });
+      const left = await storage.s3.send(new ListObjectVersionsCommand({ Bucket: PLAIN, Prefix: key }));
+      expect((left.Versions ?? []).filter((v) => v.Key === key)).toHaveLength(0);
+      expect((left.DeleteMarkers ?? []).filter((m) => m.Key === key)).toHaveLength(0);
+    });
+
+    it("removes ONLY the named version when one is given", async () => {
+      await bucket();
+      const key = "keyframes/shared.jpg";
+      const first = await put(key, "earlier generation");
+      const second = await put(key, "this run");
+      const removal = await storage.deleteObjectVersions({ bucket: PLAIN, key, versionId: second.VersionId });
+      expect(removal).toMatchObject({ deleted: true, deletedVersions: 1 });
+      const left = await storage.s3.send(new ListObjectVersionsCommand({ Bucket: PLAIN, Prefix: key }));
+      expect((left.Versions ?? []).map((v) => v.VersionId)).toEqual([first.VersionId]);
+    });
+
+    it("a key holding only a delete marker is NOT counted as a deletion", async () => {
+      await bucket();
+      const key = "staging/marker-only.zip";
+      await put(key, "gone soon");
+      const listed = await storage.s3.send(new ListObjectVersionsCommand({ Bucket: PLAIN, Prefix: key }));
+      // Remove the data version itself, leaving only a marker at the key.
+      await storage.s3.send(new DeleteObjectCommand({ Bucket: PLAIN, Key: key }));
+      await storage.s3.send(new DeleteObjectCommand({ Bucket: PLAIN, Key: key, VersionId: listed.Versions![0]!.VersionId }));
+      const removal = await storage.deleteObjectVersions({ bucket: PLAIN, key });
+      expect(removal).toEqual({ deleted: false, deletedVersions: 0, retainedVersions: 0, deleteMarkerOnly: true, failed: 0 });
+    });
   });
 });

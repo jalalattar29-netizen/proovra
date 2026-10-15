@@ -37,6 +37,10 @@ import {
   // TECHNICAL terminal at one baseline may be superseded before the record is an
   // operator matter. Shared so the offer and this writer cannot disagree.
   MAX_TERMINAL_SUPERSESSIONS,
+  // AUD-027 — the operator's own, separate budget (see the shared constants).
+  MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW,
+  OPERATOR_SUPERSESSION_WINDOW_MS,
+  OPERATOR_SUPERSESSION_INTENT,
 } from "@proovra/shared";
 import { resolveEvidenceWorkspaceId } from "../workspace-scope.js";
 
@@ -129,6 +133,17 @@ export type CreateReportGenerationRequestInput = {
    * POLICY or COMMERCIAL terminal, and never a live request.
    */
   supersedeTechnicalTerminal?: boolean;
+  /**
+   * AUD-027 — an AUTHORIZED OPERATOR supersession (platform incident
+   * remediation or the Operations "Retry after exhausted failure"), whose
+   * route has already proven the operator's authority and recorded the
+   * reason. It draws on the operator budget, not the customer one, and is
+   * recorded on the row: the operator as requester, the reason, the intent
+   * OPERATOR_SUPERSESSION_INTENT and `requestKey` as the replay key (a repeat
+   * of the same operator request returns the same row). Requires
+   * `supersedeTechnicalTerminal`; never set by a customer or automatic path.
+   */
+  operatorSupersession?: { actorUserId: string; reason: string; requestKey: string } | null;
 };
 
 export type CreateReportGenerationRequestResult =
@@ -148,6 +163,12 @@ export type CreateReportGenerationRequestResult =
       superseded: boolean;
       /** The caller's idempotency key matched an earlier request, returned as-is. */
       replayed?: boolean;
+      /**
+       * AUD-027 — the supersession was refused because a budget is spent: the
+       * customer chain budget (no operator asked) or the operator's windowed
+       * budget. The caller collapsed onto the terminal head.
+       */
+      supersessionBudgetExhausted?: "CUSTOMER" | "OPERATOR";
       /**
        * The terminal reason when `state` is a terminal one, so the caller can
        * tell a still-standing recoverable blocker apart from a dead terminal
@@ -220,7 +241,22 @@ export async function createReportGenerationRequest(
 
   const artifactType: ReportArtifactType = input.artifactType ?? "REPORT";
   const forceRegenerate = input.forceRegenerate === true;
-  const clientRequestKey = input.clientRequestKey?.trim().slice(0, 80) || null;
+  // AUD-027 — an operator supersession is only ever the named operator's own,
+  // with a reason and a replay key; anything less is not one.
+  const operator =
+    input.operatorSupersession &&
+    input.supersedeTechnicalTerminal === true &&
+    input.operatorSupersession.actorUserId &&
+    input.operatorSupersession.actorUserId === input.requestedByUserId &&
+    input.operatorSupersession.reason.trim().length >= 3 &&
+    input.operatorSupersession.requestKey.trim().length > 0
+      ? input.operatorSupersession
+      : null;
+  if (input.operatorSupersession && !operator) {
+    return { created: false, reason: "operator_supersession_incomplete" };
+  }
+  const clientRequestKey =
+    (operator ? `op:${operator.requestKey.trim()}` : input.clientRequestKey?.trim())?.slice(0, 80) || null;
 
   // ---- A repeat of an explicit request after a lost response --------------
   // The caller's key names ONE request for this record, whatever state it is
@@ -460,9 +496,34 @@ export async function createReportGenerationRequest(
   // the same ordinal still race the unique index for exactly one winner.
   const withinSupersessionBudget = headOrdinal < MAX_TERMINAL_SUPERSESSIONS;
 
+  /*
+   * AUD-027 — THE OPERATOR DRAWS ON ITS OWN BUDGET. An authorized operator
+   * supersession of a TECHNICAL terminal is bounded by the operator budget:
+   * at most MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW operator-minted requests
+   * for this RECORD in the window, counted from the rows themselves (their
+   * intent marks them). The customer ceiling above no longer collapses it onto
+   * the dead head. Its ordinal still advances the chain, so a customer never
+   * regains budget from an operator's work.
+   */
+  let supersessionBudgetExhausted: "CUSTOMER" | "OPERATOR" | undefined;
+  let withinBudget = withinSupersessionBudget;
+  if (operator && technicalTerminalSuperseded) {
+    const since = new Date(Date.now() - OPERATOR_SUPERSESSION_WINDOW_MS);
+    const usedByOperators = await prisma.reportGenerationRequest.count({
+      where: { evidenceId, intent: OPERATOR_SUPERSESSION_INTENT, createdAtUtc: { gte: since } },
+    });
+    withinBudget = usedByOperators < MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW;
+    if (!withinBudget) supersessionBudgetExhausted = "OPERATOR";
+  } else if (
+    (commerciallyObsolete || blockerCleared || technicalTerminalSuperseded) &&
+    !withinSupersessionBudget
+  ) {
+    supersessionBudgetExhausted = "CUSTOMER";
+  }
+
   if (
     (commerciallyObsolete || blockerCleared || technicalTerminalSuperseded) &&
-    withinSupersessionBudget
+    withinBudget
   ) {
     idempotencyKey = `${baseKey}:s${headOrdinal + 1}`.slice(0, 160);
     superseded = true;
@@ -476,7 +537,8 @@ export async function createReportGenerationRequest(
         artifactType,
         purpose: input.purpose,
         forceRegenerate,
-        regenerateReason: input.regenerateReason?.trim()?.slice(0, 120) || null,
+        regenerateReason:
+          (operator ? `operator: ${operator.reason.trim()}` : input.regenerateReason?.trim())?.slice(0, 120) || null,
         requestedByUserId: input.requestedByUserId ?? null,
         requestedByMachineId:
           input.requestedByMachineId?.trim()?.slice(0, 64) || null,
@@ -484,7 +546,9 @@ export async function createReportGenerationRequest(
         idempotencyKey,
         state: "QUEUED",
         reportVersion: targetReportVersion,
-        intent: input.intent?.trim().slice(0, 24) || null,
+        // An operator supersession is marked on its row; that mark is what
+        // the operator budget counts (AUD-027).
+        intent: (operator && superseded ? OPERATOR_SUPERSESSION_INTENT : input.intent?.trim())?.slice(0, 24) || null,
         clientRequestKey,
       },
       select: { id: true, state: true },
@@ -558,6 +622,7 @@ export async function createReportGenerationRequest(
        * returns null and is correct to.
        */
       terminalReasonCode: existing.terminalReasonCode,
+      ...(supersessionBudgetExhausted ? { supersessionBudgetExhausted } : {}),
     };
   }
 }

@@ -17,7 +17,7 @@ vi.mock("../../worker/src/storage.js", () => ({
     uploads.bodies.push(p.body);
     return { versionId: null };
   },
-  deleteObject: async () => undefined,
+  deleteObjectVersions: async () => ({ deleted: true, deletedVersions: 1, retainedVersions: 0, deleteMarkerOnly: false, failed: 0 }),
 }));
 vi.mock("../../worker/src/config.js", () => ({ env: { S3_BUCKET: "test-bucket" } }));
 vi.mock("../../worker/src/db.js", () => ({ prisma: {} }));

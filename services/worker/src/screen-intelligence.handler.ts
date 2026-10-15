@@ -43,7 +43,7 @@ import {
 import { prisma } from "./db.js";
 import { artifactLockFor } from "./object-retention.js";
 import { logger } from "./logger.js";
-import { getObjectStream, putObjectBuffer, deleteObject } from "./storage.js";
+import { getObjectStream, putObjectBuffer, deleteObjectVersions } from "./storage.js";
 import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 import { getFfmpegVersion, pngDimensions, produceVideoKeyframes } from "./ffmpeg-derived-assets.js";
 import {
@@ -256,8 +256,17 @@ export async function processReconstructScreenJob(
           const put = await putObjectBuffer({ bucket, key, body, contentType, lock: await artifactLockFor(evidenceId) });
           return { versionId: put?.versionId ?? null };
         },
-        deleteObject: async ({ bucket, key }) => {
-          await deleteObject({ bucket, key });
+        // AUD-028 — exactly the version this run wrote; a locked version is
+        // kept by the store and reported as retained, never as deleted.
+        deleteObject: async ({ bucket, key, versionId }) => {
+          const removal = await deleteObjectVersions({ bucket, key, versionId: versionId ?? null });
+          if (!removal.deleted) {
+            logger.warn(
+              { evidenceId, retainedVersions: removal.retainedVersions, failed: removal.failed },
+              "screen_intelligence.unreferenced_object_not_removed",
+            );
+          }
+          return removal;
         },
         ocr: {
           name: ocrProvider?.name ?? "tesseract",

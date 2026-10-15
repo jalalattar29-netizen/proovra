@@ -361,8 +361,11 @@ function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
     case "QUEUED":
     case "GENERATING":
       return "pending";
+    // AUD-011 — ARTIFACT_MISSING: an issued file proven gone is a failure to
+    // hold the output (list views never probe, so they do not produce it today).
     case "RETRYABLE_FAILURE":
     case "TERMINAL_FAILURE":
+    case "ARTIFACT_MISSING":
       return "failed";
     case "NOT_INCLUDED":
     case "ENTITLEMENT_UNAVAILABLE":
@@ -406,8 +409,11 @@ function toPackageLifecycle(state: EvidenceOutputState): PackageLifecycle {
     case "QUEUED":
     case "GENERATING":
       return "pending";
+    // AUD-011 — ARTIFACT_MISSING: an issued file proven gone is a failure to
+    // hold the output (list views never probe, so they do not produce it today).
     case "RETRYABLE_FAILURE":
     case "TERMINAL_FAILURE":
+    case "ARTIFACT_MISSING":
       return "failed";
     case "NOT_INCLUDED":
     case "ENTITLEMENT_UNAVAILABLE":

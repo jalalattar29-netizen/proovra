@@ -104,6 +104,8 @@ export type RequestReportGenerationInput = {
   clientRequestKey?: string | null;
   /** Operator-only: supersede a TECHNICAL terminal (see the writer). */
   supersedeTechnicalTerminal?: boolean;
+  /** AUD-027 — an authorized operator supersession, on the operator budget (see the writer). */
+  operatorSupersession?: { actorUserId: string; reason: string; requestKey: string } | null;
 };
 
 export type RequestReportGenerationResult =
@@ -386,7 +388,13 @@ export async function requestReportGeneration(
       requested: true,
       requestId: persisted.requestId,
       enqueued: false,
-      reason: "already_terminal",
+      // AUD-027 — which budget refused a supersession, when one did.
+      reason:
+        persisted.supersessionBudgetExhausted === "OPERATOR"
+          ? "operator_supersession_budget_exhausted"
+          : persisted.supersessionBudgetExhausted === "CUSTOMER"
+            ? "supersession_budget_exhausted"
+            : "already_terminal",
       deduplicated: persisted.deduplicated,
       terminalState: persisted.state,
       outcome: blockedButRecoverable ? "RECOVERABLE_BLOCKED" : "TERMINAL",

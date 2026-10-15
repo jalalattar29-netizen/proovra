@@ -35,7 +35,7 @@ export type ArtifactDownloadFailure = {
   report: boolean;
 };
 
-type ErrorShape = { statusCode?: unknown; code?: unknown };
+type ErrorShape = { statusCode?: unknown; code?: unknown; details?: unknown; recoveryPermitted?: unknown };
 
 function noun(kind: ArtifactKind): string {
   return kind === "report" ? "report" : "verification package";
@@ -61,7 +61,19 @@ export function resolveArtifactDownloadFailure(
   // ---- Bounded codes (precedence over status) -----------------------------
   if (code === "report_artifact_missing" || code === "verification_package_artifact_missing") {
     // An issued version is immutable: its missing file is never re-generated
-    // in place. It is an integrity matter for support, not a recovery verb.
+    // in place. AUD-011 — a caller the server says may recover is offered the
+    // recovery: ONE new verified, correctly paired version (the record's
+    // "Issue a new verified version" action); anyone else is told plainly.
+    const details = (e.details ?? {}) as { recoveryPermitted?: unknown };
+    if (e.recoveryPermitted === true || details.recoveryPermitted === true) {
+      return {
+        message: `The stored file of this ${n} version is unavailable. You can issue a new verified version; the existing version is kept as it is.`,
+        severity: "warning",
+        retryable: false,
+        action: "RECOVER",
+        report: false,
+      };
+    }
     return {
       message: `The ${n} record exists, but its stored file is unavailable. Contact support; nothing has been changed.`,
       severity: "warning",
@@ -100,6 +112,10 @@ export function resolveArtifactDownloadFailure(
     case "STORAGE_UNAVAILABLE":
     case "storage_unavailable":
       return { message: `The ${n} storage is temporarily unavailable. Retry shortly.`, severity: "info", retryable: true, action: "RETRY", report: false };
+    // AUD-011 — the store refused the server (permission / configuration).
+    // Never "missing", never the customer's to fix; the team is alerted.
+    case "STORAGE_ACCESS_FAILED":
+      return { message: `The ${n} could not be read because of a storage access problem. Our team has been alerted; nothing has been changed.`, severity: "error", retryable: false, action: "NONE", report: false };
     default:
       break;
   }

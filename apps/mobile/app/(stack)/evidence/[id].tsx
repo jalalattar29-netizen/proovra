@@ -970,7 +970,8 @@ export default function EvidenceDetailScreen() {
     const view = kind === "report" ? outputs.report : outputs.package;
     const intent = view.state !== null ? asOutputRequestIntent(view.action) : null;
     if (!intent) return null;
-    const label = outputActionLabel(kind, intent);
+    // AUD-011 — a proven-missing file is recovered as a NEW verified version; say so.
+    const label = outputActionLabel(kind, intent, "full", view.operation === "NEW_VERSION" ? "NEW_VERSION" : null);
     return (
       <View style={{ gap: 6 }}>
         {/* A confirmed generation incident, beside the control it affects. */}

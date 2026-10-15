@@ -294,16 +294,34 @@ vi.mock("../../../worker/src/storage.js", async (importOriginal) => {
  */
 vi.mock("../../src/storage.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/storage.js")>();
+  const head = async (p: { bucket: string; key: string }) => {
+    const o = storage.objects.get(storage.at(p.bucket, p.key));
+    if (!o) {
+      const err = new Error(`NoSuchKey: ${p.key}`) as Error & { name: string };
+      err.name = "NoSuchKey";
+      throw err;
+    }
+    return { sizeBytes: o.body.length, contentType: o.contentType, metadata: o.metadata } as never;
+  };
   return {
     ...actual,
-    headObject: async (p: { bucket: string; key: string }) => {
-      const o = storage.objects.get(storage.at(p.bucket, p.key));
-      if (!o) {
-        const err = new Error(`NoSuchKey: ${p.key}`) as Error & { name: string };
-        err.name = "NoSuchKey";
-        throw err;
+    headObject: head,
+    // AUD-011 — the recorded-version HEAD and its probe read the same
+    // in-process store (classified through the real classifier).
+    headRecordedObject: async (p: { bucket: string; key: string }) => {
+      try {
+        return await head(p);
+      } catch (err) {
+        throw new actual.StorageReadError(actual.classifyStorageFailure(err), 404);
       }
-      return { sizeBytes: o.body.length, contentType: o.contentType, metadata: o.metadata } as never;
+    },
+    probeStoredObject: async (p: { bucket: string; key: string }) => {
+      try {
+        const h = (await head(p)) as { sizeBytes: number };
+        return { state: "PRESENT" as const, sizeBytes: h.sizeBytes };
+      } catch (err) {
+        return { state: actual.classifyStorageFailure(err) };
+      }
     },
   };
 });

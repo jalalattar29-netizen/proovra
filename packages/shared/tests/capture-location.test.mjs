@@ -88,3 +88,17 @@ test("invalid or absent location does not build a display model", () => {
     null
   );
 });
+
+test("AUD-025: no default tile server — tiles carry no URL and the label says the map is local", () => {
+  const model = buildCaptureLocationDisplayModel({ lat: 52.52, lng: 13.405, accuracyMeters: 18 });
+  assert.ok(model);
+  assert.equal(model.tileTemplate, null);
+  assert.ok(model.tiles.every((t) => t.url === null));
+  assert.ok(!JSON.stringify(model).includes("tile.openstreetmap"));
+  assert.equal(model.attributionLabel, "Map imagery unavailable · rendered locally from recorded coordinates");
+  const svg = buildCaptureLocationStaticMapFallbackSvg({ lat: 52.52, lng: 13.405, accuracyMeters: 18 });
+  assert.ok(!/(?:href|src)=["']https?:/.test(svg) && !svg.includes("openstreetmap"));
+  // A configured endpoint is used, and only then.
+  const configured = buildCaptureLocationDisplayModel({ lat: 52.52, lng: 13.405, tileTemplate: "https://tiles.internal.example/{z}/{x}/{y}.png" });
+  assert.ok(configured.tiles.some((t) => t.url?.startsWith("https://tiles.internal.example/")));
+});

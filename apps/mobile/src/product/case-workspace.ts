@@ -373,7 +373,14 @@ export const DELETE_CASE_CONSEQUENCE =
 
 /** Only states with a real action behind them need attention (READY / NOT_INCLUDED / NOT_APPLICABLE / QUEUED / GENERATING do not). */
 export function caseOutputNeedsAttention(state: string | null): boolean {
-  return state === "ELIGIBLE_NOT_GENERATED" || state === "RETRYABLE_FAILURE" || state === "TERMINAL_FAILURE" || state === "BLOCKED";
+  return (
+    state === "ELIGIBLE_NOT_GENERATED" ||
+    state === "RETRYABLE_FAILURE" ||
+    state === "TERMINAL_FAILURE" ||
+    state === "BLOCKED" ||
+    // AUD-011 — an issued file proven gone is outstanding.
+    state === "ARTIFACT_MISSING"
+  );
 }
 
 export function deriveCaseNeedsAttention(envelope: unknown): Array<{ key: string; label: string }> {
@@ -445,6 +452,8 @@ export function caseOutputLabel(state: string | null, noun: "Report" | "Package"
       return `${noun} generation failed`;
     case "BLOCKED":
       return `${noun} blocked`;
+    case "ARTIFACT_MISSING":
+      return `${noun} file unavailable`;
     default:
       return null;
   }

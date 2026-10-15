@@ -367,6 +367,9 @@ describe("P1-1 — one output decision, rendered by every surface", () => {
         // A blocked or terminal state legitimately has no action AND is worth
         // reporting — those are the two the predicate deliberately keeps.
         if (state === "BLOCKED" || state === "TERMINAL_FAILURE") continue;
+        // AUD-011 — an issued file proven gone is worth reporting even where
+        // the plan no longer lets this record issue a replacement.
+        if (state === "ARTIFACT_MISSING") continue;
         if (state === "QUEUED" || state === "GENERATING") continue;
         if (state === "READY") continue;
         expect(

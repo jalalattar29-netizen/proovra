@@ -285,7 +285,9 @@ import {
   presignPutObject,
   headObject,
   getObjectRange,
+  probeStoredObject,
 } from "../storage.js";
+import { bump as bumpOpsMetric } from "@proovra/shared-runtime/ops";
 import { verifyJwt } from "../services/jwt.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { admitPublicVerifyClient, admitPublicVerifyTarget } from "../services/public-verify/public-verify-gate.js";
@@ -677,6 +679,81 @@ const CERTIFICATION_REFUSALS: ReadonlyArray<{ code: string }> = [
   { code: "CERTIFICATION_STATEMENT_CHANGED" },
 ];
 const CERTIFICATION_REFUSAL_CODES = new Set(CERTIFICATION_REFUSALS.map((r) => r.code));
+
+/**
+ * AUD-011 — THE ONE ANSWER FOR AN ISSUED ARTIFACT'S STORED FILE.
+ *
+ * Each download route HEADed the object BY KEY and answered ANY failure with
+ * 410 "file unavailable" — while the presigned URL named the recorded
+ * VersionId, so the HEAD and the download could describe different objects,
+ * and a throttled, unreachable or mis-credentialed store was reported to the
+ * customer as a missing artifact. Now the RECORDED version is HEADed and the
+ * failure is classified once (storage.ts classifyStorageFailure):
+ *
+ *   NOT_FOUND (or an empty object)  410 <missingCode> — the version is gone.
+ *                                    `recoveryPermitted` says whether this
+ *                                    caller may ask for a new, verified pair.
+ *   TRANSIENT                        503 STORAGE_UNAVAILABLE, Retry-After.
+ *   ACCESS_DENIED                    503 STORAGE_ACCESS_FAILED, logged and
+ *                                    counted as an operator alert.
+ *
+ * Returns null when the recorded version is present and non-empty.
+ */
+async function guardStoredArtifact(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  input: {
+    evidenceId: string;
+    actorUserId: string;
+    bucket: string;
+    key: string;
+    versionId: string | null;
+    missingCode: "report_artifact_missing" | "verification_package_artifact_missing";
+    missingMessage: string;
+  },
+): Promise<FastifyReply | null> {
+  const probe = await probeStoredObject({ bucket: input.bucket, key: input.key, versionId: input.versionId });
+  if (probe.state === "PRESENT" && probe.sizeBytes != null && probe.sizeBytes > 0) return null;
+  if (probe.state === "PRESENT" || probe.state === "NOT_FOUND") {
+    const recoveryPermitted = await resolveEvidenceRecordAccess({
+      userId: input.actorUserId,
+      evidenceId: input.evidenceId,
+      permission: "evidence.generate_report",
+    })
+      .then((a) => a.allowed)
+      .catch(() => false);
+    return reply.code(410).send({
+      code: input.missingCode,
+      message: input.missingMessage,
+      recoveryPermitted,
+      // Where structured clients read fields (the web ApiError keeps `details`).
+      details: { recoveryPermitted },
+    });
+  }
+  if (probe.state === "TRANSIENT") {
+    req.log.warn({ evidenceId: input.evidenceId, storage: "transient" }, "artifact.download.storage_unavailable");
+    bumpOpsMetric("artifact_storage_unavailable_total");
+    reply.header("Retry-After", "5");
+    return reply.code(503).send({
+      code: "STORAGE_UNAVAILABLE",
+      retryable: true,
+      message: "Storage is temporarily unavailable. Nothing has been changed; retry shortly.",
+    });
+  }
+  // A permission or configuration failure is never the customer's matter and
+  // never "missing": it is an operator alert.
+  req.log.error(
+    { evidenceId: input.evidenceId, bucket: input.bucket, alert: "storage_access_failed" },
+    "artifact.download.storage_access_failed",
+  );
+  bumpOpsMetric("artifact_storage_access_failed_total");
+  return reply.code(503).send({
+    code: "STORAGE_ACCESS_FAILED",
+    retryable: false,
+    message:
+      "The file could not be read because of a storage access or configuration problem. Our team has been alerted; nothing has been changed.",
+  });
+}
 
 function sendCertificationFailure(reply: FastifyReply, err: unknown) {
   const statusCode =
@@ -11874,22 +11951,17 @@ limitationsSnapshot: true,
         return reply.code(404).send({ message: "Report not found" });
       }
 
-      try {
-        const meta = await headObject({
+      {
+        const refused = await guardStoredArtifact(req, reply, {
+          evidenceId: id,
+          actorUserId: ownerUserId,
           bucket: latest.storageBucket,
           key: latest.storageKey,
+          versionId: latest.s3VersionId ?? null,
+          missingCode: "report_artifact_missing",
+          missingMessage: "The stored report record exists, but its file is unavailable.",
         });
-        if (!meta.sizeBytes || meta.sizeBytes <= 0) {
-          return reply.code(410).send({
-            code: "report_artifact_missing",
-            message: "The stored report record exists, but its file is unavailable.",
-          });
-        }
-      } catch {
-        return reply.code(410).send({
-          code: "report_artifact_missing",
-          message: "The stored report record exists, but its file is unavailable.",
-        });
+        if (refused) return refused;
       }
 
       await appendCustodyEvent({
@@ -12079,22 +12151,17 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
       });
       if (!row) return reply.code(404).send({ message: "Report not found" });
 
-      try {
-        const meta = await headObject({
+      {
+        const refused = await guardStoredArtifact(req, reply, {
+          evidenceId: id,
+          actorUserId: ownerUserId,
           bucket: row.storageBucket,
           key: row.storageKey,
+          versionId: row.s3VersionId ?? null,
+          missingCode: "report_artifact_missing",
+          missingMessage: "The stored report version exists, but its file is unavailable.",
         });
-        if (!meta.sizeBytes || meta.sizeBytes <= 0) {
-          return reply.code(410).send({
-            code: "report_artifact_missing",
-            message: "The stored report version exists, but its file is unavailable.",
-          });
-        }
-      } catch {
-        return reply.code(410).send({
-          code: "report_artifact_missing",
-          message: "The stored report version exists, but its file is unavailable.",
-        });
+        if (refused) return refused;
       }
 
       await appendCustodyEvent({
@@ -12200,24 +12267,17 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
           .send({ message: "Verification package not found" });
       }
 
-      try {
-        const meta = await headObject({
+      {
+        const refused = await guardStoredArtifact(req, reply, {
+          evidenceId: id,
+          actorUserId: ownerUserId,
           bucket: row.storageBucket,
           key: row.storageKey,
+          versionId: row.s3VersionId ?? null,
+          missingCode: "verification_package_artifact_missing",
+          missingMessage: "The stored verification package version exists, but its file is unavailable.",
         });
-        if (!meta.sizeBytes || meta.sizeBytes <= 0) {
-          return reply.code(410).send({
-            code: "verification_package_artifact_missing",
-            message:
-              "The stored verification package version exists, but its file is unavailable.",
-          });
-        }
-      } catch {
-        return reply.code(410).send({
-          code: "verification_package_artifact_missing",
-          message:
-            "The stored verification package version exists, but its file is unavailable.",
-        });
+        if (refused) return refused;
       }
 
       await appendCustodyEvent({
@@ -12355,14 +12415,17 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         where: publishedProfilePackageWhere("FULL_FORENSIC", { evidenceId: id, version }),
         select: { id: true },
       });
-      try {
-        const meta = await headObject({ bucket: row.storageBucket, key: row.storageKey });
-        if (!meta.sizeBytes || meta.sizeBytes <= 0) throw new Error("empty");
-      } catch {
-        return reply.code(410).send({
-          code: "verification_package_artifact_missing",
-          message: "The external disclosure package exists, but its file is unavailable.",
+      {
+        const refused = await guardStoredArtifact(req, reply, {
+          evidenceId: id,
+          actorUserId,
+          bucket: row.storageBucket,
+          key: row.storageKey,
+          versionId: row.s3VersionId ?? null,
+          missingCode: "verification_package_artifact_missing",
+          missingMessage: "The external disclosure package exists, but its file is unavailable.",
         });
+        if (refused) return refused;
       }
 
       await appendCustodyEvent({
@@ -12883,24 +12946,17 @@ displayName: resolvedDisplayName,
           });
       }
 
-      try {
-        const meta = await headObject({
+      {
+        const refused = await guardStoredArtifact(req, reply, {
+          evidenceId: id,
+          actorUserId: ownerUserId,
           bucket: latest.storageBucket,
           key: latest.storageKey,
+          versionId: latest.s3VersionId ?? null,
+          missingCode: "verification_package_artifact_missing",
+          missingMessage: "The stored verification package record exists, but its file is unavailable.",
         });
-        if (!meta.sizeBytes || meta.sizeBytes <= 0) {
-          return reply.code(410).send({
-            code: "verification_package_artifact_missing",
-            message:
-              "The stored verification package record exists, but its file is unavailable.",
-          });
-        }
-      } catch {
-        return reply.code(410).send({
-          code: "verification_package_artifact_missing",
-          message:
-            "The stored verification package record exists, but its file is unavailable.",
-        });
+        if (refused) return refused;
       }
 
       const url = await presignGetObject({

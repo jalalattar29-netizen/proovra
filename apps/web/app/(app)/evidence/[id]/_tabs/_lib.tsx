@@ -519,6 +519,11 @@ export const OUTPUT_STATE_COPY: Record<
   TERMINAL_FAILURE: {
     reason: (noun) => `The ${noun} could not be produced for this record.`,
   },
+  // AUD-011 — the issued version's stored file is proven gone.
+  ARTIFACT_MISSING: {
+    reason: (noun) =>
+      `The stored file of the issued ${noun} is unavailable. It is never re-issued in place; a new verified version can be issued.`,
+  },
   BLOCKED: {
     reason: (noun) => `${noun} generation is blocked by a policy decision.`,
   },
@@ -536,6 +541,7 @@ const OUTPUT_STATE_LABEL: Record<EvidenceOutputState, string> = {
   ENTITLEMENT_UNAVAILABLE: "Checking subscription",
   // P1-3 — a record condition, never a commercial one.
   NOT_APPLICABLE: "Not available for this record",
+  ARTIFACT_MISSING: "Stored file unavailable",
 };
 
 export function describeReportArtifactStatus(
