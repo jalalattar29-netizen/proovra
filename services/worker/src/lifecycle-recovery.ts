@@ -18,12 +18,12 @@
  *   - Idempotent: `enqueueReportJob` dedupes by the deterministic report
  *     job id, so overlapping ticks / multiple replicas are safe (no
  *     distributed lock required for correctness).
- *   - Churn-free: plan eligibility is re-derived with the SAME helpers the
- *     report processor uses (`resolveEffectivePlanForEvidence` +
- *     `canPlanGenerateReports`), so evidence whose plan should never have a
+ *   - Churn-free: eligibility is re-derived per record by the ONE issuance
+ *     authority the report processor uses (see
+ *     first-issuance-reconciliation.ts), so a record that should never have a
  *     report is skipped rather than re-enqueued every tick. (The processor
- *     re-validates plan eligibility again anyway, so this is defence in
- *     depth, not the sole guard.)
+ *     re-validates per record again anyway, so this is defence in depth, not
+ *     the sole guard.)
  *   - Bounded: an age window (min/max) plus a batch cap. Evidence younger
  *     than `minSignedAgeMs` is left alone so we never race normal in-flight
  *     report generation; evidence older than `maxSignedAgeMs` is left for

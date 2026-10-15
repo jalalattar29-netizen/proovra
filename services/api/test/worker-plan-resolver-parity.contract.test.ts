@@ -100,12 +100,12 @@ describe("Worker plan-resolver parity with API", () => {
     expect(API_BILLING).not.toMatch(/ownerPlanSupportsTeams\s*\?/);
   });
 
-  it("worker uses the SAME shared predicate (canPlanGenerateReports) the API uses for the deny check", () => {
+  it("worker and API take their output predicates from the SAME shared package", () => {
     // The mismatch was in the INPUT (plan resolution), not the
-    // PREDICATE. We pin that both sides keep importing the SAME
-    // canPlanGenerateReports from @proovra/shared-billing — if a
-    // future change replaces one side with a local predicate, this
-    // test catches the divergence.
+    // PREDICATE. Both sides keep importing their entitlement predicates from
+    // @proovra/shared-billing (the plan-only `canPlanGenerateReports` was
+    // removed — output eligibility is per record) — if a future change
+    // replaces one side with a local predicate, this test catches it.
     expect(API_BILLING.includes("@proovra/shared-billing")).toBe(true);
     // The worker imports it transitively via processor.ts; the resolver
     // module itself imports getPlanCapabilities from the same package.

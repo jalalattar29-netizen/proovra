@@ -3,7 +3,6 @@ import { prisma } from "./db.js";
 import { resolveEvidenceOutputIssuance } from "./output-issuance.js";
 import {
   getPlanCapabilities,
-  resolveEvidenceOutputEntitlements,
   resolveWorkspaceEffectivePlan,
   resolvePersonalEffectivePlan,
   type EvidenceFundingSource,
@@ -499,29 +498,45 @@ export async function resolveEvidenceFundingSource(
   return entry?.entryType === "CONSUMPTION" ? "EVIDENCE_CREDIT" : "PLAN";
 }
 
+/**
+ * An artifact gate without a record has nothing to ask the per-record
+ * authority, and the old plan-only fallback answered a per-record question
+ * from the plan (which grants every FREE workspace reports). Refused instead.
+ */
+function requireArtifactEvidenceId(evidenceId: string | null | undefined): string {
+  if (typeof evidenceId !== "string" || evidenceId.trim().length === 0) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "Output eligibility requires the evidence record",
+    );
+    err.statusCode = 409;
+    err.code = "OUTPUT_ELIGIBILITY_UNRESOLVED";
+    throw err;
+  }
+  return evidenceId;
+}
+
 export async function assertWorkspaceAllowsReportArtifact(params: {
   ownerUserId: string;
   teamId?: string | null;
   incomingBytes?: bigint | number | null;
   /**
-   * The Evidence record this artifact belongs to. When supplied, a
-   * credit-funded record earns its report regardless of the workspace plan.
-   * Omitted only by callers that have no single record in hand.
+   * The Evidence record this artifact belongs to — REQUIRED. Output
+   * eligibility is a per-record question (funding, the stored earned fact,
+   * lifecycle); there is no plan-only answer for an artifact, so a caller
+   * without a record is refused rather than answered from the plan.
    */
-  evidenceId?: string | null;
+  evidenceId: string;
 }) {
   const scope = await resolveWorkspaceScopeForEvidence(params);
   // FREE THREE-RECORD CONTRACT — a single record is answered by THE issuance
   // decision (funding, the stored earned fact, lifecycle), exactly as the
   // generation claim asked it; a plan-only answer here could refuse a record
   // the claim had just entitled (or entitle a FREE record outside the three).
-  const outputs = params.evidenceId
-    ? await resolveEvidenceOutputIssuance({
-        id: params.evidenceId,
-        ownerUserId: params.ownerUserId,
-        teamId: params.teamId ?? null,
-      })
-    : resolveEvidenceOutputEntitlements({ plan: scope.plan, funding: "PLAN" });
+  const outputs = await resolveEvidenceOutputIssuance({
+    id: requireArtifactEvidenceId(params.evidenceId),
+    ownerUserId: params.ownerUserId,
+    teamId: params.teamId ?? null,
+  });
 
   if (!outputs.reportsIncluded) {
     const err: Error & { statusCode?: number; code?: string } = new Error(
@@ -547,21 +562,19 @@ export async function assertWorkspaceAllowsVerificationPackageArtifact(params: {
   ownerUserId: string;
   teamId?: string | null;
   incomingBytes?: bigint | number | null;
-  /** See `assertWorkspaceAllowsReportArtifact`. */
-  evidenceId?: string | null;
+  /** REQUIRED — see `assertWorkspaceAllowsReportArtifact`. */
+  evidenceId: string;
 }) {
   const scope = await resolveWorkspaceScopeForEvidence(params);
   // FREE THREE-RECORD CONTRACT — a single record is answered by THE issuance
   // decision (funding, the stored earned fact, lifecycle), exactly as the
   // generation claim asked it; a plan-only answer here could refuse a record
   // the claim had just entitled (or entitle a FREE record outside the three).
-  const outputs = params.evidenceId
-    ? await resolveEvidenceOutputIssuance({
-        id: params.evidenceId,
-        ownerUserId: params.ownerUserId,
-        teamId: params.teamId ?? null,
-      })
-    : resolveEvidenceOutputEntitlements({ plan: scope.plan, funding: "PLAN" });
+  const outputs = await resolveEvidenceOutputIssuance({
+    id: requireArtifactEvidenceId(params.evidenceId),
+    ownerUserId: params.ownerUserId,
+    teamId: params.teamId ?? null,
+  });
 
   if (!outputs.verificationPackageIncluded) {
     const err: Error & { statusCode?: number; code?: string } = new Error(

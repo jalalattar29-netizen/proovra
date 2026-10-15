@@ -730,13 +730,13 @@ export function canPlanPurchasePersonalWorkspacePlan(plan: PlanType): boolean {
   return getPlanCapabilities(plan).allowsPersonalWorkspacePurchase;
 }
 
-export function canPlanGenerateReports(plan: PlanType): boolean {
-  return getPlanCapabilities(plan).reportsIncluded;
-}
-
-export function canPlanGenerateVerificationPackage(plan: PlanType): boolean {
-  return getPlanCapabilities(plan).verificationPackageIncluded;
-}
+// `canPlanGenerateReports` / `canPlanGenerateVerificationPackage` were removed.
+// Their names answered "may THIS record have a report?" from the plan alone,
+// which is wrong for every record funded by an evidence credit on the FREE
+// plan. A per-record question is answered only by
+// `resolveEvidenceOutputEligibility` (services/api, billing) / the worker's
+// `resolveEvidenceOutputEntitlements`; a workspace-level surface that truly
+// asks about the plan reads `getPlanCapabilities(plan).reportsIncluded`.
 
 export function planHasEnterpriseFeature(
   plan: PlanType,

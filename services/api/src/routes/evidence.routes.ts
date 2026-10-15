@@ -418,7 +418,10 @@ import { readBillingOverview } from "../services/billing-overview.service.js";
 import { resolveCommercialContext, resolveCommercialPlan } from "../services/billing/commercial-context.service.js";
 // COMMERCIAL CLOSURE (2026-09-08) — the ONE record-aware output-eligibility
 // resolver (effective plan + this record's funding).
-import { resolveEvidenceOutputEligibility } from "../services/billing/evidence-output-eligibility.service.js";
+import {
+  recordOutputFlags,
+  resolveEvidenceOutputEligibility,
+} from "../services/billing/evidence-output-eligibility.service.js";
 import { getWorkspaceUsage } from "../services/workspace-usage.service.js";
 import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import { createAiProvider } from "../services/ai/ai-provider.js";
@@ -5022,16 +5025,8 @@ async function resolveWorkspaceCapabilitySnapshot(params: {
       (shared ? "Team Workspace" : "Personal Workspace"),
     plan: scope.plan,
     effectivePlan: scope.plan,
-    reportsIncluded: Boolean(
-      recordEligibility?.reportsIncluded ?? caps.reportsIncluded,
-    ),
-    verificationPackageIncluded: Boolean(
-      recordEligibility?.verificationPackageIncluded ??
-        caps.verificationPackageIncluded,
-    ),
-    publicVerifyIncluded: Boolean(
-      recordEligibility?.publicVerifyIncluded ?? caps.publicVerifyIncluded,
-    ),
+    // FAIL CLOSED — the record's own answer, or UNRESOLVED; never the plan's.
+    ...recordOutputFlags(recordEligibility, caps),
     /**
      * The PLAN's own answer, separately, so a surface that genuinely asks a
      * workspace-level question ("should this workspace see report features at
