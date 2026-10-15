@@ -9,11 +9,21 @@ import { test } from "node:test";
 
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 
-function installChrome({ pageHeight = 3200, viewport = 800, failAfter = Infinity, domReply } = {}) {
+function installChrome({
+  pageHeight = 3200,
+  viewport = 800,
+  failAfter = Infinity,
+  domReply,
+  // AUD-026 — the tab as chrome.tabs.get reports it, per capture call so far.
+  tabAt = () => ({ active: true, windowId: 1, url: "https://example.com/long" }),
+} = {}) {
   const calls = [];
   let y = 0;
   globalThis.chrome = {
     tabs: {
+      async get(tabId) {
+        return { id: tabId, ...tabAt(calls.length) };
+      },
       async sendMessage(_tabId, msg) {
         switch (msg.kind) {
           case "GET_PAGE_INFO":
@@ -82,4 +92,57 @@ test("a missing DOM snapshot and the page facts are recorded (UC-EXT-004)", asyn
   ]) {
     assert.ok(r.limitations.includes(code), code);
   }
+});
+
+// ---------------------------------------------------------------------------
+// AUD-026 — captureVisibleTab photographs the ACTIVE tab, so the chosen tab is
+// re-checked before and after every shot and before the DOM snapshot.
+// ---------------------------------------------------------------------------
+test("AUD-026: switching tab mid full-page capture stops it — no tile of the other tab is taken", async () => {
+  const calls = installChrome({
+    pageHeight: 3200,
+    viewport: 800,
+    tabAt: (shots) => ({ active: shots < 2, windowId: 1, url: "https://example.com/long" }),
+  });
+  const { captureFullPage, CaptureInterruptedError } = await import("./dist/capture.js");
+  await assert.rejects(captureFullPage(1, 1), (err) => err instanceof CaptureInterruptedError && err.code === "TAB_CHANGED");
+  assert.equal(calls.length, 2, "no screenshot is taken once the tab is no longer active");
+});
+
+test("AUD-026: a navigation mid capture is PAGE_NAVIGATED; a hidden URL (grant revoked) is a navigation too", async () => {
+  installChrome({ tabAt: (shots) => ({ active: true, windowId: 1, url: shots < 1 ? "https://example.com/long" : "https://other.example/" }) });
+  const { captureFullPage, CaptureInterruptedError } = await import("./dist/capture.js");
+  await assert.rejects(captureFullPage(1, 1), (err) => err instanceof CaptureInterruptedError && err.code === "PAGE_NAVIGATED");
+
+  installChrome({ tabAt: (shots) => ({ active: true, windowId: 1, url: shots < 1 ? "https://example.com/long" : undefined }) });
+  await assert.rejects(captureFullPage(1, 1), (err) => err instanceof CaptureInterruptedError && err.code === "PAGE_NAVIGATED");
+});
+
+test("AUD-026: a fragment change is the same document and does not stop the capture", async () => {
+  installChrome({ tabAt: (shots) => ({ active: true, windowId: 1, url: `https://example.com/long#section-${shots}` }) });
+  const { captureFullPage } = await import("./dist/capture.js");
+  const r = await captureFullPage(1, 1);
+  assert.equal(r.artifacts.filter((a) => a.role === "page_tile").length, 4);
+});
+
+test("AUD-026: the viewport shot is re-checked after it is taken (a switch between check and shot)", async () => {
+  installChrome({ tabAt: (shots) => ({ active: shots === 0, windowId: 1, url: "https://example.com/long" }) });
+  const { captureViewport, CaptureInterruptedError } = await import("./dist/capture.js");
+  await assert.rejects(captureViewport(1, 1), (err) => err instanceof CaptureInterruptedError && err.code === "TAB_CHANGED");
+});
+
+test("AUD-026: a tab moved to another window is TAB_CHANGED", async () => {
+  installChrome({ tabAt: () => ({ active: true, windowId: 2, url: "https://example.com/long" }) });
+  const { captureViewport, CaptureInterruptedError } = await import("./dist/capture.js");
+  await assert.rejects(captureViewport(1, 1), (err) => err instanceof CaptureInterruptedError && err.code === "TAB_CHANGED");
+});
+
+test("AUD-026: iframe and shadow-DOM boundaries are recorded as limitations, not silently dropped", async () => {
+  installChrome({
+    domReply: { ok: true, html: "<html></html>", counts: null, crossOriginFrames: 2, shadowRoots: 1, protectedMedia: 0, mutationsObserved: 0 },
+  });
+  const { captureViewport } = await import("./dist/capture.js");
+  const r = await captureViewport(1, 1);
+  assert.ok(r.limitations.includes("CROSS_ORIGIN_IFRAME_NOT_CAPTURED"));
+  assert.ok(r.limitations.includes("SHADOW_DOM_NOT_FULLY_REPRESENTED"));
 });

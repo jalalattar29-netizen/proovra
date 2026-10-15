@@ -162,6 +162,9 @@ export const DIRECT_CAPTURE_DENIALS = {
   SESSION_NOT_ACTIVE: 409,
   SESSION_EXPIRED: 409,
   SESSION_ALREADY_RESERVED: 409,
+  // AUD-026 — a client attempt id names exactly one capture.
+  CAPTURE_ATTEMPT_CONFLICT: 409,
+  CAPTURE_ATTEMPT_ALREADY_SEALED: 409,
   SESSION_NOT_RESERVED: 409,
   EVIDENCE_NOT_OPEN: 409,
   DEVICE_NOT_REGISTERED: 409,
@@ -329,6 +332,12 @@ export type OpenDirectCaptureSessionInput = {
    * THE case-link authority and linked in the same transaction as the bind.
    */
   caseId?: string | null;
+  /**
+   * AUD-026 — the client's id for THIS capture attempt. A retried open with
+   * the same id (the response was lost, the network dropped) returns the same
+   * live session instead of opening a second one. Unique per owner.
+   */
+  clientAttemptId?: string | null;
   ttlSeconds?: number;
   now?: Date;
 };
@@ -345,6 +354,10 @@ export type OpenDirectCaptureSessionResult = {
   caseId: string | null;
   startedAtUtc: string;
   expiresAtUtc: string;
+  /** AUD-026 — true when a retried open returned the attempt's existing session. */
+  reused: boolean;
+  /** AUD-026 — the record this session already reserved, so a retry can skip reserve. */
+  reservedEvidenceId: string | null;
 };
 
 export async function openDirectCaptureSession(
@@ -385,6 +398,11 @@ export async function openDirectCaptureSession(
   }
 
   const now = input.now ?? new Date();
+  const clientAttemptId = input.clientAttemptId ?? null;
+  if (clientAttemptId) {
+    const replay = await replayDirectCaptureAttempt(db, input, clientAttemptId, caseId, authority.authority, now);
+    if (replay) return replay;
+  }
   const ttl = Math.min(
     Math.max(Math.trunc(input.ttlSeconds ?? DEFAULT_TTL_SECONDS), 60),
     MAX_TTL_SECONDS,
@@ -392,19 +410,31 @@ export async function openDirectCaptureSession(
   const expiresAtUtc = new Date(now.getTime() + ttl * 1000);
   const nonceHex = randomBytes(32).toString("hex");
 
-  const session = await db.captureSession.create({
-    data: {
-      ownerUserId: input.ownerUserId,
-      teamId: input.teamId,
-      status: prismaPkg.CaptureSessionStatus.ACTIVE,
-      acquisitionMode: input.mode,
-      nonceSha256: sha256HexOf(nonceHex),
-      deviceId: input.deviceId,
-      startedAtUtc: now,
-      expiresAtUtc,
-    },
-    select: { id: true },
-  });
+  let session: { id: string };
+  try {
+    session = await db.captureSession.create({
+      data: {
+        ownerUserId: input.ownerUserId,
+        teamId: input.teamId,
+        status: prismaPkg.CaptureSessionStatus.ACTIVE,
+        acquisitionMode: input.mode,
+        nonceSha256: sha256HexOf(nonceHex),
+        deviceId: input.deviceId,
+        startedAtUtc: now,
+        expiresAtUtc,
+        clientAttemptId,
+      },
+      select: { id: true },
+    });
+  } catch (err) {
+    // Two concurrent opens of one attempt: the unique index admits one, and
+    // the other returns the winner's session.
+    if (clientAttemptId && (err as { code?: string }).code === "P2002") {
+      const replay = await replayDirectCaptureAttempt(db, input, clientAttemptId, caseId, authority.authority, now);
+      if (replay) return replay;
+    }
+    throw err;
+  }
 
   await emitCaptureTrustEvent({
     prisma: db,
@@ -431,6 +461,73 @@ export async function openDirectCaptureSession(
     caseId,
     startedAtUtc: now.toISOString(),
     expiresAtUtc: expiresAtUtc.toISOString(),
+    reused: false,
+    reservedEvidenceId: null,
+  };
+}
+
+/**
+ * AUD-026 — the existing session of a client attempt, or null when a fresh one
+ * must be opened. The replay is authorized exactly like a first open (the
+ * caller re-ran every check above) and emits no second STARTED event.
+ *
+ *   ACTIVE, unexpired, same workspace/mode/case → the same session (a fresh
+ *     nonce: the first response, and its nonce, may never have arrived);
+ *   BOUND → refused: the attempt already sealed a record;
+ *   anything else (discarded, interrupted, expired) → the attempt holds
+ *     nothing, so it gives up its id and a fresh session is opened.
+ */
+async function replayDirectCaptureAttempt(
+  db: PrismaClient,
+  input: OpenDirectCaptureSessionInput,
+  clientAttemptId: string,
+  caseId: string | null,
+  modeAuthority: DirectCaptureModeAuthority,
+  now: Date,
+): Promise<OpenDirectCaptureSessionResult | null> {
+  const prior = await db.captureSession.findFirst({
+    where: { ownerUserId: input.ownerUserId, clientAttemptId, acquisitionMode: { not: null } },
+    select: SESSION_SELECT,
+  });
+  if (!prior) return null;
+  if (
+    prior.teamId !== input.teamId ||
+    prior.acquisitionMode !== input.mode ||
+    prior.deviceId !== (input.deviceId ?? null) ||
+    (await readSessionCaseId(db, prior)) !== caseId
+  ) {
+    throw new DirectCaptureError("CAPTURE_ATTEMPT_CONFLICT");
+  }
+  if (prior.status === prismaPkg.CaptureSessionStatus.BOUND) {
+    throw new DirectCaptureError("CAPTURE_ATTEMPT_ALREADY_SEALED");
+  }
+  const live =
+    prior.status === prismaPkg.CaptureSessionStatus.ACTIVE &&
+    (!prior.expiresAtUtc || prior.expiresAtUtc.getTime() > now.getTime());
+  if (!live) {
+    if (prior.status === prismaPkg.CaptureSessionStatus.ACTIVE) await interruptSession(db, prior, "EXPIRED", now);
+    await db.captureSession.updateMany({
+      where: { id: prior.id, clientAttemptId },
+      data: { clientAttemptId: null },
+    });
+    return null;
+  }
+  const nonceHex = randomBytes(32).toString("hex");
+  await db.captureSession.update({
+    where: { id: prior.id },
+    data: { nonceSha256: sha256HexOf(nonceHex) },
+  });
+  return {
+    captureSessionId: prior.id,
+    nonceHex,
+    acquisitionMode: input.mode,
+    modeAuthority,
+    deviceBound: prior.deviceId !== null,
+    caseId,
+    startedAtUtc: (prior.startedAtUtc ?? now).toISOString(),
+    expiresAtUtc: prior.expiresAtUtc!.toISOString(),
+    reused: true,
+    reservedEvidenceId: prior.finalizedEvidenceId,
   };
 }
 

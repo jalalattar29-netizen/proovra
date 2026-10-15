@@ -179,6 +179,9 @@ const OpenDirectSessionBody = z
     // and again at seal by the canonical case-link authority; linked in the
     // same transaction as the bind.
     caseId: z.string().uuid().nullable().optional(),
+    // AUD-026 — the client's id for this capture attempt; a retried open with
+    // the same id returns the same live session.
+    clientAttemptId: z.string().uuid().optional(),
   })
   .strict();
 
@@ -442,8 +445,9 @@ export async function captureTrustRoutes(app: FastifyInstance) {
           // label the session may carry.
           credentialScope: req.user?.tokenScope ?? null,
           caseId: body.caseId ?? null,
+          clientAttemptId: body.clientAttemptId ?? null,
         });
-        return reply.code(201).send({ session: opened });
+        return reply.code(opened.reused ? 200 : 201).send({ session: opened });
       } catch (err) {
         return sendDirectCaptureError(reply, err);
       }

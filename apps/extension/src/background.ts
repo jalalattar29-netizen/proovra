@@ -31,7 +31,7 @@ const registry = createCaptureRegistry({
   onChange: (status) => {
     chrome.runtime.sendMessage({ kind: "CAPTURE_STATUS", status }).catch(() => undefined);
   },
-  run: (req, signal, attemptId) =>
+  run: async (req, signal, attemptId) =>
     runPreserveFlow(
       {
         api: apiClient,
@@ -48,6 +48,12 @@ const registry = createCaptureRegistry({
         },
         browser: { name: detectBrowserName(), versionBucket: detectVersionBucket(), os: detectOs() },
         extensionVersion: CONFIG.extensionVersion,
+        attemptId,
+        tabUrl: await chrome.tabs
+          .get(req.tabId)
+          .then((t) => t.url ?? t.pendingUrl ?? null)
+          .catch(() => null),
+        waitForOnline,
       },
       req,
       signal,
@@ -57,6 +63,20 @@ const registry = createCaptureRegistry({
       return outcome;
     }),
 });
+
+/** AUD-026 — an offline retry waits for the browser to come back, bounded. */
+function waitForOnline(timeoutMs: number): Promise<void> {
+  if (navigator.onLine) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      self.removeEventListener("online", done);
+      resolve();
+    };
+    const timer = setTimeout(done, timeoutMs);
+    self.addEventListener("online", done);
+  });
+}
 
 function detectBrowserName(): string {
   const ua = navigator.userAgent;

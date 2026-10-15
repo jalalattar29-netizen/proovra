@@ -75,7 +75,27 @@ export async function apiFetch<T>(
   return json as T;
 }
 
-export type OpenSessionResult = { session: { captureSessionId: string; expiresAtUtc: string } };
+export type OpenSessionResult = {
+  session: {
+    captureSessionId: string;
+    expiresAtUtc: string;
+    /** AUD-026 — true when the attempt's existing session was returned. */
+    reused?: boolean;
+    /** AUD-026 — the record the session already reserved, if any. */
+    reservedEvidenceId?: string | null;
+  };
+};
+
+/**
+ * AUD-026 — a failure worth retrying: no HTTP answer at all, or an answer that
+ * says "not now" (timeout, rate limit, server fault). A definite 4xx refusal
+ * is never retried.
+ */
+export function isTransientFailure(err: unknown): boolean {
+  if (err instanceof NetworkError) return true;
+  if (err instanceof ApiError) return err.status === 408 || err.status === 425 || err.status === 429 || err.status >= 500;
+  return false;
+}
 export type ReserveResult = { evidence: { evidenceId: string } };
 export type PartUpload = { upload: { bucket: string; key: string; putUrl: string } };
 
@@ -84,12 +104,22 @@ export const apiClient = {
    * UC-EXT-010 — `caseId` is sent ONLY when the user chose a case. The server
    * validates it through the canonical case-link authority (a case the caller
    * may not file into is refused), so the extension never decides case access.
+   *
+   * AUD-026 — `clientAttemptId` is the capture attempt's id. The server keys the
+   * session on it, so a retried open returns the SAME session (and the record
+   * it already reserved) instead of opening a second capture.
    */
-  async openWebSession(token: string, teamId: string, caseId?: string | null): Promise<OpenSessionResult> {
+  async openWebSession(
+    token: string,
+    teamId: string,
+    caseId: string | null,
+    clientAttemptId: string,
+  ): Promise<OpenSessionResult> {
     return apiFetch(token, "POST", "/v1/capture/direct-sessions", {
       mode: "DIRECT_WEB_CAPTURE_EXTENSION",
       teamId,
       deviceId: null,
+      clientAttemptId,
       ...(caseId ? { caseId } : {}),
     });
   },

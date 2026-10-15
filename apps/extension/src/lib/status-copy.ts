@@ -8,6 +8,7 @@
  * server message or an exception string.
  */
 import { denialToMessage } from "./denial-copy.js";
+import { RESTRICTED_PAGE_COPY, type PageRestriction } from "./page-eligibility.js";
 import type { CaptureStatus } from "./capture-registry.js";
 
 /** The one sentence shown when no written refusal copy applies. */
@@ -25,12 +26,19 @@ export const CAPTURE_SUCCEEDED = "Preserved. The record is in your PROOVRA works
 
 export const CAPTURE_ALREADY_RUNNING = "A capture of this page is already in progress.";
 
+export const CAPTURE_TAB_CHANGED =
+  "The capture stopped because a different tab was opened while it ran. Nothing was saved. Keep the page in front until the capture finishes, then try again.";
+
+export const CAPTURE_PAGE_NAVIGATED =
+  "The capture stopped because the page changed to a different address while it ran. Nothing was saved. Try again once the page has finished loading.";
+
 const STEP_LABEL: Record<string, string> = {
   preparing: "Preparing",
   capturing: "Capturing",
   opening_session: "Opening a capture session",
   reserving: "Creating the record",
   uploading: "Uploading",
+  retrying: "Connection interrupted — retrying",
   sealing: "Sealing",
   discarding: "Discarding the incomplete record",
   done: "Finishing",
@@ -58,6 +66,12 @@ export function statusLine(s: CaptureStatus | null): StatusLine | null {
   if (s.outcome === "UNKNOWN") return { text: CAPTURE_UNKNOWN, tone: "error", signedOut: s.reason === "SIGNED_OUT" };
   if (s.reason === "SIGNED_OUT") return { text: SESSION_ENDED, tone: "error", signedOut: true };
   if (s.reason === "CANCELLED") return { text: CAPTURE_CANCELLED, tone: "", signedOut: false };
+  if (s.reason === "RESTRICTED_PAGE") {
+    const copy = RESTRICTED_PAGE_COPY[s.denial as PageRestriction] ?? RESTRICTED_PAGE_COPY.BROWSER_INTERNAL_PAGE;
+    return { text: copy, tone: "error", signedOut: false };
+  }
+  if (s.reason === "TAB_CHANGED") return { text: CAPTURE_TAB_CHANGED, tone: "error", signedOut: false };
+  if (s.reason === "PAGE_NAVIGATED") return { text: CAPTURE_PAGE_NAVIGATED, tone: "error", signedOut: false };
   // Capture is plan-blind: a server refusal is surfaced as the evidence
   // -creation / quota / entitlement reason it actually is. Unknown codes fall
   // back to the generic line — never the server's own message.

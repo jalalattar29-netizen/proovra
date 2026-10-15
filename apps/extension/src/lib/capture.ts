@@ -54,6 +54,51 @@ export function throwIfCancelled(signal?: AbortSignal): void {
   if (signal?.aborted) throw new CaptureCancelledError();
 }
 
+/**
+ * AUD-026 — `captureVisibleTab` photographs whatever tab is ACTIVE in the
+ * window, not the tab the user chose. If the user switches tab or the page
+ * navigates mid-capture, the next tile would silently be another page. So the
+ * capture is stopped — never sealed with mixed content — with a stable code.
+ */
+export type CaptureInterruption = "TAB_CHANGED" | "PAGE_NAVIGATED";
+
+export class CaptureInterruptedError extends Error {
+  constructor(readonly code: CaptureInterruption) {
+    super(`capture interrupted: ${code}`);
+    this.name = "CaptureInterruptedError";
+  }
+}
+
+/** The document identity: a fragment change is the same document. */
+function documentUrl(url: string | undefined | null): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    u.hash = "";
+    return u.href;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The chosen tab is still the active tab of its window and still shows the
+ * page the capture started on. Under `activeTab` the URL is visible only
+ * while the grant holds, and navigation revokes it — so an unreadable URL is
+ * itself a navigation.
+ */
+export async function assertSamePage(tabId: number, windowId: number, startedUrl: string): Promise<void> {
+  let tab: chrome.tabs.Tab;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch {
+    throw new CaptureInterruptedError("TAB_CHANGED");
+  }
+  if (!tab.active || tab.windowId !== windowId) throw new CaptureInterruptedError("TAB_CHANGED");
+  const now = documentUrl(tab.url ?? tab.pendingUrl);
+  if (now === null || now !== documentUrl(startedUrl)) throw new CaptureInterruptedError("PAGE_NAVIGATED");
+}
+
 // ONE scheduler for the whole service worker: two captures (in different
 // windows) still share Chrome's per-extension quota.
 const scheduler: CaptureScheduler = createCaptureScheduler({
@@ -145,9 +190,15 @@ export async function captureViewport(tabId: number, windowId: number, signal?: 
   const notes: string[] = [];
   const info = await ask<PageInfo>(tabId, { kind: "GET_PAGE_INFO" });
   throwIfCancelled(signal);
-  const shot = await artifactFrom(await captureVisible(windowId), "viewport_screenshot");
+  await assertSamePage(tabId, windowId, info.url);
+  const blob = await captureVisible(windowId);
+  // Re-checked AFTER the shot too: a switch between the check and the shot
+  // would otherwise photograph the other tab.
+  await assertSamePage(tabId, windowId, info.url);
+  const shot = await artifactFrom(blob, "viewport_screenshot");
   throwIfCancelled(signal);
   const artifacts: CapturedArtifact[] = [shot];
+  await assertSamePage(tabId, windowId, info.url);
   const dom = await domArtifact(tabId, limitations, notes);
   if (dom) artifacts.push(dom);
   return {
@@ -197,6 +248,7 @@ export async function captureFullPage(tabId: number, windowId: number, signal?: 
       });
       if (scroll.heightChanged) mutated = true;
       await new Promise((r) => setTimeout(r, CAPTURE_LIMITS.tileSettleMs));
+      await assertSamePage(tabId, windowId, info.url);
       let blob: Blob;
       try {
         blob = await captureVisible(windowId);
@@ -210,6 +262,7 @@ export async function captureFullPage(tabId: number, windowId: number, signal?: 
         );
         break;
       }
+      await assertSamePage(tabId, windowId, info.url);
       artifacts.push(
         await artifactFrom(blob, "page_tile", { tileIndex: i, scrollOffsetY: scroll.actualY }),
       );
@@ -221,6 +274,7 @@ export async function captureFullPage(tabId: number, windowId: number, signal?: 
   throwIfCancelled(signal);
 
   if (mutated) pushOnce(limitations, "PAGE_MUTATED_DURING_CAPTURE");
+  await assertSamePage(tabId, windowId, info.url);
   const dom = await domArtifact(tabId, limitations, notes);
   if (dom) artifacts.push(dom);
 

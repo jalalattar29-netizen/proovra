@@ -538,3 +538,267 @@ for (const fixture of ["static", "long", "spa", "mutating"]) {
     }
   });
 }
+
+// ===========================================================================
+// AUD-026 — interruption, idempotency, tab identity, boundaries, restricted
+// pages. REAL browser, REAL extension build, REAL API. Network faults are
+// injected only at the network edge INSIDE the extension's own service worker
+// (its global `fetch`): the extension code under test is unmodified.
+// ===========================================================================
+
+type SignedIn = {
+  context: BrowserContext;
+  sw: Worker;
+  page: Page;
+  popup: Page;
+  fixtureTabId: number;
+  userDataDir: string;
+};
+
+/** Launch, open the fixture, sign in through the real popup, select the workspace. */
+async function signedInPopup(channel: string, fixture: string): Promise<SignedIn> {
+  const launched = await stage("LAUNCH", STAGE_TIMEOUT.LAUNCH, () => launchWithExtension(channel));
+  const { context, sw } = launched;
+  const page = await context.newPage();
+  await stage("FIXTURE", 30_000, async () => {
+    await page.goto(`${FIXTURES}/${fixture}`, { timeout: 20_000 });
+    await page.waitForTimeout(300);
+  });
+  assertBrowserIdentity(test.info().project.name, channel, await page.evaluate(() => navigator.userAgent));
+  const fixtureTabId = await stage("TAB", 10_000, async () => {
+    const id = await sw.evaluate(async (origin: string) => {
+      const tabs = await chrome.tabs.query({ url: `${origin}/*` });
+      return tabs[0]?.id ?? null;
+    }, FIXTURES);
+    if (typeof id !== "number") throw new Error("fixture tab not found");
+    return id;
+  });
+  await context.addCookies([{ name: "proovra_session", value: SESSION_BEARER, url: API }]);
+  const popup = await stage("POPUP", STAGE_TIMEOUT.POPUP, () => openPopupFor(context, sw, fixtureTabId));
+  await stage("AUTH", STAGE_TIMEOUT.AUTH, async () => {
+    await popup.getByTestId("sign-out").or(popup.getByTestId("sign-in")).first().waitFor({ timeout: 10_000 });
+    if (await popup.getByTestId("sign-in").isVisible()) await popup.getByTestId("sign-in").click();
+    await popup.getByTestId("signed-in").waitFor({ state: "visible", timeout: 45_000 });
+  });
+  await stage("WORKSPACE", 20_000, async () => {
+    await expect(popup.locator(`[data-testid="workspace"] option[value="${TEAM}"]`)).toHaveCount(1, { timeout: 15_000 });
+    await popup.getByTestId("workspace").selectOption(TEAM);
+    await expect(popup.getByTestId("capture-viewport")).toBeEnabled();
+  });
+  return { context, sw, page, popup, fixtureTabId, userDataDir: launched.userDataDir };
+}
+
+async function closeSignedIn(s: SignedIn | null): Promise<void> {
+  if (!s) return;
+  await s.context.close().catch(() => undefined);
+  try {
+    rmSync(s.userDataDir, { recursive: true, force: true });
+  } catch {
+    /* best effort */
+  }
+}
+
+/** The ids of this workspace's direct web captures, newest first. */
+async function webCaptureIds(): Promise<Set<string>> {
+  const list = await apiGet<{ items?: Array<{ id: string }> }>(
+    `/v1/evidence?scope=all&acquisition=DIRECT_WEB_CAPTURE&limit=100`,
+    SESSION_BEARER,
+  );
+  return new Set((list.items ?? []).map((x) => x.id));
+}
+
+async function finalCaptureState(popup: Page, timeoutMs = STAGE_TIMEOUT.CAPTURE - 10_000): Promise<{
+  state: string;
+  text: string;
+  evidenceId: string;
+}> {
+  const status = popup.getByTestId("status");
+  await expect(status).toHaveAttribute("data-capture-state", /^(SUCCEEDED|FAILED)$/, { timeout: timeoutMs });
+  return {
+    state: String(await status.getAttribute("data-capture-state")),
+    text: String(await status.textContent()),
+    evidenceId: String((await status.getAttribute("data-evidence-id")) ?? ""),
+  };
+}
+
+/**
+ * Install a fault plan on the service worker's network edge. `failPuts` object
+ * PUTs fail as if offline; `dropFirstOpen` lets the first session open REACH
+ * the server and then loses its response; `delaySealMs` holds the seal request.
+ */
+async function injectNetworkFaults(
+  sw: Worker,
+  plan: { failPuts?: number; dropFirstOpen?: boolean; delaySealMs?: number },
+): Promise<void> {
+  await sw.evaluate((p: { failPuts?: number; dropFirstOpen?: boolean; delaySealMs?: number }) => {
+    const g = self as unknown as { __realFetch?: typeof fetch; __faults?: Record<string, number>; fetch: typeof fetch };
+    g.__realFetch = g.__realFetch ?? g.fetch.bind(self);
+    const real = g.__realFetch;
+    const faults = (g.__faults = { putsFailed: 0, opensDropped: 0, sealsDelayed: 0 });
+    let putsToFail = p.failPuts ?? 0;
+    let dropOpen = Boolean(p.dropFirstOpen);
+    g.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (method === "PUT" && putsToFail > 0) {
+        putsToFail -= 1;
+        faults.putsFailed += 1;
+        throw new TypeError("Failed to fetch");
+      }
+      if (method === "POST" && /\/v1\/capture\/direct-sessions$/.test(new URL(url).pathname) && dropOpen) {
+        dropOpen = false;
+        await real(input, init);
+        faults.opensDropped += 1;
+        throw new TypeError("Failed to fetch");
+      }
+      if (method === "POST" && /\/web-complete$/.test(new URL(url).pathname) && p.delaySealMs) {
+        faults.sealsDelayed += 1;
+        await new Promise((r) => setTimeout(r, p.delaySealMs));
+      }
+      return real(input, init);
+    }) as typeof fetch;
+  }, plan);
+}
+
+async function faultCounters(sw: Worker): Promise<Record<string, number>> {
+  return sw.evaluate(() => (self as unknown as { __faults?: Record<string, number> }).__faults ?? {});
+}
+
+/** The sealed record's provenance chain, read with the WEB session. */
+async function provenanceText(evidenceId: string): Promise<string> {
+  return JSON.stringify(await apiGet(`/v1/provenance/${evidenceId}`, SESSION_BEARER));
+}
+
+const channelOf = () => String((test.info().project.use as { channel?: string }).channel ?? "");
+
+test("AUD-026: an offline interruption mid-upload and a lost open response resume to ONE sealed record", async () => {
+  test.setTimeout(6 * 60_000);
+  let s: SignedIn | null = null;
+  try {
+    s = await signedInPopup(channelOf(), "static");
+    const before = await webCaptureIds();
+    await injectNetworkFaults(s.sw, { failPuts: 2, dropFirstOpen: true });
+    const result = await stage("CAPTURE", STAGE_TIMEOUT.CAPTURE, async () => {
+      await s!.popup.getByTestId("capture-viewport").click();
+      return finalCaptureState(s!.popup);
+    });
+    expect(result.state, result.text).toBe("SUCCEEDED");
+    const faults = await faultCounters(s.sw);
+    expect(faults.putsFailed, "two uploads really failed as offline").toBe(2);
+    expect(faults.opensDropped, "the first open's answer really was lost").toBe(1);
+    await stage("ONE_RECORD", 20_000, async () => {
+      const added = [...(await webCaptureIds())].filter((id) => !before.has(id));
+      expect(added, "exactly one record despite the retried open").toEqual([result.evidenceId]);
+    });
+  } finally {
+    await closeSignedIn(s);
+  }
+});
+
+test("AUD-026: switching tab mid full-page capture stops it — nothing is saved", async () => {
+  test.setTimeout(6 * 60_000);
+  let s: SignedIn | null = null;
+  try {
+    s = await signedInPopup(channelOf(), "long");
+    const before = await webCaptureIds();
+    await s.popup.getByTestId("capture-full").click();
+    await expect(s.popup.getByTestId("status")).toContainText(/Capturing/, { timeout: 30_000 });
+    await s.page.waitForTimeout(800);
+    await s.sw.evaluate(async (tabId: number) => {
+      const tab = await chrome.tabs.get(tabId);
+      await chrome.tabs.create({ windowId: tab.windowId, url: "about:blank", active: true });
+    }, s.fixtureTabId);
+    const result = await finalCaptureState(s.popup);
+    expect(result.state).toBe("FAILED");
+    expect(result.text).toMatch(/different tab was opened/);
+    expect(result.text).toMatch(/Nothing was saved/);
+    expect([...(await webCaptureIds())].filter((id) => !before.has(id))).toEqual([]);
+  } finally {
+    await closeSignedIn(s);
+  }
+});
+
+test("AUD-026: a navigation mid full-page capture stops it — nothing is saved", async () => {
+  test.setTimeout(6 * 60_000);
+  let s: SignedIn | null = null;
+  try {
+    s = await signedInPopup(channelOf(), "long");
+    const before = await webCaptureIds();
+    await s.popup.getByTestId("capture-full").click();
+    await expect(s.popup.getByTestId("status")).toContainText(/Capturing/, { timeout: 30_000 });
+    await s.page.waitForTimeout(800);
+    await s.sw.evaluate(
+      async ([tabId, url]: [number, string]) => {
+        await chrome.tabs.update(tabId, { url });
+      },
+      [s.fixtureTabId, `${FIXTURES}/static`] as [number, string],
+    );
+    const result = await finalCaptureState(s.popup);
+    expect(result.state).toBe("FAILED");
+    expect(result.text).toMatch(/different address/);
+    expect([...(await webCaptureIds())].filter((id) => !before.has(id))).toEqual([]);
+  } finally {
+    await closeSignedIn(s);
+  }
+});
+
+test("AUD-026: cancel pressed during the seal does not undo the seal", async () => {
+  test.setTimeout(6 * 60_000);
+  let s: SignedIn | null = null;
+  try {
+    s = await signedInPopup(channelOf(), "static");
+    await injectNetworkFaults(s.sw, { delaySealMs: 4_000 });
+    await s.popup.getByTestId("capture-viewport").click();
+    await expect(s.popup.getByTestId("status")).toContainText(/Sealing/, { timeout: 60_000 });
+    await s.popup.getByTestId("cancel").click();
+    const result = await finalCaptureState(s.popup);
+    expect((await faultCounters(s.sw)).sealsDelayed).toBe(1);
+    expect(result.state, result.text).toBe("SUCCEEDED");
+    expect(result.evidenceId).toBeTruthy();
+  } finally {
+    await closeSignedIn(s);
+  }
+});
+
+for (const [fixture, limitation] of [
+  ["iframe", "CROSS_ORIGIN_IFRAME_NOT_CAPTURED"],
+  ["shadow", "SHADOW_DOM_NOT_FULLY_REPRESENTED"],
+] as const) {
+  test(`AUD-026: the ${fixture} boundary is sealed as the ${limitation} limitation`, async () => {
+    test.setTimeout(6 * 60_000);
+    let s: SignedIn | null = null;
+    try {
+      s = await signedInPopup(channelOf(), fixture);
+      await s.popup.getByTestId("capture-viewport").click();
+      const result = await finalCaptureState(s.popup);
+      expect(result.state, result.text).toBe("SUCCEEDED");
+      await stage("LIMITATION", 20_000, async () => {
+        expect(await provenanceText(result.evidenceId)).toContain(limitation);
+      });
+    } finally {
+      await closeSignedIn(s);
+    }
+  });
+}
+
+test("AUD-026: a browser page is refused with its own sentence and nothing is opened", async () => {
+  test.setTimeout(6 * 60_000);
+  let s: SignedIn | null = null;
+  try {
+    s = await signedInPopup(channelOf(), "static");
+    const before = await webCaptureIds();
+    const internal = channelOf() === "msedge" ? "edge://version/" : "chrome://version/";
+    await s.sw.evaluate(
+      async ([tabId, url]: [number, string]) => {
+        await chrome.tabs.update(tabId, { url });
+      },
+      [s.fixtureTabId, internal] as [number, string],
+    );
+    await s.page.waitForURL(/(chrome|edge):\/\/version/, { timeout: 15_000 });
+    await s.popup.getByTestId("capture-viewport").click();
+    await expect(s.popup.getByTestId("status")).toContainText(/browser page|Only web pages/, { timeout: 30_000 });
+    expect([...(await webCaptureIds())].filter((id) => !before.has(id))).toEqual([]);
+  } finally {
+    await closeSignedIn(s);
+  }
+});

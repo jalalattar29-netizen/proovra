@@ -363,6 +363,14 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
       "the durable retention-archive restore outbox: the API writes one request per restore and the worker lifecycle sweep claims and verifies it; without it no archived record can be restored",
     suppliedBy: "20281014000000_free_outputs_canonical_verification_retention_archive",
   },
+  {
+    id: "capture_sessions.client_attempt_id",
+    kind: "column",
+    detail: 'column public."capture_sessions"."client_attempt_id" must exist',
+    requiredBy:
+      "the direct-capture open writes and replays a client attempt id so a retried open returns the same session; every capture-session read selects it",
+    suppliedBy: "20281015120000_capture_session_client_attempt",
+  },
 ]);
 
 /**

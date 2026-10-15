@@ -14,6 +14,7 @@ import {
   type CaseLoad,
   type WorkspaceLoad,
 } from "./lib/popup-context.js";
+import { RESTRICTED_PAGE_COPY, pageRestriction } from "./lib/page-eligibility.js";
 import { CAPTURE_ALREADY_RUNNING, SESSION_ENDED, statusLine } from "./lib/status-copy.js";
 import type { CaptureStatus } from "./lib/capture-registry.js";
 
@@ -247,6 +248,13 @@ async function preserve(mode: "VIEWPORT" | "FULL_PAGE") {
   const tab = await targetTab();
   if (!tab?.id || tab.windowId === undefined) {
     setStatus("No active page to capture.", "error");
+    return;
+  }
+  // AUD-026 — a page the browser will not let an extension capture is named
+  // before anything starts, with its own sentence.
+  const restriction = pageRestriction(tab.url ?? tab.pendingUrl ?? null);
+  if (restriction) {
+    setStatus(RESTRICTED_PAGE_COPY[restriction], "error");
     return;
   }
   const teamId = ($("workspace") as HTMLSelectElement).value;

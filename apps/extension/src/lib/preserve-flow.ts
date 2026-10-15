@@ -22,9 +22,15 @@
  */
 import type { WebCaptureArtifactDescriptor, WebCaptureLimitationCode } from "@proovra/shared";
 
-import { ApiError, NetworkError, type ApiClient } from "./api-client.js";
-import { CaptureCancelledError, type CaptureResult, type CapturedArtifact } from "./capture.js";
+import { ApiError, NetworkError, isTransientFailure, type ApiClient } from "./api-client.js";
+import {
+  CaptureCancelledError,
+  CaptureInterruptedError,
+  type CaptureResult,
+  type CapturedArtifact,
+} from "./capture.js";
 import { buildWebCaptureManifest } from "./manifest-builder.js";
+import { isRestrictedScriptingError, pageRestriction } from "./page-eligibility.js";
 
 export type PreserveRequest = {
   mode: "VIEWPORT" | "FULL_PAGE";
@@ -36,7 +42,33 @@ export type PreserveRequest = {
   evidenceType: "PHOTO" | "DOCUMENT";
 };
 
-export type PreserveFailureReason = "SIGNED_OUT" | "DENIED" | "CANCELLED" | "ERROR";
+export type PreserveFailureReason =
+  | "SIGNED_OUT"
+  | "DENIED"
+  | "CANCELLED"
+  | "ERROR"
+  /** AUD-026 — the browser does not let extensions capture this page. */
+  | "RESTRICTED_PAGE"
+  /** AUD-026 — the user switched tab mid-capture; nothing mixed was sealed. */
+  | "TAB_CHANGED"
+  /** AUD-026 — the page navigated mid-capture; nothing mixed was sealed. */
+  | "PAGE_NAVIGATED";
+
+/**
+ * AUD-026 — bounded retry of each server step. Every step is idempotent on the
+ * server (the open is keyed by the attempt id, a part re-presign returns the
+ * existing part, a declaration with the same digest is accepted again, a
+ * re-seal of a sealed session answers "already"), so a step that got no
+ * definite answer is simply sent again — and the upload resumes from the step
+ * that failed rather than starting over.
+ */
+export const RETRY_POLICY = Object.freeze({
+  attempts: 4,
+  baseDelayMs: 1_000,
+  maxDelayMs: 15_000,
+  /** How long to wait for the browser to come back online before a retry. */
+  offlineWaitMs: 60_000,
+});
 
 export type PreserveOutcome =
   | { status: "SUCCEEDED"; evidenceId: string; limitations: WebCaptureLimitationCode[]; completeness: string }
@@ -65,7 +97,14 @@ export type PreserveDeps = {
   progress: (step: string, detail?: string) => void;
   browser: { name: string; versionBucket: string; os: string };
   extensionVersion: string;
+  /** AUD-026 — this capture attempt's id; the server's idempotency key for the open. */
+  attemptId: string;
+  /** The tab's URL as the browser reports it (null when not visible). */
+  tabUrl?: string | null;
   now?: () => Date;
+  sleep?: (ms: number) => Promise<void>;
+  /** Resolves when the browser reports it is online, or after `timeoutMs`. */
+  waitForOnline?: (timeoutMs: number) => Promise<void>;
 };
 
 const SOURCE_BY_ROLE: Record<CapturedArtifact["role"], string> = {
@@ -98,6 +137,19 @@ export async function runPreserveFlow(
   signal: AbortSignal,
 ): Promise<PreserveOutcome> {
   const now = deps.now ?? (() => new Date());
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const waitForOnline = deps.waitForOnline ?? (async () => undefined);
+  const restriction = pageRestriction(deps.tabUrl ?? null);
+  if (restriction) {
+    return {
+      status: "FAILED",
+      outcome: "NOTHING_SAVED",
+      reason: "RESTRICTED_PAGE",
+      denial: restriction,
+      evidenceId: null,
+      detail: `restricted page: ${restriction}`,
+    };
+  }
   const token = await deps.getToken();
   if (!token) {
     return {
@@ -118,9 +170,37 @@ export async function runPreserveFlow(
     if (signal.aborted) throw new CaptureCancelledError();
   };
 
+  async function withRetry<T>(step: string, fn: () => Promise<T>): Promise<T> {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await fn();
+      } catch (err) {
+        if (!isTransientFailure(err) || attempt >= RETRY_POLICY.attempts) throw err;
+        deps.progress("retrying", `${step} (attempt ${attempt + 1} of ${RETRY_POLICY.attempts})`);
+        await waitForOnline(RETRY_POLICY.offlineWaitMs);
+        await sleep(Math.min(RETRY_POLICY.baseDelayMs * 2 ** (attempt - 1), RETRY_POLICY.maxDelayMs));
+        cancelled();
+      }
+    }
+  }
+
   try {
     deps.progress("preparing");
-    await deps.prepare(req.tabId);
+    try {
+      await deps.prepare(req.tabId);
+    } catch (err) {
+      if (isRestrictedScriptingError(err)) {
+        return {
+          status: "FAILED",
+          outcome: "NOTHING_SAVED",
+          reason: "RESTRICTED_PAGE",
+          denial: "BROWSER_INTERNAL_PAGE",
+          evidenceId: null,
+          detail: describe(err),
+        };
+      }
+      throw err;
+    }
     cancelled();
 
     const startedAtUtc = now().toISOString();
@@ -130,34 +210,58 @@ export async function runPreserveFlow(
     cancelled();
     if (capture.artifacts.length === 0) throw new Error("capture produced no artifacts");
 
+    const open = () =>
+      withRetry("opening_session", () =>
+        deps.api.openWebSession(token, req.teamId, req.caseId ?? null, deps.attemptId),
+      );
     deps.progress("opening_session");
-    const opened = await deps.api.openWebSession(token, req.teamId, req.caseId ?? null);
-    sessionId = opened.session.captureSessionId;
+    const opened = await open();
+    const openSessionId = opened.session.captureSessionId;
+    sessionId = openSessionId;
     cancelled();
 
     deps.progress("reserving");
-    const reserve = await deps.api.reserveEvidence(token, sessionId, {
-      type: req.evidenceType,
-      mimeType: capture.artifacts[0]?.mediaType ?? "image/png",
-      originalFileName: `web-capture-${capture.pageInfo.title ?? "page"}`.slice(0, 120),
-    });
-    evidenceId = reserve.evidence.evidenceId;
+    evidenceId = opened.session.reservedEvidenceId ?? null;
+    if (!evidenceId) {
+      try {
+        const reserve = await withRetry("reserving", () =>
+          deps.api.reserveEvidence(token, openSessionId, {
+            type: req.evidenceType,
+            mimeType: capture.artifacts[0]?.mediaType ?? "image/png",
+            originalFileName: `web-capture-${capture.pageInfo.title ?? "page"}`.slice(0, 120),
+          }),
+        );
+        evidenceId = reserve.evidence.evidenceId;
+      } catch (err) {
+        // A reserve whose answer was lost DID reserve: its retry is refused with
+        // SESSION_ALREADY_RESERVED, and the attempt's open names the record.
+        if (!(err instanceof ApiError && err.denial === "SESSION_ALREADY_RESERVED")) throw err;
+        const again = await open();
+        if (again.session.captureSessionId !== openSessionId || !again.session.reservedEvidenceId) throw err;
+        evidenceId = again.session.reservedEvidenceId;
+      }
+    }
+    const recordId = evidenceId;
 
     const descriptors: WebCaptureArtifactDescriptor[] = [];
     for (let i = 0; i < capture.artifacts.length; i += 1) {
       cancelled();
       const a = capture.artifacts[i]!;
       deps.progress("uploading", `artifact ${i + 1}/${capture.artifacts.length + 1}`);
-      const part = await deps.api.createPart(token, evidenceId, {
-        partIndex: i,
-        mimeType: a.mediaType,
-        originalFileName: `${a.role}-${i}`,
-      });
-      await deps.api.putBytes(part.upload.putUrl, a.blob, a.mediaType);
-      await deps.api.declarePart(token, sessionId, i, {
-        sha256: a.sha256,
-        clientReportedSource: SOURCE_BY_ROLE[a.role],
-      });
+      const part = await withRetry("uploading", () =>
+        deps.api.createPart(token, recordId, {
+          partIndex: i,
+          mimeType: a.mediaType,
+          originalFileName: `${a.role}-${i}`,
+        }),
+      );
+      await withRetry("uploading", () => deps.api.putBytes(part.upload.putUrl, a.blob, a.mediaType));
+      await withRetry("uploading", () =>
+        deps.api.declarePart(token, openSessionId, i, {
+          sha256: a.sha256,
+          clientReportedSource: SOURCE_BY_ROLE[a.role],
+        }),
+      );
       descriptors.push({
         role: a.role,
         partIndex: i,
@@ -194,26 +298,34 @@ export async function runPreserveFlow(
     cancelled();
     deps.progress("uploading", "capture manifest");
     const manifestBytes = new Blob([manifestJson], { type: "application/json" });
-    const manifestPart = await deps.api.createPart(token, evidenceId, {
-      partIndex: manifestPartIndex,
-      mimeType: "application/json",
-      originalFileName: "capture-manifest.json",
-    });
-    await deps.api.putBytes(manifestPart.upload.putUrl, manifestBytes, "application/json");
-    await deps.api.declarePart(token, sessionId, manifestPartIndex, {
-      sha256: await deps.sha256Hex(manifestJson),
-      clientReportedSource: "WEB_MANIFEST",
-    });
+    const manifestSha256 = await deps.sha256Hex(manifestJson);
+    const manifestPart = await withRetry("uploading", () =>
+      deps.api.createPart(token, recordId, {
+        partIndex: manifestPartIndex,
+        mimeType: "application/json",
+        originalFileName: "capture-manifest.json",
+      }),
+    );
+    await withRetry("uploading", () =>
+      deps.api.putBytes(manifestPart.upload.putUrl, manifestBytes, "application/json"),
+    );
+    await withRetry("uploading", () =>
+      deps.api.declarePart(token, openSessionId, manifestPartIndex, {
+        sha256: manifestSha256,
+        clientReportedSource: "WEB_MANIFEST",
+      }),
+    );
 
     cancelled();
     deps.progress("sealing");
     // From here the user can no longer cancel: the seal is one request.
     sealAttempted = true;
-    await deps.api.webComplete(token, sessionId, manifestJson);
+    // A re-seal of a sealed session answers "already", so the seal retries too.
+    await withRetry("sealing", () => deps.api.webComplete(token, openSessionId, manifestJson));
     deps.progress("done");
     return {
       status: "SUCCEEDED",
-      evidenceId,
+      evidenceId: recordId,
       limitations: [...manifest.limitations],
       completeness: manifest.completeness,
     };
@@ -221,7 +333,9 @@ export async function runPreserveFlow(
     const reason: PreserveFailureReason =
       err instanceof CaptureCancelledError
         ? "CANCELLED"
-        : isAuthFailure(err)
+        : err instanceof CaptureInterruptedError
+          ? err.code
+          : isAuthFailure(err)
           ? "SIGNED_OUT"
           : err instanceof ApiError && err.denial
             ? "DENIED"

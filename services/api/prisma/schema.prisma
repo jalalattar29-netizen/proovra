@@ -2017,6 +2017,9 @@ model CaptureSession {
   startedAtUtc    DateTime? @map("started_at_utc") @db.Timestamptz(6)
   endedAtUtc      DateTime? @map("ended_at_utc") @db.Timestamptz(6)
   endReason       String?   @map("end_reason") @db.VarChar(40)
+  // AUD-026 — the client's id for one capture attempt. A retried open with the
+  // same id returns the same live session; unique per owner (NULLs distinct).
+  clientAttemptId String?   @map("client_attempt_id") @db.VarChar(64)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -2028,6 +2031,7 @@ model CaptureSession {
   @@index([teamId, status, updatedAt(sort: Desc)])
   @@index([status, expiresAtUtc])
   @@index([finalizedEvidenceId])
+  @@unique([ownerUserId, clientAttemptId], map: "capture_sessions_owner_client_attempt_key")
   @@map("capture_sessions")
 }
 

@@ -22,6 +22,7 @@ await build({
     "preserve-flow": join(HERE, "src/lib/preserve-flow.ts"),
     "api-client": join(HERE, "src/lib/api-client.ts"),
     capture: join(HERE, "src/lib/capture.ts"),
+    "page-eligibility": join(HERE, "src/lib/page-eligibility.ts"),
   },
   outdir: join(HERE, "test/dist"),
   bundle: true,

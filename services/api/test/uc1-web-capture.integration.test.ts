@@ -13,7 +13,7 @@
  *
  * Object store and signer are doubled in-process; PostgreSQL 16 is real.
  */
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -389,5 +389,91 @@ describe("UC-1 direct web capture — live PostgreSQL 16", () => {
     });
     // UC-TQ-005 — pinned: the mode enum refuses it before any service runs.
     expect(forged.statusCode, forged.body).toBe(400);
+  });
+
+  // ---------------------------------------------------------------------------
+  // AUD-026 — an interrupted extension upload retries without minting a second
+  // capture: the attempt id names exactly one session.
+  // ---------------------------------------------------------------------------
+  it("AUD-026: a retried open with the same attempt id returns the SAME session, with no second STARTED event", async () => {
+    const clientAttemptId = randomUUID();
+    const body = { mode: "DIRECT_WEB_CAPTURE_EXTENSION", teamId: owner().teamId, deviceId: null, clientAttemptId };
+    const first = await call("POST", "/v1/capture/direct-sessions", extensionToken, body);
+    expect(first.statusCode, first.body).toBe(201);
+    const sid = first.json().session.captureSessionId as string;
+    expect(first.json().session.reused).toBe(false);
+
+    const retry = await call("POST", "/v1/capture/direct-sessions", extensionToken, body);
+    expect(retry.statusCode, retry.body).toBe(200);
+    expect(retry.json().session.captureSessionId).toBe(sid);
+    expect(retry.json().session.reused).toBe(true);
+    expect(retry.json().session.reservedEvidenceId).toBeNull();
+    // The replay rotated the nonce rather than re-issuing the first one.
+    expect(retry.json().session.nonceHex).not.toBe(first.json().session.nonceHex);
+
+    // Reserve, lose the response, retry the open: the reserved record is named
+    // so the client resumes instead of reserving a second one.
+    const reserve = await call("POST", `/v1/capture/direct-sessions/${sid}/evidence`, extensionToken, {
+      type: "PHOTO",
+      mimeType: "image/png",
+    });
+    expect(reserve.statusCode, reserve.body).toBe(201);
+    const evidenceId = reserve.json().evidence.evidenceId as string;
+    const again = await call("POST", "/v1/capture/direct-sessions", extensionToken, body);
+    expect(again.statusCode, again.body).toBe(200);
+    expect(again.json().session.reservedEvidenceId).toBe(evidenceId);
+
+    const sessions = await prisma.captureSession.count({
+      where: { ownerUserId: owner().ownerUserId, clientAttemptId },
+    });
+    expect(sessions).toBe(1);
+    const started = await prisma.captureTrustEventRecord.count({
+      where: { captureSessionId: sid, code: "CAPTURE_SESSION_STARTED" },
+    });
+    expect(started).toBe(1);
+  });
+
+  it("AUD-026: concurrent opens of one attempt converge on one session", async () => {
+    const clientAttemptId = randomUUID();
+    const body = { mode: "DIRECT_WEB_CAPTURE_EXTENSION", teamId: owner().teamId, deviceId: null, clientAttemptId };
+    const [a, b] = await Promise.all([
+      call("POST", "/v1/capture/direct-sessions", extensionToken, body),
+      call("POST", "/v1/capture/direct-sessions", extensionToken, body),
+    ]);
+    expect([a.statusCode, b.statusCode].sort()).toEqual([200, 201]);
+    expect(a.json().session.captureSessionId).toBe(b.json().session.captureSessionId);
+  });
+
+  it("AUD-026: an attempt id is refused for a different workspace, and once sealed it cannot open again", async () => {
+    const clientAttemptId = randomUUID();
+    const open = await call("POST", "/v1/capture/direct-sessions", extensionToken, {
+      mode: "DIRECT_WEB_CAPTURE_EXTENSION",
+      teamId: owner().teamId,
+      deviceId: null,
+      clientAttemptId,
+    });
+    expect(open.statusCode, open.body).toBe(201);
+    const sid = open.json().session.captureSessionId as string;
+    await prisma.captureSession.update({ where: { id: sid }, data: { status: "BOUND" } });
+    const replay = await call("POST", "/v1/capture/direct-sessions", extensionToken, {
+      mode: "DIRECT_WEB_CAPTURE_EXTENSION",
+      teamId: owner().teamId,
+      deviceId: null,
+      clientAttemptId,
+    });
+    expect(replay.statusCode, replay.body).toBe(409);
+    expect(replay.json().denial).toBe("CAPTURE_ATTEMPT_ALREADY_SEALED");
+  });
+
+  it("AUD-026: a discarded attempt holds nothing — the same id opens a fresh session", async () => {
+    const clientAttemptId = randomUUID();
+    const body = { mode: "DIRECT_WEB_CAPTURE_EXTENSION", teamId: owner().teamId, deviceId: null, clientAttemptId };
+    const open = await call("POST", "/v1/capture/direct-sessions", extensionToken, body);
+    const sid = open.json().session.captureSessionId as string;
+    const discard = await call("POST", `/v1/capture/direct-sessions/${sid}/discard`, extensionToken, {});
+    expect(discard.statusCode, discard.body).toBe(200);
+    const fresh = await call("POST", "/v1/capture/direct-sessions", extensionToken, body);
+    expect(fresh.statusCode, fresh.body).toBe(201);
+    expect(fresh.json().session.captureSessionId).not.toBe(sid);
   });
 });
