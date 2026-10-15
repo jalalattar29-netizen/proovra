@@ -414,10 +414,14 @@ test("REPORT and PACKAGE OBJECT MISSING → typed, safe download errors; the oth
   for (const b of bodies) expect(b).not.toMatch(/proovra-rga|reports\/|verification\/|X-Amz|stack/i);
   await signIn(page, A.email);
   await openArtifacts(page, id);
+  // AUD-011 — the server says this caller may recover (the 410 carries
+  // recoveryPermitted), so the record offers ONE new verified version instead
+  // of "contact support"; the missing version is kept, never rewritten.
+  for (const b of bodies) expect(JSON.parse(b).recoveryPermitted).toBe(true);
   await page.getByTestId("download-report-v1").click();
-  await expect(page.getByText("The report record exists, but its stored file is unavailable. Contact support; nothing has been changed.")).toBeVisible();
+  await expect(page.getByText("The stored file of this report version is unavailable. You can issue a new verified version; the existing version is kept as it is.")).toBeVisible();
   await page.getByTestId("download-package-v1").click();
-  await expect(page.getByText("The verification package record exists, but its stored file is unavailable. Contact support; nothing has been changed.")).toBeVisible();
+  await expect(page.getByText("The stored file of this verification package version is unavailable. You can issue a new verified version; the existing version is kept as it is.")).toBeVisible();
   await page.screenshot({ path: join(PROOF_DIR, "object-missing.png") });
   // v2 is unaffected.
   expect((await downloadVersion(A.api, id, "report", 2)).subarray(0, 5).toString()).toBe("%PDF-");
