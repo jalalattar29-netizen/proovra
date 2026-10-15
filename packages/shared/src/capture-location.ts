@@ -12,16 +12,30 @@ export const CAPTURE_LOCATION_SHORT_BOUNDARY =
 export const CAPTURE_LOCATION_LEGAL_BOUNDARY =
   "Location metadata is device/browser-reported and user-permission-based. It may support context, but it does not independently prove physical presence, authorship, truth, or admissibility.";
 
+/**
+ * Attribution for map imagery from a CONFIGURED tile endpoint (an approved
+ * internal tile server, which serves OpenStreetMap-derived data).
+ */
 export const CAPTURE_LOCATION_MAP_ATTRIBUTION =
   "Map data © OpenStreetMap contributors";
+
+/**
+ * AUD-025 — what the map states when no imagery was requested: the default.
+ * The preview is drawn locally from the recorded coordinates; nothing about
+ * the evidence location left this system to draw it.
+ */
+export const CAPTURE_LOCATION_LOCAL_RENDER_LABEL =
+  "Map imagery unavailable · rendered locally from recorded coordinates";
 
 const EARTH_RADIUS_METERS = 6_378_137;
 const DEFAULT_TILE_SIZE = 256;
 const DEFAULT_TILE_GRID = 3;
 const DEFAULT_MAP_WIDTH = 1200;
 const DEFAULT_MAP_HEIGHT = 720;
-const DEFAULT_TILE_URL =
-  "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+// AUD-025 — there is NO default tile URL. A default third-party template sent
+// every evidence record's coordinates (as tile x/y/z) to a public tile server
+// whenever a report, package or owner/verify view drew its map. Tiles are
+// requested only from an endpoint a deployment explicitly configures.
 const OPEN_STREET_MAP_URL = "https://www.openstreetmap.org/";
 
 export type CaptureLocationInput = {
@@ -68,7 +82,9 @@ export type CaptureLocationDisplayModel = {
   scaleBarMeters: number;
   scaleBarLabel: string;
   tileGrid: number;
-  tileTemplate: string;
+  /** The configured tile endpoint, or null: no imagery is requested (the default). */
+  tileTemplate: string | null;
+  /** Every tile's `url` is null unless a tile endpoint was configured. */
   tiles: CaptureLocationTile[];
 };
 
@@ -300,7 +316,7 @@ export function buildCaptureLocationDisplayModel(params: {
   const tileTemplate =
     typeof params.tileTemplate === "string" && params.tileTemplate.trim()
       ? params.tileTemplate.trim()
-      : DEFAULT_TILE_URL;
+      : null;
 
   const metersPerPixel =
     (Math.cos((normalizedLat * Math.PI) / 180) *
@@ -354,7 +370,7 @@ const clampedMarkerY = Math.max(0, Math.min(height, markerY));
         top: (row * DEFAULT_TILE_SIZE - cropTop) * scale,
         width: DEFAULT_TILE_SIZE * scale,
         height: DEFAULT_TILE_SIZE * scale,
-        url: buildTileUrl(tileTemplate, tileX, tileY, zoom),
+        url: tileTemplate ? buildTileUrl(tileTemplate, tileX, tileY, zoom) : null,
       });
     }
   }
@@ -377,7 +393,7 @@ const clampedMarkerY = Math.max(0, Math.min(height, markerY));
     description: CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
     sourceLabel: CAPTURE_LOCATION_SOURCE_LABEL,
     legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
-    attributionLabel: CAPTURE_LOCATION_MAP_ATTRIBUTION,
+    attributionLabel: tileTemplate ? CAPTURE_LOCATION_MAP_ATTRIBUTION : CAPTURE_LOCATION_LOCAL_RENDER_LABEL,
     locationLineLabel: buildCoordinateLineLabel(normalizedLat, normalizedLng),
     geoUri: buildCaptureLocationGeoUri({
       lat: normalizedLat,

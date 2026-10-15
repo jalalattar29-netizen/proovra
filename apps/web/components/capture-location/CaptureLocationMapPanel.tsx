@@ -60,6 +60,11 @@ export default function CaptureLocationMapPanel(
 
   if (!display) return null;
 
+  // AUD-025 — no tile endpoint is configured for this view, so the display
+  // model carries no tile URLs and the map is drawn locally from the recorded
+  // coordinates. Nothing is requested from a third-party tile server.
+  const renderLocally = useFallback || !display.tiles.some((tile) => tile.url);
+
   const rounded = props.rounded ?? 22;
   const markerPercentX = (display.markerX / display.width) * 100;
   const markerPercentY = (display.markerY / display.height) * 100;
@@ -97,7 +102,7 @@ export default function CaptureLocationMapPanel(
           "0 22px 46px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.06)",
       }}
     >
-      {useFallback ? (
+      {renderLocally ? (
         <img
           src={fallbackDataUrl}
           alt="Capture context map preview"
