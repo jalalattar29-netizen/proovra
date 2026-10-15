@@ -347,6 +347,7 @@ export function EvidenceDerivedReviewTab({
               <DerivedBlockRow
                 key={b.blockId}
                 block={b as DerivedReviewBlock & BlockExtras}
+                sessionTimeline={projection.offsetTimeline === "SESSION"}
                 keyframeUrls={keyframeUrls}
                 onOpenOriginal={onGoToArtifacts}
               />
@@ -439,10 +440,13 @@ function DerivedStatusRow({
 
 function DerivedBlockRow({
   block,
+  sessionTimeline,
   keyframeUrls,
   onOpenOriginal,
 }: {
   block: DerivedReviewBlock & BlockExtras;
+  /** Offsets are recording (session) time rather than time into the part. */
+  sessionTimeline?: boolean;
   keyframeUrls: Record<string, string | null>;
   onOpenOriginal?: () => void;
 }) {
@@ -475,6 +479,7 @@ function DerivedBlockRow({
           {block.sources.map((s, i) => (
             <div key={`${s.evidencePartId}-${i}`} className="evidence-detail-muted uc4-derived-source-line">
               Source part <code>{s.evidencePartId.slice(0, 8)}…</code> ·{" "}
+              {sessionTimeline ? "recording time " : ""}
               {(s.offsetMsRange[0] / 1000).toFixed(1)}s–{(s.offsetMsRange[1] / 1000).toFixed(1)}s
             </div>
           ))}

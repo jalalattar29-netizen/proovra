@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { detectFfmpegCapability } from "../src/ffmpeg-capability.js";
 import {
   getFfmpegVersion,
+  parseShowinfoPtsTimes,
   pngDimensions,
   produceVideoKeyframes,
 } from "../src/ffmpeg-derived-assets.js";
@@ -69,7 +70,7 @@ describe("UC-4 real keyframe producer (ffmpeg)", () => {
     // 6s at one frame / 1.5s → ~4 keyframes.
     expect(res.keyframes.length).toBeGreaterThanOrEqual(3);
     expect(res.keyframes.length).toBeLessThanOrEqual(10);
-    // Deterministic offsets by interval index.
+    // Real presentation times of the selected frames (10 fps source: exact).
     expect(res.keyframes.map((k) => k.offsetMs).slice(0, 3)).toEqual([0, 1500, 3000]);
     for (const k of res.keyframes) {
       expect(k.bytes.length).toBeGreaterThan(0);
@@ -154,3 +155,59 @@ function webpWidth(b: Buffer): number {
   if (chunk === "VP8X") return 1 + b.readUIntLE(24, 3);
   return Number.NaN;
 }
+
+/** Encode a lavfi source with an optional frame selection, keeping real (variable) timestamps. */
+async function makeMp4(ffmpeg: string, lavfi: string, vf: string | null): Promise<Buffer> {
+  const dir = await mkdtemp(join(tmpdir(), "uc4-vfr-"));
+  const out = join(dir, "sample.mp4");
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(
+      ffmpeg,
+      ["-y", "-f", "lavfi", "-i", lavfi, ...(vf ? ["-vf", vf] : []), "-fps_mode", "passthrough", "-pix_fmt", "yuv420p", out],
+      { stdio: ["ignore", "ignore", "ignore"] },
+    );
+    child.on("error", reject);
+    child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exit ${code}`))));
+  });
+  const bytes = await readFile(out);
+  await rm(dir, { recursive: true, force: true });
+  return bytes;
+}
+
+describe("UC-4 keyframe offsets are REAL presentation timestamps (ffmpeg)", () => {
+  it("a variable-frame-rate recording with a 4 s gap yields the real frame times — no duplicated frame stamped with an index time", async (ctx) => {
+    if (!ffmpegPath) return ctx.skip();
+    // Frames exist only in [0, 1) s and [5, 6) s — a static screen the recorder
+    // did not re-encode. A fixed-rate resampler would invent frames at 1.5, 3.0
+    // and 4.5 s (copies of the 0.9 s picture) labelled with those times.
+    const vfr = await makeMp4(ffmpegPath, "testsrc=duration=6:size=320x240:rate=10", "select='lt(t,1)+gte(t,5)'");
+    const res = await produceVideoKeyframes({ sourceBytes: vfr, sourceMimeType: "video/mp4", intervalMs: 1500, maxKeyframes: 10 });
+    expect(res.status, JSON.stringify(res).slice(0, 200)).toBe("ok");
+    if (res.status !== "ok") return;
+    expect(res.keyframes.map((k) => k.offsetMs)).toEqual([0, 5000]);
+    expect(new Set(res.keyframes.map((k) => k.derivedSha256)).size).toBe(res.keyframes.length);
+  }, 60_000);
+
+  it("a non-integral frame rate yields the selected frame's own time, not index x interval", async (ctx) => {
+    if (!ffmpegPath) return ctx.skip();
+    // 7 fps: the first frame at least 1.5 s after 0 is frame 11 (1.571 s), the
+    // next at least 1.5 s after that is frame 22 (3.143 s).
+    const seven = await makeMp4(ffmpegPath, "testsrc=duration=4:size=320x240:rate=7", null);
+    const res = await produceVideoKeyframes({ sourceBytes: seven, sourceMimeType: "video/mp4", intervalMs: 1500, maxKeyframes: 10 });
+    expect(res.status).toBe("ok");
+    if (res.status !== "ok") return;
+    expect(res.keyframes.map((k) => k.offsetMs)).toEqual([0, 1571, 3143]);
+  }, 60_000);
+
+  it("parses showinfo output in order and ignores everything else", () => {
+    const lines = [
+      "[Parsed_showinfo_1 @ 0x1] config in time_base: 1/10240, frame_rate: 10/1",
+      "[Parsed_showinfo_1 @ 0x1] n:   0 pts:      0 pts_time:0       duration:   1024 fmt:yuv420p",
+      "[Parsed_showinfo_1 @ 0x1] n:   1 pts:  51200 pts_time:5       duration:   1024 fmt:yuv420p",
+      "frame=    2 fps=0.0 q=-0.0 Lsize=N/A time=00:00:05.10",
+      "[Parsed_showinfo_1 @ 0x1] n:   1 pts:  51200 pts_time:5       duplicate line ignored",
+    ];
+    expect(parseShowinfoPtsTimes(lines)).toEqual([0, 5]);
+    expect(parseShowinfoPtsTimes([])).toEqual([]);
+  });
+});

@@ -12,7 +12,9 @@
  *   * OCR disabled by policy (no policy row ⇒ fail-closed) is PARTIAL and says
  *     DISABLED_BY_POLICY;
  *   * DER-010: a Personal record stored with team_id NULL is produced under its
- *     owner's personal workspace.
+ *     owner's personal workspace;
+ *   * continuous capture: keyframe times are the segment start from the
+ *     digest-verified continuity manifest + the frame's presentation time.
  *
  * DB-dependent: runs where TEST_DATABASE_URL points at a disposable migrated
  * database (the same convention as every API integration suite). The DB-free
@@ -229,6 +231,78 @@ runIf("UC-4 processReconstructScreenJob (live PostgreSQL)", () => {
     const g1Row = await prisma.evidencePartDerivedAsset.findUniqueOrThrow({ where: { id: g1!.assetId } });
     expect(g1Row.status).toBe("SUPERSEDED");
     expect(store.objs.has(`${g1Row.storageBucket}::${g1Row.storageKey}`)).toBe(true);
+  });
+
+  /** Turn a seeded record into a 2-segment continuous capture with its continuity manifest part. */
+  async function makeContinuous(evidenceId: string, opts: { tamper?: boolean } = {}) {
+    const seg = Buffer.from(`segment-1-${randomUUID()}`);
+    const segKey = `originals/${evidenceId}/part-1`;
+    store.objs.set(`${BUCKET}::${segKey}`, seg);
+    await prisma.evidencePart.create({
+      data: {
+        evidenceId, partIndex: 1, storageBucket: BUCKET, storageKey: segKey, sha256: sha256Hex(seg),
+        sizeBytes: BigInt(seg.byteLength), mimeType: "video/mp4", artifactClass: "ORIGINAL",
+      },
+    });
+    const manifest = Buffer.from(
+      JSON.stringify({
+        schemaVersion: "PROOVRA_SCREEN_CAPTURE_CONTINUOUS_MANIFEST_V2",
+        segments: [
+          { partIndex: 0, sequence: 0, startedAtOffsetMs: 0, durationMs: 30000 },
+          { partIndex: 1, sequence: 1, startedAtOffsetMs: 30250, durationMs: 30000 },
+        ],
+      }),
+      "utf8",
+    );
+    const manKey = `originals/${evidenceId}/part-2`;
+    // A tampered object no longer matches the RECORDED digest and is ignored.
+    store.objs.set(`${BUCKET}::${manKey}`, opts.tamper ? Buffer.concat([manifest, Buffer.from(" ")]) : manifest);
+    await prisma.evidencePart.create({
+      data: {
+        evidenceId, partIndex: 2, storageBucket: BUCKET, storageKey: manKey, sha256: sha256Hex(manifest),
+        sizeBytes: BigInt(manifest.byteLength), mimeType: "application/json", artifactClass: "ORIGINAL",
+      },
+    });
+  }
+
+  it("continuous capture: keyframe times are segment start (manifest) + real presentation time, on ONE session timeline", async () => {
+    const { teamId, evidenceId } = await seed({ ocrAllowed: true });
+    await makeContinuous(evidenceId);
+    frames.value = [
+      { offsetMs: 0, rows: ["A", "B"] },
+      { offsetMs: 1571, rows: ["B", "C"] },
+    ];
+    const run = await newRun(teamId, evidenceId, 1);
+    await processReconstructScreenJob({ jobId: "j", teamId, evidenceId, runId: run });
+    expect((await runStatus(run)).status).toBe("COMPLETED");
+    const d = (await current(teamId, evidenceId))!.descriptor;
+    expect(d.offsetTimeline).toBe("SESSION");
+    const kf = d.keyframes.map((k) => [k.partIndex, k.offsetMs, k.sessionOffsetMs]);
+    expect(kf).toEqual([
+      [0, 0, 0],
+      [0, 1571, 1571],
+      [1, 0, 30250],
+      [1, 1571, 31821],
+    ]);
+    // Observations from the second segment are on the session timeline.
+    const seg1 = d.observations.filter((o) => o.sourcePartIndex === 1).map((o) => o.sourceOffsetMs);
+    expect(Math.min(...seg1)).toBe(30250);
+    // The derived keyframe rows keep the offset INTO their ORIGINAL part.
+    const rows = await prisma.evidencePartDerivedAsset.findMany({
+      where: { evidenceId, assetKind: "video_keyframe" as never },
+      select: { sourceOffsetMs: true },
+    });
+    expect(rows.map((r) => r.sourceOffsetMs).sort((a, b) => Number(a) - Number(b))).toEqual([0, 0, 1571, 1571]);
+  });
+
+  it("continuous capture: a manifest whose bytes do not match the recorded digest is not trusted — offsets stay per part", async () => {
+    const { teamId, evidenceId } = await seed({ ocrAllowed: true });
+    await makeContinuous(evidenceId, { tamper: true });
+    const run = await newRun(teamId, evidenceId, 1);
+    await processReconstructScreenJob({ jobId: "j", teamId, evidenceId, runId: run });
+    const d = (await current(teamId, evidenceId))!.descriptor;
+    expect(d.offsetTimeline).toBe("PART");
+    expect(d.keyframes.every((k) => k.sessionOffsetMs === null)).toBe(true);
   });
 
   it("lease-lost fence: a run another worker holds is not claimed and nothing is written", async () => {

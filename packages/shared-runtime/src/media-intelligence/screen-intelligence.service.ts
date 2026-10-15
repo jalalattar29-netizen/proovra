@@ -79,6 +79,12 @@ export type ScreenSourcePartInput = {
   storageVersionId?: string | null;
   /** UC-DER-014 — the recorded ORIGINAL size, to tell a whole read from a capped one. */
   sizeBytes?: number | null;
+  /**
+   * Where this part starts on the capture SESSION timeline (continuity
+   * manifest startedAtOffsetMs). When every source part has one, offsets are
+   * on the session timeline; otherwise they stay ms into each part.
+   */
+  sessionStartOffsetMs?: number | null;
 };
 
 export type KeyframeProducerResult =
@@ -400,6 +406,18 @@ export async function runAndPersistScreenIntelligence(
     let frameOrder = 0;
     let obsCounter = 0;
     let ocrLanguage: string | null = effectiveLanguage;
+    // One timeline for the whole descriptor: SESSION only when every source
+    // part's start is known; never a mix of session and part offsets.
+    const sessionTimeline =
+      parts.length > 0 &&
+      parts.every(
+        (p) =>
+          typeof p.sessionStartOffsetMs === "number" &&
+          Number.isInteger(p.sessionStartOffsetMs) &&
+          p.sessionStartOffsetMs >= 0,
+      );
+    const timelineOffset = (part: ScreenSourcePartInput, offsetMs: number) =>
+      sessionTimeline ? (part.sessionStartOffsetMs as number) + offsetMs : offsetMs;
 
     for (const part of parts) {
       const mime = (part.mimeType ?? "").toLowerCase();
@@ -602,6 +620,7 @@ export async function runAndPersistScreenIntelligence(
           evidencePartId: part.evidencePartId,
           variantKey: frame.variantKey,
           offsetMs: frame.offsetMs,
+          sessionOffsetMs: sessionTimeline ? timelineOffset(part, frame.offsetMs) : null,
           derivedSha256: frame.derivedSha256 || null,
           derivedAssetId: frame.derivedAssetId,
           outputVersionId: frame.outputVersionId,
@@ -648,7 +667,7 @@ export async function runAndPersistScreenIntelligence(
             id,
             keyframeId: frame.keyframeId,
             sourcePartIndex: part.partIndex,
-            sourceOffsetMs: frame.offsetMs,
+            sourceOffsetMs: timelineOffset(part, frame.offsetMs),
             frameOrder: thisFrameOrder,
             rowOrder: region.rowOrder,
             text: region.text,
@@ -661,7 +680,7 @@ export async function runAndPersistScreenIntelligence(
             keyframeId: frame.keyframeId,
             sourcePartIndex: part.partIndex,
             evidencePartId: part.evidencePartId,
-            sourceOffsetMs: frame.offsetMs,
+            sourceOffsetMs: timelineOffset(part, frame.offsetMs),
             frameOrder: thisFrameOrder,
             rowOrder: region.rowOrder,
             text: region.text,
@@ -796,6 +815,7 @@ export async function runAndPersistScreenIntelligence(
       ocrOutcome,
       ocrCounts,
       ocrLanguages: resolvedLanguages,
+      offsetTimeline: sessionTimeline ? "SESSION" : "PART",
       acquisitionComplete: input.acquisitionComplete,
       coverage,
       limitations: [...limitations],

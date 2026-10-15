@@ -241,6 +241,16 @@ describe("Derived Review tab", () => {
     expect(document.body.textContent).toMatch(/requested OCR language models are not installed/);
   });
 
+  it("continuous capture: block times on the session timeline are labelled as recording time", async () => {
+    responders["/derived-review?"] = () => review("COMPLETED", projection({ offsetTimeline: "SESSION" }));
+    render(<EvidenceDerivedReviewTab ctx={ctx(TEAM_ID)} />);
+    const view = (await screen.findAllByRole("button", { name: "View source" }))[0]!;
+    await act(async () => {
+      fireEvent.click(view);
+    });
+    expect(document.body.textContent).toMatch(/recording time 0\.0s–1\.5s/);
+  });
+
   it("DER-012: keyframe thumbnails are requested WITH credentials", async () => {
     render(<EvidenceDerivedReviewTab ctx={ctx(TEAM_ID)} />);
     const view = await screen.findAllByRole("button", { name: "View source" });

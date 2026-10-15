@@ -347,7 +347,8 @@ export type Uc4ResourceBounds = typeof UC4_RESOURCE_BOUNDS;
 
 /** Canonical transformation-version stamp carried by every persisted descriptor. */
 export const SCREEN_INTELLIGENCE_TRANSFORMATION_VERSIONS = {
-  keyframe: "video-keyframe/v1",
+  // v2 — real presentation timestamps of selected frames (v1: index × interval).
+  keyframe: "video-keyframe/v2",
   ocr: "screen-ocr/v1",
   overlap: "screen-overlap-analysis/v1",
   dedup: "SCREEN_CONTENT_DEDUP_V1",
@@ -371,7 +372,13 @@ export type ScreenKeyframeRecord = {
   partIndex: number;
   evidencePartId: string;
   variantKey: string;
+  /** The frame's real presentation time in its ORIGINAL part (ms after the part's first frame). */
   offsetMs: number;
+  /**
+   * Its time on the capture SESSION timeline (segment start from the
+   * continuity manifest + offsetMs); null when the record has no manifest.
+   */
+  sessionOffsetMs?: number | null;
   derivedSha256: string | null;
   /** The derived-asset row id, so View Source resolves the private bytes proxy. */
   derivedAssetId: string | null;
@@ -440,6 +447,12 @@ export type ScreenIntelligenceDescriptor = {
   ocrCounts?: ScreenOcrCounts;
   /** AUD-019 — requested vs effective vs missing OCR language models. */
   ocrLanguages?: ScreenOcrLanguages;
+  /**
+   * Which timeline observation/block offsets are on: SESSION (every source
+   * part's start is known from the continuity manifest) or PART (ms into each
+   * part). Absent on earlier descriptors, which are PART.
+   */
+  offsetTimeline?: "SESSION" | "PART";
   /** ORIGINAL acquisition completeness, carried separately from derived coverage. */
   acquisitionComplete: boolean;
   /** DERIVED reconstruction coverage — NEVER upgrades acquisition completeness. */
@@ -487,6 +500,8 @@ export type ScreenIntelligenceReviewProjection = {
   ocrLanguages: ScreenOcrLanguages;
   /** The language model(s) OCR ACTUALLY ran with (null when it did not run). */
   ocrLanguage: string | null;
+  /** Which timeline block offsets are on (SESSION or ms into each PART). */
+  offsetTimeline: "SESSION" | "PART";
   coverage: ReconstructionCoverage;
   acquisitionComplete: boolean;
   limitations: ReconstructionLimitationCode[];
@@ -589,6 +604,7 @@ export function projectScreenIntelligenceForReview(
     ocrCounts: ocr.ocrCounts,
     ocrLanguages: ocr.ocrLanguages,
     ocrLanguage: ocr.ocrLanguages.effective,
+    offsetTimeline: descriptor.offsetTimeline ?? "PART",
     coverage: ocr.coverage,
     acquisitionComplete: descriptor.acquisitionComplete,
     limitations: ocr.limitations,

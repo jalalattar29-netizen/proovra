@@ -90,6 +90,8 @@ export type DerivedReviewProjection = {
   ocrCounts?: DerivedReviewOcrCounts;
   /** AUD-019 — requested vs effective vs missing OCR language models. */
   ocrLanguages?: { requested: string | null; effective: string | null; missing: string[] };
+  /** Block offsets are on the capture SESSION timeline, or ms into each PART. */
+  offsetTimeline?: "SESSION" | "PART";
   /** UC-DER-005/006 — the generation this projection describes. */
   generation?: {
     generation: number;

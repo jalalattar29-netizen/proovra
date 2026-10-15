@@ -526,6 +526,29 @@ export function validateScreenContinuousManifest(
   return { ok: true, manifest: input as ScreenContinuousManifest };
 }
 
+/**
+ * UC-4 — where each segment starts on the SESSION timeline, read from the
+ * continuity manifest bytes the record holds (partIndex → startedAtOffsetMs).
+ * Pure and strict: null unless the document is a V2 continuity manifest whose
+ * segments all carry a distinct non-negative integer part index and start
+ * offset. A derived keyframe's session time is this start plus the frame's
+ * presentation time inside its segment.
+ */
+export function continuousSegmentStartOffsets(input: unknown): Map<number, number> | null {
+  if (!input || typeof input !== "object") return null;
+  const m = input as Record<string, unknown>;
+  if (m.schemaVersion !== SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION || !Array.isArray(m.segments)) return null;
+  const out = new Map<number, number>();
+  for (const raw of m.segments) {
+    if (!raw || typeof raw !== "object") return null;
+    const seg = raw as Record<string, unknown>;
+    if (!isNonNegInt(seg.partIndex) || !isNonNegInt(seg.startedAtOffsetMs)) return null;
+    if (out.has(seg.partIndex as number)) return null;
+    out.set(seg.partIndex as number, seg.startedAtOffsetMs as number);
+  }
+  return out.size > 0 ? out : null;
+}
+
 /** UC-PROV-003 — the persisted facts of a VALIDATED continuity manifest. */
 export function continuousCaptureManifestFacts(
   m: ScreenContinuousManifest,

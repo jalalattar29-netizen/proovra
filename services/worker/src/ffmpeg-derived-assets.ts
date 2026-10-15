@@ -130,6 +130,10 @@ export const FFMPEG_PRODUCER_PARAMETERS = {
 
 export type ProducedKeyframe = {
   index: number;
+  /**
+   * The frame's REAL presentation time in the part, ms after the part's first
+   * decoded frame (ffmpeg showinfo pts_time) — never derived from its index.
+   */
   offsetMs: number;
   /** The small REVIEW keyframe (persisted). */
   bytes: Buffer;
@@ -202,14 +206,36 @@ export type KeyframesProducerResult =
   | { status: "failed"; reason: string };
 
 /**
+ * PURE: the presentation times ffmpeg's `showinfo` filter logged, in output
+ * order. Each line carries `n:<i> pts:<ticks> pts_time:<seconds>`.
+ */
+export function parseShowinfoPtsTimes(lines: ReadonlyArray<string>): number[] {
+  const out: number[] = [];
+  for (const line of lines) {
+    const m = /\bn:\s*(\d+)\s+pts:\s*-?\d+\s+pts_time:(-?[0-9.]+(?:e[-+]?\d+)?)/i.exec(line);
+    if (!m) continue;
+    const n = Number(m[1]);
+    const t = Number(m[2]);
+    if (n !== out.length || !Number.isFinite(t)) continue; // in order, no repeats
+    out.push(t);
+  }
+  return out;
+}
+
+/**
  * UC-4 — REAL bounded keyframe extraction from ONE ORIGINAL screen_segment MP4.
  *
- * A single ffmpeg pass samples frames at a fixed interval (`fps = 1000/intervalMs`),
- * scaled to a bounded WebP, capped at `maxKeyframes` (`-frames:v`) — so a segment is
- * processed once, bounded in CPU, output count and per-frame bytes, never decoding
- * the whole Evidence into RAM. Each keyframe's offset is derived from its interval
- * index. The bytes are DERIVED; the ORIGINAL segment is never mutated. No face /
- * object / identity detection — pixel sampling only.
+ * A single ffmpeg pass SELECTS real decoded frames — the first frame, then the
+ * first frame at least `intervalMs` after the previously selected one — scaled
+ * to a bounded WebP, capped at `maxKeyframes` (`-frames:v`), so a segment is
+ * processed once, bounded in CPU, output count and per-frame bytes, never
+ * decoding the whole Evidence into RAM. Each keyframe's offset is that frame's
+ * REAL presentation timestamp (showinfo pts_time), relative to the part's first
+ * frame. A constant-rate resampler (`fps`) duplicates the last frame across a
+ * gap in a variable-frame-rate screen recording and stamps each copy with its
+ * index time — a time at which that picture may not have been on screen.
+ * Frames are passed through, never duplicated. The bytes are DERIVED; the
+ * ORIGINAL segment is never mutated. No face / object / identity detection.
  */
 export async function produceVideoKeyframes(
   input: FfmpegProducerInput & { intervalMs: number; maxKeyframes: number },
@@ -239,37 +265,54 @@ export async function produceVideoKeyframes(
     } catch {
       return { status: "failed", reason: "tmp_write_failed" };
     }
-    // fps as a rational avoids float drift; extract ≤ maxKeyframes frames.
-    // UC-DER-003 — ONE decode, TWO renditions of every sampled frame: the small
+    // Select real frames >= intervalMs apart; extract <= maxKeyframes of them.
+    // UC-DER-003 — ONE decode, TWO renditions of every selected frame: the small
     // review keyframe (persisted) and a grayscale PNG at native width up to the
     // OCR ceiling (temp only). OCR must never read the 256-px thumbnail: a
     // 1080-px phone screen shrunk ~4x turns 40-px text into unreadable 9-px text.
-    const spawnResult = await spawnBounded(cap.ffmpegPath, [
-      "-y",
-      "-i",
-      inFile,
-      "-filter_complex",
-      `[0:v]fps=1000/${intervalMs},split=2[review][ocr];` +
-        `[review]scale='min(${reviewWidth},iw)':-2[reviewout];` +
-        `[ocr]scale='min(${ocrWidth},iw)':-2,format=gray[ocrout]`,
-      "-map",
-      "[reviewout]",
-      "-frames:v",
-      String(maxKeyframes),
-      "-vcodec",
-      "libwebp",
-      "-q:v",
-      "75",
-      pattern,
-      "-map",
-      "[ocrout]",
-      "-frames:v",
-      String(maxKeyframes),
-      "-vcodec",
-      "png",
-      ocrPattern,
-    ]);
+    const intervalSec = (intervalMs / 1000).toFixed(3);
+    const showinfo: string[] = [];
+    const spawnResult = await spawnBounded(
+      cap.ffmpegPath,
+      [
+        "-y",
+        "-i",
+        inFile,
+        "-filter_complex",
+        `[0:v]select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,${intervalSec})',showinfo,split=2[review][ocr];` +
+          `[review]scale='min(${reviewWidth},iw)':-2[reviewout];` +
+          `[ocr]scale='min(${ocrWidth},iw)':-2,format=gray[ocrout]`,
+        "-map",
+        "[reviewout]",
+        "-fps_mode",
+        "passthrough",
+        "-frames:v",
+        String(maxKeyframes),
+        "-vcodec",
+        "libwebp",
+        "-q:v",
+        "75",
+        pattern,
+        "-map",
+        "[ocrout]",
+        "-fps_mode",
+        "passthrough",
+        "-frames:v",
+        String(maxKeyframes),
+        "-vcodec",
+        "png",
+        ocrPattern,
+      ],
+      {
+        onStderrLine: (line) => {
+          // Bounded: only showinfo frame lines, at most a few beyond the cap.
+          if (showinfo.length < maxKeyframes + 8 && line.includes("pts_time:")) showinfo.push(line);
+        },
+      },
+    );
     if (!spawnResult.ok) return { status: "failed", reason: `ffmpeg_${spawnResult.reason}`.slice(0, 80) };
+    const ptsTimes = parseShowinfoPtsTimes(showinfo);
+    const firstPts = ptsTimes[0] ?? 0;
 
     const keyframes: ProducedKeyframe[] = [];
     let ocrBytesHeld = 0;
@@ -283,6 +326,10 @@ export async function produceVideoKeyframes(
         break; // no more frames produced (source shorter than the sampling window)
       }
       if (bytes.length === 0) break;
+      // The frame's real time. No logged timestamp => no keyframe: an index
+      // time would be a fabricated offset (fail closed, never guessed).
+      const pts = ptsTimes[i - 1];
+      if (pts === undefined) return { status: "failed", reason: "keyframe_timestamps_unavailable" };
       if (bytes.length > MAX_KEYFRAME_OUTPUT_BYTES) {
         return { status: "failed", reason: "keyframe_output_oversize" };
       }
@@ -304,7 +351,7 @@ export async function produceVideoKeyframes(
       const dims = pngDimensions(ocrBytes);
       keyframes.push({
         index: i - 1,
-        offsetMs: (i - 1) * intervalMs,
+        offsetMs: Math.max(0, Math.round((pts - firstPts) * 1000)),
         bytes,
         contentType: "image/webp",
         derivedSha256: createHash("sha256").update(bytes).digest("hex"),
@@ -554,6 +601,7 @@ async function runFfmpeg(
 function spawnBounded(
   command: string,
   args: string[],
+  opts: { onStderrLine?: (line: string) => void } = {},
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   return new Promise((resolve) => {
     let settled = false;
@@ -585,6 +633,16 @@ function spawnBounded(
       }
       finish({ ok: false, reason: "subprocess_timeout" });
     }, FFMPEG_SUBPROCESS_TIMEOUT_MS);
+    // stderr is ALWAYS drained: an unread pipe fills and blocks ffmpeg until
+    // the timeout kills it. Lines go to the caller when it asked for them;
+    // the partial-line carry is bounded.
+    let carry = "";
+    child.stderr?.on("data", (d: Buffer | string) => {
+      if (!opts.onStderrLine) return;
+      const lines = (carry + String(d)).split(/\r?\n/);
+      carry = (lines.pop() ?? "").slice(-4096);
+      for (const line of lines) opts.onStderrLine(line);
+    });
     child.on("error", (err) => {
       clearTimeout(timer);
       finish({
@@ -594,6 +652,7 @@ function spawnBounded(
     });
     child.on("exit", (code, signal) => {
       clearTimeout(timer);
+      if (carry && opts.onStderrLine) opts.onStderrLine(carry);
       if (code === 0) {
         finish({ ok: true });
         return;

@@ -36,6 +36,7 @@ import * as path from "node:path";
 import type { OcrExtractResult, ScreenOcrLanguages, ScreenOcrStatus } from "@proovra/shared";
 import {
   captureSessionAcquisitionComplete,
+  continuousSegmentStartOffsets,
   parseScreenReconstructionGeneration,
 } from "@proovra/shared";
 
@@ -159,7 +160,19 @@ export async function processReconstructScreenJob(
       mimeType: p.mime_type,
       sha256: p.sha256,
       acquisitionRole: null as string | null,
+      sessionStartOffsetMs: null as number | null,
     }));
+
+  // Continuous capture (UC-3/UC-5): each segment's start on the SESSION
+  // timeline comes from the continuity manifest the record holds, so a
+  // keyframe's time is "segment start + its presentation time", not a time
+  // inside an anonymous part.
+  if (screenParts.some((p) => (p.mimeType ?? "").toLowerCase().startsWith("video/"))) {
+    const offsets = await readSegmentStartOffsets(parts);
+    if (offsets) {
+      for (const sp of screenParts) sp.sessionStartOffsetMs = offsets.get(sp.partIndex) ?? null;
+    }
+  }
 
   if (screenParts.length === 0) {
     // No screen material — the run is truthfully done with nothing to derive.
@@ -333,6 +346,49 @@ export async function processReconstructScreenJob(
     );
     throw err;
   }
+}
+
+/** A continuity manifest is small JSON; anything larger is not one. */
+const MAX_MANIFEST_READ_BYTES = 1024 * 1024;
+
+/**
+ * The segment start offsets of a continuous-capture record, from its
+ * continuity manifest part: a non-media part read at its recorded version,
+ * accepted only when the bytes read equal the RECORDED digest and parse as a
+ * V2 continuity manifest. Null when the record has none (single frames,
+ * uploads) — offsets then stay ms into each part.
+ */
+async function readSegmentStartOffsets(
+  parts: Array<{
+    storage_bucket: string | null;
+    storage_key: string | null;
+    storage_version_id: string | null;
+    size_bytes: bigint | number | null;
+    mime_type: string | null;
+    sha256: string | null;
+  }>,
+): Promise<Map<number, number> | null> {
+  for (const p of parts) {
+    const mt = (p.mime_type ?? "").toLowerCase();
+    if (mt.startsWith("image/") || mt.startsWith("video/")) continue;
+    if (!p.storage_bucket || !p.storage_key || !p.sha256) continue;
+    const size = p.size_bytes == null ? null : Number(p.size_bytes);
+    if (size == null || size <= 0 || size > MAX_MANIFEST_READ_BYTES) continue;
+    try {
+      const bytes = await readObjectBounded({
+        bucket: p.storage_bucket,
+        key: p.storage_key,
+        maxBytes: MAX_MANIFEST_READ_BYTES,
+        versionId: p.storage_version_id,
+      });
+      if (createHash("sha256").update(bytes).digest("hex") !== p.sha256.toLowerCase()) continue;
+      const offsets = continuousSegmentStartOffsets(JSON.parse(bytes.toString("utf8")));
+      if (offsets) return offsets;
+    } catch {
+      /* not a readable manifest — offsets stay per part */
+    }
+  }
+  return null;
 }
 
 /**
