@@ -179,11 +179,21 @@ services:
       - ${SIGNING_KEY_DIR:?SIGNING_KEY_DIR must name a host directory holding the signing keypair — the image ships none by design}:/run/signing:ro
     ports:
       - "8080:8080"
+    # AUD-023 — the healthcheck is READINESS (`/readyz`: database, Redis and
+    # evidence storage, plus the Object Lock contract in production), because what reads it is
+    # `depends_on: service_healthy` and the deploy gate: neither should proceed
+    # against an instance that cannot serve. It is not a restart trigger —
+    # `restart: unless-stopped` restarts on EXIT, and Docker never restarts a
+    # merely unhealthy container (no autoheal runs here) — so a Redis or S3
+    # outage marks the container unhealthy instead of starting a restart storm.
+    # `/health` remains the liveness endpoint. start_period covers boot (schema
+    # validation, Object Lock bootstrap); retries x interval tolerates a blip.
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/readyz || exit 1"]
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
   proovra-worker:
     build:
@@ -284,8 +294,18 @@ services:
       - ${SIGNING_KEY_DIR:?SIGNING_KEY_DIR must name a host directory holding the signing keypair — the image ships none by design}:/run/signing:ro
     ports:
       - "8090:8090"
+    # AUD-023 — the healthcheck is READINESS (`/readyz`: database, Redis and
+    # evidence storage), because what reads it is
+    # `depends_on: service_healthy` and the deploy gate: neither should proceed
+    # against an instance that cannot serve. It is not a restart trigger —
+    # `restart: unless-stopped` restarts on EXIT, and Docker never restarts a
+    # merely unhealthy container (no autoheal runs here) — so a Redis or S3
+    # outage marks the container unhealthy instead of starting a restart storm.
+    # `/health` remains the liveness endpoint. start_period covers boot (schema
+    # validation, Object Lock bootstrap); retries x interval tolerates a blip.
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/readyz || exit 1"]
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 12
+      start_period: 60s

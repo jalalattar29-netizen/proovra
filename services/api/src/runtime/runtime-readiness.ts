@@ -30,7 +30,7 @@
  *     Phase 28-A).
  */
 
-import { objectLockPostureViolations } from "@proovra/shared";
+import { decideObjectLockBootstrap, objectLockPostureViolations } from "@proovra/shared";
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db.js";
 import { setGauge } from "../services/ops/metrics.service.js";
@@ -680,7 +680,7 @@ async function checkDatabase(prisma: PrismaClient): Promise<SubsystemReadiness> 
 //   3. The ping client is configured for fast failure (connectTimeout
 //      500ms, maxRetriesPerRequest 0) — no point retrying for a
 //      health check.
-async function checkRedis(): Promise<SubsystemReadiness> {
+export async function checkRedis(): Promise<SubsystemReadiness> {
   if (!envPresent("REDIS_URL")) {
     return {
       id: "redis",
@@ -844,6 +844,61 @@ export function checkS3ObjectLock(): SubsystemReadiness {
     detail: "S3 Object Lock configured: COMPLIANCE, at least 2920 days.",
     remediationHint: null,
     metadata: { objectLockEnabled: true },
+  };
+}
+
+/**
+ * AUD-023 — evidence storage, LIVE. `checkS3ObjectLock` above reads only the
+ * environment, so a deployment whose bucket was unreachable (wrong endpoint,
+ * revoked credentials, deleted bucket) read HEALTHY. This composes it with:
+ *
+ *   - a bounded `HeadBucket` (`probeEvidenceBucket`): unreachable → CRITICAL
+ *     `storage_unreachable`;
+ *   - in production, the bucket's Object Lock configuration through the SAME
+ *     decision the startup bootstrap applies (`decideObjectLockBootstrap`):
+ *     a bucket that cannot hold COMPLIANCE locks of the contract → CRITICAL
+ *     `object_lock_unverified`.
+ *
+ * The one storage probe: admin readiness (`runReadinessCheck`) and `/readyz`
+ * both read it, under the existing `s3_object_lock` subsystem id.
+ */
+export async function checkEvidenceStorage(): Promise<SubsystemReadiness> {
+  const config = checkS3ObjectLock();
+  if (config.status === "CRITICAL") return config;
+  const { probeEvidenceBucket, verifyObjectLockConfiguration } = await import("../storage.js");
+  const bucket = await probeEvidenceBucket();
+  if (!bucket.ok) {
+    return {
+      id: "s3_object_lock",
+      status: "CRITICAL",
+      reasonCode: bucket.reason,
+      detail: bucket.detail,
+      remediationHint:
+        "Evidence storage is unreachable with the configured endpoint, credentials and bucket. Check S3_ENDPOINT, S3_BUCKET, credentials and network policy.",
+      metadata: { ...config.metadata, reachable: false },
+    };
+  }
+  if (process.env.NODE_ENV === "production") {
+    const probe = await withTimeout(
+      verifyObjectLockConfiguration(),
+      { mode: "skipped" as const, reason: "GetObjectLockConfiguration timed out" },
+    );
+    const decision = decideObjectLockBootstrap(probe, { production: true, env: process.env });
+    if (decision.action === "refuse") {
+      return {
+        id: "s3_object_lock",
+        status: "CRITICAL",
+        reasonCode: "object_lock_unverified",
+        detail: `Evidence bucket does not hold the retention contract: ${decision.reason}`.slice(0, 200),
+        remediationHint:
+          "The evidence bucket must be created with Object Lock and must not carry a default retention weaker than COMPLIANCE 2920 days.",
+        metadata: { ...config.metadata, reachable: true },
+      };
+    }
+  }
+  return {
+    ...config,
+    metadata: { ...config.metadata, reachable: true, latencyMs: bucket.latencyMs },
   };
 }
 
@@ -1775,7 +1830,7 @@ export async function runReadinessCheck(
     checkMigrations(prisma),
     checkDatabase(prisma),
     Promise.resolve(checkRedis()),
-    Promise.resolve(checkS3ObjectLock()),
+    checkEvidenceStorage(),
     checkQueues(prisma),
     checkWorkers(prisma),
     checkJobWorker(),

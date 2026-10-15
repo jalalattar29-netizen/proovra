@@ -601,7 +601,8 @@ export async function opsRoutes(app: FastifyInstance) {
 
   // /readyz — readiness. Public. Returns 200 if the database is
   // reachable AND no critical-in-production config violations exist
-  // AND the required runtime schema is present. Operators /
+  // AND the required runtime schema is present AND Redis and evidence
+  // storage answer (AUD-023). Operators /
   // orchestrators should use this for "should new traffic be sent to
   // this instance".
   app.get("/readyz", async (req, reply) => {
@@ -612,8 +613,19 @@ export async function opsRoutes(app: FastifyInstance) {
         reason: "production_config_violations",
       });
     }
+    // AUD-023 — bounded: a database that stops answering (paused, partitioned)
+    // must turn readiness red within seconds, not hang the probe until the
+    // orchestrator's own timeout reads it as a crash.
     try {
-      await prisma.$queryRaw`SELECT 1`;
+      let timer: NodeJS.Timeout | null = null;
+      await Promise.race([
+        prisma.$queryRaw`SELECT 1`,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error("db probe timed out")), 2_000);
+        }),
+      ]).finally(() => {
+        if (timer) clearTimeout(timer);
+      });
     } catch {
       return reply.code(503).send({ status: "degraded", reason: "db_unreachable" });
     }
@@ -658,6 +670,32 @@ export async function opsRoutes(app: FastifyInstance) {
         status: "degraded",
         reason: "operations_writer_schema_mismatch",
       });
+    }
+    // AUD-023 — THE DEPENDENCIES A REQUEST NEEDS. Redis carries every job this
+    // API enqueues (reports, packages, anchoring, notifications) and evidence
+    // storage serves every upload and download; an instance that cannot reach
+    // either is not ready, however healthy its database is. Bounded probes
+    // (Redis PING within ~1s, HeadBucket within 2s, and in production the
+    // bucket's Object Lock configuration) — the SAME probes admin readiness
+    // reports, not a second readiness system. Each failure is its own bounded
+    // reason. Outside production an UNCONFIGURED dependency (a local run with
+    // no Redis or S3 at all) is not a refusal; a configured-but-unreachable one
+    // is, everywhere.
+    {
+      const { checkRedis, checkEvidenceStorage } = await import("../runtime/runtime-readiness.js");
+      const production = process.env.NODE_ENV === "production";
+      const [redis, storage] = await Promise.all([checkRedis(), checkEvidenceStorage()]);
+      const redisUnconfigured = redis.reasonCode === "redis_not_configured";
+      if (redis.status !== "HEALTHY" && (production || !redisUnconfigured)) {
+        req.log?.error({ redis: redis.reasonCode, detail: redis.detail }, "readyz.redis_not_ready");
+        return reply.code(503).send({ status: "degraded", reason: redis.reasonCode });
+      }
+      const storageUnconfigured =
+        storage.reasonCode === "s3_env_missing" || storage.reasonCode === "bucket_not_configured";
+      if (storage.status === "CRITICAL" && (production || !storageUnconfigured)) {
+        req.log?.error({ storage: storage.reasonCode, detail: storage.detail }, "readyz.storage_not_ready");
+        return reply.code(503).send({ status: "degraded", reason: storage.reasonCode });
+      }
     }
     // UC-TRUST-006 — RFC 3161 trust configuration. In production a TSA that is
     // enabled without a usable trust bundle records every new timestamp FAILED,

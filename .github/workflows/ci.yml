@@ -451,6 +451,27 @@ jobs:
           '
           exit $rc
 
+      # AUD-023 — the worker's /readyz against real dependencies taken down and
+      # brought back (the suite starts and removes its own uniquely named
+      # PostgreSQL, Redis and MinIO containers). REFUSED if it skips.
+      - name: Test — worker readiness under real dependency outages (Docker)
+        working-directory: services/worker
+        env:
+          WORKER_READYZ_DOCKER: "1"
+        run: |
+          set +e
+          npx vitest run test/worker-readyz-outage.docker.test.ts \
+            --reporter=default --reporter=json --outputFile=/tmp/worker-readyz.json
+          rc=$?
+          set -e
+          node -e '
+            const r = require("/tmp/worker-readyz.json");
+            const s = { total: r.numTotalTests, passed: r.numPassedTests, pending: r.numPendingTests + (r.numTodoTests || 0) };
+            console.log("worker readiness outage:", JSON.stringify(s));
+            if (!(s.total >= 4) || s.pending > 0 || s.passed !== s.total) { console.log("::error::worker readiness outage suite did not run green in full"); process.exit(1); }
+          '
+          exit $rc
+
       # INDEPENDENT BITCOIN VERIFICATION against a REAL Bitcoin Core node.
       # A disposable regtest bitcoind (throwaway per-run password, loopback
       # only); the suite builds an OpenTimestamps proof committed in a real
