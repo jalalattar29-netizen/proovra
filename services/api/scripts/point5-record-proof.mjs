@@ -44,6 +44,11 @@ if (suites.length === 0) {
 }
 rmSync(resolve(API_ROOT, ARTIFACT), { force: true });
 console.log(`point5-record-proof: ${suites.length} suites → ${ARTIFACT}`);
+// The child is the integration project itself: vitest.integration.config.ts
+// preloads test/setup/test-bootstrap.mjs through NODE_OPTIONS (the Point-7
+// safe-environment authority), which scrubs credentials and pins every
+// service to loopback before any suite imports the application. Nothing here
+// widens that; it only names where the proof is written.
 const run = spawnSync("npx", ["vitest", "run", "--config", "vitest.integration.config.ts", ...suites], {
   cwd: API_ROOT,
   stdio: "inherit",
