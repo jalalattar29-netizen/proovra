@@ -23,7 +23,8 @@ test("the lifecycle sentence states Trash, the retention archive and the purge b
   assert.match(TRASH_LIFECYCLE_COPY, /retention archive/);
   assert.match(TRASH_LIFECYCLE_COPY, /cannot be permanently deleted before every retention period and legal hold ends/);
   // The actual policy (owner decision 2026-10-15): eight years, never a year.
-  assert.match(TRASH_LIFECYCLE_COPY, /eight years from sealing/);
+  assert.match(TRASH_LIFECYCLE_COPY, /2,920 days \(eight years\) from sealing/);
+  assert.doesNotMatch(TRASH_LIFECYCLE_COPY, /calendar|Governance/i);
   assert.doesNotMatch(TRASH_LIFECYCLE_COPY, /365|one year|12 months/i);
 });
 

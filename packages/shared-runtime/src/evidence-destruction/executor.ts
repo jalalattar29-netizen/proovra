@@ -290,6 +290,11 @@ export type RequiredObjectRetentionReading = {
   objectCount: number;
   /** Bounded detail for an operational condition. Never a storage key. */
   detail: string | null;
+  /**
+   * The Object Lock modes storage reports across the data versions read, as
+   * stored (e.g. ["COMPLIANCE"]) — never inferred from configuration.
+   */
+  lockModes?: string[];
 };
 
 export async function readRequiredObjectRetention(
@@ -344,6 +349,7 @@ export async function readRequiredObjectRetention(
   for (const r of [...reports, ...packages]) note(r.storageKey, r.storageObjectLockRetainUntilUtc);
 
   let latest: number | null = null;
+  const lockModes = new Set<string>();
   let legalHoldVersion = false;
   let truth: RequiredObjectRetentionReading["truth"] = "VERIFIED";
   let detail: string | null = null;
@@ -358,6 +364,7 @@ export async function readRequiredObjectRetention(
     let keyLatest: number | null = null;
     for (const v of data) {
       if (v.legalHold) legalHoldVersion = true;
+      if (v.lockMode) lockModes.add(String(v.lockMode).toUpperCase());
       if (v.retainUntil) {
         keyLatest = Math.max(keyLatest ?? 0, v.retainUntil.getTime());
         latest = Math.max(latest ?? 0, v.retainUntil.getTime());
@@ -389,6 +396,7 @@ export async function readRequiredObjectRetention(
     legalHoldVersion,
     objectCount: targets.length,
     detail,
+    lockModes: [...lockModes].sort(),
   };
 }
 

@@ -3,7 +3,7 @@
  *
  * WHAT IS REAL: PostgreSQL 16 (testcontainers); a MinIO bucket created WITH
  * OBJECT LOCK (so every object is versioned and retention is real S3 Object
- * Lock GOVERNANCE retain-until metadata); finalization over HTTP applying the
+ * Lock retain-until metadata, COMPLIANCE as in Production); finalization over HTTP applying the
  * deployment's retention to the stored version; the version-aware storage port
  * and the ONE destruction executor; the worker's trash-grace reconciler and
  * archive-restore sweep; the custody chain; the storage accounting authority;
@@ -36,7 +36,7 @@ import type { IntegrationHarness } from "./integration-harness.js";
 const LOCK_BUCKET = process.env.P7_LOCK_BUCKET ?? "point7-lock-bucket";
 process.env.S3_BUCKET = LOCK_BUCKET;
 process.env.S3_OBJECT_LOCK_ENABLED = "true";
-process.env.S3_OBJECT_LOCK_MODE = "GOVERNANCE";
+process.env.S3_OBJECT_LOCK_MODE = "COMPLIANCE";
 process.env.S3_OBJECT_LOCK_RETAIN_DAYS = "2920";
 
 vi.mock("../src/services/timestamp.service.js", async (importOriginal) => {
@@ -68,7 +68,7 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     // server boots, because the evidence routes bind their bucket at load.
     process.env.S3_BUCKET = LOCK_BUCKET;
     process.env.S3_OBJECT_LOCK_ENABLED = "true";
-    process.env.S3_OBJECT_LOCK_MODE = "GOVERNANCE";
+    process.env.S3_OBJECT_LOCK_MODE = "COMPLIANCE";
     process.env.S3_OBJECT_LOCK_RETAIN_DAYS = "2920";
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
@@ -106,7 +106,7 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     // Re-applied per test: the safe environment is restored before each one.
     process.env.S3_BUCKET = LOCK_BUCKET;
     process.env.S3_OBJECT_LOCK_ENABLED = "true";
-    process.env.S3_OBJECT_LOCK_MODE = "GOVERNANCE";
+    process.env.S3_OBJECT_LOCK_MODE = "COMPLIANCE";
     process.env.S3_OBJECT_LOCK_RETAIN_DAYS = "2920";
     await clearRates();
   });
@@ -135,7 +135,7 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     return { key: ev.storageKey!, versionId: ev.storageVersionId ?? null, partId: null };
   }
 
-  /** A record finalized over HTTP: bytes in the lock bucket, eight-year (2920-day) GOVERNANCE retention applied by finalization. */
+  /** A record finalized over HTTP: bytes in the lock bucket, COMPLIANCE 2920-day retention applied by finalization (Production's settings). */
   async function finalizedRecord(): Promise<{ id: string; sha256: string }> {
     const created = await call("POST", "/v1/evidence", A().ownerToken, { type: "DOCUMENT", mimeType: "text/plain", teamId: A().teamId });
     expect(created.statusCode, created.body).toBe(201);
@@ -150,15 +150,15 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     return { id, sha256: createHash("sha256").update(bytes).digest("hex") };
   }
 
-  /** Put an object with an EXPLICIT retain-until (or none). */
-  async function putObject(key: string, retainUntil: Date | null): Promise<string> {
+  /** Put an object with an EXPLICIT retain-until (or none), COMPLIANCE unless a case names a historical mode. */
+  async function putObject(key: string, retainUntil: Date | null, mode: "COMPLIANCE" | "GOVERNANCE" = "COMPLIANCE"): Promise<string> {
     const res = await s3.send(
       new PutObjectCommand({
         Bucket: LOCK_BUCKET,
         Key: key,
         Body: Buffer.from(`fixture ${key} ${randomUUID()}`),
         ContentType: "text/plain",
-        ...(retainUntil ? { ObjectLockMode: "GOVERNANCE", ObjectLockRetainUntilDate: retainUntil } : {}),
+        ...(retainUntil ? { ObjectLockMode: mode, ObjectLockRetainUntilDate: retainUntil } : {}),
       }),
     );
     return res.VersionId!;
@@ -187,7 +187,7 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
         storageBucket: LOCK_BUCKET,
         storageKey: key,
         storageVersionId: versionId,
-        storageObjectLockMode: opts.originalRetainUntil ? "GOVERNANCE" : null,
+        storageObjectLockMode: opts.originalRetainUntil ? "COMPLIANCE" : null,
         storageObjectLockRetainUntilUtc: opts.originalRetainUntil,
         lifecycleState: "TRASHED",
         deletedAt: new Date(),
@@ -204,7 +204,7 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
           storageBucket: LOCK_BUCKET,
           storageKey: rkey,
           generatedAtUtc: new Date(),
-          storageObjectLockMode: opts.reportRetainUntil ? "GOVERNANCE" : null,
+          storageObjectLockMode: opts.reportRetainUntil ? "COMPLIANCE" : null,
           storageObjectLockRetainUntilUtc: opts.reportRetainUntil,
         } as never,
       });
@@ -234,7 +234,7 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     archivedFromHttp = id;
     const loc = await originalLocation(id);
     const head = await s3.send(new HeadObjectCommand({ Bucket: LOCK_BUCKET, Key: loc.key, ...(loc.versionId ? { VersionId: loc.versionId } : {}) }));
-    expect(head.ObjectLockMode).toBe("GOVERNANCE");
+    expect(head.ObjectLockMode).toBe("COMPLIANCE");
     const retainUntil = head.ObjectLockRetainUntilDate!;
     // Eight years from sealing (2920 days) — the preservation contract.
     expect(retainUntil.getTime()).toBeGreaterThan(Date.now() + 2919 * DAY);
@@ -402,7 +402,7 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     expect(page.json().code).toBe("VERIFICATION_RECORD_PURGED");
   }, 300_000);
 
-  it("the API never purges a Governance-locked version early, even if asked directly", async () => {
+  it("the API never purges a locked (COMPLIANCE) version early, even if asked directly", async () => {
     const id = await trashedFixture({ originalRetainUntil: LEGACY_2034 });
     const res = await runtime.executeEvidenceDestruction(prisma as never, { evidenceId: id, trigger: "manual", legalHold: false, objectLockExpected: true, now: new Date(Date.now() + 91 * DAY) }, port);
     expect(res).toMatchObject({ ok: false, outcome: "BLOCKED", reason: "OBJECT_LOCK_RETENTION_ACTIVE" });
@@ -429,18 +429,18 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     const versionId = await putObject(key, until);
     await prisma.evidence.update({
       where: { id: ev.id },
-      data: { storageBucket: LOCK_BUCKET, storageKey: key, storageVersionId: versionId, storageObjectLockMode: "GOVERNANCE", storageObjectLockRetainUntilUtc: until },
+      data: { storageBucket: LOCK_BUCKET, storageKey: key, storageVersionId: versionId, storageObjectLockMode: "COMPLIANCE", storageObjectLockRetainUntilUtc: until },
     });
     return { id: ev.id, key, versionId };
   }
 
-  it("EIGHT YEARS: ordinary evidence is sealed for 2920 days, and a shorter configured value is never followed (no 365-day fallback)", async () => {
+  it("2920 DAYS, COMPLIANCE: ordinary evidence is sealed for 2920 days, and a shorter configured value is never followed (no 365-day fallback)", async () => {
     process.env.S3_OBJECT_LOCK_RETAIN_DAYS = "365";
     try {
       const { id } = await finalizedRecord();
       const loc = await originalLocation(id);
       const head = await headOf(loc.key, loc.versionId);
-      expect(head.ObjectLockMode).toBe("GOVERNANCE");
+      expect(head.ObjectLockMode).toBe("COMPLIANCE");
       near(head.ObjectLockRetainUntilDate, new Date(Date.now() + 2920 * DAY));
       // The row mirrors the storage's own answer.
       const ev = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { storageObjectLockRetainUntilUtc: true } });
@@ -493,7 +493,7 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     expect(dates).toEqual([LEGACY_2034.toISOString(), LEGACY_2034.toISOString()]);
     // A writer asking storage to SHORTEN the lock is refused; the date is unchanged.
     await expect(
-      s3.send(new PutObjectRetentionCommand({ Bucket: LOCK_BUCKET, Key: key, VersionId: versionId, Retention: { Mode: "GOVERNANCE", RetainUntilDate: new Date(Date.now() + 30 * DAY) } })),
+      s3.send(new PutObjectRetentionCommand({ Bucket: LOCK_BUCKET, Key: key, VersionId: versionId, Retention: { Mode: "COMPLIANCE", RetainUntilDate: new Date(Date.now() + 30 * DAY) } })),
     ).rejects.toThrow();
     expect((await headOf(key, versionId)).ObjectLockRetainUntilDate?.toISOString()).toBe(LEGACY_2034.toISOString());
   }, 300_000);
@@ -526,5 +526,52 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     const res = await runtime.executeEvidenceDestruction(prisma as never, { evidenceId: id, trigger: "manual", legalHold: false, objectLockExpected: true, now: new Date(Date.now() + 2000 * DAY) }, port);
     expect(res.ok).toBe(false);
     expect((await port.listObjectVersions({ bucket: LOCK_BUCKET, key: `evidence/${id}/original.txt` })).filter((v) => !v.isDeleteMarker)).toHaveLength(2);
+  }, 120_000);
+  it("MIXED HISTORICAL MODES are reported exactly as stored, per object version", async () => {
+    const id = await trashedFixture({ originalRetainUntil: new Date(Date.now() + 5_000) });
+    // A historical object version stored in GOVERNANCE beside the COMPLIANCE original.
+    await putObject(`evidence/${id}/original.txt`, LEGACY_2034, "GOVERNANCE");
+    const reading = await runtime.readRequiredObjectRetention(prisma as never, id, port, { objectLockExpected: true });
+    expect(reading.lockModes).toEqual(["COMPLIANCE", "GOVERNANCE"]);
+    expect(reading.latestRequiredRetainUntil?.toISOString()).toBe(LEGACY_2034.toISOString());
+  }, 120_000);
+
+  it("a PARTIAL version listing and a failed storage READ both fail closed — never purged", async () => {
+    const id = await trashedFixture({ originalRetainUntil: new Date(Date.now() + 5_000) });
+    await new Promise((r) => setTimeout(r, 6_000));
+    const later = new Date(Date.now() + 2000 * DAY);
+    // A listing that says "truncated" and gives no way to continue.
+    const partialPort = runtime.createVersionAwareDestructionPort({
+      client: {
+        send: async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+          const out = (await s3.send(command as never)) as unknown as Record<string, unknown>;
+          if (command.constructor.name === "ListObjectVersionsCommand") return { ...out, IsTruncated: true, NextKeyMarker: undefined, NextVersionIdMarker: undefined };
+          return out;
+        },
+      } as never,
+      ListObjectVersionsCommand: ListObjectVersionsCommand as never,
+      HeadObjectCommand: HeadObjectCommand as never,
+      DeleteObjectCommand: DeleteObjectCommand as never,
+    });
+    const partial = await runtime.readRequiredObjectRetention(prisma as never, id, partialPort, { objectLockExpected: true, now: later });
+    expect(partial.truth).toBe("UNAVAILABLE");
+    expect(["TARGET_LISTING_FAILED", "VERSION_LISTING_FAILED"]).toContain(partial.detail);
+    expect(await runtime.executeEvidenceDestruction(prisma as never, { evidenceId: id, trigger: "manual", legalHold: false, objectLockExpected: true, now: later }, partialPort)).toMatchObject({ ok: false });
+    // A storage that lists but cannot read a version's metadata.
+    const headFailPort = runtime.createVersionAwareDestructionPort({
+      client: {
+        send: async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+          if (command.constructor.name === "HeadObjectCommand") throw Object.assign(new Error("ServiceUnavailable"), { name: "ServiceUnavailable" });
+          return s3.send(command as never);
+        },
+      } as never,
+      ListObjectVersionsCommand: ListObjectVersionsCommand as never,
+      HeadObjectCommand: HeadObjectCommand as never,
+      DeleteObjectCommand: DeleteObjectCommand as never,
+    });
+    expect(await runtime.readRequiredObjectRetention(prisma as never, id, headFailPort, { objectLockExpected: true, now: later })).toMatchObject({ truth: "UNAVAILABLE" });
+    expect(await runtime.executeEvidenceDestruction(prisma as never, { evidenceId: id, trigger: "manual", legalHold: false, objectLockExpected: true, now: later }, headFailPort)).toMatchObject({ ok: false });
+    // Nothing was deleted by either attempt.
+    expect((await port.listObjectVersions({ bucket: LOCK_BUCKET, key: `evidence/${id}/original.txt` })).filter((v) => !v.isDeleteMarker)).toHaveLength(1);
   }, 120_000);
 });

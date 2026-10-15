@@ -109,19 +109,34 @@ describe("applying default Object Lock retention", () => {
     expect(sent).toHaveLength(0);
   });
 
-  // THE EIGHT-YEAR CONTRACT (owner decision 2026-10-15). Object Lock switched
-  // on with an incomplete or shorter configuration still writes the contract:
-  // eight years (2920 days), in the configured mode or GOVERNANCE. There is no
-  // configuration under which an enabled lock writes less, and no fallback to
-  // "nothing" that would leave the bucket default to decide.
+  // THE RETENTION CONTRACT (owner decision 2026-10-15): COMPLIANCE, 2920
+  // days. The MODE has no default — enabled without a usable mode locks
+  // nothing and says so (a mode nobody chose is never written). The DURATION
+  // has a floor — a missing, invalid or shorter day count still writes 2920.
+  for (const [label, mode] of [
+    ["mode missing", undefined],
+    ["mode invalid", "FOREVER"],
+  ] as const) {
+    it(`with Object Lock enabled but ${label}: applied=false (object_lock_defaults_incomplete), nothing sent — no default mode`, async () => {
+      if (mode === undefined) delete process.env.S3_OBJECT_LOCK_MODE;
+      else process.env.S3_OBJECT_LOCK_MODE = mode;
+      process.env.S3_OBJECT_LOCK_RETAIN_DAYS = "2920";
+      const result = await applyDefaultObjectRetention({
+        bucket: "disposable-test-bucket",
+        key: "fictional/object-lock-probe.bin",
+      });
+      expect(result).toEqual({ applied: false, reason: "object_lock_defaults_incomplete" });
+      expect(sent).toHaveLength(0);
+    });
+  }
+
   for (const [label, mode, days, expectedMode] of [
-    ["mode missing", undefined, "2920", "GOVERNANCE"],
-    ["mode invalid", "FOREVER", "2920", "GOVERNANCE"],
     ["retain days missing", "COMPLIANCE", undefined, "COMPLIANCE"],
     ["retain days not a positive integer", "COMPLIANCE", "0", "COMPLIANCE"],
-    ["retain days shorter than the contract", "GOVERNANCE", "365", "GOVERNANCE"],
+    ["retain days shorter than the contract", "COMPLIANCE", "365", "COMPLIANCE"],
+    ["the configured mode is GOVERNANCE (a non-production deployment)", "GOVERNANCE", "2920", "GOVERNANCE"],
   ] as const) {
-    it(`with Object Lock enabled but ${label}: eight years are still applied`, async () => {
+    it(`with Object Lock enabled and ${label}: 2920 days in the configured mode`, async () => {
       if (mode === undefined) delete process.env.S3_OBJECT_LOCK_MODE;
       else process.env.S3_OBJECT_LOCK_MODE = mode;
       if (days === undefined) delete process.env.S3_OBJECT_LOCK_RETAIN_DAYS;

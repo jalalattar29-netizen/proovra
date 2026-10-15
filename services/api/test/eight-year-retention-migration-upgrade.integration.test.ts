@@ -46,7 +46,15 @@ describe("the merged migration preserves eight-year evidence (Prisma upgrade on 
   let upgradeUrl = "";
   let dbName = "";
   let tmp = "";
-  const ids = { legacy: randomUUID(), ordinary: randomUUID(), held: randomUUID(), missing: randomUUID() };
+  const ids = {
+    legacy: randomUUID(),
+    ordinary: randomUUID(),
+    held: randomUUID(),
+    missing: randomUUID(),
+    trash: randomUUID(),
+    legacyDeletedAt: randomUUID(),
+    canonicalDeletedAtUtc: randomUUID(),
+  };
 
   function deploy(migrationsDir: string) {
     const config = join(tmp, `prisma.config.${migrationsDir.endsWith("full") ? "full" : "pre"}.ts`);
@@ -132,7 +140,7 @@ describe("the merged migration preserves eight-year evidence (Prisma upgrade on 
         signed_at_utc: new Date("2026-10-14T00:00:00Z"),
         storage_bucket: "lock",
         storage_key: `evidence/${ids.legacy}/original`,
-        storage_object_lock_mode: "GOVERNANCE",
+        storage_object_lock_mode: "COMPLIANCE",
         storage_object_lock_retain_until_utc: new Date(LEGACY_2034),
         lifecycle_state: "TRASHED",
         deleted_at: new Date(Date.now() - 100 * DAY),
@@ -144,11 +152,11 @@ describe("the merged migration preserves eight-year evidence (Prisma upgrade on 
       );
       await evidence(ids.ordinary, {
         signed_at_utc: new Date(),
-        storage_object_lock_mode: "GOVERNANCE",
+        storage_object_lock_mode: "COMPLIANCE",
         storage_object_lock_retain_until_utc: new Date(Date.now() + 2920 * DAY),
       });
       await evidence(ids.held, {
-        storage_object_lock_mode: "GOVERNANCE",
+        storage_object_lock_mode: "COMPLIANCE",
         storage_object_lock_retain_until_utc: new Date("2020-01-01T00:00:00Z"),
         lifecycle_state: "TRASHED",
         deleted_at: new Date(Date.now() - 200 * DAY),
@@ -158,6 +166,19 @@ describe("the merged migration preserves eight-year evidence (Prisma upgrade on 
         [teamId, ids.held, userId],
       );
       await evidence(ids.missing, { lifecycle_state: "TRASHED", deleted_at: new Date(Date.now() - 200 * DAY) });
+      // A valid Trash record inside its 90 days, COMPLIANCE-locked for 2920 days.
+      await evidence(ids.trash, {
+        signed_at_utc: new Date(Date.now() - 30 * DAY),
+        storage_object_lock_mode: "COMPLIANCE",
+        storage_object_lock_retain_until_utc: new Date(Date.now() + 2890 * DAY),
+        lifecycle_state: "TRASHED",
+        deleted_at: new Date(Date.now() - 10 * DAY),
+        deleted_at_utc: new Date(Date.now() - 10 * DAY),
+        delete_scheduled_for_utc: new Date(Date.now() + 80 * DAY),
+      });
+      // The legacy shapes: deleted through ONE column only, lifecycle still ACTIVE.
+      await evidence(ids.legacyDeletedAt, { signed_at_utc: new Date(), deleted_at: new Date(Date.now() - 120 * DAY) });
+      await evidence(ids.canonicalDeletedAtUtc, { signed_at_utc: new Date(), deleted_at_utc: new Date(Date.now() - 5 * DAY) });
     });
 
     const snapshot = () =>
@@ -195,6 +216,28 @@ describe("the merged migration preserves eight-year evidence (Prisma upgrade on 
       expect(after.counts[t], t).toBe(t === "_prisma_migrations" ? n + 1 : n);
     }
     expect(after.counts.evidence_archive_restore_requests).toBe(0);
+    // Every stored mode is unchanged, and still COMPLIANCE where it was.
+    for (const r of after.rows) expect(r.storage_object_lock_mode, r.id).toBe(before.rows.find((b) => b.id === r.id)!.storage_object_lock_mode);
+    // No row is moved into the new archive state by the migration.
+    expect(after.rows.filter((r) => r.lifecycle_state === "RETENTION_ARCHIVED")).toEqual([]);
+
+    // RE-APPLYING the tooling is a no-op.
+    const again = deploy(join(tmp, "migrations-full"));
+    expect(again).toMatch(/No pending migrations to apply/);
+    expect((await snapshot()).rows).toEqual(after.rows);
+
+    // The CURRENTLY DEPLOYED images write only pre-migration columns: such an
+    // insert still succeeds (every new column is nullable or has a default).
+    await withDb(upgradeUrl, async (c) => {
+      const owner = (await c.query(`SELECT owner_user_id FROM evidence WHERE id = $1`, [ids.ordinary])).rows[0].owner_user_id;
+      await c.query(`INSERT INTO evidence (id, type, owner_user_id, updated_at) VALUES ($1, 'DOCUMENT', $2, now())`, [randomUUID(), owner]);
+      const required = await c.query(
+        `SELECT column_name FROM information_schema.columns
+          WHERE table_name = 'evidence' AND is_nullable = 'NO' AND column_default IS NULL
+            AND column_name IN ('verification_ref','verification_ref_issued_at_utc','verification_access_state','retention_archived_at_utc','latest_required_retain_until_utc','purge_eligible_at_utc','retention_barrier_state','retention_barrier_evaluated_at_utc')`,
+      );
+      expect(required.rows).toEqual([]);
+    });
 
     // The new facts start EMPTY: nothing is purge-eligible by migration.
     const facts = await withDb(upgradeUrl, (c) =>

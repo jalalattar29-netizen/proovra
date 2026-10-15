@@ -6,7 +6,9 @@
  * record's FIXED retention horizon, resolved by the one resolver in
  * `@proovra/shared-runtime`. Never "now + eight years" (which would extend a
  * record's preservation on every regeneration) and never a duration of its own.
+ * A record whose horizon has ended is refused (`RetentionHorizonEndedError`).
  */
+import { RetentionHorizonEndedError } from "@proovra/shared";
 import { resolveEvidenceObjectRetention, newObjectLock } from "@proovra/shared-runtime";
 
 import { prisma } from "./db.js";
@@ -20,15 +22,32 @@ export async function artifactLockFor(evidenceId: string): Promise<ResolvedObjec
 
 /**
  * A file that serves several records (an exchange package): locked to the
- * LATEST horizon among them, so it never outlives none of them early.
+ * LATEST horizon among them, in the strongest mode among them. A record whose
+ * horizon has ended contributes nothing; when every record's has ended the
+ * write is refused rather than given an invented horizon.
  */
 export async function artifactLockForAll(evidenceIds: readonly string[]): Promise<ResolvedObjectLock | null> {
   let latest: ResolvedObjectLock | null = null;
+  let compliance = false;
+  let ended: unknown = null;
   for (const id of evidenceIds) {
-    const lock = await artifactLockFor(id);
-    if (lock && (!latest || lock.retainUntil.getTime() > latest.retainUntil.getTime())) latest = lock;
+    let lock: ResolvedObjectLock | null;
+    try {
+      lock = await artifactLockFor(id);
+    } catch (err) {
+      if (err instanceof RetentionHorizonEndedError) {
+        ended = err;
+        continue;
+      }
+      throw err;
+    }
+    if (!lock) continue;
+    if (lock.mode === "COMPLIANCE") compliance = true;
+    if (!latest || lock.retainUntil.getTime() > latest.retainUntil.getTime()) latest = lock;
   }
-  if (latest) return latest;
+  if (latest) return { mode: compliance ? "COMPLIANCE" : latest.mode, retainUntil: latest.retainUntil };
+  if (ended) throw ended;
+  if (evidenceIds.length > 0) return null; // Object Lock disabled
   const fresh = newObjectLock();
   return fresh ? { mode: fresh.mode, retainUntil: fresh.retainUntil } : null;
 }

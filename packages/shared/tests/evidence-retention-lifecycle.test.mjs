@@ -22,6 +22,8 @@ import {
   resolveObjectLockModeName,
   computeEvidenceRetentionHorizon,
   resolveObjectRetainUntil,
+  strongestObjectLockMode,
+  RetentionHorizonEndedError,
 } from "../dist/index.js";
 
 const NOW = new Date("2027-01-01T00:00:00.000Z");
@@ -543,10 +545,15 @@ test("EIGHT YEARS: the platform period is 2920 days, configuration can extend it
   assert.deepEqual(resolvePlatformRetentionDays(Number.NaN), { days: 2920, configuredBelowContract: false });
 });
 
-test("the lock mode is the deployment's: COMPLIANCE kept, GOVERNANCE otherwise", () => {
+test("the lock mode is the deployment's; there is NO default, and COMPLIANCE is never downgraded", () => {
   assert.equal(resolveObjectLockModeName("COMPLIANCE"), "COMPLIANCE");
   assert.equal(resolveObjectLockModeName("governance"), "GOVERNANCE");
-  assert.equal(resolveObjectLockModeName(undefined), "GOVERNANCE");
+  assert.equal(resolveObjectLockModeName(undefined), null);
+  assert.equal(resolveObjectLockModeName("FOREVER"), null);
+  assert.equal(strongestObjectLockMode("GOVERNANCE", "COMPLIANCE"), "COMPLIANCE");
+  assert.equal(strongestObjectLockMode("COMPLIANCE", null), "COMPLIANCE");
+  assert.equal(strongestObjectLockMode(null, "GOVERNANCE"), "GOVERNANCE");
+  assert.equal(strongestObjectLockMode(null, undefined), null);
 });
 
 test("SEAL: now + eight years, or the contractual retention when longer", () => {
@@ -586,8 +593,22 @@ test("the horizon is the LATEST of the applied lock, the contract and sealing + 
   assert.equal(h.toISOString(), new Date(new Date("2025-03-03T00:00:00Z").getTime() + 2920 * D).toISOString());
 });
 
-test("an artifact for a record past its horizon gets the minimal future lock, not eight new years", () => {
+test("an artifact for a record past its horizon is REFUSED — never given 2920 new days", () => {
   const now = new Date("2040-01-01T00:00:00Z");
-  const until = resolveObjectRetainUntil({ kind: "ARTIFACT", now, platformRetentionDays: 2920, horizon: new Date("2034-10-14T00:00:00Z"), appRetentionUntil: null, alreadySealed: true });
-  assert.equal(until.getTime(), now.getTime() + D);
+  assert.throws(
+    () => resolveObjectRetainUntil({ kind: "ARTIFACT", now, platformRetentionDays: 2920, horizon: new Date("2034-10-14T00:00:00Z"), appRetentionUntil: null, alreadySealed: true }),
+    (err) => err instanceof RetentionHorizonEndedError && err.code === "RETENTION_HORIZON_ENDED",
+  );
+});
+
+test("the horizon counts 2920 DAYS in UTC milliseconds — across a leap day, no calendar arithmetic", () => {
+  const sealed = new Date("2027-12-31T23:59:59.000Z");
+  const h = computeEvidenceRetentionHorizon({ sealedOriginalRetainUntil: null, sealedAt: sealed, appRetentionUntil: null, platformRetentionDays: 2920 });
+  assert.equal(h.getTime() - sealed.getTime(), 2920 * D);
+  // A later stored version lock wins over every projection.
+  const stored = new Date("2036-01-01T00:00:00Z");
+  assert.equal(
+    computeEvidenceRetentionHorizon({ sealedOriginalRetainUntil: "2034-10-14T00:00:00Z", storageRetainUntil: stored, sealedAt: sealed, appRetentionUntil: null, platformRetentionDays: 2920 }).toISOString(),
+    stored.toISOString(),
+  );
 });

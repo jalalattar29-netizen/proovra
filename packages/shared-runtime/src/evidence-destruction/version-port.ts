@@ -82,6 +82,10 @@ export function createVersionAwareDestructionPort(deps: {
           });
         }
         if (!res.IsTruncated) return out;
+        // A truncated page with no continuation is a PARTIAL inventory: the
+        // versions not returned may carry a later retain-until or a legal
+        // hold. Refuse rather than re-read page one or decide on a fragment.
+        if (!res.NextKeyMarker && !res.NextVersionIdMarker) throw new Error("OBJECT_VERSION_LISTING_PARTIAL");
         keyMarker = res.NextKeyMarker;
         versionIdMarker = res.NextVersionIdMarker;
       }
@@ -112,6 +116,7 @@ export function createVersionAwareDestructionPort(deps: {
           if (v.Key && v.Key.startsWith(prefix)) keys.add(v.Key);
         }
         if (!res.IsTruncated) return [...keys];
+        if (!res.NextKeyMarker && !res.NextVersionIdMarker) throw new Error("OBJECT_PREFIX_LISTING_PARTIAL");
         keyMarker = res.NextKeyMarker;
         versionIdMarker = res.NextVersionIdMarker;
       }
