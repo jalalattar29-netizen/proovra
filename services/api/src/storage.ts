@@ -5,7 +5,6 @@ import {
   HeadBucketCommand,
   GetObjectCommand,
   GetObjectLockConfigurationCommand,
-  HeadBucketCommand,
   PutObjectRetentionCommand,
   CopyObjectCommand,
   RestoreObjectCommand,
