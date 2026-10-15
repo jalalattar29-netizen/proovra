@@ -517,6 +517,19 @@ describe("mutations are safe to repeat, fail loudly, and cannot be undone by a p
 // B8 12–13: identity and workspace switching
 // ===========================================================================
 
+describe("what is announced to assistive technology", () => {
+  it("the polled unread summary is not a live region; only action outcomes are", async () => {
+    installServer(makeRows(2));
+    await mountBell();
+    await openPopover("Submission 1 needs review");
+    const summary = document.querySelector("[data-notification-unread-summary]");
+    expect(summary?.textContent).toMatch(/unread/);
+    expect(summary?.closest("[aria-live]")).toBeNull();
+    const live = Array.from(document.querySelectorAll("[data-notification-bell-popover] [aria-live]"));
+    expect(live.every((el) => el.hasAttribute("data-notification-action-status"))).toBe(true);
+  });
+});
+
 describe("switching context drops the previous state", () => {
   it("12. switching workspace clears the count synchronously and rescopes", async () => {
     installServer(makeRows(4));

@@ -522,7 +522,10 @@ export function NotificationBell() {
           <div className="ops-bell-popover__header">
             <strong style={{ fontSize: 13 }}>Notifications</strong>
             <span style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
-              <span style={{ fontSize: 12, opacity: 0.6 }} aria-live="polite">
+              {/* Not a live region: the count refreshes on every poll, and a
+                  re-announcement each time is noise. The bell's own label
+                  carries the count; action outcomes are announced below. */}
+              <span style={{ fontSize: 12, opacity: 0.6 }} data-notification-unread-summary>
                 {has
                   ? `${formatCount(unreadCount, countIsExact)} unread`
                   : "All caught up"}
@@ -565,7 +568,7 @@ export function NotificationBell() {
 
           <div className="ops-bell-popover__scroll">
             {items === null ? (
-              <p className="ops-bell-popover__empty" aria-live="polite">
+              <p className="ops-bell-popover__empty" aria-busy="true">
                 Loading…
               </p>
             ) : items.length === 0 ? (

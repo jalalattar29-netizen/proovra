@@ -38,7 +38,6 @@ export function LoadingState({ rows = 5 }: { rows?: number }) {
       className="app-table-surface"
       data-intake-links-loading
       aria-busy="true"
-      aria-live="polite"
       aria-label="Loading intake links"
     >
       {Array.from({ length: rows }).map((_, i) => (

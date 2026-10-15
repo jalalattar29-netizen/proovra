@@ -1144,7 +1144,6 @@ function TeamDetailPageBody() {
           <div
             className="app-table-surface"
             aria-busy="true"
-            aria-live="polite"
             aria-label="Loading members"
             data-testid="people-table-loading"
           >
