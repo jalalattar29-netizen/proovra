@@ -35,6 +35,7 @@ import {
 import {
   acquisitionAccountLabel,
   acquisitionActorLabel,
+  isOrganizationVerifiedAtCapture,
   type AcquisitionIdentitySnapshot,
 } from "./acquisition-identity.js";
 import { resolveEvidenceAcquisition } from "./evidence-acquisition.js";
@@ -354,7 +355,7 @@ function identityRows(identity: VerificationIdentityInput | null): VerificationM
   }
 
   const organization =
-    identity.organizationVerified === true
+    isOrganizationVerifiedAtCapture(identity)
       ? row("organization_verification", "VERIFIED", `Established when the record was created${tail}.`, at)
       : identity.workspaceKind === "PERSONAL"
         ? row("organization_verification", "NOT_APPLICABLE", "Not established. The record was created in a personal workspace.", at)

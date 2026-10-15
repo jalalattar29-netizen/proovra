@@ -102,6 +102,7 @@ import {
   buildVerificationMatrix,
   withholdIdentityRows,
   resolveAcquisitionIdentitySnapshot,
+  isOrganizationVerifiedAtCapture,
   identityLevelLabel,
   acquisitionIdentityLevelLabel,
   acquisitionIdentityBasisLabel,
@@ -2013,6 +2014,8 @@ function captureIdentityTrustInput(
   const acq = resolveAcquisitionIdentitySnapshot({ custodyEvents, row, acquisitionMode: row.acquisitionMode ?? null });
   return {
     identityLevelSnapshot: acq.identityLevel,
+    // AUD-016 — the canonical organization-verification fact, never the level.
+    organizationVerifiedAtCapture: isOrganizationVerifiedAtCapture(acq),
     submittedByEmail: acq.submittedByEmail,
     submittedByAuthProvider: acq.authProvider,
   };
@@ -4553,7 +4556,13 @@ primaryContentLabel: buildPrimaryContentLabel(
           },
     workspaceName: params.evidence.workspaceNameSnapshot ?? null,
     organizationName: params.evidence.organizationNameSnapshot ?? null,
-    organizationVerified: params.evidence.organizationVerifiedSnapshot ?? null,
+    // AUD-016 — the capture-time organization-verification fact only; a
+    // legacy row's column (possibly rewritten from current state) is not it.
+    organizationVerified: isOrganizationVerifiedAtCapture(params.acquisitionIdentity)
+      ? true
+      : params.acquisitionIdentity?.basis === "OBSERVED_AT_CAPTURE" && params.acquisitionIdentity.organizationVerified === false
+        ? false
+        : null,
     createdAt: params.evidence.createdAt.toISOString(),
     // Issue #6 timestamp provenance: surface what each timestamp actually
     // means, not just its raw value.

@@ -261,6 +261,12 @@ export type TrustDecisionEvidenceInput = {
   storageObjectLockMode?: string | null;
   storageObjectLockRetainUntilUtc?: string | null;
   identityLevelSnapshot?: string | null;
+  /**
+   * AUD-016 — the canonical organization-verification fact
+   * (`isOrganizationVerifiedAtCapture` over the capture-time snapshot). The
+   * identity level alone never makes the identity signal PASSED.
+   */
+  organizationVerifiedAtCapture?: boolean | null;
   submittedByEmail?: string | null;
   submittedByAuthProvider?: string | null;
   verificationPackageVersion?: number | string | null;
@@ -824,7 +830,7 @@ function buildIdentitySignal(
     ? "Workspace/link creator identity recorded"
     : "Authenticated workspace user identity recorded";
 
-  if (level === "VERIFIED_ORGANIZATION") {
+  if (evidence.organizationVerifiedAtCapture === true) {
     return makeSignal({
       key: "identity",
       label: "Workspace identity",
@@ -836,7 +842,9 @@ function buildIdentitySignal(
     });
   }
 
-  if (level === "ORGANIZATION_ACCOUNT" || level === "OAUTH_BACKED_IDENTITY") {
+  // AUD-016 — a VERIFIED_ORGANIZATION level without the capture-time
+  // verification fact (legacy rows) is workspace membership, nothing more.
+  if (level === "VERIFIED_ORGANIZATION" || level === "ORGANIZATION_ACCOUNT" || level === "OAUTH_BACKED_IDENTITY") {
     return makeSignal({
       key: "identity",
       label: "Workspace identity",

@@ -227,13 +227,28 @@ export function acquisitionWorkspaceLabel(kind: AcquisitionWorkspaceKind): strin
 }
 
 /**
+ * AUD-016 — THE organization-verification fact: the capture-time snapshot
+ * (basis OBSERVED_AT_CAPTURE) recorded `organizationVerified: true`. An
+ * identity LEVEL of VERIFIED_ORGANIZATION is not this fact — legacy rows carry
+ * that level without any recorded verification — so no surface may state
+ * "Verified organization" (or a PASSED identity) from the level alone.
+ * Account authentication, verified email, workspace membership, organization
+ * verification and a person's real-world identity stay distinct facts.
+ */
+export function isOrganizationVerifiedAtCapture(
+  s: Pick<AcquisitionIdentitySnapshot, "organizationVerified" | "basis"> | null | undefined,
+): boolean {
+  return s?.basis === "OBSERVED_AT_CAPTURE" && s.organizationVerified === true;
+}
+
+/**
  * Organization verification at capture. Workspace membership never implies
- * it: only a recorded `organizationVerified: true` is "Established".
+ * it: only a capture-time `organizationVerified: true` is "Established".
  */
 export function acquisitionOrganizationVerificationLabel(
   s: Pick<AcquisitionIdentitySnapshot, "organizationVerified" | "basis">,
 ): string {
-  if (s.organizationVerified === true) return "Established at capture";
+  if (isOrganizationVerifiedAtCapture(s)) return "Established at capture";
   if (s.basis === "UNAVAILABLE") return "Not recorded";
   return "Not established";
 }
@@ -269,7 +284,12 @@ export function acquisitionIdentityLevelLabel(s: AcquisitionIdentitySnapshot): s
   if (s.basis === "UNAVAILABLE") return "Not recorded";
   switch ((s.identityLevel ?? "").toUpperCase()) {
     case "VERIFIED_ORGANIZATION":
-      return "Verified organization";
+      // AUD-016 — the level alone is not organization verification: a legacy
+      // row without the capture-time fact reads as workspace membership.
+      if (isOrganizationVerifiedAtCapture(s)) return "Verified organization";
+      return s.basis === "OBSERVED_AT_CAPTURE" && s.workspaceKind === "SHARED"
+        ? "Shared-workspace member account"
+        : acquisitionAccountLabel(s);
     case "ORGANIZATION_ACCOUNT":
       // Only a capture-bound SHARED workspace is stated as such; a personal
       // or unknown workspace never reads as an organization account.
@@ -304,7 +324,9 @@ export function identityLevelLabel(level: string | null | undefined): string {
     case "ORGANIZATION_ACCOUNT":
       return "Workspace member account";
     case "VERIFIED_ORGANIZATION":
-      return "Verified organization";
+      // AUD-016 — without the capture-time snapshot nothing establishes the
+      // organization's verification; only the membership is stated.
+      return "Workspace member account (organization verification not confirmed)";
     default:
       return "Identity level not recorded";
   }
