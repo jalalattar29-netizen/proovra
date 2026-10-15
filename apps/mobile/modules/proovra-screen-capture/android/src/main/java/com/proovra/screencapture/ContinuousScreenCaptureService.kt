@@ -18,10 +18,6 @@ import android.os.IBinder
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
 
 /**
  * UC-3 — the foreground service that records a CONTINUOUS screen session as
@@ -71,7 +67,9 @@ class ContinuousScreenCaptureService : Service() {
 
     private val segments = mutableListOf<Map<String, Any?>>()
     private val limitations = linkedSetOf<String>()
-    private var startedAtMs = 0L
+    // AUD-018 — durations, offsets and the session bound are monotonic
+    // (elapsedRealtime); the wall clock only names the session's instants.
+    private val timeline = SessionTimeline(SystemCaptureClock)
     private var startedAtUtc = ""
     private var segmentMs = DEFAULT_SEGMENT_MS
     private var maxSegments = MAX_SEGMENTS
@@ -85,7 +83,7 @@ class ContinuousScreenCaptureService : Service() {
     private var segH = 0
     private var segDpi = 0
     private var currentFile: File? = null
-    private var segmentStartMs = 0L
+    private var segmentStartElapsedMs = 0L
     @Volatile private var active = false
     private var terminationReason = "USER_STOPPED"
     private var last: Map<String, Any?>? = null
@@ -221,7 +219,7 @@ class ContinuousScreenCaptureService : Service() {
     (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(metrics)
     widthPx = metrics.widthPixels; heightPx = metrics.heightPixels; densityDpi = metrics.densityDpi
     segW = widthPx; segH = heightPx; segDpi = densityDpi
-    startedAtMs = System.currentTimeMillis(); startedAtUtc = iso(startedAtMs)
+    timeline.start(); startedAtUtc = timeline.startUtc()
 
     mp.registerCallback(object : MediaProjection.Callback() {
       override fun onStop() { finish("PERMISSION_REVOKED") }
@@ -290,7 +288,7 @@ class ContinuousScreenCaptureService : Service() {
   /** Start recording the next segment; returns false on setup failure. */
   private fun startNextSegment(): Boolean {
     if (!active) return false
-    if (segments.size >= maxSegments || (System.currentTimeMillis() - startedAtMs) >= MAX_SESSION_MS) {
+    if (segments.size >= maxSegments || timeline.boundReached(MAX_SESSION_MS)) {
       limitations.add("SESSION_BOUNDS_REACHED")
       finish("BOUNDS_REACHED")
       return true
@@ -305,7 +303,7 @@ class ContinuousScreenCaptureService : Service() {
     segW = m.widthPixels; segH = m.heightPixels; segDpi = m.densityDpi
     if ((segW >= segH) != (widthPx >= heightPx)) limitations.add("ORIENTATION_CHANGED_DURING_CAPTURE")
     return try {
-      val file = File(cacheDir, "proovra-continuous-${startedAtMs}-${segments.size}.mp4")
+      val file = File(cacheDir, "proovra-continuous-${timeline.startWallMs}-${segments.size}.mp4")
       currentFile = file
       val r = newRecorder(file)
       r.prepare()
@@ -322,7 +320,7 @@ class ContinuousScreenCaptureService : Service() {
       }
       r.start()
       recorder = r
-      segmentStartMs = System.currentTimeMillis()
+      segmentStartElapsedMs = timeline.nowElapsedMs()
       true
     } catch (t: Throwable) {
       false
@@ -378,8 +376,8 @@ class ContinuousScreenCaptureService : Service() {
       val seg = mapOf<String, Any?>(
         "uri" to "file://${file.absolutePath}",
         "sequence" to seq,
-        "startedAtOffsetMs" to (segmentStartMs - startedAtMs),
-        "durationMs" to (System.currentTimeMillis() - segmentStartMs),
+        "startedAtOffsetMs" to timeline.offsetOf(segmentStartElapsedMs),
+        "durationMs" to timeline.since(segmentStartElapsedMs),
         "widthPx" to segW,
         "heightPx" to segH,
         "orientation" to if (segW >= segH) "landscape" else "portrait",
@@ -425,10 +423,11 @@ class ContinuousScreenCaptureService : Service() {
     // A clean stop over a lost stretch (a segment that could not be written) is
     // still not a complete session.
     val complete = cleanEnd && limitations.none { it in INCOMPLETE_LIMITATIONS }
+    val totalMs = timeline.offsetMs()
     val outcome = mapOf<String, Any?>(
       "osConsentGranted" to true,
       "captureStartedAtUtc" to startedAtUtc,
-      "captureEndedAtUtc" to iso(System.currentTimeMillis()),
+      "captureEndedAtUtc" to timeline.utcAtOffset(totalMs),
       "device" to mapOf(
         "platform" to "android",
         "osVersion" to (Build.VERSION.RELEASE ?: "unknown"),
@@ -437,7 +436,7 @@ class ContinuousScreenCaptureService : Service() {
         "screenW" to widthPx, "screenH" to heightPx, "densityDpi" to densityDpi,
         "orientation" to if (widthPx >= heightPx) "landscape" else "portrait",
       ),
-      "totalDurationMs" to (System.currentTimeMillis() - startedAtMs),
+      "totalDurationMs" to totalMs,
       "segmentCount" to segments.size,
       "sessionCompleteness" to if (complete) "COMPLETE_SESSION" else "INTERRUPTED_SESSION",
       "terminationReason" to reason,
@@ -454,12 +453,6 @@ class ContinuousScreenCaptureService : Service() {
   private fun appVersionName(): String = try {
     packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown"
   } catch (_: Throwable) { "unknown" }
-
-  private fun iso(ms: Long): String {
-    val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
-    fmt.timeZone = TimeZone.getTimeZone("UTC")
-    return fmt.format(Date(ms))
-  }
 
   override fun onDestroy() {
     if (active) finish("INTERRUPTED")

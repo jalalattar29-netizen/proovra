@@ -191,9 +191,11 @@ jobs:
 
       # UC-AND-007 / UC-AND-013 — the capture services' failure decisions
       # (CaptureDecisions.kt: a throwing MediaRecorder.stop(), a null / refused
-      # / throwing media projection) on the JVM. Refuses a run that executed
-      # fewer than the 8 tests or skipped any.
-      - name: JVM unit tests — capture decisions (UC-AND-007, UC-AND-013)
+      # / throwing media projection) on the JVM. AUD-018 — the monotonic
+      # session timeline under wall-clock jumps (CaptureClockTest). Every test
+      # class under the module's src/test runs. Refuses a run that executed
+      # fewer than the 13 tests or skipped any.
+      - name: JVM unit tests — capture decisions (UC-AND-007, UC-AND-013, AUD-018)
         working-directory: apps/mobile/android
         env:
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
@@ -217,7 +219,7 @@ jobs:
               for (const k of Object.keys(t)) t[k] += Number(head.match(new RegExp(` ${k}="(\\d+)"`))?.[1] ?? 0);
             }
             console.log("capture decisions JUnit:", JSON.stringify(t), files);
-            if (t.tests < 8) { console.log(`::error::capture-decision unit tests executed ${t.tests} (expected >= 8)`); process.exit(1); }
+            if (t.tests < 13) { console.log(`::error::capture-decision unit tests executed ${t.tests} (expected >= 13)`); process.exit(1); }
             if (t.skipped > 0) { console.log(`::error::capture-decision unit tests SKIPPED ${t.skipped}`); process.exit(1); }
             if (t.failures + t.errors > 0) { console.log("::error::capture-decision unit tests failed"); process.exit(1); }
           '
