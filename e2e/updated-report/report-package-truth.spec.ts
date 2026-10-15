@@ -11,13 +11,16 @@
  *       sealed, README commands executed; DB rows and PROOVRA's public
  *       package record bind the package and its seal key.
  *   J2  TSA validated + attested OTS proof → v2 through the canonical
- *       NEW_VERSION path (idempotent): Bitcoin anchoring "Anchored" (the
- *       stored proof executes to a Bitcoin block attestation), no score;
+ *       NEW_VERSION path (idempotent): Bitcoin anchoring "Attestation
+ *       recorded" — the stored proof names a Bitcoin block, and with live
+ *       Bitcoin verification disabled (no node in this stack) PROOVRA has NOT
+ *       checked it against the main chain (2026-10-15); no score;
  *       v2 supersedes v1 and says what changed; v1 bytes unchanged; the
  *       README's openssl ts -verify runs.
- *   J3  v3 (re-issued) states exactly what v2 did: Anchored, from the proof
- *       alone. The stack has no Bitcoin node and nothing claims independent
- *       canonical-chain verification.
+ *   J3  v3 (re-issued) states exactly what v2 did: an attestation recorded,
+ *       not independently checked. The stack has no Bitcoin node and nothing
+ *       claims independent main-chain verification (that path is proven
+ *       against a real regtest Bitcoin Core node in the worker suite).
  *   J4  Public Verify, the review workspace and the package carry the same
  *       canonical states and the capture-time identity.
  *   J5  account/workspace changes after capture do not rewrite identity; an
@@ -315,7 +318,12 @@ test("J1 v1 — capture-time identity, upload wording and timestamp truth; both 
   }
 });
 
-test("J2 v2 — TSA validated + attested OTS proof: Bitcoin anchoring Anchored; supersedes v1 and says what changed; v1 unchanged", async () => {
+/** The unchecked-attestation card: label, then the not-checked sentence (2026-10-15). */
+const RECORDED_CARD = /Bitcoin anchoring\s+Attestation recorded[\s\S]{0,200}?The\s+proof\s+names\s+Bitcoin\s+block\s+\d+;\s+PROOVRA\s+has\s+not\s+checked\s+it\s+against\s+the\s+Bitcoin\s+main\s+chain\./;
+/** No surface may say verified without an independent main-chain check. */
+const NO_VERIFIED_CLAIM = /Independently\s+verified|OpenTimestamps\s+Verified|Bitcoin anchoring\s+(?:✓\s*)?(?:Verified|Anchored)|anchored in Bitcoin/;
+
+test("J2 v2 — TSA validated + attested OTS proof: Bitcoin attestation recorded, not independently checked; supersedes v1 and says what changed; v1 unchanged", async () => {
   test.setTimeout(600_000);
   validateKeptTsaToken(evidenceId);
   anchorOtsThroughUpgrade(evidenceId);
@@ -326,6 +334,8 @@ test("J2 v2 — TSA validated + attested OTS proof: Bitcoin anchoring Anchored; 
   await expect
     .poll(async () => (await status(owner.api, evidenceId)).outputs.trust.ots.state, { timeout: 180_000 })
     .toBe("ANCHORED");
+  // Live Bitcoin verification is disabled in this stack: an attestation RECORDED.
+  expect((await status(owner.api, evidenceId)).outputs.trust.ots.verification).toBe("ATTESTATION_RECORDED");
 
   // Repeated clicks with one key are ONE request (no duplicate version or spend).
   const key = `truth-v2-${Date.now()}`;
@@ -341,25 +351,27 @@ test("J2 v2 — TSA validated + attested OTS proof: Bitcoin anchoring Anchored; 
   const ext2 = await downloadExternal(owner.api, evidenceId, 2);
   const text = pdfText(pdf2, "v2.pdf");
   expect(text).toMatch(/Updated report/i);
-  expect(text).toMatch(/OpenTimestamps proof was anchored in Bitcoin after report v1/);
+  // A recorded attestation is not a "verified after the report" change.
+  expect(text).not.toMatch(/anchored in Bitcoin after report v1|verified against the Bitcoin main chain after report v1/);
   expect(text).toMatch(/supersedes report v1/);
   expect(text).toMatch(/trusted timestamp was validated after report v1/i);
-  // The Bitcoin anchoring card: one status, one sentence (2026-10-13).
-  expect(text).toMatch(/Bitcoin anchoring\s+(?:✓\s*)?Anchored(?:\s*✓)?[\s\S]{0,80}?OpenTimestamps proof anchored in Bitcoin\./);
-  expect(text).not.toMatch(/Attestation recorded|Independent Bitcoin verification was not performed/);
-  expect(text).not.toMatch(/chain-verified/i);
-  expect(text).not.toMatch(/OpenTimestamps\s+Verified|Bitcoin anchoring\s+Verified/);
+  // The Bitcoin anchoring card: one status, one sentence (2026-10-15).
+  expect(text).toMatch(RECORDED_CARD);
+  expect(text).not.toMatch(NO_VERIFIED_CLAIM);
+  expect(text).not.toMatch(/chain-verified|Independent Bitcoin verification was not performed/i);
   // A validated token is a certificate-chain fact, never a qualification.
   expect(text).toContain("Timestamp token and certificate chain validated; qualified-service status was not independently evaluated.");
   expect(text).not.toMatch(/OAuth-backed|Organization account/);
 
   expect(consistencyFindings(full2)).toEqual([]);
-  // ANCHORED is the canonical OTS state: a passed anchoring signal.
-  expect(signal(full2, "bitcoin_anchoring").state).toBe("PASSED");
+  // An attestation recorded but not independently checked is NEVER passed.
+  expect(signal(full2, "bitcoin_anchoring").state).toBe("PRESENT_NOT_INDEPENDENTLY_VERIFIED");
+  expect(full2.json("package-manifest.json").otsVerification).toBe("ATTESTATION_RECORDED");
+  expect(full2.json("opentimestamps.json")).toMatchObject({ state: "ANCHORED", verification: "ATTESTATION_RECORDED", chainVerification: null });
   expect(signal(full2, "trusted_timestamp").state).toBe("PASSED");
   // The retired chain-verifier claim is gone from the manifest.
   expect(full2.json("package-manifest.json")).not.toHaveProperty("publicAnchoringVerified");
-  expect(matrixStatus(full2, "ots_anchoring")).toBe("VERIFIED");
+  expect(matrixStatus(full2, "ots_anchoring")).toBe("NOT_CHECKED");
   expect(matrixStatus(full2, "tsa_token")).toBe("VERIFIED");
   expect(full2.json("trust-decision.json")).not.toHaveProperty("verdict");
   expectNoForbiddenClaims(full2);
@@ -389,28 +401,29 @@ test("J2 v2 — TSA validated + attested OTS proof: Bitcoin anchoring Anchored; 
   expect(consistencyFindings(extractPackage(ext2.zip!, join(PROOF_DIR, "v2-external")))).toEqual([]);
 });
 
-test("J3 v3 — a re-issued report states the same Anchored state from the proof alone; nothing claims canonical-chain verification", async () => {
+test("J3 v3 — a re-issued report states the same recorded attestation; nothing claims main-chain verification", async () => {
   test.setTimeout(600_000);
-  // v2 already stated ANCHORED: no newer anchoring fact is offered, and a
-  // re-issued v3 states exactly what v2 did.
+  // v2 already stated the recorded attestation: no newer anchoring fact is
+  // offered, and a re-issued v3 states exactly what v2 did.
   const st = await status(owner.api, evidenceId);
-  expect(st.outputs.freshness.changes.map((c) => c.code)).not.toContain("OTS_ANCHORED_AFTER_REPORT");
+  const codes = st.outputs.freshness.changes.map((c) => c.code);
+  expect(codes).not.toContain("OTS_ANCHORED_AFTER_REPORT");
+  expect(codes).not.toContain("OTS_CHAIN_VERIFIED_AFTER_REPORT");
   expect(st.outputs.trust.ots.state).toBe("ANCHORED");
+  expect(st.outputs.trust.ots.verification).toBe("ATTESTATION_RECORDED");
   const r = await newVersion(owner.api, evidenceId, `truth-v3-${Date.now()}`, "Re-issue with the same anchoring facts");
   expect([200, 202]).toContain(r.status);
   await waitForPair(owner.api, evidenceId, 3);
   const text = pdfText(await downloadVersion(owner.api, evidenceId, "report", 3), "v3.pdf");
-  expect(text).toMatch(/Bitcoin anchoring\s+(?:✓\s*)?Anchored(?:\s*✓)?[\s\S]{0,80}?OpenTimestamps proof anchored in Bitcoin\./);
-  expect(text).not.toMatch(/Attestation recorded|Independent Bitcoin verification was not performed/);
-  expect(text).not.toMatch(/chain-verified/i);
-  expect(text).not.toContain("Anchored in Bitcoin; verified against the Bitcoin chain");
-  expect(text).not.toContain("Anchored, chain-verified");
+  expect(text).toMatch(RECORDED_CARD);
+  expect(text).not.toMatch(NO_VERIFIED_CLAIM);
+  expect(text).not.toMatch(/chain-verified|Independent Bitcoin verification was not performed/i);
   v3Full = extractPackage(await downloadVersion(owner.api, evidenceId, "package", 3), join(PROOF_DIR, "v3-full"));
   expect(consistencyFindings(v3Full)).toEqual([]);
-  expect(signal(v3Full, "bitcoin_anchoring").state).toBe("PASSED");
-  // Anchored is stated as a status, never a score — no document in the
-  // package carries points, a score or a verdict.
-  expect(matrixStatus(v3Full, "ots_anchoring")).toBe("VERIFIED");
+  expect(signal(v3Full, "bitcoin_anchoring").state).toBe("PRESENT_NOT_INDEPENDENTLY_VERIFIED");
+  // A recorded attestation is stated as a status, never a score — no document
+  // in the package carries points, a score or a verdict.
+  expect(matrixStatus(v3Full, "ots_anchoring")).toBe("NOT_CHECKED");
   expectNoForbiddenClaims(v3Full);
   expect(v3Full.json("package-manifest.json")).not.toHaveProperty("publicAnchoringVerified");
   // Genuinely verified layers stay VERIFIED.
@@ -418,11 +431,13 @@ test("J3 v3 — a re-issued report states the same Anchored state from the proof
     expect(matrixStatus(v3Full, key), key).toBe("VERIFIED");
   }
   // EXTERNAL-PROOF ITEM, recorded with the proof artifacts: verifying the
-  // proof against the real Bitcoin chain needs a trusted verifier this
-  // disposable stack does not have. It is NOT claimed as passed here.
+  // proof against the real Bitcoin main chain needs PROOVRA's synchronized
+  // node, which this disposable stack does not have (OTS_BITCOIN_VERIFY_ENABLED
+  // is false here). It is NOT claimed as passed here; the verifier itself is
+  // proven against a real regtest Bitcoin Core node in the worker suite.
   writeFileSync(
     join(PROOF_DIR, "external-proof-blockers.json"),
-    JSON.stringify({ realBitcoinChainVerification: "NOT_EXECUTED — no trusted OTS/Bitcoin verifier in the disposable stack" }, null, 2),
+    JSON.stringify({ realBitcoinChainVerification: "NOT_EXECUTED — live Bitcoin verification disabled in the disposable stack (no node)" }, null, 2),
   );
 });
 
@@ -457,10 +472,10 @@ test("J4 Public Verify, the review workspace and the package carry the same cano
   expect(rw.ok()).toBe(true);
   const rwBody = (await rw.json()) as Record<string, unknown>;
   // The authenticated review workspace states the same anchoring state: the
-  // stored proof attests a Bitcoin block, so the signal is PASSED (ANCHORED)
-  // — never the retired "present, not independently verified" middle state.
-  expect(JSON.stringify(rwBody)).toMatch(/"key":"bitcoin_anchoring"[^}]*"state":"PASSED"/);
-  expect(JSON.stringify(rwBody)).not.toMatch(/PRESENT_NOT_INDEPENDENTLY_VERIFIED"[^}]*"key":"bitcoin_anchoring"|"key":"bitcoin_anchoring"[^}]*"state":"PRESENT_NOT_INDEPENDENTLY_VERIFIED"/);
+  // stored proof NAMES a Bitcoin block that PROOVRA has not checked against
+  // the main chain (2026-10-15) — present, not independently verified; never PASSED.
+  expect(JSON.stringify(rwBody)).toMatch(/"key":"bitcoin_anchoring"[^}]*"state":"PRESENT_NOT_INDEPENDENTLY_VERIFIED"/);
+  expect(JSON.stringify(rwBody)).not.toMatch(/"key":"bitcoin_anchoring"[^}]*"state":"PASSED"/);
 });
 
 test("J5 identity: a later account/workspace change rewrites nothing; an organization-verified capture is stated when established", async () => {
@@ -600,12 +615,14 @@ test("J9 browser — Artifacts shows identity, profile and both downloads; the p
   await expect(profile).toContainText("Full forensic package");
   await expect(profile).toContainText(v1.packageId);
   await expect(page.getByTestId("download-external-package-v1")).toBeEnabled();
-  // The server's ANCHORED state: the one success word, with its ✓.
-  await expect(page.getByTestId("truth-ots")).toHaveText("✓ Anchored");
-  await expect(page.getByTestId("truth-ots")).not.toHaveText(/chain-verified|Independently verified|Attestation recorded/);
-  // Its dated note is when PROOVRA recorded the anchoring — never a block time.
+  // The server's ANCHORED state with no independent check: a recorded
+  // attestation, neutral, never a ✓ (2026-10-15).
+  await expect(page.getByTestId("truth-ots")).toHaveText("Bitcoin attestation recorded");
+  await expect(page.getByTestId("truth-ots-status")).toHaveText("Not independently checked against Bitcoin");
+  await expect(page.getByTestId("truth-ots")).not.toHaveText(/✓|chain-verified|Independently verified|Anchored/);
+  // Its dated note is when PROOVRA recorded the attestation — never a block time.
   const otsNote = page.getByTestId("truth-ots-measured");
-  if (await otsNote.count()) await expect(otsNote).toHaveText(/^Anchoring recorded by PROOVRA /);
+  if (await otsNote.count()) await expect(otsNote).toHaveText(/^Attestation recorded by PROOVRA /);
   await expect(page.getByTestId("pair-1-external")).toContainText(v1.extPackageId);
   await expect(page.getByTestId("truth-tsa")).toHaveText("Validated");
 
@@ -674,10 +691,10 @@ test("J10 OTS PENDING at issuance — Report v1 and BOTH packages are generated 
   const [ots] = sql<{ ots_status: string }>("SELECT ots_status FROM evidence WHERE id = $1", [id]);
   expect(ots!.ots_status, "the record was still PENDING when v1 was issued").toBe("PENDING");
 
-  // Report v1: Bitcoin anchoring Pending — awaiting Bitcoin anchoring.
+  // Report v1: Bitcoin anchoring Pending — submitted, no attestation yet (2026-10-15 wording).
   const text = pdfText(await downloadVersion(session.api, id, "report", 1), "ots-pending-v1.pdf");
-  expect(text).toMatch(/Bitcoin anchoring\s+Pending[\s\S]{0,80}?OpenTimestamps proof is awaiting Bitcoin anchoring\./);
-  expect(text).not.toMatch(/proof is still being prepared|Attestation recorded/);
+  expect(text).toMatch(/Bitcoin anchoring\s+Pending[\s\S]{0,80}?Submitted\s+to\s+OpenTimestamps\s+calendars;\s+no\s+Bitcoin\s+attestation\s+yet\./);
+  expect(text).not.toMatch(/proof is still being prepared|Attestation recorded|Independently verified/);
   expect(text).not.toContain("Anchored in Bitcoin; verified against the Bitcoin chain");
   expect(findForbiddenCustomerClaims(text)).toEqual([]);
 

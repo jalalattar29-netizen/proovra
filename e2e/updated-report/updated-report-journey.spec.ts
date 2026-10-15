@@ -91,13 +91,18 @@ const STATUS_WORDS: Record<string, string> = {
   Failed: "FAILED",
   Recorded: "NOT_CHECKED",
   Pending: "NOT_CHECKED",
-  // (2026-10-13) Bitcoin anchoring's own words: Anchored is the only success.
-  Anchored: "VERIFIED",
+  // (2026-10-15) Bitcoin anchoring's own words: only an independent check
+  // against the Bitcoin main chain is a success; a recorded attestation is not.
+  "Independently verified": "VERIFIED",
+  "Attestation recorded": "NOT_CHECKED",
+  "Verification pending": "NOT_CHECKED",
+  "Verification unavailable": "UNAVAILABLE",
+  "Verification failed": "FAILED",
   "Not requested": "NOT_APPLICABLE",
   Unavailable: "UNAVAILABLE",
   "Not applicable": "NOT_APPLICABLE",
 };
-const CARD_STATUS = "(Verified|Failed|Anchored|Recorded|Pending|Unavailable|Not requested|Not applicable)";
+const CARD_STATUS = "(Independently verified|Attestation recorded|Verification pending|Verification unavailable|Verification failed|Verified|Failed|Recorded|Pending|Unavailable|Not requested|Not applicable)";
 function trustStatements(text: string) {
   const row = (label: string) => {
     // A card runs to the next card's mark, or to the page footer.
@@ -188,12 +193,16 @@ test.describe("updated report — the real stack, end to end", () => {
       .poll(async () => (await status(owner.api, evidenceId)).outputs.trust.ots.state, { timeout: 180_000, intervals: [2000] })
       .toBe("ANCHORED");
     const s = await status(owner.api, evidenceId);
-    // The server's OtsAnchoringView: the executed proof derives the anchor.
-    expect(s.outputs.trust.ots.label).toBe("Bitcoin anchored");
+    // The server's OtsAnchoringView: the executed proof names a Bitcoin block;
+    // live verification is disabled in this stack, so it is RECORDED, not
+    // independently checked (2026-10-15).
+    expect(s.outputs.trust.ots).toMatchObject({ verification: "ATTESTATION_RECORDED", label: "Bitcoin attestation recorded", tone: "neutral" });
     expect(s.outputs.freshness.hasNewerFacts).toBe(true);
-    expect(s.outputs.freshness.changes.map((c) => c.code)).toEqual(
-      expect.arrayContaining(["TSA_VALIDATED_AFTER_REPORT", "OTS_ANCHORED_AFTER_REPORT"]),
-    );
+    const codes = s.outputs.freshness.changes.map((c) => c.code);
+    expect(codes).toContain("TSA_VALIDATED_AFTER_REPORT");
+    // A recorded attestation is not a "verified after the report" fact.
+    expect(codes).not.toContain("OTS_CHAIN_VERIFIED_AFTER_REPORT");
+    expect(codes).not.toContain("OTS_ANCHORED_AFTER_REPORT");
     expect(s.outputs.newVersion).toMatchObject({ action: "CREATE_NEW_VERSION", currentVersion: 1, nextVersion: 2 });
     record("trustAfter", s.outputs.trust);
     record("freshnessBeforeV2", s.outputs.freshness);
@@ -207,7 +216,7 @@ test.describe("updated report — the real stack, end to end", () => {
     const header = page.getByTestId("artifact-truth-header");
     await expect(header.getByTestId("truth-freshness")).toContainText("New verification facts are available");
     await expect(header.getByTestId("truth-freshness")).toContainText("The trusted timestamp was validated after report v1 was generated.");
-    await expect(header.getByTestId("truth-freshness")).toContainText("The OpenTimestamps proof was anchored in Bitcoin after report v1 was generated.");
+    await expect(header.getByTestId("truth-freshness")).not.toContainText(/anchored in Bitcoin|verified against the Bitcoin main chain/);
     await expect(header.getByTestId("truth-tsa")).toHaveText("Validated");
     await expect(page.getByTestId("pair-1")).toHaveAttribute("data-pair-latest", "true");
     await page.screenshot({ path: join(PROOF_DIR, "01-status-freshness.png"), fullPage: true });
@@ -403,13 +412,15 @@ test.describe("updated report — the real stack, end to end", () => {
     const claims2 = trustStatements(text2);
     record("v2TrustStatements", claims2);
     // v2 states the validated token — with the bounded sentence, never as
-    // qualified — and states Bitcoin anchoring as Anchored (2026-10-13).
+    // qualified — and states Bitcoin anchoring as an attestation RECORDED:
+    // live Bitcoin verification is disabled in this stack, so PROOVRA has not
+    // checked the named block against the main chain (2026-10-15).
     expect(claims2.tsaStatus).toBe("VERIFIED");
     expect(claims2.tsaStatement ?? "").toMatch(/^RFC 3161 timestamp verified /);
-    expect(claims2.otsStatus).toBe("VERIFIED");
-    expect(claims2.otsStatement ?? "").toMatch(/OpenTimestamps proof anchored in Bitcoin\./);
-    expect(claims2.otsStatement ?? "").not.toMatch(/Attestation recorded|Independent Bitcoin verification|chain-verified/i);
-    expect(claims2.otsStatement ?? "").not.toMatch(/does not match|concern|review required|pending|not recorded/i);
+    expect(claims2.otsStatus).toBe("NOT_CHECKED");
+    expect(claims2.otsStatement ?? "").toMatch(/The proof names Bitcoin block \d+; PROOVRA has not checked it against the Bitcoin main chain\./);
+    expect(claims2.otsStatement ?? "").not.toMatch(/Independently verified|anchored in Bitcoin|chain-verified/i);
+    expect(claims2.otsStatement ?? "").not.toMatch(/does not match|concern|review required|not recorded/i);
 
     // v1 is untouched: same bytes, same hashes, still downloadable.
     const pdf1Again = await downloadVersion(owner.api, evidenceId, "report", 1);

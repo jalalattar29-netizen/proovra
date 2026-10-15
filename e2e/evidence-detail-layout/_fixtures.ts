@@ -226,14 +226,18 @@ function makeWorkspace(): unknown {
         failureReason: null,
         timestampedDigestLabel: "Canonical fingerprint",
       },
-      // The API's OtsAnchoringView plus operational siblings (2026-10-13).
+      // The API's OtsAnchoringView plus operational siblings (2026-10-15): an
+      // attestation RECORDED, not independently checked against Bitcoin.
       ots: {
         state: "ANCHORED",
+        verification: "ATTESTATION_RECORDED",
         title: "Bitcoin anchoring",
-        status: "Anchored",
-        label: "Bitcoin anchored",
-        sentence: "OpenTimestamps proof anchored in Bitcoin.",
-        tone: "success",
+        status: "Attestation recorded",
+        label: "Bitcoin attestation recorded",
+        sentence: "The proof names Bitcoin block 812345; PROOVRA has not checked it against the Bitcoin main chain.",
+        secondaryStatus: "Not independently checked against Bitcoin",
+        tone: "neutral",
+        chain: null,
         failureCode: null,
         failureLabel: null,
         committedDigestHex: null,
