@@ -293,6 +293,8 @@ export async function processReconstructScreenJob(
         generation,
         coverage: result.coverage,
         ocrStatus,
+        ocrOutcome: result.ocrOutcome,
+        ocrCounts: result.ocrCounts,
         keyframeCount: result.keyframeCount,
         blockCount: result.blockCount,
         observationCount: result.observationCount,

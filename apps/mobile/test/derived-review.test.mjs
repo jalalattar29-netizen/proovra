@@ -253,3 +253,79 @@ test("T-12: each block keeps its source parts and offsets, and names up to six k
   const urls = D.blockKeyframeUrls({ keyframeIds: ["a", "b", "a", "c", "d", "e", "f", "g"] }, { a: "u1", b: null, c: "u3", d: "u4", e: "u5", f: "u6", g: "u7" });
   assert.deepEqual(urls, ["u1", "u3", "u4", "u5", "u6", "u7"], "missing urls skipped, duplicates dropped, at most six");
 });
+
+/* ------------------------------------------------- AUD-003 OCR outcome truth */
+
+const withOcr = (outcome, counts, over = {}) =>
+  D.parseDerivedReview(
+    envelope({ projection: projection({ ocrOutcome: outcome, ocrCounts: counts, ...over }) }),
+    API,
+  ).projection;
+
+test("AUD-003: every keyframe failing is stated, and never reads as COMPLETE or as 'no text'", () => {
+  const p = withOcr(
+    "ATTEMPTED_ALL_FAILED",
+    { keyframesAttempted: 5, keyframesSucceeded: 0, keyframesFailed: 5 },
+    { blocks: [], blockTotal: 0, stats: { ...projection().stats, ocrFailedKeyframes: 5, observationCount: 0, blockCount: 0 } },
+  );
+  assert.equal(p.coverage, "PARTIAL", "a COMPLETE claim over total OCR failure was accepted");
+  const caveats = D.derivedReviewCaveats(p);
+  assert.ok(caveats.some((c) => /failed on every keyframe/i.test(c)));
+  assert.ok(caveats.some((c) => /5 of 5 keyframe\(s\) could not be read/.test(c)));
+  assert.ok(!caveats.some((c) => /recognised no text/i.test(c)), "total failure presented as an empty source");
+});
+
+test("AUD-003: a mixed run says how many keyframes failed out of how many", () => {
+  const p = withOcr("PARTIAL_FAILURE", { keyframesAttempted: 4, keyframesSucceeded: 3, keyframesFailed: 1 });
+  assert.equal(p.coverage, "PARTIAL");
+  const caveats = D.derivedReviewCaveats(p);
+  assert.ok(caveats.some((c) => /failed on some keyframes/i.test(c)));
+  assert.ok(caveats.some((c) => /1 of 4 keyframe\(s\) could not be read/.test(c)));
+});
+
+test("AUD-003: a successful read with no text is a different fact from a failure", () => {
+  const p = withOcr(
+    "NO_TEXT_PRESENT",
+    { keyframesAttempted: 3, keyframesSucceeded: 3, keyframesFailed: 0 },
+    { blocks: [], blockTotal: 0, stats: { ...projection().stats, observationCount: 0, blockCount: 0 } },
+  );
+  assert.equal(p.coverage, "PARTIAL");
+  const caveats = D.derivedReviewCaveats(p);
+  assert.ok(caveats.some((c) => /recognised no text/i.test(c)));
+  assert.ok(!caveats.some((c) => /could not be read/.test(c)));
+});
+
+test("AUD-003/019: engine and language unavailability are distinct caveats and name the missing model", () => {
+  const engine = D.derivedReviewCaveats(withOcr("ENGINE_UNAVAILABLE", null, { ocrEnabled: false }));
+  assert.ok(engine.some((c) => /engine was unavailable/i.test(c)));
+  const lang = D.derivedReviewCaveats(
+    withOcr("LANGUAGE_UNAVAILABLE", null, {
+      ocrEnabled: false,
+      ocrLanguages: { requested: "eng+ara+deu", effective: null, missing: ["eng", "ara", "deu"] },
+    }),
+  );
+  assert.ok(lang.some((c) => /language models are not installed/i.test(c)));
+  assert.ok(lang.some((c) => /not installed: eng, ara, deu/.test(c)));
+  assert.ok(!lang.some((c) => /engine was unavailable/i.test(c)));
+});
+
+test("AUD-003: the parser never accepts COMPLETE that the OCR facts contradict", () => {
+  const outcomes = [
+    "NO_TEXT_PRESENT",
+    "PARTIAL_FAILURE",
+    "ATTEMPTED_ALL_FAILED",
+    "NO_FRAMES_PROCESSED",
+    "OCR_DISABLED",
+    "ENGINE_UNAVAILABLE",
+    "LANGUAGE_UNAVAILABLE",
+  ];
+  for (const o of outcomes) {
+    assert.equal(withOcr(o, null, { coverage: "COMPLETE" }).coverage, "PARTIAL", `${o} rendered COMPLETE`);
+  }
+  // A failed-keyframe count alone also blocks COMPLETE (an older server with no outcome).
+  assert.equal(
+    withOcr(undefined, null, { coverage: "COMPLETE", stats: { ...projection().stats, ocrFailedKeyframes: 1 } }).coverage,
+    "PARTIAL",
+  );
+  assert.equal(withOcr("TEXT_FOUND", { keyframesAttempted: 2, keyframesSucceeded: 2, keyframesFailed: 0 }).coverage, "COMPLETE");
+});

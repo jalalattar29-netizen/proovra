@@ -94,3 +94,38 @@ describe("UC-4 report section — OCR state is reported truthfully (UC-DER-008)"
     expect(html).toContain("OCR: not run");
   });
 });
+
+describe("UC-4 report section — the OCR OUTCOME is reported, not just 'enabled' (AUD-003)", () => {
+  it("OCR that failed on every keyframe is stated with its counts, never as 'enabled' or COMPLETE", () => {
+    const html = renderDerivedReviewSection({
+      ...base,
+      coverage: "PARTIAL",
+      ocrStatus: "ENABLED",
+      ocrOutcome: "ATTEMPTED_ALL_FAILED",
+      ocrCounts: { keyframesAttempted: 12, keyframesSucceeded: 0, keyframesFailed: 12 },
+      observationCount: 0,
+      blockCount: 0,
+      limitations: ["RECONSTRUCTION_OCR_EXTRACTION_FAILED", "RECONSTRUCTION_NO_OBSERVATIONS"],
+    });
+    expect(html).toContain("OCR: failed on every keyframe");
+    expect(html).not.toContain("OCR: enabled");
+    expect(html).toContain("OCR keyframes attempted: 12");
+    expect(html).toContain("read: 0");
+    expect(html).toContain("failed: 12");
+    expect(html).not.toContain("Coverage: COMPLETE");
+  });
+
+  it("a successful read with no text, and a missing language model, are each named", () => {
+    const html = renderDerivedReviewSection({
+      ...base,
+      ocrStatus: "ENABLED",
+      ocrOutcome: "NO_TEXT_PRESENT",
+      ocrCounts: { keyframesAttempted: 3, keyframesSucceeded: 3, keyframesFailed: 0 },
+      ocrLanguage: "eng+ara",
+      ocrLanguagesMissing: ["deu"],
+    });
+    expect(html).toContain("OCR: ran on every keyframe, no text recognised");
+    expect(html).toContain("OCR language: eng+ara");
+    expect(html).toContain("Language models not installed: deu");
+  });
+});

@@ -66,6 +66,15 @@ export const RECONSTRUCTION_LIMITATION_CODES = [
   // UC-DER-008 — OCR was permitted by the workspace but the local OCR runtime
   // was unavailable on the worker, so no text was extracted.
   "RECONSTRUCTION_OCR_RUNTIME_UNAVAILABLE",
+  // AUD-003 — OCR was attempted on at least one keyframe and the engine failed
+  // on it, so any text that frame carried is absent from the reconstruction.
+  "RECONSTRUCTION_OCR_EXTRACTION_FAILED",
+  // AUD-019 — a requested OCR language model is not installed on the worker,
+  // so text in that script was not recognised.
+  "RECONSTRUCTION_OCR_LANGUAGE_UNAVAILABLE",
+  // AUD-003 — nothing was observed: the reconstruction is empty, so it cannot
+  // stand for a complete reading of the source, whatever the reason was.
+  "RECONSTRUCTION_NO_OBSERVATIONS",
 ] as const;
 export type ReconstructionLimitationCode = (typeof RECONSTRUCTION_LIMITATION_CODES)[number];
 
@@ -512,7 +521,12 @@ export function reconstructScreenConversation(
 
   if (possibleGap) limitations.push("RECONSTRUCTION_POSSIBLE_GAP");
   if (possibleDuplicate) limitations.push("RECONSTRUCTION_POSSIBLE_DUPLICATE");
-  const coverage: ReconstructionCoverage = possibleGap ? "PARTIAL" : "COMPLETE";
+  // AUD-003 — an EMPTY reconstruction never claims COMPLETE coverage: zero
+  // observations cannot be told apart here from "OCR read nothing", and a
+  // reviewer must not read it as "the whole conversation, which was empty".
+  if (observations.length === 0) limitations.push("RECONSTRUCTION_NO_OBSERVATIONS");
+  const coverage: ReconstructionCoverage =
+    possibleGap || observations.length === 0 ? "PARTIAL" : "COMPLETE";
 
   return {
     transformation: SCREEN_RECONSTRUCTION_TRANSFORMATION,

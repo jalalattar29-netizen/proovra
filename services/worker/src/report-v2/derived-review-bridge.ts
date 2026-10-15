@@ -9,7 +9,7 @@
 
 import { createHash } from "node:crypto";
 
-import { UC4_RESOURCE_BOUNDS, resolveScreenOcrStatus } from "@proovra/shared";
+import { UC4_RESOURCE_BOUNDS, resolveScreenOcrTruth } from "@proovra/shared";
 import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
 
 import { prisma } from "../db.js";
@@ -67,8 +67,12 @@ export async function buildReportDerivedReview(input: {
     );
     if (!read) return null;
     const d = read.descriptor;
+    // AUD-003 — coverage, limitations and the OCR outcome through the ONE
+    // resolver, so a descriptor that recorded COMPLETE over failed or empty
+    // OCR is reported as what it is.
+    const ocr = resolveScreenOcrTruth(d);
     return {
-      coverage: d.coverage,
+      coverage: ocr.coverage,
       ocrEnabled: d.ocrEnabled,
       acquisitionComplete: d.acquisitionComplete,
       sourcePartCount: d.stats.sourcePartCount,
@@ -80,10 +84,14 @@ export async function buildReportDerivedReview(input: {
         ocr: d.transformationVersions.ocr,
         reconstruction: d.transformationVersions.reconstruction,
       },
-      limitations: d.limitations,
+      limitations: ocr.limitations,
       generatedAtUtc: d.generatedAtUtc,
       // UC-DER-008 — policy-off vs engine-missing, from the descriptor itself.
-      ocrStatus: resolveScreenOcrStatus(d),
+      ocrStatus: ocr.ocrStatus,
+      ocrOutcome: ocr.ocrOutcome,
+      ocrCounts: ocr.ocrCounts,
+      ocrLanguage: ocr.ocrLanguages.effective,
+      ocrLanguagesMissing: ocr.ocrLanguages.missing,
       descriptorSha256: descriptorBytes
         ? createHash("sha256").update(descriptorBytes as Buffer).digest("hex")
         : null,

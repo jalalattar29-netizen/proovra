@@ -725,7 +725,7 @@ runIf("UC-4 persisted screen intelligence (DB + storage)", () => {
     expect(res.limitations).toContain("RECONSTRUCTION_POSSIBLE_GAP");
   });
 
-  it("failure matrix: OCR throws on a frame → that frame degrades, run still COMPLETEs (§62)", async () => {
+  it("failure matrix: OCR throws on a frame → that frame degrades, the run is PARTIAL_FAILURE and PARTIAL (§62, AUD-003)", async () => {
     const { teamId, evidenceId, parts, store } = await seed({
       parts: [{ mime: "video/mp4", sha256: sha("v"), bytes: Buffer.from("v") }],
     });
@@ -768,6 +768,137 @@ runIf("UC-4 persisted screen intelligence (DB + storage)", () => {
       store.objs.get(`${reconRow[0]!.storage_bucket}::${reconRow[0]!.storage_key}`)!.toString("utf8"),
     );
     expect(descriptor.stats.ocrFailedKeyframes).toBe(1);
+    // AUD-003 — a failed keyframe is a hole in the reading: never COMPLETE.
+    expect(res.coverage).toBe("PARTIAL");
+    expect(res.ocrOutcome).toBe("PARTIAL_FAILURE");
+    expect(res.ocrCounts).toEqual({ keyframesAttempted: 2, keyframesSucceeded: 1, keyframesFailed: 1 });
+    expect(res.limitations).toContain("RECONSTRUCTION_OCR_EXTRACTION_FAILED");
+    expect(descriptor.coverage).toBe("PARTIAL");
+    expect(descriptor.ocrOutcome).toBe("PARTIAL_FAILURE");
+    expect(descriptor.ocrCounts).toEqual({ keyframesAttempted: 2, keyframesSucceeded: 1, keyframesFailed: 1 });
+  });
+
+  /** The current descriptor written for an evidence. */
+  const currentDescriptor = async (store: ReturnType<typeof memStore>, evidenceId: string) => {
+    const reconRow = (await prisma.$queryRawUnsafe(
+      `SELECT storage_bucket, storage_key FROM evidence_part_derived_assets WHERE evidence_id=$1 AND asset_kind='screen_reconstruction' LIMIT 1`,
+      evidenceId,
+    )) as Array<{ storage_bucket: string; storage_key: string }>;
+    return JSON.parse(store.objs.get(`${reconRow[0]!.storage_bucket}::${reconRow[0]!.storage_key}`)!.toString("utf8"));
+  };
+
+  it("AUD-003: OCR failing on EVERY keyframe is ATTEMPTED_ALL_FAILED and PARTIAL — never COMPLETE, no OCR text", async () => {
+    const { teamId, evidenceId, parts, store } = await seed({
+      parts: [{ mime: "video/mp4", sha256: sha("v-allfail"), bytes: Buffer.from("v-allfail") }],
+    });
+    const d = deps(store, true, [
+      { offsetMs: 0, rows: ["A"] },
+      { offsetMs: 1500, rows: ["B"] },
+      { offsetMs: 3000, rows: ["C"] },
+    ]);
+    d.ocr = { ...d.ocr, extractFromBytes: async () => { throw new Error("ocr_exit_1"); } };
+    const res = await runAndPersistScreenIntelligence({ teamId, evidenceId, parts, acquisitionComplete: true }, d);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.coverage).toBe("PARTIAL");
+    expect(res.ocrOutcome).toBe("ATTEMPTED_ALL_FAILED");
+    expect(res.ocrCounts).toEqual({ keyframesAttempted: 3, keyframesSucceeded: 0, keyframesFailed: 3 });
+    expect(res.limitations).toEqual(
+      expect.arrayContaining(["RECONSTRUCTION_OCR_EXTRACTION_FAILED", "RECONSTRUCTION_NO_OBSERVATIONS"]),
+    );
+    const desc = await currentDescriptor(store, evidenceId);
+    expect(desc.coverage).toBe("PARTIAL");
+    expect(desc.ocrOutcome).toBe("ATTEMPTED_ALL_FAILED");
+    expect(desc.stats.ocrFailedKeyframes).toBe(3);
+    expect(await prisma.evidenceExtractedText.count({ where: { evidenceId } })).toBe(0);
+  });
+
+  it("AUD-003: OCR that read every keyframe and recognised nothing is NO_TEXT_PRESENT (not a failure) and still PARTIAL", async () => {
+    const { teamId, evidenceId, parts, store } = await seed({
+      parts: [{ mime: "video/mp4", sha256: sha("v-blank"), bytes: Buffer.from("v-blank") }],
+    });
+    const res = await runAndPersistScreenIntelligence(
+      { teamId, evidenceId, parts, acquisitionComplete: true },
+      deps(store, true, [{ offsetMs: 0, rows: [] }, { offsetMs: 1500, rows: [] }]),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.ocrOutcome).toBe("NO_TEXT_PRESENT");
+    // Two empty frames are byte-identical; the second is skipped, not OCR'd.
+    expect(res.ocrCounts.keyframesFailed).toBe(0);
+    expect(res.ocrCounts.keyframesSucceeded).toBe(res.ocrCounts.keyframesAttempted);
+    expect(res.ocrCounts.keyframesAttempted).toBeGreaterThan(0);
+    expect(res.coverage).toBe("PARTIAL");
+    expect(res.limitations).not.toContain("RECONSTRUCTION_OCR_EXTRACTION_FAILED");
+    expect(res.limitations).toContain("RECONSTRUCTION_NO_OBSERVATIONS");
+  });
+
+  it("AUD-003: no keyframe reaching OCR is NO_FRAMES_PROCESSED and PARTIAL", async () => {
+    const { teamId, evidenceId, parts, store } = await seed({
+      parts: [{ mime: "video/mp4", sha256: sha("v-nokf"), bytes: Buffer.from("v-nokf") }],
+    });
+    const d = deps(store, true, []);
+    d.produceKeyframes = async () => ({ status: "failed", reason: "no_keyframes_produced" });
+    const res = await runAndPersistScreenIntelligence({ teamId, evidenceId, parts, acquisitionComplete: true }, d);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.ocrOutcome).toBe("NO_FRAMES_PROCESSED");
+    expect(res.coverage).toBe("PARTIAL");
+  });
+
+  it("AUD-003/019: engine missing is ENGINE_UNAVAILABLE; no installed language is LANGUAGE_UNAVAILABLE with no language recorded as run", async () => {
+    const a = await seed({ parts: [{ mime: "video/mp4", sha256: sha("v-eng"), bytes: Buffer.from("v-eng") }] });
+    const dEngine = deps(a.store, false, [{ offsetMs: 0, rows: ["A"] }]);
+    dEngine.ocr = { ...dEngine.ocr, status: "RUNTIME_UNAVAILABLE", version: "unavailable" };
+    const rEngine = await runAndPersistScreenIntelligence(
+      { teamId: a.teamId, evidenceId: a.evidenceId, parts: a.parts, acquisitionComplete: true },
+      dEngine,
+    );
+    expect(rEngine.ok && rEngine.ocrOutcome).toBe("ENGINE_UNAVAILABLE");
+
+    const b = await seed({ parts: [{ mime: "video/mp4", sha256: sha("v-lang"), bytes: Buffer.from("v-lang") }] });
+    const dLang = deps(b.store, false, [{ offsetMs: 0, rows: ["A"] }]);
+    dLang.ocr = {
+      ...dLang.ocr,
+      status: "RUNTIME_UNAVAILABLE",
+      version: "5.3.4",
+      language: null,
+      languages: { requested: "eng+ara+deu", effective: null, missing: ["eng", "ara", "deu"] },
+    };
+    const rLang = await runAndPersistScreenIntelligence(
+      { teamId: b.teamId, evidenceId: b.evidenceId, parts: b.parts, acquisitionComplete: true },
+      dLang,
+    );
+    expect(rLang.ok).toBe(true);
+    if (!rLang.ok) return;
+    expect(rLang.ocrOutcome).toBe("LANGUAGE_UNAVAILABLE");
+    expect(rLang.coverage).toBe("PARTIAL");
+    expect(rLang.limitations).toContain("RECONSTRUCTION_OCR_LANGUAGE_UNAVAILABLE");
+    expect(rLang.limitations).not.toContain("RECONSTRUCTION_OCR_RUNTIME_UNAVAILABLE");
+    const desc = await currentDescriptor(b.store, b.evidenceId);
+    expect(desc.ocrProvider.language).toBeNull();
+    expect(desc.ocrLanguages).toEqual({ requested: "eng+ara+deu", effective: null, missing: ["eng", "ara", "deu"] });
+  });
+
+  it("AUD-019: a missing language model degrades coverage and the descriptor records only the language that ran", async () => {
+    const { teamId, evidenceId, parts, store } = await seed({
+      parts: [{ mime: "video/mp4", sha256: sha("v-somelang"), bytes: Buffer.from("v-somelang") }],
+    });
+    const d = deps(store, true, [
+      { offsetMs: 0, rows: ["A", "B", "C"] },
+      { offsetMs: 1500, rows: ["B", "C", "D"] },
+    ]);
+    d.ocr = { ...d.ocr, language: "eng+ara+deu", languages: { requested: "eng+ara+deu", effective: "eng+ara", missing: ["deu"] } };
+    const res = await runAndPersistScreenIntelligence({ teamId, evidenceId, parts, acquisitionComplete: true }, d);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.ocrOutcome).toBe("TEXT_FOUND");
+    expect(res.coverage).toBe("PARTIAL");
+    expect(res.limitations).toEqual(["RECONSTRUCTION_OCR_LANGUAGE_UNAVAILABLE"]);
+    const desc = await currentDescriptor(store, evidenceId);
+    expect(desc.ocrProvider.language).toBe("eng+ara");
+    const text = await prisma.evidenceExtractedText.findFirst({ where: { evidenceId, kind: "OCR_SCREEN" as never } });
+    expect(text?.language).toBe("eng+ara");
   });
 
   it("failure matrix: source storage failure throws (transient → BullMQ retry), no false COMPLETE (§62)", async () => {
