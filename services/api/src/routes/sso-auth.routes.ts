@@ -31,6 +31,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { isProovraProductionRequest } from "../http/cors-origin-policy.js";
 import { z } from "zod";
 
 import { prisma } from "../db.js";
@@ -175,7 +176,7 @@ function setSessionCookie(
   const origin = req.headers["origin"] ?? "";
   const productionDomain =
     process.env["SSO_COOKIE_DOMAIN"] ||
-    (host.includes("proovra.com") || origin.includes("proovra.com")
+    (isProovraProductionRequest(host, origin)
       ? ".proovra.com"
       : undefined);
   const secure =
@@ -588,8 +589,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           const origin = req.headers["origin"] ?? "";
           const productionDomain =
             process.env["SSO_COOKIE_DOMAIN"] ||
-            (host.includes("proovra.com") ||
-            origin.includes("proovra.com")
+            (isProovraProductionRequest(host, origin)
               ? ".proovra.com"
               : undefined);
           const secure =

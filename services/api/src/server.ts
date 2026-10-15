@@ -265,7 +265,8 @@ import {
   isDomainError,
 } from "./errors.js";
 import { registerCanonicalNotFoundHandler } from "./http/not-found-handler.js";
-import { isCorsOriginAllowed } from "./http/cors-origin-policy.js";
+import { evaluateCookieMutation, isCorsOriginAllowed } from "./http/cors-origin-policy.js";
+import { bearerTokenOf, sessionCookieOf } from "./middleware/auth.js";
 import { redactRequestUrl } from "./http/redact-request-url.js";
 
 // UC-SEC-002 / UC-SEC-005 — the CORS origin decision lives in ONE module.
@@ -635,6 +636,41 @@ allowedHeaders: [
   });
 
   await app.register(cookie);
+
+  // AUD-021 — CSRF guard for COOKIE-authenticated mutations, on every route.
+  //
+  // The session cookie is SameSite=lax on .proovra.com, so any sibling
+  // subdomain is "same-site" and the browser attaches the cookie to a form or
+  // fetch it sends here; nothing checked where a cookie-authenticated POST came
+  // from. A state-changing request that carries the session cookie and no
+  // bearer token must now name a trusted web origin (Origin, else Referer) and
+  // must not be `Sec-Fetch-Site: cross-site` — the same allow-list CORS uses.
+  // Bearer clients (mobile, extension, API, the web's server side) are
+  // authenticated by their token and are unaffected; preflights are answered by
+  // CORS before this runs (OPTIONS is a safe method here too).
+  app.addHook("onRequest", async (req, reply) => {
+    const header = (name: string): string | undefined => {
+      const v = req.headers[name];
+      return Array.isArray(v) ? v[0] : v;
+    };
+    const verdict = evaluateCookieMutation({
+      method: req.method,
+      hasBearer: bearerTokenOf(req).length > 0,
+      hasSessionCookie: Boolean(sessionCookieOf(req)),
+      origin: header("origin"),
+      referer: header("referer"),
+      secFetchSite: header("sec-fetch-site"),
+    });
+    if (!verdict.ok) {
+      req.log.warn(
+        { requestId: req.id, method: req.method, reason: verdict.reason },
+        "auth.cookie_mutation_refused",
+      );
+      return reply.code(403).send(
+        createErrorResponse(ErrorCode.FORBIDDEN, req.id, { reason: verdict.reason }),
+      );
+    }
+  });
 
   // Enterprise launch hardening — direct CSV upload for the org bulk-invite
   // import route (POST /v1/orgs/:id/invites/csv). Scoped to the text/csv +
