@@ -194,6 +194,17 @@ export async function beginContinuousSession(
 }
 
 /**
+ * AUD-017 — the recorder's running count sent with a segment's declaration:
+ * how many segments the native recorder had produced. A segment's own
+ * finalisation proves at least `sequence + 1`; a caller that has seen later
+ * segments passes the higher count. Never lower than the segment's own.
+ */
+export function continuousRecordedThrough(seg: Pick<ScreenSegment, "sequence">, recorderCount?: number): number {
+  const own = seg.sequence + 1;
+  return typeof recorderCount === "number" && Number.isInteger(recorderCount) && recorderCount > own ? recorderCount : own;
+}
+
+/**
  * Upload + declare ONE segment (partIndex = segment sequence). Returns the
  * declared metadata for the manifest. Bounded retry on transient failure.
  */
@@ -202,6 +213,8 @@ export async function uploadContinuousSegment(
   evidenceId: string,
   seg: ScreenSegment,
   retries = SCREEN_CONTINUOUS_STREAM_BOUNDS.uploadRetries,
+  /** AUD-017 — the native recorder's segment count at declaration time, when known. */
+  recorderCount?: number,
 ): Promise<DeclaredSegment> {
   let lastErr: unknown;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -215,6 +228,7 @@ export async function uploadContinuousSegment(
         mimeType: "video/mp4",
         originalFilename: `segment-${seg.sequence}.mp4`,
         source: "SCREEN_SEGMENT",
+        recordedThrough: continuousRecordedThrough(seg, recorderCount),
       });
       // Bytes are now durably in storage; drop the only-on-device copy so a long
       // session cannot accumulate unbounded temp mp4s. Completion re-hashes from
