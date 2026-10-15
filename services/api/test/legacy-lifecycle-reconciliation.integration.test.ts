@@ -101,6 +101,21 @@ describe("legacy evidence lifecycle — one population, Home counts 2 not 6, bou
     expect(dry.scanned).toBe(6);
     expect(dry.byClass).toMatchObject({ ACTIVE: 2, ABANDONED_UPLOAD: 4, TRASH: 0, RETENTION_ARCHIVE: 0, MANUAL_REVIEW: 0 });
     expect(Object.values(dry.byClass).reduce((a, b) => a + b, 0)).toBe(6);
+    expect(dry.counts).toEqual({
+      activeConsistent: 2,
+      legacyActiveDeleted: 0,
+      validTrash: 0,
+      retentionArchived: 0,
+      ownerArchived: 0,
+      purge: 0,
+      inProgress: 0,
+      abandonedUpload: 4,
+      manualReview: 0,
+      wouldChange: 0,
+      changed: 0,
+      skippedRowMoved: 0,
+      refused: 0,
+    });
   }, 120_000);
 
   it("a LEGACY completed record still ACTIVE but carrying a deletion marker (either column) never counts as active", async () => {
@@ -135,6 +150,21 @@ describe("legacy evidence lifecycle — one population, Home counts 2 not 6, bou
     const custodyBefore = await prisma.custodyEvent.count();
     const dry = await backfill.reconcileEvidenceLifecycle({ teamId: W.teamId, batchSize: 3 });
     expect(dry).toMatchObject({ mode: "DRY-RUN", movedToTrash: 2, releasedReservations: 1 });
+    expect(dry.counts).toMatchObject({
+      activeConsistent: 2,
+      legacyActiveDeleted: 2,
+      validTrash: 0,
+      abandonedUpload: 5,
+      manualReview: 2,
+      wouldChange: 3,
+      changed: 0,
+      skippedRowMoved: 0,
+      refused: 2,
+    });
+    // Every row in exactly one class.
+    const classTotal = (x: typeof dry.counts) =>
+      x.activeConsistent + x.legacyActiveDeleted + x.validTrash + x.retentionArchived + x.ownerArchived + x.purge + x.inProgress + x.abandonedUpload + x.manualReview;
+    expect(classTotal(dry.counts)).toBe(dry.scanned);
     expect(dry.manualReview.map((m) => [m.id, m.reason]).sort()).toEqual(
       [
         [ids.archiveMarker, "CONTRADICTORY_LIFECYCLE_MARKERS"],
@@ -151,6 +181,7 @@ describe("legacy evidence lifecycle — one population, Home counts 2 not 6, bou
 
     const applied = await backfill.reconcileEvidenceLifecycle({ apply: true, teamId: W.teamId, batchSize: 3 });
     expect(applied).toMatchObject({ mode: "APPLY", movedToTrash: 2, releasedReservations: 1 });
+    expect(applied.counts).toMatchObject({ wouldChange: 0, changed: 3, skippedRowMoved: 0, refused: 2 });
     // The record deleted through the canonical column alone keeps that instant.
     const utcOnly = await prisma.evidence.findUniqueOrThrow({ where: { id: ids.legacyDeletedUtc } });
     const utcBefore = before.find((r) => r.id === ids.legacyDeletedUtc)!;
@@ -182,6 +213,7 @@ describe("legacy evidence lifecycle — one population, Home counts 2 not 6, bou
     const custodyAfter = await prisma.custodyEvent.count();
     const again = await backfill.reconcileEvidenceLifecycle({ apply: true, teamId: W.teamId });
     expect(again).toMatchObject({ movedToTrash: 0, releasedReservations: 0 });
+    expect(again.counts).toMatchObject({ changed: 0, skippedRowMoved: 0, legacyActiveDeleted: 0, validTrash: 2 });
     expect(await prisma.custodyEvent.count()).toBe(custodyAfter);
 
     // Every row is in exactly one class, and Home still says 2.
@@ -189,6 +221,26 @@ describe("legacy evidence lifecycle — one population, Home counts 2 not 6, bou
     expect(Object.values(final.byClass).reduce((a, b) => a + b, 0)).toBe(final.scanned);
     expect(final.byClass).toMatchObject({ ACTIVE: 2, TRASH: 2, MANUAL_REVIEW: 2, ABANDONED_UPLOAD: 5 });
     expect(await unlinked()).toBe(2);
+  }, 120_000);
+
+  it("CONCURRENT MOVEMENT: a row that changes between classification and write is skipped, never overwritten", async () => {
+    const legacy = await row({ status: "SIGNED", lifecycleState: "ACTIVE", signedAtUtc: new Date(), deletedAt: new Date(Date.now() - 10 * DAY) });
+    const upload = await row({ status: "UPLOADING", lifecycleState: "ACTIVE" }, { updatedAt: new Date(Date.now() - 3 * DAY) });
+    const custodyBefore = await prisma.custodyEvent.count({ where: { evidenceId: { in: [legacy, upload] } } });
+    const res = await backfill.reconcileEvidenceLifecycle({
+      apply: true,
+      teamId: W.teamId,
+      beforeWrite: async (evidenceId) => {
+        // The owner restores the legacy record, and a sweep releases the upload, mid-run.
+        if (evidenceId === legacy) await prisma.evidence.update({ where: { id: legacy }, data: { deletedAt: null } });
+        if (evidenceId === upload) await prisma.evidence.update({ where: { id: upload }, data: { deletedAt: new Date() } });
+      },
+    });
+    expect(res.counts).toMatchObject({ changed: 0, skippedRowMoved: 2 });
+    expect(await prisma.evidence.findUniqueOrThrow({ where: { id: legacy } })).toMatchObject({ lifecycleState: "ACTIVE", deletedAt: null });
+    expect(await prisma.custodyEvent.count({ where: { evidenceId: { in: [legacy, upload] } } })).toBe(custodyBefore);
+    // Clean up for the counts below: the restored record is a consistent active record now.
+    await prisma.evidence.update({ where: { id: legacy }, data: { lifecycleState: "TRASHED", deletedAt: new Date(), deletedAtUtc: new Date() } });
   }, 120_000);
 
   it("a record linked only to a CLOSED matter counts as unlinked; one in an active matter does not", async () => {

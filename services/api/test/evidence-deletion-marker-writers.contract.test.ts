@@ -78,6 +78,13 @@ describe("only canonical transitions write an evidence deletion marker", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("the lifecycle reconciliation can NOT touch storage: no S3 client, no storage module, no delete", () => {
+    const src = readFileSync(join(REPO, "services/api/src/scripts/three-decisions-backfill.ts"), "utf8");
+    expect(src).not.toMatch(/@aws-sdk\/client-s3|from "\.\.\/storage\.js"|deleteObject|DeleteObject|executeEvidenceDestruction/);
+    // ...and it never hard-deletes a row.
+    expect(src).not.toMatch(/\.evidence\.(delete|deleteMany)\(/);
+  });
+
   it("the allowed writers still exist and still write what they are allowed for", () => {
     for (const rel of Object.keys(ALLOWED)) {
       const src = readFileSync(join(REPO, rel), "utf8");

@@ -284,9 +284,33 @@ export type LifecycleReconciliationAction =
   | "RELEASE_ABANDONED_RESERVATION"
   | "REFUSED_MANUAL_REVIEW";
 
+/**
+ * Exact counts. Every scanned row is in exactly ONE of activeConsistent,
+ * legacyActiveDeleted, validTrash, retentionArchived, ownerArchived, purge,
+ * inProgress, abandonedUpload and manualReview; wouldChange (dry run),
+ * changed, skippedRowMoved (the row moved between read and write) and
+ * refused (held, locked or contradictory) describe what was done with them.
+ */
+export type LifecycleReconciliationCounts = {
+  activeConsistent: number;
+  legacyActiveDeleted: number;
+  validTrash: number;
+  retentionArchived: number;
+  ownerArchived: number;
+  purge: number;
+  inProgress: number;
+  abandonedUpload: number;
+  manualReview: number;
+  wouldChange: number;
+  changed: number;
+  skippedRowMoved: number;
+  refused: number;
+};
+
 export type LifecycleReconciliationSummary = {
   mode: "DRY-RUN" | "APPLY";
   scanned: number;
+  counts: LifecycleReconciliationCounts;
   byClass: Record<EvidencePopulationClass, number>;
   movedToTrash: number;
   releasedReservations: number;
@@ -334,6 +358,8 @@ export async function reconcileEvidenceLifecycle(options: {
   maxBatches?: number;
   teamId?: string | null;
   now?: Date;
+  /** Test seam: runs between classification and the conditional write. */
+  beforeWrite?: (evidenceId: string) => Promise<void>;
 }): Promise<LifecycleReconciliationSummary> {
   const apply = options.apply === true;
   const now = options.now ?? new Date();
@@ -342,6 +368,21 @@ export async function reconcileEvidenceLifecycle(options: {
   const summary: LifecycleReconciliationSummary = {
     mode: apply ? "APPLY" : "DRY-RUN",
     scanned: 0,
+    counts: {
+      activeConsistent: 0,
+      legacyActiveDeleted: 0,
+      validTrash: 0,
+      retentionArchived: 0,
+      ownerArchived: 0,
+      purge: 0,
+      inProgress: 0,
+      abandonedUpload: 0,
+      manualReview: 0,
+      wouldChange: 0,
+      changed: 0,
+      skippedRowMoved: 0,
+      refused: 0,
+    },
     byClass: Object.fromEntries(EVIDENCE_POPULATION_CLASSES.map((c) => [c, 0])) as Record<EvidencePopulationClass, number>,
     movedToTrash: 0,
     releasedReservations: 0,
@@ -371,51 +412,65 @@ export async function reconcileEvidenceLifecycle(options: {
       const marked = row.deletedAt !== null || row.deletedAtUtc !== null;
       const reservationLive =
         isUnsealed && !marked ? !(await isEvidenceReservationExpiredTx(prisma as never, row.id, now)) : undefined;
-      const cls = classifyEvidencePopulation({ ...row, reservationLive });
-      summary.byClass[cls] += 1;
-
-      if (cls === "MANUAL_REVIEW") {
-        summary.manualReview.push({ id: row.id, reason: "CONTRADICTORY_LIFECYCLE_MARKERS" });
-        continue;
-      }
-
+      let cls = classifyEvidencePopulation({ ...row, reservationLive });
       // A completed record a legacy path deleted without moving it to Trash.
       const legacyDeleted =
         cls === "TRASH" && !isUnsealed && (activeLifecycle as string[]).includes(row.lifecycleState ?? "ACTIVE");
+      let refusal: string | null = cls === "MANUAL_REVIEW" ? "CONTRADICTORY_LIFECYCLE_MARKERS" : null;
       if (legacyDeleted) {
         // A canonical trash is refused for a locked or held record, so the
-        // tool refuses too — and the row is reported as MANUAL_REVIEW.
-        const refuse = (reason: string) => {
-          summary.byClass.TRASH -= 1;
-          summary.byClass.MANUAL_REVIEW += 1;
-          summary.manualReview.push({ id: row.id, reason });
-        };
-        if (row.lockedAt) {
-          refuse("DELETED_BUT_RECORD_LOCKED");
-          continue;
+        // tool refuses too — and the row is classified MANUAL_REVIEW.
+        if (row.lockedAt) refusal = "DELETED_BUT_RECORD_LOCKED";
+        else if ((await evaluateEffectiveLegalHold(prisma as never, { teamId: row.teamId, evidenceId: row.id })).held) {
+          refusal = "DELETED_BUT_UNDER_LEGAL_HOLD";
         }
-        const hold = await evaluateEffectiveLegalHold(prisma as never, { teamId: row.teamId, evidenceId: row.id });
-        if (hold.held) {
-          refuse("DELETED_BUT_UNDER_LEGAL_HOLD");
-          continue;
-        }
-        if (!apply) {
-          summary.movedToTrash += 1;
-          continue;
-        }
+        if (refusal) cls = "MANUAL_REVIEW";
+      }
+      summary.byClass[cls] += 1;
+      const c = summary.counts;
+      if (cls === "ACTIVE") c.activeConsistent += 1;
+      else if (cls === "TRASH" && legacyDeleted) c.legacyActiveDeleted += 1;
+      else if (cls === "TRASH") c.validTrash += 1;
+      else if (cls === "RETENTION_ARCHIVE") c.retentionArchived += 1;
+      else if (cls === "ARCHIVED") c.ownerArchived += 1;
+      else if (cls === "PURGE") c.purge += 1;
+      else if (cls === "IN_PROGRESS") c.inProgress += 1;
+      else if (cls === "ABANDONED_UPLOAD") c.abandonedUpload += 1;
+      else c.manualReview += 1;
+
+      if (refusal) {
+        c.refused += 1;
+        summary.manualReview.push({ id: row.id, reason: refusal });
+        continue;
+      }
+
+      const releasable = cls === "ABANDONED_UPLOAD" && isUnsealed && !marked && reservationLive === false;
+      if (!legacyDeleted && !releasable) continue;
+      if (!apply) {
+        c.wouldChange += 1;
+        if (legacyDeleted) summary.movedToTrash += 1;
+        else summary.releasedReservations += 1;
+        continue;
+      }
+      await options.beforeWrite?.(row.id);
+
+      if (legacyDeleted) {
         const deletedAt = [row.deletedAt, row.deletedAtUtc]
           .filter((d): d is Date => d !== null)
           .sort((a, b) => a.getTime() - b.getTime())[0]!;
         const trashGraceUntil = new Date(deletedAt.getTime() + TRASH_GRACE_DAYS * 24 * 60 * 60 * 1000);
         const moved = await prisma.$transaction(async (tx) => {
           await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${row.id}))`;
+          // Conditional on the row still being exactly what was classified.
           const res = await tx.evidence.updateMany({
             where: {
               id: row.id,
-              status: { notIn: unsealed },
-              lifecycleState: { in: activeLifecycle },
+              status: row.status,
+              lifecycleState: row.lifecycleState ?? undefined,
               lockedAt: null,
-              OR: [{ deletedAt: { not: null } }, { deletedAtUtc: { not: null } }],
+              deletedAt: row.deletedAt,
+              deletedAtUtc: row.deletedAtUtc,
+              archivedAt: row.archivedAt,
             },
             data: {
               lifecycleState: "TRASHED",
@@ -437,21 +492,22 @@ export async function reconcileEvidenceLifecycle(options: {
           });
           return true;
         });
-        if (moved) summary.movedToTrash += 1;
+        if (moved) {
+          c.changed += 1;
+          summary.movedToTrash += 1;
+        } else c.skippedRowMoved += 1;
         continue;
       }
 
-      // An incomplete upload whose reservation expired and was never released.
-      if (cls === "ABANDONED_UPLOAD" && isUnsealed && !marked && reservationLive === false) {
-        if (!apply) {
-          summary.releasedReservations += 1;
-          continue;
-        }
-        const released = await prisma.$transaction((tx) =>
-          releaseEvidenceReservationTx(tx, { evidenceId: row.id, reason: "RESERVATION_EXPIRED", now }),
-        );
-        if (released) summary.releasedReservations += 1;
-      }
+      // An incomplete upload whose reservation expired and was never released:
+      // the canonical release re-checks it under the record lock.
+      const released = await prisma.$transaction((tx) =>
+        releaseEvidenceReservationTx(tx, { evidenceId: row.id, reason: "RESERVATION_EXPIRED", now }),
+      );
+      if (released) {
+        c.changed += 1;
+        summary.releasedReservations += 1;
+      } else c.skippedRowMoved += 1;
     }
     summary.nextCursor = rows[rows.length - 1]!.id;
     if (rows.length < batchSize) {
