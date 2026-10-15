@@ -43,6 +43,14 @@ import UIKit
  *               a new segment and records ORIENTATION_CHANGED_DURING_CAPTURE.
  *   UC-IOS-009  broadcastPaused / broadcastResumed end the current segment and
  *               record BROADCAST_PAUSED (the session is then INTERRUPTED).
+ *
+ * AUD-006 (2026-10-15): every broadcast writes into its OWN namespace
+ * (ProovraBroadcastSpool.swift, compiled into this target by the config plugin):
+ * it adopts the app's fresh pending binding atomically, or — started from
+ * Control Center, or over a stale binding — opens an UNBOUND recording the app
+ * never attaches to a capture session. Sequences start fresh in the new
+ * namespace and a published segment is never overwritten; result.json is
+ * written once and names the recording; liveness is a monotonic heartbeat.
  */
 class SampleHandler: RPBroadcastSampleHandler {
   // ---- Contract with the app (ProovraBroadcastShared.swift), by value ------
@@ -66,7 +74,10 @@ class SampleHandler: RPBroadcastSampleHandler {
   private let queue = DispatchQueue(label: "com.proovra.broadcast.writer")
   private var heartbeat: DispatchSourceTimer?
 
-  private var dir: URL?
+  private var spool: ProovraBroadcastSpool?
+  /// AUD-006 — this broadcast's namespace; nil until broadcastStarted opened one.
+  private var recordingId: String?
+  private var heartbeatSeq = 0
   private var writer: AVAssetWriter?
   private var videoInput: AVAssetWriterInput?
   private var sequence = 0
@@ -95,23 +106,32 @@ class SampleHandler: RPBroadcastSampleHandler {
   // MARK: - Broadcast lifecycle
 
   override func broadcastStarted(withSetupInfo setupInfo: [String: NSObject]?) {
+    var opened = false
     queue.sync {
-      dir = FileManager.default
-        .containerURL(forSecurityApplicationGroupIdentifier: SampleHandler.appGroup)?
-        .appendingPathComponent("uc5-broadcast", isDirectory: true)
-      if let dir = dir { try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) }
-      let prior = readJson("state.json")
-      if let prior = prior {
-        segmentMs = min(max((prior["segmentMs"] as? Int) ?? SampleHandler.defaultSegmentMs, SampleHandler.minSegmentMs),
-                        SampleHandler.maxSegmentMsLimit)
-        maxSegments = min(max((prior["maxSegments"] as? Int) ?? SampleHandler.maxSegmentsLimit, 1),
-                          SampleHandler.maxSegmentsLimit)
-      }
-      // A broadcast PROOVRA did not request (started from Control Center) is
-      // still written, and marked so the app offers it for recovery or discard
-      // instead of silently wiping it at the next start (UC-IOS-010).
-      let requestedByApp = (prior?["appRequested"] as? Bool) ?? false
-      writeState(active: true, extra: ["appRequested": requestedByApp])
+      guard let container = FileManager.default
+        .containerURL(forSecurityApplicationGroupIdentifier: SampleHandler.appGroup) else { return }
+      let spool = ProovraBroadcastSpool(root: ProovraBroadcastSpool.rootURL(inContainer: container))
+      // AUD-006 — a NEW namespace for this broadcast: the app's binding when it is
+      // fresh and unconsumed, otherwise an UNBOUND recording (e.g. Control Center)
+      // that is still written, and offered for recovery or discard (UC-IOS-010).
+      guard let recording = spool.openRecording(
+        nowUptime: ProcessInfo.processInfo.systemUptime,
+        nowUtc: ISO8601DateFormatter().string(from: Date())
+      ) else { return }
+      self.spool = spool
+      recordingId = recording.recordingId
+      segmentMs = min(max(recording.segmentMs, SampleHandler.minSegmentMs), SampleHandler.maxSegmentMsLimit)
+      maxSegments = min(max(recording.maxSegments, 1), SampleHandler.maxSegmentsLimit)
+      sequence = spool.nextSequence(recording.recordingId) // 0: the namespace is new
+      writeState(active: true, extra: [
+        "appRequested": recording.appRequested,
+        "binding": recording.binding.rawValue,
+      ])
+      opened = true
+    }
+    guard opened else {
+      finish(message: "PROOVRA could not prepare storage for the recording. Nothing was recorded.")
+      return
     }
     registerStopObserver()
     startHeartbeat()
@@ -256,15 +276,20 @@ class SampleHandler: RPBroadcastSampleHandler {
 
   private func startSegment(at pts: CMTime, orientation: CGImagePropertyOrientation,
                             rawW: Int, rawH: Int, orientedW: Int, orientedH: Int) -> Bool {
-    guard let dir = dir else { return false }
+    guard let spool = spool, let recordingId = recordingId,
+          let dir = spool.directory(for: recordingId),
+          let url = spool.segmentMediaURL(recordingId, sequence: sequence) else { return false }
     // UC-IOS-007 — never start a segment the device cannot hold.
     if let free = try? dir.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         .volumeAvailableCapacityForImportantUsage, free < SampleHandler.minFreeBytes {
       failWriter(storage: true)
       return false
     }
-    let url = dir.appendingPathComponent("seg-\(sequence).mp4")
-    try? FileManager.default.removeItem(at: url)
+    // AUD-006 — never overwrite: a slot that already holds a file is refused.
+    guard spool.isSegmentSlotFree(recordingId, sequence: sequence) else {
+      failWriter()
+      return false
+    }
     guard let w = try? AVAssetWriter(outputURL: url, fileType: .mp4) else {
       failWriter()
       return false
@@ -299,7 +324,8 @@ class SampleHandler: RPBroadcastSampleHandler {
   /// the last appended frame when the session ends). Publishes it ONLY when the
   /// writer completed (UC-IOS-007).
   private func finalizeSegment(endPts: CMTime) {
-    guard let writer = writer, let dir = dir else { return }
+    guard let writer = writer, let spool = spool, let recordingId = recordingId,
+          let mp4 = spool.segmentMediaURL(recordingId, sequence: sequence) else { return }
     let seq = sequence
     let startPts = segmentStartPts
     let end = endPts.isValid ? endPts : startPts
@@ -314,7 +340,6 @@ class SampleHandler: RPBroadcastSampleHandler {
     if end.isValid && CMTimeCompare(end, startPts) > 0 { writer.endSession(atSourceTime: end) }
     writer.finishWriting { group.leave() }
     let waited = group.wait(timeout: .now() + 5)
-    let mp4 = dir.appendingPathComponent("seg-\(seq).mp4")
     guard waited == .success, writer.status == .completed else {
       // Unplayable or unfinished: never published as an ORIGINAL segment.
       if writer.status == .writing { writer.cancelWriting() }
@@ -324,6 +349,7 @@ class SampleHandler: RPBroadcastSampleHandler {
       return
     }
     let sidecar: [String: Any] = [
+      "recordingId": recordingId,
       "sequence": seq,
       "startedAtOffsetMs": offsetMs,
       "durationMs": durationMs,
@@ -331,7 +357,12 @@ class SampleHandler: RPBroadcastSampleHandler {
       "heightPx": segmentH,
       "orientation": segmentW >= segmentH ? "landscape" : "portrait",
     ]
-    writeJson(sidecar, "seg-\(seq).json")
+    // AUD-006 — published exclusively: an existing sidecar is never replaced.
+    guard spool.publishSegment(recordingId, sequence: seq, sidecar: sidecar) else {
+      limitations.insert("SEGMENT_WRITE_FAILED")
+      writeState(active: !stopped)
+      return
+    }
     sequence += 1
     writeState(active: !stopped)
     SampleHandler.postDarwin(SampleHandler.segmentReadyNote)
@@ -343,7 +374,10 @@ class SampleHandler: RPBroadcastSampleHandler {
     stopped = true
     if let writer = writer {
       if writer.status == .writing { writer.cancelWriting() }
-      if let dir = dir { try? FileManager.default.removeItem(at: dir.appendingPathComponent("seg-\(sequence).mp4")) }
+      // The unfinished segment of THIS broadcast (never published, never another recording's).
+      if let recordingId = recordingId, let url = spool?.segmentMediaURL(recordingId, sequence: sequence) {
+        try? FileManager.default.removeItem(at: url)
+      }
     }
     writer = nil
     videoInput = nil
@@ -374,6 +408,7 @@ class SampleHandler: RPBroadcastSampleHandler {
   ]
 
   private func writeResult(reason: String) {
+    guard let spool = spool, let recordingId = recordingId else { return }
     let iso = ISO8601DateFormatter()
     let cleanEnd = reason == "USER_STOPPED" || reason == "BOUNDS_REACHED"
     if !cleanEnd { limitations.insert("CAPTURE_INTERRUPTED") }
@@ -381,6 +416,7 @@ class SampleHandler: RPBroadcastSampleHandler {
     let totalMs = (sessionFirstPts.isValid && lastPts.isValid)
       ? max(0, SampleHandler.ms(CMTimeSubtract(lastPts, sessionFirstPts))) : 0
     var result: [String: Any] = [
+      "recordingId": recordingId,
       "osConsentGranted": sessionFirstPts.isValid,
       "endedAtUtc": iso.string(from: Date()),
       "segmentCount": sequence,
@@ -391,22 +427,28 @@ class SampleHandler: RPBroadcastSampleHandler {
     ]
     if let start = sessionStartDate { result["startedAtUtc"] = iso.string(from: start) }
     if let device = deviceBlock { result["device"] = device }
-    writeJson(result, "result.json")
+    // AUD-006 — finalised ONCE per recording: the first result stands.
+    spool.finalize(recordingId, result: result)
     writeState(active: false)
     SampleHandler.postDarwin(SampleHandler.finishedNote)
   }
 
   private func writeState(active: Bool, extra: [String: Any] = [:]) {
-    let iso = ISO8601DateFormatter()
-    var state = readJson("state.json") ?? [:]
-    state["active"] = active
-    state["segmentCount"] = sequence
-    state["segmentMs"] = segmentMs
-    state["maxSegments"] = maxSegments
-    state["lastWriteAtUtc"] = iso.string(from: Date())
-    if let start = sessionStartDate { state["startedAtUtc"] = iso.string(from: start) }
+    guard let spool = spool, let recordingId = recordingId else { return }
+    heartbeatSeq += 1
+    var state: [String: Any] = [
+      "active": active,
+      "segmentCount": sequence,
+      "segmentMs": segmentMs,
+      "maxSegments": maxSegments,
+      // UC-IOS-006 / AUD-006 — the heartbeat is on the monotonic clock the app
+      // shares within one boot, not the wall clock.
+      "heartbeatSeq": heartbeatSeq,
+      "heartbeatUptime": ProcessInfo.processInfo.systemUptime,
+    ]
+    if let start = sessionStartDate { state["startedAtUtc"] = ISO8601DateFormatter().string(from: start) }
     for (k, v) in extra { state[k] = v }
-    writeJson(state, "state.json")
+    spool.updateState(recordingId, state)
   }
 
   /// UC-IOS-006 — lets the app tell a live broadcast from a killed one.
@@ -457,14 +499,6 @@ class SampleHandler: RPBroadcastSampleHandler {
     return Int((CMTimeGetSeconds(t) * 1000).rounded())
   }
 
-  private func readJson(_ name: String) -> [String: Any]? {
-    guard let dir = dir, let data = try? Data(contentsOf: dir.appendingPathComponent(name)) else { return nil }
-    return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-  }
-  private func writeJson(_ obj: [String: Any], _ name: String) {
-    guard let dir = dir, let data = try? JSONSerialization.data(withJSONObject: obj) else { return }
-    try? data.write(to: dir.appendingPathComponent(name), options: .atomic)
-  }
   private static func postDarwin(_ name: String) {
     CFNotificationCenterPostNotification(
       CFNotificationCenterGetDarwinNotifyCenter(),

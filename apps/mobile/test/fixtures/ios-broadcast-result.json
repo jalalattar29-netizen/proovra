@@ -1,6 +1,7 @@
 {
-  "_comment": "UC-IOS-001 / UC-IOS-004 golden fixture. `resultJson` is exactly what SampleHandler.writeResult writes to the App Group container (keys: osConsentGranted, endedAtUtc, segmentCount, totalDurationMs, sessionCompleteness, terminationReason, limitations, startedAtUtc, device{screenW,screenH,densityDpi,orientation}); `sidecars` are the seg-<n>.json files SampleHandler.finalizeSegment writes (PTS clock: offset = segment start - session first frame; duration = next segment start or last frame - segment start). `jsResult` is ProovraBroadcastResult.toJsMap() of that result.json on an iPhone 15 Pro (UIScreen nativeBounds 1179x2556, scale 3 -> densityDpi 480); `jsSegments` are ProovraScreenSegment.toJsMap() of the sidecars. Pinned against the Swift sources by apps/mobile/test/ios-broadcast-contract.test.mjs and sealed through the real API by services/api/test/uc5-ios-screen-capture.integration.test.ts.",
+  "_comment": "UC-IOS-001 / UC-IOS-004 golden fixture. `resultJson` is exactly what SampleHandler.writeResult writes to the App Group container (keys: recordingId, osConsentGranted, endedAtUtc, segmentCount, totalDurationMs, sessionCompleteness, terminationReason, limitations, startedAtUtc, device{screenW,screenH,densityDpi,orientation}); `sidecars` are the seg-<n>.json files SampleHandler.finalizeSegment writes (PTS clock: offset = segment start - session first frame; duration = next segment start or last frame - segment start). `jsResult` is ProovraBroadcastResult.toJsMap() of that result.json on an iPhone 15 Pro (UIScreen nativeBounds 1179x2556, scale 3 -> densityDpi 480); `jsSegments` are ProovraScreenSegment.toJsMap() of the sidecars. Pinned against the Swift sources by apps/mobile/test/ios-broadcast-contract.test.mjs and sealed through the real API by services/api/test/uc5-ios-screen-capture.integration.test.ts. AUD-006: every file lives in the broadcast's own namespace uc5-broadcast/<recordingId>/ and names that recordingId.",
   "resultJson": {
+    "recordingId": "6F1C2D3E-4A5B-4C6D-8E7F-90A1B2C3D4E5",
     "osConsentGranted": true,
     "startedAtUtc": "2026-09-30T10:00:00Z",
     "endedAtUtc": "2026-09-30T10:00:16Z",
@@ -17,11 +18,36 @@
     }
   },
   "sidecars": [
-    { "sequence": 0, "startedAtOffsetMs": 0, "durationMs": 6000, "widthPx": 1179, "heightPx": 2556, "orientation": "portrait" },
-    { "sequence": 1, "startedAtOffsetMs": 6000, "durationMs": 6000, "widthPx": 1179, "heightPx": 2556, "orientation": "portrait" },
-    { "sequence": 2, "startedAtOffsetMs": 12000, "durationMs": 4000, "widthPx": 1179, "heightPx": 2556, "orientation": "portrait" }
+    {
+      "recordingId": "6F1C2D3E-4A5B-4C6D-8E7F-90A1B2C3D4E5",
+      "sequence": 0,
+      "startedAtOffsetMs": 0,
+      "durationMs": 6000,
+      "widthPx": 1179,
+      "heightPx": 2556,
+      "orientation": "portrait"
+    },
+    {
+      "recordingId": "6F1C2D3E-4A5B-4C6D-8E7F-90A1B2C3D4E5",
+      "sequence": 1,
+      "startedAtOffsetMs": 6000,
+      "durationMs": 6000,
+      "widthPx": 1179,
+      "heightPx": 2556,
+      "orientation": "portrait"
+    },
+    {
+      "recordingId": "6F1C2D3E-4A5B-4C6D-8E7F-90A1B2C3D4E5",
+      "sequence": 2,
+      "startedAtOffsetMs": 12000,
+      "durationMs": 4000,
+      "widthPx": 1179,
+      "heightPx": 2556,
+      "orientation": "portrait"
+    }
   ],
   "jsResult": {
+    "recordingId": "6F1C2D3E-4A5B-4C6D-8E7F-90A1B2C3D4E5",
     "osConsentGranted": true,
     "captureStartedAtUtc": "2026-09-30T10:00:00Z",
     "captureEndedAtUtc": "2026-09-30T10:00:16Z",
@@ -42,9 +68,36 @@
     "limitations": []
   },
   "jsSegments": [
-    { "uri": "file:///private/var/mobile/Containers/Shared/AppGroup/X/uc5-broadcast/seg-0.mp4", "sequence": 0, "startedAtOffsetMs": 0, "durationMs": 6000, "widthPx": 1179, "heightPx": 2556, "orientation": "portrait" },
-    { "uri": "file:///private/var/mobile/Containers/Shared/AppGroup/X/uc5-broadcast/seg-1.mp4", "sequence": 1, "startedAtOffsetMs": 6000, "durationMs": 6000, "widthPx": 1179, "heightPx": 2556, "orientation": "portrait" },
-    { "uri": "file:///private/var/mobile/Containers/Shared/AppGroup/X/uc5-broadcast/seg-2.mp4", "sequence": 2, "startedAtOffsetMs": 12000, "durationMs": 4000, "widthPx": 1179, "heightPx": 2556, "orientation": "portrait" }
+    {
+      "recordingId": "6F1C2D3E-4A5B-4C6D-8E7F-90A1B2C3D4E5",
+      "uri": "file:///private/var/mobile/Containers/Shared/AppGroup/X/uc5-broadcast/6F1C2D3E-4A5B-4C6D-8E7F-90A1B2C3D4E5/seg-0.mp4",
+      "sequence": 0,
+      "startedAtOffsetMs": 0,
+      "durationMs": 6000,
+      "widthPx": 1179,
+      "heightPx": 2556,
+      "orientation": "portrait"
+    },
+    {
+      "recordingId": "6F1C2D3E-4A5B-4C6D-8E7F-90A1B2C3D4E5",
+      "uri": "file:///private/var/mobile/Containers/Shared/AppGroup/X/uc5-broadcast/6F1C2D3E-4A5B-4C6D-8E7F-90A1B2C3D4E5/seg-1.mp4",
+      "sequence": 1,
+      "startedAtOffsetMs": 6000,
+      "durationMs": 6000,
+      "widthPx": 1179,
+      "heightPx": 2556,
+      "orientation": "portrait"
+    },
+    {
+      "recordingId": "6F1C2D3E-4A5B-4C6D-8E7F-90A1B2C3D4E5",
+      "uri": "file:///private/var/mobile/Containers/Shared/AppGroup/X/uc5-broadcast/6F1C2D3E-4A5B-4C6D-8E7F-90A1B2C3D4E5/seg-2.mp4",
+      "sequence": 2,
+      "startedAtOffsetMs": 12000,
+      "durationMs": 4000,
+      "widthPx": 1179,
+      "heightPx": 2556,
+      "orientation": "portrait"
+    }
   ],
   "legacyV1DeviceBlock": {
     "_comment": "The device map ProovraBroadcastShared.swift emitted before remediation (4 keys).",

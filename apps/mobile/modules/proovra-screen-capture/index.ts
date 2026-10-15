@@ -184,6 +184,11 @@ export type ScreenContinuousStopReason =
   | "UNKNOWN";
 
 export type ScreenSegment = {
+  /**
+   * AUD-006 — iOS: the broadcast recording (spool namespace) this segment
+   * belongs to. A segment of another recording is never uploaded into a session.
+   */
+  recordingId?: string;
   uri: string;
   sequence: number;
   startedAtOffsetMs: number;
@@ -206,10 +211,27 @@ export type ScreenContinuousStarted = {
    * treating the session as recording; the user may still cancel the picker.
    */
   awaitingSystemStart?: boolean;
+  /**
+   * AUD-006 — iOS: the recording the app bound BEFORE showing the picker. Only
+   * a broadcast that adopted this binding is this recording.
+   */
+  recordingId?: string;
 };
 
-/** UC-IOS-005 — the OS actually began recording. */
-export type ScreenContinuousStartedEvent = { captureStartedAtUtc: string };
+/** AUD-006 — iOS: how a broadcast recording is bound. */
+export type ScreenContinuousBinding = "BOUND" | "UNBOUND" | "NONE";
+
+/**
+ * UC-IOS-005 — the OS actually began recording. AUD-006 — on iOS it names the
+ * recording and its binding: a broadcast started from Control Center is
+ * UNBOUND and never opens a capture session.
+ */
+export type ScreenContinuousStartedEvent = {
+  captureStartedAtUtc: string;
+  recordingId?: string;
+  binding?: ScreenContinuousBinding;
+  appRequested?: boolean;
+};
 
 /**
  * The device that recorded a CONTINUOUS session, which is not always Android.
@@ -226,6 +248,8 @@ export type ScreenContinuousDevice = Omit<ScreenCaptureDevice, "platform"> & {
 };
 
 export type ScreenContinuousResult = {
+  /** AUD-006 — iOS: the recording this result belongs to (null: none ever started). */
+  recordingId?: string | null;
   osConsentGranted: boolean;
   captureStartedAtUtc: string;
   captureEndedAtUtc: string;
@@ -245,6 +269,27 @@ export type ScreenContinuousState = {
    * written nothing for longer than a few segment intervals (it was killed).
    */
   stale?: boolean;
+  /** AUD-006 — iOS only: whose recording this state describes. */
+  recordingId?: string | null;
+  binding?: ScreenContinuousBinding;
+  appRequested?: boolean;
+  /** The capture session the app recorded on this recording, if any. */
+  captureSessionId?: string | null;
+  /** The broadcast running right now — possibly ANOTHER recording. */
+  liveRecordingId?: string | null;
+};
+
+/** AUD-006 — iOS: a recording on this device, listed for explicit recovery or discard. */
+export type ScreenContinuousRecording = {
+  recordingId: string;
+  binding: Exclude<ScreenContinuousBinding, "NONE">;
+  appRequested: boolean;
+  captureSessionId: string | null;
+  createdAtUtc: string;
+  segmentCount: number;
+  active: boolean;
+  stale: boolean;
+  finalized: boolean;
 };
 
 export type ScreenContinuousOptions = {
@@ -256,21 +301,31 @@ export type ScreenContinuousOptions = {
 
 type ContinuousNativeModule = {
   isContinuousSupported(): boolean;
-  getContinuousState(): ScreenContinuousState;
+  /** AUD-006 — iOS takes the recordingId (null: the focused/live one); Android takes none. */
+  getContinuousState(recordingId?: string | null): ScreenContinuousState;
   /**
    * UC-AND-004 / UC-IOS-010 — every segment the recorder has FINALISED in the
    * current (or last, if not yet cleared) session, so a relaunched UI can
    * resume uploading instead of orphaning a live recording.
    */
-  getContinuousSegments(): ScreenSegment[];
+  getContinuousSegments(recordingId?: string | null): ScreenSegment[];
   /** UC-IOS-010 / UC-AND-004 — explicitly discard a leftover recording's local spool. */
-  discardContinuousSpool(): Promise<void>;
+  discardContinuousSpool(recordingId?: string | null): Promise<void>;
   startContinuousCapture(options: { segmentMs: number; maxSegments: number }): Promise<ScreenContinuousStarted>;
-  stopContinuousCapture(): Promise<ScreenContinuousResult>;
+  stopContinuousCapture(recordingId?: string | null): Promise<ScreenContinuousResult>;
+};
+
+/** AUD-006 — methods only the iOS Swift module exposes; every call is iOS-gated. */
+type IosBroadcastNativeModule = {
+  listContinuousRecordings(): ScreenContinuousRecording[];
+  bindContinuousSession(recordingId: string, captureSessionId: string): Promise<{ recordingId: string; captureSessionId: string }>;
 };
 
 function continuousModule(): ContinuousNativeModule {
   return nativeModule() as unknown as ContinuousNativeModule;
+}
+function iosBroadcastModule(): IosBroadcastNativeModule {
+  return nativeModule() as unknown as IosBroadcastNativeModule;
 }
 
 // Continuous screen capture is the shared surface for BOTH Android MediaProjection
@@ -289,9 +344,15 @@ export function isScreenContinuousSupported(): boolean {
   }
 }
 
-export function getScreenContinuousState(): ScreenContinuousState {
+/**
+ * AUD-006 — on iOS every continuous call names ONE recording (the Swift
+ * functions take a recordingId, null meaning the focused/live one); the
+ * Android module takes no argument and is called exactly as before.
+ */
+export function getScreenContinuousState(recordingId?: string | null): ScreenContinuousState {
   if (!isContinuousScreenPlatform()) return { active: false, segmentCount: 0 };
   try {
+    if (Platform.OS === "ios") return continuousModule().getContinuousState(recordingId ?? null);
     return continuousModule().getContinuousState();
   } catch {
     return { active: false, segmentCount: 0 };
@@ -314,10 +375,13 @@ export async function startContinuousCapture(
 }
 
 /** UC-AND-004 / UC-IOS-010 — the finalised segments the recorder holds on disk. */
-export function getContinuousSegments(): ScreenSegment[] {
+export function getContinuousSegments(recordingId?: string | null): ScreenSegment[] {
   if (!isContinuousScreenPlatform()) return [];
   try {
-    const out = continuousModule().getContinuousSegments();
+    const out =
+      Platform.OS === "ios"
+        ? continuousModule().getContinuousSegments(recordingId ?? null)
+        : continuousModule().getContinuousSegments();
     return Array.isArray(out) ? out : [];
   } catch {
     return [];
@@ -325,14 +389,40 @@ export function getContinuousSegments(): ScreenSegment[] {
 }
 
 /** UC-IOS-010 / UC-AND-004 — the user's explicit discard of a leftover recording's files. */
-export async function discardContinuousSpool(): Promise<void> {
+export async function discardContinuousSpool(recordingId?: string | null): Promise<void> {
   if (!isContinuousScreenPlatform()) return;
+  if (Platform.OS === "ios") {
+    await continuousModule().discardContinuousSpool(recordingId ?? null);
+    return;
+  }
   await continuousModule().discardContinuousSpool();
 }
 
-export async function stopContinuousCapture(): Promise<ScreenContinuousResult> {
+export async function stopContinuousCapture(recordingId?: string | null): Promise<ScreenContinuousResult> {
   if (!isContinuousScreenPlatform()) throw new Error("Android/iOS only.");
+  if (Platform.OS === "ios") return continuousModule().stopContinuousCapture(recordingId ?? null);
   return continuousModule().stopContinuousCapture();
+}
+
+/** AUD-006 — iOS: every broadcast recording on this device (empty elsewhere). */
+export function listContinuousRecordings(): ScreenContinuousRecording[] {
+  if (Platform.OS !== "ios") return [];
+  try {
+    const out = iosBroadcastModule().listContinuousRecordings();
+    return Array.isArray(out) ? out : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * AUD-006 — iOS: record the capture session on the recording the app bound.
+ * Rejects (BINDING_REFUSED) for a recording PROOVRA did not request or one
+ * that already belongs to another session. A no-op elsewhere.
+ */
+export async function bindContinuousSession(recordingId: string, captureSessionId: string): Promise<void> {
+  if (Platform.OS !== "ios") return;
+  await iosBroadcastModule().bindContinuousSession(recordingId, captureSessionId);
 }
 
 export function addScreenSegmentListener(cb: (seg: ScreenSegment) => void): Subscription {

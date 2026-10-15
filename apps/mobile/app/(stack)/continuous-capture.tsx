@@ -80,6 +80,11 @@ import {
 } from "../../src/capture/screen-acquisition";
 import { setCaptureActive } from "../../src/capture/active-capture";
 import {
+  acceptsBroadcastStart,
+  decideIosReattach,
+  segmentBelongsToRecording,
+} from "../../src/capture/ios-broadcast-binding";
+import {
   INITIAL_CONTINUOUS_FLOW,
   continuousFlowReducer,
   shouldStopForBackpressure,
@@ -88,10 +93,12 @@ import {
   addContinuousStartedListener,
   addContinuousStoppedListener,
   addScreenSegmentListener,
+  bindContinuousSession,
   discardContinuousSpool,
   getContinuousSegments,
   getScreenContinuousState,
   isScreenContinuousSupported,
+  listContinuousRecordings,
   startContinuousCapture,
   stopContinuousCapture,
   type ScreenContinuousResult,
@@ -100,7 +107,7 @@ import {
 
 type SessionRef = { session: DirectCaptureSession; evidenceId: string };
 
-type Recovery = null | { kind: "ended" } | { kind: "orphan" } | { kind: "leftover" };
+type Recovery = null | { kind: "ended" } | { kind: "orphan" } | { kind: "leftover" } | { kind: "mismatch" };
 
 export default function ContinuousCaptureScreen() {
   const router = useRouter();
@@ -127,6 +134,9 @@ export default function ContinuousCaptureScreen() {
   const resultRef = useRef<ScreenContinuousResult | null>(null);
   const openingRef = useRef(false);
   const startTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // AUD-006 — iOS: the broadcast recording this screen bound before Apple's
+  // picker. Only that recording opens, feeds and is stopped for the session.
+  const recordingIdRef = useRef<string | null>(null);
 
   // BOUNDED STREAMING: recorded segments enter a queue drained by a fixed number of
   // upload workers (concurrency bound). On Android, a backlog that reaches the
@@ -147,6 +157,7 @@ export default function ContinuousCaptureScreen() {
       evidenceId: active.evidenceId,
       expiresAtUtc: active.session.expiresAtUtc,
       platform: isIOS ? "ios" : "android",
+      recordingId: recordingIdRef.current,
       declared: declaredRef.current,
       clientLimitations: Array.from(clientLimitationsRef.current),
       openedAtIso: new Date().toISOString(),
@@ -204,6 +215,8 @@ export default function ContinuousCaptureScreen() {
 
   const onSegment = useCallback(
     (seg: ScreenSegment) => {
+      // AUD-006 — another recording's segment is never uploaded into this session.
+      if (!segmentBelongsToRecording(Platform.OS, recordingIdRef.current, seg)) return;
       if (seenRef.current.some((s) => s.sequence === seg.sequence)) return;
       capturedRef.current = Math.max(capturedRef.current, seg.sequence + 1);
       seenRef.current = [...seenRef.current, seg];
@@ -230,7 +243,7 @@ export default function ContinuousCaptureScreen() {
 
   /** Pick up every finalized segment the recorder holds that this UI has not seen. */
   const syncFromNative = useCallback(() => {
-    for (const seg of getContinuousSegments()) onSegment(seg);
+    for (const seg of getContinuousSegments(recordingIdRef.current)) onSegment(seg);
   }, [onSegment]);
 
   const clearStartTimer = useCallback(() => {
@@ -249,16 +262,18 @@ export default function ContinuousCaptureScreen() {
     stopRequestedRef.current = false;
     resultRef.current = null;
     openingRef.current = false;
+    recordingIdRef.current = null;
   }, []);
 
   /** Release an opened-but-unstaged session: server, native recorder, local files, durable record. */
   const releaseSession = useCallback(async () => {
     const active = sessionRef.current;
+    const recordingId = recordingIdRef.current;
     sessionRef.current = null;
     clearStartTimer();
-    if (getScreenContinuousState().active) await stopContinuousCapture().catch(() => undefined);
+    if (getScreenContinuousState(recordingId).active) await stopContinuousCapture(recordingId).catch(() => undefined);
     await cleanupContinuousTempFiles(seenRef.current);
-    await discardContinuousSpool().catch(() => undefined);
+    await discardContinuousSpool(recordingId).catch(() => undefined);
     await clearLiveContinuousSession();
     if (active) await discardDirectCaptureSession(active.session).catch(() => undefined);
   }, [clearStartTimer]);
@@ -272,7 +287,11 @@ export default function ContinuousCaptureScreen() {
     openingRef.current = true;
     clearStartTimer();
     try {
-      sessionRef.current = await beginContinuousSession({ teamId });
+      const opened = await beginContinuousSession({ teamId });
+      sessionRef.current = opened;
+      // AUD-006 — iOS: the recording records which session holds it (refused
+      // for a recording PROOVRA did not request). A no-op on Android.
+      if (recordingIdRef.current) await bindContinuousSession(recordingIdRef.current, opened.session.captureSessionId);
       persistLive();
       dispatch({ type: "STARTED" });
       syncFromNative();
@@ -295,7 +314,10 @@ export default function ContinuousCaptureScreen() {
     const stopSub = addContinuousStoppedListener((r: ScreenContinuousResult) => {
       resultRef.current = r;
     });
-    const startSub = addContinuousStartedListener(() => {
+    const startSub = addContinuousStartedListener((e) => {
+      // AUD-006 — only the broadcast that adopted THIS screen's binding opens a
+      // session; one started from Control Center (UNBOUND) never does.
+      if (!acceptsBroadcastStart(Platform.OS, recordingIdRef.current, e)) return;
       void openServerSession();
     });
     return () => {
@@ -323,7 +345,7 @@ export default function ContinuousCaptureScreen() {
       let cancelled = false;
       if (!userId) return undefined;
       void (async () => {
-        const native = getScreenContinuousState();
+        const native = getScreenContinuousState(recordingIdRef.current);
         if (sessionRef.current) {
           if (native.active) {
             dispatch({ type: "STARTED" });
@@ -334,13 +356,32 @@ export default function ContinuousCaptureScreen() {
         const live = await loadLiveContinuousSession();
         if (cancelled) return;
         if (live) {
+          // AUD-006 — iOS: reattach only to the recording this session bound;
+          // any other recording is refused, never attached or uploaded.
+          const decision = isIOS ? decideIosReattach(live, getScreenContinuousState(live.recordingId)) : null;
+          if (decision?.kind === "refuse") {
+            setRecovery({ kind: "mismatch" });
+            return;
+          }
+          if (decision && live.recordingId) {
+            const bound = await bindContinuousSession(live.recordingId, live.captureSessionId).then(
+              () => true,
+              () => false,
+            );
+            if (cancelled) return;
+            if (!bound) {
+              setRecovery({ kind: "mismatch" });
+              return;
+            }
+          }
           sessionRef.current = {
             session: { captureSessionId: live.captureSessionId, expiresAtUtc: live.expiresAtUtc },
             evidenceId: live.evidenceId,
           };
+          recordingIdRef.current = live.recordingId;
           declaredRef.current = live.declared;
           clientLimitationsRef.current = new Set(live.clientLimitations);
-          if (native.active && !native.stale) {
+          if (decision ? decision.kind === "reattach" : native.active && !native.stale) {
             dispatch({ type: "STARTED" });
             dispatch({ type: "SEGMENT_UPLOADED", uploaded: live.declared.length });
             syncFromNative();
@@ -350,7 +391,11 @@ export default function ContinuousCaptureScreen() {
           }
         } else if (native.active) {
           setRecovery({ kind: "orphan" });
-        } else if (getContinuousSegments().length > 0) {
+        } else if (
+          isIOS
+            ? listContinuousRecordings().some((r) => !r.active && r.segmentCount > 0)
+            : getContinuousSegments().length > 0
+        ) {
           // UC-IOS-010 — segments on disk that no session holds (the app was
           // killed before a session opened, or a broadcast was started from
           // Control Center): never wiped silently, never offered as uploadable.
@@ -360,7 +405,7 @@ export default function ContinuousCaptureScreen() {
       return () => {
         cancelled = true;
       };
-    }, [syncFromNative, pump, userId]),
+    }, [syncFromNative, pump, userId, isIOS]),
   );
 
   useEffect(() => {
@@ -394,12 +439,14 @@ export default function ContinuousCaptureScreen() {
         }
         // The OS consent comes FIRST; no server session exists until the OS records.
         const started = await startContinuousCapture();
+        recordingIdRef.current = started.recordingId ?? null;
         if (started.awaitingSystemStart) {
           dispatch({ type: "AWAITING_SYSTEM_START" });
           clearStartTimer();
           startTimerRef.current = setTimeout(() => {
             if (sessionRef.current) return;
-            void stopContinuousCapture().catch(() => undefined);
+            // iOS: also withdraws the binding, so a later broadcast cannot adopt it.
+            void stopContinuousCapture(recordingIdRef.current).catch(() => undefined);
             dispatch({
               type: "FAIL",
               message: "The broadcast did not start. Nothing was recorded — start again and tap Start Broadcast in Apple's picker.",
@@ -432,7 +479,7 @@ export default function ContinuousCaptureScreen() {
     setBusy(true);
     try {
       stopRequestedRef.current = true;
-      const result = await stopContinuousCapture();
+      const result = await stopContinuousCapture(recordingIdRef.current);
       resultRef.current = result;
       syncFromNative();
       await drainUploads();
@@ -532,7 +579,7 @@ export default function ContinuousCaptureScreen() {
       });
       await clearLiveContinuousSession();
       // The segments are at storage: the device spool is no longer needed.
-      await discardContinuousSpool().catch(() => undefined);
+      await discardContinuousSpool(recordingIdRef.current).catch(() => undefined);
 
       sessionRef.current = null;
       dispatch({
@@ -566,10 +613,27 @@ export default function ContinuousCaptureScreen() {
   }, [releaseSession, resetStreamRefs]);
 
   const stopOrphan = useCallback(async () => {
-    const segs = getContinuousSegments();
-    await stopContinuousCapture().catch(() => undefined);
-    await cleanupContinuousTempFiles(segs);
-    await discardContinuousSpool().catch(() => undefined);
+    // AUD-006 — iOS: each recording is stopped and discarded by its own id (the
+    // user's explicit choice); Android has one recorder.
+    const ids: Array<string | null> = isIOS ? listContinuousRecordings().map((r) => r.recordingId) : [null];
+    for (const id of ids) {
+      const segs = getContinuousSegments(id);
+      await stopContinuousCapture(id).catch(() => undefined);
+      await cleanupContinuousTempFiles(segs);
+      await discardContinuousSpool(id).catch(() => undefined);
+    }
+    setRecovery(null);
+  }, [isIOS]);
+
+  /** AUD-006 — release a saved session whose recording is not (or no longer) its own. */
+  const releaseMismatched = useCallback(async () => {
+    const live = await loadLiveContinuousSession();
+    await clearLiveContinuousSession();
+    if (live) {
+      await discardDirectCaptureSession({ captureSessionId: live.captureSessionId, expiresAtUtc: live.expiresAtUtc }).catch(
+        () => undefined,
+      );
+    }
     setRecovery(null);
   }, []);
 
@@ -600,6 +664,16 @@ export default function ContinuousCaptureScreen() {
             </ProovraText>
             <ProovraButton label="Recover recording" loading={busy} onPress={() => void recoverEnded()} />
             <ProovraButton label="Discard recording" variant="ghost" onPress={() => void reset()} />
+          </ProovraCard>
+        )}
+
+        {recovery?.kind === "mismatch" && (
+          <ProovraCard style={styles.card}>
+            <ProovraText variant="body" weight="semibold">The recording on this device is not this capture session's.</ProovraText>
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+              PROOVRA did not attach it, so nothing from it is uploaded into the saved session. Discard the saved session to continue; any recording on this device stays until you discard it.
+            </ProovraText>
+            <ProovraButton label="Discard saved session" onPress={() => void releaseMismatched()} />
           </ProovraCard>
         )}
 

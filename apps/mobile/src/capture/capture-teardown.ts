@@ -47,9 +47,12 @@ export async function teardownCaptureOnSignOut(): Promise<void> {
   // 1. Native capture stops first: nothing more is recorded after sign-out.
   const localFiles = new Set<string>();
   await quietly(async () => {
-    if (getScreenContinuousState().active) {
-      for (const s of getContinuousSegments()) localFiles.add(s.uri);
-      await stopContinuousCapture();
+    // AUD-006 — iOS names the recording (the focused one, else the live broadcast).
+    const native = getScreenContinuousState();
+    if (native.active) {
+      const recordingId = native.recordingId ?? null;
+      for (const s of getContinuousSegments(recordingId)) localFiles.add(s.uri);
+      await stopContinuousCapture(recordingId);
     }
   });
   await quietly(async () => {
@@ -75,6 +78,8 @@ export async function teardownCaptureOnSignOut(): Promise<void> {
   // 3. The local spool (files named by the records, then the recorder's own).
   for (const uri of localFiles) await deleteQuietly(uri);
   await quietly(() => discardContinuousSpool());
+  // AUD-006 — iOS: the signed-out user's own recording, by its id.
+  if (live?.recordingId) await quietly(() => discardContinuousSpool(live.recordingId));
 
   // 4. The durable records, then the owner binding.
   await quietly(() => clearLiveContinuousSession());

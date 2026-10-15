@@ -5,7 +5,8 @@
  *
  * It:
  *   1. copies the extension source (SampleHandler.swift, Info.plist, entitlements)
- *      into ios/ProovraBroadcast/;
+ *      and the shared Foundation-only spool (ProovraBroadcastSpool.swift, from the
+ *      app module) into ios/ProovraBroadcast/;
  *   2. creates a broadcast-upload app-extension target
  *      (bundle id <MAIN_BUNDLE_ID>.broadcast) that compiles SampleHandler.swift,
  *      uses that Info.plist + entitlements (App Group), links ReplayKit +
@@ -33,6 +34,14 @@ const EXT_NAME = "ProovraBroadcast";
 const EXT_SUFFIX = "broadcast";
 const SRC_DIR = path.join(__dirname, "broadcast-extension");
 const EXT_FILES = ["SampleHandler.swift", "Info.plist", "ProovraBroadcast.entitlements"];
+/**
+ * AUD-006 — Foundation-only files the extension compiles FROM the app module, so
+ * app, extension and the SwiftPM XCTest package share one copy of the spool
+ * logic instead of repeating it by value.
+ */
+const SHARED_SRC_DIR = path.join(__dirname, "..", "modules", "proovra-screen-capture", "ios");
+const SHARED_FILES = ["ProovraBroadcastSpool.swift"];
+const EXT_SOURCES = ["SampleHandler.swift", ...SHARED_FILES];
 
 /** Strip node-xcode's surrounding quotes from a stored string value. */
 function unquote(value) {
@@ -66,7 +75,7 @@ function applyBroadcastExtensionTarget(proj, options) {
   }
 
   // Source/resource group for the extension, attached under the project root.
-  const group = proj.addPbxGroup(EXT_FILES, EXT_NAME, EXT_NAME);
+  const group = proj.addPbxGroup([...EXT_FILES, ...SHARED_FILES], EXT_NAME, EXT_NAME);
   const groups = proj.hash.project.objects.PBXGroup;
   for (const key of Object.keys(groups)) {
     const g = groups[key];
@@ -93,8 +102,8 @@ function applyBroadcastExtensionTarget(proj, options) {
   // the main app target and adds the .appex product to it — no manual embed.
   const target = proj.addTarget(EXT_NAME, "app_extension", EXT_NAME, extBundleId);
 
-  // Compile SampleHandler.swift in the extension; declare Resources + Frameworks.
-  proj.addBuildPhase(["SampleHandler.swift"], "PBXSourcesBuildPhase", "Sources", target.uuid);
+  // Compile SampleHandler.swift + the shared spool in the extension; declare Resources + Frameworks.
+  proj.addBuildPhase(EXT_SOURCES, "PBXSourcesBuildPhase", "Sources", target.uuid);
   proj.addBuildPhase([], "PBXResourcesBuildPhase", "Resources", target.uuid);
   proj.addBuildPhase(
     ["ReplayKit.framework", "AVFoundation.framework"],
@@ -152,6 +161,9 @@ function withExtensionFilesCopied(config) {
       for (const file of EXT_FILES) {
         fs.copyFileSync(path.join(SRC_DIR, file), path.join(dest, file));
       }
+      for (const file of SHARED_FILES) {
+        fs.copyFileSync(path.join(SHARED_SRC_DIR, file), path.join(dest, file));
+      }
       return cfg;
     },
   ]);
@@ -176,3 +188,5 @@ module.exports = function withProovraIosScreenBroadcast(config) {
 module.exports.applyBroadcastExtensionTarget = applyBroadcastExtensionTarget;
 module.exports.EXT_NAME = EXT_NAME;
 module.exports.EXT_SUFFIX = EXT_SUFFIX;
+module.exports.EXT_SOURCES = EXT_SOURCES;
+module.exports.SHARED_FILES = SHARED_FILES;

@@ -34,6 +34,13 @@ import ReplayKit
  *               `getContinuousSegments` lets a relaunched UI recover it.
  *   UC-IOS-012  one stable Darwin observer; draining is serialised on one queue.
  *   UC-AND-014  the frame stop is `stopCapture`, the JS binding's name.
+ *
+ * AUD-006 (2026-10-15): one spool namespace per broadcast
+ * (ProovraBroadcastSpool.swift). Start writes the binding before the picker and
+ * returns its recordingId; `started` names the recording and its binding;
+ * segments, state, stop, result and discard are all scoped by recordingId;
+ * `bindContinuousSession` records the capture session on a BOUND recording only;
+ * `listContinuousRecordings` lists what is left for explicit recovery/discard.
  */
 public class ProovraScreenCaptureModule: Module {
   // The App Group both the app and the broadcast extension share. Must match the
@@ -49,6 +56,8 @@ public class ProovraScreenCaptureModule: Module {
   private let drainQueue = DispatchQueue(label: "com.proovra.screencapture.drain")
   private var observing = false
   private var lastEmittedSequence = -1
+  /// AUD-006 — the recording this instance prepared, bound or is stopping (guarded by drainQueue).
+  private var focusRecordingId: String?
 
   public func definition() -> ModuleDefinition {
     Name("ProovraScreenCapture")
@@ -66,12 +75,19 @@ public class ProovraScreenCaptureModule: Module {
     }
 
     Function("getState") { ["active": false, "frameCount": 0] as [String: Any] }
-    Function("getContinuousState") { () -> [String: Any] in
-      let state = self.store.readState()
-      return ["active": state.active, "segmentCount": state.segmentCount, "stale": state.stale]
+    // AUD-006 — every continuous read names ONE recording. A nil `recordingId`
+    // means the recording this app instance prepared or bound, else the
+    // broadcast running now. The state says whose recording it is.
+    Function("getContinuousState") { (recordingId: String?) -> [String: Any] in
+      return self.store.readState(recordingId: recordingId ?? self.focus()).toJsMap()
     }
-    Function("getContinuousSegments") { () -> [[String: Any]] in
-      return self.store.readNewSegments(after: -1).map { $0.toJsMap() }
+    Function("getContinuousSegments") { (recordingId: String?) -> [[String: Any]] in
+      guard let id = recordingId ?? self.focus() else { return [] }
+      return self.store.readNewSegments(recordingId: id, after: -1).map { $0.toJsMap() }
+    }
+    /// AUD-006 — every recording on this device, for EXPLICIT recovery or discard.
+    Function("listContinuousRecordings") { () -> [[String: Any]] in
+      return self.store.listRecordings().map { $0.toJsMap() }
     }
 
     // ---- UC-2 deliberate-frame flow: not supported on iOS -----------------
@@ -91,18 +107,22 @@ public class ProovraScreenCaptureModule: Module {
       guard #available(iOS 12.0, *) else {
         promise.reject("UNSUPPORTED", "Requires iOS 12.0+."); return
       }
-      if self.store.readState().active {
+      if self.store.liveRecordingId() != nil {
         promise.reject("BUSY", "A screen broadcast is already running."); return
       }
-      // UC-IOS-010 — never wipe a recording nobody staged or discarded.
+      // UC-IOS-010 — a recording nobody staged or discarded is offered first.
       if self.store.hasPendingRecording() {
         promise.reject("PENDING_RECORDING", "A previous recording is still on this device. Recover or discard it first."); return
       }
       let segmentMs = min(max((options["segmentMs"] as? Int) ?? ProovraBroadcastLimits.defaultSegmentMs, 2000), 30000)
       let maxSegments = min(max((options["maxSegments"] as? Int) ?? ProovraBroadcastLimits.maxSegments, 1),
                             ProovraBroadcastLimits.maxSegments)
-      self.store.beginSession(segmentMs: segmentMs, maxSegments: maxSegments)
-      self.drainQueue.sync { self.lastEmittedSequence = -1 }
+      // AUD-006 — the binding is written BEFORE the picker: only the broadcast
+      // that adopts it is this recording; any other one gets its own namespace.
+      guard let recordingId = self.store.prepareRecording(segmentMs: segmentMs, maxSegments: maxSegments) else {
+        promise.reject("SPOOL_UNAVAILABLE", "The shared recording container is not available."); return
+      }
+      self.setFocus(recordingId)
       self.startObserving()
       // Present Apple's SYSTEM broadcast picker on the main thread. Presenting is
       // not consent and not a start (UC-IOS-005): the extension's `started` note
@@ -110,6 +130,7 @@ public class ProovraScreenCaptureModule: Module {
       DispatchQueue.main.async {
         let presented = ProovraBroadcastPicker.present(preferredExtensionBundleId: ProovraScreenCaptureModule.extensionBundleId)
         guard presented else {
+          self.store.withdrawPendingBinding(recordingId: recordingId)
           promise.reject("PICKER_UNAVAILABLE", "Apple's broadcast picker could not be shown."); return
         }
         promise.resolve([
@@ -118,37 +139,68 @@ public class ProovraScreenCaptureModule: Module {
           "awaitingSystemStart": true,
           "segmentMs": segmentMs,
           "maxSegments": maxSegments,
+          "recordingId": recordingId,
         ])
       }
     }
 
-    AsyncFunction("stopContinuousCapture") { (promise: Promise) in
+    /// AUD-006 — record which capture session holds a recording. Refuses a
+    /// recording PROOVRA did not request (Control Center) and a second session.
+    AsyncFunction("bindContinuousSession") { (recordingId: String, captureSessionId: String, promise: Promise) in
+      switch self.store.bindCaptureSession(recordingId: recordingId, captureSessionId: captureSessionId) {
+      case .bound:
+        self.setFocus(recordingId)
+        promise.resolve(["recordingId": recordingId, "captureSessionId": captureSessionId])
+      case .refusedUnbound:
+        promise.reject("BINDING_REFUSED", "This recording was not started from PROOVRA, so it cannot be attached to a capture session.")
+      case .refusedOtherSession:
+        promise.reject("BINDING_REFUSED", "This recording belongs to a different capture session.")
+      case .missing:
+        promise.reject("RECORDING_NOT_FOUND", "This recording is no longer on this device.")
+      }
+    }
+
+    AsyncFunction("stopContinuousCapture") { (recordingId: String?, promise: Promise) in
+      let target = recordingId ?? self.focus()
+      guard let id = target, self.store.recordingExists(id) else {
+        // No broadcast ever adopted this binding (picker cancelled / timed out):
+        // withdraw it so no later broadcast can.
+        if let id = target { self.store.withdrawPendingBinding(recordingId: id) }
+        DispatchQueue.main.async { ProovraBroadcastPicker.dismiss() }
+        self.stopObserving()
+        promise.resolve(self.store.readResult(recordingId: nil).toJsMap())
+        return
+      }
+      self.setFocus(id)
       // UC-IOS-002 — ask the EXTENSION to stop (it observes this note), then wait
-      // bounded for the result it writes. The broadcast indicator goes away
-      // because the extension itself finishes the broadcast.
-      if self.store.readState().active {
+      // bounded for the result it writes. The note reaches whichever broadcast is
+      // running, so it is posted only when that broadcast IS this recording.
+      if self.store.liveRecordingId() == id {
         ProovraDarwinNotify.post(ProovraBroadcastNotes.stopRequested)
       }
       DispatchQueue.global().async {
         let deadline = Date().addingTimeInterval(ProovraScreenCaptureModule.stopWaitSeconds)
-        while self.store.readWrittenResult() == nil && Date() < deadline && self.store.readState().active {
+        while self.store.readWrittenResult(recordingId: id) == nil && Date() < deadline
+                && self.store.readState(recordingId: id).active {
           Thread.sleep(forTimeInterval: 0.2)
         }
         self.drainSegments()
-        let result = self.store.readResult()
+        // Idempotent: the recording's ONE result (or its honest summary).
+        let result = self.store.readResult(recordingId: id)
         DispatchQueue.main.async { ProovraBroadcastPicker.dismiss() }
         self.stopObserving()
         promise.resolve(result.toJsMap())
       }
     }
 
-    /// UC-IOS-010 — the user's explicit discard of a leftover recording.
-    AsyncFunction("discardContinuousSpool") { (promise: Promise) in
-      if self.store.readState().active {
+    /// UC-IOS-010 — the user's explicit discard of ONE leftover recording.
+    AsyncFunction("discardContinuousSpool") { (recordingId: String?, promise: Promise) in
+      guard let id = recordingId ?? self.focus() else { promise.resolve(); return }
+      if self.store.liveRecordingId() == id {
         promise.reject("BUSY", "Stop the broadcast before discarding it."); return
       }
-      self.store.discardSpool()
-      self.drainQueue.sync { self.lastEmittedSequence = -1 }
+      self.store.discard(recordingId: id)
+      self.clearFocus(ifEqual: id)
       promise.resolve()
     }
 
@@ -156,7 +208,29 @@ public class ProovraScreenCaptureModule: Module {
     OnStopObserving { self.stopObserving() }
   }
 
-  // MARK: - Container observation
+  // MARK: - Focus (AUD-006): the ONE recording this app instance drains
+
+  private func focus() -> String? {
+    return drainQueue.sync { focusRecordingId }
+  }
+
+  private func setFocus(_ recordingId: String) {
+    drainQueue.sync {
+      if focusRecordingId != recordingId {
+        focusRecordingId = recordingId
+        lastEmittedSequence = -1
+      }
+    }
+  }
+
+  private func clearFocus(ifEqual recordingId: String) {
+    drainQueue.sync {
+      if focusRecordingId == recordingId {
+        focusRecordingId = nil
+        lastEmittedSequence = -1
+      }
+    }
+  }
 
   private func startObserving() {
     guard !observing else { return }
@@ -168,13 +242,23 @@ public class ProovraScreenCaptureModule: Module {
     bridge.observe(ProovraBroadcastNotes.started) { [weak self] in
       guard let self = self else { return }
       DispatchQueue.main.async { ProovraBroadcastPicker.dismiss() }
-      let started = self.store.readState().startedAtUtc ?? ISO8601DateFormatter().string(from: Date())
-      self.sendEvent("onScreenContinuousStarted", ["captureStartedAtUtc": started])
+      // AUD-006 — say WHICH recording started and how it is bound; JS opens a
+      // capture session only for the one it prepared, never for another broadcast.
+      let state = self.store.readState(recordingId: nil)
+      guard let recordingId = state.recordingId else { return }
+      let started = state.startedAtUtc ?? ISO8601DateFormatter().string(from: Date())
+      self.sendEvent("onScreenContinuousStarted", [
+        "captureStartedAtUtc": started,
+        "recordingId": recordingId,
+        "binding": state.binding,
+        "appRequested": state.appRequested,
+      ])
     }
     bridge.observe(ProovraBroadcastNotes.finished) { [weak self] in
-      guard let self = self else { return }
+      guard let self = self, let recordingId = self.focus(),
+            let result = self.store.readWrittenResult(recordingId: recordingId) else { return }
       self.drainSegments()
-      self.sendEvent("onScreenContinuousStopped", self.store.readResult().toJsMap())
+      self.sendEvent("onScreenContinuousStopped", result.toJsMap())
     }
   }
 
@@ -184,11 +268,12 @@ public class ProovraScreenCaptureModule: Module {
     ProovraDarwinNotify.shared.removeAll()
   }
 
-  /// Emit every newly-finalised segment the extension wrote, in order, once —
-  /// serialised on one queue whatever thread asked (UC-IOS-012).
+  /// Emit every newly-finalised segment of the FOCUSED recording, in order,
+  /// once — serialised on one queue whatever thread asked (UC-IOS-012).
   private func drainSegments() {
     drainQueue.sync {
-      let segments = store.readNewSegments(after: lastEmittedSequence)
+      guard let recordingId = focusRecordingId else { return }
+      let segments = store.readNewSegments(recordingId: recordingId, after: lastEmittedSequence)
       for seg in segments {
         lastEmittedSequence = max(lastEmittedSequence, seg.sequence)
         sendEvent("onScreenSegment", seg.toJsMap())

@@ -26,6 +26,12 @@ export type LiveContinuousSession = {
   evidenceId: string;
   expiresAtUtc: string;
   platform: "android" | "ios";
+  /**
+   * AUD-006 — iOS: the broadcast recording (spool namespace) this session was
+   * bound to. A remount refuses to reattach or upload when the native recording
+   * differs (src/capture/ios-broadcast-binding.ts). Null on Android.
+   */
+  recordingId: string | null;
   declared: DeclaredSegment[];
   clientLimitations: string[];
   openedAtIso: string;
@@ -66,6 +72,7 @@ export function parseLiveContinuousSession(raw: unknown, ownerUserId: string | n
     evidenceId: o.evidenceId,
     expiresAtUtc: typeof o.expiresAtUtc === "string" ? o.expiresAtUtc : "",
     platform: o.platform,
+    recordingId: typeof o.recordingId === "string" && o.recordingId ? o.recordingId : null,
     declared,
     clientLimitations: Array.isArray(o.clientLimitations)
       ? o.clientLimitations.filter((l): l is string => typeof l === "string")

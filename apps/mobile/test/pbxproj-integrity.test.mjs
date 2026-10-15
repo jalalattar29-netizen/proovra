@@ -169,13 +169,16 @@ test("SampleHandler.swift is compiled in the extension's Sources phase", () => {
   const sources = after.hash.project.objects.PBXSourcesBuildPhase[sourcesPhaseRef.value];
   const buildFiles = nonComment(after.hash.project.objects.PBXBuildFile);
   const fileRefs = after.hash.project.objects.PBXFileReference;
-  const compiles = (sources.files || []).some((f) => {
+  const compiled = (sources.files || []).map((f) => {
     const bf = buildFiles[f.value];
     const ref = bf && fileRefs[bf.fileRef];
-    const p = ref ? String(ref.path || ref.name || "") : String(f.comment || "");
-    return /SampleHandler\.swift/.test(p) || /SampleHandler\.swift/.test(String(f.comment || ""));
+    return String(ref ? ref.path || ref.name || "" : f.comment || "").replace(/"/g, "");
   });
-  assert.ok(compiles, "SampleHandler.swift must be in the extension Sources phase");
+  assert.ok(compiled.includes("SampleHandler.swift"), "SampleHandler.swift must be in the extension Sources phase");
+  // AUD-006 — the extension compiles the app module's Foundation-only spool
+  // (one copy of the namespace/binding logic, not a by-value repeat).
+  assert.ok(compiled.includes("ProovraBroadcastSpool.swift"), "ProovraBroadcastSpool.swift must be in the extension Sources phase");
+  assert.deepEqual([...compiled].sort(), [...plugin.EXT_SOURCES].sort());
 });
 
 test("the extension's build settings carry the broadcast bundle id, deployment target, Info.plist and entitlements", () => {

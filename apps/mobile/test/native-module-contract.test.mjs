@@ -109,3 +109,17 @@ test("every event the JS binding listens to is declared by the Kotlin module", (
     );
   }
 });
+
+// AUD-006 — methods only the iOS Swift module exposes are reached through
+// `iosBroadcastModule()` and never on Android (the Kotlin module lacks them).
+test("every iOS-only native method the JS binding calls exists in Swift and is iOS-gated", () => {
+  const iosCalls = uniq([...jsBinding.matchAll(/iosBroadcastModule\(\)\.(\w+)\(/g)].map((m) => m[1]));
+  assert.deepEqual(iosCalls.sort(), ["bindContinuousSession", "listContinuousRecordings"]);
+  for (const name of iosCalls) {
+    assert.ok(swiftMethods.includes(name), `iOS Swift must expose "${name}"`);
+    const call = jsBinding.indexOf(`iosBroadcastModule().${name}(`);
+    const fn = jsBinding.slice(jsBinding.lastIndexOf("export ", call), call);
+    assert.match(fn, /^export (async )?function \w+\(/, `${name} is not called from an exported function`);
+    assert.match(fn, /if \(Platform\.OS !== "ios"\) return/, `${name} is reachable off iOS`);
+  }
+});

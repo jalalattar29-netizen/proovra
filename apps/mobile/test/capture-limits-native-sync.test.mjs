@@ -30,6 +30,8 @@ const module = read(`${KT}/ProovraScreenCaptureModule.kt`);
 const handler = read("../plugins/broadcast-extension/SampleHandler.swift");
 const shared = read("../modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift");
 const iosModule = read("../modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift");
+// AUD-006 — the spool shared by app + extension carries the defaults a binding falls back to.
+const spool = read("../modules/proovra-screen-capture/ios/ProovraBroadcastSpool.swift");
 
 const num = (src, re, what) => {
   const m = src.match(re);
@@ -70,5 +72,7 @@ test("Swift (extension + app) carries THE capture limits by value", () => {
   assert.equal(num(handler, /maxSegmentMsLimit = (\d+)/, "SampleHandler.maxSegmentMsLimit"), CAPTURE_LIMITS.maxContinuousSegmentMs);
   assert.equal(num(shared, /static let maxSegments = (\d+)/, "ProovraBroadcastLimits.maxSegments"), CAPTURE_LIMITS.maxContinuousSegments);
   assert.equal(num(shared, /static let defaultSegmentMs = (\d+)/, "ProovraBroadcastLimits.defaultSegmentMs"), CAPTURE_LIMITS.defaultContinuousSegmentMs);
-  assert.ok(!/\?\? 600\b/.test(iosModule + handler), "a 600 default is back");
+  assert.equal(num(spool, /static let maxSegmentsLimit = (\d+)/, "ProovraBroadcastSpool.maxSegmentsLimit"), CAPTURE_LIMITS.maxContinuousSegments);
+  assert.equal(num(spool, /static let defaultSegmentMs = (\d+)/, "ProovraBroadcastSpool.defaultSegmentMs"), CAPTURE_LIMITS.defaultContinuousSegmentMs);
+  assert.ok(!/\?\? 600\b/.test(iosModule + handler + spool), "a 600 default is back");
 });

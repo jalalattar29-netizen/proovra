@@ -21,6 +21,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { createRequire } from "node:module";
 
 import { validateScreenContinuousManifest, SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION } from "@proovra/shared";
 import { loadModule } from "./support/render.mjs";
@@ -156,7 +157,7 @@ test("UC-IOS-002: the extension OBSERVES a dedicated stop note and ends the broa
   // The app posts THAT note (not the `finished` note it observes itself) and waits for the result.
   assert.match(module, /ProovraDarwinNotify\.post\(ProovraBroadcastNotes\.stopRequested\)/);
   assert.ok(!/ProovraDarwinNotify\.post\(ProovraBroadcastNotes\.finished\)/.test(module), "the app still posts the note it observes");
-  assert.match(module, /readWrittenResult\(\) == nil && Date\(\) < deadline/);
+  assert.match(module, /readWrittenResult\(recordingId: id\) == nil && Date\(\) < deadline/);
   // Both sides agree on every note name.
   for (const [key, name] of Object.entries({
     segmentReady: "com.proovra.screencapture.ios.segmentReady",
@@ -217,4 +218,95 @@ test("UC-IOS-005 / UC-IOS-006 / UC-IOS-010 / UC-IOS-012 / UC-AND-014 — app-sid
   // AND-014: the frame stop carries the binding's name on iOS too.
   assert.match(module, /AsyncFunction\("stopCapture"\)/);
   assert.ok(!/AsyncFunction\("stop"\)/.test(module));
+});
+
+/* ------------------------------------- 3. AUD-006 — one namespace per broadcast */
+
+const spoolSrc = read("../modules/proovra-screen-capture/ios/ProovraBroadcastSpool.swift");
+const spool = stripComments(spoolSrc);
+const plugin = require_("../plugins/withProovraIosScreenBroadcast.cjs");
+const workflow = read("../../../.github/workflows/native-build.yml");
+const packageSwift = read("../modules/proovra-screen-capture/ios-tests/Package.swift");
+const xctests = read("../modules/proovra-screen-capture/ios-tests/Tests/ProovraBroadcastSpoolTests/ProovraBroadcastSpoolTests.swift");
+
+function require_(rel) {
+  return createRequire(import.meta.url)(resolve(HERE, rel));
+}
+
+test("AUD-006: the spool is ONE Foundation-only file compiled by the app, the extension and the XCTest package", () => {
+  assert.match(spool, /^import Foundation\s*enum ProovraBroadcastBindingState/, "the spool must import Foundation only");
+  assert.ok(!/import (UIKit|ReplayKit|AVFoundation)/.test(spool));
+  // The extension compiles the SAME file (no by-value copy of the layout).
+  assert.deepEqual(plugin.SHARED_FILES, ["ProovraBroadcastSpool.swift"]);
+  assert.ok(plugin.EXT_SOURCES.includes("SampleHandler.swift") && plugin.EXT_SOURCES.includes("ProovraBroadcastSpool.swift"));
+  assert.ok(!/"uc5-broadcast"/.test(handler), "the extension hard-codes the spool root again");
+  assert.ok(!/"seg-\(/.test(handler), "the extension names segment files itself again");
+  assert.match(handler, /ProovraBroadcastSpool\.rootURL\(inContainer: container\)/);
+  assert.match(shared, /ProovraBroadcastSpool\.rootURL\(inContainer: container\)/);
+  // The XCTest package compiles the shipped file and CI demands every test ran.
+  assert.match(workflow, /cp \.\.\/ios\/ProovraBroadcastSpool\.swift Sources\/BroadcastSpool\//);
+  assert.match(packageSwift, /\.target\(name: "BroadcastSpool", path: "Sources\/BroadcastSpool"\)/);
+  assert.match(packageSwift, /name: "ProovraBroadcastSpoolTests",\s*dependencies: \["BroadcastSpool"\]/);
+  const declared = [...xctests.matchAll(/^\s*func (test\w+)\(/gm)].length;
+  const darwin = [...read("../modules/proovra-screen-capture/ios-tests/Tests/ProovraDarwinNotifyTests/ProovraDarwinNotifyTests.swift").matchAll(/^\s*func (test\w+)\(/gm)].length;
+  const min = Number(workflow.match(/"\$\{executed:-0\}" -lt (\d+)/)?.[1]);
+  assert.equal(min, declared + darwin, "the executed-count floor must equal every declared XCTest");
+  for (const scenario of ["TwoBroadcasts", "StaleAppGroupContent", "Restart", "Interrupted", "Recovery", "Idempotent", "ControlCenter"]) {
+    assert.match(xctests, new RegExp(`func test\\w*${scenario}`), `no XCTest for ${scenario}`);
+  }
+});
+
+test("AUD-006: the extension opens a NEW namespace per broadcast and never overwrites a segment or a result", () => {
+  assert.match(handler, /spool\.openRecording\(\s*nowUptime: ProcessInfo\.processInfo\.systemUptime/);
+  assert.match(handler, /sequence = spool\.nextSequence\(recording\.recordingId\)/);
+  // No delete-then-write of a segment slot: a taken slot is refused before the writer opens it.
+  assert.ok(!/removeItem\(at: url\)\s*guard let w = try\? AVAssetWriter/.test(handler), "the extension deletes an existing segment before writing again");
+  assert.match(handler, /guard spool\.isSegmentSlotFree\(recordingId, sequence: sequence\) else \{\s*failWriter\(\)[\s\S]*?AVAssetWriter\(outputURL: url/);
+  assert.match(handler, /guard spool\.publishSegment\(recordingId, sequence: seq, sidecar: sidecar\) else/);
+  assert.match(handler, /spool\.finalize\(recordingId, result: result\)/);
+  assert.ok(!/"result\.json"|"state\.json"/.test(handler), "the extension writes fixed-name files again");
+  // The spool's publish/finalise are exclusive (first writer wins), and adoption is one atomic rename.
+  assert.match(spool, /func writeExclusively[\s\S]*?guard !fm\.fileExists\(atPath: url\.path\)[\s\S]*?fm\.moveItem\(at: tmp, to: url\)/);
+  assert.match(spool, /fm\.moveItem\(at: pending, to: claim\)/);
+  assert.match(spool, /createDirectory\(at: dir, withIntermediateDirectories: false\)/);
+});
+
+test("AUD-006: liveness is a monotonic heartbeat, not the wall clock", () => {
+  assert.match(handler, /"heartbeatUptime": ProcessInfo\.processInfo\.systemUptime/);
+  assert.match(handler, /"heartbeatSeq": heartbeatSeq/);
+  assert.ok(!/lastWriteAtUtc/.test(handler + shared), "the wall-clock heartbeat is back");
+  assert.ok(!/Date\(\)\.timeIntervalSince\(last\)/.test(shared), "staleness compares wall-clock times again");
+  assert.match(shared, /ProcessInfo\.processInfo\.systemUptime/);
+  assert.match(spool, /if age < 0 \|\| age > staleAfterSeconds \{ return \(false, true\) \}/);
+});
+
+test("AUD-006: the binding is written before the picker and is fresh exactly as long as the JS waits for it", () => {
+  assert.match(module, /self\.store\.prepareRecording\([\s\S]*?ProovraBroadcastPicker\.present\(/);
+  assert.match(module, /"recordingId": recordingId,\s*\]\)/, "start must return the bound recordingId");
+  const fresh = Number(spool.match(/static let bindingFreshSeconds: TimeInterval = (\d+)/)?.[1]);
+  const jsTimeout = Number(read("../src/continuous-capture.ts").match(/BROADCAST_START_TIMEOUT_MS = ([\d_]+)/)?.[1].replace(/_/g, ""));
+  assert.equal(fresh * 1000, jsTimeout, "binding freshness and the JS picker timeout drifted apart");
+  // A cancelled / timed-out picker withdraws the binding.
+  assert.match(module, /withdrawPendingBinding\(recordingId: id\)/);
+});
+
+test("AUD-006: every app-side read, stop and discard is scoped by recordingId; state exposes the binding", () => {
+  assert.match(module, /Function\("getContinuousState"\) \{ \(recordingId: String\?\)/);
+  assert.match(module, /Function\("getContinuousSegments"\) \{ \(recordingId: String\?\)/);
+  assert.match(module, /AsyncFunction\("stopContinuousCapture"\) \{ \(recordingId: String\?, promise: Promise\)/);
+  assert.match(module, /AsyncFunction\("discardContinuousSpool"\) \{ \(recordingId: String\?, promise: Promise\)/);
+  assert.match(module, /Function\("listContinuousRecordings"\)/);
+  assert.match(module, /AsyncFunction\("bindContinuousSession"\)/);
+  // The stop note reaches whichever broadcast runs: only posted for THIS recording.
+  assert.match(module, /if self\.store\.liveRecordingId\(\) == id \{\s*ProovraDarwinNotify\.post\(ProovraBroadcastNotes\.stopRequested\)/);
+  const stateMap = shared.match(/struct ProovraBroadcastState \{[\s\S]*?func toJsMap\(\) -> \[String: Any\] \{\s*return \[([\s\S]*?)\]/);
+  assert.ok(stateMap, "ProovraBroadcastState.toJsMap not found");
+  const keys = [...stateMap[1].matchAll(/"(\w+)":/g)].map((m) => m[1]).sort();
+  assert.deepEqual(keys, ["active", "appRequested", "binding", "captureSessionId", "liveRecordingId", "recordingId", "segmentCount", "stale"]);
+  // The started event names the recording and its binding.
+  assert.match(module, /sendEvent\("onScreenContinuousStarted", \[[\s\S]*?"recordingId": recordingId,[\s\S]*?"binding": state\.binding/);
+  // The JS binding passes the recordingId on iOS only (the Kotlin functions take none).
+  assert.match(binding, /if \(Platform\.OS === "ios"\) return continuousModule\(\)\.stopContinuousCapture\(recordingId \?\? null\);\s*return continuousModule\(\)\.stopContinuousCapture\(\);/);
+  assert.match(binding, /export function listContinuousRecordings\(\)[\s\S]*?if \(Platform\.OS !== "ios"\) return \[\];/);
+  assert.match(binding, /export async function bindContinuousSession\([\s\S]*?if \(Platform\.OS !== "ios"\) return;/);
 });

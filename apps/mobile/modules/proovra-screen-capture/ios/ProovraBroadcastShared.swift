@@ -6,13 +6,13 @@ import UIKit
  * Main-app side helpers for the UC-5 iOS broadcast pipeline: read the segment
  * files the Broadcast Upload Extension writes into the shared App Group
  * container, present Apple's system broadcast picker, and bridge Darwin
- * notifications. The extension is the WRITER; this side is the READER. The file
- * layout under the container's `uc5-broadcast/` directory is the contract:
- *   - state.json      { active, segmentCount, startedAtUtc, segmentMs, maxSegments,
- *                       lastWriteAtUtc (heartbeat), appRequested }
- *   - result.json     the session summary (on stop) — see ProovraBroadcastResult
- *   - seg-<n>.mp4     ordered ORIGINAL segments (n = 0,1,2,…)
- *   - seg-<n>.json    { sequence, startedAtOffsetMs, durationMs, widthPx, heightPx, orientation }
+ * notifications. The extension is the WRITER; this side is the READER.
+ *
+ * AUD-006 — the container layout (one namespace per broadcast, the binding the
+ * app writes before it shows the picker, the monotonic heartbeat) is owned by
+ * ProovraBroadcastSpool.swift, which the extension compiles too:
+ *   uc5-broadcast/pending-binding.json
+ *   uc5-broadcast/<recordingId>/{binding.json, state.json, seg-<n>.mp4|json, result.json}
  *
  * apps/mobile/test/ios-broadcast-contract.test.mjs pins this layout, the note
  * names and the device block against SampleHandler.swift and the JS/TS contract.
@@ -33,38 +33,38 @@ enum ProovraBroadcastLimits {
   static let defaultSegmentMs = 6000
 }
 
-struct ProovraScreenSegment {
-  let uri: String
-  let sequence: Int
-  let startedAtOffsetMs: Int
-  let durationMs: Int
-  let widthPx: Int
-  let heightPx: Int
-  let orientation: String
-
-  func toJsMap() -> [String: Any] {
-    return [
-      "uri": uri,
-      "sequence": sequence,
-      "startedAtOffsetMs": startedAtOffsetMs,
-      "durationMs": durationMs,
-      "widthPx": widthPx,
-      "heightPx": heightPx,
-      "orientation": orientation,
-    ]
-  }
-}
-
 struct ProovraBroadcastState {
   let active: Bool
   let segmentCount: Int
   /// UC-IOS-006 — "active" on disk, but no heartbeat for too long: the extension died.
   let stale: Bool
   let startedAtUtc: String?
+  /// AUD-006 — whose recording this is: the namespace, how it was bound, and
+  /// which capture session (if any) the app recorded on it.
+  let recordingId: String?
+  let binding: String // BOUND | UNBOUND | NONE
   let appRequested: Bool
+  let captureSessionId: String?
+  /// The broadcast running right now, which may be ANOTHER recording.
+  let liveRecordingId: String?
+
+  func toJsMap() -> [String: Any] {
+    return [
+      "active": active,
+      "segmentCount": segmentCount,
+      "stale": stale,
+      "recordingId": ProovraBroadcastSpool.jsonValue(recordingId),
+      "binding": binding,
+      "appRequested": appRequested,
+      "captureSessionId": ProovraBroadcastSpool.jsonValue(captureSessionId),
+      "liveRecordingId": ProovraBroadcastSpool.jsonValue(liveRecordingId),
+    ]
+  }
 }
 
 struct ProovraBroadcastResult {
+  /// AUD-006 — the recording this summary belongs to (nil: no broadcast ever started).
+  let recordingId: String?
   let osConsentGranted: Bool
   let startedAtUtc: String
   let endedAtUtc: String
@@ -94,6 +94,7 @@ struct ProovraBroadcastResult {
       device[key] = display?[key] ?? screen[key]
     }
     return [
+      "recordingId": ProovraBroadcastSpool.jsonValue(recordingId),
       "osConsentGranted": osConsentGranted,
       "captureStartedAtUtc": startedAtUtc,
       "captureEndedAtUtc": endedAtUtc,
@@ -119,107 +120,120 @@ struct ProovraBroadcastResult {
   }
 }
 
+/**
+ * The app's view of the spool (ProovraBroadcastSpool.swift owns the layout).
+ * Every read names ONE recording: segments, state and result never mix two
+ * broadcasts.
+ */
 final class ProovraBroadcastSharedStore {
   private let appGroup: String
-  /// A live broadcast rewrites state.json at least this often (extension heartbeat: 5 s).
-  static let staleAfterSeconds: TimeInterval = 30
-  private var containerURL: URL? {
-    FileManager.default
-      .containerURL(forSecurityApplicationGroupIdentifier: appGroup)?
-      .appendingPathComponent("uc5-broadcast", isDirectory: true)
-  }
+  /// A live broadcast heartbeats at least this often (extension heartbeat: 5 s).
+  static let staleAfterSeconds: TimeInterval = ProovraBroadcastSpool.staleAfterSeconds
 
   init(appGroup: String) { self.appGroup = appGroup }
 
+  private var spool: ProovraBroadcastSpool? {
+    guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) else { return nil }
+    return ProovraBroadcastSpool(root: ProovraBroadcastSpool.rootURL(inContainer: container))
+  }
+
+  /// The monotonic clock app and extension share within one boot.
+  static func nowUptime() -> TimeInterval { ProcessInfo.processInfo.systemUptime }
+
   /**
-   * UC-IOS-010 — true when the container still holds a recording nobody staged
-   * or discarded (a killed app, or a broadcast started from Control Center).
-   * `beginSession` refuses to run over it: un-uploaded segments are never
-   * deleted without the user's explicit discard.
+   * AUD-006 — the binding the extension adopts, written BEFORE Apple's picker is
+   * shown. No capture session exists yet (one is opened only once the broadcast
+   * really started, UC-IOS-005); the app records it later with bindCaptureSession.
+   */
+  func prepareRecording(segmentMs: Int, maxSegments: Int) -> String? {
+    guard let spool = spool else { return nil }
+    let recordingId = UUID().uuidString
+    let binding = ProovraBroadcastBinding(
+      recordingId: recordingId,
+      captureSessionId: nil,
+      appRequested: true,
+      createdAtUtc: ISO8601DateFormatter().string(from: Date()),
+      createdAtUptime: ProovraBroadcastSharedStore.nowUptime(),
+      segmentMs: segmentMs,
+      maxSegments: maxSegments
+    )
+    return spool.writePendingBinding(binding) ? recordingId : nil
+  }
+
+  /// The picker was cancelled or timed out: no later broadcast may adopt the binding.
+  func withdrawPendingBinding(recordingId: String) {
+    spool?.withdrawPendingBinding(recordingId: recordingId)
+  }
+
+  func recordingExists(_ recordingId: String) -> Bool {
+    return spool?.recording(recordingId) != nil
+  }
+
+  /**
+   * UC-IOS-010 — true when a recording that is not running still holds segments
+   * nobody staged or discarded (a killed app, or a broadcast started from
+   * Control Center). Nothing is deleted without the user's explicit discard.
    */
   func hasPendingRecording() -> Bool {
-    guard let dir = containerURL else { return false }
-    let files = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
-    return files.contains { $0.hasPrefix("seg-") && $0.hasSuffix(".json") }
+    return !(spool?.recoverable(nowUptime: ProovraBroadcastSharedStore.nowUptime()).isEmpty ?? true)
   }
 
-  func beginSession(segmentMs: Int, maxSegments: Int) {
-    guard let dir = containerURL else { return }
-    try? FileManager.default.removeItem(at: dir)
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    let state: [String: Any] = [
-      "active": false, // the EXTENSION sets active when the broadcast actually starts
-      "segmentCount": 0,
-      "segmentMs": segmentMs,
-      "maxSegments": maxSegments,
-      "appRequested": true,
-    ]
-    writeJson(state, to: dir.appendingPathComponent("state.json"))
+  func liveRecordingId() -> String? {
+    return spool?.liveRecordingId(nowUptime: ProovraBroadcastSharedStore.nowUptime())
   }
 
-  /** UC-IOS-010 — the explicit discard: removes the whole spool. */
-  func discardSpool() {
-    guard let dir = containerURL else { return }
-    try? FileManager.default.removeItem(at: dir)
-  }
-
-  func readState() -> ProovraBroadcastState {
-    guard let dir = containerURL,
-          let obj = readJson(dir.appendingPathComponent("state.json")) else {
-      return ProovraBroadcastState(active: false, segmentCount: 0, stale: false, startedAtUtc: nil, appRequested: false)
+  /// The state of `recordingId`, or — when nil — of the broadcast running now.
+  func readState(recordingId: String?) -> ProovraBroadcastState {
+    let now = ProovraBroadcastSharedStore.nowUptime()
+    let live = spool?.liveRecordingId(nowUptime: now)
+    guard let spool = spool, let id = recordingId ?? live, let rec = spool.recording(id) else {
+      return ProovraBroadcastState(active: false, segmentCount: 0, stale: false, startedAtUtc: nil,
+                                   recordingId: nil, binding: "NONE", appRequested: false,
+                                   captureSessionId: nil, liveRecordingId: live)
     }
-    let active = (obj["active"] as? Bool) ?? false
-    var stale = false
-    if active, let last = (obj["lastWriteAtUtc"] as? String).flatMap({ ISO8601DateFormatter().date(from: $0) }) {
-      stale = Date().timeIntervalSince(last) > ProovraBroadcastSharedStore.staleAfterSeconds
-    }
+    let state = spool.readState(id)
+    let liveness = spool.liveness(id, nowUptime: now)
     return ProovraBroadcastState(
-      active: active && !stale,
-      segmentCount: (obj["segmentCount"] as? Int) ?? 0,
-      stale: stale,
-      startedAtUtc: obj["startedAtUtc"] as? String,
-      appRequested: (obj["appRequested"] as? Bool) ?? false
+      active: liveness.active,
+      segmentCount: (state?["segmentCount"] as? Int) ?? 0,
+      stale: liveness.stale,
+      startedAtUtc: state?["startedAtUtc"] as? String,
+      recordingId: id,
+      binding: rec.binding.rawValue,
+      appRequested: rec.appRequested,
+      captureSessionId: rec.captureSessionId,
+      liveRecordingId: live
     )
   }
 
-  /// Segments with sequence > `after`, in ascending order, whose sidecar exists.
-  func readNewSegments(after: Int) -> [ProovraScreenSegment] {
-    guard let dir = containerURL else { return [] }
-    var out: [ProovraScreenSegment] = []
-    var seq = after + 1
-    while true {
-      let sidecar = dir.appendingPathComponent("seg-\(seq).json")
-      let media = dir.appendingPathComponent("seg-\(seq).mp4")
-      guard FileManager.default.fileExists(atPath: sidecar.path),
-            FileManager.default.fileExists(atPath: media.path),
-            let obj = readJson(sidecar),
-            let sequence = obj["sequence"] as? Int,
-            let offset = obj["startedAtOffsetMs"] as? Int,
-            let duration = obj["durationMs"] as? Int,
-            let width = obj["widthPx"] as? Int,
-            let height = obj["heightPx"] as? Int,
-            let orientation = obj["orientation"] as? String else { break }
-      out.append(ProovraScreenSegment(
-        uri: media.absoluteString,
-        sequence: sequence,
-        startedAtOffsetMs: offset,
-        durationMs: duration,
-        widthPx: width,
-        heightPx: height,
-        orientation: orientation
-      ))
-      seq += 1
-    }
-    return out
+  func bindCaptureSession(recordingId: String, captureSessionId: String) -> ProovraBroadcastSessionBindOutcome {
+    guard let spool = spool else { return .missing }
+    return spool.bindCaptureSession(recordingId: recordingId, captureSessionId: captureSessionId)
   }
 
-  /// The result.json the extension wrote, or nil while it has not written one.
-  func readWrittenResult() -> ProovraBroadcastResult? {
-    guard let dir = containerURL,
-          let obj = readJson(dir.appendingPathComponent("result.json")),
+  /// Recordings on this device, for explicit recovery or discard.
+  func listRecordings() -> [ProovraBroadcastRecordingSummary] {
+    return spool?.summaries(nowUptime: ProovraBroadcastSharedStore.nowUptime()) ?? []
+  }
+
+  /** UC-IOS-010 — the explicit discard of ONE recording. */
+  func discard(recordingId: String) {
+    spool?.withdrawPendingBinding(recordingId: recordingId)
+    spool?.discard(recordingId: recordingId)
+  }
+
+  /// Segments of `recordingId` with sequence > `after`, in ascending order.
+  func readNewSegments(recordingId: String, after: Int) -> [ProovraScreenSegment] {
+    return spool?.segments(recordingId, after: after) ?? []
+  }
+
+  /// The result.json the extension wrote for THIS recording, or nil while it has none.
+  func readWrittenResult(recordingId: String) -> ProovraBroadcastResult? {
+    guard let obj = spool?.readResult(recordingId),
           let startedAtUtc = obj["startedAtUtc"] as? String,
           let endedAtUtc = obj["endedAtUtc"] as? String else { return nil }
     return ProovraBroadcastResult(
+      recordingId: recordingId,
       osConsentGranted: (obj["osConsentGranted"] as? Bool) ?? false,
       startedAtUtc: startedAtUtc,
       endedAtUtc: endedAtUtc,
@@ -233,23 +247,24 @@ final class ProovraBroadcastSharedStore {
   }
 
   /**
-   * THE session summary. When result.json is missing (extension killed / jetsam
-   * / still running) nothing is fabricated (UC-IOS-006): the start time is the
-   * one the extension wrote to state.json, the end and duration come from the
-   * last finalised segment, the termination is UNKNOWN, the session is
-   * INTERRUPTED with CAPTURE_INTERRUPTED, and consent is claimed only when a
-   * segment proves the broadcast ran.
+   * THE session summary of one recording. When result.json is missing
+   * (extension killed / jetsam / still running) nothing is fabricated
+   * (UC-IOS-006): the start time is the one the extension wrote to state.json,
+   * the end and duration come from the last finalised segment, the termination
+   * is UNKNOWN, the session is INTERRUPTED with CAPTURE_INTERRUPTED, and consent
+   * is claimed only when a segment proves the broadcast ran.
    */
-  func readResult() -> ProovraBroadcastResult {
-    if let written = readWrittenResult() { return written }
-    let state = readState()
-    let segments = readNewSegments(after: -1)
+  func readResult(recordingId: String?) -> ProovraBroadcastResult {
+    if let id = recordingId, let written = readWrittenResult(recordingId: id) { return written }
+    let state = recordingId.map { readState(recordingId: $0) }
+    let segments = recordingId.map { readNewSegments(recordingId: $0, after: -1) } ?? []
     let iso = ISO8601DateFormatter()
     let lastEndMs = segments.map { $0.startedAtOffsetMs + $0.durationMs }.max() ?? 0
-    let started = state.startedAtUtc.flatMap { iso.date(from: $0) }
-    let startedAtUtc = state.startedAtUtc ?? ""
+    let started = state?.startedAtUtc.flatMap { iso.date(from: $0) }
+    let startedAtUtc = state?.startedAtUtc ?? ""
     let endedAtUtc = started.map { iso.string(from: $0.addingTimeInterval(TimeInterval(lastEndMs) / 1000)) } ?? startedAtUtc
     return ProovraBroadcastResult(
+      recordingId: state?.recordingId,
       osConsentGranted: !segments.isEmpty,
       startedAtUtc: startedAtUtc,
       endedAtUtc: endedAtUtc,
@@ -260,14 +275,6 @@ final class ProovraBroadcastSharedStore {
       limitations: ["CAPTURE_INTERRUPTED"],
       display: nil
     )
-  }
-
-  private func writeJson(_ obj: [String: Any], to url: URL) {
-    if let data = try? JSONSerialization.data(withJSONObject: obj) { try? data.write(to: url, options: .atomic) }
-  }
-  private func readJson(_ url: URL) -> [String: Any]? {
-    guard let data = try? Data(contentsOf: url) else { return nil }
-    return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
   }
 }
 

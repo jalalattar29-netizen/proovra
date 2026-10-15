@@ -63,23 +63,31 @@ jobs:
       - uses: actions/checkout@v4
 
       # UC-IOS-012 — XCTest of ProovraDarwinNotify against the REAL Darwin
-      # notify center on macOS. The package compiles the shipped file (copied
-      # in here, never a second copy in git). Refuses fewer than 6 executed.
-      - name: XCTest — ProovraDarwinNotify (UC-IOS-012)
+      # notify center on macOS; AUD-006 — XCTest of the per-broadcast spool
+      # (ProovraBroadcastSpool: two broadcasts, stale App Group content, restart,
+      # interruption, recovery, idempotent finalisation) on a real file system.
+      # The package compiles the shipped files (copied in here, never a second
+      # copy in git). Refuses fewer than 22 executed (6 + 16).
+      - name: XCTest — ProovraDarwinNotify (UC-IOS-012) + ProovraBroadcastSpool (AUD-006)
         working-directory: apps/mobile/modules/proovra-screen-capture/ios-tests
         run: |
           set -o pipefail
-          mkdir -p Sources/DarwinNotifyBridge
+          mkdir -p Sources/DarwinNotifyBridge Sources/BroadcastSpool
           cp ../ios/ProovraDarwinNotify.swift Sources/DarwinNotifyBridge/
+          cp ../ios/ProovraBroadcastSpool.swift Sources/BroadcastSpool/
           swift test 2>&1 | tee "$RUNNER_TEMP/xctest.log"
           line=$(grep -E "Executed [0-9]+ tests?, with [0-9]+ failures?" "$RUNNER_TEMP/xctest.log" | tail -1)
           echo "xctest: $line"
           executed=$(echo "$line" | sed -E 's/.*Executed ([0-9]+) tests?.*/\1/')
           failures=$(echo "$line" | sed -E 's/.*with ([0-9]+) failures?.*/\1/')
           skipped=$(grep -cE "Test Case .* skipped" "$RUNNER_TEMP/xctest.log" || true)
-          if [ -z "$line" ] || [ "${executed:-0}" -lt 6 ]; then echo "::error::ProovraDarwinNotify XCTest executed ${executed:-0} tests (expected >= 6)"; exit 1; fi
-          if [ "${failures:-1}" -ne 0 ]; then echo "::error::ProovraDarwinNotify XCTest failures: $failures"; exit 1; fi
-          if [ "${skipped:-0}" -ne 0 ]; then echo "::error::ProovraDarwinNotify XCTest skipped $skipped"; exit 1; fi
+          if [ -z "$line" ] || [ "${executed:-0}" -lt 22 ]; then echo "::error::ios-tests XCTest executed ${executed:-0} tests (expected >= 22)"; exit 1; fi
+          # Both suites must have run — a dropped target is not a smaller pass.
+          for suite in ProovraDarwinNotifyTests ProovraBroadcastSpoolTests; do
+            grep -qE "Test Suite .$suite. passed" "$RUNNER_TEMP/xctest.log" || { echo "::error::XCTest suite $suite did not pass"; exit 1; }
+          done
+          if [ "${failures:-1}" -ne 0 ]; then echo "::error::ios-tests XCTest failures: $failures"; exit 1; fi
+          if [ "${skipped:-0}" -ne 0 ]; then echo "::error::ios-tests XCTest skipped $skipped"; exit 1; fi
 
       - uses: actions/setup-node@v4
         with:
