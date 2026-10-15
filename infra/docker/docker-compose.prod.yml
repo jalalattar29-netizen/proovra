@@ -58,6 +58,26 @@ services:
       OTS_BIN: ots
       OTS_CALENDAR_URL: https://a.pool.opentimestamps.org
       OTS_TIMEOUT_MS: "30000"
+      # INDEPENDENT BITCOIN VERIFICATION of OpenTimestamps proofs — WORKER ONLY.
+      # The worker checks each ANCHORED proof's merkle root against the block
+      # header of PROOVRA's dedicated, pruned Bitcoin Core node over the Hetzner
+      # private network (plain HTTP JSON-RPC; header methods only). OFF until
+      # the node has finished Initial Block Download and passed the real-mainnet
+      # acceptance gate. The API never receives these variables.
+      #
+      # The RPC password is NEVER an environment variable here (the shared
+      # .env also reaches the API): it is read from the read-only mounted file
+      # below, or from the secrets authority (OTS_BITCOIN_RPC_PASSWORD).
+      OTS_BITCOIN_VERIFY_ENABLED: ${OTS_BITCOIN_VERIFY_ENABLED:-false}
+      OTS_BITCOIN_RPC_URL: ${OTS_BITCOIN_RPC_URL:-}
+      OTS_BITCOIN_RPC_USERNAME: ${OTS_BITCOIN_RPC_USERNAME:-}
+      OTS_BITCOIN_RPC_PASSWORD_FILE: /run/proovra/bitcoin-rpc/password
+      OTS_BITCOIN_EXPECTED_CHAIN: ${OTS_BITCOIN_EXPECTED_CHAIN:-main}
+      OTS_BITCOIN_RPC_TIMEOUT_MS: ${OTS_BITCOIN_RPC_TIMEOUT_MS:-5000}
+      OTS_BITCOIN_MIN_CONFIRMATIONS: ${OTS_BITCOIN_MIN_CONFIRMATIONS:-6}
+      OTS_BITCOIN_MAX_TIP_AGE_SECONDS: ${OTS_BITCOIN_MAX_TIP_AGE_SECONDS:-7200}
+      OTS_BITCOIN_MAX_HEADER_LAG: ${OTS_BITCOIN_MAX_HEADER_LAG:-2}
+      OTS_BITCOIN_MIN_NODE_VERSION: ${OTS_BITCOIN_MIN_NODE_VERSION:-270000}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       DEMO_REQUEST_AUTO_REPLY_ENABLED: ${DEMO_REQUEST_AUTO_REPLY_ENABLED}
       DEMO_REQUEST_NOTIFICATION_EMAIL: ${DEMO_REQUEST_NOTIFICATION_EMAIL}
@@ -222,6 +242,8 @@ services:
       - /opt/proovra/app/services/worker/keys:/app/services/worker/keys:ro
       - /opt/proovra/app/services/worker/src/pdf/assets:/app/services/worker/src/pdf/assets:ro
       - /opt/proovra/app/services/worker/src/report-v2/assets:/app/services/worker/src/report-v2/assets:ro
+      # Bitcoin Core RPC password (one file named `password`, mode 0400). Worker only.
+      - /opt/proovra/app/secrets/bitcoin-rpc:/run/proovra/bitcoin-rpc:ro
     ports:
       - "127.0.0.1:8090:8090"
     healthcheck:

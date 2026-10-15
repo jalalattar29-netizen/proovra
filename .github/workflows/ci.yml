@@ -442,6 +442,53 @@ jobs:
           '
           exit $rc
 
+      # INDEPENDENT BITCOIN VERIFICATION against a REAL Bitcoin Core node.
+      # A disposable regtest bitcoind (throwaway per-run password, loopback
+      # only); the suite builds an OpenTimestamps proof committed in a real
+      # block and drives the Product RPC client, parser and chain transition:
+      # pending confirmations → VERIFIED, mutated → ROOT_MISMATCH, invalidated
+      # block → REORGED, restored chain → VERIFIED. REFUSED if it skips.
+      - name: Test — worker Bitcoin verification (regtest Bitcoin Core)
+        working-directory: services/worker
+        run: |
+          set +e
+          RPC_PASS=$(node -e "process.stdout.write(require('crypto').randomBytes(18).toString('hex'))")
+          echo "::add-mask::$RPC_PASS"
+          docker run -d --name proovra-btc-regtest --network host \
+            bitcoin/bitcoin:28.1@sha256:f332e1117453886b704e8f985dc21594917e79422860effe7842f2aa45a3ac6e \
+            bitcoind -regtest -server -disablewallet -printtoconsole \
+            -rpcbind=127.0.0.1 -rpcallowip=127.0.0.1 -rpcport=18443 \
+            -rpcuser=proovra-regtest "-rpcpassword=$RPC_PASS" >/dev/null
+          for i in $(seq 1 60); do
+            if curl -fsS -u "proovra-regtest:$RPC_PASS" -H 'content-type: application/json' \
+              --data '{"jsonrpc":"1.0","id":1,"method":"getblockcount","params":[]}' \
+              http://127.0.0.1:18443/ >/dev/null 2>&1; then
+              echo "regtest bitcoind ready after ${i}s"
+              break
+            fi
+            if [ "$i" = "60" ]; then
+              echo "::error::regtest bitcoind never answered on 127.0.0.1:18443"
+              docker logs --tail 50 proovra-btc-regtest || true
+              exit 1
+            fi
+            sleep 1
+          done
+          TEST_BITCOIN_REGTEST_RPC_URL="http://proovra-regtest:$RPC_PASS@127.0.0.1:18443" \
+            npx vitest run test/ots-bitcoin-regtest.integration.test.ts \
+            --reporter=default --reporter=json --outputFile=/tmp/worker-btc-regtest.json
+          rc=$?
+          docker rm -f proovra-btc-regtest >/dev/null 2>&1 || true
+          set -e
+          node -e '
+            const r = require("/tmp/worker-btc-regtest.json");
+            const s = { total: r.numTotalTests, passed: r.numPassedTests, failed: r.numFailedTests, pending: r.numPendingTests + (r.numTodoTests || 0) };
+            console.log("bitcoin regtest verification:", JSON.stringify(s));
+            if (!(s.total >= 7)) { console.log("::error::bitcoin regtest verification executed " + s.total + " tests (expected >= 7)"); process.exit(1); }
+            if (s.pending > 0) { console.log("::error::bitcoin regtest verification SKIPPED " + s.pending + " tests"); process.exit(1); }
+            if (s.failed > 0 || s.passed !== s.total) { console.log("::error::bitcoin regtest verification failed"); process.exit(1); }
+          '
+          exit $rc
+
       # UC-TQ-003 / EP-14 — the REAL OCR engine run. The extraction test
       # `ctx.skip()`s on a host without the tesseract binary, so without this
       # step a green build never asserted recognised text anywhere. Installed
