@@ -511,6 +511,8 @@ export async function headObject(params: {
    * Opt-in: the default HEAD is unchanged for every existing caller.
    */
   withChecksum?: boolean;
+  /** Abandons the request (a store that accepts but never answers). */
+  abortSignal?: AbortSignal;
 }) {
   const bucket = clean(params.bucket);
   const key = clean(params.key);
@@ -534,7 +536,8 @@ export async function headObject(params: {
           Key: key,
           ...(clean(params.versionId ?? null) ? { VersionId: clean(params.versionId ?? null)! } : {}),
           ...(params.withChecksum ? { ChecksumMode: "ENABLED" as const } : {}),
-        })
+        }),
+        params.abortSignal ? { abortSignal: params.abortSignal } : undefined,
       );
 
       return {
@@ -648,6 +651,7 @@ export async function headRecordedObject(params: {
   key: string;
   versionId?: string | null;
   withChecksum?: boolean;
+  abortSignal?: AbortSignal;
 }): Promise<Awaited<ReturnType<typeof headObject>>> {
   try {
     return await headObject(params);
@@ -666,17 +670,36 @@ export type StoredObjectProbe =
   | { state: "PRESENT"; sizeBytes: number | null }
   | { state: StorageFailureClass };
 
-/** The non-throwing form of headRecordedObject, for routes and read models. */
+/**
+ * How long a route or read model waits for the store before answering
+ * TRANSIENT. A store that accepts connections but never answers (a paused or
+ * overloaded endpoint) would otherwise hang the request — the SDK sets no
+ * request timeout of its own.
+ */
+export const STORED_OBJECT_PROBE_TIMEOUT_MS = 5_000;
+
+/** The non-throwing, time-bounded form of headRecordedObject, for routes and read models. */
 export async function probeStoredObject(params: {
   bucket: string;
   key: string;
   versionId?: string | null;
+  timeoutMs?: number;
 }): Promise<StoredObjectProbe> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), params.timeoutMs ?? STORED_OBJECT_PROBE_TIMEOUT_MS);
   try {
-    const head = await headRecordedObject(params);
+    const head = await headRecordedObject({
+      bucket: params.bucket,
+      key: params.key,
+      versionId: params.versionId,
+      abortSignal: controller.signal,
+    });
     return { state: "PRESENT", sizeBytes: head.sizeBytes };
   } catch (err) {
-    return { state: classifyStorageFailure(err) };
+    // An abandoned request is the store not answering: never "missing".
+    return { state: controller.signal.aborted ? "TRANSIENT" : classifyStorageFailure(err) };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
