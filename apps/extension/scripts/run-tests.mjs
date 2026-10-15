@@ -21,6 +21,8 @@ import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { tapVerdict } from "./run-tests-verdict.mjs";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const testDir = resolve(here, "..", "test");
 
@@ -35,5 +37,17 @@ if (files.length === 0) {
 }
 
 console.log(`running ${files.length} test files on ${process.version}`);
-const r = spawnSync(process.execPath, ["--test", ...files], { stdio: "inherit" });
-process.exit(r.status ?? 1);
+// `node --test` exits 0 when tests are skipped or marked todo. A skipped test
+// proves nothing, so the TAP summary is read and any skip or todo fails the run.
+const r = spawnSync(process.execPath, ["--test", "--test-reporter=tap", ...files], {
+  encoding: "utf8",
+  maxBuffer: 64 * 1024 * 1024,
+});
+process.stdout.write(r.stdout ?? "");
+process.stderr.write(r.stderr ?? "");
+if (r.status !== 0) process.exit(r.status ?? 1);
+const verdict = tapVerdict(r.stdout ?? "");
+if (!verdict.ok) {
+  console.error(verdict.reason);
+  process.exit(1);
+}

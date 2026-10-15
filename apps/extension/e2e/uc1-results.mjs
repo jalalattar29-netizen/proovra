@@ -159,6 +159,15 @@ export function classifyExecutedBrowser(browser, { report, run }) {
       errorSummary: "Playwright executed ZERO tests for this browser",
     });
   }
+  // A skipped acceptance case is an unproven journey, not a passing one.
+  if (stats.skipped > 0) {
+    return result(browser, "FAILED", {
+      failedPhase: "playwright",
+      exitCode,
+      stats,
+      errorSummary: `Playwright SKIPPED ${stats.skipped} acceptance test(s) for this browser`,
+    });
+  }
   if (stats.unexpected > 0 || exitCode !== 0) {
     return result(browser, "FAILED", {
       failedPhase: "playwright",

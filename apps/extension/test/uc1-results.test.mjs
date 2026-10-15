@@ -347,3 +347,23 @@ test("8. no credentials, presigned query parameters or private data reach a resu
     sb.done();
   }
 });
+
+test("a run with executed > 0 and ANY skipped acceptance test is FAILED, never PASSED", () => {
+  const report = passingReport();
+  report.stats.skipped = 1;
+  const r = classifyExecutedBrowser("edge", { report, run: { exitCode: 0 } });
+  assert.equal(r.status, "FAILED");
+  assert.equal(r.failedPhase, "playwright");
+  assert.match(r.errorSummary, /SKIPPED 1 acceptance test/);
+  assert.equal(r.stats.skipped, 1);
+});
+
+test("the unit runner refuses a summary with skipped or todo tests", async () => {
+  const { tapVerdict } = await import("../scripts/run-tests-verdict.mjs");
+  const tap = (t, s, d) => `# tests ${t}\n# suites 0\n# pass ${t - s - d}\n# fail 0\n# cancelled 0\n# skipped ${s}\n# todo ${d}\n`;
+  assert.equal(tapVerdict(tap(5, 0, 0)).ok, true);
+  assert.equal(tapVerdict(tap(5, 1, 0)).ok, false);
+  assert.equal(tapVerdict(tap(5, 0, 1)).ok, false);
+  assert.equal(tapVerdict(tap(0, 0, 0)).ok, false);
+  assert.equal(tapVerdict("no summary").ok, false);
+});
