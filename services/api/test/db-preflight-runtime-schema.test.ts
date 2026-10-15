@@ -86,6 +86,7 @@ function databaseWith(present: {
   otsTruthColumns?: boolean;
   incidentMessageCode?: boolean;
   threeDecisions?: boolean;
+  captureClientAttempt?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (sql.includes("WORKSPACE_OPERATIONS")) return present.reconciliationEnumValue === true;
@@ -151,6 +152,10 @@ function databaseWith(present: {
     if (sql.includes("table_name = 'signing_keys'") && sql.includes("column_name = 'purpose'")) {
       return present.signingKeyPurpose === true;
     }
+    // 20281015120000 — the capture attempt id (AUD-026).
+    if (sql.includes("table_name = 'capture_sessions'") && sql.includes("column_name = 'client_attempt_id'")) {
+      return present.captureClientAttempt === true;
+    }
     // 20281014000000 — canonical verification identity + archive restore requests.
     if (
       (sql.includes("table_name = 'evidence'") && sql.includes("column_name = 'verification_ref'")) ||
@@ -214,6 +219,7 @@ const FULLY_MIGRATED = {
   otsTruthColumns: true,
   incidentMessageCode: true,
   threeDecisions: true,
+  captureClientAttempt: true,
 };
 
 describe("runtime schema requirements", () => {

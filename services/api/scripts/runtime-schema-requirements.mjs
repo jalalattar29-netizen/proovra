@@ -623,6 +623,13 @@ const PROBES = Object.freeze({
      WHERE table_schema = 'public'
        AND table_name = 'evidence_archive_restore_requests'
      LIMIT 1`,
+  "capture_sessions.client_attempt_id": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'capture_sessions'
+       AND column_name = 'client_attempt_id'
+     LIMIT 1`,
 });
 
 /**

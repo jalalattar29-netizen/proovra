@@ -1428,6 +1428,9 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // THREE PRODUCT DECISIONS (2026-10-14) — canonical verification identity,
       // retention archive state and restore requests. EXPAND only.
       "20281014000000_free_outputs_canonical_verification_retention_archive",
+      // CAPTURE ATTEMPT IDEMPOTENCY (2026-10-15, AUD-026) — one nullable
+      // capture_sessions column and a per-owner unique index. EXPAND only.
+      "20281015120000_capture_session_client_attempt",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

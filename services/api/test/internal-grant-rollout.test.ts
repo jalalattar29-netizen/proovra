@@ -90,6 +90,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281013000000_operational_incident_message_code",
       // FREE outputs, canonical verification identity, retention archive — EXPAND only.
       "20281014000000_free_outputs_canonical_verification_retention_archive",
+      // Capture attempt idempotency (AUD-026) — EXPAND only.
+      "20281015120000_capture_session_client_attempt",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });
