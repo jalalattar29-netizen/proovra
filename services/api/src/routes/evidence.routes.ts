@@ -270,6 +270,7 @@ import {
   resolveVerificationShareToken,
   type VerificationShareRow,
   type VerificationShareState,
+  workingEvidenceWhere,
 } from "@proovra/shared-runtime";
 import { loadEvidenceAnalysisSnapshots } from "../services/ai/evidence-analysis-snapshot.service.js";
 import { validateUploadedFile } from "../services/security/file-validation.service.js";
@@ -2870,17 +2871,25 @@ function buildEvidenceListBaseWhere(params: {
   // DESTROYED is excluded from EVERY regular scope, including Trash. A
   // tombstone is governance material, not a recoverable item, and it belongs on
   // the governance surfaces that ask for it by name.
+  //
+  // LEGACY LIFECYCLE RECONCILIATION (2026-10-15) — Active is the canonical
+  // working set (`workingEvidenceWhere`): an active lifecycle AND no deletion
+  // marker in EITHER column (legacy `deleted_at`, canonical `deleted_at_utc`),
+  // no archive marker, not destroyed. A legacy row still ACTIVE but carrying
+  // `deleted_at` was deleted by its owner and is not library content; with
+  // `uncommittedFilter` below this is exactly the ACTIVE population class
+  // Home and usage count.
   const archivedFilter: Prisma.EvidenceWhereInput =
     query.scope === "archived"
       ? { lifecycleState: "ARCHIVED" }
       : query.scope === "active" || query.scope === "locked"
-        ? { lifecycleState: { notIn: ["ARCHIVED", "TRASHED", "DESTROYED"] } }
+        ? workingEvidenceWhere()
         : {};
 
   const deletedFilter: Prisma.EvidenceWhereInput =
     query.scope === "trash"
       ? { lifecycleState: "TRASHED" }
-      : { lifecycleState: { not: "DESTROYED" }, deletedAt: null };
+      : { lifecycleState: { not: "DESTROYED" }, deletedAt: null, deletedAtUtc: null };
 
   const lockedFilter: Prisma.EvidenceWhereInput =
     query.scope === "locked"

@@ -62,7 +62,21 @@ const SRC = readFileSync(
   "utf8",
 );
 
+// LEGACY LIFECYCLE RECONCILIATION (2026-10-15) — the exclusion is now the
+// canonical population (`workingEvidenceWhere` / `activeEvidenceWhere`),
+// which reads BOTH deletion columns, the archive marker and the destroy
+// marker; a bare `deletedAt: null` let a record deleted through
+// `deleted_at_utc` alone keep counting. The last test pins the populations.
 describe("runPipelineDetail — every groupBy excludes soft-deleted evidence", () => {
+  it("the populations exclude BOTH deletion columns, the archive and the destroy marker", async () => {
+    const { activeEvidenceWhere, workingEvidenceWhere } = await import("@proovra/shared-runtime");
+    for (const w of [activeEvidenceWhere(), workingEvidenceWhere()]) {
+      expect(w).toMatchObject({ deletedAt: null, deletedAtUtc: null, archivedAt: null, destroyedAtUtc: null });
+    }
+    expect(SRC).toMatch(/activeEvidence:\s*\{\s*AND:\s*\[evidence,\s*activeEvidenceWhere\(\)\]\s*\}/);
+    expect(SRC).toMatch(/workingEvidence:\s*\{\s*AND:\s*\[evidence,\s*workingEvidenceWhere\(\)\]\s*\}/);
+  });
+
   it("the status groupBy carries `where: { teamId, deletedAt: null }`", () => {
     // Slice the runPipelineDetail body and grep the status groupBy
     // verbatim. The presence of `deletedAt: null` in the same `where`
@@ -72,7 +86,7 @@ describe("runPipelineDetail — every groupBy excludes soft-deleted evidence", (
     const after = SRC.indexOf("\nasync function ", start + 1);
     const body = SRC.slice(start, after > 0 ? after : start + 12_000);
     expect(body).toMatch(
-      /prisma\.evidence\.groupBy\(\{\s*by:\s*\[\s*"status"\s*\][\s\S]*?where:\s*\{\s*AND:\s*\[pop\.evidence\],\s*deletedAt:\s*null\s*\}/,
+      /prisma\.evidence\.groupBy\(\{\s*by:\s*\[\s*"status"\s*\][\s\S]*?where:\s*\{\s*AND:\s*\[pop\.workingEvidence\]\s*\}/,
     );
   });
 
@@ -81,7 +95,7 @@ describe("runPipelineDetail — every groupBy excludes soft-deleted evidence", (
     const after = SRC.indexOf("\nasync function ", start + 1);
     const body = SRC.slice(start, after > 0 ? after : start + 12_000);
     expect(body).toMatch(
-      /prisma\.evidence\.groupBy\(\{\s*by:\s*\[\s*"publicVerifyState"\s*\][\s\S]*?where:\s*\{\s*AND:\s*\[pop\.evidence\],\s*deletedAt:\s*null\s*\}/,
+      /prisma\.evidence\.groupBy\(\{\s*by:\s*\[\s*"publicVerifyState"\s*\][\s\S]*?where:\s*\{\s*AND:\s*\[pop\.workingEvidence\]\s*\}/,
     );
   });
 
@@ -91,11 +105,11 @@ describe("runPipelineDetail — every groupBy excludes soft-deleted evidence", (
     const body = SRC.slice(start, after > 0 ? after : start + 12_000);
     // reportsReady — distinct-evidence count with reports.some + deletedAt:null
     expect(body).toMatch(
-      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*AND:\s*\[pop\.evidence\],\s*\n?\s*deletedAt:\s*null,\s*\n?\s*reports:\s*\{\s*some:\s*\{\s*\}\s*\}/,
+      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*AND:\s*\[pop\.activeEvidence\],\s*\n?\s*reports:\s*\{\s*some:\s*\{\s*\}\s*\}/,
     );
     // packagesReady — distinct-evidence count with verificationPackages.some + deletedAt:null
     expect(body).toMatch(
-      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*AND:\s*\[pop\.evidence\],\s*\n?\s*deletedAt:\s*null,\s*\n?\s*verificationPackages:\s*\{\s*some:\s*primaryPublishedPackageWhere\(\)\s*\}/,
+      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*AND:\s*\[pop\.activeEvidence\],\s*\n?\s*verificationPackages:\s*\{\s*some:\s*primaryPublishedPackageWhere\(\)\s*\}/,
     );
     // versionsTotal rows also exclude deleted
     expect(body).toMatch(

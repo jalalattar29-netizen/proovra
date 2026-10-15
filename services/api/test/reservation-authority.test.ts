@@ -73,6 +73,10 @@ describe("evidence reservation has one authority", () => {
       .map((f) => f.path)
       .sort();
     expect(users).toEqual([
+      // LEGACY LIFECYCLE RECONCILIATION (2026-10-15) — the owner-run
+      // reconciliation releases an expired, never-released reservation through
+      // the same canonical release (reason RESERVATION_EXPIRED).
+      "services/api/src/scripts/three-decisions-backfill.ts",
       "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
       // ET-INT-09 — the loser of a concurrent intake session claim releases
       // the record it reserved (reason INTAKE_SESSION_RACE_LOST).

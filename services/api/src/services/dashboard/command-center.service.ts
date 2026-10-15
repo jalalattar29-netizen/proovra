@@ -23,6 +23,7 @@
  *     `not_applicable` for personal workspaces.
  */
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../db.js";
 import { OTS_ANCHORING_RECORD_SELECT, resolveRecordOtsAnchoring } from "@proovra/shared";
 /*
@@ -66,6 +67,9 @@ import { buildOperationsSummary } from "../operations/operations-summary.service
 import {
   readLatestOrgHealthProjection,
   refreshOrgHealthProjection,
+  activeEvidenceWhere,
+  unlinkedActiveEvidenceWhere,
+  workingEvidenceWhere,
 } from "@proovra/shared-runtime";
 import {
   backfillIntegritySnapshots,
@@ -1241,6 +1245,16 @@ type WorkspacePopulation = {
   readonly teamId: string;
   /** Canonical Evidence population, personal NULL-team rows included. */
   readonly evidence: WorkspaceEvidenceScope;
+  /**
+   * LEGACY LIFECYCLE RECONCILIATION (2026-10-15) — the workspace's ACTIVE
+   * records (`activeEvidenceWhere`): sealed, active lifecycle, no deletion
+   * (legacy `deleted_at` or canonical `deleted_at_utc`), archive or purge
+   * marker. Every count of "records" reads this, so a deleted, trashed,
+   * archived or abandoned row can never inflate one.
+   */
+  readonly activeEvidence: Prisma.EvidenceWhereInput;
+  /** Active records plus uploads still in flight (`workingEvidenceWhere`) — pipeline views. */
+  readonly workingEvidence: Prisma.EvidenceWhereInput;
   /** Canonical Case population, personal NULL-team rows included. */
   readonly cases: WorkspaceCaseScope;
 };
@@ -1270,11 +1284,16 @@ async function detectWorkspaceScope(teamId: string): Promise<{
   return {
     scope: personal.isPersonal ? "SINGLE_OCCUPANT" : "SHARED",
     memberCount,
-    population: {
-      teamId,
-      evidence: evidenceScopeFor(scopeInput),
-      cases: caseScopeFor(scopeInput),
-    },
+    population: (() => {
+      const evidence = evidenceScopeFor(scopeInput);
+      return {
+        teamId,
+        evidence,
+        activeEvidence: { AND: [evidence, activeEvidenceWhere()] },
+        workingEvidence: { AND: [evidence, workingEvidenceWhere()] },
+        cases: caseScopeFor(scopeInput),
+      };
+    })(),
   };
 }
 
@@ -1465,12 +1484,12 @@ async function runCaseOperations(
         take: 1000,
       }),
       prisma.evidence.count({
-        where: { AND: [pop.evidence], caseLinks: { none: {} } },
+        where: { AND: [pop.evidence, unlinkedActiveEvidenceWhere()] },
       }),
       scope === "SHARED"
         ? prisma.evidence.count({
             where: {
-              AND: [pop.evidence],
+              AND: [pop.activeEvidence],
               status: { in: ["UPLOADED", "SIGNED"] },
               reviewWorkflow: null,
             },
@@ -1912,27 +1931,25 @@ async function runPipelineDetail(
         // with this filter applied).
         prisma.evidence.groupBy({
           by: ["status"],
-          where: { AND: [pop.evidence], deletedAt: null },
+          where: { AND: [pop.workingEvidence] },
           _count: { _all: true },
         }),
         prisma.evidence.count({
           where: {
-            AND: [pop.evidence],
+            AND: [pop.workingEvidence],
             status: "UPLOADING",
             updatedAt: { lt: stuckCutoff },
           },
         }),
         prisma.evidence.count({
           where: {
-            AND: [pop.evidence],
-            deletedAt: null,
+            AND: [pop.activeEvidence],
             reports: { some: {} },
           },
         }),
         prisma.evidence.count({
           where: {
-            AND: [pop.evidence],
-            deletedAt: null,
+            AND: [pop.activeEvidence],
             verificationPackages: { some: primaryPublishedPackageWhere() },
           },
         }),
@@ -1950,7 +1967,7 @@ async function runPipelineDetail(
         // inflate every bucket here too.
         prisma.evidence.groupBy({
           by: ["publicVerifyState"],
-          where: { AND: [pop.evidence], deletedAt: null },
+          where: { AND: [pop.workingEvidence] },
           _count: { _all: true },
         }),
       ]);
@@ -2209,7 +2226,7 @@ async function runOrganizationalIntelligence(
     ] = await Promise.all([
       prisma.evidence.count({
         where: {
-          AND: [pop.evidence],
+          AND: [pop.activeEvidence],
           status: { in: ["SIGNED", "REPORTED"] },
           updatedAt: { gte: since7d },
         },
@@ -2635,7 +2652,7 @@ async function runAuditReadiness(
     const unresolvedEscalations = shared ? opsCounters.escalations(["OPEN"]) : 0;
     const unsignedOld = await prisma.evidence.count({
       where: {
-        AND: [pop.evidence],
+        AND: [pop.workingEvidence],
         status: { in: ["CREATED", "UPLOADING", "UPLOADED"] },
         createdAt: { lt: unsignedAgeCutoff },
       },
@@ -2716,7 +2733,7 @@ async function runRecentEvidence(
 ): Promise<CommandCenterEnvelope["sections"]["recentEvidence"]> {
   try {
     const items = await prisma.evidence.findMany({
-      where: { AND: [pop.evidence] },
+      where: { AND: [pop.workingEvidence] },
       orderBy: { createdAt: "desc" },
       take: RECENT_EVIDENCE_LIMIT,
       select: {
@@ -2905,7 +2922,7 @@ async function runLegacyPipelineSummary(
   try {
     const grouped = await prisma.evidence.groupBy({
       by: ["status"],
-      where: { AND: [pop.evidence] },
+      where: { AND: [pop.workingEvidence] },
       _count: { _all: true },
     });
     const data = { reported: 0, signed: 0, uploaded: 0, uploading: 0, created: 0 };
@@ -3012,7 +3029,7 @@ export async function buildCommandCenter(input: {
 
   const [counters, evidenceCounters, opsCounters] = await Promise.all([
     loadReviewQueueCounters(input.teamId, reviewQueueWindow()),
-    loadEvidenceCounters(pop.evidence as never, new Date(), outputEntitledWhere),
+    loadEvidenceCounters(pop.workingEvidence as never, new Date(), outputEntitledWhere),
     loadOperationsCounters(input.teamId),
   ]);
 
@@ -4168,7 +4185,7 @@ async function runCustodyIntegrityAnomalies(
     // Integrity REVIEW_REQUIRED or FAILED — real classifications on Evidence.
     const integrityRows = await prisma.evidence.findMany({
       where: {
-        AND: [pop.evidence],
+        AND: [pop.activeEvidence],
         verificationStatus: { in: ["REVIEW_REQUIRED", "FAILED"] },
       },
       orderBy: { updatedAt: "desc" },
@@ -4195,7 +4212,7 @@ async function runCustodyIntegrityAnomalies(
     // Package exists but no Report — integrity inconsistency.
     const packageButNoReport = await prisma.evidence.findMany({
       where: {
-        AND: [pop.evidence],
+        AND: [pop.activeEvidence],
         status: "REPORTED",
         reports: { none: {} },
         verificationPackages: { some: primaryPublishedPackageWhere() },
@@ -4218,7 +4235,7 @@ async function runCustodyIntegrityAnomalies(
     // Package blocked by governance metadata.
     const sample = await prisma.evidence.findMany({
       where: {
-        AND: [pop.evidence],
+        AND: [pop.activeEvidence],
         status: { in: ["SIGNED", "REPORTED"] },
       },
       take: 500,
@@ -4671,7 +4688,7 @@ async function runRelationshipIntelligence(
   try {
     const dupHashes = await prisma.evidence.groupBy({
       by: ["fileSha256"],
-      where: { AND: [pop.evidence], fileSha256: { not: null } },
+      where: { AND: [pop.activeEvidence], fileSha256: { not: null } },
       _count: { _all: true },
       having: { fileSha256: { _count: { gt: 1 } } },
       orderBy: { _count: { fileSha256: "desc" } },
@@ -4680,7 +4697,7 @@ async function runRelationshipIntelligence(
     for (const g of dupHashes) {
       if (!g.fileSha256) continue;
       const members = await prisma.evidence.findMany({
-        where: { AND: [pop.evidence], fileSha256: g.fileSha256 },
+        where: { AND: [pop.activeEvidence], fileSha256: g.fileSha256 },
         select: { id: true, caseLinks: { select: { caseId: true } } },
         take: 10,
       });
@@ -4742,7 +4759,7 @@ async function runRelationshipIntelligence(
   try {
     const submitterGroups = await prisma.evidence.groupBy({
       by: ["submittedByUserId"],
-      where: { AND: [pop.evidence], submittedByUserId: { not: null } },
+      where: { AND: [pop.activeEvidence], submittedByUserId: { not: null } },
       _count: { _all: true },
       having: { submittedByUserId: { _count: { gte: 3 } } },
       orderBy: { _count: { submittedByUserId: "desc" } },
@@ -5470,7 +5487,7 @@ async function runDeepIntegrityWatch(
     // verificationStatus = REVIEW_REQUIRED / FAILED
     const reviewRequired = await prisma.evidence.findMany({
       where: {
-        AND: [pop.evidence],
+        AND: [pop.activeEvidence],
         verificationStatus: { in: ["REVIEW_REQUIRED", "FAILED"] },
       },
       orderBy: { updatedAt: "desc" },

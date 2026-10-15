@@ -3,16 +3,18 @@
  * Nothing is mocked: the real worker renders and packages, the real browser
  * reads the real pages. (owner decisions 2026-10-14)
  *
- *   1. A FREE account's record gets its report AND verification package from
- *      the real worker (one of its three included records).
+ *   1. A FREE account's THREE records each get their report AND verification
+ *      package from the real worker; a fourth record is refused.
  *   2. The Artifacts tab's "Verification access" shows the record's permanent
  *      canonical page; a LOGGED-OUT browser opens it from the reference alone,
  *      sees verification facts, never the internal id, and the page is
  *      noindex; the internal id is not a link.
- *   3. Delete → Trash → time advances past 90 days with a legal hold in force
- *      → the lifecycle sweep moves it to the Retention Archive → the owner
- *      restores it from "Archived evidence" in the browser → the running worker
- *      verifies the stored bytes and reactivates the SAME record.
+ *   3. Home counts 3 unlinked records; Delete → Trash and Home counts 2 (the
+ *      deleted record never inflates it) → time advances past 90 days with a
+ *      legal hold in force → the lifecycle sweep moves it to the Retention
+ *      Archive → the owner restores it from "Archived evidence" in the browser
+ *      → the running worker verifies the stored bytes and reactivates the SAME
+ *      record → Home counts 3 again.
  */
 import { test, expect, type Page } from "@playwright/test";
 import { spawnSync } from "node:child_process";
@@ -73,19 +75,17 @@ test.describe("three product decisions — the real stack", () => {
   let reference = "";
   let teamId = "";
 
-  test("a FREE record gets its report AND package from the real worker", async () => {
-    test.setTimeout(300_000);
-    await clearTestRateLimits();
-    A = await createGuestSession({ plan: "FREE" });
-    const bytes = `three decisions e2e ${Date.now()}\n`;
+  /** One finalized record of the FREE account (upload + complete), by its id. */
+  async function finalizeFreeRecord(label: string): Promise<string> {
+    const bytes = `three decisions e2e ${label} ${Date.now()}\n`;
     const sha = createHash("sha256").update(bytes).digest("base64");
     const md5 = createHash("md5").update(bytes).digest("base64");
     const created = await A.api.post("/v1/evidence", {
       data: { type: "DOCUMENT", mimeType: "text/plain", originalFileName: "free.txt", checksumSha256Base64: sha, contentMd5Base64: md5 },
     });
     expect(created.ok(), await created.text()).toBe(true);
-    evidenceId = ((await created.json()) as { id: string }).id;
-    const partRes = await A.api.post(`/v1/evidence/${evidenceId}/parts`, {
+    const id = ((await created.json()) as { id: string }).id;
+    const partRes = await A.api.post(`/v1/evidence/${id}/parts`, {
       data: { partIndex: 0, mimeType: "text/plain", originalFileName: "free.txt", checksumSha256Base64: sha, contentMd5Base64: md5 },
     });
     expect(partRes.ok(), await partRes.text()).toBe(true);
@@ -96,17 +96,36 @@ test.describe("three product decisions — the real stack", () => {
       headers: { "Content-Type": "text/plain", "x-amz-checksum-sha256": sha, "Content-MD5": md5 },
     });
     expect(put.ok, `PUT ${put.status}`).toBe(true);
-    const done = await A.api.post(`/v1/evidence/${evidenceId}/complete`, { data: {} });
+    const done = await A.api.post(`/v1/evidence/${id}/complete`, { data: {} });
     expect(done.ok(), await done.text()).toBe(true);
+    return id;
+  }
+
+  test("FREE records 1–3 each get their report AND package from the real worker; the fourth is refused", async () => {
+    test.setTimeout(420_000);
+    await clearTestRateLimits();
+    A = await createGuestSession({ plan: "FREE" });
+    const records = [await finalizeFreeRecord("one"), await finalizeFreeRecord("two"), await finalizeFreeRecord("three")];
+    evidenceId = records[0]!;
 
     // No regenerate call: finalization of a FREE-included record enqueues it.
-    await expect
-      .poll(async () => {
-        const r = await A.api.get(`/v1/evidence/${evidenceId}/artifacts/status`);
-        const s = (await r.json()) as { outputs: { report: { state: string }; verificationPackage: { state: string } } };
-        return `${s.outputs.report.state}/${s.outputs.verificationPackage.state}`;
-      }, { timeout: 240_000, intervals: [2000] })
-      .toBe("READY/READY");
+    for (const id of records) {
+      await expect
+        .poll(async () => {
+          const r = await A.api.get(`/v1/evidence/${id}/artifacts/status`);
+          const s = (await r.json()) as { outputs: { report: { state: string }; verificationPackage: { state: string } } };
+          return `${s.outputs.report.state}/${s.outputs.verificationPackage.state}`;
+        }, { timeout: 240_000, intervals: [2000] })
+        .toBe("READY/READY");
+    }
+    for (const id of records) {
+      expect(sql("SELECT output_earned_basis FROM evidence WHERE id = $1", [id])[0]!.output_earned_basis).toBe("FREE_ALLOWANCE");
+    }
+    // The fourth record is refused at admission: three is the lifetime allowance.
+    const fourth = await A.api.post("/v1/evidence", { data: { type: "DOCUMENT", mimeType: "text/plain" } });
+    expect(fourth.status()).toBe(409);
+    expect(((await fourth.json()) as { code?: string }).code).toBe("FREE_LIMIT_REACHED");
+
     const row = sql("SELECT output_earned_basis, verification_ref, team_id FROM evidence WHERE id = $1", [evidenceId])[0]!;
     expect(row.output_earned_basis).toBe("FREE_ALLOWANCE");
     expect(String(row.verification_ref)).toMatch(/^pvr_[A-Za-z0-9_-]{27}$/);
@@ -143,10 +162,22 @@ test.describe("three product decisions — the real stack", () => {
     await anonymous.close();
   });
 
-  test("Trash → (day 91, legal hold) → Retention Archive → restore in the browser → the worker reactivates the SAME record", async ({ page }) => {
+  /** Home's "unlinked records" chip — the canonical ACTIVE population in no active matter. */
+  async function homeUnlinked(page: Page): Promise<string | null> {
+    await page.goto("/home");
+    const chip = page.locator("[data-case-unlinked]");
+    await chip.first().waitFor({ timeout: 30_000 });
+    return chip.first().getAttribute("data-case-unlinked");
+  }
+
+  test("Home 3 → Trash → Home 2 → (day 91, legal hold) → Retention Archive → restore in the browser → the SAME record → Home 3", async ({ page }) => {
     test.setTimeout(300_000);
+    await signIn(page, A.email);
+    expect(await homeUnlinked(page)).toBe("3");
     const trashed = await A.api.delete(`/v1/evidence/${evidenceId}`);
     expect(trashed.ok(), await trashed.text()).toBe(true);
+    // The deleted record no longer counts on Home.
+    expect(await homeUnlinked(page)).toBe("2");
     sql(
       `INSERT INTO evidence_legal_holds (team_id, evidence_id, title, reason, status, placed_by_user_id, updated_at)
        SELECT team_id, id, 'E2E hold', 'e2e', 'ACTIVE', owner_user_id::uuid, now() FROM evidence WHERE id = $1`,
@@ -157,7 +188,6 @@ test.describe("three product decisions — the real stack", () => {
     expect(swept.find((c) => c.id === evidenceId)).toMatchObject({ disposition: "RETENTION_ARCHIVED", barrier: "LEGAL_HOLD" });
     expect(sql("SELECT lifecycle_state FROM evidence WHERE id = $1", [evidenceId])[0]!.lifecycle_state).toBe("RETENTION_ARCHIVED");
 
-    await signIn(page, A.email);
     await page.goto("/evidence/archive");
     const item = page.locator(`[data-archive-item="${evidenceId}"]`);
     await expect(item).toBeVisible({ timeout: 30_000 });
@@ -180,5 +210,6 @@ test.describe("three product decisions — the real stack", () => {
     expect(sql("SELECT verification_ref FROM evidence WHERE id = $1", [evidenceId])[0]!.verification_ref).toBe(reference);
     await page.goto(`/evidence/${evidenceId}`);
     await page.waitForSelector(".evidence-detail-hero", { timeout: 30_000 });
+    expect(await homeUnlinked(page)).toBe("3");
   });
 });

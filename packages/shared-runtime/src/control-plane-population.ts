@@ -185,3 +185,139 @@ export function liveEvidenceWith(
 ): Prisma.EvidenceWhereInput {
   return { ...liveEvidenceWhere(), ...extra };
 }
+
+// ===========================================================================
+// Evidence population classes (legacy lifecycle reconciliation, 2026-10-15)
+// ===========================================================================
+
+/**
+ * EVERY evidence row belongs to EXACTLY ONE of these classes.
+ *
+ * Production held rows whose markers disagreed with their lifecycle: sealed
+ * records still `ACTIVE` while carrying a legacy `deleted_at` (a delete path
+ * that predates the lifecycle authority), and incomplete uploads released or
+ * trashed before any content was committed. Counting "every row in the
+ * workspace" turned those into "unlinked records" on Home — six where the
+ * owner had two. These classes are the one answer to "what is this row?",
+ * shared by the counts (Home, Library, usage) and the reconciliation tool.
+ *
+ *   ACTIVE            sealed, active lifecycle, no deletion/archive/destroy marker
+ *   IN_PROGRESS       an upload still being captured (a live reservation)
+ *   ARCHIVED          the owner's archive
+ *   TRASH             sealed and deleted, inside or awaiting its 90-day Trash
+ *   RETENTION_ARCHIVE left Trash while a retention barrier remains
+ *   PURGE             destruction pending or done
+ *   ABANDONED_UPLOAD  never committed: released, expired or discarded
+ *   MANUAL_REVIEW     contradictory markers that no rule may guess at
+ */
+export const EVIDENCE_POPULATION_CLASSES = [
+  "ACTIVE",
+  "IN_PROGRESS",
+  "ARCHIVED",
+  "TRASH",
+  "RETENTION_ARCHIVE",
+  "PURGE",
+  "ABANDONED_UPLOAD",
+  "MANUAL_REVIEW",
+] as const;
+export type EvidencePopulationClass = (typeof EVIDENCE_POPULATION_CLASSES)[number];
+
+/** Records not yet sealed: no content has been committed to them. */
+export const UNSEALED_EVIDENCE_STATUSES = ["CREATED", "UPLOADING"] as const;
+
+/**
+ * The lifecycle states of a WORKING record. UNDER_REVIEW / ON_HOLD /
+ * RETENTION_LOCKED are governance postures of an active record, not exits.
+ */
+export const ACTIVE_EVIDENCE_LIFECYCLE_STATES = [
+  "ACTIVE",
+  "UNDER_REVIEW",
+  "ON_HOLD",
+  "RETENTION_LOCKED",
+] as const;
+
+/**
+ * THE active-evidence predicate. Both deletion columns are read — the legacy
+ * `deleted_at` and the canonical `deleted_at_utc` — because a row carrying
+ * EITHER was deleted by someone, whatever its lifecycle pointer says.
+ */
+export function activeEvidenceWhere(): Prisma.EvidenceWhereInput {
+  return {
+    status: { notIn: [...UNSEALED_EVIDENCE_STATUSES] },
+    lifecycleState: { in: [...ACTIVE_EVIDENCE_LIFECYCLE_STATES] },
+    deletedAt: null,
+    deletedAtUtc: null,
+    archivedAt: null,
+    destroyedAtUtc: null,
+  };
+}
+
+/**
+ * The WORKING SET: everything not deleted, archived or destroyed — active
+ * records plus uploads still in flight. Pipeline views ("stuck uploads",
+ * "recent evidence") read this; counts of records read `activeEvidenceWhere`.
+ */
+export function workingEvidenceWhere(): Prisma.EvidenceWhereInput {
+  return {
+    lifecycleState: { in: [...ACTIVE_EVIDENCE_LIFECYCLE_STATES] },
+    deletedAt: null,
+    deletedAtUtc: null,
+    archivedAt: null,
+    destroyedAtUtc: null,
+  };
+}
+
+/**
+ * Active evidence linked to no ACTIVE case/matter — Home's "unlinked records".
+ * A link to a closed or archived case does not make a record "in a matter".
+ */
+export function unlinkedActiveEvidenceWhere(): Prisma.EvidenceWhereInput {
+  return {
+    AND: [
+      activeEvidenceWhere(),
+      { caseLinks: { none: { case: { status: { notIn: ["CLOSED", "ARCHIVED"] } } } } },
+    ],
+  };
+}
+
+export interface EvidencePopulationFacts {
+  status: string;
+  lifecycleState: string | null;
+  deletedAt: Date | null;
+  deletedAtUtc: Date | null;
+  archivedAt: Date | null;
+  destroyedAtUtc: Date | null;
+  signedAtUtc: Date | null;
+  /** For an unsealed, unmarked row: is its reservation still live? */
+  reservationLive?: boolean;
+}
+
+/** The ONE classification. Pure; the reconciliation tool and tests share it. */
+export function classifyEvidencePopulation(row: EvidencePopulationFacts): EvidencePopulationClass {
+  const lifecycle = row.lifecycleState ?? "ACTIVE";
+  const deleted = row.deletedAt !== null || row.deletedAtUtc !== null;
+  const unsealed = (UNSEALED_EVIDENCE_STATUSES as readonly string[]).includes(row.status);
+  const activeLifecycle = (ACTIVE_EVIDENCE_LIFECYCLE_STATES as readonly string[]).includes(lifecycle);
+
+  if (lifecycle === "DESTROYED" || lifecycle === "PENDING_DESTRUCTION" || row.destroyedAtUtc !== null) {
+    return "PURGE";
+  }
+  if (unsealed) {
+    // A signature on a row that was never sealed contradicts itself.
+    if (row.signedAtUtc !== null) return "MANUAL_REVIEW";
+    if (!deleted && activeLifecycle && row.reservationLive === true) return "IN_PROGRESS";
+    // Released, expired, trashed or archived before any content existed.
+    return "ABANDONED_UPLOAD";
+  }
+  if (lifecycle === "RETENTION_ARCHIVED") return deleted ? "RETENTION_ARCHIVE" : "MANUAL_REVIEW";
+  if (lifecycle === "TRASHED") return deleted ? "TRASH" : "MANUAL_REVIEW";
+  if (lifecycle === "ARCHIVED") return deleted ? "MANUAL_REVIEW" : "ARCHIVED";
+  if (activeLifecycle) {
+    // A completed record deleted by a pre-lifecycle path belongs in Trash
+    // (the reconciliation tool moves it there, keeping its deletion date).
+    if (deleted) return row.archivedAt === null ? "TRASH" : "MANUAL_REVIEW";
+    if (row.archivedAt !== null) return "MANUAL_REVIEW";
+    return "ACTIVE";
+  }
+  return "MANUAL_REVIEW";
+}

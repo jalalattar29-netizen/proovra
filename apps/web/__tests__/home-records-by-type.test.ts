@@ -294,9 +294,11 @@ test("source contract — /v1/evidence list filters deletedAt: null by default",
   // `deleted_at` from its time in the trash, so `deletedAt: null` alone would
   // have excluded it — but so would it have excluded nothing else about it, and
   // the tombstone is now excluded from every regular scope by name.
+  // (2026-10-15) BOTH deletion columns: a record deleted through the canonical
+  // `deleted_at_utc` alone is not library content either.
   assert.match(
     ROUTES,
-    /query\.scope\s*===\s*"trash"\s*\n?\s*\?\s*\{\s*lifecycleState:\s*"TRASHED"\s*\}\s*\n?\s*:\s*\{\s*lifecycleState:\s*\{\s*not:\s*"DESTROYED"\s*\},\s*deletedAt:\s*null\s*\}/,
+    /query\.scope\s*===\s*"trash"\s*\n?\s*\?\s*\{\s*lifecycleState:\s*"TRASHED"\s*\}\s*\n?\s*:\s*\{\s*lifecycleState:\s*\{\s*not:\s*"DESTROYED"\s*\},\s*deletedAt:\s*null,\s*deletedAtUtc:\s*null\s*\}/,
     "buildEvidenceListBaseWhere must exclude trashed and destroyed records unless scope=trash",
   );
 });
