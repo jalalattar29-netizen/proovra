@@ -95,13 +95,15 @@ const FS_STUB = dataUrl(
 );
 
 const ACQUISITION_URL = dataUrl(compile("../src/capture/screen-acquisition.ts"));
+const RETRY_URL = dataUrl(compile("../src/capture/capture-retry.ts"));
 
 const directCapture = await import(
   dataUrl(
     compile("../src/direct-capture.ts")
       .replace(/from ["']\.\/api["']/g, `from "${API_STUB}"`)
       .replace(/from ["']\.\/upload-utils["']/g, `from "${UPLOAD_STUB}"`)
-      .replace('from "./capture/screen-acquisition"', `from "${ACQUISITION_URL}"`),
+      .replace('from "./capture/screen-acquisition"', `from "${ACQUISITION_URL}"`)
+      .replace('from "./capture/capture-retry"', `from "${RETRY_URL}"`),
   )
 );
 
@@ -113,7 +115,8 @@ const screenCapture = await import(
         compile("../src/direct-capture.ts")
           .replace(/from ["']\.\/api["']/g, `from "${API_STUB}"`)
           .replace(/from ["']\.\/upload-utils["']/g, `from "${UPLOAD_STUB}"`)
-          .replace('from "./capture/screen-acquisition"', `from "${ACQUISITION_URL}"`),
+          .replace('from "./capture/screen-acquisition"', `from "${ACQUISITION_URL}"`)
+      .replace('from "./capture/capture-retry"', `from "${RETRY_URL}"`),
       )}"`)
       .replace(/from ["']\.\.\/modules\/proovra-screen-capture["']/g, `from "${dataUrl("export {};")}"`),
   )

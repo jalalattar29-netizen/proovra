@@ -79,6 +79,9 @@ class ProovraScreenCaptureModule : Module() {
     OnCreate {
       bindContinuousCallbacks()
       bindFrameCallbacks()
+      // AUD-004 — the durable ledger is readable from the first call, so a
+      // relaunched process sees the recording its predecessor left behind.
+      appContext.reactContext?.applicationContext?.let { ContinuousScreenCaptureService.attachLedger(it) }
     }
 
     // AUD-029 — a reload orphans whatever this instance was awaiting (a
@@ -99,6 +102,40 @@ class ProovraScreenCaptureModule : Module() {
       )
     }
     Function("getContinuousSegments") { ContinuousScreenCaptureService.segmentsSnapshot() }
+    // AUD-004 — the durable ledger (recovered: INTERRUPTED after a process
+    // death), or null when there is no recording to recover.
+    Function("getContinuousLedger") { ContinuousScreenCaptureService.ledgerForJs() }
+
+    // AUD-004 — bind the recording to the PROOVRA session JS opened for it.
+    // A ledger bound to another session is never merged: BINDING_MISMATCH.
+    AsyncFunction("bindContinuousSession") { options: Map<String, Any?>, promise: Promise ->
+      val sessionId = options["captureSessionId"] as? String
+      val evidenceId = options["evidenceId"] as? String
+      if (sessionId.isNullOrEmpty() || evidenceId.isNullOrEmpty()) {
+        promise.reject(CodedException("INVALID_BINDING", "A session and evidence id are required.", null)); return@AsyncFunction
+      }
+      if (!ContinuousScreenCaptureService.bindSession(sessionId, evidenceId, options["ownerUserId"] as? String)) {
+        promise.reject(CodedException("BINDING_MISMATCH", "This recording belongs to another capture session.", null)); return@AsyncFunction
+      }
+      promise.resolve(true)
+    }
+
+    // AUD-004 — PROOVRA confirmed a segment; the ledger records it, then the
+    // local copy may go. Resolves false when the ledger refuses (other session).
+    AsyncFunction("markContinuousSegmentUploaded") { options: Map<String, Any?>, promise: Promise ->
+      val sessionId = options["captureSessionId"] as? String ?: ""
+      val sequence = (options["sequence"] as? Number)?.toInt() ?: -1
+      val sha = options["sha256Hex"] as? String ?: ""
+      val size = (options["sizeBytes"] as? Number)?.toLong() ?: 0L
+      promise.resolve(sequence >= 0 && sha.isNotEmpty() && ContinuousScreenCaptureService.markSegmentUploaded(sessionId, sequence, sha, size))
+    }
+
+    // AUD-004 — the bound session is staged: release its spool. Resolves false
+    // (nothing deleted) unless the ledger is bound to exactly this session.
+    AsyncFunction("commitContinuousSpool") { options: Map<String, Any?>, promise: Promise ->
+      val sessionId = options["captureSessionId"] as? String ?: ""
+      promise.resolve(ContinuousScreenCaptureService.commitSpool(appContext.reactContext?.applicationContext, sessionId))
+    }
     // UC-AND-004 / UC-IOS-010 — the explicit discard of a leftover recording's
     // local files (never while recording).
     AsyncFunction("discardContinuousSpool") { promise: Promise ->
@@ -157,6 +194,11 @@ class ProovraScreenCaptureModule : Module() {
       if (continuousStartPromise != null || ScreenCaptureService.isActive() || ContinuousScreenCaptureService.isActive()) {
         promise.reject(CodedException("BUSY", "A capture is already in progress.", null)); return@AsyncFunction
       }
+      // AUD-004 — a new recording never overwrites one the ledger still holds.
+      appContext.reactContext?.applicationContext?.let { ContinuousScreenCaptureService.attachLedger(it) }
+      if (ContinuousScreenCaptureService.newRecordingBlocked()) {
+        promise.reject(CodedException("PENDING_RECORDING", "An earlier recording is still on this device.", null)); return@AsyncFunction
+      }
       val pending = Pending(promise)
       continuousStartPromise = pending
       pendingKind = "continuous"
@@ -172,7 +214,14 @@ class ProovraScreenCaptureModule : Module() {
     AsyncFunction("stopContinuousCapture") { promise: Promise ->
       val ctx = appContext.reactContext?.applicationContext
       if (!ContinuousScreenCaptureService.isActive() || ctx == null) {
-        promise.resolve(ContinuousScreenCaptureService.lastOutcome() ?: emptyMap<String, Any?>()); return@AsyncFunction
+        // AUD-004 — after a process death the outcome comes from the durable
+        // ledger (INTERRUPTED); with no recording at all, a refusal — never an
+        // empty map that no manifest can be built from.
+        val outcome = ContinuousScreenCaptureService.lastOutcome()
+        if (outcome == null) {
+          promise.reject(CodedException("NO_RECORDING", "There is no recording to stop.", null)); return@AsyncFunction
+        }
+        promise.resolve(outcome); return@AsyncFunction
       }
       continuousStopPromise?.rejectWith("SUPERSEDED", "Replaced by a newer request.")
       continuousStopPromise = Pending(promise)

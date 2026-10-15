@@ -76,19 +76,46 @@ export const useMicrophonePermissions = () => [{ granted: true }, async () => ({
 export const cacheDirectory = "file:///cache/";
 export const EncodingType = { Base64: "base64", UTF8: "utf8" };
 export const FileSystemUploadType = { BINARY_CONTENT: 0 };
-export const getInfoAsync = async () => ({ exists: true, size: 0, md5: "d41d8cd98f00b204e9800998ecf8427e" });
-export const readAsStringAsync = async () => "";
+/*
+ * OPT-IN in-memory files (AUD-004 / AUD-005): when a test sets
+ * globalThis.__FS__ to a Map(uri -> string contents), the file calls read,
+ * size and delete THOSE files, and expo-crypto's digest is a real SHA-256, so
+ * different files declare different digests. Without it, the historic
+ * behaviour (every file exists, empty, digest of zeros) is unchanged.
+ */
+const memFs = () => (globalThis.__FS__ instanceof Map ? globalThis.__FS__ : null);
+export const getInfoAsync = async (uri) => {
+  const fs = memFs();
+  if (fs) {
+    if (!fs.has(uri)) return { exists: false, isDirectory: false };
+    const size = Buffer.byteLength(fs.get(uri), "utf8");
+    return { exists: true, isDirectory: false, size, md5: "d41d8cd98f00b204e9800998ecf8427e" };
+  }
+  return { exists: true, size: 0, md5: "d41d8cd98f00b204e9800998ecf8427e" };
+};
+export const readAsStringAsync = async (uri, options) => {
+  const fs = memFs();
+  if (!fs) return "";
+  if (!fs.has(uri)) throw new Error(`no such file: ${uri}`);
+  const bytes = Buffer.from(fs.get(uri), "utf8");
+  const pos = options?.position ?? 0;
+  const len = options?.length ?? bytes.length - pos;
+  const slice = bytes.subarray(pos, pos + len);
+  return options?.encoding === "base64" ? slice.toString("base64") : slice.toString("utf8");
+};
 export const copyAsync = async () => {};
 // Every local deletion is recorded on globalThis.__DELETED__ (array of URIs).
 export const deleteAsync = async (uri) => {
   (globalThis.__DELETED__ ??= []).push(uri);
+  memFs()?.delete(uri);
 };
 // A test observes the storage PUT by setting globalThis.__UPLOAD_ASYNC__.
 export const uploadAsync = async (...a) => (typeof globalThis.__UPLOAD_ASYNC__ === "function" ? globalThis.__UPLOAD_ASYNC__(...a) : { status: 200 });
 
 /* -------------------------------------------------------------- expo-crypto */
 export const CryptoDigestAlgorithm = { SHA256: "SHA-256" };
-export const digest = async () => new ArrayBuffer(32);
+export const digest = async (_alg, data) =>
+  memFs() ? globalThis.crypto.subtle.digest("SHA-256", data) : new ArrayBuffer(32);
 // A REAL SHA-256 (hex), so a test can assert the exact hash the server will see.
 export const digestStringAsync = async (_alg, text) => {
   const buf = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(text)));
@@ -214,6 +241,7 @@ export const shareAsync = async (uri, options) => {
 };
 export const writeAsStringAsync = async (uri, contents) => {
   (globalThis.__WRITTEN__ ??= {})[uri] = contents;
+  memFs()?.set(uri, String(contents));
 };
 
 // expo-web-browser: deterministic native browser stub for render tests.

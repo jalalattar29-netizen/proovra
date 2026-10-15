@@ -34,9 +34,14 @@ import {
   type DirectCaptureSession,
 } from "./direct-capture";
 import { buildContinuousManifest, reconcileContinuousUploads, type DeclaredSegment } from "./continuous-manifest";
-import type {
-  ScreenContinuousResult,
-  ScreenSegment,
+import { classifyCaptureError, localFileMissingError } from "./capture/capture-retry";
+import type { ContinuousRecoveryDeps } from "./capture/continuous-recovery";
+import {
+  commitContinuousSpool,
+  discardContinuousSpool,
+  markContinuousSegmentUploaded,
+  type ScreenContinuousResult,
+  type ScreenSegment,
 } from "../modules/proovra-screen-capture";
 
 /**
@@ -70,6 +75,14 @@ export const CONTINUOUS_STAGE_FAILURE: Record<ContinuousStageStep, string> = {
   handoff:
     "The recording was staged but could not be handed to Capture on this device. Open Capture: if it does not offer this recording, tap Continue to stage it again.",
 };
+
+/**
+ * AUD-004 — the server closed the recording's session (it expired or was
+ * released) before it was staged. Nothing is deleted: the recording stays on
+ * this device until the user discards it.
+ */
+export const CONTINUOUS_SESSION_GONE =
+  "The capture session for this recording has ended on the server, so it can no longer be added to it. The recording is still on this device — discard it when you no longer need it.";
 
 /** UC-IOS-005 — how long Apple's picker may stay up before PROOVRA gives up waiting. */
 export const BROADCAST_START_TIMEOUT_MS = 120_000;
@@ -126,6 +139,8 @@ export {
 export interface StagedContinuousCapture {
   /** Handed to `continuous-complete` at finalize. */
   manifestJson: string;
+  /** The part the manifest was uploaded as. */
+  manifestPartIndex: number;
   /** Segments in the record (declared). */
   segmentCount: number;
   /** Segments the recorder produced (UC-STR-002). */
@@ -141,7 +156,9 @@ export type ContinuousCaptureEvidence = {
 
 async function fileSizeBytes(uri: string): Promise<number> {
   const info = await FileSystem.getInfoAsync(uri, { size: true });
-  return info.exists && typeof info.size === "number" ? info.size : 0;
+  // AUD-004 — a segment whose file is gone cannot be uploaded by any retry.
+  if (!info.exists) throw localFileMissingError("The recorded segment");
+  return typeof info.size === "number" ? info.size : 0;
 }
 
 /**
@@ -195,31 +212,35 @@ export async function beginContinuousSession(
 
 /**
  * Upload + declare ONE segment (partIndex = segment sequence). Returns the
- * declared metadata for the manifest. Bounded retry on transient failure.
+ * declared metadata for the manifest. Bounded retry on a RETRYABLE failure
+ * (no response, timeout, 5xx/429, SESSION_BUSY); a terminal refusal is thrown
+ * at once. Every request is time-bounded (AUD-004). It does NOT delete the
+ * local file: the caller confirms the upload (confirmContinuousSegment), which
+ * records it durably first.
  */
 export async function uploadContinuousSegment(
   session: DirectCaptureSession,
   evidenceId: string,
   seg: ScreenSegment,
   retries = SCREEN_CONTINUOUS_STREAM_BOUNDS.uploadRetries,
+  timeouts: { requestMs?: number; putMs?: number } = {},
 ): Promise<DeclaredSegment> {
   let lastErr: unknown;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
-      // Measure size BEFORE upload (we delete the local file right after a
-      // durable PUT, so it may be gone afterwards).
       const sizeBytes = await fileSizeBytes(seg.uri);
-      const up = await uploadDirectCaptureItem(session, evidenceId, {
-        partIndex: seg.sequence,
-        uri: seg.uri,
-        mimeType: "video/mp4",
-        originalFilename: `segment-${seg.sequence}.mp4`,
-        source: "SCREEN_SEGMENT",
-      });
-      // Bytes are now durably in storage; drop the only-on-device copy so a long
-      // session cannot accumulate unbounded temp mp4s. Completion re-hashes from
-      // storage, never from this file.
-      await deleteLocalFileQuietly(seg.uri);
+      const up = await uploadDirectCaptureItem(
+        session,
+        evidenceId,
+        {
+          partIndex: seg.sequence,
+          uri: seg.uri,
+          mimeType: "video/mp4",
+          originalFilename: `segment-${seg.sequence}.mp4`,
+          source: "SCREEN_SEGMENT",
+        },
+        timeouts,
+      );
       return {
         partIndex: seg.sequence,
         sequence: seg.sequence,
@@ -233,10 +254,32 @@ export async function uploadContinuousSegment(
       };
     } catch (err) {
       lastErr = err;
+      if (classifyCaptureError(err) === "TERMINAL" || attempt === retries) break;
       await new Promise((r) => setTimeout(r, SCREEN_CONTINUOUS_STREAM_BOUNDS.retryBackoffMs * (attempt + 1)));
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error("segment upload failed");
+}
+
+/**
+ * AUD-004 — PROOVRA confirmed a segment (declared + stored). The durable
+ * native ledger records it FIRST and then releases the local copy itself, so a
+ * death between the two can never lose the only copy of an unconfirmed
+ * segment. Where the platform keeps no ledger (iOS) the file is deleted here,
+ * as before. A ledger that refuses (another session) keeps the file.
+ */
+export async function confirmContinuousSegment(
+  session: DirectCaptureSession,
+  seg: Pick<ScreenSegment, "uri">,
+  declared: DeclaredSegment,
+): Promise<void> {
+  const marked = await markContinuousSegmentUploaded({
+    captureSessionId: session.captureSessionId,
+    sequence: declared.sequence,
+    sha256Hex: declared.sha256Hex,
+    sizeBytes: declared.sizeBytes,
+  }).catch(() => false);
+  if (marked === null) await deleteLocalFileQuietly(seg.uri);
 }
 
 /**
@@ -274,21 +317,49 @@ export async function stageContinuousCapture(
   result: ScreenContinuousResult,
   declared: DeclaredSegment[],
   extraLimitations: ReadonlyArray<string> = [],
+  options: {
+    /**
+     * AUD-004 — a manifest already FIXED for this session (persisted before its
+     * first upload). A restart during finalization re-uploads exactly these
+     * bytes at exactly this part — idempotent — instead of building a second,
+     * different manifest the server would refuse at the same index.
+     */
+    existing?: { manifestJson: string; manifestPartIndex: number } | null;
+    /** Persist the manifest BEFORE it is uploaded (the durable record). */
+    onManifestFixed?: (fixed: { manifestJson: string; manifestPartIndex: number }) => Promise<void>;
+    timeouts?: { requestMs?: number; putMs?: number };
+  } = {},
 ): Promise<StagedContinuousCapture> {
-  if (declared.length === 0) throw new Error("No screen segments were captured.");
-
-  const { manifestPartIndex } = reconcileContinuousUploads(result, declared, extraLimitations);
-  const manifest = buildContinuousManifest(session.captureSessionId, result, declared, extraLimitations);
-  const manifestJson = JSON.stringify(manifest);
+  let manifestJson: string;
+  let manifestPartIndex: number;
+  if (options.existing) {
+    manifestJson = options.existing.manifestJson;
+    manifestPartIndex = options.existing.manifestPartIndex;
+  } else {
+    if (declared.length === 0) throw new Error("No screen segments were captured.");
+    manifestPartIndex = reconcileContinuousUploads(result, declared, extraLimitations).manifestPartIndex;
+    manifestJson = JSON.stringify(buildContinuousManifest(session.captureSessionId, result, declared, extraLimitations));
+    await options.onManifestFixed?.({ manifestJson, manifestPartIndex });
+  }
+  const manifest = JSON.parse(manifestJson) as {
+    recordedSegmentCount: number;
+    sessionCompleteness: string;
+    segments: unknown[];
+  };
   const manifestUri = `${FileSystem.cacheDirectory}proovra-continuous-manifest-${session.captureSessionId}.json`;
   await FileSystem.writeAsStringAsync(manifestUri, manifestJson);
-  await uploadDirectCaptureItem(session, evidenceId, {
-    partIndex: manifestPartIndex,
-    uri: manifestUri,
-    mimeType: "application/json",
-    originalFilename: "continuous-capture-manifest.json",
-    source: "CONTINUOUS_MANIFEST",
-  });
+  await uploadDirectCaptureItem(
+    session,
+    evidenceId,
+    {
+      partIndex: manifestPartIndex,
+      uri: manifestUri,
+      mimeType: "application/json",
+      originalFilename: "continuous-capture-manifest.json",
+      source: "CONTINUOUS_MANIFEST",
+    },
+    options.timeouts,
+  );
 
   // The manifest is uploaded as a part and ALSO returned: the part is what the
   // record carries, and the returned copy is what the canonical finalize hands
@@ -298,8 +369,34 @@ export async function stageContinuousCapture(
 
   return {
     manifestJson,
-    segmentCount: declared.length,
+    manifestPartIndex,
+    segmentCount: manifest.segments.length,
     recordedSegmentCount: manifest.recordedSegmentCount,
     sessionCompleteness: manifest.sessionCompleteness,
   };
+}
+
+/**
+ * AUD-004 — the ONE set of steps a continuous finalize or recovery runs
+ * (executeContinuousRecovery): the same upload, durable confirmation and
+ * staging a live recording uses. `persist` saves the JS record.
+ */
+export function continuousRecoveryDeps(persist: ContinuousRecoveryDeps["persist"]): ContinuousRecoveryDeps {
+  return {
+    upload: (session, evidenceId, seg) => uploadContinuousSegment(session, evidenceId, seg),
+    confirm: (session, seg, declared) => confirmContinuousSegment(session, seg, declared),
+    persist,
+    stage: (session, evidenceId, result, declared, extra, options) =>
+      stageContinuousCapture(session, evidenceId, result as ScreenContinuousResult, declared, extra, options),
+  };
+}
+
+/**
+ * AUD-004 — release the device spool of a STAGED session. Through the native
+ * ledger, which refuses (nothing deleted) unless it is bound to exactly this
+ * session; a platform without a ledger discards its spool as before.
+ */
+export async function releaseStagedContinuousSpool(captureSessionId: string): Promise<void> {
+  const committed = await commitContinuousSpool({ captureSessionId }).catch(() => false);
+  if (committed === null) await discardContinuousSpool().catch(() => undefined);
 }

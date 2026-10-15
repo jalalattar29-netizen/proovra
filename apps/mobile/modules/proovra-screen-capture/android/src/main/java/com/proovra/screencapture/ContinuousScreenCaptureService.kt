@@ -54,6 +54,9 @@ class ContinuousScreenCaptureService : Service() {
     private const val BITRATE = 6_000_000
     private const val FRAME_RATE = 12
     private const val MAX_SEGMENT_BYTES = 64L * 1024L * 1024L
+    // AUD-004 — the durable spool (segment files + ledger.json) under filesDir.
+    private const val SPOOL_DIR = "proovra-continuous"
+    private const val SEGMENT_PREFIX = "proovra-continuous-"
     // Total recording ceiling (ms, MONOTONIC — AUD-018), kept below the server
     // capture-session TTL so a session always stops with margin to finalize.
     // Agrees with maxSessionMs.
@@ -111,25 +114,134 @@ class ContinuousScreenCaptureService : Service() {
 
     fun isActive(): Boolean = active
     fun segmentCount(): Int = segments.size
-    fun lastOutcome(): Map<String, Any?>? = last
+
+    /**
+     * AUD-004 — the segment files and the durable ledger live in filesDir (the
+     * OS may purge cacheDir under storage pressure, and these may be the only
+     * copy of a recording). The ledger is attached by the module at creation
+     * and by every start.
+     */
+    fun spoolDir(context: Context): File = File(context.filesDir, SPOOL_DIR)
+
+    fun attachLedger(context: Context) {
+      ContinuousLedgerKeeper.attach(spoolDir(context))
+    }
+
+    /**
+     * The last session's outcome: the in-memory one, or — after a process
+     * death wiped it — the one the durable ledger proves (INTERRUPTED unless
+     * the recorder recorded a clean finish). Null when there is no recording.
+     */
+    fun lastOutcome(): Map<String, Any?>? {
+      last?.let { return it }
+      if (active) return null
+      val l = recoveredLedger() ?: return null
+      return ledgerOutcome(l)
+    }
+
+    /**
+     * AUD-004 — the durable ledger, recovered: a ledger still RECORDING with no
+     * active recorder is a process death, persisted as INTERRUPTED (idempotent).
+     */
+    internal fun recoveredLedger(): ContinuousLedger? {
+      val l = ContinuousLedgerKeeper.get() ?: return null
+      val recovered = recoverLedger(l, active)
+      if (recovered != l) ContinuousLedgerKeeper.replace(recovered)
+      return recovered
+    }
+
+    fun ledgerForJs(): Map<String, Any?>? = recoveredLedger()?.let { ledgerToJs(it, active) }
+
     /**
      * UC-AND-004 — every segment finalised in the current (or last) session, so
      * a recreated JS context can resume uploading them instead of orphaning a
      * live recording. The static callbacks are re-bound by each new module.
+     * AUD-004 — after a process death the in-memory list is empty: the durable
+     * ledger's not-yet-uploaded segments are returned instead.
      */
-    fun segmentsSnapshot(): List<Map<String, Any?>> = segments.toList()
+    fun segmentsSnapshot(): List<Map<String, Any?>> {
+      if (segments.isNotEmpty() || active) return segments.toList()
+      val l = ContinuousLedgerKeeper.get() ?: return emptyList()
+      return ledgerSegmentsToJs(l).filter { it["uploadState"] == SEGMENT_RECORDED }
+    }
 
-    /** Delete every local segment file of the last session and forget it. */
+    /** A new recording may not overwrite a ledger that still holds segments (AUD-004). */
+    fun newRecordingBlocked(): Boolean = blocksNewRecording(ContinuousLedgerKeeper.get(), active)
+
+    /**
+     * AUD-004 — bind the recording to the PROOVRA session JS opened for it.
+     * False when the ledger is bound to another session (never merged).
+     */
+    fun bindSession(captureSessionId: String, evidenceId: String, ownerUserId: String?): Boolean {
+      var ok = false
+      ContinuousLedgerKeeper.update { l ->
+        when (val outcome = bindLedger(l, captureSessionId, evidenceId, ownerUserId)) {
+          is BindOutcome.Bound -> { ok = true; outcome.ledger }
+          BindOutcome.Mismatch -> null
+        }
+      }
+      return ok
+    }
+
+    /**
+     * AUD-004 — PROOVRA confirmed a segment: the ledger says so FIRST, and only
+     * then is the local file (no longer the only copy) deleted. False when the
+     * ledger is bound to another session or refuses the confirmation.
+     */
+    fun markSegmentUploaded(captureSessionId: String, sequence: Int, sha256Hex: String, sizeBytes: Long): Boolean {
+      var ok = false
+      val after = ContinuousLedgerKeeper.update { l ->
+        val next = ledgerMarkUploaded(l, captureSessionId, sequence, sha256Hex, sizeBytes)
+        ok = next != null
+        next
+      }
+      if (!ok || after == null) return false
+      val seg = after.segments.firstOrNull { it.sequence == sequence }
+      if (seg != null && seg.path in automaticallyDeletablePaths(after)) {
+        try { File(seg.path).delete() } catch (_: Throwable) {}
+      }
+      return true
+    }
+
+    /**
+     * AUD-004 — the bound session's segments are staged (declared, stored, and
+     * its manifest uploaded): the spool is released. Refused (false, nothing
+     * deleted) unless the ledger is bound to exactly this session.
+     */
+    fun commitSpool(context: Context?, captureSessionId: String): Boolean {
+      if (active) return false
+      if (!ledgerBoundTo(ContinuousLedgerKeeper.get(), captureSessionId)) return false
+      deleteSpoolFiles(context)
+      return true
+    }
+
+    /**
+     * The user's EXPLICIT discard of the last recording: every local segment
+     * file and the durable ledger. Never automatic (AUD-004).
+     */
     fun discardSpool(context: Context?) {
       if (active) return
+      deleteSpoolFiles(context)
+    }
+
+    private fun deleteSpoolFiles(context: Context?) {
       for (seg in segments) {
         val uri = seg["uri"] as? String ?: continue
         try { File(uri.removePrefix("file://")).delete() } catch (_: Throwable) {}
       }
+      for (seg in ContinuousLedgerKeeper.get()?.segments ?: emptyList()) {
+        try { File(seg.path).delete() } catch (_: Throwable) {}
+      }
       try {
-        context?.cacheDir?.listFiles()?.filter { it.name.startsWith("proovra-continuous-") && it.name.endsWith(".mp4") }
-          ?.forEach { it.delete() }
+        if (context != null) {
+          spoolDir(context).listFiles()?.filter { it.name.startsWith(SEGMENT_PREFIX) && it.name.endsWith(".mp4") }
+            ?.forEach { it.delete() }
+          // Files written by builds that spooled into cacheDir.
+          context.cacheDir?.listFiles()?.filter { it.name.startsWith(SEGMENT_PREFIX) && it.name.endsWith(".mp4") }
+            ?.forEach { it.delete() }
+        }
       } catch (_: Throwable) {}
+      ContinuousLedgerKeeper.clear()
       segments.clear()
       last = null
     }
@@ -145,6 +257,10 @@ class ContinuousScreenCaptureService : Service() {
       terminationReason = "USER_STOPPED"
       terminationDetail = null; recorderErrorExtra = null; segmentStartFailure = null
       segments.clear(); limitations.clear(); last = null
+      // AUD-004 — the module refused the start if a ledger still holds segments
+      // (blocksNewRecording); an empty one (nothing was recorded) is released.
+      attachLedger(context)
+      if (ContinuousLedgerKeeper.get()?.segments?.isEmpty() == true) ContinuousLedgerKeeper.clear()
       val intent = Intent(context, ContinuousScreenCaptureService::class.java)
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
       else context.startService(intent)
@@ -185,6 +301,8 @@ class ContinuousScreenCaptureService : Service() {
     try { projection?.stop() } catch (_: Throwable) {}
     virtualDisplay = null; projection = null
     currentFile?.delete(); currentFile = null
+    // AUD-004 — a start that never recorded a segment leaves no ledger behind.
+    if (ContinuousLedgerKeeper.get()?.segments?.isEmpty() == true) ContinuousLedgerKeeper.clear()
     val cb = onStartFailedCb
     onStartedCb = null; onStartFailedCb = null
     cb?.invoke(code, message)
@@ -246,6 +364,15 @@ class ContinuousScreenCaptureService : Service() {
       failStart(segmentStartFailure ?: "RECORDER_UNAVAILABLE", "The screen recorder could not start.")
       return
     }
+    // AUD-004 — the durable ledger exists from the moment recording does.
+    ContinuousLedgerKeeper.replace(
+      ContinuousLedger(
+        recordingId = "${timeline.startWallMs}-${java.util.UUID.randomUUID()}",
+        startedAtUtc = startedAtUtc,
+        startedAtWallMs = timeline.startWallMs,
+        device = deviceBlock(),
+      ),
+    )
     onStartedCb?.invoke(startedAtUtc)
     onStartedCb = null; onStartFailedCb = null
   }
@@ -359,7 +486,9 @@ class ContinuousScreenCaptureService : Service() {
     encW = config.width; encH = config.height
     var started: MediaRecorder? = null
     return try {
-      val file = File(cacheDir, "proovra-continuous-${timeline.startWallMs}-${segments.size}.mp4")
+      val dir = spoolDir(this)
+      if (!dir.exists()) dir.mkdirs()
+      val file = File(dir, "$SEGMENT_PREFIX${timeline.startWallMs}-${segments.size}.mp4")
       currentFile = file
       val r = newRecorder(file, config)
       started = r
@@ -442,15 +571,30 @@ class ContinuousScreenCaptureService : Service() {
       // Record THIS segment's own encoded geometry (encW/encH), which reflects any
       // rotation that took effect at its start boundary — so the manifest's
       // per-segment orientation is truthful across transitions.
+      val offset = timeline.offsetOf(segmentStartElapsedMs)
+      val duration = timeline.since(segmentStartElapsedMs)
+      val orientation = if (encW >= encH) "landscape" else "portrait"
       val seg = mapOf<String, Any?>(
         "uri" to "file://${file.absolutePath}",
         "sequence" to seq,
-        "startedAtOffsetMs" to timeline.offsetOf(segmentStartElapsedMs),
-        "durationMs" to timeline.since(segmentStartElapsedMs),
+        "startedAtOffsetMs" to offset,
+        "durationMs" to duration,
         "widthPx" to encW,
         "heightPx" to encH,
-        "orientation" to if (encW >= encH) "landscape" else "portrait",
+        "orientation" to orientation,
       )
+      // AUD-004 — durable BEFORE JS hears of it: a death right after this close
+      // still leaves the segment recoverable (and countable).
+      ContinuousLedgerKeeper.update {
+        ledgerWithSegment(
+          it,
+          LedgerSegment(
+            sequence = seq, path = file.absolutePath, sizeBytes = file.length(), sha256Hex = null,
+            startedAtOffsetMs = offset, durationMs = duration, widthPx = encW, heightPx = encH,
+            orientation = orientation, uploadState = SEGMENT_RECORDED,
+          ),
+        )
+      }
       segments.add(seg)
       updateNotification(seq + 1)
       onSegment?.invoke(seg)
@@ -493,17 +637,19 @@ class ContinuousScreenCaptureService : Service() {
     // still not a complete session: sessionCompleteness (CaptureDecisions.kt).
     val completeness = sessionCompleteness(reason, limitations)
     val totalMs = timeline.offsetMs()
+    val endedAtUtc = timeline.utcAtOffset(totalMs)
+    val device = deviceBlock()
     val outcome = mapOf<String, Any?>(
       "osConsentGranted" to true,
       "captureStartedAtUtc" to startedAtUtc,
-      "captureEndedAtUtc" to timeline.utcAtOffset(totalMs),
+      "captureEndedAtUtc" to endedAtUtc,
       "device" to mapOf(
-        "platform" to "android",
-        "osVersion" to (Build.VERSION.RELEASE ?: "unknown"),
-        "model" to ((Build.MANUFACTURER ?: "") + " " + (Build.MODEL ?: "")).trim().ifEmpty { "Android device" },
-        "appVersion" to appVersionName(),
-        "screenW" to widthPx, "screenH" to heightPx, "densityDpi" to densityDpi,
-        "orientation" to if (widthPx >= heightPx) "landscape" else "portrait",
+        "platform" to device.platform,
+        "osVersion" to device.osVersion,
+        "model" to device.model,
+        "appVersion" to device.appVersion,
+        "screenW" to device.screenW, "screenH" to device.screenH, "densityDpi" to device.densityDpi,
+        "orientation" to device.orientation,
       ),
       "totalDurationMs" to totalMs,
       "segmentCount" to segments.size,
@@ -514,6 +660,10 @@ class ContinuousScreenCaptureService : Service() {
       "recorderErrorExtra" to recorderErrorExtra,
       "limitations" to limitations.toList(),
     )
+    // AUD-004 — the clean (or unclean) finish is durable before anyone is told.
+    ContinuousLedgerKeeper.update {
+      ledgerFinished(it, reason, terminationDetail, limitations.toList(), completeness, totalMs, endedAtUtc)
+    }
     last = outcome
     onStopped?.invoke(outcome)
 
@@ -521,6 +671,18 @@ class ContinuousScreenCaptureService : Service() {
     else @Suppress("DEPRECATION") stopForeground(true)
     stopSelf()
   }
+
+  /** The session-INITIAL device block (manifest + ledger). */
+  private fun deviceBlock(): LedgerDevice = LedgerDevice(
+    platform = "android",
+    osVersion = Build.VERSION.RELEASE ?: "unknown",
+    model = ((Build.MANUFACTURER ?: "") + " " + (Build.MODEL ?: "")).trim().ifEmpty { "Android device" },
+    appVersion = appVersionName(),
+    screenW = widthPx,
+    screenH = heightPx,
+    densityDpi = densityDpi,
+    orientation = if (widthPx >= heightPx) "landscape" else "portrait",
+  )
 
   private fun appVersionName(): String = try {
     packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown"

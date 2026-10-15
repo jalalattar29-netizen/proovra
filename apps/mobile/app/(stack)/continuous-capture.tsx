@@ -50,8 +50,10 @@ import { useAuth } from "../../src/auth-context";
 import {
   beginContinuousSession,
   cleanupContinuousTempFiles,
+  confirmContinuousSegment,
+  continuousRecoveryDeps,
+  releaseStagedContinuousSpool,
   reconcileContinuousUploads,
-  stageContinuousCapture,
   undeclaredSegments,
   uploadContinuousSegment,
   continuousSessionBytes,
@@ -59,11 +61,12 @@ import {
   CONTINUOUS_COMPLETENESS_LABEL,
   CONTINUOUS_PLATFORM_COPY,
   CONTINUOUS_REVIEW_COPY,
+  CONTINUOUS_SESSION_GONE,
   CONTINUOUS_STAGE_FAILURE,
   type DeclaredSegment,
 } from "../../src/continuous-capture";
 import { discardDirectCaptureSession, type DirectCaptureSession } from "../../src/direct-capture";
-import { saveCaptureSession } from "../../src/capture/capture-session-store";
+import { loadCaptureSession, saveCaptureSession } from "../../src/capture/capture-session-store";
 import {
   clearLiveContinuousSession,
   loadLiveContinuousSession,
@@ -80,15 +83,24 @@ import {
 } from "../../src/capture/screen-acquisition";
 import { setCaptureActive } from "../../src/capture/active-capture";
 import {
+  CONTINUOUS_DRAIN_DEADLINE_MS,
   INITIAL_CONTINUOUS_FLOW,
   continuousFlowReducer,
+  drainUploadQueue,
   shouldStopForBackpressure,
 } from "../../src/continuous-capture-flow";
+import {
+  executeContinuousRecovery,
+  planContinuousRecovery,
+  recoverOnce,
+} from "../../src/capture/continuous-recovery";
 import {
   addContinuousStartedListener,
   addContinuousStoppedListener,
   addScreenSegmentListener,
+  bindContinuousSession,
   discardContinuousSpool,
+  getContinuousLedger,
   getContinuousSegments,
   getScreenContinuousState,
   isScreenContinuousSupported,
@@ -138,11 +150,14 @@ export default function ContinuousCaptureScreen() {
   const seenRef = useRef<ScreenSegment[]>([]);
   const clientLimitationsRef = useRef<Set<string>>(new Set());
   const stopRequestedRef = useRef(false);
+  // AUD-004 — the continuity manifest once FIXED (persisted before its first
+  // upload): a retry or a restart during finalization stages exactly it again.
+  const stagedManifestRef = useRef<{ manifestJson: string; manifestPartIndex: number } | null>(null);
 
   const persistLive = useCallback(() => {
     const active = sessionRef.current;
-    if (!active) return;
-    void saveLiveContinuousSession({
+    if (!active) return Promise.resolve();
+    return saveLiveContinuousSession({
       captureSessionId: active.session.captureSessionId,
       evidenceId: active.evidenceId,
       expiresAtUtc: active.session.expiresAtUtc,
@@ -150,6 +165,7 @@ export default function ContinuousCaptureScreen() {
       declared: declaredRef.current,
       clientLimitations: Array.from(clientLimitationsRef.current),
       openedAtIso: new Date().toISOString(),
+      stagedManifest: stagedManifestRef.current,
     });
   }, [isIOS]);
 
@@ -173,7 +189,10 @@ export default function ContinuousCaptureScreen() {
       if (declaredRef.current.some((d) => d.sequence === seg.sequence)) continue;
       workersRef.current += 1;
       uploadContinuousSegment(active.session, active.evidenceId, seg)
-        .then((declared) => {
+        .then(async (declared) => {
+          // AUD-004 — the native ledger records the confirmation first, then
+          // releases the local copy (never before PROOVRA holds the bytes).
+          await confirmContinuousSegment(active.session, seg, declared);
           declaredRef.current = [...declaredRef.current.filter((d) => d.sequence !== declared.sequence), declared];
           uploadedBytesRef.current += declared.sizeBytes;
           persistLive();
@@ -249,6 +268,7 @@ export default function ContinuousCaptureScreen() {
     stopRequestedRef.current = false;
     resultRef.current = null;
     openingRef.current = false;
+    stagedManifestRef.current = null;
   }, []);
 
   /** Release an opened-but-unstaged session: server, native recorder, local files, durable record. */
@@ -272,7 +292,16 @@ export default function ContinuousCaptureScreen() {
     openingRef.current = true;
     clearStartTimer();
     try {
-      sessionRef.current = await beginContinuousSession({ teamId });
+      const opened = await beginContinuousSession({ teamId });
+      // Held at once, so a failure below releases it on the server.
+      sessionRef.current = opened;
+      // AUD-004 — the native ledger is bound to THIS session before anything
+      // uploads, so a recovery can never merge the recording into another one.
+      await bindContinuousSession({
+        captureSessionId: opened.session.captureSessionId,
+        evidenceId: opened.evidenceId,
+        ownerUserId: userId,
+      });
       persistLive();
       dispatch({ type: "STARTED" });
       syncFromNative();
@@ -287,7 +316,7 @@ export default function ContinuousCaptureScreen() {
     } finally {
       openingRef.current = false;
     }
-  }, [teamId, persistLive, syncFromNative, pump, releaseSession, clearStartTimer]);
+  }, [teamId, userId, persistLive, syncFromNative, pump, releaseSession, clearStartTimer]);
 
   // Live segment stream + start/stop events.
   useEffect(() => {
@@ -350,6 +379,10 @@ export default function ContinuousCaptureScreen() {
           }
         } else if (native.active) {
           setRecovery({ kind: "orphan" });
+        } else if (planContinuousRecovery(getContinuousLedger(), null, userId).kind === "RECOVER") {
+          // AUD-004 — the JS record was lost but the durable ledger proves a
+          // recording bound to THIS user's session: recoverable, not leftover.
+          setRecovery({ kind: "ended" });
         } else if (getContinuousSegments().length > 0) {
           // UC-IOS-010 — segments on disk that no session holds (the app was
           // killed before a session opened, or a broadcast was started from
@@ -370,14 +403,21 @@ export default function ContinuousCaptureScreen() {
     return () => setCaptureActive(false);
   }, [state.phase]);
 
-  // Wait until the bounded upload queue is fully drained (queue empty and no worker
-  // in flight), so Stop/Finalize never race an unfinished segment upload.
-  const drainUploads = useCallback(async () => {
-    pump();
-    while (queueRef.current.length > 0 || workersRef.current > 0) {
-      await new Promise((r) => setTimeout(r, 100));
-    }
-  }, [pump]);
+  // Wait until the bounded upload queue is drained (queue empty and no worker
+  // in flight), so Stop/Finalize never race an unfinished segment upload —
+  // BOUNDED (drainUploadQueue): it ends when the session is gone or the
+  // deadline passes; whatever is still pending stays on disk in the ledger.
+  const drainUploads = useCallback(
+    () =>
+      drainUploadQueue({
+        pending: () => queueRef.current.length,
+        inFlight: () => workersRef.current,
+        hasSession: () => sessionRef.current !== null,
+        pump,
+        deadlineMs: CONTINUOUS_DRAIN_DEADLINE_MS,
+      }),
+    [pump],
+  );
 
   const start = useCallback(
     async (opts: { notificationAcknowledged?: boolean } = {}) => {
@@ -455,11 +495,48 @@ export default function ContinuousCaptureScreen() {
     }
   }, [drainUploads, syncFromNative]);
 
+  /**
+   * AUD-004 — recover a recording that ended while PROOVRA was closed, from the
+   * DURABLE native ledger: every recorded segment (confirmed or not), the
+   * session result (INTERRUPTED unless the recorder finished cleanly) and the
+   * device block. It enters the ordinary review; Continue then uploads what
+   * PROOVRA never confirmed and stages the manifest — the same finalize. A
+   * platform without a ledger (iOS) adopts the recorder's own summary.
+   */
   const recoverEnded = useCallback(async () => {
     setRecovery(null);
+    const plan = planContinuousRecovery(getContinuousLedger(), await loadLiveContinuousSession(), userId);
+    if (plan.kind === "MISMATCH" || plan.kind === "UNBOUND") {
+      // The recording on this device is not bound to the session this device
+      // holds: it is never merged into it. Only an explicit discard remains.
+      setRecovery({ kind: "leftover" });
+      return;
+    }
+    if (plan.kind !== "RECOVER") {
+      dispatch({ type: "STARTED" });
+      await stop();
+      return;
+    }
+    sessionRef.current = { session: plan.session, evidenceId: plan.evidenceId };
+    declaredRef.current = plan.declared;
+    seenRef.current = plan.pending;
+    clientLimitationsRef.current = new Set(plan.clientLimitations);
+    stagedManifestRef.current = plan.stagedManifest;
+    const result = plan.result as ScreenContinuousResult;
+    resultRef.current = result;
+    capturedRef.current = result.segmentCount;
+    // The JS record is rebuilt from the ledger if it was lost.
+    await persistLive();
+    const reconciled = reconcileContinuousUploads(result, plan.declared, plan.clientLimitations);
     dispatch({ type: "STARTED" });
-    await stop();
-  }, [stop]);
+    dispatch({
+      type: "STOPPED",
+      captured: reconciled.recordedSegmentCount,
+      uploaded: plan.declared.length,
+      completeness: reconciled.sessionCompleteness,
+      stopReason: result.terminationReason,
+    });
+  }, [stop, userId, persistLive]);
 
   const finalize = useCallback(async () => {
     const active = sessionRef.current;
@@ -473,24 +550,43 @@ export default function ContinuousCaptureScreen() {
     let step: "drain" | "stage" | "handoff" = "drain";
     try {
       await drainUploads();
-      // UC-STR-002 — retry every recorded-but-undeclared segment from disk.
-      for (const seg of undeclaredSegments(seenRef.current, declaredRef.current)) {
-        try {
-          const declared = await uploadContinuousSegment(active.session, active.evidenceId, seg);
-          declaredRef.current = [...declaredRef.current, declared];
-          persistLive();
-        } catch {
-          // Still missing: stated as SEGMENT_UPLOAD_LOST by the manifest.
-        }
-      }
-      step = "stage";
-      const staged = await stageContinuousCapture(
-        active.session,
-        active.evidenceId,
-        result,
-        declaredRef.current,
-        Array.from(clientLimitationsRef.current),
+      // UC-STR-002 / AUD-004 — retry every recorded-but-undeclared segment from
+      // disk, then stage, through the ONE recovery executor (idempotent, never
+      // destructive). A segment refused for good is stated SEGMENT_UPLOAD_LOST;
+      // a retryable failure keeps the session for Continue.
+      const deps = continuousRecoveryDeps(async (state) => {
+        declaredRef.current = state.declared;
+        stagedManifestRef.current = state.stagedManifest;
+        await persistLive();
+      });
+      const outcome = await recoverOnce(active.session.captureSessionId, () =>
+        executeContinuousRecovery(
+          {
+            kind: "RECOVER",
+            session: active.session,
+            evidenceId: active.evidenceId,
+            declared: declaredRef.current,
+            pending: undeclaredSegments(seenRef.current, declaredRef.current),
+            result,
+            clientLimitations: Array.from(clientLimitationsRef.current),
+            stagedManifest: stagedManifestRef.current,
+          },
+          {
+            ...deps,
+            stage: (...args) => {
+              step = "stage";
+              return deps.stage(...args);
+            },
+          },
+        ),
       );
+      if (outcome.kind === "SESSION_GONE") {
+        // The server closed the session (expired / reaped). Nothing is
+        // deleted: the recording stays on this device until the user discards.
+        dispatch({ type: "STAGE_FAILED", message: CONTINUOUS_SESSION_GONE });
+        return;
+      }
+      const staged = outcome.staged;
 
       // The canonical draft, and the durable record the Capture surface
       // resumes. The segments are already at storage, so finalize seals
@@ -507,10 +603,15 @@ export default function ContinuousCaptureScreen() {
         sizeBytes: continuousSessionBytes(declaredRef.current),
       });
       // Its id travels with the durable record, so Capture closes THIS draft at
-      // finalize instead of leaving it listed as unfinished.
-      const draft = await openCaptureDraft({ items: [item] }).catch(() => null);
+      // finalize instead of leaving it listed as unfinished. AUD-004 — a
+      // restart after the hand-off reuses the draft it already opened.
+      const previous = await loadCaptureSession().catch(() => null);
+      const draftId =
+        previous?.captureSessionId === active.session.captureSessionId && previous.draftId
+          ? previous.draftId
+          : ((await openCaptureDraft({ items: [item] }).catch(() => null))?.id ?? null);
       await saveCaptureSession({
-        draftId: draft?.id ?? null,
+        draftId,
         captureSessionId: active.session.captureSessionId,
         // UC-STR-003 — the server's slid expiry (carried forward by every
         // declaration), not the value the session was opened with.
@@ -531,8 +632,9 @@ export default function ContinuousCaptureScreen() {
         acquisition: { mode, manifestJson: staged.manifestJson },
       });
       await clearLiveContinuousSession();
-      // The segments are at storage: the device spool is no longer needed.
-      await discardContinuousSpool().catch(() => undefined);
+      // The session is staged: release the device spool (AUD-004 — through the
+      // ledger, bound to exactly this session).
+      await releaseStagedContinuousSpool(active.session.captureSessionId);
 
       sessionRef.current = null;
       dispatch({

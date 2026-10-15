@@ -55,8 +55,18 @@ const MANIFEST_STUB = dataUrl(`
   export class ContinuousManifestError extends Error {}
 `);
 
+// The real retry rule (no imports); the native binding is not what this file tests.
+const RETRY_URL = dataUrl(compile("../src/capture/capture-retry.ts"));
+const NATIVE_STUB = dataUrl(
+  "export const markContinuousSegmentUploaded = async () => null;\n" +
+    "export const commitContinuousSpool = async () => null;\n" +
+    "export const discardContinuousSpool = async () => {};",
+);
+
 const load = async (file) => {
   const src = compile(file)
+    .replace(/from ["']\.\/capture\/capture-retry["']/g, `from "${RETRY_URL}"`)
+    .replace(/from ["']\.\.\/modules\/proovra-screen-capture["']/g, `from "${NATIVE_STUB}"`)
     .replace(/from ["']\.\/direct-capture["']/g, `from "${DIRECT_CAPTURE_STUB}"`)
     .replace(/from ["']\.\/continuous-manifest["']/g, `from "${MANIFEST_STUB}"`)
     .replace(/from ["']react-native["']/g, `from "${RN_STUB}"`)

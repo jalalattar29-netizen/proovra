@@ -70,7 +70,11 @@ const UPLOAD_STUB =
 const ACQUISITION_URL =
   "data:text/javascript," + encodeURIComponent(compile("../src/capture/screen-acquisition.ts"));
 
+// AUD-005 — the real request deadlines and retry rule (no imports of their own).
+const RETRY_URL = "data:text/javascript," + encodeURIComponent(compile("../src/capture/capture-retry.ts"));
+
 const src = compile("../src/direct-capture.ts")
+  .replace('from "./capture/capture-retry"', `from "${RETRY_URL}"`)
   .replace('from "./capture/screen-acquisition"', `from "${ACQUISITION_URL}"`)
   .replace(/from ["']\.\/api["']/g, `from "${API_STUB}"`)
   .replace(/from ["']\.\/upload-utils["']/g, `from "${UPLOAD_STUB}"`);

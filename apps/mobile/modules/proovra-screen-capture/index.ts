@@ -259,6 +259,34 @@ export type ScreenContinuousOptions = {
   maxSegments?: number;
 };
 
+/**
+ * AUD-004 — one segment as the durable native ledger holds it: where it is,
+ * and whether PROOVRA confirmed it (UPLOADED, with the digest it accepted).
+ */
+export type ScreenLedgerSegment = ScreenSegment & {
+  sizeBytes: number;
+  sha256Hex: string | null;
+  uploadState: "RECORDED" | "UPLOADED";
+};
+
+/**
+ * AUD-004 — the durable record of a continuous recording, which survives a JS
+ * reload and a process death. `outcome` is the session result read from the
+ * ledger alone: INTERRUPTED (CAPTURE_INTERRUPTED, interruption PROCESS_DEATH)
+ * unless the recorder itself recorded a clean, complete finish.
+ */
+export type ScreenContinuousLedger = {
+  recordingId: string;
+  captureSessionId: string | null;
+  evidenceId: string | null;
+  ownerUserId: string | null;
+  state: "RECORDING" | "FINISHED" | "INTERRUPTED";
+  active: boolean;
+  interruption: "PROCESS_DEATH" | null;
+  outcome: ScreenContinuousResult & { interruption?: string | null };
+  segments: ScreenLedgerSegment[];
+};
+
 type ContinuousNativeModule = {
   isContinuousSupported(): boolean;
   getContinuousState(): ScreenContinuousState;
@@ -270,6 +298,11 @@ type ContinuousNativeModule = {
   getContinuousSegments(): ScreenSegment[];
   /** UC-IOS-010 / UC-AND-004 — explicitly discard a leftover recording's local spool. */
   discardContinuousSpool(): Promise<void>;
+  /** AUD-004 (Android) — the durable recording ledger; absent on platforms without one. */
+  getContinuousLedger?(): ScreenContinuousLedger | null;
+  bindContinuousSession?(o: { captureSessionId: string; evidenceId: string; ownerUserId: string | null }): Promise<boolean>;
+  markContinuousSegmentUploaded?(o: { captureSessionId: string; sequence: number; sha256Hex: string; sizeBytes: number }): Promise<boolean>;
+  commitContinuousSpool?(o: { captureSessionId: string }): Promise<boolean>;
   startContinuousCapture(options: { segmentMs: number; maxSegments: number }): Promise<ScreenContinuousStarted>;
   stopContinuousCapture(): Promise<ScreenContinuousResult>;
 };
@@ -333,6 +366,65 @@ export function getContinuousSegments(): ScreenSegment[] {
 export async function discardContinuousSpool(): Promise<void> {
   if (!isContinuousScreenPlatform()) return;
   await continuousModule().discardContinuousSpool();
+}
+
+/** AUD-004 — the durable ledger, or null (no recording, or a platform without one). */
+export function getContinuousLedger(): ScreenContinuousLedger | null {
+  if (Platform.OS !== "android") return null;
+  try {
+    const mod = continuousModule();
+    if (typeof mod.getContinuousLedger !== "function") return null;
+    const l = mod.getContinuousLedger();
+    return l && typeof l === "object" && Array.isArray(l.segments) ? l : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * AUD-004 — bind the native recording to the PROOVRA session opened for it.
+ * Resolves false where the platform keeps no ledger; REJECTS (BINDING_MISMATCH)
+ * when the recording already belongs to another session — never merged.
+ */
+export async function bindContinuousSession(o: {
+  captureSessionId: string;
+  evidenceId: string;
+  ownerUserId: string | null;
+}): Promise<boolean> {
+  if (Platform.OS !== "android") return false;
+  const mod = continuousModule();
+  if (typeof mod.bindContinuousSession !== "function") return false;
+  return mod.bindContinuousSession(o);
+}
+
+/**
+ * AUD-004 — PROOVRA confirmed a segment. `null`: the platform keeps no ledger
+ * (the caller manages the file itself); `false`: the ledger refused (another
+ * session) and the file is kept; `true`: recorded, and native released the
+ * now-redundant local copy.
+ */
+export async function markContinuousSegmentUploaded(o: {
+  captureSessionId: string;
+  sequence: number;
+  sha256Hex: string;
+  sizeBytes: number;
+}): Promise<boolean | null> {
+  if (Platform.OS !== "android") return null;
+  const mod = continuousModule();
+  if (typeof mod.markContinuousSegmentUploaded !== "function") return null;
+  return mod.markContinuousSegmentUploaded(o);
+}
+
+/**
+ * AUD-004 — the bound session is staged: release its spool. `null` where the
+ * platform keeps no ledger; `false` (nothing deleted) unless the ledger is
+ * bound to exactly this session.
+ */
+export async function commitContinuousSpool(o: { captureSessionId: string }): Promise<boolean | null> {
+  if (Platform.OS !== "android") return null;
+  const mod = continuousModule();
+  if (typeof mod.commitContinuousSpool !== "function") return null;
+  return mod.commitContinuousSpool(o);
 }
 
 export async function stopContinuousCapture(): Promise<ScreenContinuousResult> {
