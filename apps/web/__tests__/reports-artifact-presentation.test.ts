@@ -274,14 +274,17 @@ test("stored rows with missing objects return an explicit unavailable-artifact c
     "report_artifact_missing",
     "verification_package_artifact_missing",
   ]) {
-    assert.match(
-      EVIDENCE_ROUTE,
-      new RegExp(`reply\\.code\\(410\\)\\.send\\(\\{[\\s\\S]{0,120}code: "${codeValue}"`),
-    );
+    // AUD-011 — every download route answers through ONE guard, which sends
+    // its missingCode with 410 only for a version proven gone.
+    assert.match(EVIDENCE_ROUTE, new RegExp(`missingCode: "${codeValue}"`));
     // RGA-04 — the Reports index reads these through the ONE shared
     // download-failure authority instead of a private switch.
     assert.match(SHARED_DOWNLOAD_FAILURE, new RegExp(codeValue));
   }
+  assert.match(EVIDENCE_ROUTE, /return reply\.code\(410\)\.send\(\{\s*code: input\.missingCode,/);
+  // A store that did not answer, or refused us, is never "missing".
+  assert.match(EVIDENCE_ROUTE, /code: "STORAGE_UNAVAILABLE"/);
+  assert.match(EVIDENCE_ROUTE, /code: "STORAGE_ACCESS_FAILED"/);
   assert.ok(INDEX.includes('describeArtifactDownloadFailure("report", err)'));
   assert.ok(INDEX.includes('describeArtifactDownloadFailure("verificationPackage", err)'));
 });

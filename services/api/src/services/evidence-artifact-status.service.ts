@@ -446,12 +446,12 @@ export async function buildEvidenceArtifactStatus(params: {
   // MISSING, not READY. A store that did not answer (transient, permission)
   // proves nothing and leaves the row's answer standing.
   const reportAvailability: OutputArtifactAvailability = latestReport
-    ? loaded.storedObjects.report === "NOT_FOUND"
+    ? loaded.storedObjects?.report === "NOT_FOUND"
       ? "MISSING"
       : "READY"
     : "NO_ARTIFACT";
   const packageAvailability: OutputArtifactAvailability = latestPackage
-    ? latestPackage === loaded.packageAtLatest && loaded.storedObjects.package === "NOT_FOUND"
+    ? latestPackage === loaded.packageAtLatest && loaded.storedObjects?.package === "NOT_FOUND"
       ? "MISSING"
       : "READY"
     : "NO_ARTIFACT";

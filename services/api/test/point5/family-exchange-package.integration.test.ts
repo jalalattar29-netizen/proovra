@@ -45,10 +45,14 @@ vi.mock("../../../worker/src/storage.js", async (importOriginal) => {
       if (storage.fail) throw new Error("storage unavailable");
       storage.put.push({ key: p.key, bytes: p.body?.length ?? 0 });
       if (storage.onPut) await storage.onPut(p.key);
-      return { etag: "test" };
+      return { etag: "test", versionId: `v-${p.key}` };
     },
-    deleteObject: async (p: { key: string }) => {
+    // AUD-028 — the builder removes exactly the VERSION it wrote, and is told
+    // what a post-delete listing proved.
+    deleteObjectVersions: async (p: { key: string; versionId?: string | null }) => {
+      expect(p.versionId).toBe(`v-${p.key}`);
       storage.deleted.push(p.key);
+      return { deleted: true, deletedVersions: 1, retainedVersions: 0, deleteMarkerOnly: false, failed: 0 };
     },
   };
 });

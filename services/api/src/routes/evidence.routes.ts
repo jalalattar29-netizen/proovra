@@ -282,7 +282,7 @@ import {
   getObjectRange,
   probeStoredObject,
 } from "../storage.js";
-import { bump as bumpOpsMetric } from "../services/ops/metrics.service.js";
+import { bump as bumpOpsMetric } from "@proovra/shared-runtime/ops";
 import { verifyJwt } from "../services/jwt.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { admitPublicVerifyClient, admitPublicVerifyTarget } from "../services/public-verify/public-verify-gate.js";

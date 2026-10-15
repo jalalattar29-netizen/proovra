@@ -154,7 +154,7 @@ export type LoadedOutputFacts = {
    * AUD-011 — what a HEAD of each latest-pair object's RECORDED version
    * answered (single-record views only; null = not probed / no such row).
    */
-  storedObjects: { report: StoredObjectProbe["state"] | null; package: StoredObjectProbe["state"] | null };
+  storedObjects?: { report: StoredObjectProbe["state"] | null; package: StoredObjectProbe["state"] | null };
 };
 
 /*

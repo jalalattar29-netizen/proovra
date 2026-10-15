@@ -186,6 +186,12 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
       "the action was refused. Inventing a reason would be worse than the bucket.",
   },
   POLICY_NOT_PROVISIONED: { disposition: "customer", where: "global" },
+
+  // -- Stored artifacts (AUD-011) ------------------------------------------
+  // A store that did not answer, and one that refused the server: neither is
+  // a missing artifact. Worded by THE shared download-failure authority.
+  STORAGE_UNAVAILABLE: { disposition: "customer", where: "packages/shared/src/download-failure.ts" },
+  STORAGE_ACCESS_FAILED: { disposition: "customer", where: "packages/shared/src/download-failure.ts" },
   ORG_SECURITY_POLICY_NOT_APPLICABLE: {
     disposition: "internal",
     why: "Organization security administration console.",

@@ -36,22 +36,41 @@ vi.mock("../src/storage.js", async (importOriginal) => {
     err.$metadata = { httpStatusCode: 404 };
     return err;
   };
+  const head = async (p: { bucket: string; key: string }) => {
+    store.reads += 1;
+    const o = store.objects.get(`${p.bucket}/${p.key}`);
+    if (!o) throw notFound(p.key);
+    return {
+      sizeBytes: o.body.length,
+      checksumSha256: o.checksumSha256,
+      contentType: "application/pdf",
+      etag: null,
+      metadata: null,
+      objectLockMode: null,
+      objectLockRetainUntilDate: null,
+      objectLockLegalHoldStatus: null,
+    };
+  };
+  const classify = actual.classifyStorageFailure as (e: unknown) => "NOT_FOUND" | "ACCESS_DENIED" | "TRANSIENT";
+  const ReadError = actual.StorageReadError as new (c: string, s: number | null) => Error;
   return {
     ...actual,
-    headObject: async (p: { bucket: string; key: string }) => {
-      store.reads += 1;
-      const o = store.objects.get(`${p.bucket}/${p.key}`);
-      if (!o) throw notFound(p.key);
-      return {
-        sizeBytes: o.body.length,
-        checksumSha256: o.checksumSha256,
-        contentType: "application/pdf",
-        etag: null,
-        metadata: null,
-        objectLockMode: null,
-        objectLockRetainUntilDate: null,
-        objectLockLegalHoldStatus: null,
-      };
+    headObject: head,
+    // AUD-011 — the recorded-version HEAD reads the same in-process store,
+    // classified by the real classifier.
+    headRecordedObject: async (p: { bucket: string; key: string }) => {
+      try {
+        return await head(p);
+      } catch (err) {
+        throw new ReadError(classify(err), 404);
+      }
+    },
+    probeStoredObject: async (p: { bucket: string; key: string }) => {
+      try {
+        return { state: "PRESENT" as const, sizeBytes: (await head(p)).sizeBytes };
+      } catch (err) {
+        return { state: classify(err) };
+      }
     },
     getObjectStream: async (p: { bucket: string; key: string }) => {
       store.reads += 1;
