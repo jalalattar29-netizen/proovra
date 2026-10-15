@@ -41,6 +41,8 @@ function conclude(otsProofBase64: string | null, otsStatus = "ANCHORED", chain: 
       storageImmutable: true,
       storageObjectLockMode: "COMPLIANCE",
       storageObjectLockRetainUntilUtc: "2036-01-01T00:00:00.000Z",
+      // AUD-014 — this run read the stored object and confirmed the lock.
+      storageProtectionVerification: "STORAGE_CONFIRMED",
       identityLevelSnapshot: "VERIFIED_EMAIL",
       ...chain,
     },

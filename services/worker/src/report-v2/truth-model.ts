@@ -1,4 +1,4 @@
-import { OTS_VERIFICATION_WORDS, otsVerificationOfSignalState, presentOtsAnchoring } from "@proovra/shared";
+import { OTS_VERIFICATION_WORDS, isOrganizationVerifiedAtCapture, otsVerificationOfSignalState, presentOtsAnchoring } from "@proovra/shared";
 import {
   buildEvidenceTrustDecision,
   buildCanonicalEvidenceMaterials,
@@ -415,12 +415,16 @@ export function buildTrustDecision(params: {
       otsChainVerifier: params.evidence.otsChainVerifier ?? null,
       otsChainFailureCode: params.evidence.otsChainFailureCode ?? null,
       signatureVerified: params.evidence.signatureVerified ?? null,
+      signatureValidity: params.evidence.signatureValidity ?? null,
       custodyChainValid: params.evidence.custodyChainValid ?? null,
       storageImmutable: params.evidence.storageImmutable,
       storageObjectLockMode: params.evidence.storageObjectLockMode,
       storageObjectLockRetainUntilUtc:
         params.evidence.storageObjectLockRetainUntilUtc,
+      storageProtectionVerification: params.evidence.storageProtectionVerification ?? null,
       identityLevelSnapshot: params.evidence.identityLevelSnapshot,
+      // AUD-016 — the capture-time organization-verification fact.
+      organizationVerifiedAtCapture: isOrganizationVerifiedAtCapture(params.evidence.acquisitionIdentity ?? null),
       submittedByEmail: params.evidence.submittedByEmail,
       submittedByAuthProvider: params.evidence.submittedByAuthProvider,
       verificationPackageVersion: params.evidence.verificationPackageVersion,

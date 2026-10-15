@@ -717,6 +717,22 @@ test("Integrity tab: material fields, status cards, and failure notes only when 
   has(r2, "Review timestamp availability. The timestamp provider did not return a usable token, so no timestamp digest match or mismatch can be concluded.");
 });
 
+test("AUD-014: a recorded (not read) Object Lock is 'Immutable Storage Recorded', never 'Locked'", async () => {
+  answer = () => ({
+    status: 200,
+    body: reply({
+      storageAndTimestamping: {
+        ...reply().storageAndTimestamping,
+        storage: { ...reply().storageAndTimestamping.storage, verified: false, source: "RECORDED", verification: "RECORDED" },
+      },
+    }),
+  });
+  const r = await render();
+  await r.press("Integrity");
+  has(r, "Immutable Storage Recorded");
+  lacks(r, "Immutable Storage Locked");
+});
+
 test("Forensic Review Mode expands long values and reveals custody Prev Hash / Event Hash", async () => {
   const pem = `-----BEGIN PUBLIC KEY-----${"K".repeat(300)}`;
   answer = () => ({ status: 200, body: reply({ technicalMaterials: { ...reply().technicalMaterials, publicKeyPem: pem } }) });

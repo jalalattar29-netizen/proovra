@@ -238,7 +238,7 @@ function card(signal: TrustSignal, vm: ReportViewModel): SignalCard {
     }
     case "immutable_storage":
       return signal.state === "PASSED"
-        ? verified(signal.key, "Immutable retention verified", "The stored object is held under Object Lock COMPLIANCE retention with a recorded retain-until date.")
+        ? verified(signal.key, "Immutable retention verified", "A read of the stored object confirmed Object Lock COMPLIANCE retention with a retain-until date in the future.")
         : notPassed(signal, word);
     case "custody_chain":
       return signal.state === "PASSED"

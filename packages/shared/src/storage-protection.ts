@@ -62,6 +62,94 @@ export function classifyStorageProtection(
 }
 
 /**
+ * AUD-014 — WHAT IS KNOWN ABOUT THE PROTECTION, AND HOW.
+ *
+ * `classifyStorageProtection` answers "is the object protected?" from
+ * whatever lock facts a surface holds. Every surface then said "Immutable
+ * retention verified" for a COMPLIANCE snapshot RECORDED on the row at
+ * sealing — a statement about the past, not a read of the stored object. The
+ * verification state keeps the two apart:
+ *
+ *   STORAGE_CONFIRMED  an authoritative read of the stored object (OBSERVED
+ *                      HEAD) succeeded and shows COMPLIANCE retention whose
+ *                      retain-until is in the future. The ONLY "verified".
+ *   RECORDED           the row's sealing-time snapshot records COMPLIANCE
+ *                      retention still in force; the object was not read.
+ *   CONFIGURED         nothing is recorded or observed for this object, but
+ *                      the platform's retention authority has COMPLIANCE
+ *                      Object Lock configured for new writes.
+ *   UNAVAILABLE        nothing could be established: no lock facts, the
+ *                      read failed, or the record's custody chain says
+ *                      storage protection was unavailable when it was sealed.
+ *   FAILED             a recorded or observed state that does not meet the
+ *                      retention contract: no retention, retention expired,
+ *                      or a mode other than COMPLIANCE.
+ *   NOT_APPLICABLE     there is no stored object to protect.
+ *
+ * Retention policy itself (COMPLIANCE, 2,920 days, never shortened) stays in
+ * the retention authority; this only states what is known about one object.
+ */
+export const STORAGE_PROTECTION_VERIFICATION_STATES = [
+  "STORAGE_CONFIRMED",
+  "RECORDED",
+  "CONFIGURED",
+  "UNAVAILABLE",
+  "FAILED",
+  "NOT_APPLICABLE",
+] as const;
+export type StorageProtectionVerificationState = (typeof STORAGE_PROTECTION_VERIFICATION_STATES)[number];
+
+export type StorageProtectionVerificationInput = StorageProtectionFacts & {
+  /** RECORDED: the row's sealing snapshot. OBSERVED: a live read of the object. Unknown reads as RECORDED. */
+  source?: "RECORDED" | "OBSERVED" | null;
+  /** false: no stored object exists for this record. */
+  storedObjectExists?: boolean | null;
+  /** The record's custody chain holds STORAGE_PROTECTION_UNAVAILABLE. */
+  protectionUnavailableRecorded?: boolean | null;
+  /** The retention authority has COMPLIANCE Object Lock configured (objectLockPolicyFromEnv). */
+  platformCompliancePolicyConfigured?: boolean | null;
+};
+
+export const STORAGE_PROTECTION_VERIFICATION_LABELS: Readonly<Record<StorageProtectionVerificationState, string>> = {
+  STORAGE_CONFIRMED: "Immutable retention verified",
+  RECORDED: "Immutable retention recorded",
+  CONFIGURED: "Immutable retention configured",
+  UNAVAILABLE: "Immutable retention not confirmed",
+  FAILED: "Immutable retention not in force",
+  NOT_APPLICABLE: "No stored object to protect",
+};
+
+export function resolveStorageProtectionVerification(
+  input: StorageProtectionVerificationInput | null | undefined,
+  now: Date = new Date(),
+): { state: StorageProtectionVerificationState; protection: StorageProtectionClass; verified: boolean; label: string } {
+  const mode = (input?.mode ?? "").trim().toUpperCase();
+  const until = untilMs(input?.retainUntil);
+  const hasFacts = Boolean(mode) || Number.isFinite(until) || Boolean((input?.legalHold ?? "").trim());
+  const out = (state: StorageProtectionVerificationState) => ({
+    state,
+    // A failed read beside recorded facts leaves the recorded class standing.
+    protection: classifyStorageProtection(input && hasFacts ? { ...input, readFailed: false } : input, now),
+    verified: state === "STORAGE_CONFIRMED",
+    label: STORAGE_PROTECTION_VERIFICATION_LABELS[state],
+  });
+  if (input?.storedObjectExists === false) return out("NOT_APPLICABLE");
+  if (!input) return out("UNAVAILABLE");
+  const complianceInForce = mode === "COMPLIANCE" && Number.isFinite(until) && until > now.getTime();
+  // Only a successful authoritative read of the object confirms the lock.
+  if (input.source === "OBSERVED" && !input.readFailed && complianceInForce) return out("STORAGE_CONFIRMED");
+  if (input.protectionUnavailableRecorded) return out("UNAVAILABLE");
+  if (!hasFacts) {
+    if (input.readFailed) return out("UNAVAILABLE");
+    // The object was read and carries no lock at all.
+    if (input.source === "OBSERVED") return out("FAILED");
+    return out(input.platformCompliancePolicyConfigured ? "CONFIGURED" : "UNAVAILABLE");
+  }
+  if (complianceInForce) return out("RECORDED");
+  return out("FAILED");
+}
+
+/**
  * The review alert for a class, or null when there is nothing to flag. Worded
  * as what is TRUE of this record's stored object — never a claim about how the
  * platform is configured, which this record cannot know.

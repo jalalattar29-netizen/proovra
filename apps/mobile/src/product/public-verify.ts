@@ -865,7 +865,8 @@ export function buildVerifyVerdict(
     s.custodyChainValid === true,
     s.timestampDigestMatches === true,
     s.otsVerification === "CHAIN_VERIFIED",
-    s.storage.verified === true || s.storage.immutable === true,
+    // AUD-014 — only a confirmed read of the stored object passes; a recorded lock does not.
+    s.storage.verified === true,
   ].filter(Boolean).length;
   const knownSignals = [
     s.canonicalHashMatches !== null,
@@ -948,7 +949,7 @@ export function buildVerifyReviewerActions(verdict: VerifyVerdictView, s: Verify
     actions.push("Review the OpenTimestamps proof: it does not commit to this record's evidence digest.");
   if (s.otsChainFailed)
     actions.push(`Review the OpenTimestamps proof: ${otsAnchoringCopy("en").verificationSentences.CHAIN_FAILED}`);
-  if (s.storage.immutable !== true && s.storage.verified !== true)
+  if (s.storage.verified !== true)
     actions.push("Confirm storage immutability or retention status before relying on the storage-protection layer.");
   if (actions.length === 0)
     actions.push(
@@ -1705,7 +1706,10 @@ export function verifyRecordFields(
 /** buildStoragePresentation (page.tsx:394) — the badge label. */
 function buildStoragePresentation(s: VerifyIntegritySignals["storage"]): { label: string; tone: VerifyWebTone } {
   const mode = (s.mode ?? "").trim().toUpperCase();
-  if (s.immutable === true && mode === "COMPLIANCE") return { label: "Immutable Storage Locked", tone: "success" };
+  // AUD-014 — "Locked" only when the API confirmed it by reading the stored
+  // object (`verified`); a recorded COMPLIANCE lock is "Recorded".
+  if (s.verified === true && s.immutable === true && mode === "COMPLIANCE") return { label: "Immutable Storage Locked", tone: "success" };
+  if (s.immutable === true && mode === "COMPLIANCE") return { label: "Immutable Storage Recorded", tone: "info" };
   if (mode === "GOVERNANCE") return { label: "Governance Retention Active", tone: "info" };
   if (s.verified === true) return { label: "Storage Protection Reported", tone: "info" };
   return { label: "Storage Protection Unverified", tone: "neutral" };

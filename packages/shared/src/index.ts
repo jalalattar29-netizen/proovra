@@ -2611,6 +2611,8 @@ export * from "./queue-job-correlation.js";
 // PROOVRA?"), artifact classes, derivative lineage vocabulary, and the typed
 // public Verify acquisition contract.
 export * from "./evidence-acquisition.js";
+// AUD-013 — THE record-signature validity resolver (revoked / rotated / mismatched keys).
+export * from "./record-signature-validity.js";
 // UC — the ONE cross-platform capture-capability authority (F7). Answers a
 // PRODUCT/PLATFORM question only ("which capture channels can this platform
 // offer, and in what truthful availability state?"). It never decides

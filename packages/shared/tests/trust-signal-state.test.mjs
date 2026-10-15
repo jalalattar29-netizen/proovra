@@ -182,6 +182,7 @@ function decide(overrides) {
       storageImmutable: true,
       storageObjectLockMode: "COMPLIANCE",
       storageObjectLockRetainUntilUtc: "2036-01-01T00:00:00.000Z",
+      storageProtectionVerification: "STORAGE_CONFIRMED",
       identityLevelSnapshot: "VERIFIED_EMAIL",
       submittedByAuthProvider: "EMAIL",
       otsStatus: "PENDING",

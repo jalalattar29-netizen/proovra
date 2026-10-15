@@ -325,8 +325,9 @@ function buildStoragePresentation(
     };
   }
 
-  // ET-PKG-06 — what the record says, not a check of the stored object.
-  if (immutable && mode === "COMPLIANCE" && recorded) {
+  // ET-PKG-06 / AUD-014 — what the record says, not a check of the stored
+  // object: anything short of a confirmed read (`verified`) is "Recorded".
+  if (immutable && mode === "COMPLIANCE" && (recorded || !verified)) {
     return {
       badgeLabel: "Immutable Storage Recorded",
       badgeTone: "info",
@@ -336,13 +337,14 @@ function buildStoragePresentation(
     };
   }
 
-  if (immutable && mode === "COMPLIANCE") {
+  // AUD-014 — only a successful read of the stored object confirms the lock.
+  if (verified && immutable && mode === "COMPLIANCE") {
     return {
       badgeLabel: "Immutable Storage Locked",
       badgeTone: "success",
       detailLabel: "Storage Protection",
       detailText:
-        "This evidence is stored under immutable Object Lock protection in COMPLIANCE mode. Protected objects cannot be altered or deleted before the retention deadline expires.",
+        "A read of the stored object confirmed immutable Object Lock protection in COMPLIANCE mode. Protected objects cannot be altered or deleted before the retention deadline expires.",
     };
   }
 
