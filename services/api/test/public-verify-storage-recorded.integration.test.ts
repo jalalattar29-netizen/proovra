@@ -17,7 +17,14 @@ import type { IntegrationHarness } from "./integration-harness.js";
 // link (the record is published and the link minted on first use).
 import { shareLinkFor } from "./helpers/verify-share.js";
 
-type Storage = { immutable: boolean; verified: boolean; source?: string; expired?: boolean; retainUntil: string | null };
+type Storage = {
+  immutable: boolean;
+  verified: boolean;
+  source?: string;
+  expired?: boolean;
+  retainUntil: string | null;
+  verification?: string;
+};
 
 describe("public Verify — recorded storage protection (live PostgreSQL 16, real HTTP)", () => {
   let h: IntegrationHarness;
@@ -92,6 +99,86 @@ describe("public Verify — recorded storage protection (live PostgreSQL 16, rea
   it("a recorded COMPLIANCE lock still in force is RECORDED, not verified", async () => {
     const storage = await storageOf(await lockedRecord(new Date(Date.now() + 365 * 24 * 3600_000)));
     expect(storage).toMatchObject({ verified: false, source: "RECORDED", immutable: true, expired: false });
+  });
+
+  // -------------------------------------------------------------------------
+  // AUD-014 — only a successful read of the stored object confirms the lock.
+  // A real MinIO bucket with Object Lock: a COMPLIANCE object read back is
+  // STORAGE_CONFIRMED (verified, PASSED); the same recorded snapshot over an
+  // object that carries no lock is FAILED; an unreadable object stays RECORDED.
+  // -------------------------------------------------------------------------
+  const LOCKED_BUCKET = "uc-trust-objlock";
+  async function s3() {
+    const { S3Client } = await import("@aws-sdk/client-s3");
+    return new S3Client({
+      endpoint: process.env.S3_ENDPOINT,
+      region: "us-east-1",
+      forcePathStyle: true,
+      credentials: { accessKeyId: process.env.S3_ACCESS_KEY!, secretAccessKey: process.env.S3_SECRET_KEY! },
+    });
+  }
+  async function objectInStore(lock: boolean): Promise<{ key: string; versionId: string | null }> {
+    const { CreateBucketCommand, PutObjectCommand } = await import("@aws-sdk/client-s3");
+    const client = await s3();
+    await client.send(new CreateBucketCommand({ Bucket: LOCKED_BUCKET, ObjectLockEnabledForBucket: true })).catch((err: { name?: string }) => {
+      if (!/BucketAlready(OwnedByYou|Exists)/.test(String(err?.name))) throw err;
+    });
+    const key = `evidence/${randomUUID()}/original.jpg`;
+    const put = await client.send(
+      new PutObjectCommand({
+        Bucket: LOCKED_BUCKET,
+        Key: key,
+        Body: Buffer.from(`aud014-${randomUUID()}`),
+        ...(lock ? { ObjectLockMode: "COMPLIANCE", ObjectLockRetainUntilDate: new Date(Date.now() + 2 * 24 * 3600_000) } : {}),
+      }),
+    );
+    return { key, versionId: put.VersionId ?? null };
+  }
+  async function recordOver(object: { key: string; versionId: string | null }) {
+    const id = await lockedRecord(new Date(Date.now() + 365 * 24 * 3600_000));
+    await prisma.evidence.update({
+      where: { id },
+      data: { storageBucket: LOCKED_BUCKET, storageKey: object.key, storageVersionId: object.versionId } as never,
+    });
+    return id;
+  }
+  async function verifyBody(id: string) {
+    const res = await h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, id)}` });
+    expect(res.statusCode, res.body).toBe(200);
+    return res;
+  }
+
+  it("AUD-014 a COMPLIANCE lock READ from the stored object is verified; the trust signal is PASSED", async () => {
+    const id = await recordOver(await objectInStore(true));
+    const storage = await storageOf(id);
+    expect(storage).toMatchObject({ verified: true, source: "OBSERVED", immutable: true, verification: "STORAGE_CONFIRMED" });
+    const body = (await verifyBody(id)).body;
+    expect(body).toMatch(/"key":"immutable_storage"[^}]*"state":"PASSED"|"state":"PASSED"[^}]*"key":"immutable_storage"/);
+    // The owner review workspace reads the object the same way.
+    const owner = await h.app.inject({
+      method: "GET",
+      url: `/v1/evidence/${id}/review-workspace`,
+      headers: { authorization: `Bearer ${h.fixtures.teamA.ownerToken}` },
+    });
+    expect(owner.statusCode, owner.body).toBe(200);
+    expect(owner.body).toContain('"verification":"STORAGE_CONFIRMED"');
+  });
+
+  it("AUD-014 a recorded COMPLIANCE snapshot over an object that carries NO lock is FAILED, never verified", async () => {
+    const id = await recordOver(await objectInStore(false));
+    const storage = await storageOf(id);
+    expect(storage).toMatchObject({ verified: false, source: "OBSERVED", verification: "FAILED" });
+    const body = (await verifyBody(id)).body;
+    expect(body).not.toContain("Immutable retention verified");
+  });
+
+  it("AUD-014 an unreadable object leaves the snapshot RECORDED: the signal says recorded, never verified", async () => {
+    const id = await lockedRecord(new Date(Date.now() + 365 * 24 * 3600_000));
+    const storage = await storageOf(id);
+    expect(storage).toMatchObject({ verified: false, source: "RECORDED", verification: "RECORDED" });
+    const body = (await verifyBody(id)).body;
+    expect(body).toContain("Immutable retention recorded");
+    expect(body).not.toContain("Immutable retention verified");
   });
 
   it("a recorded lock whose retain-until has passed is expired and not immutable", async () => {

@@ -2,7 +2,7 @@ import type {
   CanonicalEvidenceMaterials,
   CanonicalTimestampStateMaterial,
 } from "@proovra/shared";
-import { OTS_FAILURE_LABELS, presentOtsAnchoring } from "@proovra/shared";
+import { OTS_FAILURE_LABELS, isOrganizationVerifiedAtCapture, presentOtsAnchoring } from "@proovra/shared";
 import {
   ReportEvidence,
   ReportAnchorSummary,
@@ -101,7 +101,8 @@ export function buildOrganizationDisplay(evidence: ReportEvidence): string {
   const workspace = safe(evidence.workspaceNameSnapshot, "");
 
   if (org) {
-    return evidence.organizationVerifiedSnapshot ? `${org} (verified)` : org;
+    // AUD-016 — only the capture-time verification fact says "verified".
+    return isOrganizationVerifiedAtCapture(evidence.acquisitionIdentity ?? null) ? `${org} (verified)` : org;
   }
 
   if (workspace) return workspace;
@@ -112,7 +113,7 @@ export function buildOrganizationStatus(evidence: ReportEvidence): string {
   const hasOrg = safe(evidence.organizationNameSnapshot, "") !== "";
   const hasWorkspace = safe(evidence.workspaceNameSnapshot, "") !== "";
 
-  if (evidence.organizationVerifiedSnapshot === true) {
+  if (isOrganizationVerifiedAtCapture(evidence.acquisitionIdentity ?? null)) {
     return "Verified organization";
   }
   if (hasOrg) return "Organization recorded";

@@ -126,7 +126,10 @@ describe("the eight evidence signals", () => {
       tone: "neutral",
     });
     expect(by.bitcoin_anchoring.mark).not.toBe("✓");
-    expect(by.immutable_storage).toMatchObject({ status: "Verified", title: "Immutable retention verified" });
+    // AUD-014 — the regression record carries the sealing-time Object Lock
+    // snapshot only: RECORDED, never "verified" without a read of the object.
+    expect(by.immutable_storage).toMatchObject({ status: "Recorded", title: "Immutable retention recorded" });
+    expect(by.immutable_storage.mark).not.toBe("✓");
     expect(by.custody_chain).toMatchObject({ status: "Verified", title: "23 forensic events recorded; hash chain verified" });
     // A personal email account whose submission-time snapshot recorded the
     // verified email: the account context is verified — never an
@@ -161,6 +164,38 @@ describe("the eight evidence signals", () => {
     for (const key of ["signature", "custody_chain", "immutable_storage"] as const) {
       expect(unchecked.cards.find((c) => c.key === key)!.status, key).not.toBe("Verified");
     }
+  });
+
+  it("AUD-014 / AUD-013 — storage is verified only by a confirmed read; a revoked key's signature is never verified", async () => {
+    const base = regressionRecordInput();
+    const confirmed = await render({
+      ...base,
+      evidence: { ...base.evidence, storageProtectionVerification: "STORAGE_CONFIRMED" } as ReportV2Input["evidence"],
+    });
+    expect(confirmed.cards.find((c) => c.key === "immutable_storage")).toMatchObject({ status: "Verified", title: "Immutable retention verified" });
+    for (const state of ["RECORDED", "UNAVAILABLE", "FAILED", "CONFIGURED"] as const) {
+      const r = await render({ ...base, evidence: { ...base.evidence, storageProtectionVerification: state } as ReportV2Input["evidence"] });
+      const card = r.cards.find((c) => c.key === "immutable_storage")!;
+      expect(card.status, state).not.toBe("Verified");
+      expect(card.title, state).not.toBe("Immutable retention verified");
+    }
+    const revoked = await render({
+      ...base,
+      evidence: {
+        ...base.evidence,
+        signatureVerified: false,
+        signatureValidity: { state: "REVOKED_KEY", revokedAtUtc: "2026-10-10T00:00:00.000Z" },
+      } as ReportV2Input["evidence"],
+    });
+    const sigCard = revoked.cards.find((c) => c.key === "signature")!;
+    expect(sigCard.status).not.toBe("Verified");
+    expect(sigCard.title).toMatch(/revoked/);
+    expect(revoked.text).not.toContain("Record signature verified");
+    const rotated = await render({
+      ...base,
+      evidence: { ...base.evidence, signatureValidity: { state: "VALID_SUPERSEDED_KEY", revokedAtUtc: null } } as ReportV2Input["evidence"],
+    });
+    expect(rotated.cards.find((c) => c.key === "signature")).toMatchObject({ status: "Verified", title: "Record signature verified" });
   });
 
   it("identity and capture wording follow the record: no OAuth, organization or direct-capture claim", async () => {
@@ -383,7 +418,6 @@ describe("Court & Technical Review Index: the Report boundary block is removed",
       "What it does not establish",
       "Embedded previews are reviewer aids; rely on the preserved originals and the verification package.",
       "Location metadata was not recorded for this evidence.",
-      "PROOVRA observed the files from upload onward; creation and editing before upload were not observed.",
       "Workspace identity",
     ]) {
       const checks = checkRenderedReportText(`${t} ${restored}`, facts, { reportVersion: input.version }).map((f) => f.check);

@@ -1,4 +1,10 @@
-import type { AcquisitionIdentitySnapshot, CustodyLabelHints, OtsState } from "@proovra/shared";
+import type {
+  AcquisitionIdentitySnapshot,
+  CustodyLabelHints,
+  OtsState,
+  RecordSignatureValidityState,
+  StorageProtectionVerificationState,
+} from "@proovra/shared";
 import type {
   TrustDecision,
   TrustDecisionTone,
@@ -308,6 +314,10 @@ export type ReportEvidence = {
   otsSubmittedAtUtc?: string | null;
   /** The Ed25519 check this report run performed (null: not run). */
   signatureVerified?: boolean | null;
+  /** AUD-014 — THE storage verification state this run resolved. */
+  storageProtectionVerification?: StorageProtectionVerificationState | null;
+  /** AUD-013 — the validity state this run resolved (revoked / rotated key). */
+  signatureValidity?: { state: RecordSignatureValidityState; revokedAtUtc: string | null } | null;
   /** The custody hash-chain recomputation this run performed (null: not run). */
   custodyChainValid?: boolean | null;
   anchor?: ReportAnchorSummary | null;

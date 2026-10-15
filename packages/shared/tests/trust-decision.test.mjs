@@ -53,6 +53,8 @@ function buildBaseEvidence(overrides = {}) {
     storageImmutable: true,
     storageObjectLockMode: "COMPLIANCE",
     storageObjectLockRetainUntilUtc: "2030-01-01T00:00:00.000Z",
+    // AUD-014 — this evaluation read the stored object (the all-green fixture).
+    storageProtectionVerification: "STORAGE_CONFIRMED",
     identityLevelSnapshot: "VERIFIED_EMAIL",
     submittedByEmail: "reviewer@example.com",
     submittedByAuthProvider: "EMAIL_PASSWORD",

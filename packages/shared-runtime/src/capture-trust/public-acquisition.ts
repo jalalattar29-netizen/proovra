@@ -83,6 +83,11 @@ export function toPublicVerifyAcquisition(
       isDirectCapture: a.isDirectCapture,
       // Owner decision 4 (ET-DC-03): who produced the bytes, stated by tier.
       provenanceTier: a.provenanceTier,
+      // AUD-015: the one observation boundary.
+      boundary: a.boundary,
+      // AUD-001: who established the channel name ("Reported by the client").
+      channelAuthority: a.channelAuthority,
+      channelAuthorityLabel: a.channelAuthorityLabel,
     },
     captureSession: bound
       ? {

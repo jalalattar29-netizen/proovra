@@ -36,7 +36,7 @@ import {
   toVerificationStatus,
   type TrustSignalState,
 } from "./trust-signal-state.js";
-import { ACQUISITION_BOUNDARY_STATEMENTS } from "./evidence-acquisition.js";
+import { resolveEvidenceAcquisition } from "./evidence-acquisition.js";
 import {
   VERIFICATION_LIMITATION,
   findForbiddenCustomerClaims,
@@ -94,6 +94,12 @@ export type CanonicalArtifactFacts = {
   /** The bounded failure / unavailability code; null otherwise. */
   otsFailureCode: string | null;
   acquisition: AcquisitionIdentitySnapshot;
+  /**
+   * AUD-015 — the acquisition channel's observation boundary (what PROOVRA
+   * proves from receipt onward; what it did not observe before). A rendered
+   * report states it exactly once.
+   */
+  acquisitionBoundary: string;
 };
 
 type CustodyLike = ReadonlyArray<{ eventType?: string | null; atUtc?: Date | string | null; payload?: unknown }>;
@@ -132,6 +138,7 @@ export function deriveCanonicalArtifactFacts(source: CanonicalFactsSource, custo
       row: source,
       acquisitionMode: source.acquisitionMode ?? null,
     }),
+    acquisitionBoundary: resolveEvidenceAcquisition({ acquisitionMode: source.acquisitionMode ?? null }).boundary,
   };
 }
 
@@ -258,8 +265,9 @@ const PACKAGE_SELF_ATTESTATION = "Verification package Verified";
 /**
  * (2026-10-14) Sections removed from the report: the review index's
  * three-card "Report boundary" block (the cover keeps its one-line form), the
- * Executive Summary's capture-context statements of absent location and of
- * the observation boundary, and the retired identity and package wording.
+ * Executive Summary's capture-context statement of absent location, and the
+ * retired identity and package wording. (AUD-015: the observation boundary is
+ * no longer retired — the cover states it exactly once.)
  */
 export const RETIRED_REPORT_SECTIONS: readonly string[] = [
   "What this report is",
@@ -269,7 +277,6 @@ export const RETIRED_REPORT_SECTIONS: readonly string[] = [
   "Location metadata was recorded incompletely",
   "Workspace identity",
   "paired with this report",
-  ...ACQUISITION_BOUNDARY_STATEMENTS.filter((s) => s.startsWith("PROOVRA observed")),
 ];
 const clipPhrase = (s: string) => (s.length > 48 ? `${s.slice(0, 48)}…` : s);
 const TSA_VALIDATED_PHRASES =["RFC 3161 timestamp verified", TSA_VALIDATED_QUALIFICATION_STATEMENT];
@@ -354,6 +361,16 @@ export function checkRenderedReportText(
   // No score, weighted point or overall verdict; the bounded limitation is stated.
   for (const claim of findForbiddenCustomerClaims(text)) out.push({ check: "FORBIDDEN_CLAIM", detail: `states ${claim}` });
   if (!text.includes(norm(VERIFICATION_LIMITATION))) out.push({ check: "LIMITATION", detail: "the verification limitation is not stated" });
+  // AUD-015 — the pre-PROOVRA boundary: stated, and stated once.
+  if (facts.acquisitionBoundary) {
+    const times = text.split(norm(facts.acquisitionBoundary)).length - 1;
+    if (times !== 1) {
+      out.push({
+        check: "ACQUISITION_BOUNDARY",
+        detail: times === 0 ? "the acquisition observation boundary is not stated" : `the acquisition observation boundary is stated ${times} times`,
+      });
+    }
+  }
   return out;
 }
 

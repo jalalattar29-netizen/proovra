@@ -10,6 +10,12 @@ import {
   type OtsVerificationKey,
 } from "./ots-anchoring.js";
 import { presentedTsaStatus } from "./tsa-validation-state.js";
+import { recordSignatureValiditySummary, type RecordSignatureValidity } from "./record-signature-validity.js";
+import {
+  STORAGE_PROTECTION_VERIFICATION_LABELS,
+  resolveStorageProtectionVerification,
+  type StorageProtectionVerificationState,
+} from "./storage-protection.js";
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   TRUST_SIGNAL_STATE_PRESENTATION,
@@ -255,12 +261,32 @@ export type TrustDecisionEvidenceInput = {
    * not checked here, and the signal never says "Verified".
    */
   signatureVerified?: boolean | null;
+  /**
+   * AUD-013 — THE validity state (resolveRecordSignatureValidity): a
+   * mathematically valid signature made with a revoked or mismatched key is
+   * never PASSED. When present it decides the signal; `signatureVerified` must
+   * then equal its `presentlyTrusted`.
+   */
+  signatureValidity?: Pick<RecordSignatureValidity, "state" | "revokedAtUtc"> | null;
   /** The result of recomputing the custody hash chain; null when not run. */
   custodyChainValid?: boolean | null;
   storageImmutable?: boolean | null;
   storageObjectLockMode?: string | null;
   storageObjectLockRetainUntilUtc?: string | null;
+  /**
+   * AUD-014 — THE storage verification state
+   * (resolveStorageProtectionVerification). Only STORAGE_CONFIRMED — a
+   * successful authoritative read of the stored object — is PASSED. Absent:
+   * the lock columns are read as a RECORDED snapshot, never as verified.
+   */
+  storageProtectionVerification?: StorageProtectionVerificationState | null;
   identityLevelSnapshot?: string | null;
+  /**
+   * AUD-016 — the canonical organization-verification fact
+   * (`isOrganizationVerifiedAtCapture` over the capture-time snapshot). The
+   * identity level alone never makes the identity signal PASSED.
+   */
+  organizationVerifiedAtCapture?: boolean | null;
   submittedByEmail?: string | null;
   submittedByAuthProvider?: string | null;
   verificationPackageVersion?: number | string | null;
@@ -499,6 +525,21 @@ function buildSignatureSignal(
   const hasKey = hasMeaningfulValue(evidence.signingKeyId);
   const hasPublicKey = hasMeaningfulValue(evidence.publicKeyPem);
 
+  // AUD-013 — a revoked or mismatched key: reported, never presently trusted.
+  const validity = evidence.signatureValidity ?? null;
+  if (hasSignature && validity && (validity.state === "REVOKED_KEY" || validity.state === "KEY_MISMATCH" || validity.state === "KEY_NOT_REGISTERED")) {
+    return makeSignal({
+      key: "signature",
+      label: "Digital signature",
+      state: "FAILED",
+      summary: recordSignatureValiditySummary(validity),
+      detail:
+        validity.state === "REVOKED_KEY"
+          ? "The Ed25519 signature still verifies mathematically against the recomputed canonical fingerprint, but its signing key was revoked; it is not presented as a presently trusted signature."
+          : "The signature cannot be attributed to the key this record was signed with, so it is not presented as valid.",
+    });
+  }
+
   if (hasSignature && evidence.signatureVerified === false) {
     return makeSignal({
       key: "signature",
@@ -517,7 +558,9 @@ function buildSignatureSignal(
       state: "PASSED",
       summary: "Signature verified",
       detail:
-        "The Ed25519 signature verified against the recomputed canonical fingerprint with the recorded public key, which is available for independent verification.",
+        validity?.state === "VALID_SUPERSEDED_KEY"
+          ? "The Ed25519 signature verified against the recomputed canonical fingerprint with the registered public key, a rotated (not revoked) key available for independent verification."
+          : "The Ed25519 signature verified against the recomputed canonical fingerprint with the recorded public key, which is available for independent verification.",
     });
   }
 
@@ -669,52 +712,48 @@ export function withShippedAnchoring(
 function buildStorageSignal(
   evidence: TrustDecisionEvidenceInput
 ): TrustSignal {
-  const mode = safe(evidence.storageObjectLockMode).toUpperCase();
-  const hasRetainUntil = hasMeaningfulValue(
-    evidence.storageObjectLockRetainUntilUtc
-  );
+  // AUD-014 — THE canonical storage verification state. A caller that did
+  // not resolve it hands only the lock columns: a RECORDED snapshot.
+  const state =
+    evidence.storageProtectionVerification ??
+    resolveStorageProtectionVerification({
+      mode: evidence.storageObjectLockMode ?? null,
+      retainUntil: evidence.storageObjectLockRetainUntilUtc ?? null,
+      source: "RECORDED",
+    }).state;
+  const label = STORAGE_PROTECTION_VERIFICATION_LABELS[state];
+  const signal = (s: TrustSignalState, detail: string) =>
+    makeSignal({ key: "immutable_storage", label: "Immutable storage", state: s, summary: label, detail });
 
-  if (evidence.storageImmutable && mode === "COMPLIANCE" && hasRetainUntil) {
-    return makeSignal({
-      key: "immutable_storage",
-      label: "Immutable storage",
-      state: "PASSED",
-      summary: "Immutable retention verified",
-      detail:
-        "Storage metadata indicates immutable-style preservation using Object Lock COMPLIANCE mode with a recorded retention-until timestamp.",
-    });
+  switch (state) {
+    case "STORAGE_CONFIRMED":
+      return signal(
+        "PASSED",
+        "A read of the stored object confirmed Object Lock COMPLIANCE retention with a retain-until date in the future.",
+      );
+    case "RECORDED":
+      return signal(
+        "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
+        "Object Lock COMPLIANCE retention was recorded when the record was sealed; the stored object was not read in this evaluation.",
+      );
+    case "CONFIGURED":
+      return signal(
+        "NOT_CHECKED",
+        "COMPLIANCE Object Lock is configured for the platform, but no lock was recorded or observed for this record's stored object.",
+      );
+    case "FAILED":
+      return signal(
+        "FAILED",
+        "The recorded or observed lock does not provide Object Lock COMPLIANCE retention in force.",
+      );
+    case "NOT_APPLICABLE":
+      return signal("NOT_APPLICABLE", "There is no stored object for this record.");
+    default:
+      return signal(
+        "UNAVAILABLE",
+        "The stored object's Object Lock retention could not be confirmed.",
+      );
   }
-
-  if (evidence.storageImmutable || mode === "GOVERNANCE") {
-    return makeSignal({
-      key: "immutable_storage",
-      label: "Immutable storage",
-      state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
-      summary: "Storage protection recorded",
-      detail:
-        "Some storage-protection indicators are recorded, but the record does not fully confirm compliance-grade immutable retention.",
-    });
-  }
-
-  if (mode) {
-    return makeSignal({
-      key: "immutable_storage",
-      label: "Immutable storage",
-      state: "FAILED",
-      summary: "Storage requires review",
-      detail:
-        "Storage metadata indicates a protection state that should be reviewed before relying on immutability conclusions.",
-    });
-  }
-
-  return makeSignal({
-    key: "immutable_storage",
-    label: "Immutable storage",
-    state: "UNAVAILABLE",
-    summary: "Storage not reported",
-    detail:
-      "No verifiable immutable-storage protection was included in the record payload.",
-  });
 }
 
 function buildCustodySignal(
@@ -824,7 +863,7 @@ function buildIdentitySignal(
     ? "Workspace/link creator identity recorded"
     : "Authenticated workspace user identity recorded";
 
-  if (level === "VERIFIED_ORGANIZATION") {
+  if (evidence.organizationVerifiedAtCapture === true) {
     return makeSignal({
       key: "identity",
       label: "Workspace identity",
@@ -836,7 +875,9 @@ function buildIdentitySignal(
     });
   }
 
-  if (level === "ORGANIZATION_ACCOUNT" || level === "OAUTH_BACKED_IDENTITY") {
+  // AUD-016 — a VERIFIED_ORGANIZATION level without the capture-time
+  // verification fact (legacy rows) is workspace membership, nothing more.
+  if (level === "VERIFIED_ORGANIZATION" || level === "ORGANIZATION_ACCOUNT" || level === "OAUTH_BACKED_IDENTITY") {
     return makeSignal({
       key: "identity",
       label: "Workspace identity",

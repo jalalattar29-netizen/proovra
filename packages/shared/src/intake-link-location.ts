@@ -101,6 +101,10 @@ export const EVIDENCE_LOCATION_SOURCES = [
   "INTAKE_LINK_GEOLOCATION",
   "EXIF_GPS",
   "MANUAL_ENTRY",
+  // AUD-LOC — coordinates the submitting app reported from its device's
+  // location services (mobile app submissions and app screen captures). The
+  // column is text (no CHECK), so the value needs no migration.
+  "CLIENT_APP_DEVICE_LOCATION",
 ] as const;
 export type EvidenceLocationSource = (typeof EVIDENCE_LOCATION_SOURCES)[number];
 
@@ -129,14 +133,17 @@ export const EVIDENCE_LOCATION_SOURCE_LABEL: Record<
   INTAKE_LINK_GEOLOCATION: "Contributor browser permission",
   EXIF_GPS: "EXIF metadata in the source file",
   MANUAL_ENTRY: "Manually entered by operator",
+  CLIENT_APP_DEVICE_LOCATION: "Reported by the submitting app from its device",
 };
 
+/** The label for coordinates whose source was never recorded. */
+export const EVIDENCE_LOCATION_SOURCE_NOT_RECORDED_LABEL = "Location source not recorded";
+
 /**
- * Returns the display label for a row's coordinates, defaulting to
- * the historical Capture label when source is null (every pre-
- * migration row with coordinates came from Capture, and the
- * backfill stamps that explicitly — but a defensive default keeps
- * the UI safe if a row slipped through).
+ * Returns the display label for a row's coordinates. A null or unknown
+ * source is "Location source not recorded": the authenticated create path
+ * wrote app-reported GPS without a source, so a null is NOT evidence that a
+ * browser reported it (stored rows are never rewritten).
  */
 export function evidenceLocationSourceLabel(
   source: EvidenceLocationSource | string | null | undefined,
@@ -144,7 +151,33 @@ export function evidenceLocationSourceLabel(
   if (source && isEvidenceLocationSource(source)) {
     return EVIDENCE_LOCATION_SOURCE_LABEL[source];
   }
-  return EVIDENCE_LOCATION_SOURCE_LABEL.CAPTURE_BROWSER_GEOLOCATION;
+  return EVIDENCE_LOCATION_SOURCE_NOT_RECORDED_LABEL;
+}
+
+/**
+ * THE location source an authenticated ingress records with the coordinates
+ * it receives, from the record's acquisition mode: the web upload and the
+ * browser extension receive browser geolocation; the app and screen-capture
+ * modes receive what the app read from its device. Secure intake records its
+ * own (INTAKE_LINK_GEOLOCATION) in the intake flow.
+ */
+export function evidenceLocationSourceForAcquisition(
+  acquisitionMode: string | null | undefined,
+): EvidenceLocationSource | null {
+  switch (acquisitionMode) {
+    case "PROOVRA_WEB_UPLOAD":
+    case "DIRECT_WEB_CAPTURE_EXTENSION":
+      return "CAPTURE_BROWSER_GEOLOCATION";
+    case "PROOVRA_MOBILE_APP":
+    case "DIRECT_SCREEN_CAPTURE_ANDROID":
+    case "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS":
+    case "DIRECT_SCREEN_CAPTURE_IOS":
+      return "CLIENT_APP_DEVICE_LOCATION";
+    case "SECURE_INTAKE_LINK":
+      return "INTAKE_LINK_GEOLOCATION";
+    default:
+      return null;
+  }
 }
 
 // =============================================================================

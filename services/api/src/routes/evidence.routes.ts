@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { bumpCaptureFailure } from "@proovra/shared-runtime";
+import { bumpCaptureFailure, objectLockPolicyFromEnv } from "@proovra/shared-runtime";
+import { loadRecordSigningKeyFacts, resolveRecordSignatureValidity } from "../signing/key-registry.js";
 
 import {
   lockEvidenceForByteWrite,
@@ -102,6 +103,7 @@ import {
   buildVerificationMatrix,
   withholdIdentityRows,
   resolveAcquisitionIdentitySnapshot,
+  isOrganizationVerifiedAtCapture,
   identityLevelLabel,
   acquisitionIdentityLevelLabel,
   acquisitionIdentityBasisLabel,
@@ -117,6 +119,9 @@ import {
   PACKAGE_FORMAT_VERSION_SEALED,
   // Evidence-output incident (2026-10-05) — ONE storage-protection answer.
   classifyStorageProtection,
+  resolveStorageProtectionVerification,
+  type StorageProtectionVerificationInput,
+  type StorageProtectionVerificationState,
   type StorageProtectionClass,
   // RGA-03 — the shared reason authority (same bounds + normalization as clients).
   normalizeNewVersionReason,
@@ -1192,6 +1197,7 @@ const SAFE_EVIDENCE_SELECT = {
   signatureBase64: true,
   signingKeyId: true,
   signingKeyVersion: true,
+  signingKeySha256: true,
   deletedByUserId: true,
   lockedAt: true,
   lockedByUserId: true,
@@ -1234,12 +1240,15 @@ type StorageProtectionSummary = {
   legalHold: string | null;
   region: string | null;
   /**
-   * ET-PKG-06 — true only when the lock was OBSERVED on the stored object
-   * (a HEAD). A value copied onto the row when the record was sealed is
-   * RECORDED, not verified.
+   * ET-PKG-06 / AUD-014 — true only when a read of the stored object (a HEAD)
+   * succeeded and showed COMPLIANCE retention in force (`verification` is
+   * STORAGE_CONFIRMED). A value copied onto the row when the record was
+   * sealed is RECORDED, not verified.
    */
   verified: boolean;
   source: "RECORDED" | "OBSERVED";
+  /** AUD-014 — THE verification state (resolveStorageProtectionVerification). */
+  verification: StorageProtectionVerificationState;
   /** The retain-until date has passed: the protection it described has ended. */
   expired: boolean;
   /**
@@ -1998,6 +2007,26 @@ function maskPublicEmail(email: string | null | undefined): string | null {
  * from custody (resolveAcquisitionIdentitySnapshot), never the record's
  * current columns, which earlier report runs re-derived.
  */
+/**
+ * AUD-014 — the trust decision's storage state: the summary's facts through
+ * THE classifier, plus the record's own STORAGE_PROTECTION_UNAVAILABLE custody
+ * event. Null summary: nothing could be read or recorded.
+ */
+function storageVerificationForTrust(
+  summary: StorageProtectionSummary,
+  custodyEvents: ReadonlyArray<{ eventType: string }>,
+): StorageProtectionVerificationState {
+  return resolveStorageProtectionVerification({
+    mode: summary?.mode ?? null,
+    retainUntil: summary?.retainUntil ?? null,
+    legalHold: summary?.legalHold ?? null,
+    source: summary?.source ?? null,
+    readFailed: summary?.readFailed ?? false,
+    protectionUnavailableRecorded: custodyEvents.some((ev) => ev.eventType === "STORAGE_PROTECTION_UNAVAILABLE"),
+    platformCompliancePolicyConfigured: platformCompliancePolicyConfigured(),
+  }).state;
+}
+
 function captureIdentityTrustInput(
   custodyEvents: ReadonlyArray<{ eventType: string; atUtc: Date; payload: unknown }>,
   row: {
@@ -2013,6 +2042,8 @@ function captureIdentityTrustInput(
   const acq = resolveAcquisitionIdentitySnapshot({ custodyEvents, row, acquisitionMode: row.acquisitionMode ?? null });
   return {
     identityLevelSnapshot: acq.identityLevel,
+    // AUD-016 — the canonical organization-verification fact, never the level.
+    organizationVerifiedAtCapture: isOrganizationVerifiedAtCapture(acq),
     submittedByEmail: acq.submittedByEmail,
     submittedByAuthProvider: acq.authProvider,
   };
@@ -2645,6 +2676,24 @@ async function getEvidenceItemCount(evidenceId: string): Promise<number> {
   return count > 0 ? count : 1;
 }
 
+/** AUD-014 — the retention authority's platform policy: COMPLIANCE Object Lock configured. */
+function platformCompliancePolicyConfigured(): boolean {
+  const policy = objectLockPolicyFromEnv();
+  return policy.enabled && policy.mode === "COMPLIANCE";
+}
+
+/**
+ * AUD-014 — the summary's verification state and `verified`, from THE
+ * canonical classifier. `verified` is never set any other way.
+ */
+function storageVerificationOf(input: StorageProtectionVerificationInput) {
+  const v = resolveStorageProtectionVerification({
+    ...input,
+    platformCompliancePolicyConfigured: platformCompliancePolicyConfigured(),
+  });
+  return { verification: v.state, verified: v.verified };
+}
+
 async function getStorageProtectionSummary(
   bucket: string | null | undefined,
   key: string | null | undefined,
@@ -2653,7 +2702,14 @@ async function getStorageProtectionSummary(
     storageObjectLockMode?: string | null;
     storageObjectLockRetainUntilUtc?: Date | string | null;
     storageObjectLockLegalHoldStatus?: string | null;
-  }
+  },
+  /**
+   * AUD-014 — `observe`: read the stored object (its pinned version) even
+   * when a sealing snapshot exists. Only that read can confirm the lock; the
+   * trust surfaces (owner review workspace, public Verify) ask for it. A
+   * failed read falls back to the RECORDED snapshot, never to "verified".
+   */
+  options?: { observe?: boolean; versionId?: string | null },
 ): Promise<StorageProtectionSummary> {
   const snapshotMode =
     typeof snapshot?.storageObjectLockMode === "string"
@@ -2677,30 +2733,40 @@ async function getStorageProtectionSummary(
       ? snapshot.storageRegion.trim()
       : process.env.S3_REGION?.trim() || null;
 
-  if (snapshotMode || snapshotRetainUntil || snapshotLegalHold) {
-    // ET-PKG-06 — the row's snapshot is what was RECORDED at sealing; it is
-    // not a check of the stored object (verified: false), and it protects
-    // only until its retain-until date.
-    return {
-      ...retentionState(snapshotMode, snapshotRetainUntil),
+  const hasSnapshot = Boolean(snapshotMode || snapshotRetainUntil || snapshotLegalHold);
+  const recordedSummary = (readFailed: boolean): StorageProtectionSummary => ({
+    ...retentionState(snapshotMode, snapshotRetainUntil),
+    mode: snapshotMode,
+    retainUntil: snapshotRetainUntil,
+    legalHold: snapshotLegalHold,
+    region: snapshotRegion,
+    ...storageVerificationOf({
       mode: snapshotMode,
       retainUntil: snapshotRetainUntil,
       legalHold: snapshotLegalHold,
-      region: snapshotRegion,
-      verified: false,
       source: "RECORDED",
-      protection: classifyStorageProtection({
-        mode: snapshotMode,
-        retainUntil: snapshotRetainUntil,
-        legalHold: snapshotLegalHold,
-      }),
-    };
+      readFailed,
+    }),
+    source: "RECORDED",
+    protection: classifyStorageProtection({
+      mode: snapshotMode,
+      retainUntil: snapshotRetainUntil,
+      legalHold: snapshotLegalHold,
+    }),
+    ...(readFailed ? { readFailed: true } : {}),
+  });
+
+  if (hasSnapshot && !(options?.observe && bucket && key)) {
+    // ET-PKG-06 — the row's snapshot is what was RECORDED at sealing; it is
+    // not a check of the stored object (verified: false), and it protects
+    // only until its retain-until date.
+    return recordedSummary(false);
   }
 
   if (!bucket || !key) return null;
 
   try {
-    const meta = await headObject({ bucket, key });
+    const meta = await headObject({ bucket, key, versionId: options?.versionId ?? null });
     const mode = meta.objectLockMode ? String(meta.objectLockMode) : null;
     const retainUntil =
       meta.objectLockRetainUntilDate instanceof Date
@@ -2715,18 +2781,21 @@ async function getStorageProtectionSummary(
       retainUntil,
       legalHold,
       region: process.env.S3_REGION?.trim() || null,
-      verified: Boolean(mode || retainUntil || legalHold),
+      ...storageVerificationOf({ mode, retainUntil, legalHold, source: "OBSERVED" }),
       source: "OBSERVED",
       protection: classifyStorageProtection({ mode, retainUntil, legalHold }),
     };
   } catch {
+    // AUD-014 — a failed read never confirms anything: the recorded snapshot
+    // stands as RECORDED (not verified), or nothing is known.
+    if (hasSnapshot) return recordedSummary(true);
     return {
       immutable: false,
       mode: null,
       retainUntil: null,
       legalHold: null,
       region: process.env.S3_REGION?.trim() || null,
-      verified: false,
+      ...storageVerificationOf({ source: "OBSERVED", readFailed: true }),
       source: "OBSERVED",
       expired: false,
       // The read failed: nothing is known about the lock, which is not the
@@ -2762,7 +2831,7 @@ function getStorageProtectionSummaryFromSnapshot(snapshot: {
     retainUntil,
     legalHold,
     region,
-    verified: false,
+    ...storageVerificationOf({ mode, retainUntil, legalHold, source: "RECORDED" }),
     source: "RECORDED",
     protection: classifyStorageProtection({ mode, retainUntil, legalHold }),
   };
@@ -4553,7 +4622,13 @@ primaryContentLabel: buildPrimaryContentLabel(
           },
     workspaceName: params.evidence.workspaceNameSnapshot ?? null,
     organizationName: params.evidence.organizationNameSnapshot ?? null,
-    organizationVerified: params.evidence.organizationVerifiedSnapshot ?? null,
+    // AUD-016 — the capture-time organization-verification fact only; a
+    // legacy row's column (possibly rewritten from current state) is not it.
+    organizationVerified: isOrganizationVerifiedAtCapture(params.acquisitionIdentity)
+      ? true
+      : params.acquisitionIdentity?.basis === "OBSERVED_AT_CAPTURE" && params.acquisitionIdentity.organizationVerified === false
+        ? false
+        : null,
     createdAt: params.evidence.createdAt.toISOString(),
     // Issue #6 timestamp provenance: surface what each timestamp actually
     // means, not just its raw value.
@@ -5303,6 +5378,9 @@ function buildSourceContext(params: {
   // whose origin was never recorded read as an upload. The folder flag only
   // refines an UPLOAD; it never decides the acquisition.
   const acquisition = resolveEvidenceAcquisition(params.evidence);
+  // AUD-001 — a direct-capture channel is named by its category, never
+  // "not_recorded"; the client-declared ones are read by every client as the
+  // client's report ("Reported by the client as …"), not as PROOVRA's fact.
   const sourceType =
     acquisition.mode === "SECURE_INTAKE_LINK"
       ? "external_intake"
@@ -5312,7 +5390,11 @@ function buildSourceContext(params: {
           ? folderPathPresent
             ? "folder_upload"
             : "imported_upload"
-          : "not_recorded";
+          : acquisition.category === "DIRECT_WEB_CAPTURE"
+            ? "web_capture_extension"
+            : acquisition.category === "DIRECT_SCREEN_CAPTURE"
+              ? "client_reported_screen_capture"
+              : "not_recorded";
   const clientSignalsRecorded = params.parts.some((part) =>
     Boolean(part.clientSignals)
   );
@@ -9351,6 +9433,15 @@ return {
               select: { publicKeyPem: true },
             })
           : null;
+        // AUD-013 — revocation, rotation and the record's key binding, read
+        // for the validity resolver exactly as public Verify reads them.
+        const signingKeyFacts = signingKey
+          ? await loadRecordSigningKeyFacts(prisma, {
+              keyId: evidence.signingKeyId!,
+              version: evidence.signingKeyVersion!,
+              recordSigningKeySha256: evidence.signingKeySha256 ?? null,
+            })
+          : null;
 
         // The hard 503 below only fires when the row CLAIMS a
         // signing key exists (id+version set) but the key row is
@@ -9407,14 +9498,20 @@ return {
           // its `workspaces.teams` array. The capability snapshot resolves that
           // one workspace canonically now, so the aggregate — and every
           // per-workspace query behind it — is not built at all.
-          getStorageProtectionSummary(evidence.storageBucket, evidence.storageKey, {
-            storageRegion: evidence.storageRegion,
-            storageObjectLockMode: evidence.storageObjectLockMode,
-            storageObjectLockRetainUntilUtc:
-              evidence.storageObjectLockRetainUntilUtc,
-            storageObjectLockLegalHoldStatus:
-              evidence.storageObjectLockLegalHoldStatus,
-          }),
+          getStorageProtectionSummary(
+            evidence.storageBucket,
+            evidence.storageKey,
+            {
+              storageRegion: evidence.storageRegion,
+              storageObjectLockMode: evidence.storageObjectLockMode,
+              storageObjectLockRetainUntilUtc:
+                evidence.storageObjectLockRetainUntilUtc,
+              storageObjectLockLegalHoldStatus:
+                evidence.storageObjectLockLegalHoldStatus,
+            },
+            // AUD-014 — read the sealed version: only that confirms the lock.
+            { observe: true, versionId: evidence.storageVersionId ?? null },
+          ),
           getAnchorStatus(id),
           prisma.evidencePart.findMany({
             where: { evidenceId: id },
@@ -9812,14 +9909,14 @@ return {
           Boolean(recomputedFingerprintHash) &&
           recomputedFingerprintHash === evidence.fingerprintHash;
 
-        let signatureValid = false;
+        let signatureCryptographicallyValid = false;
         try {
           // signingKey is null when the row is pending-signing —
           // signature verification is skipped and signatureValid
           // stays false; the Integrity tab renders a
           // "Signing metadata not yet recorded" warning rather
           // than a hard error.
-          signatureValid =
+          signatureCryptographicallyValid =
             signingKey !== null &&
             recomputedFingerprintHash != null &&
             evidence.signatureBase64 != null &&
@@ -9829,8 +9926,18 @@ return {
               publicKeyPem: signingKey.publicKeyPem,
             });
         } catch {
-          signatureValid = false;
+          signatureCryptographicallyValid = false;
         }
+        // AUD-013 — THE validity resolver (shared with public Verify and the
+        // report): a mathematically valid signature made with a revoked or
+        // mismatched key is reported, never presented as valid.
+        const signatureValidity = resolveRecordSignatureValidity({
+          signed: Boolean(evidence.signatureBase64),
+          cryptoValid: signatureCryptographicallyValid,
+          key: signingKeyFacts?.key ?? null,
+          keyMatchesRecord: signingKeyFacts?.keyMatchesRecord ?? null,
+        });
+        const signatureValid = signatureValidity.presentlyTrusted;
 
         // ET-TSA-01: a STAMPED row whose token was never validated is presented as
         // RECORDED_NOT_VALIDATED — never as a trusted timestamp.
@@ -9897,9 +10004,11 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             otsCalendar: evidence.otsCalendar ?? null,
             otsFailureReason: boundedOtsFailureCode(evidence.otsFailureReason),
             ...liveTrustFactsFor(evidence, signingKey ? signatureValid : null, custodyChain.valid),
+            signatureValidity: signingKey ? signatureValidity : null,
             storageImmutable: storage?.immutable ?? null,
             storageObjectLockMode: storage?.mode ?? null,
             storageObjectLockRetainUntilUtc: storage?.retainUntil ?? null,
+            storageProtectionVerification: storageVerificationForTrust(storage, allCustodyEvents),
             ...captureIdentityTrustInput(allCustodyEvents, evidence),
             verificationPackageVersion:
               latestVerificationPackage?.version ??
@@ -10261,6 +10370,10 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               signature: {
                 recorded: Boolean(evidence.signatureBase64),
                 valid: signatureValid,
+                // AUD-013 — the validity state, and the mathematical check alone.
+                validityState: signatureValidity.state,
+                cryptographicallyValid: signatureValidity.cryptographicallyValid,
+                signingKeyRevokedAtUtc: signatureValidity.revokedAtUtc,
                 keyId: evidence.signingKeyId ?? null,
                 keyVersion: evidence.signingKeyVersion ?? null,
               },
@@ -13919,20 +14032,25 @@ await recordOriginalRelease({
     } catch {
       signatureCryptographicallyValid = false;
     }
-    // UC-TRUST-003 — a signature made with a REVOKED key is not presented as a
-    // valid signature: the key can no longer vouch for anything. The revocation
-    // time is surfaced so a reviewer sees "signed with a key revoked at T".
-    const signingKeyRevokedAtUtc = signingKey.revokedAt ? signingKey.revokedAt.toISOString() : null;
-    // UC-TRUST-003 — the record names the key (SPKI SHA-256) it was signed
-    // with; a registry row whose key differs (replaced PEM, forged row) fails
-    // the signature. NULL on a record signed before the binding existed keeps
-    // the previous behaviour.
-    const signingKeyMatchesRecord: boolean | null = evidence.signingKeySha256
-      ? (await import("../signing/key-registry.js")).publicKeySpkiSha256(signingKey.publicKeyPem) ===
-        evidence.signingKeySha256.toLowerCase()
-      : null;
-    const signatureValid =
-      signatureCryptographicallyValid && signingKeyRevokedAtUtc === null && signingKeyMatchesRecord !== false;
+    // AUD-013 / UC-TRUST-003 — THE validity resolver: a signature made with a
+    // REVOKED key, or with a key other than the one bound to the record, is
+    // not presented as valid (the revocation time is surfaced so a reviewer
+    // sees "signed with a key revoked at T"); a rotated key stays valid. The
+    // owner workspace and the worker's report and package resolve it the same.
+    const signingKeyFacts = await loadRecordSigningKeyFacts(prisma, {
+      keyId: evidence.signingKeyId,
+      version: evidence.signingKeyVersion,
+      recordSigningKeySha256: evidence.signingKeySha256 ?? null,
+    });
+    const signatureValidity = resolveRecordSignatureValidity({
+      signed: true,
+      cryptoValid: signatureCryptographicallyValid,
+      key: signingKeyFacts.key,
+      keyMatchesRecord: signingKeyFacts.keyMatchesRecord,
+    });
+    const signingKeyRevokedAtUtc = signatureValidity.revokedAtUtc;
+    const signingKeyMatchesRecord = signingKeyFacts.keyMatchesRecord;
+    const signatureValid = signatureValidity.presentlyTrusted;
 
     const publicVerifyTrustShared = await import("@proovra/shared");
     const publicVerifyParts = await prisma.evidencePart.findMany({
@@ -14060,7 +14178,9 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           evidence.storageObjectLockRetainUntilUtc,
         storageObjectLockLegalHoldStatus:
           evidence.storageObjectLockLegalHoldStatus,
-      }
+      },
+      // AUD-014 — read the sealed version: only that confirms the lock.
+      { observe: true, versionId: evidence.storageVersionId ?? null }
     );
 
     const anchor = await getAnchorStatus(id);
@@ -14084,9 +14204,11 @@ const liveTrustDecision = buildEvidenceTrustDecision({
     // ET-OTS-04 — a bounded code on the public payload, never stored text.
     otsFailureReason: boundedOtsFailureCode(evidence.otsFailureReason),
     ...liveTrustFactsFor(evidence, signatureValid, custodyChain.valid),
+    signatureValidity,
     storageImmutable: storageProtection?.immutable ?? null,
     storageObjectLockMode: storageProtection?.mode ?? null,
     storageObjectLockRetainUntilUtc: storageProtection?.retainUntil ?? null,
+    storageProtectionVerification: storageVerificationForTrust(storageProtection, allCustodyEvents),
     ...captureIdentityTrustInput(allCustodyEvents, evidence),
     verificationPackageVersion:
       latestVerificationPackage?.version ??

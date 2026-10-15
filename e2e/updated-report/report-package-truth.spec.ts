@@ -188,7 +188,10 @@ test("J1 v1 — capture-time identity, upload wording and timestamp truth; both 
   // review index's Report boundary block are removed; the account row states
   // the submission-time verification; the package row only its pairing.
   const flat = text.replace(/\s+/g, " ");
-  expect(flat).not.toContain("PROOVRA observed the files from upload onward; creation and editing before upload were not observed.");
+  // AUD-015 — the web upload's one observation boundary, stated exactly once.
+  const boundary =
+    "PROOVRA proves receipt, the preserved bytes, their integrity and custody from upload onward; it did not observe creation or editing before receipt.";
+  expect(flat.split(boundary).length - 1).toBe(1);
   expect(flat).not.toContain("Location metadata was not recorded for this evidence.");
   expect(flat).not.toContain("What it does not establish");
   expect(flat).toContain("Account authentication Verified Authenticated email account recorded at submission");

@@ -55,6 +55,7 @@ import BasicVerificationView, {
   type VerifyLinkInfo,
 } from "./BasicVerificationView";
 import type { BasicVerification } from "@proovra/shared";
+import { selectRecordTabFields } from "./_verify-record-tab";
 import { VerifyCaptureManifestSection, readPublicCaptureManifest } from "./VerifyCaptureManifestSection";
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
@@ -324,8 +325,9 @@ function buildStoragePresentation(
     };
   }
 
-  // ET-PKG-06 — what the record says, not a check of the stored object.
-  if (immutable && mode === "COMPLIANCE" && recorded) {
+  // ET-PKG-06 / AUD-014 — what the record says, not a check of the stored
+  // object: anything short of a confirmed read (`verified`) is "Recorded".
+  if (immutable && mode === "COMPLIANCE" && (recorded || !verified)) {
     return {
       badgeLabel: "Immutable Storage Recorded",
       badgeTone: "info",
@@ -335,13 +337,14 @@ function buildStoragePresentation(
     };
   }
 
-  if (immutable && mode === "COMPLIANCE") {
+  // AUD-014 — only a successful read of the stored object confirms the lock.
+  if (verified && immutable && mode === "COMPLIANCE") {
     return {
       badgeLabel: "Immutable Storage Locked",
       badgeTone: "success",
       detailLabel: "Storage Protection",
       detailText:
-        "This evidence is stored under immutable Object Lock protection in COMPLIANCE mode. Protected objects cannot be altered or deleted before the retention deadline expires.",
+        "A read of the stored object confirmed immutable Object Lock protection in COMPLIANCE mode. Protected objects cannot be altered or deleted before the retention deadline expires.",
     };
   }
 
@@ -4044,40 +4047,8 @@ tone={
     ]
   );
 
-  const recordTabFields = useMemo(
-    () =>
-      summaryFields.filter((field) =>
-        [
-          "Evidence Status At Report Generation",
-          "Verification Status",
-"Integrity Status",
-"Evidence Title",
-          "Evidence ID",
-          "Evidence Type",
-          "Evidence Structure",
-          "Capture Method",
-          "Submitted By",
-          "Auth Provider",
-          "Identity Level",
-          "Organization",
-          "Organization Verified",
-          "Report Version",
-          "Verification Package Version",
-          "Reviewer Summary Version",
-          "Created At",
-          "Server received at",
-          "Uploaded At",
-          "Signed At",
-          "Generated At",
-          // Match the renamed label from Blocker 1.
-          "Last meaningful verification",
-          "Last public verify page view",
-          "Current public verify page view",
-          "File Type",
-        ].includes(field.label)
-      ),
-    [summaryFields]
-  );
+  // The Record tab's fields (_verify-record-tab.ts names them by label).
+  const recordTabFields = useMemo(() => selectRecordTabFields(summaryFields), [summaryFields]);
 
   const integrityStatusCards = useMemo(
     () =>

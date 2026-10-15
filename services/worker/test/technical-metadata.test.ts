@@ -249,7 +249,8 @@ describe("Evidence Acquisition mapper (channels + privacy)", () => {
 
   it("maps mobile-app and web uploads from the acquisition authority (non-intake)", () => {
     const mobile = buildEvidenceAcquisitionContext({ acquisitionMode: "PROOVRA_MOBILE_APP" })!;
-    expect(mobile.method).toBe("PROOVRA Mobile App");
+    // AUD-001 — the app channel is the client's report, never PROOVRA's fact.
+    expect(mobile.method).toBe("Reported by the client as a PROOVRA mobile app submission");
     expect(mobile.acquisitionMode).toBe("PROOVRA_MOBILE_APP");
     // A delivery channel exists only for intake.
     expect(mobile.deliveryChannel).toBeNull();
@@ -302,8 +303,12 @@ describe("humanization + smart rows", () => {
       "PROOVRA Web Upload",
     );
     expect(captureMethodDisplayLabel({ acquisitionMode: "PROOVRA_MOBILE_APP" })).toBe(
-      "PROOVRA Mobile App",
+      "Reported by the client as a PROOVRA mobile app submission",
     );
+    // AUD-001 — every client-declared screen channel reads as the client's report.
+    for (const mode of ["DIRECT_SCREEN_CAPTURE_ANDROID", "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS", "DIRECT_SCREEN_CAPTURE_IOS"]) {
+      expect(captureMethodDisplayLabel({ acquisitionMode: mode })).toMatch(/^Reported by the client as /);
+    }
     expect(captureMethodDisplayLabel({ acquisitionMode: "SECURE_INTAKE_LINK" })).toBe(
       "Secure Intake Link",
     );

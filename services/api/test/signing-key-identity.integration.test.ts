@@ -174,6 +174,63 @@ describe("evidence signing-key identity (live PostgreSQL 16)", () => {
     expect(await registry.describePublicSigningKey(prisma, { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE" })).toBeNull();
   });
 
+  // -------------------------------------------------------------------------
+  // AUD-013 — the owner review workspace resolves signature validity through
+  // THE resolver public Verify uses: active and rotated keys are valid; a
+  // revoked key's signature is reported as mathematically valid but never as
+  // a valid (presently trusted) signature; a different registered key fails.
+  // -------------------------------------------------------------------------
+  it("AUD-013 review workspace: active, rotated, revoked and historical keys", async () => {
+    const { createHash, sign } = await import("node:crypto");
+    const { createEvidence } = await import("../src/services/evidence.service.js");
+    const P = h.fixtures.personal;
+    const keyId = `t-aud013-${randomUUID().slice(0, 8)}`;
+    const v1 = generateKeyPairSync("ed25519");
+    const v2 = generateKeyPairSync("ed25519");
+    await registry.registerSigningKey(prisma, { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE", publicKeyPem: pem(v1.publicKey, "spki") });
+
+    const created = await createEvidence({ ownerUserId: P.userId, type: "PHOTO", mimeType: "image/jpeg", acquisitionMode: "PROOVRA_WEB_UPLOAD" });
+    const canonical = JSON.stringify({ evidenceId: created.id, sha256: "ab".repeat(32) });
+    const fingerprintHash = createHash("sha256").update(canonical).digest("hex");
+    await prisma.evidence.update({
+      where: { id: created.id },
+      data: {
+        fingerprintCanonicalJson: canonical,
+        fingerprintHash,
+        signatureBase64: sign(null, Buffer.from(fingerprintHash, "hex"), v1.privateKey).toString("base64"),
+        signingKeyId: keyId,
+        signingKeyVersion: 1,
+        signingKeySha256: registry.publicKeySpkiSha256(pem(v1.publicKey, "spki")),
+      },
+    });
+    const signatureOf = async () => {
+      const r = await h.app.inject({
+        method: "GET",
+        url: `/v1/evidence/${created.id}/review-workspace`,
+        headers: { authorization: `Bearer ${P.token}` },
+      });
+      expect(r.statusCode, r.body).toBe(200);
+      const m = r.body.match(/"signature":\{"recorded":true,"valid":(true|false),"validityState":"([A-Z_]+)","cryptographicallyValid":(true|false)/);
+      expect(m, "the integrity signature block").toBeTruthy();
+      return { valid: m![1] === "true", state: m![2], crypto: m![3] === "true", body: r.body };
+    };
+
+    expect(await signatureOf()).toMatchObject({ valid: true, state: "VALID", crypto: true });
+
+    // Rotation: a later version exists; v1 is not revoked, so history stays valid.
+    await registry.registerSigningKey(prisma, { keyId, version: 2, purpose: "EVIDENCE_SIGNATURE", publicKeyPem: pem(v2.publicKey, "spki") });
+    expect(await signatureOf()).toMatchObject({ valid: true, state: "VALID_SUPERSEDED_KEY", crypto: true });
+
+    // Revocation of the historical key: still mathematically valid, never valid.
+    await prisma.signingKey.update({
+      where: { keyId_version_purpose: { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE" } },
+      data: { revokedAt: new Date() },
+    });
+    const revoked = await signatureOf();
+    expect(revoked).toMatchObject({ valid: false, state: "REVOKED_KEY", crypto: true });
+    expect(revoked.body).not.toContain('"summary":"Signature verified"');
+  });
+
   it("purpose, algorithm and a recorded fingerprint are immutable (trigger)", async () => {
     const keyId = `t-immut-${randomUUID().slice(0, 8)}`;
     const k = generateKeyPairSync("ed25519");

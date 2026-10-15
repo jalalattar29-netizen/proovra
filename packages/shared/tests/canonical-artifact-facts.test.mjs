@@ -122,6 +122,8 @@ const goodText = (facts) =>
     otsCard(facts),
     accountCard(facts),
     VERIFICATION_LIMITATION,
+    // AUD-015 — the acquisition observation boundary, stated once on the cover.
+    facts.acquisitionBoundary,
   ].join("\n");
 
 test("AFTER RENDERING (2026-10-14): the account row states the snapshot's verification; no self-attested package; no removed section", () => {
@@ -152,13 +154,26 @@ test("AFTER RENDERING (2026-10-14): the account row states the snapshot's verifi
     "What it does not establish",
     "Embedded previews are reviewer aids; rely on the preserved originals and the verification package.",
     "Location metadata was not recorded for this evidence.",
-    "PROOVRA observed the files from upload onward; creation and editing before upload were not observed.",
     "Workspace identity",
   ]) {
     assert.ok(checks(`${goodText(f)} ${phrase}`, f).includes("RETIRED_SECTION"), phrase);
   }
   // The cover's one-line boundary is not a removed section.
   assert.ok(!checks(`${goodText(f)} Report boundary.`, f).includes("RETIRED_SECTION"));
+});
+
+test("AUD-015: the report states the acquisition observation boundary exactly once", () => {
+  const f = record();
+  assert.ok(f.acquisitionBoundary.startsWith("PROOVRA proves "));
+  const checks = (text) => checkRenderedReportText(text, f, { reportVersion: 1 }).map((x) => x.check);
+  assert.ok(!checks(goodText(f)).includes("ACQUISITION_BOUNDARY"));
+  assert.ok(checks(goodText(f).replace(f.acquisitionBoundary, "")).includes("ACQUISITION_BOUNDARY"));
+  assert.ok(checks(`${goodText(f)}\n${f.acquisitionBoundary}`).includes("ACQUISITION_BOUNDARY"));
+  // Each mode states its own boundary; a legacy record states the not-recorded one.
+  const app = deriveCanonicalArtifactFacts({ fileSha256: SHA, acquisitionMode: "PROOVRA_MOBILE_APP" }, []);
+  const legacy = deriveCanonicalArtifactFacts({ fileSha256: SHA }, []);
+  assert.notEqual(app.acquisitionBoundary, legacy.acquisitionBoundary);
+  assert.match(legacy.acquisitionBoundary, /not recorded/);
 });
 
 test("AFTER RENDERING: the PDF text states the facts and nothing stronger", () => {

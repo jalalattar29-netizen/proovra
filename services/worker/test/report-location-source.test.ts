@@ -153,15 +153,14 @@ describe("Report-v2 — location source provenance", () => {
     expect(ctx?.statusLabel).toBe("Location metadata included");
   });
 
-  it("null locationSource defaults to the historical CAPTURE label (byte-identical legacy rows)", async () => {
-    // Pre-migration rows have null locationSource. The shared helper's
-    // defensive default must keep them rendering exactly as they did
-    // before this feature shipped, even if the migration's backfill
-    // somehow missed a row.
+  it("null locationSource is 'Location source not recorded' — never a browser claim", async () => {
+    // The authenticated create path wrote app-reported GPS with a null
+    // source, so a null is not evidence that a browser reported it. Stored
+    // rows are not rewritten; the label is honest about the gap.
     const vm = await buildReportViewModel(withCoords(baseInput(), null));
     const ctx = vm.meta?.captureContext;
     expect(ctx).toBeTruthy();
-    expect(ctx?.sourceLabel).toBe("Reported by the submitting browser");
+    expect(ctx?.sourceLabel).toBe("Location source not recorded");
     expect(ctx?.statusLabel).toBe("Location metadata included");
   });
 

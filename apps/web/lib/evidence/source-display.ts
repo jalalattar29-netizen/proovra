@@ -32,6 +32,8 @@ export type RawSourceType =
   | "folder_upload"
   | "external_intake"
   | "mobile_app"
+  | "web_capture_extension"
+  | "client_reported_screen_capture"
   | "not_recorded"
   | (string & {});
 
@@ -65,8 +67,14 @@ export function displaySourceType(
       return "Folder upload (multiple files)";
     case "external_intake":
       return "Secure intake submission";
+    // AUD-001 — the app and screen channels are the client's report: any
+    // signed-in client can name them, and no attestation verifies the app.
     case "mobile_app":
-      return "PROOVRA mobile app submission";
+      return "Reported by the client as a PROOVRA mobile app submission";
+    case "web_capture_extension":
+      return "Web capture — PROOVRA browser extension (client-attested)";
+    case "client_reported_screen_capture":
+      return "Reported by the client as a PROOVRA app screen capture";
     case "not_recorded":
     case "unknown":
     case undefined:

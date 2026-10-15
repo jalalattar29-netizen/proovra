@@ -699,6 +699,9 @@ export function buildEvidencePackageFileName(params: {
 
 function safeText(value: string | null | undefined, fallback = "N/A"): string {
   const text = typeof value === "string" ? value.trim() : "";
+  // A stored "null" / "undefined" (a stringified absent value) is absent: the
+  // package's human-readable material never prints it as text.
+  if (/^(?:null|undefined)$/i.test(text)) return fallback;
   return text || fallback;
 }
 
@@ -1359,10 +1362,17 @@ export function buildPackageAcquisitionRecord(params: {
           observedByProovra: wording.observedByProovra,
           attested: wording.attested,
           beforeProovraVisibility: wording.beforeProovraVisibility,
+          // AUD-015 — the one observation boundary (receipt onward only).
+          boundary: wording.boundary,
         };
       })(),
       isDirectCapture: acquisition.isDirectCapture,
       provenanceTier: acquisition.provenanceTier,
+      // AUD-001 — who established the channel name. Only a verified attestation
+      // (carried by the chain) can make a client-declared channel anything else.
+      channelAuthority: acquisition.channelAuthority ?? resolveEvidenceAcquisition({ acquisitionMode: params.acquisitionMode }).channelAuthority,
+      channelAuthorityLabel:
+        acquisition.channelAuthorityLabel ?? resolveEvidenceAcquisition({ acquisitionMode: params.acquisitionMode }).channelAuthorityLabel,
       limitations: acquisition.limitations.map((code) => ({
         code,
         text: ACQUISITION_LIMITATION_TEXT[code],
@@ -2644,7 +2654,7 @@ export function buildCourtReadinessChecklist(params: {
   };
 }
 
-function buildCustodianDeclarationTemplate(params: {
+export function buildCustodianDeclarationTemplate(params: {
   evidenceId?: string;
   reportVersion?: number;
   metadata: VerificationPackageMetadata;
@@ -2679,7 +2689,7 @@ Signature: ________________________
 `;
 }
 
-function buildQualifiedPersonTemplate(params: {
+export function buildQualifiedPersonTemplate(params: {
   evidenceId?: string;
   reportVersion?: number;
 }): string {
@@ -2710,7 +2720,7 @@ Signature: ________________________
 `;
 }
 
-function buildSystemProcessDeclaration(params: {
+export function buildSystemProcessDeclaration(params: {
   evidenceFiles: VerificationEvidenceFile[];
   metadata: VerificationPackageMetadata;
 }): string {

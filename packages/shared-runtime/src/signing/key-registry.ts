@@ -24,6 +24,20 @@ import { createHash, createPublicKey, verify } from "node:crypto";
 
 import type { PrismaClient } from "@prisma/client";
 
+/**
+ * AUD-013 — THE record-signature validity resolver. A pure function (the web
+ * Verify page and the trust decision need it too), defined in @proovra/shared
+ * and published here beside the key facts it reads: every verifier resolves
+ * a signature's validity through it, never from the Ed25519 check alone.
+ */
+export {
+  resolveRecordSignatureValidity,
+  recordSignatureValiditySummary,
+  RECORD_SIGNATURE_VALIDITY_STATES,
+  type RecordSignatureValidity,
+  type RecordSignatureValidityState,
+} from "@proovra/shared";
+
 /** What a registered key may verify. Closed vocabulary (DB CHECK). */
 export const SIGNING_KEY_PURPOSES = ["EVIDENCE_SIGNATURE", "PACKAGE_SEAL"] as const;
 export type SigningKeyPurpose = (typeof SIGNING_KEY_PURPOSES)[number];
@@ -189,6 +203,42 @@ export async function assertSignatureVerifiesWithRegisteredKey(
     );
   }
   return { publicKeySha256: publicKeySpkiSha256(row.publicKeyPem) };
+}
+
+/**
+ * AUD-013 — the key facts the validity resolver needs for a record: the
+ * registered row (revocation), whether a later version superseded it, and
+ * whether it is the key bound to the record at signing.
+ */
+export async function loadRecordSigningKeyFacts(
+  client: RegistryClient,
+  input: { keyId: string; version: number; recordSigningKeySha256?: string | null },
+): Promise<{
+  key: { publicKeyPem: string; revokedAt: Date | null; supersededByVersion: number | null } | null;
+  keyMatchesRecord: boolean | null;
+}> {
+  const row = await client.signingKey.findUnique({
+    where: identityWhere(input.keyId, input.version, "EVIDENCE_SIGNATURE"),
+    select: { publicKeyPem: true, revokedAt: true },
+  });
+  if (!row) return { key: null, keyMatchesRecord: null };
+  const next = await client.signingKey.findFirst({
+    where: { keyId: input.keyId, purpose: "EVIDENCE_SIGNATURE", version: { gt: input.version } },
+    orderBy: { version: "asc" },
+    select: { version: true },
+  });
+  let keyMatchesRecord: boolean | null = null;
+  if (input.recordSigningKeySha256) {
+    try {
+      keyMatchesRecord = publicKeySpkiSha256(row.publicKeyPem) === input.recordSigningKeySha256.toLowerCase();
+    } catch {
+      keyMatchesRecord = false;
+    }
+  }
+  return {
+    key: { publicKeyPem: row.publicKeyPem, revokedAt: row.revokedAt, supersededByVersion: next?.version ?? null },
+    keyMatchesRecord,
+  };
 }
 
 /**

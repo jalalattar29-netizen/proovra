@@ -3,7 +3,7 @@ import { reportAssetDataUrl } from "../asset-data-url.js";
 import type { ReportViewModel } from "../types.js";
 import { escapeHtml, safe } from "../formatters.js";
 import { renderInlineQrBlock } from "../ui.js";
-import { VERIFICATION_LIMITATION, formatTimestampForReportUtc } from "@proovra/shared";
+import { VERIFICATION_LIMITATION, formatTimestampForReportUtc, resolveEvidenceAcquisition } from "@proovra/shared";
 import { buildSignalCards } from "../signal-cards.js";
 const coverBrandIconUrl = reportAssetDataUrl("icon-192.png");
 const coverHeaderLockupUrl = reportAssetDataUrl("report-header.png");
@@ -331,6 +331,9 @@ export function renderCoverSection(vm: ReportViewModel): string {
 <div class="cover-boundary-note cover-boundary-inline">
   <div class="cover-boundary-title">Report boundary.</div>
   <div class="cover-boundary-followup">${escapeHtml(VERIFICATION_LIMITATION)}</div>
+  <div class="cover-boundary-followup" data-acquisition-boundary>${escapeHtml(
+    resolveEvidenceAcquisition({ acquisitionMode: vm.meta.acquisitionMode ?? null }).boundary,
+  )}</div>
 </div>
       </div>
     </section>

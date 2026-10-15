@@ -182,6 +182,7 @@ function decide(overrides) {
       storageImmutable: true,
       storageObjectLockMode: "COMPLIANCE",
       storageObjectLockRetainUntilUtc: "2036-01-01T00:00:00.000Z",
+      storageProtectionVerification: "STORAGE_CONFIRMED",
       identityLevelSnapshot: "VERIFIED_EMAIL",
       submittedByAuthProvider: "EMAIL",
       otsStatus: "PENDING",
@@ -317,7 +318,13 @@ test("identity wording names the real sign-in method, never OAuth for an email a
   assert.match(email.detail, /email-and-password account/);
   const google = decide({ submittedByAuthProvider: "GOOGLE" }).signals.find((s) => s.key === "identity");
   assert.match(google.detail, /Google sign-in/);
-  // Only a verified organization at capture is PASSED.
+  // Only a verified organization at capture is PASSED: the capture-time
+  // organization-verification fact, never the identity level alone (AUD-016).
   assert.equal(decide({ identityLevelSnapshot: "ORGANIZATION_ACCOUNT" }).signals.find((s) => s.key === "identity").state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
-  assert.equal(decide({ identityLevelSnapshot: "VERIFIED_ORGANIZATION" }).signals.find((s) => s.key === "identity").state, "PASSED");
+  const legacyLevel = decide({ identityLevelSnapshot: "VERIFIED_ORGANIZATION" }).signals.find((s) => s.key === "identity");
+  assert.equal(legacyLevel.state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
+  assert.doesNotMatch(legacyLevel.summary, /organization verification/i);
+  const verifiedOrg = decide({ identityLevelSnapshot: "VERIFIED_ORGANIZATION", organizationVerifiedAtCapture: true }).signals.find((s) => s.key === "identity");
+  assert.equal(verifiedOrg.state, "PASSED");
+  assert.equal(verifiedOrg.summary, "Organization verification recorded at capture");
 });

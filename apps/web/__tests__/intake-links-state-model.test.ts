@@ -221,8 +221,10 @@ test("signature verification gracefully handles null signingKey", () => {
   const src = read(EVIDENCE_ROUTES_SRC);
   assert.match(
     src,
-    /signatureValid =[\s\S]{0,200}signingKey !== null &&/,
+    /signatureCryptographicallyValid =[\s\S]{0,200}signingKey !== null &&/,
   );
+  // AUD-013 — the review workspace resolves validity through THE resolver.
+  assert.match(src, /const signatureValid = signatureValidity\.presentlyTrusted;/);
 });
 
 test("evidence page error UI does not surface the 'Signing key metadata' wording", () => {

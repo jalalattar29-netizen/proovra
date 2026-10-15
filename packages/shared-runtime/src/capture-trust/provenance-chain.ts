@@ -42,6 +42,7 @@ import {
   STANDING_PROVENANCE_LIMITATIONS,
   derivedAssetTransformationForKind,
   describeDeviceSignatureVerdict,
+  isPositiveAttestationVerdict,
   projectRecordedAttestationVerdict,
   resolveEvidenceAcquisition,
   type CaptureProvenanceClass,
@@ -286,7 +287,7 @@ export async function loadProvenanceChain(
       ...OTS_ANCHORING_RECORD_SELECT,
     },
   });
-  const acquisition = resolveEvidenceAcquisition({
+  let acquisition = resolveEvidenceAcquisition({
     acquisitionMode: evidence?.acquisitionMode ?? null,
     acquisitionModeSource: evidence?.acquisitionModeSource ?? null,
   });
@@ -402,6 +403,17 @@ export async function loadProvenanceChain(
         ? (att.provider as DeviceAttestationProvider)
         : "NONE";
     }
+  }
+
+  // AUD-001 — the session's attestation, through the reader gate, is the ONLY
+  // input that may upgrade a client-declared channel; no verifier can return a
+  // positive verdict today, so these channels stay CLIENT_DECLARED.
+  if (isPositiveAttestationVerdict(attestationVerdict)) {
+    acquisition = resolveEvidenceAcquisition({
+      acquisitionMode: evidence?.acquisitionMode ?? null,
+      acquisitionModeSource: evidence?.acquisitionModeSource ?? null,
+      verifiedChannelAttestation: { verified: true },
+    });
   }
 
   // ----- server countersignature + time anchoring -----------------------

@@ -190,23 +190,6 @@ export function getVerificationStatusLabel(status: string | null | undefined): s
   }
 }
 
-export function getIdentityLevelLabel(value: string | null | undefined): string {
-  switch (String(value ?? "").trim().toUpperCase()) {
-    case "BASIC_ACCOUNT":
-      return "Basic account";
-    case "VERIFIED_EMAIL":
-      return "Verified email";
-    case "OAUTH_BACKED_IDENTITY":
-      return "OAuth-backed identity";
-    case "ORGANIZATION_ACCOUNT":
-      return "Organization account";
-    case "VERIFIED_ORGANIZATION":
-      return "Verified organization";
-    default:
-      return "Identity level not recorded";
-  }
-}
-
 export function getEvidenceTypeLabel(
   item: Pick<EvidenceListItem, "type" | "mimeType" | "itemCount">,
   detail?: DetailWorkspaceState | null

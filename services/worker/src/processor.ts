@@ -3,7 +3,8 @@ import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import type { ReportTrustDecision } from "./report-v2/types.js";
-import type { OtsState, OtsVerificationKey } from "@proovra/shared";
+import type { OtsState, OtsVerificationKey, StorageProtectionVerificationState } from "@proovra/shared";
+import { resolveStorageProtectionVerification } from "@proovra/shared";
 import { reconcileOtsAnchoredReportVersion } from "./ots-anchored-version.js";
 import { otsClientIdentity } from "./ots.service.js";
 import {
@@ -23,7 +24,7 @@ import {
   type ExtractedPreview,
 } from "./preview/extract.js";
 // PHASE 6 §9.7 (2026-07-22) — purge-time legal-hold re-check (4B holds).
-import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
+import { evaluateEffectiveLegalHold, objectLockPolicyFromEnv, loadRecordSigningKeyFacts, resolveRecordSignatureValidity, type RecordSignatureValidity } from "@proovra/shared-runtime";
 // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the ONE destruction executor
 // and the ONE approval rule. The purge job is a trigger for them now.
 import {
@@ -131,7 +132,7 @@ import {
   buildPublicationKey,
   publishImmutableArtifact,
 } from "./immutable-publication.js";
-import { createHash, createPublicKey, randomUUID, verify as verifySignature } from "node:crypto";
+import { createHash, randomUUID, verify as verifySignature } from "node:crypto";
 // Phase O1.5B — bounded integrity.signature.verify span on the
 // Ed25519 verification of report signing artifacts.
 // Phase O1.5C — report pipeline spans.
@@ -261,7 +262,31 @@ type EvidenceStorageSnapshot = {
   storageObjectLockRetainUntilUtc: string | null;
   storageObjectLockLegalHoldStatus: string | null;
   storageImmutable: boolean;
+  /**
+   * AUD-014 — where the lock facts came from: OBSERVED by this run's read of
+   * the stored object, or RECORDED on the row at sealing (the read failed or
+   * there was no single object to read). Only OBSERVED can confirm the lock.
+   */
+  storageProtectionSource: "RECORDED" | "OBSERVED" | null;
+  storageReadFailed: boolean;
 };
+
+/** AUD-014 — THE storage verification state for this run (canonical classifier). */
+function storageProtectionVerificationOf(
+  storage: EvidenceStorageSnapshot,
+  custodyEvents: ReadonlyArray<{ eventType: string }>,
+): StorageProtectionVerificationState {
+  const policy = objectLockPolicyFromEnv();
+  return resolveStorageProtectionVerification({
+    mode: storage.storageObjectLockMode,
+    retainUntil: storage.storageObjectLockRetainUntilUtc,
+    legalHold: storage.storageObjectLockLegalHoldStatus,
+    source: storage.storageProtectionSource,
+    readFailed: storage.storageReadFailed,
+    protectionUnavailableRecorded: custodyEvents.some((ev) => ev.eventType === "STORAGE_PROTECTION_UNAVAILABLE"),
+    platformCompliancePolicyConfigured: policy.enabled && policy.mode === "COMPLIANCE",
+  }).state;
+}
 
 type IdentitySnapshot = {
   verificationStatus: prismaPkg.VerificationStatus;
@@ -1012,7 +1037,7 @@ case "TIMESTAMP_FAILED": {
           : completedBy
             ? "Completed through the secure intake flow"
             : null,
-        acquisitionMode ? `Submitted through: ${captureMethodDisplayLabel({ acquisitionMode })}` : null,
+        acquisitionMode ? `Acquisition: ${captureMethodDisplayLabel({ acquisitionMode })}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -1161,6 +1186,8 @@ function evaluateReportCryptoChecks(params: {
   fingerprintHash: string;
   signatureBase64: string;
   publicKeyPem: string;
+  /** AUD-013 — the registry facts the validity resolver reads. */
+  signingKeyFacts: Awaited<ReturnType<typeof loadRecordSigningKeyFacts>>;
   custodyEvents: Array<{
     sequence: number;
     atUtc: Date;
@@ -1169,11 +1196,11 @@ function evaluateReportCryptoChecks(params: {
     prevEventHash: string | null;
     eventHash: string | null;
   }>;
-}): { signatureVerified: boolean; custodyChainValid: boolean } {
+}): { signatureVerified: boolean; signatureValidity: RecordSignatureValidity; custodyChainValid: boolean } {
   const recomputed = createHash("sha256").update(params.fingerprintCanonicalJson).digest("hex");
-  let signatureVerified = false;
+  let cryptoValid = false;
   try {
-    signatureVerified =
+    cryptoValid =
       recomputed === params.fingerprintHash &&
       verifyEd25519HexSignature({
         messageHex: recomputed,
@@ -1181,8 +1208,18 @@ function evaluateReportCryptoChecks(params: {
         publicKeyPem: params.publicKeyPem,
       });
   } catch {
-    signatureVerified = false;
+    cryptoValid = false;
   }
+  // AUD-013 — THE validity resolver (public Verify and the owner workspace
+  // read it too): a signature made with a revoked key is reported as
+  // mathematically valid, never as "Record signature verified".
+  const signatureValidity = resolveRecordSignatureValidity({
+    signed: Boolean(params.signatureBase64),
+    cryptoValid,
+    key: params.signingKeyFacts.key,
+    keyMatchesRecord: params.signingKeyFacts.keyMatchesRecord,
+  });
+  const signatureVerified = signatureValidity.presentlyTrusted;
   const custodyChainValid = evaluateCustodyChain({
     evidenceId: params.evidenceId,
     records: params.custodyEvents.map((event) => ({
@@ -1194,7 +1231,7 @@ function evaluateReportCryptoChecks(params: {
       eventHash: event.eventHash,
     })),
   }).valid;
-  return { signatureVerified, custodyChainValid };
+  return { signatureVerified, signatureValidity, custodyChainValid };
 }
 
 function resolveRecordedIntegrityPromotionDecision(params: {
@@ -1937,6 +1974,8 @@ async function resolveAnchorStatusForReport(
 async function resolveEvidenceStorageSnapshot(params: {
   storageBucket: string | null;
   storageKey: string | null;
+  /** AUD-014 — the sealed version the read describes. */
+  storageVersionId?: string | null;
   storageRegion?: string | null;
   storageObjectLockMode?: string | null;
   storageObjectLockRetainUntilUtc?: Date | null;
@@ -1961,31 +2000,39 @@ async function resolveEvidenceStorageSnapshot(params: {
       ? params.storageRegion.trim()
       : process.env.S3_REGION?.trim() || null;
 
-  if (snapshotMode || snapshotRetainUntil || snapshotLegalHold) {
-    return {
-      storageRegion: snapshotRegion,
-      storageObjectLockMode: snapshotMode,
-      storageObjectLockRetainUntilUtc: snapshotRetainUntil,
-      storageObjectLockLegalHoldStatus: snapshotLegalHold,
-      storageImmutable:
-        snapshotMode === "COMPLIANCE" && Boolean(snapshotRetainUntil),
-    };
-  }
+  const hasSnapshot = Boolean(snapshotMode || snapshotRetainUntil || snapshotLegalHold);
+  // AUD-014 — the sealing snapshot is RECORDED, not a read of the object.
+  const recorded = (readFailed: boolean): EvidenceStorageSnapshot => ({
+    storageRegion: snapshotRegion,
+    storageObjectLockMode: snapshotMode,
+    storageObjectLockRetainUntilUtc: snapshotRetainUntil,
+    storageObjectLockLegalHoldStatus: snapshotLegalHold,
+    storageImmutable:
+      snapshotMode === "COMPLIANCE" && Boolean(snapshotRetainUntil),
+    storageProtectionSource: "RECORDED",
+    storageReadFailed: readFailed,
+  });
 
   if (!params.storageBucket || !params.storageKey) {
+    if (hasSnapshot) return recorded(false);
     return {
       storageRegion: snapshotRegion,
       storageObjectLockMode: null,
       storageObjectLockRetainUntilUtc: null,
       storageObjectLockLegalHoldStatus: null,
       storageImmutable: false,
+      storageProtectionSource: null,
+      storageReadFailed: false,
     };
   }
 
+  // AUD-014 — the authoritative read of the sealed version, even when a
+  // snapshot exists: only it can confirm the lock ("verified").
   try {
     const meta = await headObject({
       bucket: params.storageBucket,
       key: params.storageKey,
+      versionId: params.storageVersionId ?? null,
     });
 
     const mode = meta.objectLockMode ? String(meta.objectLockMode) : null;
@@ -2003,14 +2050,20 @@ async function resolveEvidenceStorageSnapshot(params: {
       storageObjectLockRetainUntilUtc: retainUntil,
       storageObjectLockLegalHoldStatus: legalHold,
       storageImmutable: mode === "COMPLIANCE" && Boolean(retainUntil),
+      storageProtectionSource: "OBSERVED",
+      storageReadFailed: false,
     };
   } catch {
+    // A failed read confirms nothing: the snapshot stands as RECORDED.
+    if (hasSnapshot) return recorded(true);
     return {
       storageRegion: snapshotRegion,
       storageObjectLockMode: null,
       storageObjectLockRetainUntilUtc: null,
       storageObjectLockLegalHoldStatus: null,
       storageImmutable: false,
+      storageProtectionSource: null,
+      storageReadFailed: true,
     };
   }
 }
@@ -2284,6 +2337,7 @@ async function prepareReportArtifacts(
   const evidenceStorage = await resolveEvidenceStorageSnapshot({
     storageBucket: evidence.storageBucket ?? null,
     storageKey: evidence.storageKey ?? null,
+    storageVersionId: evidence.storageVersionId ?? null,
     storageRegion: evidence.storageRegion ?? null,
     storageObjectLockMode: evidence.storageObjectLockMode ?? null,
     storageObjectLockRetainUntilUtc:
@@ -2901,12 +2955,15 @@ await recordIntegrityObservation({
   // UC-TRUST-003 — the registry key must be the one the record was signed
   // with (its SPKI SHA-256 is bound to the record at signing). A replaced or
   // forged registry row is refused; a legacy record without the binding keeps
-  // the previous behaviour.
-  if (evidence.signingKeySha256) {
-    const der = createPublicKey(signingKey.publicKeyPem.trim()).export({ type: "spki", format: "der" });
-    if (createHash("sha256").update(der).digest("hex") !== evidence.signingKeySha256.toLowerCase()) {
-      throw createWorkerError("SIGNING_KEY_IDENTITY_MISMATCH", false);
-    }
+  // the previous behaviour. AUD-013: the same facts (revocation, rotation)
+  // feed the validity resolver for the report's signature statement.
+  const signingKeyFacts = await loadRecordSigningKeyFacts(prisma, {
+    keyId: signingKeyId,
+    version: signingKeyVersion,
+    recordSigningKeySha256: evidence.signingKeySha256 ?? null,
+  });
+  if (signingKeyFacts.keyMatchesRecord === false) {
+    throw createWorkerError("SIGNING_KEY_IDENTITY_MISMATCH", false);
   }
 
   const currentMaxReport = await prisma.report.aggregate({
@@ -3049,6 +3106,7 @@ captureMethod: deriveReportCaptureMethod({
     fingerprintHash,
     signatureBase64,
     publicKeyPem: signingKey.publicKeyPem,
+    signingKeyFacts,
     custodyEvents,
   });
 
@@ -3132,6 +3190,8 @@ verificationPackageMetadata:
     publicUrl,
     storageRegion: evidenceStorage.storageRegion,
     storageImmutable: evidenceStorage.storageImmutable,
+    // AUD-014 — only this run's successful read of the object is "verified".
+    storageProtectionVerification: storageProtectionVerificationOf(evidenceStorage, custodyEvents),
     storageObjectLockMode: evidenceStorage.storageObjectLockMode,
     storageObjectLockRetainUntilUtc:
       evidenceStorage.storageObjectLockRetainUntilUtc,
@@ -3185,6 +3245,10 @@ evidenceStructure:
     // The cryptographic checks THIS run performed; the trust decision says
     // "Verified" for the signature and the custody chain only on these.
     signatureVerified: reportCryptoChecks.signatureVerified,
+    signatureValidity: {
+      state: reportCryptoChecks.signatureValidity.state,
+      revokedAtUtc: reportCryptoChecks.signatureValidity.revokedAtUtc,
+    },
     custodyChainValid: reportCryptoChecks.custodyChainValid,
 
     anchor: anchorSummary,

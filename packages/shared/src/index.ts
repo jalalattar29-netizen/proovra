@@ -937,6 +937,8 @@ export {
   INTAKE_LINK_LOCATION_POLICY_OPTIONS,
   INTAKE_LINK_LOCATION_PROMPT_COPY,
   INTAKE_LOCATION_CONSENT_STATES,
+  EVIDENCE_LOCATION_SOURCE_NOT_RECORDED_LABEL,
+  evidenceLocationSourceForAcquisition,
   evidenceLocationSourceLabel,
   isEvidenceLocationSource,
   isIntakeLinkLocationPolicy,
@@ -2609,6 +2611,8 @@ export * from "./queue-job-correlation.js";
 // PROOVRA?"), artifact classes, derivative lineage vocabulary, and the typed
 // public Verify acquisition contract.
 export * from "./evidence-acquisition.js";
+// AUD-013 — THE record-signature validity resolver (revoked / rotated / mismatched keys).
+export * from "./record-signature-validity.js";
 // UC — the ONE cross-platform capture-capability authority (F7). Answers a
 // PRODUCT/PLATFORM question only ("which capture channels can this platform
 // offer, and in what truthful availability state?"). It never decides
