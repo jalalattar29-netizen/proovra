@@ -135,17 +135,23 @@ test("each integrity count is coloured for what it means, not for the row", asyn
   const failed = segments.tsa.find((s) => s.text?.includes("failed"));
   if (failed) expect(failed.color).toBe(CANONICAL_RED);
 
-  // OTS: anchored SUCCEEDED and is green (product decision, 2026-09-04 — the
-  // row previously painted it amber on the reasoning that a calendar
-  // submission is not yet Bitcoin-confirmed, but `pending` is the segment
-  // that says so and it keeps the attention tone). Pending stays attention,
-  // not-anchored stays an error.
-  const anchored = segments.ots.find((s) => s.text?.includes("anchored") && !s.text.includes("not"));
-  expect(anchored?.color).toBe(CANONICAL_GREEN);
+  // OTS (SUPERSEDES the 2026-09-04 "anchored is green" decision, 2026-10-15):
+  // an ANCHORED proof is a Bitcoin attestation RECORDED, not independently
+  // checked against the Bitcoin main chain, so its count is neutral — never
+  // green, never an error. Pending keeps the attention tone; only a failure is
+  // red; "not anchored yet" is an absence, not a failure.
+  const recorded = segments.ots.find((s) => s.text?.includes("recorded"));
+  expect(recorded, "the OTS row states its recorded attestations").toBeTruthy();
+  expect(recorded!.tone).toBe("neutral");
+  expect(recorded!.color).not.toBe(CANONICAL_GREEN);
+  expect(recorded!.color).not.toBe(CANONICAL_RED);
+  expect(segments.ots.some((s) => s.text?.includes("anchored") && !s.text.includes("not"))).toBe(false);
   const pending = segments.ots.find((s) => s.text?.includes("pending"));
   if (pending) expect(pending.color).toBe(REFERENCE_ORANGE);
+  const failedOts = segments.ots.find((s) => s.text?.includes("failed"));
+  if (failedOts) expect(failedOts.color).toBe(CANONICAL_RED);
   const notAnchored = segments.ots.find((s) => s.text?.includes("not anchored"));
-  if (notAnchored) expect(notAnchored.color).toBe(CANONICAL_RED);
+  if (notAnchored) expect(notAnchored.color).not.toBe(CANONICAL_RED);
 });
 
 // ===========================================================================

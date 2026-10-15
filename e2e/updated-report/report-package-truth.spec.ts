@@ -728,7 +728,7 @@ test("J10 OTS PENDING at issuance — Report v1 and BOTH packages are generated 
   await signIn(page, session.email);
   await openArtifacts(page, id);
   await expect(page.getByTestId("pair-1-package-profile")).toContainText("Full forensic package");
-  await expect(page.getByTestId("truth-ots")).toHaveText("Pending");
+  await expect(page.getByTestId("truth-ots")).toHaveText("OpenTimestamps proof pending");
   await expect(page.getByTestId("truth-ots-status")).toHaveText("Pending");
   await expect(page.getByTestId("truth-ots-status")).toHaveAttribute("data-verification-status", "NOT_CHECKED");
   await page.screenshot({ path: join(PROOF_DIR, "ots-pending-artifacts.png"), fullPage: true });
