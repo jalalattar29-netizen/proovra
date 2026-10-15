@@ -23,6 +23,13 @@
  *      racing the seal is serialised by the lock (it lands before the check or
  *      finds the session sealed).
  *   4. Each segment's stated size is the size of what was stored.
+ *   4b. AUD-017 — what the server CANNOT know: a tail the client never
+ *      declared. The recorded count, duration and completeness are the
+ *      client's statements; the server refuses the contradictions it can see
+ *      (sequence holes, bad offsets, a duration longer than the session it
+ *      observed, a recorded count below the running `recordedThrough` the
+ *      client declared with its segments) and records the facts as
+ *      client-reported. Every surface says so (`captureCompletenessRows`).
  *   5. `completeDirectCapture` classes the manifest part CAPTURE_MANIFEST,
  *      records the validated manifest facts, recomputes every part digest,
  *      seals through the canonical `completeEvidence`, and binds the session
@@ -96,8 +103,18 @@ export async function completeContinuousCaptureSession(
   const manifestDigest = sha256HexOf(input.manifestJson);
 
   const plan: DirectCaptureSealPlanner = async ({ db: client, session: locked, declarations, now }) => {
+    // AUD-017 — the highest running recorder count declared with a segment
+    // (null when no declaration carried one: a legacy client).
+    let declaredRecordedThroughMax: number | null = null;
+    for (const d of declarations.values()) {
+      if (d.recordedThrough !== null && (declaredRecordedThroughMax === null || d.recordedThrough > declaredRecordedThroughMax)) {
+        declaredRecordedThroughMax = d.recordedThrough;
+      }
+    }
+
     // 1. ET-DC-09 — the manifest is checked against the server's facts too.
     const validation = validateScreenContinuousManifest(parsed, {
+      declaredRecordedThroughMax,
       expectedSessionId: locked.id,
       expectedPlatform: locked.acquisitionMode === "DIRECT_SCREEN_CAPTURE_IOS" ? "ios" : "android",
       ...(locked.startedAtUtc
@@ -177,7 +194,11 @@ export async function completeContinuousCaptureSession(
       // UC-STR-006 — written by the bind itself.
       endReason: continuousEndReasonFor(manifest.sessionCompleteness),
       // UC-PROV-003 — the validated facts, recorded before the bind.
-      manifestFacts: continuousCaptureManifestFacts(manifest, { manifestSha256: manifestDigest, manifestPartIndex }),
+      manifestFacts: continuousCaptureManifestFacts(manifest, {
+        manifestSha256: manifestDigest,
+        manifestPartIndex,
+        declaredRecordedThroughMax,
+      }),
       verifyStorage,
     };
   };

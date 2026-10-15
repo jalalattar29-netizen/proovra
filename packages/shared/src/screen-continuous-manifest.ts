@@ -13,9 +13,16 @@
  * CONTINUITY IS STATED, NOT ASSUMED. `sessionCompleteness` distinguishes a
  * COMPLETE_SESSION from an INTERRUPTED_SESSION, `sequence` makes ordering explicit
  * (a gap is detectable), `recordedSegmentCount` says how many segments the
- * recorder produced (so a lost tail is detectable), and interruptions /
- * orientation changes / pauses / losses are recorded — so PROOVRA never claims
- * continuity across a break it knows about.
+ * recorder produced, and interruptions / orientation changes / pauses / losses
+ * are recorded — so PROOVRA never claims continuity across a break it knows
+ * about.
+ *
+ * AUD-017 — the recorded count, the duration and the completeness are the
+ * CLIENT'S statements. The server checks what it can (internal sequence holes,
+ * overlapping or out-of-range offsets, a duration longer than the session the
+ * server saw, a count below the running count the client declared with its
+ * segments), but a tail the client never declared is invisible to it, so every
+ * surface states completeness as client-reported (`captureCompletenessRows`).
  *
  * PRIVACY (deliberate omissions): NO app inventory, notification contents,
  * clipboard, contacts or hardware identifiers — only the coarse display/OS/app
@@ -337,6 +344,13 @@ export function validateScreenContinuousManifest(
     expectedPlatform?: "android" | "ios";
     /** ET-DC-09 — the server's session window: opened at, and "now" at seal. */
     sessionWindow?: { openedAtMs: number; nowMs: number };
+    /**
+     * AUD-017 — the highest running recorder count the client declared with
+     * its segment declarations (`recordedThrough`), or null when no
+     * declaration carried one (a legacy client). The manifest may not state
+     * fewer recorded segments than the client already said existed.
+     */
+    declaredRecordedThroughMax?: number | null;
   } = {},
 ): ScreenContinuousManifestValidation {
   const B = SCREEN_CONTINUOUS_MANIFEST_BOUNDS;
@@ -466,6 +480,17 @@ export function validateScreenContinuousManifest(
   if (listed < recorded && !lossStated) {
     return { ok: false, error: "fewer segments than recordedSegmentCount without SEGMENT_UPLOAD_LOST" };
   }
+  // AUD-017 — a hidden tail. The recorder's count travels with each segment
+  // declaration; a manifest stating fewer recorded segments than the client
+  // already declared contradicts its own running count, whatever completeness
+  // it claims. (A client that never declared a count cannot be caught here:
+  // its recorded count stays client-reported.)
+  if (
+    typeof opts.declaredRecordedThroughMax === "number" &&
+    recorded < opts.declaredRecordedThroughMax
+  ) {
+    return { ok: false, error: "recordedSegmentCount is below the recorder count declared with the segments" };
+  }
 
   // ---- ET-DC-09 — continuity is checked, not taken on the client's word ----
   if (opts.expectedPlatform && device.platform !== opts.expectedPlatform) {
@@ -523,13 +548,37 @@ export function validateScreenContinuousManifest(
       }
     }
   }
+  // AUD-017 — offsets are checked for EVERY session, not only a complete one:
+  // no segment may end after a stated duration (0 is the UC-IOS-006 "not
+  // known" fallback of an interrupted session), and neither the duration nor
+  // any segment may run longer than the server itself saw the session open
+  // (session open → seal, on the server's clock; the recorder starts after it).
+  const totalDurationMs = m.totalDurationMs as number;
+  const serverWindowMs = opts.sessionWindow ? opts.sessionWindow.nowMs - opts.sessionWindow.openedAtMs : null;
+  if (serverWindowMs !== null && totalDurationMs > serverWindowMs + B.timingSlackMs) {
+    return { ok: false, error: "totalDurationMs exceeds the server-observed session window" };
+  }
+  for (const s of ordered) {
+    const segEnd = s.startedAtOffsetMs + s.durationMs;
+    if (totalDurationMs > 0 && segEnd > totalDurationMs + B.timingSlackMs) {
+      return { ok: false, error: "a segment ends after totalDurationMs" };
+    }
+    if (serverWindowMs !== null && segEnd > serverWindowMs + B.timingSlackMs) {
+      return { ok: false, error: "a segment ends after the server-observed session window" };
+    }
+  }
   return { ok: true, manifest: input as ScreenContinuousManifest };
 }
 
 /** UC-PROV-003 — the persisted facts of a VALIDATED continuity manifest. */
 export function continuousCaptureManifestFacts(
   m: ScreenContinuousManifest,
-  ref: { manifestSha256: string; manifestPartIndex: number },
+  ref: {
+    manifestSha256: string;
+    manifestPartIndex: number;
+    /** AUD-017 — see `validateScreenContinuousManifest`; null for a legacy client. */
+    declaredRecordedThroughMax?: number | null;
+  },
 ): CaptureManifestFacts {
   return {
     schema: CAPTURE_MANIFEST_FACTS_SCHEMA,
@@ -557,6 +606,7 @@ export function continuousCaptureManifestFacts(
       artifactCount: m.segments.length,
       recordedSegmentCount: m.recordedSegmentCount,
       totalDurationMs: m.totalDurationMs,
+      declaredRecordedThroughMax: ref.declaredRecordedThroughMax ?? null,
     },
   };
 }

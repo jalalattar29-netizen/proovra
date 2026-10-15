@@ -205,6 +205,10 @@ const DeclarePartBody = z
   .object({
     sha256: z.string().regex(/^[0-9a-fA-F]{64}$/),
     clientReportedSource: z.enum(DIRECT_CAPTURE_CLIENT_SOURCES),
+    // AUD-017 — a continuous recorder's running count when this segment was
+    // declared (how many segments it had produced so far). Optional: a client
+    // that never sends it keeps a purely client-reported recorded count.
+    recordedThrough: z.number().int().min(1).max(MAX_EVIDENCE_PARTS).optional(),
     signed: z
       .object({
         payload: CaptureSignaturePayloadSchema,
@@ -500,6 +504,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
           partIndex,
           sha256: body.sha256,
           clientReportedSource: body.clientReportedSource,
+          recordedThrough: body.recordedThrough ?? null,
           signed: body.signed
             ? {
                 payload: body.signed.payload as CaptureSignaturePayload,

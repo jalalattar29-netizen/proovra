@@ -302,6 +302,7 @@ export function screenCaptureManifestFacts(
       artifactCount: m.artifacts.length,
       recordedSegmentCount: null,
       totalDurationMs: null,
+      declaredRecordedThroughMax: null,
     },
   };
 }

@@ -8,7 +8,14 @@
  * derived copies and the standing limitations. Every value is the server's;
  * nothing is derived here. A projection for another record is never shown.
  */
-import { otsAnchoringCopy, parseOtsState, type OtsState } from "@proovra/shared";
+import {
+  captureCompletenessNote,
+  captureCompletenessRows,
+  otsAnchoringCopy,
+  parseOtsState,
+  readCaptureManifestFacts,
+  type OtsState,
+} from "@proovra/shared";
 import { otsCardForVerification, otsStatusLine, otsVerificationOf, type OtsVerificationKey } from "./ots-anchoring";
 
 export function buildProvenancePath(evidenceId: string): string {
@@ -47,6 +54,12 @@ export interface ProvenanceView {
   otsBlockHeight: number | null;
   derivations: Array<{ derivedEvidenceId: string; transformLabel: string | null; derivedAtUtc: string }>;
   limitations: string[];
+  /**
+   * AUD-017 — the capture client's completeness statement (delivered of
+   * recorded segments for a continuous capture), in THE shared wording; null
+   * when the record has no validated capture-manifest facts.
+   */
+  captureCompleteness: { rows: Array<{ label: string; value: string }>; note: string | null } | null;
 }
 
 function o(v: unknown): Record<string, unknown> {
@@ -93,6 +106,10 @@ export function parseProvenanceChain(payload: unknown, evidenceId: string): Prov
       .filter((x) => s(x.derivedEvidenceId) && s(x.derivedAtUtc))
       .map((x) => ({ derivedEvidenceId: s(x.derivedEvidenceId) as string, transformLabel: s(x.transformLabel), derivedAtUtc: s(x.derivedAtUtc) as string })),
     limitations: (Array.isArray(c.limitations) ? c.limitations : []).filter((l): l is string => typeof l === "string"),
+    captureCompleteness: (() => {
+      const facts = readCaptureManifestFacts(c.captureManifestFacts);
+      return facts ? { rows: captureCompletenessRows(facts), note: captureCompletenessNote(facts) } : null;
+    })(),
   };
 }
 

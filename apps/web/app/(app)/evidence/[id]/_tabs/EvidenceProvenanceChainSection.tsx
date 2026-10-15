@@ -35,6 +35,8 @@ import { Link2, ShieldCheck } from "lucide-react";
 
 import {
   TSA_PROOF_STATUS_LABELS,
+  captureCompletenessNote,
+  captureCompletenessRows,
   parseTsaProofStatus,
   readOtsAnchoringView,
   type CaptureManifestFacts,
@@ -238,6 +240,41 @@ export function EvidenceProvenanceChainSection({
   );
 }
 
+/**
+ * UC-PROV-003 / AUD-017 — the capture-client facts rows, labelled as reported
+ * by the client; completeness and delivered/recorded segments come from THE
+ * shared formatter. Exported for focused tests. Pure.
+ */
+export function captureManifestItems(
+  facts: CaptureManifestFacts | null,
+  fmt: (iso: string) => string,
+): Array<{ label: string; value: string }> {
+  const manifestItems: Array<{ label: string; value: string }> = [];
+  if (!facts) return manifestItems;
+  if (facts.web?.sourceUrlPrivate) manifestItems.push({ label: "Captured page (reported by the capture client)", value: facts.web.sourceUrlPrivate });
+  if (facts.web?.titlePrivate) manifestItems.push({ label: "Page title (reported)", value: facts.web.titlePrivate });
+  if (facts.clientCaptureWindow?.startedAtUtc) {
+    manifestItems.push({
+      label: "Capture window (reported by the capture client)",
+      value: `${fmt(facts.clientCaptureWindow.startedAtUtc)}${
+        facts.clientCaptureWindow.endedAtUtc ? ` – ${fmt(facts.clientCaptureWindow.endedAtUtc)}` : ""
+      }`,
+    });
+  }
+  const client = [facts.client?.browserName, facts.client?.browserVersion].filter(Boolean).join(" ");
+  if (client) manifestItems.push({ label: "Browser (reported)", value: client });
+  if (facts.client?.appVersion) manifestItems.push({ label: "Capture app version (reported)", value: facts.client.appVersion });
+  // AUD-017 — completeness and delivered/recorded segments, in THE shared wording.
+  manifestItems.push(...captureCompletenessRows(facts));
+  if (facts.web?.pageMutatedDuringCapture) {
+    manifestItems.push({ label: "Page changed during capture", value: "Yes — the page was still changing while it was captured" });
+  }
+  if (facts.limitations.length > 0) {
+    manifestItems.push({ label: "Limitations detected", value: facts.limitations.map((l) => humaniseEnum(String(l))).join(", ") });
+  }
+  return manifestItems;
+}
+
 function ProvenanceChainBody({ chain }: { chain: ProvenanceChainView }) {
   // UC-0: acquisition truth is the canonical acquisition authority, and the
   // public Class A/B/C "capture record" copy was retired (D2) — it claimed a
@@ -308,29 +345,7 @@ function ProvenanceChainBody({ chain }: { chain: ProvenanceChainView }) {
   // UC-PROV-003 — what the capture client reported about the capture, and
   // validated at seal. Labelled as client-reported, never as proven.
   const facts = chain.captureManifestFacts ?? null;
-  const manifestItems: Array<{ label: string; value: string }> = [];
-  if (facts) {
-    if (facts.web?.sourceUrlPrivate) manifestItems.push({ label: "Captured page (reported by the capture client)", value: facts.web.sourceUrlPrivate });
-    if (facts.web?.titlePrivate) manifestItems.push({ label: "Page title (reported)", value: facts.web.titlePrivate });
-    if (facts.clientCaptureWindow?.startedAtUtc) {
-      manifestItems.push({
-        label: "Capture window (reported by the capture client)",
-        value: `${formatUserDateTime(facts.clientCaptureWindow.startedAtUtc)}${
-          facts.clientCaptureWindow.endedAtUtc ? ` – ${formatUserDateTime(facts.clientCaptureWindow.endedAtUtc)}` : ""
-        }`,
-      });
-    }
-    const client = [facts.client?.browserName, facts.client?.browserVersion].filter(Boolean).join(" ");
-    if (client) manifestItems.push({ label: "Browser (reported)", value: client });
-    if (facts.client?.appVersion) manifestItems.push({ label: "Capture app version (reported)", value: facts.client.appVersion });
-    manifestItems.push({ label: "Completeness (reported)", value: humaniseEnum(String(facts.completeness)) });
-    if (facts.web?.pageMutatedDuringCapture) {
-      manifestItems.push({ label: "Page changed during capture", value: "Yes — the page was still changing while it was captured" });
-    }
-    if (facts.limitations.length > 0) {
-      manifestItems.push({ label: "Limitations detected", value: facts.limitations.map((l) => humaniseEnum(String(l))).join(", ") });
-    }
-  }
+  const manifestItems = captureManifestItems(facts, formatUserDateTime);
 
   return (
     <div data-evidence-provenance-body>
@@ -345,6 +360,11 @@ function ProvenanceChainBody({ chain }: { chain: ProvenanceChainView }) {
             </p>
           ) : null}
           <KeyValueGrid items={manifestItems} />
+          {facts && captureCompletenessNote(facts) ? (
+            <p className="evd-muted evd-block--tight" data-evidence-provenance-completeness-note>
+              {captureCompletenessNote(facts)}
+            </p>
+          ) : null}
         </div>
       ) : null}
 

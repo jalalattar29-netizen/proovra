@@ -143,6 +143,12 @@ export async function uploadDirectCaptureItem(
     privateNote?: string | null;
     checklistStepId?: string | null;
     sourceLabel?: string | null;
+    /**
+     * AUD-017 — a continuous recorder's running segment count at declaration
+     * (SCREEN_SEGMENT only). Sent with the declaration so the server can
+     * refuse a manifest that later states fewer recorded segments.
+     */
+    recordedThrough?: number;
   },
 ): Promise<{ partIndex: number; sha256Hex: string }> {
   // The integrity layer returns the hex digest directly — it no longer round-
@@ -157,6 +163,7 @@ export async function uploadDirectCaptureItem(
       body: JSON.stringify({
         sha256: sha256Hex,
         clientReportedSource: item.source,
+        ...(typeof item.recordedThrough === "number" ? { recordedThrough: item.recordedThrough } : {}),
         // UC-ARCH-007 — declarations are UNSIGNED: this app registers no device
         // key and submits no platform attestation (no shipped client does), so
         // the server records every declaration as signatureVerdict MISSING.

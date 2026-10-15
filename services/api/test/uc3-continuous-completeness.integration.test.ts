@@ -29,6 +29,8 @@ import {
   SCREEN_CAPTURE_MANIFEST_SCHEMA_VERSION,
   SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION,
   WEB_CAPTURE_MANIFEST_SCHEMA_VERSION,
+  captureCompletenessNote,
+  captureCompletenessRows,
   selectCaptureManifestFacts,
 } from "@proovra/shared";
 
@@ -226,17 +228,18 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
     objects.set(`${bucket}/${key}`, bytes);
   }
 
-  async function declare(token: string, sessionId: string, partIndex: number, digest: string, source: string) {
+  async function declare(token: string, sessionId: string, partIndex: number, digest: string, source: string, recordedThrough?: number) {
     return call("POST", `/v1/capture/direct-sessions/${sessionId}/parts/${partIndex}/declaration`, token, {
       sha256: digest,
       clientReportedSource: source,
+      ...(recordedThrough !== undefined ? { recordedThrough } : {}),
       signed: null,
     });
   }
 
-  async function uploadAndDeclare(token: string, evidenceId: string, sessionId: string, partIndex: number, bytes: Buffer, source: string) {
+  async function uploadAndDeclare(token: string, evidenceId: string, sessionId: string, partIndex: number, bytes: Buffer, source: string, recordedThrough?: number) {
     await put(token, evidenceId, partIndex, bytes);
-    const d = await declare(token, sessionId, partIndex, sha256(bytes), source);
+    const d = await declare(token, sessionId, partIndex, sha256(bytes), source, recordedThrough);
     expect(d.statusCode, d.body).toBe(201);
     return { partIndex, sha256: sha256(bytes), sizeBytes: bytes.length };
   }
@@ -294,14 +297,18 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
     });
   }
 
-  /** Record `recorded` segments, upload+declare the ones in `declaredIdx`. */
-  async function stageSegments(recorded: number, declaredIdx: number[]) {
+  /**
+   * Record `recorded` segments, upload+declare the ones in `declaredIdx`.
+   * `recordedThrough(i)` is the running recorder count a current client sends
+   * with segment i (omitted: a legacy client).
+   */
+  async function stageSegments(recorded: number, declaredIdx: number[], recordedThrough?: (i: number) => number) {
     const token = owner().ownerToken;
     const { sessionId, evidenceId } = await openAndReserve("DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS");
     const segs: Seg[] = [];
     for (let i = 0; i < recorded; i += 1) {
       if (!declaredIdx.includes(i)) continue;
-      segs.push(await uploadAndDeclare(token, evidenceId, sessionId, i, Buffer.from(`seg-${i}-${randomBytes(6).toString("hex")}`), "SCREEN_SEGMENT"));
+      segs.push(await uploadAndDeclare(token, evidenceId, sessionId, i, Buffer.from(`seg-${i}-${randomBytes(6).toString("hex")}`), "SCREEN_SEGMENT", recordedThrough?.(i)));
     }
     return { token, sessionId, evidenceId, segs };
   }
@@ -453,6 +460,90 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
     expect(r.statusCode, r.body).toBe(200);
     const s = await prisma.captureSession.findUniqueOrThrow({ where: { id: sessionId }, select: { endReason: true } });
     expect(s.endReason).toBe("CONTINUOUS_INTERRUPTED_SESSION");
+  });
+
+  // ---------------------------------------------------------------- AUD-017
+
+  const sealedFacts = async (sessionId: string, manifestJson: string) =>
+    selectCaptureManifestFacts(
+      await prisma.captureTrustEventRecord.findMany({
+        where: { captureSessionId: sessionId },
+        orderBy: { sequence: "asc" },
+        select: { code: true, payload: true },
+      }),
+      { manifestSha256: sha256(manifestJson) },
+    );
+
+  it("AUD-017 a legacy client hiding its tail (recorded 5, uploaded 2, claims 2 COMPLETE) seals only as CLIENT-REPORTED completeness", async () => {
+    // No recordedThrough: the server has no boundary of its own to check against.
+    const { token, sessionId, evidenceId, segs } = await stageSegments(5, [0, 1]);
+    const m = continuousManifest(sessionId, segs, { recorded: 2 });
+    await stageManifest(token, sessionId, evidenceId, m, 2);
+    const r = await seal(token, sessionId, m);
+    expect(r.statusCode, r.body).toBe(200);
+    const facts = await sealedFacts(sessionId, m);
+    expect(facts!.reportedBy).toBe("CAPTURE_CLIENT");
+    expect(facts!.screen).toMatchObject({ artifactCount: 2, recordedSegmentCount: 2, declaredRecordedThroughMax: null });
+    expect(captureCompletenessRows(facts!)).toEqual([
+      { label: "Completeness (client-reported)", value: "Reported complete by the capture client" },
+      { label: "Segments (client-reported)", value: "Segments delivered 2 of 2 recorded (client-reported)" },
+    ]);
+    expect(captureCompletenessNote(facts!)).toMatch(/cannot verify segments the client never declared/);
+  });
+
+  it("AUD-017 a recorded count below the declared running recordedThrough is refused (COMPLETE and INTERRUPTED); the honest loss seals with it", async () => {
+    // The recorder had produced 5 segments when segment 1 was declared.
+    const through = (i: number) => (i === 1 ? 5 : i + 1);
+    const lie = await stageSegments(5, [0, 1], through);
+    const complete = continuousManifest(lie.sessionId, lie.segs, { recorded: 2 });
+    await stageManifest(lie.token, lie.sessionId, lie.evidenceId, complete, 2);
+    const refused = await seal(lie.token, lie.sessionId, complete);
+    expect(refused.statusCode, refused.body).toBe(422);
+    expect(refused.json().denial).toBe("CONTINUOUS_MANIFEST_INVALID");
+    expect(await statusOf(lie.evidenceId)).not.toBe("SIGNED");
+
+    const lie2 = await stageSegments(5, [0, 1], through);
+    const interruptedLie = continuousManifest(lie2.sessionId, lie2.segs, {
+      recorded: 2,
+      completeness: "INTERRUPTED_SESSION",
+      termination: "INTERRUPTED",
+      limitations: ["CAPTURE_INTERRUPTED"],
+    });
+    await stageManifest(lie2.token, lie2.sessionId, lie2.evidenceId, interruptedLie, 2);
+    const r2 = await seal(lie2.token, lie2.sessionId, interruptedLie);
+    expect(r2.statusCode, r2.body).toBe(422);
+    expect(r2.json().denial).toBe("CONTINUOUS_MANIFEST_INVALID");
+
+    const honest = await stageSegments(5, [0, 1], through);
+    const lost = continuousManifest(honest.sessionId, honest.segs, {
+      recorded: 5,
+      completeness: "INTERRUPTED_SESSION",
+      termination: "INTERRUPTED",
+      limitations: ["SEGMENT_UPLOAD_LOST"],
+    });
+    await stageManifest(honest.token, honest.sessionId, honest.evidenceId, lost, 2);
+    const ok = await seal(honest.token, honest.sessionId, lost);
+    expect(ok.statusCode, ok.body).toBe(200);
+    const facts = await sealedFacts(honest.sessionId, lost);
+    expect(facts!.screen).toMatchObject({ artifactCount: 2, recordedSegmentCount: 5, declaredRecordedThroughMax: 5 });
+    expect(captureCompletenessRows(facts!)[1]!.value).toBe("Segments delivered 2 of 5 recorded (client-reported)");
+    // The declaration recorded the client's count as its statement.
+    const decl = await prisma.captureTrustEventRecord.findMany({ where: { captureSessionId: honest.sessionId }, select: { payload: true } });
+    expect(decl.some((e) => (e.payload as Record<string, unknown>)?.clientReportedRecordedThrough === 5)).toBe(true);
+  });
+
+  it("AUD-017 a recordedThrough that cannot be true for its part, or on a non-segment part, is refused at declaration", async () => {
+    const { sessionId } = await openAndReserve("DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS");
+    const token = owner().ownerToken;
+    const tooLow = await declare(token, sessionId, 3, "a".repeat(64), "SCREEN_SEGMENT", 3);
+    expect(tooLow.statusCode, tooLow.body).toBe(400);
+    expect(tooLow.json().denial).toBe("INVALID_RECORDED_THROUGH");
+    const onManifest = await declare(token, sessionId, 4, "b".repeat(64), "CONTINUOUS_MANIFEST", 5);
+    expect(onManifest.statusCode, onManifest.body).toBe(400);
+    expect(onManifest.json().denial).toBe("INVALID_RECORDED_THROUGH");
+    const ok = await declare(token, sessionId, 3, "a".repeat(64), "SCREEN_SEGMENT", 4);
+    expect(ok.statusCode, ok.body).toBe(201);
+    expect(ok.json().declaration.recordedThrough).toBe(4);
   });
 
   // ------------------------------------------------- seal claim (A/B/C steps)

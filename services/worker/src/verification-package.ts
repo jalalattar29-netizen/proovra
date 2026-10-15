@@ -4,6 +4,8 @@ import {
   DISCLOSURE_PROFILE_DESCRIPTIONS,
   DISCLOSURE_PROFILE_LABELS,
   buildDisclosureManifest,
+  captureCompletenessNote,
+  captureCompletenessRows,
   projectJsonForDisclosure,
   projectTextForDisclosure,
   validatePackageConsistency,
@@ -1332,6 +1334,12 @@ export function buildPackageAcquisitionRecord(params: {
   const captureRecordCount = params.evidenceFiles.filter(
     (f) => normalizePartArtifactClass(f.artifactClass) === "CAPTURE_MANIFEST",
   ).length;
+  // AUD-017 — the capture client's completeness statement (delivered of
+  // recorded segments for a continuous session), in THE shared wording.
+  const manifestFacts =
+    (params.chain as (import("@proovra/shared").ProvenanceChain & {
+      captureManifestFacts?: import("@proovra/shared").CaptureManifestFacts | null;
+    }) | null)?.captureManifestFacts ?? null;
   return {
     schema: "PROOVRA_PACKAGE_ACQUISITION",
     version: 1,
@@ -1380,6 +1388,18 @@ export function buildPackageAcquisitionRecord(params: {
       captureRecord: captureRecordCount,
       derived: (params.chain?.derivedArtifacts ?? []).filter((d) => d.status === "COMPLETED").length,
     },
+    captureCompleteness: manifestFacts
+      ? {
+          reportedBy: "CAPTURE_CLIENT",
+          completeness: manifestFacts.completeness,
+          reportedComplete: manifestFacts.reportedComplete,
+          segmentsDelivered: manifestFacts.kind === "SCREEN_CONTINUOUS" ? manifestFacts.screen?.artifactCount ?? null : null,
+          segmentsRecordedClientReported:
+            manifestFacts.kind === "SCREEN_CONTINUOUS" ? manifestFacts.screen?.recordedSegmentCount ?? null : null,
+          statements: captureCompletenessRows(manifestFacts),
+          note: captureCompletenessNote(manifestFacts),
+        }
+      : null,
     verifiability: {
       independentlyVerifiable: [
         "per-file SHA-256 digests and the multipart composite",

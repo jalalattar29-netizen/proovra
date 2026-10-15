@@ -197,7 +197,9 @@ describe("UC-5 iOS system broadcast — live PostgreSQL 16", () => {
    * exact result + segment maps the Swift code produces
    * (apps/mobile/test/fixtures/ios-broadcast-result.json). Only the times are
    * moved to "now", because the server checks the capture window against the
-   * session it just opened. `mutate` edits the manifest BEFORE it is uploaded
+   * session it just opened — and the session's server-side open is moved back
+   * by the recording's length (AUD-017: a stated duration longer than the
+   * session the server saw is refused; a real recording runs inside it). `mutate` edits the manifest BEFORE it is uploaded
    * and declared, so a negative case is refused by the gate it targets and not
    * by a digest mismatch (UC-TQ-005).
    */
@@ -221,6 +223,12 @@ describe("UC-5 iOS system broadcast — live PostgreSQL 16", () => {
     });
     expect(open.statusCode, open.body).toBe(201);
     const sessionId = open.json().session.captureSessionId as string;
+    const nativeSegments = IOS_FIXTURE.jsSegments.slice(0, segCount);
+    const recordingMs = nativeSegments.reduce((m: number, s: NativeSegment) => Math.max(m, s.startedAtOffsetMs + s.durationMs), 0);
+    await prisma.captureSession.update({
+      where: { id: sessionId },
+      data: { startedAtUtc: new Date(Date.now() - recordingMs - 1000) },
+    });
 
     const reserve = await call("POST", `/v1/capture/direct-sessions/${sessionId}/evidence`, token, {
       type: "VIDEO",
@@ -229,7 +237,6 @@ describe("UC-5 iOS system broadcast — live PostgreSQL 16", () => {
     expect(reserve.statusCode, reserve.body).toBe(201);
     const evidenceId = reserve.json().evidence.evidenceId as string;
 
-    const nativeSegments = IOS_FIXTURE.jsSegments.slice(0, segCount);
     const segmentBytes = nativeSegments.map((_, i) =>
       Buffer.from(`segment-${i}-${randomBytes(8).toString("hex")}`),
     );
