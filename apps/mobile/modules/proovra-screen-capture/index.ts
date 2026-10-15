@@ -234,6 +234,11 @@ export type ScreenContinuousResult = {
   segmentCount: number;
   sessionCompleteness: "COMPLETE_SESSION" | "INTERRUPTED_SESSION";
   terminationReason: ScreenContinuousStopReason;
+  /**
+   * AUD-029 — Android: the STABLE code of what failed (RECORDER_ERROR_<what>,
+   * ENCODER_UNSUPPORTED_SIZE, SEGMENT_START_FAILED); null/absent on a clean end.
+   */
+  terminationDetail?: string | null;
   limitations: string[];
 };
 

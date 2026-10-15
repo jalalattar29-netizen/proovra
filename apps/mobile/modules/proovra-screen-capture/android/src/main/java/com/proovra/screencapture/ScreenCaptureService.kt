@@ -135,7 +135,7 @@ class ScreenCaptureService : Service() {
         try {
           beginProjection()
         } catch (t: Throwable) {
-          failStart("START_FAILED", t.message ?: "Screen capture could not start.")
+          failStart(START_FAILED, startFailureMessage(t))
         }
       }
     }

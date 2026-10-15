@@ -10,6 +10,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.media.MediaCodecList
+import android.media.MediaFormat
 import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
@@ -52,14 +54,12 @@ class ContinuousScreenCaptureService : Service() {
     private const val BITRATE = 6_000_000
     private const val FRAME_RATE = 12
     private const val MAX_SEGMENT_BYTES = 64L * 1024L * 1024L
-    // Total wall-clock ceiling (ms), kept below the server capture-session TTL so a
-    // session always stops with margin to finalize. Agrees with maxSessionMs.
+    // Total recording ceiling (ms, MONOTONIC — AUD-018), kept below the server
+    // capture-session TTL so a session always stops with margin to finalize.
+    // Agrees with maxSessionMs.
     private const val MAX_SESSION_MS = 50L * 60L * 1000L
-    // Limitations that make a session INTERRUPTED whatever ended it (the
-    // manifest validator refuses them on a COMPLETE session).
-    private val INCOMPLETE_LIMITATIONS = setOf(
-      "CAPTURE_INTERRUPTED", "SEGMENT_UPLOAD_LOST", "SEGMENT_WRITE_FAILED", "BROADCAST_PAUSED",
-    )
+    // Limitations that make a session INTERRUPTED whatever ended it are
+    // INCOMPLETE_LIMITATIONS, decided by sessionCompleteness (CaptureDecisions.kt).
 
     private var projection: MediaProjection? = null
     private var recorder: MediaRecorder? = null
@@ -82,6 +82,17 @@ class ContinuousScreenCaptureService : Service() {
     private var segW = 0
     private var segH = 0
     private var segDpi = 0
+    // AUD-029 — what the encoder actually records the current segment at: the
+    // display geometry scaled (aspect kept, aligned) into the device's H.264
+    // encoder capabilities. Each segment reports this, its true geometry.
+    private var encW = 0
+    private var encH = 0
+    // AUD-029 — the stable reason the last segment could not start
+    // (ENCODER_UNSUPPORTED_SIZE, SEGMENT_START_FAILED), and the stable detail of
+    // how the session ended (RECORDER_ERROR_<what>, ...), never raw prose.
+    private var segmentStartFailure: String? = null
+    private var terminationDetail: String? = null
+    private var recorderErrorExtra: Int? = null
     private var currentFile: File? = null
     private var segmentStartElapsedMs = 0L
     @Volatile private var active = false
@@ -132,6 +143,7 @@ class ContinuousScreenCaptureService : Service() {
       maxSegments = maxSeg.coerceIn(1, MAX_SEGMENTS)
       onStartedCb = onStarted; onStartFailedCb = onStartFailed
       terminationReason = "USER_STOPPED"
+      terminationDetail = null; recorderErrorExtra = null; segmentStartFailure = null
       segments.clear(); limitations.clear(); last = null
       val intent = Intent(context, ContinuousScreenCaptureService::class.java)
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
@@ -158,7 +170,7 @@ class ContinuousScreenCaptureService : Service() {
     try {
       beginProjection()
     } catch (t: Throwable) {
-      failStart("START_FAILED", t.message ?: "Screen recording could not start.")
+      failStart(START_FAILED, startFailureMessage(t))
     }
     return START_NOT_STICKY
   }
@@ -231,7 +243,7 @@ class ContinuousScreenCaptureService : Service() {
 
     active = true
     if (!startNextSegment()) {
-      failStart("RECORDER_UNAVAILABLE", "The screen recorder could not start.")
+      failStart(segmentStartFailure ?: "RECORDER_UNAVAILABLE", "The screen recorder could not start.")
       return
     }
     onStartedCb?.invoke(startedAtUtc)
@@ -257,17 +269,48 @@ class ContinuousScreenCaptureService : Service() {
     try { (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager).unregisterDisplayListener(l) } catch (_: Throwable) {}
   }
 
-  private fun newRecorder(outFile: File): MediaRecorder {
+  /**
+   * AUD-029 — the device's H.264 encoder capabilities (MediaCodecList,
+   * REGULAR_CODECS), or null when none is listed. clampEncoderConfig
+   * (EncoderClamp.kt, JVM-tested) decides from them.
+   */
+  private fun avcEncoderCaps(): EncoderCaps? = try {
+    var found: EncoderCaps? = null
+    for (info in MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos) {
+      if (!info.isEncoder) continue
+      if (info.supportedTypes.none { it.equals(MediaFormat.MIMETYPE_VIDEO_AVC, ignoreCase = true) }) continue
+      val vc = info.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).videoCapabilities ?: continue
+      found = EncoderCaps(
+        widthAlignment = vc.widthAlignment,
+        heightAlignment = vc.heightAlignment,
+        maxWidth = vc.supportedWidths.upper,
+        maxHeight = vc.supportedHeights.upper,
+        minWidth = vc.supportedWidths.lower,
+        minHeight = vc.supportedHeights.lower,
+        minBitrate = vc.bitrateRange.lower,
+        maxBitrate = vc.bitrateRange.upper,
+        maxFrameRate = vc.supportedFrameRates.upper,
+        isSizeSupported = { w, h -> vc.isSizeSupported(w, h) },
+      )
+      break
+    }
+    found
+  } catch (_: Throwable) {
+    null
+  }
+
+  private fun newRecorder(outFile: File, config: EncoderConfig): MediaRecorder {
     val r = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(this) else @Suppress("DEPRECATION") MediaRecorder()
     // SCREEN ONLY — no audio source is configured on purpose.
     r.setVideoSource(MediaRecorder.VideoSource.SURFACE)
     r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
     r.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-    // Each segment records at ITS OWN geometry (segW/segH), so a segment started
-    // after a rotation encodes at the new geometry — never a stretched/cropped frame.
-    r.setVideoSize(segW, segH)
-    r.setVideoFrameRate(FRAME_RATE)
-    r.setVideoEncodingBitRate(BITRATE)
+    // Each segment records at ITS OWN geometry (the current display, clamped into
+    // the encoder's capabilities), so a segment started after a rotation encodes
+    // at the new geometry — never a stretched/cropped frame.
+    r.setVideoSize(config.width, config.height)
+    r.setVideoFrameRate(config.frameRate)
+    r.setVideoEncodingBitRate(config.bitrate)
     r.setOutputFile(outFile.absolutePath)
     r.setMaxDuration(segmentMs)
     // Defence-in-depth byte bound: if a segment reaches the size ceiling before its
@@ -281,7 +324,12 @@ class ContinuousScreenCaptureService : Service() {
         rolloverSegment()
       }
     }
-    r.setOnErrorListener { _, _, _ -> finish("ERROR") }
+    // AUD-029 — a runtime recorder/encoder error ends the session with a STABLE
+    // detail (RECORDER_ERROR_<what>, plus the extra), never a bare "ERROR".
+    r.setOnErrorListener { _, what, extra ->
+      recorderErrorExtra = extra
+      finish("ERROR", recorderErrorCode(what))
+    }
     return r
   }
 
@@ -302,20 +350,29 @@ class ContinuousScreenCaptureService : Service() {
     (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(m)
     segW = m.widthPixels; segH = m.heightPixels; segDpi = m.densityDpi
     if ((segW >= segH) != (widthPx >= heightPx)) limitations.add("ORIENTATION_CHANGED_DURING_CAPTURE")
+    // AUD-029 — never ask the encoder for a size, bitrate or rate it cannot do.
+    val config = clampEncoderConfig(segW, segH, BITRATE, FRAME_RATE, avcEncoderCaps())
+    if (config == null) {
+      segmentStartFailure = ENCODER_UNSUPPORTED_SIZE
+      return false
+    }
+    encW = config.width; encH = config.height
+    var started: MediaRecorder? = null
     return try {
       val file = File(cacheDir, "proovra-continuous-${timeline.startWallMs}-${segments.size}.mp4")
       currentFile = file
-      val r = newRecorder(file)
+      val r = newRecorder(file, config)
+      started = r
       r.prepare()
       val vd = virtualDisplay
       if (vd == null) {
         virtualDisplay = projection!!.createVirtualDisplay(
-          "proovra-continuous", segW, segH, segDpi,
+          "proovra-continuous", encW, encH, segDpi,
           DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, r.surface, null, null,
         )
       } else {
         // Resize to the current geometry FIRST, then bind the new segment's surface.
-        try { vd.resize(segW, segH, segDpi) } catch (_: Throwable) {}
+        try { vd.resize(encW, encH, segDpi) } catch (_: Throwable) {}
         vd.surface = r.surface
       }
       r.start()
@@ -323,6 +380,12 @@ class ContinuousScreenCaptureService : Service() {
       segmentStartElapsedMs = timeline.nowElapsedMs()
       true
     } catch (t: Throwable) {
+      // A recorder that could not prepare/start is released and its empty file
+      // removed; the caller records the failure (AUD-029).
+      try { started?.reset(); started?.release() } catch (_: Throwable) {}
+      try { currentFile?.delete() } catch (_: Throwable) {}
+      currentFile = null
+      segmentStartFailure = SEGMENT_START_FAILED
       false
     }
   }
@@ -331,7 +394,13 @@ class ContinuousScreenCaptureService : Service() {
   private fun rolloverSegment() {
     if (!active) return
     finalizeCurrentSegment()
-    startNextSegment()
+    if (!active) return
+    // AUD-029 — a next segment that cannot start is a RECORDED failure that ends
+    // the session as ERROR, never a silent stall later sealed as COMPLETE_SESSION.
+    if (!startNextSegment()) {
+      limitations.add("SEGMENT_WRITE_FAILED")
+      finish("ERROR", segmentStartFailure ?: SEGMENT_START_FAILED)
+    }
   }
 
   /**
@@ -370,17 +439,17 @@ class ContinuousScreenCaptureService : Service() {
     }
     if (outcome == SegmentClose.EMIT && file != null) {
       val seq = segments.size
-      // Record THIS segment's own geometry (segW/segH), which reflects any rotation
-      // that took effect at its start boundary — so the manifest's per-segment
-      // orientation is truthful across transitions.
+      // Record THIS segment's own encoded geometry (encW/encH), which reflects any
+      // rotation that took effect at its start boundary — so the manifest's
+      // per-segment orientation is truthful across transitions.
       val seg = mapOf<String, Any?>(
         "uri" to "file://${file.absolutePath}",
         "sequence" to seq,
         "startedAtOffsetMs" to timeline.offsetOf(segmentStartElapsedMs),
         "durationMs" to timeline.since(segmentStartElapsedMs),
-        "widthPx" to segW,
-        "heightPx" to segH,
-        "orientation" to if (segW >= segH) "landscape" else "portrait",
+        "widthPx" to encW,
+        "heightPx" to encH,
+        "orientation" to if (encW >= encH) "landscape" else "portrait",
       )
       segments.add(seg)
       updateNotification(seq + 1)
@@ -409,8 +478,9 @@ class ContinuousScreenCaptureService : Service() {
     )
   }
 
-  private fun finish(reason: String) {
+  private fun finish(reason: String, detail: String? = null) {
     if (!active && last != null) return
+    if (detail != null && terminationDetail == null) terminationDetail = detail
     active = false
     unregisterDisplayListener()
     finalizeCurrentSegment()
@@ -418,11 +488,10 @@ class ContinuousScreenCaptureService : Service() {
     try { projection?.stop() } catch (_: Throwable) {}
     virtualDisplay = null; projection = null
 
-    val cleanEnd = reason == "USER_STOPPED" || reason == "BOUNDS_REACHED"
-    if (!cleanEnd) limitations.add("CAPTURE_INTERRUPTED")
+    if (reason !in CLEAN_TERMINATIONS) limitations.add("CAPTURE_INTERRUPTED")
     // A clean stop over a lost stretch (a segment that could not be written) is
-    // still not a complete session.
-    val complete = cleanEnd && limitations.none { it in INCOMPLETE_LIMITATIONS }
+    // still not a complete session: sessionCompleteness (CaptureDecisions.kt).
+    val completeness = sessionCompleteness(reason, limitations)
     val totalMs = timeline.offsetMs()
     val outcome = mapOf<String, Any?>(
       "osConsentGranted" to true,
@@ -438,8 +507,11 @@ class ContinuousScreenCaptureService : Service() {
       ),
       "totalDurationMs" to totalMs,
       "segmentCount" to segments.size,
-      "sessionCompleteness" to if (complete) "COMPLETE_SESSION" else "INTERRUPTED_SESSION",
+      "sessionCompleteness" to completeness,
       "terminationReason" to reason,
+      // AUD-029 — the stable code of what failed (null on a clean end).
+      "terminationDetail" to terminationDetail,
+      "recorderErrorExtra" to recorderErrorExtra,
       "limitations" to limitations.toList(),
     )
     last = outcome

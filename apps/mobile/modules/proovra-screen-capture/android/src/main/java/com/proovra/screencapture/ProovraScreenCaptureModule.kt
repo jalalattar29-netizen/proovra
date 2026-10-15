@@ -2,7 +2,6 @@ package com.proovra.screencapture
 
 import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import expo.modules.kotlin.Promise
@@ -24,17 +23,31 @@ import expo.modules.kotlin.modules.ModuleDefinition
  * trusts nothing from JS about ownership; it collects NO app inventory,
  * notifications, clipboard, contacts, hardware identifiers or AUDIO, never
  * bypasses FLAG_SECURE, and uses no overlay/Accessibility permission.
+ *
+ * AUD-029 — every promise this module holds is a [SettleOnce]: a JS reload
+ * rejects what the dead context awaited (MODULE_RELOADED), and a service
+ * answering later can no longer double-settle it.
  */
+private typealias Pending = SettleOnce<Promise>
+
+private fun Pending.resolveWith(value: Any?) {
+  settle { it.resolve(value) }
+}
+
+private fun Pending.rejectWith(code: String, message: String) {
+  settle { it.reject(CodedException(code, message, null)) }
+}
+
 class ProovraScreenCaptureModule : Module() {
   // UC-2 frame flow.
-  private var startPromise: Promise? = null
-  private var framePromise: Promise? = null
-  private var stopPromise: Promise? = null
+  private var startPromise: Pending? = null
+  private var framePromise: Pending? = null
+  private var stopPromise: Pending? = null
   private var pendingMaxFrames: Int = 20
 
   // UC-3 continuous flow.
-  private var continuousStartPromise: Promise? = null
-  private var continuousStopPromise: Promise? = null
+  private var continuousStartPromise: Pending? = null
+  private var continuousStopPromise: Pending? = null
   private var pendingSegmentMs: Int = ContinuousScreenCaptureService.DEFAULT_SEGMENT_MS
   private var pendingMaxSegments: Int = ContinuousScreenCaptureService.MAX_SEGMENTS
 
@@ -43,6 +56,9 @@ class ProovraScreenCaptureModule : Module() {
 
   companion object {
     private const val CONSENT_REQUEST = 0x50D1
+    // AUD-029 — the stable code a promise is rejected with when the JS context
+    // that awaited it was torn down (a reload) before native could settle it.
+    const val MODULE_RELOADED = "MODULE_RELOADED"
   }
 
   override fun definition() = ModuleDefinition {
@@ -57,7 +73,18 @@ class ProovraScreenCaptureModule : Module() {
     // instance (a reloaded / recreated JS runtime) re-binds the service's static
     // callbacks to ITSELF, so segments recorded after the UI came back reach the
     // new listeners instead of a dead closure.
-    OnCreate { bindContinuousCallbacks() }
+    // AUD-029 — the FRAME service's callbacks were bound only in startCapture,
+    // so after a JS reload stopCapture/captureFrame settled the dead module's
+    // promises and the new ones hung. Both services re-bind here.
+    OnCreate {
+      bindContinuousCallbacks()
+      bindFrameCallbacks()
+    }
+
+    // AUD-029 — a reload orphans whatever this instance was awaiting (a
+    // pending consent, a stop, a frame): each is rejected with a stable code
+    // rather than left pending against a dead context.
+    OnDestroy { rejectOrphanedPromises() }
 
     Function("isSupported") { Build.VERSION.SDK_INT >= Build.VERSION_CODES.O }
     Function("isContinuousSupported") { Build.VERSION.SDK_INT >= Build.VERSION_CODES.O }
@@ -89,20 +116,12 @@ class ProovraScreenCaptureModule : Module() {
       if (startPromise != null || ScreenCaptureService.isActive() || ContinuousScreenCaptureService.isActive()) {
         promise.reject(CodedException("BUSY", "A capture is already in progress.", null)); return@AsyncFunction
       }
-      startPromise = promise
+      val pending = Pending(promise)
+      startPromise = pending
       pendingKind = "frame"
       pendingMaxFrames = ((options["maxFrames"] as? Number)?.toInt() ?: 20).coerceIn(1, 60)
-      ScreenCaptureService.onFrame = { i, n ->
-        framePromise?.resolve(mapOf("frameIndex" to i, "frameCount" to n)); framePromise = null
-        sendEvent("onScreenFrame", mapOf("frameIndex" to i, "frameCount" to n))
-      }
-      ScreenCaptureService.onStopped = { outcome ->
-        val js = outcome.toJsMap()
-        stopPromise?.resolve(js); stopPromise = null
-        framePromise?.resolve(mapOf("frameIndex" to -1, "frameCount" to outcome.frames.size)); framePromise = null
-        sendEvent("onScreenCaptureStopped", js)
-      }
-      launchConsent(activity, promise)
+      bindFrameCallbacks()
+      launchConsent(activity, pending)
     }
 
     AsyncFunction("captureFrame") { promise: Promise ->
@@ -113,8 +132,8 @@ class ProovraScreenCaptureModule : Module() {
       if (ScreenCaptureService.frameCount() >= pendingMaxFrames) {
         promise.reject(CodedException("BOUNDS_REACHED", "The frame limit was reached.", null)); return@AsyncFunction
       }
-      framePromise?.reject(CodedException("SUPERSEDED", "Replaced by a newer request.", null))
-      framePromise = promise
+      framePromise?.rejectWith("SUPERSEDED", "Replaced by a newer request.")
+      framePromise = Pending(promise)
       ScreenCaptureService.requestCaptureFrame(ctx)
     }
 
@@ -127,7 +146,8 @@ class ProovraScreenCaptureModule : Module() {
       if (!ScreenCaptureService.isActive() || ctx == null) {
         promise.resolve(ScreenCaptureService.lastOutcome()?.toJsMap() ?: emptyMap<String, Any?>()); return@AsyncFunction
       }
-      stopPromise = promise
+      stopPromise?.rejectWith("SUPERSEDED", "Replaced by a newer request.")
+      stopPromise = Pending(promise)
       ScreenCaptureService.requestStop(ctx, "USER_STOPPED")
     }
 
@@ -137,7 +157,8 @@ class ProovraScreenCaptureModule : Module() {
       if (continuousStartPromise != null || ScreenCaptureService.isActive() || ContinuousScreenCaptureService.isActive()) {
         promise.reject(CodedException("BUSY", "A capture is already in progress.", null)); return@AsyncFunction
       }
-      continuousStartPromise = promise
+      val pending = Pending(promise)
+      continuousStartPromise = pending
       pendingKind = "continuous"
       // UC-STR-001 — THE capture limits (by value): segments + manifest fit the record.
       pendingSegmentMs = ((options["segmentMs"] as? Number)?.toInt() ?: ContinuousScreenCaptureService.DEFAULT_SEGMENT_MS)
@@ -145,7 +166,7 @@ class ProovraScreenCaptureModule : Module() {
       pendingMaxSegments = ((options["maxSegments"] as? Number)?.toInt() ?: ContinuousScreenCaptureService.MAX_SEGMENTS)
         .coerceIn(1, ContinuousScreenCaptureService.MAX_SEGMENTS)
       bindContinuousCallbacks()
-      launchConsent(activity, promise)
+      launchConsent(activity, pending)
     }
 
     AsyncFunction("stopContinuousCapture") { promise: Promise ->
@@ -153,7 +174,8 @@ class ProovraScreenCaptureModule : Module() {
       if (!ContinuousScreenCaptureService.isActive() || ctx == null) {
         promise.resolve(ContinuousScreenCaptureService.lastOutcome() ?: emptyMap<String, Any?>()); return@AsyncFunction
       }
-      continuousStopPromise = promise
+      continuousStopPromise?.rejectWith("SUPERSEDED", "Replaced by a newer request.")
+      continuousStopPromise = Pending(promise)
       ContinuousScreenCaptureService.requestStop(ctx, "USER_STOPPED")
     }
 
@@ -164,45 +186,66 @@ class ProovraScreenCaptureModule : Module() {
       val ctx = appContext.reactContext?.applicationContext
       val granted = payload.resultCode == Activity.RESULT_OK && payload.data != null && ctx != null
       if (kind == "continuous") {
-        val promise = continuousStartPromise ?: return@OnActivityResult
+        val pending = continuousStartPromise ?: return@OnActivityResult
         continuousStartPromise = null
         if (!granted) {
-          promise.reject(CodedException("PERMISSION_DENIED", "Screen capture consent was not granted.", null))
+          pending.rejectWith("PERMISSION_DENIED", "Screen capture consent was not granted.")
           return@OnActivityResult
         }
         ContinuousScreenCaptureService.start(
           ctx!!, payload.resultCode, payload.data!!, pendingSegmentMs, pendingMaxSegments,
           onStarted = { started ->
-            promise.resolve(mapOf("osConsentGranted" to true, "captureStartedAtUtc" to started, "segmentMs" to pendingSegmentMs, "maxSegments" to pendingMaxSegments))
+            pending.resolveWith(mapOf("osConsentGranted" to true, "captureStartedAtUtc" to started, "segmentMs" to pendingSegmentMs, "maxSegments" to pendingMaxSegments))
             sendEvent("onScreenContinuousStarted", mapOf("captureStartedAtUtc" to started))
           },
           // UC-AND-013 — a setup failure after consent rejects; never a hung start.
-          onStartFailed = { code, message -> promise.reject(CodedException(code, message, null)) },
+          onStartFailed = { code, message -> pending.rejectWith(code, message) },
         )
       } else {
-        val promise = startPromise ?: return@OnActivityResult
+        val pending = startPromise ?: return@OnActivityResult
         startPromise = null
         if (!granted) {
-          promise.reject(CodedException("PERMISSION_DENIED", "Screen capture consent was not granted.", null))
+          pending.rejectWith("PERMISSION_DENIED", "Screen capture consent was not granted.")
           return@OnActivityResult
         }
         ScreenCaptureService.start(
           ctx!!, payload.resultCode, payload.data!!, pendingMaxFrames,
           onStarted = { started ->
-            promise.resolve(mapOf("osConsentGranted" to true, "captureStartedAtUtc" to started, "maxFrames" to pendingMaxFrames))
+            pending.resolveWith(mapOf("osConsentGranted" to true, "captureStartedAtUtc" to started, "maxFrames" to pendingMaxFrames))
           },
-          onStartFailed = { code, message -> promise.reject(CodedException(code, message, null)) },
+          onStartFailed = { code, message -> pending.rejectWith(code, message) },
         )
       }
+    }
+  }
+
+  private fun bindFrameCallbacks() {
+    ScreenCaptureService.onFrame = { i, n ->
+      framePromise?.resolveWith(mapOf("frameIndex" to i, "frameCount" to n)); framePromise = null
+      sendEvent("onScreenFrame", mapOf("frameIndex" to i, "frameCount" to n))
+    }
+    ScreenCaptureService.onStopped = { outcome ->
+      val js = outcome.toJsMap()
+      stopPromise?.resolveWith(js); stopPromise = null
+      framePromise?.resolveWith(mapOf("frameIndex" to -1, "frameCount" to outcome.frames.size)); framePromise = null
+      sendEvent("onScreenCaptureStopped", js)
     }
   }
 
   private fun bindContinuousCallbacks() {
     ContinuousScreenCaptureService.onSegment = { seg -> sendEvent("onScreenSegment", seg) }
     ContinuousScreenCaptureService.onStopped = { js ->
-      continuousStopPromise?.resolve(js); continuousStopPromise = null
+      continuousStopPromise?.resolveWith(js); continuousStopPromise = null
       sendEvent("onScreenContinuousStopped", js)
     }
+  }
+
+  private fun rejectOrphanedPromises() {
+    val orphaned = listOfNotNull(startPromise, framePromise, stopPromise, continuousStartPromise, continuousStopPromise)
+    startPromise = null; framePromise = null; stopPromise = null
+    continuousStartPromise = null; continuousStopPromise = null
+    pendingKind = null
+    for (p in orphaned) p.rejectWith(MODULE_RELOADED, "The app reloaded before the screen capture answered.")
   }
 
   private fun requireActivity(promise: Promise): Activity? {
@@ -214,13 +257,13 @@ class ProovraScreenCaptureModule : Module() {
     return activity
   }
 
-  private fun launchConsent(activity: Activity, promise: Promise) {
+  private fun launchConsent(activity: Activity, pending: Pending) {
     try {
       val mpm = activity.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
       activity.startActivityForResult(mpm.createScreenCaptureIntent(), CONSENT_REQUEST)
     } catch (t: Throwable) {
       startPromise = null; continuousStartPromise = null; pendingKind = null
-      promise.reject(CodedException("CONSENT_LAUNCH_FAILED", t.message ?: "Could not request consent.", t))
+      pending.rejectWith("CONSENT_LAUNCH_FAILED", startFailureMessage(t))
     }
   }
 }
