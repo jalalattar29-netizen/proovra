@@ -188,8 +188,12 @@ describe("automation webhook destinations", () => {
       name: "Add a webhook destination",
     });
     fireEvent.click(within(createForm).getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByRole("form", { name: "Add a webhook destination" })).toBeNull();
-    expect(document.activeElement).toBe(add);
+    // Closing the form and returning focus are a render away too: wait for the
+    // settled state (the note on the next test) rather than read eagerly.
+    await waitFor(() => {
+      expect(screen.queryByRole("form", { name: "Add a webhook destination" })).toBeNull();
+      expect(document.activeElement).toBe(add);
+    }, { timeout: 5000 });
     expect(writes()).toHaveLength(0);
   });
 
