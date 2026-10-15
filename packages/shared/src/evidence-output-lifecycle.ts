@@ -383,7 +383,17 @@ export const MAX_TERMINAL_SUPERSESSIONS = 5;
  * not of the record's current output: version 1 is superseded by version 2,
  * and both exist. It travels as metadata on the version list.
  */
-export const OUTPUT_ARTIFACT_AVAILABILITIES = ["NO_ARTIFACT", "READY"] as const;
+export const OUTPUT_ARTIFACT_AVAILABILITIES = [
+  "NO_ARTIFACT",
+  "READY",
+  /**
+   * AUD-011 — the artifact ROW exists, but a HEAD of its recorded object
+   * version (single-record views only) proved the stored file gone. Never
+   * "available": the download would only answer 410. A storage failure that
+   * is not a proven not-found (transient, permission) never yields this.
+   */
+  "MISSING",
+] as const;
 export type OutputArtifactAvailability =
   (typeof OUTPUT_ARTIFACT_AVAILABILITIES)[number];
 
@@ -440,6 +450,12 @@ export const EVIDENCE_OUTPUT_STATES = [
   "BLOCKED",
   /** An artifact exists and can be downloaded. */
   "READY",
+  /**
+   * AUD-011 — the issued version's stored file is proven gone. The version
+   * stays as history; it is never re-issued in place. An entitled caller may
+   * recover by issuing a NEW, correctly paired version.
+   */
+  "ARTIFACT_MISSING",
 ] as const;
 export type EvidenceOutputState = (typeof EVIDENCE_OUTPUT_STATES)[number];
 
@@ -545,6 +561,10 @@ export function deriveEvidenceOutputState(
   if (axes.generation === "QUEUED") return "QUEUED";
   if (axes.generation === "PROCESSING") return "GENERATING";
 
+  // AUD-011 — an issued version whose stored file is proven gone. Stated as
+  // what it is, whatever the plan now says: it was issued.
+  if (axes.availability === "MISSING") return "ARTIFACT_MISSING";
+
   if (axes.record === "NOT_FINALIZED") return "NOT_APPLICABLE";
 
   if (axes.eligibility === "NOT_INCLUDED") return "NOT_INCLUDED";
@@ -602,6 +622,10 @@ export function outputActionFor(input: {
       return input.eligibility === "ELIGIBLE" ? "REGENERATE" : "NONE";
     case "ELIGIBLE_NOT_GENERATED":
       return "GENERATE";
+    case "ARTIFACT_MISSING":
+      // A new, verified version replaces nothing that exists; it needs the
+      // entitlement to issue one.
+      return input.eligibility === "ELIGIBLE" ? "RECOVER" : "NONE";
     case "RETRYABLE_FAILURE":
       return "RETRY";
     case "TERMINAL_FAILURE":
@@ -1098,6 +1122,12 @@ export type EvidenceOutputFacts = {
   firstIssuanceAwaitsConfirmedPayment?: boolean;
   /** Would a new pair fit the workspace storage allowance? `null` = unknown. */
   newVersionFitsStorage: boolean | null;
+  /**
+   * AUD-011 — which output of the latest pair a HEAD of its RECORDED version
+   * proved gone (single-record views probe it; lists never do). Absent/null =
+   * not proven missing (present, not checked, or the store did not answer).
+   */
+  storedOutputMissing?: "REPORT" | "PACKAGE" | null;
 };
 
 export type OutputActionDecision = {
@@ -1260,6 +1290,22 @@ export function resolveEvidenceOutputActions(
         : null;
   const restriction = blockingRestriction(f.restrictions);
 
+  /*
+   * AUD-011 — RECOVERY OF A PROVEN-MISSING STORED FILE. The issued version is
+   * immutable history and is never re-written in place; the recovery is ONE
+   * new, verified, correctly paired report/package version (operation
+   * NEW_VERSION), through the same writer, keyed on the missing version so a
+   * repeat returns the same request. It needs the entitlement to issue, and a
+   * legal hold refuses it as it refuses every new version.
+   */
+  const recoverMissing = (): OutputActionDecision => {
+    if (f.reportEligibility === "UNRESOLVED") return none("ENTITLEMENT_UNAVAILABLE");
+    if (f.reportEligibility !== "ELIGIBLE") return none("NOT_INCLUDED");
+    if (f.restrictions.legalHold) return none("LEGAL_HOLD_ACTIVE");
+    if (f.newVersionFitsStorage === false) return none("STORAGE_LIMIT");
+    return { action: "RECOVER", reason: null, operation: "NEW_VERSION" };
+  };
+
   // ---- REPORT --------------------------------------------------------------
   const report: OutputActionDecision = (() => {
     if (recordReason) return none(recordReason);
@@ -1271,6 +1317,7 @@ export function resolveEvidenceOutputActions(
         const failed = failedRequestDecision(f.reportRequest, f.reportEligibility === "ELIGIBLE");
         if (failed) return failed;
       }
+      if (f.storedOutputMissing === "REPORT") return recoverMissing();
       return none("NOT_REQUIRED");
     }
     if (f.latestPackageVersion != null) return none("CONSISTENCY_REVIEW_REQUIRED");
@@ -1305,7 +1352,11 @@ export function resolveEvidenceOutputActions(
       // Legacy package with no report is the report's consistency case.
       return f.latestPackageVersion != null ? none("NOT_REQUIRED") : none("FOLLOWS_REPORT");
     }
-    if (f.packageAtLatestReport) return none("NOT_REQUIRED");
+    // The report's own missing file is the report's recovery (one new pair).
+    if (f.storedOutputMissing === "REPORT") return none("FOLLOWS_REPORT");
+    if (f.packageAtLatestReport) {
+      return f.storedOutputMissing === "PACKAGE" ? recoverMissing() : none("NOT_REQUIRED");
+    }
     if (f.packageEligibility === "UNRESOLVED") return none("ENTITLEMENT_UNAVAILABLE");
     if (f.packageEligibility !== "ELIGIBLE") return none("NOT_INCLUDED");
     if (f.packageBlockedByGovernance) return none("BLOCKED_BY_POLICY");

@@ -35,7 +35,7 @@
  * superseded once through the writer's bounded, audited supersession.
  */
 import { prisma } from "../db.js";
-import { headObject } from "../storage.js";
+import { probeStoredObject } from "../storage.js";
 import { resolveEvidenceOutputEligibility } from "../services/billing/evidence-output-eligibility.service.js";
 import {
   reenqueueReportGenerationRequest,
@@ -84,13 +84,14 @@ async function targetEvidence(t: RecoveryTarget): Promise<Array<{ id: string; ow
   });
 }
 
-async function objectExists(bucket: string, key: string): Promise<boolean> {
-  try {
-    await headObject({ bucket, key });
-    return true;
-  } catch {
-    return false;
-  }
+/**
+ * AUD-011 — the RECORDED version, classified: PRESENT, NOT_FOUND, or a store
+ * that did not answer (TRANSIENT) or refused us (ACCESS_DENIED). A transport
+ * or permission failure used to print `objectExists: false`.
+ */
+async function objectState(bucket: string, key: string, versionId: string | null) {
+  const probe = await probeStoredObject({ bucket, key, versionId });
+  return probe.state;
 }
 
 export async function evidenceOutputStatus(
@@ -119,12 +120,12 @@ export async function evidenceOutputStatus(
     });
     const reports = await prisma.report.findMany({
       where: { evidenceId: ev.id },
-      select: { version: true, storageBucket: true, storageKey: true, pdfSha256: true, generatedAtUtc: true },
+      select: { version: true, storageBucket: true, storageKey: true, s3VersionId: true, pdfSha256: true, generatedAtUtc: true },
       orderBy: { version: "asc" },
     });
     const packages = await prisma.verificationPackage.findMany({
       where: primaryPublishedPackageWhere({ evidenceId: ev.id }),
-      select: { version: true, reportVersion: true, storageBucket: true, storageKey: true, packageSha256: true },
+      select: { version: true, reportVersion: true, storageBucket: true, storageKey: true, s3VersionId: true, packageSha256: true },
       orderBy: { version: "asc" },
     }).then((rows) => rows.map(asPublishedPackage));
     const requests = await prisma.reportGenerationRequest.findMany({
@@ -133,19 +134,16 @@ export async function evidenceOutputStatus(
       orderBy: { createdAtUtc: "asc" },
     });
     const reportOut = await Promise.all(
-      reports.map(async (r) => ({
-        version: r.version,
-        pdfSha256: r.pdfSha256,
-        objectExists: await objectExists(r.storageBucket, r.storageKey),
-      })),
+      reports.map(async (r) => {
+        const object = await objectState(r.storageBucket, r.storageKey, r.s3VersionId);
+        return { version: r.version, pdfSha256: r.pdfSha256, objectExists: object === "PRESENT", object };
+      }),
     );
     const packageOut = await Promise.all(
-      packages.map(async (p) => ({
-        version: p.version,
-        reportVersion: p.reportVersion,
-        packageSha256: p.packageSha256,
-        objectExists: await objectExists(p.storageBucket, p.storageKey),
-      })),
+      packages.map(async (p) => {
+        const object = await objectState(p.storageBucket, p.storageKey, p.s3VersionId ?? null);
+        return { version: p.version, reportVersion: p.reportVersion, packageSha256: p.packageSha256, objectExists: object === "PRESENT", object };
+      }),
     );
     const assessed = await assessEvidenceOutputRecovery(ev, t.io);
     const complete = assessed.complete;
@@ -232,6 +230,11 @@ export async function recoverEvidenceOutputs(
       case "NOT_APPLICABLE":
         summary.notApplicable += 1;
         say({ ...head, action: "none" });
+        continue;
+      case "STORAGE_UNAVAILABLE":
+        // AUD-011 — nothing is known to be missing; nothing is requested.
+        summary.operatorAction += 1;
+        say({ ...head, action: a.reason.endsWith("ACCESS_DENIED") ? "check_storage_credentials_and_configuration" : "retry_status_storage_unavailable" });
         continue;
       case "REFUSED_INTEGRITY_FAILURE":
         summary.refused += 1;

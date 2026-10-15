@@ -227,8 +227,10 @@ function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
     case "QUEUED":
     case "GENERATING":
       return "pending";
+    // AUD-011 — ARTIFACT_MISSING mirrors the server-side mapper.
     case "RETRYABLE_FAILURE":
     case "TERMINAL_FAILURE":
+    case "ARTIFACT_MISSING":
       return "failed";
     case "NOT_INCLUDED":
     case "ENTITLEMENT_UNAVAILABLE":
@@ -251,8 +253,10 @@ function toPackageLifecycle(state: EvidenceOutputState): PackageLifecycle {
     case "QUEUED":
     case "GENERATING":
       return "pending";
+    // AUD-011 — ARTIFACT_MISSING mirrors the server-side mapper.
     case "RETRYABLE_FAILURE":
     case "TERMINAL_FAILURE":
+    case "ARTIFACT_MISSING":
       return "failed";
     case "NOT_INCLUDED":
     case "ENTITLEMENT_UNAVAILABLE":

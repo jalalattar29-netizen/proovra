@@ -39,6 +39,7 @@ import {
 import { resolveEvidenceWorkspaceIds } from "@proovra/shared-runtime";
 
 import { prisma } from "../../db.js";
+import { probeStoredObject, type StoredObjectProbe } from "../../storage.js";
 import {
   resolveEvidenceOutputEligibility,
   type EvidenceOutputEligibility,
@@ -149,7 +150,56 @@ export type LoadedOutputFacts = {
   reportRequest: RequestRow | null;
   packageRequest: RequestRow | null;
   newVersionEstimate: NewVersionStorageEstimate | null;
+  /**
+   * AUD-011 — what a HEAD of each latest-pair object's RECORDED version
+   * answered (single-record views only; null = not probed / no such row).
+   */
+  storedObjects: { report: StoredObjectProbe["state"] | null; package: StoredObjectProbe["state"] | null };
 };
+
+/*
+ * AUD-011 — THE BOUNDED PER-RECORD STORAGE PROBE. Status and artifact views
+ * read availability from ROWS, so a record whose report object was gone said
+ * "available" until a download answered 410. A single-record view now HEADs
+ * the recorded version of the latest report and its paired package — two
+ * HEADs, never on list views — and the answer is cached briefly: a version
+ * proven gone stays gone (longer), a present one is re-checked soon.
+ */
+const PROBE_PRESENT_TTL_MS = 15_000;
+const PROBE_MISSING_TTL_MS = 120_000;
+const probeCache = new Map<string, { at: number; state: StoredObjectProbe["state"] }>();
+
+async function probeRecordedObject(row: {
+  storageBucket: string | null;
+  storageKey: string | null;
+  s3VersionId: string | null;
+} | null): Promise<StoredObjectProbe["state"] | null> {
+  if (!row?.storageBucket || !row.storageKey) return null;
+  const cacheKey = `${row.storageBucket}\u0000${row.storageKey}\u0000${row.s3VersionId ?? ""}`;
+  const hit = probeCache.get(cacheKey);
+  if (hit) {
+    const ttl = hit.state === "NOT_FOUND" ? PROBE_MISSING_TTL_MS : PROBE_PRESENT_TTL_MS;
+    if (Date.now() - hit.at < ttl) return hit.state;
+  }
+  const probe = await probeStoredObject({
+    bucket: row.storageBucket,
+    key: row.storageKey,
+    versionId: row.s3VersionId,
+  });
+  // A present but EMPTY object is not a usable artifact (the download refuses it too).
+  const state: StoredObjectProbe["state"] =
+    probe.state === "PRESENT" && probe.sizeBytes != null && probe.sizeBytes <= 0 ? "NOT_FOUND" : probe.state;
+  if (state === "PRESENT" || state === "NOT_FOUND") {
+    if (probeCache.size > 5_000) probeCache.clear();
+    probeCache.set(cacheKey, { at: Date.now(), state });
+  }
+  return state;
+}
+
+/** For tests: forget cached probe answers. */
+export function clearStoredObjectProbeCache(): void {
+  probeCache.clear();
+}
 
 const REQUEST_SELECT = {
   id: true,
@@ -232,6 +282,11 @@ export async function loadEvidenceOutputFacts(input: {
    * Operations, backfill and list surfaces keep the escalation as it was.
    */
   resolveSupersedeRight?: boolean;
+  /**
+   * AUD-011 — HEAD the recorded version of the latest report and its paired
+   * package (bounded: single-record views and the recovery request only).
+   */
+  probeStoredObjects?: boolean;
 }): Promise<Map<string, LoadedOutputFacts>> {
   const ids = [...new Set(input.evidenceIds)];
   const out = new Map<string, LoadedOutputFacts>();
@@ -326,6 +381,30 @@ export async function loadEvidenceOutputFacts(input: {
       const team = workspaceId ? teamBy.get(workspaceId) ?? null : null;
       const org = team?.organizationId ? orgBy.get(team.organizationId) ?? null : null;
 
+      // AUD-011 — the bounded probe (single-record callers only).
+      const probing = input.probeStoredObjects === true && evidenceRows.length === 1 && latestReport != null;
+      const [reportObject, packageObject] = probing
+        ? await Promise.all([
+            prisma.report
+              .findUnique({
+                where: { evidenceId_version: { evidenceId: ev.id, version: latestReport!.version } },
+                select: { storageBucket: true, storageKey: true, s3VersionId: true },
+              })
+              .then((r) => probeRecordedObject(r))
+              .catch(() => null),
+            packageAtLatest
+              ? prisma.verificationPackage
+                  .findFirst({
+                    where: primaryPublishedPackageWhere({ evidenceId: ev.id, version: packageAtLatest.version }),
+                    orderBy: { generatedAtUtc: "desc" },
+                    select: { storageBucket: true, storageKey: true, s3VersionId: true },
+                  })
+                  .then((r) => probeRecordedObject(r))
+                  .catch(() => null)
+              : Promise.resolve(null),
+          ])
+        : [null, null];
+
       const [eligibility, legalHold, callerMayGenerate] = await Promise.all([
         ev.ownerUserId
           ? resolveEvidenceOutputEligibility({
@@ -409,6 +488,8 @@ export async function loadEvidenceOutputFacts(input: {
           eligibility?.issuance.decision === "ENTITLED" &&
           eligibility.issuance.mayIssueHistoricalFirstOutputs === false,
         newVersionFitsStorage: newVersionEstimate?.fitsStorage ?? null,
+        storedOutputMissing:
+          reportObject === "NOT_FOUND" ? "REPORT" : packageObject === "NOT_FOUND" ? "PACKAGE" : null,
       };
 
       out.set(ev.id, {
@@ -425,6 +506,7 @@ export async function loadEvidenceOutputFacts(input: {
         reportRequest,
         packageRequest,
         newVersionEstimate,
+        storedObjects: { report: reportObject, package: packageObject },
       });
     }),
   );
@@ -621,6 +703,9 @@ export async function requestOutputRecovery(input: {
       // keep collapsing onto an exhausted terminal.
       resolveSupersedeRight:
         input.resolveSupersedeRight === true && !input.operatorSupersede && input.platformOperator !== true,
+      // AUD-011 — the decision re-derives "the stored file is gone" from a
+      // live HEAD of the recorded version, never from the client's view.
+      probeStoredObjects: true,
     })
   ).get(input.evidenceId);
   if (!loaded) return { kind: "not_found" };
@@ -926,6 +1011,28 @@ export async function requestOutputRecovery(input: {
    * one successor identity (`<baseKey>:s<n+1>`). With no report this is the
    * first issuance again — report v1, never a new version.
    */
+  /*
+   * AUD-011 — RECOVERY OF A PROVEN-MISSING STORED FILE. One new, verified,
+   * correctly paired report/package version through THE writer. The missing
+   * version stays as history (never overwritten). Keyed on the version whose
+   * file is gone: a repeat — concurrent, or after a lost response — returns
+   * the SAME request (REPLAYED / ALREADY_ACTIVE), never a second version; a
+   * live request is answered above as IN_PROGRESS.
+   */
+  if (chosen.decision.operation === "NEW_VERSION" && latestVersion != null) {
+    return fromRequested(
+      "NEW_VERSION",
+      await requestReportGeneration({
+        ...base,
+        purpose: "updated_report",
+        regenerateReason: `recover_missing_${chosen.output === "report" ? "report" : "package"}_v${latestVersion}`,
+        forceRegenerate: true,
+        intent: "NEW_VERSION",
+        clientRequestKey: `recover-missing:${input.evidenceId}:v${latestVersion}`,
+      }),
+    );
+  }
+
   const supersede = chosen.decision.supersedesTechnicalTerminal === true
     ? ({ supersedeTechnicalTerminal: true, regenerateReason: "retry_after_exhausted_failure" } as const)
     : {};

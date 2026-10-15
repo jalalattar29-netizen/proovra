@@ -109,7 +109,7 @@ function OutputActionButton({
       data-evidence-generate-verb={action}
       data-evidence-operation={output.operation ?? ""}
     >
-      {ctx.generateOutputsBusy ? (action === "RETRY" ? "Retrying…" : "Requesting…") : outputActionLabel(kind, action)}
+      {ctx.generateOutputsBusy ? (action === "RETRY" ? "Retrying…" : "Requesting…") : outputActionLabel(kind, action, "full", output.operation)}
     </button>
   );
 }
@@ -268,10 +268,9 @@ function NotIncludedPanel({ output }: { output: EvidenceOutputProjection }) {
  *
  * Learned only from a real download that answered 410 — never from a storage
  * probe on page load. An issued version is immutable and is never
- * regenerated in place (the recovery decision treats a committed report as
- * present, and the package rebuild refuses a missing report object as an
- * integrity review), so no recovery verb is offered here: the honest answer
- * is an escalation, stated persistently rather than in a passing toast.
+ * regenerated in place. AUD-011: the status projection now HEADs the recorded
+ * version itself (ARTIFACT_MISSING) and offers an entitled caller a NEW
+ * verified version there; this banner keeps what a download answered.
  */
 export function MissingStoredArtifactBanner({
   missing,
@@ -316,9 +315,10 @@ export function MissingStoredArtifactBanner({
               {e.title} (version {version})
             </strong>
             <p>
-              {e.description} An issued version is never regenerated in place, so
-              no recovery is offered on this page. The evidence record, its
-              fingerprint, signature and custody history are unchanged.
+              {e.description} An issued version is never regenerated in place;
+              where you may issue outputs, a new verified version can be issued
+              instead. The evidence record, its fingerprint, signature and
+              custody history are unchanged.
             </p>
           </div>
         );
@@ -608,6 +608,36 @@ function ArtifactLifecyclePanel({
         </div>
       );
 
+    case "ARTIFACT_MISSING":
+      /*
+       * AUD-011 — the report ROW exists but a HEAD of its recorded version
+       * proved the stored file gone. Stated here, from the status projection,
+       * instead of being learned only from a failed download. The version is
+       * never re-issued in place; the server offers (to a caller who may
+       * issue outputs) ONE new, verified, correctly paired version.
+       */
+      return (
+        <div
+          className="app-alert app-alert--warn"
+          role="status"
+          data-evidence-section="reports-artifact-missing"
+          data-evidence-output-state={output.state}
+        >
+          <strong>
+            The stored file of report{output.version != null ? ` version ${output.version}` : ""} is unavailable
+          </strong>
+          <p>
+            The report record exists, but its stored file could not be found.
+            An issued version is never regenerated in place: it stays in this
+            record&apos;s history as issued. A new verified report and
+            verification package can be issued as the next version. The
+            evidence record, its fingerprint, signature and custody history are
+            unchanged.
+          </p>
+          {action}
+        </div>
+      );
+
     case "READY":
       /*
        * A downloadable artifact is not a status message, so there is no alert
@@ -721,6 +751,30 @@ function PackageRecoveryPanel({
           The report is not changed and no new version is created. This page
           checks on its own.
         </p>
+      </div>
+    );
+  }
+
+  // AUD-011 — the PAIRED package's stored file is proven gone: the recovery
+  // is a new verified pair, never a rebuild of the issued version.
+  if (pkg.state === "ARTIFACT_MISSING") {
+    return (
+      <div
+        className="app-alert app-alert--warn"
+        role="status"
+        data-evidence-section="package-artifact-missing"
+        data-evidence-output-state={pkg.state}
+        data-evidence-output-action={pkg.action}
+      >
+        <strong>The stored file of the verification package{forVersion} is unavailable</strong>
+        <p>
+          The package record exists, but its stored file could not be found. An
+          issued package is never rebuilt in place; a new verified report and
+          verification package can be issued as the next version. The evidence
+          record is unchanged.
+        </p>
+        <OutputActionButton ctx={ctx} kind="verificationPackage" output={pkg} />
+        <OutputUnavailableNote kind="verificationPackage" output={pkg} />
       </div>
     );
   }

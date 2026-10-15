@@ -367,7 +367,9 @@ export type OutputState =
   | "GENERATING"
   | "RETRYABLE_FAILURE"
   | "TERMINAL_FAILURE"
-  | "BLOCKED";
+  | "BLOCKED"
+  /** AUD-011 — the issued version's stored file is proven gone. */
+  | "ARTIFACT_MISSING";
 
 const OUTPUT_STATES: readonly OutputState[] = [
   "READY",
@@ -380,6 +382,7 @@ const OUTPUT_STATES: readonly OutputState[] = [
   "RETRYABLE_FAILURE",
   "TERMINAL_FAILURE",
   "BLOCKED",
+  "ARTIFACT_MISSING",
 ];
 
 export interface OutputView {
@@ -568,6 +571,8 @@ export function outputStateReason(state: OutputState | null, noun: string): stri
       return `The ${noun} could not be produced for this record.`;
     case "BLOCKED":
       return `${noun} generation is blocked by a policy decision.`;
+    case "ARTIFACT_MISSING":
+      return `The stored file of the issued ${noun} is unavailable. It is never re-issued in place; a new verified version can be issued.`;
     default:
       return `The ${noun} status is unavailable right now.`;
   }
@@ -594,6 +599,8 @@ export function outputStateLabel(state: OutputState | null): string {
       return "Not included for this record";
     case "NOT_APPLICABLE":
       return "Not available for this record";
+    case "ARTIFACT_MISSING":
+      return "Stored file unavailable";
     default:
       return "State unavailable";
   }
@@ -620,6 +627,14 @@ export function terminalFailureCopy(reasonClass: string | null): string {
  */
 export function outputPanelCopy(out: OutputView): { title: string; body: string; tone: "warn" | "info" } | null {
   switch (out.state) {
+    case "ARTIFACT_MISSING":
+      // AUD-011 — EvidenceArtifactsTab.tsx "reports-artifact-missing", verbatim.
+      return {
+        title: `The stored file of report${out.version != null ? ` version ${out.version}` : ""} is unavailable`,
+        body:
+          "The report record exists, but its stored file could not be found. An issued version is never regenerated in place: it stays in this record's history as issued. A new verified report and verification package can be issued as the next version. The evidence record, its fingerprint, signature and custody history are unchanged.",
+        tone: "warn",
+      };
     case "NOT_APPLICABLE":
       return out.notApplicableReason === "INTEGRITY_FAILED"
         ? {
@@ -752,6 +767,7 @@ export function outputPanelShowsAction(state: OutputState | null): boolean {
     state === "RETRYABLE_FAILURE" ||
     state === "TERMINAL_FAILURE" ||
     state === "BLOCKED" ||
+    state === "ARTIFACT_MISSING" ||
     state === "READY"
   );
 }

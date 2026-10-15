@@ -179,7 +179,8 @@ export type EvidenceIntelligenceOutputs = {
  */
 function outputAbsenceIsReviewGap(state: EvidenceOutputState): boolean {
   // ENTITLEMENT_UNAVAILABLE: whether an output is owed is unknown for now;
-  // that is not a review gap in the evidence.
+  // that is not a review gap in the evidence. ARTIFACT_MISSING (AUD-011): the
+  // issued file is proven gone — a reviewer wants to know.
   switch (state) {
     case "READY":
     case "NOT_INCLUDED":
@@ -192,6 +193,7 @@ function outputAbsenceIsReviewGap(state: EvidenceOutputState): boolean {
     case "RETRYABLE_FAILURE":
     case "TERMINAL_FAILURE":
     case "BLOCKED":
+    case "ARTIFACT_MISSING":
       return true;
   }
 }

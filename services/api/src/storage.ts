@@ -2,6 +2,7 @@ import {
   S3Client,
   PutObjectCommand,
   HeadObjectCommand,
+  HeadBucketCommand,
   GetObjectCommand,
   GetObjectLockConfigurationCommand,
   PutObjectRetentionCommand,
@@ -550,6 +551,133 @@ export async function headObject(params: {
       };
     },
   );
+}
+
+// ===========================================================================
+// AUD-011 — THE ONE STORAGE-FAILURE CLASSIFIER.
+//
+// Every download route caught ANY HEAD failure and answered 410 "file
+// unavailable"; the recovery assessment and its CLI graded a failure by a
+// message substring. A throttled, unreachable or mis-credentialed store was
+// therefore reported as a MISSING artifact — an integrity statement about
+// evidence output made from a transport error. Routes and the assessment now
+// classify by the SDK's HTTP status and error name, here, once:
+//
+//   NOT_FOUND      the recorded version (or the key) is gone: 404 / NoSuchKey /
+//                  NoSuchVersion, or 405 (the recorded version is a delete
+//                  marker). Confirmed against the bucket: a HEAD on a missing
+//                  BUCKET is also a bodiless 404, and that is configuration.
+//   ACCESS_DENIED  the store refused us, or we addressed it wrongly: 401/403,
+//                  bad credentials or signature, a missing bucket, 400/301
+//                  (malformed version id, wrong region). Never "missing";
+//                  an operator alert.
+//   TRANSIENT      everything else: 5xx, 429/SlowDown, timeouts, a refused or
+//                  reset connection, an unknown failure. Retry; never "missing".
+// ===========================================================================
+
+export type StorageFailureClass = "NOT_FOUND" | "ACCESS_DENIED" | "TRANSIENT";
+
+/** A storage read failure already classified (bucket existence included). */
+export class StorageReadError extends Error {
+  constructor(
+    readonly storageClass: StorageFailureClass,
+    readonly httpStatusCode: number | null,
+  ) {
+    super(`STORAGE_${storageClass}`);
+    this.name = "StorageReadError";
+  }
+}
+
+const ACCESS_DENIED_NAMES = new Set([
+  "AccessDenied",
+  "Forbidden",
+  "InvalidAccessKeyId",
+  "SignatureDoesNotMatch",
+  "AllAccessDisabled",
+  "AccountProblem",
+  "InvalidToken",
+  "ExpiredToken",
+  "TokenRefreshRequired",
+  "NoSuchBucket",
+  "PermanentRedirect",
+  "AuthorizationHeaderMalformed",
+  "InvalidArgument",
+  "InvalidRequest",
+  "InvalidBucketName",
+]);
+const NOT_FOUND_NAMES = new Set(["NotFound", "NoSuchKey", "NoSuchVersion", "MethodNotAllowed"]);
+
+export function classifyStorageFailure(err: unknown): StorageFailureClass {
+  if (err instanceof StorageReadError) return err.storageClass;
+  const e = (err ?? {}) as { name?: unknown; Code?: unknown; $metadata?: { httpStatusCode?: unknown } };
+  const status = typeof e.$metadata?.httpStatusCode === "number" ? e.$metadata.httpStatusCode : null;
+  const name = typeof e.name === "string" ? e.name : typeof e.Code === "string" ? e.Code : "";
+  if (ACCESS_DENIED_NAMES.has(name)) return "ACCESS_DENIED";
+  if (NOT_FOUND_NAMES.has(name) || status === 404 || status === 405) return "NOT_FOUND";
+  if (status === 401 || status === 403 || status === 400 || status === 301) return "ACCESS_DENIED";
+  return "TRANSIENT";
+}
+
+const BUCKET_CHECK_TTL_MS = 60_000;
+const bucketChecks = new Map<string, { at: number; answer: StorageFailureClass | "PRESENT" }>();
+
+/** Does the bucket exist and answer us? Cached briefly; a HEAD 404 means "bucket missing". */
+async function bucketAnswer(bucket: string): Promise<StorageFailureClass | "PRESENT"> {
+  const hit = bucketChecks.get(bucket);
+  if (hit && Date.now() - hit.at < BUCKET_CHECK_TTL_MS) return hit.answer;
+  let answer: StorageFailureClass | "PRESENT";
+  try {
+    await s3.send(new HeadBucketCommand({ Bucket: bucket }));
+    answer = "PRESENT";
+  } catch (err) {
+    const cls = classifyStorageFailure(err);
+    // A missing bucket is configuration, not a missing object.
+    answer = cls === "NOT_FOUND" ? "ACCESS_DENIED" : cls;
+  }
+  if (answer !== "TRANSIENT") bucketChecks.set(bucket, { at: Date.now(), answer });
+  return answer;
+}
+
+/**
+ * HEAD the RECORDED version (by key only for a legacy row with none) and throw
+ * a classified StorageReadError on failure. A not-found is confirmed against
+ * the bucket before it is believed.
+ */
+export async function headRecordedObject(params: {
+  bucket: string;
+  key: string;
+  versionId?: string | null;
+  withChecksum?: boolean;
+}): Promise<Awaited<ReturnType<typeof headObject>>> {
+  try {
+    return await headObject(params);
+  } catch (err) {
+    const status = (err as { $metadata?: { httpStatusCode?: number } } | null)?.$metadata?.httpStatusCode ?? null;
+    let cls = classifyStorageFailure(err);
+    if (cls === "NOT_FOUND") {
+      const bucket = await bucketAnswer(params.bucket);
+      if (bucket !== "PRESENT") cls = bucket;
+    }
+    throw new StorageReadError(cls, status);
+  }
+}
+
+export type StoredObjectProbe =
+  | { state: "PRESENT"; sizeBytes: number | null }
+  | { state: StorageFailureClass };
+
+/** The non-throwing form of headRecordedObject, for routes and read models. */
+export async function probeStoredObject(params: {
+  bucket: string;
+  key: string;
+  versionId?: string | null;
+}): Promise<StoredObjectProbe> {
+  try {
+    const head = await headRecordedObject(params);
+    return { state: "PRESENT", sizeBytes: head.sizeBytes };
+  } catch (err) {
+    return { state: classifyStorageFailure(err) };
+  }
 }
 
 export async function getObjectStream(params: {

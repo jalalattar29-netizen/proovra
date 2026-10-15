@@ -46,7 +46,7 @@ import {
 
 import { prisma } from "../../db.js";
 import { runReadOnlyScan } from "../../lib/read-only-scan.js";
-import { getObjectStream, headObject } from "../../storage.js";
+import { classifyStorageFailure, getObjectStream, headRecordedObject } from "../../storage.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { resolveCommercialContext } from "../billing/commercial-context.service.js";
 import { getWorkspaceUsage } from "../workspace-usage.service.js";
@@ -218,28 +218,34 @@ async function selectGapPage(p: {
   `;
 }
 
-const isNotFound = (err: unknown): boolean => {
-  const e = err as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } } | null;
-  return (
-    e?.name === "NoSuchKey" ||
-    e?.name === "NotFound" ||
-    e?.Code === "NoSuchKey" ||
-    e?.$metadata?.httpStatusCode === 404
-  );
-};
+// AUD-011 — THE shared storage-failure classifier (status + error name, the
+// bucket confirmed), not a local copy of part of it.
+const isNotFound = (err: unknown): boolean => classifyStorageFailure(err) === "NOT_FOUND";
 
 /**
  * What the worker would find when it reads this report — the same order of
  * checks as its `readVerifiedStoredReport`, without writing anything.
  */
 async function checkStoredReport(
-  report: { storageBucket: string; storageKey: string; sizeBytes: bigint | null; pdfSha256: string | null },
+  report: {
+    storageBucket: string;
+    storageKey: string;
+    s3VersionId?: string | null;
+    sizeBytes: bigint | null;
+    pdfSha256: string | null;
+  },
   mode: ReportStorageCheck,
 ): Promise<ReportStorageFinding> {
   if (mode === "none") return "NOT_CHECKED";
-  let head: Awaited<ReturnType<typeof headObject>>;
+  let head: Awaited<ReturnType<typeof headRecordedObject>>;
   try {
-    head = await headObject({ bucket: report.storageBucket, key: report.storageKey, withChecksum: true });
+    // The RECORDED version (AUD-011), as the worker reads it.
+    head = await headRecordedObject({
+      bucket: report.storageBucket,
+      key: report.storageKey,
+      versionId: report.s3VersionId ?? null,
+      withChecksum: true,
+    });
   } catch (err) {
     return isNotFound(err) ? "REPORT_OBJECT_MISSING" : "REPORT_OBJECT_READ_FAILED";
   }
@@ -260,6 +266,7 @@ async function checkStoredReport(
     const body = (await getObjectStream({
       bucket: report.storageBucket,
       key: report.storageKey,
+      versionId: report.s3VersionId ?? null,
     })) as unknown as AsyncIterable<Uint8Array>;
     const hash = createHash("sha256");
     for await (const chunk of body) hash.update(chunk);
@@ -392,6 +399,7 @@ async function discover(
           evidenceId: true,
           storageBucket: true,
           storageKey: true,
+          s3VersionId: true,
           sizeBytes: true,
           pdfSha256: true,
         },
