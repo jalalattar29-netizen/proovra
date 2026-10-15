@@ -572,6 +572,8 @@ export type OutputRecoveryResult =
       operation: OutputOperation;
       outcome: GenerationRequestOutcome;
       enqueued: boolean;
+      /** The authority's bounded reason (e.g. which supersession budget is spent). */
+      authorityReason?: string | null;
     }
   | {
       /** Nothing to do, or not possible now; `reason` says which. */
@@ -657,6 +659,13 @@ export async function requestOutputRecovery(input: {
   regenerateReason: string;
   /** Operations only, after its own capability check and a recorded reason. */
   operatorSupersede?: boolean;
+  /**
+   * AUD-027 — the operator's recorded reason and the idempotency key of the
+   * operator request (e.g. the incident). With `operatorSupersede`, the
+   * supersession draws on the OPERATOR budget and is recorded with actor,
+   * reason and key; a repeat of the same request returns the same row.
+   */
+  operatorRecovery?: { reason: string; requestKey: string } | null;
   /** A platform operator, authorized by its route (see loadEvidenceOutputFacts). */
   platformOperator?: boolean;
   /**
@@ -743,6 +752,7 @@ export async function requestOutputRecovery(input: {
           operation,
           outcome: requested.outcome,
           enqueued: requested.enqueued,
+          authorityReason: requested.reason ?? null,
           loaded,
         }
       : {
@@ -751,6 +761,31 @@ export async function requestOutputRecovery(input: {
           reason: declinedOutcomeReason(requested.outcome, requested.reason),
           loaded,
         };
+
+  /*
+   * AUD-027 — THE OPERATOR SUPERSESSION, RECORDED. Keyed on the operator's
+   * request AND the terminal it supersedes: a repeat while the successor is in
+   * flight returns that successor; a later, different failure is a new key.
+   */
+  const operatorSupersession = async (artifactType: "REPORT" | "VERIFICATION_PACKAGE", reportVersion: number | null) => {
+    if (!input.operatorSupersede || !input.operatorRecovery) return {};
+    const head = await prisma.reportGenerationRequest.findFirst({
+      where: {
+        evidenceId: input.evidenceId,
+        artifactType,
+        ...(artifactType === "VERIFICATION_PACKAGE" && reportVersion != null ? { reportVersion } : {}),
+      },
+      orderBy: { createdAtUtc: "desc" },
+      select: { id: true },
+    });
+    return {
+      operatorSupersession: {
+        actorUserId: input.actorUserId,
+        reason: input.operatorRecovery.reason,
+        requestKey: `${input.operatorRecovery.requestKey}:${head?.id ?? "none"}`,
+      },
+    };
+  };
 
   // ---- The package for ONE named report version (2026-09-29) --------------
   if (input.packageForReportVersion != null) {
@@ -806,6 +841,7 @@ export async function requestOutputRecovery(input: {
         forceRegenerate: false,
         intent: "RECOVER",
         ...(input.operatorSupersede ? { supersedeTechnicalTerminal: true } : {}),
+        ...(await operatorSupersession("VERIFICATION_PACKAGE", version)),
       }),
     );
   }
@@ -875,6 +911,7 @@ export async function requestOutputRecovery(input: {
           forceRegenerate: false,
           intent: "RECOVER",
           supersedeTechnicalTerminal: true,
+          ...(await operatorSupersession("VERIFICATION_PACKAGE", latestVersion)),
         }),
       );
     }
@@ -906,6 +943,7 @@ export async function requestOutputRecovery(input: {
           forceRegenerate: false,
           intent: "GENERATE",
           supersedeTechnicalTerminal: true,
+          ...(await operatorSupersession("REPORT", null)),
         }),
       );
     }

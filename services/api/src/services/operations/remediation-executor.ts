@@ -176,6 +176,8 @@ export async function executeRemediation(
           supersede:
             action.actionId ===
             ("report.supersede_failed_generation" satisfies RemediationActionId),
+          reason: input.reason ?? null,
+          requestKey: `incident:${incident.id}`,
         });
 
   // ---- 5. Audit, exactly once, on the canonical tenant authority ---------
@@ -300,14 +302,28 @@ async function resumeOtsAnchoring(evidence: OtsAnchoringRecord & { id: string })
 async function recoverArtifacts(
   evidenceId: string,
   actorUserId: string,
-  opts: { supersede: boolean; platformOperator?: boolean; packageForReportVersion?: number | null },
+  opts: {
+    supersede: boolean;
+    platformOperator?: boolean;
+    packageForReportVersion?: number | null;
+    /** AUD-027 — the operator's recorded reason and the request's idempotency key. */
+    reason?: string | null;
+    requestKey?: string | null;
+  },
 ): Promise<ExecuteRemediationOutcome> {
+  const reason = opts.reason?.trim() ?? "";
   const result: OutputRecoveryResult = await requestOutputRecovery({
     evidenceId,
     actorUserId,
     purpose: "operator_regenerate",
     regenerateReason: opts.supersede ? "operations_supersede" : "operations_remediation",
     operatorSupersede: opts.supersede,
+    // An operator supersession is recorded (actor, reason, key) and drawn on
+    // the operator budget; without a reason it is not one.
+    operatorRecovery:
+      opts.supersede && reason.length >= 3 && opts.requestKey
+        ? { reason, requestKey: opts.requestKey }
+        : null,
     platformOperator: opts.platformOperator === true,
     packageForReportVersion: opts.packageForReportVersion ?? null,
   });
@@ -339,12 +355,23 @@ async function recoverArtifacts(
     }
     return outcome("NOT_ELIGIBLE");
   }
+  if (result.outcome === "TERMINAL" && result.authorityReason === "operator_supersession_budget_exhausted") {
+    return {
+      result: "NOT_ELIGIBLE",
+      message:
+        "The operator recovery budget for this record is spent for now (a small number of operator retries per day). Investigate the failure before retrying again.",
+      ...(result.requestId ? { reference: result.requestId } : {}),
+    };
+  }
   switch (result.outcome) {
     case "ENQUEUED":
     case "SUPERSEDED":
       return outcome("QUEUED", result.requestId ?? undefined);
+    // REPLAYED: the same operator request (its idempotency key) again — the
+    // first answer stands.
     case "ALREADY_ACTIVE":
-      return outcome("ALREADY_IN_PROGRESS");
+    case "REPLAYED":
+      return outcome("ALREADY_IN_PROGRESS", result.requestId ?? undefined);
     case "QUEUE_UNAVAILABLE":
       return outcome("QUEUE_UNAVAILABLE", result.requestId ?? undefined);
     case "TERMINAL":
@@ -373,9 +400,14 @@ export async function executePlatformRecordRecovery(input: {
   target: { component: "REPORT" | "VERIFICATION_PACKAGE"; evidenceId: string; reportVersion: number | null };
   actorUserId: string;
   supersede: boolean;
+  /** AUD-027 — the recorded reason and the incident the request is keyed on. */
+  reason?: string | null;
+  incidentId?: string | null;
 }): Promise<ExecuteRemediationOutcome> {
   return recoverArtifacts(input.target.evidenceId, input.actorUserId, {
     supersede: input.supersede,
+    reason: input.reason ?? null,
+    requestKey: input.incidentId ? `platform-incident:${input.incidentId}` : null,
     platformOperator: true,
     packageForReportVersion:
       input.target.component === "VERIFICATION_PACKAGE" ? input.target.reportVersion : null,

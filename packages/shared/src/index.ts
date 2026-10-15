@@ -325,6 +325,9 @@ export {
   // customer out of an updated report.
   isTechnicalTerminalReason,
   MAX_TERMINAL_SUPERSESSIONS,
+  MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW,
+  OPERATOR_SUPERSESSION_WINDOW_MS,
+  OPERATOR_SUPERSESSION_INTENT,
 } from "./evidence-output-lifecycle.js";
 // The words for those actions — one table for web, PWA and native.
 export {

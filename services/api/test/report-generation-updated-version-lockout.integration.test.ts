@@ -280,6 +280,10 @@ describe("updated-report terminal lockout (RGA-07, live PostgreSQL 16)", () => {
     if (res.kind === "accepted") {
       // If accepted, it must be the terminal replay, never a fresh QUEUED row.
       expect(res.outcome).not.toBe("ENQUEUED");
+      // AUD-027 — and it says WHICH budget is spent: the customer one. An
+      // operator recovery draws on its own budget (legacy-package-recovery).
+      expect(res.outcome).toBe("TERMINAL");
+      expect(res.authorityReason).toBe("supersession_budget_exhausted");
     }
   });
 

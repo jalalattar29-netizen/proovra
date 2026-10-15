@@ -1,6 +1,6 @@
 /**
  * AUD-011 — a report/package row whose stored file a HEAD of its RECORDED
- * version proved gone.
+ * version proved gone, and the AUD-027 operator budget constants.
  *
  *   * the derived state says ARTIFACT_MISSING (never READY / "available");
  *   * an entitled caller is offered ONE new verified version (RECOVER with
@@ -15,6 +15,9 @@ import assert from "node:assert/strict";
 
 import {
   deriveEvidenceOutputState,
+  MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW,
+  MAX_TERMINAL_SUPERSESSIONS,
+  OPERATOR_SUPERSESSION_INTENT,
   outputActionLabel,
   resolveArtifactDownloadFailure,
   resolveEvidenceOutputActions,
@@ -98,4 +101,10 @@ test("download failures: missing offers RECOVER only when permitted; transient r
   const denied = resolveArtifactDownloadFailure("verificationPackage", { statusCode: 503, code: "STORAGE_ACCESS_FAILED" });
   assert.deepEqual([denied.action, denied.retryable, denied.severity], ["NONE", false, "error"]);
   assert.doesNotMatch(denied.message, /missing/i);
+});
+
+test("AUD-027: the operator budget is separate, small and windowed", () => {
+  assert.equal(MAX_TERMINAL_SUPERSESSIONS, 5);
+  assert.ok(MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW >= 1 && MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW < MAX_TERMINAL_SUPERSESSIONS);
+  assert.equal(OPERATOR_SUPERSESSION_INTENT, "OPERATOR_SUPERSEDE");
 });

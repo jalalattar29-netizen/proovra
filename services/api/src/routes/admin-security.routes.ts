@@ -723,6 +723,8 @@ export async function adminSecurityRoutes(app: FastifyInstance) {
         target,
         actorUserId,
         supersede: body.data.supersede === true,
+        reason: body.data.reason,
+        incidentId: row.id,
       });
       await emitPlatformAudit({
         action: "admin.incident_remediate",
@@ -741,6 +743,8 @@ export async function adminSecurityRoutes(app: FastifyInstance) {
           supersede: body.data.supersede === true,
           reason: body.data.reason,
           result: result.result,
+          // AUD-027 — the request an operator supersession created or rejoined.
+          reference: result.reference ?? null,
         },
       }).catch(() => null);
       return reply.code(result.result === "QUEUED" || result.result === "ALREADY_IN_PROGRESS" || result.result === "ALREADY_SATISFIED" ? 200 : 409).send({

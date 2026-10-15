@@ -920,4 +920,132 @@ describe("legacy report/package recovery (Postgres + Redis + MinIO, real process
       expect(a.assessment).not.toBe("REFUSED_INTEGRITY_FAILURE");
     });
   }, 240_000);
+
+  // ===================================================================== AUD-027
+
+  /** A report v1 whose package chain is a TECHNICAL terminal at the end of the CUSTOMER budget. */
+  async function exhaustedPackageChain() {
+    const ev = await signedAnchoredEvidence("ANCHORED");
+    seam.retryableBuildFailures = 1;
+    const first = await rawRequest(ev, false);
+    await processFixtureRequest(first);
+    expect((await reportsOf(ev.evidenceId)).map((r) => r.version)).toEqual([1]);
+    expect(await primaryPackages(ev.evidenceId)).toEqual([]);
+    await prisma.reportGenerationRequest.update({
+      where: { id: first },
+      data: { state: "FAILED_TERMINAL", terminalReasonCode: "ACC_PACKAGE_BUILD_FAILED", completedAtUtc: new Date() },
+    });
+    const { MAX_TERMINAL_SUPERSESSIONS } = await import("@proovra/shared");
+    const base = `VERIFICATION_PACKAGE:${ev.evidenceId}:v1`;
+    for (let n = 0; n <= MAX_TERMINAL_SUPERSESSIONS; n += 1) {
+      await prisma.reportGenerationRequest.create({
+        data: {
+          teamId: ev.teamId,
+          evidenceId: ev.evidenceId,
+          artifactType: "VERIFICATION_PACKAGE",
+          purpose: "package_recovery",
+          requestedByMachineId: "legacy-fixture",
+          expectedPolicyVersion: 0,
+          idempotencyKey: n === 0 ? base : `${base}:s${n}`,
+          state: "FAILED_TERMINAL",
+          terminalReasonCode: "ACC_PACKAGE_BUILD_FAILED",
+          reportVersion: 1,
+          createdAtUtc: new Date(Date.now() + n),
+          completedAtUtc: new Date(Date.now() + n),
+        } as never,
+      });
+    }
+    return { ...ev, base, max: MAX_TERMINAL_SUPERSESSIONS };
+  }
+
+  it("AUD-027 an authorized operator recovers AFTER the customer budget is exhausted — on its own bounded budget, recorded with actor, reason and key; no customer loophole", async () => {
+    const ev = await exhaustedPackageChain();
+    const { teamA } = harness.fixtures;
+
+    // The customer budget is spent: escalated, and a customer click creates nothing.
+    const st = await statusOf(ev.evidenceId);
+    expect(st.outputs.verificationPackage).toMatchObject({ action: "NONE", actionUnavailableReason: "ESCALATED_TO_OPERATOR" });
+    const count = () => prisma.reportGenerationRequest.count({ where: { evidenceId: ev.evidenceId } });
+    const before = await count();
+    const customer = await api("POST", `/v1/evidence/${ev.evidenceId}/reports/regenerate`, teamA.ownerToken, { intent: "RETRY", output: "verificationPackage" });
+    expect(customer.statusCode).toBe(409);
+    expect(await count()).toBe(before);
+
+    // The assessment names the operator matter — not an integrity refusal.
+    const pre = await assessment.assessEvidenceOutputRecovery({ id: ev.evidenceId, ownerUserId: ev.ownerUserId, teamId: ev.teamId });
+    expect(pre).toMatchObject({ assessment: "OPERATOR_SUPERSESSION_REQUIRED", reason: "CUSTOMER_SUPERSESSION_BUDGET_EXHAUSTED" });
+    const dry = await cli.recoverEvidenceOutputs({ evidenceId: ev.evidenceId, apply: true });
+    expect(dry.results[0]).toMatchObject({ action: "operator_supersession_via_incident_remediation_with_reason" });
+    expect(dry.code).toBe(0);
+    expect(await count()).toBe(before);
+
+    // The platform operator path (POST /v1/admin/incidents/:id/remediate { supersede, reason }).
+    const { executePlatformRecordRecovery } = await import("../src/services/operations/remediation-executor.js");
+    const owner = (await prisma.team.findUniqueOrThrow({ where: { id: teamA.teamId }, select: { ownerUserId: true } })).ownerUserId;
+    const incidentId = randomUUID();
+    const target = { component: "VERIFICATION_PACKAGE" as const, evidenceId: ev.evidenceId, reportVersion: 1 };
+    // Without a reason it is no operator supersession: the customer ceiling holds.
+    const unreasoned = await executePlatformRecordRecovery({ target, actorUserId: owner, supersede: true, reason: "", incidentId });
+    expect(unreasoned.result).toBe("NOT_ELIGIBLE");
+    expect(await count()).toBe(before);
+
+    const recovered = await executePlatformRecordRecovery({ target, actorUserId: owner, supersede: true, reason: "Package builder fixed in release 2026.10.15", incidentId });
+    expect(recovered.result, recovered.message).toBe("QUEUED");
+    const successor = await prisma.reportGenerationRequest.findUniqueOrThrow({
+      where: { id: recovered.reference! },
+      select: { idempotencyKey: true, intent: true, requestedByUserId: true, regenerateReason: true, clientRequestKey: true, state: true },
+    });
+    expect(successor).toMatchObject({
+      idempotencyKey: `${ev.base}:s${ev.max + 1}`,
+      intent: "OPERATOR_SUPERSEDE",
+      requestedByUserId: owner,
+      state: "QUEUED",
+    });
+    expect(successor.regenerateReason).toBe("operator: Package builder fixed in release 2026.10.15");
+    expect(successor.clientRequestKey).toMatch(new RegExp(`^op:platform-incident:${incidentId}:`));
+    // Idempotent: the same operator request while it is in flight creates nothing new.
+    const again = await executePlatformRecordRecovery({ target, actorUserId: owner, supersede: true, reason: "Package builder fixed in release 2026.10.15", incidentId });
+    expect(again.result).toBe("ALREADY_IN_PROGRESS");
+    expect(await count()).toBe(before + 1);
+
+    // It runs: one package, paired with report v1; the dead rows stay as history.
+    expect(await runJob(await jobFor(recovered.reference!), 0)).toBeNull();
+    expect((await primaryPackages(ev.evidenceId)).map((p) => [p.version, p.reportVersion])).toEqual([[1, 1]]);
+    expect(await prisma.reportGenerationRequest.count({ where: { evidenceId: ev.evidenceId, state: "FAILED_TERMINAL" } })).toBe(ev.max + 2);
+    expect((await assessment.assessEvidenceOutputRecovery({ id: ev.evidenceId, ownerUserId: ev.ownerUserId, teamId: ev.teamId })).assessment).toBe("COMPLETE");
+  }, 240_000);
+
+  it("AUD-027 the operator budget is bounded per record per window, and a customer never draws on it", async () => {
+    const ev = await exhaustedPackageChain();
+    const { MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW } = await import("@proovra/shared");
+    const { executePlatformRecordRecovery } = await import("../src/services/operations/remediation-executor.js");
+    const owner = (await prisma.team.findUniqueOrThrow({ where: { id: harness.fixtures.teamA.teamId }, select: { ownerUserId: true } })).ownerUserId;
+    const target = { component: "VERIFICATION_PACKAGE" as const, evidenceId: ev.evidenceId, reportVersion: 1 };
+    const count = () => prisma.reportGenerationRequest.count({ where: { evidenceId: ev.evidenceId } });
+    for (let i = 0; i < MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW; i += 1) {
+      const r = await executePlatformRecordRecovery({ target, actorUserId: owner, supersede: true, reason: `operator attempt ${i + 1}`, incidentId: randomUUID() });
+      expect(r.result, r.message).toBe("QUEUED");
+      // That attempt fails technically too.
+      await prisma.reportGenerationRequest.update({
+        where: { id: r.reference! },
+        data: { state: "FAILED_TERMINAL", terminalReasonCode: "ACC_PACKAGE_BUILD_FAILED", completedAtUtc: new Date() },
+      });
+    }
+    const spent = await count();
+    const refused = await executePlatformRecordRecovery({ target, actorUserId: owner, supersede: true, reason: "one more try", incidentId: randomUUID() });
+    expect(refused.result).toBe("NOT_ELIGIBLE");
+    expect(refused.message).toMatch(/operator recovery budget/);
+    expect(await count()).toBe(spent);
+    // A customer — even one with the supersession right — cannot use what the operator could not.
+    const customer = await api("POST", `/v1/evidence/${ev.evidenceId}/reports/regenerate`, harness.fixtures.teamA.ownerToken, { intent: "RETRY", output: "verificationPackage" });
+    expect(customer.statusCode).toBe(409);
+    expect(await count()).toBe(spent);
+    // The window moves on: an attempt older than the window no longer counts.
+    await prisma.reportGenerationRequest.updateMany({
+      where: { evidenceId: ev.evidenceId, intent: "OPERATOR_SUPERSEDE" },
+      data: { createdAtUtc: new Date(Date.now() - 25 * 60 * 60 * 1000) } as never,
+    });
+    const nextDay = await executePlatformRecordRecovery({ target, actorUserId: owner, supersede: true, reason: "after investigation", incidentId: randomUUID() });
+    expect(nextDay.result, nextDay.message).toBe("QUEUED");
+  }, 240_000);
 });

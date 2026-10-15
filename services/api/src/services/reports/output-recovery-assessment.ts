@@ -37,6 +37,13 @@ export const OUTPUT_RECOVERY_ASSESSMENTS = [
   "REPORT_REGENERATION_REQUIRED",
   "ACTIVE_REQUEST",
   "TERMINAL_FAILURE_REQUIRES_SUPERSESSION",
+  /**
+   * AUD-027 — a TECHNICAL terminal whose CUSTOMER supersession budget is spent.
+   * Not an integrity matter (nothing is wrong with the evidence or its
+   * outputs): an authorized operator supersedes it on the operator's own
+   * bounded budget, with a recorded reason.
+   */
+  "OPERATOR_SUPERSESSION_REQUIRED",
   "NOT_ENTITLED",
   "NOT_APPLICABLE",
   /**
@@ -310,7 +317,7 @@ export async function assessEvidenceOutputRecovery(
     if (cls === "INTEGRITY") return decide("REFUSED_INTEGRITY_FAILURE", head.terminalReasonCode ?? "INTEGRITY");
     if (cls === "TECHNICAL") {
       return head.ordinal >= MAX_TERMINAL_SUPERSESSIONS
-        ? decide("REFUSED_INTEGRITY_FAILURE", "SUPERSESSION_BUDGET_EXHAUSTED")
+        ? decide("OPERATOR_SUPERSESSION_REQUIRED", "CUSTOMER_SUPERSESSION_BUDGET_EXHAUSTED")
         : decide("TERMINAL_FAILURE_REQUIRES_SUPERSESSION", head.terminalReasonCode ?? "TECHNICAL");
     }
     // COMMERCIAL / POLICY terminals are superseded by the writer itself once

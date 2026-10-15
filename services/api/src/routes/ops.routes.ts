@@ -1926,7 +1926,12 @@ export async function opsRoutes(app: FastifyInstance) {
             callerMaySupersede: true,
           });
           const outputs = [decided.report, decided.verificationPackage];
-          remediationRecord.outputRecovery = outputs.some((d) => d.supersedesTechnicalTerminal === true)
+          // AUD-027 — a TECHNICAL failure whose CUSTOMER budget is spent
+          // (ESCALATED_TO_OPERATOR) is exactly the operator's supersession,
+          // drawn on the operator's own bounded budget; it is no dead end.
+          remediationRecord.outputRecovery = outputs.some(
+            (d) => d.supersedesTechnicalTerminal === true || d.reason === "ESCALATED_TO_OPERATOR",
+          )
             ? "SUPERSEDE"
             : outputs.some((d) => d.action !== "NONE")
               ? "RECOVER"

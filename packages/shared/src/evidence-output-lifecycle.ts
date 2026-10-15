@@ -372,6 +372,25 @@ export function isTechnicalTerminalReason(
  */
 export const MAX_TERMINAL_SUPERSESSIONS = 5;
 
+/**
+ * AUD-027 — THE OPERATOR'S OWN, SEPARATE BUDGET.
+ *
+ * Once the customer budget above is spent the record is "an operator matter" —
+ * but the operator path (platform incident remediation, Operations
+ * "Retry after exhausted failure", both with a recorded reason) used to pass
+ * through the SAME ceiling and collapse onto the terminal head: a 409 with no
+ * way forward for anyone. An authorized operator supersession now draws on
+ * this budget instead: at most MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW per
+ * RECORD in any OPERATOR_SUPERSESSION_WINDOW_MS, each marked on its row
+ * (intent OPERATOR_SUPERSESSION_INTENT) with the operator as requester, the
+ * stated reason and the operator's idempotency key. Customer and automatic
+ * paths can never draw on it, so it is no customer loophole; and it is small
+ * and windowed, so an operator cannot loop a broken record either.
+ */
+export const MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW = 2;
+export const OPERATOR_SUPERSESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const OPERATOR_SUPERSESSION_INTENT = "OPERATOR_SUPERSEDE";
+
 // ===========================================================================
 // AXIS 3 — ARTIFACT AVAILABILITY
 // ===========================================================================

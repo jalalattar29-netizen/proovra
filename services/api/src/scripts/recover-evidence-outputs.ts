@@ -240,6 +240,13 @@ export async function recoverEvidenceOutputs(
         summary.refused += 1;
         say({ ...head, action: "operator_review_required" });
         continue;
+      case "OPERATOR_SUPERSESSION_REQUIRED":
+        // AUD-027 — not an integrity refusal: the customer budget is spent and
+        // an authorized operator supersedes it, with a reason, on the
+        // operator's own budget (platform incident remediation, supersede).
+        summary.operatorAction += 1;
+        say({ ...head, action: "operator_supersession_via_incident_remediation_with_reason" });
+        continue;
       case "REPORT_REGENERATION_REQUIRED":
         if (!t.regenerate) {
           summary.operatorAction += 1;
