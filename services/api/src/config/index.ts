@@ -29,6 +29,11 @@
  *     unless S3_ALLOW_INSECURE=true is explicitly set.
  */
 
+import {
+  objectLockPostureViolations,
+  type ObjectLockPostureViolation,
+} from "@proovra/shared";
+
 const PROD = (): boolean => process.env.NODE_ENV === "production";
 
 export type HashSecretName =
@@ -221,7 +226,16 @@ export type StartupConfigViolation = {
     // session for any user. Presence alone is not enough in production.
     | "jwt_secret_too_short"
     | "jwt_secret_placeholder"
-    | "jwt_secret_low_entropy";
+    | "jwt_secret_low_entropy"
+    // AUD-010 — production evidence storage must state the retention
+    // contract: Object Lock on, COMPLIANCE, period absent or >= 2920 days.
+    | ObjectLockPostureViolation;
+};
+
+const OBJECT_LOCK_VIOLATION_ENV: Record<ObjectLockPostureViolation, string> = {
+  object_lock_disabled: "S3_OBJECT_LOCK_ENABLED",
+  object_lock_mode_not_compliance: "S3_OBJECT_LOCK_MODE",
+  object_lock_retain_days_below_contract: "S3_OBJECT_LOCK_RETAIN_DAYS",
 };
 
 /** Minimum AUTH_JWT_SECRET length in production (HS256: 256-bit key). */
@@ -305,6 +319,13 @@ export function collectStartupViolations(): StartupConfigViolation[] {
   for (const name of CORE_REQUIRED_PROD) {
     if ((process.env[name] ?? "").trim().length === 0) {
       out.push({ envName: name, reason: "required_missing" });
+    }
+  }
+  // AUD-010 — evidence retention contract (production). The same rule the
+  // worker's config and both startup bootstraps apply.
+  if (PROD()) {
+    for (const violation of objectLockPostureViolations(process.env)) {
+      out.push({ envName: OBJECT_LOCK_VIOLATION_ENV[violation], reason: violation });
     }
   }
   // AUTH_JWT_SECRET strength — production only (dev/test use deterministic

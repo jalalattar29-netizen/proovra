@@ -1527,11 +1527,10 @@ allowedHeaders: [
   // P3.1 — signer governance + detached custody attestations.
   await app.register(operationsSignersRoutes);
 
-  // Phase C #1: Object Lock startup verification.
-  // Throws in production-shaped envs when S3_OBJECT_LOCK_ENABLED=true but the
-  // bucket cannot accept retention writes. Set OBJECT_LOCK_VERIFICATION_BYPASS=true
-  // to opt out (and accept that EVIDENCE_LOCKED claims will be downgraded
-  // per-record by the Phase A truth gate).
+  // Phase C #1 / AUD-010: Object Lock startup verification. Throws in
+  // production-shaped envs unless evidence storage meets the retention
+  // contract (COMPLIANCE, at least 2920 days, verified on the bucket). There is
+  // no bypass.
   await bootstrapObjectLockVerification({
     info: (obj, msg) => app.log.info(obj as Record<string, unknown>, msg),
     warn: (obj, msg) => app.log.warn(obj as Record<string, unknown>, msg),

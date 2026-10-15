@@ -23,6 +23,12 @@ jobs:
       S3_BUCKET: proovra-prod-assets
       S3_PUBLIC_BASE_URL: ""
       S3_ALLOW_INSECURE: "true"
+      # AUD-010 — the full stack runs as production, so its evidence bucket is
+      # created with Object Lock (compose minio-init: `mc mb --with-lock`) and
+      # both processes are told the retention contract they must state.
+      S3_OBJECT_LOCK_ENABLED: "true"
+      S3_OBJECT_LOCK_MODE: COMPLIANCE
+      S3_OBJECT_LOCK_RETAIN_DAYS: "2920"
       SIGNING_KEY_ID: proovra_ed25519
       SIGNING_KEY_VERSION: "1"
       SIGNING_PRIVATE_KEY_PATH: /run/signing/signer-private.pem
@@ -428,7 +434,10 @@ jobs:
           OBJECT_LOCK_MINIO_BUCKET: olc-locked
         run: |
           set +e
+          # AUD-010: the Object Lock startup decision runs against the same
+          # MinIO (the suite creates its own locked / unlocked buckets).
           npx vitest run test/verification-package-publication.minio.test.ts \
+            test/object-lock-bootstrap.minio.test.ts \
             --reporter=default --reporter=json --outputFile=/tmp/worker-olc.json
           rc=$?
           set -e

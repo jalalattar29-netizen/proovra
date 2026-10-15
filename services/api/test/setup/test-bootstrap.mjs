@@ -192,7 +192,6 @@ const LOCAL_FAKES = {
   S3_ALLOW_INSECURE: "true",
   S3_FORCE_PATH_STYLE: "true",
   S3_OBJECT_LOCK_ENABLED: "false",
-  OBJECT_LOCK_VERIFICATION_BYPASS: "true",
   // The email boundary is served by the LOCAL RECORDING PROVIDER, selected
   // here — before a single application module is imported.
   //

@@ -172,7 +172,6 @@ export function applySafeTestEnvironment(
   // Object Lock is a genuine external boundary; the local run declares it off
   // rather than reaching a bucket to ask.
   process.env.S3_OBJECT_LOCK_ENABLED = "false";
-  process.env.OBJECT_LOCK_VERIFICATION_BYPASS = "true";
   // Object storage is a genuine external boundary, so it is replaced with a
   // LOCAL one rather than removed: `storage.ts` requires these at module load,
   // and an absent value would only move the failure. The endpoint is loopback,

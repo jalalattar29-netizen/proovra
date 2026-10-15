@@ -28,7 +28,6 @@ x-common-env: &common-env
   S3_ALLOW_INSECURE: "true"
   S3_FORCE_PATH_STYLE: "true"
   S3_OBJECT_LOCK_ENABLED: "false"
-  OBJECT_LOCK_VERIFICATION_BYPASS: "true"
   SIGNER_PROVIDER: local-pem
   SIGNING_KEY_ID: rga_ed25519
   SIGNING_KEY_VERSION: "1"
@@ -194,7 +193,13 @@ services:
       api: { condition: service_healthy }
     environment:
       <<: *common-env
-      NODE_ENV: production
+      # NOT production, for the same reason as the API above, plus one: the
+      # failure journeys delete stored object versions (`mc rm --version-id`)
+      # to prove missing-object detection, which a COMPLIANCE-locked bucket
+      # makes impossible. This stack's bucket is therefore deliberately
+      # unlocked, and a production worker refuses to start on an unlocked
+      # store (AUD-010) — so the worker runs the same image in development.
+      NODE_ENV: development
       INTERNAL_API_BASE_URL: http://api:8080
       WORKER_PORT: "8090"
       # OpenTimestamps ON (the upgrade processor and `ots info` refuse to run

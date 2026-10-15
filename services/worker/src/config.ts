@@ -1,3 +1,4 @@
+import { objectLockPostureViolations } from "@proovra/shared";
 import { z } from "zod";
 
 const optionalTrimmedString = z.preprocess(
@@ -92,4 +93,26 @@ const EnvSchema = z.object({
   WORKER_PORT: z.coerce.number().int().positive().default(8090),
 });
 
+/**
+ * AUD-010 — in production the worker's Object Lock configuration must state
+ * the evidence retention contract exactly: enabled, COMPLIANCE, and a period
+ * that is absent or at least 2920 days. The schema above keeps its permissive
+ * defaults for development and tests; production refuses to start on any
+ * shortfall, through the same rule the API's startup validator applies
+ * (`objectLockPostureViolations`, @proovra/shared).
+ */
+export function assertProductionObjectLockPosture(
+  source: Readonly<Record<string, string | undefined>> = process.env,
+): void {
+  if ((source.NODE_ENV ?? "").trim() !== "production") return;
+  const violations = objectLockPostureViolations(source);
+  if (violations.length > 0) {
+    throw new Error(
+      `Worker production config refuses to start: ${violations.join(", ")} ` +
+        "(S3_OBJECT_LOCK_ENABLED=true, S3_OBJECT_LOCK_MODE=COMPLIANCE and S3_OBJECT_LOCK_RETAIN_DAYS unset or >= 2920 are required).",
+    );
+  }
+}
+
 export const env = EnvSchema.parse(process.env);
+assertProductionObjectLockPosture();

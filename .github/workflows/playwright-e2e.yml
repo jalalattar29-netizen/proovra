@@ -94,7 +94,6 @@ jobs:
       S3_ALLOW_INSECURE: "true"
       S3_FORCE_PATH_STYLE: "true"
       S3_OBJECT_LOCK_ENABLED: "false"
-      OBJECT_LOCK_VERIFICATION_BYPASS: "true"
 
       SIGNER_PROVIDER: local-pem
       SIGNING_KEY_ID: e2e_ed25519

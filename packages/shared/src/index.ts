@@ -2505,6 +2505,8 @@ export {
   resolveObjectLockModeName,
   computeEvidenceRetentionHorizon,
   resolveObjectRetainUntil,
+  objectLockPostureViolations,
+  decideObjectLockBootstrap,
 } from "./evidence-retention-lifecycle.js";
 export type {
   EvidenceProductState,
@@ -2519,6 +2521,9 @@ export type {
   TrashExitEvaluation,
   ObjectLockModeName,
   EvidenceRetentionHorizonInput,
+  ObjectLockPostureViolation,
+  ObjectLockBucketProbe,
+  ObjectLockBootstrapDecision,
 } from "./evidence-retention-lifecycle.js";
 
 // PROOVRA Phase 2 — Canonical Evidence Materials.

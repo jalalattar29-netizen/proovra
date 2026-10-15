@@ -30,6 +30,7 @@
  *     Phase 28-A).
  */
 
+import { objectLockPostureViolations } from "@proovra/shared";
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db.js";
 import { setGauge } from "../services/ops/metrics.service.js";
@@ -800,7 +801,7 @@ async function checkRedis(): Promise<SubsystemReadiness> {
   }
 }
 
-function checkS3ObjectLock(): SubsystemReadiness {
+export function checkS3ObjectLock(): SubsystemReadiness {
   const required = ["S3_BUCKET", "S3_REGION", "S3_ACCESS_KEY", "S3_SECRET_KEY"];
   const missing = required.filter((k) => !envPresent(k));
   const objectLockEnabled =
@@ -816,23 +817,31 @@ function checkS3ObjectLock(): SubsystemReadiness {
       metadata: { objectLockEnabled, missing: missing.join(",") },
     };
   }
-  if (!objectLockEnabled) {
+  // AUD-010 — the evidence retention contract, by the ONE rule the startup
+  // validators apply. "Enabled" alone used to read HEALTHY, whatever the mode
+  // or period; GOVERNANCE or a short period is not the contract. In
+  // production a shortfall is CRITICAL (the instance must not serve evidence
+  // writes); elsewhere it stays DEGRADED so development still reports.
+  const violations = objectLockPostureViolations(process.env);
+  if (violations.length > 0) {
+    const production = process.env.NODE_ENV === "production";
     return {
       id: "s3_object_lock",
-      status: "DEGRADED",
-      reasonCode: "object_lock_disabled",
-      detail:
-        "S3 Object Lock is not enabled. Destruction / immutable retention guarantees are downgraded.",
+      status: production ? "CRITICAL" : "DEGRADED",
+      reasonCode: violations[0]!,
+      detail: !objectLockEnabled
+        ? "S3 Object Lock is not enabled. Destruction / immutable retention guarantees are downgraded."
+        : `S3 Object Lock does not state the retention contract (COMPLIANCE, at least 2920 days): ${violations.join(", ")}.`,
       remediationHint:
-        "Set S3_OBJECT_LOCK_ENABLED=true and verify the bucket has Object Lock configured.",
-      metadata: { objectLockEnabled: false },
+        "Set S3_OBJECT_LOCK_ENABLED=true, S3_OBJECT_LOCK_MODE=COMPLIANCE and S3_OBJECT_LOCK_RETAIN_DAYS unset or >= 2920, on a bucket created with Object Lock.",
+      metadata: { objectLockEnabled, violations: violations.join(",") },
     };
   }
   return {
     id: "s3_object_lock",
     status: "HEALTHY",
     reasonCode: "ok",
-    detail: "S3 + Object Lock configured.",
+    detail: "S3 Object Lock configured: COMPLIANCE, at least 2920 days.",
     remediationHint: null,
     metadata: { objectLockEnabled: true },
   };

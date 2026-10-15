@@ -66,7 +66,7 @@ services:
       [
         "/bin/sh",
         "-c",
-        "mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} && mc mb --ignore-existing local/proovra-prod-assets"
+        "mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} && mc mb --ignore-existing --with-lock local/proovra-prod-assets"
       ]
 
   proovra-api:
@@ -106,6 +106,13 @@ services:
       S3_BUCKET: ${S3_BUCKET}
       S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
       S3_ALLOW_INSECURE: ${S3_ALLOW_INSECURE}
+      # AUD-010 — a production process refuses to start unless evidence
+      # storage states the retention contract: Object Lock on, COMPLIANCE, and
+      # a period unset or >= 2920 days, on a bucket created with Object Lock
+      # (minio-init above: `mc mb --with-lock`). Passed through, never defaulted.
+      S3_OBJECT_LOCK_ENABLED: ${S3_OBJECT_LOCK_ENABLED}
+      S3_OBJECT_LOCK_MODE: ${S3_OBJECT_LOCK_MODE}
+      S3_OBJECT_LOCK_RETAIN_DAYS: ${S3_OBJECT_LOCK_RETAIN_DAYS:-}
       SIGNING_KEY_ID: ${SIGNING_KEY_ID}
       SIGNING_KEY_VERSION: ${SIGNING_KEY_VERSION}
       SIGNING_PRIVATE_KEY_PATH: ${SIGNING_PRIVATE_KEY_PATH}
@@ -213,6 +220,10 @@ services:
       S3_BUCKET: ${S3_BUCKET}
       S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
       S3_ALLOW_INSECURE: ${S3_ALLOW_INSECURE}
+      # AUD-010 — same contract as the API (see above).
+      S3_OBJECT_LOCK_ENABLED: ${S3_OBJECT_LOCK_ENABLED}
+      S3_OBJECT_LOCK_MODE: ${S3_OBJECT_LOCK_MODE}
+      S3_OBJECT_LOCK_RETAIN_DAYS: ${S3_OBJECT_LOCK_RETAIN_DAYS:-}
       WORKER_BUILD_INFO: ${WORKER_BUILD_INFO}
       WORKER_PORT: ${WORKER_PORT}
       # THE PACKAGE SIGNER'S IDENTITY AND KEY PATHS.
