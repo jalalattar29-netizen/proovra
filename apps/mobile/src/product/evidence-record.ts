@@ -994,8 +994,13 @@ export function displaySourceType(sourceType: string | null): string {
       return "Folder upload (multiple files)";
     case "external_intake":
       return "Secure intake submission";
+    // AUD-001 — the app and screen channels are the client's report.
     case "mobile_app":
-      return "PROOVRA mobile app submission";
+      return "Reported by the client as a PROOVRA mobile app submission";
+    case "web_capture_extension":
+      return "Web capture — PROOVRA browser extension (client-attested)";
+    case "client_reported_screen_capture":
+      return "Reported by the client as a PROOVRA app screen capture";
     case "not_recorded":
     case "unknown":
     case null:

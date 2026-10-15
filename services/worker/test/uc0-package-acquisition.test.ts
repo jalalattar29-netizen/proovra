@@ -102,7 +102,8 @@ describe("UC-0 package acquisition.json", () => {
     expect(rec.acquisition.mode).toBe("PROOVRA_MOBILE_APP");
     expect(rec.acquisition.recorded).toBe(true);
     expect(rec.acquisition.recordedBy).toBe("RECORDED_AT_CREATION");
-    expect(rec.acquisition.label).toBe("Submitted through the PROOVRA mobile app");
+    // AUD-001 — the app channel is the client's report (CLIENT_DECLARED).
+    expect(rec.acquisition.label).toBe("Reported by the client as a PROOVRA mobile app submission");
     expect(rec.captureSession?.status).toBe("BOUND");
     expect(rec.captureSession?.digestsConfirmed).toBe(2);
     // Originals, capture records and derivatives are three separate counts;

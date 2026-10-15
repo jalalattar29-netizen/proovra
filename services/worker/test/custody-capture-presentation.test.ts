@@ -66,8 +66,9 @@ describe("resolveCustodyCapturePresentation", () => {
     expect(resolveCustodyCapturePresentation("SECURE_CAMERA", LEGACY).method).toBe(
       "Not recorded",
     );
+    // AUD-001 — the app channel is the client's report.
     expect(resolveCustodyCapturePresentation("UPLOADED_FILE", MOBILE).method).toBe(
-      "PROOVRA Mobile App",
+      "Reported by the client as a PROOVRA mobile app submission",
     );
   });
 

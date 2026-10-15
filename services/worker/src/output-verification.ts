@@ -366,6 +366,8 @@ export async function assertRenderedReport(
     ...checkReportGeometry(geometry, {
       requiredStatements: [
         { name: "verification limitation", text: VERIFICATION_LIMITATION },
+        // AUD-015 — the acquisition observation boundary, in full.
+        ...(facts.acquisitionBoundary ? [{ name: "acquisition boundary", text: facts.acquisitionBoundary }] : []),
         ...(options.supersedesVersion != null
           ? [{ name: "supersession notice", text: supersessionStatement(options.supersedesVersion) }]
           : []),

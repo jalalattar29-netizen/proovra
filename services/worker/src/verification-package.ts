@@ -1354,10 +1354,17 @@ export function buildPackageAcquisitionRecord(params: {
           observedByProovra: wording.observedByProovra,
           attested: wording.attested,
           beforeProovraVisibility: wording.beforeProovraVisibility,
+          // AUD-015 — the one observation boundary (receipt onward only).
+          boundary: wording.boundary,
         };
       })(),
       isDirectCapture: acquisition.isDirectCapture,
       provenanceTier: acquisition.provenanceTier,
+      // AUD-001 — who established the channel name. Only a verified attestation
+      // (carried by the chain) can make a client-declared channel anything else.
+      channelAuthority: acquisition.channelAuthority ?? resolveEvidenceAcquisition({ acquisitionMode: params.acquisitionMode }).channelAuthority,
+      channelAuthorityLabel:
+        acquisition.channelAuthorityLabel ?? resolveEvidenceAcquisition({ acquisitionMode: params.acquisitionMode }).channelAuthorityLabel,
       limitations: acquisition.limitations.map((code) => ({
         code,
         text: ACQUISITION_LIMITATION_TEXT[code],

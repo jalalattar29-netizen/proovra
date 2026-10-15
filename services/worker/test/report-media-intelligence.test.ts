@@ -930,7 +930,7 @@ describe("retired media-intelligence section module", () => {
 describe("UC-0 — How this record entered PROOVRA (report acquisition statement)", () => {
   const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 
-  it("no longer prints the channel's observation-boundary sentence (2026-10-14)", async () => {
+  it("AUD-015: prints the channel's observation boundary exactly once", async () => {
     const vm = await buildReportViewModel(
       buildInput({
         evidence: { ...buildInput().evidence, acquisitionMode: "PROOVRA_MOBILE_APP" },
@@ -938,7 +938,7 @@ describe("UC-0 — How this record entered PROOVRA (report acquisition statement
     );
     const t = text(renderReportHtml(vm));
     const boundary = resolveEvidenceAcquisition({ acquisitionMode: "PROOVRA_MOBILE_APP" }).boundary;
-    expect(t).not.toContain(boundary);
+    expect(t.split(boundary).length - 1).toBe(1);
     // The five-row provenance essay is gone.
     expect(t).not.toMatch(/How this record entered PROOVRA|Observed by PROOVRA|Not observed by PROOVRA/);
   });

@@ -88,8 +88,10 @@ test("ET-DC-03 / owner decision 4: every direct-capture channel is CLIENT_ATTEST
     if (a.isDirectCapture) {
       assert.equal(a.provenanceTier, "CLIENT_ATTESTED_CAPTURE", mode);
       assert.ok(a.limitations.includes("CAPTURE_CLIENT_ATTESTED"), mode);
-      // The statement attributes the capture to the client's report.
-      assert.match(a.statement, /\breports that it\b/, mode);
+      // The statement attributes the capture to the client's report (AUD-001:
+      // a client-declared channel is "reported by the client", never the
+      // PROOVRA app's own report).
+      assert.match(a.statement, a.channelAuthority === "CLIENT_DECLARED" ? /^The submitting client reported this as\b/ : /\breports that it\b/, mode);
       assert.doesNotMatch(a.statement, /^PROOVRA (captured|recorded)\b/, mode);
     } else {
       assert.equal(a.provenanceTier, "IMPORTED_EXISTING_MEDIA", mode);

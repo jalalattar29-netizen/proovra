@@ -238,7 +238,8 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
   });
   it("E5 byte-exact pin on claims-matrix.ts holds", () => {
     // UC-0 rebaseline (2026-09-17): 2,266 -> 3,389 — forbidden acquisition claims.
-    expect(statSync(sharedPath("claims-matrix.ts")).size).toBe(3389);
+    // AUD-001 rebaseline (2026-10-15): 3,389 -> 3,486 — the app channel is the client's report.
+    expect(statSync(sharedPath("claims-matrix.ts")).size).toBe(3486);
   });
   it("CR4 byte-exact pin on verify-projection.service.ts holds", () => {
     expect(

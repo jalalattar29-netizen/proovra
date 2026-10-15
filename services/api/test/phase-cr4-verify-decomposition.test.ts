@@ -109,7 +109,8 @@ const VERIFY_PROJECTION_SVC_BYTES = 3953;
 // Forbidden acquisition claims ("verified at source", "tamper-proof",
 // "authentic screenshot", ...) and the allowed acquisition phrases were added
 // to THE claims authority. No existing claim changed.
-const CLAIMS_MATRIX_BYTES = 3389;
+// AUD-001 rebaseline (2026-10-15): 3,389 -> 3,486 — the app channel is the client's report.
+const CLAIMS_MATRIX_BYTES = 3486;
 // Phase E5 rebaseline: trustCenterDeepLink helper repointed at the
 // canonical `/trust` hub (was `/about/trust`). Source-of-truth pin
 // updated to the new on-disk size after the helper fix + comment.

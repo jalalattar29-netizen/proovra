@@ -5303,6 +5303,9 @@ function buildSourceContext(params: {
   // whose origin was never recorded read as an upload. The folder flag only
   // refines an UPLOAD; it never decides the acquisition.
   const acquisition = resolveEvidenceAcquisition(params.evidence);
+  // AUD-001 — a direct-capture channel is named by its category, never
+  // "not_recorded"; the client-declared ones are read by every client as the
+  // client's report ("Reported by the client as …"), not as PROOVRA's fact.
   const sourceType =
     acquisition.mode === "SECURE_INTAKE_LINK"
       ? "external_intake"
@@ -5312,7 +5315,11 @@ function buildSourceContext(params: {
           ? folderPathPresent
             ? "folder_upload"
             : "imported_upload"
-          : "not_recorded";
+          : acquisition.category === "DIRECT_WEB_CAPTURE"
+            ? "web_capture_extension"
+            : acquisition.category === "DIRECT_SCREEN_CAPTURE"
+              ? "client_reported_screen_capture"
+              : "not_recorded";
   const clientSignalsRecorded = params.parts.some((part) =>
     Boolean(part.clientSignals)
   );

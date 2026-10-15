@@ -383,7 +383,6 @@ describe("Court & Technical Review Index: the Report boundary block is removed",
       "What it does not establish",
       "Embedded previews are reviewer aids; rely on the preserved originals and the verification package.",
       "Location metadata was not recorded for this evidence.",
-      "PROOVRA observed the files from upload onward; creation and editing before upload were not observed.",
       "Workspace identity",
     ]) {
       const checks = checkRenderedReportText(`${t} ${restored}`, facts, { reportVersion: input.version }).map((f) => f.check);

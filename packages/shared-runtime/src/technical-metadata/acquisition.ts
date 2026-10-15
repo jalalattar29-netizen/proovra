@@ -21,6 +21,7 @@ import {
   resolveEvidenceAcquisition,
   type ProjectedAcquisitionMode,
 } from "@proovra/shared";
+import { clientDeclaredChannelLabel } from "./display-helpers.js";
 
 export type AcquisitionRawInput = {
   /**
@@ -160,11 +161,13 @@ function mapMethod(raw: AcquisitionRawInput, deliveryChannel: string | null): st
 const ACQUISITION_METHOD_LABELS: Readonly<Record<import("@proovra/shared").ProjectedAcquisitionMode, string>> = {
   PROOVRA_WEB_UPLOAD: "Direct Upload",
   SECURE_INTAKE_LINK: "Intake Link",
-  PROOVRA_MOBILE_APP: "PROOVRA Mobile App",
+  // AUD-001 — a client-declared channel is stated as the client's report, in
+  // the acquisition authority's own words (never "PROOVRA Mobile App" as fact).
+  PROOVRA_MOBILE_APP: clientDeclaredChannelLabel("PROOVRA_MOBILE_APP"),
   DIRECT_WEB_CAPTURE_EXTENSION: "Web capture — PROOVRA browser extension (client-attested)",
-  DIRECT_SCREEN_CAPTURE_ANDROID: "Android screen capture — PROOVRA app (client-attested)",
-  DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS: "Android screen recording — PROOVRA app (client-attested)",
-  DIRECT_SCREEN_CAPTURE_IOS: "iOS screen recording — PROOVRA app (client-attested)",
+  DIRECT_SCREEN_CAPTURE_ANDROID: clientDeclaredChannelLabel("DIRECT_SCREEN_CAPTURE_ANDROID"),
+  DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS: clientDeclaredChannelLabel("DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS"),
+  DIRECT_SCREEN_CAPTURE_IOS: clientDeclaredChannelLabel("DIRECT_SCREEN_CAPTURE_IOS"),
   LEGACY_NOT_RECORDED: "Not recorded",
 };
 

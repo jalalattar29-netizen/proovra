@@ -378,7 +378,12 @@ function acquisitionRows(mode: string | null, source: string | null | undefined)
         ? row(
             "capture_method",
             "NOT_CHECKED",
-            `${acquisition.label}. ${acquisition.statement} The capture is reported by PROOVRA software; PROOVRA's server did not observe it.`,
+            // AUD-001 — the channel's authority decides who is said to report it.
+            `${acquisition.label}. ${acquisition.statement} ${
+              acquisition.channelAuthority === "EXTENSION_SCOPED_CREDENTIAL"
+                ? "The session was opened with the PROOVRA extension's scoped credential; the capture itself is reported by the client and PROOVRA's server did not observe it."
+                : "The channel and the capture are reported by the client; PROOVRA did not verify the client and its server did not observe the capture."
+            }`,
           )
         : // An upload or submission is not a capture by PROOVRA. The acquisition
           // statement itself is the provenance panel's, stated once there.
@@ -604,6 +609,12 @@ export const FORBIDDEN_CUSTOMER_CLAIM_PATTERNS: ReadonlyArray<{ name: string; re
   { name: "Passed signals", re: /\bPassed signals\b/ },
   { name: "No degraded signals", re: /\bNo degraded signals\b/i },
   { name: "reliance level", re: /\b(?:Reviewer|Reliance)\s+(?:reliance|level)\b/i },
+  // AUD-001 — a client-declared channel stated as PROOVRA's own fact. The
+  // acquisition authority says "Reported by the client as …".
+  {
+    name: "unqualified PROOVRA capture channel",
+    re: /(?<!not )\bcaptured (?:by|with|in|through) (?:the )?PROOVRA\b|\bsubmitted (?:through|via|with) the PROOVRA (?:mobile )?app\b|\bThe PROOVRA (?:Android|iOS) app reports that it\b/i,
+  },
 ];
 
 export function findForbiddenCustomerClaims(text: string): string[] {

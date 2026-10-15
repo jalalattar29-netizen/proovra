@@ -9,7 +9,3 @@
 export function supersessionStatement(previousVersion: number): string {
   return `This version supersedes report v${previousVersion}`;
 }
-
-/** The evidence boundary every report states once, in its provenance panel. */
-export const PROVENANCE_BOUNDARY_STATEMENT =
-  "Integrity and custody records do not prove factual truth, authorship or legal admissibility.";

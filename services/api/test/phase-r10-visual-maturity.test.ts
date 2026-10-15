@@ -655,7 +655,8 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
 
   it("E5 byte-exact pin on claims-matrix.ts holds (2,317 bytes)", () => {
     // UC-0 rebaseline (2026-09-17): 2,266 -> 3,389 — forbidden acquisition claims.
-    expect(statSync(sharedPath("claims-matrix.ts")).size).toBe(3389);
+    // AUD-001 rebaseline (2026-10-15): 3,389 -> 3,486 — the app channel is the client's report.
+    expect(statSync(sharedPath("claims-matrix.ts")).size).toBe(3486);
   });
 
   it("CR4 byte-exact pin on verify-projection.service.ts holds (3,953 bytes)", () => {

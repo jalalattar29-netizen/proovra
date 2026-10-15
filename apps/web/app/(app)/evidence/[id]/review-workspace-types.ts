@@ -135,6 +135,8 @@ export type SourceContext = {
     | "folder_upload"
     | "external_intake"
     | "mobile_app"
+    | "web_capture_extension"
+    | "client_reported_screen_capture"
     | "not_recorded";
   /** UC-0 — the server's acquisition projection (the only acquisition source). */
   acquisition?: {

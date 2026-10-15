@@ -473,6 +473,68 @@ describe("acquisition identity snapshot — every channel, real creation path (l
     });
   }
 
+  // AUD-001 — an ordinary web/API bearer token may open the app and screen
+  // channels, so every surface reads them as the CLIENT's report: the
+  // session's authority is CLIENT_DECLARED, and no owner, public-acquisition
+  // or ops projection states an unqualified "captured by / submitted through
+  // PROOVRA" fact. The coordinates carry the app's device source.
+  const clientDeclared: Array<{ mode: string; sourceType: string }> = [
+    { mode: "PROOVRA_MOBILE_APP", sourceType: "mobile_app" },
+    { mode: "DIRECT_SCREEN_CAPTURE_ANDROID", sourceType: "client_reported_screen_capture" },
+    { mode: "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS", sourceType: "client_reported_screen_capture" },
+    { mode: "DIRECT_SCREEN_CAPTURE_IOS", sourceType: "client_reported_screen_capture" },
+  ];
+  for (const c of clientDeclared) {
+    it(`AUD-001 ${c.mode} opened with an ordinary bearer token is CLIENT_DECLARED on every surface`, async () => {
+      const { findForbiddenCustomerClaims } = await import("@proovra/shared");
+      const { loadPublicVerifyAcquisition } = await import("@proovra/shared-runtime");
+      const A = h.fixtures.teamA;
+      const open = await h.app.inject({
+        method: "POST",
+        url: "/v1/capture/direct-sessions",
+        headers: { authorization: `Bearer ${A.ownerToken}` },
+        payload: { mode: c.mode, teamId: A.teamId, deviceId: null },
+      });
+      expect(open.statusCode, open.body).toBe(201);
+      const session = (open.json() as { session: { captureSessionId: string; modeAuthority: string } }).session;
+      expect(session.modeAuthority).toBe("CLIENT_DECLARED");
+      const reserve = await h.app.inject({
+        method: "POST",
+        url: `/v1/capture/direct-sessions/${session.captureSessionId}/evidence`,
+        headers: { authorization: `Bearer ${A.ownerToken}` },
+        payload: { type: "PHOTO", mimeType: "image/jpeg", gps: { lat: 52.52, lng: 13.405, accuracyMeters: 12 } },
+      });
+      expect(reserve.statusCode, reserve.body).toBe(201);
+      const id = (reserve.json() as { evidence: { evidenceId: string } }).evidence.evidenceId;
+      // The stored mode is untouched; the location source is the app's device.
+      const row = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { acquisitionMode: true, locationSource: true } });
+      expect(row.acquisitionMode).toBe(c.mode);
+      expect(row.locationSource).toBe("CLIENT_APP_DEVICE_LOCATION");
+
+      const detail = await h.app.inject({ method: "GET", url: `/v1/evidence/${id}`, headers: { authorization: `Bearer ${A.ownerToken}` } });
+      expect(detail.statusCode, detail.body).toBe(200);
+      const acquisition = (detail.json() as { evidence: { acquisition: Record<string, unknown> } }).evidence.acquisition;
+      expect(acquisition.channelAuthority).toBe("CLIENT_DECLARED");
+      expect(String(acquisition.label)).toMatch(/^Reported by the client as /);
+      expect(findForbiddenCustomerClaims(detail.body)).toEqual([]);
+
+      const workspace = await h.app.inject({ method: "GET", url: `/v1/evidence/${id}/review-workspace`, headers: { authorization: `Bearer ${A.ownerToken}` } });
+      expect(workspace.statusCode, workspace.body).toBe(200);
+      expect(workspace.body).toContain(`"sourceType":"${c.sourceType}"`);
+      expect(workspace.body).not.toContain('"sourceType":"not_recorded"');
+      // Never the bare channel name as a fact ("Submitted through the PROOVRA mobile app").
+      expect(workspace.body).not.toMatch(/"(?:Submitted through the )?PROOVRA [Mm]obile [Aa]pp(?: submission)?"/);
+      expect(findForbiddenCustomerClaims(workspace.body)).toEqual([]);
+
+      // The public acquisition projection (public Verify's `acquisition`).
+      const pub = await loadPublicVerifyAcquisition(prisma as never, id);
+      expect(pub.acquisition.channelAuthority).toBe("CLIENT_DECLARED");
+      expect(pub.acquisition.label).toMatch(/^Reported by the client as /);
+      expect(pub.acquisition.boundary).toMatch(/^PROOVRA proves /);
+      expect(findForbiddenCustomerClaims(JSON.stringify(pub))).toEqual([]);
+    });
+  }
+
   it("direct capture — mobile app into the PERSONAL workspace: personal, basic account", async () => {
     const P = h.fixtures.personal;
     const id = await directCapture(P.token, "PROOVRA_MOBILE_APP", null);

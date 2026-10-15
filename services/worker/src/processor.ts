@@ -1012,7 +1012,7 @@ case "TIMESTAMP_FAILED": {
           : completedBy
             ? "Completed through the secure intake flow"
             : null,
-        acquisitionMode ? `Submitted through: ${captureMethodDisplayLabel({ acquisitionMode })}` : null,
+        acquisitionMode ? `Acquisition: ${captureMethodDisplayLabel({ acquisitionMode })}` : null,
       ]
         .filter(Boolean)
         .join(" • ");

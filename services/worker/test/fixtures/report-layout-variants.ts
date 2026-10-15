@@ -111,7 +111,7 @@ const CUSTODY_SHAPES: ReadonlyArray<[string, string]> = [
   ["UPLOAD_COMPLETED", "Single evidence item completed • Items: 1 • Size: 46 bytes • technical digest recorded in appendix"],
   ["SIGNATURE_APPLIED", "Cryptographic signature applied • Key: rga-ed25519 • Version: 1 • technical digest recorded in appendix • Timestamp: not validated • TSA: RGA LOCAL TEST TSA"],
   ["TIMESTAMP_APPLIED", "Timestamp token obtained, not validated (no trust anchor was available) • Reviewer should rely on the recorded digest, signature, custody history, and available verification materials."],
-  ["EVIDENCE_COMPLETED", "Evidence record completed • Completed by the record owner • Submitted through: PROOVRA Web Upload"],
+  ["EVIDENCE_COMPLETED", "Evidence record completed • Completed by the record owner • Acquisition: PROOVRA Web Upload"],
   ["STORAGE_PROTECTION_UNAVAILABLE", "Storage protection was attempted, but Object Lock retention was not actually applied. Treat storage immutability as not asserted for this record."],
   ["IDENTITY_CONTEXT_RECORDED", "The report recorded which identity snapshot it states (the one recorded when the record was created)."],
   ["REPORT_GENERATED", "Verification report generated • Version: 1 • Verification: recorded integrity verified • Capture: PROOVRA Web Upload"],

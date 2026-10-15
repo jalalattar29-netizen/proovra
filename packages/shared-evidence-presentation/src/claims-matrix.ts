@@ -57,7 +57,8 @@ export const PROOVRA_FORBIDDEN_SURFACE_PATTERNS = [
 export const PROOVRA_ALLOWED_ACQUISITION_CLAIMS = [
   "Files submitted through PROOVRA Web Upload.",
   "Submitted to PROOVRA through a secure intake link.",
-  "Submitted through the PROOVRA mobile app in a server-issued capture session.",
+  // AUD-001 — the app channel is the client's report, never PROOVRA's fact.
+  "Reported by the client as a PROOVRA mobile app submission, in a server-issued capture session.",
   "How this record entered PROOVRA was not recorded when it was created.",
 ] as const;
 

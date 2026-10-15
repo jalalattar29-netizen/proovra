@@ -86,7 +86,12 @@ test("source-display helper exports its public functions — and no captureMetho
 test("source types are projections of the acquisition authority", () => {
   const src = read(HELPER);
   assert.match(src, /case "external_intake":\s*return "Secure intake submission";/);
-  assert.match(src, /case "mobile_app":\s*return "PROOVRA mobile app submission";/);
+  assert.match(src, /case "mobile_app":\s*return "Reported by the client as a PROOVRA mobile app submission";/);
+  // AUD-001 — a direct capture is named (never "Not recorded") and a
+  // client-declared screen channel is the client's report.
+  assert.match(src, /case "client_reported_screen_capture":\s*return "Reported by the client as a PROOVRA app screen capture";/);
+  assert.match(src, /case "web_capture_extension":\s*return "Web capture — PROOVRA browser extension \(client-attested\)";/);
+  assert.ok(!/PROOVRA mobile app submission";/.test(src.replace("Reported by the client as a PROOVRA mobile app submission", "")));
   assert.match(src, /case "not_recorded":[\s\S]{0,120}return "Not recorded";/);
   // No structure enum is read as a source.
   assert.ok(!/EXTERNAL_INTAKE_UPLOAD|MULTIPART_PACKAGE/.test(src));
