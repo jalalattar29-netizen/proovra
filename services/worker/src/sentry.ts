@@ -1,4 +1,9 @@
 import * as Sentry from "@sentry/node";
+import {
+  scrubTelemetryBreadcrumb,
+  scrubTelemetryEvent,
+  scrubTelemetryValue,
+} from "@proovra/shared";
 import { resolveBuildRevision } from "./build-revision.js";
 // Phase P2.0B — Sentry profiling on the worker. Same env knobs as
 // the api so a single deployment env-block controls both.
@@ -33,44 +38,6 @@ function readSampleRate(name: string, fallback: number): number {
   const n = Number.parseFloat(raw);
   if (!Number.isFinite(n) || n < 0 || n > 1) return fallback;
   return n;
-}
-
-function redactValue(value: unknown): unknown {
-  if (typeof value === "string") {
-    if (
-      value.toLowerCase().includes("bearer ") ||
-      value.toLowerCase().includes("token") ||
-      value.toLowerCase().includes("secret") ||
-      value.toLowerCase().includes("password")
-    ) {
-      return "[REDACTED]";
-    }
-  }
-
-  if (Array.isArray(value)) {
-    return value.map(redactValue);
-  }
-
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-      const lowered = key.toLowerCase();
-      if (
-        lowered.includes("token") ||
-        lowered.includes("secret") ||
-        lowered.includes("password") ||
-        lowered.includes("authorization") ||
-        lowered.includes("cookie")
-      ) {
-        out[key] = "[REDACTED]";
-      } else {
-        out[key] = redactValue(val);
-      }
-    }
-    return out;
-  }
-
-  return value;
 }
 
 export function initSentry() {
@@ -113,72 +80,76 @@ export function initSentry() {
     // and serverName are unaffected.
     skipOpenTelemetrySetup: skipOtelSetup,
     integrations: [nodeProfilingIntegration()],
-    beforeSendTransaction(event) {
-      if (event.request?.headers) {
-        const h = event.request.headers as Record<string, unknown>;
-        for (const key of Object.keys(h)) {
-          const k = key.toLowerCase();
-          if (
-            k.includes("authorization") ||
-            k.includes("cookie") ||
-            k.includes("token") ||
-            k.includes("secret") ||
-            k.includes("api-key")
-          ) {
-            h[key] = "[REDACTED]";
-          }
-        }
-      }
-      return event;
-    },
-    beforeSend(event, hint) {
-      // Phase 32.6.1 — suppress transient Redis ECONNREFUSED.
-      //
-      // Background: production Redis container restarts (during
-      // deploys, scaling, image updates) momentarily refuse
-      // connections. ioredis tolerates this transparently and
-      // workers resume cleanly. But every retry attempt was firing
-      // a Sentry "high" alert, drowning genuine outages in noise.
-      //
-      // This filter drops Sentry events whose error message
-      // contains the bounded `connect ECONNREFUSED` signature
-      // (Node net layer). The bounded `redis.connection.error`
-      // log line in queue.ts still records the event for SRE
-      // visibility; we just don't escalate to Sentry.
-      //
-      // Sustained outages still surface because:
-      //   1. The runtime-readiness probe pings Redis directly and
-      //      transitions to CRITICAL after the configured timeout.
-      //   2. BullMQ job failures (which throw a different error
-      //      class) continue to alert as before.
-      const err = hint?.originalException;
-      const message =
-        err instanceof Error
-          ? err.message
-          : typeof err === "string"
-            ? err
-            : "";
-      //
-      // Phase 32.6.5 — also suppress "Stream isn't writeable and
-      // enableOfflineQueue options is false". This ioredis error is
-      // emitted by the readiness ping client on the api side when
-      // its 500ms connect window expires. The signal is already
-      // carried by the readiness CRITICAL response and the bounded
-      // `redis.connection.error` log line; the duplicate Sentry
-      // alert was pure noise.
-      if (
-        message.includes("ECONNREFUSED") ||
-        message.includes("Connection is closed") ||
-        message.includes("Connection lost") ||
-        message.includes("Stream isn't writeable")
-      ) {
-        return null;
-      }
-      return event;
-    },
+    // AUD-022 — never attach default PII (IP, cookies, request bodies).
+    sendDefaultPii: false,
+    beforeSendTransaction: workerSentryBeforeSendTransaction,
+    beforeBreadcrumb: workerSentryBeforeBreadcrumb,
+    beforeSend: workerSentryBeforeSend,
   });
 
   sentryReady = true;
+}
+
+/**
+ * AUD-022 — the shared scrubber over every location of a transaction (it used
+ * to strip a few header names only). Null drops the event.
+ */
+export function workerSentryBeforeSendTransaction<T>(event: T): T | null {
+  return scrubTelemetryEvent(event);
+}
+
+export function workerSentryBeforeBreadcrumb<T>(breadcrumb: T): T | null {
+  return scrubTelemetryBreadcrumb(breadcrumb);
+}
+
+/**
+ * The noise filter below, then the shared scrubber over EVERY event location.
+ * Error events used to go out unscrubbed.
+ */
+export function workerSentryBeforeSend<T>(event: T, hint?: { originalException?: unknown }): T | null {
+  // Phase 32.6.1 — suppress transient Redis ECONNREFUSED.
+  //
+  // Background: production Redis container restarts (during
+  // deploys, scaling, image updates) momentarily refuse
+  // connections. ioredis tolerates this transparently and
+  // workers resume cleanly. But every retry attempt was firing
+  // a Sentry "high" alert, drowning genuine outages in noise.
+  //
+  // This filter drops Sentry events whose error message
+  // contains the bounded `connect ECONNREFUSED` signature
+  // (Node net layer). The bounded `redis.connection.error`
+  // log line in queue.ts still records the event for SRE
+  // visibility; we just don't escalate to Sentry.
+  //
+  // Sustained outages still surface because:
+  //   1. The runtime-readiness probe pings Redis directly and
+  //      transitions to CRITICAL after the configured timeout.
+  //   2. BullMQ job failures (which throw a different error
+  //      class) continue to alert as before.
+  const err = hint?.originalException;
+  const message =
+    err instanceof Error
+      ? err.message
+      : typeof err === "string"
+        ? err
+        : "";
+  //
+  // Phase 32.6.5 — also suppress "Stream isn't writeable and
+  // enableOfflineQueue options is false". This ioredis error is
+  // emitted by the readiness ping client on the api side when
+  // its 500ms connect window expires. The signal is already
+  // carried by the readiness CRITICAL response and the bounded
+  // `redis.connection.error` log line; the duplicate Sentry
+  // alert was pure noise.
+  if (
+    message.includes("ECONNREFUSED") ||
+    message.includes("Connection is closed") ||
+    message.includes("Connection lost") ||
+    message.includes("Stream isn't writeable")
+  ) {
+    return null;
+  }
+  return scrubTelemetryEvent(event);
 }
 
 export function captureException(
@@ -188,7 +159,7 @@ export function captureException(
   if (!sentryReady) return;
 
   if (context) {
-    const safeContext = redactValue(context) as Record<string, unknown>;
+    const safeContext = scrubTelemetryValue(context) as Record<string, unknown>;
     // PHASE 12 — POINT 7 (2026-08-05): a BACKGROUND failure gets its OWN trace.
     //
     // Both production worker incidents were filed under the transaction

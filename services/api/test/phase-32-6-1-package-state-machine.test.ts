@@ -347,7 +347,8 @@ describe("Phase 32.6.1 — Sentry suppresses transient Redis errors", () => {
   const API_SENTRY = readSource("../src/observability/sentry.ts");
 
   it("worker Sentry init has a beforeSend that filters ECONNREFUSED / Connection is closed / Connection lost", () => {
-    expect(WORKER_SENTRY).toMatch(/beforeSend\(event, hint\)/);
+    // AUD-022 — the hook is a named, exported function so it can be tested.
+    expect(WORKER_SENTRY).toMatch(/export function workerSentryBeforeSend<T>\(event: T, hint\?/);
     expect(WORKER_SENTRY).toMatch(/message\.includes\("ECONNREFUSED"\)/);
     expect(WORKER_SENTRY).toMatch(/message\.includes\("Connection is closed"\)/);
     expect(WORKER_SENTRY).toMatch(/message\.includes\("Connection lost"\)/);
@@ -355,17 +356,17 @@ describe("Phase 32.6.1 — Sentry suppresses transient Redis errors", () => {
   });
 
   it("api Sentry init mirrors the worker's beforeSend (consistent vocabulary)", () => {
-    expect(API_SENTRY).toMatch(/beforeSend\(event, hint\)/);
+    expect(API_SENTRY).toMatch(/export function apiSentryBeforeSend<T>\(event: T, hint\?/);
     expect(API_SENTRY).toMatch(/message\.includes\("ECONNREFUSED"\)/);
     expect(API_SENTRY).toMatch(/message\.includes\("Connection is closed"\)/);
     expect(API_SENTRY).toMatch(/message\.includes\("Connection lost"\)/);
   });
 
   it("beforeSend ONLY suppresses bounded transient signatures (does NOT swallow general errors)", () => {
-    // The filter checks specific strings. Any other Error returns the
-    // event unchanged.
-    expect(WORKER_SENTRY).toMatch(/return event;/);
-    expect(API_SENTRY).toMatch(/return event;/);
+    // The filter checks specific strings. Any other Error is SENT —
+    // through the shared scrubber (AUD-022), never raw.
+    expect(WORKER_SENTRY).toMatch(/return scrubTelemetryEvent\(event\);/);
+    expect(API_SENTRY).toMatch(/return scrubTelemetryEvent\(event\);/);
   });
 });
 

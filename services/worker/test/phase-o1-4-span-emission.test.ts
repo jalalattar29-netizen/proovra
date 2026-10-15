@@ -282,8 +282,9 @@ describe("O1.4 — Sentry / OTEL coexistence preserved", () => {
       expect(src).toMatch(/const\s+skipOtelSetup\s*=\s*isOtelEnabled\s*\(\s*\)/);
       // Error reporting + scrubbing still wired.
       expect(src).toMatch(/Sentry\.init\s*\(\s*\{/);
-      expect(src).toContain("beforeSend(event, hint)");
-      expect(src).toContain("beforeSendTransaction(event)");
+      // AUD-022 — wired as named, exported (and behaviour-tested) hooks.
+      expect(src).toMatch(/beforeSend: (api|worker)SentryBeforeSend,/);
+      expect(src).toMatch(/beforeSendTransaction: (api|worker)SentryBeforeSendTransaction,/);
     });
   }
 });

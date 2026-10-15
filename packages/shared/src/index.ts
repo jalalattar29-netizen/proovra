@@ -2694,3 +2694,16 @@ export {
   bulkActionItemSucceeded,
   type BulkActionItemStatus,
 } from "./operations-bulk.js";
+
+// AUD-022 — the ONE error-telemetry (Sentry) scrubber for API, worker, web and
+// mobile. Also importable alone as `@proovra/shared/telemetry-scrub`.
+export {
+  TELEMETRY_REDACTED,
+  isSensitiveTelemetryKey,
+  scrubTelemetryBreadcrumb,
+  scrubTelemetryEvent,
+  scrubTelemetryText,
+  scrubTelemetryUrl,
+  scrubTelemetryValue,
+  type TelemetryScrubOptions,
+} from "./telemetry-scrub.js";

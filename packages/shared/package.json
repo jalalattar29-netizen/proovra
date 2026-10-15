@@ -21,6 +21,11 @@
       "import": "./dist/password-rules.js",
       "default": "./dist/password-rules.js"
     },
+    "./telemetry-scrub": {
+      "types": "./dist/telemetry-scrub.d.ts",
+      "import": "./dist/telemetry-scrub.js",
+      "default": "./dist/telemetry-scrub.js"
+    },
     "./legal": {
       "types": "./dist/legal.d.ts",
       "import": "./dist/legal.js",

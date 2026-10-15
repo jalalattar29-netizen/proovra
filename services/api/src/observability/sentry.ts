@@ -3,6 +3,11 @@ import * as Sentry from "@sentry/node";
 // rate is governed by SENTRY_PROFILES_SAMPLE_RATE (default 0.1) so
 // production never accidentally profiles at 100%.
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
+import {
+  scrubTelemetryBreadcrumb,
+  scrubTelemetryEvent,
+  scrubTelemetryValue,
+} from "@proovra/shared";
 import { ZodError } from "zod";
 import { classifyReportability, isAppError } from "../errors.js";
 import { readFastifyClientError } from "./fastify-client-error.js";
@@ -55,44 +60,6 @@ function readSampleRate(name: string, fallback: number): number {
   const n = Number.parseFloat(raw);
   if (!Number.isFinite(n) || n < 0 || n > 1) return fallback;
   return n;
-}
-
-function redactValue(value: unknown): unknown {
-  if (typeof value === "string") {
-    if (
-      value.toLowerCase().includes("bearer ") ||
-      value.toLowerCase().includes("token") ||
-      value.toLowerCase().includes("secret") ||
-      value.toLowerCase().includes("password")
-    ) {
-      return "[REDACTED]";
-    }
-  }
-
-  if (Array.isArray(value)) {
-    return value.map(redactValue);
-  }
-
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-      const lowered = key.toLowerCase();
-      if (
-        lowered.includes("token") ||
-        lowered.includes("secret") ||
-        lowered.includes("password") ||
-        lowered.includes("authorization") ||
-        lowered.includes("cookie")
-      ) {
-        out[key] = "[REDACTED]";
-      } else {
-        out[key] = redactValue(val);
-      }
-    }
-    return out;
-  }
-
-  return value;
 }
 
 export function initSentry() {
@@ -164,123 +131,126 @@ export function initSentry() {
     // and serverName are unaffected.
     skipOpenTelemetrySetup: skipOtelSetup,
     integrations: mode === "recording" ? [] : [nodeProfilingIntegration()],
-    beforeSendTransaction(event) {
-      // Scrub authorization-bearing headers from transaction
-      // payloads before they leave the process. Transactions can
-      // carry inbound request headers under
-      // `event.request.headers`; we redact bounded names.
-      if (event.request?.headers) {
-        const h = event.request.headers as Record<string, unknown>;
-        for (const key of Object.keys(h)) {
-          const k = key.toLowerCase();
-          if (
-            k.includes("authorization") ||
-            k.includes("cookie") ||
-            k.includes("token") ||
-            k.includes("secret") ||
-            k.includes("api-key")
-          ) {
-            h[key] = "[REDACTED]";
-          }
-        }
-      }
-      return event;
-    },
-    beforeSend(event, hint) {
-      // Phase 32.6.1 — suppress transient Redis ECONNREFUSED.
-      // Mirrors the worker's beforeSend filter. See
-      // services/worker/src/sentry.ts for the full justification.
-      //
-      // Phase 32.6.5 — also suppress "Stream isn't writeable and
-      // enableOfflineQueue options is false". This ioredis error is
-      // emitted by the readiness ping client when its 500ms connect
-      // window expires (the ping is intentionally fast-fail per
-      // Phase 32.6.1). The readiness response already conveys the
-      // same signal as `redis: CRITICAL` with `redis_unreachable`
-      // reasonCode; the duplicate Sentry alert was pure noise.
-      //
-      // Sustained outages still surface because the readiness probe
-      // continues to report CRITICAL and the bounded
-      // `redis.connection.error` log in worker queue.ts retains SRE
-      // visibility. We are NOT silencing the underlying signal —
-      // only suppressing the duplicate Sentry alert that the
-      // readiness response already carries.
-      const err = hint?.originalException;
-
-      // PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05): the ONE capture
-      // decision, taken from the error's declared reportability.
-      //
-      // This runs FIRST, ahead of the historical shape-by-shape filters below,
-      // because those filters are a list of things somebody remembered — and
-      // the list did not include a plain `Error` carrying `statusCode: 409`,
-      // which is the shape every commercial-enforcement refusal in this
-      // codebase uses. That omission is what made "Free evidence limit
-      // reached" an error-level issue.
-      //
-      // It is a CLASSIFICATION, never a message match. Filtering on the string
-      // "Free evidence limit reached" would have silenced one sentence and
-      // left every other plan limit paging an operator, and would break the
-      // moment the copy changed.
-      //
-      // SECURITY_SIGNAL is deliberately NOT filtered here: a cross-tenant probe
-      // or a step-up bypass attempt is a 4xx that an operator must still see.
-      // Only the two "this is the product working" classes are dropped.
-      const reportability = classifyReportability(err);
-      if (
-        reportability === "EXPECTED_DENIAL" ||
-        reportability === "OPERATIONAL_WARNING"
-      ) {
-        return null;
-      }
-
-      // Phase CAPTURE-HARDENING — client-input validation failures
-      // are HTTP 4xx business outcomes, never server-side bugs.
-      // The Fastify error handler already returns 400 + warn-log for
-      // ZodError / AppError without explicitly calling
-      // captureException, but a future code path (a stray try/catch,
-      // an integration default-handler, a renamed wrapper) could
-      // accidentally surface one. This belt-and-braces filter
-      // guarantees they never reach Sentry as high-priority alerts.
-      if (err instanceof ZodError) {
-        return null;
-      }
-      if (isAppError(err) && err.statusCode >= 400 && err.statusCode < 500) {
-        return null;
-      }
-      // Phase 400-CLIENT-ERROR-HARDENING — Fastify's own client-input
-      // errors (FST_ERR_CTP_INVALID_JSON_BODY when a body claims JSON
-      // and isn't, FST_ERR_CTP_BODY_TOO_LARGE, FST_ERR_CTP_INVALID_MEDIA_TYPE,
-      // FST_ERR_VALIDATION, etc.) are HTTP 4xx client outcomes —
-      // typically bot/scanner traffic — not server-side bugs. The
-      // Fastify error handler already returns the canonical 4xx wire
-      // shape without calling captureException, but a future code path
-      // (a stray try/catch, an integration default-handler) could
-      // re-route one here. This belt-and-braces filter guarantees they
-      // never reach Sentry as high-priority alerts. Shares the same
-      // duck-typed detector the setErrorHandler uses.
-      if (readFastifyClientError(err) !== null) {
-        return null;
-      }
-
-      const message =
-        err instanceof Error
-          ? err.message
-          : typeof err === "string"
-            ? err
-            : "";
-      if (
-        message.includes("ECONNREFUSED") ||
-        message.includes("Connection is closed") ||
-        message.includes("Connection lost") ||
-        message.includes("Stream isn't writeable")
-      ) {
-        return null;
-      }
-      return event;
-    },
+    // AUD-022 — never attach default PII (IP, cookies, request bodies),
+    // whatever the SDK's own default is.
+    sendDefaultPii: false,
+    beforeSendTransaction: apiSentryBeforeSendTransaction,
+    beforeBreadcrumb: apiSentryBeforeBreadcrumb,
+    beforeSend: apiSentryBeforeSend,
   });
 
   sentryReady = true;
+}
+
+/**
+ * AUD-022 — transactions carry request URLs, headers, span descriptions and
+ * names that can embed credentials; the shared scrubber removes them all (it
+ * used to strip only a few header names). Null drops the event.
+ */
+export function apiSentryBeforeSendTransaction<T>(event: T): T | null {
+  return scrubTelemetryEvent(event);
+}
+
+export function apiSentryBeforeBreadcrumb<T>(breadcrumb: T): T | null {
+  return scrubTelemetryBreadcrumb(breadcrumb);
+}
+
+/**
+ * The capture decision, then the shared scrubber over EVERY event location
+ * (request, message, exception values, breadcrumbs, extra, contexts, tags,
+ * user, transaction). Error events used to go out unscrubbed.
+ */
+export function apiSentryBeforeSend<T>(event: T, hint?: { originalException?: unknown }): T | null {
+  // Phase 32.6.1 — suppress transient Redis ECONNREFUSED.
+  // Mirrors the worker's beforeSend filter. See
+  // services/worker/src/sentry.ts for the full justification.
+  //
+  // Phase 32.6.5 — also suppress "Stream isn't writeable and
+  // enableOfflineQueue options is false". This ioredis error is
+  // emitted by the readiness ping client when its 500ms connect
+  // window expires (the ping is intentionally fast-fail per
+  // Phase 32.6.1). The readiness response already conveys the
+  // same signal as `redis: CRITICAL` with `redis_unreachable`
+  // reasonCode; the duplicate Sentry alert was pure noise.
+  //
+  // Sustained outages still surface because the readiness probe
+  // continues to report CRITICAL and the bounded
+  // `redis.connection.error` log in worker queue.ts retains SRE
+  // visibility. We are NOT silencing the underlying signal —
+  // only suppressing the duplicate Sentry alert that the
+  // readiness response already carries.
+  const err = hint?.originalException;
+
+  // PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05): the ONE capture
+  // decision, taken from the error's declared reportability.
+  //
+  // This runs FIRST, ahead of the historical shape-by-shape filters below,
+  // because those filters are a list of things somebody remembered — and
+  // the list did not include a plain `Error` carrying `statusCode: 409`,
+  // which is the shape every commercial-enforcement refusal in this
+  // codebase uses. That omission is what made "Free evidence limit
+  // reached" an error-level issue.
+  //
+  // It is a CLASSIFICATION, never a message match. Filtering on the string
+  // "Free evidence limit reached" would have silenced one sentence and
+  // left every other plan limit paging an operator, and would break the
+  // moment the copy changed.
+  //
+  // SECURITY_SIGNAL is deliberately NOT filtered here: a cross-tenant probe
+  // or a step-up bypass attempt is a 4xx that an operator must still see.
+  // Only the two "this is the product working" classes are dropped.
+  const reportability = classifyReportability(err);
+  if (
+    reportability === "EXPECTED_DENIAL" ||
+    reportability === "OPERATIONAL_WARNING"
+  ) {
+    return null;
+  }
+
+  // Phase CAPTURE-HARDENING — client-input validation failures
+  // are HTTP 4xx business outcomes, never server-side bugs.
+  // The Fastify error handler already returns 400 + warn-log for
+  // ZodError / AppError without explicitly calling
+  // captureException, but a future code path (a stray try/catch,
+  // an integration default-handler, a renamed wrapper) could
+  // accidentally surface one. This belt-and-braces filter
+  // guarantees they never reach Sentry as high-priority alerts.
+  if (err instanceof ZodError) {
+    return null;
+  }
+  if (isAppError(err) && err.statusCode >= 400 && err.statusCode < 500) {
+    return null;
+  }
+  // Phase 400-CLIENT-ERROR-HARDENING — Fastify's own client-input
+  // errors (FST_ERR_CTP_INVALID_JSON_BODY when a body claims JSON
+  // and isn't, FST_ERR_CTP_BODY_TOO_LARGE, FST_ERR_CTP_INVALID_MEDIA_TYPE,
+  // FST_ERR_VALIDATION, etc.) are HTTP 4xx client outcomes —
+  // typically bot/scanner traffic — not server-side bugs. The
+  // Fastify error handler already returns the canonical 4xx wire
+  // shape without calling captureException, but a future code path
+  // (a stray try/catch, an integration default-handler) could
+  // re-route one here. This belt-and-braces filter guarantees they
+  // never reach Sentry as high-priority alerts. Shares the same
+  // duck-typed detector the setErrorHandler uses.
+  if (readFastifyClientError(err) !== null) {
+    return null;
+  }
+
+  const message =
+    err instanceof Error
+      ? err.message
+      : typeof err === "string"
+        ? err
+        : "";
+  if (
+    message.includes("ECONNREFUSED") ||
+    message.includes("Connection is closed") ||
+    message.includes("Connection lost") ||
+    message.includes("Stream isn't writeable")
+  ) {
+    return null;
+  }
+  return scrubTelemetryEvent(event);
 }
 
 export function captureException(
@@ -290,7 +260,7 @@ export function captureException(
   if (!sentryReady) return;
 
   if (context) {
-    const safeContext = redactValue(context) as Record<string, unknown>;
+    const safeContext = scrubTelemetryValue(context) as Record<string, unknown>;
     Sentry.withScope((scope) => {
       for (const [key, value] of Object.entries(safeContext)) {
         scope.setExtra(key, value);
