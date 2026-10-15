@@ -73,7 +73,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 367   |
+| AuditFilesInventoried                      | 368   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |

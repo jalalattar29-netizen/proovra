@@ -66,7 +66,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 367,
+    "AuditFilesInventoried": 368,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -136,7 +136,7 @@
     "GENERATED_CURRENT_ARTIFACT": 3,
     "CURRENT_GENERATED_REPORT": 1,
     "DIAGNOSTIC_NOT_AUTHORITY": 1,
-    "DOMAIN_AUTHORITY": 53,
+    "DOMAIN_AUTHORITY": 54,
     "CANONICAL_ENGINE_COMPONENT": 11,
     "CANONICAL_ORCHESTRATOR": 1,
     "DEPRECATED_DELEGATE": 1,
@@ -218,6 +218,10 @@
     {
       "id": "services/api/package.json:verify:runbook-endpoints",
       "command": "node scripts/verify-runbook-endpoints.mjs"
+    },
+    {
+      "id": "services/api/package.json:test:integration:record-point5-proof",
+      "command": "pnpm run test:integration:prepare && node scripts/point5-record-proof.mjs"
     }
   ],
   "records": [
@@ -1825,6 +1829,27 @@
       "writesArtifacts": [],
       "declaresArtifacts": [],
       "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/scripts/point5-record-proof.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [
+        "vitest.integration.config.ts"
+      ],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [
+        "docs/architecture/point5-family-proven-cases.json"
+      ],
+      "packageScripts": [
+        "services/api/package.json:test:integration:record-point5-proof"
+      ],
       "ciConsumers": [],
       "sourceOfTruthFor": [],
       "disposition": "RETAINED"
