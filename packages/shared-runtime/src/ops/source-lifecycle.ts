@@ -363,6 +363,7 @@ export const ACTIVITY_PROBE_KEYS = [
   "coordination.stale_backlog_count",
   /** The canonical worker-fleet liveness verdict (worker-liveness.service). */
   "platform.worker_heartbeat_age",
+  "platform.bitcoin_verifier_readiness",
   /** Final job failures on one queue inside the recent window (queue-inventory). */
   "platform.queue_recent_failures",
   /** The append-only `ImmutableStorageCheck` verdict for one record. */
@@ -1131,6 +1132,36 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiresResolutionNote: false,
       rationale:
         "One global fact read from getWorkerFleetHealth; one PLATFORM row that closes when the fleet reports a live heartbeat.",
+    },
+    {
+      // ONE platform condition, written once, from the Bitcoin verifier's
+      // readiness the worker publishes (worker_telemetry_snapshots, kind OTS).
+      // Only when live Bitcoin verification is ENABLED; it closes when the
+      // verifier reports ready. Resolving it records an operator conclusion
+      // only — it never changes any evidence's OpenTimestamps truth.
+      sourceId: "platform.bitcoin_verifier_unavailable",
+      category: "WORKER",
+      displayLabel: "Bitcoin verifier unavailable",
+      producers: ["services/api/src/services/operations/platform-conditions.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [],
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "platform.bitcoin_verifier_readiness",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SPECIALIZED_SURFACE",
+      requiredCapability: "operations.view",
+      audience: "PLATFORM_INTERNAL",
+      cardinality: "AGGREGATE",
+      observationModel: "STATE",
+      workspaceApplicability: "PLATFORM_OBSERVED",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
+      rationale:
+        "One global fact read from the newest Bitcoin-verifier readiness telemetry; one PLATFORM row that closes when the verifier reports ready. No evidence truth depends on it.",
     },
     // =======================================================================
     // THE SECURITY-EVENT BRIDGE.

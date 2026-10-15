@@ -113,6 +113,7 @@ import {
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import {
   boundedOtsFailureCode,
+  parseOtsChainFailureCode,
   formatTimestampForReportUtc,
   OTS_FAILURE_LABELS,
   type OtsFailureCode,
@@ -2173,7 +2174,9 @@ export async function buildInboxAggregation(
                 prisma.evidence.findMany({
                   where: {
                     AND: [inboxEvidenceScope],
-                    otsStatus: "FAILED",
+                    // A failed proof, or a proof the active Bitcoin main chain
+                    // contradicts (the independent check said FAILED).
+                    OR: [{ otsStatus: "FAILED" }, { otsChainVerificationStatus: "FAILED" }],
                     deletedAt: null,
                   },
                   select: {
@@ -2186,7 +2189,18 @@ export async function buildInboxAggregation(
                     },
                     title: true,
                     originalFileName: true,
+                    otsStatus: true,
                     otsFailureReason: true,
+                    // The independent Bitcoin-chain check of the stored proof.
+                    otsChainVerificationStatus: true,
+                    otsChainCheckedAtUtc: true,
+                    otsChainVerifiedAtUtc: true,
+                    otsChainBlockHeight: true,
+                    otsChainBlockHash: true,
+                    otsChainBlockTimeUtc: true,
+                    otsChainConfirmations: true,
+                    otsChainVerifier: true,
+                    otsChainFailureCode: true,
                     otsUpgradedAtUtc: true,
                     otsHash: true,
                     updatedAt: true,
@@ -2961,17 +2975,27 @@ export async function buildInboxAggregation(
         const teamName = ev.teamId
           ? teamNameById.get(ev.teamId) ?? "workspace"
           : "workspace";
+        // The proof itself failed (otsStatus FAILED), or the proof is intact
+        // but the independent Bitcoin main-chain check contradicted it.
+        const chainFailed = ev.otsStatus !== "FAILED" && ev.otsChainVerificationStatus === "FAILED";
         // ET-OTS-04 — the bounded code; historical rows carry raw command text.
-        const reasonCode = boundedOtsFailureCode(ev.otsFailureReason) ?? "OTS_PROCESSING_FAILED";
-        const terminal = reasonCode === "OTS_GLOBAL_BUDGET_EXHAUSTED";
+        const proofCode = boundedOtsFailureCode(ev.otsFailureReason) ?? "OTS_PROCESSING_FAILED";
+        const reasonCode = chainFailed
+          ? parseOtsChainFailureCode(ev.otsChainFailureCode) ?? "OTS_CHAIN_VERIFICATION_FAILED"
+          : proofCode;
+        const terminal = chainFailed || proofCode === "OTS_GLOBAL_BUDGET_EXHAUSTED";
         const evidenceLabel =
           ev.title ?? ev.originalFileName ?? ev.id.slice(0, 8);
         items.push({
           id: `ots_failure:${ev.id}`,
           category: "ots_failure",
           tone: terminal ? "critical" : "high",
-          title: `OTS anchoring failed — ${evidenceLabel}`,
-          body: `${humanizeOtsFailureReason(reasonCode)} Open the evidence Integrity tab for the preservation status and operator runbook.`,
+          title: chainFailed
+            ? `Bitcoin verification failed — ${evidenceLabel}`
+            : `OpenTimestamps proof failed — ${evidenceLabel}`,
+          body: chainFailed
+            ? "The OpenTimestamps proof does not match the referenced block in the active Bitcoin main chain. Open the evidence Integrity tab for the verification details and operator runbook."
+            : `${humanizeOtsFailureReason(proofCode)} Open the evidence Integrity tab for the preservation status and operator runbook.`,
           href: `/evidence/${encodeURIComponent(ev.id)}?tab=integrity`,
           occurredAt: (ev.otsUpgradedAtUtc ?? ev.updatedAt).toISOString(),
           dueAt: null,

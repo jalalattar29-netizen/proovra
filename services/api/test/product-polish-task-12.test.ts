@@ -333,8 +333,12 @@ describe("sidebar short-viewport density", () => {
 describe("home verification summary", () => {
   const HOME = read("components/home-experience/HomeSections.tsx");
 
-  it("anchored carries the success tone, and only anchored changed", () => {
-    expect(HOME).toContain('{ text: `${trust.otsAnchored} anchored`, tone: "ok" as const }');
+  it("a recorded attestation is NEUTRAL — never the success tone — until independently verified (2026-10-15)", () => {
+    // REVISED: an ANCHORED proof is an attestation RECORDED, not independently
+    // checked against the Bitcoin main chain; only CHAIN_VERIFIED may be green.
+    expect(HOME).toContain("{ text: recorded, tone: \"neutral\" as const }");
+    expect(HOME).toMatch(/attestations?"\} recorded`/);
+    expect(HOME).not.toMatch(/otsAnchored\} anchored`, tone: "ok"/);
     expect(HOME).toContain('{ text: `${trust.otsPending} pending`, tone: "warn" as const }');
   });
 

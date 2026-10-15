@@ -108,6 +108,7 @@ export const HOME_OPERATIONS_SOURCE_IDS = [
   "queue.retry_storm",
   "platform.telemetry_stale",
   "platform.worker_heartbeat_stale",
+  "platform.bitcoin_verifier_unavailable",
   "intake.delivery_failed",
   "capture.upload_stalled",
   "capture.legacy_upload_session_signal",
@@ -482,6 +483,10 @@ export const HOME_CONDITION_REPRESENTATION: Record<
   "platform.worker_heartbeat_stale": {
     kind: "PLATFORM",
     because: "PLATFORM_INTERNAL: worker fleet health, identical across every workspace.",
+  },
+  "platform.bitcoin_verifier_unavailable": {
+    kind: "PLATFORM",
+    because: "PLATFORM_INTERNAL: the platform's Bitcoin verifier node; no workspace caused it and recorded attestations stay recorded.",
   },
   "job.background_failure": {
     kind: "PLATFORM",

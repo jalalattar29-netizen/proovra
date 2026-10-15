@@ -13,13 +13,53 @@ decided in one place — `resolveOtsAnchoring` (`packages/shared/src/ots-anchori
 |---|---|
 | Not requested | anchoring was not requested for the record |
 | Pending | the digest is at the calendars; the proof has no Bitcoin attestation yet |
-| Anchored | the stored proof executes to a valid Bitcoin block-header attestation |
+| Anchored | the stored proof executes to a well-formed Bitcoin block-header attestation — **recorded, not yet independently checked** |
 | Failed | a bounded defect: `PROOF_HASH_MISMATCH`, `MALFORMED_PROOF`, `UNSUPPORTED_PROOF_OPERATION`, `INVALID_ATTESTATION`, `OTS_GLOBAL_BUDGET_EXHAUSTED` |
 | Unavailable | the proof material cannot be read (`PROOF_MATERIAL_MISSING`, `FINGERPRINT_MISSING`) |
 
 A status column, a txid, a block height or a time never makes a record
-anchored. PROOVRA does not operate a Bitcoin node; the verification package
-tells a reviewer how to check the proof against a node of their own.
+anchored.
+
+### Independent Bitcoin verification
+
+ANCHORED means the attestation is **recorded**. Only the independent check
+against the Bitcoin main chain may say **verified**. The worker performs it in
+the same `ots-upgrade` lifecycle against PROOVRA's dedicated, pruned Bitcoin
+Core node (header RPC only: `getblockhash`, `getblockheader`). The proof's
+Merkle root must equal the root in the 80-byte header of the block it names,
+in the active main chain, with at least `OTS_BITCOIN_MIN_CONFIRMATIONS`
+confirmations.
+
+| Verification | Meaning |
+|---|---|
+| Bitcoin attestation recorded | ANCHORED; not checked (verification disabled, or not yet run) |
+| Bitcoin verification pending | the proof matches the block; confirmations below the minimum |
+| Independently verified against the Bitcoin main chain | the only state that shows green / PASSED |
+| Bitcoin verification temporarily unavailable | the node could not be used (`BTC_RPC_*`, `INITIAL_BLOCK_DOWNLOAD`, `NODE_STALE`, `HEADER_LAG`, `WRONG_CHAIN`, …); retried automatically |
+| Bitcoin verification failed | `ROOT_MISMATCH`, `NOT_IN_ACTIVE_CHAIN`, `REORGED`, `INVALID_HEADER`, `INVALID_ATTESTATION` |
+
+A verifier outage never changes proof-integrity truth: the record stays
+ANCHORED (attestation recorded). Live verification is controlled by
+`OTS_BITCOIN_VERIFY_ENABLED` (default `false`); the RPC password is a
+worker-only secret. The verification package still tells a reviewer how to
+check the proof against a node of their own.
+
+### `platform.bitcoin_verifier_unavailable`
+
+While live verification is enabled the worker publishes the verifier's
+readiness (at most every 5 minutes). Operations opens **one** platform
+condition when the newest readiness says not ready and resolves it
+automatically when the verifier reports ready again. Triage by the bounded
+readiness code:
+
+- `BTC_RPC_UNAUTHORIZED` / `BTC_RPC_FORBIDDEN` — the RPC user, password or
+  `rpcallowip` / `rpcwhitelist` on the node.
+- `BTC_RPC_TIMEOUT` / `BTC_RPC_UNAVAILABLE` — the node process or the private
+  network path between the worker and the node.
+- `INITIAL_BLOCK_DOWNLOAD` / `HEADER_LAG` / `NODE_STALE` — the node is not
+  synchronized; wait for it.
+- `WRONG_CHAIN` / `UNSUPPORTED_NODE_VERSION` / `NODE_WARNINGS` — node
+  configuration; fix the node, never the policy.
 
 ## First action (under 60s)
 
@@ -29,6 +69,9 @@ Read the worker metrics:
 - `ots_calendar_failure_total` — `ots upgrade` could not reach a calendar
 - `ots_proof_integrity_failed_total` — a proof defect (terminal)
 - `ots_budget_exhausted_total` — a proof that never anchored within the budget
+- `ots_chain_verified_total`, `ots_chain_confirmations_pending_total`,
+  `ots_chain_verification_unavailable_total`, `ots_chain_verification_failed_total`,
+  `ots_chain_reorged_total` — the independent Bitcoin check
 - gauges `ots_upgrade_backlog` (PENDING records) and `ots_pending_beyond_sla`
 
 If `ots_calendar_failure_total` is rising while `ots_anchored_total` is flat,
@@ -50,12 +93,22 @@ mode (it reads only; it prints states and bounded codes, never proof bytes):
 
 ```bash
 node dist/scripts/reconcile-ots-state.js --evidence-id <uuid>
+node dist/scripts/reconcile-ots-state.js --chain --evidence-id <uuid>
 ```
+
+`--chain` also checks ANCHORED proofs against the Bitcoin node (read-only RPC
+in a dry run). `--chain --apply` refuses to start unless the verifier is
+enabled and ready now; it pages by keyset in batches of at most 100
+(`--batch-size`, `--max-rows`, resumable with `--after`).
 
 ## Containment
 
 Bounded by design: during a calendar outage records stay **Pending**; nothing
-reads as anchored without an anchored proof. No platform containment is needed.
+reads as anchored without an anchored proof. During a Bitcoin-node outage
+anchored records stay **Bitcoin attestation recorded**; nothing reads as
+verified without a successful chain check. No platform containment is needed;
+setting `OTS_BITCOIN_VERIFY_ENABLED=false` stops checking without changing
+any record.
 
 ## Recovery
 
@@ -76,3 +129,6 @@ reads as anchored without an anchored proof. No platform containment is needed.
       during the outage (`resolveOtsAnchoring` on the stored proof).
 - [ ] No package emitted a proof that does not commit to its `fingerprint.json`
       digest (`decideOtsPackageArtifact` refuses it).
+- [ ] No record read **Independently verified** while the verifier was
+      unavailable (`ots_chain_verification_status` is VERIFIED only with a
+      matching `ots_chain_block_hash` and verifier string).

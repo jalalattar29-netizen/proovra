@@ -20,7 +20,7 @@
 
 ## Rollback / retry guidance
 - Single failure → retry.
-- Repeated failures on the same evidence → check `EvidenceAnchor.otsStatus` (Phase 11). If `NOT_ANCHORED_YET`, wait; the package will build once the anchor completes.
+- Repeated failures on the same evidence → check the evidence Integrity tab. If OpenTimestamps reads "OpenTimestamps proof pending", wait; the OpenTimestamps lifecycle completes on its own schedule and the package can then be retried.
 
 ## Escalation
 - > 10 package failures / hour across the workspace → page on-call. Likely cause: storage write failure or OTS calendar regression.

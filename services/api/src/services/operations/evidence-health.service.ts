@@ -302,7 +302,7 @@ export async function buildEvidenceHealthSnapshot(
     ),
     measured(() =>
       prisma.evidence.count({
-        where: { deletedAt: null, otsStatus: "FAILED" },
+        where: { deletedAt: null, OR: [{ otsStatus: "FAILED" }, { otsChainVerificationStatus: "FAILED" }] },
       }),
     ),
     measured(() =>

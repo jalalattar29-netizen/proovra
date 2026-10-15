@@ -36,6 +36,8 @@ import {
   type CaptureManifestFacts,
   type OtsState,
   type OtsVerificationKey,
+  type OtsChainView,
+  toOtsAnchoringView,
   type TsaProofStatus,
   STANDING_PROVENANCE_LIMITATIONS,
   derivedAssetTransformationForKind,
@@ -236,7 +238,7 @@ export function evaluateTrustEventChain(rows: ReadonlyArray<TrustRow>): TrustEve
 export type ProvenanceChainTrustExtensions = {
   time: {
     rfc3161: { status: TsaProofStatus; statusLabel: string };
-    ots: { status: OtsState; verification: OtsVerificationKey; statusLabel: string };
+    ots: { status: OtsState; verification: OtsVerificationKey; statusLabel: string; chain: OtsChainView | null };
   };
   trustEventChain: TrustEventChainVerdict;
   derivedArtifactsTotalCount: number;
@@ -532,6 +534,9 @@ export async function loadProvenanceChain(
         status: ots.state,
         verification: ots.verification,
         statusLabel: presentOtsAnchoring(ots).label,
+        // The bound independent Bitcoin-chain fact: clients believe a CHAIN_*
+        // verification only alongside it (readOtsAnchoringView).
+        chain: toOtsAnchoringView(ots).chain,
       },
     },
     trustEventChain,

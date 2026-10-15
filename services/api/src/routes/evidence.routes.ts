@@ -60,12 +60,13 @@ import {
   // bytes executed against the fingerprint digest, and nothing else.
   resolveRecordOtsAnchoring,
   toOtsAnchoringView,
+  otsCustodyEventLines,
   type OtsAnchoring,
+  type OtsAnchoringView,
   type OtsAnchoringInput,
   type OtsAnchoringRecord,
   type OtsState,
   OTS_STATE_WORDS,
-  OTS_STATE_LABELS,
   parseOtsState,
   boundOtsProofBase64,
   // Phase 2 — canonical legal boundary so the public-verify response
@@ -1153,6 +1154,16 @@ const SAFE_EVIDENCE_SELECT = {
   otsAnchoredAtUtc: true,
   otsUpgradedAtUtc: true,
   otsFailureReason: true,
+  // The independent Bitcoin-chain check of the stored proof.
+  otsChainVerificationStatus: true,
+  otsChainCheckedAtUtc: true,
+  otsChainVerifiedAtUtc: true,
+  otsChainBlockHeight: true,
+  otsChainBlockHash: true,
+  otsChainBlockTimeUtc: true,
+  otsChainConfirmations: true,
+  otsChainVerifier: true,
+  otsChainFailureCode: true,
   signedAtUtc: true,
   capturedAtUtc: true,
   reportGeneratedAtUtc: true,
@@ -1321,6 +1332,7 @@ type SafeEvidence = {
   otsAnchoredAtUtc: string | null;
   otsUpgradedAtUtc: string | null;
   otsFailureReason: string | null;
+  otsAnchoring: OtsAnchoringView;
   type: prismaPkg.EvidenceType;
   status: prismaPkg.EvidenceStatus;
   verificationStatus: prismaPkg.VerificationStatus | null;
@@ -2312,32 +2324,15 @@ function summarizePublicPayload(
     }
 
     case prismaPkg.CustodyEventType.OTS_APPLIED: {
-      // (2026-10-13) The canonical state the worker records (payload.otsState),
-      // in the shared words; a legacy payload without it states no status.
-      const otsStateRaw = normalizePublicPayloadValue(obj.otsState);
-      const otsState = otsStateRaw ? parseOtsState(otsStateRaw) : null;
-      const otsStatus = otsState ? OTS_STATE_WORDS[otsState] : null;
-      const calendar =
-        normalizePublicPayloadValue(obj.calendar) ??
-        normalizePublicPayloadValue(obj.otsCalendar);
-
-      // A Bitcoin transaction only beside an event that states ANCHORED.
-      const bitcoinTxid =
-        otsState === "ANCHORED"
-          ? (normalizePublicPayloadValue(obj.bitcoinTxid) ??
-            normalizePublicPayloadValue(obj.otsBitcoinTxid))
-          : null;
-
-      return [
-        otsState === "ANCHORED"
-          ? OTS_STATE_LABELS.ANCHORED
-          : "OpenTimestamps proof recorded",
-        otsStatus ? `Status: ${otsStatus}` : null,
-        calendar ? `Calendar: ${calendar}` : null,
-        bitcoinTxid ? `Bitcoin Tx: ${bitcoinTxid}` : null,
-      ]
-        .filter(Boolean)
-        .join(" • ");
+      // ONE wording authority for OTS custody events (shared
+      // otsCustodyEventLines): the state and verification the worker recorded
+      // in the event, never stronger. An event that recorded ANCHORED without
+      // an independent chain verification reads as an attestation recorded.
+      return otsCustodyEventLines({
+        ...obj,
+        calendar: normalizePublicPayloadValue(obj.calendar) ?? normalizePublicPayloadValue(obj.otsCalendar),
+        bitcoinTxid: normalizePublicPayloadValue(obj.bitcoinTxid) ?? normalizePublicPayloadValue(obj.otsBitcoinTxid),
+      }).join(" • ");
     }
 
     case prismaPkg.CustodyEventType.OTS_FAILED: {
@@ -2556,6 +2551,10 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
       ? e.otsUpgradedAtUtc.toISOString()
       : null,
     otsFailureReason: boundedOtsFailureCode(e.otsFailureReason),
+    // THE canonical OpenTimestamps reading (state + independent chain
+    // verification) every client renders; `otsStatus` above is the stored
+    // label, kept for compatibility and never a claim on its own.
+    otsAnchoring: toOtsAnchoringView(safeOtsAnchoring),
     displayFileName: e.displayFileName ?? null,
     organizationId: e.organizationId ?? null,
     type: e.type,
@@ -13331,6 +13330,16 @@ action: "evidence.certification_requested",
         otsAnchoredAtUtc: true,
         otsUpgradedAtUtc: true,
         otsFailureReason: true,
+        // The independent Bitcoin-chain check of the stored proof.
+        otsChainVerificationStatus: true,
+        otsChainCheckedAtUtc: true,
+        otsChainVerifiedAtUtc: true,
+        otsChainBlockHeight: true,
+        otsChainBlockHash: true,
+        otsChainBlockTimeUtc: true,
+        otsChainConfirmations: true,
+        otsChainVerifier: true,
+        otsChainFailureCode: true,
         storageBucket: true,
         storageKey: true,
         // ET-SM-03 — the signed version of the original (the page links it).

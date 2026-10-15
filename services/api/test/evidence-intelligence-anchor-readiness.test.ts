@@ -11,9 +11,13 @@
  *   * ANCHORED, PENDING and NOT_REQUESTED are not review gaps;
  *   * a FAILED proof, or an unreadable one (UNAVAILABLE), IS one, with honest
  *     wording;
- *   * the retired chain-verifier vocabulary is never emitted;
+ *   * an attestation that was not independently checked is never called
+ *     verified; only a chain VERIFIED record says "Independently verified
+ *     against the Bitcoin main chain" (2026-10-15);
  *   * "Public verification not configured" is never emitted.
  */
+import { createHash } from "node:crypto";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { otsProofForDigest } from "./helpers/ots-proof-bytes.js";
@@ -29,6 +33,15 @@ type Ots = {
   otsAnchoredAtUtc: string | null;
   otsProofBase64: string | null;
   otsFailureReason?: string | null;
+  otsChainVerificationStatus?: string | null;
+  otsChainCheckedAtUtc?: string | null;
+  otsChainVerifiedAtUtc?: string | null;
+  otsChainBlockHeight?: number | null;
+  otsChainBlockHash?: string | null;
+  otsChainBlockTimeUtc?: string | null;
+  otsChainConfirmations?: number | null;
+  otsChainVerifier?: string | null;
+  otsChainFailureCode?: string | null;
 };
 
 const DIGEST = "b".repeat(64);
@@ -54,6 +67,31 @@ const OTS: Record<string, Ots> = {
   },
   MISSING_PROOF: { otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-09-01T00:00:00Z", otsProofBase64: null },
   NONE: { otsStatus: null, otsAnchoredAtUtc: null, otsProofBase64: null },
+};
+
+/** The independent chain check, bound to the ANCHORED fixture's proof bytes. */
+const ANCHORED_PROOF = OTS.ANCHORED!.otsProofBase64!;
+const VERIFIER = `proovra-ots-chain/1;core=280100;min=6;proof=${createHash("sha256").update(Buffer.from(ANCHORED_PROOF, "base64")).digest("hex").slice(0, 16)}`;
+const BLOCK_HASH = "00000000000000000002" + "ab".repeat(22);
+OTS.CHAIN_VERIFIED = {
+  ...OTS.ANCHORED!,
+  otsChainVerificationStatus: "VERIFIED",
+  otsChainCheckedAtUtc: "2026-09-02T00:00:00.000Z",
+  otsChainVerifiedAtUtc: "2026-09-02T00:00:00.000Z",
+  otsChainBlockHeight: 860000,
+  otsChainBlockHash: BLOCK_HASH,
+  otsChainBlockTimeUtc: "2026-09-01T00:00:00.000Z",
+  otsChainConfirmations: 12,
+  otsChainVerifier: VERIFIER,
+  otsChainFailureCode: null,
+};
+OTS.CHAIN_FAILED = {
+  ...OTS.ANCHORED!,
+  otsChainVerificationStatus: "FAILED",
+  otsChainCheckedAtUtc: "2026-09-02T00:00:00.000Z",
+  otsChainBlockHeight: 860000,
+  otsChainVerifier: VERIFIER,
+  otsChainFailureCode: "ROOT_MISMATCH",
 };
 
 function evidence(ots: Ots, status: "SIGNED" | "REPORTED" = "SIGNED") {
@@ -155,21 +193,35 @@ describe.each([
     },
   );
 
-  it("never uses the retired chain-verifier vocabulary", async () => {
+  it("never calls an attestation verified unless the Bitcoin main chain check VERIFIED it", async () => {
     for (const otsKey of Object.keys(OTS) as Array<keyof typeof OTS>) {
+      if (otsKey === "CHAIN_VERIFIED") continue;
       const i = await build(otsKey, outputs);
-      expect(allText(i), otsKey).not.toMatch(
-        /independently verified|anchoring verified|attestation recorded|not checked|chain-verified|unverified/i,
-      );
+      expect(allText(i), otsKey).not.toMatch(/Independently verified|anchoring verified|chain-verified|anchored in Bitcoin|Bitcoin anchored/i);
     }
   });
 
-  it("an anchored proof says Bitcoin anchored", async () => {
+  it("an anchored proof says the Bitcoin attestation is recorded and NOT independently checked", async () => {
     const i = await build("ANCHORED", outputs);
     expect(i.reviewerDecision.reasons).toContain(
-      "Bitcoin anchoring: Bitcoin anchored. OpenTimestamps proof anchored in Bitcoin.",
+      "Bitcoin anchoring: Bitcoin attestation recorded (Not independently checked against Bitcoin). The proof names Bitcoin block 860000; PROOVRA has not checked it against the Bitcoin main chain.",
     );
     expect(i.verificationProof.otsState).toBe("ANCHORED");
+  });
+
+  it("a chain-verified proof says independently verified against the Bitcoin main chain", async () => {
+    const i = await build("CHAIN_VERIFIED", outputs);
+    expect(i.reviewerDecision.status).toBe("READY_FOR_EXTERNAL_REVIEW");
+    expect(i.reviewerDecision.reasons).toContain(
+      "Bitcoin anchoring: Independently verified against the Bitcoin main chain. Merkle root matches Bitcoin block 860000; 12 confirmations at 2026-09-02 00:00:00 UTC.",
+    );
+  });
+
+  it("a chain-contradicted proof is a review gap stated as a Bitcoin verification failure", async () => {
+    const i = await build("CHAIN_FAILED", outputs);
+    expect(i.reviewerDecision.status).not.toBe("READY_FOR_EXTERNAL_REVIEW");
+    expect(allText(i)).toMatch(/Bitcoin verification failed/);
+    expect(allText(i)).not.toMatch(/Independently verified/);
   });
 
   it("a row that says ANCHORED with a pending proof is never anchored", async () => {

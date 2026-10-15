@@ -9,6 +9,7 @@ import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import {
   EVIDENCE_ANALYSIS_SELECT,
+  evidenceAnalysisFacts,
   findDriftedSnapshot,
   toSnapshot,
   type EvidenceAnalysisRow,
@@ -234,7 +235,8 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
         reportVersion: snapshot.row.latestReportVersion,
         packageVersion: snapshot.row.verificationPackageVersion,
         tsaStatus: snapshot.row.tsaStatus ?? "NOT_REQUESTED",
-        otsStatus: snapshot.row.otsStatus ?? "NOT_REQUESTED",
+        // The frozen snapshot's resolved verification (never the raw column).
+        otsStatus: evidenceAnalysisFacts(snapshot.row).otsStatus,
         custodyEventCount: snapshot.row._count.custodyEvents,
       },
       EVIDENCE_DETAIL_ALLOWLIST,

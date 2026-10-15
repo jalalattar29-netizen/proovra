@@ -144,7 +144,8 @@ export function evidenceAnalysisFacts(row: EvidenceAnalysisRow): EvidenceAnalysi
     // ET-TSA-01: the AI is never told an unvalidated token is STAMPED.
     tsaStatus: presentedTsaStatus(row),
     // (2026-10-13) The AI is told the resolved OTS state, never the raw column.
-    otsStatus: resolveRecordOtsAnchoring(row).state,
+    // (2026-10-15) ...and only CHAIN_VERIFIED says the Bitcoin anchor was checked.
+    otsStatus: resolveRecordOtsAnchoring(row).verification,
     createdAtUtc: row.createdAt,
     partCount: row._count.parts,
     custodyEventCount: row._count.custodyEvents,

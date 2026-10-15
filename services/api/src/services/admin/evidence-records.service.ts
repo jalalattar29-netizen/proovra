@@ -7,7 +7,7 @@ import {
   type EvidenceHealthCohort,
 } from "./evidence-health-cohorts.service.js";
 import { liveEvidenceWhere } from "@proovra/shared-runtime";
-import { presentedTsaStatus } from "@proovra/shared";
+import { OTS_ANCHORING_RECORD_SELECT, presentedTsaStatus, resolveRecordOtsAnchoring } from "@proovra/shared";
 
 /**
  * PLATFORM ADMIN — EVIDENCE-HEALTH DRILL-DOWN (ADM-029).
@@ -54,7 +54,8 @@ export const EVIDENCE_HEALTH_SIGNALS = {
   },
   OTS_FAILED: {
     label: "OpenTimestamps anchoring failures",
-    where: { otsStatus: "FAILED" },
+    // A failed proof OR a proof the Bitcoin main chain contradicts.
+    where: { OR: [{ otsStatus: "FAILED" }, { otsChainVerificationStatus: "FAILED" }] },
   },
   HASH_MISMATCH: {
     label: "Hash mismatch",
@@ -210,7 +211,7 @@ export async function listAdminEvidenceRecords(
         tsaStatus: true,
         // UC-TRUST-007 — the presented TSA status needs the validation time.
         tsaValidatedAtUtc: true,
-        otsStatus: true,
+        ...OTS_ANCHORING_RECORD_SELECT,
         createdAt: true,
         updatedAt: true,
         latestReportVersion: true,
@@ -296,7 +297,8 @@ export async function listAdminEvidenceRecords(
         // UC-TRUST-007 — an unvalidated legacy token reads
         // RECORDED_NOT_VALIDATED, never a raw "STAMPED".
         tsaStatus: presentedTsaStatus(r) ?? null,
-        otsStatus: r.otsStatus ?? null,
+        // The resolved verification key — never a raw "ANCHORED" that reads as checked.
+        otsStatus: resolveRecordOtsAnchoring(r).verification,
         createdAt: r.createdAt.toISOString(),
         workspace: team
           ? {

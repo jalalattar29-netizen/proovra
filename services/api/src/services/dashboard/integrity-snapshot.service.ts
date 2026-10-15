@@ -31,7 +31,7 @@ import {
   compareTimestampDigest,
   evaluateDigestPolicy,
   presentedTsaStatus,
-  resolveOtsAnchoring,
+  resolveOtsAnchoring, otsChainRecordOf,
   TSA_RECORDED_NOT_VALIDATED,
 } from "@proovra/shared";
 import {
@@ -70,6 +70,16 @@ export type IntegritySnapshotInput = {
    */
   otsProofBase64?: string | null;
   otsFailureReason?: string | null;
+  /** The independent Bitcoin-chain check (evidence.ots_chain_*). Omitted = never checked. */
+  otsChainVerificationStatus?: string | null;
+  otsChainCheckedAtUtc?: Date | string | null;
+  otsChainVerifiedAtUtc?: Date | string | null;
+  otsChainBlockHeight?: number | null;
+  otsChainBlockHash?: string | null;
+  otsChainBlockTimeUtc?: Date | string | null;
+  otsChainConfirmations?: number | null;
+  otsChainVerifier?: string | null;
+  otsChainFailureCode?: string | null;
   // ---- Content + fingerprint anchor digests ----
   fileSha256: string | null;
   fingerprintHash: string | null;
@@ -231,18 +241,23 @@ export function deriveIntegritySnapshot(input: IntegritySnapshotInput): {
 
   // OTS derivation (2026-10-13) — from the ONE state authority: the stored
   // proof executed against the record's digest (resolveOtsAnchoring).
-  //   * OK ONLY when the proof resolves ANCHORED AND the digest policy did
-  //     NOT flag a missing otsHash.
+  //   * OK ONLY when the proof is INDEPENDENTLY VERIFIED against the Bitcoin
+  //     main chain (CHAIN_VERIFIED) AND the digest policy did NOT flag a
+  //     missing otsHash. A proof that merely names a block is
+  //     ATTESTATION_RECORDED — never OK.
   //   * otsHashMatches=false when policy says anchored-without-persisted-hash.
   let otsStatus: string;
   let otsHashMatches: boolean | null;
-  const otsState = resolveOtsAnchoring({
+  const otsResolved = resolveOtsAnchoring({
     status: input.otsStatus,
     proofBase64: input.otsProofBase64 ?? null,
     fingerprintHash: input.fingerprintHash,
     otsHash: input.otsHash,
     failureReason: input.otsFailureReason ?? null,
-  }).state;
+    chain: otsChainRecordOf(input),
+  });
+  const otsState = otsResolved.state;
+  const otsVerification = otsResolved.verification;
   const otsPolicyViolated = policyCodes.has("ots_anchored_without_persisted_hash");
   // ET-SEC-35 — otsHashMatches is a COMPARISON: the stamped digest against
   // the record's fingerprint hash (both SHA-256 of the canonical fingerprint).
@@ -252,9 +267,23 @@ export function deriveIntegritySnapshot(input: IntegritySnapshotInput): {
       ? input.otsHash.toLowerCase() === input.fingerprintHash.toLowerCase()
       : null;
   if (otsState === "ANCHORED") {
-    otsStatus = otsPolicyViolated ? "REVIEW_REQUIRED" : "OK";
     otsHashMatches = otsPolicyViolated ? false : otsDigestComparison;
-    if (otsPolicyViolated) reasonCodes.push("OTS_DIGEST_POLICY_VIOLATED");
+    if (otsPolicyViolated) {
+      otsStatus = "REVIEW_REQUIRED";
+      reasonCodes.push("OTS_DIGEST_POLICY_VIOLATED");
+    } else if (otsVerification === "CHAIN_VERIFIED") {
+      otsStatus = "OK";
+    } else if (otsVerification === "CHAIN_CONFIRMATIONS_PENDING") {
+      otsStatus = "PENDING";
+    } else if (otsVerification === "CHAIN_FAILED") {
+      otsStatus = "FAILED";
+      reasonCodes.push("OTS_CHAIN_VERIFICATION_FAILED");
+    } else if (otsVerification === "CHAIN_UNAVAILABLE") {
+      otsStatus = "UNAVAILABLE";
+    } else {
+      // The proof names a block; nothing checked it against the chain.
+      otsStatus = "ATTESTATION_RECORDED";
+    }
   } else if (otsState === "FAILED") {
     otsStatus = "FAILED";
     otsHashMatches = otsDigestComparison === false ? false : null;
@@ -497,6 +526,16 @@ export async function backfillIntegritySnapshots(input: {
         otsHash: true,
         otsProofBase64: true,
         otsFailureReason: true,
+        // The independent Bitcoin-chain check of the stored proof.
+        otsChainVerificationStatus: true,
+        otsChainCheckedAtUtc: true,
+        otsChainVerifiedAtUtc: true,
+        otsChainBlockHeight: true,
+        otsChainBlockHash: true,
+        otsChainBlockTimeUtc: true,
+        otsChainConfirmations: true,
+        otsChainVerifier: true,
+        otsChainFailureCode: true,
         fileSha256: true,
         fingerprintHash: true,
         signatureBase64: true,
@@ -521,6 +560,15 @@ export async function backfillIntegritySnapshots(input: {
           otsHash: e.otsHash ?? null,
           otsProofBase64: e.otsProofBase64 ?? null,
           otsFailureReason: e.otsFailureReason ?? null,
+          otsChainVerificationStatus: e.otsChainVerificationStatus ?? null,
+          otsChainCheckedAtUtc: e.otsChainCheckedAtUtc ?? null,
+          otsChainVerifiedAtUtc: e.otsChainVerifiedAtUtc ?? null,
+          otsChainBlockHeight: e.otsChainBlockHeight ?? null,
+          otsChainBlockHash: e.otsChainBlockHash ?? null,
+          otsChainBlockTimeUtc: e.otsChainBlockTimeUtc ?? null,
+          otsChainConfirmations: e.otsChainConfirmations ?? null,
+          otsChainVerifier: e.otsChainVerifier ?? null,
+          otsChainFailureCode: e.otsChainFailureCode ?? null,
           fileSha256: e.fileSha256 ?? null,
           fingerprintHash: e.fingerprintHash ?? null,
           signatureBase64: e.signatureBase64 ?? null,

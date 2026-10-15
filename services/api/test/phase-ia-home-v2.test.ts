@@ -651,7 +651,7 @@ describe("Phase IA-home-findings — Needs Fixing strip (real failure categories
   const FAILURES: HomeInboxInput = {
     items: [
       { id: "report_failure:i-1", category: "report_failure", title: "Report generation failure — Acme", body: "Renderer crashed.", href: "/evidence/ev-1?tab=integrity", occurredAt: "2026-06-11T06:00:00Z", context: { teamId: WS, evidenceId: "ev-1" } },
-      { id: "ots_failure:ev-9", category: "ots_failure", title: "OTS anchoring failed — clip", body: "Budget exhausted.", href: "/evidence/ev-9?tab=integrity", occurredAt: "2026-06-11T05:00:00Z", context: { teamId: WS, evidenceId: "ev-9", failureCode: "OTS_GLOBAL_BUDGET_EXHAUSTED" } },
+      { id: "ots_failure:ev-9", category: "ots_failure", title: "OpenTimestamps proof failed — clip", body: "Budget exhausted.", href: "/evidence/ev-9?tab=integrity", occurredAt: "2026-06-11T05:00:00Z", context: { teamId: WS, evidenceId: "ev-9", failureCode: "OTS_GLOBAL_BUDGET_EXHAUSTED" } },
       // Other workspace — must be filtered out.
       { id: "report_failure:i-2", category: "report_failure", title: "Other workspace", body: "x", href: "/evidence/ev-x?tab=integrity", occurredAt: "2026-06-11T06:00:00Z", context: { teamId: "ffffffff-ffff-ffff-ffff-ffffffffffff" } },
       // A non-failure category — must NOT appear in Needs Fixing.

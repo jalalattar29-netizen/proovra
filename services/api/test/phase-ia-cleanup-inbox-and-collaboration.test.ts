@@ -406,8 +406,11 @@ describe("Phase IA-enterprise — report/package/OTS failure categories", () => 
   it('ots_failure reads Evidence with otsStatus = "FAILED" and deletedAt = null', () => {
     expect(ROUTES).toMatch(/prisma\.evidence\.findMany/);
     expect(ROUTES).toMatch(
-      /otsFailedEvidence\s*=[\s\S]{0,400}otsStatus:\s*"FAILED"[\s\S]{0,400}deletedAt:\s*null/,
+      /otsFailedEvidence\s*=[\s\S]{0,800}otsStatus:\s*"FAILED"[\s\S]{0,400}deletedAt:\s*null/,
     );
+    // (2026-10-15) …or a proof the independent Bitcoin main-chain check
+    // contradicted (chain FAILED) — still a FAILED-only filter.
+    expect(ROUTES).toMatch(/otsFailedEvidence\s*=[\s\S]{0,800}otsChainVerificationStatus:\s*"FAILED"/);
     // Never surfaces PENDING / RETRY_SCHEDULED / WAITING_CONFIRMATIONS.
     // We pin this by asserting the FAILED-only filter — no `in:` list
     // sneaks normal lifecycle states past the contract.

@@ -33,6 +33,10 @@ const SELF_RESOLVING_WRITERS: Record<string, { file: string; resolver: RegExp }>
     file: "src/services/operations/platform-conditions.service.ts",
     resolver: /resolveConditionFromSourceRecovery\(/,
   },
+  "platform.bitcoin_verifier_unavailable": {
+    file: "src/services/operations/platform-conditions.service.ts",
+    resolver: /resolveConditionFromSourceRecovery\(\{[\s\S]{0,120}BITCOIN_VERIFIER_FINGERPRINT/,
+  },
   "job.background_failure": {
     file: "src/services/operations/platform-conditions.service.ts",
     resolver: /resolveConditionFromSourceRecovery\(/,

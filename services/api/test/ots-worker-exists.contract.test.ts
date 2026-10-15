@@ -97,13 +97,35 @@ describe("OTS truth contract — UI claims must remain backed by a real worker",
     expect(report).not.toMatch(/createOpenTimestamp/);
   });
 
-  it("OTS upgrade processor decides ANCHORED through the one state authority; no chain verifier exists (2026-10-13)", () => {
+  it("OTS upgrade processor decides ANCHORED through the one state authority; chain verification is ONE canonical Core-RPC verifier (2026-10-15)", () => {
     const src = readFileSync(UPGRADE_PROCESSOR, "utf8");
     // The stored proof, executed against the record's digest, is the only
     // thing that makes a record ANCHORED.
     expect(src).toMatch(/resolveOtsAnchoring\(/);
+    // REVISED 2026-10-15 (was: "no chain verifier exists"). Independent
+    // verification against the Bitcoin main chain now exists, exactly once:
+    // the Product proof parser + Bitcoin Core header RPC, inside the same
+    // ots-upgrade lifecycle. No second verifier, no alternative node path.
+    expect(src).toMatch(/import\s*\{\s*checkOtsProofAgainstBitcoin\s*\}\s*from\s*"\.\/ots-bitcoin-verifier\.js"/);
+    expect(src).toMatch(/decideOtsChainTransition\(/);
     expect(src).not.toMatch(/resolveOtsChainVerifier|bitcoin-node|OTS_CHAIN_VERIFIER|OTS_BITCOIN_NODE_URL/);
     expect(existsSync(resolve(WORKER_DIR, "ots-chain-verifier.ts"))).toBe(false);
+    for (const f of ["ots-bitcoin-config.ts", "ots-bitcoin-rpc.ts", "ots-bitcoin-verifier.ts"]) {
+      expect(existsSync(resolve(WORKER_DIR, f)), f).toBe(true);
+    }
+  });
+
+  it("the Bitcoin RPC client calls header and chain-state methods only — never block, transaction, wallet or index methods", () => {
+    const code = (p: string) =>
+      readFileSync(resolve(WORKER_DIR, p), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^[ \t]*\/\/.*$/gm, "");
+    const rpc = code("ots-bitcoin-rpc.ts");
+    const called = new Set([...rpc.matchAll(/"((?:get|list|send|scan|import|dump|sign|create|load)[a-z]+)"/g)].map((m) => m[1]));
+    expect([...called].sort()).toEqual(["getblockchaininfo", "getblockhash", "getblockheader", "getnetworkinfo"]);
+    for (const f of ["ots-bitcoin-rpc.ts", "ots-bitcoin-verifier.ts", "ots-bitcoin-config.ts", "ots-upgrade.processor.ts"]) {
+      expect(code(f), f).not.toMatch(/getrawtransaction|"getblock"|listunspent|getwalletinfo|sendtoaddress|getblockfilter|scantxoutset|"ots"\s*,|spawn\(|execFile\(/);
+    }
   });
 
   it("Trust-summary `otsBucket` reads the one OTS state", () => {

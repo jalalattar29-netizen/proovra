@@ -120,8 +120,12 @@ describe("the vocabulary is complete", () => {
     // could not be read completely: the record is kept, never purged) and
     // governance.archive_restore_failed (a verified archive restore refused to
     // reactivate a record). Both are rows on the governance domain.
-    expect(registryIds.length).toBe(45);
-    expect(Object.keys(HOME_CONDITION_REPRESENTATION).length).toBe(45);
+    // 2026-10-15 — 45 → 46. platform.bitcoin_verifier_unavailable: live Bitcoin
+    // verification is enabled and the dedicated node cannot be used. ONE
+    // PLATFORM_INTERNAL row, closed by the verifier's own readiness; it never
+    // changes any evidence's OpenTimestamps truth.
+    expect(registryIds.length).toBe(46);
+    expect(Object.keys(HOME_CONDITION_REPRESENTATION).length).toBe(46);
   });
 });
 

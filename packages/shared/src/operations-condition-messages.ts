@@ -1334,6 +1334,24 @@ const CATALOGUE = {
   }),
 
   // ---- platform -----------------------------------------------------------
+  "ops.platform.bitcoin_verifier_unavailable": def({
+    params: {},
+    en: () => ({
+      title: "Bitcoin verifier unavailable",
+      summary:
+        "Live Bitcoin verification is enabled but the dedicated Bitcoin Core node cannot be used to check OpenTimestamps proofs. No proof is stated as independently verified while this lasts; recorded attestations remain recorded and are checked again automatically.",
+    }),
+    de: () => ({
+      title: "Bitcoin-Prüfdienst nicht verfügbar",
+      summary:
+        "Die Live-Prüfung gegen Bitcoin ist aktiviert, aber der dedizierte Bitcoin-Core-Knoten kann nicht zur Prüfung von OpenTimestamps-Nachweisen verwendet werden. Solange dies andauert, gilt kein Nachweis als unabhängig geprüft; erfasste Attestierungen bleiben erfasst und werden automatisch erneut geprüft.",
+    }),
+    ar: () => ({
+      title: "مدقق بيتكوين غير متاح",
+      summary:
+        "التحقق المباشر من بيتكوين مُفعَّل، لكن لا يمكن استخدام عقدة Bitcoin Core المخصصة للتحقق من إثباتات OpenTimestamps. لا يُعدّ أي إثبات متحققًا منه بشكل مستقل طوال هذه المدة؛ تبقى الشهادات المسجَّلة مسجَّلة ويُعاد فحصها تلقائيًا.",
+    }),
+  }),
   "ops.platform.worker_heartbeat_stale": def({
     params: {},
     en: () => ({
@@ -1521,6 +1539,7 @@ export const CONDITION_MESSAGE_SOURCES: Readonly<Record<ConditionMessageCode, re
   "ops.capture.upload_stalled": ["capture.upload_stalled"],
   "ops.legacy.upload_session_signal": ["capture.legacy_upload_session_signal"],
   "ops.platform.worker_heartbeat_stale": ["platform.worker_heartbeat_stale"],
+  "ops.platform.bitcoin_verifier_unavailable": ["platform.bitcoin_verifier_unavailable"],
   "ops.job.background_failure": ["job.background_failure"],
   "ops.search.not_built": ["search.indexing_failure"],
   "ops.search.reconciliation_failing": ["search.indexing_failure"],
@@ -1721,6 +1740,7 @@ const SOURCE_LABELS: Record<ConditionMessageLocale, Readonly<Record<string, stri
     "queue.retry_storm": "Queue retry storm (retired)",
     "platform.telemetry_stale": "Queue telemetry sampler delayed (retired)",
     "platform.worker_heartbeat_stale": "Worker heartbeat stale",
+    "platform.bitcoin_verifier_unavailable": "Bitcoin verifier unavailable",
     "intake.delivery_failed": "Uploads could not be started or resumed",
     "capture.upload_stalled": "Upload appears stalled",
     "capture.legacy_upload_session_signal": "Legacy upload-session signals",
@@ -1768,6 +1788,7 @@ const SOURCE_LABELS: Record<ConditionMessageLocale, Readonly<Record<string, stri
     "queue.retry_storm": "Wiederholungswelle in der Warteschlange (eingestellt)",
     "platform.telemetry_stale": "Telemetrie der Warteschlangen verzögert (eingestellt)",
     "platform.worker_heartbeat_stale": "Worker-Lebenszeichen veraltet",
+    "platform.bitcoin_verifier_unavailable": "Bitcoin-Prüfdienst nicht verfügbar",
     "intake.delivery_failed": "Uploads konnten nicht gestartet oder fortgesetzt werden",
     "capture.upload_stalled": "Upload scheint festzustecken",
     "capture.legacy_upload_session_signal": "Ältere Upload-Sitzungssignale",
@@ -1815,6 +1836,7 @@ const SOURCE_LABELS: Record<ConditionMessageLocale, Readonly<Record<string, stri
     "queue.retry_storm": "موجة إعادة محاولات في الطابور (متوقف)",
     "platform.telemetry_stale": "تأخر قياس الطوابير (متوقف)",
     "platform.worker_heartbeat_stale": "نبضات العامل متأخرة",
+    "platform.bitcoin_verifier_unavailable": "مدقق بيتكوين غير متاح",
     "intake.delivery_failed": "تعذّر بدء عمليات الرفع أو استئنافها",
     "capture.upload_stalled": "يبدو أن الرفع متوقف",
     "capture.legacy_upload_session_signal": "إشارات قديمة لجلسات الرفع",
@@ -1879,6 +1901,7 @@ export const CONDITION_SUBJECT_KINDS = [
   "COORDINATION_QUEUE",
   "SEARCH_INDEX",
   "WORKER_FLEET",
+  "BITCOIN_VERIFIER",
   "JOB_QUEUE",
   "SIGN_IN_SECURITY",
   "DIRECTORY",
@@ -1973,6 +1996,7 @@ const SUBJECT_COPY: Record<ConditionSubjectKind, SubjectCopy> = {
   COORDINATION_QUEUE: workspaceWide({ en: "This workspace's open comments", de: "Offene Kommentare dieses Arbeitsbereichs", ar: "التعليقات المفتوحة في مساحة العمل هذه" }),
   SEARCH_INDEX: workspaceWide({ en: "This workspace's search index", de: "Suchindex dieses Arbeitsbereichs", ar: "فهرس البحث في مساحة العمل هذه" }),
   WORKER_FLEET: workspaceWide({ en: "Background processing", de: "Hintergrundverarbeitung", ar: "المعالجة في الخلفية" }),
+  BITCOIN_VERIFIER: workspaceWide({ en: "Bitcoin verifier", de: "Bitcoin-Prüfdienst", ar: "مدقق بيتكوين" }),
   JOB_QUEUE: {
     noun: { en: "Queue", de: "Warteschlange", ar: "الطابور" },
     standalone: { en: "A background queue", de: "Eine Hintergrund-Warteschlange", ar: "طابور خلفي" },

@@ -171,25 +171,30 @@ describe("Phase IA-forward-path — every report/package read site selects the L
   });
 });
 
-describe("Phase IA-forward-path — an anchored proof gets exactly one automatic version (2026-10-13)", () => {
+describe("Phase IA-forward-path — a CHAIN-VERIFIED proof gets exactly one automatic version (2026-10-15)", () => {
   const UP = readSource("../../worker/src/ots-upgrade.processor.ts");
   const VERSION = readSource("../../worker/src/ots-anchored-version.ts");
 
-  it("ANCHORED runs the downstream version decision; nothing else in the processor requests a report", () => {
+  it("only an independent chain VERIFIED runs the downstream version decision; nothing else in the processor requests a report", () => {
     // SUPERSEDES Decision C (2026-09-29): the product contract now issues ONE
     // automatic report + package version when the latest report stated a
     // not-yet-anchored proof — through the existing versioning, idempotent per
     // proof, previous versions preserved, no charge.
-    expect(UP).toMatch(/if \(transition\.status === "ANCHORED"\) \{\s*await requestAnchoredReportVersion\(/);
+    // REVISED 2026-10-15: a recorded attestation (ANCHORED, not independently
+    // checked) is not a new verifiable fact; the version follows the Bitcoin
+    // main-chain check only.
+    expect(UP).toMatch(/if \(transition\.anchoring\.verification === "CHAIN_VERIFIED"\) \{\s*await requestChainVerifiedReportVersion\(/);
+    expect(UP).not.toMatch(/requestAnchoredReportVersion\(/);
     expect(UP).not.toMatch(/enqueueReportJob\(|requestReportGenerationFromWorker\(|forceRegenerate:/);
   });
 
   it("the decision is idempotent per proof and goes through the existing request authority", () => {
     expect(VERSION).toMatch(/clientRequestKey: key/);
-    expect(VERSION).toMatch(/ots-anchored:\$\{proofSha256/);
+    expect(VERSION).toMatch(/ots-chain-verified:\$\{proof\}:\$\{block\}/);
     expect(VERSION).toMatch(/createReportGenerationRequest\(prisma, \{/);
     expect(VERSION).toMatch(/purpose: "ots_upgrade_completed"/);
-    expect(VERSION).toMatch(/latest_report_anchored/);
+    expect(VERSION).toMatch(/latest_report_chain_verified/);
+    expect(VERSION).toMatch(/not_chain_verified/);
     expect(VERSION).toMatch(/no_report_yet/);
   });
 });

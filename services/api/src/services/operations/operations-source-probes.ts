@@ -1431,6 +1431,11 @@ const PROBE_HANDLERS: Readonly<
   // worker-fleet liveness verdict and the queue inventory — and ignore the
   // workspace in the context, because the facts they answer have none.
   "platform.worker_heartbeat_age": (ctx) => observeWorkerFleetHeartbeat(ctx.now),
+  "platform.bitcoin_verifier_readiness": async (ctx) => {
+    const { observeBitcoinVerifierReadiness } = await import("./platform-conditions.service.js");
+    const o = await observeBitcoinVerifierReadiness(ctx.now);
+    return { activity: o.activity, observedAtUtc: o.observedAtUtc, ...(o.severity ? { severity: o.severity } : {}) };
+  },
   "platform.queue_recent_failures": (ctx) =>
     observeQueueRecentFailures(queueNameFromPlatformFingerprint(ctx.fingerprint), ctx.now),
 });

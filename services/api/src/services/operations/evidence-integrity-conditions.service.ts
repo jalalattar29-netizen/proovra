@@ -313,7 +313,7 @@ export function isCurrentlyFailing(
  * Recovery used to be "the status is no longer FAILED", so a FAILED timestamp
  * that became NULL, PENDING or an unvalidated STAMPED token closed its
  * condition, and an OTS failure closed on PENDING or NULL — contradicting the
- * registry's own contract ("otsStatus reaches ANCHORED or UPGRADED").
+ * registry's own contract ("the stored proof resolves to ANCHORED").
  *
  * The answer now comes from the canonical resolvers every customer surface
  * already uses: a timestamp has recovered only when it is VALIDATED; an anchor

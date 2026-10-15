@@ -6,6 +6,8 @@
  * signature and chain to false, and otsHashMatches was true for any ANCHORED
  * row and false for any FAILED one — by status, with no comparison.
  */
+import { createHash } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
 import { deriveIntegritySnapshot, type IntegritySnapshotInput } from "../src/services/dashboard/integrity-snapshot.service.js";
@@ -58,11 +60,33 @@ describe("integrity snapshot truth (ET-SEC-35)", () => {
 });
 
 describe("integrity snapshot OTS state (2026-10-13): the proof decides, never the status", () => {
-  it("ANCHORED without proof bytes is not OK; a proof with a Bitcoin attestation is", () => {
+  it("ANCHORED without proof bytes is not OK; a recorded attestation is NOT OK until the Bitcoin main chain check VERIFIES it (2026-10-15)", () => {
     expect(deriveIntegritySnapshot({ ...base, otsStatus: "ANCHORED", otsHash: FP }).otsStatus).toBe("UNAVAILABLE");
     expect(deriveIntegritySnapshot({ ...base, otsStatus: "ANCHORED", otsHash: FP, otsProofBase64: otsProofForDigest(FP) }).otsStatus).toBe("PENDING");
+    const proof = otsProofForDigest(FP, { bitcoinHeight: 1 });
+    // An attestation the proof names, never independently checked: recorded, not OK.
+    expect(deriveIntegritySnapshot({ ...base, otsStatus: "PENDING", otsHash: FP, otsProofBase64: proof }).otsStatus).toBe("ATTESTATION_RECORDED");
+    // The same proof, independently VERIFIED against the Bitcoin main chain: OK.
+    const verifier = `proovra-ots-chain/1;core=280100;min=6;proof=${createHash("sha256").update(Buffer.from(proof, "base64")).digest("hex").slice(0, 16)}`;
+    const chain = {
+      otsChainVerificationStatus: "VERIFIED",
+      otsChainCheckedAtUtc: new Date("2026-09-02T00:00:00Z"),
+      otsChainVerifiedAtUtc: new Date("2026-09-02T00:00:00Z"),
+      otsChainBlockHeight: 1,
+      otsChainBlockHash: "00".repeat(32),
+      otsChainBlockTimeUtc: new Date("2026-09-01T00:00:00Z"),
+      otsChainConfirmations: 10,
+      otsChainVerifier: verifier,
+      otsChainFailureCode: null,
+    };
+    expect(deriveIntegritySnapshot({ ...base, otsStatus: "ANCHORED", otsHash: FP, otsProofBase64: proof, ...chain } as never).otsStatus).toBe("OK");
+    // A chain record bound to ANOTHER proof is not believed.
     expect(
-      deriveIntegritySnapshot({ ...base, otsStatus: "PENDING", otsHash: FP, otsProofBase64: otsProofForDigest(FP, { bitcoinHeight: 1 }) }).otsStatus,
-    ).toBe("OK");
+      deriveIntegritySnapshot({ ...base, otsStatus: "ANCHORED", otsHash: FP, otsProofBase64: proof, ...chain, otsChainVerifier: verifier.replace(/proof=.*/, "proof=" + "0".repeat(16)) } as never).otsStatus,
+    ).toBe("ATTESTATION_RECORDED");
+    // A chain FAILED outcome is a failure.
+    expect(
+      deriveIntegritySnapshot({ ...base, otsStatus: "ANCHORED", otsHash: FP, otsProofBase64: proof, ...chain, otsChainVerificationStatus: "FAILED", otsChainFailureCode: "ROOT_MISMATCH" } as never).otsStatus,
+    ).toBe("FAILED");
   });
 });

@@ -82,6 +82,7 @@ const SAMPLE: Record<ConditionMessageCode, Record<string, unknown>> = {
   "ops.pipeline.package_generation_failed.retry_budget_exhausted": { version: 2, recordRef: "9f1d2c3b" },
   "ops.pipeline.package_generation_denied": { outcome: "BLOCKED_BY_HOLD" },
   "ops.platform.worker_heartbeat_stale": {},
+  "ops.platform.bitcoin_verifier_unavailable": {},
   "ops.job.background_failure": { queue: "Report generation" },
   "ops.search.not_built": {},
   "ops.search.reconciliation_failing": {},

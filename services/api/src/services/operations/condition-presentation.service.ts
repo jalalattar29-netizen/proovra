@@ -175,6 +175,8 @@ export function conditionSubjectFor(row: RowLike, sourceId: string, message: Con
       return subject("SEARCH_INDEX");
     case "platform.worker_heartbeat_stale":
       return subject("WORKER_FLEET");
+    case "platform.bitcoin_verifier_unavailable":
+      return subject("BITCOIN_VERIFIER");
     case "job.background_failure":
       return subject("JOB_QUEUE", { name: typeof p.queue === "string" ? sanitizeConditionText(p.queue) || null : null });
     case "billing.dependent_cancellation_failed":

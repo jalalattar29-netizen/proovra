@@ -25,6 +25,7 @@
  * The jobs themselves stay in the queue console. A condition points there.
  */
 
+import { prisma } from "../../db.js";
 import type { IncidentSeverity } from "@proovra/shared";
 import { buildConditionMetric } from "@proovra/shared-runtime";
 
@@ -40,6 +41,37 @@ export const QUEUE_FAILURE_WINDOW_MS = 60 * 60 * 1000;
 export const QUEUE_FAILURE_HIGH_COUNT = 5;
 
 export const WORKER_HEARTBEAT_FINGERPRINT = "platform:worker_heartbeat_stale";
+export const BITCOIN_VERIFIER_FINGERPRINT = "platform:bitcoin_verifier_unavailable";
+
+/** A readiness report older than this no longer describes the verifier. */
+export const BITCOIN_VERIFIER_READINESS_FRESH_MS = 20 * 60 * 1000;
+
+/**
+ * THE BITCOIN VERIFIER'S READINESS, as the worker last reported it
+ * (worker_telemetry_snapshots, kind OTS, workerId `bitcoin-verifier:*`).
+ * The worker publishes only while live verification is ENABLED, so:
+ *   newest fresh report says ready      → RECOVERED
+ *   newest fresh report says not ready  → ACTIVE (bounded code, no secret)
+ *   no fresh report                     → RECOVERED: nothing currently claims
+ *     the verifier is enabled-and-unavailable (verification is off, or the
+ *     worker itself is down — which `platform.worker_heartbeat_stale` states).
+ * Never touches the node or its credentials.
+ */
+export async function observeBitcoinVerifierReadiness(now: Date): Promise<SourceObservation & { code: string | null }> {
+  const row = await prisma.workerTelemetrySnapshot.findFirst({
+    where: {
+      workerKind: "OTS",
+      workerId: { startsWith: "bitcoin-verifier:" },
+      heartbeatAtUtc: { gte: new Date(now.getTime() - BITCOIN_VERIFIER_READINESS_FRESH_MS) },
+    },
+    orderBy: { heartbeatAtUtc: "desc" },
+    select: { status: true, lastErrorCode: true, heartbeatAtUtc: true },
+  });
+  if (!row) return { activity: "RECOVERED", observedAtUtc: now, code: null };
+  if (row.status === "HEALTHY") return { activity: "RECOVERED", observedAtUtc: now, code: null };
+  const code = typeof row.lastErrorCode === "string" && /^[A-Z0-9_]{1,64}$/.test(row.lastErrorCode) ? row.lastErrorCode : "BTC_VERIFIER_NOT_READY";
+  return { activity: "ACTIVE", observedAtUtc: now, severity: "HIGH" as IncidentSeverity, code };
+}
 const QUEUE_FINGERPRINT_PREFIX = "platform:job_failure:";
 
 export function queueFailureFingerprint(queueName: string): string {
@@ -160,6 +192,38 @@ export async function reconcilePlatformConditions(
     }
   } catch {
     result.heartbeat = "UNKNOWN";
+  }
+
+  // ---- Bitcoin verifier (OpenTimestamps chain verification) -----------------
+  // Records an operator-facing condition; resolving it never changes any
+  // evidence's OpenTimestamps truth.
+  try {
+    const btc = await observeBitcoinVerifierReadiness(now);
+    if (btc.activity === "ACTIVE") {
+      await recordIncident({
+        sourceId: "platform.bitcoin_verifier_unavailable",
+        teamId: null,
+        platform: true,
+        category: "WORKER",
+        severity: btc.severity ?? "HIGH",
+        fingerprint: BITCOIN_VERIFIER_FINGERPRINT,
+        message: { code: "ops.platform.bitcoin_verifier_unavailable", params: {} },
+        runbookSlug: "ots-anchoring",
+        metadata: { readinessCode: btc.code },
+      });
+      result.recorded += 1;
+    } else if (btc.activity === "RECOVERED") {
+      const r = await resolveConditionFromSourceRecovery({
+        teamId: null,
+        platform: true,
+        fingerprint: BITCOIN_VERIFIER_FINGERPRINT,
+        safeMessage:
+          "The Bitcoin verifier reported ready (or live Bitcoin verification is no longer enabled). Resolved from the verifier readiness authority; no evidence truth changed.",
+      });
+      if (r.resolved) result.resolved += 1;
+    }
+  } catch {
+    /* an unreadable authority leaves the condition exactly as it was */
   }
 
   // ---- queues --------------------------------------------------------------

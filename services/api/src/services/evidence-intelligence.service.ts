@@ -12,6 +12,8 @@ import {
   classifyStorageProtection,
   storageProtectionAlert,
   type OtsState,
+  type OtsAnchoring,
+  presentOtsAnchoring,
 } from "@proovra/shared";
 import type {
   EvidenceIntelligence,
@@ -81,6 +83,16 @@ type EvidenceIntelligenceInput = {
     otsCalendar?: string | null;
     otsAnchoredAtUtc?: Date | string | null;
     otsUpgradedAtUtc?: Date | string | null;
+    /** The independent Bitcoin-chain check of the stored proof (evidence.ots_chain_*). */
+    otsChainVerificationStatus?: string | null;
+    otsChainCheckedAtUtc?: Date | string | null;
+    otsChainVerifiedAtUtc?: Date | string | null;
+    otsChainBlockHeight?: number | null;
+    otsChainBlockHash?: string | null;
+    otsChainBlockTimeUtc?: Date | string | null;
+    otsChainConfirmations?: number | null;
+    otsChainVerifier?: string | null;
+    otsChainFailureCode?: string | null;
     reportGeneratedAtUtc: Date | string | null;
     verificationPackageGeneratedAtUtc: Date | string | null;
     latestReportVersion: number | null;
@@ -415,7 +427,12 @@ function buildEvidenceReviewDecision(params: {
         : "The OpenTimestamps proof for this record cannot currently be read.",
     );
   }
-  const anchorReason = anchorReadinessReason(params.otsState);
+  // The proof is intact but the active Bitcoin main chain contradicts it.
+  const anchoring = otsAnchoringFor(params.evidence);
+  if (anchoring.verification === "CHAIN_FAILED") {
+    issues.push("Bitcoin verification failed: the OpenTimestamps proof does not match the referenced block in the active Bitcoin main chain.");
+  }
+  const anchorReason = anchorReadinessReason(anchoring);
 
   if (params.evidence.deletedAt) {
     return {
@@ -902,6 +919,11 @@ function formatNullableDate(value: Date | string | null | undefined): string | n
  * anchored-at time on the anchor summary is never an input.
  */
 function otsStateFor(evidence: EvidenceIntelligenceInput["evidence"]): OtsState {
+  return otsAnchoringFor(evidence).state;
+}
+
+/** The resolved anchoring WITH the independent chain fact (verification key, chain facts). */
+function otsAnchoringFor(evidence: EvidenceIntelligenceInput["evidence"]): OtsAnchoring {
   return resolveRecordOtsAnchoring({
     otsStatus: evidence.otsStatus,
     otsProofBase64: evidence.otsProofBase64 ?? null,
@@ -911,7 +933,16 @@ function otsStateFor(evidence: EvidenceIntelligenceInput["evidence"]): OtsState 
     otsCalendar: evidence.otsCalendar ?? null,
     otsAnchoredAtUtc: evidence.otsAnchoredAtUtc ?? null,
     otsUpgradedAtUtc: evidence.otsUpgradedAtUtc ?? null,
-  }).state;
+    otsChainVerificationStatus: evidence.otsChainVerificationStatus ?? null,
+    otsChainCheckedAtUtc: evidence.otsChainCheckedAtUtc ?? null,
+    otsChainVerifiedAtUtc: evidence.otsChainVerifiedAtUtc ?? null,
+    otsChainBlockHeight: evidence.otsChainBlockHeight ?? null,
+    otsChainBlockHash: evidence.otsChainBlockHash ?? null,
+    otsChainBlockTimeUtc: evidence.otsChainBlockTimeUtc ?? null,
+    otsChainConfirmations: evidence.otsChainConfirmations ?? null,
+    otsChainVerifier: evidence.otsChainVerifier ?? null,
+    otsChainFailureCode: evidence.otsChainFailureCode ?? null,
+  });
 }
 
 /**
@@ -924,9 +955,17 @@ function isAnchorGapState(state: OtsState): boolean {
 }
 
 /** The readiness sentence once the record is ANCHORED; null otherwise. */
-function anchorReadinessReason(state: OtsState): string | null {
-  if (state !== "ANCHORED") return null;
-  return `Bitcoin anchoring: ${OTS_STATE_LABELS.ANCHORED}. ${OTS_STATE_SENTENCES.ANCHORED}`;
+/**
+ * The anchoring reason for a record whose proof carries a Bitcoin attestation,
+ * in the shared verification vocabulary: "Bitcoin attestation recorded" (not
+ * independently checked) unless the chain check VERIFIED it. A chain FAILED
+ * outcome is a review gap, stated with the issues instead.
+ */
+function anchorReadinessReason(anchoring: OtsAnchoring): string | null {
+  if (anchoring.state !== "ANCHORED" || anchoring.verification === "CHAIN_FAILED") return null;
+  const p = presentOtsAnchoring(anchoring);
+  const qualifier = p.secondaryStatus ? ` (${p.secondaryStatus})` : "";
+  return `Bitcoin anchoring: ${p.label}${qualifier}. ${p.sentence}`;
 }
 
 export async function buildEvidenceIntelligence(

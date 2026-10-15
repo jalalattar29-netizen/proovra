@@ -499,7 +499,12 @@ describe("Phase Z [FM-OTS-001] — ANCHORED is decided by the proof, never by a 
     const sem = deriveAnchorSemantics({ otsState: "PENDING", transactionId: "a".repeat(64) });
     expect(sem.otsState).toBe("PENDING");
     expect(sem.anchorMode).toBe("bitcoin_anchoring_pending");
-    expect(sem.anchoringLabel).toBe("Bitcoin anchoring pending");
+    // The required pending wording (2026-10-15).
+    expect(sem.anchoringLabel).toBe("OpenTimestamps proof pending");
+    // A recorded attestation is projected as recorded, never as verified.
+    const recorded = deriveAnchorSemantics({ otsState: "ANCHORED", transactionId: "a".repeat(64) });
+    expect(recorded.anchorMode).toBe("attestation_recorded");
+    expect(recorded.anchoringLabel).not.toMatch(/verified/i);
   });
 });
 
