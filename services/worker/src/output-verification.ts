@@ -83,6 +83,16 @@ const LIFECYCLE_SELECT = {
   otsAnchoredAtUtc: true,
   otsUpgradedAtUtc: true,
   otsFailureReason: true,
+  // The independent Bitcoin-chain check of the stored proof.
+  otsChainVerificationStatus: true,
+  otsChainCheckedAtUtc: true,
+  otsChainVerifiedAtUtc: true,
+  otsChainBlockHeight: true,
+  otsChainBlockHash: true,
+  otsChainBlockTimeUtc: true,
+  otsChainConfirmations: true,
+  otsChainVerifier: true,
+  otsChainFailureCode: true,
   // The digest every proof must commit to.
   fingerprintHash: true,
 } as const;
@@ -122,6 +132,15 @@ type LifecycleRow = {
   otsAnchoredAtUtc: Date | null;
   otsUpgradedAtUtc: Date | null;
   otsFailureReason: string | null;
+  otsChainVerificationStatus: string | null;
+  otsChainCheckedAtUtc: Date | null;
+  otsChainVerifiedAtUtc: Date | null;
+  otsChainBlockHeight: number | null;
+  otsChainBlockHash: string | null;
+  otsChainBlockTimeUtc: Date | null;
+  otsChainConfirmations: number | null;
+  otsChainVerifier: string | null;
+  otsChainFailureCode: string | null;
 };
 
 export type RecordCustodyEvent = {
@@ -211,6 +230,15 @@ export function reportLifecycleFields(
     otsUpgradedAtUtc: row.otsUpgradedAtUtc ? row.otsUpgradedAtUtc.toISOString() : null,
     otsFailureReason: row.otsFailureReason ?? null,
     otsSubmittedAtUtc: otsCustodyFacts.submittedAtUtc,
+    otsChainVerificationStatus: row.otsChainVerificationStatus ?? null,
+    otsChainCheckedAtUtc: row.otsChainCheckedAtUtc?.toISOString() ?? null,
+    otsChainVerifiedAtUtc: row.otsChainVerifiedAtUtc?.toISOString() ?? null,
+    otsChainBlockHeight: row.otsChainBlockHeight ?? null,
+    otsChainBlockHash: row.otsChainBlockHash ?? null,
+    otsChainBlockTimeUtc: row.otsChainBlockTimeUtc?.toISOString() ?? null,
+    otsChainConfirmations: row.otsChainConfirmations ?? null,
+    otsChainVerifier: row.otsChainVerifier ?? null,
+    otsChainFailureCode: row.otsChainFailureCode ?? null,
   };
 }
 
@@ -247,6 +275,15 @@ export function assertRenderInputs(
       otsProofBase64: payload.otsProofBase64 ?? null,
       fingerprintHash: payload.fingerprintHash ?? null,
       otsHash: payload.otsHash ?? null,
+      otsChainVerificationStatus: payload.otsChainVerificationStatus ?? null,
+      otsChainCheckedAtUtc: payload.otsChainCheckedAtUtc ?? null,
+      otsChainVerifiedAtUtc: payload.otsChainVerifiedAtUtc ?? null,
+      otsChainBlockHeight: payload.otsChainBlockHeight ?? null,
+      otsChainBlockHash: payload.otsChainBlockHash ?? null,
+      otsChainBlockTimeUtc: payload.otsChainBlockTimeUtc ?? null,
+      otsChainConfirmations: payload.otsChainConfirmations ?? null,
+      otsChainVerifier: payload.otsChainVerifier ?? null,
+      otsChainFailureCode: payload.otsChainFailureCode ?? null,
       acquisitionMode: payload.acquisitionMode ?? null,
     },
     custodyEvents,

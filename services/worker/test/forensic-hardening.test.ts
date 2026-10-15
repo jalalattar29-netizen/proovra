@@ -9,13 +9,22 @@ import {
   PROOVRA_FORBIDDEN_SURFACE_PATTERNS,
 } from "@proovra/shared-evidence-presentation";
 import * as prismaPkg from "@prisma/client";
-import { custodyLabelHints } from "@proovra/shared";
+import { OTS_VERIFICATION_KEYS, custodyLabelHints } from "@proovra/shared";
 import {
   mapTimestampStatusPublicLabel,
   mapCustodyEventLabel,
 } from "../src/report-v2/normalizers.js";
-import { otsStatusLineFor, otsStatusWordFor, reportOtsAnchoring } from "../src/report-v2/ots-presentation.js";
+import {
+  otsStatusLineFor,
+  otsStatusWordFor,
+  otsVerificationLabelFor,
+  otsVerificationWordFor,
+  reportOtsAnchoring,
+} from "../src/report-v2/ots-presentation.js";
 import { REAL, upgradedProof } from "../../../packages/shared/tests/helpers/ots-fixtures.mjs";
+import { chainColumnsFor } from "./fixtures/ots-chain-fixtures.js";
+
+const UP = upgradedProof();
 import { shouldExpireCaptureDraft } from "../src/capture-draft-governance.js";
 
 /**
@@ -37,11 +46,30 @@ function readRepoFile(...segments: string[]): string {
 }
 
 describe("OTS labels (2026-10-13: the canonical state, from the proof)", () => {
-  it("the report says Anchored only for a proof that executes to a Bitcoin attestation", () => {
-    const anchored = reportOtsAnchoring({ otsStatus: "PENDING", otsProofBase64: upgradedProof().base64, otsHash: REAL.boundFingerprintHash, fingerprintHash: REAL.boundFingerprintHash });
+  // 2026-10-15: ANCHORED only means the proof NAMES a block. Its word is
+  // "Attestation recorded"; "Independently verified" is said ONLY for a proof
+  // independently verified against the Bitcoin main chain (CHAIN_VERIFIED).
+  it("the report says Attestation recorded (not Anchored) for a proof that executes to an unchecked Bitcoin attestation", () => {
+    const anchored = reportOtsAnchoring({ otsStatus: "PENDING", otsProofBase64: UP.base64, otsHash: REAL.boundFingerprintHash, fingerprintHash: REAL.boundFingerprintHash });
     expect(anchored.state).toBe("ANCHORED");
-    expect(otsStatusWordFor(anchored.state)).toBe("Anchored");
-    expect(otsStatusLineFor(anchored.state)).toBe("Bitcoin anchored");
+    expect(anchored.verification).toBe("ATTESTATION_RECORDED");
+    expect(otsStatusWordFor(anchored.state)).toBe("Attestation recorded");
+    expect(otsStatusLineFor(anchored.state)).toBe("Bitcoin attestation recorded");
+    expect(otsVerificationWordFor(anchored.verification)).toBe("Attestation recorded");
+    expect(otsVerificationLabelFor(anchored.verification)).toBe("Bitcoin attestation recorded");
+  });
+
+  it("the report says Independently verified only for a proof verified against the Bitcoin main chain", () => {
+    const verified = reportOtsAnchoring({
+      otsStatus: "ANCHORED",
+      otsProofBase64: UP.base64,
+      otsHash: REAL.boundFingerprintHash,
+      fingerprintHash: REAL.boundFingerprintHash,
+      ...chainColumnsFor(UP),
+    } as never);
+    expect(verified.verification).toBe("CHAIN_VERIFIED");
+    expect(otsVerificationWordFor(verified.verification)).toBe("Independently verified");
+    expect(otsVerificationLabelFor(verified.verification)).toBe("Independently verified against the Bitcoin main chain");
   });
 
   it("a status, a valid txid and a time never make a pending proof anchored", () => {
@@ -57,10 +85,18 @@ describe("OTS labels (2026-10-13: the canonical state, from the proof)", () => {
     expect(otsStatusWordFor(a.state)).toBe("Pending");
   });
 
-  it("never says verified, attestation recorded or chain-verified for any state", () => {
+  it("no lifecycle state on its own says verified, anchored or chain-verified", () => {
     for (const state of ["NOT_REQUESTED", "PENDING", "ANCHORED", "FAILED", "UNAVAILABLE"] as const) {
       const text = `${otsStatusWordFor(state)} ${otsStatusLineFor(state)}`;
-      expect(text).not.toMatch(/verified|attestation recorded|chain/i);
+      expect(text).not.toMatch(/verified|\banchored\b|chain/i);
+    }
+  });
+
+  it("only the CHAIN_VERIFIED verification says verified", () => {
+    for (const key of OTS_VERIFICATION_KEYS) {
+      const text = `${otsVerificationWordFor(key)} ${otsVerificationLabelFor(key)}`;
+      if (key === "CHAIN_VERIFIED") expect(text).toMatch(/Independently verified/);
+      else expect(text).not.toMatch(/\bverified\b/i);
     }
   });
 });

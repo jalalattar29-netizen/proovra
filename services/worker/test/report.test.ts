@@ -7,6 +7,7 @@ import { buildReportViewModel } from "../src/report-v2/build-view-model.js";
 import { renderReportHtml } from "../src/report-v2/render-html.js";
 import type { ReportV2Input } from "../src/report-v2/types.js";
 import { REAL, upgradedProof } from "../../../packages/shared/tests/helpers/ots-fixtures.mjs";
+import { chainColumnsFor } from "./fixtures/ots-chain-fixtures.js";
 import {
   PROOVRA_FORBIDDEN_SURFACE_PATTERNS,
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
@@ -286,12 +287,17 @@ describe("report v2 pipeline", () => {
     expect(vm.anchorSummary?.transactionId ?? null).toBeNull();
     const html = renderReportHtml(vm);
     expect(html).not.toContain("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
-    expect(html).toContain("OpenTimestamps proof is awaiting Bitcoin anchoring.");
+    // 2026-10-15 wording: the pending sentence.
+    expect(html).toContain("Submitted to OpenTimestamps calendars; no Bitcoin attestation yet.");
     expect(html).not.toContain("OpenTimestamps proof anchored in Bitcoin");
+    expect(html).not.toContain("The proof names Bitcoin block");
     expect(html).not.toMatch(/OTS Anchored At|Anchor Anchored At|Attestation recorded|independently verified against/i);
   });
 
-  it("an upgraded proof renders Bitcoin anchoring — Anchored with its derived txid and the boundary once", async () => {
+  // 2026-10-15: an upgraded proof NAMES a block; unchecked against the chain it
+  // is "Attestation recorded" with the not-checked sentence — never "anchored"
+  // or verified. The positive counterpart (CHAIN_VERIFIED) follows.
+  it("an upgraded proof renders Bitcoin anchoring — Attestation recorded with its derived txid and the boundary once", async () => {
     const up = upgradedProof();
     const vm = await buildReportViewModel(
       buildInput({
@@ -307,9 +313,39 @@ describe("report v2 pipeline", () => {
     );
     expect(vm.canonicalMaterials.otsState.state).toBe("ANCHORED");
     const html = renderReportHtml(vm);
-    expect(html).toContain("OpenTimestamps proof anchored in Bitcoin.");
+    expect(vm.canonicalMaterials.otsState.verification).toBe("ATTESTATION_RECORDED");
+    expect(html).toContain(`The proof names Bitcoin block ${up.blockHeight}; PROOVRA has not checked it against the Bitcoin main chain.`);
+    expect(html).toContain("Bitcoin attestation recorded");
     expect(html).toContain(up.txid!);
-    expect(html.split("PROOVRA does not claim independent canonical-chain verification").length - 1).toBe(1);
+    expect(html.split("The stored OpenTimestamps proof names a Bitcoin block for the recorded evidence digest.").length - 1).toBe(1);
+    expect(html).not.toContain("OpenTimestamps proof anchored in Bitcoin");
+    expect(html).not.toContain("Independently verified");
+  });
+
+  it("an upgraded proof independently verified against the Bitcoin main chain renders Independently verified, consistently, with the verified boundary once", async () => {
+    const up = upgradedProof();
+    const vm = await buildReportViewModel(
+      buildInput({
+        evidence: {
+          ...buildInput().evidence,
+          otsStatus: "ANCHORED",
+          otsAnchoredAtUtc: "2026-10-13T08:00:00.000Z",
+          otsProofBase64: up.base64,
+          otsHash: REAL.boundFingerprintHash,
+          fingerprintHash: REAL.boundFingerprintHash,
+          ...chainColumnsFor(up),
+        },
+      }),
+    );
+    expect(vm.canonicalMaterials.otsState.state).toBe("ANCHORED");
+    expect(vm.canonicalMaterials.otsState.verification).toBe("CHAIN_VERIFIED");
+    const html = renderReportHtml(vm);
+    expect(html).toContain("Independently verified against the Bitcoin main chain");
+    expect(html).toContain(`Merkle root matches Bitcoin block ${up.blockHeight}`);
+    expect(html.split("PROOVRA compared the proof&#39;s replayed commitment").length - 1).toBe(1);
+    // One report, one statement: never also "not checked".
+    expect(html).not.toContain("PROOVRA has not checked it against the Bitcoin main chain");
+    expect(html).not.toContain("Not independently checked against Bitcoin");
   });
 
   it("keeps full hashes and supporting previewable evidence visually represented", async () => {

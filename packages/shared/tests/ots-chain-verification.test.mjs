@@ -117,6 +117,17 @@ test("active chain and confirmations: -1/0 is NOT_IN_ACTIVE_CHAIN; below policy 
   const dropped = decideOtsChainVerification([verifyOtsChainCandidate(c, lookupFor(h, { height: up.blockHeight, confirmations: -1 }), POLICY)]);
   assert.equal(reclassifyAfterPriorVerification(dropped, { status: "VERIFIED", blockHash: h.hash }).failureCode, "REORGED");
   assert.equal(reclassifyAfterPriorVerification(dropped, { status: null, blockHash: null }).failureCode, "NOT_IN_ACTIVE_CHAIN");
+  // A REPLACEMENT block at that height has another merkle root: after a prior
+  // VERIFIED (or an already-recorded REORGED) that is a reorg, never the
+  // terminal ROOT_MISMATCH — the record must recover when the chain returns.
+  const replaced = decideOtsChainVerification([
+    verifyOtsChainCandidate(c, lookupFor(header({ merkleInternalHex: "ab".repeat(32) }), { height: up.blockHeight, confirmations: 3 }), POLICY),
+  ]);
+  assert.equal(replaced.failureCode, "ROOT_MISMATCH");
+  assert.equal(reclassifyAfterPriorVerification(replaced, { status: "VERIFIED", blockHash: h.hash }).failureCode, "REORGED");
+  assert.equal(reclassifyAfterPriorVerification(replaced, { status: "FAILED", blockHash: null, failureCode: "REORGED" }).failureCode, "REORGED");
+  assert.equal(reclassifyAfterPriorVerification(replaced, { status: null, blockHash: null }).failureCode, "ROOT_MISMATCH");
+  assert.equal(reclassifyAfterPriorVerification(replaced, { status: "FAILED", blockHash: null, failureCode: "ROOT_MISMATCH" }).failureCode, "ROOT_MISMATCH");
 });
 
 // ---------------------------------------------------------------------------
@@ -223,6 +234,9 @@ test("readiness: every gate refuses with its own bounded code; a ready node repo
   assert.equal(code({ chain: { verificationprogress: 0.42 } }), "INITIAL_BLOCK_DOWNLOAD");
   assert.equal(code({ chain: { headers: 900_050 } }), "HEADER_LAG");
   assert.equal(code({ chain: { headers: 899_000 } }), "HEADER_LAG");
+  // A small negative lag (header tip briefly below the validated tip after a reorg) is not "behind".
+  assert.equal(code({ chain: { headers: 899_996 } }), undefined);
+  assert.equal(code({ chain: { headers: 900_000 - 145 } }), "HEADER_LAG");
   assert.equal(code({ chain: { time: NOW - 5 * 3600 } }), "NODE_STALE");
   assert.equal(code({ chain: { warnings: "This is a pre-release test build" } }), "NODE_WARNINGS");
   assert.equal(code({ chain: { warnings: ["", "Unknown new rules activated"] } }), "NODE_WARNINGS");

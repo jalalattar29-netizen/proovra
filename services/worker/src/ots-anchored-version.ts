@@ -1,28 +1,38 @@
 /**
- * ONE AUTOMATIC REPORT VERSION WHEN A PROOF BECOMES ANCHORED (2026-10-13).
+ * ONE AUTOMATIC REPORT VERSION WHEN A PROOF IS INDEPENDENTLY VERIFIED AGAINST
+ * THE BITCOIN MAIN CHAIN.
  *
- * A report issued while its OpenTimestamps proof was PENDING says "Bitcoin
- * anchoring — Pending". When that proof later resolves to ANCHORED, exactly one
- * new report + package version is requested through the existing versioning
- * (`createReportGenerationRequest`): the previous versions stay as issued,
- * nothing is charged (the worker never consumes credits), and the request is
- * idempotent per proof.
+ * A report issued before the record's OpenTimestamps proof was chain-verified
+ * says "Pending" or "Bitcoin attestation recorded — Not independently checked
+ * against Bitcoin". When the independent chain check VERIFIES the proof,
+ * exactly one new report + package version is requested through the existing
+ * versioning (`createReportGenerationRequest`): the previous versions stay as
+ * issued (byte for byte), nothing is charged (the worker never consumes
+ * credits), and the request is idempotent per proof and block.
  *
- *   no report yet                 nothing — v1 will state ANCHORED itself
- *   latest report stated ANCHORED nothing — e.g. ANCHORED before v1
- *   a report is being generated   nothing now — when it commits, the
- *                                 commit re-runs this decision against what
- *                                 it stated (`reconcileOtsAnchoredReportVersion`)
- *   otherwise                     one request, key `ots-anchored:<proof sha>`
+ * An attestation the proof merely NAMES (ANCHORED, not chain-verified) is not
+ * a reason for a new version: it is not a verification, and a version for it
+ * would only restate the same unchecked claim.
  *
- * The decision reads the canonical state the report STATED
- * (`anchorSnapshot.otsState`); a legacy report without it is eligible once.
+ *   not chain-verified              nothing
+ *   no report yet                   nothing — v1 states the verification itself
+ *   latest report stated this same  nothing (no ratchet)
+ *     verification (proof + block)
+ *   a report is being generated     nothing now — when it commits, the commit
+ *                                   re-runs this decision against what it stated;
+ *                                   every chain recheck and the reconciler re-run
+ *                                   it too, so a failed in-flight report cannot
+ *                                   lose it
+ *   otherwise                       one request, key
+ *                                   `ots-chain-verified:<proof sha head 30>:<block hash tail 30>`
+ *                                   (exactly 80 characters: client_request_key is VARCHAR(80))
  */
 import { createReportGenerationRequest } from "@proovra/shared-runtime/reports";
 import {
   OTS_ANCHORING_RECORD_SELECT,
   isTerminalJobExecutionState,
   parseOtsState,
+  parseOtsVerificationKey,
   resolveRecordOtsAnchoring,
   type OtsAnchoring,
 } from "@proovra/shared";
@@ -31,19 +41,31 @@ import { prisma } from "./db.js";
 import { enqueueReportGenerationRequest } from "./queue.js";
 
 export type OtsAnchoredVersionOutcome =
-  | "not_anchored"
+  | "not_chain_verified"
   | "no_report_yet"
-  | "latest_report_anchored"
+  | "latest_report_chain_verified"
   | "report_in_flight"
   | "requested"
   | "already_requested"
   | "refused";
 
-export const OTS_ANCHORED_MACHINE_ID = "worker.ots-anchored";
+export const OTS_ANCHORED_MACHINE_ID = "worker.ots-chain-verified";
 
-/** The idempotency key: one automatic version per anchored proof. */
-export function otsAnchoredRequestKey(proofSha256: string): string {
-  return `ots-anchored:${proofSha256.toLowerCase().slice(0, 64)}`;
+/**
+ * The idempotency key: one automatic version per chain-verified proof and block.
+ *
+ * It must fit report_generation_requests.client_request_key (VARCHAR(80)) WHOLE,
+ * or the block component is cut off on write and a reorg to another block for
+ * the same proof would be deduplicated away. 19 + 30 + 1 + 30 = 80. The proof
+ * sha's HEAD and the block hash's TAIL are taken because a Bitcoin block hash
+ * (display order) begins with a long run of zeros; 120 bits of each, within one
+ * evidence record, cannot collide in practice.
+ */
+export const OTS_CHAIN_VERIFIED_KEY_PART = 30;
+export function otsChainVerifiedRequestKey(proofSha256: string, blockHash: string): string {
+  const proof = proofSha256.trim().toLowerCase().slice(0, OTS_CHAIN_VERIFIED_KEY_PART);
+  const block = blockHash.trim().toLowerCase().slice(-OTS_CHAIN_VERIFIED_KEY_PART);
+  return `ots-chain-verified:${proof}:${block}`;
 }
 
 /** The state a report stated, read from its anchor snapshot; null for a legacy report. */
@@ -53,14 +75,31 @@ export function reportStatedOtsState(anchorSnapshot: unknown): ReturnType<typeof
   return raw == null ? null : parseOtsState(raw);
 }
 
+/** Did this report already state THIS chain verification (same proof, same block)? */
+export function reportStatedChainVerification(
+  anchorSnapshot: unknown,
+  verification: { proofSha256: string; blockHash: string },
+): boolean {
+  if (!anchorSnapshot || typeof anchorSnapshot !== "object") return false;
+  const a = anchorSnapshot as Record<string, unknown>;
+  return (
+    parseOtsVerificationKey(a.otsVerification) === "CHAIN_VERIFIED" &&
+    String(a.otsProofSha256 ?? "").toLowerCase() === verification.proofSha256.toLowerCase() &&
+    String(a.otsChainBlockHash ?? "").toLowerCase() === verification.blockHash.toLowerCase()
+  );
+}
+
 export async function ensureOtsAnchoredReportVersion(input: {
   evidenceId: string;
-  anchoring: Pick<OtsAnchoring, "state" | "proofSha256">;
+  anchoring: Pick<OtsAnchoring, "state" | "verification" | "proofSha256" | "chain">;
   /** Dry run: decide, write nothing. */
   dryRun?: boolean;
 }): Promise<{ outcome: OtsAnchoredVersionOutcome; requestId?: string; reason?: string }> {
   const { evidenceId, anchoring } = input;
-  if (anchoring.state !== "ANCHORED" || !anchoring.proofSha256) return { outcome: "not_anchored" };
+  const blockHash = anchoring.chain?.blockHash ?? null;
+  if (anchoring.state !== "ANCHORED" || anchoring.verification !== "CHAIN_VERIFIED" || !anchoring.proofSha256 || !blockHash) {
+    return { outcome: "not_chain_verified" };
+  }
 
   const latest = await prisma.report.findFirst({
     where: { evidenceId },
@@ -68,17 +107,20 @@ export async function ensureOtsAnchoredReportVersion(input: {
     select: { version: true, anchorSnapshot: true },
   });
   if (!latest) return { outcome: "no_report_yet" };
-  if (reportStatedOtsState(latest.anchorSnapshot) === "ANCHORED") return { outcome: "latest_report_anchored" };
+  if (reportStatedChainVerification(latest.anchorSnapshot, { proofSha256: anchoring.proofSha256, blockHash })) {
+    return { outcome: "latest_report_chain_verified" };
+  }
 
-  const key = otsAnchoredRequestKey(anchoring.proofSha256);
+  const key = otsChainVerifiedRequestKey(anchoring.proofSha256, blockHash);
   const prior = await prisma.reportGenerationRequest.findFirst({
     where: { evidenceId, clientRequestKey: key },
     select: { id: true },
   });
   if (prior) return { outcome: "already_requested", requestId: prior.id };
 
-  // A report generation already running renders the current (anchored) state;
-  // its commit re-runs this decision.
+  // A report generation already running renders the current (verified) state;
+  // its commit re-runs this decision. If it fails terminally, the next chain
+  // recheck or the reconciler re-runs it.
   const inFlight = await prisma.reportGenerationRequest.findFirst({
     where: { evidenceId, artifactType: "REPORT", state: { in: ["QUEUED", "PROCESSING", "FAILED_RETRYABLE"] } },
     select: { id: true },
@@ -93,7 +135,7 @@ export async function ensureOtsAnchoredReportVersion(input: {
     artifactType: "REPORT",
     intent: "NEW_VERSION",
     forceRegenerate: true,
-    regenerateReason: "ots_anchored",
+    regenerateReason: "ots_chain_verified",
     clientRequestKey: key,
     requestedByMachineId: OTS_ANCHORED_MACHINE_ID,
   });
@@ -111,6 +153,6 @@ export async function ensureOtsAnchoredReportVersion(input: {
  */
 export async function reconcileOtsAnchoredReportVersion(evidenceId: string, opts: { dryRun?: boolean } = {}) {
   const row = await prisma.evidence.findUnique({ where: { id: evidenceId }, select: OTS_ANCHORING_RECORD_SELECT });
-  if (!row) return { outcome: "not_anchored" as const };
+  if (!row) return { outcome: "not_chain_verified" as const };
   return ensureOtsAnchoredReportVersion({ evidenceId, anchoring: resolveRecordOtsAnchoring(row), dryRun: opts.dryRun });
 }

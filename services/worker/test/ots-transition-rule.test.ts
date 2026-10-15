@@ -35,14 +35,27 @@ function row(over: Partial<OtsRowSnapshot> = {}): OtsRowSnapshot {
     otsUpgradedAtUtc: T0,
     otsFailureReason: null,
     fingerprintHash: FP,
+    otsChainVerificationStatus: null,
+    otsChainCheckedAtUtc: null,
+    otsChainVerifiedAtUtc: null,
+    otsChainBlockHeight: null,
+    otsChainBlockHash: null,
+    otsChainBlockTimeUtc: null,
+    otsChainConfirmations: null,
+    otsChainVerifier: null,
+    otsChainFailureCode: null,
     ...over,
   };
 }
 
-const DEPRECATED = [
-  "otsAnchorCheck",
-  "otsAttestationRecordedAtUtc",
-  "otsAttestationBlockHeight",
+// Expand/contract columns that stay unused.
+const DEPRECATED = ["otsAnchorCheck", "otsAttestationRecordedAtUtc", "otsAttestationBlockHeight"];
+
+// 2026-10-15: the ots_chain_* columns are LIVE again — the one independent
+// Bitcoin-chain verification of the stored proof. Only decideOtsChainTransition
+// writes values into them; every proof write CLEARS them (a chain fact is about
+// exactly one proof), and the CAS snapshot includes them.
+const CHAIN = [
   "otsChainVerificationStatus",
   "otsChainCheckedAtUtc",
   "otsChainVerifiedAtUtc",
@@ -55,11 +68,18 @@ const DEPRECATED = [
 ];
 
 describe("the column writer", () => {
-  it("never writes a deprecated chain-verifier column, for any status", () => {
+  it("never writes a deprecated column, and every proof write clears the chain fact, for any status", () => {
     for (const status of ["DISABLED", "PENDING", "ANCHORED", "FAILED"] as const) {
       const data = buildOtsEvidenceUpdateData({ status, proofBase64: "x", upgradedAtUtc: NOW });
       for (const key of DEPRECATED) expect(Object.keys(data)).not.toContain(key);
+      // No chain fact survives a write that (re)states the proof: cleared, never set.
+      for (const key of CHAIN) expect((data as Record<string, unknown>)[key]).toBeNull();
     }
+  });
+
+  it("keeps the chain fact only for a write that keeps the exact same proof (status alignment)", () => {
+    const data = buildOtsEvidenceUpdateData({ status: "ANCHORED", proofBase64: "x", upgradedAtUtc: NOW, keepChain: true });
+    for (const key of CHAIN) expect(Object.keys(data)).not.toContain(key);
   });
 
   it("writes a txid only beside ANCHORED, and only a well-formed one", () => {
@@ -180,9 +200,20 @@ describe("decideStoredStatusAlignment (restart recovery and legacy rows)", () =>
 });
 
 describe("compare-and-set", () => {
-  it("is conditional on the stored proof and the OTS columns, not on deprecated ones", () => {
+  it("is conditional on the stored proof and the OTS columns (the chain outcome included), not on deprecated ones", () => {
     const where = otsSnapshotWhere("e1", row());
     expect(where).toMatchObject({ id: "e1", otsStatus: "PENDING", otsProofBase64: REAL.boundProofBase64 });
     for (const key of DEPRECATED) expect(Object.keys(where)).not.toContain(key);
+    // A stale job can never overwrite a newer chain verification.
+    for (const key of [
+      "otsChainVerificationStatus",
+      "otsChainCheckedAtUtc",
+      "otsChainBlockHash",
+      "otsChainConfirmations",
+      "otsChainFailureCode",
+      "otsChainVerifier",
+    ]) {
+      expect(Object.keys(where)).toContain(key);
+    }
   });
 });

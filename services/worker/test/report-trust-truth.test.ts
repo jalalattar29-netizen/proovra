@@ -143,6 +143,7 @@ describe("UC-TRUST-008 — the report states which stored bytes it certifies", (
 
 import { VERIFICATION_LIMITATION, findForbiddenCustomerClaims } from "@proovra/shared";
 import { REAL, upgradedProof } from "../../../packages/shared/tests/helpers/ots-fixtures.mjs";
+import { chainColumnsFor } from "./fixtures/ots-chain-fixtures.js";
 
 describe("evidence claims (2026-10-08) — the rendered report states a verification matrix, never a score", () => {
   async function render(evidence: Record<string, unknown>) {
@@ -173,7 +174,10 @@ describe("evidence claims (2026-10-08) — the rendered report states a verifica
     expect(text).not.toContain("PROOVRA observed the files from upload onward; creation and editing before upload were not observed.");
   });
 
-  it("a proof that executes to a Bitcoin attestation is Bitcoin anchoring — Anchored, stated without any score", async () => {
+  // 2026-10-15: ANCHORED only NAMES a block. Unchecked, it is "Attestation
+  // recorded" — never Anchored/verified; "Independently verified" is said only
+  // for a proof verified against the Bitcoin main chain (next test).
+  it("a proof that executes to an unchecked Bitcoin attestation is Bitcoin anchoring — Attestation recorded, stated without any score", async () => {
     const up = upgradedProof();
     const { vm, html, text } = await render({
       otsStatus: "ANCHORED",
@@ -185,11 +189,33 @@ describe("evidence claims (2026-10-08) — the rendered report states a verifica
     });
     const row = vm.verificationMatrix.rows.find((r) => r.key === "ots_anchoring")!;
     expect(row.otsState).toBe("ANCHORED");
-    expect(row.statusLabel).toBe("Anchored");
-    expect(html).toContain('data-signal="bitcoin_anchoring" data-signal-status="Anchored"');
-    expect(text).toContain("OpenTimestamps proof anchored in Bitcoin.");
+    expect(row.otsVerification).toBe("ATTESTATION_RECORDED");
+    expect(row.statusLabel).toBe("Attestation recorded");
+    expect(html).toContain('data-signal="bitcoin_anchoring" data-signal-status="Attestation recorded"');
+    expect(text).toContain(`The proof names Bitcoin block ${up.blockHeight}; PROOVRA has not checked it against the Bitcoin main chain.`);
     expect(findForbiddenCustomerClaims(text)).toEqual([]);
-    expect(text).not.toMatch(/Attestation recorded|independently verified against|chain-verified/i);
+    expect(text).not.toMatch(/independently verified against|chain-verified|anchored in Bitcoin/i);
+    expect(html).not.toContain('data-signal-status="Anchored"');
+  });
+
+  it("a proof independently verified against the Bitcoin main chain is Bitcoin anchoring — Independently verified, stated without any score", async () => {
+    const up = upgradedProof();
+    const { vm, html, text } = await render({
+      otsStatus: "ANCHORED",
+      otsAnchoredAtUtc: "2026-01-01T02:00:00.000Z",
+      otsProofBase64: up.base64,
+      otsHash: REAL.boundFingerprintHash,
+      fingerprintHash: REAL.boundFingerprintHash,
+      acquisitionMode: "PROOVRA_WEB_UPLOAD",
+      ...chainColumnsFor(up),
+    });
+    const row = vm.verificationMatrix.rows.find((r) => r.key === "ots_anchoring")!;
+    expect(row.otsState).toBe("ANCHORED");
+    expect(row.otsVerification).toBe("CHAIN_VERIFIED");
+    expect(row.statusLabel).toBe("Independently verified");
+    expect(html).toContain('data-signal="bitcoin_anchoring" data-signal-status="Independently verified"');
+    expect(text).toContain(`Merkle root matches Bitcoin block ${up.blockHeight}`);
+    expect(findForbiddenCustomerClaims(text)).toEqual([]);
   });
 
   it("a validated timestamp is stated with the bounded TSA sentence, never as qualified", async () => {

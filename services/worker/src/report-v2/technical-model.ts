@@ -26,7 +26,7 @@ import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   formatTimestampForReportUtc,
 } from "@proovra/shared";
-import { OTS_REPORT_BOUNDARY, buildOtsAnchoringRows, otsStatusLineFor, reportOtsAnchoring } from "./ots-presentation.js";
+import { buildOtsAnchoringRows, otsReportBoundary, otsVerificationLabelFor, reportOtsAnchoring } from "./ots-presentation.js";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 
 export function getTimestampDigestValueLabel(params: {
@@ -358,7 +358,7 @@ const fingerprintRows: KeyValueRow[] = [
 ];
 
   const otsAnchoring = reportOtsAnchoring(evidence);
-  const otsPresentation = presentOtsAnchoring({ state: canonicalMaterials.otsState.state });
+  const otsPresentation = presentOtsAnchoring(canonicalMaterials.otsState);
   const otsTone: Tone =
     otsPresentation.tone === "success" ? "success" : otsPresentation.tone === "danger" ? "danger" : "neutral";
 
@@ -379,7 +379,7 @@ const fingerprintRows: KeyValueRow[] = [
     timestampStatusTone: mapTimestampTone(
       canonicalMaterials.timestampState.tsaStatus
     ),
-    otsStatusLabel: otsStatusLineFor(canonicalMaterials.otsState.state),
+    otsStatusLabel: otsVerificationLabelFor(canonicalMaterials.otsState.verification),
     otsStatusTone: otsTone,
     tsaMessageImprint: safe(evidence.tsaMessageImprint),
     tsaInputDigestHex: safe(canonicalMaterials.timestampState.tsaInputDigestHex),
@@ -389,11 +389,16 @@ const fingerprintRows: KeyValueRow[] = [
     // reason in words, never the stored code.
     otsDetail:
       otsAnchoring.state === "ANCHORED"
-        ? OTS_REPORT_BOUNDARY
+        ? (otsReportBoundary(otsAnchoring) ?? "")
         : otsAnchoring.failureCode
           ? (OTS_FAILURE_LABELS[otsAnchoring.failureCode] ?? OTS_FAILURE_LABELS.OTS_PROCESSING_FAILED!)
           : "",
-    otsDetailTitle: otsAnchoring.state === "ANCHORED" ? "What Bitcoin anchoring establishes" : "Anchoring detail",
+    otsDetailTitle:
+      otsAnchoring.verification === "CHAIN_VERIFIED"
+        ? "What the Bitcoin verification establishes"
+        : otsAnchoring.state === "ANCHORED"
+          ? "What the Bitcoin attestation establishes"
+          : "Anchoring detail",
     otsDetailTone: otsAnchoring.state === "ANCHORED" ? "neutral" : otsTone,
     anchorHash: safe(anchorSummary?.anchorHash),
 timestampReferenceNote:

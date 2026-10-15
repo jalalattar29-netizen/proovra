@@ -19,12 +19,12 @@ import {
   getReviewerEvidenceTypeLabel,
   hasCaptureLocationMetadata,
   formatTimestampForReportUtc,
-  OTS_STATE_SENTENCES,
+  otsVerificationSentence,
   absoluteInternalUrl,
   buildVerificationMatrix,
 } from "@proovra/shared";
 import type { CanonicalEvidenceMaterials } from "@proovra/shared";
-import { buildOtsAnchoringRows, otsStatusLineFor } from "./ots-presentation.js";
+import { buildOtsAnchoringRows, otsVerificationLabelFor } from "./ots-presentation.js";
 import type {
   CalloutModel,
   CustodyHashRow,
@@ -556,7 +556,7 @@ function buildVerificationSummaryRows(
   );
   add(
     "Anchoring Status",
-    otsStatusLineFor(canonicalMaterials.otsState.state)
+    otsVerificationLabelFor(canonicalMaterials.otsState.verification)
   );
   add("Last Verified At (UTC)", formatReportTimestamp(evidence.lastVerifiedAtUtc));
   add(
@@ -631,7 +631,7 @@ function buildReviewReadinessRows(
 
 {
   label: "Bitcoin Anchoring Status",
-  value: otsStatusLineFor(canonicalMaterials.otsState.state),
+  value: otsVerificationLabelFor(canonicalMaterials.otsState.verification),
 },
     {
       label: "Immutable Storage",
@@ -862,7 +862,7 @@ function buildStorageRows(
     },
     {
       label: "Bitcoin Anchoring Status",
-      value: otsStatusLineFor(canonicalMaterials.otsState.state),
+      value: otsVerificationLabelFor(canonicalMaterials.otsState.verification),
     },
     {
       label: "RFC 3161 Note",
@@ -1219,7 +1219,7 @@ function buildTechnicalAppendixCourtRows(params: {
 {
   // The Bitcoin anchoring card's sentence (canonical materials).
   label: "Bitcoin anchoring",
-  value: OTS_STATE_SENTENCES[params.canonicalMaterials.otsState.state].replace(/\.$/, ""),
+  value: otsVerificationSentence(params.canonicalMaterials.otsState, "en", formatTimestampForReportUtc).replace(/\.$/, ""),
 },
     {
       label: "Forensic Custody Events",

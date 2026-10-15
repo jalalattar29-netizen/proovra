@@ -14,10 +14,11 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { OTS_ANCHORED_BOUNDARY } from "@proovra/shared";
+import { OTS_ANCHORED_BOUNDARY, OTS_CHAIN_VERIFIED_BOUNDARY } from "@proovra/shared";
 import { describe, expect, it } from "vitest";
 
 import { REAL, proofSha256, upgradedProof } from "../../../packages/shared/tests/helpers/ots-fixtures.mjs";
+import { chainRecordFor } from "./fixtures/ots-chain-fixtures.js";
 import { decideOtsPackageArtifact } from "../src/verification-package.js";
 
 function readSource(rel: string): string {
@@ -53,9 +54,12 @@ describe("ANCHORED: a proof that executes to a Bitcoin block attestation", () =>
       schema: "PROOVRA_OPENTIMESTAMPS_STATE",
       version: 3,
       state: "ANCHORED",
+      // 2026-10-15: ANCHORED only NAMES a block — an unchecked attestation.
+      verification: "ATTESTATION_RECORDED",
       title: "Bitcoin anchoring",
-      status: "Anchored",
-      sentence: "OpenTimestamps proof anchored in Bitcoin.",
+      status: "Attestation recorded",
+      label: "Bitcoin attestation recorded",
+      sentence: "The proof names Bitcoin block 860000; PROOVRA has not checked it against the Bitcoin main chain.",
       evidenceDigest: { algorithm: "sha256", hex: FP, file: "fingerprint.json" },
       committedDigest: { algorithm: "sha256", hex: FP, matchesEvidenceDigest: true },
       proof: { file: "opentimestamps-proof.ots", sha256: UPGRADED.proofSha256, sizeBytes: UPGRADED.bytes.length },
@@ -68,18 +72,73 @@ describe("ANCHORED: a proof that executes to a Bitcoin block attestation", () =>
       submittedAtUtc: "2026-10-12T08:00:00.000Z",
       anchoredRecordedAtUtc: "2026-10-13T08:00:00.000Z",
       boundary: OTS_ANCHORED_BOUNDARY,
+      // Never checked: no chain fact is stated.
+      chainVerification: null,
     });
     expect(result.companion!.validator).toMatch(/\S/);
   });
 
-  it("states no chain-verifier vocabulary", () => {
-    expect(JSON.stringify(result.companion)).not.toMatch(/chainVerification|publicAnchoringVerified|anchorCheck|Attestation recorded|independently verified/i);
+  it("states no verified claim for an unchecked attestation", () => {
+    // 2026-10-15: was "no chain-verifier vocabulary". The companion now names
+    // the verification; an unchecked attestation must never read as verified.
+    expect(JSON.stringify(result.companion)).not.toMatch(/CHAIN_VERIFIED|publicAnchoringVerified|anchorCheck|independently verified|verifiedAtUtc/i);
   });
 
   it("a proof with no transaction step is ANCHORED with no txid", () => {
     const p = upgradedProof({ withTransaction: false });
     const r = decideOtsPackageArtifact({ ...base, status: "ANCHORED", proofBase64: p.base64 });
     expect(r.companion).toMatchObject({ state: "ANCHORED", attestation: { bitcoinTxid: null } });
+  });
+});
+
+describe("CHAIN_VERIFIED: the same proof, independently verified against the Bitcoin main chain", () => {
+  const record = chainRecordFor(UPGRADED);
+  const result = decideOtsPackageArtifact({
+    ...base,
+    status: "ANCHORED",
+    proofBase64: UPGRADED.base64,
+    anchoredAtUtc: "2026-10-13T08:00:00.000Z",
+    chain: record,
+  });
+
+  it("states the verification, its sentence, the verified boundary and the bound chain facts", () => {
+    expect(result.companion).toMatchObject({
+      state: "ANCHORED",
+      verification: "CHAIN_VERIFIED",
+      status: "Independently verified",
+      label: "Independently verified against the Bitcoin main chain",
+      sentence: "Merkle root matches Bitcoin block 860000; 120 confirmations at 2026-10-15 08:00:00 UTC.",
+      boundary: OTS_CHAIN_VERIFIED_BOUNDARY,
+      chainVerification: {
+        status: "VERIFIED",
+        failureCode: null,
+        blockHeight: 860000,
+        blockHash: record.blockHash,
+        confirmations: 120,
+        minConfirmations: 6,
+        checkedAtUtc: "2026-10-15T08:00:00.000Z",
+        verifiedAtUtc: "2026-10-15T08:00:00.000Z",
+        verifier: `proovra-ots-chain/1;core=310100;min=6;proof=${UPGRADED.proofSha256.slice(0, 16)}`,
+      },
+    });
+    // The proof bytes are the same exact bytes.
+    expect(Buffer.from(result.proofBytes!).equals(Buffer.from(UPGRADED.base64, "base64"))).toBe(true);
+  });
+
+  it("a chain record about ANOTHER proof is not believed: an unchecked attestation, no chain facts", () => {
+    const r = decideOtsPackageArtifact({
+      ...base,
+      status: "ANCHORED",
+      proofBase64: UPGRADED.base64,
+      chain: chainRecordFor(UPGRADED, { proofSha256: "f".repeat(64) }),
+    });
+    expect(r.companion).toMatchObject({ verification: "ATTESTATION_RECORDED", status: "Attestation recorded", chainVerification: null });
+  });
+
+  it("pending confirmations are not verified", () => {
+    const r = decideOtsPackageArtifact({ ...base, status: "ANCHORED", proofBase64: UPGRADED.base64, chain: chainRecordFor(UPGRADED, { status: "INSUFFICIENT_CONFIRMATIONS" }) });
+    expect(r.companion).toMatchObject({ verification: "CHAIN_CONFIRMATIONS_PENDING", boundary: OTS_ANCHORED_BOUNDARY });
+    expect(r.companion!.status).not.toMatch(/verified/i);
   });
 });
 
@@ -90,8 +149,10 @@ describe("PENDING", () => {
     expect(result.proofBytes).not.toBeNull();
     expect(result.companion).toMatchObject({
       state: "PENDING",
+      verification: "PENDING",
       status: "Pending",
-      sentence: "OpenTimestamps proof is awaiting Bitcoin anchoring.",
+      label: "OpenTimestamps proof pending",
+      sentence: "Submitted to OpenTimestamps calendars; no Bitcoin attestation yet.",
       attestation: { type: "PENDING_CALENDAR", bitcoinBlockHeight: null, bitcoinTxid: null },
       anchoredRecordedAtUtc: null,
       boundary: null,
@@ -158,8 +219,10 @@ describe("builder wiring (source contract)", () => {
   const processorSrc = readSource("../src/processor.ts");
   const packageSrc = readSource("../src/verification-package.ts");
 
-  it("the processor forwards the stored proof and its client; no chain columns", () => {
+  it("the processor forwards the stored proof, its client and the stored chain record (read through the one reader)", () => {
     expect(processorSrc).toMatch(/ots:\s*\{[\s\S]*?proofBase64:\s*[\s\S]*?finalized\.finalizedReportEvidencePayload\.otsProofBase64/);
+    // 2026-10-15: the chain fact travels as the shared record; the resolver binds it to the proof.
+    expect(processorSrc).toMatch(/chain: otsChainRecordOf\(finalized\.finalizedReportEvidencePayload\)/);
     expect(processorSrc).not.toMatch(/chainVerificationStatus:|attestationRecordedAtUtc:/);
   });
 

@@ -491,6 +491,7 @@ export * from "./verification-matrix.js";
 export type {
   AnchorSemantics,
   AnchorSemanticsInput,
+  AnchorMode,
 } from "./anchor.js";
 
 export { deriveAnchorSemantics } from "./anchor.js";
@@ -528,6 +529,7 @@ export {
   otsChainRecordOf,
   otsVerificationSentence,
   otsBoundaryFor,
+  otsCustodyEventLines,
 } from "./ots-anchoring.js";
 export type {
   OtsState,

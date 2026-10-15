@@ -72,6 +72,9 @@ const CREDENTIAL_KEY_FRAGMENTS = [
 const HARNESS_OWNED = new Set([
   "AUTH_JWT_SECRET",
   "TEST_DATABASE_URL",
+  // A DISPOSABLE loopback regtest bitcoind (throwaway user:password in the URL,
+  // like TEST_DATABASE_URL); the regtest integration test refuses non-loopback.
+  "TEST_BITCOIN_REGTEST_RPC_URL",
   "RUN_LIVE_INTEGRATION",
   "RUN_LIVE_INTEGRATION_DB_OK",
   "RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS",

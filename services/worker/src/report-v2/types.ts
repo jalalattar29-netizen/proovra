@@ -293,6 +293,16 @@ export type ReportEvidence = {
   otsAnchoredAtUtc?: string | null;
   otsUpgradedAtUtc?: string | null;
   otsFailureReason?: string | null;
+  /** The independent Bitcoin-chain check of the stored proof (evidence.ots_chain_*). */
+  otsChainVerificationStatus?: string | null;
+  otsChainCheckedAtUtc?: string | null;
+  otsChainVerifiedAtUtc?: string | null;
+  otsChainBlockHeight?: number | null;
+  otsChainBlockHash?: string | null;
+  otsChainBlockTimeUtc?: string | null;
+  otsChainConfirmations?: number | null;
+  otsChainVerifier?: string | null;
+  otsChainFailureCode?: string | null;
   /** THE capture-time identity snapshot (custody IDENTITY_SNAPSHOT_RECORDED). */
   acquisitionIdentity?: AcquisitionIdentitySnapshot | null;
   otsSubmittedAtUtc?: string | null;

@@ -83,11 +83,25 @@ describe("Phase IA-OTS-forward-retry — invariant: PENDING outcome MUST schedul
     expect(block).toMatch(/selfJobId:\s*job\.id/);
   });
 
-  it("no other outcome schedules a follow-up (anchored and failed are terminal)", () => {
-    // (2026-10-13) Exactly one post-decision enqueue: the PENDING follow-up.
-    // ANCHORED is terminal for its proof; no chain re-check exists.
+  it("no other outcome schedules an upgrade follow-up (failed is terminal; ANCHORED only schedules its chain check)", () => {
+    // (2026-10-15) Two post-decision enqueue sites: the PENDING follow-up and
+    // the ONE chain-check scheduler. ANCHORED stays terminal for its PROOF;
+    // what follows it is the independent Bitcoin-chain check of the named
+    // block, through `scheduleNextChainCheck` only.
     const enqueues = afterDecision().match(/enqueueOtsUpgradeJob\(/g) ?? [];
-    expect(enqueues.length).toBe(1);
+    expect(enqueues.length).toBe(2);
+    const scheduler = afterDecision().slice(afterDecision().indexOf("async function scheduleNextChainCheck("));
+    expect(scheduler.match(/enqueueOtsUpgradeJob\(/g) ?? []).toHaveLength(1);
+    expect(scheduler.slice(0, scheduler.indexOf("\n}\n"))).toMatch(/traceId: "ots_chain_check"/);
+    // The chain check never runs when live verification is disabled, and stops when none is due.
+    expect(scheduler.slice(0, scheduler.indexOf("\n}\n"))).toMatch(/resolveOtsBitcoinVerifierConfig\(\)\.kind === "disabled"\) return;/);
+    expect(scheduler.slice(0, scheduler.indexOf("\n}\n"))).toMatch(/if \(delayMs == null\) return;/);
+    // A FAILED transition schedules nothing.
+    const failedBlock = enclosingSource(UPGRADE_SRC, 'transition.phase === "global_budget_exhausted"', "statement", {
+      occurrence: 1,
+      fileName: "ots-upgrade.processor.ts",
+    });
+    expect(failedBlock).not.toMatch(/enqueueOtsUpgradeJob|scheduleNextChainCheck/);
     expect(afterDecision()).not.toMatch(/chainRecheckDue/);
     // A transient attempt error throws for the job's own retry budget instead.
     expect(afterDecision()).toMatch(/throw new Error\("OTS_UPGRADE_ATTEMPT_FAILED"\)/);

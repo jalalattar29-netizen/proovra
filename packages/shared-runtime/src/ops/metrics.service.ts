@@ -663,6 +663,12 @@ export const COUNTER_NAMES = [
   "ots_calendar_failure_total",
   "ots_proof_integrity_failed_total",
   "ots_budget_exhausted_total",
+  // Independent Bitcoin-chain verification outcomes (one per material change).
+  "ots_chain_verified_total",
+  "ots_chain_confirmations_pending_total",
+  "ots_chain_verification_unavailable_total",
+  "ots_chain_verification_failed_total",
+  "ots_chain_reorged_total",
   // RELIABILITY CLOSURE (2026-09-09) — the never-attempted population. A
   // finalized record with NULL OTS columns had no counter, no condition and no
   // sweep, so a lost enqueue was invisible by construction.

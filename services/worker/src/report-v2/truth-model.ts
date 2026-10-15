@@ -1,4 +1,4 @@
-import { OTS_STATE_WORDS, otsStateFromTrustState, presentOtsAnchoring } from "@proovra/shared";
+import { OTS_VERIFICATION_WORDS, otsVerificationOfSignalState, presentOtsAnchoring } from "@proovra/shared";
 import {
   buildEvidenceTrustDecision,
   buildCanonicalEvidenceMaterials,
@@ -91,7 +91,7 @@ export function buildExecutiveConclusion(decision: ReportTrustDecision): Callout
     (s) => s.key !== "identity" && s.key !== "verification_package" && s.key !== "bitcoin_anchoring",
   );
   const anchoring = decision.signals.find((s) => s.key === "bitcoin_anchoring");
-  const anchoringWord = anchoring ? OTS_STATE_WORDS[otsStateFromTrustState(anchoring.state)] : null;
+  const anchoringWord = anchoring ? OTS_VERIFICATION_WORDS[otsVerificationOfSignalState(anchoring.state, anchoring.otsVerification)] : null;
   const list = (items: string[]) =>
     items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
   const lower = (s: { label: string }) => s.label.replace(/^[A-Z](?!itcoin)/, (c) => c.toLowerCase());
@@ -195,11 +195,11 @@ export function buildTimestampCallout(
 }
 
 /**
- * THE OTS CALLOUT (2026-10-13): the "Bitcoin anchoring" card — the canonical
- * state's status word and its one sentence. ANCHORED is a success.
+ * THE OTS CALLOUT: the "Bitcoin anchoring" card — the canonical
+ * verification's word and its one sentence. Only CHAIN_VERIFIED is a success.
  */
 export function buildOtsCallout(canonicalMaterials: CanonicalEvidenceMaterials): CalloutModel {
-  const card = presentOtsAnchoring({ state: canonicalMaterials.otsState.state });
+  const card = presentOtsAnchoring(canonicalMaterials.otsState);
   return {
     title: card.status,
     body: card.sentence,
@@ -335,6 +335,17 @@ export function buildReportCanonicalMaterials(params: {
       otsFailureReason: ev.otsFailureReason ?? null,
       // The proof bytes: the canonical OTS state is resolved from them.
       otsProofBase64: ev.otsProofBase64 ?? null,
+      // The independent Bitcoin-chain check of the stored proof: without it
+      // every surface built here would read a CHAIN_VERIFIED record as unchecked.
+      otsChainVerificationStatus: ev.otsChainVerificationStatus ?? null,
+      otsChainCheckedAtUtc: ev.otsChainCheckedAtUtc ?? null,
+      otsChainVerifiedAtUtc: ev.otsChainVerifiedAtUtc ?? null,
+      otsChainBlockHeight: ev.otsChainBlockHeight ?? null,
+      otsChainBlockHash: ev.otsChainBlockHash ?? null,
+      otsChainBlockTimeUtc: ev.otsChainBlockTimeUtc ?? null,
+      otsChainConfirmations: ev.otsChainConfirmations ?? null,
+      otsChainVerifier: ev.otsChainVerifier ?? null,
+      otsChainFailureCode: ev.otsChainFailureCode ?? null,
       identityLevelSnapshot: ev.identityLevelSnapshot ?? null,
       workspaceNameSnapshot:
         (ev as { workspaceNameSnapshot?: string | null })
@@ -392,6 +403,17 @@ export function buildTrustDecision(params: {
       // The proof's own bytes: the anchoring signal is the canonical state
       // resolved from them against the fingerprint digest.
       otsProofBase64: params.evidence.otsProofBase64 ?? null,
+      // The independent Bitcoin-chain check of the stored proof: without it
+      // every surface built here would read a CHAIN_VERIFIED record as unchecked.
+      otsChainVerificationStatus: params.evidence.otsChainVerificationStatus ?? null,
+      otsChainCheckedAtUtc: params.evidence.otsChainCheckedAtUtc ?? null,
+      otsChainVerifiedAtUtc: params.evidence.otsChainVerifiedAtUtc ?? null,
+      otsChainBlockHeight: params.evidence.otsChainBlockHeight ?? null,
+      otsChainBlockHash: params.evidence.otsChainBlockHash ?? null,
+      otsChainBlockTimeUtc: params.evidence.otsChainBlockTimeUtc ?? null,
+      otsChainConfirmations: params.evidence.otsChainConfirmations ?? null,
+      otsChainVerifier: params.evidence.otsChainVerifier ?? null,
+      otsChainFailureCode: params.evidence.otsChainFailureCode ?? null,
       signatureVerified: params.evidence.signatureVerified ?? null,
       custodyChainValid: params.evidence.custodyChainValid ?? null,
       storageImmutable: params.evidence.storageImmutable,

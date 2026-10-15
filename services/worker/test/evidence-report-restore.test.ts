@@ -39,6 +39,7 @@ import { getReportCss } from "../src/report-v2/templates/report.css.js";
 import { keepEndsTogether } from "../src/report-v2/sections/custody.js";
 import type { ReportV2Input } from "../src/report-v2/types.js";
 import { ANCHORED_PROOF, canonicalFactsOf, layoutVariant, regressionRecordInput } from "./fixtures/report-layout-variants.js";
+import { chainColumnsFor } from "./fixtures/ots-chain-fixtures.js";
 
 const text = (html: string) =>
   html.replace(/<style[\s\S]*?<\/style>/g, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ");
@@ -113,16 +114,18 @@ describe("the eight evidence signals", () => {
     expect(by.core_integrity).toMatchObject({ status: "Verified", title: "Core integrity verified", mark: "✓" });
     expect(by.signature).toMatchObject({ status: "Verified", title: "Record signature verified", mark: "✓" });
     expect(by.trusted_timestamp).toMatchObject({ status: "Verified", title: "RFC 3161 timestamp verified", mark: "✓" });
-    // (2026-10-13) An upgraded proof that executes to a Bitcoin attestation:
-    // "Bitcoin anchoring — Anchored", green ✓, never "Verified".
+    // (2026-10-15) An upgraded proof that executes to a Bitcoin attestation
+    // only NAMES a block. Not checked against the chain, it is "Bitcoin
+    // anchoring — Attestation recorded", neutral, NO ✓, never "Verified"
+    // (was: "Anchored", green ✓).
     expect(by.bitcoin_anchoring).toMatchObject({
       label: "Bitcoin anchoring",
-      status: "Anchored",
-      title: "Bitcoin anchored",
-      sentence: "OpenTimestamps proof anchored in Bitcoin.",
-      mark: "✓",
-      tone: "success",
+      status: "Attestation recorded",
+      title: "Bitcoin attestation recorded",
+      sentence: "The proof names Bitcoin block 860000; PROOVRA has not checked it against the Bitcoin main chain.",
+      tone: "neutral",
     });
+    expect(by.bitcoin_anchoring.mark).not.toBe("✓");
     expect(by.immutable_storage).toMatchObject({ status: "Verified", title: "Immutable retention verified" });
     expect(by.custody_chain).toMatchObject({ status: "Verified", title: "23 forensic events recorded; hash chain verified" });
     // A personal email account whose submission-time snapshot recorded the
@@ -171,10 +174,12 @@ describe("the eight evidence signals", () => {
 });
 
 describe("OpenTimestamps: one canonical state on every card", () => {
+  // 2026-10-15: an upgraded proof never checked against the chain is
+  // "Attestation recorded" (was "Anchored"); the pending sentence is the new one.
   const cases = [
-    ["pending", "Pending", "OpenTimestamps proof is awaiting Bitcoin anchoring."],
-    ["anchored", "Anchored", "OpenTimestamps proof anchored in Bitcoin."],
-    ["anchored_no_txid", "Anchored", "OpenTimestamps proof anchored in Bitcoin."],
+    ["pending", "Pending", "Submitted to OpenTimestamps calendars; no Bitcoin attestation yet."],
+    ["anchored", "Attestation recorded", "The proof names Bitcoin block 860000; PROOVRA has not checked it against the Bitcoin main chain."],
+    ["anchored_no_txid", "Attestation recorded", "The proof names Bitcoin block 860000; PROOVRA has not checked it against the Bitcoin main chain."],
     ["budget_failed", "Failed", "Bitcoin anchoring did not complete for this record."],
     ["unavailable", "Unavailable", "The OpenTimestamps proof material cannot currently be read."],
     ["none", "Not requested", "No OpenTimestamps anchoring was requested for this record."],
@@ -186,12 +191,13 @@ describe("OpenTimestamps: one canonical state on every card", () => {
       expect(card.status).toBe(status);
       expect(card.sentence).toBe(sentence);
       expect(card.status).not.toBe("Verified");
-      // The anchored sentence and the boundary appear only for an anchored proof.
-      expect(t.includes("OpenTimestamps proof anchored in Bitcoin"), ots).toBe(status === "Anchored");
-      expect(t.includes("PROOVRA does not claim independent canonical-chain verification"), ots).toBe(status === "Anchored");
+      expect(card.mark, ots).not.toBe("✓");
+      // The attestation sentence and the boundary appear only for an attested proof.
+      expect(t.includes("The proof names Bitcoin block"), ots).toBe(status === "Attestation recorded");
+      expect(t.includes("The stored OpenTimestamps proof names a Bitcoin block for the recorded evidence digest."), ots).toBe(status === "Attestation recorded");
       // The PENDING sentence appears only for a pending proof — never beside a txid or block.
-      expect(t.includes("OpenTimestamps proof is awaiting Bitcoin anchoring."), ots).toBe(ots === "pending");
-      expect(t).not.toMatch(/Attestation recorded|independently verified against|chain-verified|proof (?:is )?still being prepared/i);
+      expect(t.includes("Submitted to OpenTimestamps calendars; no Bitcoin attestation yet."), ots).toBe(ots === "pending");
+      expect(t).not.toMatch(/independently verified|anchored in Bitcoin|chain-verified|proof (?:is )?still being prepared/i);
     });
   }
 
@@ -200,14 +206,32 @@ describe("OpenTimestamps: one canonical state on every card", () => {
     const { text: t } = await render(input);
     expect(t).toContain(ANCHORED_PROOF.txid!);
     expect(t).toMatch(/Bitcoin block height[\s\S]{0,80}860000/i);
-    expect(t).not.toContain("OpenTimestamps proof is awaiting Bitcoin anchoring.");
+    expect(t).not.toContain("Submitted to OpenTimestamps calendars; no Bitcoin attestation yet.");
     expect(t).not.toMatch(/Anchor Mode/i);
     // Mutation proof: the gate refuses the PENDING sentence beside an anchored proof.
     const e = input.evidence;
     const facts = deriveCanonicalArtifactFacts({ ...e, tsaTokenPresent: Boolean(e.tsaTokenBase64) } as never, []);
     expect(facts.otsState).toBe("ANCHORED");
-    const findings = checkRenderedReportText(`${t} OpenTimestamps proof is awaiting Bitcoin anchoring.`, facts, { reportVersion: input.version });
+    const findings = checkRenderedReportText(`${t} Submitted to OpenTimestamps calendars; no Bitcoin attestation yet.`, facts, { reportVersion: input.version });
     expect(findings.map((f) => f.check)).toContain("OTS_CONTRADICTION");
+    // …and a verified label for an attestation never checked against the chain.
+    const overclaim = checkRenderedReportText(`${t} Independently verified against the Bitcoin main chain`, facts, { reportVersion: input.version });
+    expect(overclaim.map((f) => f.check)).toContain("OTS_OVERCLAIM");
+  });
+
+  it("the positive counterpart: a proof independently verified against the Bitcoin main chain is the only ✓", async () => {
+    const base = layoutVariant({ name: "chain verified", ots: "anchored" }).input;
+    const input = { ...base, evidence: { ...base.evidence, ...chainColumnsFor(ANCHORED_PROOF) } as ReportV2Input["evidence"] };
+    const { cards, text: t } = await render(input);
+    const card = cards.find((c) => c.key === "bitcoin_anchoring")!;
+    expect(card).toMatchObject({
+      status: "Independently verified",
+      title: "Independently verified against the Bitcoin main chain",
+      mark: "✓",
+      tone: "success",
+    });
+    expect(card.sentence).toMatch(/^Merkle root matches Bitcoin block 860000; 120 confirmations at /);
+    expect(t).not.toContain("PROOVRA has not checked it against the Bitcoin main chain");
   });
 });
 

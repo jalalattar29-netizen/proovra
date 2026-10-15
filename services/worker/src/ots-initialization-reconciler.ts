@@ -70,6 +70,7 @@ import { getOtsOperationsWarningMs } from "@proovra/shared-runtime";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
 import { enqueueOtsUpgradeJob, isOtsUpgradeScheduled } from "./queue.js";
+import { resolveOtsBitcoinVerifierConfig } from "./ots-bitcoin-config.js";
 
 export interface RunOtsInitializationReconcilerOptions {
   trigger?: string;
@@ -103,6 +104,9 @@ export interface OtsInitializationReconcilerResult {
   pendingAlreadyScheduled: number;
   /** ...of which the ladder was gone and an upgrade was re-scheduled. */
   pendingRescheduled: number;
+  /** ANCHORED proofs whose chain check was due. */
+  chainScanned: number;
+  chainRescheduled: number;
 }
 
 const DEFAULT_MIN_AGE_MS = 30 * 60 * 1000;
@@ -185,6 +189,8 @@ export async function runOtsInitializationReconciler(
     pendingScanned: 0,
     pendingAlreadyScheduled: 0,
     pendingRescheduled: 0,
+    chainScanned: 0,
+    chainRescheduled: 0,
   };
 
   const candidates = await prisma.evidence.findMany({
@@ -240,7 +246,11 @@ export async function runOtsInitializationReconciler(
   const pending = await prisma.evidence.findMany({
     where: pendingWithoutProgressWhere({
       notAfter: new Date(now - PENDING_STALE_MS),
-      notBefore: new Date(now - maxAge),
+      // NO lower age bound: a ladder that died near (or past) the global
+      // budget must still be revisited, so the processor's budget can give it
+      // its truthful terminal state (FAILED OTS_GLOBAL_BUDGET_EXHAUSTED)
+      // instead of leaving it PENDING forever. Oldest first, bounded batch.
+      notBefore: new Date(0),
     }),
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take: batchSize,
@@ -272,6 +282,33 @@ export async function runOtsInitializationReconciler(
     }
   }
 
+  // INDEPENDENT BITCOIN-CHAIN VERIFICATION — the same ladder, the same job id.
+  // An ANCHORED proof whose chain check is due (never checked, unavailable,
+  // pending confirmations, not yet in / reorganized out of the active chain,
+  // or a recent VERIFIED still inside its reorg recheck window) and whose job
+  // is not scheduled is re-enqueued. A VERIFIED record re-asks the
+  // (idempotent) derivative-version decision on that delivery, so a version
+  // request lost to a failed in-flight report is recovered here.
+  if (resolveOtsBitcoinVerifierConfig().kind !== "disabled") {
+    const due = await prisma.evidence.findMany({
+      where: chainCheckDueWhere({ checkedBefore: new Date(now - CHAIN_RECHECK_STALE_MS), verifiedAfter: new Date(now - CHAIN_VERIFIED_RECHECK_WINDOW_MS) }),
+      orderBy: [{ otsAnchoredAtUtc: "asc" }, { id: "asc" }],
+      take: batchSize,
+      select: { id: true },
+    });
+    for (const row of due) {
+      result.chainScanned += 1;
+      try {
+        if (await isOtsUpgradeScheduled(row.id)) continue;
+        const outcome = await enqueueOtsUpgradeJob(row.id, { traceId: "ots_chain_check_recovery", delayMs: 0 });
+        if (outcome.enqueued && !outcome.collapsed) result.chainRescheduled += 1;
+      } catch (err) {
+        result.failed += 1;
+        logger.error({ err, evidenceId: row.id, trigger }, "ots.chain.reschedule_failed");
+      }
+    }
+  }
+
   // (2026-10-13) Operations gauges: the PENDING backlog and the part of it
   // older than the Operations aging window (pending beyond SLA).
   try {
@@ -294,6 +331,37 @@ export async function runOtsInitializationReconciler(
     );
   }
   return result;
+}
+
+/** A chain check older than any healthy recheck step (1-hour follow-ups plus retry backoff). */
+const CHAIN_RECHECK_STALE_MS = 6 * 60 * 60 * 1000;
+/** How long after a VERIFIED outcome the sweep still revisits it (the reorg recheck window). */
+const CHAIN_VERIFIED_RECHECK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** ANCHORED proofs whose independent chain check is due (the queue check decides whether to enqueue). */
+export function chainCheckDueWhere(bounds: { checkedBefore: Date; verifiedAfter: Date }): Prisma.EvidenceWhereInput {
+  return {
+    deletedAt: null,
+    otsStatus: "ANCHORED",
+    otsProofBase64: { not: null },
+    OR: [
+      { otsChainVerificationStatus: null },
+      {
+        otsChainVerificationStatus: { in: ["NOT_CONFIGURED", "UNAVAILABLE", "INSUFFICIENT_CONFIRMATIONS"] },
+        otsChainCheckedAtUtc: { lte: bounds.checkedBefore },
+      },
+      {
+        otsChainVerificationStatus: "FAILED",
+        otsChainFailureCode: { in: ["NOT_IN_ACTIVE_CHAIN", "REORGED"] },
+        otsChainCheckedAtUtc: { lte: bounds.checkedBefore },
+      },
+      {
+        otsChainVerificationStatus: "VERIFIED",
+        otsChainVerifiedAtUtc: { gte: bounds.verifiedAfter },
+        otsChainCheckedAtUtc: { lte: bounds.checkedBefore },
+      },
+    ],
+  };
 }
 
 /** A PENDING proof older than any healthy ladder step (60-minute follow-ups plus retry backoff). */

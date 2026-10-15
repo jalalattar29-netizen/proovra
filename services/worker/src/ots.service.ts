@@ -42,7 +42,9 @@ export function otsClientIdentity(): Promise<string | null> {
   otsClientIdentityCache ??= execFileAsync(resolveOtsBin(), ["--version"], { timeout: 10_000 })
     .then((r) => {
       const v = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim().replace(/^v/i, "");
-      return /^d+.d+(.d+)?/.test(v) ? `opentimestamps-client ${v}` : null;
+      // `ots --version` prints e.g. "v0.7.2" (the leading v is stripped above).
+      const m = /^(d+.d+(?:.d+)?)/.exec(v);
+      return m ? `opentimestamps-client ${m[1]}` : null;
     })
     .catch(() => null);
   return otsClientIdentityCache;

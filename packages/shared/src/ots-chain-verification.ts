@@ -49,6 +49,8 @@ export const OTS_CHAIN_FAILURE_CODES = [
   "BTC_RPC_UNAVAILABLE",
   "BTC_RPC_ERROR",
   "BTC_RPC_MALFORMED_RESPONSE",
+  "BTC_RPC_MISCONFIGURED",
+  "BLOCK_BEYOND_TIP",
   "WRONG_CHAIN",
   "INITIAL_BLOCK_DOWNLOAD",
   "NODE_STALE",
@@ -77,6 +79,8 @@ export const OTS_CHAIN_UNAVAILABLE_CODES: ReadonlySet<OtsChainFailureCode> = new
   "BTC_RPC_UNAVAILABLE",
   "BTC_RPC_ERROR",
   "BTC_RPC_MALFORMED_RESPONSE",
+  "BTC_RPC_MISCONFIGURED",
+  "BLOCK_BEYOND_TIP",
   "WRONG_CHAIN",
   "INITIAL_BLOCK_DOWNLOAD",
   "NODE_STALE",
@@ -210,6 +214,9 @@ function boundedText(v: unknown, max = 80): string {
   return s.length > max ? `${s.slice(0, max)}…` : s;
 }
 
+/** How far the reported header tip may transiently sit BELOW the validated tip (one day of blocks). */
+export const OTS_HEADER_TIP_TRANSIENT_TOLERANCE = 144;
+
 export function evaluateOtsChainReadiness(
   facts: { network: BitcoinNetworkInfoFacts; chain: BitcoinChainInfoFacts; genesis: BitcoinGenesisProbe },
   policy: OtsChainPolicy,
@@ -228,8 +235,12 @@ export function evaluateOtsChainReadiness(
   if (!(chain.verificationprogress >= policy.minVerificationProgress)) {
     return { ready: false, code: "INITIAL_BLOCK_DOWNLOAD", detail: `verificationprogress ${chain.verificationprogress}` };
   }
+  // headers − blocks. Positive: the node knows of blocks it has not validated
+  // (behind the network). A SMALL negative is transient and harmless — right
+  // after a reorg Core can report a header tip below its validated tip — and
+  // is not "behind"; a large negative is an inconsistent node and refused.
   const lag = chain.headers - chain.blocks;
-  if (!(lag >= 0 && lag <= policy.maxHeaderLag)) {
+  if (!(lag >= -OTS_HEADER_TIP_TRANSIENT_TOLERANCE && lag <= policy.maxHeaderLag)) {
     return { ready: false, code: "HEADER_LAG", detail: `headers-blocks=${lag} max=${policy.maxHeaderLag}` };
   }
   const tipAge = nowSeconds - chain.time;
@@ -406,13 +417,26 @@ export function decideOtsChainVerification(outcomes: ReadonlyArray<OtsChainCandi
 
 /**
  * A later check that no longer confirms a block an earlier check VERIFIED is
- * a reorg, not a first-time "not in active chain".
+ * a reorg, not a first-time "not in active chain" — and not a proof defect.
+ *
+ * The same proof bytes (the chain record is bound to the proof sha) once
+ * matched the header at that height, so a different header there now — which
+ * the candidate check sees as ROOT_MISMATCH, because the replacement block has
+ * another merkle root — means the block was reorganized away. Reading it as
+ * ROOT_MISMATCH would make it terminal, and a record could never recover when
+ * the original chain is restored. A record already REORGED stays REORGED
+ * (re-checked, never terminal) until the block is back or the check passes.
  */
 export function reclassifyAfterPriorVerification(
   decision: OtsChainDecision,
-  prior: { status: OtsChainStatus | null; blockHash: string | null },
+  prior: { status: OtsChainStatus | null; blockHash: string | null; failureCode?: string | null },
 ): OtsChainDecision {
-  if (prior.status === "VERIFIED" && decision.status === "FAILED" && (decision.failureCode === "NOT_IN_ACTIVE_CHAIN" || decision.failureCode === "INVALID_HEADER")) {
+  const onceMatched = prior.status === "VERIFIED" || (prior.status === "FAILED" && prior.failureCode === "REORGED");
+  if (
+    onceMatched &&
+    decision.status === "FAILED" &&
+    (decision.failureCode === "NOT_IN_ACTIVE_CHAIN" || decision.failureCode === "INVALID_HEADER" || decision.failureCode === "ROOT_MISMATCH")
+  ) {
     return { ...decision, failureCode: "REORGED" };
   }
   return decision;

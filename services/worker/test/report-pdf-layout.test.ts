@@ -196,9 +196,11 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
   it(
     "THE OTS CARD: one status and one sentence per state, no internal states, technical details only in the appendix",
     async () => {
+      // 2026-10-15: the card states the canonical VERIFICATION. An upgraded
+      // proof not checked against the chain is "Attestation recorded" — no ✓.
       const cards = {
-        pending: ["Pending", "Bitcoin anchoring pending", "OpenTimestamps proof is awaiting Bitcoin anchoring."],
-        anchored: ["Anchored", "Bitcoin anchored", "OpenTimestamps proof anchored in Bitcoin."],
+        pending: ["Pending", "OpenTimestamps proof pending", "Submitted to OpenTimestamps calendars; no Bitcoin attestation yet."],
+        anchored: ["Attestation recorded", "Bitcoin attestation recorded", "The proof names Bitcoin block 860000; PROOVRA has not checked it against the Bitcoin main chain."],
         budget_failed: ["Failed", "Bitcoin anchoring failed", "Bitcoin anchoring did not complete for this record."],
         unavailable: ["Unavailable", "Bitcoin anchoring unavailable", "The OpenTimestamps proof material cannot currently be read."],
       } as const;
@@ -209,12 +211,14 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
         const pageText = pages.map((p) => p.items.map((i) => i.str).join(" ").replace(/\s+/g, " "));
         const all = pageText.join(" ");
         // The Bitcoin anchoring card, once: label, status, title, one sentence.
-        expect(all, ots).toMatch(new RegExp(`Bitcoin anchoring (?:✓ )?${status} ${title} ${sentence.replace(/\./g, "\\.")}`));
+        // No ✓ for any of these states: only CHAIN_VERIFIED carries one (2026-10-15).
+        expect(all, ots).toMatch(new RegExp(`Bitcoin anchoring ${status} ${title} ${sentence.replace(/\./g, "\\.")}`));
+        expect(all, ots).not.toMatch(/Bitcoin anchoring ✓/);
         expect(all.split(sentence).length - 1, ots).toBe(1);
         // The boundary is stated once, for an anchored proof only.
-        expect(all.split("PROOVRA does not claim independent canonical-chain verification").length - 1, ots).toBe(ots === "anchored" ? 1 : 0);
-        // No internal state, raw code or retired wording anywhere in the report.
-        expect(all, ots).not.toMatch(/NOT_CHECKED|PROOF_STRUCTURE|BITCOIN_VERIFIED|PROOF_HASH_MISMATCH|CHAIN_VERIFI|ATTESTATION_PRESENT|Attestation recorded|independently verified against|Anchored at|Bitcoin time|RPC/);
+        expect(all.split("The stored OpenTimestamps proof names a Bitcoin block for the recorded evidence digest.").length - 1, ots).toBe(ots === "anchored" ? 1 : 0);
+        // No internal state, raw code, verified claim or retired wording anywhere in the report.
+        expect(all, ots).not.toMatch(/NOT_CHECKED|PROOF_STRUCTURE|BITCOIN_VERIFIED|PROOF_HASH_MISMATCH|CHAIN_VERIFI|ATTESTATION_PRESENT|ATTESTATION_RECORDED|Independently verified|independently verified against|anchored in Bitcoin|Anchored at|Bitcoin time|RPC/);
         // The technical material lives in the appendix only.
         const appendix = pageText.findIndex((t) => t.includes("Technical Appendix — Timestamp & Anchoring"));
         expect(appendix, ots).toBeGreaterThan(0);
@@ -409,8 +413,12 @@ describe.skipIf(!BROWSER)("the restored evidence report, rendered", () => {
       const input = regressionRecordInput("absent");
       const html = await htmlOf(input);
       for (const [mutated, check] of [
-        [html.replace("OpenTimestamps proof anchored in Bitcoin.", "OpenTimestamps proof is awaiting Bitcoin anchoring."), "OTS_CONTRADICTION"],
-        [html.replace("Bitcoin anchored", "Attestation recorded"), "OTS_RETIRED_WORDING"],
+        // 2026-10-15 wording: the pending sentence beside an attested proof,
+        // the retired "anchored in Bitcoin" claim, and a verified label for a
+        // proof that was never checked against the chain are all refused.
+        [html.replace("The proof names Bitcoin block 860000; PROOVRA has not checked it against the Bitcoin main chain.", "Submitted to OpenTimestamps calendars; no Bitcoin attestation yet."), "OTS_CONTRADICTION"],
+        [html.replace("Bitcoin attestation recorded", "OpenTimestamps proof anchored in Bitcoin"), "OTS_RETIRED_WORDING"],
+        [html.replace("Bitcoin attestation recorded", "Independently verified against the Bitcoin main chain"), "OTS_OVERCLAIM"],
         [html.replace("Account authentication", "Pre-PROOVRA provenance"), "RETIRED_SIGNAL"],
       ] as const) {
         const pdf = await renderPdfFromHtml(mutated);

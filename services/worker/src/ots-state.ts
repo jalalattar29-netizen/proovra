@@ -1,10 +1,15 @@
 import type { Prisma } from "@prisma/client";
 import {
   OTS_PERMANENT_PROOF_FAILURES,
+  formatOtsChainVerifier,
   isPermanentOtsProofFailureReason,
   isValidOtsBitcoinTxid,
+  otsChainRecordOf,
+  reclassifyAfterPriorVerification,
   resolveOtsAnchoring,
   type OtsAnchoring,
+  type OtsChainDecision,
+  type OtsChainFailureCode,
   type OtsPermanentProofFailure,
 } from "@proovra/shared";
 
@@ -19,13 +24,28 @@ type OtsStatus = "DISABLED" | "PENDING" | "ANCHORED" | "FAILED";
  * queries and Operations can filter on it, and never writes ANCHORED for a
  * proof that does not resolve to ANCHORED.
  *
- * DEPRECATED COLUMNS (expand/contract). The chain-verifier columns
- * (ots_chain_*), ots_attestation_recorded_at_utc / _block_height and
- * ots_anchor_check are no longer written or read as authority. They stay in
- * the schema until the contraction migration, which is safe once every
- * deployed API and worker image is at or after this change (no reader left)
- * and the reconcile-ots-state script has run --apply in each environment.
+ * THE CHAIN COLUMNS (ots_chain_*, migration 20281012000000) hold the ONE
+ * independent Bitcoin-chain verification of the stored proof. They are about a
+ * specific proof: every write that stores a different proof (or no proof)
+ * clears them, and the resolver ignores a record whose verifier identity names
+ * another proof. Only `decideOtsChainTransition` writes them.
+ *
+ * ots_attestation_recorded_at_utc / _block_height and ots_anchor_check remain
+ * unused (expand/contract).
  */
+
+/** The chain columns cleared: no chain fact about a proof that is not stored. */
+export const OTS_CHAIN_CLEARED = {
+  otsChainVerificationStatus: null,
+  otsChainCheckedAtUtc: null,
+  otsChainVerifiedAtUtc: null,
+  otsChainBlockHeight: null,
+  otsChainBlockHash: null,
+  otsChainBlockTimeUtc: null,
+  otsChainConfirmations: null,
+  otsChainVerifier: null,
+  otsChainFailureCode: null,
+} as const satisfies Prisma.EvidenceUpdateInput;
 
 type OtsStateInput = {
   status: OtsStatus;
@@ -38,6 +58,11 @@ type OtsStateInput = {
   anchoredAtUtc?: Date | string | null;
   upgradedAtUtc?: Date | string | null;
   failureReason?: string | null;
+  /**
+   * Keep the stored chain fact: ONLY for a write that keeps the exact same
+   * proof bytes (status alignment). Every other write clears it.
+   */
+  keepChain?: boolean;
 };
 
 function clean(value: string | null | undefined): string | null {
@@ -61,6 +86,11 @@ function toDate(value: Date | string | null | undefined): Date | null {
 
 /** The column shape for one OTS status. Every writer builds its data here. */
 export function buildOtsEvidenceUpdateData(input: OtsStateInput): Prisma.EvidenceUpdateInput {
+  const data = buildOtsColumns(input);
+  return input.keepChain ? data : { ...data, ...OTS_CHAIN_CLEARED };
+}
+
+function buildOtsColumns(input: OtsStateInput): Prisma.EvidenceUpdateInput {
   const upgradedAtUtc = toDate(input.upgradedAtUtc);
   switch (input.status) {
     case "DISABLED":
@@ -144,6 +174,15 @@ export type OtsRowSnapshot = {
   otsUpgradedAtUtc: Date | null;
   otsFailureReason: string | null;
   fingerprintHash: string | null;
+  otsChainVerificationStatus: string | null;
+  otsChainCheckedAtUtc: Date | null;
+  otsChainVerifiedAtUtc: Date | null;
+  otsChainBlockHeight: number | null;
+  otsChainBlockHash: string | null;
+  otsChainBlockTimeUtc: Date | null;
+  otsChainConfirmations: number | null;
+  otsChainVerifier: string | null;
+  otsChainFailureCode: string | null;
 };
 
 export { OTS_PERMANENT_PROOF_FAILURES, type OtsPermanentProofFailure };
@@ -183,6 +222,7 @@ export function resolveRowOtsAnchoring(row: OtsRowSnapshot): OtsAnchoring {
     calendar: row.otsCalendar,
     anchoredAtUtc: row.otsAnchoredAtUtc,
     upgradedAtUtc: row.otsUpgradedAtUtc,
+    chain: otsChainRecordOf(row),
   });
 }
 
@@ -212,6 +252,8 @@ export function decideStoredStatusAlignment(row: OtsRowSnapshot, observedAt: Dat
         bitcoinTxid: current.bitcoinTxid,
         anchoredAtUtc: stored === "ANCHORED" ? (row.otsAnchoredAtUtc ?? observedAt) : observedAt,
         upgradedAtUtc: row.otsUpgradedAtUtc ?? observedAt,
+        // The same proof bytes stay stored: its chain fact stays with it.
+        keepChain: true,
       }),
       phase: stored === "ANCHORED" ? "anchored_facts_aligned_with_proof" : "anchored_by_stored_proof",
       material: true,
@@ -221,6 +263,7 @@ export function decideStoredStatusAlignment(row: OtsRowSnapshot, observedAt: Dat
         fingerprintHash: row.fingerprintHash,
         otsHash: row.otsHash,
         anchoredAtUtc: stored === "ANCHORED" ? (row.otsAnchoredAtUtc ?? observedAt) : observedAt,
+        chain: otsChainRecordOf(row),
       }),
     };
   }
@@ -368,6 +411,14 @@ export function otsSnapshotWhere(evidenceId: string, row: OtsRowSnapshot): Prism
     otsAnchoredAtUtc: row.otsAnchoredAtUtc,
     otsUpgradedAtUtc: row.otsUpgradedAtUtc,
     otsFailureReason: row.otsFailureReason,
+    // The chain outcome is part of the snapshot: a stale job can never
+    // overwrite a newer chain verification.
+    otsChainVerificationStatus: row.otsChainVerificationStatus,
+    otsChainCheckedAtUtc: row.otsChainCheckedAtUtc,
+    otsChainBlockHash: row.otsChainBlockHash,
+    otsChainConfirmations: row.otsChainConfirmations,
+    otsChainFailureCode: row.otsChainFailureCode,
+    otsChainVerifier: row.otsChainVerifier,
   };
 }
 
@@ -399,6 +450,15 @@ export const OTS_ROW_SNAPSHOT_SELECT = {
   otsUpgradedAtUtc: true,
   otsFailureReason: true,
   fingerprintHash: true,
+  otsChainVerificationStatus: true,
+  otsChainCheckedAtUtc: true,
+  otsChainVerifiedAtUtc: true,
+  otsChainBlockHeight: true,
+  otsChainBlockHash: true,
+  otsChainBlockTimeUtc: true,
+  otsChainConfirmations: true,
+  otsChainVerifier: true,
+  otsChainFailureCode: true,
 } as const;
 
 /** OpenTimestamps proof files begin with this magic header. */
@@ -410,4 +470,164 @@ const OTS_MAGIC = Buffer.from([
 /** Structural check: is this an OpenTimestamps proof at all? Offline and deterministic. */
 export function hasOtsProofMagic(proof: Buffer): boolean {
   return proof.length > OTS_MAGIC.length && proof.subarray(0, OTS_MAGIC.length).equals(OTS_MAGIC);
+}
+
+// ===========================================================================
+// THE CHAIN TRANSITION RULE — independent Bitcoin-chain verification
+// ===========================================================================
+//
+// A pure decision over (current row, the verifier's check). It writes ONLY the
+// chain columns of an ANCHORED row; the proof, its status and every other OTS
+// fact are untouched, so a verifier outcome can never rewrite proof truth.
+//
+//   UNAVAILABLE   the verifier could not check (node down, not ready, stale,
+//                 wrong network, unauthorized, misconfigured…). Recorded only
+//                 when nothing better is recorded: an earlier VERIFIED, FAILED
+//                 or INSUFFICIENT_CONFIRMATIONS outcome is NEVER overwritten by
+//                 an outage.
+//   DECIDED       the chain answered. VERIFIED / INSUFFICIENT_CONFIRMATIONS /
+//                 FAILED are written; a block an earlier check VERIFIED that is
+//                 no longer in the active chain is REORGED (FAILED).
+//
+// ROOT_MISMATCH, INVALID_HEADER and the attestation codes are TERMINAL for the
+// proof: the same bytes against the same header cannot change.
+
+export type OtsChainCheckInput =
+  | { kind: "DISABLED" }
+  | { kind: "UNAVAILABLE"; code: OtsChainFailureCode; detail: string; checkedAtUtc: Date }
+  | { kind: "DECIDED"; decision: OtsChainDecision; verifier: string; checkedAtUtc: Date };
+
+const TERMINAL_CHAIN_FAILURES: ReadonlySet<string> = new Set([
+  "ROOT_MISMATCH",
+  "INVALID_HEADER",
+  "INVALID_ATTESTATION",
+  "NO_BITCOIN_ATTESTATION",
+]);
+
+/** The stored chain outcome is final for this proof: no further check can change it. */
+export function isTerminalOtsChainOutcome(row: Pick<OtsRowSnapshot, "otsChainVerificationStatus" | "otsChainFailureCode">): boolean {
+  return String(row.otsChainVerificationStatus ?? "") === "FAILED" && TERMINAL_CHAIN_FAILURES.has(String(row.otsChainFailureCode ?? ""));
+}
+
+export function decideOtsChainTransition(
+  row: OtsRowSnapshot,
+  check: OtsChainCheckInput,
+  opts: { minConfirmations: number },
+): OtsTransition {
+  const current = resolveRowOtsAnchoring(row);
+  if (current.state !== "ANCHORED" || !current.proofSha256) {
+    return { kind: "NO_CHANGE", reason: `chain verification does not apply to ${current.state}` };
+  }
+  if (check.kind === "DISABLED") return { kind: "NO_CHANGE", reason: "Bitcoin verification is disabled" };
+  // The prior chain fact bound to THIS proof (a record about another proof counts as none).
+  const prior = current.chain;
+  if (prior && prior.status === "FAILED" && TERMINAL_CHAIN_FAILURES.has(String(prior.failureCode ?? ""))) {
+    return { kind: "NO_CHANGE", reason: `the chain contradicted this proof (${prior.failureCode}); terminal` };
+  }
+  const checkedAt = check.checkedAtUtc;
+
+  if (check.kind === "UNAVAILABLE") {
+    if (prior && (prior.status === "VERIFIED" || prior.status === "FAILED" || prior.status === "INSUFFICIENT_CONFIRMATIONS")) {
+      return { kind: "NO_CHANGE", reason: `verifier unavailable (${check.code}); the recorded ${prior.status} outcome is kept` };
+    }
+    const data: Prisma.EvidenceUpdateInput = {
+      ...OTS_CHAIN_CLEARED,
+      otsChainVerificationStatus: "UNAVAILABLE",
+      otsChainCheckedAtUtc: checkedAt,
+      otsChainFailureCode: check.code,
+      otsChainVerifier: formatOtsChainVerifier({ nodeVersion: null, minConfirmations: opts.minConfirmations, proofSha256: current.proofSha256 }),
+    };
+    const material = !(prior?.status === "UNAVAILABLE" && prior.failureCode === check.code);
+    return chainWrite(row, data, "chain_verification_unavailable", material);
+  }
+
+  // A block an earlier check VERIFIED that now answers only "pending
+  // confirmations" on a DIFFERENT block hash was reorganized away.
+  const raw: OtsChainDecision =
+    prior?.status === "VERIFIED" && check.decision.status === "INSUFFICIENT_CONFIRMATIONS" && check.decision.blockHash !== prior.blockHash
+      ? {
+          status: "FAILED",
+          failureCode: "NOT_IN_ACTIVE_CHAIN",
+          blockHeight: check.decision.blockHeight,
+          blockHash: null,
+          blockTimeUtc: null,
+          confirmations: null,
+          rejected: check.decision.rejected,
+        }
+      : check.decision;
+  const decision = reclassifyAfterPriorVerification(raw, { status: prior?.status ?? null, blockHash: prior?.blockHash ?? null, failureCode: prior?.failureCode ?? null });
+
+  if (decision.status === "VERIFIED") {
+    const sameBlock = prior?.status === "VERIFIED" && prior.blockHash === decision.blockHash;
+    const data: Prisma.EvidenceUpdateInput = {
+      otsChainVerificationStatus: "VERIFIED",
+      otsChainCheckedAtUtc: checkedAt,
+      otsChainVerifiedAtUtc: sameBlock && prior?.verifiedAtUtc ? new Date(prior.verifiedAtUtc) : checkedAt,
+      otsChainBlockHeight: decision.blockHeight,
+      otsChainBlockHash: decision.blockHash,
+      otsChainBlockTimeUtc: new Date(decision.blockTimeUtc),
+      otsChainConfirmations: decision.confirmations,
+      otsChainVerifier: check.verifier,
+      otsChainFailureCode: null,
+    };
+    return chainWrite(row, data, "chain_verified", !sameBlock);
+  }
+  if (decision.status === "INSUFFICIENT_CONFIRMATIONS") {
+    const data: Prisma.EvidenceUpdateInput = {
+      otsChainVerificationStatus: "INSUFFICIENT_CONFIRMATIONS",
+      otsChainCheckedAtUtc: checkedAt,
+      otsChainVerifiedAtUtc: null,
+      otsChainBlockHeight: decision.blockHeight,
+      otsChainBlockHash: decision.blockHash,
+      otsChainBlockTimeUtc: new Date(decision.blockTimeUtc),
+      otsChainConfirmations: decision.confirmations,
+      otsChainVerifier: check.verifier,
+      otsChainFailureCode: "INSUFFICIENT_CONFIRMATIONS",
+    };
+    const material = !(prior?.status === "INSUFFICIENT_CONFIRMATIONS" && prior.blockHash === decision.blockHash);
+    return chainWrite(row, data, "chain_confirmations_pending", material);
+  }
+  // FAILED: the chain contradicts the proof. A later outage never overwrites it.
+  const data: Prisma.EvidenceUpdateInput = {
+    ...OTS_CHAIN_CLEARED,
+    otsChainVerificationStatus: "FAILED",
+    otsChainCheckedAtUtc: checkedAt,
+    otsChainBlockHeight: decision.blockHeight,
+    otsChainVerifier: check.verifier,
+    otsChainFailureCode: decision.failureCode,
+  };
+  const material = !(prior?.status === "FAILED" && prior.failureCode === decision.failureCode);
+  return chainWrite(row, data, decision.failureCode === "REORGED" ? "chain_reorged" : "chain_verification_failed", material);
+}
+
+function chainWrite(row: OtsRowSnapshot, data: Prisma.EvidenceUpdateInput, phase: string, material: boolean): OtsTransition {
+  const next = { ...row, ...(data as Partial<OtsRowSnapshot>) } as OtsRowSnapshot;
+  return {
+    kind: "WRITE",
+    // The lifecycle status is unchanged: the chain fact qualifies ANCHORED.
+    status: "ANCHORED",
+    data,
+    phase,
+    material,
+    anchoring: resolveRowOtsAnchoring(next),
+  };
+}
+
+/**
+ * WHEN THE NEXT CHAIN CHECK RUNS (ms), or null when none is due. One
+ * schedule, carried by the existing `ots-upgrade` follow-up job:
+ *   VERIFIED, deep enough (≥ 144 confirmations)  → none (final)
+ *   VERIFIED, shallower                         → 24 h (one reorg recheck)
+ *   pending confirmations / unavailable /
+ *   not in the active chain / reorged           → 1 h
+ *   terminal contradiction                      → none
+ */
+export const OTS_CHAIN_FINAL_CONFIRMATIONS = 144;
+export function nextOtsChainCheckDelayMs(anchoring: Pick<OtsAnchoring, "state" | "chain">): number | null {
+  if (anchoring.state !== "ANCHORED") return null;
+  const c = anchoring.chain;
+  if (!c) return 60 * 60 * 1000;
+  if (c.status === "VERIFIED") return (c.confirmations ?? 0) >= OTS_CHAIN_FINAL_CONFIRMATIONS ? null : 24 * 60 * 60 * 1000;
+  if (c.status === "FAILED" && TERMINAL_CHAIN_FAILURES.has(String(c.failureCode ?? ""))) return null;
+  return 60 * 60 * 1000;
 }

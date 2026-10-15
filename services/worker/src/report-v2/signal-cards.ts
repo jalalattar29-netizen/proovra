@@ -224,7 +224,9 @@ function card(signal: TrustSignal, vm: ReportViewModel): SignalCard {
         : notPassed(signal, word);
     case "bitcoin_anchoring": {
       // "Bitcoin anchoring": the canonical state word and its one sentence.
-      const p = presentOtsAnchoring({ state: vm.canonicalMaterials.otsState.state });
+      // The canonical verification: ✓ only when independently verified
+      // against the Bitcoin main chain. Concise: no hash on the card.
+      const p = presentOtsAnchoring(vm.canonicalMaterials.otsState);
       return {
         key: signal.key,
         label: LABELS[signal.key],

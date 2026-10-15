@@ -4,6 +4,7 @@ import { getSecretsHealth } from "@proovra/shared-runtime";
 import { env } from "./config.js";
 import { logger } from "./logger.js";
 import { redisConnection, reportDlqQueue, reportQueue } from "./queue.js";
+import { getOtsBitcoinVerifierReadiness } from "./ots-bitcoin-verifier.js";
 
 export type HealthServer = {
   close: () => Promise<void>;
@@ -34,6 +35,14 @@ export async function startHealthServer(): Promise<HealthServer> {
       },
       redis: redisStatus === "PONG" ? "ok" : "degraded",
       redisLatencyMs,
+      // NON-FATAL: an optional, deferred trust signal. A Bitcoin verifier that
+      // is off, down or not ready never fails this endpoint (capture, upload,
+      // TSA, reports and packages keep running); it only means no proof is
+      // stated as independently verified. Credential- and address-free.
+      bitcoinVerifier: (() => {
+        const r = getOtsBitcoinVerifierReadiness();
+        return { enabled: r.enabled, ready: r.ready, code: r.code, chain: r.chain, tipHeight: r.tipHeight, nodeVersion: r.nodeVersion, observedAtUtc: r.observedAtUtc };
+      })(),
     };
   });
 

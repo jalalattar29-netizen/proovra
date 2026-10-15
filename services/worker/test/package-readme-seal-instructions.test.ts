@@ -43,7 +43,18 @@ describe("verification package README (ET-PKG-02/03)", () => {
     expect(SRC).toContain("ots info opentimestamps-proof.ots");
     expect(SRC).toContain("sha256sum opentimestamps-proof.ots");
     expect(SRC).toContain("ots --bitcoin-node <your node> verify -d");
-    expect(SRC).toContain("PROOVRA does not operate a Bitcoin node");
+    // 2026-10-15: PROOVRA now runs its own independent chain check, so the old
+    // "PROOVRA does not operate a Bitcoin node" line is gone. The README states
+    // the canonical label + sentence, says plainly when PROOVRA has NOT checked
+    // the attestation, and asks the reviewer to use a node they operate.
+    expect(SRC).not.toContain("PROOVRA does not operate a Bitcoin node");
+    expect(SRC).toContain("Status: ${ots.label}. ${ots.sentence}");
+    expect(SRC).toContain("against a Bitcoin node YOU operate or trust");
+    expect(SRC).toContain("PROOVRA has not independently verified this attestation against the Bitcoin main chain.");
+    expect(SRC).toContain("Not independently checked against Bitcoin: PROOVRA has not compared the proof with the Bitcoin main chain.");
+    // The verified wording appears only on the CHAIN_VERIFIED branch.
+    expect(SRC).toMatch(/ots\.verification === "CHAIN_VERIFIED" && chain\s*\?\s*`\s*PROOVRA's own check matched block/);
+    expect(SRC).toMatch(/if \(ots\.verification === "CHAIN_VERIFIED" && chain\) \{\s*established\.push\(\s*`Independently verified against the Bitcoin main chain/);
     expect(SRC).not.toContain("without reliance on the PROOVRA platform");
     expect(SRC).not.toContain("Verify with: ots verify opentimestamps-proof.ots\"");
   });

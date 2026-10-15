@@ -65,9 +65,12 @@ function isOtsPendingRow(row: TimelineRow): boolean {
 function hasAnchoringCompletion(rows: TimelineRow[]): boolean {
   return rows.some((row) => {
     const text = `${row.eventLabel} ${row.summary}`.toLowerCase();
+    // A later OTS custody event that recorded a Bitcoin attestation (or the
+    // independent chain verification of one) — the wording comes from the
+    // shared otsCustodyEventLines authority.
     return (
-      (text.includes("opentimestamp") || text.includes("ots")) &&
-      (text.includes("anchored") || text.includes("completed"))
+      text.includes("bitcoin attestation recorded") ||
+      text.includes("independently verified against the bitcoin main chain")
     );
   });
 }
@@ -109,7 +112,7 @@ function renderForensicTimeline(
                   shouldShowPendingNote
                     ? `
                       <div class="custody-inline-note">
-                        Later OpenTimestamps events show anchoring completion.
+                        A later OpenTimestamps event records a Bitcoin attestation.
                       </div>
                     `
                     : ""

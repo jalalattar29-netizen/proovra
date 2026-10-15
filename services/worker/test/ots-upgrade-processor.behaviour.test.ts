@@ -164,6 +164,9 @@ const networkFailure = async () => {
 };
 
 beforeEach(() => {
+  // Live Bitcoin verification is OFF here (its default); the chain path is
+  // exercised in test/ots-chain-processor.behaviour.test.ts.
+  vi.stubEnv("OTS_BITCOIN_VERIFY_ENABLED", "false");
   h.row = null;
   h.custody.length = 0;
   h.custodyHistory.length = 0;
@@ -174,7 +177,7 @@ beforeEach(() => {
 });
 
 describe("a proof that executes to a Bitcoin block attestation", () => {
-  it("is recorded ANCHORED with the txid the executed path derives — and the version decision runs once", async () => {
+  it("is recorded ANCHORED with the txid the executed path derives — an unchecked attestation, so NO version decision", async () => {
     h.row = baseRow();
     h.upgrades.push(upgradedTo(PROOF_V2));
     await processOtsUpgrade(job() as never);
@@ -193,11 +196,16 @@ describe("a proof that executes to a Bitcoin block attestation", () => {
       bitcoinBlockHeight: 860000,
       bitcoinTxid: UPGRADED.txid,
       proofSha256: UPGRADED.proofSha256,
+      // 2026-10-15: ANCHORED only NAMES a block; the event records it as such.
+      otsVerification: "ATTESTATION_RECORDED",
     });
-    // No chain-verifier vocabulary anywhere in what is recorded.
-    expect(JSON.stringify(h.custody)).not.toMatch(/chain|anchorCheck|verif(y|ied)/i);
-    expect(h.enqueued).toEqual([]); // ANCHORED is terminal: no follow-up
-    expect(h.versionDecisions).toEqual([{ evidenceId: "ev-1", state: "ANCHORED", proofSha256: UPGRADED.proofSha256 }]);
+    // No chain fact and no verified claim anywhere in what is recorded.
+    expect(JSON.stringify(h.custody)).not.toMatch(/CHAIN_VERIFIED|"chain"|anchorCheck|verif(y|ied)/i);
+    // The verifier is disabled here: no chain-check follow-up is scheduled.
+    expect(h.enqueued).toEqual([]);
+    // 2026-10-15: a plain ANCHORED (unchecked attestation) requests NO derivative
+    // version — only CHAIN_VERIFIED does (test/ots-chain-processor.behaviour.test.ts).
+    expect(h.versionDecisions).toEqual([]);
   });
 
   it("a stored PENDING label over an already-anchored proof is aligned without calling the binary (restart recovery)", async () => {
@@ -205,18 +213,22 @@ describe("a proof that executes to a Bitcoin block attestation", () => {
     await processOtsUpgrade(job() as never);
     expect(h.row).toMatchObject({ otsStatus: "ANCHORED", otsBitcoinTxid: UPGRADED.txid });
     expect(h.custody.map((c) => c.payload.otsPhase)).toEqual(["anchored_by_stored_proof"]);
+    expect(h.custody[0]!.payload.otsVerification).toBe("ATTESTATION_RECORDED");
     expect(h.upgrades.length).toBe(0);
-    expect(h.versionDecisions).toHaveLength(1);
+    // 2026-10-15: no version for an unchecked attestation.
+    expect(h.versionDecisions).toEqual([]);
   });
 
-  it("duplicate delivery after the anchor is recorded changes nothing; the idempotent version decision is re-asked", async () => {
+  it("duplicate delivery after the anchor is recorded changes nothing; with the verifier disabled no chain check and no version decision", async () => {
     h.row = baseRow({ otsStatus: "ANCHORED", otsProofBase64: PROOF_V2, otsBitcoinTxid: UPGRADED.txid, otsAnchoredAtUtc: new Date("2026-10-01T00:00:00Z") });
     const before = { ...h.row };
     await processOtsUpgrade(job() as never);
     expect(h.row).toEqual(before);
     expect(h.custody).toEqual([]);
     expect(h.upgrades.length).toBe(0);
-    expect(h.versionDecisions).toHaveLength(1);
+    expect(h.enqueued).toEqual([]);
+    // 2026-10-15: the old re-asked version decision for plain ANCHORED is gone.
+    expect(h.versionDecisions).toEqual([]);
   });
 });
 
@@ -312,7 +324,8 @@ describe("stale and concurrent completions (compare-and-set)", () => {
     await Promise.all([processOtsUpgrade(job() as never), processOtsUpgrade(job() as never)]);
     expect(h.row).toMatchObject({ otsStatus: "ANCHORED", otsProofBase64: PROOF_V2 });
     expect(h.custody.filter((c) => c.payload.otsState === "ANCHORED")).toHaveLength(1);
-    expect(h.versionDecisions).toHaveLength(1);
+    // 2026-10-15: no derivative version for an unchecked attestation.
+    expect(h.versionDecisions).toEqual([]);
   });
 });
 

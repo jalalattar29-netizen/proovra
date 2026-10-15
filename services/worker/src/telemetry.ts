@@ -25,6 +25,7 @@ import {
 } from "./worker-lease.js";
 import { sweepHeartbeatHistory } from "./heartbeat-retention.js";
 import { logger } from "./logger.js";
+import { publishBitcoinVerifierReadiness } from "./ots-bitcoin-telemetry.js";
 import {
   derivedAssetsQueue,
   evidencePurgeQueue,
@@ -225,6 +226,9 @@ export function startTelemetrySampler(opts?: {
       } catch (err) {
         logger.warn({ err }, "worker.lease.touch_failed");
       }
+
+      // The Bitcoin verifier's readiness, when enabled (rate-limited inside).
+      await publishBitcoinVerifierReadiness(workerId);
     }
   }
 

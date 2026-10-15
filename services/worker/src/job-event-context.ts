@@ -13,14 +13,13 @@ function errorMessage(err: unknown): string {
 /**
  * The OTS processor throws OTS_UPGRADE_ATTEMPT_FAILED for a transient calendar
  * failure (the attempt is recorded and BullMQ retries). The classifier keyed on
- * "NOT_ANCHORED_YET", which nothing throws any more, so every transient attempt
+ * a code nothing throws any more, so every transient attempt
  * raised Sentry and an ots-upgrade_job_failed operational alert — up to 20 per
  * job. A pending retry is a pending retry until the LAST attempt, which is a
  * real failure.
  */
 export const OTS_PENDING_RETRY_CODES: ReadonlySet<string> = new Set([
   "OTS_UPGRADE_ATTEMPT_FAILED",
-  "NOT_ANCHORED_YET",
 ]);
 
 export function isExpectedOtsPendingError(
@@ -29,7 +28,11 @@ export function isExpectedOtsPendingError(
   job?: { attemptsMade: number; opts?: { attempts?: number } },
 ): boolean {
   if (jobKind !== "ots-upgrade") return false;
-  if (!OTS_PENDING_RETRY_CODES.has(errorMessage(err).trim())) return false;
+  const message = errorMessage(err).trim();
+  // An initialization attempt that could not reach a calendar wrote nothing and
+  // is retried by BullMQ: as expected as a pending upgrade attempt, until the last.
+  const transientInit = message.startsWith("OTS_INITIALIZATION_TRANSIENT:");
+  if (!OTS_PENDING_RETRY_CODES.has(message) && !transientInit) return false;
   const attempts = job?.opts?.attempts ?? 1;
   return job ? job.attemptsMade < attempts : true;
 }

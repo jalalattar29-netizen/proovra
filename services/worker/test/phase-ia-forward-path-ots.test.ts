@@ -135,11 +135,22 @@ describe("upgrade processor — the state comes from the executed proof", () => 
     expect(UP).not.toMatch(/getOtsProofInfo|verifyOtsProof|classifyOtsResult|parseOtsUpgradeOutput|ots-chain-verifier|chainRecheckDue|OTS_BITCOIN_NODE_URL|OTS_CHAIN_VERIFIER/);
   });
 
-  it("ANCHORED requests the downstream version decision; nothing else does", () => {
-    const calls = UP.match(/requestAnchoredReportVersion\(/g) ?? [];
-    // the definition, the terminal re-ask, and the transition
-    expect(calls.length).toBe(3);
-    expect(UP).toMatch(/if \(transition\.status === "ANCHORED"\) \{\s*await requestAnchoredReportVersion\(/);
+  // 2026-10-15: ANCHORED only NAMES a block. The downstream version decision
+  // follows an independent CHAIN_VERIFIED outcome only; a plain ANCHORED
+  // transition schedules the first chain check instead.
+  it("only CHAIN_VERIFIED requests the downstream version decision; a plain ANCHORED transition does not", () => {
+    expect(UP).not.toMatch(/requestAnchoredReportVersion\(/);
+    const calls = UP.match(/requestChainVerifiedReportVersion\(/g) ?? [];
+    // the definition, the chain-write branch, the final-VERIFIED re-ask and the no-change re-ask
+    expect(calls.length).toBe(4);
+    expect(UP).toMatch(/if \(transition\.anchoring\.verification === "CHAIN_VERIFIED"\) \{\s*await requestChainVerifiedReportVersion\(/);
+    expect(UP).toMatch(/if \(current\.verification === "CHAIN_VERIFIED" && nextOtsChainCheckDelayMs\(current\) === null\) \{\s*await requestChainVerifiedReportVersion\(/);
+    expect(UP).toMatch(/if \(current\.verification === "CHAIN_VERIFIED"\) await requestChainVerifiedReportVersion\(/);
+    // The plain ANCHORED transition: a chain check is scheduled, no version requested.
+    const anchoredBlock = UP.slice(UP.indexOf('if (transition.status === "ANCHORED") {\n    // The proof now NAMES a block.'));
+    const body = anchoredBlock.slice(0, anchoredBlock.indexOf("\n  }\n") + 4);
+    expect(body).toMatch(/scheduleNextChainCheck\(evidenceId, transition\.anchoring, job\.id \?\? null, OTS_CHAIN_FIRST_CHECK_DELAY_MS\)/);
+    expect(body).not.toMatch(/ReportVersion/);
     expect(UP).not.toMatch(/enqueueReportGenerationRequest|enqueueReportJob/);
   });
 

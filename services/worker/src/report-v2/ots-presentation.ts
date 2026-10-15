@@ -5,24 +5,31 @@
  * ots-anchoring.ts). Nothing in report-v2 maps an OTS status string to words
  * on its own.
  *
- *   card      "Bitcoin anchoring" — Pending / Anchored ✓ / Failed /
- *             Unavailable / Not requested, with the state's one sentence
- *   appendix  the facts the stored proof yields, and — once, for ANCHORED —
- *             the boundary of what PROOVRA establishes
+ *   card      "Bitcoin anchoring" — the canonical verification's word and
+ *             one sentence. ✓ ONLY for "Independently verified against the
+ *             Bitcoin main chain"; an attestation the proof merely names is
+ *             "Attestation recorded — Not independently checked against Bitcoin"
+ *   appendix  the facts the stored proof yields, the chain-check facts when a
+ *             check is recorded, and — once — the boundary of what PROOVRA
+ *             establishes
  *
  * A txid appears only when the executed proof path derived it. The anchored
  * time is when PROOVRA recorded the anchor, never a Bitcoin block time.
  */
 import {
-  OTS_ANCHORED_BOUNDARY,
   OTS_ANCHORING_COPY,
   OTS_FAILURE_LABELS,
   OTS_STATE_LABELS,
   OTS_STATE_WORDS,
+  OTS_VERIFICATION_LABELS,
+  OTS_VERIFICATION_WORDS,
   formatTimestampForReportUtc,
+  otsBoundaryFor,
+  otsChainRecordOf,
   resolveOtsAnchoring,
   type OtsAnchoring,
   type OtsState,
+  type OtsVerificationKey,
 } from "@proovra/shared";
 
 import type { KeyValueRow, ReportEvidence } from "./types.js";
@@ -39,6 +46,15 @@ type OtsEvidenceFields = Pick<
   | "otsFailureReason"
   | "fingerprintHash"
   | "otsSubmittedAtUtc"
+  | "otsChainVerificationStatus"
+  | "otsChainCheckedAtUtc"
+  | "otsChainVerifiedAtUtc"
+  | "otsChainBlockHeight"
+  | "otsChainBlockHash"
+  | "otsChainBlockTimeUtc"
+  | "otsChainConfirmations"
+  | "otsChainVerifier"
+  | "otsChainFailureCode"
 >;
 
 /** The canonical anchoring state for one report payload. */
@@ -53,7 +69,18 @@ export function reportOtsAnchoring(ev: Partial<OtsEvidenceFields>): OtsAnchoring
     anchoredAtUtc: ev.otsAnchoredAtUtc ?? null,
     upgradedAtUtc: ev.otsUpgradedAtUtc ?? null,
     submittedAtUtc: ev.otsSubmittedAtUtc ?? null,
+    chain: otsChainRecordOf(ev),
   });
+}
+
+/** The verification word beside "Bitcoin anchoring" (cover, index, cards). */
+export function otsVerificationWordFor(key: OtsVerificationKey): string {
+  return OTS_VERIFICATION_WORDS[key];
+}
+
+/** The standalone verification label ("Bitcoin attestation recorded", "Independently verified against the Bitcoin main chain", …). */
+export function otsVerificationLabelFor(key: OtsVerificationKey): string {
+  return OTS_VERIFICATION_LABELS[key];
 }
 
 /** The status word beside "Bitcoin anchoring" (cover, index, cards). */
@@ -66,8 +93,10 @@ export function otsStatusLineFor(state: OtsState): string {
   return OTS_STATE_LABELS[state];
 }
 
-/** The boundary sentence, stated once in the technical appendix for ANCHORED. */
-export const OTS_REPORT_BOUNDARY = OTS_ANCHORED_BOUNDARY;
+/** The boundary sentence, stated once in the technical appendix for an anchored proof. */
+export function otsReportBoundary(a: Pick<OtsAnchoring, "verification">): string | null {
+  return otsBoundaryFor(a);
+}
 
 /**
  * The technical OTS rows: state, the digest the proof commits to, the proof's
@@ -79,7 +108,7 @@ export function buildOtsAnchoringRows(
   a: OtsAnchoring = reportOtsAnchoring(ev),
 ): KeyValueRow[] {
   const facts = OTS_ANCHORING_COPY.en.facts;
-  const rows: KeyValueRow[] = [{ label: "Bitcoin Anchoring", value: OTS_STATE_WORDS[a.state] }];
+  const rows: KeyValueRow[] = [{ label: "Bitcoin Anchoring", value: OTS_VERIFICATION_WORDS[a.verification] }];
   if (a.state === "NOT_REQUESTED") return rows;
   if (a.committedDigestHex) rows.push({ label: facts.digest, value: a.committedDigestHex });
   if (a.proofSha256) {
@@ -99,6 +128,21 @@ export function buildOtsAnchoringRows(
   if (a.submittedAtUtc) rows.push({ label: facts.submittedAt, value: formatTimestampForReportUtc(a.submittedAtUtc) });
   if (a.state === "ANCHORED" && a.anchoredAtUtc) {
     rows.push({ label: facts.anchoredAt, value: formatTimestampForReportUtc(a.anchoredAtUtc) });
+  }
+  if (a.state === "ANCHORED") {
+    // The independent Bitcoin-chain check: its outcome, and its facts when it named a block.
+    rows.push({ label: facts.chainStatus, value: OTS_VERIFICATION_LABELS[a.verification] });
+    const c = a.chain;
+    if (c && (c.status === "VERIFIED" || c.status === "INSUFFICIENT_CONFIRMATIONS")) {
+      if (c.blockHash) rows.push({ label: facts.blockHash, value: c.blockHash });
+      if (c.blockTimeUtc) rows.push({ label: facts.blockTime, value: formatTimestampForReportUtc(c.blockTimeUtc) });
+      if (c.confirmations != null) {
+        rows.push({ label: facts.confirmations, value: c.minConfirmations != null ? `${c.confirmations} (policy: ${c.minConfirmations})` : String(c.confirmations) });
+      }
+    }
+    if (c?.checkedAtUtc) rows.push({ label: facts.checkedAt, value: formatTimestampForReportUtc(c.checkedAtUtc) });
+    if (c?.verifiedAtUtc) rows.push({ label: facts.verifiedAt, value: formatTimestampForReportUtc(c.verifiedAtUtc) });
+    if (c?.verifier) rows.push({ label: facts.verifier, value: c.verifier });
   }
   if ((a.state === "FAILED" || a.state === "UNAVAILABLE") && a.failureCode) {
     rows.push({ label: "Reason", value: OTS_FAILURE_LABELS[a.failureCode] ?? OTS_FAILURE_LABELS.OTS_PROCESSING_FAILED! });

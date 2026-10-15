@@ -3,7 +3,7 @@ import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import type { ReportTrustDecision } from "./report-v2/types.js";
-import type { OtsState } from "@proovra/shared";
+import type { OtsState, OtsVerificationKey } from "@proovra/shared";
 import { reconcileOtsAnchoredReportVersion } from "./ots-anchored-version.js";
 import { otsClientIdentity } from "./ots.service.js";
 import {
@@ -86,14 +86,15 @@ import {
   reportFreshnessChangeCopy,
   resolveRecordOtsAnchoring,
   parseOtsState,
+  parseOtsVerificationKey,
+  otsChainRecordOf,
+  otsCustodyEventLines,
   REPORTABLE_CUSTODY_EVENT_TYPES,
   parseTsaValidationEvidence,
   acquisitionIdentitySummary,
   acquisitionActorLabel,
   resolveAcquisitionIdentitySnapshot,
-  OTS_STATE_SENTENCES,
   resolveTsaTrustState,
-  OTS_STATE_LABELS,
   type AcquisitionIdentitySnapshot,
   custodyLabelHints,
   readStoredTrustDecision,
@@ -377,6 +378,14 @@ type ReportAnchorSummary = {
    */
   otsState?: OtsState | null;
   otsProofSha256?: string | null;
+  /**
+   * The canonical verification the report states (CHAIN_VERIFIED only from an
+   * independent Bitcoin-chain check) and, when verified, the block it was
+   * verified against. The one automatic version after a chain verification is
+   * decided from these.
+   */
+  otsVerification?: OtsVerificationKey | null;
+  otsChainBlockHash?: string | null;
 };
 
 type PreparedAnchorPayload = {
@@ -593,6 +602,15 @@ async function buildReportSupersession(input: {
     otsHash: string | null;
     otsFailureReason: string | null;
     fingerprintHash: string | null;
+    otsChainVerificationStatus?: string | null;
+    otsChainCheckedAtUtc?: Date | null;
+    otsChainVerifiedAtUtc?: Date | null;
+    otsChainBlockHeight?: number | null;
+    otsChainBlockHash?: string | null;
+    otsChainBlockTimeUtc?: Date | null;
+    otsChainConfirmations?: number | null;
+    otsChainVerifier?: string | null;
+    otsChainFailureCode?: string | null;
     lastVerifiedAtUtc?: Date | null;
   };
   reason: string | null;
@@ -617,7 +635,8 @@ async function buildReportSupersession(input: {
       : null,
   ]);
   const ots = resolveRecordOtsAnchoring(input.evidence);
-  const statedOts = (previous?.anchorSnapshot as { otsState?: unknown } | null | undefined)?.otsState;
+  const stated = (previous?.anchorSnapshot as { otsState?: unknown; otsVerification?: unknown } | null | undefined) ?? null;
+  const statedOts = stated?.otsState;
   const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
   const freshness = deriveReportFreshness({
     reportVersion: input.previousVersion,
@@ -627,6 +646,9 @@ async function buildReportSupersession(input: {
       state: ots.state,
       anchoredAtUtc: ots.anchoredAtUtc,
       reportState: statedOts == null ? null : parseOtsState(statedOts),
+      verification: ots.verification,
+      reportVerification: parseOtsVerificationKey(stated?.otsVerification),
+      verifiedAtUtc: ots.chain?.verifiedAtUtc ?? null,
     },
     custodyAfterReport: { count: afterReport?._count._all ?? 0, latestAtUtc: iso(afterReport?._max.atUtc ?? null) },
     integrity: {
@@ -838,26 +860,9 @@ case "TIMESTAMP_FAILED": {
 }
 
     case "OTS_APPLIED": {
-      const otsStatus = normalizePayloadPrimitive(obj.otsStatus);
-      const bitcoinTxid = normalizePayloadPrimitive(obj.bitcoinTxid);
-      const calendar = normalizePayloadPrimitive(obj.calendar);
-      // THE canonical OTS reading of this event (2026-10-13): the state the
-      // worker resolved from the executed proof when it wrote the event. A
-      // legacy event (no otsState) names only that the proof was updated.
-      const eventOtsState = obj.otsState == null ? null : parseOtsState(obj.otsState);
-      return [
-        eventOtsState === "ANCHORED"
-          ? OTS_STATE_SENTENCES.ANCHORED.replace(/\.$/, "")
-          : eventOtsState === "PENDING" || (eventOtsState === null && otsStatus !== "ANCHORED")
-            ? "OpenTimestamps proof submitted; Bitcoin anchoring pending"
-            : eventOtsState === null
-              ? "OpenTimestamps proof updated"
-              : OTS_STATE_LABELS[eventOtsState],
-        eventOtsState === "ANCHORED" && bitcoinTxid ? `Bitcoin Tx: ${bitcoinTxid}` : null,
-        calendar ? `Calendar: ${calendar}` : null,
-      ]
-        .filter(Boolean)
-        .join(" • ");
+      // ONE wording authority for OTS custody events (shared otsCustodyEventLines):
+      // never stronger than the state and verification recorded in the event.
+      return otsCustodyEventLines(obj).join(" • ");
     }
 
     case "REPORT_PDF_SIGNED": {
@@ -2218,6 +2223,15 @@ async function prepareReportArtifacts(
       otsAnchoredAtUtc: true,
       otsUpgradedAtUtc: true,
       otsFailureReason: true,
+      otsChainVerificationStatus: true,
+      otsChainCheckedAtUtc: true,
+      otsChainVerifiedAtUtc: true,
+      otsChainBlockHeight: true,
+      otsChainBlockHash: true,
+      otsChainBlockTimeUtc: true,
+      otsChainConfirmations: true,
+      otsChainVerifier: true,
+      otsChainFailureCode: true,
     },
   });
 
@@ -4231,6 +4245,9 @@ async function runReportGeneration(
           }),
           otsState: renderSnapshot.facts.otsState,
           otsProofSha256: renderSnapshot.facts.otsProofSha256,
+          otsVerification: renderSnapshot.facts.otsVerification,
+          otsChainBlockHash:
+            renderSnapshot.facts.otsVerification === "CHAIN_VERIFIED" ? (renderSnapshot.lifecycle.otsChainBlockHash ?? null) : null,
         };
         const custodyAtIssue = renderSnapshot.custody;
         const custodyThroughSequence = custodyAtIssue.at(-1)?.sequence ?? null;
@@ -5117,6 +5134,7 @@ signingKeyVersion: evidence.signingKeyVersion ?? undefined,
             submittedAtUtc: finalized.finalizedReportEvidencePayload.otsSubmittedAtUtc ?? null,
             fingerprintHash: finalized.finalizedReportEvidencePayload.fingerprintHash ?? null,
             otsClient,
+            chain: otsChainRecordOf(finalized.finalizedReportEvidencePayload),
           },
           metadata: {
             title: prepared.display.displayTitle,

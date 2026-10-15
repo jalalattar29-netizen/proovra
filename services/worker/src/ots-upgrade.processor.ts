@@ -17,16 +17,22 @@ import { resolveOtsBin, resolveOtsTimeoutMs } from "./ots.service.js";
 import { ensureOtsAnchoredReportVersion } from "./ots-anchored-version.js";
 import { ensureEvidenceOtsInitialized } from "./ots-lifecycle.js";
 import {
+  OTS_ROW_SNAPSHOT_SELECT,
   applyOtsTransition,
+  decideOtsChainTransition,
   decideOtsTransition,
   decideStoredStatusAlignment,
   hasOtsProofMagic,
   isPermanentOtsProofFailure,
+  isTerminalOtsChainOutcome,
+  nextOtsChainCheckDelayMs,
   resolveRowOtsAnchoring,
   type OtsObservation,
   type OtsRowSnapshot,
   type OtsTransition,
 } from "./ots-state.js";
+import { resolveOtsBitcoinVerifierConfig } from "./ots-bitcoin-config.js";
+import { checkOtsProofAgainstBitcoin } from "./ots-bitcoin-verifier.js";
 import { logger, withJobContext } from "./logger.js";
 import { bump } from "@proovra/shared-runtime/ops";
 
@@ -233,18 +239,21 @@ export async function processOtsUpgrade(job: Job<unknown>) {
       // Phase IA-reliability — required so the incident bridge can
       // scope the OperationalIncident row to the right workspace.
       teamId: true,
-      otsProofBase64: true,
-      otsStatus: true,
-      otsHash: true,
-      otsCalendar: true,
-      otsBitcoinTxid: true,
-      otsAnchoredAtUtc: true,
-      otsUpgradedAtUtc: true,
-      otsFailureReason: true,
-      // Every proof must commit to the fingerprint digest.
-      fingerprintHash: true,
+      // A deleted record's lifecycle has ended: no OTS work runs for it.
+      deletedAt: true,
+      // Every OTS column the transition decides from, the chain fact
+      // included; every proof must commit to the fingerprint digest.
+      ...OTS_ROW_SNAPSHOT_SELECT,
     },
   });
+
+  if (evidence?.deletedAt) {
+    logger.info(
+      withJobContext({ jobId: job.id, evidenceId, durationMs: Date.now() - startedAt, status: "skipped_deleted_evidence" }),
+      "ots.upgrade.skipped",
+    );
+    return;
+  }
 
   if (!evidence) {
     logger.warn(
@@ -343,6 +352,15 @@ export async function processOtsUpgrade(job: Job<unknown>) {
     otsUpgradedAtUtc: evidence.otsUpgradedAtUtc,
     otsFailureReason: evidence.otsFailureReason,
     fingerprintHash: evidence.fingerprintHash,
+    otsChainVerificationStatus: evidence.otsChainVerificationStatus,
+    otsChainCheckedAtUtc: evidence.otsChainCheckedAtUtc,
+    otsChainVerifiedAtUtc: evidence.otsChainVerifiedAtUtc,
+    otsChainBlockHeight: evidence.otsChainBlockHeight,
+    otsChainBlockHash: evidence.otsChainBlockHash,
+    otsChainBlockTimeUtc: evidence.otsChainBlockTimeUtc,
+    otsChainConfirmations: evidence.otsChainConfirmations,
+    otsChainVerifier: evidence.otsChainVerifier,
+    otsChainFailureCode: evidence.otsChainFailureCode,
   };
   const current = resolveRowOtsAnchoring(snapshot);
 
@@ -355,19 +373,18 @@ export async function processOtsUpgrade(job: Job<unknown>) {
     return;
   }
 
-  // ANCHORED is terminal for this proof; an established proof defect is too.
-  // Delayed and duplicate deliveries end here. The downstream version decision
-  // is idempotent, so a restart that lost it after the anchor committed
-  // recovers it on the next delivery.
-  if (current.state === "ANCHORED" || (current.state === "FAILED" && isPermanentOtsProofFailure(current.failureCode))) {
-    if (current.state === "ANCHORED") await requestAnchoredReportVersion(evidenceId, current, job.id ?? null);
+  // ANCHORED is terminal for this PROOF (its bytes are never rewritten). What
+  // remains for an ANCHORED proof is the independent Bitcoin-chain check of
+  // the block it names — carried by this same job, queue and CAS authority.
+  if (current.state === "ANCHORED") {
+    await verifyAnchoredProofAgainstChain({ job, evidenceId, evidence, snapshot, current, startedAt });
+    return;
+  }
+  // An established proof defect is terminal too. Delayed and duplicate
+  // deliveries end here.
+  if (current.state === "FAILED" && isPermanentOtsProofFailure(current.failureCode)) {
     logger.info(
-      withJobContext({
-        jobId: job.id,
-        evidenceId,
-        durationMs: Date.now() - startedAt,
-        status: current.state === "ANCHORED" ? "already_anchored" : "proof_invalid_terminal",
-      }),
+      withJobContext({ jobId: job.id, evidenceId, durationMs: Date.now() - startedAt, status: "proof_invalid_terminal" }),
       "ots.upgrade.skipped",
     );
     return;
@@ -532,6 +549,9 @@ async function commitOtsTransition(input: {
       payload: {
         otsStatus: transition.status,
         otsState: transition.anchoring.state,
+        // The canonical verification the record states after this write:
+        // CHAIN_VERIFIED only from an independent Bitcoin-chain check.
+        otsVerification: transition.anchoring.verification,
         otsPhase: transition.phase,
         previousOtsStatus: evidence.otsStatus,
         proofSha256: transition.anchoring.proofSha256,
@@ -540,6 +560,7 @@ async function commitOtsTransition(input: {
         validator: transition.anchoring.validator,
         observedAtUtc: observedAt.toISOString(),
         failureReason: (transition.data.otsFailureReason as string | null | undefined) ?? null,
+        ...(transition.phase.startsWith("chain_") ? { chain: chainCustodyFacts(transition.anchoring) } : {}),
         ...(transition.phase === "global_budget_exhausted" ? { budgetDays: readOtsGlobalBudgetDays() } : {}),
         ...forensic,
       } as Prisma.InputJsonValue,
@@ -557,6 +578,35 @@ async function commitOtsTransition(input: {
     return;
   }
 
+  if (transition.phase.startsWith("chain_")) {
+    if (transition.material) {
+      const counter = (
+        {
+          chain_verified: "ots_chain_verified_total",
+          chain_confirmations_pending: "ots_chain_confirmations_pending_total",
+          chain_verification_unavailable: "ots_chain_verification_unavailable_total",
+          chain_verification_failed: "ots_chain_verification_failed_total",
+          chain_reorged: "ots_chain_reorged_total",
+        } as const
+      )[transition.phase as "chain_verified"];
+      if (counter) bump(counter);
+    }
+    // The derivative version follows an independent chain verification only.
+    if (transition.anchoring.verification === "CHAIN_VERIFIED") {
+      await requestChainVerifiedReportVersion(evidenceId, transition.anchoring, job.id ?? null);
+    }
+    await scheduleNextChainCheck(evidenceId, transition.anchoring, job.id ?? null);
+    logger.info(
+      {
+        ...withJobContext({ jobId: job.id, evidenceId, durationMs: Date.now() - startedAt, status: transition.phase }),
+        verification: transition.anchoring.verification,
+        chainFailureCode: transition.anchoring.chain?.failureCode ?? null,
+      },
+      "ots.chain.checked",
+    );
+    return;
+  }
+
   if (transition.material) {
     if (transition.status === "ANCHORED") {
       bump("ots_anchored_total");
@@ -570,7 +620,10 @@ async function commitOtsTransition(input: {
   }
 
   if (transition.status === "ANCHORED") {
-    await requestAnchoredReportVersion(evidenceId, transition.anchoring, job.id ?? null);
+    // The proof now NAMES a block. The independent chain check runs on the
+    // next delivery of this same job (one queue, one id, one CAS authority);
+    // no derivative version is requested for an unchecked attestation.
+    await scheduleNextChainCheck(evidenceId, transition.anchoring, job.id ?? null, OTS_CHAIN_FIRST_CHECK_DELAY_MS);
   }
 
   if (transition.phase === "global_budget_exhausted") {
@@ -628,16 +681,106 @@ async function commitOtsTransition(input: {
 }
 
 /**
- * THE DOWNSTREAM VERSION DECISION, after a proof becomes ANCHORED. Never
- * throws: the anchor is committed either way, and the decision is idempotent
- * (see ots-anchored-version.ts), so a later delivery or the reconcile script
- * recovers a decision lost to a restart.
+ * THE DOWNSTREAM VERSION DECISION, after a proof is independently VERIFIED
+ * against the Bitcoin main chain. Never throws: the verification is committed
+ * either way, and the decision is idempotent (ots-anchored-version.ts:
+ * one request per proof + block), so a later delivery — every recheck of a
+ * VERIFIED record calls it again — or the reconcile script recovers a
+ * decision lost to a restart or to a failed in-flight report.
  */
-async function requestAnchoredReportVersion(evidenceId: string, anchoring: OtsAnchoring, jobId: string | null): Promise<void> {
+async function requestChainVerifiedReportVersion(evidenceId: string, anchoring: OtsAnchoring, jobId: string | null): Promise<void> {
   try {
     const decision = await ensureOtsAnchoredReportVersion({ evidenceId, anchoring });
-    logger.info({ evidenceId, jobId, decision: decision.outcome }, "ots.anchored.version_decision");
+    logger.info({ evidenceId, jobId, decision: decision.outcome }, "ots.chain_verified.version_decision");
   } catch (err) {
-    logger.warn({ evidenceId, jobId, err }, "ots.anchored.version_decision_failed");
+    logger.warn({ evidenceId, jobId, err }, "ots.chain_verified.version_decision_failed");
   }
+}
+
+/** The first chain check after a proof becomes ANCHORED. */
+export const OTS_CHAIN_FIRST_CHECK_DELAY_MS = 60 * 1000;
+
+/** Re-enqueue the same `ots-upgrade-<evidenceId>` job when another chain check is due. */
+async function scheduleNextChainCheck(evidenceId: string, anchoring: OtsAnchoring, jobId: string | null, overrideDelayMs?: number): Promise<void> {
+  if (resolveOtsBitcoinVerifierConfig().kind === "disabled") return;
+  const delayMs = overrideDelayMs ?? nextOtsChainCheckDelayMs(anchoring);
+  if (delayMs == null) return;
+  await enqueueOtsUpgradeJob(evidenceId, { delayMs, traceId: "ots_chain_check", selfJobId: jobId ?? undefined }).catch((err: unknown) => {
+    // Not an integrity problem: the reconciler re-enqueues an unchecked ANCHORED record.
+    logger.warn({ evidenceId, jobId, err }, "ots.chain.followup_enqueue_failed");
+  });
+}
+
+/** Bounded, credential-free chain facts for the custody event. */
+function chainCustodyFacts(anchoring: OtsAnchoring): Record<string, unknown> {
+  const c = anchoring.chain;
+  return c
+    ? {
+        status: c.status,
+        failureCode: c.failureCode,
+        blockHeight: c.blockHeight,
+        blockHash: c.blockHash,
+        blockTimeUtc: c.blockTimeUtc,
+        confirmations: c.confirmations,
+        minConfirmations: c.minConfirmations,
+        checkedAtUtc: c.checkedAtUtc,
+        verifiedAtUtc: c.verifiedAtUtc,
+        verifier: c.verifier,
+      }
+    : { status: null };
+}
+
+/**
+ * THE INDEPENDENT CHAIN CHECK of an ANCHORED proof. Writes only the chain
+ * columns, compare-and-set against the full OTS snapshot (a stale job never
+ * overwrites a newer chain outcome), appends one custody event when the
+ * outcome changed, and schedules the next check. A disabled verifier changes
+ * nothing; the record keeps stating an unchecked attestation.
+ */
+async function verifyAnchoredProofAgainstChain(input: {
+  job: Job<unknown>;
+  evidenceId: string;
+  evidence: { otsStatus: string | null; teamId: string | null };
+  snapshot: OtsRowSnapshot;
+  current: OtsAnchoring;
+  startedAt: number;
+}): Promise<void> {
+  const { job, evidenceId, evidence, snapshot, current, startedAt } = input;
+  const config = resolveOtsBitcoinVerifierConfig();
+  if (config.kind === "disabled") {
+    logger.info(withJobContext({ jobId: job.id, evidenceId, durationMs: Date.now() - startedAt, status: "chain_verification_disabled" }), "ots.chain.skipped");
+    return;
+  }
+  if (isTerminalOtsChainOutcome(snapshot)) {
+    logger.info(withJobContext({ jobId: job.id, evidenceId, durationMs: Date.now() - startedAt, status: "chain_outcome_terminal" }), "ots.chain.skipped");
+    return;
+  }
+  // A VERIFIED record that is already final only re-asks the (idempotent) version decision.
+  if (current.verification === "CHAIN_VERIFIED" && nextOtsChainCheckDelayMs(current) === null) {
+    await requestChainVerifiedReportVersion(evidenceId, current, job.id ?? null);
+    return;
+  }
+  const check = await checkOtsProofAgainstBitcoin(current, { config });
+  const transition = decideOtsChainTransition(snapshot, check, {
+    minConfirmations: config.kind === "enabled" ? config.policy.minConfirmations : 0,
+  });
+  if (transition.kind !== "WRITE") {
+    if (current.verification === "CHAIN_VERIFIED") await requestChainVerifiedReportVersion(evidenceId, current, job.id ?? null);
+    await scheduleNextChainCheck(evidenceId, current, job.id ?? null);
+    logger.info(
+      {
+        ...withJobContext({ jobId: job.id, evidenceId, durationMs: Date.now() - startedAt, status: "chain_no_change" }),
+        reason: transition.kind === "NO_CHANGE" ? transition.reason : null,
+      },
+      "ots.chain.no_change",
+    );
+    return;
+  }
+  const forensic: Record<string, unknown> =
+    check.kind === "DECIDED"
+      ? { chainTipHeight: check.tip.height, chainRejected: check.decision.rejected }
+      : check.kind === "UNAVAILABLE"
+        ? { chainUnavailableCode: check.code }
+        : {};
+  await commitOtsTransition({ job, evidenceId, evidence, snapshot, transition, observedAt: check.kind === "DISABLED" ? now() : check.checkedAtUtc, forensic, startedAt });
 }

@@ -858,6 +858,55 @@ function coherentVerification(state: OtsState, claimed: unknown): OtsVerificatio
 }
 
 // ---------------------------------------------------------------------------
+// CUSTODY EVENT WORDING — one reading of an OTS_APPLIED event's payload
+// ---------------------------------------------------------------------------
+
+/**
+ * The bounded lines an OpenTimestamps custody event is described with
+ * (report custody section, Public Verify custody summaries). Decided from the
+ * state and verification the worker recorded IN the event — never re-derived,
+ * and never stronger than the event: an event that recorded ANCHORED without a
+ * CHAIN_VERIFIED verification (every event written before independent chain
+ * verification existed) reads as an attestation recorded, not as anchored.
+ */
+export function otsCustodyEventLines(payload: Record<string, unknown> | null | undefined): string[] {
+  const p = payload ?? {};
+  const s = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const stateRaw = s(p.otsState);
+  const state = stateRaw ? parseOtsState(stateRaw) : null;
+  const claimed = parseOtsVerificationKey(p.otsVerification);
+  const verification: OtsVerificationKey | null =
+    state === "ANCHORED"
+      ? claimed && (claimed === "ATTESTATION_RECORDED" || claimed.startsWith("CHAIN_"))
+        ? claimed
+        : "ATTESTATION_RECORDED"
+      : state
+        ? otsVerificationKeyOfState(state)
+        : null;
+  const chain = p.chain && typeof p.chain === "object" ? (p.chain as Record<string, unknown>) : null;
+  const height = typeof chain?.blockHeight === "number" ? chain.blockHeight : typeof p.bitcoinBlockHeight === "number" ? p.bitcoinBlockHeight : null;
+  const confirmations = typeof chain?.confirmations === "number" ? chain.confirmations : null;
+  const lines: Array<string | null> = [];
+  if (!verification) {
+    lines.push(s(p.otsStatus) === "PENDING" || !s(p.otsStatus) ? "OpenTimestamps proof submitted; Bitcoin attestation pending" : "OpenTimestamps proof updated");
+  } else if (verification === "PENDING") {
+    lines.push("OpenTimestamps proof submitted; Bitcoin attestation pending");
+  } else {
+    lines.push(OTS_VERIFICATION_LABELS[verification]);
+  }
+  if (state === "ANCHORED" && height != null) lines.push(`Bitcoin block ${height}`);
+  if ((verification === "CHAIN_VERIFIED" || verification === "CHAIN_CONFIRMATIONS_PENDING") && confirmations != null) {
+    lines.push(`Confirmations: ${confirmations}`);
+  }
+  if (verification === "ATTESTATION_RECORDED") lines.push(EN.notCheckedStatus);
+  const txid = s(p.bitcoinTxid);
+  if (state === "ANCHORED" && txid) lines.push(`Bitcoin Tx: ${txid}`);
+  const calendar = s(p.calendar);
+  if (calendar) lines.push(`Calendar: ${calendar}`);
+  return lines.filter((l): l is string => Boolean(l));
+}
+
+// ---------------------------------------------------------------------------
 // THE WIRE CONTRACT — what the API sends and every client reads.
 // ---------------------------------------------------------------------------
 
