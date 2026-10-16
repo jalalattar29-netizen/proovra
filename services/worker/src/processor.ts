@@ -4,7 +4,7 @@ import * as prismaPkg from "@prisma/client";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import type { ReportTrustDecision } from "./report-v2/types.js";
 import type { OtsState, OtsVerificationKey, StorageProtectionVerificationState } from "@proovra/shared";
-import { resolveStorageProtectionVerification } from "@proovra/shared";
+import { resolveStorageProtectionVerification, locationRequestOutcomeFromCustody, locationRequirementFromIntakePlan } from "@proovra/shared";
 import { reconcileOtsAnchoredReportVersion } from "./ots-anchored-version.js";
 import { otsClientIdentity } from "./ots.service.js";
 import {
@@ -3206,6 +3206,10 @@ verificationPackageMetadata:
       // defaults to the historical CAPTURE label so pre-feature
       // reports render identically.
       locationSource: evidence.locationSource ?? null,
+      // The canonical location state's other persisted facts: a request
+      // outcome a capture path recorded in custody, and the plan's requirement.
+      requestOutcome: locationRequestOutcomeFromCustody(custodyEvents),
+      requirement: locationRequirementFromIntakePlan(evidence.intakePlanJson),
     },
 
 evidenceStructure:
@@ -5324,7 +5328,9 @@ submittedByAuthProvider:
               (finalized.finalizedReportEvidencePayload.gps.lat !== null ||
                 finalized.finalizedReportEvidencePayload.gps.lng !== null ||
                 finalized.finalizedReportEvidencePayload.gps.accuracyMeters !==
-                  null)
+                  null ||
+                finalized.finalizedReportEvidencePayload.gps.requestOutcome != null ||
+                finalized.finalizedReportEvidencePayload.gps.requirement != null)
                 ? {
                     lat:
                       finalized.finalizedReportEvidencePayload.gps.lat !== null
@@ -5345,6 +5351,10 @@ submittedByAuthProvider:
                     locationSource:
                       finalized.finalizedReportEvidencePayload.gps
                         .locationSource ?? null,
+                    requestOutcome:
+                      finalized.finalizedReportEvidencePayload.gps.requestOutcome ?? null,
+                    requirement:
+                      finalized.finalizedReportEvidencePayload.gps.requirement ?? null,
                   }
                 : null,
             storageRegion: prepared.evidenceStorage.storageRegion,

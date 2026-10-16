@@ -130,7 +130,10 @@ describe("Report-v2 — location source provenance", () => {
     const ctx = vm.meta?.captureContext;
     expect(ctx).toBeTruthy();
     expect(ctx?.sourceLabel).toBe("Contributor browser permission");
-    expect(ctx?.statusLabel).toBe("Upload session location");
+    // The state is the canonical label on every source; the intake
+    // attribution is the panel title and the source label.
+    expect(ctx?.statusLabel).toBe("Location recorded");
+    expect(ctx?.title).toBe("Upload session location");
     expect(ctx?.description).toMatch(
       /provided by the contributor['’]s browser during upload/i,
     );
@@ -150,7 +153,8 @@ describe("Report-v2 — location source provenance", () => {
     const ctx = vm.meta?.captureContext;
     expect(ctx).toBeTruthy();
     expect(ctx?.sourceLabel).toBe("Reported by the submitting browser");
-    expect(ctx?.statusLabel).toBe("Location metadata included");
+    expect(ctx?.statusLabel).toBe("Location recorded");
+    expect(ctx?.title).toBe("Capture location");
   });
 
   it("null locationSource is 'Location source not recorded' — never a browser claim", async () => {
@@ -161,7 +165,8 @@ describe("Report-v2 — location source provenance", () => {
     const ctx = vm.meta?.captureContext;
     expect(ctx).toBeTruthy();
     expect(ctx?.sourceLabel).toBe("Location source not recorded");
-    expect(ctx?.statusLabel).toBe("Location metadata included");
+    expect(ctx?.statusLabel).toBe("Location recorded");
+    expect(ctx?.title).toBe("Capture location");
   });
 
   it("missing coordinates render NO captureContext block and raise no warning", async () => {

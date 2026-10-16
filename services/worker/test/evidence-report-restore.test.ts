@@ -297,15 +297,25 @@ describe("Capture location: the stored location, or nothing at all (2026-10-14)"
   });
 
   for (const location of ["absent", "incomplete"] as const) {
-    it(`location ${location}: no panel, no heading, no statement, no invented coordinates — and the facts are unchanged`, async () => {
+    it(`location ${location}: no map, no heading, no retired statement, no invented coordinates — and the facts are unchanged`, async () => {
       const input = regressionRecordInput(location);
       const before = structuredClone(input);
       const { vm, html, text: t } = await render(input);
       const summary = executiveSummary(html);
       expect(summary).not.toBe("");
-      // The whole capture-context block is gone from the Executive Summary…
-      expect(summary).not.toContain("data-capture-context");
-      expect(summary).not.toContain("capture-context-panel");
+      if (location === "absent") {
+        // Plain absence is silent: the whole capture-context block is gone.
+        expect(summary).not.toContain("data-capture-context");
+        expect(summary).not.toContain("capture-context-panel");
+      } else {
+        // (2026-10-16) Stored coordinates that fail validation are the
+        // canonical INVALID location state: ONE row with the canonical label,
+        // a warning for the location metadata only — never the coordinates.
+        expect(summary).toContain('data-capture-location="invalid"');
+        expect(text(summary)).toContain("Location metadata invalid");
+        expect(vm.meta.locationState?.state).toBe("INVALID");
+        expect(vm.meta.locationState?.tone).toBe("warning");
+      }
       expect(text(summary)).not.toMatch(/Capture Context|Capture location/i);
       for (const line of [
         "Location metadata was not recorded for this evidence.",

@@ -239,15 +239,35 @@ function renderEvidenceAcquisition(vm: ReportViewModel): string {
  * capture client reported. A record with neither prints no panel at all — no
  * heading, no "not recorded" line and no observation-boundary sentence; the
  * canonical facts and the verification package are unchanged.
+ *
+ * (2026-10-16) Location is stated through the canonical location state. When
+ * no coordinates are shown but the record holds a recorded fact about location
+ * (a request that was declined or produced nothing, stored coordinates that
+ * failed validation, or a plan that required it), that fact is ONE row — the
+ * canonical label — never an empty map. Plain absence still prints nothing.
  */
+function renderLocationStateRow(vm: ReportViewModel): string {
+  const ls = vm.meta.locationState;
+  if (!ls || ls.state === "RECORDED") return "";
+  const requirementUnmet = ls.requirement?.unmet === true;
+  if (ls.state === "NOT_RECORDED" && !requirementUnmet) return "";
+  const detail = [ls.detail, requirementUnmet ? ls.requirement?.label : null].filter(Boolean).join(" ");
+  return `
+      <div class="capture-context-row" data-capture-location="${escapeHtml(ls.state.toLowerCase())}">
+        <div class="capture-context-label">Location</div>
+        <div class="capture-context-value" data-capture-field="Location">${escapeHtml(ls.label)}${detail ? ` · ${escapeHtml(detail)}` : ""}</div>
+      </div>`;
+}
+
 function renderCaptureLocation(vm: ReportViewModel): string {
   const cc = vm.meta.captureContext;
   const manifest = renderCaptureManifestFacts(vm);
-  if (!cc && !manifest) return "";
+  const stateRow = cc ? "" : renderLocationStateRow(vm);
+  if (!cc && !manifest && !stateRow) return "";
   const location = cc
     ? `
       <div class="capture-context-header">
-        <div class="executive-confirmation-kicker">Capture location</div>
+        <div class="executive-confirmation-kicker">${escapeHtml(cc.title ?? "Capture location")}</div>
         <div class="capture-context-intro">${escapeHtml(cc.description)}</div>
       </div>
       <div class="capture-context-layout" data-capture-location="recorded">
@@ -256,7 +276,7 @@ function renderCaptureLocation(vm: ReportViewModel): string {
         </div>
         <div class="capture-context-metadata">
           ${[
-            ["Location metadata included", "Yes"],
+            ["Location", cc.statusLabel],
             ["Latitude", cc.lat],
             ["Longitude", cc.lng],
             ["Accuracy radius", cc.accuracyRadius],
@@ -278,6 +298,7 @@ function renderCaptureLocation(vm: ReportViewModel): string {
   return `
     <section class="capture-context-panel" data-capture-context>
       ${location}
+      ${stateRow}
       ${manifest}
     </section>
   `;

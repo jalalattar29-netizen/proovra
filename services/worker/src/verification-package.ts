@@ -68,6 +68,7 @@ import {
   getReviewerEvidenceCategories,
   getReviewerEvidenceTypeLabel,
   hasCaptureLocationMetadata,
+  resolveEvidenceLocation,
   isAccessCustodyEventType,
   buildVerificationMatrix,
   type CanonicalEvidenceMaterials,
@@ -344,8 +345,36 @@ type VerificationPackageMetadata = {
     /** Provenance — drives the package's source label. Null is treated
      * as the historical CAPTURE label for byte-identical legacy output. */
     locationSource?: string | null;
+    /** A location request outcome recorded in the custody chain. */
+    requestOutcome?: string | null;
+    /** The collection plan's location requirement. */
+    requirement?: string | null;
   } | null;
 };
+
+/**
+ * THE canonical location state of the packaged record (capture-location.ts).
+ * Coordinates leave the package only through `coordinates` (valid pairs).
+ */
+function packageLocationState(metadata: VerificationPackageMetadata) {
+  return resolveEvidenceLocation(metadata.captureLocation ?? null);
+}
+
+/** The case-metadata location block: valid coordinates only, plus the canonical state. */
+function packageCaptureLocationBlock(metadata: VerificationPackageMetadata) {
+  const location = packageLocationState(metadata);
+  return {
+    captureLocation: location.coordinates
+      ? {
+          lat: location.coordinates.lat,
+          lng: location.coordinates.lng,
+          accuracyMeters: location.coordinates.accuracyMeters,
+          legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
+        }
+      : null,
+    locationState: { state: location.state, label: location.label, detail: location.detail },
+  };
+}
 
 type CustodyEventRecord = {
   sequence?: number | null;
@@ -1546,14 +1575,7 @@ export function buildCaseMetadata(
       recordedIntegrityVerifiedAtUtc:
         metadata.recordedIntegrityVerifiedAtUtc ?? null,
     },
-    captureLocation: metadata.captureLocation
-      ? {
-          lat: metadata.captureLocation.lat ?? null,
-          lng: metadata.captureLocation.lng ?? null,
-          accuracyMeters: metadata.captureLocation.accuracyMeters ?? null,
-          legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
-        }
-      : null,
+    ...packageCaptureLocationBlock(metadata),
     retention: {
       policy: metadata.retentionPolicy ?? null,
       storageRegion: metadata.storageRegion ?? null,
@@ -1626,7 +1648,8 @@ export function buildCaptureContext(
       metadata.captureLocation?.locationSource === "INTAKE_LINK_GEOLOCATION"
         ? "Upload Session Location"
         : "Capture Context",
-    statusLabel: "Location metadata included",
+    statusLabel: packageLocationState(metadata).label,
+    locationState: "RECORDED",
     subtitle:
       metadata.captureLocation?.locationSource === "INTAKE_LINK_GEOLOCATION"
         ? "Location was provided by the contributor's browser during upload."
@@ -1892,14 +1915,7 @@ export function buildOriginalLinkage(
     uploadedAtUtc: metadata.uploadedAtUtc ?? null,
     signedAtUtc: metadata.signedAtUtc ?? null,
     reportGeneratedAtUtc: metadata.reportGeneratedAtUtc ?? null,
-    captureLocation: metadata.captureLocation
-      ? {
-          lat: metadata.captureLocation.lat ?? null,
-          lng: metadata.captureLocation.lng ?? null,
-          accuracyMeters: metadata.captureLocation.accuracyMeters ?? null,
-          legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
-        }
-      : null,
+    ...packageCaptureLocationBlock(metadata),
     storageProtection: {
       region: metadata.storageRegion ?? null,
       immutable: metadata.storageImmutable ?? null,
@@ -2395,7 +2411,7 @@ case-metadata.json
 Case, matter, workspace, retention, and reviewer context when available.
 
 capture-context.json
-Included when signed capture-location metadata exists for the evidence record.
+Included when valid location coordinates are recorded for the evidence record. case-metadata.json states the record's location state in every package.
 
 map-preview.png
 Optional deterministic location preview derived from capture-context.json for reviewer-facing context only.
