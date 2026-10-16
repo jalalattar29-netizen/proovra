@@ -8,6 +8,8 @@
 // page renders the server's action instead of deriving one from the lossy
 // five-value lifecycle below.
 import type {
+  DeliverableStatus,
+  DeliverableStatusReason,
   EvidenceOutputState,
   NewVersionAction,
   OutputAction,
@@ -36,8 +38,20 @@ export type PackageLifecycle =
   | "failed"
   | "unavailable";
 
+/**
+ * 2026-10-16 — the record's ONE deliverable status, as the server projects it
+ * (`deliverableStatusFor`). Optional on the wire: the user-scoped fallback and
+ * an older API send none, and the row then states no status rather than one
+ * this page invented.
+ */
+export type RowDeliverable = {
+  status: DeliverableStatus;
+  reason: DeliverableStatusReason;
+};
+
 export type ArtifactRow = {
   evidenceId: string;
+  deliverable?: RowDeliverable;
   /** Actual record workspace, not merely the workspace selected in the shell. */
   teamId: string | null;
   /**
@@ -149,6 +163,16 @@ export type ReportsSummary = {
   outputsEntitlementUnavailable?: number;
   totalEvidenceWithArtifacts: number;
   totalArtifactVersions?: number;
+  /*
+   * 2026-10-16 — the record status counts (mutually exclusive, summing to
+   * `recordsTotal`). Absent from APIs older than the compact summary.
+   */
+  recordsReady?: number;
+  recordsInProgress?: number;
+  recordsNeedingAttention?: number;
+  recordsIncomplete?: number;
+  recordsNotAvailable?: number;
+  recordsTotal?: number;
 };
 
 export type ReportsArtifactsEnvelope = {
@@ -251,3 +275,202 @@ export const TRUTHFUL_BUCKET_FILTERS: ReadonlySet<LifecycleFilter> = new Set<Lif
   "report_not_issued",
   "entitlement_unavailable",
 ]);
+
+// ===========================================================================
+// THE FILTER MODEL (2026-10-16).
+// ===========================================================================
+//
+// Fourteen always-visible chips became four dimensions, each one canonical
+// server value or "any": the RECORD STATUS (the primary selector), and the
+// report, package and entitlement lifecycle (advanced). Every dimension maps
+// to a parameter the aggregator applies before pagination, so the list total,
+// the pager and a summary count describe the same population.
+//
+// The URL carries the same four plus search and sort, so a filtered view is a
+// link. A value this page does not know is dropped, never forwarded.
+
+export type StatusFilter =
+  | "all"
+  | "ready"
+  | "in_progress"
+  | "needs_attention"
+  | "incomplete"
+  | "not_available";
+export const STATUS_FILTERS: ReadonlyArray<StatusFilter> = [
+  "all",
+  "ready",
+  "in_progress",
+  "needs_attention",
+  "incomplete",
+  "not_available",
+];
+/** The four the primary selector shows; the other two live in Advanced. */
+export const PRIMARY_STATUS_FILTERS: ReadonlyArray<StatusFilter> = [
+  "all",
+  "ready",
+  "in_progress",
+  "needs_attention",
+];
+
+export type ReportDimension =
+  | "report_ready"
+  | "report_pending"
+  | "report_failed"
+  | "report_update_failed"
+  | "report_blocked"
+  | "report_awaiting_issuance";
+export const REPORT_DIMENSION: ReadonlyArray<ReportDimension> = [
+  "report_ready",
+  "report_pending",
+  "report_failed",
+  "report_update_failed",
+  "report_blocked",
+  "report_awaiting_issuance",
+];
+export type PackageDimension =
+  | "package_ready"
+  | "package_pending"
+  | "package_failed"
+  | "package_blocked"
+  | "package_missing";
+export const PACKAGE_DIMENSION: ReadonlyArray<PackageDimension> = [
+  "package_ready",
+  "package_pending",
+  "package_failed",
+  "package_blocked",
+  "package_missing",
+];
+export type EntitlementDimension = "report_not_issued" | "entitlement_unavailable";
+export const ENTITLEMENT_DIMENSION: ReadonlyArray<EntitlementDimension> = [
+  "report_not_issued",
+  "entitlement_unavailable",
+];
+
+export type ReportsSort = "newest" | "oldest";
+
+export type ReportsFilters = {
+  status: StatusFilter;
+  report: ReportDimension | "any";
+  package: PackageDimension | "any";
+  entitlement: EntitlementDimension | "any";
+  sort: ReportsSort;
+  /** Free text, bounded to what the server accepts. */
+  q: string;
+};
+
+export const DEFAULT_FILTERS: ReportsFilters = Object.freeze({
+  status: "all",
+  report: "any",
+  package: "any",
+  entitlement: "any",
+  sort: "newest",
+  q: "",
+}) as ReportsFilters;
+
+const pick = <T extends string>(value: string | null, allowed: ReadonlyArray<T>): T | null =>
+  value && (allowed as readonly string[]).includes(value) ? (value as T) : null;
+
+/**
+ * The filters a URL names. Unknown or stale values fall back to their
+ * default, one dimension at a time — a link with one bad value still opens on
+ * the rest. A legacy `?lifecycle=` link (Billing, older bookmarks) lands on
+ * the dimension that value belongs to.
+ */
+export function filtersFromSearch(search: string): ReportsFilters {
+  const params = new URLSearchParams(search);
+  const out: ReportsFilters = { ...DEFAULT_FILTERS };
+  out.status = pick(params.get("status"), STATUS_FILTERS) ?? "all";
+  out.report = pick(params.get("report"), REPORT_DIMENSION) ?? "any";
+  out.package = pick(params.get("package"), PACKAGE_DIMENSION) ?? "any";
+  out.entitlement = pick(params.get("entitlement"), ENTITLEMENT_DIMENSION) ?? "any";
+  out.sort = pick(params.get("sort"), ["newest", "oldest"] as const) ?? "newest";
+  out.q = (params.get("q") ?? "").slice(0, 80);
+  const legacy = lifecycleFilterFromSearch(search);
+  if (legacy && legacy !== "all") {
+    const asReport = pick(legacy, REPORT_DIMENSION);
+    const asPackage = pick(legacy, PACKAGE_DIMENSION);
+    const asEntitlement = pick(legacy, ENTITLEMENT_DIMENSION);
+    if (asReport && out.report === "any") out.report = asReport;
+    if (asPackage && out.package === "any") out.package = asPackage;
+    if (asEntitlement && out.entitlement === "any") out.entitlement = asEntitlement;
+  }
+  return out;
+}
+
+/**
+ * The URL for a set of filters: defaults are omitted, and the legacy
+ * `lifecycle` key is cleared once it has been read into its dimension.
+ */
+export function filtersToSearch(f: ReportsFilters): Record<string, string | null> {
+  return {
+    status: f.status === "all" ? null : f.status,
+    report: f.report === "any" ? null : f.report,
+    package: f.package === "any" ? null : f.package,
+    entitlement: f.entitlement === "any" ? null : f.entitlement,
+    sort: f.sort === "newest" ? null : f.sort,
+    q: f.q.trim() ? f.q.trim() : null,
+    lifecycle: null,
+  };
+}
+
+/** How many ADVANCED dimensions are narrowing the list. */
+export function advancedFilterCount(f: ReportsFilters): number {
+  return (
+    (f.report !== "any" ? 1 : 0) +
+    (f.package !== "any" ? 1 : 0) +
+    (f.entitlement !== "any" ? 1 : 0) +
+    (PRIMARY_STATUS_FILTERS.includes(f.status) ? 0 : 1)
+  );
+}
+
+/** Is anything narrowing the list (sort does not narrow)? */
+export function isFiltered(f: ReportsFilters): boolean {
+  return (
+    f.status !== "all" ||
+    f.report !== "any" ||
+    f.package !== "any" ||
+    f.entitlement !== "any" ||
+    f.q.trim().length > 0
+  );
+}
+
+/** What the API this page is talking to has proven it accepts. */
+export type ReportsApiCapabilities = {
+  /** `status=`, several `lifecycle=` values and `sort=` (records* in the summary). */
+  recordStatus: boolean;
+  truthfulBuckets: boolean;
+  blockedBuckets: boolean;
+};
+
+/**
+ * ROLLOUT COMPATIBILITY (2026-10-16). The web app deploys before the API. The
+ * record status, several lifecycle values and the sort are offered to the
+ * server only once its summary shows `recordsTotal`; an older API is sent at
+ * most ONE lifecycle value it accepts, and never a status it would ignore.
+ */
+export function supportsRecordStatus(summary: ReportsSummary | null | undefined): boolean {
+  return typeof summary?.recordsTotal === "number";
+}
+
+/** The list request's query for a set of filters, within what the API accepts. */
+export function apiQueryFor(
+  f: ReportsFilters,
+  caps: ReportsApiCapabilities,
+): { status?: StatusFilter; lifecycle: string; sort?: ReportsSort; search?: string } {
+  const accepted = (v: LifecycleFilter) =>
+    (caps.truthfulBuckets || !TRUTHFUL_BUCKET_FILTERS.has(v)) &&
+    (caps.blockedBuckets || !REPORT_BLOCKED_BUCKET_FILTERS.has(v));
+  const lifecycles = [f.report, f.package, f.entitlement].filter(
+    (v): v is ReportDimension | PackageDimension | EntitlementDimension => v !== "any",
+  ).filter(accepted);
+  const search = f.q.trim().slice(0, 80);
+  if (!caps.recordStatus) {
+    return { lifecycle: lifecycles[0] ?? "all", ...(search ? { search } : {}) };
+  }
+  return {
+    ...(f.status !== "all" ? { status: f.status } : {}),
+    lifecycle: lifecycles.length ? lifecycles.join(",") : "all",
+    ...(f.sort !== "newest" ? { sort: f.sort } : {}),
+    ...(search ? { search } : {}),
+  };
+}

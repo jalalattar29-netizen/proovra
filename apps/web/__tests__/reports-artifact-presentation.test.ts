@@ -87,7 +87,7 @@ test("the wire type keeps the stored title nullable, not pre-substituted", () =>
 test("the row resolves its name through the canonical cascade", () => {
   assert.match(
     INDEX,
-    /import \{ getDisplayTitle \} from ".*evidence-library-status"/,
+    /import \{[^}]*getDisplayTitle[^}]*\} from ".*evidence-library-status"/,
     "Reports must reuse the Evidence Library cascade, not write a second one",
   );
   assert.match(INDEX, /getDisplayTitle\(\{[\s\S]{0,240}displayFileName: row\.displayFileName/);
@@ -164,10 +164,11 @@ test("report and package states are TEXT, not capsules", () => {
 
 test("integrity says the word once", () => {
   // `RECORDED_INTEGRITY_VERIFIED` humanised under a label that already said
-  // "Integrity" produced "Integrity Recorded Integrity Verified".
-  // 2026-09-29: it names WHAT was verified — the original evidence.
-  assert.match(INDEX, /Original evidence: \{integrityLabel\(row\.verificationStatus\)\}/);
-  assert.doesNotMatch(INDEX, /Integrity \{humanize\(row\.verificationStatus\)\}/);
+  // "Integrity" produced "Integrity Recorded Integrity Verified". 2026-10-16:
+  // the column is headed "Original evidence" and the value is the Evidence
+  // Library's own label — one authority, never the humanised enum.
+  assert.match(INDEX, /getVerificationStatusLabel\(row\.verificationStatus\)/);
+  assert.doesNotMatch(INDEX, /humanize\(/);
 });
 
 test("the case relationship is canonical blue, and not a badge", () => {
@@ -175,21 +176,27 @@ test("the case relationship is canonical blue, and not a badge", () => {
   assert.doesNotMatch(INDEX, /data-reports-case-link[\s\S]{0,160}#6D28D9/);
 });
 
-test("the summary strip maps every counter to a tone, and the number wears it", () => {
-  const fields = [
+test("the summary is at most SIX metrics, each a filter with one definition and a tone", () => {
+  // 2026-10-16 — fifteen cards became six. Each names the filter its number
+  // equals and carries its definition; everything else is in ONE disclosure.
+  const block = INDEX.slice(INDEX.indexOf("const PRIMARY_METRICS"), INDEX.indexOf("const BREAKDOWN"));
+  const fields = (block.match(/field: "[a-zA-Z]+"/g) ?? []).map((f) => f.slice(8, -1));
+  assert.deepEqual(fields, [
     "reportsReady",
-    "reportsPending",
     "packagesReady",
-    "packagesPending",
-    "packagesBlocked",
-    "totalEvidenceWithArtifacts",
-  ];
-  for (const f of fields) {
-    assert.match(INDEX, new RegExp(`field: "${f}"`), `${f} has no summary card`);
+    "recordsInProgress",
+    "recordsNeedingAttention",
+    "recordsIncomplete",
+    "recordsTotal",
+  ]);
+  assert.match(INDEX, /<details className="rpt-breakdown" data-reports-breakdown>/);
+  for (const f of ["reportsFailed", "reportsUpdateFailed", "packagesMissingForLatestReport", "totalArtifactVersions"]) {
+    assert.match(INDEX, new RegExp(`field: "${f}"`), `${f} must stay reachable in the breakdown`);
   }
-  // The value takes the card's tone — not a flat ink colour, which is what
-  // made six coloured rails read as decoration.
-  assert.match(CSS, /\.rpt-metric__value \{[\s\S]{0,300}color: var\(--rpt-tone/);
+  // The number wears the card's tone through the canonical metric card.
+  assert.match(INDEX, /className="app-metric-card rpt-metric"/);
+  assert.match(INDEX, /data-app-metric-tone=\{m\.tone\(value\)\}/);
+  assert.match(INDEX, /aria-describedby=\{defId\}/);
 });
 
 test("the header carries the canonical title icon and no Search-reports button", () => {
@@ -254,11 +261,11 @@ test("the user-scoped fallback fires ONLY on the unfiltered view", () => {
   // list and blanked the summary.
   assert.match(
     INDEX,
-    /const isUnfilteredView = currentFilter === "all" && trimmed\.length === 0;/,
+    /const unfiltered = !isFiltered\(filters\);/,
   );
   assert.match(
     INDEX,
-    /isUnfilteredView &&\s*\n\s*envelope\.sections\.artifacts\.status === "ok" &&\s*\n\s*envelope\.sections\.artifacts\.items\.length === 0/,
+    /unfiltered &&\s*\n\s*envelope\.sections\.artifacts\.status === "ok" &&\s*\n\s*envelope\.sections\.artifacts\.items\.length === 0/,
     "the empty-result fallback must be gated on the unfiltered view",
   );
 });
@@ -292,9 +299,10 @@ test("stored rows with missing objects return an explicit unavailable-artifact c
 test("a historical package is disclosed without making the latest report package-ready", () => {
   // 2026-09-29: the older package says it certifies an EARLIER report, so it
   // is never read as proof for the latest one.
-  assert.match(INDEX, /Older package v\{row\.outputs\.verificationPackage\.latestAvailableVersion\} certifies/);
   assert.match(INDEX, /row\.outputs\?\.verificationPackage\.latestAvailableVersion/);
-  assert.match(INDEX, /not the latest report/);
+  assert.match(INDEX, /copy\.list\.olderPackage/);
+  const COPY = read("packages/shared/src/reports-copy.ts");
+  assert.match(COPY, /olderPackage: "Older package v\{n\} certifies an earlier report, not the latest one\."/);
 });
 
 test("the summary is fetched independently of the list", () => {
@@ -305,18 +313,19 @@ test("the summary is fetched independently of the list", () => {
   // is what made changing a filter feel like a page load.
   assert.match(INDEX, /const loadSummary = useCallback/);
   assert.match(INDEX, /const \[summarySection, setSummarySection\] = useState</);
-  assert.match(INDEX, /\{summarySection\.status === "ok" && summarySection\.data \? \(/);
+  assert.match(INDEX, /const summaryData = summarySection\.status === "ok" \? summarySection\.data : null;/);
   // …and the LIST asks the server to skip them.
   assert.match(INDEX, /summary: "0",/);
 });
 
-test("search and lifecycle both reach the server, and compose", () => {
-  // One request carries both, so `filter=package_ready` + `search=Joint` is
-  // one query for package-ready rows matching Joint — neither overwrites the
-  // other.
-  assert.match(INDEX, /lifecycle: currentFilter,/);
-  assert.match(INDEX, /params\.set\("search", trimmed\.slice\(0, 80\)\)/);
-  assert.match(INDEX, /void reload\(filter, search, cursor\)/);
+test("search and every filter dimension reach the server, and compose", () => {
+  // One request carries all of them — status, report/package/entitlement
+  // lifecycle, sort and search — so no dimension overwrites another.
+  assert.match(INDEX, /lifecycle: query\.lifecycle,/);
+  assert.match(INDEX, /params\.set\("status", query\.status\)/);
+  assert.match(INDEX, /params\.set\("sort", query\.sort\)/);
+  assert.match(INDEX, /params\.set\("search", query\.search\)/);
+  assert.match(INDEX, /const apiQuery = apiQueryFor\(filters, caps\);/);
 });
 
 test("SERVER: search matches every field the title cascade displays", () => {
@@ -487,7 +496,7 @@ test("the row shows the case NAME, sourced in the same query", () => {
   assert.match(AGGREGATOR, /caseTitle: r\.caseLinks\[0\]\?\.case\?\.name\?\.trim\(\) \|\| null,/);
   assert.match(TYPES, /\n {2}caseTitle: string \| null;/);
   // The short id survives only as the fallback for a case with no name.
-  assert.match(INDEX, /Case: \{row\.caseTitle \?\? `#\$\{row\.caseId\.slice\(0, 6\)\}`\}/);
+  assert.match(INDEX, /\{row\.caseTitle \?\? `#\$\{row\.caseId\.slice\(0, 6\)\}`\}/);
   assert.doesNotMatch(INDEX, /Case #\{row\.caseId\.slice/);
 });
 
@@ -524,15 +533,13 @@ test("Download verification package is canonical dark, white on hover and focus"
   );
 });
 
-test("the summary value uses the page's own type system", () => {
-  // The digits rendered in the browser's default numeric face because nothing
-  // in the chain set a family, so they looked like a different typeface from
-  // every label beside them.
-  assert.match(CSS, /\.rpt-metric__value \{[\s\S]{0,200}font-family: inherit;/);
-  assert.match(CSS, /font-variant-numeric: tabular-nums;/);
-  assert.match(CSS, /\.rpt-metric__label \{[\s\S]{0,160}font-family: inherit;/);
-  // Roomier cards, still not huge.
-  assert.match(CSS, /minmax\(196px, 1fr\)/);
+test("the summary value uses the canonical metric typography", () => {
+  // The digits once rendered in the browser's default numeric face. The
+  // compact summary uses the canonical card, whose value sets tabular figures.
+  const PRIMITIVES = read("apps/web/components/app-primitives/app-primitives.css");
+  assert.match(PRIMITIVES, /\.app-metric-card__value \{[\s\S]{0,300}font-variant-numeric: tabular-nums;/);
+  assert.match(INDEX, /className="app-metric-card__value"/);
+  assert.match(CSS, /\.rpt-summary__grid \{[\s\S]{0,300}repeat\(6, minmax\(0, 1fr\)\)/);
 });
 
 // ---------------------------------------------------------------------------
@@ -579,7 +586,8 @@ test("the lifecycle filter is a QUERY predicate, not a post-pagination slice", (
   // fetched, so "Report pending" searched 9% of a 278-record workspace and
   // reported a count from that slice.
   assert.match(AGGREGATOR, /function lifecycleWhere\(/);
-  assert.match(AGGREGATOR, /\(whereBase\.AND as Prisma\.EvidenceWhereInput\[\]\)\.push\(lifecycleClause\)/);
+  assert.match(AGGREGATOR, /if \(clause\) \(whereBase\.AND as Prisma\.EvidenceWhereInput\[\]\)\.push\(clause\)/);
+  assert.match(AGGREGATOR, /if \(statusClause\) \(whereBase\.AND as Prisma\.EvidenceWhereInput\[\]\)\.push\(statusClause\)/);
   assert.doesNotMatch(
     code(AGGREGATOR),
     /const filtered = filterByLifecycle\(items,/,
@@ -612,10 +620,12 @@ test("every filter maps to a predicate over the full dataset", () => {
 test("changing filter or search resets to page 1", () => {
   // A cursor names a position in ONE ordered result set; carrying it into a
   // different query points at a row that may not be in it.
-  assert.match(INDEX, /const changeFilter = useCallback\(\(next: LifecycleFilter\) => \{\s*\n\s*setFilter\(next\);\s*\n\s*setCursors\(\[\]\);/);
-  assert.match(INDEX, /const changeSearch = useCallback\(\(next: string\) => \{\s*\n\s*setSearch\(next\);\s*\n\s*setCursors\(\[\]\);/);
-  assert.match(INDEX, /onChange=\{changeSearch\}/);
-  assert.match(INDEX, /onClick=\{\(\) => changeFilter\(key\)\}/);
+  assert.match(INDEX, /const changeFilters = useCallback\(\(next: ReportsFilters\) => \{\s*\n\s*setFilters\(next\);\s*\n\s*setCursors\(\[\]\);/);
+  // Every control goes through it: search, status, advanced, sort, metrics.
+  assert.match(INDEX, /onChange=\{\(q\) => patchFilters\(\{ q: q\.slice\(0, 80\) \}\)\}/);
+  assert.match(INDEX, /onClick=\{\(\) => patchFilters\(\{ status: s \}\)\}/);
+  assert.match(INDEX, /onClick=\{\(\) => changeFilters\(applyOnly\(filters, m\.apply\)\)\}/);
+  assert.doesNotMatch(INDEX, /setFilters\((?!next)/);
 });
 
 test("the list asks the server to skip the workspace aggregations", () => {
@@ -639,21 +649,21 @@ test("a stale response cannot overwrite a newer query", () => {
 });
 
 test("the empty state distinguishes no data from no matches", () => {
-  assert.match(INDEX, /const filtered = filter !== "all" \|\| search\.trim\(\)\.length > 0;/);
-  assert.match(INDEX, /"No reports match your search\."/);
-  assert.match(INDEX, /"No reports match this filter\."/);
-  assert.match(INDEX, /"No reports yet"/);
+  assert.match(INDEX, /<ReportsEmptyState filtered=\{filtered\} onClear=\{clearFilters\} copy=\{copy\} \/>/);
   assert.match(INDEX, /data-reports-empty-kind=\{filtered \? "no_match" : "no_data"\}/);
+  const COPY = read("packages/shared/src/reports-copy.ts");
+  assert.match(COPY, /filteredTitle: "No records match these filters"/);
+  assert.match(COPY, /workspaceTitle: "No reports yet"/);
 });
 
 test("the empty-state CTA is canonical purple, and the coral CTA is gone", () => {
   const empty = INDEX.slice(INDEX.indexOf("function ReportsEmptyState"));
   assert.match(empty, /className="app-primary-action"/);
-  // The inline coral treatment: `--btn-primary-bg` is the login/marketing CTA.
   assert.doesNotMatch(code(empty), /--btn-primary-bg/);
   assert.doesNotMatch(code(empty), /cc-quick-action/);
-  // …and it is offered only where "open evidence" answers the sentence above.
-  assert.match(empty, /!filtered \? \(/);
+  // "Open evidence" only where it answers the sentence above it; a filter
+  // that matched nothing offers the way back instead.
+  assert.match(empty, /filtered \? \(\s*<button[\s\S]{0,200}onClick=\{onClear\}/);
 });
 
 test("the coral CTA token keeps its legitimate consumers", () => {
@@ -683,6 +693,6 @@ test("FREE renders the same Reports shell — no upgrade banner above it", () =>
   // renders the index, unconditionally.
   assert.match(
     ROUTE,
-    /<PageRouteGate routeId="workspace\.reports">\s*\n\s*<ReportsIndex \/>\s*\n\s*<\/PageRouteGate>/,
+    /<PageRouteGate routeId="workspace\.reports">\s*\n\s*<Suspense fallback=\{null\}>\s*\n\s*<ReportsIndex \/>\s*\n\s*<\/Suspense>\s*\n\s*<\/PageRouteGate>/,
   );
 });

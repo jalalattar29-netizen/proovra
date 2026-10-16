@@ -98,25 +98,20 @@ test("Total links leads in the brand accent and Active is the attention orange",
 });
 
 // ===========================================================================
-// 3. REPORTS — pending is attention, and amber keeps its own job
+// 3. REPORTS — pending is neutral, and danger is reserved (2026-10-16)
 // ===========================================================================
 
-test("Reports pending takes the shared attention orange", () => {
-  assert.match(
-    REPORTS_INDEX,
-    /key: "reports_pending"[^}]*tone: "orange"/,
-    "pending must not sit on the caution amber",
-  );
-  assert.match(
-    REPORTS_CSS,
-    /\[data-rpt-tone="orange"\] \{\s*--rpt-tone: var\(--tone-orange\)/,
-  );
-  // Amber still exists and still means what it meant — this added a tone, it
-  // did not redefine one under its existing users.
+test("Reports: in progress is neutral, needs attention is a warning, ready is success", () => {
+  // The compact summary uses the canonical app-wide metric tones. In progress
+  // is not a caution, and the needs-attention COUNT (which also holds blocks
+  // and escalations nobody here can act on) never borrows danger.
+  assert.match(REPORTS_INDEX, /key: "in_progress"[^\n]*tone: \(\) => "neutral"/);
+  assert.match(REPORTS_INDEX, /key: "needs_attention"[^\n]*"warning" : "neutral"/);
+  assert.match(REPORTS_INDEX, /key: "reports_ready"[^\n]*"success" : "neutral"/);
+  assert.doesNotMatch(REPORTS_INDEX, /\{ key: "[a-z_]+"[^\n]*"danger"/);
+  // Amber and orange keep their meanings in the per-output text tones.
+  assert.match(REPORTS_CSS, /\[data-rpt-tone="orange"\] \{\s*--rpt-tone: var\(--tone-orange\)/);
   assert.match(REPORTS_CSS, /\[data-rpt-tone="amber"\] \{\s*--rpt-tone: var\(--tone-amber\)/);
-  // The other states are untouched.
-  assert.match(REPORTS_INDEX, /key: "reports_ready"[^}]*tone: "blue"/);
-  assert.match(REPORTS_INDEX, /key: "packages_blocked"[^}]*tone: "red"/);
 });
 
 // ===========================================================================

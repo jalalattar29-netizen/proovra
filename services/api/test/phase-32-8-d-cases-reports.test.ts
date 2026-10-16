@@ -75,6 +75,11 @@ const CASES_INDEX = readWeb("components/cases-experience/CasesIndex.tsx");
 // `phase-c1-matter-workspace.test.ts`.
 const CASE_WORKSPACE = readWeb("components/cases-experience/MatterWorkspace.tsx");
 const REPORTS_INDEX = readWeb("components/reports-experience/ReportsIndex.tsx");
+// 2026-10-16 — the page's words live in the shared Reports copy (en/de/ar).
+const REPORTS_COPY = readFileSync(
+  fileURLToPath(new URL("../../../packages/shared/src/reports-copy.ts", import.meta.url)),
+  "utf8",
+);
 const CASES_PAGE = readWeb("app/(app)/cases/page.tsx");
 const REPORTS_PAGE = readWeb("app/(app)/reports/page.tsx");
 
@@ -484,24 +489,22 @@ describe("Phase 32.8D — /reports artifact lifecycle (ReportsIndex)", () => {
   });
 
   it("renders bounded lifecycle copy (no generic 'download unavailable')", () => {
-    for (const phrase of [
-      "Report ready",
-      "Report pending",
-      "Package ready",
-      "Package pending",
-      "Package blocked",
-    ]) {
-      expect(REPORTS_INDEX).toContain(phrase);
+    // Every per-output state and every record status resolves through ONE
+    // bounded table, never a raw value.
+    expect(REPORTS_INDEX).toMatch(/copy\.outputStates\[state\]/);
+    expect(REPORTS_INDEX).toMatch(/copy\.statuses\[row\.deliverable\.status\]/);
+    expect(REPORTS_INDEX).toMatch(/copy\.reasons\[row\.deliverable\.reason\]/);
+    for (const phrase of ["Reports ready", "Packages ready", "Packages blocked", "Reports in progress", "Packages in progress"]) {
+      expect(REPORTS_COPY).toContain(phrase);
     }
-    // The bounded label resolver enumerates each lifecycle value.
-    expect(REPORTS_INDEX).toMatch(/function reportLabel\(/);
-    expect(REPORTS_INDEX).toMatch(/function packageLabel\(/);
+    expect(REPORTS_COPY).not.toMatch(/download unavailable/i);
   });
 
   it("explicitly tells the operator that browsing is side-effect-free", () => {
-    expect(REPORTS_INDEX).toMatch(
-      /Browsing this page never triggers report or package generation/,
+    expect(REPORTS_COPY).toMatch(
+      /Browsing this page never generates a report or package/,
     );
+    expect(REPORTS_INDEX).toMatch(/\{copy\.footnote\}/);
   });
 
   it("never makes legal-admissibility / authenticity / court-ready / truth claims (negations and quoted disclaimers are OK)", () => {
@@ -526,9 +529,10 @@ describe("Phase 32.8D — /reports artifact lifecycle (ReportsIndex)", () => {
   });
 
   it("includes the bounded no-claim disclaimer at the top of the page", () => {
-    expect(REPORTS_INDEX).toMatch(
-      /record integrity at the time of\s+generation and do NOT assert legal admissibility/,
+    expect(REPORTS_COPY).toMatch(
+      /record integrity at the time of\s+generation and do not assert legal admissibility/,
     );
+    expect(REPORTS_INDEX).toMatch(/subtitle=\{copy\.page\.subtitle\}/);
   });
 
   it("renders distinct loading / no-workspace / auth-error / unavailable states", () => {
@@ -542,11 +546,11 @@ describe("Phase 32.8D — /reports artifact lifecycle (ReportsIndex)", () => {
     }
   });
 
-  it("renders package-blocked rows with the bounded reason chip", () => {
-    expect(REPORTS_INDEX).toMatch(
-      /data-reports-package-blocked-reason=\{row\.package\.blockedReason\}/,
-    );
-    expect(REPORTS_INDEX).toContain("Export blocked by governance");
+  it("renders package-blocked rows with the bounded reason, never the stored free text", () => {
+    // The governance metadata's `reason` is stored free text (often a code);
+    // the row states the bounded PACKAGE_BLOCKED reason instead.
+    expect(REPORTS_COPY).toContain('PACKAGE_BLOCKED: "Verification package blocked by governance"');
+    expect(REPORTS_INDEX).not.toMatch(/\{row\.package\.blockedReason/);
   });
 
   it("never contains fake metric literals or Math.random", () => {
