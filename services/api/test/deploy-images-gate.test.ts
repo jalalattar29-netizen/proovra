@@ -130,6 +130,13 @@ describe("deploy-images.yml routes publication through the gate", () => {
     expect(WORKFLOW).toMatch(/environment: production-images/);
   });
 
+  it("the worker image's Bitcoin verifier wiring smoke runs before anything is pushed", () => {
+    const smoke = WORKFLOW_CODE.indexOf("node scripts/release/smoke-worker-bitcoin-verifier.mjs proovra-worker:smoke");
+    const push = WORKFLOW_CODE.indexOf("- name: Build and push image");
+    expect(smoke).toBeGreaterThan(-1);
+    expect(push).toBeGreaterThan(smoke);
+  });
+
   it("a manual dispatch names a SHA and still goes through the same gate", () => {
     expect(WORKFLOW).toMatch(/workflow_dispatch:\s*\n\s*inputs:\s*\n\s*sha:/);
     expect(WORKFLOW).toMatch(/HEAD_SHA: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.sha \|\| github\.event\.workflow_run\.head_sha \}\}/);

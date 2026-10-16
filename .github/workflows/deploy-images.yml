@@ -174,7 +174,11 @@ jobs:
       # smoke. smoke-ocr-languages.mjs fails unless the SHIPPED image has the
       # tesseract engine with eng, ara and deu installed and the worker's own
       # provider recognises an English, a German and an Arabic line.
-      - name: Smoke — PDF verification and OCR languages in the worker image
+      # The Bitcoin verifier smoke runs the image exactly as the production
+      # compose wires it (password only as a read-only file owned by the image's
+      # app user) against a JSON-RPC stand-in: a node in IBD — or on the wrong
+      # chain, stale, lagging, too old, or with bad credentials — is never ready.
+      - name: Smoke — PDF verification, OCR languages and Bitcoin verifier wiring in the worker image
         if: matrix.service == 'worker'
         run: |
           docker run --rm \
@@ -182,6 +186,7 @@ jobs:
             -e SMOKE_EXPECT_RELEASE_SHA="${RELEASE_SHA}" \
             proovra-worker:smoke node scripts/smoke-pdf-verification.mjs
           docker run --rm proovra-worker:smoke node scripts/smoke-ocr-languages.mjs
+          node scripts/release/smoke-worker-bitcoin-verifier.mjs proovra-worker:smoke
 
       - name: Build and push image
         uses: docker/build-push-action@v7

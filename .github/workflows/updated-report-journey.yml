@@ -84,6 +84,15 @@ jobs:
             -e SMOKE_EXPECT_RELEASE_SHA="${GITHUB_SHA}" \
             pv-rga-worker:local node scripts/smoke-pdf-verification.mjs
 
+      # The independent Bitcoin verifier's PRODUCTION wiring, in the same image:
+      # NODE_ENV=production, settings in the environment, the RPC password only
+      # as a read-only file owned by the image's app user, against a Bitcoin
+      # Core JSON-RPC stand-in. IBD / wrong chain / stale / header lag / old
+      # version / bad credentials are never ready; only a node passing every
+      # check is; the password never reaches the output or docker inspect.
+      - name: Smoke — Bitcoin verifier wiring in the production worker image
+        run: node scripts/release/smoke-worker-bitcoin-verifier.mjs pv-rga-worker:local
+
       - name: Start the stack
         run: |
           docker compose -f e2e/updated-report/stack/docker-compose.yml up -d
