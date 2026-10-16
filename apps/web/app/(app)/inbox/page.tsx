@@ -38,6 +38,9 @@ import Link from "next/link";
 import { Bell, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 import {
   notificationCategoryLabel,
+  notificationItemText,
+  notificationReadViewLabel,
+  notificationShowingLine,
   notificationSourceLabels,
   safeNotificationHref,
 } from "@proovra/shared/i18n";
@@ -115,6 +118,8 @@ type InboxItem = {
   priority: InboxPriority;
   title: string;
   body: string;
+  /** The same text as a key + params, said in the reader's language (shared authority). */
+  message?: unknown;
   href: string;
   occurredAt: string;
   /** Optional real deadline from the source row; never fabricated. */
@@ -1220,6 +1225,9 @@ function InboxPageInner() {
    * notifications" tells the reader what they are looking at, where "12 of 36
    * items" makes them reconstruct it from the toolbar.
    */
+  /** An item's title and body in the reader's language (server English when unknown). */
+  const say = useCallback((it: InboxItem) => notificationItemText(locale, it), [locale]);
+
   const resultNoun = useMemo(() => {
     const plural = visibleItems.length === 1 ? "notification" : "notifications";
     // Lifecycle first, then the primary view — the order the reader reads the
@@ -1464,7 +1472,9 @@ function InboxPageInner() {
                   data-active={active ? "true" : "false"}
                   className="app-chip ops-quick-chip"
                 >
-                  {PRIMARY_VIEW_LABELS[key]}
+                  {key === "all" || key === "unread" || key === "read"
+                    ? notificationReadViewLabel(locale, key)
+                    : PRIMARY_VIEW_LABELS[key]}
                 </button>
               );
             })}
@@ -1701,8 +1711,8 @@ function InboxPageInner() {
                 the phrasing changes rather than appending a "+" to a number
                 the reader will read as exact anyway. */}
             {state.data.pagination.totalIsExact
-              ? `Showing ${visibleItems.length} of ${state.data.pagination.totalEstimate} ${resultNoun}`
-              : `Showing ${visibleItems.length} ${resultNoun} (more may exist)`}
+              ? notificationShowingLine(locale, { shown: visibleItems.length, total: state.data.pagination.totalEstimate, archived, view: primaryView, englishNoun: resultNoun })
+              : notificationShowingLine(locale, { shown: visibleItems.length, total: null, archived, view: primaryView, englishNoun: resultNoun })}
           </strong>
           {state.data.anyTruncated && state.data.truncated && (
             <span style={{ opacity: 0.85 }}>
@@ -1899,10 +1909,10 @@ function InboxPageInner() {
                               {notificationCategoryLabel(locale, item.category)}
                             </span>
                             <span className="ops-item__title">
-                              {item.title}
+                              {say(item).title}
                             </span>
                           </div>
-                          <div className="ops-item__body">{item.body}</div>
+                          <div className="ops-item__body">{say(item).body}</div>
                           <div className="ops-item__meta">
                             <span>
                               {formatUserDateTime(item.occurredAt)}
@@ -1991,7 +2001,7 @@ function InboxPageInner() {
                                 onClick={() => void markUnread(item)}
                                 disabled={pendingItemKey === item.itemKey}
                                 aria-busy={pendingItemKey === item.itemKey}
-                                aria-label={`Mark as unread: ${item.title}`}
+                                aria-label={`Mark as unread: ${say(item).title}`}
                               >
                                 Mark as unread
                               </button>
@@ -2004,7 +2014,7 @@ function InboxPageInner() {
                                 onClick={() => void markRead(item)}
                                 disabled={pendingItemKey === item.itemKey}
                                 aria-busy={pendingItemKey === item.itemKey}
-                                aria-label={`Mark as read: ${item.title}`}
+                                aria-label={`Mark as read: ${say(item).title}`}
                               >
                                 Mark as read
                               </button>
@@ -2021,7 +2031,7 @@ function InboxPageInner() {
                               onClick={() => void unarchiveItem(item)}
                               disabled={pendingItemKey === item.itemKey}
                               aria-busy={pendingItemKey === item.itemKey}
-                              aria-label={`Unarchive: ${item.title}`}
+                              aria-label={`Unarchive: ${say(item).title}`}
                             >
                               Unarchive
                             </button>
@@ -2035,7 +2045,7 @@ function InboxPageInner() {
                                 onClick={() => void archiveItem(item)}
                                 disabled={pendingItemKey === item.itemKey}
                                 aria-busy={pendingItemKey === item.itemKey}
-                                aria-label={`Archive: ${item.title}`}
+                                aria-label={`Archive: ${say(item).title}`}
                               >
                                 Archive
                               </button>

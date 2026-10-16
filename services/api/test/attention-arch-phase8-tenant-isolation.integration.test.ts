@@ -30,6 +30,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { expectFaithfulInboxMessages } from "./helpers/inbox-message-fidelity.js";
 
 describe("Phase 8.3 — tenant isolation (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
@@ -190,6 +191,7 @@ describe("Phase 8.3 — tenant isolation (live PostgreSQL 16)", () => {
     expect(review.subjectUserId).toBe(A.ownerUserId);
 
     const a = await get("/v1/me/inbox?pageSize=100", A.ownerToken);
+    expectFaithfulInboxMessages(a.body.items);
     expect(a.status).toBe(200);
     const items = a.body.items as Array<{ itemKey: string }>;
     expect(
@@ -214,6 +216,7 @@ describe("Phase 8.3 — tenant isolation (live PostgreSQL 16)", () => {
     expect(note.userId).toBe(A.ownerUserId);
 
     const a = await get("/v1/me/inbox?pageSize=100", A.ownerToken);
+    expectFaithfulInboxMessages(a.body.items);
     const items = a.body.items as Array<{ itemKey: string; title: string }>;
     expect(
       items.some((i) => i.itemKey === `collaboration:${note.id}`),

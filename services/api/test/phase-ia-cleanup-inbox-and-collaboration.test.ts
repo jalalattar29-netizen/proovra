@@ -713,7 +713,11 @@ describe("Phase IA-enterprise — /inbox UI pagination + filters + priority sect
     // total now drops the "of N" claim entirely and says more may exist.
     expect(PAGE).toContain("data-inbox-showing-text");
     expect(PAGE).toMatch(/totalIsExact/);
-    expect(PAGE).toMatch(/more may exist/);
+    // The sentence is said by the shared notification authority now (en / de
+    // / ar): an inexact total passes `total: null`, which says "(more may
+    // exist)" in English and its equivalent in German and Arabic.
+    expect(PAGE).toMatch(/notificationShowingLine\(locale, \{[^}]*total: null/);
+    expect(readSource("../../../packages/shared/src/notification-presentation.ts")).toMatch(/\(more may exist\)/);
     expect(PAGE).not.toMatch(/totalIsExact\s*\?\s*""\s*:\s*"\+"/);
   });
 

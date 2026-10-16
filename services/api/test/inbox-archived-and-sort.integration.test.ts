@@ -53,6 +53,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { expectFaithfulInboxMessages } from "./helpers/inbox-message-fidelity.js";
 
 describe("Inbox archived filter + sorting (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
@@ -163,6 +164,8 @@ describe("Inbox archived filter + sorting (live PostgreSQL 16)", () => {
       historyAvailable?: boolean;
       pagination: { totalEstimate: number; nextCursor: string | null };
     };
+    // Live AND archived (snapshot) rows say the same in English text and message.
+    expectFaithfulInboxMessages(body.items as never);
     return {
       items: body.items,
       totalEstimate: body.pagination.totalEstimate,

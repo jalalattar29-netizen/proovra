@@ -120,6 +120,8 @@ import {
 } from "@proovra/shared";
 import { evidenceScopeForMany } from "@proovra/shared-runtime";
 import { conditionMessageFor, conditionTextFor } from "../services/operations/condition-presentation.service.js";
+import type { Prisma } from "@prisma/client";
+import { readNotificationMessage, type NotificationMessage, type NotificationMessageParams } from "@proovra/shared/i18n";
 
 /**
  * Phase IA-enterprise — server-driven filter enum. Every chip the
@@ -617,6 +619,13 @@ export type InboxItem = {
    * caller.
    */
   context: Record<string, string | number | null>;
+  /**
+   * The same title and body as a key + params (user content verbatim, every
+   * other part a code), so a client can say it in the reader's language
+   * through the shared notification authority (renderNotificationMessage).
+   * `title` / `body` stay the English text for clients that predate it.
+   */
+  message?: NotificationMessage | null;
 };
 
 /**
@@ -1279,6 +1288,41 @@ function boundedSnapshotMetadata(
   return out;
 }
 
+/** The message key the snapshot keeps beside the bounded context. */
+const SNAPSHOT_MESSAGE_FIELD = "__message";
+
+/**
+ * The bounded context plus the item's structured message (bounded too), so a
+ * history row can be said in the reader's language later — the stored English
+ * title/body remain for a row written before messages existed.
+ */
+function snapshotMetadataWithMessage(
+  context: Record<string, string | number | null>,
+  message: NotificationMessage | null | undefined,
+): Prisma.InputJsonObject {
+  const meta: Record<string, Prisma.InputJsonValue | null> = { ...boundedSnapshotMetadata(context) };
+  const read = readNotificationMessage(message);
+  if (read) {
+    const params: Record<string, string | number | null> = {};
+    for (const [k, v] of Object.entries(read.params).slice(0, 12)) {
+      params[k] = typeof v === "string" ? v.slice(0, 600) : v;
+    }
+    meta[SNAPSHOT_MESSAGE_FIELD] = { key: read.key.slice(0, 64), params };
+  }
+  return meta;
+}
+
+/** A history row's context (without the kept message) and its message. */
+function splitSnapshotMetadata(metadata: unknown): {
+  context: Record<string, string | number | null>;
+  message: NotificationMessage | null;
+} {
+  const raw = metadata && typeof metadata === "object" ? { ...(metadata as Record<string, unknown>) } : {};
+  const message = readNotificationMessage(raw[SNAPSHOT_MESSAGE_FIELD]);
+  delete raw[SNAPSHOT_MESSAGE_FIELD];
+  return { context: raw as Record<string, string | number | null>, message };
+}
+
 /**
  * Upsert snapshots for every currently-live item and mark previously-live
  * snapshots RESOLVED when their source stopped emitting them. Title/body
@@ -1337,7 +1381,7 @@ export async function syncInboxSnapshots(
               readAtUtc: i.readAt ? new Date(i.readAt) : null,
               dismissedAtUtc: i.dismissedAt ? new Date(i.dismissedAt) : null,
               snoozedUntilUtc: i.snoozedUntil ? new Date(i.snoozedUntil) : null,
-              metadataJson: boundedSnapshotMetadata(i.context),
+              metadataJson: snapshotMetadataWithMessage(i.context, i.message),
             };
           }),
           skipDuplicates: true,
@@ -2555,6 +2599,7 @@ export async function buildInboxAggregation(
           category: "onboarding",
           tone: "info",
           title: "You haven't joined an organization yet",
+          message: { key: "onboarding.no_organization", params: {} },
           body: "Organizations group workspaces for governance, members, and audit. Create one, or accept an invite token.",
           href: "/organizations",
           occurredAt: now.toISOString(),
@@ -2567,6 +2612,7 @@ export async function buildInboxAggregation(
           category: "onboarding",
           tone: "info",
           title: "Add an email to your account",
+          message: { key: "onboarding.no_email", params: {} },
           body: "Email-matched invites and audit-trail attribution require an email identity.",
           href: "/settings",
           occurredAt: now.toISOString(),
@@ -2581,6 +2627,7 @@ export async function buildInboxAggregation(
           category: "org_invite",
           tone: "high",
           title: `Organization invite waiting: ${inv.organization.name}`,
+          message: { key: "org_invite", params: { org: inv.organization.name, role: inv.role, expiresAt: inv.expiresAt.toISOString() } },
           body: `You have been invited to join ${inv.organization.name} as ${humanizeOrganizationRole(inv.role)}. Accept before ${formatTimestampForReportUtc(
             inv.expiresAt,
           )}.`,
@@ -2605,6 +2652,7 @@ export async function buildInboxAggregation(
           category: "org_admin",
           tone: "warning",
           title: `${count} pending invite${count === 1 ? "" : "s"} in ${orgName}`,
+          message: { key: "org_admin.pending_invites", params: { org: orgNameById.get(row.organizationId) ?? null, count } },
           body: `As an admin you can resend or revoke open invites from this organization's detail page.`,
           href: `/organizations/${row.organizationId}`,
           occurredAt: (row._max.createdAt ?? now).toISOString(),
@@ -2627,6 +2675,7 @@ export async function buildInboxAggregation(
           category: "review_decision",
           tone: "high",
           title: `Reviewer conflict — adjudication required`,
+          message: { key: "review.conflict", params: {} },
           body: `Two reviewers disagreed on this workflow. As team OWNER/ADMIN you can resolve it via the multi-stage review panel.`,
           href: `/reviewer-ops/${encodeURIComponent(c.workflowId)}`,
           occurredAt: c.decidedAt.toISOString(),
@@ -2646,6 +2695,7 @@ export async function buildInboxAggregation(
           category: "review_decision",
           tone: "info",
           title: `Your first-stage decision is awaiting peer review`,
+          message: { key: "review.awaiting_second", params: {} },
           body: `Independence policy requires a different reviewer to submit the second-stage decision. No action needed from you.`,
           href: `/reviewer-ops/${encodeURIComponent(d.workflowId)}`,
           occurredAt: d.decidedAt.toISOString(),
@@ -2671,6 +2721,7 @@ export async function buildInboxAggregation(
           category: "governance",
           tone: toneMap[g.severity] ?? "info",
           title: `${governanceKindTitle(g.kind)} — ${teamName}`,
+          message: { key: "governance", params: { kind: g.kind, team: teamNameById.get(g.teamId) ?? null, occurrences: g.occurrenceCount } },
           body: governanceKindBody(g.kind, g.occurrenceCount),
           href: governanceKindHref(g.kind),
           occurredAt: g.lastSeenAtUtc.toISOString(),
@@ -2740,6 +2791,7 @@ export async function buildInboxAggregation(
           category: "discussion_mention",
           tone: "high",
           title: `You were mentioned in "${thread.title}"`,
+          message: { key: "discussion.mention", params: { thread: thread.title } },
           body: `A reviewer or investigator @-mentioned you in a workspace discussion. Open the thread to respond.`,
           href: `/evidence/${encodeURIComponent(thread.evidenceId)}?tab=discussion&thread=${encodeURIComponent(thread.id)}`,
           occurredAt: m.createdAt.toISOString(),
@@ -2764,6 +2816,7 @@ export async function buildInboxAggregation(
           category: "discussion_assigned",
           tone: t.escalatedAtUtc ? "high" : "warning",
           title: `Discussion assigned to you: "${t.title}"`,
+          message: { key: "discussion.assigned", params: { thread: t.title, status: t.status, escalated: t.escalatedAtUtc ? 1 : 0 } },
           body: t.escalatedAtUtc
             ? `An escalated discussion is assigned to you. Status: ${humanizeThreadStatus(t.status)}.`
             : `An open discussion is assigned to you. Status: ${humanizeThreadStatus(t.status)}.`,
@@ -2799,6 +2852,7 @@ export async function buildInboxAggregation(
           category: "review_escalation",
           tone: escalationToneMap[esc.severity] ?? "warning",
           title: `Escalation assigned to you: ${humanizeEscalationReason(esc.reason)}`,
+          message: { key: "escalation.assigned", params: { reason: esc.reason, summary: esc.safeSummary } },
           body: esc.safeSummary,
           href: `/reviewer-ops/escalations?escalationId=${encodeURIComponent(esc.id)}`,
           occurredAt: esc.updatedAt.toISOString(),
@@ -2830,6 +2884,7 @@ export async function buildInboxAggregation(
           category: "access_review_pending",
           tone: overdue ? "high" : "warning",
           title: subjectLine,
+          message: { key: "access_review", params: { kind: ar.kind, subject: ar.subjectUserId === userId ? 1 : 0, overdue: overdue ? 1 : 0 } },
           body: overdue
             ? `${humanizeAccessReviewKind(ar.kind)}. Past due — please act in the access reviews console.`
             : `${humanizeAccessReviewKind(ar.kind)}. Open the access reviews console to certify, revoke, or suspend.`,
@@ -2860,6 +2915,7 @@ export async function buildInboxAggregation(
           category: "mfa_recovery_pending",
           tone: "high",
           title: `MFA recovery request pending — ${teamName}`,
+          message: { key: "mfa_recovery", params: { team: teamNameById.get(req.teamId) ?? null, approvals: req.approvalCount, required: req.requiredApprovals } },
           body: `A member has requested a lost-factor reset. Approvals: ${req.approvalCount}/${req.requiredApprovals}. Quorum-based approval forces re-enrollment; it does NOT grant a session.`,
           href: `/security-center/mfa-recovery?requestId=${encodeURIComponent(req.id)}`,
           occurredAt: req.createdAt.toISOString(),
@@ -2888,6 +2944,7 @@ export async function buildInboxAggregation(
           category: "communication_failure",
           tone: "warning",
           title: `Failed ${humanizeCommunicationChannel(msg.channel)} delivery — ${teamName}`,
+          message: { key: "communication_failure", params: { channel: msg.channel, purpose: msg.purpose, team: teamNameById.get(msg.teamId) ?? null, recipient: msg.recipientPreview, attempts: msg.attemptCount } },
           // The provider's error code is diagnostic data for Messaging
           // operations, where it is shown in context — never notification copy.
           body: `${humanizeCommunicationPurpose(msg.purpose)} to ${msg.recipientPreview} failed after ${msg.attemptCount} attempt${msg.attemptCount === 1 ? "" : "s"}. Open Messaging operations to retry or cancel.`,
@@ -2918,6 +2975,7 @@ export async function buildInboxAggregation(
           category: "security_event_high",
           tone: "high",
           title: `Security alert: ${humanizeSecurityEventType(ev.eventType)}`,
+          message: { key: "security_alert", params: { eventType: ev.eventType } },
           body: `A high-severity event on your account was recorded. Open Account security to review the timeline.`,
           href: "/settings/security",
           occurredAt: ev.createdAt.toISOString(),
@@ -2957,6 +3015,7 @@ export async function buildInboxAggregation(
           category: "report_failure",
           tone: incidentSeverityTone[inc.severity] ?? "high",
           title: `Report generation failure — ${teamName}${status}`,
+          message: { key: "report_failure", params: incidentMessageParams(inc, inc.teamId ? teamNameById.get(inc.teamId) ?? null : null) },
           // The ONE catalogue's sentence (2026-10-14), the stored text only for a
           // row with no valid message.
           body: `${conditionTextFor(conditionMessageFor(inc))?.summary ?? inc.safeSummary}${occBlurb}`,
@@ -2994,6 +3053,7 @@ export async function buildInboxAggregation(
           category: "verification_package_failure",
           tone: incidentSeverityTone[inc.severity] ?? "high",
           title: `Verification package failure — ${teamName}${status}`,
+          message: { key: "package_failure", params: incidentMessageParams(inc, inc.teamId ? teamNameById.get(inc.teamId) ?? null : null) },
           // The ONE catalogue's sentence (2026-10-14), the stored text only for a
           // row with no valid message.
           body: `${conditionTextFor(conditionMessageFor(inc))?.summary ?? inc.safeSummary}${occBlurb}`,
@@ -3045,6 +3105,7 @@ export async function buildInboxAggregation(
           title: chainFailed
             ? `Bitcoin verification failed — ${evidenceLabel}`
             : `OpenTimestamps proof failed — ${evidenceLabel}`,
+          message: { key: "ots_failure", params: { evidence: evidenceLabel, chain: chainFailed ? 1 : 0, code: proofCode } },
           body: chainFailed
             ? "The OpenTimestamps proof does not match the referenced block in the active Bitcoin main chain. Open the evidence Integrity tab for the verification details and operator runbook."
             : `${humanizeOtsFailureReason(proofCode)} Open the evidence Integrity tab for the preservation status and operator runbook.`,
@@ -3081,6 +3142,7 @@ export async function buildInboxAggregation(
           category: "tsa_failure",
           tone: "high",
           title: `Trusted timestamp failed — ${evidenceLabel}`,
+          message: { key: "tsa_failure", params: { evidence: evidenceLabel, reason: ev.tsaFailureReason ? ev.tsaFailureReason.slice(0, 240) : null } },
           body: `${reason} Open the evidence Integrity tab for the timestamping status and retry posture.`,
           href: `/evidence/${encodeURIComponent(ev.id)}?tab=integrity`,
           occurredAt: ev.updatedAt.toISOString(),
@@ -3108,6 +3170,7 @@ export async function buildInboxAggregation(
           category: "case_assignment",
           tone: "warning",
           title: `Case assigned to you: "${ca.case?.name ?? "Untitled case"}"`,
+          message: { key: "case_assignment", params: { case: ca.case?.name ?? null, role: String(ca.role), note: ca.note ?? null } },
           body: ca.note
             ? `Role: ${humanizeCaseAssignmentRole(String(ca.role))}. ${ca.note}`
             : `Role: ${humanizeCaseAssignmentRole(String(ca.role))}. Open the case to begin.`,
@@ -3139,6 +3202,7 @@ export async function buildInboxAggregation(
           category: "intake_submission_pending_review",
           tone: dueOverdue ? "high" : "warning",
           title: `Intake submission awaiting review — ${teamName}`,
+          message: { key: "intake.review", params: { team: r.teamId ? teamNameById.get(r.teamId) ?? null : null, title: r.title ?? null, status: r.status } },
           body: `"${r.title ?? "Untitled request"}" is in ${r.status.toLowerCase().replace(/_/g, " ")} state with no assigned reviewer. Open evidence requests to claim it.`,
           href: `/evidence-requests/${encodeURIComponent(r.id)}`,
           occurredAt: r.updatedAt.toISOString(),
@@ -3173,6 +3237,7 @@ export async function buildInboxAggregation(
           category: "intake_required_items_missing",
           tone: dueOverdue ? "high" : "warning",
           title: `Intake incomplete — ${teamName}`,
+          message: { key: "intake.incomplete", params: { team: r.teamId ? teamNameById.get(r.teamId) ?? null : null, title: r.title ?? null, moreInfo: r.status === "NEEDS_MORE_INFO" ? 1 : 0 } },
           body: `"${r.title ?? "Untitled request"}" cannot complete because ${reason}. Open evidence requests for the checklist.`,
           href: `/evidence-requests/${encodeURIComponent(r.id)}`,
           occurredAt: r.updatedAt.toISOString(),
@@ -3206,6 +3271,7 @@ export async function buildInboxAggregation(
           category: "intake_link_expiring",
           tone: "info",
           title: `Intake link expiring soon — ${teamName}`,
+          message: { key: "intake.link_expiring", params: { team: link.teamId ? teamNameById.get(link.teamId) ?? null : null, expiresAt: link.expiresAtUtc.toISOString(), used: link.maxUses !== null && link.maxUses !== undefined ? link.usedCount : null, max: link.maxUses ?? null } },
           body: `An active intake link${useFraction} expires on ${formatTimestampForReportUtc(link.expiresAtUtc)}. Open intake links to renew or revoke.`,
           href: `/intake-links?linkId=${encodeURIComponent(link.id)}`,
           occurredAt: link.updatedAt.toISOString(),
@@ -3235,6 +3301,7 @@ export async function buildInboxAggregation(
           category: "collaboration",
           tone: "info",
           title: n.title,
+          message: { key: "collaboration", params: { type: n.type, title: n.title, body: n.body ?? null } },
           body: n.body ?? "Open the collaboration team page for details.",
           href: n.teamId
             ? `/collaboration-teams/${encodeURIComponent(n.teamId)}/collaboration`
@@ -3611,6 +3678,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
               tone: s.severity as InboxTone,
               priority: s.priority as InboxPriority,
               title: "[No longer accessible — workspace access removed]",
+              message: { key: "history.unavailable", params: {} },
               body: "This historical item belongs to a workspace you no longer have access to.",
               href: "",
               occurredAt: s.sourceOccurredAtUtc.toISOString(),
@@ -3665,7 +3733,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
           canDismiss: s.resolvedAtUtc == null,
           canSnooze: s.resolvedAtUtc == null,
           dueAt: s.dueAtUtc ? s.dueAtUtc.toISOString() : null,
-          context: (s.metadataJson ?? {}) as Record<string, string | number | null>,
+          ...splitSnapshotMetadata(s.metadataJson),
           };
         });
         const nextOffset = offset + items.length;
@@ -4704,6 +4772,26 @@ export async function meInboxRoutes(app: FastifyInstance) {
 // generic readable label — but the test suite asserts every known
 // kind has a mapping so the fallback path is a regression signal.
 // ---------------------------------------------------------------------------
+/**
+ * An incident item's message params: the condition's code and params (so the
+ * summary is said in the reader's language), its stored summary as the
+ * verbatim fallback, and the acknowledgement / occurrence facts.
+ */
+function incidentMessageParams(
+  inc: Parameters<typeof conditionMessageFor>[0] & { status: string; occurrenceCount: number; safeSummary: string },
+  team: string | null,
+): NotificationMessageParams {
+  const condition = conditionMessageFor(inc);
+  return {
+    team,
+    acknowledged: inc.status === "ACKNOWLEDGED" ? 1 : 0,
+    occurrences: inc.occurrenceCount,
+    conditionCode: condition?.code ?? null,
+    conditionParams: condition ? JSON.stringify(condition.params) : null,
+    summary: inc.safeSummary,
+  };
+}
+
 function governanceKindTitle(kind: string): string {
   switch (kind) {
     case "DESTRUCTION_PENDING":

@@ -40,7 +40,15 @@ import {
 } from "../../src/product/inbox-view";
 import { usePlatformContext } from "../../src/product/platform-context";
 import { useOptionalLocale } from "../../src/locale-context";
-import { notificationCategoryLabel, notificationSourceLabels } from "@proovra/shared";
+
+const isReadStateView = (v: string): v is "all" | "unread" | "read" => v === "all" || v === "unread" || v === "read";
+import {
+  notificationCategoryLabel,
+  notificationItemText,
+  notificationReadViewExplanation,
+  notificationReadViewLabel,
+  notificationSourceLabels,
+} from "@proovra/shared";
 import { theme } from "../../src/theme/theme";
 import { useToast } from "../../src/toast-context";
 import {
@@ -291,9 +299,14 @@ export default function NotificationsScreen() {
               const impossible = m.key === "unread" && archived;
               return {
                 key: m.key,
-                label: m.label,
+                // All / Unread / Read in the reader's words (shared authority).
+                label: isReadStateView(m.key) ? notificationReadViewLabel(locale, m.key) : m.label,
                 value: String(inboxMetricCount(m.key, shell)),
-                caption: impossible ? ARCHIVED_ALWAYS_READ : m.explanation,
+                caption: impossible
+                  ? ARCHIVED_ALWAYS_READ
+                  : isReadStateView(m.key)
+                    ? notificationReadViewExplanation(locale, m.key)
+                    : m.explanation,
                 tone: m.tone,
                 selected: primaryView === m.key,
                 // The one impossible card is inert, and says why.
@@ -330,7 +343,7 @@ export default function NotificationsScreen() {
               if (v === "unread" && archived) return;
               selectView(v);
             }}
-            options={READ_STATE_VIEWS.map((v) => ({ value: v, label: PRIMARY_VIEW_LABELS[v] }))}
+            options={READ_STATE_VIEWS.map((v) => ({ value: v, label: isReadStateView(v) ? notificationReadViewLabel(locale, v) : PRIMARY_VIEW_LABELS[v] }))}
           />
           <View style={styles.toolbarRow}>
             <ProovraButton
@@ -369,11 +382,11 @@ export default function NotificationsScreen() {
       {state.kind === "ready" ? (
         <View style={styles.block}>
           <ProovraText variant="bodySm" weight="semibold">
-            {inboxShowingText(items.length, state.data, inboxResultNoun({ archived, primaryView, category }, items.length))}
+            {inboxShowingText(items.length, state.data, inboxResultNoun({ archived, primaryView, category }, items.length), locale, { archived, primaryView })}
           </ProovraText>
           {state.data.cappedSources.length > 0 ? (
             <ProovraText variant="label" color={theme.color.ink.muted}>
-              {`Some sources were capped: ${state.data.cappedSources.join(", ")}. Open the relevant console for the full list.`}
+              {`Some sources were capped: ${notificationSourceLabels(locale, state.data.cappedSourceCodes).join(", ")}. Open the relevant console for the full list.`}
             </ProovraText>
           ) : null}
         </View>
@@ -422,6 +435,8 @@ export default function NotificationsScreen() {
             const route = resolveInboxRoute(item.href);
             const busy = pendingKey === item.itemKey;
             const tone = isInboxTone(item.tone) ? item.tone : null;
+            // Title and body in the reader's words; the server's English when the key is unknown.
+            const text = notificationItemText(locale, { title: item.title, body: item.body ?? "", message: item.message });
             return (
               <ProovraCard key={item.itemKey} testID={`inbox-item-${item.itemKey}`}>
                 <View style={styles.itemHead}>
@@ -430,11 +445,11 @@ export default function NotificationsScreen() {
                   {item.category ? <ProovraBadge label={notificationCategoryLabel(locale, item.category)} tone="neutral" /> : null}
                 </View>
                 <ProovraText variant="bodySm" weight={item.isRead ? "medium" : "bold"}>
-                  {item.title}
+                  {text.title}
                 </ProovraText>
-                {item.body ? (
+                {text.body ? (
                   <ProovraText variant="label" color={theme.color.ink.secondary}>
-                    {item.body}
+                    {text.body}
                   </ProovraText>
                 ) : null}
                 <ProovraText variant="label" color={theme.color.ink.muted}>
@@ -444,7 +459,7 @@ export default function NotificationsScreen() {
                   {route ? (
                     <ProovraButton
                       label="Open"
-                      accessibilityLabel={`Open: ${item.title}`}
+                      accessibilityLabel={`Open: ${text.title}`}
                       variant="primary"
                       fullWidth={false}
                       onPress={() => open(item, route)}
@@ -453,7 +468,7 @@ export default function NotificationsScreen() {
                   {item.canMarkRead ? (
                     <ProovraButton
                       label={item.isRead ? "Mark as unread" : "Mark as read"}
-                      accessibilityLabel={`${item.isRead ? "Mark as unread" : "Mark as read"}: ${item.title}`}
+                      accessibilityLabel={`${item.isRead ? "Mark as unread" : "Mark as read"}: ${text.title}`}
                       variant="secondary"
                       fullWidth={false}
                       disabled={busy}
@@ -464,7 +479,7 @@ export default function NotificationsScreen() {
                   {item.dismissedAt ? (
                     <ProovraButton
                       label="Unarchive"
-                      accessibilityLabel={`Unarchive: ${item.title}`}
+                      accessibilityLabel={`Unarchive: ${text.title}`}
                       variant="secondary"
                       fullWidth={false}
                       disabled={busy}
@@ -473,7 +488,7 @@ export default function NotificationsScreen() {
                   ) : item.canDismiss !== false ? (
                     <ProovraButton
                       label="Archive"
-                      accessibilityLabel={`Archive: ${item.title}`}
+                      accessibilityLabel={`Archive: ${text.title}`}
                       variant="secondary"
                       fullWidth={false}
                       disabled={busy}

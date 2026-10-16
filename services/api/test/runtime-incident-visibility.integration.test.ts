@@ -24,6 +24,7 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { expectFaithfulInboxMessages } from "./helpers/inbox-message-fidelity.js";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
@@ -69,7 +70,9 @@ describe("workspace incidents stay visible to their workspace — and only to it
   async function inbox(token: string): Promise<InboxItem[]> {
     const res = await get(token, "/v1/me/inbox");
     expect(res.statusCode).toBe(200);
-    return (res.json() as { items: InboxItem[] }).items;
+    const items = (res.json() as { items: InboxItem[] }).items;
+    expectFaithfulInboxMessages(items as never);
+    return items;
   }
 
   /** A report-generation failure, exactly as processor.ts records one. */

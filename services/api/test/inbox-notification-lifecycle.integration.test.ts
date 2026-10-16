@@ -34,6 +34,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness, TeamFixture } from "./integration-harness.js";
+import { expectFaithfulInboxMessages } from "./helpers/inbox-message-fidelity.js";
 
 type Item = {
   itemKey: string;
@@ -44,6 +45,7 @@ type Item = {
   body: string;
   href: string;
   occurredAt: string;
+  message?: unknown;
 };
 
 type Envelope = {
@@ -190,7 +192,10 @@ describe("Notification lifecycle — read is a state (live PostgreSQL 16 + Redis
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode, res.body).toBe(200);
-    return res.json() as Envelope;
+    const env = res.json() as Envelope;
+    // Every item says the same in its English text and its localisable message.
+    expectFaithfulInboxMessages(env.items);
+    return env;
   }
 
   const keysOf = (env: Envelope) => env.items.map((i) => i.itemKey);

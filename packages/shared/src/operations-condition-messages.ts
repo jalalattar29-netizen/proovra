@@ -282,6 +282,10 @@ const REASON_PHRASES: Readonly<Record<string, L3>> = {
 };
 const REASON_FALLBACK: L3 = { en: "needs attention", de: "erfordert Aufmerksamkeit", ar: "يحتاج إلى انتباه" };
 const reasonPhrase = (l: ConditionMessageLocale, code: string) => phrase(REASON_PHRASES, REASON_FALLBACK, l, code);
+/** A review escalation reason as a lower-case phrase (never its enum code). */
+export function reviewEscalationReasonPhrase(locale: string | null | undefined, code: string): string {
+  return reasonPhrase(conditionMessageLocale(locale), code);
+}
 
 const DRIFT_PHRASES: Readonly<Record<string, L3>> = {
   OK: { en: "no difference found", de: "keine Abweichung gefunden", ar: "لا يوجد اختلاف" },

@@ -37,6 +37,7 @@ import Link from "next/link";
 import { Bell } from "lucide-react";
 import {
   notificationCategoryLabel,
+  notificationItemText,
   notificationReadStateLabel,
   safeNotificationHref,
 } from "@proovra/shared/i18n";
@@ -55,6 +56,8 @@ type BellItem = {
   priority: "P1" | "P2" | "P3" | "P4" | "P5";
   title: string;
   body: string;
+  /** The same text as a key + params, said in the reader's language (shared authority). */
+  message?: unknown;
   href: string;
   occurredAt: string;
   /**
@@ -633,7 +636,7 @@ export function NotificationBell() {
                             data-notification-destination
                             className="ops-bell-row__title"
                           >
-                            {it.title}
+                            {notificationItemText(locale, it).title}
                           </a>
                           {deniedKey === it.itemKey ? (
                             <div
@@ -644,7 +647,7 @@ export function NotificationBell() {
                               This item is not available.
                             </div>
                           ) : null}
-                          <div className="ops-bell-row__body">{it.body}</div>
+                          <div className="ops-bell-row__body">{notificationItemText(locale, it).body}</div>
                           {/*
                             TWO CONTROLS, TWO NAMES.
 
@@ -675,7 +678,7 @@ export function NotificationBell() {
                                 onClick={() => void mutate(it.itemKey, "read")}
                                 disabled={busyKey !== null}
                                 aria-busy={busyKey === it.itemKey}
-                                aria-label={`Mark as read: ${it.title}`}
+                                aria-label={`Mark as read: ${notificationItemText(locale, it).title}`}
                                 data-notification-action="read"
                                 className="ops-bell-action"
                               >
@@ -688,7 +691,7 @@ export function NotificationBell() {
                                 onClick={() => void mutate(it.itemKey, "dismiss")}
                                 disabled={busyKey !== null}
                                 aria-busy={busyKey === it.itemKey}
-                                aria-label={`Dismiss: ${it.title}`}
+                                aria-label={`Dismiss: ${notificationItemText(locale, it).title}`}
                                 data-notification-action="dismiss"
                                 className="ops-bell-action"
                               >

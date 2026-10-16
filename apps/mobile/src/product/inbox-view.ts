@@ -18,7 +18,10 @@ import {
   NOTIFICATION_CATEGORIES,
   notificationCategoryLabel,
   notificationReadViewExplanation,
+  notificationShowingLine,
   notificationSourceLabel,
+  readNotificationMessage,
+  type NotificationMessage,
 } from "@proovra/shared";
 import type { InboxItem } from "./inbox";
 
@@ -194,6 +197,8 @@ export function buildInboxQueryPath(q: InboxQuery): string {
 
 export interface InboxViewItem extends InboxItem {
   body: string | null;
+  /** The same text as a key + params, said in the reader's language (shared authority). */
+  message: NotificationMessage | null;
   dueAt: string | null;
   /** Absent reads as true — the route sets it on every item it emits. */
   canMarkRead: boolean;
@@ -217,6 +222,8 @@ export interface InboxEnvelope {
   totalIsExact: boolean;
   /** Labels of the sources the server capped. Empty when nothing was capped. */
   cappedSources: string[];
+  /** The capped sources' codes, for naming them in the reader's locale. */
+  cappedSourceCodes: string[];
   /** False only when the server said it may NOT assert everything was read. */
   mayAssertAllClear: boolean;
   incompleteSources: string[];
@@ -258,6 +265,7 @@ export function parseInboxEnvelope(raw: unknown): InboxEnvelope {
       itemKey: str(i.itemKey) ?? str(i.id) ?? "",
       title: str(i.title) ?? "",
       body: str(i.body),
+      message: readNotificationMessage(i.message),
       href: str(i.href),
       occurredAt: str(i.occurredAt) ?? "",
       category: str(i.category),
@@ -294,6 +302,12 @@ export function parseInboxEnvelope(raw: unknown): InboxEnvelope {
         ? Object.entries(truncated)
             .filter(([, capped]) => capped === true)
             .map(([key]) => TRUNCATION_LABELS[key] ?? key)
+        : [],
+    cappedSourceCodes:
+      d.anyTruncated === true
+        ? Object.entries(truncated)
+            .filter(([, capped]) => capped === true)
+            .map(([key]) => key)
         : [],
     mayAssertAllClear: completeness ? completeness.mayAssertAllClear !== false : true,
     incompleteSources: completeness && Array.isArray(completeness.incompleteSources)
@@ -460,11 +474,25 @@ export function inboxResultNoun(q: { archived: boolean; primaryView: PrimaryView
   return `${lifecycle}${plural}`;
 }
 
-/** "Showing X of Y …" only while Y is exact; otherwise "(more may exist)". */
-export function inboxShowingText(shown: number, env: InboxEnvelope, noun: string): string {
-  return env.totalIsExact && env.totalEstimate !== null
-    ? `Showing ${shown} of ${env.totalEstimate} ${noun}`
-    : `Showing ${shown} ${noun} (more may exist)`;
+/**
+ * "Showing X of Y …" only while Y is exact; otherwise "(more may exist)". In
+ * German and Arabic the shared authority states the same facts
+ * (notificationShowingLine); English is the sentence it always was.
+ */
+export function inboxShowingText(
+  shown: number,
+  env: InboxEnvelope,
+  noun: string,
+  locale?: string | null,
+  view: { archived: boolean; primaryView: string } = { archived: false, primaryView: "all" },
+): string {
+  return notificationShowingLine(locale, {
+    shown,
+    total: env.totalIsExact && env.totalEstimate !== null ? env.totalEstimate : null,
+    archived: view.archived,
+    view: view.primaryView,
+    englishNoun: noun,
+  });
 }
 
 /** The row's meta line pieces after the timestamp (web ops-item__meta). */
