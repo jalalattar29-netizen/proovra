@@ -1,7 +1,10 @@
+import { evidenceLocationSourceLabel } from "./intake-link-location.js";
+
 export const CAPTURE_LOCATION_SOURCE_LABEL =
   "Browser/device-reported geolocation";
 
-export const CAPTURE_LOCATION_STATUS_LABEL = "Location metadata included";
+/** The RECORDED label of the canonical location state (see resolveEvidenceLocation). */
+export const CAPTURE_LOCATION_STATUS_LABEL = "Location recorded";
 
 export const CAPTURE_LOCATION_CONTEXT_DESCRIPTION =
   "Device/browser-reported location preserved with this evidence record.";
@@ -223,13 +226,15 @@ function buildTileUrl(
     .replace("{y}", String(y));
 }
 
+/**
+ * True only for a VALID coordinate pair (finite and in range): the gate every
+ * surface uses before it shows coordinates or draws a map. Stored coordinates
+ * that fail validation are the INVALID location state, never a map.
+ */
 export function hasCaptureLocationMetadata(
   input: CaptureLocationInput | null | undefined
 ): boolean {
-  return (
-    toFiniteNumber(input?.lat ?? null) !== null &&
-    toFiniteNumber(input?.lng ?? null) !== null
-  );
+  return isValidCaptureCoordinatePair(input);
 }
 
 export function formatCaptureLocationCoordinate(
@@ -844,4 +849,219 @@ export function buildCaptureLocationMapDataUrl(params: {
 }): string {
   const svg = buildCaptureLocationMapSvg(params);
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+// =============================================================================
+// THE CANONICAL EVIDENCE LOCATION STATE (2026-10-16)
+// =============================================================================
+//
+// One reading of what a record holds for location, for every surface: the
+// Evidence detail page, the technical appendix, Public Verify (web and app),
+// the native evidence record, the PDF report and the verification package.
+// It is derived ONLY from persisted facts:
+//
+//   - the stored coordinates (evidence.lat / lng / accuracyMeters) and their
+//     source (evidence.locationSource);
+//   - the outcome of a location request, when a capture path recorded one in
+//     the custody chain: the intake submit (EXTERNAL_INTAKE_SUBMITTED
+//     .locationConsentState) or an authenticated create
+//     (EVIDENCE_CREATED.locationRequest.outcome);
+//   - the collection plan's location requirement (intakePlanJson), a WORKFLOW
+//     fact stated apart from what was recorded.
+//
+// The states:
+//   RECORDED      valid coordinates are stored. Informational: what the device
+//                 or browser reported, never proof of presence.
+//   NOT_RECORDED  no coordinates and no recorded request outcome: not
+//                 requested, not collected by the method, no opt-in, a legacy
+//                 record. Neutral; never a failure.
+//   NOT_SHARED    a request was made and it was declined or the device
+//                 permission was denied (the recorded fact does not separate
+//                 the two). Neutral; never a platform failure.
+//   UNAVAILABLE   a request was made and no location was obtained.
+//   INVALID       stored coordinates fail validation. A warning for the
+//                 location metadata ONLY; the coordinates are never shown and
+//                 no other signal is affected.
+//
+// No state is "blocked". Missing optional location never blocks evidence
+// completion, a report, a package or verification.
+
+export const EVIDENCE_LOCATION_STATES = [
+  "RECORDED",
+  "NOT_RECORDED",
+  "NOT_SHARED",
+  "UNAVAILABLE",
+  "INVALID",
+] as const;
+export type EvidenceLocationState = (typeof EVIDENCE_LOCATION_STATES)[number];
+
+/** The trust-signal tone vocabulary; a location state is never "danger". */
+export type EvidenceLocationTone = "info" | "neutral" | "warning";
+
+export const EVIDENCE_LOCATION_STATE_PRESENTATION: Readonly<
+  Record<EvidenceLocationState, { label: string; tone: EvidenceLocationTone; detail: string | null }>
+> = {
+  RECORDED: { label: CAPTURE_LOCATION_STATUS_LABEL, tone: "info", detail: null },
+  NOT_RECORDED: { label: "Location not recorded", tone: "neutral", detail: null },
+  NOT_SHARED: {
+    label: "Location not shared",
+    tone: "neutral",
+    detail: "Location was requested; it was declined or the device permission was denied.",
+  },
+  UNAVAILABLE: {
+    label: "Location unavailable",
+    tone: "neutral",
+    detail: "Location was requested, but the device did not provide it.",
+  },
+  INVALID: {
+    label: "Location metadata invalid",
+    tone: "warning",
+    detail: "The stored coordinates failed validation and are not shown.",
+  },
+};
+
+/** Outcomes of a location request that a capture path recorded. */
+export const LOCATION_REQUEST_OUTCOMES = ["NOT_REQUESTED", "GRANTED", "DENIED", "UNAVAILABLE"] as const;
+export type LocationRequestOutcome = (typeof LOCATION_REQUEST_OUTCOMES)[number];
+
+export function parseLocationRequestOutcome(value: unknown): LocationRequestOutcome | null {
+  return typeof value === "string" && (LOCATION_REQUEST_OUTCOMES as readonly string[]).includes(value)
+    ? (value as LocationRequestOutcome)
+    : null;
+}
+
+export const LOCATION_REQUIREMENT_LEVELS = ["required", "recommended", "optional"] as const;
+export type LocationRequirementLevel = (typeof LOCATION_REQUIREMENT_LEVELS)[number];
+
+const LOCATION_REQUIREMENT_LABEL: Readonly<Record<LocationRequirementLevel, string>> = {
+  required: "Required by the collection plan",
+  recommended: "Recommended by the collection plan",
+  optional: "Optional in the collection plan",
+};
+
+export type EvidenceLocationFacts = {
+  lat?: string | number | null;
+  lng?: string | number | null;
+  accuracyMeters?: string | number | null;
+  locationSource?: string | null;
+  /** A recorded request outcome (see locationRequestOutcomeFromCustody). */
+  requestOutcome?: string | null;
+  /** The collection plan's requirement (intakePlanJson.locationRequirement). */
+  requirement?: string | null;
+};
+
+export type EvidenceLocationPresentation = {
+  state: EvidenceLocationState;
+  label: string;
+  tone: EvidenceLocationTone;
+  /** One short sentence, or null when the label says everything. */
+  detail: string | null;
+  /** Valid coordinates, present only for RECORDED; a map draws only from these. */
+  coordinates: { lat: number; lng: number; accuracyMeters: number | null } | null;
+  /** Where the coordinates came from, present only for RECORDED. */
+  sourceLabel: string | null;
+  /**
+   * The workflow requirement, stated apart from what was recorded. `unmet` is
+   * true only when the plan REQUIRED location and none is recorded.
+   */
+  requirement: { level: LocationRequirementLevel; label: string; unmet: boolean } | null;
+};
+
+function isPresentValue(value: string | number | null | undefined): boolean {
+  return value !== null && value !== undefined && String(value).trim() !== "";
+}
+
+/**
+ * Canonical coordinate validation: both coordinates finite and in range.
+ * Only coordinates that pass are ever shown or drawn.
+ */
+export function isValidCaptureCoordinatePair(input: CaptureLocationInput | null | undefined): boolean {
+  const lat = toFiniteNumber(input?.lat ?? null);
+  const lng = toFiniteNumber(input?.lng ?? null);
+  return lat !== null && lng !== null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+}
+
+export function resolveEvidenceLocation(
+  facts: EvidenceLocationFacts | null | undefined,
+): EvidenceLocationPresentation {
+  const f = facts ?? {};
+  const requirementLevel =
+    typeof f.requirement === "string" && (LOCATION_REQUIREMENT_LEVELS as readonly string[]).includes(f.requirement)
+      ? (f.requirement as LocationRequirementLevel)
+      : null;
+  let state: EvidenceLocationState;
+  let coordinates: EvidenceLocationPresentation["coordinates"] = null;
+  if (isValidCaptureCoordinatePair(f)) {
+    state = "RECORDED";
+    const accuracy = toFiniteNumber(f.accuracyMeters ?? null);
+    coordinates = {
+      lat: toFiniteNumber(f.lat ?? null) as number,
+      lng: toFiniteNumber(f.lng ?? null) as number,
+      accuracyMeters: accuracy !== null && accuracy >= 0 ? accuracy : null,
+    };
+  } else if (isPresentValue(f.lat) || isPresentValue(f.lng)) {
+    // A coordinate is stored but the pair is not valid (one missing, not a
+    // number, out of range).
+    state = "INVALID";
+  } else {
+    const outcome = parseLocationRequestOutcome(f.requestOutcome);
+    state =
+      outcome === "DENIED"
+        ? "NOT_SHARED"
+        : // GRANTED with nothing stored: requested, nothing usable obtained.
+          outcome === "UNAVAILABLE" || outcome === "GRANTED"
+          ? "UNAVAILABLE"
+          : "NOT_RECORDED";
+  }
+  const p = EVIDENCE_LOCATION_STATE_PRESENTATION[state];
+  return {
+    state,
+    label: p.label,
+    tone: p.tone,
+    detail: p.detail,
+    coordinates,
+    sourceLabel: state === "RECORDED" ? evidenceLocationSourceLabel(f.locationSource ?? null) : null,
+    requirement: requirementLevel
+      ? {
+          level: requirementLevel,
+          label: LOCATION_REQUIREMENT_LABEL[requirementLevel],
+          unmet: requirementLevel === "required" && state !== "RECORDED",
+        }
+      : null,
+  };
+}
+
+/** The requirement a stored collection plan (intakePlanJson) states, if any. */
+export function locationRequirementFromIntakePlan(plan: unknown): LocationRequirementLevel | null {
+  if (!plan || typeof plan !== "object") return null;
+  const v = (plan as Record<string, unknown>).locationRequirement;
+  return typeof v === "string" && (LOCATION_REQUIREMENT_LEVELS as readonly string[]).includes(v)
+    ? (v as LocationRequirementLevel)
+    : null;
+}
+
+/**
+ * The location request outcome a capture path recorded in the custody chain:
+ * the intake submit's consent state, or the outcome an authenticated capture
+ * client reported at creation. The latest recorded outcome wins. Null when no
+ * outcome was ever recorded (legacy records, uploads, no request).
+ */
+export function locationRequestOutcomeFromCustody(
+  events: ReadonlyArray<{ eventType?: string | null; payload?: unknown }> | null | undefined,
+): LocationRequestOutcome | null {
+  let outcome: LocationRequestOutcome | null = null;
+  for (const e of events ?? []) {
+    const payload = e.payload && typeof e.payload === "object" ? (e.payload as Record<string, unknown>) : null;
+    if (!payload) continue;
+    if (e.eventType === "EXTERNAL_INTAKE_SUBMITTED") {
+      const v = parseLocationRequestOutcome(payload.locationConsentState);
+      if (v) outcome = v;
+    } else if (e.eventType === "EVIDENCE_CREATED") {
+      const req = payload.locationRequest;
+      const v =
+        req && typeof req === "object" ? parseLocationRequestOutcome((req as Record<string, unknown>).outcome) : null;
+      if (v) outcome = v;
+    }
+  }
+  return outcome;
 }

@@ -57,7 +57,7 @@ test("builds a display model with tiles, marker, and actions", () => {
   });
 
   assert.ok(model);
-  assert.equal(model?.statusLabel, "Location metadata included");
+  assert.equal(model?.statusLabel, "Location recorded");
   assert.equal(model?.sourceLabel, "Browser/device-reported geolocation");
   assert.equal(model?.tiles.length, 9);
   assert.ok((model?.markerX ?? 0) > 0);

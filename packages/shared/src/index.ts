@@ -249,12 +249,27 @@ export {
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
   hasCaptureLocationMetadata,
+  EVIDENCE_LOCATION_STATES,
+  EVIDENCE_LOCATION_STATE_PRESENTATION,
+  LOCATION_REQUEST_OUTCOMES,
+  LOCATION_REQUIREMENT_LEVELS,
+  isValidCaptureCoordinatePair,
+  locationRequestOutcomeFromCustody,
+  locationRequirementFromIntakePlan,
+  parseLocationRequestOutcome,
+  resolveEvidenceLocation,
 } from "./capture-location.js";
 
 export type {
   CaptureLocationDisplayModel,
   CaptureLocationInput,
   CaptureLocationTile,
+  EvidenceLocationFacts,
+  EvidenceLocationPresentation,
+  EvidenceLocationState,
+  EvidenceLocationTone,
+  LocationRequestOutcome,
+  LocationRequirementLevel,
 } from "./capture-location.js";
 
 export { maskPublicEmail, maskPublicEmailsInText } from "./public-identifiers.js";
