@@ -35,11 +35,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
+import {
+  notificationCategoryLabel,
+  notificationReadStateLabel,
+  safeNotificationHref,
+} from "@proovra/shared/i18n";
 
 import { apiFetch } from "../../lib/api";
 import { formatUserDate } from "../../lib/date";
 import { useDeepLinkNavigation } from "../../lib/navigation/useDeepLinkNavigation";
 import { usePlatformContext } from "../../lib/platform-context";
+import { useOptionalLocale } from "../../app/providers";
 
 type BellItem = {
   id: string;
@@ -95,29 +101,11 @@ const POLL_INTERVAL_MS = 120_000;
  */
 const PREVIEW_SIZE = 5;
 
-const CATEGORY_LABEL: Record<string, string> = {
-  onboarding: "Getting started",
-  org_invite: "Invitation",
-  org_admin: "Administration",
-  governance: "Governance",
-  review_decision: "Review",
-  discussion_mention: "Mention",
-  discussion_assigned: "Assignment",
-  review_escalation: "Escalation",
-  access_review_pending: "Access review",
-  mfa_recovery_pending: "Security",
-  communication_failure: "Delivery failure",
-  security_event_high: "Security",
-  report_failure: "Report",
-  verification_package_failure: "Verification package",
-  ots_failure: "Integrity",
-  intake_submission_pending_review: "Intake",
-  intake_required_items_missing: "Intake",
-  intake_link_expiring: "Intake",
-  collaboration: "Collaboration",
-  tsa_failure: "Timestamping",
-  case_assignment: "Case assignment",
-};
+/* CATEGORY_LABEL USED TO LIVE HERE — a third hand-kept copy of the category
+   vocabulary (the Notifications page and the native app each had their own,
+   and they had drifted), whose fallback printed the raw code for any category
+   it had not heard of. Every surface now reads the ONE authority,
+   `notificationCategoryLabel` in @proovra/shared, in the reader's locale. */
 
 function relativeTime(iso: string): string {
   const delta = Date.now() - new Date(iso).getTime();
@@ -153,6 +141,7 @@ function formatCount(n: number, exact: boolean): string {
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
+  const locale = useOptionalLocale();
   // PHASE 11 §4 — notification destinations may name a tenant resource in
   // another Workspace; they navigate through the ONE deep-link chokepoint
   // (server resolve → dirty-work guard → stale rejection), never raw.
@@ -578,6 +567,9 @@ export function NotificationBell() {
             ) : (
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
                 {items.map((it) => {
+                  // Only an internal app path is ever opened; anything else
+                  // resolves to the Notifications page.
+                  const href = safeNotificationHref(it.href);
                   const workspace =
                     (it.context?.teamName as string | null) ??
                     (it.context?.organizationName as string | null) ??
@@ -595,7 +587,7 @@ export function NotificationBell() {
                           carry it, so every row names its status in text that
                           is available to assistive technology. */}
                       <span className="app-visually-hidden">
-                        {it.isRead ? "Read" : "Unread"}
+                        {notificationReadStateLabel(locale, it.isRead)}
                       </span>
                       <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
                         <span
@@ -608,7 +600,9 @@ export function NotificationBell() {
                         />
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <div className="ops-bell-row__meta">
-                            <span>{CATEGORY_LABEL[it.category] ?? it.category}</span>
+                            <span data-notification-category>
+                              {notificationCategoryLabel(locale, it.category)}
+                            </span>
                             <span aria-hidden="true">·</span>
                             <span>{relativeTime(it.occurredAt)}</span>
                             {workspace ? (
@@ -619,13 +613,13 @@ export function NotificationBell() {
                             ) : null}
                           </div>
                           <a
-                            href={it.href}
+                            href={href}
                             onClick={(e) => {
                               // §4 — the destination is opened ONLY via the
                               // canonical chokepoint (server resolve first);
                               // the raw href never navigates directly.
                               e.preventDefault();
-                              void openDestination(it.href).then((result) => {
+                              void openDestination(href).then((result) => {
                                 if (result.status === "navigated") {
                                   setOpen(false);
                                   void mutate(it.itemKey, "read");

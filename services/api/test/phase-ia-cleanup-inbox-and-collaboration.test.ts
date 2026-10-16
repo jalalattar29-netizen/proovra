@@ -32,6 +32,9 @@ import { describe, expect, it } from "vitest";
 
 import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
+/** The ONE notification presentation authority (category labels, EN/DE/AR). */
+const PRESENTATION_REL = "../../../packages/shared/src/notification-presentation.ts";
+
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
   return readFileSync(fileURLToPath(url), "utf8");
@@ -237,6 +240,7 @@ describe("Phase IA-cleanup — response shape", () => {
 
 describe("Phase IA-cleanup — /inbox UI exposes the 5 new categories", () => {
   const PAGE = readSource("../../../apps/web/app/(app)/inbox/page.tsx");
+  const PRESENTATION = readSource(PRESENTATION_REL);
   /**
    * The filter VOCABULARY, wherever it lives.
    *
@@ -270,10 +274,12 @@ describe("Phase IA-cleanup — /inbox UI exposes the 5 new categories", () => {
       "communication_failure",
       "security_event_high",
     ]) {
-      expect(PAGE).toMatch(
+      // The ONE presentation authority labels it; the page renders through it.
+      expect(PRESENTATION).toMatch(
         new RegExp(`${key}:\\s*"[^"]+"`),
       );
     }
+    expect(PAGE).toContain("notificationCategoryLabel(locale, item.category)");
   });
 
   it("declares the filter labels and renders chips from the grouped policy", () => {
@@ -617,6 +623,7 @@ describe("Phase IA-enterprise — pagination + server-driven filters", () => {
 
 describe("Phase IA-enterprise — /inbox UI pagination + filters + priority sections", () => {
   const PAGE = readSource("../../../apps/web/app/(app)/inbox/page.tsx");
+  const PRESENTATION = readSource(PRESENTATION_REL);
   /**
    * The filter VOCABULARY, wherever it lives.
    *
@@ -646,8 +653,9 @@ describe("Phase IA-enterprise — /inbox UI pagination + filters + priority sect
       "verification_package_failure",
       "ots_failure",
     ]) {
-      expect(PAGE).toMatch(new RegExp(`${key}:\\s*"[^"]+"`));
+      expect(PRESENTATION).toMatch(new RegExp(`${key}:\\s*"[^"]+"`));
     }
+    expect(PAGE).toContain("notificationCategoryLabel(locale, item.category)");
   });
 
   it("InboxPriority still covers P1..P5 as ROW metadata", () => {
