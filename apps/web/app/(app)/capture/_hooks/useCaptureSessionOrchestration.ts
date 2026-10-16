@@ -26,9 +26,9 @@ import {
   buildSessionItemSignals,
   deriveBatchEvidenceType,
   normalizeClientMimeType,
-  roundGpsCoordinate,
   validateIncomingFiles,
 } from "../_lib/file-utils";
+import { requestBrowserCaptureLocation } from "../_lib/browser-location";
 import { computeIntegrityFromBlob } from "../_lib/hash-utils";
 import {
   buildStorageLimitMessage,
@@ -657,34 +657,17 @@ export function useCaptureSessionOrchestration({
           }
         | undefined;
 
-      // The outcome of a location request that produced no coordinates —
-      // recorded with the record so its location state can say "not shared"
-      // or "unavailable" instead of "not recorded". Never sent with coordinates.
-      let locationRequestOutcome: "DENIED" | "UNAVAILABLE" | undefined;
-
       const locationRequired = selectedCollectionPlan?.locationRequirement === "required";
       const shouldUsePreciseGps = locationRequired;
+      // A request without coordinates carries why (see requestBrowserCaptureLocation).
+      let locationRequestOutcome: "DENIED" | "UNAVAILABLE" | undefined;
 
-      if (useLocation && navigator.geolocation) {
-        try {
-          gps = await new Promise<typeof gps>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(
-              (pos) =>
-                resolve({
-                  lat: shouldUsePreciseGps
-                    ? pos.coords.latitude
-                    : roundGpsCoordinate(pos.coords.latitude, 3),
-                  lng: shouldUsePreciseGps
-                    ? pos.coords.longitude
-                    : roundGpsCoordinate(pos.coords.longitude, 3),
-                  accuracyMeters: pos.coords.accuracy,
-                }),
-              (geoErr) => reject(geoErr),
-              { enableHighAccuracy: true, timeout: 8000 }
-            );
-          });
-
-          setLocationAccuracyMeters(gps?.accuracyMeters ?? null);
+      if (useLocation) {
+        const located = await requestBrowserCaptureLocation(shouldUsePreciseGps);
+        gps = located.gps;
+        locationRequestOutcome = located.outcome;
+        if (gps) {
+          setLocationAccuracyMeters(gps.accuracyMeters ?? null);
           setLocationPermissionDenied(false);
 
           recordTimelineEvent({
@@ -694,11 +677,9 @@ export function useCaptureSessionOrchestration({
               : "Reduced-precision device location metadata was attached with user consent.",
             tone: "info",
           });
-        } catch (geoErr) {
+        } else {
           setLocationAccuracyMeters(null);
           setLocationPermissionDenied(true);
-          locationRequestOutcome =
-            (geoErr as { code?: number } | null)?.code === 1 ? "DENIED" : "UNAVAILABLE";
 
           recordTimelineEvent({
             title: "Location unavailable",
@@ -715,8 +696,6 @@ export function useCaptureSessionOrchestration({
           addToast("Location unavailable. Continuing without GPS.", "warning");
         }
       }
-
-      if (useLocation && !navigator.geolocation) locationRequestOutcome = "UNAVAILABLE";
 
       if (locationRequired && !gps) {
         throw new Error(
