@@ -57,6 +57,7 @@ import BasicVerificationView, {
 import type { BasicVerification } from "@proovra/shared";
 import { selectRecordTabFields } from "./_verify-record-tab";
 import { VerifyCaptureManifestSection, readPublicCaptureManifest } from "./VerifyCaptureManifestSection";
+import { VerifyLocationStateSection, readVerifyLocationState } from "./VerifyLocationStateSection";
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
@@ -2430,6 +2431,9 @@ export default function VerifyPage() {
   // UC-PROV-003 — the public (data-minimized) capture-manifest facts.
   const [captureManifest, setCaptureManifest] =
     useState<ReturnType<typeof readPublicCaptureManifest>>(null);
+  // THE canonical location state (stated when no coordinates are shown).
+  const [locationState, setLocationState] =
+    useState<ReturnType<typeof readVerifyLocationState>>(null);
 
   // Enterprise Technical Metadata layer — privacy-safe Media / EXIF /
   // Capture Environment projection. Null when the API has nothing to
@@ -2562,6 +2566,7 @@ function isAccessEventType(eventType?: string | null): boolean {
     // UC-0 — the ONE typed contract; no reshaping, no fallback guesses.
     setAcquisition(readPublicVerifyAcquisition(data));
     setCaptureManifest(readPublicCaptureManifest(data));
+    setLocationState(readVerifyLocationState(data));
 
     const reviewTrailForensic =
       data.reviewTrail?.forensicCustodyEvents ??
@@ -4480,8 +4485,8 @@ with this evidence record.
                       >
                         {[
                           [
-                            CAPTURE_LOCATION_STATUS_LABEL,
-                            "Yes",
+                            "Location",
+                            captureContext?.statusLabel ?? CAPTURE_LOCATION_STATUS_LABEL,
                           ],
                           [
                             "Latitude",
@@ -4555,7 +4560,9 @@ with this evidence record.
                     </div>
                   </div>
                 </Card>
-              ) : null}
+              ) : (
+                <VerifyLocationStateSection location={locationState} />
+              )}
               <LegalWarningBlock verdict={verificationVerdict} />
 
               <ReviewerActionsBlock actions={reviewerActions} />

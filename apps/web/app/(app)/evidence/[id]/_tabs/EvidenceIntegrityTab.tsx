@@ -37,6 +37,7 @@ import type { ReactNode } from "react";
 import { Camera, FileSignature, History, MapPin, ShieldCheck, type LucideIcon } from "lucide-react";
 import { EvidenceCertificationsPanel } from "../components/EvidenceCertificationsPanel";
 import CaptureLocationMapPanel from "../../../../../components/capture-location/CaptureLocationMapPanel";
+import LocationStateNote, { readLocationState } from "../../../../../components/capture-location/LocationStateNote";
 import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import {
   describeClientSignalState,
@@ -268,6 +269,9 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
 
   const packageIncluded = workspaceCaps.verificationPackageIncluded ?? false;
 
+  // THE canonical location state (served by the review workspace).
+  const location = readLocationState(workspace.locationState, workspace.sourceCaptureLocation);
+
   // Every state below is derived from the SAME structured field its value
   // text is derived from. Closed helper vocabularies ("Available" /
   // "Pending" / "Blocked" / …) are mapped by their underlying booleans, not
@@ -436,11 +440,10 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             items.push({ label: "Device time", value: sc.deviceTimeIso });
           }
 
-          // Location — only when we actually have it. The absence of
-          // the row IS the message; no placeholder card is rendered.
-          if (sc.locationIncluded) {
-            items.push({ label: "Location included", value: "Included" });
-          }
+          // Location — ALWAYS stated, in the canonical label: recorded,
+          // not recorded (neutral, never a failure), not shared,
+          // unavailable or invalid. Never "blocked".
+          items.push({ label: "Location", value: location.label });
 
           // Client signals — DETECTED / COLLECTED_FALSE only. Every
           // NOT_COLLECTED / UNAVAILABLE state is hidden.
@@ -480,13 +483,14 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           recorded capture location, so the real permission and
           availability rules stay authoritative. It is never synthesised
           from an approximate or inferred position. */}
-      {workspace.sourceCaptureLocation ? (
+      {workspace.sourceCaptureLocation && location.state === "RECORDED" ? (
         <IntegritySection
           icon={MapPin}
           title="Capture location"
           description="The position recorded alongside the capture, with its recorded accuracy. This is where the capturing device reported itself to be — not a determination of where the subject matter is."
           data-evidence-section="capture-location"
         >
+          <LocationStateNote location={location} />
           <div className="evidence-detail-map-shell">
             <CaptureLocationMapPanel
               lat={workspace.sourceCaptureLocation.lat ?? 0}
@@ -498,6 +502,18 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           <BoundaryNote title="Boundary">
             {workspace.sourceCaptureLocation.legalBoundary}
           </BoundaryNote>
+        </IntegritySection>
+      ) : location.detail || location.requirement?.unmet ? (
+        // No coordinates, but a recorded fact about location (a declined or
+        // unavailable request, invalid stored coordinates, a plan that
+        // required it): the state alone — no map, no empty map shell.
+        <IntegritySection
+          icon={MapPin}
+          title="Capture location"
+          description="What the record holds about location."
+          data-evidence-section="capture-location"
+        >
+          <LocationStateNote location={location} />
         </IntegritySection>
       ) : null}
 

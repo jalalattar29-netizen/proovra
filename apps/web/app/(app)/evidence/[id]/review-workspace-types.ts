@@ -1,3 +1,4 @@
+import type { LocationStateView } from "../../../../components/capture-location/LocationStateNote";
 import type {
   ArtifactOutputsExtras,
   MatchedHistory,
@@ -339,6 +340,12 @@ export type ReviewWorkspaceResponse = {
     currentAccessEvents: number;
     reportGeneratedAtUtc: string | null;
   };
+  /**
+   * THE canonical location state (packages/shared resolveEvidenceLocation):
+   * recorded, not recorded, not shared, unavailable or invalid, plus the
+   * collection plan's requirement stated apart. Optional for older responses.
+   */
+  locationState?: LocationStateView | null;
   sourceCaptureLocation: {
     statusLabel: string;
     description: string;

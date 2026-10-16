@@ -208,12 +208,13 @@ test("Device time card only renders when deviceTimeIso is truthy", () => {
   );
 });
 
-test("Location card only renders when locationIncluded is true", () => {
+test("Location is ALWAYS stated in the canonical label — never a bare Included row, never Blocked", () => {
   const tab = read(TAB);
-  assert.match(
-    tab,
-    /if \((sc|workspace\.sourceContext)\.locationIncluded\)\s*\{[\s\S]{0,300}label: "Location included"/,
-  );
+  // (2026-10-16) The canonical location state: recorded / not recorded /
+  // not shared / unavailable / invalid, read from the review workspace.
+  assert.match(tab, /items\.push\(\{ label: "Location", value: location\.label \}\)/);
+  assert.match(tab, /readLocationState\(workspace\.locationState, workspace\.sourceCaptureLocation\)/);
+  assert.doesNotMatch(tab, /label: "Location included"/);
 });
 
 test("Every describeClientSignalState call is guarded by shouldShowContextSignal", () => {

@@ -4,8 +4,9 @@
  * Renders the browser/device-reported capture location with an explicit
  * boundary statement. Coordinates are shown to the authenticated reviewer
  * (the same data is in the review-workspace payload and the PDF report),
- * with copy-coordinates and open-map affordances. When no location exists,
- * a clear empty state is shown.
+ * with copy-coordinates and open-map affordances. The card states the
+ * canonical location state (recorded / not recorded / not shared /
+ * unavailable / invalid); coordinates appear only for a recorded state.
  */
 
 "use client";
@@ -14,11 +15,14 @@ import { MapPin } from "lucide-react";
 import { TechnicalAppendixCard } from "./TechnicalAppendixCard";
 import {
   AdvisoryNote,
-  AppendixEmpty,
   CopyButton,
   MetadataRows,
 } from "./MetadataRow";
 import { rows } from "./sections-model";
+import LocationStateNote, {
+  readLocationState,
+  type LocationStateView,
+} from "../../../../../../components/capture-location/LocationStateNote";
 
 export type SourceCaptureLocation = {
   statusLabel: string;
@@ -37,10 +41,15 @@ const DEFAULT_BOUNDARY =
   "Location is device/browser-reported and permission-based. It may support context, but it does not independently prove physical presence.";
 
 export function LocationContextCard({
-  location,
+  location: recorded,
+  locationState,
 }: {
   location: SourceCaptureLocation;
+  locationState?: LocationStateView | null;
 }) {
+  const state = readLocationState(locationState, recorded);
+  // Coordinates only for the canonical RECORDED state.
+  const location = state.state === "RECORDED" ? recorded : null;
   const hasCoords =
     location != null && location.lat != null && location.lng != null;
 
@@ -76,11 +85,13 @@ export function LocationContextCard({
     <TechnicalAppendixCard
       icon={MapPin}
       title="Location"
-      subtitle={location?.statusLabel}
+      subtitle={state.label}
       testId="ta-section-location"
     >
       {!location ? (
-        <AppendixEmpty>Location was not provided for this evidence.</AppendixEmpty>
+        <div className="ta-empty" data-testid="ta-empty">
+          <LocationStateNote location={state} />
+        </div>
       ) : (
         <>
           <MetadataRows rows={bodyRows} empty="Location was not provided." />
