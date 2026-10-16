@@ -471,23 +471,42 @@ describe("capability analyzer — route registration and authorization", () => {
 });
 
 describe("capability authority — one authority, no parallel opinions", () => {
+  /**
+   * ONE build for 37–39, then one event-loop turn.
+   *
+   * `build()` walks the whole repository synchronously, in this worker, for
+   * ~30s. Called once per test it blocked the worker three times back to back
+   * with no I/O turn between them, so the reply to the worker's own
+   * `onTaskUpdate` RPC could not be read; birpc's FIXED 60s timer then fired
+   * first and vitest reported `[vitest-worker]: Timeout calling "onTaskUpdate"`
+   * — exit 1 with every test passing. The map is a pure function of the tree,
+   * so the three tests share it; the `setImmediate` lets pending replies in.
+   */
+  let freshMapMemo: any = null;
+  async function freshCapabilityMap(): Promise<any> {
+    if (freshMapMemo === null) {
+      const { build } = await import("../scripts/generate-runtime-capability-map.mjs");
+      freshMapMemo = (build as () => any)();
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    return freshMapMemo;
+  }
+
   it("37. the generated map is fresh against the current tree", async () => {
-    const { build } = await import("../scripts/generate-runtime-capability-map.mjs");
     const { readFileSync } = await import("node:fs");
     const nodePath = await import("node:path");
     const { REPO } = await import("../scripts/capability-authority/analyzer.mjs");
     const onDisk = JSON.parse(
       readFileSync(nodePath.join(REPO as string, "docs/architecture/current-runtime-capability-map.json"), "utf8"),
     );
-    const fresh = (build as () => any)();
+    const fresh = await freshCapabilityMap();
     assert.equal(onDisk.routeInventoryHash, fresh.routeInventoryHash, "route inventory drifted");
     assert.equal(onDisk.consumerInventoryHash, fresh.consumerInventoryHash, "consumer inventory drifted");
     assert.equal(onDisk.generatorHash, fresh.generatorHash, "generator changed without regenerating the map");
   });
 
   it("38. the analyzer publishes every request it could not resolve", async () => {
-    const { build } = await import("../scripts/generate-runtime-capability-map.mjs");
-    const fresh = (build as () => any)();
+    const fresh = await freshCapabilityMap();
     assert.equal(fresh.totals.DynamicUnresolvedConsumers, 0);
     assert.equal(fresh.totals.UnreviewedOriginConsumers, 0);
     assert.equal(fresh.totals.AmbiguousConsumerSites, 0);
@@ -508,8 +527,7 @@ describe("capability authority — one authority, no parallel opinions", () => {
   });
 
   it("39. no classification conflicts survive generation", async () => {
-    const { build } = await import("../scripts/generate-runtime-capability-map.mjs");
-    const fresh = (build as () => any)();
+    const fresh = await freshCapabilityMap();
     assert.deepEqual(fresh.problems, []);
   });
 
