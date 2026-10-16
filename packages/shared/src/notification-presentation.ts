@@ -270,6 +270,9 @@ export function safeNotificationHref(href: string | null | undefined): string {
   if (typeof href !== "string") return NOTIFICATIONS_HOME_PATH;
   const h = href.trim();
   if (!h.startsWith("/") || h.startsWith("//") || h.startsWith("/\\")) return NOTIFICATIONS_HOME_PATH;
-  if (/[\u0000-\u001f\s]/.test(h)) return NOTIFICATIONS_HOME_PATH;
+  // Whitespace or any control character makes the link untrustworthy.
+  for (let i = 0; i < h.length; i += 1) {
+    if (h.charCodeAt(i) <= 0x20 || /\s/.test(h[i])) return NOTIFICATIONS_HOME_PATH;
+  }
   return h;
 }
