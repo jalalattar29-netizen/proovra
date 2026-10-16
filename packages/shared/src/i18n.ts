@@ -2638,3 +2638,6 @@ export function fillOperationsCopy(template: string, values: Record<string, stri
 // server, resolved here in en/de/ar (see operations-condition-messages.ts).
 export * from "./operations-condition-messages.js";
 export * from "./operations-remediation-copy.js";
+// The personal notification feed's category / source / tone / read-view
+// vocabulary, resolved here in en/de/ar (see notification-presentation.ts).
+export * from "./notification-presentation.js";
