@@ -98,6 +98,8 @@ export async function createFinalizedEvidence(
   label: string,
   /** A non-text original (e.g. a PDF, which the report job previews with PDF.js). */
   file?: { bytes: Buffer; mimeType: string; extension: string },
+  /** Extra creation facts, as a capture client sends them (e.g. gps, locationRequestOutcome). */
+  extra: Record<string, unknown> = {},
 ): Promise<{ id: string; bytes: string | Buffer }> {
   const bytes: string | Buffer = file?.bytes ?? `updated-report journey ${label} ${Date.now()}\n`;
   const mimeType = file?.mimeType ?? "text/plain";
@@ -105,7 +107,7 @@ export async function createFinalizedEvidence(
   const sha = createHash("sha256").update(bytes).digest("base64");
   const md5 = createHash("md5").update(bytes).digest("base64");
   const created = await api.post("/v1/evidence", {
-    data: { teamId, type: "DOCUMENT", mimeType, originalFileName: fileName, checksumSha256Base64: sha, contentMd5Base64: md5 },
+    data: { teamId, type: "DOCUMENT", mimeType, originalFileName: fileName, checksumSha256Base64: sha, contentMd5Base64: md5, ...extra },
   });
   expect(created.ok(), await created.text()).toBe(true);
   const id = ((await created.json()) as { id: string }).id;
