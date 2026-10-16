@@ -60,6 +60,26 @@ main() {
   [ -r "${COMPOSE_ENV_FILE}" ] ||
     fail "the compose env file ${COMPOSE_ENV_FILE} is not readable (set COMPOSE_ENV_FILE)."
 
+  # THE BITCOIN VERIFIER IS WORKER-ONLY. Both services load the shared env file
+  # through env_file, which injects EVERY key into the container — so a verifier
+  # setting or credential placed there reaches the API. Refused before anything
+  # is pulled or restarted; names only, values are never printed.
+  local VERIFIER_ENV_FILE="${BITCOIN_VERIFIER_ENV_FILE:-/opt/proovra/app/secrets/bitcoin-rpc/verifier.env}"
+  local leaked
+  leaked="$(sed -nE 's/^[[:space:]]*(export[[:space:]]+)?(OTS_BITCOIN_[A-Z0-9_]+)[[:space:]]*=.*/\2/p' "${COMPOSE_ENV_FILE}" | sort -u | tr '\n' ' ')"
+  [ -z "${leaked}" ] ||
+    fail "the shared env file ${COMPOSE_ENV_FILE} carries worker-only Bitcoin verifier settings (${leaked% }) — the API would receive them. Move them to ${VERIFIER_ENV_FILE} (template: infra/docker/bitcoin-verifier.env.example); the RPC password belongs only in the file 'password' beside it."
+  if [ -e "${VERIFIER_ENV_FILE}" ]; then
+    [ -r "${VERIFIER_ENV_FILE}" ] ||
+      fail "${VERIFIER_ENV_FILE} exists but is not readable by this user; docker compose must read it to start the worker."
+    ! grep -Eq '^[[:space:]]*(export[[:space:]]+)?OTS_BITCOIN_RPC_PASSWORD[[:space:]]*=' "${VERIFIER_ENV_FILE}" ||
+      fail "${VERIFIER_ENV_FILE} sets OTS_BITCOIN_RPC_PASSWORD — the password must be only the read-only file '$(dirname "${VERIFIER_ENV_FILE}")/password' (it would otherwise appear in docker inspect)."
+    if grep -Eq '^[[:space:]]*(export[[:space:]]+)?OTS_BITCOIN_VERIFY_ENABLED[[:space:]]*=[[:space:]]*"?true"?[[:space:]]*$' "${VERIFIER_ENV_FILE}"; then
+      [ -s "$(dirname "${VERIFIER_ENV_FILE}")/password" ] ||
+        fail "Bitcoin verification is enabled in ${VERIFIER_ENV_FILE} but '$(dirname "${VERIFIER_ENV_FILE}")/password' is missing or empty."
+    fi
+  fi
+
   [[ "${GHCR_OWNER:-}" =~ ^[a-z0-9][a-z0-9-]{0,38}$ ]] ||
     fail "GHCR_OWNER is required and must be a lowercase GitHub owner (e.g. the repository owner)."
 

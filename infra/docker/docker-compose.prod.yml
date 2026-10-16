@@ -58,26 +58,12 @@ services:
       OTS_BIN: ots
       OTS_CALENDAR_URL: https://a.pool.opentimestamps.org
       OTS_TIMEOUT_MS: "30000"
-      # INDEPENDENT BITCOIN VERIFICATION of OpenTimestamps proofs — WORKER ONLY.
-      # The worker checks each ANCHORED proof's merkle root against the block
-      # header of PROOVRA's dedicated, pruned Bitcoin Core node over the Hetzner
-      # private network (plain HTTP JSON-RPC; header methods only). OFF until
-      # the node has finished Initial Block Download and passed the real-mainnet
-      # acceptance gate. The API never receives these variables.
-      #
-      # The RPC password is NEVER an environment variable here (the shared
-      # .env also reaches the API): it is read from the read-only mounted file
-      # below, or from the secrets authority (OTS_BITCOIN_RPC_PASSWORD).
-      OTS_BITCOIN_VERIFY_ENABLED: ${OTS_BITCOIN_VERIFY_ENABLED:-false}
-      OTS_BITCOIN_RPC_URL: ${OTS_BITCOIN_RPC_URL:-}
-      OTS_BITCOIN_RPC_USERNAME: ${OTS_BITCOIN_RPC_USERNAME:-}
-      OTS_BITCOIN_RPC_PASSWORD_FILE: /run/proovra/bitcoin-rpc/password
-      OTS_BITCOIN_EXPECTED_CHAIN: ${OTS_BITCOIN_EXPECTED_CHAIN:-main}
-      OTS_BITCOIN_RPC_TIMEOUT_MS: ${OTS_BITCOIN_RPC_TIMEOUT_MS:-5000}
-      OTS_BITCOIN_MIN_CONFIRMATIONS: ${OTS_BITCOIN_MIN_CONFIRMATIONS:-6}
-      OTS_BITCOIN_MAX_TIP_AGE_SECONDS: ${OTS_BITCOIN_MAX_TIP_AGE_SECONDS:-7200}
-      OTS_BITCOIN_MAX_HEADER_LAG: ${OTS_BITCOIN_MAX_HEADER_LAG:-2}
-      OTS_BITCOIN_MIN_NODE_VERSION: ${OTS_BITCOIN_MIN_NODE_VERSION:-270000}
+      # NO OTS_BITCOIN_* HERE. The independent Bitcoin verifier is worker code
+      # (services/worker/src/ots-bitcoin-*.ts); the API neither reads nor may
+      # receive its configuration or credentials. In production the API refuses
+      # to start if any OTS_BITCOIN_* variable reaches it (config/index.ts), and
+      # scripts/deploy-prod-pull.sh refuses a shared .env that carries one —
+      # because env_file above injects EVERY key of that file into this container.
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       DEMO_REQUEST_AUTO_REPLY_ENABLED: ${DEMO_REQUEST_AUTO_REPLY_ENABLED}
       DEMO_REQUEST_NOTIFICATION_EMAIL: ${DEMO_REQUEST_NOTIFICATION_EMAIL}
@@ -151,6 +137,17 @@ services:
     image: ghcr.io/${GHCR_OWNER:?GHCR_OWNER is required}/proovra-worker:${IMAGE_TAG:?IMAGE_TAG must be an immutable release identity (commit SHA or digest); :latest is not permitted}
     env_file:
       - /opt/proovra/app/.env
+      # INDEPENDENT BITCOIN VERIFICATION — WORKER ONLY. The verifier's
+      # non-secret settings (OTS_BITCOIN_VERIFY_ENABLED, _RPC_URL,
+      # _RPC_USERNAME, _EXPECTED_CHAIN, _RPC_TIMEOUT_MS, _MIN_CONFIRMATIONS,
+      # _MAX_TIP_AGE_SECONDS, _MAX_HEADER_LAG, _MIN_NODE_VERSION) live in this
+      # file, beside the password and only ever loaded by this service — never
+      # in the shared .env, whose every key also reaches the API. Template:
+      # infra/docker/bitcoin-verifier.env.example. Absent = verification OFF
+      # (OTS_BITCOIN_VERIFY_ENABLED defaults to false). Needs Docker Compose
+      # >= 2.24 for `required: false`.
+      - path: /opt/proovra/app/secrets/bitcoin-rpc/verifier.env
+        required: false
     depends_on:
       redis:
         condition: service_healthy
@@ -193,6 +190,11 @@ services:
       OTS_BIN: ots
       OTS_CALENDAR_URL: https://a.pool.opentimestamps.org
       OTS_TIMEOUT_MS: "30000"
+      # The Bitcoin RPC password: ONLY this read-only, worker-only file (the
+      # mount below). Never an environment variable — in production the worker
+      # refuses a password from the environment — so it is absent from the
+      # shared .env and from `docker inspect`.
+      OTS_BITCOIN_RPC_PASSWORD_FILE: /run/proovra/bitcoin-rpc/password
       # ANCHOR — the independent anchoring layer, NOT TSA and NOT OpenTimestamps.
       #
       # Both are optional and both treat an empty string exactly as unset, so an
@@ -252,7 +254,8 @@ services:
       - /opt/proovra/app/services/worker/keys:/app/services/worker/keys:ro
       - /opt/proovra/app/services/worker/src/pdf/assets:/app/services/worker/src/pdf/assets:ro
       - /opt/proovra/app/services/worker/src/report-v2/assets:/app/services/worker/src/report-v2/assets:ro
-      # Bitcoin Core RPC password (one file named `password`, mode 0400). Worker only.
+      # Bitcoin Core RPC password (one file named `password`, mode 0400) and
+      # the worker-only verifier.env above. Worker only; read-only.
       - /opt/proovra/app/secrets/bitcoin-rpc:/run/proovra/bitcoin-rpc:ro
     ports:
       - "127.0.0.1:8090:8090"

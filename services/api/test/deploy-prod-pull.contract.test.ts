@@ -156,6 +156,69 @@ describe("deploy-prod-pull.sh — the compose env file", () => {
   });
 });
 
+describe("deploy-prod-pull.sh — the Bitcoin verifier is worker-only", () => {
+  const RPC_SECRET = "rpc-PASSWORD-must-never-print";
+
+  /** A sandbox worker-only verifier.env (and optional password), named to the script. */
+  function runWithVerifier(envBody: string | null, password: string | null) {
+    const dir = join(mkdtempSync(join(tmpdir(), "deploy-verifier-")), "secrets", "bitcoin-rpc");
+    dirs.push(dir);
+    mkdirSync(dir, { recursive: true });
+    if (envBody !== null) writeFileSync(join(dir, "verifier.env"), envBody);
+    if (password !== null) writeFileSync(join(dir, "password"), password);
+    return run([], { ...deployEnv, BITCOIN_VERIFIER_ENV_FILE: join(dir, "verifier.env") });
+  }
+
+  it("refuses a shared .env carrying OTS_BITCOIN_* — names only — before touching docker or git", () => {
+    const r = run([], deployEnv, (_state, root) => {
+      writeFileSync(
+        join(root, ".env"),
+        [
+          `DATABASE_URL=${SECRET}`,
+          "OTS_BITCOIN_RPC_URL=http://node.internal:8332",
+          "export OTS_BITCOIN_RPC_USERNAME=verifier",
+          `OTS_BITCOIN_RPC_PASSWORD=${RPC_SECRET}`,
+          "",
+        ].join("\n"),
+      );
+    });
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(
+      /carries worker-only Bitcoin verifier settings \(OTS_BITCOIN_RPC_PASSWORD OTS_BITCOIN_RPC_URL OTS_BITCOIN_RPC_USERNAME\)/,
+    );
+    expect(r.out).not.toContain(RPC_SECRET);
+    expect(r.out).not.toContain("node.internal");
+    expect(r.log).toEqual([]);
+  });
+
+  it.each([
+    ["enabled, no password file", "OTS_BITCOIN_VERIFY_ENABLED=true\n", null, /verification is enabled .* is missing or empty/],
+    ["enabled, empty password file", "OTS_BITCOIN_VERIFY_ENABLED=true\n", "", /is missing or empty/],
+    [
+      "the password set as a variable",
+      `OTS_BITCOIN_VERIFY_ENABLED=true\nOTS_BITCOIN_RPC_PASSWORD=${RPC_SECRET}\n`,
+      "x",
+      /must be only the read-only file/,
+    ],
+  ] as const)("%s → refused before touching docker or git, nothing echoed", (_label, envBody, password, refusal) => {
+    const r = runWithVerifier(envBody, password);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(refusal);
+    expect(r.out).not.toContain(RPC_SECRET);
+    expect(r.log).toEqual([]);
+  });
+
+  it.each([
+    ["enabled with its password file", "OTS_BITCOIN_VERIFY_ENABLED=true\nOTS_BITCOIN_RPC_URL=http://node.internal:8332\n", "x"],
+    ["disabled, no password file", "OTS_BITCOIN_VERIFY_ENABLED=false\n", null],
+    ["no verifier.env at all (verification off)", null, null],
+  ] as const)("%s → the deploy proceeds", (_label, envBody, password) => {
+    const r = runWithVerifier(envBody, password);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).not.toContain("node.internal");
+  });
+});
+
 describe("deploy-prod-pull.sh — a release deploy", () => {
   it("--plan prints the selected release and changes nothing", () => {
     const r = run(["--plan"], deployEnv);

@@ -227,6 +227,11 @@ export type StartupConfigViolation = {
     | "jwt_secret_too_short"
     | "jwt_secret_placeholder"
     | "jwt_secret_low_entropy"
+    // The independent Bitcoin verifier is WORKER code. Its configuration and
+    // credentials must never reach the API — and they do whenever an operator
+    // puts them in the shared .env, because the compose env_file injects every
+    // key of that file into this container.
+    | "worker_only_bitcoin_verifier_config"
     // AUD-010 — production evidence storage must state the retention
     // contract: Object Lock on, COMPLIANCE, period absent or >= 2920 days.
     | ObjectLockPostureViolation;
@@ -319,6 +324,15 @@ export function collectStartupViolations(): StartupConfigViolation[] {
   for (const name of CORE_REQUIRED_PROD) {
     if ((process.env[name] ?? "").trim().length === 0) {
       out.push({ envName: name, reason: "required_missing" });
+    }
+  }
+  // The Bitcoin verifier's configuration is worker-only (compose:
+  // secrets/bitcoin-rpc/verifier.env, loaded by proovra-worker alone). Its
+  // presence here means it was put in the shared .env, which also reaches the
+  // API. Names only — a value (the RPC URL or user) is never echoed.
+  if (PROD()) {
+    for (const name of Object.keys(process.env).filter((k) => /^OTS_BITCOIN_/.test(k)).sort()) {
+      out.push({ envName: name, reason: "worker_only_bitcoin_verifier_config" });
     }
   }
   // AUD-010 — evidence retention contract (production). The same rule the
