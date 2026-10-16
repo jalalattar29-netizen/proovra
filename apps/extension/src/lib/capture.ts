@@ -95,7 +95,9 @@ export async function assertSamePage(tabId: number, windowId: number, startedUrl
     throw new CaptureInterruptedError("TAB_CHANGED");
   }
   if (!tab.active || tab.windowId !== windowId) throw new CaptureInterruptedError("TAB_CHANGED");
-  const now = documentUrl(tab.url ?? tab.pendingUrl);
+  // A navigation in flight names its destination only in `pendingUrl`; `url`
+  // still holds the old page until it commits. The destination decides.
+  const now = documentUrl(tab.pendingUrl ?? tab.url);
   if (now === null || now !== documentUrl(startedUrl)) throw new CaptureInterruptedError("PAGE_NAVIGATED");
 }
 

@@ -165,6 +165,39 @@ test("AUD-026: a navigation that breaks the content-script message mid-capture i
   await assert.rejects(captureFullPage(1, 1), (err) => err instanceof CaptureInterruptedError && err.code === "PAGE_NAVIGATED");
 });
 
+test("AUD-026: a navigation still in flight (old url, new pendingUrl) is PAGE_NAVIGATED, not a generic error", async () => {
+  // Chromium, observed: the message fails as the navigation starts, before it
+  // commits — `tab.url` still names the old page and only `tab.pendingUrl`
+  // names the new one. Reading `url` first let the re-check pass and the
+  // generic failure stand.
+  let navigating = false;
+  installChrome({
+    tabAt: () => ({
+      active: true,
+      windowId: 1,
+      url: "https://example.com/long",
+      ...(navigating ? { pendingUrl: "https://other.example/" } : {}),
+    }),
+  });
+  const send = globalThis.chrome.tabs.sendMessage;
+  globalThis.chrome.tabs.sendMessage = async (tabId, msg) => {
+    if (msg.kind === "SCROLL_TO" && msg.y > 0) {
+      navigating = true;
+      throw new Error("Could not establish connection. Receiving end does not exist.");
+    }
+    return send(tabId, msg);
+  };
+  const { captureFullPage, CaptureInterruptedError } = await import("./dist/capture.js");
+  await assert.rejects(captureFullPage(1, 1), (err) => err instanceof CaptureInterruptedError && err.code === "PAGE_NAVIGATED");
+});
+
+test("AUD-026: a same-address reload in flight is not a navigation away", async () => {
+  installChrome({ tabAt: () => ({ active: true, windowId: 1, url: "https://example.com/long", pendingUrl: "https://example.com/long" }) });
+  const { captureFullPage } = await import("./dist/capture.js");
+  const r = await captureFullPage(1, 1);
+  assert.ok(r.artifacts.length > 0);
+});
+
 test("AUD-026: a screenshot refused because the tab switched is TAB_CHANGED, not a PARTIAL record", async () => {
   let switched = false;
   installChrome({ tabAt: () => ({ active: !switched, windowId: 1, url: "https://example.com/long" }) });
