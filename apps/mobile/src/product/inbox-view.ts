@@ -166,6 +166,8 @@ export interface InboxQuery {
   workspaceId: string;
   sort: InboxSort;
   cursor?: string | null;
+  /** Only for a counts-only read (one row, envelope wanted). */
+  pageSize?: number;
 }
 
 /**
@@ -184,6 +186,7 @@ export function buildInboxQueryPath(q: InboxQuery): string {
   if (q.workspaceId !== "all") params.set("workspaceId", q.workspaceId);
   params.set("sort", q.sort);
   if (q.cursor) params.set("cursor", q.cursor);
+  if (q.pageSize) params.set("pageSize", String(q.pageSize));
   return `/v1/me/inbox?${params.toString()}`;
 }
 

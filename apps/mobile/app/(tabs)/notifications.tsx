@@ -138,6 +138,23 @@ export default function NotificationsScreen() {
     }
   }, [nextCursor, loadingMore, query, addToast]);
 
+  /**
+   * The counts above the list reconcile from the SERVER after a per-item
+   * action (same query, one row, envelope only) — the list and any loaded
+   * pages stay put. A newer load supersedes it.
+   */
+  const refreshCounts = useCallback(async () => {
+    const mine = generation.current;
+    try {
+      const data = parseInboxEnvelope(await apiFetch(buildInboxQueryPath({ ...query, pageSize: 1 })));
+      if (mine !== generation.current) return;
+      setState({ kind: "ready", data });
+      setLastEnvelope(data);
+    } catch {
+      /* counts stay as they were; the next load reconciles them */
+    }
+  }, [query]);
+
   /** Per-item read / unread / archive / unarchive, optimistic then reconciled. */
   const act = useCallback(
     async (item: InboxViewItem, action: InboxItemAction) => {
@@ -163,18 +180,7 @@ export default function NotificationsScreen() {
         if ((action === "read" && primaryView === "unread") || (action === "unread" && primaryView === "read")) {
           setItems((prev) => prev.filter((i) => i.itemKey !== item.itemKey));
         }
-        // The counts above the list reconcile from the SERVER (same query, one
-        // row, envelope only) — the list and any loaded pages stay put.
-        const mine = generation.current;
-        try {
-          const data = parseInboxEnvelope(await apiFetch(`${buildInboxQueryPath(query)}&pageSize=1`));
-          if (mine === generation.current) {
-            setState({ kind: "ready", data });
-            setLastEnvelope(data);
-          }
-        } catch {
-          /* counts stay as they were; the next load reconciles them */
-        }
+        void refreshCounts();
       } catch (err) {
         setItems(before);
         addToast(toSafeUserError(err).message, "error");
@@ -182,7 +188,7 @@ export default function NotificationsScreen() {
         setPendingKey(null);
       }
     },
-    [items, pendingKey, addToast, primaryView, query],
+    [items, pendingKey, addToast, primaryView, refreshCounts],
   );
 
   const open = useCallback(
