@@ -1,6 +1,8 @@
 import type {
   AcquisitionIdentitySnapshot,
   CustodyLabelHints,
+  EvidenceLocationState,
+  EvidenceLocationTone,
   OtsState,
   RecordSignatureValidityState,
   StorageProtectionVerificationState,
@@ -248,6 +250,10 @@ export type ReportEvidence = {
      * as they did before this feature shipped.
      */
     locationSource?: string | null;
+    /** A location request outcome recorded in the custody chain (locationRequestOutcomeFromCustody). */
+    requestOutcome?: string | null;
+    /** The collection plan's location requirement (intakePlanJson). */
+    requirement?: string | null;
   };
   evidenceStructure?: string | null;
   itemCount?: number | null;
@@ -866,7 +872,17 @@ export type ReportViewModel = {
      * invalid reading that is not shown ("incomplete").
      */
     captureLocationState?: "recorded" | "absent" | "incomplete";
+    /** THE canonical location state (capture-location.ts resolveEvidenceLocation). */
+    locationState?: {
+      state: EvidenceLocationState;
+      label: string;
+      tone: EvidenceLocationTone;
+      detail: string | null;
+      requirement: { level: string; label: string; unmet: boolean } | null;
+    } | null;
     captureContext: {
+      /** The panel heading: "Upload session location" for intake, else "Capture location". */
+      title?: string;
       statusLabel: string;
       description: string;
       lat: string;

@@ -198,6 +198,9 @@ const ReserveDirectEvidenceBody = z
         accuracyMeters: z.number().finite().min(0).max(1_000_000).optional(),
       })
       .optional(),
+    // The outcome of a location request that produced no coordinates; recorded
+    // in the creation custody event (canonical location state). Optional.
+    locationRequestOutcome: z.enum(["DENIED", "UNAVAILABLE"]).optional(),
   })
   .strict();
 
@@ -478,6 +481,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
           originalFileName: body.originalFileName ?? null,
           deviceTimeIso: body.deviceTimeIso,
           gps: body.gps,
+          locationRequestOutcome: body.locationRequestOutcome,
         });
         return reply.code(201).send({ evidence: reserved });
       } catch (err) {

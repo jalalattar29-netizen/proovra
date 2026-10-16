@@ -9,7 +9,6 @@ import path from "node:path";
 import {
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
-  CAPTURE_LOCATION_STATUS_LABEL,
   buildCaptureLocationDisplayModel,
   buildCaptureLocationPdfFallbackSvg,
   deriveCanonicalArtifactAvailability,
@@ -18,6 +17,7 @@ import {
   formatCaptureLocationCoordinate,
   getReviewerEvidenceTypeLabel,
   hasCaptureLocationMetadata,
+  resolveEvidenceLocation,
   formatTimestampForReportUtc,
   otsVerificationSentence,
   absoluteInternalUrl,
@@ -1596,14 +1596,22 @@ const captureLocationModel =
 // retained at the bottom so the long-form disclaimer is identical in
 // both branches.
 const reportedLocationSource = input.evidence.gps.locationSource ?? null;
+// THE canonical location state — the same reading every surface states.
+const locationState = resolveEvidenceLocation({
+  lat: captureLat,
+  lng: captureLng,
+  accuracyMeters: input.evidence.gps.accuracyMeters,
+  locationSource: reportedLocationSource,
+  requestOutcome: input.evidence.gps.requestOutcome ?? null,
+  requirement: input.evidence.gps.requirement ?? null,
+});
 const isIntakeLinkLocation =
   reportedLocationSource === "INTAKE_LINK_GEOLOCATION";
 
 const captureContext = hasCaptureContext && captureLat !== null && captureLng !== null
   ? {
-      statusLabel: isIntakeLinkLocation
-        ? "Upload session location"
-        : CAPTURE_LOCATION_STATUS_LABEL,
+      title: isIntakeLinkLocation ? "Upload session location" : "Capture location",
+      statusLabel: locationState.label,
       description: isIntakeLinkLocation
         ? "Location was provided by the contributor's browser during upload. Captured after an explicit Share click — not silently. Coordinates are evidence of what the browser reported at the moment of upload, not independent proof of physical presence."
         : CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
@@ -1858,9 +1866,16 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
       captureContext,
       captureLocationState: captureContext
         ? "recorded"
-        : [captureLat, captureLng, input.evidence.gps.accuracyMeters].some((v) => v !== null && v !== undefined && String(v).trim() !== "")
+        : locationState.state === "INVALID"
           ? "incomplete"
           : "absent",
+      locationState: {
+        state: locationState.state,
+        label: locationState.label,
+        tone: locationState.tone,
+        detail: locationState.detail,
+        requirement: locationState.requirement,
+      },
       previewPolicy,
       anchorSummary,
       display,

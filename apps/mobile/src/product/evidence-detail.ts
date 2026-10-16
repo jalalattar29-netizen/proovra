@@ -12,7 +12,7 @@
  * NOT projected (they need a teamId / enterprise surface). `reviewerAudit` is
  * sent on every review-workspace reply and IS projected (projectReviewerAudit).
  */
-import { readOtsAnchoringView, type OtsVerificationKey } from "@proovra/shared";
+import { readOtsAnchoringView, resolveEvidenceLocation, type EvidenceLocationTone, type OtsVerificationKey } from "@proovra/shared";
 
 export interface CustodyEvent {
   sequence: number;
@@ -153,7 +153,44 @@ function numOrNull(v: unknown): number | null {
   const n = typeof v === "string" ? Number(v) : v;
   return typeof n === "number" && Number.isFinite(n) ? n : null;
 }
+/**
+ * THE canonical location state (packages/shared resolveEvidenceLocation),
+ * served by the review workspace as `locationState` — the same label and tone
+ * the web, Public Verify, the report and the package state. An older response
+ * without it is read from the recorded coordinates alone. Never "blocked";
+ * "Location not recorded" is neutral.
+ */
+export interface LocationStateView {
+  state: string;
+  label: string;
+  tone: EvidenceLocationTone;
+  detail: string | null;
+  requirementUnmetLabel: string | null;
+}
+export function projectLocationState(rw: unknown): LocationStateView {
+  const served = o(o(rw)["locationState"]);
+  const label = s(served["label"]);
+  const state = s(served["state"]);
+  if (label && state) {
+    const tone = served["tone"] === "info" || served["tone"] === "warning" ? (served["tone"] as EvidenceLocationTone) : "neutral";
+    const req = o(served["requirement"]);
+    return {
+      state,
+      label,
+      tone,
+      detail: s(served["detail"]),
+      requirementUnmetLabel: req["unmet"] === true ? s(req["label"]) : null,
+    };
+  }
+  const loc = o(o(rw)["sourceCaptureLocation"]);
+  const r = resolveEvidenceLocation({ lat: numOrNull(loc["lat"]), lng: numOrNull(loc["lng"]) });
+  return { state: r.state, label: r.label, tone: r.tone, detail: r.detail, requirementUnmetLabel: null };
+}
+
 export function projectCaptureLocation(rw: unknown): CaptureLocationView | null {
+  // Coordinates only for the canonical RECORDED state: never a map for
+  // invalid, partial or absent coordinates.
+  if (projectLocationState(rw).state !== "RECORDED") return null;
   const loc = o(rw)["sourceCaptureLocation"];
   if (!loc || typeof loc !== "object") return null;
   const l = o(loc);
@@ -205,8 +242,11 @@ export const REVIEWER_AUDIT_COPY = {
   empty: "No reviewer audit activity recorded yet.",
 } as const;
 
-/** The web technical-appendix copy (LocationContextCard, IntegrityContextCard, EvidencePartMetadataTable, FullExifAccordion). */
-export const LOCATION_NOT_PROVIDED = "Location was not provided for this evidence.";
+/** The badge tone of a location state: informational and neutral read neutral; only invalid metadata reads as caution. Never risk. */
+export function locationBadgeTone(tone: EvidenceLocationTone): "neutral" | "pending" {
+  return tone === "warning" ? "pending" : "neutral";
+}
+/** The web technical-appendix copy (IntegrityContextCard, EvidencePartMetadataTable, FullExifAccordion). */
 export const INTEGRITY_SECTION_TITLE = "Security & Integrity";
 export const INTEGRITY_ADVISORY =
   "These values summarize the recorded integrity state. Full signature, RFC 3161 timestamp token, and OpenTimestamps proofs are preserved in the Verification Package and the verification endpoint.";

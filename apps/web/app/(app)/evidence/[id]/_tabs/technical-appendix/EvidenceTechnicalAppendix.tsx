@@ -234,7 +234,7 @@ export function EvidenceTechnicalAppendix({
         ) : null}
 
         {/* Section 5 — Location */}
-        <LocationContextCard location={workspace.sourceCaptureLocation} />
+        <LocationContextCard location={workspace.sourceCaptureLocation} locationState={workspace.locationState ?? null} />
 
         {/* Section 6 — Client / Browser Environment */}
         <TechnicalAppendixCard

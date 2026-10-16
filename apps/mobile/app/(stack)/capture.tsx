@@ -218,6 +218,8 @@ export default function CaptureScreen() {
   const planModeRef = useRef<CapturePlanMode>("FLEXIBLE");
   planModeRef.current = planMode;
   const useLocationRef = useRef(false);
+  /** The outcome of the last location request that produced no coordinates. */
+  const locationOutcomeRef = useRef<"DENIED" | "UNAVAILABLE" | undefined>(undefined);
   useLocationRef.current = useLocation;
   const [locationDenied, setLocationDenied] = useState(false);
   const [draftSaveState, setDraftSaveState] = useState<DraftSaveState>("idle");
@@ -802,12 +804,14 @@ hasActiveDraft: isSessionActive || isRecording,
   }, []);
 
   const getGps = useCallback(async () => {
+    locationOutcomeRef.current = undefined;
     if (!useLocation) return undefined;
     // A plan that REQUIRES location cannot finish without it (web orchestration :611-625).
     const locationRequired = templateRef.current?.locationRequirement === "required";
 
     const permission = await Location.requestForegroundPermissionsAsync();
     if (!permission.granted) {
+      locationOutcomeRef.current = "DENIED";
       recordActivity(LOCATION_UNAVAILABLE);
       setLocationDenied(true);
       if (locationRequired) {
@@ -830,6 +834,7 @@ hasActiveDraft: isSessionActive || isRecording,
         accuracyMeters: pos.coords.accuracy ?? undefined
       };
     } catch {
+      locationOutcomeRef.current = "UNAVAILABLE";
       recordActivity(LOCATION_UNAVAILABLE);
       setLocationDenied(true);
       if (locationRequired) {
@@ -1409,6 +1414,7 @@ if (!isRecording || busy) return;
           mimeType: primary?.mimeType ?? "application/octet-stream",
           deviceTimeIso: new Date().toISOString(),
           gps,
+          locationRequestOutcome: gps ? undefined : locationOutcomeRef.current,
         });
         sessionEvidenceIdRef.current = evidenceId;
         setSessionEvidenceId(evidenceId);

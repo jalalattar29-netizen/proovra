@@ -55,6 +55,10 @@ import {
   getReviewerUploadModeLabel,
   deriveCanonicalArtifactAvailability,
   hasCaptureLocationMetadata,
+  locationRequestOutcomeFromCustody,
+  locationRequirementFromIntakePlan,
+  resolveEvidenceLocation,
+  type EvidenceLocationPresentation,
   isPrimaryReviewerArtifactRole,
   resolveReviewerArtifactRole,
   // (2026-10-13) THE ONE OTS STATE AUTHORITY — resolved from the stored proof
@@ -527,6 +531,9 @@ const CreateEvidenceBody = z.object({
       accuracyMeters: z.number().finite().min(0).max(1_000_000).optional(),
     })
     .optional(),
+  // The outcome of a location request that produced no coordinates; recorded
+  // in the creation custody event (canonical location state). Optional.
+  locationRequestOutcome: z.enum(["DENIED", "UNAVAILABLE"]).optional(),
 });
 
 const ClaimBody = z.object({
@@ -1820,6 +1827,38 @@ function bigintToString(v: unknown): string | null {
   if (typeof v === "bigint") return v.toString();
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
   return null;
+}
+
+/**
+ * THE CANONICAL LOCATION STATE of a record (capture-location.ts), from its
+ * persisted facts only: the stored coordinates and source, the request outcome
+ * a capture path recorded in the custody chain, and the collection plan's
+ * requirement. Never "blocked"; absence is neutral.
+ */
+function buildEvidenceLocationState(
+  evidence: { lat: unknown; lng: unknown; accuracyMeters: unknown; locationSource?: string | null; intakePlanJson?: unknown },
+  custodyEvents: ReadonlyArray<{ eventType: string; payload: unknown }>,
+): EvidenceLocationPresentation {
+  return resolveEvidenceLocation({
+    lat: rawCoordinate(evidence.lat),
+    lng: rawCoordinate(evidence.lng),
+    accuracyMeters: decimalToNumber(evidence.accuracyMeters),
+    locationSource: evidence.locationSource ?? null,
+    requestOutcome: locationRequestOutcomeFromCustody(custodyEvents),
+    requirement: locationRequirementFromIntakePlan(evidence.intakePlanJson),
+  });
+}
+
+/** A stored coordinate as a number when it is one, else its raw text (so an unusable value reads INVALID, not absent). */
+function rawCoordinate(v: unknown): number | string | null {
+  if (v === null || v === undefined) return null;
+  const n = decimalToNumber(v);
+  return n !== null ? n : String(v);
+}
+
+/** What Public Verify states about location: the state, never the workflow plan. */
+function publicLocationState(p: EvidenceLocationPresentation) {
+  return { state: p.state, label: p.label, tone: p.tone, detail: p.detail };
 }
 
 function decimalToNumber(v: unknown): number | null {
@@ -5435,14 +5474,13 @@ function buildSourceContext(params: {
   const duplicateSignals = params.parts
     .map((part) => readStringClientSignal(part.clientSignals, "duplicateStatus"))
     .filter((value): value is string => Boolean(value));
-  const locationIncluded =
-    hasCaptureLocationMetadata({
-      lat: decimalToNumber(params.evidence.lat),
-      lng: decimalToNumber(params.evidence.lng),
-    }) ||
-    params.parts.some(
-      (part) => readBooleanClientSignal(part.clientSignals, "locationIncluded") === true
-    );
+  // Location is "included" only when valid coordinates are STORED. A part's
+  // client signal saying location was included is the client's intent, not
+  // a recorded fact: with nothing stored it is not location.
+  const locationIncluded = hasCaptureLocationMetadata({
+    lat: decimalToNumber(params.evidence.lat),
+    lng: decimalToNumber(params.evidence.lng),
+  });
   const captureMethod = params.evidence.captureMethod ?? null;
   // UC-0 — the source type is a projection of the acquisition authority. It
   // was derived from `captureMethod` (a structure field completion
@@ -5976,6 +6014,7 @@ const result = await createEvidence({
   captureFileName: body.captureFileName,
   deviceTimeIso: body.deviceTimeIso,
   gps: body.gps,
+  locationRequestOutcome: body.locationRequestOutcome,
   checksumSha256Base64: normalizedChecksum,
   contentMd5Base64: normalizedContentMd5,
 intakePlanJson:
@@ -10188,6 +10227,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
         };
 
         const sourceContext = buildSourceContext({ evidence, parts });
+        const locationState = buildEvidenceLocationState(evidence, allCustodyEvents);
         // `artifactStatus` is resolved once, above, before its first consumer.
         const caseItem = viewerCases[0]
           ? { id: viewerCases[0].caseId, name: viewerCases[0].caseName }
@@ -10379,6 +10419,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             reviewerAlerts,
             custodyLifecycle,
             custodyDisplayCounts,
+            locationState,
             sourceCaptureLocation: hasCaptureLocationMetadata({
               lat: decimalToNumber(evidence.lat),
               lng: decimalToNumber(evidence.lng),
@@ -15171,6 +15212,7 @@ outputContext: ((): CanonicalOutputContext => {
   certifications: publicCertifications,
   display,
   captureContext,
+  locationState: publicLocationState(buildEvidenceLocationState(evidence, allCustodyEvents)),
   overview,
   humanSummary,
   evidenceContent: {

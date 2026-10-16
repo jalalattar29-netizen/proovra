@@ -657,6 +657,11 @@ export function useCaptureSessionOrchestration({
           }
         | undefined;
 
+      // The outcome of a location request that produced no coordinates —
+      // recorded with the record so its location state can say "not shared"
+      // or "unavailable" instead of "not recorded". Never sent with coordinates.
+      let locationRequestOutcome: "DENIED" | "UNAVAILABLE" | undefined;
+
       const locationRequired = selectedCollectionPlan?.locationRequirement === "required";
       const shouldUsePreciseGps = locationRequired;
 
@@ -689,9 +694,11 @@ export function useCaptureSessionOrchestration({
               : "Reduced-precision device location metadata was attached with user consent.",
             tone: "info",
           });
-        } catch {
+        } catch (geoErr) {
           setLocationAccuracyMeters(null);
           setLocationPermissionDenied(true);
+          locationRequestOutcome =
+            (geoErr as { code?: number } | null)?.code === 1 ? "DENIED" : "UNAVAILABLE";
 
           recordTimelineEvent({
             title: "Location unavailable",
@@ -708,6 +715,8 @@ export function useCaptureSessionOrchestration({
           addToast("Location unavailable. Continuing without GPS.", "warning");
         }
       }
+
+      if (useLocation && !navigator.geolocation) locationRequestOutcome = "UNAVAILABLE";
 
       if (locationRequired && !gps) {
         throw new Error(
@@ -784,6 +793,7 @@ export function useCaptureSessionOrchestration({
           captureFileName: primaryFile.name,
           deviceTimeIso: new Date().toISOString(),
           gps,
+          locationRequestOutcome: gps ? undefined : locationRequestOutcome,
           checksumSha256Base64: primaryIntegrity.checksumSha256Base64,
           contentMd5Base64: primaryIntegrity.contentMd5Base64,
           intakePlanJson,

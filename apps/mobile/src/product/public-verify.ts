@@ -1933,6 +1933,31 @@ export function verifyStatusTone(label: string | null): "verified" | "risk" | "p
 }
 
 
+/* ------------------------------------------------ location state (web VerifyLocationStateSection) */
+
+/**
+ * THE canonical location state Public Verify serves (`locationState`), stated
+ * when no coordinates are shown. "Location not recorded" is neutral, never a
+ * failure or "blocked"; only invalid stored coordinates read as caution.
+ */
+export interface VerifyLocationState {
+  state: string;
+  label: string;
+  tone: "info" | "neutral" | "warning";
+  detail: string | null;
+}
+export function parseVerifyLocationState(data: unknown): VerifyLocationState | null {
+  const d = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+  const v = d.locationState && typeof d.locationState === "object" ? (d.locationState as Record<string, unknown>) : null;
+  if (!v || typeof v.state !== "string" || typeof v.label !== "string") return null;
+  return {
+    state: v.state,
+    label: v.label,
+    tone: v.tone === "info" || v.tone === "warning" ? v.tone : "neutral",
+    detail: typeof v.detail === "string" && v.detail ? v.detail : null,
+  };
+}
+
 /* ------------------------------------------------ capture context (web verify page :4700-4860) */
 
 export interface VerifyCaptureContext {
@@ -1969,7 +1994,7 @@ export function parseVerifyCaptureContext(data: unknown): VerifyCaptureContext |
     lng,
     accuracyMeters: n(c.accuracyMeters),
     rows: [
-      { label: CAPTURE_LOCATION_STATUS_LABEL, value: "Yes" },
+      { label: "Location", value: s(c.statusLabel) ?? CAPTURE_LOCATION_STATUS_LABEL },
       { label: "Latitude", value: formatCaptureLocationCoordinate(lat) },
       { label: "Longitude", value: formatCaptureLocationCoordinate(lng) },
       { label: "Accuracy radius", value: formatCaptureLocationAccuracy(n(c.accuracyMeters)) },

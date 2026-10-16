@@ -274,12 +274,14 @@ test("Custody shows the operational timeline with actor and severity, and fails 
 /* ---- T-14 technical-appendix copy (LocationContextCard :83/:98, IntegrityContextCard :33/:44,
         ArtifactHistorySection :285/:287, TrustDecisionSummary :151/:228) ---- */
 
-test("Integrity: no location says so; a server map link opens; the integrity advisory is stated", async () => {
+test("Integrity: no location states the canonical neutral label; a server map link opens; the integrity advisory is stated", async () => {
   const r = await render();
   await r.press("Integrity");
   await settle();
-  assert.equal(r.byTestId("location-not-provided").length, 1, "an absent location was silent");
-  assert.ok(r.hasText("Location was not provided for this evidence."));
+  // (2026-10-16) The canonical location state: neutral, never Blocked, no map.
+  assert.ok(r.hasText("Location not recorded"), "an absent location was silent");
+  assert.equal(r.hasText("Blocked"), false);
+  assert.equal(r.byTestId("location-state-detail").length, 0, "plain absence carries no explanation");
   assert.ok(r.hasText("Security & Integrity"));
   assert.ok(r.texts().some((t) => t.startsWith("These values summarize the recorded integrity state.")));
   r.unmount();
@@ -289,9 +291,31 @@ test("Integrity: no location says so; a server map link opens; the integrity adv
   const r2 = await render();
   await r2.press("Integrity");
   await settle();
-  assert.equal(r2.byTestId("location-not-provided").length, 0);
+  assert.ok(r2.hasText("Location recorded"));
+  assert.equal(r2.hasText("Location not recorded"), false);
   await r2.press("Open map");
   assert.deepEqual(globalThis.__LINKING_OPENED__, ["https://www.openstreetmap.org/?mlat=51.5&mlon=-0.12"]);
+});
+
+test("Integrity: the served location state — declined, unavailable, invalid, a required plan — with no map", async () => {
+  const cases = [
+    [{ state: "NOT_SHARED", label: "Location not shared", tone: "neutral", detail: "Location was requested; it was declined or the device permission was denied." }, null],
+    [{ state: "UNAVAILABLE", label: "Location unavailable", tone: "neutral", detail: "Location was requested, but the device did not provide it." }, null],
+    [{ state: "INVALID", label: "Location metadata invalid", tone: "warning", detail: "The stored coordinates failed validation and are not shown." }, null],
+    [{ state: "NOT_RECORDED", label: "Location not recorded", tone: "neutral", detail: null, requirement: { level: "required", label: "Required by the collection plan", unmet: true } }, "Required by the collection plan"],
+  ];
+  for (const [locationState, requirement] of cases) {
+    routes["/v1/evidence/ev-1/review-workspace"] = () => RW({ locationState, sourceCaptureLocation: null });
+    const r = await render();
+    await r.press("Integrity");
+    await settle();
+    assert.ok(r.hasText(locationState.label), locationState.state);
+    if (locationState.detail) assert.ok(r.hasText(locationState.detail));
+    if (requirement) assert.equal(r.byTestId("location-requirement").length, 1);
+    assert.equal(r.hasText("Open map"), false, "no map without recorded coordinates");
+    assert.equal(r.hasText("Blocked"), false);
+    r.unmount();
+  }
 });
 
 test("a non-https map link is never offered", async () => {

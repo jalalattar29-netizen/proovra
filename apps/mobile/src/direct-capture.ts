@@ -97,6 +97,12 @@ export async function reserveDirectCaptureEvidence(
     mimeType: string;
     deviceTimeIso: string;
     gps?: { lat: number; lng: number; accuracyMeters?: number };
+    /**
+     * The outcome of a location request that produced no coordinates (device
+     * permission denied, or no position). Recorded with the record so its
+     * location state reads "not shared" / "unavailable", never "not recorded".
+     */
+    locationRequestOutcome?: "DENIED" | "UNAVAILABLE";
   },
 ): Promise<string> {
   const res = await withTimeout(

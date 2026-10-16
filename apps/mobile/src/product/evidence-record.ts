@@ -15,6 +15,7 @@ import {
   type OutputProgressView,
   type ReportFreshness,
 } from "@proovra/shared";
+import { projectLocationState } from "./evidence-detail";
 import { isOtsSummaryFact, otsCard, otsStatusLine, readOts, type OtsState, type OtsVerificationKey } from "./ots-anchoring";
 type Obj = Record<string, unknown>;
 const o = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
@@ -1081,7 +1082,8 @@ export function buildSourceContextFacts(rw: unknown, fmt: (iso: string) => strin
   if (up) items.push({ label: "Uploaded at", value: fmt(up) });
   const dev = s(sc["deviceTimeIso"]);
   if (dev) items.push({ label: "Device-declared capture time (not proven)", value: dev });
-  if (sc["locationIncluded"] === true) items.push({ label: "Location included", value: "Included" });
+  // Location — ALWAYS stated in the canonical label (never "blocked").
+  items.push({ label: "Location", value: projectLocationState(rw).label });
   const cs = o(sc["clientSignalsSummary"]);
   if (showSignal(cs["screenshotLikeStatus"])) items.push({ label: "Screenshot indicators", value: describeClientSignalState(String(cs["screenshotLikeStatus"]).toUpperCase()) });
   if (showSignal(cs["folderPathStatus"])) items.push({ label: "Folder path indicators", value: describeClientSignalState(String(cs["folderPathStatus"]).toUpperCase()) });

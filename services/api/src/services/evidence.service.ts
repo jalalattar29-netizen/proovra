@@ -244,6 +244,13 @@ export async function createEvidence(params: {
   captureFileName?: string | null;
   deviceTimeIso?: string;
   gps?: { lat: number; lng: number; accuracyMeters?: number };
+  /**
+   * The outcome of a location request the capture client made and that
+   * produced NO coordinates (the browser/device denied or could not provide
+   * them). Recorded in the EVIDENCE_CREATED custody event as a client-reported
+   * fact; ignored when coordinates arrived. Absent = no request outcome.
+   */
+  locationRequestOutcome?: "DENIED" | "UNAVAILABLE";
   checksumSha256Base64?: string | null;
   contentMd5Base64?: string | null;
 intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
@@ -616,6 +623,11 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
               accuracyMeters: params.gps.accuracyMeters ?? null,
             }
           : null,
+        // The canonical location state (capture-location.ts) reads this to
+        // tell a declined/unavailable request from location never requested.
+        ...(params.locationRequestOutcome && !params.gps
+          ? { locationRequest: { outcome: params.locationRequestOutcome, reportedBy: "CAPTURE_CLIENT" } }
+          : {}),
         // Phase 4A Closure — bind the actor's department scope envelope
         // into the EVIDENCE_CREATED custody event. Bounded, append-only
         // record of which departments the actor belonged to AND the
