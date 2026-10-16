@@ -177,7 +177,8 @@ export interface InboxQuery {
  * ONE parameter per axis (web buildUrl). The primary view resolves to exactly
  * one of `readState` / `tone`, so Unread then High asks for High, never the
  * intersection. `sort` is always sent: the route's own default is `priority`,
- * which is not what the control says.
+ * which is not what the control says. `include=resolved` asks for notification
+ * history (resolved notifications) beside the live items on the active half.
  */
 export function buildInboxQueryPath(q: InboxQuery): string {
   const params = new URLSearchParams();
@@ -186,6 +187,9 @@ export function buildInboxQueryPath(q: InboxQuery): string {
   else if (q.primaryView !== "all") params.set("tone", q.primaryView);
   if (q.category !== "all") params.set("filter", q.category);
   if (q.archived) params.set("lifecycle", "archived");
+  // Notification history: All and Read include the reader's resolved
+  // notifications, exactly as the web page asks (the bell and Home do not).
+  else params.set("include", "resolved");
   if (q.workspaceId !== "all") params.set("workspaceId", q.workspaceId);
   params.set("sort", q.sort);
   if (q.cursor) params.set("cursor", q.cursor);

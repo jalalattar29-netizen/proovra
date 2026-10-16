@@ -50,7 +50,7 @@ beforeEach(async () => {
   routes = {
     ...authenticatedRoutes(),
     "/v1/me/inbox?lifecycle=archived&sort=newest": () => envelope([ARCHIVED], { historyAvailable: true }),
-    "/v1/me/inbox?sort=newest": () => envelope([ACTIVE, LOCKED], { scopeSummary: { total: 2, unread: 1, byTone: {} } }),
+    "/v1/me/inbox?include=resolved&sort=newest": () => envelope([ACTIVE, LOCKED], { scopeSummary: { total: 2, unread: 1, byTone: {} } }),
     "/v1/me/inbox/items/": () => ({ ok: true }),
   };
   globalThis.fetch = async (url, init = {}) => {

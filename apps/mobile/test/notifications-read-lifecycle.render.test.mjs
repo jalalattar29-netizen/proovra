@@ -137,3 +137,31 @@ test("categories and sources are named through the shared authority — never th
   for (const t of r.texts()) assert.doesNotMatch(t, RAW, t);
   r.unmount();
 });
+
+test("All and Read ask for notification history; a resolved notification stays as read history with no read or archive toggle", async () => {
+  rows.push(
+    row({
+      itemKey: "report_failure:r1",
+      category: "report_failure",
+      title: "Report generation failed",
+      isRead: true,
+      readAt: "2026-09-21T10:00:00.000Z",
+      resolvedAt: "2026-09-22T10:00:00.000Z",
+      sourceClearedAt: "2026-09-22T10:00:00.000Z",
+      canMarkRead: false,
+      canDismiss: false,
+      canSnooze: false,
+    }),
+  );
+  const r = await render();
+  assert.ok(inboxReads()[0].includes("include=resolved"), inboxReads()[0]);
+  await r.press("Show: Read");
+  await settle();
+  const readPath = inboxReads().at(-1);
+  assert.ok(readPath.includes("readState=read") && readPath.includes("include=resolved"), readPath);
+  assert.ok(r.hasText("Report generation failed"), "a resolved notification must not vanish from Read");
+  assert.ok(r.texts().some((t) => t.includes("No longer active")), "it is marked as no longer active");
+  assert.equal(r.byLabel("Mark as unread: Report generation failed").length, 0);
+  assert.equal(r.byLabel("Archive: Report generation failed").length, 0);
+  r.unmount();
+});

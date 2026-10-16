@@ -169,7 +169,10 @@ type InboxTruncated = Record<
   | "tsa_failure"
   | "case_assignment",
   boolean
->;
+> & {
+  /** Notification history merged into All / Read reached its cap. */
+  notification_history?: boolean;
+};
 
 // Phase IA-enterprise — pagination block returned by the backend.
 type InboxPagination = {
@@ -898,6 +901,12 @@ function InboxPageInner() {
       else if (primaryView !== "all") params.set("tone", primaryView);
       if (category !== "all") params.set("filter", category);
       if (archived) params.set("lifecycle", "archived");
+      // NOTIFICATION HISTORY. All and Read are what the reader was told, so
+      // they include notifications whose condition has since cleared (served
+      // from notification history, marked "No longer active"). The bell and
+      // Home ask the same endpoint about CURRENT attention and do not send it;
+      // the server ignores it for Unread.
+      else params.set("include", "resolved");
       if (workspaceFilter !== "all") params.set("workspaceId", workspaceFilter);
       // ALWAYS SENT, including the default. The API's own default is
       // `priority` — the Operations Center's ordering, which this page is not
