@@ -160,6 +160,7 @@ const ENABLED_CONFIG = {
   timeoutMs: 5000,
   policy: { ...OTS_CHAIN_POLICY_DEFAULTS, minConfirmations: 6 },
   passwordFile: null,
+  passwordFromEnvironmentAllowed: true,
 };
 
 function job() {

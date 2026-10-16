@@ -37,6 +37,10 @@ const BASE = {
 } as const;
 
 const env = (over: Record<string, string | undefined> = {}): NodeJS.ProcessEnv => ({ ...BASE, ...over }) as NodeJS.ProcessEnv;
+/** Production supplies the password ONLY as a mounted file (or the secrets authority). */
+const prodEnv = (over: Record<string, string | undefined> = {}): NodeJS.ProcessEnv =>
+  env({ OTS_BITCOIN_RPC_PASSWORD: undefined, OTS_BITCOIN_RPC_PASSWORD_FILE: passwordFile(`${PASSWORD}
+`), ...over });
 
 function misconfigured(c: OtsBitcoinVerifierConfig): string {
   expect(c.kind).toBe("misconfigured");
@@ -179,12 +183,12 @@ describe("bounds", () => {
 
 describe("expected chain", () => {
   it("productionLike requires main: signet refused, main accepted", () => {
-    expect(misconfigured(resolveOtsBitcoinVerifierConfig(env({ OTS_BITCOIN_EXPECTED_CHAIN: "signet" }), { productionLike: true }))).toContain("OTS_BITCOIN_EXPECTED_CHAIN");
-    expect(enabled(resolveOtsBitcoinVerifierConfig(env({ OTS_BITCOIN_EXPECTED_CHAIN: "main" }), { productionLike: true })).policy.expectedChain).toBe("main");
+    expect(misconfigured(resolveOtsBitcoinVerifierConfig(prodEnv({ OTS_BITCOIN_EXPECTED_CHAIN: "signet" }), { productionLike: true }))).toContain("OTS_BITCOIN_EXPECTED_CHAIN");
+    expect(enabled(resolveOtsBitcoinVerifierConfig(prodEnv({ OTS_BITCOIN_EXPECTED_CHAIN: "main" }), { productionLike: true })).policy.expectedChain).toBe("main");
   });
   it("NODE_ENV=production in the env object counts as production-like", () => {
-    misconfigured(resolveOtsBitcoinVerifierConfig(env({ NODE_ENV: "production", OTS_BITCOIN_EXPECTED_CHAIN: "signet" })));
-    expect(enabled(resolveOtsBitcoinVerifierConfig(env({ NODE_ENV: "production" }))).policy.expectedChain).toBe("main");
+    misconfigured(resolveOtsBitcoinVerifierConfig(prodEnv({ NODE_ENV: "production", OTS_BITCOIN_EXPECTED_CHAIN: "signet" })));
+    expect(enabled(resolveOtsBitcoinVerifierConfig(prodEnv({ NODE_ENV: "production" }))).policy.expectedChain).toBe("main");
   });
   it("non-production allows regtest", () => {
     expect(enabled(resolveOtsBitcoinVerifierConfig(env({ OTS_BITCOIN_EXPECTED_CHAIN: "regtest" }), { productionLike: false })).policy.expectedChain).toBe("regtest");
@@ -277,5 +281,43 @@ describe("describeOtsBitcoinVerifierConfig — operator-safe", () => {
 
   it("disabled: just enabled=false", () => {
     expect(describeOtsBitcoinVerifierConfig(resolveOtsBitcoinVerifierConfig(env({ OTS_BITCOIN_VERIFY_ENABLED: "false" })))).toEqual({ enabled: false });
+  });
+});
+
+describe("production: the password is a mounted file, never an environment variable", () => {
+  it("a password in the environment is refused in production — even with a file present — and never echoed", () => {
+    const withEnvOnly = misconfigured(resolveOtsBitcoinVerifierConfig(env({ NODE_ENV: "production" })));
+    expect(withEnvOnly).toContain("must not be an environment variable in production");
+    const withBoth = misconfigured(
+      resolveOtsBitcoinVerifierConfig(prodEnv({ NODE_ENV: "production", OTS_BITCOIN_RPC_PASSWORD: PASSWORD })),
+    );
+    expect(withBoth).toContain("OTS_BITCOIN_RPC_PASSWORD_FILE");
+  });
+
+  it("the mounted file is accepted in production, and rpcPassword never falls back to the environment there", () => {
+    const e = prodEnv({ NODE_ENV: "production" });
+    const c = enabled(resolveOtsBitcoinVerifierConfig(e));
+    expect(c.passwordFromEnvironmentAllowed).toBe(false);
+    expect(rpcPassword(c, e)).toBe(PASSWORD);
+    // The file disappears (rotated / unmounted) and someone sets the variable:
+    // production does not read it — the check becomes BTC_RPC_MISCONFIGURED.
+    const gone = { ...c, passwordFile: "/nonexistent/proovra/password" };
+    expect(() => rpcPassword(gone, { ...e, OTS_BITCOIN_RPC_PASSWORD: PASSWORD })).toThrow(/BTC_RPC_MISCONFIGURED/);
+  });
+
+  it("an unreadable or empty password file in production is misconfigured, never enabled", () => {
+    expect(misconfigured(resolveOtsBitcoinVerifierConfig(prodEnv({ NODE_ENV: "production", OTS_BITCOIN_RPC_PASSWORD_FILE: "/nonexistent/password" })))).toContain(
+      "password is required",
+    );
+    expect(misconfigured(resolveOtsBitcoinVerifierConfig(prodEnv({ NODE_ENV: "production", OTS_BITCOIN_RPC_PASSWORD_FILE: passwordFile("") })))).toContain(
+      "password is required",
+    );
+  });
+
+  it("outside production the environment remains a development convenience", () => {
+    const e = env({ NODE_ENV: "development" });
+    const c = enabled(resolveOtsBitcoinVerifierConfig(e));
+    expect(c.passwordFromEnvironmentAllowed).toBe(true);
+    expect(rpcPassword(c, e)).toBe(PASSWORD);
   });
 });

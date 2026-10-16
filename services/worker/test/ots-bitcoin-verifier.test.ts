@@ -62,6 +62,7 @@ const CONFIG: OtsBitcoinVerifierConfig = {
   timeoutMs: 5_000,
   policy: { ...OTS_CHAIN_POLICY_DEFAULTS },
   passwordFile: null,
+  passwordFromEnvironmentAllowed: true,
 };
 
 function anchoringOf(base64: string, status = "ANCHORED"): OtsAnchoring {

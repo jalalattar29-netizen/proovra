@@ -10,9 +10,12 @@
  * `platform.bitcoin_verifier_unavailable` names the problem.
  *
  * THE PASSWORD never travels in a URL. It is read, in order, from the secrets
- * authority's hydrated bundle, a read-only worker-only secret file, or the
- * process environment — and never logged, thrown, persisted or returned by
- * any function here except `rpcPassword()`, whose only caller is the RPC client.
+ * authority's hydrated bundle or a read-only worker-only secret file — and,
+ * outside production only, the process environment. In production a password
+ * in the environment is REFUSED: it would show in `docker inspect`, and the
+ * compose file's only source for it is /run/proovra/bitcoin-rpc/password. It
+ * is never logged, thrown, persisted or returned by any function here except
+ * `rpcPassword()`, whose only caller is the RPC client.
  */
 import { readFileSync } from "node:fs";
 
@@ -61,6 +64,8 @@ export type OtsBitcoinVerifierConfig =
       timeoutMs: number;
       policy: OtsChainPolicy;
       passwordFile: string | null;
+      /** Outside production only: the password may come from the environment. */
+      passwordFromEnvironmentAllowed: boolean;
     };
 
 /** Bounded, credential-free reason for a refused configuration. */
@@ -125,9 +130,19 @@ export function resolveOtsBitcoinVerifierConfig(
       minVerificationProgress: OTS_CHAIN_POLICY_DEFAULTS.minVerificationProgress,
     },
     passwordFile: e.OTS_BITCOIN_RPC_PASSWORD_FILE ?? null,
+    passwordFromEnvironmentAllowed: !productionLike,
   };
+  if (productionLike && typeof env[OTS_BITCOIN_RPC_PASSWORD_SECRET] === "string" && env[OTS_BITCOIN_RPC_PASSWORD_SECRET] !== "") {
+    return refuse(
+      "OTS_BITCOIN_RPC_PASSWORD must not be an environment variable in production; mount it as OTS_BITCOIN_RPC_PASSWORD_FILE (/run/proovra/bitcoin-rpc/password) or use the secrets authority",
+    );
+  }
   if (!readRpcPassword(config, env)) {
-    return refuse("the Bitcoin RPC password is required when OTS_BITCOIN_VERIFY_ENABLED=true (secrets authority, OTS_BITCOIN_RPC_PASSWORD_FILE or OTS_BITCOIN_RPC_PASSWORD)");
+    return refuse(
+      productionLike
+        ? "the Bitcoin RPC password is required when OTS_BITCOIN_VERIFY_ENABLED=true (secrets authority or OTS_BITCOIN_RPC_PASSWORD_FILE)"
+        : "the Bitcoin RPC password is required when OTS_BITCOIN_VERIFY_ENABLED=true (secrets authority, OTS_BITCOIN_RPC_PASSWORD_FILE or OTS_BITCOIN_RPC_PASSWORD)",
+    );
   }
   return config;
 }
@@ -146,6 +161,7 @@ function readRpcPassword(config: Extract<OtsBitcoinVerifierConfig, { kind: "enab
       /* fall through: the file is optional */
     }
   }
+  if (!config.passwordFromEnvironmentAllowed) return null;
   const fromEnv = env[OTS_BITCOIN_RPC_PASSWORD_SECRET];
   return typeof fromEnv === "string" && fromEnv.length > 0 ? fromEnv : null;
 }
