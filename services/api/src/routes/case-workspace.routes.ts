@@ -4,6 +4,7 @@
  *   GET /v1/cases/summary?teamId=<uuid>
  *   GET /v1/cases/:id/workspace
  *   GET /v1/reports/artifacts?teamId=<uuid>&limit=&cursor=&lifecycle=&search=&caseId=
+ *     (lifecycle may be a comma list; &status= record status; &sort=newest|oldest)
  *
  * Each endpoint is read-only, workspace-scoped, partial-failure
  * tolerant, and EMITS NO AUDIT — browsing these aggregators is not
@@ -29,7 +30,11 @@ import { buildCasesSummary } from "../services/cases/case-workspace.service.js";
 import {
   listWorkspaceArtifacts,
   REPORT_LIFECYCLE_FILTERS,
+  REPORT_STATUS_FILTERS,
+  REPORTS_SORTS,
   type ReportLifecycleFilter,
+  type ReportStatusFilter,
+  type ReportsSort,
 } from "../services/reports/reports-aggregator.service.js";
 import { buildMatterWorkspace } from "../services/cases/matter-workspace.service.js";
 import { buildMatterQueue } from "../services/cases/matter-queue.service.js";
@@ -203,9 +208,29 @@ const ArtifactsQuery = z.object({
   cursor: z.string().min(1).max(512).optional(),
   // THE one filter list (reports-aggregator REPORT_LIFECYCLE_FILTERS); a
   // hand-kept copy here refused every filter added after it was written.
+  //
+  // 2026-10-16 — one value, or several comma-separated (one per dimension:
+  // report, package, entitlement), ANDed. Every value must be known; a single
+  // value parses exactly as before.
   lifecycle: z
-    .enum(REPORT_LIFECYCLE_FILTERS as unknown as [ReportLifecycleFilter, ...ReportLifecycleFilter[]])
+    .string()
+    .max(256)
+    .transform((raw) => [...new Set(raw.split(",").map((v) => v.trim()).filter(Boolean))])
+    .pipe(
+      z
+        .array(
+          z.enum(REPORT_LIFECYCLE_FILTERS as unknown as [ReportLifecycleFilter, ...ReportLifecycleFilter[]]),
+        )
+        .min(1)
+        .max(4),
+    )
     .optional(),
+  /** The record-status filter (`deliverableStatusFor`); ANDed with `lifecycle`. */
+  status: z
+    .enum(REPORT_STATUS_FILTERS as unknown as [ReportStatusFilter, ...ReportStatusFilter[]])
+    .optional(),
+  /** Capture order; newest first by default. */
+  sort: z.enum(REPORTS_SORTS as unknown as [ReportsSort, ...ReportsSort[]]).optional(),
   search: z.string().min(1).max(80).optional(),
   caseId: z.string().uuid().optional(),
   /** `0` skips the six workspace aggregations a filter cannot change. */
@@ -1197,7 +1222,9 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
         matchRecipientContact: disclosure === "REVEALED",
         limit: query.limit,
         cursor: query.cursor ?? null,
-        lifecycleFilter: query.lifecycle ?? "all",
+        lifecycleFilters: query.lifecycle ?? [],
+        statusFilter: query.status ?? "all",
+        sort: query.sort ?? "newest",
         search: query.search ?? null,
         caseId: query.caseId ?? null,
         includeSummary: query.summary !== "0",

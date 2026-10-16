@@ -2638,3 +2638,5 @@ export function fillOperationsCopy(template: string, values: Record<string, stri
 // server, resolved here in en/de/ar (see operations-condition-messages.ts).
 export * from "./operations-condition-messages.js";
 export * from "./operations-remediation-copy.js";
+// Reports & Artifacts: the page's words for its bounded server values (en/de/ar).
+export * from "./reports-copy.js";

@@ -47,6 +47,11 @@ import {
   type EvidenceOutputState,
   type OutputGenerationState,
   type PersistedReportRequestState,
+  // 2026-10-16 — the record's ONE deliverable status, and the canonical
+  // supersession fact (a failure older than the latest report is history).
+  deliverableStatusFor,
+  isCurrentReportUpdateFailure,
+  type DeliverableStatusProjection,
 } from "@proovra/shared";
 import { resolveEvidenceOutputEligibilityMany } from "../billing/evidence-output-eligibility.service.js";
 import { resolveOutputRecordApplicability } from "../evidence-artifact-status.service.js";
@@ -202,6 +207,13 @@ export type ArtifactRow = {
     pollIntervalMs: number | null;
   };
   /**
+   * 2026-10-16 — THE RECORD'S ONE DELIVERABLE STATUS (`deliverableStatusFor`
+   * over the two canonical states above). The `status` filter and the
+   * `records*` summary counts select exactly these values, so a row, its
+   * filter and its count cannot disagree. Bounded: never shown raw.
+   */
+  deliverable: DeliverableStatusProjection;
+  /**
    * Phase 6 — workflow-template provenance trio. Surfaced as part of
    * the report/package envelope for downstream traceability. NULL
    * trio members on legacy rows are surfaced as-is.
@@ -224,9 +236,10 @@ export type ReportsArtifactsEnvelope = {
         reportsFailed: number;
         /**
          * ET-RPT-01 — records WITH a report whose latest report request (an
-         * updated report or a forced regeneration) failed. The existing report
-         * stays downloadable, so the record is also counted ready; this card
-         * is where the row's Retry / escalation can be found.
+         * updated report or a forced regeneration) failed AFTER that report
+         * was generated. The existing report stays downloadable, so the record
+         * is also counted ready. A failure OLDER than the latest report was
+         * superseded by it and is not counted (2026-10-16).
          */
         reportsUpdateFailed: number;
         /** ET-RPT-02 — records with no report whose latest request is blocked. */
@@ -264,6 +277,19 @@ export type ReportsArtifactsEnvelope = {
         totalEvidenceWithArtifacts: number;
         /** Stored report plus package version rows, including history. */
         totalArtifactVersions: number;
+        /*
+         * 2026-10-16 — THE RECORD STATUS COUNTS. Mutually exclusive: every
+         * finalized record is in exactly one (`deliverableStatusFor`), so they
+         * sum to `recordsTotal`, and each equals the list total of its
+         * `status` filter.
+         */
+        recordsReady: number;
+        recordsInProgress: number;
+        recordsNeedingAttention: number;
+        recordsIncomplete: number;
+        recordsNotAvailable: number;
+        /** Finalized records in the workspace — the `status=all` total. */
+        recordsTotal: number;
       } | null;
     };
     artifacts: {
@@ -328,6 +354,31 @@ export const REPORT_LIFECYCLE_FILTERS: readonly ReportLifecycleFilter[] = [
   "package_missing",
   "entitlement_unavailable",
 ];
+
+/**
+ * 2026-10-16 — the record-status filter: one value of `deliverableStatusFor`,
+ * or `all`. Composes (AND) with any lifecycle filters.
+ */
+export type ReportStatusFilter =
+  | "all"
+  | "ready"
+  | "in_progress"
+  | "needs_attention"
+  | "incomplete"
+  | "not_available";
+
+export const REPORT_STATUS_FILTERS: readonly ReportStatusFilter[] = [
+  "all",
+  "ready",
+  "in_progress",
+  "needs_attention",
+  "incomplete",
+  "not_available",
+];
+
+/** Capture order of the list. The default is newest first. */
+export type ReportsSort = "newest" | "oldest";
+export const REPORTS_SORTS: readonly ReportsSort[] = ["newest", "oldest"];
 
 // ---------------------------------------------------------------------------
 // Lifecycle mapping (mirror of Phase 32.6.x artifact-status semantics)
@@ -466,6 +517,15 @@ export async function listWorkspaceArtifacts(input: {
   limit?: number;
   cursor?: string | null;
   lifecycleFilter?: ReportLifecycleFilter;
+  /**
+   * 2026-10-16 — several lifecycle filters at once (one per dimension: report,
+   * package, entitlement), ANDed with each other and with `lifecycleFilter`.
+   */
+  lifecycleFilters?: readonly ReportLifecycleFilter[];
+  /** The record-status filter; ANDed with the lifecycle filters. */
+  statusFilter?: ReportStatusFilter;
+  /** Capture order; newest first unless asked otherwise. */
+  sort?: ReportsSort;
   search?: string | null;
   caseId?: string | null;
   /**
@@ -502,6 +562,18 @@ export async function listWorkspaceArtifacts(input: {
   // itself cannot be resolved, neither section may fall back to a strict
   // filter and report a confident smaller number. Both degrade instead.
   const scope: WorkspaceEvidenceScope = await workspaceEvidenceWhere(input.teamId, prisma);
+  const finalized = finalizedPopulation(scope);
+  // ONE classification per request, shared by the summary and the list
+  // filters, so a count and the rows its filter returns are one id set.
+  let classifiedOnce: Promise<ClassifiedWorkspaceOutputs> | null = null;
+  // A failed read is not cached: each section degrades on its own, as before.
+  const getClassified = () =>
+    (classifiedOnce ??= classifyWorkspaceOutputs({ finalized, teamId: input.teamId }).catch(
+      (err: unknown) => {
+        classifiedOnce = null;
+        throw err;
+      },
+    ));
 
   // ----------- Summary counts (workspace-level) -----------
   //
@@ -534,11 +606,7 @@ export async function listWorkspaceArtifacts(input: {
     // package row" for pending packages, package VERSION rows for ready
     // packages, a 500-row sample for blocked — so a tile routinely disagreed
     // with the rows its own filter returned.
-    const finalized = finalizedPopulation(scope);
-    const classified = await classifyWorkspaceOutputs({
-      finalized,
-      teamId: input.teamId,
-    });
+    const classified = await getClassified();
     const countWhere = async (filter: ReportLifecycleFilter) => {
       const clause = await lifecycleWhere(filter, {
         finalized,
@@ -598,6 +666,17 @@ export async function listWorkspaceArtifacts(input: {
         outputsEntitlementUnavailable: classified.entitlementUnavailable.length,
         totalEvidenceWithArtifacts,
         totalArtifactVersions: reportVersionCount + packageVersionCount,
+        recordsReady: classified.statusReady.length,
+        recordsInProgress: classified.statusInProgress.length,
+        recordsNeedingAttention: classified.statusNeedsAttention.length,
+        recordsIncomplete: classified.statusIncomplete.length,
+        recordsNotAvailable: classified.statusNotAvailable.length,
+        recordsTotal:
+          classified.statusReady.length +
+          classified.statusInProgress.length +
+          classified.statusNeedsAttention.length +
+          classified.statusIncomplete.length +
+          classified.statusNotAvailable.length,
       },
     };
   } catch {
@@ -640,12 +719,26 @@ export async function listWorkspaceArtifacts(input: {
     }
     // The filter narrows the QUERY, so pagination, the total and the page all
     // describe the same population.
-    const lifecycleClause = await lifecycleWhere(input.lifecycleFilter ?? "all", {
-      finalized: finalizedPopulation(scope),
-      teamId: input.teamId,
-    });
-    if (lifecycleClause) {
-      (whereBase.AND as Prisma.EvidenceWhereInput[]).push(lifecycleClause);
+    //
+    // 2026-10-16 — several dimensions at once (record status, report, package,
+    // entitlement), each ANDed. They read the SAME classification the summary
+    // counted from (one classification per request), so a count and the list
+    // its filter returns are the same id set.
+    const lifecycleFilters = [
+      ...new Set<ReportLifecycleFilter>([
+        input.lifecycleFilter ?? "all",
+        ...(input.lifecycleFilters ?? []),
+      ]),
+    ].filter((f) => f !== "all");
+    const statusFilter = input.statusFilter ?? "all";
+    if (lifecycleFilters.length > 0 || statusFilter !== "all") {
+      const classified = await getClassified();
+      for (const f of lifecycleFilters) {
+        const clause = await lifecycleWhere(f, { finalized, teamId: input.teamId, classified });
+        if (clause) (whereBase.AND as Prisma.EvidenceWhereInput[]).push(clause);
+      }
+      const statusClause = statusWhere(statusFilter, classified);
+      if (statusClause) (whereBase.AND as Prisma.EvidenceWhereInput[]).push(statusClause);
     }
     if (input.search && input.search.trim()) {
       // SEARCH THE FIELDS THE TITLE CASCADE READS, not `title` alone.
@@ -677,7 +770,10 @@ export async function listWorkspaceArtifacts(input: {
         }),
       ];
     }
-    // Cursor — opaque, last (createdAt, id) pair, base64-encoded JSON.
+    // Cursor — opaque, last (createdAt, id) pair, base64-encoded JSON. The
+    // comparison follows the sort, so "oldest first" pages forward too.
+    const ascending = input.sort === "oldest";
+    const after = ascending ? ("gt" as const) : ("lt" as const);
     let cursorFilter: Prisma.EvidenceWhereInput | null = null;
     if (input.cursor) {
       try {
@@ -687,10 +783,10 @@ export async function listWorkspaceArtifacts(input: {
         if (parsed.c && parsed.i) {
           cursorFilter = {
             OR: [
-              { createdAt: { lt: new Date(parsed.c) } },
+              { createdAt: { [after]: new Date(parsed.c) } },
               {
                 createdAt: new Date(parsed.c),
-                id: { lt: parsed.i },
+                id: { [after]: parsed.i },
               },
             ],
           };
@@ -700,9 +796,10 @@ export async function listWorkspaceArtifacts(input: {
       }
     }
 
+    const direction = ascending ? ("asc" as const) : ("desc" as const);
     const rows = await prisma.evidence.findMany({
       where: cursorFilter ? { AND: [whereBase, cursorFilter] } : whereBase,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: [{ createdAt: direction }, { id: direction }],
       take: limit + 1,
       select: {
         id: true,
@@ -838,6 +935,8 @@ export async function listWorkspaceArtifacts(input: {
                 evidenceId: true,
                 state: true,
                 terminalReasonCode: true,
+                // Supersession: a failure older than the latest report is history.
+                createdAtUtc: true,
               },
             });
           } catch {
@@ -845,6 +944,7 @@ export async function listWorkspaceArtifacts(input: {
               evidenceId: string;
               state: string;
               terminalReasonCode: string | null;
+              createdAtUtc: Date;
             }>;
           }
         })(),
@@ -929,8 +1029,28 @@ export async function listWorkspaceArtifacts(input: {
           availability: pkg !== null ? "READY" : "NO_ARTIFACT",
           record,
         });
+        /*
+         * 2026-10-16 — A FAILURE IS CURRENT ONLY IF IT IS NEWER THAN THE REPORT.
+         *
+         * `updateFailed` used to be "READY and the latest report request
+         * failed", so a record whose failed attempt had since been superseded by
+         * a newer, successful report still read "Updated report failed" and was
+         * counted as a failure. The action decision already applied the
+         * canonical fact (`OutputRequestFact.afterLatestReport`); the list, its
+         * card and its filter now apply the same one.
+         */
+        const reportRequestRow = loaded ? loaded.reportRequest : request;
+        const reportUpdateFailed = isCurrentReportUpdateFailure({
+          reportState: reportCanonicalState,
+          reportRequestState: reportRequestRow?.state ?? null,
+          requestCreatedAt: reportRequestRow?.createdAtUtc ?? null,
+          latestReportGeneratedAt: report?.generatedAtUtc ?? null,
+        });
+        // A superseded failure carries no terminal class or code on a READY
+        // report, so no surface can state it as a current one.
+        const reportFailureIsCurrent = reportCanonicalState !== "READY" || reportUpdateFailed;
         const terminalReasonClass =
-          generation === "TERMINAL_FAILURE"
+          generation === "TERMINAL_FAILURE" && reportFailureIsCurrent
             ? classifyTerminalReason(
                 (loaded ? loaded.reportRequest : request)?.terminalReasonCode ?? null,
               )
@@ -940,7 +1060,7 @@ export async function listWorkspaceArtifacts(input: {
             ? classifyTerminalReason(loaded?.packageRequest?.terminalReasonCode ?? null)
             : null;
         const reportTerminalReasonCode =
-          generation === "TERMINAL_FAILURE"
+          generation === "TERMINAL_FAILURE" && reportFailureIsCurrent
             ? ((loaded ? loaded.reportRequest : request)?.terminalReasonCode ?? null)
             : null;
         const packageTerminalReasonCode =
@@ -978,9 +1098,7 @@ export async function listWorkspaceArtifacts(input: {
             state: reportState,
             // ET-RPT-01 — a report exists and its latest report request failed
             // (the "report_update_failed" card and filter select exactly these).
-            updateFailed:
-              reportCanonicalState === "READY" &&
-              (generation === "RETRYABLE_FAILURE" || generation === "TERMINAL_FAILURE"),
+            updateFailed: reportUpdateFailed,
             version: report?.version ?? null,
             generatedAtUtc: report?.generatedAtUtc?.toISOString() ?? null,
           },
@@ -1045,6 +1163,11 @@ export async function listWorkspaceArtifacts(input: {
                 ? 3_000
                 : null,
           },
+          deliverable: deliverableStatusFor({
+            report: reportCanonicalState,
+            verificationPackage: packageCanonicalState,
+            reportUpdateFailed,
+          }),
           // Phase 6 — surface template-identity trio in the envelope.
           // Identity propagation only; legacy rows surface NULL.
           provenance: {
@@ -1127,9 +1250,47 @@ export type ClassifiedWorkspaceOutputs = {
   packageMissingForLatestReport: string[];
   /** Either output's entitlement could not be read. */
   entitlementUnavailable: string[];
+  /** 2026-10-16 — `deliverableStatusFor`, one bucket per record. */
+  statusReady: string[];
+  statusInProgress: string[];
+  statusNeedsAttention: string[];
+  statusIncomplete: string[];
+  statusNotAvailable: string[];
 };
 
 const CLASSIFY_BATCH = 1000;
+
+const STATUS_BUCKET: Record<
+  DeliverableStatusProjection["status"],
+  (c: ClassifiedWorkspaceOutputs) => string[]
+> = {
+  READY: (c) => c.statusReady,
+  IN_PROGRESS: (c) => c.statusInProgress,
+  NEEDS_ATTENTION: (c) => c.statusNeedsAttention,
+  INCOMPLETE: (c) => c.statusIncomplete,
+  NOT_AVAILABLE: (c) => c.statusNotAvailable,
+};
+
+/** The record-status filter as an id predicate over the classification. */
+function statusWhere(
+  filter: ReportStatusFilter,
+  classified: ClassifiedWorkspaceOutputs,
+): Prisma.EvidenceWhereInput | null {
+  switch (filter) {
+    case "all":
+      return null;
+    case "ready":
+      return { id: { in: classified.statusReady } };
+    case "in_progress":
+      return { id: { in: classified.statusInProgress } };
+    case "needs_attention":
+      return { id: { in: classified.statusNeedsAttention } };
+    case "incomplete":
+      return { id: { in: classified.statusIncomplete } };
+    case "not_available":
+      return { id: { in: classified.statusNotAvailable } };
+  }
+}
 
 /**
  * Classifies every finalized record in the workspace through the same
@@ -1159,6 +1320,11 @@ export async function classifyWorkspaceOutputs(input: {
     packageNotRequested: [],
     packageMissingForLatestReport: [],
     entitlementUnavailable: [],
+    statusReady: [],
+    statusInProgress: [],
+    statusNeedsAttention: [],
+    statusIncomplete: [],
+    statusNotAvailable: [],
   };
   let after: string | null = null;
   for (;;) {
@@ -1188,7 +1354,7 @@ export async function classifyWorkspaceOutputs(input: {
           where: { evidenceId: { in: ids } },
           orderBy: [{ evidenceId: "asc" }, { version: "desc" }],
           distinct: ["evidenceId"],
-          select: { evidenceId: true, version: true },
+          select: { evidenceId: true, version: true, generatedAtUtc: true },
         }),
         prisma.verificationPackage.findMany({
           where: primaryPublishedPackageWhere({ evidenceId: { in: ids } }),
@@ -1198,7 +1364,7 @@ export async function classifyWorkspaceOutputs(input: {
           where: { evidenceId: { in: ids }, artifactType: "REPORT" },
           orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
           distinct: ["evidenceId"],
-          select: { evidenceId: true, state: true },
+          select: { evidenceId: true, state: true, createdAtUtc: true },
         }),
         prisma.reportGenerationRequest.findMany({
           where: { evidenceId: { in: ids } },
@@ -1212,6 +1378,8 @@ export async function classifyWorkspaceOutputs(input: {
         }),
       ]);
     const latestReportById = new Map(reports.map((r) => [r.evidenceId, r.version]));
+    const latestReportAtById = new Map(reports.map((r) => [r.evidenceId, r.generatedAtUtc]));
+    const reportRequestById = new Map(reportRequests.map((q) => [q.evidenceId, q]));
     const packageVersionsById = new Map<string, Set<number>>();
     for (const pkg of packages) {
       const versions = packageVersionsById.get(pkg.evidenceId) ?? new Set<number>();
@@ -1253,11 +1421,18 @@ export async function classifyWorkspaceOutputs(input: {
         record,
       });
 
+      // The SAME supersession rule the row applies: a failed request older
+      // than the latest report was superseded by it and is not a failure now.
+      const reportRequest = reportRequestById.get(row.id) ?? null;
+      const reportUpdateFailed = isCurrentReportUpdateFailure({
+        reportState,
+        reportRequestState: reportRequest?.state ?? null,
+        requestCreatedAt: reportRequest?.createdAtUtc ?? null,
+        latestReportGeneratedAt: latestReportAtById.get(row.id) ?? null,
+      });
       if (reportState === "READY") {
         out.reportReady.push(row.id);
-        if (reportGeneration === "RETRYABLE_FAILURE" || reportGeneration === "TERMINAL_FAILURE") {
-          out.reportUpdateFailed.push(row.id);
-        }
+        if (reportUpdateFailed) out.reportUpdateFailed.push(row.id);
       } else if (reportState === "QUEUED" || reportState === "GENERATING") out.reportPending.push(row.id);
       else if (reportState === "RETRYABLE_FAILURE" || reportState === "TERMINAL_FAILURE") out.reportFailed.push(row.id);
       else if (reportState === "BLOCKED") out.reportBlocked.push(row.id);
@@ -1275,6 +1450,12 @@ export async function classifyWorkspaceOutputs(input: {
       if (reportState === "ENTITLEMENT_UNAVAILABLE" || packageState === "ENTITLEMENT_UNAVAILABLE") {
         out.entitlementUnavailable.push(row.id);
       }
+      const { status } = deliverableStatusFor({
+        report: reportState,
+        verificationPackage: packageState,
+        reportUpdateFailed,
+      });
+      STATUS_BUCKET[status](out).push(row.id);
     }
 
     if (batch.length < CLASSIFY_BATCH) break;
