@@ -17,7 +17,7 @@ import { CopyButton, copyToClipboard } from "../../../src/ui/copy-button";
 import { projectTrustDecision, type TrustDecision } from "../../../src/product/trust-decision";
 import { Alert, Linking, Pressable, Share, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { NEW_VERSION_ACTION, otsAnchoringCopy, TRASH_KEEPS_PLAN_CAPACITY_COPY, TRASH_LIFECYCLE_COPY, reportFreshnessChangeCopy, type EvidenceOutputState } from "@proovra/shared";
+import { evidenceLocationCopy, NEW_VERSION_ACTION, otsAnchoringCopy, TRASH_KEEPS_PLAN_CAPACITY_COPY, TRASH_LIFECYCLE_COPY, reportFreshnessChangeCopy, type EvidenceOutputState } from "@proovra/shared";
 import { apiFetch } from "../../../src/api";
 import { EvidenceInternalMaterials } from "../../../src/ui/evidence-internal-materials";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
@@ -287,7 +287,6 @@ export default function EvidenceDetailScreen() {
   const [caseBusy, setCaseBusy] = useState(false);
   const [caseMessage, setCaseMessage] = useState<string | null>(null);
   const [captureLocation, setCaptureLocation] = useState<CaptureLocationView | null>(null);
-  const [locationState, setLocationState] = useState<LocationStateView | null>(null);
   const [requestTeamId, setRequestTeamId] = useState<string | null>(null);
   const [discussionCaps, setDiscussionCaps] = useState<{ visible: boolean; readOnly: boolean }>({ visible: false, readOnly: false });
   const [commentsFailed, setCommentsFailed] = useState(false);
@@ -486,7 +485,6 @@ export default function EvidenceDetailScreen() {
       setDiscussionCaps(projectDiscussionCaps(data));
       setReviewWorkflow(projectReviewWorkflowRef(data));
       setCaptureLocation(projectCaptureLocation(data));
-      setLocationState(projectLocationState(data));
       setProvenance(projectProvenance(data));
       setMaterials(projectMaterials(data));
       setRiskSignals(projectRiskSignals(data));
@@ -902,9 +900,12 @@ export default function EvidenceDetailScreen() {
   // Derived web sections, each from the ONE review-workspace reply.
   const record = useMemo(() => projectRecord(rw), [rw]);
   const preview = useMemo(() => projectPreview(rw), [rw]);
-  const template = useMemo(() => projectCaptureTemplate(rw), [rw]);
+  const template = useMemo(() => projectCaptureTemplate(rw, locale), [rw, locale]);
+  // The location state in the reader's words, derived from the review
+  // workspace so a locale change re-reads it without a refetch.
+  const locationState = useMemo<LocationStateView | null>(() => (rw ? projectLocationState(rw, locale) : null), [rw, locale]);
   const matrix = useMemo(() => buildPreservationMatrix(rw, (iso) => formatUserDateTime(iso) ?? iso, locale), [rw, locale]);
-  const sourceFacts = useMemo(() => buildSourceContextFacts(rw, (iso) => formatUserDateTime(iso) ?? iso), [rw]);
+  const sourceFacts = useMemo(() => buildSourceContextFacts(rw, (iso) => formatUserDateTime(iso) ?? iso, locale), [rw, locale]);
   const snapshotTiming = useMemo(() => buildSnapshotTiming(rw, (iso) => formatUserDateTime(iso) ?? iso), [rw]);
   const timelines = useMemo(() => projectCustodyTimelines(rw), [rw]);
   const appendix = useMemo(() => buildTechnicalAppendix(technicalRaw.payload, rw, locale), [technicalRaw.payload, rw, locale]);
@@ -1553,7 +1554,7 @@ export default function EvidenceDetailScreen() {
         ) : (
           // The canonical state, with no map and no empty map: "Location not
           // recorded" is neutral, never a failure and never "blocked".
-          <ProovraSection title="Location">
+          <ProovraSection title={evidenceLocationCopy(locale).heading}>
             {locationState ? (
               <>
                 <ProovraBadge tone={locationBadgeTone(locationState.tone)} label={locationState.label} />

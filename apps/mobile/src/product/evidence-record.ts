@@ -14,6 +14,8 @@ import {
   projectOutputProgress,
   type OutputProgressView,
   type ReportFreshness,
+  evidenceLocationCopy,
+  locationRequirementRowValue,
 } from "@proovra/shared";
 import { projectLocationState } from "./evidence-detail";
 import { isOtsSummaryFact, otsCard, otsStatusLine, readOts, type OtsState, type OtsVerificationKey } from "./ots-anchoring";
@@ -1058,7 +1060,7 @@ const showSignal = (v: unknown): boolean => {
  * has a real collected value. Acquisition is always shown ("Not recorded" is a
  * real answer for a legacy record).
  */
-export function buildSourceContextFacts(rw: unknown, fmt: (iso: string) => string): Array<{ label: string; value: string }> {
+export function buildSourceContextFacts(rw: unknown, fmt: (iso: string) => string, locale?: string | null): Array<{ label: string; value: string }> {
   const sc = o(o(rw)["sourceContext"]);
   if (Object.keys(sc).length === 0) return [];
   const acq = sc["acquisition"] && typeof sc["acquisition"] === "object" ? o(sc["acquisition"]) : null;
@@ -1083,7 +1085,7 @@ export function buildSourceContextFacts(rw: unknown, fmt: (iso: string) => strin
   const dev = s(sc["deviceTimeIso"]);
   if (dev) items.push({ label: "Device-declared capture time (not proven)", value: dev });
   // Location — ALWAYS stated in the canonical label (never "blocked").
-  items.push({ label: "Location", value: projectLocationState(rw).label });
+  items.push({ label: evidenceLocationCopy(locale).heading, value: projectLocationState(rw, locale).label });
   const cs = o(sc["clientSignalsSummary"]);
   if (showSignal(cs["screenshotLikeStatus"])) items.push({ label: "Screenshot indicators", value: describeClientSignalState(String(cs["screenshotLikeStatus"]).toUpperCase()) });
   if (showSignal(cs["folderPathStatus"])) items.push({ label: "Folder path indicators", value: describeClientSignalState(String(cs["folderPathStatus"]).toUpperCase()) });
@@ -1383,7 +1385,7 @@ export interface CaptureTemplateView {
 }
 
 /** `_lib.tsx:1102` CaptureTemplateCard — null when no template was recorded. */
-export function projectCaptureTemplate(rw: unknown): CaptureTemplateView | null {
+export function projectCaptureTemplate(rw: unknown, locale?: string | null): CaptureTemplateView | null {
   const ev = o(o(rw)["evidence"]);
   const planRaw = ev["intakePlanJson"];
   if (!planRaw || typeof planRaw !== "object") return null;
@@ -1412,10 +1414,8 @@ export function projectCaptureTemplate(rw: unknown): CaptureTemplateView | null 
         ok: required.length > 0 && requiredMapped === required.length,
       },
       { label: "Optional steps", value: optional.length === 0 ? "None" : String(optional.length) },
-      {
-        label: "Location",
-        value: loc === "required" ? "Required" : loc === "recommended" ? "Recommended" : loc === "optional" ? "Optional" : "Not recorded",
-      },
+      // What the PLAN asked for, labelled as such — never the recorded location.
+      { label: evidenceLocationCopy(locale).requirementRow.label, value: locationRequirementRowValue(locale, loc) },
     ],
     missing,
   };

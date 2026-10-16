@@ -1065,3 +1065,162 @@ export function locationRequestOutcomeFromCustody(
   }
   return outcome;
 }
+
+// =============================================================================
+// The location state in the reader's words (en / de / ar)
+// =============================================================================
+//
+// The SAME states, labels and requirement levels as above — this only says
+// them in German or Arabic. English is derived from the constants above, so a
+// served English label and the English copy cannot drift. A client renders
+// from the served `state` and `requirement.level` through this, never by
+// translating a served sentence.
+
+export type EvidenceLocationCopyLocale = "en" | "de" | "ar";
+
+export type EvidenceLocationCopy = {
+  /** The row / kicker word. */
+  heading: string;
+  /** The owner Integrity section that states a non-recorded location. */
+  sectionTitle: string;
+  sectionDescription: string;
+  states: Readonly<Record<EvidenceLocationState, { label: string; detail: string | null }>>;
+  /** The workflow requirement, stated apart from the recorded fact. */
+  requirement: Readonly<Record<LocationRequirementLevel, string>>;
+  /** The collection-plan summary row: what the PLAN asked for, never what was recorded. */
+  requirementRow: { label: string; values: Readonly<Record<LocationRequirementLevel, string>>; none: string };
+};
+
+const P = EVIDENCE_LOCATION_STATE_PRESENTATION;
+
+const LOCATION_COPY_EN: EvidenceLocationCopy = {
+  heading: "Location",
+  sectionTitle: "Capture location",
+  sectionDescription: "What the record holds about location.",
+  states: {
+    RECORDED: { label: P.RECORDED.label, detail: P.RECORDED.detail },
+    NOT_RECORDED: { label: P.NOT_RECORDED.label, detail: P.NOT_RECORDED.detail },
+    NOT_SHARED: { label: P.NOT_SHARED.label, detail: P.NOT_SHARED.detail },
+    UNAVAILABLE: { label: P.UNAVAILABLE.label, detail: P.UNAVAILABLE.detail },
+    INVALID: { label: P.INVALID.label, detail: P.INVALID.detail },
+  },
+  requirement: LOCATION_REQUIREMENT_LABEL,
+  requirementRow: {
+    label: "Location requirement",
+    values: { required: "Required", recommended: "Recommended", optional: "Optional" },
+    none: "Not specified by the plan",
+  },
+};
+
+const LOCATION_COPY_DE: EvidenceLocationCopy = {
+  heading: "Standort",
+  sectionTitle: "Aufnahmeort",
+  sectionDescription: "Was der Datensatz zum Standort enthält.",
+  states: {
+    RECORDED: { label: "Standort erfasst", detail: null },
+    NOT_RECORDED: { label: "Standort nicht erfasst", detail: null },
+    NOT_SHARED: {
+      label: "Standort nicht geteilt",
+      detail: "Der Standort wurde angefragt; die Anfrage wurde abgelehnt oder die Geräteberechtigung verweigert.",
+    },
+    UNAVAILABLE: {
+      label: "Standort nicht verfügbar",
+      detail: "Der Standort wurde angefragt, aber das Gerät hat ihn nicht bereitgestellt.",
+    },
+    INVALID: {
+      label: "Standortmetadaten ungültig",
+      detail: "Die gespeicherten Koordinaten haben die Prüfung nicht bestanden und werden nicht angezeigt.",
+    },
+  },
+  requirement: {
+    required: "Vom Erfassungsplan verlangt",
+    recommended: "Vom Erfassungsplan empfohlen",
+    optional: "Im Erfassungsplan optional",
+  },
+  requirementRow: {
+    label: "Standortanforderung",
+    values: { required: "Erforderlich", recommended: "Empfohlen", optional: "Optional" },
+    none: "Vom Plan nicht festgelegt",
+  },
+};
+
+const LOCATION_COPY_AR: EvidenceLocationCopy = {
+  heading: "الموقع",
+  sectionTitle: "موقع الالتقاط",
+  sectionDescription: "ما يتضمنه السجل بشأن الموقع.",
+  states: {
+    RECORDED: { label: "تم تسجيل الموقع", detail: null },
+    NOT_RECORDED: { label: "لم يُسجَّل الموقع", detail: null },
+    NOT_SHARED: {
+      label: "لم تتم مشاركة الموقع",
+      detail: "طُلب الموقع؛ فرُفض الطلب أو رُفض إذن الجهاز.",
+    },
+    UNAVAILABLE: {
+      label: "الموقع غير متاح",
+      detail: "طُلب الموقع، لكن الجهاز لم يوفّره.",
+    },
+    INVALID: {
+      label: "بيانات الموقع الوصفية غير صالحة",
+      detail: "لم تجتز الإحداثيات المخزّنة التحقق، لذا لا تُعرض.",
+    },
+  },
+  requirement: {
+    required: "مطلوب بموجب خطة الجمع",
+    recommended: "موصى به في خطة الجمع",
+    optional: "اختياري في خطة الجمع",
+  },
+  requirementRow: {
+    label: "متطلب الموقع",
+    values: { required: "مطلوب", recommended: "موصى به", optional: "اختياري" },
+    none: "لم تحدده الخطة",
+  },
+};
+
+export const EVIDENCE_LOCATION_COPY: Readonly<Record<EvidenceLocationCopyLocale, EvidenceLocationCopy>> = {
+  en: LOCATION_COPY_EN,
+  de: LOCATION_COPY_DE,
+  ar: LOCATION_COPY_AR,
+};
+
+/** The copy for a locale; any other locale reads English. */
+export function evidenceLocationCopy(locale: string | null | undefined): EvidenceLocationCopy {
+  const l = String(locale ?? "en").slice(0, 2).toLowerCase();
+  return l === "de" || l === "ar" ? EVIDENCE_LOCATION_COPY[l] : EVIDENCE_LOCATION_COPY.en;
+}
+
+/**
+ * A served location state (label / detail / requirement in English) in the
+ * reader's words. Reads the STATE and the requirement LEVEL, never the served
+ * sentence; an unknown state keeps what was served.
+ */
+export function localizeEvidenceLocation<
+  T extends {
+    state: string;
+    label: string;
+    detail: string | null;
+    requirement?: { level: string; label: string; unmet: boolean } | null;
+  },
+>(view: T, locale: string | null | undefined): T {
+  const copy = evidenceLocationCopy(locale);
+  const s = (EVIDENCE_LOCATION_STATES as readonly string[]).includes(view.state)
+    ? copy.states[view.state as EvidenceLocationState]
+    : null;
+  const req = view.requirement;
+  const level =
+    req && (LOCATION_REQUIREMENT_LEVELS as readonly string[]).includes(req.level)
+      ? (req.level as LocationRequirementLevel)
+      : null;
+  return {
+    ...view,
+    ...(s ? { label: s.label, detail: s.detail } : {}),
+    ...(req && level ? { requirement: { ...req, label: copy.requirement[level] } } : {}),
+  };
+}
+
+/** The collection-plan summary row's value: the requirement level, or that the plan set none. */
+export function locationRequirementRowValue(locale: string | null | undefined, level: unknown): string {
+  const copy = evidenceLocationCopy(locale).requirementRow;
+  return typeof level === "string" && (LOCATION_REQUIREMENT_LEVELS as readonly string[]).includes(level)
+    ? copy.values[level as LocationRequirementLevel]
+    : copy.none;
+}

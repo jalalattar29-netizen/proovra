@@ -32,7 +32,9 @@ import {
   Trash2,
 } from "lucide-react";
 import {
+  evidenceLocationCopy,
   getReviewerArtifactRoleLabel,
+  locationRequirementRowValue,
   OTS_VERIFICATION_TONES,
   parseOtsVerificationKey,
   readOtsAnchoringView,
@@ -42,6 +44,7 @@ import {
   type OtsVerificationKey,
 } from "@proovra/shared";
 import type { EvidenceOutputState } from "@proovra/shared";
+import { useOptionalLocale } from "../../../../providers";
 import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import { formatUserDateTime } from "../../../../../lib/date";
 import type {
@@ -1136,6 +1139,7 @@ export function CaptureTemplateCard({
   intakePlanJson: unknown;
   contentItems: Array<{ checklistStepId?: string | null }>;
 }) {
+  const locale = useOptionalLocale();
   if (!intakePlanJson || typeof intakePlanJson !== "object") return null;
   const plan = intakePlanJson as Record<string, unknown>;
   const templateName =
@@ -1147,6 +1151,7 @@ export function CaptureTemplateCard({
     typeof plan.locationRequirement === "string"
       ? plan.locationRequirement
       : null;
+  const locationCopy = evidenceLocationCopy(locale);
   const required = Array.isArray(plan.requiredSteps)
     ? (plan.requiredSteps as Array<{ id?: string; title?: string }>)
     : [];
@@ -1200,16 +1205,13 @@ export function CaptureTemplateCard({
             label: "Optional steps",
             value: optional.length === 0 ? "None" : String(optional.length),
           },
+          // What the PLAN asked for — a workflow fact, labelled as one so it
+          // never reads as the recorded location (that is the Location row of
+          // the Integrity tab). A plan that set no level says so; "Not
+          // recorded" is a statement about the record, not the plan.
           {
-            label: "Location",
-            value:
-              locationRequirement === "required"
-                ? "Required"
-                : locationRequirement === "recommended"
-                  ? "Recommended"
-                  : locationRequirement === "optional"
-                    ? "Optional"
-                    : "Not recorded",
+            label: locationCopy.requirementRow.label,
+            value: locationRequirementRowValue(locale, locationRequirement),
           },
         ]}
       />

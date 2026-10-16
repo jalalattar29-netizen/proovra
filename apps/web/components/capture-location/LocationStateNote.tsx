@@ -12,7 +12,7 @@
  * recorded.
  */
 
-import { resolveEvidenceLocation, type EvidenceLocationTone } from "@proovra/shared";
+import { localizeEvidenceLocation, resolveEvidenceLocation, type EvidenceLocationTone } from "@proovra/shared";
 import { AppStatusBadge, type AppTone } from "../app-primitives/AppStatusBadge";
 
 export type LocationStateView = {
@@ -33,14 +33,19 @@ export function locationStateBadgeTone(tone: EvidenceLocationTone): AppTone {
   return TONE[tone] ?? "slate";
 }
 
-/** The served state, or the coordinates' own reading for an older response. */
+/**
+ * The served state, or the coordinates' own reading for an older response —
+ * in the reader's words (en / de / ar), read from the STATE and requirement
+ * LEVEL, never by translating the served English sentence.
+ */
 export function readLocationState(
   served: LocationStateView | null | undefined,
   coordinates: { lat: number | null; lng: number | null } | null | undefined,
+  locale?: string | null,
 ): LocationStateView {
-  if (served && typeof served.label === "string" && served.label) return served;
+  if (served && typeof served.label === "string" && served.label) return localizeEvidenceLocation(served, locale);
   const r = resolveEvidenceLocation({ lat: coordinates?.lat ?? null, lng: coordinates?.lng ?? null });
-  return { state: r.state, label: r.label, tone: r.tone, detail: r.detail, requirement: null };
+  return localizeEvidenceLocation({ state: r.state, label: r.label, tone: r.tone, detail: r.detail, requirement: null }, locale);
 }
 
 export default function LocationStateNote({

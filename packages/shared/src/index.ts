@@ -258,12 +258,18 @@ export {
   locationRequirementFromIntakePlan,
   parseLocationRequestOutcome,
   resolveEvidenceLocation,
+  EVIDENCE_LOCATION_COPY,
+  evidenceLocationCopy,
+  localizeEvidenceLocation,
+  locationRequirementRowValue,
 } from "./capture-location.js";
 
 export type {
   CaptureLocationDisplayModel,
   CaptureLocationInput,
   CaptureLocationTile,
+  EvidenceLocationCopy,
+  EvidenceLocationCopyLocale,
   EvidenceLocationFacts,
   EvidenceLocationPresentation,
   EvidenceLocationState,

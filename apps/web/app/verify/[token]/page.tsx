@@ -9,8 +9,8 @@ import {
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
   CAPTURE_LOCATION_SHORT_BOUNDARY,
   CAPTURE_LOCATION_SOURCE_LABEL,
-  CAPTURE_LOCATION_STATUS_LABEL,
   buildEvidenceTrustDecision,
+  evidenceLocationCopy,
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
   getReviewerEvidenceTypeLabel,
@@ -2320,7 +2320,8 @@ function integrityStatusDisplayLabel(decision: VerifyTrustDecision): string {
 }
 
 export default function VerifyPage() {
-  useLocale();
+  // The location words in the reader's language (en / de / ar).
+  const verifyLocationCopy = evidenceLocationCopy(useLocale().locale);
   const params = useParams<{ token: string }>();
   const { addToast } = useToast();
 
@@ -4412,7 +4413,7 @@ with this evidence record.
                             marginBottom: 8,
                           }}
                         >
-                          📍 {captureContext?.statusLabel ?? CAPTURE_LOCATION_STATUS_LABEL}
+                          📍 {verifyLocationCopy.states.RECORDED.label}
                         </div>
                         <div
                           style={{
@@ -4485,8 +4486,8 @@ with this evidence record.
                       >
                         {[
                           [
-                            "Location",
-                            captureContext?.statusLabel ?? CAPTURE_LOCATION_STATUS_LABEL,
+                            verifyLocationCopy.heading,
+                            verifyLocationCopy.states.RECORDED.label,
                           ],
                           [
                             "Latitude",

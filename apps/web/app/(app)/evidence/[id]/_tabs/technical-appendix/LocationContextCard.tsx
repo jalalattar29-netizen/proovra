@@ -19,6 +19,7 @@ import {
   MetadataRows,
 } from "./MetadataRow";
 import { rows } from "./sections-model";
+import { useOptionalLocale } from "../../../../../providers";
 import LocationStateNote, {
   readLocationState,
   type LocationStateView,
@@ -47,7 +48,7 @@ export function LocationContextCard({
   location: SourceCaptureLocation;
   locationState?: LocationStateView | null;
 }) {
-  const state = readLocationState(locationState, recorded);
+  const state = readLocationState(locationState, recorded, useOptionalLocale());
   // Coordinates only for the canonical RECORDED state.
   const location = state.state === "RECORDED" ? recorded : null;
   const hasCoords =

@@ -12,7 +12,7 @@
  * NOT projected (they need a teamId / enterprise surface). `reviewerAudit` is
  * sent on every review-workspace reply and IS projected (projectReviewerAudit).
  */
-import { readOtsAnchoringView, resolveEvidenceLocation, type EvidenceLocationTone, type OtsVerificationKey } from "@proovra/shared";
+import { localizeEvidenceLocation, readOtsAnchoringView, resolveEvidenceLocation, type EvidenceLocationTone, type OtsVerificationKey } from "@proovra/shared";
 
 export interface CustodyEvent {
   sequence: number;
@@ -167,24 +167,36 @@ export interface LocationStateView {
   detail: string | null;
   requirementUnmetLabel: string | null;
 }
-export function projectLocationState(rw: unknown): LocationStateView {
+/** In the reader's words (en / de / ar): read from the served STATE and requirement LEVEL. */
+export function projectLocationState(rw: unknown, locale?: string | null): LocationStateView {
   const served = o(o(rw)["locationState"]);
   const label = s(served["label"]);
   const state = s(served["state"]);
   if (label && state) {
     const tone = served["tone"] === "info" || served["tone"] === "warning" ? (served["tone"] as EvidenceLocationTone) : "neutral";
     const req = o(served["requirement"]);
+    const reqLabel = s(req["label"]);
+    const view = localizeEvidenceLocation(
+      {
+        state,
+        label,
+        detail: s(served["detail"]),
+        requirement: reqLabel ? { level: s(req["level"]) ?? "", label: reqLabel, unmet: req["unmet"] === true } : null,
+      },
+      locale,
+    );
     return {
       state,
-      label,
+      label: view.label,
       tone,
-      detail: s(served["detail"]),
-      requirementUnmetLabel: req["unmet"] === true ? s(req["label"]) : null,
+      detail: view.detail,
+      requirementUnmetLabel: view.requirement?.unmet ? view.requirement.label : null,
     };
   }
   const loc = o(o(rw)["sourceCaptureLocation"]);
   const r = resolveEvidenceLocation({ lat: numOrNull(loc["lat"]), lng: numOrNull(loc["lng"]) });
-  return { state: r.state, label: r.label, tone: r.tone, detail: r.detail, requirementUnmetLabel: null };
+  const view = localizeEvidenceLocation({ state: r.state, label: r.label, detail: r.detail }, locale);
+  return { state: r.state, label: view.label, tone: r.tone, detail: view.detail, requirementUnmetLabel: null };
 }
 
 export function projectCaptureLocation(rw: unknown): CaptureLocationView | null {

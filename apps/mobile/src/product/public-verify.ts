@@ -25,7 +25,8 @@ import {
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
   CAPTURE_LOCATION_SOURCE_LABEL,
-  CAPTURE_LOCATION_STATUS_LABEL,
+  evidenceLocationCopy,
+  localizeEvidenceLocation,
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
   hasCaptureLocationMetadata,
@@ -1946,16 +1947,18 @@ export interface VerifyLocationState {
   tone: "info" | "neutral" | "warning";
   detail: string | null;
 }
-export function parseVerifyLocationState(data: unknown): VerifyLocationState | null {
+/** In the reader's words (en / de / ar), read from the served STATE. */
+export function parseVerifyLocationState(data: unknown, locale?: string | null): VerifyLocationState | null {
   const d = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
   const v = d.locationState && typeof d.locationState === "object" ? (d.locationState as Record<string, unknown>) : null;
   if (!v || typeof v.state !== "string" || typeof v.label !== "string") return null;
-  return {
+  const served: VerifyLocationState = {
     state: v.state,
     label: v.label,
     tone: v.tone === "info" || v.tone === "warning" ? v.tone : "neutral",
     detail: typeof v.detail === "string" && v.detail ? v.detail : null,
   };
+  return localizeEvidenceLocation(served, locale);
 }
 
 /* ------------------------------------------------ capture context (web verify page :4700-4860) */
@@ -1977,7 +1980,8 @@ export interface VerifyCaptureContext {
  * `captureContext` (evidence.routes.ts:13704) — present only when the record
  * carries coordinates; the web renders nothing otherwise, and neither does this.
  */
-export function parseVerifyCaptureContext(data: unknown): VerifyCaptureContext | null {
+export function parseVerifyCaptureContext(data: unknown, locale?: string | null): VerifyCaptureContext | null {
+  const words = evidenceLocationCopy(locale);
   const d = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
   const c = d.captureContext && typeof d.captureContext === "object" ? (d.captureContext as Record<string, unknown>) : null;
   if (!c || !hasCaptureLocationMetadata({ lat: c.lat as number, lng: c.lng as number })) return null;
@@ -1988,13 +1992,14 @@ export function parseVerifyCaptureContext(data: unknown): VerifyCaptureContext |
   const at = s(c.capturedAtUtc) ?? s(c.deviceTimeIso);
   const map = s(c.externalMapUrl);
   return {
-    statusLabel: s(c.statusLabel) ?? CAPTURE_LOCATION_STATUS_LABEL,
+    // Coordinates are shown only for the canonical RECORDED state.
+    statusLabel: words.states.RECORDED.label,
     description: s(c.description) ?? CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
     lat,
     lng,
     accuracyMeters: n(c.accuracyMeters),
     rows: [
-      { label: "Location", value: s(c.statusLabel) ?? CAPTURE_LOCATION_STATUS_LABEL },
+      { label: words.heading, value: words.states.RECORDED.label },
       { label: "Latitude", value: formatCaptureLocationCoordinate(lat) },
       { label: "Longitude", value: formatCaptureLocationCoordinate(lng) },
       { label: "Accuracy radius", value: formatCaptureLocationAccuracy(n(c.accuracyMeters)) },

@@ -212,8 +212,9 @@ test("Location is ALWAYS stated in the canonical label — never a bare Included
   const tab = read(TAB);
   // (2026-10-16) The canonical location state: recorded / not recorded /
   // not shared / unavailable / invalid, read from the review workspace.
-  assert.match(tab, /items\.push\(\{ label: "Location", value: location\.label \}\)/);
-  assert.match(tab, /readLocationState\(workspace\.locationState, workspace\.sourceCaptureLocation\)/);
+  // In the reader's language (en / de / ar) from the shared location copy.
+  assert.match(tab, /items\.push\(\{ label: locationCopy\.heading, value: location\.label \}\)/);
+  assert.match(tab, /readLocationState\(workspace\.locationState, workspace\.sourceCaptureLocation, locale\)/);
   assert.doesNotMatch(tab, /label: "Location included"/);
 });
 

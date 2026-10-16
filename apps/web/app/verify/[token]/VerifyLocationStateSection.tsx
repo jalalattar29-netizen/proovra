@@ -8,6 +8,8 @@
  * recorded" is never a warning, a failure or "blocked". Only invalid stored
  * coordinates carry the caution colour. No map, no empty map shell.
  */
+import { evidenceLocationCopy, localizeEvidenceLocation } from "@proovra/shared";
+import { useOptionalLocale } from "../../providers";
 import { VERIFY_BRAND, VERIFY_TYPO } from "./_verify-theme";
 
 export type VerifyLocationState = {
@@ -24,8 +26,12 @@ export function readVerifyLocationState(data: unknown): VerifyLocationState {
   return typeof s.state === "string" && typeof s.label === "string" ? s : null;
 }
 
-export function VerifyLocationStateSection({ location }: { location: VerifyLocationState }) {
-  if (!location || location.state === "RECORDED") return null;
+export function VerifyLocationStateSection({ location: served }: { location: VerifyLocationState }) {
+  // The reader's words (en / de / ar), from the served STATE — never a
+  // translation of the served English sentence.
+  const locale = useOptionalLocale();
+  if (!served || served.state === "RECORDED") return null;
+  const location = localizeEvidenceLocation(served, locale);
   const caution = location.tone === "warning";
   return (
     <section
@@ -40,7 +46,7 @@ export function VerifyLocationStateSection({ location }: { location: VerifyLocat
         gap: 4,
       }}
     >
-      <div style={VERIFY_TYPO.kicker}>Location</div>
+      <div style={VERIFY_TYPO.kicker}>{evidenceLocationCopy(locale).heading}</div>
       <div style={{ ...VERIFY_TYPO.value, fontSize: 14, color: VERIFY_BRAND.ink }} data-verify-location-label>
         {location.label}
       </div>
