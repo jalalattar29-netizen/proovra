@@ -120,7 +120,8 @@ const failures = [];
 function expectCase(label, actual, want) {
   const ok = Object.entries(want).filter(([k]) => !k.startsWith("__")).every(([k, v]) => {
     const got = k.split(".").reduce((o, p) => (o == null ? o : o[p]), actual.result);
-    return got === v;
+    // An array lists the acceptable values (all of them "not ready").
+    return Array.isArray(v) ? v.includes(got) : got === v;
   });
   const leaked =
     actual.stdout.includes(PASSWORD) || actual.stdout.includes(WRONG_PASSWORD) ||
@@ -170,7 +171,9 @@ try {
   }
   expectCase("node unreachable", runWorker("unreachable", {
     secretsVol: goodVol, verifierEnv: { ...VERIFIER, OTS_BITCOIN_RPC_URL: "http://bitcoin-node-absent:8332" },
-  }), { "readiness.ready": false, "readiness.code": "BTC_RPC_UNAVAILABLE" });
+    // Unresolvable: refused at once, or — where the resolver is slow to say
+    // so — the RPC timeout. Either way unavailable, never ready.
+  }), { "readiness.ready": false, "readiness.code": ["BTC_RPC_UNAVAILABLE", "BTC_RPC_TIMEOUT"] });
   expectCase("verification disabled", runWorker("disabled", {
     secretsVol: goodVol, verifierEnv: { OTS_BITCOIN_VERIFY_ENABLED: "false" },
   }), { configKind: "disabled", "readiness.enabled": false });
@@ -182,6 +185,15 @@ try {
 
 if (failures.length > 0) {
   console.error(`worker Bitcoin verifier smoke FAILED:\n- ${failures.join("\n- ")}`);
+  // On GitHub Actions each failure is also an annotation, readable on the run
+  // page without log access. Results carry no password (generated per run and
+  // asserted absent above).
+  if (process.env.GITHUB_ACTIONS === "true") {
+    for (const f of failures) {
+      const safe = f.split(PASSWORD).join("[redacted]").split(WRONG_PASSWORD).join("[redacted]");
+      console.log(`::error title=worker Bitcoin verifier smoke::${safe.replace(/%/g, "%25").replace(/\r?\n/g, "%0A").slice(0, 3000)}`);
+    }
+  }
   process.exit(1);
 }
 console.log("worker Bitcoin verifier smoke: ok");
