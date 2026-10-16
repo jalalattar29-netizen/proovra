@@ -66,7 +66,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 368,
+    "AuditFilesInventoried": 370,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -115,7 +115,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 282
+    "ProductBehaviorTestsInventoried": 283
   },
   "reportRoles": {
     "counts": {
@@ -132,11 +132,11 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 282,
+    "PRODUCT_BEHAVIOR_TEST": 283,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "CURRENT_GENERATED_REPORT": 1,
     "DIAGNOSTIC_NOT_AUTHORITY": 1,
-    "DOMAIN_AUTHORITY": 54,
+    "DOMAIN_AUTHORITY": 55,
     "CANONICAL_ENGINE_COMPONENT": 11,
     "CANONICAL_ORCHESTRATOR": 1,
     "DEPRECATED_DELEGATE": 1,
@@ -1120,6 +1120,23 @@
       "importedBy": [
         "services/api/test/deploy-images-gate.test.ts"
       ],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [
+        "ci"
+      ],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/release/smoke-worker-bitcoin-verifier.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
       "writesArtifacts": [],
@@ -2226,6 +2243,21 @@
     },
     {
       "path": "services/api/test/ai-closure-invariants.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/api-refuses-bitcoin-verifier-config.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
