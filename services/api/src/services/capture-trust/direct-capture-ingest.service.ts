@@ -606,6 +606,7 @@ export type ReserveDirectCaptureEvidenceInput = {
   originalFileName?: string | null;
   deviceTimeIso?: string;
   gps?: { lat: number; lng: number; accuracyMeters?: number };
+  locationRequestOutcome?: "DENIED" | "UNAVAILABLE";
   now?: Date;
 };
 
@@ -649,6 +650,7 @@ export async function reserveDirectCaptureEvidence(
         captureFileName: null,
         deviceTimeIso: input.deviceTimeIso,
         gps: input.gps,
+        locationRequestOutcome: input.locationRequestOutcome,
         acquisitionMode: session.acquisitionMode,
         captureSessionId: session.id,
         transaction: tx,
