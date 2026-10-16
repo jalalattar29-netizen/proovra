@@ -95,7 +95,9 @@ import {
   EXIF_REPRESENTATIVE_NOTE,
   INTEGRITY_ADVISORY,
   INTEGRITY_SECTION_TITLE,
-  LOCATION_NOT_PROVIDED,
+  projectLocationState,
+  locationBadgeTone,
+  type LocationStateView,
   PER_PARTS_EMPTY,
   CAPTURE_LOCATION_COPY,
   type CaptureLocationView,
@@ -285,6 +287,7 @@ export default function EvidenceDetailScreen() {
   const [caseBusy, setCaseBusy] = useState(false);
   const [caseMessage, setCaseMessage] = useState<string | null>(null);
   const [captureLocation, setCaptureLocation] = useState<CaptureLocationView | null>(null);
+  const [locationState, setLocationState] = useState<LocationStateView | null>(null);
   const [requestTeamId, setRequestTeamId] = useState<string | null>(null);
   const [discussionCaps, setDiscussionCaps] = useState<{ visible: boolean; readOnly: boolean }>({ visible: false, readOnly: false });
   const [commentsFailed, setCommentsFailed] = useState(false);
@@ -483,6 +486,7 @@ export default function EvidenceDetailScreen() {
       setDiscussionCaps(projectDiscussionCaps(data));
       setReviewWorkflow(projectReviewWorkflowRef(data));
       setCaptureLocation(projectCaptureLocation(data));
+      setLocationState(projectLocationState(data));
       setProvenance(projectProvenance(data));
       setMaterials(projectMaterials(data));
       setRiskSignals(projectRiskSignals(data));
@@ -1517,6 +1521,7 @@ export default function EvidenceDetailScreen() {
         ) : null}
         {captureLocation ? (
           <ProovraSection title={CAPTURE_LOCATION_COPY.title}>
+            {locationState ? <ProovraBadge tone={locationBadgeTone(locationState.tone)} label={locationState.label} /> : null}
             <ProovraText variant="label" color={theme.color.ink.secondary}>
               {CAPTURE_LOCATION_COPY.description}
             </ProovraText>
@@ -1546,8 +1551,20 @@ export default function EvidenceDetailScreen() {
             </ProovraText>
           </ProovraSection>
         ) : (
+          // The canonical state, with no map and no empty map: "Location not
+          // recorded" is neutral, never a failure and never "blocked".
           <ProovraSection title="Location">
-            <ProovraText variant="label" color={theme.color.ink.muted} testID="location-not-provided">{LOCATION_NOT_PROVIDED}</ProovraText>
+            {locationState ? (
+              <>
+                <ProovraBadge tone={locationBadgeTone(locationState.tone)} label={locationState.label} />
+                {locationState.detail ? (
+                  <ProovraText variant="label" color={theme.color.ink.muted} testID="location-state-detail">{locationState.detail}</ProovraText>
+                ) : null}
+                {locationState.requirementUnmetLabel ? (
+                  <ProovraText variant="label" color={theme.color.ink.muted} testID="location-requirement">{locationState.requirementUnmetLabel}</ProovraText>
+                ) : null}
+              </>
+            ) : null}
           </ProovraSection>
         )}
         {matrix.length > 0 ? (

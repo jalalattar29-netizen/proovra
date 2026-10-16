@@ -224,7 +224,7 @@ test("NEW:VERIFY-CAPTURE-CONTEXT — captureContext renders the web Capture Cont
       overview: { evidenceTitle: "Roof photo", verificationStatus: "Verified" },
       technicalMaterials: { fileSha256: "cd".repeat(32) },
       captureContext: {
-        statusLabel: "Location metadata included", description: "Recorded with the capture.",
+        statusLabel: "Location recorded", description: "Recorded with the capture.",
         lat: 51.5007292, lng: -0.1246254, accuracyMeters: 12.4,
         capturedAtUtc: "2026-09-01T10:00:00.000Z", deviceTimeIso: null, source: "Capture device",
         externalMapUrl: "https://www.openstreetmap.org/?mlat=51.5007292&mlon=-0.1246254", legalBoundary: "Location is device-reported.",
@@ -233,7 +233,7 @@ test("NEW:VERIFY-CAPTURE-CONTEXT — captureContext renders the web Capture Cont
   });
   const r = await render();
   assert.equal(r.byTestId("verify-capture-context").length, 1);
-  for (const s of ["Capture Context", "📍 Location metadata included", "Supporting provenance context", "Latitude", "51.500729", "Longitude", "-0.124625", "Accuracy radius", "± 12 meters", "Capture device", "Location is device-reported."]) assert.ok(r.hasText(s), s);
+  for (const s of ["Capture Context", "📍 Location recorded", "Supporting provenance context", "Latitude", "51.500729", "Longitude", "-0.124625", "Accuracy radius", "± 12 meters", "Capture device", "Location is device-reported."]) assert.ok(r.hasText(s), s);
   await r.press("Copy coordinates");
   for (let i = 0; i < 3; i += 1) await act(async () => { await new Promise((x) => setTimeout(x, 0)); });
   assert.equal(globalThis.__CLIPBOARD__, "51.500729, -0.124625");
@@ -242,4 +242,21 @@ test("NEW:VERIFY-CAPTURE-CONTEXT — captureContext renders the web Capture Cont
   const r2 = await render();
   assert.equal(r2.byTestId("verify-capture-context").length, 0);
   r2.unmount();
+});
+
+test("Public Verify states the canonical location state when no coordinates are shown — never Blocked, never a map", async () => {
+  for (const locationState of [
+    { state: "NOT_RECORDED", label: "Location not recorded", tone: "neutral", detail: null },
+    { state: "NOT_SHARED", label: "Location not shared", tone: "neutral", detail: "Location was requested; it was declined or the device permission was denied." },
+    { state: "INVALID", label: "Location metadata invalid", tone: "warning", detail: "The stored coordinates failed validation and are not shown." },
+  ]) {
+    answer = () => ({ status: 200, body: { evidenceId: "ev-1", overview: { evidenceTitle: "Roof photo" }, technicalMaterials: { fileSha256: "cd".repeat(32) }, locationState } });
+    const r = await render();
+    assert.equal(r.byTestId("verify-location-state").length, 1, locationState.state);
+    assert.equal(r.byTestId("verify-capture-context").length, 0);
+    assert.ok(r.hasText(locationState.label));
+    if (locationState.detail) assert.ok(r.hasText(locationState.detail));
+    assert.equal(r.hasText("Blocked"), false);
+    r.unmount();
+  }
 });

@@ -88,7 +88,7 @@ import { VERIFICATION_STATUS_LABELS, otsAnchoringCopy, type BasicVerification, t
 import { useOptionalLocale } from "../src/locale-context";
 import { otsCard, otsStatusLine } from "../src/product/ots-anchoring";
 import { CaptureLocationMap } from "../src/ui/capture-location-map";
-import { parseVerifyCaptureContext } from "../src/product/public-verify";
+import { parseVerifyCaptureContext, parseVerifyLocationState } from "../src/product/public-verify";
 
 /** The raw response; everything the screen shows goes through parseVerifyView. */
 type VerifyData = Record<string, unknown>;
@@ -259,6 +259,7 @@ export default function VerifyScreen() {
   const v = parseVerifyView(data);
   const acq = parseVerifyCaptureIntegrity(data);
   const captureCtx = parseVerifyCaptureContext(data);
+  const locationState = parseVerifyLocationState(data);
   const shareUrl = publicVerifyUrl(webOrigin(), id);
   const Row = ({ k, value, mono }: { k: string; value: string | null; mono?: boolean }) =>
     value ? (
@@ -879,6 +880,13 @@ export default function VerifyScreen() {
               ) : null}
             </View>
             <ProovraText variant="label" color={theme.color.ink.muted}>{captureCtx.legalBoundary}</ProovraText>
+          </ProovraCard>
+        ) : locationState && locationState.state !== "RECORDED" ? (
+          // No coordinates: the canonical state in one line, with no map.
+          <ProovraCard style={styles.card} testID="verify-location-state">
+            <ProovraText variant="label" weight="semibold" color={theme.color.ink.muted}>Location</ProovraText>
+            <ProovraBadge tone={locationState.tone === "warning" ? "pending" : "neutral"} label={locationState.label} />
+            {locationState.detail ? <ProovraText variant="label" color={theme.color.ink.muted}>{locationState.detail}</ProovraText> : null}
           </ProovraCard>
         ) : null}
 

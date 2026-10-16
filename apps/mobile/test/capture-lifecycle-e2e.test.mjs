@@ -559,3 +559,20 @@ test("D13: the capture screen opens its session in the ACTIVE workspace", () => 
   const src = readFileSync(resolve(HERE, "../app/(stack)/capture.tsx"), "utf8");
   assert.match(src, /openDirectCaptureSession\("PROOVRA_MOBILE_APP", \{ teamId \}\)/);
 });
+
+test("location (2026-10-16): a denied or unavailable device location is sent as the request outcome, never with coordinates", async () => {
+  await directCapture.reserveDirectCaptureEvidence(SESSION, {
+    type: "PHOTO",
+    mimeType: "image/jpeg",
+    deviceTimeIso: "2026-10-16T10:00:00.000Z",
+    locationRequestOutcome: "DENIED",
+  });
+  const reserve = requests.filter((r) => r.path === "/v1/capture/direct-sessions/cs-1/evidence").at(-1);
+  assert.equal(reserve.body.locationRequestOutcome, "DENIED");
+  assert.equal(reserve.body.gps, undefined);
+  // The capture screen records the outcome it observes and never sends it beside coordinates.
+  const src = readFileSync(resolve(HERE, "../app/(stack)/capture.tsx"), "utf8");
+  assert.match(src, /locationOutcomeRef\.current = "DENIED"/);
+  assert.match(src, /locationOutcomeRef\.current = "UNAVAILABLE"/);
+  assert.match(src, /locationRequestOutcome: gps \? undefined : locationOutcomeRef\.current/);
+});
