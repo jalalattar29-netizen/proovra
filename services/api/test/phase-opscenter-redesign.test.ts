@@ -396,7 +396,9 @@ describe("Operations Center — collaboration source with source-truth read stat
     // Row update, scoped to the caller — the single source of truth.
     expect(H.collabUpdates.length).toBe(1);
     const upd = H.collabUpdates[0] as { where: { id: string; userId: string }; data: { readAt: Date | null } };
-    expect(upd.where).toEqual({ id: COLLAB_UNREAD_ID, userId: H.userId });
+    // `readAt: null` — a read stamps the row once and never re-stamps a row
+    // the Team page already read.
+    expect(upd.where).toEqual({ id: COLLAB_UNREAD_ID, userId: H.userId, readAt: null });
     expect(upd.data.readAt).not.toBeNull();
     // State row written too, so the two stores can never diverge.
     expect(H.stateUpserts.some((s) => s.itemKey === `collaboration:${COLLAB_UNREAD_ID}`)).toBe(true);

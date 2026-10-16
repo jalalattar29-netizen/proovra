@@ -25,6 +25,15 @@ import IORedis from "ioredis";
 export const OPERATIONS_SUMMARY_TTL_SECONDS = 45;
 
 const KEY_PREFIX = "opscenter:summary:";
+/**
+ * The SHARED scope registry: one Redis set per user naming every scope any API
+ * process has cached for them. See `invalidateOperationsSummary`.
+ */
+const SCOPES_PREFIX = "opscenter:summary-scopes:";
+
+function scopesKey(userId: string): string {
+  return `${SCOPES_PREFIX}${userId}`;
+}
 
 type MemoryEntry = { value: string; expiresAtMs: number };
 
@@ -147,7 +156,14 @@ export async function setCachedOperationsSummary(
   if (client) {
     try {
       if (client.status === "wait") await client.connect();
-      await client.set(key(userId, workspaceId), serialized, "EX", ttlSeconds);
+      // The scope is registered in the SHARED set in the same atomic step as
+      // the value, so no invalidation can run between the two and miss it.
+      await client
+        .multi()
+        .sadd(scopesKey(userId), workspaceId ?? "all")
+        .expire(scopesKey(userId), ttlSeconds)
+        .set(key(userId, workspaceId), serialized, "EX", ttlSeconds)
+        .exec();
     } catch {
       markRedisUnavailable();
     }
@@ -185,24 +201,52 @@ export async function invalidateOperationsSummary(
    * tracked as they are written rather than discovered by scanning Redis —
    * a `KEYS`/`SCAN` on every mutation is a far worse trade than a small map.
    */
+  /*
+   * …AND EVERY PROCESS. The local map only knows the scopes THIS process
+   * wrote. With more than one API replica — or after a restart — the bell's
+   * workspace-scoped count was written by a process this one knows nothing
+   * about, so deleting only the locally-known keys left that entry serving the
+   * pre-mutation count for up to the TTL: "I marked it read and the badge did
+   * not move", on exactly the second device the user checked. The shared
+   * registry in Redis names every scope written by anyone.
+   */
   const scopes = new Set(scopesByUser.get(userId) ?? []);
-  // Always clear the default, even if this process never wrote it: another
-  // replica may have, and the delete is cheap.
+  // Always clear the default, even if nothing recorded it.
   scopes.add("all");
-
-  const keys = [...scopes].map((scope) =>
-    key(userId, scope === "all" ? null : scope),
-  );
-  for (const k of keys) memoryStore.delete(k);
   scopesByUser.delete(userId);
 
   const client = getRedis();
   if (client) {
     try {
       if (client.status === "wait") await client.connect();
-      await client.del(...keys);
+      for (const scope of await client.smembers(scopesKey(userId))) {
+        scopes.add(scope);
+      }
     } catch {
       markRedisUnavailable();
     }
   }
+
+  const keys = [...scopes].map((scope) =>
+    key(userId, scope === "all" ? null : scope),
+  );
+  for (const k of keys) memoryStore.delete(k);
+
+  if (client && shouldUseRedis()) {
+    try {
+      await client.del(...keys, scopesKey(userId));
+    } catch {
+      markRedisUnavailable();
+    }
+  }
+}
+
+/**
+ * Test-only: forget everything THIS process holds (memory entries and the
+ * local scope map), leaving the shared store untouched — the position a
+ * different API replica, or this one after a restart, is in.
+ */
+export function __resetOperationsSummaryProcessStateForTests(): void {
+  memoryStore.clear();
+  scopesByUser.clear();
 }

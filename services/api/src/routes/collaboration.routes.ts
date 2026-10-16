@@ -47,6 +47,7 @@ import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../services/governance.service.js";
+import { invalidateOperationsSummary } from "../services/notifications/operations-summary-cache.js";
 import {
   DiscussionError,
   assignDiscussionThread,
@@ -518,6 +519,10 @@ export async function collaborationRoutes(app: FastifyInstance) {
         },
         data: { notifiedAtUtc: new Date() },
       });
+      // This is the caller's notification READ state too (the inbox ORs it
+      // into the mention item), so the bell's cached count must reconcile now
+      // rather than after its TTL.
+      if (result.count > 0) await invalidateOperationsSummary(ok.userId);
 
       return reply.code(200).send({
         markedRead: result.count,
