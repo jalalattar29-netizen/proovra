@@ -252,7 +252,9 @@ describe("reports deliverable summary (live PostgreSQL 16, real HTTP)", () => {
     expect(attention.has(ids.updateFailed)).toBe(true);
     expect(attention.has(ids.failed)).toBe(true);
     expect(progress.has(ids.queued)).toBe(true);
-    expect(incomplete.has(ids.packageMissing)).toBe(true);
+    // The latest report has no package of its own: a gap, not a first issuance.
+    expect(attention.has(ids.packageMissing)).toBe(true);
+    expect(incomplete.has(ids.packageMissing)).toBe(false);
     expect(incomplete.has(ids.awaiting)).toBe(true);
   });
 

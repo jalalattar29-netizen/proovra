@@ -92,7 +92,8 @@ test("genuine failures, blocks and missing files need attention; owed outputs ar
     status: "INCOMPLETE",
     reason: "REPORT_AWAITING_ISSUANCE",
   });
-  assert.deepEqual(s("READY", "ELIGIBLE_NOT_GENERATED"), { status: "INCOMPLETE", reason: "PACKAGE_MISSING" });
+  // An older package certifies an EARLIER report; the latest one is uncertified.
+  assert.deepEqual(s("READY", "ELIGIBLE_NOT_GENERATED"), { status: "NEEDS_ATTENTION", reason: "PACKAGE_MISSING" });
 });
 
 test("not included, entitlement unknown and not applicable are NEVER failures", () => {
@@ -115,7 +116,8 @@ test("total and exclusive: every pair of canonical states lands in exactly one b
           // Only a genuine failure, block or missing file gets here.
           assert.ok(
             [r, p].some((x) => ["RETRYABLE_FAILURE", "TERMINAL_FAILURE", "BLOCKED", "ARTIFACT_MISSING"].includes(x)) ||
-              (r === "READY" && u),
+              (r === "READY" && u) ||
+              (r === "READY" && p === "ELIGIBLE_NOT_GENERATED"),
             `${r}/${p}/${u} needs attention without a failure`,
           );
         }

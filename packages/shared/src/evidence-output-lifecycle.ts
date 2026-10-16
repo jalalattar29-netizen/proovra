@@ -1479,8 +1479,9 @@ export function resolveEvidenceOutputActions(
 //
 // Precedence, first match wins:
 //   IN_PROGRESS      either output is queued or generating
-//   NEEDS_ATTENTION  a CURRENT failure, block or proven-missing file
-//   INCOMPLETE       an owed output was never produced and nothing is in flight
+//   NEEDS_ATTENTION  a CURRENT failure, block, proven-missing file, or a latest
+//                    report with no package of its own
+//   INCOMPLETE       the first report is owed and nothing is in flight
 //   READY            at least one output is available and nothing is owed
 //   NOT_AVAILABLE    nothing is owed: not in the plan, entitlement unreadable,
 //                    or the record cannot carry outputs. NEVER a failure.
@@ -1506,6 +1507,7 @@ export const DELIVERABLE_STATUS_REASONS = [
   // IN_PROGRESS
   "GENERATING",
   // NEEDS_ATTENTION
+  "PACKAGE_MISSING",
   "REPORT_FAILED",
   "ARTIFACT_MISSING",
   "REPORT_BLOCKED",
@@ -1514,7 +1516,6 @@ export const DELIVERABLE_STATUS_REASONS = [
   "PACKAGE_BLOCKED",
   // INCOMPLETE
   "REPORT_AWAITING_ISSUANCE",
-  "PACKAGE_MISSING",
   // NOT_AVAILABLE
   "NOT_INCLUDED",
   "ENTITLEMENT_UNAVAILABLE",
@@ -1555,8 +1556,12 @@ export function deliverableStatusFor(input: {
   if (FAILED_OUTPUT.has(p)) return is("NEEDS_ATTENTION", "PACKAGE_FAILED");
   if (p === "BLOCKED") return is("NEEDS_ATTENTION", "PACKAGE_BLOCKED");
 
+  // The latest report has no package: whatever older package exists certifies
+  // an EARLIER report, so the latest one is uncertified — a real gap with a
+  // recovery, not a first issuance still owed.
+  if (r === "READY" && p === "ELIGIBLE_NOT_GENERATED") return is("NEEDS_ATTENTION", "PACKAGE_MISSING");
+
   if (r === "ELIGIBLE_NOT_GENERATED") return is("INCOMPLETE", "REPORT_AWAITING_ISSUANCE");
-  if (r === "READY" && p === "ELIGIBLE_NOT_GENERATED") return is("INCOMPLETE", "PACKAGE_MISSING");
 
   if (r === "READY" || p === "READY") return is("READY", "COMPLETE");
 

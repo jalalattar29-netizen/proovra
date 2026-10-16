@@ -218,11 +218,11 @@ const REPORTS_EN: ReportsCopy = {
     needsAttention: {
       label: "Needs attention",
       definition:
-        "Records with a current failure, block or missing file. Failures already replaced by a newer artifact are not counted.",
+        "Records with a current failure, block or missing file, or whose latest report has no verification package. Failures already replaced by a newer artifact are not counted.",
     },
     incomplete: {
       label: "Incomplete",
-      definition: "Records owed a report or package that has not been produced, with nothing in progress.",
+      definition: "Records owed their first report, with nothing in progress.",
     },
     records: { label: "All records", definition: "Finalized records in this workspace." },
   },
@@ -399,12 +399,12 @@ const REPORTS_DE: ReportsCopy = {
     needsAttention: {
       label: "Handlungsbedarf",
       definition:
-        "Datensätze mit einem aktuellen Fehler, einer Sperre oder einer fehlenden Datei. Fehler, die bereits durch ein neueres Artefakt ersetzt wurden, zählen nicht.",
+        "Datensätze mit einem aktuellen Fehler, einer Sperre oder einer fehlenden Datei oder ohne Verifizierungspaket zum neuesten Bericht. Fehler, die bereits durch ein neueres Artefakt ersetzt wurden, zählen nicht.",
     },
     incomplete: {
       label: "Unvollständig",
       definition:
-        "Datensätze, denen ein Bericht oder Paket zusteht, das noch nicht erstellt wurde, ohne laufende Erstellung.",
+        "Datensätze, denen ihr erster Bericht zusteht, ohne laufende Erstellung.",
     },
     records: { label: "Alle Datensätze", definition: "Abgeschlossene Datensätze in diesem Arbeitsbereich." },
   },
@@ -574,11 +574,11 @@ const REPORTS_AR: ReportsCopy = {
     inProgress: { label: "قيد التنفيذ", definition: "سجلات يجري الآن إنشاء تقرير أو حزمة لها." },
     needsAttention: {
       label: "تحتاج إلى متابعة",
-      definition: "سجلات بها إخفاق حالي أو حظر أو ملف مفقود. لا تُحتسب الإخفاقات التي حلّ محلها مخرج أحدث.",
+      definition: "سجلات بها إخفاق حالي أو حظر أو ملف مفقود، أو ليس لأحدث تقرير فيها حزمة تحقق. لا تُحتسب الإخفاقات التي حلّ محلها مخرج أحدث.",
     },
     incomplete: {
       label: "غير مكتملة",
-      definition: "سجلات مستحق لها تقرير أو حزمة لم تُنشأ بعد، دون عملية جارية.",
+      definition: "سجلات مستحق لها تقريرها الأول، دون عملية جارية.",
     },
     records: { label: "كل السجلات", definition: "السجلات المكتملة في مساحة العمل هذه." },
   },
