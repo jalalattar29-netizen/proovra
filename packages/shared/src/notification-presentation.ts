@@ -27,7 +27,7 @@
  */
 
 import { otsAnchoringCopy } from "./ots-anchoring.js";
-import { formatTimestampForReportUtc } from "./timestamp-format.js";
+import { formatTimestampForLocaleUtc } from "./timestamp-format.js";
 import {
   isConditionMessageCode,
   renderConditionMessage,
@@ -312,29 +312,12 @@ const fillMessage = (template: string, values: Record<string, string | number>):
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
-const DATE_TAG: Readonly<Record<NotificationLocale, string>> = { en: "en-GB", de: "de-DE", ar: "ar" };
-
 /**
- * A UTC instant in the reader's calendar words. English is the server's own
- * format (formatTimestampForReportUtc, "16 Oct 2026, 14:05:00 UTC"), so the
- * rendered sentence is the one the server wrote.
+ * A UTC instant in the reader's calendar words — said by the shared timestamp
+ * authority (formatTimestampForLocaleUtc); English is the route's own format.
  */
 export function formatNotificationInstant(locale: string | null | undefined, iso: unknown): string {
-  const l = notificationLocale(locale);
-  const d = typeof iso === "string" ? new Date(iso) : null;
-  if (!d || Number.isNaN(d.getTime())) return "—";
-  if (l === "en") return formatTimestampForReportUtc(d);
-  const text = new Intl.DateTimeFormat(DATE_TAG[l], {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    timeZone: "UTC",
-    hour12: false,
-  }).format(d);
-  return `${text} UTC`;
+  return typeof iso === "string" ? formatTimestampForLocaleUtc(iso, notificationLocale(locale), { fallback: "—" }) : "—";
 }
 
 // ---- fallbacks for missing names (the server's own English fallbacks) ------

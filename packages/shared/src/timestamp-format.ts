@@ -57,6 +57,35 @@ export function formatTimestampForReportUtc(
 }
 
 /**
+ * The same UTC instant in the reader's calendar words (en / de / ar), always
+ * UTC and 24-hour. English is formatTimestampForReportUtc exactly; German and
+ * Arabic use their own month names and order:
+ *   en "02 Nov 2026, 09:30:00 UTC"   de "2. Nov. 2026, 09:30:00 UTC"   ar "2 نوفمبر 2026، 09:30:00 UTC"
+ * Viewer-time-zone-independent, like the report format.
+ */
+export function formatTimestampForLocaleUtc(
+  value: TimestampInput,
+  locale: string | null | undefined,
+  opts?: { fallback?: string },
+): string {
+  const d = toDate(value);
+  if (!d) return opts?.fallback ?? TIMESTAMP_NOT_RECORDED;
+  const l = String(locale ?? "en").slice(0, 2).toLowerCase();
+  if (l !== "de" && l !== "ar") return formatTimestampForReportUtc(d);
+  const text = new Intl.DateTimeFormat(l === "de" ? "de-DE" : "ar", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: "UTC",
+    hour12: false,
+  }).format(d);
+  return `${text} UTC`;
+}
+
+/**
  * Format a timestamp in a specific IANA time zone into display parts. No GMT+X,
  * no AM/PM. Invalid zone falls back to UTC parts. Returns null for no value.
  */
