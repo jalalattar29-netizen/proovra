@@ -59,10 +59,13 @@ type Row = {
   title: string;
   href: string;
   isRead: boolean;
+  /** Notification history: the condition behind it has cleared. */
+  resolvedAt?: string;
 };
 
 let rows: Row[] = [];
 let incompleteSources: string[] = [];
+let truncated: Record<string, boolean> = {};
 const calls: Array<{ path: string; method: string }> = [];
 
 function envelope(path: string) {
@@ -86,9 +89,11 @@ function envelope(path: string) {
     readAt: r.isRead ? "2026-10-01T11:00:00.000Z" : null,
     dismissedAt: null,
     snoozedUntil: null,
-    canMarkRead: true,
-    canDismiss: true,
-    canSnooze: true,
+    resolvedAt: r.resolvedAt ?? null,
+    sourceClearedAt: r.resolvedAt ?? null,
+    canMarkRead: !r.resolvedAt,
+    canDismiss: !r.resolvedAt,
+    canSnooze: !r.resolvedAt,
     context: {},
   }));
   const metric = {
@@ -102,6 +107,8 @@ function envelope(path: string) {
     summary: { total: population.length, byTone: metric.byTone, byCategory: {} },
     scopeSummary: { ...metric },
     metricSummary: metric,
+    truncated,
+    anyTruncated: Object.values(truncated).some(Boolean),
     completeness: {
       anyIncomplete: incompleteSources.length > 0,
       incompleteSources,
@@ -113,7 +120,7 @@ function envelope(path: string) {
       returned: items.length,
       nextCursor: null,
       totalEstimate: population.length,
-      totalIsExact: true,
+      totalIsExact: !Object.values(truncated).some(Boolean),
       appliedFilter: "all",
       appliedTone: null,
     },
@@ -155,6 +162,7 @@ function cardCount(key: string): number {
 beforeEach(() => {
   calls.length = 0;
   incompleteSources = [];
+  truncated = {};
   rows = [
     { itemKey: "discussion_mention:m1", category: "discussion_mention", tone: "high", title: "You were mentioned", href: "/evidence/e1?tab=discussion&thread=t1", isRead: false },
     { itemKey: "collaboration:c1", category: "collaboration", tone: "info", title: "Team update", href: "/collaboration-teams", isRead: true },
@@ -248,5 +256,56 @@ describe("Notifications page — no raw internal code reaches the reader", () =>
     expect(open?.getAttribute("href")).toBe("/notifications");
     const mention = document.querySelector('[data-inbox-item-key="discussion_mention:m1"] [data-action="open-inbox-item"]');
     expect(mention?.getAttribute("href")).toBe("/evidence/e1?tab=discussion&thread=t1");
+  });
+});
+
+describe("Notifications page — notification history (resolved notifications)", () => {
+  it("All and Read ask for notification history; the Archived lifecycle does not", async () => {
+    render(<InboxPage />);
+    await ready();
+    expect(listCalls()[0].path).toContain("include=resolved");
+    const quick = document.querySelector("[data-inbox-quick-filters]") as HTMLElement;
+    fireEvent.click(within(quick).getByRole("button", { name: "Read" }));
+    await waitFor(() => expect(listCalls().at(-1)!.path).toContain("readState=read"));
+    expect(listCalls().at(-1)!.path).toContain("include=resolved");
+    cleanup();
+    calls.length = 0;
+    window.history.replaceState(null, "", "/notifications?lifecycle=archived");
+    render(<InboxPage />);
+    await waitFor(() => expect(listCalls().some((c) => c.path.includes("lifecycle=archived"))).toBe(true));
+    for (const c of listCalls().filter((c) => c.path.includes("lifecycle=archived"))) {
+      expect(c.path).not.toContain("include=resolved");
+    }
+  });
+
+  it("a resolved notification stays listed as read history: marked no longer active, still openable, no read toggle", async () => {
+    rows.push({
+      itemKey: "report_failure:r1",
+      category: "report_failure",
+      tone: "high",
+      title: "Report generation failed",
+      href: "/reports/r1",
+      isRead: true,
+      resolvedAt: "2026-10-02T09:00:00.000Z",
+    });
+    window.history.replaceState(null, "", "/notifications?view=read");
+    render(<InboxPage />);
+    await waitFor(() =>
+      expect(document.querySelector('[data-inbox-item-key="report_failure:r1"]')).not.toBeNull(),
+    );
+    const row = document.querySelector('[data-inbox-item-key="report_failure:r1"]') as HTMLElement;
+    expect(row.getAttribute("data-inbox-item-read")).toBe("true");
+    expect(row.querySelector("[data-inbox-item-resolved]")).not.toBeNull();
+    expect(row.querySelector('[data-action="open-inbox-item"]')?.getAttribute("href")).toBe("/reports/r1");
+    expect(row.querySelector('[data-action="mark-unread"]')).toBeNull();
+    expect(row.querySelector('[data-action="mark-read"]')).toBeNull();
+  });
+
+  it("a capped history read is reported in the reader's words, never as a raw source code", async () => {
+    truncated = { notification_history: true };
+    render(<InboxPage />);
+    await ready();
+    expect(document.body.textContent).toContain("Earlier notifications");
+    expect(document.body.textContent).not.toContain("notification_history");
   });
 });

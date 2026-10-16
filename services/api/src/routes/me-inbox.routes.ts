@@ -121,7 +121,12 @@ import {
 import { evidenceScopeForMany } from "@proovra/shared-runtime";
 import { conditionMessageFor, conditionTextFor } from "../services/operations/condition-presentation.service.js";
 import type { Prisma } from "@prisma/client";
-import { readNotificationMessage, type NotificationMessage, type NotificationMessageParams } from "@proovra/shared/i18n";
+import {
+  NOTIFICATION_HISTORY_SOURCE,
+  readNotificationMessage,
+  type NotificationMessage,
+  type NotificationMessageParams,
+} from "@proovra/shared/i18n";
 
 /**
  * Phase IA-enterprise — server-driven filter enum. Every chip the
@@ -309,6 +314,17 @@ const inboxQuerySchema = z.object({
   /** See `resolveInboxAxes` — independent of `filter`, and of each other. */
   lifecycle: z.enum(["active", "archived"]).optional(),
   readState: z.enum(["any", "unread", "read"]).optional(),
+  /**
+   * NOTIFICATION HISTORY in the active feed — see `readResolvedHistory`.
+   *
+   * `include=resolved` adds the reader's resolved notifications (their
+   * notification-history snapshots) to All and Read, beside the live items.
+   * It is opt-in because the same endpoint also answers the header bell and
+   * Home, which are current-attention surfaces: a resolved notification has
+   * no place in "what needs me now". The Notifications page (web and mobile)
+   * sends it; Unread and Archived ignore it.
+   */
+  include: z.enum(["resolved"]).optional(),
   /**
    * WHICH ORDERING of the same population.
    *
@@ -626,6 +642,16 @@ export type InboxItem = {
    * `title` / `body` stay the English text for clients that predate it.
    */
   message?: NotificationMessage | null;
+  /**
+   * NOTIFICATION HISTORY ONLY — set on a row served from its snapshot after
+   * the source stopped emitting it (see `historyItemFromSnapshot`). A live
+   * item never carries it. LEGACY NAME, kept for shipped clients; the honest
+   * name is `sourceClearedAt`, emitted beside it: it says the notification
+   * left the live feed, never that a workspace condition was resolved.
+   */
+  resolvedAt?: string | null;
+  sourceClearedAt?: string | null;
+  resolutionSource?: string | null;
 };
 
 /**
@@ -1012,7 +1038,15 @@ const TONE_PRIORITY: Record<InboxTone, number> = {
  * future item.
  */
 function compareInboxItems(a: InboxItem, b: InboxItem, nowMs: number): number {
-  const dp = PRIORITY_ORDER[b.priority] - PRIORITY_ORDER[a.priority];
+  // A RESOLVED notification (history merged into All / Read) is not work. The
+  // priority ordering answers "what should I work on", so every live item
+  // ranks above every resolved one, and resolved rows read newest first —
+  // their stored priority and deadline describe a condition that is gone.
+  const aResolved = a.resolvedAt != null;
+  const bResolved = b.resolvedAt != null;
+  if (aResolved !== bResolved) return aResolved ? 1 : -1;
+  if (aResolved) return compareInboxItemsByRecency(a, b);
+  const dp =PRIORITY_ORDER[b.priority] - PRIORITY_ORDER[a.priority];
   if (dp !== 0) return dp;
   const aDueScore = dueScore(a.dueAt, nowMs);
   const bDueScore = dueScore(b.dueAt, nowMs);
@@ -1324,10 +1358,287 @@ function splitSnapshotMetadata(metadata: unknown): {
 }
 
 /**
+ * How an item projects onto channels and conditions — ONE derivation, used by
+ * the live finalize loop and by notification history alike, so a history row
+ * cannot describe its category differently from the live item it was.
+ */
+function itemClassification(
+  category: InboxCategory,
+  itemKey: string,
+): InboxItem["classification"] {
+  const classification = classifyCategory(category);
+  // The shared condition's identity, when this category produces one.
+  // Derived from the SOURCE row id — never from the recipient, never
+  // from the filename, reason, provider or date.
+  const parsedKey = parseInboxItemKey(itemKey);
+  return {
+    channels: classification?.channels ?? ["notification"],
+    conditionAuthority: classification?.conditionAuthority ?? "none",
+    scope: scopeForCategory(category),
+    countsAsWorkload: countsAsWorkload(category),
+    sharedConditionFingerprint:
+      producesOperationalCondition(category) && parsedKey?.sourceId
+        ? sharedConditionFingerprint(category, parsedKey.sourceId)
+        : null,
+  };
+}
+
+/**
+ * ONE notification-history row, as the reader may see it.
+ *
+ * Served by BOTH history views — the Archived lifecycle, and the resolved
+ * history the active feed merges into All and Read — so the tenant redaction,
+ * the kept localisable message and the action capabilities are decided in
+ * one place. A row whose workspace the caller can no longer access keeps ONLY
+ * safe personal-state metadata: no title, body, deep link or context.
+ *
+ * A resolved row offers no actions: the condition behind it is gone, so
+ * there is nothing left to read, archive or be reminded of through it.
+ */
+function historyItemFromSnapshot(
+  s: SnapshotRow,
+  accessibleTeamIds: ReadonlySet<string>,
+  now: Date,
+): InboxItem {
+  const accessible = s.teamId == null || accessibleTeamIds.has(s.teamId);
+  const category = s.category as InboxCategory;
+  const resolvedAt = s.resolvedAtUtc ? s.resolvedAtUtc.toISOString() : null;
+  const live = s.resolvedAtUtc == null;
+  const shared = {
+    id: s.itemKey,
+    itemKey: s.itemKey,
+    category,
+    tone: s.severity as InboxTone,
+    priority: s.priority as InboxPriority,
+    occurredAt: s.sourceOccurredAtUtc.toISOString(),
+    isRead: s.readAtUtc != null,
+    readAt: s.readAtUtc ? s.readAtUtc.toISOString() : null,
+    dismissedAt: s.dismissedAtUtc ? s.dismissedAtUtc.toISOString() : null,
+    resolvedAt,
+    sourceClearedAt: resolvedAt,
+    resolutionSource: s.resolutionSource ?? null,
+    classification: itemClassification(category, s.itemKey),
+  };
+  if (!accessible) {
+    return {
+      ...shared,
+      title: "[No longer accessible — workspace access removed]",
+      message: { key: "history.unavailable", params: {} },
+      body: "This historical item belongs to a workspace you no longer have access to.",
+      href: "",
+      snoozedUntil: null,
+      attention: derivePersonalAttentionState(
+        { readAt: s.readAtUtc, dismissedAt: s.dismissedAtUtc, snoozedUntil: null },
+        now,
+      ),
+      canMarkRead: false,
+      canDismiss: false,
+      canSnooze: false,
+      dueAt: null,
+      context: {},
+    };
+  }
+  return {
+    ...shared,
+    title: s.title,
+    body: s.body,
+    href: s.href,
+    snoozedUntil: s.snoozedUntilUtc ? s.snoozedUntilUtc.toISOString() : null,
+    attention: derivePersonalAttentionState(
+      {
+        readAt: s.readAtUtc,
+        dismissedAt: s.dismissedAtUtc,
+        snoozedUntil: s.snoozedUntilUtc,
+      },
+      now,
+    ),
+    canMarkRead: live,
+    canDismiss: live,
+    canSnooze: live,
+    dueAt: s.dueAtUtc ? s.dueAtUtc.toISOString() : null,
+    ...splitSnapshotMetadata(s.metadataJson),
+  };
+}
+
+/** The workspaces whose history rows the caller may still read in full. */
+async function accessibleTeamIdsFor(
+  userId: string,
+  rows: readonly SnapshotRow[],
+): Promise<ReadonlySet<string>> {
+  // AUTH-002 — derived from the canonical accessible-workspace resolver, so
+  // losing access (revocation, suspension, access expiry, a suspended parent
+  // Organization) redacts. Skipped when no row is workspace-bound.
+  if (!rows.some((r) => r.teamId != null)) return new Set();
+  return new Set(
+    (await listAccessibleWorkspaces({ userId })).map((w) => w.workspaceId),
+  );
+}
+
+/**
+ * How many resolved history rows one active-feed request may merge. History
+ * is bounded by the snapshot retention sweep
+ * (`OPERATIONS_SNAPSHOT_RETENTION_DAYS` after a row was last seen live), and
+ * this caps the per-request read on top of it; reaching it is reported as
+ * truncation (`truncated[NOTIFICATION_HISTORY_SOURCE]`), never silently.
+ */
+export const RESOLVED_HISTORY_TAKE = 500;
+
+/**
+ * Per-half bound of the discussion-mention source: up to this many UNREAD
+ * mentions (the actionable half, whose cap is reported as truncation) and up
+ * to this many most-recently-read mentions (the read-history half).
+ */
+const MENTION_SOURCE_TAKE = 100;
+
+/**
+ * Filters that ask about a LIVE posture — an active reminder, an open
+ * deadline. A resolved notification has neither, so history never answers
+ * them.
+ */
+const LIVE_ONLY_FILTERS: ReadonlySet<InboxFilter> = new Set<InboxFilter>([
+  "snoozed",
+  "due_soon",
+  "overdue",
+]);
+
+/**
+ * RESOLVED NOTIFICATION HISTORY, for the active feed's All and Read views.
+ *
+ * Most inbox items are live projections of a condition — a failed report, a
+ * pending intake, an expiring link. When the condition clears, the live item
+ * is gone, and its notification left All and Read with it: a notification the
+ * reader had seen, perhaps read, simply stopped existing. The snapshot table
+ * already kept it (that is its job — the Archived view reads it), but only
+ * archived rows were ever served.
+ *
+ * This reads the reader's RESOLVED, NOT-ARCHIVED snapshots — the history the
+ * live projection can no longer produce — under the SAME axes the live list
+ * honours (read state, tone, category, workspace), so it merges into one
+ * population that is sorted and paginated as a whole:
+ *
+ *   - no duplicates: every key the live aggregation still emits is excluded
+ *     here (dismissed, snoozed and in-app-suppressed live items included), so
+ *     a live item always wins over its own snapshot;
+ *   - Unread never contains history: the bell's unread population is the live
+ *     set, and the page's Unread view is that same population;
+ *   - Archived is not this: archived rows stay on the archived lifecycle;
+ *   - bounded: newest first, at most RESOLVED_HISTORY_TAKE rows, with
+ *     overflow reported rather than dropped silently.
+ */
+async function readResolvedHistory(input: {
+  userId: string;
+  liveKeys: readonly string[];
+  filter: InboxFilter;
+  readState: InboxReadState;
+  tone: InboxTone | undefined;
+  workspaceId: string | undefined;
+  now: Date;
+}): Promise<{ items: InboxItem[]; truncated: boolean }> {
+  const none = { items: [], truncated: false };
+  if (input.readState === "unread") return none;
+  if (LIVE_ONLY_FILTERS.has(input.filter)) return none;
+  // `critical` is a severity filter; it composes with an explicit tone only
+  // when they agree, exactly as the live predicates do.
+  const severity: InboxTone | null | undefined =
+    input.filter === "critical"
+      ? input.tone && input.tone !== "critical"
+        ? null
+        : "critical"
+      : input.tone;
+  if (severity === null) return none;
+  if (!(await snapshotsAvailable())) return none;
+
+  const rows = await prisma.operationsInboxSnapshot.findMany({
+    where: {
+      userId: input.userId,
+      resolvedAtUtc: { not: null },
+      dismissedAtUtc: null,
+      ...(input.liveKeys.length > 0
+        ? { itemKey: { notIn: [...input.liveKeys] } }
+        : {}),
+      ...(severity ? { severity } : {}),
+      ...(input.readState === "read" ? { readAtUtc: { not: null } } : {}),
+      ...ARCHIVE_CATEGORY_MEMBERS(input.filter),
+      // Narrowing keeps account-tier rows (NULL teamId), as the live view
+      // and the archive both do.
+      ...(input.workspaceId
+        ? { OR: [{ teamId: input.workspaceId }, { teamId: null }] }
+        : {}),
+    },
+    orderBy: [{ sourceOccurredAtUtc: "desc" }, { itemKey: "asc" }],
+    take: RESOLVED_HISTORY_TAKE + 1,
+  });
+  const truncated = rows.length > RESOLVED_HISTORY_TAKE;
+  const kept = truncated ? rows.slice(0, RESOLVED_HISTORY_TAKE) : rows;
+  const accessibleTeamIds = await accessibleTeamIdsFor(input.userId, kept);
+  return {
+    items: kept.map((s) => historyItemFromSnapshot(s, accessibleTeamIds, input.now)),
+    truncated,
+  };
+}
+
+/** At most this many read-state mirror statements per sync (see below). */
+const SNAPSHOT_READ_MIRROR_MAX_STATEMENTS = 8;
+
+/**
+ * THE SNAPSHOT KEEPS THE READ STATE THE READER SAW.
+ *
+ * Once an item resolves, its snapshot is the only place its read state lives
+ * — the Read view of notification history is answered from `readAtUtc`. The
+ * inbox mutations mirror into it, but two sources own a read time of their
+ * own: a mention read by opening its thread (the Discussion tab stamps
+ * `notifiedAtUtc`, which is exactly where the bell's deep link lands) and a
+ * collaboration notification read on the Team page. Neither goes through
+ * this module, so their snapshot stayed "unread" forever, and a resolved
+ * notification the reader had opened would have come back unread.
+ *
+ * While the item is live its effective read time is known here, so the
+ * snapshot is brought into step on every sync. Each statement is guarded by
+ * the value it saw, so a mutation that lands between the aggregation and
+ * this write is never overwritten; any drift left over converges on the
+ * next request. Grouped by target value and bounded per request.
+ */
+async function mirrorSnapshotReadState(
+  userId: string,
+  items: readonly InboxItem[],
+  existing: ReadonlyArray<{ itemKey: string; readAtUtc: Date | null }>,
+): Promise<void> {
+  const seen = new Map(
+    existing.map((e) => [e.itemKey, e.readAtUtc?.toISOString() ?? null] as const),
+  );
+  const byTarget = new Map<string | null, string[]>();
+  for (const it of items) {
+    if (!seen.has(it.itemKey)) continue;
+    const want = it.readAt ?? null;
+    const had = seen.get(it.itemKey) ?? null;
+    if (want === had) continue;
+    // Only an unread→read or read→unread change is mirrored; a read time that
+    // merely differs keeps the snapshot's first read (read is stamped once).
+    if (want !== null && had !== null) continue;
+    const group = byTarget.get(want) ?? [];
+    group.push(it.itemKey);
+    byTarget.set(want, group);
+  }
+  let statements = 0;
+  for (const [readAt, groupKeys] of byTarget) {
+    if (statements >= SNAPSHOT_READ_MIRROR_MAX_STATEMENTS) break;
+    await prisma.operationsInboxSnapshot.updateMany({
+      where: {
+        userId,
+        itemKey: { in: groupKeys },
+        readAtUtc: readAt === null ? { not: null } : null,
+      },
+      data: { readAtUtc: readAt === null ? null : new Date(readAt) },
+    });
+    statements += 1;
+  }
+}
+
+/**
  * Upsert snapshots for every currently-live item and mark previously-live
  * snapshots RESOLVED when their source stopped emitting them. Title/body
- * are written ONCE at first surface and never rewritten. Bounded to four
- * statements per request. Failures never break the inbox response.
+ * are written ONCE at first surface and never rewritten. Bounded per request
+ * (four statements, plus the bounded read-state mirror). Failures never break the inbox response.
  *
  * PHASE 2.2 — THE AUTO-RESOLUTION IS NOW GATED ON COMPLETENESS.
  *
@@ -1351,7 +1662,7 @@ export async function syncInboxSnapshots(
     if (keys.length > 0) {
       const existing = await prisma.operationsInboxSnapshot.findMany({
         where: { userId, itemKey: { in: keys } },
-        select: { itemKey: true },
+        select: { itemKey: true, readAtUtc: true },
       });
       const existingSet = new Set(existing.map((e) => e.itemKey));
       const missing = items.filter((i) => !existingSet.has(i.itemKey));
@@ -1398,6 +1709,7 @@ export async function syncInboxSnapshots(
           resolvedByUserId: null,
         },
       });
+      await mirrorSnapshotReadState(userId, items, existing);
     }
     // ---------------------------------------------------------------------
     // Previously live, absent now. THIS IS ONLY EVIDENCE OF RESOLUTION FOR
@@ -1855,65 +2167,76 @@ export async function buildInboxAggregation(
       // removed the notification from the bell, the Notifications page and
       // the Read view at once: reading it deleted it.
       //
-      // The source now carries a mention while it is unread (however old) OR
-      // for the same 30-day recent-history window collaboration notifications
-      // use, and `notifiedAtUtc` is OR-ed into the item's read state below —
-      // the collaboration model, applied to the other row that owns a read
-      // timestamp. Unread rows sort first so read history can never push an
-      // unread mention past the cap.
+      // The source carries every UNREAD mention however old (the actionable
+      // half, capped and reported as truncated when the cap bites) and, beside
+      // it, the most recent READ mentions however old (the history half).
+      // `notifiedAtUtc` is OR-ed into the item's read state below — the
+      // collaboration model, applied to the other row that owns a read
+      // timestamp.
+      //
+      // READ HISTORY HAS NO CREATION-TIME WINDOW. It was bounded to mentions
+      // CREATED in the last 30 days, so a mention made 31 days ago vanished
+      // from All and Read the moment it was read. The halves are separate
+      // queries so read history can never push an unread mention past its
+      // cap, and so the history half's bound never marks the actionable source
+      // incomplete: a read mention past that bound is still served, from its
+      // notification-history snapshot (`readResolvedHistory`), because the
+      // snapshot sync resolves what this fully-read source no longer emits.
       //
       // The query is scoped to teamIds the caller is a member of so
       // cross-workspace mentions cannot leak. Each mention rolls up to one
       // inbox item with deep-link metadata (evidenceId + threadId +
       // messageId) so the frontend opens the exact thread.
       // -----------------------------------------------------------------
-      const MENTION_READ_HISTORY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+      const mentionSelect = {
+        id: true,
+        teamId: true,
+        threadId: true,
+        messageId: true,
+        notifiedAtUtc: true,
+        createdAt: true,
+        message: {
+          select: {
+            thread: {
+              select: {
+                id: true,
+                title: true,
+                evidenceId: true,
+                status: true,
+              },
+            },
+          },
+        },
+      } as const;
       const mentionRows =
         teamIds.length === 0
           ? []
           : await safelyLoadSource(
               "discussion_mention",
-              () =>
-                prisma.discussionMention.findMany({
-              where: {
-                teamId: { in: teamIds },
-                mentionedUserId: userId,
-                OR: [
-                  { notifiedAtUtc: null },
-                  {
-                    createdAt: {
-                      gte: new Date(nowMs - MENTION_READ_HISTORY_WINDOW_MS),
+              async () => {
+                const readHalf = (read: boolean) =>
+                  prisma.discussionMention.findMany({
+                    where: {
+                      teamId: { in: teamIds },
+                      mentionedUserId: userId,
+                      notifiedAtUtc: read ? { not: null } : null,
                     },
-                  },
-                ],
+                    select: mentionSelect,
+                    orderBy: read
+                      ? [
+                          { notifiedAtUtc: "desc" as const },
+                          { createdAt: "desc" as const },
+                          { id: "asc" as const },
+                        ]
+                      : [{ createdAt: "desc" as const }, { id: "asc" as const }],
+                    take: MENTION_SOURCE_TAKE,
+                  });
+                const [unreadMentions, readMentions] = await Promise.all([
+                  readHalf(false),
+                  readHalf(true),
+                ]);
+                return [...unreadMentions, ...readMentions];
               },
-              select: {
-                id: true,
-                teamId: true,
-                threadId: true,
-                messageId: true,
-                notifiedAtUtc: true,
-                createdAt: true,
-                message: {
-                  select: {
-                    thread: {
-                      select: {
-                        id: true,
-                        title: true,
-                        evidenceId: true,
-                        status: true,
-                      },
-                    },
-                  },
-                },
-              },
-              orderBy: [
-                { notifiedAtUtc: { sort: "asc", nulls: "first" } },
-                { createdAt: "desc" },
-                { id: "asc" },
-              ],
-              take: 100,
-            }),
               [],
             );
 
@@ -2479,49 +2802,65 @@ export async function buildInboxAggregation(
       // Operations-Center redesign — Source 17: collaboration-team
       // notifications addressed to THIS caller (CollaborationTeamNotification
       // rows: invite accepted, role change, discussion reply, removal…).
-      // We fetch the last 30 days INCLUDING read rows so read items can
-      // render as read (and appear under the History filter); the row's
-      // own `readAt` is the single source of read truth for this
-      // category — reading here or on the Team page updates the same row.
+      // Read AND unread rows, so read items render as read and stay in All
+      // and Read; the row's own `readAt` is the single source of read truth
+      // for this category — reading here or on the Team page updates the
+      // same row.
+      //
+      // Like mentions, two bounded halves and NO creation-time window: every
+      // unread row (the cap reported as truncated), and the most recently
+      // read rows. A 30-day `createdAt` window used to drop a read
+      // notification out of every view once it aged past it; a read row past
+      // the history half's bound is served from its notification-history
+      // snapshot instead.
       // -----------------------------------------------------------------
-      const COLLAB_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+      const collabSelect = {
+        id: true,
+        workspaceId: true,
+        teamId: true,
+        type: true,
+        title: true,
+        body: true,
+        readAt: true,
+        createdAt: true,
+      } as const;
       const collabNotifications = await safelyLoadSource(
         "collaboration",
-        () =>
-          prisma.collaborationTeamNotification.findMany({
-            where: {
-              userId,
-              // PHASE 2.5 — TENANT ISOLATION.
-              //
-              // `userId` alone answers "who was this addressed to", not "may
-              // they still see the workspace it came from". Every row carries
-              // a NOT NULL `workspaceId`, and a caller removed from that
-              // workspace kept receiving its team notifications — titles,
-              // bodies and deep links — on their personal surface.
-              //
-              // Mind the naming collision this model carries: `workspaceId`
-              // is the TEAM (workspace) id — the emitter below resolves it
-              // through `teamNameById` and publishes it as `context.teamId` —
-              // while the nullable `teamId` column is the CollaborationTeam,
-              // a feature entity inside the workspace. The tenancy gate is
-              // therefore `workspaceId`, and using the column literally named
-              // `teamId` here would have gated on the wrong thing entirely.
-              workspaceId: { in: teamIds },
-              createdAt: { gte: new Date(nowMs - COLLAB_WINDOW_MS) },
-            },
-            select: {
-              id: true,
-              workspaceId: true,
-              teamId: true,
-              type: true,
-              title: true,
-              body: true,
-              readAt: true,
-              createdAt: true,
-            },
-            orderBy: { createdAt: "desc" },
-            take: PER_CATEGORY_TAKE,
-          }),
+        async () => {
+          // PHASE 2.5 — TENANT ISOLATION.
+          //
+          // `userId` alone answers "who was this addressed to", not "may
+          // they still see the workspace it came from". Every row carries
+          // a NOT NULL `workspaceId`, and a caller removed from that
+          // workspace kept receiving its team notifications — titles,
+          // bodies and deep links — on their personal surface.
+          //
+          // Mind the naming collision this model carries: `workspaceId`
+          // is the TEAM (workspace) id — the emitter below resolves it
+          // through `teamNameById` and publishes it as `context.teamId` —
+          // while the nullable `teamId` column is the CollaborationTeam,
+          // a feature entity inside the workspace. The tenancy gate is
+          // therefore `workspaceId`, and using the column literally named
+          // `teamId` here would have gated on the wrong thing entirely.
+          const readHalf = (read: boolean) =>
+            prisma.collaborationTeamNotification.findMany({
+              where: {
+                userId,
+                workspaceId: { in: teamIds },
+                readAt: read ? { not: null } : null,
+              },
+              select: collabSelect,
+              orderBy: read
+                ? [{ readAt: "desc" as const }, { createdAt: "desc" as const }, { id: "asc" as const }]
+                : [{ createdAt: "desc" as const }, { id: "asc" as const }],
+              take: PER_CATEGORY_TAKE,
+            });
+          const [unreadRows, readRows] = await Promise.all([
+            readHalf(false),
+            readHalf(true),
+          ]);
+          return [...unreadRows, ...readRows];
+        },
         [],
       );
 
@@ -2536,10 +2875,19 @@ export async function buildInboxAggregation(
       // keep page weight bounded. The truncated flag compares against
       // the exact limit of THAT query so we never lie about whether
       // results were capped.
+      //
+      // Mentions and collaboration notifications count only their UNREAD
+      // half: that is the actionable read whose cap can hide something. Their
+      // read-history half is bounded separately and its overflow stays
+      // reachable through notification history, so it must not mark the
+      // source incomplete (which would also stop every all-clear and every
+      // snapshot auto-resolution for a reader with a long history).
       const LEGACY_TAKE = 100;
       const truncated = {
         governance: governanceRows.length >= LEGACY_TAKE,
-        discussion_mention: mentionRows.length >= LEGACY_TAKE,
+        discussion_mention:
+          mentionRows.filter((m) => m.notifiedAtUtc == null).length >=
+          MENTION_SOURCE_TAKE,
         discussion_assigned: assignedThreads.length >= PER_CATEGORY_TAKE,
         review_escalation: myReviewEscalations.length >= PER_CATEGORY_TAKE,
         access_review_pending: myAccessReviews.length >= PER_CATEGORY_TAKE,
@@ -2558,7 +2906,9 @@ export async function buildInboxAggregation(
           incompleteRequests.length >= PER_CATEGORY_TAKE,
         intake_link_expiring:
           expiringIntakeLinks.length >= PER_CATEGORY_TAKE,
-        collaboration: collabNotifications.length >= PER_CATEGORY_TAKE,
+        collaboration:
+          collabNotifications.filter((n) => n.readAt == null).length >=
+          PER_CATEGORY_TAKE,
         tsa_failure: tsaFailedEvidence.length >= PER_CATEGORY_TAKE,
         case_assignment: myCaseAssignments.length >= PER_CATEGORY_TAKE,
       };
@@ -3422,15 +3772,6 @@ export async function buildInboxAggregation(
           },
           now,
         );
-        const classification = classifyCategory(it.category);
-        // The shared condition's identity, when this category produces one.
-        // Derived from the SOURCE row id — never from the recipient, never
-        // from the filename, reason, provider or date.
-        const parsedKey = parseInboxItemKey(it.id);
-        const conditionFingerprint =
-          producesOperationalCondition(it.category) && parsedKey?.sourceId
-            ? sharedConditionFingerprint(it.category, parsedKey.sourceId)
-            : null;
         allItems.push({
           ...it,
           itemKey: it.id,
@@ -3442,13 +3783,7 @@ export async function buildInboxAggregation(
             : null,
           snoozedUntil: attention.remindAt,
           attention,
-          classification: {
-            channels: classification?.channels ?? ["notification"],
-            conditionAuthority: classification?.conditionAuthority ?? "none",
-            scope: scopeForCategory(it.category),
-            countsAsWorkload: countsAsWorkload(it.category),
-            sharedConditionFingerprint: conditionFingerprint,
-          },
+          classification: itemClassification(it.category, it.id),
           canMarkRead: true,
           canDismiss: true,
           canSnooze: true,
@@ -3663,79 +3998,10 @@ export async function meInboxRoutes(app: FastifyInstance) {
         // accessible-workspace resolver, so losing access — by revocation,
         // suspension, access expiry, or the parent Organization being
         // suspended — actually redacts.
-        const currentTeamIds = new Set(
-          (await listAccessibleWorkspaces({ userId })).map(
-            (w) => w.workspaceId,
-          ),
+        const accessibleTeamIds = await accessibleTeamIdsFor(userId, rows);
+        const items = rows.map((s) =>
+          historyItemFromSnapshot(s, accessibleTeamIds, now),
         );
-        const items = rows.map((s) => {
-          const accessible = s.teamId == null || currentTeamIds.has(s.teamId);
-          if (!accessible) {
-            return {
-              id: s.itemKey,
-              itemKey: s.itemKey,
-              category: s.category as InboxCategory,
-              tone: s.severity as InboxTone,
-              priority: s.priority as InboxPriority,
-              title: "[No longer accessible — workspace access removed]",
-              message: { key: "history.unavailable", params: {} },
-              body: "This historical item belongs to a workspace you no longer have access to.",
-              href: "",
-              occurredAt: s.sourceOccurredAtUtc.toISOString(),
-              isRead: s.readAtUtc != null,
-              readAt: s.readAtUtc ? s.readAtUtc.toISOString() : null,
-              dismissedAt: s.dismissedAtUtc ? s.dismissedAtUtc.toISOString() : null,
-              snoozedUntil: null,
-              attention: derivePersonalAttentionState(
-                {
-                  readAt: s.readAtUtc,
-                  dismissedAt: s.dismissedAtUtc,
-                  snoozedUntil: null,
-                },
-                now,
-              ),
-              resolvedAt: s.resolvedAtUtc ? s.resolvedAtUtc.toISOString() : null,
-              sourceClearedAt: s.resolvedAtUtc ? s.resolvedAtUtc.toISOString() : null,
-              resolutionSource: s.resolutionSource ?? null,
-              canMarkRead: false,
-              canDismiss: false,
-              canSnooze: false,
-              dueAt: null,
-              context: {},
-            };
-          }
-          return {
-          id: s.itemKey,
-          itemKey: s.itemKey,
-          category: s.category as InboxCategory,
-          tone: s.severity as InboxTone,
-          priority: s.priority as InboxPriority,
-          title: s.title,
-          body: s.body,
-          href: s.href,
-          occurredAt: s.sourceOccurredAtUtc.toISOString(),
-          isRead: s.readAtUtc != null,
-          readAt: s.readAtUtc ? s.readAtUtc.toISOString() : null,
-          dismissedAt: s.dismissedAtUtc ? s.dismissedAtUtc.toISOString() : null,
-          snoozedUntil: s.snoozedUntilUtc ? s.snoozedUntilUtc.toISOString() : null,
-          attention: derivePersonalAttentionState(
-            {
-              readAt: s.readAtUtc,
-              dismissedAt: s.dismissedAtUtc,
-              snoozedUntil: s.snoozedUntilUtc,
-            },
-            now,
-          ),
-          resolvedAt: s.resolvedAtUtc ? s.resolvedAtUtc.toISOString() : null,
-          sourceClearedAt: s.resolvedAtUtc ? s.resolvedAtUtc.toISOString() : null,
-          resolutionSource: s.resolutionSource ?? null,
-          canMarkRead: s.resolvedAtUtc == null,
-          canDismiss: s.resolvedAtUtc == null,
-          canSnooze: s.resolvedAtUtc == null,
-          dueAt: s.dueAtUtc ? s.dueAtUtc.toISOString() : null,
-          ...splitSnapshotMetadata(s.metadataJson),
-          };
-        });
         const nextOffset = offset + items.length;
         return reply.code(200).send({
           generatedAt: now.toISOString(),
@@ -3785,7 +4051,14 @@ export async function meInboxRoutes(app: FastifyInstance) {
       if (!agg.ok) {
         return reply.code(401).send({ message: "Unknown caller" });
       }
-      const { allItems, degradedSources, truncated, anyTruncated, completeness, caller: me } = agg;
+      const {
+        allItems,
+        degradedSources,
+        truncated: sourceTruncated,
+        anyTruncated: anySourceTruncated,
+        completeness,
+        caller: me,
+      } = agg;
 
       // Persist/refresh history snapshots for everything surfaced in this
       // response window (bounded; skipped gracefully on un-migrated envs).
@@ -3949,7 +4222,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
         },
       };
 
-      const filteredItems = visibleItems.filter((it) => {
+      const liveListed = visibleItems.filter((it) => {
         // PHASE 2.4 — through the SHARED predicate, not a second copy of it.
         // This site carried its own inline `context?.teamId !== workspaceId`
         // test, so the list and the counts above it applied two textually
@@ -3965,6 +4238,33 @@ export async function meInboxRoutes(app: FastifyInstance) {
         if (!matchesFilter(it, requestedFilter, nowMs)) return false;
         return true;
       });
+
+      // NOTIFICATION HISTORY joins the list, never the counts above it. The
+      // metric cards, the scope summary and the bell describe CURRENT
+      // attention; All and Read describe what the reader was told, so the
+      // resolved notifications the live projection can no longer produce are
+      // merged here, into the one population that is then sorted and paged.
+      // See `readResolvedHistory` for why there can be no duplicate.
+      const history =
+        queryParams.include === "resolved"
+          ? await readResolvedHistory({
+              userId,
+              liveKeys: allItems.map((it) => it.itemKey),
+              filter: requestedFilter,
+              readState: requestedReadState,
+              tone: requestedTone,
+              workspaceId: requestedWorkspaceId,
+              now,
+            })
+          : { items: [], truncated: false };
+      const filteredItems =
+        history.items.length > 0 ? [...liveListed, ...history.items] : liveListed;
+      // A capped history read is reported like a capped source, under its own
+      // name; it never enters `completeness`, which is about current sources.
+      const truncated: Record<string, boolean> = history.truncated
+        ? { ...sourceTruncated, [NOTIFICATION_HISTORY_SOURCE]: true }
+        : sourceTruncated;
+      const anyTruncated = anySourceTruncated || history.truncated;
 
       // ONE population, several orderings. See the `sort` field on the query
       // schema for why the bell cannot use the Operations Center's, and

@@ -92,14 +92,14 @@ test("the notification summary: six metric cards from metricSummary, each with t
 
 test("the cards are ONE primary view on the wire: Unread then High asks for High, never the intersection", async () => {
   const r = await render();
-  assert.equal(inboxReads()[0], "/v1/me/inbox?sort=newest", "the first read must send the sort and nothing else");
+  assert.equal(inboxReads()[0], "/v1/me/inbox?include=resolved&sort=newest", "the first read must send the sort and the notification-history opt-in, nothing else");
   await r.press("Unread: 3");
   await settle();
-  assert.ok(inboxReads().includes("/v1/me/inbox?readState=unread&sort=newest"));
+  assert.ok(inboxReads().includes("/v1/me/inbox?readState=unread&include=resolved&sort=newest"));
   await r.press("High: 2");
   await settle();
   const last = inboxReads().at(-1);
-  assert.equal(last, "/v1/me/inbox?tone=high&sort=newest");
+  assert.equal(last, "/v1/me/inbox?tone=high&include=resolved&sort=newest");
   r.unmount();
 });
 
@@ -107,7 +107,7 @@ test("sorting is the server's: choosing Oldest first re-reads with sort=oldest",
   const r = await render();
   await r.press("Sort: Oldest first");
   await settle();
-  assert.equal(inboxReads().at(-1), "/v1/me/inbox?sort=oldest");
+  assert.equal(inboxReads().at(-1), "/v1/me/inbox?include=resolved&sort=oldest");
   r.unmount();
 });
 
@@ -149,12 +149,12 @@ test("a category filter is sent, counted on the Filters control, and removable f
   await r.press("Type: Reports");
   await r.press("Done");
   await settle();
-  assert.equal(inboxReads().at(-1), "/v1/me/inbox?filter=reports&sort=newest");
+  assert.equal(inboxReads().at(-1), "/v1/me/inbox?filter=reports&include=resolved&sort=newest");
   assert.ok(r.hasText("Filters (1)"));
   assert.equal(r.byLabel("Active filters").length, 1);
   await r.press("Remove Reports filter");
   await settle();
-  assert.equal(inboxReads().at(-1), "/v1/me/inbox?sort=newest");
+  assert.equal(inboxReads().at(-1), "/v1/me/inbox?include=resolved&sort=newest");
   assert.equal(r.byLabel("Active filters").length, 0);
   r.unmount();
 });
@@ -180,7 +180,7 @@ test("the workspace narrowing appears only for a reader with somewhere else to s
   await r.press("Filters");
   await r.press("Workspace: Acme");
   await settle();
-  assert.equal(inboxReads().at(-1), "/v1/me/inbox?workspaceId=22222222-2222-2222-2222-222222222222&sort=newest");
+  assert.equal(inboxReads().at(-1), "/v1/me/inbox?include=resolved&workspaceId=22222222-2222-2222-2222-222222222222&sort=newest");
   r.unmount();
 });
 
@@ -212,7 +212,7 @@ test("the server's cursor pages the list: Load more appends page 2", async () =>
   assert.ok(!r.hasText("New sign-in"));
   await r.press("Load more");
   await settle();
-  assert.ok(inboxReads().includes("/v1/me/inbox?sort=newest&cursor=Mg%3D%3D"));
+  assert.ok(inboxReads().includes("/v1/me/inbox?include=resolved&sort=newest&cursor=Mg%3D%3D"));
   assert.ok(r.hasText("Report generation failed") && r.hasText("New sign-in"), "page 2 did not append");
   assert.ok(r.hasText("Showing 3 of 3 notifications"));
   r.unmount();

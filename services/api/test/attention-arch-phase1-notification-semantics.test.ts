@@ -396,9 +396,14 @@ describe("Phase 1.6 — guidance is not work", () => {
 
   it("every item carries its classification so no surface re-derives it", () => {
     const ROUTES = readSource("../src/routes/me-inbox.routes.ts");
-    expect(ROUTES).toContain("classification: {");
-    expect(ROUTES).toContain("countsAsWorkload: countsAsWorkload(it.category)");
-    expect(ROUTES).toContain("scope: scopeForCategory(it.category)");
+    // ONE derivation, shared by live items and notification-history rows, so
+    // a history row cannot describe its category differently from the live
+    // item it was.
+    const helper = ROUTES.slice(ROUTES.indexOf("function itemClassification("));
+    expect(helper).toContain("countsAsWorkload: countsAsWorkload(category)");
+    expect(helper).toContain("scope: scopeForCategory(category)");
+    expect(ROUTES).toContain("classification: itemClassification(it.category, it.id)");
+    expect(ROUTES).toContain("classification: itemClassification(category, s.itemKey)");
   });
 });
 

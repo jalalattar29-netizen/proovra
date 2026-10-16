@@ -137,7 +137,14 @@ vi.mock("../src/db.js", () => {
     },
     team: { findMany: async () => [] },
     collaborationTeamNotification: {
-      findMany: async () => H.collabRows,
+      // The source reads its unread and its read half separately; honour the
+      // `readAt` predicate so each half sees only its own rows.
+      findMany: async ({ where }: { where?: { readAt?: unknown } } = {}) =>
+        H.collabRows.filter((r) => {
+          const read = (r as { readAt?: Date | null }).readAt != null;
+          if (where?.readAt === undefined) return true;
+          return where.readAt === null ? !read : read;
+        }),
       updateMany: async (args: Record<string, unknown>) => {
         H.collabUpdates.push(args);
         return { count: 1 };
