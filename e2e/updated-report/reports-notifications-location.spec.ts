@@ -21,7 +21,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 import { clearTestRateLimits, createGuestSession, type GuestSession } from "../helpers/api-client";
 import { signIn } from "./_browser";
-import { addWorkspaceMember, createFinalizedEvidence, personalTeamId, waitForPair } from "./_stack";
+import { addWorkspaceMember, createFinalizedEvidence, personalTeamId, sql, waitForPair } from "./_stack";
 
 test.describe.configure({ mode: "serial" });
 
@@ -131,7 +131,7 @@ test("REPORTS: at most six metrics; each applies exactly its filter; the listed 
   expect(text, "a raw internal code reached the Reports page").not.toMatch(RAW_CODE);
 });
 
-test("NOTIFICATIONS: a read mention stays in All and Read, leaves Unread, survives a reload, and the count moves by exactly one", async ({ page }) => {
+test("NOTIFICATIONS: a read mention stays in All and Read, leaves Unread,survives a reload (and at 45 days old), and the count moves by exactly one", async ({ page }) => {
   test.setTimeout(300_000);
   const handle = B.email.split("@")[0]!.toLowerCase();
   const thread = await A.api.post("/v1/collaboration/threads", {
@@ -177,6 +177,20 @@ test("NOTIFICATIONS: a read mention stays in All and Read, leaves Unread, surviv
   expect(seen.ok(), await seen.text()).toBe(true);
   await page.reload();
   await page.locator('[data-inbox-filter-chip="read"]').click();
+  await expect(find()).toHaveCount(1);
+  expect(await unread()).toBe(before - 1);
+
+  // OLDER THAN 30 DAYS: history has no creation-time window — a read
+  // notification from 45 days ago is still in All and Read, never in Unread,
+  // and the bell count does not move.
+  sql(`UPDATE discussion_mentions SET created_at = now() - interval '45 days' WHERE thread_id = $1 AND mentioned_user_id = $2`, [threadId, B.userId]);
+  sql(`UPDATE discussion_messages SET created_at = now() - interval '45 days' WHERE thread_id = $1`, [threadId]);
+  await page.reload();
+  await page.locator('[data-inbox-filter-chip="read"]').click();
+  await expect(find()).toHaveCount(1);
+  await page.locator('[data-inbox-filter-chip="unread"]').click();
+  await expect(find()).toHaveCount(0);
+  await page.locator('[data-inbox-filter-chip="all"]').click();
   await expect(find()).toHaveCount(1);
   expect(await unread()).toBe(before - 1);
 
