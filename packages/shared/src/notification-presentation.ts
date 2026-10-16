@@ -171,8 +171,22 @@ export function notificationSourceLabel(
   source: string | null | undefined,
 ): string {
   const loc = notificationLocale(locale);
+  if (source === NOTIFICATION_HISTORY_SOURCE) return HISTORY_SOURCE[loc];
   return isNotificationCategory(source) ? CATEGORY_LABELS[loc][source] : OTHER_SOURCE[loc];
 }
+
+/**
+ * The source name the API reports (`truncated.notification_history`) when the
+ * notification history it merges into All / Read reached its per-request cap.
+ * It is not a category, so it carries its own label.
+ */
+export const NOTIFICATION_HISTORY_SOURCE = "notification_history";
+
+const HISTORY_SOURCE: Readonly<Record<NotificationLocale, string>> = {
+  en: "Earlier notifications",
+  de: "Frühere Benachrichtigungen",
+  ar: "إشعارات سابقة",
+};
 
 const OTHER_SOURCE: Readonly<Record<NotificationLocale, string>> = {
   en: "Other notifications",

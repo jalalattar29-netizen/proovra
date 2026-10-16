@@ -206,8 +206,15 @@ describe("Phase 2.1 — notification history is not Operations history", () => {
     // stopped addressing this to me" — a personal-feed fact. Reading it as
     // the workspace's resolution status is precisely the conflation 2.1
     // forbids, so the honest name ships alongside the compatible one.
-    const occurrences = INBOX_ROUTES.match(/sourceClearedAt: s\.resolvedAtUtc/g);
-    expect(occurrences?.length).toBe(2);
+    //
+    // Every history row — archived, or resolved history merged into All and
+    // Read, redacted or not — is built by ONE function, so the honest name is
+    // emitted in exactly one place, beside the legacy one, from the same value.
+    expect(INBOX_ROUTES.match(/function historyItemFromSnapshot\(/g)?.length).toBe(1);
+    const helper = INBOX_ROUTES.slice(INBOX_ROUTES.indexOf("function historyItemFromSnapshot("));
+    expect(helper).toMatch(/const resolvedAt = s\.resolvedAtUtc \? s\.resolvedAtUtc\.toISOString\(\) : null;/);
+    expect(helper).toMatch(/resolvedAt,\s*sourceClearedAt: resolvedAt,/);
+    expect(INBOX_ROUTES.match(/sourceClearedAt: /g)?.length).toBe(1);
   });
 
   it("the UI no longer labels a personal-feed fact 'Resolved'", () => {
