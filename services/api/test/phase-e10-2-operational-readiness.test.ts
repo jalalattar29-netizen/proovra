@@ -289,8 +289,16 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
       // missing for the latest report, subscription check pending) with a
       // filter each; restricted cases filtered; eligibility defaults to
       // UNRESOLVED instead of ELIGIBLE. No new authority, no platform scan.
+      // Rebaselined 2026-10-16 (REPORTS COMPACT VIEW): 50,778 (55,394 on disk)
+      // → 63,446. Audited diff: a READY report's failed request counts as a
+      // current failure only when made AFTER that report (the canonical
+      // supersession fact); every row and the summary carry the shared
+      // `deliverableStatusFor` record status (one classification per request,
+      // shared by summary and filters); `status=`, several ANDed `lifecycle=`
+      // values and `sort=oldest` with a direction-aware cursor. No new
+      // authority, no platform scan, no per-row query.
       rel: "src/services/reports/reports-aggregator.service.ts",
-        expected: 50778,
+        expected: 63446,
       },
     ];
     for (const { rel, expected } of PINS) {
