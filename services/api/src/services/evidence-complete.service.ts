@@ -2,6 +2,7 @@ import { prisma } from "../db.js";
 import { readMaxEvidenceSizeBytes } from "@proovra/shared";
 import {
   compositeSha256,
+  ensureVerificationRefTx,
   isEvidenceReservationExpiredTx,
   multipartManifestSha256,
   recordIntegrityCheckTx,
@@ -1616,6 +1617,18 @@ const captureMethod =
         correlationId: `finalize:${ev.id}`,
         checkedAtUtc: now,
       });
+
+      // CANONICAL VERIFICATION IDENTITY — issued at the transition that makes
+      // the record eligible: signed, integrity-verified, in this same
+      // transaction. The record's one permanent `pvr_` reference exists from
+      // finalization on, for every plan, before and whether or not a report is
+      // ever rendered; nothing later mints a second (set-once authority).
+      const canonicalRef = await ensureVerificationRefTx(tx, ev.id, { now, source: "FINALIZATION" });
+      if (!canonicalRef.ref) {
+        throw Object.assign(new Error(`CANONICAL_VERIFICATION_REFUSED_AT_FINALIZATION:${canonicalRef.refused}`), {
+          statusCode: 500,
+        });
+      }
 
       return {
         result: {

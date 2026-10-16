@@ -122,18 +122,15 @@ test.describe("Phase A0 — integrity banner + disabled CTAs (source contract)",
     expect(expr).toContain("!packageArtifactAvailable");
   });
 
-  test("Copy verification link disabled when isIntegrityFailed", () => {
-    // Still a standalone predicate — no double-negative through a memo —
-    // and now layered with the share-url guard in the hero actions component.
+  test("Verification link unavailable when isIntegrityFailed", () => {
+    // The open-link renders only for a canonical link AND intact integrity;
+    // otherwise the control is a disabled button stating why.
     expect(HERO_ACTIONS).toMatch(
-      /data-evidence-action="copy-verification-link"/,
+      /data-evidence-action="open-verification-link"/,
     );
-    expect(HERO_ACTIONS).toMatch(
-      /disabled=\{isIntegrityFailed \|\| !shareUrl\}/,
-    );
+    expect(HERO_ACTIONS).toMatch(/\{shareUrl && !isIntegrityFailed \? \(/);
     // The page must still hand the flag down, or the guard above is inert.
     expect(DETAIL_PAGE).toMatch(/isIntegrityFailed=\{isIntegrityFailed\}/);
-    expect(DETAIL_PAGE).toMatch(/onCopyShareLink=\{\(\)\s*=>\s*void\s+copyShareLink\(\)\}/);
   });
 
   test("Lock record disabled when isIntegrityFailed", () => {

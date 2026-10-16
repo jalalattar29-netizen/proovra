@@ -31,10 +31,14 @@
  *   that is a state this contract cannot produce and must be investigated.
  *
  * verification-references — CANONICAL VERIFICATION IDENTITY (decision 2).
- *   Every record that has an issued report and no canonical reference gets one
- *   (the same authority the report worker uses; never replaces an existing
- *   one). Old reports are NOT regenerated: their printed links keep resolving
- *   through the legacy compatibility the public route provides.
+ *   Every ELIGIBLE record (finalized, active, not deleted/destroyed/archived,
+ *   integrity intact — the shared eligibility rule) without a canonical
+ *   reference gets one, through the same set-once authority finalization and
+ *   the report worker use; an existing reference is never replaced. Dry run by
+ *   default; prints exact scanned / eligible / issued / alreadyIssued /
+ *   refused* / skippedRowMoved / failed counts; exits 4 on any failure. Old
+ *   reports are NOT regenerated: their printed links keep resolving through the
+ *   public route's compatibility.
  *
  *   tsx src/scripts/three-decisions-backfill.ts lifecycle [--apply] [--batch=500] [--after=<evidenceId>] [--max-batches=N] [--team=<teamId>]
  *
@@ -58,10 +62,13 @@ import {
   UNSEALED_EVIDENCE_STATUSES,
   appendCustodyEventTx,
   classifyEvidencePopulation,
+  CANONICAL_VERIFICATION_ELIGIBILITY_SELECT,
   ensureVerificationRefTx,
   evaluateEffectiveLegalHold,
   isEvidenceReservationExpiredTx,
   releaseEvidenceReservationTx,
+  resolveCanonicalVerificationEligibility,
+  type CanonicalVerificationRefusal,
   type EvidencePopulationClass,
 } from "@proovra/shared-runtime";
 import { TRASH_GRACE_DAYS } from "../services/evidence/evidence-lifecycle.service.js";
@@ -213,12 +220,53 @@ export async function backfillFreeOutputs(options: {
 
 export type VerificationReferenceSummary = {
   mode: "DRY-RUN" | "APPLY";
+  /** Every evidence row read. */
   scanned: number;
+  /** Eligible records without a reference (each is issued, or would be). */
+  eligible: number;
+  /** References written (APPLY) or that would be written (DRY-RUN). */
   issued: number;
+  /** Records that already hold their permanent reference (never touched). */
   alreadyIssued: number;
+  refusedNotFinalized: number;
+  refusedDeleted: number;
+  refusedDestroyed: number;
+  refusedArchived: number;
+  refusedIntegrity: number;
+  /** The row changed between read and write (issued elsewhere, or became ineligible). */
+  skippedRowMoved: number;
+  failed: number;
+  /** Resume point: pass as --after to continue; null when the scan finished. */
   nextCursor: string | null;
 };
 
+const REFUSAL_COUNTER: Record<
+  Exclude<CanonicalVerificationRefusal, "NOT_FOUND">,
+  keyof Pick<
+    VerificationReferenceSummary,
+    "refusedNotFinalized" | "refusedDeleted" | "refusedDestroyed" | "refusedArchived" | "refusedIntegrity"
+  >
+> = {
+  NOT_FINALIZED: "refusedNotFinalized",
+  DELETED: "refusedDeleted",
+  DESTROYED: "refusedDestroyed",
+  ARCHIVED: "refusedArchived",
+  INTEGRITY_FAILED: "refusedIntegrity",
+};
+
+/**
+ * Issue the canonical reference to every ELIGIBLE record that lacks one, through
+ * the one authority (`ensureVerificationRefTx`, which applies the same shared
+ * eligibility rule and is set-once). Read-only by default; `--apply` writes.
+ *
+ *   - Scans EVERY evidence row in id order with a stable cursor (resumable).
+ *   - One transaction per record: a failure never strands a batch half-done.
+ *   - Never rotates or replaces a reference, never touches storage, reports,
+ *     packages or retention; the only custody write is the one
+ *     VERIFICATION_REFERENCE_ISSUED event the authority appends per issuance.
+ *   - Fails closed: the first failure stops the run (its cursor is reported so
+ *     it can resume after the cause is fixed) and the exit status is non-zero.
+ */
 export async function backfillVerificationReferences(options: {
   apply?: boolean;
   batchSize?: number;
@@ -231,21 +279,24 @@ export async function backfillVerificationReferences(options: {
   const summary: VerificationReferenceSummary = {
     mode: apply ? "APPLY" : "DRY-RUN",
     scanned: 0,
+    eligible: 0,
     issued: 0,
     alreadyIssued: 0,
+    refusedNotFinalized: 0,
+    refusedDeleted: 0,
+    refusedDestroyed: 0,
+    refusedArchived: 0,
+    refusedIntegrity: 0,
+    skippedRowMoved: 0,
+    failed: 0,
     nextCursor: options.after ?? null,
   };
   for (let batch = 0; batch < maxBatches; batch++) {
-    // Records with at least one issued report: exactly the population whose
-    // reports print (or printed) a verification link.
     const rows = await prisma.evidence.findMany({
-      where: {
-        ...(summary.nextCursor ? { id: { gt: summary.nextCursor } } : {}),
-        reports: { some: {} },
-      },
+      where: summary.nextCursor ? { id: { gt: summary.nextCursor } } : {},
       orderBy: { id: "asc" },
       take: batchSize,
-      select: { id: true, verificationRef: true },
+      select: { id: true, verificationRef: true, ...CANONICAL_VERIFICATION_ELIGIBILITY_SELECT },
     });
     if (rows.length === 0) {
       summary.nextCursor = null;
@@ -255,17 +306,35 @@ export async function backfillVerificationReferences(options: {
       summary.scanned += 1;
       if (row.verificationRef) {
         summary.alreadyIssued += 1;
+        summary.nextCursor = row.id;
         continue;
       }
+      const eligibility = resolveCanonicalVerificationEligibility(row);
+      if (!eligibility.eligible) {
+        if (eligibility.reason !== "NOT_FOUND") summary[REFUSAL_COUNTER[eligibility.reason]] += 1;
+        summary.nextCursor = row.id;
+        continue;
+      }
+      summary.eligible += 1;
       if (!apply) {
         summary.issued += 1;
+        summary.nextCursor = row.id;
         continue;
       }
-      const res = await prisma.$transaction((tx) => ensureVerificationRefTx(tx, row.id, { source: "BACKFILL" }));
-      if (res.issued) summary.issued += 1;
-      else summary.alreadyIssued += 1;
+      try {
+        const res = await prisma.$transaction((tx) => ensureVerificationRefTx(tx, row.id, { source: "BACKFILL" }));
+        if (res.issued) summary.issued += 1;
+        else summary.skippedRowMoved += 1;
+      } catch (err) {
+        summary.failed += 1;
+        console.error(
+          `[verification-references] FAILED at the record after cursor ${summary.nextCursor ?? "(start)"}: ${(err as Error).message}`,
+        );
+        // Fail closed: stop here; resume with --after=<nextCursor> once fixed.
+        return summary;
+      }
+      summary.nextCursor = row.id;
     }
-    summary.nextCursor = rows[rows.length - 1]!.id;
     if (rows.length < batchSize) {
       summary.nextCursor = null;
       break;
@@ -541,7 +610,8 @@ async function main(): Promise<number> {
       maxBatches,
     });
     console.log(`[verification-references] SUMMARY ${JSON.stringify(summary)}`);
-    return 0;
+    // A failure is never a quiet success: exit 4 and resume with --after.
+    return summary.failed > 0 ? 4 : 0;
   }
   if (command === "lifecycle") {
     const summary = await reconcileEvidenceLifecycle({

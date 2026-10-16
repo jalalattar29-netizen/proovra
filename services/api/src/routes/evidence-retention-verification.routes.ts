@@ -28,9 +28,9 @@ import { z } from "zod";
 import { roleHasPermission } from "@proovra/shared";
 import {
   VERIFICATION_WITHDRAWAL_REASONS,
-  canonicalVerificationPath,
+  CANONICAL_VERIFICATION_PROJECTION_SELECT,
   evaluateEffectiveLegalHold,
-  resolveCanonicalVerificationStatus,
+  projectCanonicalVerification,
 } from "@proovra/shared-runtime";
 
 import { getAuthUserId } from "../auth.js";
@@ -302,25 +302,25 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
     const row = await prisma.evidence.findUnique({
       where: { id },
       select: {
-        lifecycleState: true,
-        destroyedAtUtc: true,
-        verificationRef: true,
-        verificationRefIssuedAtUtc: true,
-        verificationAccessState: true,
+        ...CANONICAL_VERIFICATION_PROJECTION_SELECT,
         verificationAccessChangedAtUtc: true,
         verificationAccessReason: true,
       },
     });
     if (!row) return reply.code(404).send(NOT_FOUND);
+    // The ONE canonical contract (shared with the review workspace).
+    const canonical = projectCanonicalVerification(row);
     const canWithdraw = (
       await resolveEvidenceOperationAccess({ userId: actorUserId, evidenceId: id, permission: "evidence.verification.withdraw" })
     ).allowed;
     return reply.code(200).send({
-      // NOT_ISSUED until the record's first report is issued; then permanent.
-      status: row.verificationRef ? resolveCanonicalVerificationStatus(row) : "NOT_ISSUED",
-      reference: row.verificationRef ?? null,
-      verifyPath: row.verificationRef ? canonicalVerificationPath(row.verificationRef) : null,
-      issuedAtUtc: iso(row.verificationRefIssuedAtUtc),
+      // THE canonical contract (issued at finalization; then permanent). Spelled
+      // out, not spread, so the clients' contract audit can read the envelope.
+      status: canonical.status,
+      reference: canonical.reference,
+      verifyPath: canonical.verifyPath,
+      issuedAtUtc: canonical.issuedAtUtc,
+      refusalReason: canonical.refusalReason,
       withdrawal:
         row.verificationAccessState !== "AVAILABLE"
           ? {

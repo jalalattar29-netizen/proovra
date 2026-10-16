@@ -13,7 +13,7 @@ import { installApi } from "./_fixtures";
 test("the action stack sits BESIDE the title, above the downloads", async ({ page }) => {
   await installApi(page, "organization", {});
   await page.goto("/evidence/11111111-1111-4111-8111-111111111111");
-  await page.waitForSelector('[data-evidence-action="copy-verification-link"]');
+  await page.waitForSelector('[data-evidence-action="open-verification-link"]');
 
   const title = await page.locator(".evidence-detail-hero-main").boundingBox();
   const stack = await page.locator(".evidence-detail-hero-icon-actions").boundingBox();
@@ -26,7 +26,7 @@ test("the action stack sits BESIDE the title, above the downloads", async ({ pag
   expect(dl!.y).toBeGreaterThan(stack!.y);
 
   // Dark fill, white text.
-  const c = await page.locator('[data-evidence-action="copy-verification-link"]').evaluate((e) => {
+  const c = await page.locator('[data-evidence-action="open-verification-link"]').evaluate((e) => {
     const s = getComputedStyle(e);
     return { bg: s.backgroundColor, fg: s.color };
   });
@@ -99,7 +99,7 @@ test("the stack carries all five actions, with the trash one red on white", asyn
 test("the verification link keeps white text on hover and focus", async ({ page }) => {
   await installApi(page, "organization", {});
   await page.goto("/evidence/11111111-1111-4111-8111-111111111111");
-  const btn = page.locator('[data-evidence-action="copy-verification-link"]');
+  const btn = page.locator('[data-evidence-action="open-verification-link"]');
   await btn.waitFor();
 
   const read = () => btn.evaluate((e) => {

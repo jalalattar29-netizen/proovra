@@ -134,18 +134,13 @@ import {
   type ProvenanceView,
   type TechnicalView,
 } from "../../../src/product/evidence-detail";
-import {
-  VERIFICATION_PAGE_NOT_ISSUED_COPY,
-  parseVerificationAccess,
-  buildVerificationAccessPath,
-  verifyUrlFromPath,
-} from "../../../src/product/public-verify";
+import { VERIFICATION_PAGE_NOT_ISSUED_COPY } from "../../../src/product/public-verify";
 import {
   LIFECYCLE_DIALOG_COPY,
   UNLOCK_REASON_MAX,
   buildPreservationMatrix,
-  buildPublishedVerificationUrl,
   buildSnapshotTiming,
+  resolveCanonicalVerificationLink,
   buildSourceContextFacts,
   buildUnlockBody,
   custodyChainLabel,
@@ -660,40 +655,13 @@ export default function EvidenceDetailScreen() {
     }
   }, [deletingComment, id, loadComments]);
 
-  // THE PUBLIC VERIFICATION LINK. It is the review workspace's own
-  // `publicVerificationSummary.sharePath` on the public web origin, and ONLY
-  // when the summary is PUBLISHED (web buildPublishedVerificationUrl,
-  // _lib.tsx:327). This used to ask GET /public/verify/:id for `publicUrl`, a
-  // key that route never sends (evidence.routes.ts:13807) — so the link was
-  // always "not published" — and every tap wrote a public verification-page
-  // view into the record's analytics.
+  // The optional publication / recipient-link state (separate from the
+  // canonical link below; it never decides it).
   const publicVerification = useMemo(() => projectPublicVerification(rw), [rw]);
-  // CANONICAL VERIFICATION (owner decision 2026-10-14) — the record's
-  // permanent verification page, the same link its report's QR code carries.
-  // The legacy published share path is used only while the canonical one is
-  // not issued yet (a record without a report has none).
-  const [canonicalVerifyPath, setCanonicalVerifyPath] = useState<string | null>(null);
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    void apiFetch(buildVerificationAccessPath(String(id)))
-      .then((res) => {
-        if (!cancelled) setCanonicalVerifyPath(parseVerificationAccess(res)?.verifyPath ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setCanonicalVerifyPath(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
-  const shareUrl = useMemo(
-    () =>
-      canonicalVerifyPath
-        ? verifyUrlFromPath(webOrigin(), canonicalVerifyPath)
-        : buildPublishedVerificationUrl(publicVerification, webOrigin()),
-    [canonicalVerifyPath, publicVerification],
-  );
+  // THE record's verification link — the review workspace's canonical
+  // contract (the permanent `pvr_` page the report's QR code carries), the
+  // same resolver as the web Evidence page.
+  const shareUrl = useMemo(() => resolveCanonicalVerificationLink(rw, webOrigin()), [rw]);
   const [copyVerifyState, setCopyVerifyState] = useState<"idle" | "copied">("idle");
   const copyVerification = useCallback(async () => {
     if (!shareUrl) {

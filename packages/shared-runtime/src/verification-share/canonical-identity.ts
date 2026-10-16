@@ -101,55 +101,168 @@ export function resolveCanonicalVerificationStatus(row: {
   return "AVAILABLE";
 }
 
+// =============================================================================
+// ELIGIBILITY — the ONE rule every issuer and every projection reads.
+// =============================================================================
+//
+// A record earns its permanent canonical reference when it is finalized
+// (signed) and still an active, intact record. Publication (the historical
+// `public_verify_state`) is NOT part of this: the canonical page never depends
+// on owner publication. Refusals carry their reason; nothing is issued for a
+// deleted, destroyed, archived/retained or integrity-failed record, and a
+// record that already holds a reference keeps it (it is never removed or
+// rotated — the page then states the record's lifecycle truthfully).
+
+export const CANONICAL_VERIFICATION_REFUSALS = [
+  "NOT_FOUND",
+  "NOT_FINALIZED",
+  "DELETED",
+  "DESTROYED",
+  "ARCHIVED",
+  "INTEGRITY_FAILED",
+] as const;
+export type CanonicalVerificationRefusal = (typeof CANONICAL_VERIFICATION_REFUSALS)[number];
+
+export type CanonicalVerificationEligibilityFacts = {
+  status: string | null | undefined;
+  lifecycleState: string | null | undefined;
+  deletedAt?: Date | null;
+  destroyedAtUtc?: Date | null;
+  integrityCheckOutcome?: string | null;
+};
+
+/** The columns eligibility reads — select exactly these. */
+export const CANONICAL_VERIFICATION_ELIGIBILITY_SELECT = {
+  status: true,
+  lifecycleState: true,
+  deletedAt: true,
+  destroyedAtUtc: true,
+  integrityCheckOutcome: true,
+} as const;
+
+export function resolveCanonicalVerificationEligibility(
+  row: CanonicalVerificationEligibilityFacts | null | undefined,
+): { eligible: true } | { eligible: false; reason: CanonicalVerificationRefusal } {
+  if (!row) return { eligible: false, reason: "NOT_FOUND" };
+  if (row.lifecycleState === "DESTROYED" || row.destroyedAtUtc) return { eligible: false, reason: "DESTROYED" };
+  if (row.deletedAt) return { eligible: false, reason: "DELETED" };
+  if (row.lifecycleState && row.lifecycleState !== "ACTIVE") return { eligible: false, reason: "ARCHIVED" };
+  if (row.status === "FAILED_HASH_MISMATCH" || row.integrityCheckOutcome === "FAILED") {
+    return { eligible: false, reason: "INTEGRITY_FAILED" };
+  }
+  if (row.status !== "SIGNED" && row.status !== "REPORTED") return { eligible: false, reason: "NOT_FINALIZED" };
+  return { eligible: true };
+}
+
+export type EnsureVerificationRefResult =
+  | { ref: string; issued: boolean; refused: null }
+  | { ref: null; issued: false; refused: CanonicalVerificationRefusal };
+
 /**
  * Ensure the record has its canonical reference, in the caller's transaction.
- * Returns the existing reference when there is one — it is NEVER replaced — and
- * otherwise mints, stores (conditional on still being NULL, so two concurrent
- * issuers converge on one value) and records VERIFICATION_REFERENCE_ISSUED.
+ *
+ *   - A record that already holds a reference gets it back — it is NEVER
+ *     replaced, rotated or removed, whatever its state now.
+ *   - An ineligible record without one is REFUSED with its reason; nothing is
+ *     written.
+ *   - Otherwise a reference is minted and stored conditionally on the column
+ *     still being NULL. A concurrent issuer blocks on the row lock and then
+ *     matches zero rows, so both converge on the ONE stored value; the UNIQUE
+ *     index and the set-once trigger back this up in the database. Exactly one
+ *     VERIFICATION_REFERENCE_ISSUED custody event is appended, by the winner.
  */
 export async function ensureVerificationRefTx(
   tx: Prisma.TransactionClient,
   evidenceId: string,
   options: { now?: Date; source?: string } = {},
-): Promise<{ ref: string; issued: boolean }> {
-  const existing = await tx.evidence.findUnique({
+): Promise<EnsureVerificationRefResult> {
+  const row = await tx.evidence.findUnique({
     where: { id: evidenceId },
-    select: { verificationRef: true },
+    select: { verificationRef: true, ...CANONICAL_VERIFICATION_ELIGIBILITY_SELECT },
   });
-  if (!existing) throw new Error(`ensureVerificationRefTx: evidence ${evidenceId} not found`);
-  if (existing.verificationRef) return { ref: existing.verificationRef, issued: false };
+  if (row?.verificationRef) return { ref: row.verificationRef, issued: false, refused: null };
+  const eligibility = resolveCanonicalVerificationEligibility(row);
+  if (!eligibility.eligible) return { ref: null, issued: false, refused: eligibility.reason };
 
   const now = options.now ?? new Date();
-  // A 160-bit collision is not a practical event; the loop only exists so the
-  // UNIQUE index, not chance, is what guarantees a reference is never shared.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const candidate = generateVerificationRef();
-    try {
-      const updated = await tx.evidence.updateMany({
-        where: { id: evidenceId, verificationRef: null },
-        data: { verificationRef: candidate, verificationRefIssuedAtUtc: now },
-      });
-      if (updated.count === 0) {
-        const winner = await tx.evidence.findUniqueOrThrow({
-          where: { id: evidenceId },
-          select: { verificationRef: true },
-        });
-        if (winner.verificationRef) return { ref: winner.verificationRef, issued: false };
-        continue;
-      }
-      await appendCustodyEventTx(tx, {
-        evidenceId,
-        eventType: "VERIFICATION_REFERENCE_ISSUED",
-        atUtc: now,
-        // The reference itself is public; recording it binds the identity to
-        // the custody chain so a later dispute can prove which link was issued.
-        payload: { verificationRef: candidate, source: options.source ?? "ISSUANCE" },
-      });
-      return { ref: candidate, issued: true };
-    } catch (err) {
-      if ((err as { code?: string })?.code === "P2002") continue;
-      throw err;
-    }
+  // 160 random bits: a collision is not a practical event, and the UNIQUE
+  // index (not chance) guarantees a reference is never shared. A violation
+  // aborts the caller's transaction, so it is surfaced, not retried here.
+  const candidate = generateVerificationRef();
+  const updated = await tx.evidence.updateMany({
+    where: { id: evidenceId, verificationRef: null },
+    data: { verificationRef: candidate, verificationRefIssuedAtUtc: now },
+  });
+  if (updated.count === 0) {
+    const winner = await tx.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { verificationRef: true } });
+    if (winner.verificationRef) return { ref: winner.verificationRef, issued: false, refused: null };
+    throw new Error(`ensureVerificationRefTx: evidence ${evidenceId} could not be updated`);
   }
-  throw new Error(`ensureVerificationRefTx: could not issue a unique reference for ${evidenceId}`);
+  await appendCustodyEventTx(tx, {
+    evidenceId,
+    eventType: "VERIFICATION_REFERENCE_ISSUED",
+    atUtc: now,
+    // The reference itself is public; recording it binds the identity to the
+    // custody chain so a later dispute can prove which link was issued.
+    payload: { verificationRef: candidate, source: options.source ?? "ISSUANCE" },
+  });
+  return { ref: candidate, issued: true, refused: null };
+}
+
+// =============================================================================
+// THE CANONICAL VERIFICATION CONTRACT — what every owner surface receives.
+// =============================================================================
+
+export type CanonicalVerificationAccessStatus = CanonicalVerificationStatus | "NOT_ISSUED";
+
+export type CanonicalVerificationProjection = {
+  /** NOT_ISSUED until the record has a reference; then the page's own status. */
+  status: CanonicalVerificationAccessStatus;
+  reference: string | null;
+  /** Relative canonical path (`/verify/pvr_…`), present whenever a reference exists. */
+  verifyPath: string | null;
+  issuedAtUtc: string | null;
+  /** Why no reference exists (eligibility), or null when it exists / will be issued. */
+  refusalReason: CanonicalVerificationRefusal | null;
+};
+
+/** The columns the projection reads — select exactly these. */
+export const CANONICAL_VERIFICATION_PROJECTION_SELECT = {
+  ...CANONICAL_VERIFICATION_ELIGIBILITY_SELECT,
+  verificationRef: true,
+  verificationRefIssuedAtUtc: true,
+  verificationAccessState: true,
+} as const;
+
+export function projectCanonicalVerification(
+  row:
+    | (CanonicalVerificationEligibilityFacts & {
+        verificationRef: string | null;
+        verificationRefIssuedAtUtc: Date | null;
+        verificationAccessState: string | null;
+      })
+    | null
+    | undefined,
+): CanonicalVerificationProjection {
+  if (row?.verificationRef) {
+    return {
+      status: resolveCanonicalVerificationStatus({
+        lifecycleState: row.lifecycleState ?? "ACTIVE",
+        destroyedAtUtc: row.destroyedAtUtc ?? null,
+        verificationAccessState: row.verificationAccessState,
+      }),
+      reference: row.verificationRef,
+      verifyPath: canonicalVerificationPath(row.verificationRef),
+      issuedAtUtc: row.verificationRefIssuedAtUtc ? row.verificationRefIssuedAtUtc.toISOString() : null,
+      refusalReason: null,
+    };
+  }
+  const eligibility = resolveCanonicalVerificationEligibility(row);
+  return {
+    status: "NOT_ISSUED",
+    reference: null,
+    verifyPath: null,
+    issuedAtUtc: null,
+    refusalReason: eligibility.eligible ? null : eligibility.reason,
+  };
 }

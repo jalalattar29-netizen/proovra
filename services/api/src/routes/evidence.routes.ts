@@ -267,7 +267,9 @@ import {
   appendCustodyEventTx,
   isEvidenceReservationExpiredTx,
   isVerificationShareTokenShape,
+  CANONICAL_VERIFICATION_PROJECTION_SELECT,
   isVerificationRefShape,
+  projectCanonicalVerification,
   legacyVerifyLinkActive,
   resolveCanonicalVerificationStatus,
   type CanonicalVerificationStatus,
@@ -10258,6 +10260,16 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             OR: [{ expiresAtUtc: null }, { expiresAtUtc: { gt: new Date() } }],
           },
         });
+        // THE CANONICAL VERIFICATION CONTRACT — the one source every owner
+        // surface (Evidence hero, Artifacts, web, mobile) reads for the record's
+        // permanent link. Publication (below) is the separate, optional
+        // recipient-link system and never decides the canonical link.
+        const canonicalVerification = projectCanonicalVerification(
+          await prisma.evidence.findUnique({
+            where: { id: evidence.id },
+            select: CANONICAL_VERIFICATION_PROJECTION_SELECT,
+          }),
+        );
         const publicVerificationSummary = buildPublicVerificationSummary({
           evidence,
           anchor,
@@ -10637,6 +10649,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               fixedArtifactNote:
                 "PDF report is a fixed generated artifact. Public verification may show current verification or access state depending on implementation.",
             },
+            canonicalVerification,
             publicVerificationSummary,
             artifactStatus,
             artifactVersions: {
@@ -13318,7 +13331,7 @@ action: "evidence.certification_requested",
       reference: string | null;
       issuedAtUtc: Date | null;
       status: CanonicalVerificationStatus;
-      via: "REFERENCE" | "LEGACY_REPORT_TOKEN";
+      via: "REFERENCE" | "LEGACY_REPORT_TOKEN" | "LEGACY_RECORD_ID";
     } | null = null;
     let id: string;
     if (isVerificationRefShape(presented)) {
@@ -13390,6 +13403,32 @@ action: "evidence.certification_requested",
         return reply.code(404).send({ message: "Evidence not found" });
       }
       id = idParse.data;
+      // HISTORICAL RECORD-ID LINKS (printed by reports before share tokens):
+      // inside the record's bounded legacy grace, a record that holds its
+      // canonical reference is served THROUGH that identity — the same
+      // verification-only canonical page a `pvr_` link opens, independent of
+      // publication. Outside the grace the id is not a capability (the uniform
+      // 404 below). A record still without a reference keeps the legacy
+      // published-only behaviour until the reconciliation issues it.
+      const legacyRow = await prisma.evidence.findUnique({
+        where: { id },
+        select: {
+          legacyVerifyUuidUntilUtc: true,
+          lifecycleState: true,
+          destroyedAtUtc: true,
+          verificationAccessState: true,
+          verificationRef: true,
+          verificationRefIssuedAtUtc: true,
+        },
+      });
+      if (legacyRow?.verificationRef && legacyVerifyLinkActive(legacyRow)) {
+        canonical = {
+          reference: legacyRow.verificationRef,
+          issuedAtUtc: legacyRow.verificationRefIssuedAtUtc ?? null,
+          status: resolveCanonicalVerificationStatus(legacyRow),
+          via: "LEGACY_RECORD_ID",
+        };
+      }
     }
 
     // Phase 1 — second bucket, keyed by evidence id. We parse the id

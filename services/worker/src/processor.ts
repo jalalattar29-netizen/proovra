@@ -2982,12 +2982,18 @@ await recordIntegrityObservation({
   // committed transaction: the PDF must print it, and a render that later
   // fails must not leave a report version pointing at a reference nobody
   // stored. Every later version reuses it; nothing here ever mints a second.
-  const { ref: verificationRef } = await prisma.$transaction((tx) =>
+  // Normally already issued at finalization; this covers any record finalized
+  // before that existed. An ineligible record is refused rather than printed.
+  const ensured = await prisma.$transaction((tx) =>
     ensureVerificationRefTx(tx, evidence.id, {
       now,
       source: provisionalVersion === 1 ? "REPORT_V1" : "REPORT_VERSION",
     }),
   );
+  if (!ensured.ref) {
+    throw new Error(`canonical verification refused for report rendering: ${ensured.refused}`);
+  }
+  const verificationRef = ensured.ref;
   const verifyUrl = buildVerifyUrl(verificationRef);
   // The canonical page opens without login and without owner publication. Only
   // a legal/privacy/security withdrawal makes it unavailable, and a report

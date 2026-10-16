@@ -456,6 +456,17 @@ export type ReviewWorkspaceResponse = {
     statusAtReportGeneration: string | null;
     fixedArtifactNote: string;
   };
+  /**
+   * THE CANONICAL VERIFICATION CONTRACT — the record's one permanent
+   * verification link (`pvr_`). Optional only for an API older than it.
+   */
+  canonicalVerification?: {
+    status: "NOT_ISSUED" | "AVAILABLE" | "WITHDRAWN" | "TEMPORARILY_UNAVAILABLE" | "RETAINED" | "PURGED";
+    reference: string | null;
+    verifyPath: string | null;
+    issuedAtUtc: string | null;
+    refusalReason: "NOT_FOUND" | "NOT_FINALIZED" | "DELETED" | "DESTROYED" | "ARCHIVED" | "INTEGRITY_FAILED" | null;
+  };
   publicVerificationSummary: {
     state: PublicVerificationDetailState;
     publicationState: string | null;

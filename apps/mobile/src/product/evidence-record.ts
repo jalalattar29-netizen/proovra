@@ -245,6 +245,25 @@ export function buildPublishedVerificationUrl(pv: PublicVerificationView | null,
   return `${base}${pv.sharePath.startsWith("/") ? pv.sharePath : `/${pv.sharePath}`}`;
 }
 
+/**
+ * THE record's verification link (web `resolveCanonicalVerificationLink`, _lib.tsx):
+ * the review workspace's canonical contract (`canonicalVerification`) — the
+ * permanent `pvr_` page the report's QR code carries — and only while that
+ * page is AVAILABLE. The legacy published link is used ONLY when the API
+ * predates the contract (no field at all), never to stand in for a canonical
+ * link that exists.
+ */
+export function resolveCanonicalVerificationLink(rw: unknown, origin: string | null): string | null {
+  const root = o(rw);
+  if (!("canonicalVerification" in root)) {
+    return buildPublishedVerificationUrl(projectPublicVerification(rw), origin);
+  }
+  const c = o(root["canonicalVerification"]);
+  const path = s(c["verifyPath"]);
+  if (!path || c["status"] !== "AVAILABLE" || !origin) return null;
+  return `${origin.replace(/\/+$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 /** EvidenceArtifactsTab.tsx:503 — a counter is a number only when analytics exist. */
 export function publicVerificationCounter(pv: PublicVerificationView, value: number): string {
   return pv.analyticsAvailable ? String(value) : "Not available";

@@ -145,6 +145,12 @@ const ENTRYPOINTS = Object.freeze({
     // BEFORE enabling automatic physical destruction, so it is emphatically
     // live code rather than a leftover.
     "services/worker/src/scripts/destruction-candidates.ts",
+    // CANONICAL VERIFICATION CLOSURE (2026-10-17) — the bounded recovery of
+    // report links whose share-token row is missing: only from a stored report
+    // whose SHA matches its recorded digest, one token, canonical host, eligible
+    // record. Dry run by default; never prints a token, never rewrites a report.
+    // `pnpm --filter @proovra/worker recover-orphaned-verification-links`
+    "services/worker/src/scripts/recover-orphaned-verification-links.ts",
     // ARTIFACT RECOVERY (2026-09-26) — the historical package-recovery
     // discovery (`pnpm --filter proovra-api package-recovery:dry-run`).
     // Read-only by default; its execution arm refuses without an owner

@@ -35,10 +35,19 @@ const SRC = readDirRecursive(EVIDENCE_DETAIL_DIR)
   .map((p) => readFileSync(p, "utf8"))
   .join("\n\n/* --- file boundary --- */\n\n");
 
-test("published verification url helper gates on PUBLISHED state", () => {
-  assert.match(SRC, /function buildPublishedVerificationUrl/);
+test("the verification link is the CANONICAL page; publication is only the older-API fallback", () => {
+  // One resolver for every owner surface on the page: the canonical contract
+  // (`canonicalVerification`, the record's permanent pvr_ page) when the API
+  // sends it; only an API that predates it falls back to the published link.
+  assert.match(SRC, /function resolveCanonicalVerificationLink/);
+  assert.match(SRC, /const canonical = workspace\.canonicalVerification;/);
+  assert.match(SRC, /if \(canonical === undefined\) \{\s*const legacy = buildPublishedVerificationUrl/);
+  assert.match(SRC, /canonical\.verifyPath && canonical\.status === "AVAILABLE"/);
+  assert.match(SRC, /const shareUrl = canonicalLink\.url;/);
+  // The legacy helper still gates on PUBLISHED (it serves only the fallback).
   assert.match(SRC, /summary\.state !== "PUBLISHED"/);
-  assert.match(SRC, /disabled=\{isIntegrityFailed \|\| !shareUrl\}/);
+  // Integrity failure always disables the link.
+  assert.match(SRC, /\{shareUrl && !isIntegrityFailed \? \(/);
 });
 
 test("public verification copy comes from canonical state mapping", () => {

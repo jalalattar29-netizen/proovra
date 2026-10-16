@@ -14,6 +14,7 @@
     "reconcile-ots-state": "node --experimental-specifier-resolution=node dist/scripts/reconcile-ots-state.js",
     "reconcile-ots-never-attempted": "node --experimental-specifier-resolution=node dist/scripts/reconcile-ots-never-attempted.js",
     "destruction-candidates": "node --experimental-specifier-resolution=node dist/scripts/destruction-candidates.js",
+    "recover-orphaned-verification-links": "node --experimental-specifier-resolution=node dist/scripts/recover-orphaned-verification-links.js",
     "build:deps": "pnpm -w run prisma:generate && pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/shared-billing build && pnpm --filter @proovra/shared-runtime build",
     "pretypecheck": "pnpm run build:deps"
   },

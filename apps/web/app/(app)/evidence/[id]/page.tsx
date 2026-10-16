@@ -63,7 +63,7 @@ import { PresenceIndicator } from "../../../../components/presence/PresenceIndic
 import { CollisionWarning } from "../../../../components/presence/CollisionWarning";
 import "./evidence-detail.css";
 import {
-  buildPublishedVerificationUrl,
+  resolveCanonicalVerificationLink,
   buildRiskSignals,
   buildTechnicalReadinessSummary,
   describeOtsStatus,
@@ -663,26 +663,6 @@ function EvidenceDetailPageInner() {
   });
 
 
-  const copyShareLink = async () => {
-    const url = buildPublishedVerificationUrl(workspace?.publicVerificationSummary);
-    if (!url) {
-      addToast(
-        "Public verification link is only available when publication state is PUBLISHED",
-        "info",
-      );
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      addToast("Verification link copied", "success");
-    } catch (copyError) {
-      addToast("Failed to copy verification link", "error");
-      captureException(copyError, {
-        feature: "web_evidence_copy_share_link",
-        evidenceId,
-      });
-    }
-  };
 
   /**
    * Phase EVIDENCE-LIFECYCLE-MODALS — enterprise modal close-on-success.
@@ -861,7 +841,9 @@ function EvidenceDetailPageInner() {
 
   const preservation = workspace.preservationMatrix;
   const trustDecision = workspace.artifactVersions.trustDecision;
-  const shareUrl = buildPublishedVerificationUrl(workspace.publicVerificationSummary);
+  // THE canonical verification link — every surface on this page reads it.
+  const canonicalLink = resolveCanonicalVerificationLink(workspace);
+  const shareUrl = canonicalLink.url;
   const isIntegrityFailed = evidence.status === "FAILED_HASH_MISMATCH";
   /*
    * OTS INTEGRITY DECOUPLING (2026-09-09) — the anchoring refresh is an
@@ -887,11 +869,11 @@ function EvidenceDetailPageInner() {
   const headerTrashEligibility = getEvidenceDeletionEligibility(evidence);
 
   const iconActionTitle = {
-    share: !shareUrl
-      ? "No verification link is available for this record."
-      : isIntegrityFailed
-        ? "Verification link is unavailable while integrity is failed."
-        : "Copy verification link",
+    share: isIntegrityFailed
+      ? "Verification link is unavailable while integrity is failed."
+      : !shareUrl
+        ? (canonicalLink.reason ?? "No verification link is available for this record.")
+        : "Open the record's verification page (no login needed)",
     lock: deleted
       ? "A deleted record cannot be locked."
       : isIntegrityFailed
@@ -1231,7 +1213,6 @@ function EvidenceDetailPageInner() {
             shareUrl={shareUrl}
             isIntegrityFailed={isIntegrityFailed}
             titles={iconActionTitle}
-            onCopyShareLink={() => void copyShareLink()}
             onUnlock={() => {
               setUnlockReasonDraft("");
               setUnlockOpen(true);

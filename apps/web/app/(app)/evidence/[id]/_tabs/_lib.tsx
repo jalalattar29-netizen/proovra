@@ -383,6 +383,45 @@ export function buildPublishedVerificationUrl(
   return buildShareUrl(summary.sharePath);
 }
 
+/** Why the canonical verification page cannot be opened right now. */
+const CANONICAL_UNAVAILABLE: Record<string, string> = {
+  NOT_ISSUED: "The verification link is issued when the record is finalized.",
+  WITHDRAWN: "The verification page was withdrawn for a legal, privacy or security reason.",
+  TEMPORARILY_UNAVAILABLE: "The verification page is temporarily unavailable.",
+  RETAINED: "This record is retained in Trash or the archive; its verification page says so.",
+  PURGED: "This record has been permanently deleted.",
+  DELETED: "A deleted record has no verification link.",
+  DESTROYED: "This record has been permanently deleted.",
+  ARCHIVED: "An archived record has no verification link.",
+  INTEGRITY_FAILED: "No verification link is offered while the record's integrity check has failed.",
+  NOT_FINALIZED: "The verification link is issued when the record is finalized.",
+  NOT_FOUND: "No verification link is available for this record.",
+};
+
+/**
+ * THE record's verification link for every owner surface on this page — the
+ * canonical `pvr_` page from the canonical contract, never the optional
+ * publication / recipient-link state. Only an API that predates the contract
+ * (no `canonicalVerification` field at all) falls back to the legacy
+ * published link, so a web deployed ahead of its API never loses the link.
+ */
+export function resolveCanonicalVerificationLink(
+  workspace: Pick<ReviewWorkspaceResponse, "publicVerificationSummary"> & {
+    canonicalVerification?: ReviewWorkspaceResponse["canonicalVerification"];
+  },
+): { url: string | null; reason: string | null } {
+  const canonical = workspace.canonicalVerification;
+  if (canonical === undefined) {
+    const legacy = buildPublishedVerificationUrl(workspace.publicVerificationSummary);
+    return { url: legacy, reason: legacy ? null : CANONICAL_UNAVAILABLE.NOT_FOUND };
+  }
+  if (canonical.verifyPath && canonical.status === "AVAILABLE") {
+    return { url: buildShareUrl(canonical.verifyPath), reason: null };
+  }
+  const key = canonical.status === "NOT_ISSUED" ? (canonical.refusalReason ?? "NOT_ISSUED") : canonical.status;
+  return { url: null, reason: CANONICAL_UNAVAILABLE[key] ?? CANONICAL_UNAVAILABLE.NOT_FOUND };
+}
+
 export function describePublicVerificationState(
   summary: ReviewWorkspaceResponse["publicVerificationSummary"]
 ): { label: string; detail: string } {
@@ -1298,7 +1337,6 @@ export function EvidenceHeroIconActions({
   shareUrl,
   isIntegrityFailed,
   titles,
-  onCopyShareLink,
   onUnlock,
   onLock,
   onRestoreArchived,
@@ -1314,7 +1352,6 @@ export function EvidenceHeroIconActions({
   shareUrl: string | null | undefined;
   isIntegrityFailed: boolean;
   titles: { share: string; lock: string; unlock: string; archive: string; restore: string };
-  onCopyShareLink: () => void;
   onUnlock: () => void;
   onLock: () => void;
   onRestoreArchived: () => void;
@@ -1328,21 +1365,37 @@ export function EvidenceHeroIconActions({
 }) {
   return (
       <div className="evidence-detail-hero-icon-actions">
-        <button
-          type="button"
-          className="app-secondary-action app-secondary-action--filled evidence-detail-hero-action"
-          onClick={onCopyShareLink}
-          disabled={isIntegrityFailed || !shareUrl}
-          // The accessible name stays the FULL verb phrase; the visible label
-          // is a contiguous substring of it, so WCAG 2.5.3 (Label in Name)
-          // holds and voice control still reaches the button by what it says.
-          aria-label="Copy verification link"
-          title={titles.share}
-          data-evidence-action="copy-verification-link"
-        >
-          <Link2 size={15} strokeWidth={1.9} aria-hidden="true" />
-          <span>Verification link</span>
-        </button>
+        {/* THE record's canonical verification page (`pvr_`), opened — the same
+            link the report's QR code, its printed URL and the verification
+            package carry. Anyone holding it can open it without logging in;
+            no publication or recipient link is involved. The accessible name
+            keeps the visible label as a contiguous substring (WCAG 2.5.3). */}
+        {shareUrl && !isIntegrityFailed ? (
+          <a
+            href={shareUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="app-secondary-action app-secondary-action--filled evidence-detail-hero-action"
+            aria-label="Verification link — open the verification page"
+            title={titles.share}
+            data-evidence-action="open-verification-link"
+          >
+            <Link2 size={15} strokeWidth={1.9} aria-hidden="true" />
+            <span>Verification link</span>
+          </a>
+        ) : (
+          <button
+            type="button"
+            className="app-secondary-action app-secondary-action--filled evidence-detail-hero-action"
+            disabled
+            aria-label="Verification link — open the verification page"
+            title={titles.share}
+            data-evidence-action="open-verification-link"
+          >
+            <Link2 size={15} strokeWidth={1.9} aria-hidden="true" />
+            <span>Verification link</span>
+          </button>
+        )}
 
         {lockedAt ? (
           <button

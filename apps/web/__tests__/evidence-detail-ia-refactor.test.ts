@@ -378,8 +378,8 @@ test("Phase 7 — hero exposes report download, package download and verificatio
   assert.match(HERO, /Download Report PDF/);
   assert.match(HERO, /data-evidence-action="download-package"/);
   assert.match(HERO, /Download Verification Package/);
-  assert.match(HERO, /data-evidence-action="copy-verification-link"/);
-  assert.match(HERO, /aria-label="Copy verification link"/);
+  assert.match(HERO, /data-evidence-action="open-verification-link"/);
+  assert.match(HERO, /aria-label="Verification link — open the verification page"/);
 });
 
 test("Phase 7 — legal boundary statement is rendered near the top (in the hero)", () => {

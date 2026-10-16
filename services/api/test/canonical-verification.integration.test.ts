@@ -133,10 +133,15 @@ describe("canonical verification identity (Postgres + Redis + MinIO, real worker
     return id;
   }
 
-  it("PIPELINE: finalize → queue → worker issues the reference BEFORE Report v1 renders → report + package in MinIO → anonymous page", async () => {
+  it("PIPELINE: FINALIZATION issues the reference (signing transaction) → the worker reuses it for Report v1 → report + package in MinIO → anonymous page", async () => {
     seam.renders.length = 0;
     const evidenceId = await captureAndFinalize();
-    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId } })).verificationRef).toBeNull();
+    // The record is eligible from signing on, so it holds its permanent
+    // reference from signing on — before and whether or not a report renders.
+    const atSigning = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { verificationRef: true } });
+    expect(atSigning.verificationRef).toMatch(REF_SHAPE);
+    const issued = await prisma.custodyEvent.findFirstOrThrow({ where: { evidenceId, eventType: "VERIFICATION_REFERENCE_ISSUED" } });
+    expect(issued.payload).toMatchObject({ verificationRef: atSigning.verificationRef, source: "FINALIZATION" });
 
     await runReportJobs(evidenceId);
 
@@ -147,6 +152,8 @@ describe("canonical verification identity (Postgres + Redis + MinIO, real worker
     expect(ev.status).toBe("REPORTED");
     expect(ev.verificationRef).toMatch(REF_SHAPE);
     expect(ev.verificationRef).not.toContain(evidenceId);
+    // The worker reused the identity issued at signing; it never minted a second.
+    expect(ev.verificationRef).toBe(atSigning.verificationRef);
     const ref = ev.verificationRef!;
 
     // The render INPUT (what the QR code and the printed link encode) is the canonical URL.
@@ -188,7 +195,17 @@ describe("canonical verification identity (Postgres + Redis + MinIO, real worker
     for (const token of [A().ownerToken, A().viewerToken]) {
       const access = await call("GET", `/v1/evidence/${evidenceId}/verification-access`, token);
       expect(access.statusCode).toBe(200);
-      expect(access.json()).toMatchObject({ status: "AVAILABLE", reference: ref, verifyPath: `/verify/${ref}` });
+      expect(access.json()).toMatchObject({ status: "AVAILABLE", reference: ref, verifyPath: `/verify/${ref}`, refusalReason: null });
+      // The Evidence page reads the SAME canonical contract from the review workspace.
+      const ws = await call("GET", `/v1/evidence/${evidenceId}/review-workspace`, token);
+      expect(ws.statusCode).toBe(200);
+      expect(ws.json().canonicalVerification).toEqual({
+        status: "AVAILABLE",
+        reference: ref,
+        verifyPath: `/verify/${ref}`,
+        issuedAtUtc: access.json().issuedAtUtc,
+        refusalReason: null,
+      });
     }
     pipeline = { evidenceId, ref, ownerUserId: ev.ownerUserId, teamId: ev.teamId! };
   }, 300_000);
