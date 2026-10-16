@@ -44,6 +44,28 @@ ANCHORED (attestation recorded). Live verification is controlled by
 worker-only secret. The verification package still tells a reviewer how to
 check the proof against a node of their own.
 
+### Production wiring (worker only)
+
+| What | Where |
+|---|---|
+| Non-secret settings (`OTS_BITCOIN_VERIFY_ENABLED`, `_RPC_URL`, `_RPC_USERNAME`, `_EXPECTED_CHAIN`, `_RPC_TIMEOUT_MS`, `_MIN_CONFIRMATIONS`, `_MAX_TIP_AGE_SECONDS`, `_MAX_HEADER_LAG`, `_MIN_NODE_VERSION`) | `/opt/proovra/app/secrets/bitcoin-rpc/verifier.env` — the worker's own `env_file` (template `infra/docker/bitcoin-verifier.env.example`) |
+| RPC password | `/opt/proovra/app/secrets/bitcoin-rpc/password`, mounted read-only at `/run/proovra/bitcoin-rpc/password`; owned by the worker image's `app` user (`docker run --rm --entrypoint id <worker-image>`), mode `0400` |
+
+Never put any `OTS_BITCOIN_*` in the shared `/opt/proovra/app/.env`: both
+services load it, so the API would receive it. `scripts/deploy-prod-pull.sh`
+refuses such a file before pulling anything, and a production API refuses to
+start with `worker_only_bitcoin_verifier_config`. In production the worker
+refuses a password from the environment (`BTC_RPC_MISCONFIGURED`). A password
+file the `app` user cannot read is also `BTC_RPC_MISCONFIGURED` — never
+verified. Readiness from inside the running worker:
+
+```
+docker compose -f infra/docker/docker-compose.prod.yml exec proovra-worker \
+  wget -qO- http://localhost:8090/health
+```
+
+reports `bitcoinVerifier` (`enabled`, `ready`, `code`, `chain`, `tipHeight`).
+
 ### `platform.bitcoin_verifier_unavailable`
 
 While live verification is enabled the worker publishes the verifier's
