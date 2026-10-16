@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "fd792624a00d7154c19c965c8897975083b189f67fea53dfc0d723a2d7af6b89",
-  "consumerInventoryHash": "02c5b43962146c839e3c562b991a26c2e3d33d2ceeefd4b649c7e1ba164dc57b",
+  "consumerInventoryHash": "ebf176c2bd7f008fa5ff97468a2c0726a6cb6aaf38c45515325803522fa1009f",
   "dispositionsHash": "b91e4fd4699fa26a59e2784e582b53fc7407b0b9712580d59c56732b6a28aee5",
   "totals": {
     "RegisteredRoutes": 1193,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 30
     },
-    "TerminalWriters": 1355,
-    "ReachableSensitiveMutations": 1338,
-    "ClassifiedSensitiveMutations": 1338,
+    "TerminalWriters": 1357,
+    "ReachableSensitiveMutations": 1340,
+    "ClassifiedSensitiveMutations": 1340,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 17,
@@ -76,7 +76,7 @@
       "ORGANIZATION_MEMBERSHIP": 29,
       "WORKSPACE": 66,
       "WORKSPACE_MEMBERSHIP_INVITATION": 52,
-      "CASE": 78,
+      "CASE": 80,
       "EVIDENCE_CUSTODY_FINALIZATION": 322,
       "LEGAL_HOLD_RETENTION_DELETION": 51,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 82,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1190,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1192,
       "JOB_ATTRIBUTED_REACHABLE": 138,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 5,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 10122,
+      "METHOD_ON_VALUE": 10134,
       "UNRESOLVED_IDENTIFIER": 1419
     },
     "MutationFixpointRounds": 9,
@@ -11932,7 +11932,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/archive",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:156",
+      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:176",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11944,7 +11944,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/dismiss",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/components/app-shell-v2/NotificationBell.tsx:420",
+      "productConsumer": "apps/web/components/app-shell-v2/NotificationBell.tsx:409",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11956,7 +11956,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/read",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:156",
+      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:176",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11968,7 +11968,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/remind",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:1062",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:1084",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11992,7 +11992,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/unarchive",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:156",
+      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:176",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -12016,7 +12016,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/unread",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:156",
+      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:176",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -12028,7 +12028,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/mark-all-read",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:184",
+      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:211",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -27174,8 +27174,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/collaboration.routes.ts#discussionMention.updateMany@513",
-      "terminalLocation": "services/api/src/routes/collaboration.routes.ts:513",
+      "writerId": "services/api/src/routes/collaboration.routes.ts#discussionMention.updateMany@514",
+      "terminalLocation": "services/api/src/routes/collaboration.routes.ts:514",
       "file": "services/api/src/routes/collaboration.routes.ts",
       "enclosingDeclaration": "collaborationRoutes",
       "kind": "DATABASE",
@@ -28742,8 +28742,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4219",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4219",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4277",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4277",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -28775,8 +28775,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4367",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4367",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4454",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4454",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -28815,8 +28815,81 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.createMany@4224",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4224",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#discussionMention.updateMany@4284",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4284",
+      "file": "services/api/src/routes/me-inbox.routes.ts",
+      "enclosingDeclaration": "meInboxRoutes",
+      "kind": "DATABASE",
+      "target": "discussionMention",
+      "mutationKind": "updateMany",
+      "primaryFamily": "CASE",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/me/inbox/mark-all-read"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/me-inbox.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#discussionMention.updateMany@4467",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4467",
+      "file": "services/api/src/routes/me-inbox.routes.ts",
+      "enclosingDeclaration": "applyStateMutation",
+      "kind": "DATABASE",
+      "target": "discussionMention",
+      "mutationKind": "updateMany",
+      "primaryFamily": "CASE",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/me/inbox/items/:itemKey/archive",
+        "POST /v1/me/inbox/items/:itemKey/dismiss",
+        "POST /v1/me/inbox/items/:itemKey/read",
+        "POST /v1/me/inbox/items/:itemKey/remind",
+        "POST /v1/me/inbox/items/:itemKey/snooze",
+        "POST /v1/me/inbox/items/:itemKey/unarchive",
+        "POST /v1/me/inbox/items/:itemKey/undismiss",
+        "POST /v1/me/inbox/items/:itemKey/unread"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/me-inbox.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.createMany@4289",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4289",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -28848,8 +28921,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.updateMany@4237",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4237",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.updateMany@4304",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4304",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -28881,8 +28954,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.upsert@4372",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4372",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.upsert@4476",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4476",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -28921,8 +28994,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.createMany@1302",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1302",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.createMany@1315",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1315",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -28956,8 +29029,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1335",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1335",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1348",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1348",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -28991,8 +29064,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1358",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1358",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1371",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1371",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -29026,8 +29099,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4242",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4242",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4309",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4309",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -29059,8 +29132,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4393",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4393",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4497",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4497",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -94048,7 +94121,7 @@
       "method": "DELETE",
       "path": "/v1/collaboration/threads/:id/contributors/:sessionId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:463",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:464",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -94087,7 +94160,7 @@
       "method": "DELETE",
       "path": "/v1/collaboration/threads/:id/subscribe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:562",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:567",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -105092,7 +105165,7 @@
       "method": "GET",
       "path": "/v1/collaboration/catalogs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:572",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:577",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -105146,7 +105219,7 @@
       "method": "GET",
       "path": "/v1/collaboration/threads",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:138",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:139",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -105207,7 +105280,7 @@
       "method": "GET",
       "path": "/v1/collaboration/threads/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:202",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:203",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -105286,7 +105359,7 @@
       "method": "GET",
       "path": "/v1/collaboration/threads/:id/messages",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:379",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:380",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -118008,7 +118081,7 @@
       "method": "GET",
       "path": "/v1/me/inbox",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3362",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3414",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -118027,7 +118100,7 @@
         },
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 103,
+          "line": 106,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -118035,7 +118108,15 @@
         },
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 124,
+          "line": 127,
+          "caller": "NotificationsScreen",
+          "class": "MOBILE",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
+          "file": "apps/mobile/app/(tabs)/notifications.tsx",
+          "line": 149,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -118043,7 +118124,7 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 951,
+          "line": 939,
           "caller": "InboxPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118051,7 +118132,15 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 995,
+          "line": 983,
+          "caller": "InboxPageInner",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
+          "file": "apps/web/app/(app)/inbox/page.tsx",
+          "line": 1033,
           "caller": "InboxPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118059,7 +118148,7 @@
         },
         {
           "file": "apps/web/components/app-shell-v2/NotificationBell.tsx",
-          "line": 282,
+          "line": 271,
           "caller": "NotificationBell",
           "class": "WEB",
           "primitive": "readUnderEpoch",
@@ -118085,7 +118174,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/index.tsx:180 (HomeScreen, MOBILE); apps/mobile/app/(tabs)/notifications.tsx:103 (NotificationsScreen, MOBILE); apps/mobile/app/(tabs)/notifications.tsx:124 (NotificationsScreen, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/index.tsx:180 (HomeScreen, MOBILE); apps/mobile/app/(tabs)/notifications.tsx:106 (NotificationsScreen, MOBILE); apps/mobile/app/(tabs)/notifications.tsx:127 (NotificationsScreen, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -118153,7 +118242,7 @@
       "method": "GET",
       "path": "/v1/me/inbox/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4034",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4088",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -118172,7 +118261,7 @@
         },
         {
           "file": "apps/web/components/app-shell-v2/NotificationBell.tsx",
-          "line": 258,
+          "line": 247,
           "caller": "NotificationBell",
           "class": "WEB",
           "primitive": "readUnderEpoch",
@@ -118182,7 +118271,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/header.tsx:86 (ProovraHeader, MOBILE); apps/web/components/app-shell-v2/NotificationBell.tsx:258 (NotificationBell, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/header.tsx:86 (ProovraHeader, MOBILE); apps/web/components/app-shell-v2/NotificationBell.tsx:247 (NotificationBell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -145529,7 +145618,7 @@
       "method": "POST",
       "path": "/v1/collaboration/threads",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:165",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:166",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -145590,7 +145679,7 @@
       "method": "POST",
       "path": "/v1/collaboration/threads/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:292",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:293",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -145663,7 +145752,7 @@
       "method": "POST",
       "path": "/v1/collaboration/threads/:id/contributors",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:457",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:458",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -145702,7 +145791,7 @@
       "method": "POST",
       "path": "/v1/collaboration/threads/:id/escalate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:343",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:344",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -145774,7 +145863,7 @@
       "method": "POST",
       "path": "/v1/collaboration/threads/:id/mark-mentions-read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:492",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:493",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -145837,7 +145926,7 @@
       "method": "POST",
       "path": "/v1/collaboration/threads/:id/messages",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:400",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:401",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -145911,7 +146000,7 @@
       "method": "POST",
       "path": "/v1/collaboration/threads/:id/reopen",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:260",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:261",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -145983,7 +146072,7 @@
       "method": "POST",
       "path": "/v1/collaboration/threads/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:228",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:229",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -146055,7 +146144,7 @@
       "method": "POST",
       "path": "/v1/collaboration/threads/:id/subscribe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:556",
+      "registrationEvidence": "services/api/src/routes/collaboration.routes.ts:561",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161620,7 +161709,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4549",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4653",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161631,7 +161720,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 156,
+          "line": 176,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -161639,7 +161728,7 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 1062,
+          "line": 1084,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -161649,7 +161738,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:156 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1062 (postAction, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:176 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1084 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -161662,10 +161751,12 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
+        "inboxItemState",
         "operationsInboxSnapshot"
       ],
       "modelsWritten": [
         "collaborationTeamNotification",
+        "discussionMention",
         "inboxItemState",
         "operationsInboxSnapshot"
       ],
@@ -161682,7 +161773,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/dismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4566",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4670",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161693,7 +161784,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/app-shell-v2/NotificationBell.tsx",
-          "line": 420,
+          "line": 409,
           "caller": "mutate",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -161703,7 +161794,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/app-shell-v2/NotificationBell.tsx:420 (mutate, WEB)",
+      "dispositionEvidence": "apps/web/components/app-shell-v2/NotificationBell.tsx:409 (mutate, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -161716,10 +161807,12 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
+        "inboxItemState",
         "operationsInboxSnapshot"
       ],
       "modelsWritten": [
         "collaborationTeamNotification",
+        "discussionMention",
         "inboxItemState",
         "operationsInboxSnapshot"
       ],
@@ -161736,7 +161829,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4453",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4557",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161747,7 +161840,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 156,
+          "line": 176,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -161755,7 +161848,7 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 1062,
+          "line": 1084,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -161763,7 +161856,7 @@
         },
         {
           "file": "apps/web/components/app-shell-v2/NotificationBell.tsx",
-          "line": 420,
+          "line": 409,
           "caller": "mutate",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -161773,7 +161866,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:156 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1062 (postAction, WEB); apps/web/components/app-shell-v2/NotificationBell.tsx:420 (mutate, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:176 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1084 (postAction, WEB); apps/web/components/app-shell-v2/NotificationBell.tsx:409 (mutate, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -161786,10 +161879,12 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
+        "inboxItemState",
         "operationsInboxSnapshot"
       ],
       "modelsWritten": [
         "collaborationTeamNotification",
+        "discussionMention",
         "inboxItemState",
         "operationsInboxSnapshot"
       ],
@@ -161806,7 +161901,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/remind",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4551",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4655",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161817,7 +161912,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 1062,
+          "line": 1084,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -161827,7 +161922,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:1062 (postAction, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:1084 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -161840,10 +161935,12 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
+        "inboxItemState",
         "operationsInboxSnapshot"
       ],
       "modelsWritten": [
         "collaborationTeamNotification",
+        "discussionMention",
         "inboxItemState",
         "operationsInboxSnapshot"
       ],
@@ -161860,7 +161957,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/snooze",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4568",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4672",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161885,10 +161982,12 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
+        "inboxItemState",
         "operationsInboxSnapshot"
       ],
       "modelsWritten": [
         "collaborationTeamNotification",
+        "discussionMention",
         "inboxItemState",
         "operationsInboxSnapshot"
       ],
@@ -161905,7 +162004,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4550",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4654",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161916,7 +162015,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 156,
+          "line": 176,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -161924,7 +162023,7 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 1062,
+          "line": 1084,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -161934,7 +162033,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:156 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1062 (postAction, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:176 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1084 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -161947,10 +162046,12 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
+        "inboxItemState",
         "operationsInboxSnapshot"
       ],
       "modelsWritten": [
         "collaborationTeamNotification",
+        "discussionMention",
         "inboxItemState",
         "operationsInboxSnapshot"
       ],
@@ -161967,7 +162068,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/undismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4567",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4671",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161992,10 +162093,12 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
+        "inboxItemState",
         "operationsInboxSnapshot"
       ],
       "modelsWritten": [
         "collaborationTeamNotification",
+        "discussionMention",
         "inboxItemState",
         "operationsInboxSnapshot"
       ],
@@ -162012,7 +162115,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/unread",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4465",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4569",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -162023,7 +162126,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 156,
+          "line": 176,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -162031,7 +162134,7 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 1062,
+          "line": 1084,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162041,7 +162144,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:156 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1062 (postAction, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:176 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1084 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162054,10 +162157,12 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
+        "inboxItemState",
         "operationsInboxSnapshot"
       ],
       "modelsWritten": [
         "collaborationTeamNotification",
+        "discussionMention",
         "inboxItemState",
         "operationsInboxSnapshot"
       ],
@@ -162074,7 +162179,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/mark-all-read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4164",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4218",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -162085,7 +162190,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 184,
+          "line": 211,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -162093,7 +162198,7 @@
         },
         {
           "file": "apps/web/components/app-shell-v2/NotificationBell.tsx",
-          "line": 454,
+          "line": 443,
           "caller": "markAllRead",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162103,7 +162208,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:184 (NotificationsScreen, MOBILE); apps/web/components/app-shell-v2/NotificationBell.tsx:454 (markAllRead, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:211 (NotificationsScreen, MOBILE); apps/web/components/app-shell-v2/NotificationBell.tsx:443 (markAllRead, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162144,6 +162249,7 @@
       "modelsWritten": [
         "adminAuditLog",
         "collaborationTeamNotification",
+        "discussionMention",
         "inboxItemState",
         "operationsInboxSnapshot"
       ],

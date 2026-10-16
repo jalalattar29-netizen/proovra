@@ -12,12 +12,12 @@ import {
 } from "../../src/product/inbox";
 import {
   ARCHIVED_ALWAYS_READ,
-  CATEGORY_LABELS,
   DEFAULT_INBOX_SORT,
   INBOX_FILTER_LABELS,
   INBOX_SORT_OPTIONS,
   NOTIFICATION_METRICS,
   PRIMARY_VIEW_LABELS,
+  READ_STATE_VIEWS,
   TONE_LABELS,
   TONE_STATUS,
   activeInboxFilterCount,
@@ -39,6 +39,8 @@ import {
   type PrimaryView,
 } from "../../src/product/inbox-view";
 import { usePlatformContext } from "../../src/product/platform-context";
+import { useOptionalLocale } from "../../src/locale-context";
+import { notificationCategoryLabel, notificationSourceLabels } from "@proovra/shared";
 import { theme } from "../../src/theme/theme";
 import { useToast } from "../../src/toast-context";
 import {
@@ -90,6 +92,7 @@ export default function NotificationsScreen() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
 
+  const locale = useOptionalLocale();
   const generation = useRef(0);
   const query = useMemo(
     () => ({ primaryView, category, archived, workspaceId, sort }),
@@ -135,6 +138,23 @@ export default function NotificationsScreen() {
     }
   }, [nextCursor, loadingMore, query, addToast]);
 
+  /**
+   * The counts above the list reconcile from the SERVER after a per-item
+   * action (same query, one row, envelope only) — the list and any loaded
+   * pages stay put. A newer load supersedes it.
+   */
+  const refreshCounts = useCallback(async () => {
+    const mine = generation.current;
+    try {
+      const data = parseInboxEnvelope(await apiFetch(buildInboxQueryPath({ ...query, pageSize: 1 })));
+      if (mine !== generation.current) return;
+      setState({ kind: "ready", data });
+      setLastEnvelope(data);
+    } catch {
+      /* counts stay as they were; the next load reconciles them */
+    }
+  }, [query]);
+
   /** Per-item read / unread / archive / unarchive, optimistic then reconciled. */
   const act = useCallback(
     async (item: InboxViewItem, action: InboxItemAction) => {
@@ -154,6 +174,13 @@ export default function NotificationsScreen() {
       );
       try {
         await apiFetch(inboxItemActionPath(item.itemKey, action), { method: "POST" });
+        // READ IS A STATE: the row stays in All and is found under Read. It
+        // leaves only a view it no longer belongs to (Unread after a read,
+        // Read after an unread).
+        if ((action === "read" && primaryView === "unread") || (action === "unread" && primaryView === "read")) {
+          setItems((prev) => prev.filter((i) => i.itemKey !== item.itemKey));
+        }
+        void refreshCounts();
       } catch (err) {
         setItems(before);
         addToast(toSafeUserError(err).message, "error");
@@ -161,7 +188,7 @@ export default function NotificationsScreen() {
         setPendingKey(null);
       }
     },
-    [items, pendingKey, addToast],
+    [items, pendingKey, addToast, primaryView, refreshCounts],
   );
 
   const open = useCallback(
@@ -277,7 +304,9 @@ export default function NotificationsScreen() {
           {!shell.mayAssertAllClear ? (
             <ProovraText variant="label" color={theme.color.status.pending.fg}>
               {`Some sources could not be read, so this may not be everything.${
-                shell.incompleteSources.length > 0 ? ` Affected: ${shell.incompleteSources.join(", ")}.` : ""
+                shell.incompleteSources.length > 0
+                  ? ` Affected: ${notificationSourceLabels(locale, shell.incompleteSources).join(", ")}.`
+                  : ""
               }`}
             </ProovraText>
           ) : null}
@@ -301,7 +330,7 @@ export default function NotificationsScreen() {
               if (v === "unread" && archived) return;
               selectView(v);
             }}
-            options={(["all", "unread"] as const).map((v) => ({ value: v, label: PRIMARY_VIEW_LABELS[v] }))}
+            options={READ_STATE_VIEWS.map((v) => ({ value: v, label: PRIMARY_VIEW_LABELS[v] }))}
           />
           <View style={styles.toolbarRow}>
             <ProovraButton
@@ -398,7 +427,7 @@ export default function NotificationsScreen() {
                 <View style={styles.itemHead}>
                   {item.isRead === false ? <View style={styles.dot} accessibilityLabel="Unread" /> : null}
                   {tone ? <ProovraBadge label={TONE_LABELS[tone]} tone={TONE_STATUS[tone]} /> : null}
-                  {item.category ? <ProovraBadge label={CATEGORY_LABELS[item.category] ?? item.category} tone="neutral" /> : null}
+                  {item.category ? <ProovraBadge label={notificationCategoryLabel(locale, item.category)} tone="neutral" /> : null}
                 </View>
                 <ProovraText variant="bodySm" weight={item.isRead ? "medium" : "bold"}>
                   {item.title}

@@ -196,8 +196,10 @@ test("the result count is honest: exact totals say 'of N', capped ones say more 
   });
   const r2 = await render();
   assert.ok(r2.hasText("Showing 1 notification (more may exist)"));
-  assert.ok(r2.hasText("Some sources were capped: Report failures. Open the relevant console for the full list."));
-  assert.ok(r2.hasText("Some sources could not be read, so this may not be everything. Affected: governance."));
+  assert.ok(r2.hasText("Some sources were capped: Report failure. Open the relevant console for the full list."));
+  // The source is NAMED, never printed as its identifier (it used to read
+  // "Affected: governance." — the raw source key).
+  assert.ok(r2.hasText("Some sources could not be read, so this may not be everything. Affected: Workspace governance."));
   r2.unmount();
 });
 
@@ -220,7 +222,8 @@ test("a row carries its tone, category, body, due date and reminder, as the web 
   const r = await render();
   assert.equal(r.byLabel("HIGH").length, 1);
   assert.equal(r.byLabel("Report failure").length, 1);
-  assert.equal(r.byLabel("Invite").length, 1);
+  // Category names come from the shared presentation authority.
+  assert.equal(r.byLabel("Invitation").length, 1);
   assert.ok(r.hasText("The report for Invoice.pdf could not be built."));
   assert.ok(r.texts().some((t) => t.includes("Overdue · ")), "the overdue deadline is missing");
   assert.ok(r.texts().some((t) => t.includes("Reminder set for ")), "the reminder is missing");

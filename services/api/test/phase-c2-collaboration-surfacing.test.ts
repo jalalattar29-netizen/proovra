@@ -379,8 +379,14 @@ describe("Phase C2 — /inbox page surfaces the new categories", () => {
   });
 
   it("provides operator-readable labels for the new categories", () => {
-    expect(INBOX_PAGE).toMatch(/discussion_mention:\s*"Mention"/);
-    expect(INBOX_PAGE).toMatch(/discussion_assigned:\s*"Assigned thread"/);
+    // ONE presentation authority (packages/shared notification-presentation)
+    // replaces the page's own map; the page renders through it.
+    const PRESENTATION = readSource(
+      "../../../packages/shared/src/notification-presentation.ts",
+    );
+    expect(PRESENTATION).toMatch(/discussion_mention:\s*"Mention"/);
+    expect(PRESENTATION).toMatch(/discussion_assigned:\s*"Assigned discussion"/);
+    expect(INBOX_PAGE).toContain("notificationCategoryLabel(locale, item.category)");
   });
 });
 

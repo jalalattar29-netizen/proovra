@@ -669,3 +669,51 @@ describe("read state is announced, and reading a row moves nothing", () => {
     expect(link.getAttribute("href")).toBe("/notifications");
   });
 });
+
+// ===========================================================================
+// Labels come from the ONE presentation authority; no raw code is rendered
+// ===========================================================================
+
+describe("the bell names categories through the shared authority", () => {
+  it("renders reviewed labels, a neutral label for an unknown category, and never the code", async () => {
+    const items = [
+      { itemKey: "discussion_mention:m1", category: "discussion_mention", title: "You were mentioned", href: "/evidence/e1?tab=discussion&thread=t1" },
+      { itemKey: "ots_failure:o1", category: "ots_failure", title: "Bitcoin verification failed", href: "/evidence/e2?tab=integrity" },
+      { itemKey: "future_kind:f1", category: "future_kind", title: "Something new", href: "https://evil.example/x" },
+    ];
+    apiImpl = async (path) => {
+      if (path.startsWith("/v1/me/inbox/summary")) {
+        return { unread: 3, critical: 0, high: 0, assignedToMe: 0, overdue: 0, hasTruncatedSources: false, degraded: false, generatedAtUtc: new Date().toISOString() };
+      }
+      if (path.startsWith("/v1/me/inbox?")) {
+        return {
+          items: items.map((it, i) => ({
+            id: it.itemKey,
+            itemKey: it.itemKey,
+            category: it.category,
+            tone: "info",
+            priority: "P3",
+            title: it.title,
+            body: "Details.",
+            href: it.href,
+            occurredAt: new Date(Date.UTC(2026, 7, 21, 12, 0, 10 - i)).toISOString(),
+            isRead: false,
+            canDismiss: true,
+            context: {},
+          })),
+          pagination: { totalEstimate: 3, totalIsExact: true },
+        };
+      }
+      return {};
+    };
+    await mountBell();
+    await openPopover("You were mentioned");
+    const labels = Array.from(document.querySelectorAll("[data-notification-category]")).map((n) => n.textContent?.trim());
+    expect(labels).toEqual(["Mention", "Bitcoin anchoring failure", "Notification"]);
+    const popover = document.querySelector("[data-notification-bell-popover]")!;
+    expect(popover.textContent).not.toMatch(/\b[a-z]+_[a-z_]+\b|\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/);
+    const hrefs = Array.from(document.querySelectorAll("[data-notification-destination]")).map((a) => a.getAttribute("href"));
+    // An off-site link never becomes a destination.
+    expect(hrefs).toEqual(["/evidence/e1?tab=discussion&thread=t1", "/evidence/e2?tab=integrity", "/notifications"]);
+  });
+});

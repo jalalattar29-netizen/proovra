@@ -14,16 +14,28 @@
  * `reply.code(200).send({...})` in the GET /v1/me/inbox handler, and the two
  * archived-lifecycle replies above it). Pure: no React, no fetch.
  */
+import {
+  NOTIFICATION_CATEGORIES,
+  notificationCategoryLabel,
+  notificationReadViewExplanation,
+  notificationSourceLabel,
+} from "@proovra/shared";
 import type { InboxItem } from "./inbox";
 
 export type InboxTone = "info" | "warning" | "high" | "critical";
 
-/** The six alternatives the metric cards select between — ONE value, never a set. */
-export type PrimaryView = "all" | "unread" | InboxTone;
+/** The alternatives the metric cards select between — ONE value, never a set.
+ *  All / Unread / Read is the read-state question; read is a STATE a
+ *  notification wears, never a place it disappears to. */
+export type PrimaryView = "all" | "unread" | "read" | InboxTone;
+
+/** The segmented read-state control, in order. */
+export const READ_STATE_VIEWS: ReadonlyArray<PrimaryView> = ["all", "unread", "read"];
 
 export const PRIMARY_VIEW_LABELS: Record<PrimaryView, string> = {
   all: "All",
   unread: "Unread",
+  read: "Read",
   critical: "Critical",
   high: "High",
   warning: "Warning",
@@ -55,6 +67,7 @@ export const NOTIFICATION_METRICS: ReadonlyArray<{
 }> = [
   { key: "all", label: "All", explanation: "Everything currently addressed to you.", tone: "neutral" },
   { key: "unread", label: "Unread", explanation: "Not opened yet.", tone: "info" },
+  { key: "read", label: "Read", explanation: notificationReadViewExplanation("en", "read"), tone: "neutral" },
   { key: "critical", label: "Critical", explanation: "Needs attention now.", tone: "risk" },
   { key: "high", label: "High", explanation: "Important, not urgent.", tone: "pending" },
   { key: "warning", label: "Warning", explanation: "Worth a look.", tone: "governance" },
@@ -64,29 +77,18 @@ export const NOTIFICATION_METRICS: ReadonlyArray<{
 /** Archiving marks read, so Archived + Unread cannot exist (web inbox/page.tsx:1332). */
 export const ARCHIVED_ALWAYS_READ = "Archived notifications are always marked read.";
 
-export const CATEGORY_LABELS: Record<string, string> = {
-  onboarding: "Onboarding",
-  org_invite: "Invite",
-  org_admin: "Org governance",
-  governance: "Workspace governance",
-  review_decision: "Review decision",
-  discussion_mention: "Mention",
-  discussion_assigned: "Assigned thread",
-  review_escalation: "Escalation",
-  access_review_pending: "Access review",
-  mfa_recovery_pending: "MFA approval",
-  communication_failure: "Delivery failure",
-  security_event_high: "Security alert",
-  report_failure: "Report failure",
-  verification_package_failure: "Package failure",
-  ots_failure: "OTS failure",
-  intake_submission_pending_review: "Intake review",
-  intake_required_items_missing: "Intake incomplete",
-  intake_link_expiring: "Link expiring",
-  collaboration: "Collaboration",
-  tsa_failure: "Timestamp failure",
-  case_assignment: "Case assignment",
-};
+/**
+ * Category names come from the ONE presentation authority in @proovra/shared
+ * (the web bell and Notifications page read the same one). This map is a
+ * compatibility projection of it for existing importers; render through
+ * `notificationCategoryLabel`, which also gives an unknown future category a
+ * neutral label instead of its code.
+ */
+export const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
+  NOTIFICATION_CATEGORIES.map((c) => [c, notificationCategoryLabel("en", c)]),
+);
+
+export { notificationCategoryLabel };
 
 /** The category filter keys the route's `filter` enum accepts (INBOX_FILTER_KEYS). */
 export type InboxCategoryFilter =
@@ -150,25 +152,10 @@ export const INBOX_SORT_OPTIONS = [
 export type InboxSort = (typeof INBOX_SORT_OPTIONS)[number]["value"];
 export const DEFAULT_INBOX_SORT: InboxSort = "newest";
 
-export const TRUNCATION_LABELS: Record<string, string> = {
-  governance: "Workspace governance",
-  discussion_mention: "Mentions",
-  discussion_assigned: "Assigned threads",
-  review_escalation: "Escalations",
-  access_review_pending: "Access reviews",
-  mfa_recovery_pending: "MFA approvals",
-  communication_failure: "Delivery failures",
-  security_event_high: "Security alerts",
-  report_failure: "Report failures",
-  verification_package_failure: "Package failures",
-  ots_failure: "OTS failures",
-  intake_submission_pending_review: "Intake awaiting review",
-  intake_required_items_missing: "Intake incomplete",
-  intake_link_expiring: "Intake link expiring",
-  collaboration: "Collaboration",
-  tsa_failure: "Timestamp failures",
-  case_assignment: "Case assignments",
-};
+/** Capped / unreadable sources, named through the same authority as rows. */
+export const TRUNCATION_LABELS: Record<string, string> = Object.fromEntries(
+  NOTIFICATION_CATEGORIES.map((c) => [c, notificationSourceLabel("en", c)]),
+);
 
 /* ---------------------------------------------------------------- request */
 
@@ -179,6 +166,8 @@ export interface InboxQuery {
   workspaceId: string;
   sort: InboxSort;
   cursor?: string | null;
+  /** Only for a counts-only read (one row, envelope wanted). */
+  pageSize?: number;
 }
 
 /**
@@ -190,12 +179,14 @@ export interface InboxQuery {
 export function buildInboxQueryPath(q: InboxQuery): string {
   const params = new URLSearchParams();
   if (q.primaryView === "unread") params.set("readState", "unread");
+  else if (q.primaryView === "read") params.set("readState", "read");
   else if (q.primaryView !== "all") params.set("tone", q.primaryView);
   if (q.category !== "all") params.set("filter", q.category);
   if (q.archived) params.set("lifecycle", "archived");
   if (q.workspaceId !== "all") params.set("workspaceId", q.workspaceId);
   params.set("sort", q.sort);
   if (q.cursor) params.set("cursor", q.cursor);
+  if (q.pageSize) params.set("pageSize", String(q.pageSize));
   return `/v1/me/inbox?${params.toString()}`;
 }
 
@@ -322,6 +313,10 @@ export function inboxMetricCount(key: PrimaryView, env: InboxEnvelope): number {
   const s = env.scopeSummary;
   if (key === "unread") return m?.unread ?? s?.unread ?? 0;
   if (key === "all") return m?.total ?? s?.total ?? env.summaryTotal;
+  if (key === "read") {
+    const total = m?.total ?? s?.total ?? env.summaryTotal;
+    return Math.max(0, total - (m?.unread ?? s?.unread ?? 0));
+  }
   return m?.byTone[key] ?? s?.byTone[key] ?? env.summaryByTone[key] ?? 0;
 }
 
@@ -459,6 +454,7 @@ export function inboxResultNoun(q: { archived: boolean; primaryView: PrimaryView
   const plural = shown === 1 ? "notification" : "notifications";
   const lifecycle = q.archived ? "archived " : "";
   if (q.primaryView === "unread") return `${lifecycle}unread ${plural}`;
+  if (q.primaryView === "read") return `${lifecycle}read ${plural}`;
   if (q.primaryView !== "all") return `${lifecycle}${PRIMARY_VIEW_LABELS[q.primaryView].toLowerCase()} ${plural}`;
   if (q.category !== "all") return `${lifecycle}${INBOX_FILTER_LABELS[q.category].toLowerCase()} ${plural}`;
   return `${lifecycle}${plural}`;

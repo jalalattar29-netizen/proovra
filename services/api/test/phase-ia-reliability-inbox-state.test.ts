@@ -597,7 +597,11 @@ describe("Phase IA-reliability — /inbox UI exposes per-item actions", () => {
       "intake_required_items_missing",
       "intake_link_expiring",
     ]) {
-      expect(PAGE).toMatch(new RegExp(`${key}:\\s*"[^"]+"`));
+      // The ONE presentation authority labels it; the page renders through it.
+      expect(
+        readSource("../../../packages/shared/src/notification-presentation.ts"),
+      ).toMatch(new RegExp(`${key}:\\s*"[^"]+"`));
     }
+    expect(PAGE).toContain("notificationCategoryLabel(locale, item.category)");
   });
 });

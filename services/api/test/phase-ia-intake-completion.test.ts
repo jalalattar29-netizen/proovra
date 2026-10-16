@@ -218,9 +218,13 @@ describe("Phase IA-intake-completion P4 — Inbox surfacing", () => {
   });
 
   it("inbox UI labels the intake-review category in plain language", () => {
+    // The category label comes from the ONE presentation authority; the page
+    // renders rows and capped-source notices through it.
     const INBOX = readWeb("app/(app)/inbox/page.tsx");
-    expect(INBOX).toMatch(/intake_submission_pending_review:\s*"Intake review"/);
-    expect(INBOX).toMatch(/intake_submission_pending_review:\s*"Intake awaiting review"/);
+    const PRESENTATION = readWeb("../../packages/shared/src/notification-presentation.ts");
+    expect(PRESENTATION).toMatch(/intake_submission_pending_review:\s*"Intake review"/);
+    expect(INBOX).toContain("notificationCategoryLabel(locale, item.category)");
+    expect(INBOX).toContain("notificationSourceLabels(");
   });
 
   it("intake_submission deep-links to /evidence-requests/[id] (the review surface)", () => {

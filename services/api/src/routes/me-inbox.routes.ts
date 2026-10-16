@@ -235,7 +235,7 @@ export function normalizeInboxFilter(
  * The axes are now separate, and each has exactly one meaning:
  *
  *     lifecycle   active | archived        (default active)
- *     readState   any | unread             (default any)
+ *     readState   any | unread | read      (default any)
  *     tone        critical|high|warning|info
  *     filter      a CATEGORY, or `all`
  *
@@ -250,7 +250,15 @@ export function normalizeInboxFilter(
  * that sends the axes gets combinations the old spelling could not express.
  */
 export type InboxLifecycle = "active" | "archived";
-export type InboxReadState = "any" | "unread";
+/**
+ * `read` is the third answer to the read-state question, and it is what makes
+ * "I read it — where did it go?" answerable: All shows everything, Unread what
+ * has not been opened, Read what has. It used to be missing, so a client asking
+ * for it failed schema validation — which (see the route) silently discarded
+ * EVERY query parameter, workspace narrowing included, and answered a
+ * different question entirely.
+ */
+export type InboxReadState = "any" | "unread" | "read";
 
 export interface InboxAxes {
   lifecycle: InboxLifecycle;
@@ -298,7 +306,7 @@ const inboxQuerySchema = z.object({
   tone: z.enum(["critical", "high", "warning", "info"]).optional(),
   /** See `resolveInboxAxes` — independent of `filter`, and of each other. */
   lifecycle: z.enum(["active", "archived"]).optional(),
-  readState: z.enum(["any", "unread"]).optional(),
+  readState: z.enum(["any", "unread", "read"]).optional(),
   /**
    * WHICH ORDERING of the same population.
    *
@@ -348,6 +356,11 @@ export function normalizeInboxSort(
 }
 
 const DEFAULT_PAGE_SIZE = 25;
+
+/** A source row id that may be handed to a `@db.Uuid` column. Anything else is
+ *  never sent to the database as an id — it would be a 500, not a no-op. */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function decodeCursor(cursor: string | undefined): number {
   if (!cursor) return 0;
@@ -404,8 +417,8 @@ type InboxCategory =
   | "review_decision"
   // Phase C2 — operational evidence collaboration signals.
   // `discussion_mention` — the caller is @-mentioned in a workspace
-  //   discussion thread and has not yet been notified
-  //   (DiscussionMention.notifiedAtUtc IS NULL).
+  //   discussion thread. `DiscussionMention.notifiedAtUtc` is its READ
+  //   state (unread while NULL) — never its existence.
   // `discussion_assigned` — a discussion thread in the caller's
   //   workspace has assignedToUserId = caller AND status is not
   //   RESOLVED or CLOSED.
@@ -1789,16 +1802,29 @@ export async function buildInboxAggregation(
       );
 
       // -----------------------------------------------------------------
-      // Source 4: Phase C2 — unread discussion mentions for the caller.
+      // Source 4: Phase C2 — discussion mentions of the caller.
       //
-      // A row in DiscussionMention with notifiedAtUtc IS NULL represents
-      // an unread @-mention. The query is scoped to teamIds the caller
-      // is a member of so cross-workspace mentions cannot leak. Each
-      // mention rolls up to one inbox item with deep-link metadata
-      // (evidenceId + threadId + messageId) so the frontend opens the
-      // exact thread.
+      // READ IS NOT DELETION. `notifiedAtUtc` is the mention's READ state —
+      // the Discussion tab stamps it when the thread is opened, which is
+      // exactly where the bell's deep link lands. This source used to select
+      // `notifiedAtUtc IS NULL` only, so opening a mention from the bell
+      // removed the notification from the bell, the Notifications page and
+      // the Read view at once: reading it deleted it.
+      //
+      // The source now carries a mention while it is unread (however old) OR
+      // for the same 30-day recent-history window collaboration notifications
+      // use, and `notifiedAtUtc` is OR-ed into the item's read state below —
+      // the collaboration model, applied to the other row that owns a read
+      // timestamp. Unread rows sort first so read history can never push an
+      // unread mention past the cap.
+      //
+      // The query is scoped to teamIds the caller is a member of so
+      // cross-workspace mentions cannot leak. Each mention rolls up to one
+      // inbox item with deep-link metadata (evidenceId + threadId +
+      // messageId) so the frontend opens the exact thread.
       // -----------------------------------------------------------------
-      const unreadMentions =
+      const MENTION_READ_HISTORY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+      const mentionRows =
         teamIds.length === 0
           ? []
           : await safelyLoadSource(
@@ -1808,13 +1834,21 @@ export async function buildInboxAggregation(
               where: {
                 teamId: { in: teamIds },
                 mentionedUserId: userId,
-                notifiedAtUtc: null,
+                OR: [
+                  { notifiedAtUtc: null },
+                  {
+                    createdAt: {
+                      gte: new Date(nowMs - MENTION_READ_HISTORY_WINDOW_MS),
+                    },
+                  },
+                ],
               },
               select: {
                 id: true,
                 teamId: true,
                 threadId: true,
                 messageId: true,
+                notifiedAtUtc: true,
                 createdAt: true,
                 message: {
                   select: {
@@ -1829,7 +1863,11 @@ export async function buildInboxAggregation(
                   },
                 },
               },
-              orderBy: { createdAt: "desc" },
+              orderBy: [
+                { notifiedAtUtc: { sort: "asc", nulls: "first" } },
+                { createdAt: "desc" },
+                { id: "asc" },
+              ],
               take: 100,
             }),
               [],
@@ -2457,7 +2495,7 @@ export async function buildInboxAggregation(
       const LEGACY_TAKE = 100;
       const truncated = {
         governance: governanceRows.length >= LEGACY_TAKE,
-        discussion_mention: unreadMentions.length >= LEGACY_TAKE,
+        discussion_mention: mentionRows.length >= LEGACY_TAKE,
         discussion_assigned: assignedThreads.length >= PER_CATEGORY_TAKE,
         review_escalation: myReviewEscalations.length >= PER_CATEGORY_TAKE,
         access_review_pending: myAccessReviews.length >= PER_CATEGORY_TAKE,
@@ -2543,7 +2581,7 @@ export async function buildInboxAggregation(
           category: "org_invite",
           tone: "high",
           title: `Organization invite waiting: ${inv.organization.name}`,
-          body: `You have been invited to join ${inv.organization.name} as ${inv.role}. Accept before ${formatTimestampForReportUtc(
+          body: `You have been invited to join ${inv.organization.name} as ${humanizeOrganizationRole(inv.role)}. Accept before ${formatTimestampForReportUtc(
             inv.expiresAt,
           )}.`,
           href: "/organizations",
@@ -2678,13 +2716,25 @@ export async function buildInboxAggregation(
       }
 
       // -----------------------------------------------------------------
-      // Phase C2 — unread discussion mentions (one inbox item per
-      // mention). Tone = high because an explicit @-mention is the
+      // SOURCE-OWNED READ STATE. Two sources carry their own read timestamp
+      // on the source row — a mention's `notifiedAtUtc` (the Discussion tab)
+      // and a collaboration notification's `readAt` (the Team page). Each is
+      // collected here and OR-ed into the per-user state in the finalize
+      // loop, so a read on either surface reads on every surface.
+      // -----------------------------------------------------------------
+      const sourceReadAtByKey = new Map<string, Date>();
+
+      // -----------------------------------------------------------------
+      // Phase C2 — discussion mentions (one inbox item per mention), read
+      // and unread. Tone = high because an explicit @-mention is the
       // strongest operational coordination signal Phase 16 emits.
       // -----------------------------------------------------------------
-      for (const m of unreadMentions) {
+      for (const m of mentionRows) {
         const thread = m.message?.thread;
         if (!thread) continue;
+        if (m.notifiedAtUtc) {
+          sourceReadAtByKey.set(`discussion_mention:${m.id}`, m.notifiedAtUtc);
+        }
         items.push({
           id: `discussion_mention:${m.id}`,
           category: "discussion_mention",
@@ -2715,8 +2765,8 @@ export async function buildInboxAggregation(
           tone: t.escalatedAtUtc ? "high" : "warning",
           title: `Discussion assigned to you: "${t.title}"`,
           body: t.escalatedAtUtc
-            ? `An escalated discussion is assigned to you. Status: ${t.status}.`
-            : `An open discussion is assigned to you. Status: ${t.status}.`,
+            ? `An escalated discussion is assigned to you. Status: ${humanizeThreadStatus(t.status)}.`
+            : `An open discussion is assigned to you. Status: ${humanizeThreadStatus(t.status)}.`,
           href: `/evidence/${encodeURIComponent(t.evidenceId)}?tab=discussion&thread=${encodeURIComponent(t.id)}`,
           occurredAt: t.updatedAt.toISOString(),
           dueAt: null,
@@ -2781,8 +2831,8 @@ export async function buildInboxAggregation(
           tone: overdue ? "high" : "warning",
           title: subjectLine,
           body: overdue
-            ? `Review kind: ${ar.kind}. Past due — please act in the access reviews console.`
-            : `Review kind: ${ar.kind}. Open the access reviews console to certify, revoke, or suspend.`,
+            ? `${humanizeAccessReviewKind(ar.kind)}. Past due — please act in the access reviews console.`
+            : `${humanizeAccessReviewKind(ar.kind)}. Open the access reviews console to certify, revoke, or suspend.`,
           href: `/security-center/identity/access-reviews?reviewId=${encodeURIComponent(ar.id)}`,
           occurredAt: ar.createdAt.toISOString(),
           dueAt: ar.dueAtUtc ? ar.dueAtUtc.toISOString() : null,
@@ -2837,8 +2887,10 @@ export async function buildInboxAggregation(
           id: `communication_failure:${msg.id}`,
           category: "communication_failure",
           tone: "warning",
-          title: `Failed ${msg.channel.toLowerCase()} delivery — ${teamName}`,
-          body: `${msg.purpose} to ${msg.recipientPreview} failed after ${msg.attemptCount} attempt${msg.attemptCount === 1 ? "" : "s"}${msg.errorCode ? ` (${msg.errorCode})` : ""}. Open Messaging operations to retry or cancel.`,
+          title: `Failed ${humanizeCommunicationChannel(msg.channel)} delivery — ${teamName}`,
+          // The provider's error code is diagnostic data for Messaging
+          // operations, where it is shown in context — never notification copy.
+          body: `${humanizeCommunicationPurpose(msg.purpose)} to ${msg.recipientPreview} failed after ${msg.attemptCount} attempt${msg.attemptCount === 1 ? "" : "s"}. Open Messaging operations to retry or cancel.`,
           href: `/communications?status=FAILED&messageId=${encodeURIComponent(msg.id)}`,
           occurredAt: msg.updatedAt.toISOString(),
           dueAt: null,
@@ -3057,8 +3109,8 @@ export async function buildInboxAggregation(
           tone: "warning",
           title: `Case assigned to you: "${ca.case?.name ?? "Untitled case"}"`,
           body: ca.note
-            ? `Role: ${String(ca.role).toLowerCase()}. ${ca.note}`
-            : `Role: ${String(ca.role).toLowerCase()}. Open the case to begin.`,
+            ? `Role: ${humanizeCaseAssignmentRole(String(ca.role))}. ${ca.note}`
+            : `Role: ${humanizeCaseAssignmentRole(String(ca.role))}. Open the case to begin.`,
           href: `/cases/${encodeURIComponent(ca.caseId)}`,
           occurredAt: ca.assignedAtUtc.toISOString(),
           dueAt: null,
@@ -3174,11 +3226,10 @@ export async function buildInboxAggregation(
       // owner for these items (the Team page writes it), so it is collected
       // alongside them and OR-ed into the per-user state below.
       // -----------------------------------------------------------------
-      const collabReadAtByKey = new Map<string, Date>();
       for (const n of collabNotifications) {
         const wsName = teamNameById.get(n.workspaceId) ?? "workspace";
         const key = `collaboration:${n.id}`;
-        if (n.readAt) collabReadAtByKey.set(key, n.readAt);
+        if (n.readAt) sourceReadAtByKey.set(key, n.readAt);
         items.push({
           id: key,
           category: "collaboration",
@@ -3279,9 +3330,10 @@ export async function buildInboxAggregation(
         );
         const basePriority = priorityForItem(it);
         const priority: InboxPriority = isAwaitingSecond ? "P5" : basePriority;
-        // Collaboration items OR the source row's readAt into the read
-        // state so a read on the Team page reads here too.
-        const sourceReadAt = collabReadAtByKey.get(it.id) ?? null;
+        // Collaboration and mention items OR the source row's read time into
+        // the read state, so a read on the Team page or in the Discussion tab
+        // reads here too.
+        const sourceReadAt = sourceReadAtByKey.get(it.id) ?? null;
         const effectiveReadAt = state?.readAt ?? sourceReadAt;
         // IN_APP-honesty — annotate (never drop) items whose OPTIONAL
         // preference type is disabled for this workspace.
@@ -3479,6 +3531,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
           // here means the API answers the question asked instead of quietly
           // answering a different one.
           ...(requestedReadState === "unread" ? { readAtUtc: null } : {}),
+          ...(requestedReadState === "read" ? { readAtUtc: { not: null } } : {}),
           ...(ARCHIVE_CATEGORY_MEMBERS(requestedFilter)),
           // Membership was validated above, so narrowing the snapshot
           // window to one workspace is safe here.
@@ -3840,6 +3893,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
         // rather than competing with it for the single `filter` slot. This is
         // what makes "Unread + Mentions" expressible.
         if (requestedReadState === "unread" && it.isRead) return false;
+        if (requestedReadState === "read" && !it.isRead) return false;
         if (!matchesFilter(it, requestedFilter, nowMs)) return false;
         return true;
       });
@@ -4211,14 +4265,25 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const collabIds = targets
         .filter((t) => t.category === "collaboration")
         .map((t) => t.itemKey.slice("collaboration:".length))
-        .filter((id) => id.length > 0);
+        .filter((id) => UUID_RE.test(id));
+      const mentionIds = targets
+        .filter((t) => t.category === "discussion_mention")
+        .map((t) => t.itemKey.slice("discussion_mention:".length))
+        .filter((id) => UUID_RE.test(id));
       const snapAvail = await snapshotsAvailable();
       await prisma.$transaction(async (tx) => {
         if (collabIds.length > 0) {
           // Canonical read owner for collaboration items is the collab row.
           await tx.collaborationTeamNotification.updateMany({
-            where: { userId, id: { in: collabIds } },
+            where: { userId, id: { in: collabIds }, readAt: null },
             data: { readAt: now },
+          });
+        }
+        if (mentionIds.length > 0) {
+          // The Discussion tab's read state for the same @-mentions.
+          await tx.discussionMention.updateMany({
+            where: { mentionedUserId: userId, id: { in: mentionIds }, notifiedAtUtc: null },
+            data: { notifiedAtUtc: now },
           });
         }
         await tx.inboxItemState.createMany({
@@ -4234,13 +4299,15 @@ export async function meInboxRoutes(app: FastifyInstance) {
           }),
           skipDuplicates: true,
         });
+        // `readAt: null` — a row read concurrently (another device, between
+        // the aggregation above and this write) keeps its own first read time.
         await tx.inboxItemState.updateMany({
-          where: { userId, itemKey: { in: keys } },
+          where: { userId, itemKey: { in: keys }, readAt: null },
           data: { readAt: now },
         });
         if (snapAvail) {
           await tx.operationsInboxSnapshot.updateMany({
-            where: { userId, itemKey: { in: keys } },
+            where: { userId, itemKey: { in: keys }, readAtUtc: null },
             data: { readAtUtc: now },
           });
         }
@@ -4360,13 +4427,50 @@ export async function meInboxRoutes(app: FastifyInstance) {
     },
   ) {
     const isCollab =
-      parsed.sourceType === "collaboration" && parsed.sourceId.length > 0;
+      parsed.sourceType === "collaboration" && UUID_RE.test(parsed.sourceId);
+    // A mention's own `notifiedAtUtc` is the Discussion tab's read state. It is
+    // kept in step here so the two surfaces cannot disagree about whether the
+    // same @-mention has been read — see the mention source in the aggregation.
+    const isMention =
+      parsed.sourceType === "discussion_mention" && UUID_RE.test(parsed.sourceId);
     const snapAvail = await snapshotsAvailable();
     const row = await prisma.$transaction(async (tx) => {
+      /*
+       * READ IS STAMPED ONCE.
+       *
+       * Reading an already-read notification — a second device, a double tap,
+       * an Open after a Mark read — used to overwrite `readAt` with the later
+       * instant, so "when did I read this?" drifted every time it was asked.
+       * A read keeps the FIRST read time; only `unread` clears it.
+       */
+      if (delta.readAt instanceof Date) {
+        const existing = await tx.inboxItemState.findUnique({
+          where: { userId_itemKey: { userId, itemKey: parsed.itemKey } },
+          select: { readAt: true },
+        });
+        if (existing?.readAt) delta = { ...delta, readAt: existing.readAt };
+      }
       if (isCollab && "readAt" in delta) {
         await tx.collaborationTeamNotification.updateMany({
-          where: { id: parsed.sourceId, userId },
+          // A read never re-stamps a row the Team page already read.
+          where: {
+            id: parsed.sourceId,
+            userId,
+            ...(delta.readAt ? { readAt: null } : {}),
+          },
           data: { readAt: delta.readAt ?? null },
+        });
+      }
+      if (isMention && "readAt" in delta) {
+        // Scoped to the caller as the MENTIONED user: a crafted key naming
+        // somebody else's mention updates nothing.
+        await tx.discussionMention.updateMany({
+          where: {
+            id: parsed.sourceId,
+            mentionedUserId: userId,
+            ...(delta.readAt ? { notifiedAtUtc: null } : {}),
+          },
+          data: { notifiedAtUtc: delta.readAt ?? null },
         });
       }
       const stateRow = await tx.inboxItemState.upsert({
@@ -4719,6 +4823,134 @@ function humanizeOtsFailureReason(code: OtsFailureCode): string {
     return `${(OTS_FAILURE_LABELS[code] ?? OTS_FAILURE_LABELS.OTS_PROCESSING_FAILED)} No further attempts will be made.`;
   }
   return (OTS_FAILURE_LABELS[code] ?? OTS_FAILURE_LABELS.OTS_PROCESSING_FAILED);
+}
+
+// ---------------------------------------------------------------------------
+// NO RAW ENUM IN NOTIFICATION COPY.
+//
+// Every value below used to be interpolated verbatim — "as ORG_MEMBER",
+// "Status: IN_PROGRESS", "Review kind: STALE_ACCESS", "EVIDENCE_REQUEST to …",
+// "Role: lead". Each known value has a reviewed phrase; an unknown future value
+// falls through `readableCode`, so a new enum member degrades to words, never
+// to the identifier.
+// ---------------------------------------------------------------------------
+function readableCode(code: string): string {
+  return code
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/^./, (c) => c.toUpperCase());
+}
+
+function humanizeOrganizationRole(role: string): string {
+  switch (role) {
+    case "ORG_OWNER":
+      return "an owner";
+    case "ORG_ADMIN":
+      return "an administrator";
+    case "ORG_SECURITY_ADMIN":
+      return "a security administrator";
+    case "ORG_BILLING_ADMIN":
+      return "a billing administrator";
+    case "ORG_AUDITOR":
+      return "an auditor";
+    case "ORG_MEMBER":
+      return "a member";
+    default:
+      return `a ${readableCode(role.replace(/^ORG_/, "")).toLowerCase()}`;
+  }
+}
+
+function humanizeThreadStatus(status: string): string {
+  switch (status) {
+    case "OPEN":
+      return "Open";
+    case "IN_PROGRESS":
+      return "In progress";
+    case "RESOLVED":
+      return "Resolved";
+    case "CLOSED":
+      return "Closed";
+    default:
+      return readableCode(status);
+  }
+}
+
+function humanizeAccessReviewKind(kind: string): string {
+  switch (kind) {
+    case "PERIODIC_MEMBER_REVIEW":
+      return "Periodic member review";
+    case "STALE_ACCESS":
+      return "Stale access review";
+    case "UNUSED_SERVICE_ACCOUNT":
+      return "Unused service account review";
+    case "EXPIRING_TEMPORARY_ACCESS":
+      return "Expiring temporary access review";
+    case "SUSPICIOUS_ACCESS_PATTERN":
+      return "Suspicious access review";
+    case "EMERGENCY_REVOCATION_FOLLOWUP":
+      return "Emergency revocation follow-up";
+    default:
+      return readableCode(kind);
+  }
+}
+
+function humanizeCommunicationChannel(channel: string): string {
+  switch (channel) {
+    case "SMS":
+      return "SMS";
+    case "WHATSAPP":
+      return "WhatsApp";
+    case "EMAIL":
+      return "email";
+    case "SYSTEM":
+      return "system";
+    default:
+      return readableCode(channel).toLowerCase();
+  }
+}
+
+function humanizeCommunicationPurpose(purpose: string): string {
+  switch (purpose) {
+    case "OTP":
+      return "A verification code";
+    case "EVIDENCE_REQUEST":
+      return "An evidence request";
+    case "INTAKE_LINK":
+      return "An intake link";
+    case "REVIEW_ESCALATION":
+      return "A review escalation";
+    case "REVIEW_REMINDER":
+      return "A review reminder";
+    case "CONTRIBUTOR_CLARIFICATION":
+      return "A clarification request";
+    case "COLLABORATION_MENTION":
+      return "A mention notice";
+    case "GOVERNANCE_ALERT":
+      return "A governance alert";
+    case "SECURITY_ALERT":
+      return "A security alert";
+    case "PREFERENCE_UPDATE":
+      return "A preference update";
+    default:
+      return "A message";
+  }
+}
+
+function humanizeCaseAssignmentRole(role: string): string {
+  switch (role) {
+    case "OWNER":
+      return "owner";
+    case "INVESTIGATOR":
+      return "investigator";
+    case "REVIEWER":
+      return "reviewer";
+    case "GOVERNANCE":
+      return "governance";
+    case "OBSERVER":
+      return "observer";
+    default:
+      return readableCode(role).toLowerCase();
+  }
 }
 
 function humanizeSecurityEventType(eventType: string): string {

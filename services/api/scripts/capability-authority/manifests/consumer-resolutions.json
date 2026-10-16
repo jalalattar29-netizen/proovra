@@ -236,14 +236,14 @@
       "reviewedAtUtc": "2026-09-22"
     },
     {
-      "site": "apps/mobile/app/(tabs)/notifications.tsx:156",
-      "helper": "inboxItemActionPath(itemKey, action) — action is the InboxItemAction union; replaces the :103 (remind) and :127 entries, whose calls 9266916 merged into act()",
+      "site": "apps/mobile/app/(tabs)/notifications.tsx:176",
+      "helper": "inboxItemActionPath(itemKey, action) — action is the InboxItemAction union; re-anchored from :156 (the Read view and count reconciliation moved the lines); replaces the :103 (remind) and :127 entries, whose calls 9266916 merged into act()",
       "callSitesRead": [
-        "apps/mobile/app/(tabs)/notifications.tsx:156",
-        "apps/mobile/app/(tabs)/notifications.tsx:170",
-        "apps/mobile/app/(tabs)/notifications.tsx:431",
-        "apps/mobile/app/(tabs)/notifications.tsx:442",
-        "apps/mobile/app/(tabs)/notifications.tsx:451"
+        "apps/mobile/app/(tabs)/notifications.tsx:176",
+        "apps/mobile/app/(tabs)/notifications.tsx:197",
+        "apps/mobile/app/(tabs)/notifications.tsx:460",
+        "apps/mobile/app/(tabs)/notifications.tsx:471",
+        "apps/mobile/app/(tabs)/notifications.tsx:480"
       ],
       "routes": [
         "POST /v1/me/inbox/items/:itemKey/read",
@@ -251,7 +251,7 @@
         "POST /v1/me/inbox/items/:itemKey/archive",
         "POST /v1/me/inbox/items/:itemKey/unarchive"
       ],
-      "evidence": "act(item, action) is called with \"read\" (:170, :431), \"unread\" (:431), \"unarchive\" (:442) and \"archive\" (:451). \"remind\" is no longer called anywhere in apps/mobile, so POST …/remind is NOT credited to mobile any more.",
+      "evidence": "act(item, action) is called with \"read\" (:197, :460), \"unread\" (:460), \"unarchive\" (:471) and \"archive\" (:480). \"remind\" is no longer called anywhere in apps/mobile, so POST …/remind is NOT credited to mobile any more.",
       "reviewedAtUtc": "2026-09-25"
     },
     {

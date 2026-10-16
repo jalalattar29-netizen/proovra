@@ -92,7 +92,9 @@ test("severity survives as filterable METADATA", () => {
       `the summary must offer a ${tone} card`,
     );
   }
-  assert.match(NOTIFICATIONS, /type PrimaryView = "all" \| "unread" \| InboxTone/);
+  // All / Unread / Read are the read-state alternatives; the severities sit
+  // beside them in the SAME single value.
+  assert.match(NOTIFICATIONS, /type PrimaryView = "all" \| "unread" \| "read" \| InboxTone/);
   assert.match(NOTIFICATIONS, /setPrimaryView\(key\)/);
   // The retired two-axis wiring must not come back.
   assert.ok(

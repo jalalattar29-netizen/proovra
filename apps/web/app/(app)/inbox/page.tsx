@@ -36,11 +36,18 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell, RefreshCw, SlidersHorizontal, X } from "lucide-react";
+import {
+  notificationCategoryLabel,
+  notificationReadViewExplanation,
+  notificationSourceLabels,
+  safeNotificationHref,
+} from "@proovra/shared/i18n";
 
 import { apiFetch } from "../../../lib/api";
 import { useLatestRequest } from "../../../lib/net/useLatestRequest";
 import { formatUserDate, formatUserDateTime } from "../../../lib/date";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { useOptionalLocale } from "../../providers";
 import { PageShell, PageHeader } from "../../../components/ui";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
@@ -263,6 +270,7 @@ type LoadState =
 const PRIMARY_VIEW_LABELS: Record<PrimaryView, string> = {
   all: "All",
   unread: "Unread",
+  read: "Read",
   critical: "Critical",
   high: "High",
   warning: "Warning",
@@ -303,19 +311,23 @@ const TONE_LABELS: Record<InboxTone, string> = {
  * mutual exclusion is a property of the model instead of a rule the UI has to
  * remember to enforce. Nothing can hold two of these at once.
  */
-type PrimaryView = "all" | "unread" | InboxTone;
+type PrimaryView = "all" | "unread" | "read" | InboxTone;
 
 /** The metric cards and the quick-filter chips are two controls over the SAME
  *  value, which is why they always agree about what is selected. */
 type NotificationMetricKey = PrimaryView;
 
-/** The two the quick row shows permanently. Archived is a STATUS and lives in
- *  the Filters panel; the four severities live on the cards. */
-const QUICK_PRIMARY_VIEWS: ReadonlyArray<PrimaryView> = ["all", "unread"];
+/** The three the quick row shows permanently — the read-state question, All /
+ *  Unread / Read. READ IS A STATE, NOT A DISAPPEARANCE: a notification you
+ *  opened stays in All and is found again under Read; only Archive files it
+ *  away. Archived is a STATUS and lives in the Filters panel; the four
+ *  severities live on the cards. */
+const QUICK_PRIMARY_VIEWS: ReadonlyArray<PrimaryView> = ["all", "unread", "read"];
 
 const PRIMARY_VIEW_VALUES: ReadonlyArray<PrimaryView> = [
   "all",
   "unread",
+  "read",
   "critical",
   "high",
   "warning",
@@ -349,6 +361,14 @@ const NOTIFICATION_METRICS: ReadonlyArray<{
     explanation: "Not opened yet.",
     accent: "unread",
   },
+  /* READ — the other half of All. Neutral, because having read something is
+     not a condition anybody needs to act on. */
+  {
+    key: "read",
+    label: "Read",
+    explanation: notificationReadViewExplanation("en", "read"),
+    accent: "all",
+  },
   {
     key: "critical",
     label: "Critical",
@@ -379,33 +399,11 @@ const NOTIFICATION_METRICS: ReadonlyArray<{
   },
 ];
 
-const CATEGORY_LABELS: Record<InboxCategory, string> = {
-  onboarding: "Onboarding",
-  org_invite: "Invite",
-  org_admin: "Org governance",
-  governance: "Workspace governance",
-  review_decision: "Review decision",
-  // Phase C2 — operational discussion routing.
-  discussion_mention: "Mention",
-  discussion_assigned: "Assigned thread",
-  // Phase IA-cleanup — post-/collaboration attention expansion.
-  review_escalation: "Escalation",
-  access_review_pending: "Access review",
-  mfa_recovery_pending: "MFA approval",
-  communication_failure: "Delivery failure",
-  security_event_high: "Security alert",
-  // Phase IA-enterprise — operational failures.
-  report_failure: "Report failure",
-  verification_package_failure: "Package failure",
-  ots_failure: "Bitcoin anchoring failure",
-  // Phase IA-reliability — intake actions.
-  intake_submission_pending_review: "Intake review",
-  intake_required_items_missing: "Intake incomplete",
-  intake_link_expiring: "Link expiring",
-  collaboration: "Collaboration",
-  tsa_failure: "Timestamp failure",
-  case_assignment: "Case assignment",
-};
+/* CATEGORY_LABELS USED TO LIVE HERE — one of three hand-kept copies of the
+   category vocabulary (the header bell and the native app had the others, and
+   they had drifted). Every surface now reads the ONE authority,
+   `notificationCategoryLabel` in @proovra/shared, which also gives a future
+   category a neutral label instead of its code. */
 
 /* PRIORITY_META and PRIORITY_ORDER USED TO LIVE HERE.
 
@@ -505,27 +503,9 @@ function isInboxSort(v: string | null | undefined): v is InboxSort {
    caller. The BULK-READ CAPABILITY is untouched — see the note where
    `markAllRead` used to live. */
 
-// Human label for each truncation key. Keep in sync with the InboxTruncated
-// union above.
-const TRUNCATION_LABELS: Record<keyof InboxTruncated, string> = {
-  governance: "Workspace governance",
-  discussion_mention: "Mentions",
-  discussion_assigned: "Assigned threads",
-  review_escalation: "Escalations",
-  access_review_pending: "Access reviews",
-  mfa_recovery_pending: "MFA approvals",
-  communication_failure: "Delivery failures",
-  security_event_high: "Security alerts",
-  report_failure: "Report failures",
-  verification_package_failure: "Package failures",
-  ots_failure: "Bitcoin anchoring failures",
-  intake_submission_pending_review: "Intake awaiting review",
-  intake_required_items_missing: "Intake incomplete",
-  intake_link_expiring: "Intake link expiring",
-  collaboration: "Collaboration",
-  tsa_failure: "Timestamp failures",
-  case_assignment: "Case assignments",
-};
+/* TRUNCATION_LABELS USED TO LIVE HERE — a fourth copy of the same names, in
+   the plural. A capped or unreadable source is named through the same
+   authority as its rows (`notificationSourceLabels`). */
 
 /* `joinReadable` and `describeAttentionAreas` USED TO LIVE HERE.
  *
@@ -552,6 +532,7 @@ export default function InboxPage() {
 }
 
 function InboxPageInner() {
+  const locale = useOptionalLocale();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   /**
    * THE LAST ENVELOPE THAT LOADED, KEPT ACROSS THE NEXT LOAD.
@@ -647,6 +628,12 @@ function InboxPageInner() {
     // rather than blanks; they are not a second aggregation.
     const m = data.metricSummary;
     if (key === "unread") return m?.unread ?? data.scopeSummary?.unread ?? 0;
+    // READ is the rest of the same basis: everything counted, minus unread.
+    if (key === "read") {
+      const total = m?.total ?? data.scopeSummary?.total ?? data.summary.total;
+      const unread = m?.unread ?? data.scopeSummary?.unread ?? 0;
+      return Math.max(0, total - unread);
+    }
     if (key === "all") {
       return m?.total ?? data.scopeSummary?.total ?? data.summary.total;
     }
@@ -914,6 +901,7 @@ function InboxPageInner() {
       // `tone=high`, with no `readState` beside it, so the server is asked
       // the question the reader actually asked.
       if (primaryView === "unread") params.set("readState", "unread");
+      else if (primaryView === "read") params.set("readState", "read");
       else if (primaryView !== "all") params.set("tone", primaryView);
       if (category !== "all") params.set("filter", category);
       if (archived) params.set("lifecycle", "archived");
@@ -1023,6 +1011,40 @@ function InboxPageInner() {
     void load();
   }, [load]);
 
+  /**
+   * RECONCILE THE COUNTS AFTER A MUTATION — from the server, not by guessing.
+   *
+   * Marking a row read updated the row and left every number above it alone:
+   * the Unread card kept counting a notification the reader had just read,
+   * while the header badge (which refetches after every mutation) had already
+   * moved. Two counts for one population, disagreeing on the same screen.
+   *
+   * This asks the SAME query for one row, purely for its envelope, and adopts
+   * the server's counts. The list the reader is looking at — including any
+   * pages they loaded with Load more — is left exactly where it is. A
+   * response that arrives after a newer load has started is discarded, so it
+   * can never overwrite a different filter's counts.
+   */
+  const countsGeneration = useRef(0);
+  const refreshCounts = useCallback(async () => {
+    const generation = ++countsGeneration.current;
+    try {
+      const url = buildUrl(null);
+      const data = (await apiFetch(
+        `${url}${url.includes("?") ? "&" : "?"}pageSize=1`,
+      )) as InboxEnvelope;
+      if (generation !== countsGeneration.current) return;
+      setState((prev) => (prev.kind === "ready" ? { kind: "ready", data } : prev));
+      setLastEnvelope(data);
+    } catch {
+      // Counts stay as they were; the next load reconciles them.
+    }
+  }, [buildUrl]);
+  useEffect(() => {
+    // A new query supersedes any reconcile in flight for the previous one.
+    countsGeneration.current += 1;
+  }, [buildUrl]);
+
   // Phase IA-reliability — per-item mutation helpers. Each one is
   // optimistic-with-rollback: we update local state immediately so the
   // operator's click feels instant, then on success keep the local
@@ -1093,6 +1115,10 @@ function InboxPageInner() {
       });
       try {
         await postAction(item.itemKey, "read");
+        // It is still in All and under Read; it no longer belongs to the
+        // Unread view the reader is looking at, so it leaves THAT list only.
+        if (primaryView === "unread") removeItemLocally(item.itemKey);
+        void refreshCounts();
       } catch (err) {
         applyOptimisticUpdate(item.itemKey, prevState);
         console.error("[inbox] mark-read failed:", err);
@@ -1100,7 +1126,7 @@ function InboxPageInner() {
         setPendingItemKey(null);
       }
     },
-    [pendingItemKey, applyOptimisticUpdate],
+    [pendingItemKey, applyOptimisticUpdate, refreshCounts, primaryView, removeItemLocally],
   );
 
   const markUnread = useCallback(
@@ -1114,6 +1140,8 @@ function InboxPageInner() {
       applyOptimisticUpdate(item.itemKey, { isRead: false, readAt: null });
       try {
         await postAction(item.itemKey, "unread");
+        if (primaryView === "read") removeItemLocally(item.itemKey);
+        void refreshCounts();
       } catch (err) {
         applyOptimisticUpdate(item.itemKey, prevState);
         console.error("[inbox] mark-unread failed:", err);
@@ -1121,7 +1149,7 @@ function InboxPageInner() {
         setPendingItemKey(null);
       }
     },
-    [pendingItemKey, applyOptimisticUpdate],
+    [pendingItemKey, applyOptimisticUpdate, refreshCounts, primaryView, removeItemLocally],
   );
 
   /**
@@ -1140,6 +1168,7 @@ function InboxPageInner() {
       removeItemLocally(item.itemKey);
       try {
         await postAction(item.itemKey, "archive");
+        void refreshCounts();
       } catch (err) {
         console.error("[inbox] archive failed:", err);
         // Re-fetch to restore truth.
@@ -1148,7 +1177,7 @@ function InboxPageInner() {
         setPendingItemKey(null);
       }
     },
-    [pendingItemKey, removeItemLocally, load],
+    [pendingItemKey, removeItemLocally, load, refreshCounts],
   );
 
   /**
@@ -1167,6 +1196,7 @@ function InboxPageInner() {
       applyOptimisticUpdate(item.itemKey, { dismissedAt: null });
       try {
         await postAction(item.itemKey, "unarchive");
+        void refreshCounts();
       } catch (err) {
         applyOptimisticUpdate(item.itemKey, { dismissedAt: previous });
         console.error("[inbox] unarchive failed:", err);
@@ -1174,7 +1204,7 @@ function InboxPageInner() {
         setPendingItemKey(null);
       }
     },
-    [pendingItemKey, applyOptimisticUpdate],
+    [pendingItemKey, applyOptimisticUpdate, refreshCounts],
   );
 
   /** REMIND ME LATER — defer it until a time I choose. Equally private. */
@@ -1208,6 +1238,7 @@ function InboxPageInner() {
     // controls in, so "archived high notifications" comes out in that order.
     const lifecycle = archived ? "archived " : "";
     if (primaryView === "unread") return `${lifecycle}unread ${plural}`;
+    if (primaryView === "read") return `${lifecycle}read ${plural}`;
     if (primaryView !== "all") {
       return `${lifecycle}${PRIMARY_VIEW_LABELS[primaryView].toLowerCase()} ${plural}`;
     }
@@ -1365,7 +1396,7 @@ function InboxPageInner() {
             <p data-notifications-incomplete className="ops-metrics__note">
               Some sources could not be read, so this may not be everything.
               {shellData.completeness.incompleteSources.length > 0
-                ? ` Affected: ${shellData.completeness.incompleteSources.join(", ")}.`
+                ? ` Affected: ${notificationSourceLabels(locale, shellData.completeness.incompleteSources).join(", ")}.`
                 : ""}
             </p>
           ) : null}
@@ -1688,13 +1719,12 @@ function InboxPageInner() {
           {state.data.anyTruncated && state.data.truncated && (
             <span style={{ opacity: 0.85 }}>
               Some sources were capped:{" "}
-              {Object.entries(state.data.truncated)
-                .filter(([, capped]) => capped)
-                .map(
-                  ([key]) =>
-                    TRUNCATION_LABELS[key as keyof InboxTruncated],
-                )
-                .join(", ")}
+              {notificationSourceLabels(
+                locale,
+                Object.entries(state.data.truncated)
+                  .filter(([, capped]) => capped)
+                  .map(([key]) => key),
+              ).join(", ")}
               . Open the relevant console for the full list.
             </span>
           )}
@@ -1878,7 +1908,7 @@ function InboxPageInner() {
                               data-category-chip={item.category}
                               className="ops-item__chip"
                             >
-                              {CATEGORY_LABELS[item.category]}
+                              {notificationCategoryLabel(locale, item.category)}
                             </span>
                             <span className="ops-item__title">
                               {item.title}
@@ -1940,9 +1970,9 @@ function InboxPageInner() {
                             re-fires). */}
                         <div data-inbox-item-actions className="ops-item__actions">
                           <Link
-                            href={item.href}
+                            href={safeNotificationHref(item.href)}
                             data-action="open-inbox-item"
-                            data-inbox-item-href={item.href}
+                            data-inbox-item-href={safeNotificationHref(item.href)}
                             onClick={() => {
                               // Opening an item implicitly marks it
                               // read. Fire-and-forget; we don't wait
