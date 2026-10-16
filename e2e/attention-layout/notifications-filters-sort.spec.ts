@@ -247,11 +247,14 @@ test.describe("The filter toolbar is compact, not a wall of pills", () => {
   }) => {
     await openNotifications(page);
     const quick = page.locator("[data-inbox-quick-filters] button");
-    await expect(quick).toHaveCount(2);
+    // The read-state question, whole: All / Unread / Read. Read is the other
+    // half of All — a read notification is found there, never lost.
+    await expect(quick).toHaveCount(3);
     await expect(quick.nth(0)).toHaveText("All");
     await expect(quick.nth(1)).toHaveText("Unread");
-    // ARCHIVED IS NOT A THIRD PILL. It is a status, and standing it beside All
-    // and Unread implied the three were alternatives when only the first two
+    await expect(quick.nth(2)).toHaveText("Read");
+    // ARCHIVED IS NOT A FOURTH PILL. It is a status, and standing it beside
+    // the read states implied they were alternatives when only those three
     // are. It lives in the Filters panel's Status group.
     await expect(
       page.locator(

@@ -38,7 +38,6 @@ import Link from "next/link";
 import { Bell, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 import {
   notificationCategoryLabel,
-  notificationReadViewExplanation,
   notificationSourceLabels,
   safeNotificationHref,
 } from "@proovra/shared/i18n";
@@ -315,7 +314,10 @@ type PrimaryView = "all" | "unread" | "read" | InboxTone;
 
 /** The metric cards and the quick-filter chips are two controls over the SAME
  *  value, which is why they always agree about what is selected. */
-type NotificationMetricKey = PrimaryView;
+/** The six cards: All, Unread and the four severities. Read is a VIEW (the
+ *  quick row), not a seventh card — its count is All minus Unread, and the
+ *  cards are one set of alternatives. */
+type NotificationMetricKey = Exclude<PrimaryView, "read">;
 
 /** The three the quick row shows permanently — the read-state question, All /
  *  Unread / Read. READ IS A STATE, NOT A DISAPPEARANCE: a notification you
@@ -360,14 +362,6 @@ const NOTIFICATION_METRICS: ReadonlyArray<{
     label: "Unread",
     explanation: "Not opened yet.",
     accent: "unread",
-  },
-  /* READ — the other half of All. Neutral, because having read something is
-     not a condition anybody needs to act on. */
-  {
-    key: "read",
-    label: "Read",
-    explanation: notificationReadViewExplanation("en", "read"),
-    accent: "all",
   },
   {
     key: "critical",
@@ -628,12 +622,6 @@ function InboxPageInner() {
     // rather than blanks; they are not a second aggregation.
     const m = data.metricSummary;
     if (key === "unread") return m?.unread ?? data.scopeSummary?.unread ?? 0;
-    // READ is the rest of the same basis: everything counted, minus unread.
-    if (key === "read") {
-      const total = m?.total ?? data.scopeSummary?.total ?? data.summary.total;
-      const unread = m?.unread ?? data.scopeSummary?.unread ?? 0;
-      return Math.max(0, total - unread);
-    }
     if (key === "all") {
       return m?.total ?? data.scopeSummary?.total ?? data.summary.total;
     }

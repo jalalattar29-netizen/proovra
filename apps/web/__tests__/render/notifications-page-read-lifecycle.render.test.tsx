@@ -209,10 +209,11 @@ describe("Notifications page — All / Unread / Read", () => {
     render(<InboxPage />);
     await ready();
     expect(cardCount("unread")).toBe(2);
-    expect(cardCount("read")).toBe(1);
+    expect(cardCount("all")).toBe(3);
     fireEvent.click(screen.getByRole("button", { name: "Mark as read: You were mentioned" }));
     await waitFor(() => expect(cardCount("unread")).toBe(1));
-    expect(cardCount("read")).toBe(2);
+    // Read moves a row between the halves of All; it never shrinks All.
+    expect(cardCount("all")).toBe(3);
     const row = document.querySelector('[data-inbox-item-key="discussion_mention:m1"]');
     expect(row, "read must not remove the row from All").not.toBeNull();
     expect(row?.getAttribute("data-inbox-item-read")).toBe("true");

@@ -414,7 +414,8 @@ for (const vp of VIEWPORTS) {
       });
       expect(m.overflow).toBeLessThanOrEqual(1);
       expect(m.cards).toBe(6);
-      expect(m.quick).toBe(2);
+      // All / Unread / Read.
+      expect(m.quick).toBe(3);
       expect(m.minQuickHeight).toBeGreaterThanOrEqual(34);
     });
   }
