@@ -28,6 +28,8 @@ on:
       - "apps/web/**"
       - "services/api/**"
       - "services/worker/**"
+      # The worker-image smokes it runs (Bitcoin verifier wiring) live here.
+      - "scripts/release/**"
       - "packages/**"
       - "playwright.config.ts"
       - ".github/workflows/updated-report-journey.yml"
