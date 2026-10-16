@@ -228,14 +228,20 @@ async function mount() {
 const posts = () => requests.filter((r) => r.method === "POST");
 
 describe("Reports row — generation actions", () => {
-  it("summary tiles name what they count, including failures, and link to their filter", async () => {
+  it("summary metrics name what they count; failures are in the breakdown and open their filter", async () => {
     const { container } = await mount();
     const tile = (k: string) => container.querySelector(`[data-reports-summary-key='${k}']`);
-    expect(tile("reports_failed")?.getAttribute("data-reports-summary-value")).toBe("1");
-    expect(tile("reports_failed")?.getAttribute("data-reports-summary-filter")).toBe("report_failed");
     expect(tile("reports_ready")?.textContent).toContain("Reports ready");
-    expect(tile("total_artifacts")?.textContent).toContain("Records with artifacts");
-    expect(container.querySelector("[data-reports-filter='report_failed']")).toBeTruthy();
+    expect(tile("reports_ready")?.getAttribute("data-reports-summary-filter")).toBe("report_ready");
+    const failed = container.querySelector("[data-reports-breakdown-key='reportsFailed']") as HTMLButtonElement;
+    expect(failed.getAttribute("data-reports-breakdown-value")).toBe("1");
+    expect(container.querySelector("[data-reports-breakdown-key='totalEvidenceWithArtifacts']")?.textContent).toContain(
+      "Records with artifacts",
+    );
+    fireEvent.click(failed);
+    await waitFor(() =>
+      expect(requests.some((r) => r.path.includes("lifecycle=report_failed") && r.path.includes("summary=0"))).toBe(true),
+    );
   });
 
   it("each output shows the server's own verb; a missing package reads Recover package and posts RECOVER", async () => {
@@ -300,7 +306,10 @@ describe("Reports row — generation actions", () => {
     expect(document.querySelector("[data-reports-row-row-action='create-new-version']")).toBeNull();
     expect(container.textContent).not.toMatch(/Generate updated report|Regenerate/);
     const actions = container.querySelector("[data-reports-row-actions='ev-ready']");
-    expect(actions?.querySelector("[data-reports-open-evidence='ev-ready']")).toBeTruthy();
+    // The way into the record stays: the title link and the overflow menu.
+    const rowEl = container.querySelector("[data-reports-row-id='ev-ready']");
+    expect(rowEl?.querySelector("[data-reports-open-evidence='ev-ready']")).toBeTruthy();
+    expect(actions?.querySelector("[data-reports-row-menu-trigger]")).toBeTruthy();
     expect(actions?.textContent).not.toMatch(/Recover|Retry/);
     expect(posts()).toHaveLength(0);
   });

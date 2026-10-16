@@ -328,6 +328,12 @@ export {
   MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW,
   OPERATOR_SUPERSESSION_WINDOW_MS,
   OPERATOR_SUPERSESSION_INTENT,
+  // 2026-10-16 — the record's ONE deliverable status (Reports summary, filter
+  // and row), derived from the per-output states above.
+  DELIVERABLE_STATUSES,
+  DELIVERABLE_STATUS_REASONS,
+  deliverableStatusFor,
+  isCurrentReportUpdateFailure,
 } from "./evidence-output-lifecycle.js";
 // The words for those actions — one table for web, PWA and native.
 export {
@@ -430,6 +436,9 @@ export type {
   EvidenceOutputFacts,
   OutputActionDecision,
   EvidenceOutputActions,
+  DeliverableStatus,
+  DeliverableStatusReason,
+  DeliverableStatusProjection,
 } from "./evidence-output-lifecycle.js";
 
 export {

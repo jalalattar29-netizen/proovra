@@ -1,26 +1,19 @@
-/**
- * Reports & Artifacts — the `rpt-*` vocabulary.
+/*
+ * Reports & Artifacts — route-owned layout only (2026-10-16).
  *
- * Same contract as operations.css and notifications.css: every colour, radius
- * and shadow comes from the design tokens, tone is a data attribute, and this
- * sheet adds only what the shared primitives cannot express. It exists because
- * the page previously carried its geometry as inline `style={{…}}` objects —
- * a private design language one route knew about, which is why it drifted out
- * of step with every other list in the product.
+ * The surfaces, tones and controls are the canonical ones: `.app-metric-card`
+ * (+ `data-app-metric-tone`), `.app-table` / `.app-table-surface`,
+ * `.app-status-badge`, `.cases-segments` / `.cases-filter-chip`,
+ * `.app-primary-action` / `.app-secondary-action`, `.app-menu` (AppRowMenu)
+ * and the FilterBar. This sheet only arranges them: the six-metric grid, the
+ * breakdown disclosure, the advanced-filter panel, and the table that becomes
+ * stacked cards on a narrow screen. Every inline offset is LOGICAL, so the
+ * page mirrors under `dir="rtl"`.
  */
 
-/* ---------- tone rail ----------
- *
- * One mapping, read by the summary cards. Same token set Operations uses, so a
- * green here is the green there. */
+/* Per-output text tones (report / package / integrity cells). */
 [data-rpt-tone="slate"] {
   --rpt-tone: var(--tone-slate);
-}
-[data-rpt-tone="indigo"] {
-  --rpt-tone: var(--tone-indigo);
-}
-[data-rpt-tone="blue"] {
-  --rpt-tone: var(--tone-blue);
 }
 [data-rpt-tone="green"] {
   --rpt-tone: var(--tone-green);
@@ -28,9 +21,6 @@
 [data-rpt-tone="amber"] {
   --rpt-tone: var(--tone-amber);
 }
-/* PENDING is an attention state, and the product has ONE colour for that — the
-   orange the Notifications High card paints. `amber` above stays what it is,
-   the separate caution tone, rather than being redefined under its own users. */
 [data-rpt-tone="orange"] {
   --rpt-tone: var(--tone-orange);
 }
@@ -38,138 +28,279 @@
   --rpt-tone: var(--tone-red);
 }
 
-/* ---------- summary strip ---------- */
+.rpt-refreshed {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.rpt-note {
+  font-size: 13.5px;
+  color: var(--ink-secondary);
+}
+.rpt-footnote {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+.rpt-skeleton {
+  height: 120px;
+  border-radius: var(--radius-card);
+  background: var(--surface-muted);
+}
 
+/* ------------------------------------------------------------- summary */
 .rpt-summary__grid {
   display: grid;
-  /* Six cards. `auto-fill` with a readable floor rather than `auto-fit` with a
-     narrow one: squeezing six onto a row at a width where each is too narrow
-     to read is not a layout, it is a row of digits. */
-  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
-  grid-auto-rows: 1fr;
-  gap: 12px;
+  /* Six on a laptop, three on a tablet, two on a phone — never a row of
+     digits too narrow to read. */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-
-.rpt-metric {
-  position: relative;
-  /* Roomier than the shared default. Six counters at the primitive's compact
-     padding read as cramped on this page, which carries no other chrome at
-     this level to give them weight. */
-  padding: 16px 16px 15px;
-  padding-inline-start: 18px;
-  gap: 4px;
-  /* Not a button — these are counters, not filters. The shared metric card is
-     interactive by default because Operations' cards ARE filters; claiming a
-     pointer here would promise a click that does nothing. */
-  cursor: default;
+@media (max-width: 1180px) {
+  .rpt-summary__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
-.rpt-metric::before {
-  content: "";
-  position: absolute;
-  inset-block: 12px;
-  inset-inline-start: 0;
-  inline-size: 3px;
-  border-radius: var(--radius-pill, 999px);
-  background: var(--rpt-tone, var(--tone-slate));
+@media (max-width: 560px) {
+  .rpt-summary__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
-/* The NUMBER wears the card's own tone — the same colour as the rail beside
-   it, so the accent reads as the card's identity rather than as decoration. */
-/* ONE TYPE SYSTEM.
- *
- * `font: inherit` on the family: the value rendered in the browser's default
- * numeric face on this page because nothing in the chain set it, so the digits
- * looked like a different typeface from every label around them. Tabular
- * figures so a column of counts aligns. */
-.rpt-metric__value {
-  font-family: inherit;
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-  color: var(--rpt-tone, var(--ink-primary));
-}
-.rpt-metric__label {
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  line-height: 1.35;
-  color: var(--ink-secondary);
+.rpt-metric .app-metric-card__value {
+  font-size: 24px;
 }
 
-/* ---------- artifact rows ---------- */
-
-.rpt-row {
-  list-style: none;
-  background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+.rpt-breakdown {
+  margin-block-start: 10px;
 }
-.rpt-row + .rpt-row {
-  margin-block-start: 8px;
-}
-.rpt-row__body {
-  padding: 14px 16px;
-}
-.rpt-row__link {
-  display: block;
-  text-decoration: none;
-  color: inherit;
-}
-
-.rpt-row__head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-  min-inline-size: 0;
-}
-.rpt-row__title {
-  font-size: 14px;
+.rpt-breakdown__toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: 4px;
+  font-size: 13px;
   font-weight: 650;
-  line-height: 1.35;
-  color: var(--ink-primary);
-  min-inline-size: 0;
-  overflow-wrap: anywhere;
+  color: var(--accent-600);
+  cursor: pointer;
+  border-radius: var(--radius-md);
 }
-/* The KIND, in the neutral classification voice. It says what a record IS; it
-   must never be mistaken for a state, which is what happened when it wore the
-   same pill shape as the integrity result. */
-.rpt-row__type {
+.rpt-breakdown__toggle:focus-visible {
+  outline: 2px solid var(--accent-600);
+  outline-offset: 2px;
+}
+.rpt-breakdown__groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-block-start: 6px;
+}
+.rpt-breakdown__heading {
+  margin: 0 0 4px;
   font-size: 11.5px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--ink-secondary);
 }
-
-.rpt-row__meta {
+.rpt-breakdown__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rpt-breakdown__item {
   display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  margin-block-start: 8px;
-  font-size: 12px;
-  line-height: 1.5;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  inline-size: 100%;
+  min-height: 36px;
+  padding-inline: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-primary);
+  text-align: start;
+  cursor: pointer;
+}
+.rpt-breakdown__item:hover {
+  background: var(--surface-muted);
+}
+.rpt-breakdown__item:focus-visible {
+  outline: 2px solid var(--accent-600);
+  outline-offset: 1px;
+}
+.rpt-breakdown__item[aria-pressed="true"] {
+  border-color: var(--border-default);
+  background: var(--surface-muted);
+}
+.rpt-breakdown__item--static {
+  cursor: default;
+}
+.rpt-breakdown__item--static:hover {
+  background: transparent;
+}
+.rpt-breakdown__value {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 
-/* STATUS AS TEXT, never a capsule.
- *
- * Report and Package were `app-status-badge` pills. Two filled capsules next
- * to an integrity verdict and a case link made four chips on one line, and a
- * row of chips has no hierarchy — everything shouts equally. The colour still
- * carries the state, and the label still carries it without the colour. */
+/* ------------------------------------------------------------- filters */
+.rpt-segments {
+  flex: 0 1 auto;
+}
+.rpt-advanced-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+}
+.rpt-advanced-toggle__count {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--accent-600);
+}
+.rpt-advanced {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-block-start: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+}
+.rpt-advanced[hidden] {
+  display: none;
+}
+.rpt-advanced__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.rpt-advanced__grid > * {
+  flex-wrap: wrap;
+}
+.rpt-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.rpt-active-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding-inline: 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-primary);
+  cursor: pointer;
+}
+.rpt-active-filter:focus-visible {
+  outline: 2px solid var(--accent-600);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------- records */
+.rpt-table-surface {
+  overflow-x: auto;
+}
+.rpt-table th,
+.rpt-table td {
+  text-align: start;
+}
+.rpt-table tbody td {
+  padding-block: 10px;
+  vertical-align: top;
+}
+.rpt-table__actions-head {
+  text-align: end;
+}
+.rpt-cell__label {
+  display: none;
+}
+.rpt-evidence {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  max-inline-size: 320px;
+}
+.rpt-row__title {
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--ink-primary);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.rpt-row__title:hover {
+  text-decoration: underline;
+}
+.rpt-row__title:focus-visible,
+.rpt-row__case:focus-visible {
+  outline: 2px solid var(--accent-600);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.rpt-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: 12px;
+}
+.rpt-row__type {
+  color: var(--ink-secondary);
+}
+.rpt-row__case {
+  font-weight: 600;
+  color: var(--tone-blue);
+  text-decoration: none;
+}
+.rpt-row__case:hover {
+  text-decoration: underline;
+}
+.rpt-row__muted {
+  font-size: 12px;
+  color: var(--ink-secondary);
+}
+.rpt-status-cell,
+.rpt-output {
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+}
+.rpt-row__reason {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink-secondary);
+  max-inline-size: 220px;
+}
+.rpt-row__note {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.35;
+  max-inline-size: 220px;
+}
 .rpt-status {
+  /* Text, not a capsule: the per-output state carries no ground. */
+  background: none;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--ink-secondary);
-  background: none;
-  border: 0;
-  padding: 0;
-  box-shadow: none;
+  white-space: nowrap;
 }
 .rpt-status[data-tone="green"] {
   color: var(--tone-green);
@@ -180,138 +311,127 @@
 .rpt-status[data-tone="red"] {
   color: var(--tone-red);
 }
-.rpt-status[data-tone="indigo"] {
-  color: var(--tone-indigo);
-}
 .rpt-status[data-tone="slate"] {
   color: var(--ink-secondary);
 }
-
-/* The case relationship is a LINK, in the product's canonical blue — plain
-   text, no badge. It was purple, which is the accent this product reserves for
-   its own primary actions, so a case reference read like a button. */
-.rpt-row__case {
-  font-weight: 600;
-  color: var(--tone-blue);
-  text-decoration: none;
-}
-.rpt-row__case:hover {
-  text-decoration: underline;
-}
-
-/* Captured sits in the same metadata group, in the quiet tone — still legible,
-   deliberately last. */
-.rpt-row__captured {
-  color: var(--ink-secondary);
-}
-
-/* ---------- row actions ---------- */
-
 .rpt-row__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-block-start: 12px;
+  justify-content: flex-end;
+  gap: 6px;
 }
-/* `Open evidence` is the neutral third: white ground, dark label, the same
-   height and radius as the two filled downloads beside it. */
-.rpt-row__open {
-  text-decoration: none;
+.rpt-row__action {
+  white-space: nowrap;
 }
-
-/* ---------- responsive ---------- */
-
-@media (max-width: 640px) {
-  .rpt-row__body {
-    padding: 12px 13px;
-  }
-  /* Actions stack rather than compress. A three-across row of full labels at
-     phone width is where the horizontal scrollbar came from. */
-  .rpt-row__actions > * {
-    inline-size: 100%;
-    justify-content: center;
-  }
-
-  /*
-    ONE OF THE THREE WAS NOT A DIRECT CHILD (§16).
-
-    "Download report PDF" and "Open evidence" are children of the actions row,
-    so `> *` sized them. "Download verification package" is rendered through
-    `GovernedExportAction`, which ALWAYS wraps `renderAction(...)` in a div —
-    so the rule stretched that wrapper and the button inside it kept its
-    content width. Two full-width actions and one short one, on the same
-    stack.
-
-    Sizing the wrapper's own action closes it. The selector is bounded to
-    `.rpt-row__action`, the class the row's buttons already carry, so it
-    reaches the governed download without reaching into anything else the
-    wrapper renders (its explanation panel and denial copy are untouched).
-  */
-  .rpt-row__actions > * > .rpt-row__action,
-  .rpt-row__actions > * > * > .rpt-row__action {
-    inline-size: 100%;
-    justify-content: center;
-  }
-
-  /* A full-width button no longer needs to refuse to wrap, and refusing at
-     320px is what would push a long label past its own edge. */
-  .rpt-row__action {
-    white-space: normal;
-  }
+.rpt-row__feedback {
+  flex-basis: 100%;
+  font-size: 12px;
+  text-align: end;
 }
-
-/* The list is the rows themselves — no wrapping panel. A panel around a
-   stack of cards is two borders saying the same thing. */
-.rpt-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+/* The overflow trigger's word shows only where there is room for it to help:
+   on the stacked cards. In the table the icon and its label suffice. */
+.rpt-when-narrow {
+  display: none;
 }
-
-/* The three row actions share one height and radius. `app-primary-action` and
-   `app-secondary-action` already agree on both; this only bounds the labels so
-   a long one cannot stretch its button out of line with the others.
-
-   RELIABILITY CLOSURE (2026-09-09) — SCOPED TO min-width, AND THIS IS THE FIX.
-
-   It used to be unscoped, and it sits BELOW the max-width: 640px block that
-   sets `white-space: normal` on the same selector. Same specificity (0,0,1,0
-   — a media query adds none), later rule wins, at every viewport including the
-   one the override was written for. So the mobile wrap fix was dead from the
-   day it shipped, and at 320px a full-width button still refused to wrap its
-   label — which is exactly the overflow the comment in that block describes
-   itself as fixing.
-
-   Scoping to min-width makes the two rules mutually exclusive rather than
-   source-order-dependent, so neither can silently defeat the other again. No
-   `!important`: the cascade is correct once the rules stop overlapping. */
-@media (min-width: 641px) {
-  .rpt-row__action {
-    white-space: nowrap;
-  }
-}
-
-/* ---------- pagination ---------- */
 
 .rpt-pagination {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
+  justify-content: center;
+  gap: 12px;
   margin-block-start: 14px;
 }
 .rpt-pagination__status {
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 13px;
   color: var(--ink-secondary);
-  font-variant-numeric: tabular-nums;
 }
-@media (max-width: 640px) {
-  /* Centred and full-width rather than compressed: two buttons and a status
-     line pushed to the right edge is where the overflow starts on a phone. */
-  .rpt-pagination {
-    justify-content: space-between;
+
+/* NARROW: the same rows, stacked as cards. One DOM, so each row's governed
+   downloads pre-flight once; nothing is rendered twice and hidden. */
+@media (max-width: 960px) {
+  .rpt-table-surface {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+  .rpt-table,
+  .rpt-table tbody,
+  .rpt-table tr,
+  .rpt-table td {
+    display: block;
+    inline-size: 100%;
+  }
+  .rpt-table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .rpt-table tbody tr {
+    margin-block-end: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-card);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-card);
+  }
+  .rpt-table tbody td {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 4px 0;
+    border: 0;
+  }
+  .rpt-cell__label {
+    display: inline-block;
+    flex: 0 0 38%;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-secondary);
+  }
+  .rpt-cell--evidence {
+    padding-block-end: 8px;
+  }
+  .rpt-evidence {
+    max-inline-size: none;
+  }
+  .rpt-row__reason,
+  .rpt-row__note {
+    max-inline-size: none;
+  }
+  .rpt-cell--actions {
+    padding-block-start: 10px;
+  }
+  .rpt-row__actions {
+    justify-content: flex-start;
+    inline-size: 100%;
+  }
+  .rpt-row__action {
+    white-space: normal;
+  }
+  .rpt-row__feedback {
+    text-align: start;
+  }
+  .rpt-when-narrow {
+    display: inline;
+  }
+}
+@media (max-width: 480px) {
+  .rpt-table tbody td {
+    flex-wrap: wrap;
+  }
+  .rpt-cell__label {
+    flex-basis: 100%;
+  }
+  .rpt-row__actions > * {
+    flex: 1 1 100%;
+  }
+  .rpt-row__actions .rpt-row__action {
+    inline-size: 100%;
+    justify-content: center;
   }
 }

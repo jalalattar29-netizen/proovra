@@ -1463,3 +1463,137 @@ export function resolveEvidenceOutputActions(
     newVersion,
   };
 }
+
+// ===========================================================================
+// THE RECORD'S DELIVERABLE STATUS — one category per record (2026-10-16).
+// ===========================================================================
+//
+// The Reports page used to show fifteen per-axis counters side by side —
+// "Reports failed", "Updated report failed", "Packages failed", "Package
+// missing", "First issuance pending" … — so one record routinely appeared in
+// three of them, and nothing said how many RECORDS needed a person. This is
+// the single, mutually exclusive answer to "what is the state of this record's
+// deliverables right now?", derived ONLY from the canonical per-output states
+// above (never from a second reading of the rows), so the summary, the filter
+// and the row cannot disagree.
+//
+// Precedence, first match wins:
+//   IN_PROGRESS      either output is queued or generating
+//   NEEDS_ATTENTION  a CURRENT failure, block, proven-missing file, or a latest
+//                    report with no package of its own
+//   INCOMPLETE       the first report is owed and nothing is in flight
+//   READY            at least one output is available and nothing is owed
+//   NOT_AVAILABLE    nothing is owed: not in the plan, entitlement unreadable,
+//                    or the record cannot carry outputs. NEVER a failure.
+//
+// A failed attempt that a newer successful artifact superseded is HISTORY: the
+// caller passes `reportUpdateFailed` only for a failure made AFTER the latest
+// report (`OutputRequestFact.afterLatestReport`), the same fact the action
+// decision uses, so a superseded failure is never a current one.
+
+export const DELIVERABLE_STATUSES = [
+  "READY",
+  "IN_PROGRESS",
+  "NEEDS_ATTENTION",
+  "INCOMPLETE",
+  "NOT_AVAILABLE",
+] as const;
+export type DeliverableStatus = (typeof DELIVERABLE_STATUSES)[number];
+
+/** Why a record is in its status. Bounded; surfaces render copy from it. */
+export const DELIVERABLE_STATUS_REASONS = [
+  // READY
+  "COMPLETE",
+  // IN_PROGRESS
+  "GENERATING",
+  // NEEDS_ATTENTION
+  "PACKAGE_MISSING",
+  "REPORT_FAILED",
+  "ARTIFACT_MISSING",
+  "REPORT_BLOCKED",
+  "REPORT_UPDATE_FAILED",
+  "PACKAGE_FAILED",
+  "PACKAGE_BLOCKED",
+  // INCOMPLETE
+  "REPORT_AWAITING_ISSUANCE",
+  // NOT_AVAILABLE
+  "NOT_INCLUDED",
+  "ENTITLEMENT_UNAVAILABLE",
+  "NOT_APPLICABLE",
+] as const;
+export type DeliverableStatusReason = (typeof DELIVERABLE_STATUS_REASONS)[number];
+
+export type DeliverableStatusProjection = {
+  status: DeliverableStatus;
+  reason: DeliverableStatusReason;
+};
+
+const FAILED_OUTPUT: ReadonlySet<EvidenceOutputState> = new Set([
+  "RETRYABLE_FAILURE",
+  "TERMINAL_FAILURE",
+]);
+const LIVE_OUTPUT: ReadonlySet<EvidenceOutputState> = new Set(["QUEUED", "GENERATING"]);
+
+export function deliverableStatusFor(input: {
+  report: EvidenceOutputState;
+  verificationPackage: EvidenceOutputState;
+  /**
+   * The report is READY and a request made AFTER it failed. Pass false for a
+   * failure older than the latest report — that one was superseded.
+   */
+  reportUpdateFailed: boolean;
+}): DeliverableStatusProjection {
+  const r = input.report;
+  const p = input.verificationPackage;
+  const is = (status: DeliverableStatus, reason: DeliverableStatusReason) => ({ status, reason });
+
+  if (LIVE_OUTPUT.has(r) || LIVE_OUTPUT.has(p)) return is("IN_PROGRESS", "GENERATING");
+
+  if (FAILED_OUTPUT.has(r)) return is("NEEDS_ATTENTION", "REPORT_FAILED");
+  if (r === "ARTIFACT_MISSING" || p === "ARTIFACT_MISSING") return is("NEEDS_ATTENTION", "ARTIFACT_MISSING");
+  if (r === "BLOCKED") return is("NEEDS_ATTENTION", "REPORT_BLOCKED");
+  if (r === "READY" && input.reportUpdateFailed) return is("NEEDS_ATTENTION", "REPORT_UPDATE_FAILED");
+  if (FAILED_OUTPUT.has(p)) return is("NEEDS_ATTENTION", "PACKAGE_FAILED");
+  if (p === "BLOCKED") return is("NEEDS_ATTENTION", "PACKAGE_BLOCKED");
+
+  // The latest report has no package: whatever older package exists certifies
+  // an EARLIER report, so the latest one is uncertified — a real gap with a
+  // recovery, not a first issuance still owed.
+  if (r === "READY" && p === "ELIGIBLE_NOT_GENERATED") return is("NEEDS_ATTENTION", "PACKAGE_MISSING");
+
+  if (r === "ELIGIBLE_NOT_GENERATED") return is("INCOMPLETE", "REPORT_AWAITING_ISSUANCE");
+
+  if (r === "READY" || p === "READY") return is("READY", "COMPLETE");
+
+  if (r === "NOT_INCLUDED" || r === "ENTITLEMENT_UNAVAILABLE" || r === "NOT_APPLICABLE") {
+    return is("NOT_AVAILABLE", r);
+  }
+  if (p === "NOT_INCLUDED" || p === "ENTITLEMENT_UNAVAILABLE" || p === "NOT_APPLICABLE") {
+    return is("NOT_AVAILABLE", p);
+  }
+  // Unreachable with the states above (a package owed while the report is not
+  // ready follows the report); stated rather than guessed.
+  return is("NOT_AVAILABLE", "NOT_APPLICABLE");
+}
+
+/**
+ * A READY report's latest report request failed AFTER that report was
+ * generated — a current failure of an attempt to go beyond it. A failure
+ * older than the report is superseded history and returns false.
+ */
+export function isCurrentReportUpdateFailure(input: {
+  reportState: EvidenceOutputState;
+  reportRequestState: string | null | undefined;
+  requestCreatedAt: Date | string | null | undefined;
+  latestReportGeneratedAt: Date | string | null | undefined;
+}): boolean {
+  if (input.reportState !== "READY") return false;
+  const generation = input.reportRequestState
+    ? projectReportRequestState(input.reportRequestState as PersistedReportRequestState)
+    : "NOT_REQUESTED";
+  if (generation !== "RETRYABLE_FAILURE" && generation !== "TERMINAL_FAILURE") return false;
+  if (input.requestCreatedAt == null || input.latestReportGeneratedAt == null) return false;
+  const requested = new Date(input.requestCreatedAt).getTime();
+  const generated = new Date(input.latestReportGeneratedAt).getTime();
+  return Number.isFinite(requested) && Number.isFinite(generated) && requested > generated;
+}

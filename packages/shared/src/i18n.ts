@@ -2641,3 +2641,5 @@ export * from "./operations-remediation-copy.js";
 // The personal notification feed's category / source / tone / read-view
 // vocabulary, resolved here in en/de/ar (see notification-presentation.ts).
 export * from "./notification-presentation.js";
+// Reports & Artifacts: the page's words for its bounded server values (en/de/ar).
+export * from "./reports-copy.js";

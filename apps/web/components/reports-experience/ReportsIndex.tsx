@@ -3,22 +3,39 @@
 /**
  * Phase 32.8D — Enterprise Reports & Artifacts deliverables index.
  *
- * Powered by `/v1/reports/artifacts` (read-only aggregator). The
- * page surfaces report + verification-package lifecycle state for
- * workspace evidence WITHOUT calling any of the side-effecting
- * download endpoints (`/v1/evidence/:id/report/latest`,
- * `/v1/evidence/:id/verification-package`). Those remain reachable
- * exclusively through the explicit "Open evidence" link in each
- * row → the existing evidence-detail download flow.
+ * Powered by `/v1/reports/artifacts` (read-only aggregator). The page surfaces
+ * report + verification-package state for workspace evidence WITHOUT calling
+ * any side-effecting download endpoint on browse. Downloads and generation
+ * requests happen only on an explicit per-row action.
  *
  * Hard rules:
- *   - Browse is NEVER a download. Page-mount emits no custody
- *     events, no signed-URL generation, no audit log writes.
- *   - Every count comes from the aggregator. No fake numbers,
- *     no decorative charts, no fabricated readiness.
+ *   - Browse is NEVER a download. Page-mount emits no custody events, no
+ *     signed-URL generation, no audit log writes.
+ *   - Every count comes from the aggregator. No client arithmetic, no
+ *     decorative charts, no fabricated readiness.
  *   - Reports are described as "generated snapshots" / "verification
- *     packages". The page makes NO legal-admissibility,
- *     authenticity, or "court-ready" claims.
+ *     packages". The page makes NO legal-admissibility, authenticity or
+ *     "court-ready" claims.
+ *
+ * COMPACT OPERATIONS VIEW (2026-10-16).
+ *
+ * The page had become fifteen summary cards, fourteen always-visible filter
+ * chips and a list of tall cards with every action repeated on every row —
+ * and one record routinely appeared in three of the cards at once. It is now:
+ *
+ *   1. SIX metrics, each with one definition and the filter whose total it
+ *      equals. The record-status counts are mutually exclusive (the server's
+ *      `deliverableStatusFor`), so nothing is double counted; everything else
+ *      sits in ONE "Detailed breakdown" disclosure.
+ *   2. Search, a four-way status selector, an "Advanced filters" panel (record
+ *      status, report, package, entitlement) and a sort. The URL carries all of
+ *      it; a legacy `?lifecycle=` link lands on its dimension.
+ *   3. A compact table (stacked cards on a narrow screen): title and type,
+ *      status with its reason, report and package state with version, original
+ *      integrity, capture date, the primary action and an overflow menu.
+ *
+ * Every word comes from the shared Reports copy (en/de/ar) through the server's
+ * bounded values; no enum, lifecycle key or worker code is shown raw.
  */
 
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
@@ -35,140 +52,159 @@ import {
   outputNoteCopy,
   outputNoteShort,
   outputTerminalReasonCopy,
+  type DeliverableStatus,
+  type DeliverableStatusReason,
   type OutputKind,
 } from "@proovra/shared";
+import { fillReportsCopy, reportsCopyFor, type ReportsCopy } from "@proovra/shared/i18n";
 import {
   readGenerationOutcome,
   type GenerationOutcomeTone,
   type GenerationResponse,
 } from "../../lib/evidence/generation-outcome";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
-import {
-  PageShell,
-  PageHeader,
-  PageSection,
-  FilterBar,
-} from "../ui";
+import { PageShell, PageHeader, PageSection, FilterBar } from "../ui";
 import { Card } from "../ui/Card";
-import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
-import { FileText } from "lucide-react";
+import { FileText, MoreHorizontal, SlidersHorizontal } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import "./reports.css";
-// THE canonical Evidence title cascade — the same one the Evidence Library and
-// Case Detail use. Reports read `title` alone and rendered "Untitled evidence"
-// over every record whose name lives in a filename field.
-import { getDisplayTitle } from "../../app/(app)/evidence/lib/evidence-library-status";
+// THE canonical Evidence title cascade, type label and integrity label — the
+// same ones the Evidence Library uses.
 import {
-  usePlatformContext,
-  useWorkspaceId,
-} from "../../lib/platform-context";
+  getDisplayTitle,
+  getEvidenceTypeLabel,
+  getVerificationStatusLabel,
+} from "../../app/(app)/evidence/lib/evidence-library-status";
+import { usePlatformContext, useWorkspaceId } from "../../lib/platform-context";
+import { useUrlFilterSync } from "../../lib/use-url-filter-sync";
+import { useOptionalLocale } from "../../app/providers";
+import { useOpsTime } from "../../app/(app)/operations/_lib/copy";
+import { formatUserDate } from "../../lib/date";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { AccessGate } from "../access/AccessGate";
-// Phase G3.2 — every Report PDF / Verification Package ZIP download
-// MUST route through the governance pre-flight wrapper. The wrapper
-// keys on the same `/v1/governance/export-eligibility` endpoint the
-// evidence detail page already consumes; blocked verdicts disable the
-// button + surface the reason inline.
+import { AppStatusBadge, type AppTone } from "../app-primitives/AppStatusBadge";
+import { AppRowMenu, type AppRowAction } from "../app-primitives/AppRowMenu";
+// Phase G3.2 — every Report PDF / Verification Package ZIP download MUST route
+// through the governance pre-flight wrapper (`/v1/governance/export-eligibility`).
 import { GovernedExportAction } from "../governance/GovernedExportAction";
-// COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the shared state
-// vocabulary. This page maps it onto its own row states; it never invents one.
 import type { EvidenceOutputState } from "@proovra/shared";
 import type {
   ArtifactRow,
-  LifecycleFilter,
   PackageLifecycle,
   ReportLifecycle,
   ReportsArtifactsEnvelope,
+  ReportsFilters,
   ReportsSummary,
+  StatusFilter,
 } from "./types";
 import {
-  lifecycleFilterFromSearch,
-  REPORT_BLOCKED_BUCKET_FILTERS,
+  advancedFilterCount,
+  apiQueryFor,
+  DEFAULT_FILTERS,
+  ENTITLEMENT_DIMENSION,
+  filtersFromSearch,
+  filtersToSearch,
+  isFiltered,
+  PACKAGE_DIMENSION,
+  PRIMARY_STATUS_FILTERS,
+  REPORT_DIMENSION,
+  STATUS_FILTERS,
+  supportsRecordStatus,
   supportsReportBlockedBuckets,
   supportsTruthfulOutputBuckets,
-  TRUTHFUL_BUCKET_FILTERS,
 } from "./types";
-
-/**
- * THE SUMMARY STRIP, declared once.
- *
- * Tone is the card's identity: the rail and the NUMBER wear it together, the
- * same pattern Operations and Notifications use. The six were previously flat
- * near-black values on an undifferentiated card, so the strip read as one
- * block of digits.
- *
- * The mapping follows the meaning the rest of the product already gives these
- * tones — ready is green, pending amber, blocked red, and the two totals are
- * neutral/blue rather than borrowing an alarm colour for a count that is not
- * one.
- */
-const SUMMARY_METRICS = [
-  /*
-   * Each tile counts RECORDS and names the filter whose total it equals. The
-   * labels used to promise things the numbers were not: "Reports generated"
-   * beside a "Report ready" filter, "pending" for records nobody had asked to
-   * generate. Pending means a request is queued or running; a failure is its
-   * own tile, never pending.
-   */
-  { key: "reports_ready", field: "reportsReady", filter: "report_ready", label: "Reports ready", tone: "blue" },
-  // PENDING takes the shared attention orange, not the caution amber.
-  { key: "reports_pending", field: "reportsPending", filter: "report_pending", label: "Reports pending", tone: "orange" },
-  { key: "reports_failed", field: "reportsFailed", filter: "report_failed", label: "Reports failed", tone: "red" },
-  // ET-RPT-01/02 — rendered only when the API sends the field (older APIs do not).
-  { key: "reports_update_failed", field: "reportsUpdateFailed", filter: "report_update_failed", label: "Updated report failed", tone: "red" },
-  { key: "reports_blocked", field: "reportsBlocked", filter: "report_blocked", label: "Reports blocked", tone: "red" },
-  { key: "packages_ready", field: "packagesReady", filter: "package_ready", label: "Packages ready", tone: "green" },
-  { key: "packages_pending", field: "packagesPending", filter: "package_pending", label: "Packages pending", tone: "indigo" },
-  { key: "packages_failed", field: "packagesFailed", filter: "package_failed", label: "Packages failed", tone: "red" },
-  { key: "packages_blocked", field: "packagesBlocked", filter: "package_blocked", label: "Packages blocked", tone: "red" },
-  /*
-   * "Reports / Packages not requested" are gone (2026-09-29): the label was
-   * untruthful — it mixed never-requested records, records whose request
-   * succeeded without the artifact, and records newly eligible after an
-   * upgrade — and neither card led anywhere. Each state now has its own card
-   * AND filter.
-   */
-  { key: "reports_not_issued", field: "reportsNotIssued", filter: "report_not_issued", label: "Not issued (plan)", tone: "slate" },
-  { key: "reports_awaiting_issuance", field: "reportsAwaitingFirstIssuance", filter: "report_awaiting_issuance", label: "First issuance pending", tone: "orange" },
-  { key: "packages_missing", field: "packagesMissingForLatestReport", filter: "package_missing", label: "Package missing for latest report", tone: "orange" },
-  { key: "entitlement_unavailable", field: "outputsEntitlementUnavailable", filter: "entitlement_unavailable", label: "Subscription check pending", tone: "slate" },
-  { key: "total_artifacts", field: "totalEvidenceWithArtifacts", filter: null, label: "Records with artifacts", tone: "slate" },
-  { key: "artifact_versions", field: "totalArtifactVersions", filter: null, label: "Artifact versions", tone: "blue" },
-] as const satisfies ReadonlyArray<{
-  key: string;
-  field: keyof ReportsSummary;
-  filter: LifecycleFilter | null;
-  label: string;
-  tone: string;
-}>;
-
-/**
- * ROLLOUT COMPATIBILITY (2026-09-29). The web app deploys on every push to
- * main; the API deploys separately, after its migration. Until then the API
- * answers with the PREVIOUS summary (no truthful buckets) and a lifecycle enum
- * that REJECTS the new filters with a 400. So the page asks the summary what
- * the API supports: the new buckets appear (and their filters are offered)
- * only once the API returns them, and until then the previous two cards are
- * shown exactly as before — never an error, never an empty card.
- */
-
-const LEGACY_SUMMARY_METRICS = [
-  { key: "reports_not_requested", field: "reportsNotRequested", filter: null, label: "Reports not requested", tone: "slate" },
-  { key: "packages_not_requested", field: "packagesNotRequested", filter: null, label: "Packages not requested", tone: "slate" },
-] as const satisfies ReadonlyArray<{
-  key: string;
-  field: keyof ReportsSummary;
-  filter: LifecycleFilter | null;
-  label: string;
-  tone: string;
-}>;
-
 
 /** The server default. Named so the pager and the page agree on one number. */
 const REPORTS_PAGE_SIZE = 25;
+
+// ---------------------------------------------------------------------------
+// THE SUMMARY, declared once.
+// ---------------------------------------------------------------------------
+
+type MetricTone = "success" | "warning" | "danger" | "info" | "accent" | "neutral";
+
+/**
+ * At most SIX. Each counts RECORDS, has one definition (shared copy) and names
+ * the filter whose list total it equals — clicking it applies exactly that
+ * filter and nothing else, so the number and the rows below always agree.
+ *
+ * Danger is reserved for a genuine actionable failure on a ROW; "Needs
+ * attention" also holds blocks and escalations nobody here can act on, so it
+ * reads as a warning. Pending is neutral.
+ */
+const PRIMARY_METRICS: ReadonlyArray<{
+  key: string;
+  field: keyof ReportsSummary;
+  copy: keyof ReportsCopy["metrics"];
+  apply: Partial<ReportsFilters>;
+  tone: (n: number) => MetricTone;
+  /** Needs the record-status API. */
+  recordStatus: boolean;
+}> = [
+  { key: "reports_ready", field: "reportsReady", copy: "reportsReady", apply: { report: "report_ready" }, tone: (n) => (n > 0 ? "success" : "neutral"), recordStatus: false },
+  { key: "packages_ready", field: "packagesReady", copy: "packagesReady", apply: { package: "package_ready" }, tone: (n) => (n > 0 ? "success" : "neutral"), recordStatus: false },
+  { key: "in_progress", field: "recordsInProgress", copy: "inProgress", apply: { status: "in_progress" }, tone: () => "neutral", recordStatus: true },
+  { key: "needs_attention", field: "recordsNeedingAttention", copy: "needsAttention", apply: { status: "needs_attention" }, tone: (n) => (n > 0 ? "warning" : "neutral"), recordStatus: true },
+  { key: "incomplete", field: "recordsIncomplete", copy: "incomplete", apply: { status: "incomplete" }, tone: (n) => (n > 0 ? "warning" : "neutral"), recordStatus: true },
+  { key: "records", field: "recordsTotal", copy: "records", apply: {}, tone: () => "neutral", recordStatus: true },
+];
+
+/** Everything else, in ONE disclosure. A row with `apply` opens its filter. */
+const BREAKDOWN: ReadonlyArray<{
+  group: "breakdownReports" | "breakdownPackages" | "breakdownRecords";
+  items: ReadonlyArray<{ field: keyof ReportsSummary & keyof ReportsCopy["breakdown"]; apply: Partial<ReportsFilters> | null }>;
+}> = [
+  {
+    group: "breakdownReports",
+    items: [
+      { field: "reportsPending", apply: { report: "report_pending" } },
+      { field: "reportsFailed", apply: { report: "report_failed" } },
+      { field: "reportsUpdateFailed", apply: { report: "report_update_failed" } },
+      { field: "reportsBlocked", apply: { report: "report_blocked" } },
+      { field: "reportsAwaitingFirstIssuance", apply: { report: "report_awaiting_issuance" } },
+      { field: "reportsNotIssued", apply: { entitlement: "report_not_issued" } },
+    ],
+  },
+  {
+    group: "breakdownPackages",
+    items: [
+      { field: "packagesPending", apply: { package: "package_pending" } },
+      { field: "packagesFailed", apply: { package: "package_failed" } },
+      { field: "packagesBlocked", apply: { package: "package_blocked" } },
+      { field: "packagesMissingForLatestReport", apply: { package: "package_missing" } },
+    ],
+  },
+  {
+    group: "breakdownRecords",
+    items: [
+      { field: "outputsEntitlementUnavailable", apply: { entitlement: "entitlement_unavailable" } },
+      { field: "recordsNotAvailable", apply: { status: "not_available" } },
+      { field: "totalEvidenceWithArtifacts", apply: null },
+      { field: "totalArtifactVersions", apply: null },
+    ],
+  },
+];
+
+/** A metric's filter: everything else back to its default, sort kept. */
+function applyOnly(current: ReportsFilters, apply: Partial<ReportsFilters>): ReportsFilters {
+  return { ...DEFAULT_FILTERS, sort: current.sort, ...apply };
+}
+
+/** Is exactly this metric's filter (and nothing else) in force? */
+function isOnly(current: ReportsFilters, apply: Partial<ReportsFilters>): boolean {
+  const target = applyOnly(current, apply);
+  return (
+    current.status === target.status &&
+    current.report === target.report &&
+    current.package === target.package &&
+    current.entitlement === target.entitlement &&
+    current.q.trim() === ""
+  );
+}
 
 type LoadState =
   | { status: "loading" }
@@ -183,7 +219,6 @@ type UserReportRow = {
   evidenceId: string;
   teamId?: string | null;
   title: string | null;
-  /** Present on the aggregator; the user-scoped route may omit them. */
   displayFileName?: string | null;
   originalFileName?: string | null;
   mimeType?: string | null;
@@ -197,27 +232,14 @@ type UserReportRow = {
   reportLifecycle: EvidenceOutputState;
   packageLifecycle: EvidenceOutputState;
   outputs?: ArtifactRow["outputs"];
-  report: {
-    available: boolean;
-    version: number | null;
-    generatedAtUtc: string | null;
-  };
-  package: {
-    available: boolean;
-    version: number | null;
-    generatedAtUtc: string | null;
-  };
+  report: { available: boolean; version: number | null; generatedAtUtc: string | null };
+  package: { available: boolean; version: number | null; generatedAtUtc: string | null };
 };
-type UserReportsEnvelope = {
-  items: UserReportRow[];
-  nextCursor: string | null;
-};
+type UserReportsEnvelope = { items: UserReportRow[]; nextCursor: string | null };
 
 /**
- * The canonical output state, mapped onto this page's row vocabulary.
- *
- * The same mapping the workspace aggregator applies server-side, so the two
- * envelopes this page can receive describe a record identically. Total over
+ * The canonical output state, mapped onto this page's row vocabulary — the
+ * same mapping the workspace aggregator applies server-side. Total over
  * `EvidenceOutputState`: a new state is a compile error, not a silent default.
  */
 function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
@@ -227,7 +249,6 @@ function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
     case "QUEUED":
     case "GENERATING":
       return "pending";
-    // AUD-011 — ARTIFACT_MISSING mirrors the server-side mapper.
     case "RETRYABLE_FAILURE":
     case "TERMINAL_FAILURE":
     case "ARTIFACT_MISSING":
@@ -236,12 +257,9 @@ function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
     case "ENTITLEMENT_UNAVAILABLE":
       return "unavailable";
     case "NOT_APPLICABLE":
-      // P1-3 — mirrors the server-side mapper exactly. See the note there.
-      return "not_requested";
     case "ELIGIBLE_NOT_GENERATED":
       return "not_requested";
     case "BLOCKED":
-      // ET-RPT-02 — mirrors the server: a blocked request is blocked.
       return "blocked";
   }
 }
@@ -253,7 +271,6 @@ function toPackageLifecycle(state: EvidenceOutputState): PackageLifecycle {
     case "QUEUED":
     case "GENERATING":
       return "pending";
-    // AUD-011 — ARTIFACT_MISSING mirrors the server-side mapper.
     case "RETRYABLE_FAILURE":
     case "TERMINAL_FAILURE":
     case "ARTIFACT_MISSING":
@@ -262,8 +279,6 @@ function toPackageLifecycle(state: EvidenceOutputState): PackageLifecycle {
     case "ENTITLEMENT_UNAVAILABLE":
       return "unavailable";
     case "NOT_APPLICABLE":
-      // P1-3 — mirrors the server-side mapper exactly. See the note there.
-      return "not_requested";
     case "ELIGIBLE_NOT_GENERATED":
     case "BLOCKED":
       return "not_requested";
@@ -271,22 +286,10 @@ function toPackageLifecycle(state: EvidenceOutputState): PackageLifecycle {
 }
 
 /**
- * Phase IA-self-serve-regression-fix — call the user-scoped reports
- * endpoint and adapt its shape into the artifact-envelope shape the
- * rest of this component renders without changes. Returns null on
- * any failure (network, 5xx, parse) so the caller can preserve the
- * existing error message rather than masking it.
- *
- * The mapping is conservative:
- *   * `report.state = "ready"` when the user-scoped endpoint says a
- *     Report row exists; "not_requested" otherwise.
- *   * `package.state = "ready"` when a VerificationPackage row
- *     exists; "not_requested" otherwise.
- *   * `verificationStatus` is omitted (null) because the user-scoped
- *     endpoint doesn't include the integrity-verification column.
- *   * Summary section is reported as `unavailable` so the page
- *     gracefully degrades to "the artifact list below remains
- *     usable" — the summary tiles are advisory only.
+ * Phase IA-self-serve-regression-fix — the user-scoped list, adapted into the
+ * artifact envelope. Returns null on any failure so the caller keeps its own
+ * error. It carries no workspace summary and no record status (the server
+ * projects neither on this route), and the page says so rather than guessing.
  */
 async function tryUserScopedReports(workspaceId: string): Promise<ReportsArtifactsEnvelope | null> {
   try {
@@ -296,8 +299,6 @@ async function tryUserScopedReports(workspaceId: string): Promise<ReportsArtifac
     const items: ArtifactRow[] = (envelope.items ?? []).map((row) => ({
       evidenceId: row.evidenceId,
       teamId: row.teamId ?? null,
-      // VERBATIM. The display name is resolved once, at render, through the
-      // canonical cascade — never substituted at the edge of a fetch.
       title: row.title ?? null,
       displayFileName: row.displayFileName ?? null,
       originalFileName: row.originalFileName ?? null,
@@ -309,10 +310,6 @@ async function tryUserScopedReports(workspaceId: string): Promise<ReportsArtifac
       caseTitle: row.caseTitle ?? null,
       intakeCustomerId: row.intakeCustomerId ?? null,
       createdAt: row.createdAt,
-      // COMMERCIAL CLOSURE (2026-09-08) — the SERVER's lifecycle, not
-      // `available ? ready : not_requested`. That inference is what made a
-      // Free record read "Report not requested" here while the workspace
-      // aggregator called the same record "generating" forever.
       report: {
         state: toReportLifecycle(row.reportLifecycle),
         version: row.report.version,
@@ -324,8 +321,6 @@ async function tryUserScopedReports(workspaceId: string): Promise<ReportsArtifac
         generatedAtUtc: row.package.generatedAtUtc,
         blockedReason: null,
       },
-      // The canonical projection travels through the fallback too, so the two
-      // envelopes this page can receive offer the same action for one record.
       outputs: row.outputs,
     }));
     return {
@@ -333,14 +328,7 @@ async function tryUserScopedReports(workspaceId: string): Promise<ReportsArtifac
       workspace: { id: "user-scoped", role: "USER" },
       sections: {
         summary: { status: "unavailable", data: null },
-        artifacts: {
-          status: "ok",
-          items,
-          nextCursor: envelope.nextCursor,
-          // The user-scoped route is a bootstrap fallback with no total; the
-          // header then falls back to the page length rather than inventing one.
-          total: null,
-        },
+        artifacts: { status: "ok", items, nextCursor: envelope.nextCursor, total: null },
       },
     };
   } catch {
@@ -349,67 +337,70 @@ async function tryUserScopedReports(workspaceId: string): Promise<ReportsArtifac
 }
 
 export function ReportsIndex() {
-  // Phase EMERGENCY-RECOVERY — Reports works for ANY active workspace
-  // (personal Team with isPersonal=true OR a real team). Both have a
-  // valid Team UUID after the workspace-bootstrap fix, so we consume
-  // the canonical workspace id instead of gating on team-only mode.
   const { state: ctxState } = usePlatformContext();
   const workspaceId = useWorkspaceId();
+  const locale = useOptionalLocale();
+  const copy = reportsCopyFor(locale);
+  const time = useOpsTime();
+  const searchParams = useSearchParams();
+
   const [state, setState] = useState<LoadState>({ status: "loading" });
   /** A reload is in flight over results that are already on screen. */
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<LifecycleFilter>("all");
-  const [search, setSearch] = useState("");
 
   /**
-   * CURSOR PAGINATION, as a stack.
-   *
-   * The aggregator pages by an opaque (createdAt, id) cursor, so there is no
-   * offset to jump to a numbered page. `cursors[n]` is the cursor that OPENS
-   * page n+1; Previous pops, Next pushes the `nextCursor` the server returned.
-   * Page 1 is always `null`, so it needs no entry.
+   * THE FILTERS, read from the URL once and written back on every change. A
+   * stale or unknown value falls back to its default (`filtersFromSearch`);
+   * a legacy `?lifecycle=` link lands on its dimension and the URL is
+   * rewritten in the canonical form.
+   */
+  const [filters, setFilters] = useState<ReportsFilters>(() =>
+    filtersFromSearch(searchParams?.toString() ?? ""),
+  );
+  useUrlFilterSync("/reports", filtersToSearch(filters));
+  const [advancedOpen, setAdvancedOpen] = useState(
+    () => advancedFilterCount(filtersFromSearch(searchParams?.toString() ?? "")) > 0,
+  );
+  const advancedPanelId = useId();
+
+  /**
+   * CURSOR PAGINATION, as a stack. `cursors[n]` opens page n+2; Previous pops,
+   * Next pushes the server's `nextCursor`. Page 1 is always `null`.
    */
   const [cursors, setCursors] = useState<string[]>([]);
   const page = cursors.length + 1;
 
-  /**
-   * STALE-RESPONSE GUARD.
-   *
-   * Clicking three filters quickly starts three requests, and without this the
-   * slowest one wins whichever order they land in — the list then shows a
-   * filter the operator has already moved off. Each request takes a
-   * generation; only the newest may write state. The in-flight request is also
-   * aborted, so the browser stops work nobody is waiting for.
-   */
+  /** STALE-RESPONSE GUARD: only the newest request may write state. */
   const listGeneration = useRef(0);
   const listAbort = useRef<AbortController | null>(null);
 
   /**
-   * THE SUMMARY, fetched on its own.
-   *
-   * Six workspace aggregations that no filter, search or page can change. They
-   * used to ride along with every list request, so a filter click paid for
-   * them — that is what made changing a filter feel like a page load. One
-   * request per workspace now, with its own state, so a list failure cannot
-   * blank it and a list refresh cannot delay it.
+   * THE SUMMARY, fetched on its own: workspace totals no filter, search or
+   * page can change. One request per workspace, with its own state.
    */
-  const [summarySection, setSummarySection] = useState<
-    ReportsArtifactsEnvelope["sections"]["summary"]
-  >({ status: "unavailable", data: null });
-  // Learned once from the API (see supportsTruthfulOutputBuckets) and kept:
-  // a filtered request may skip the summary, the capability does not change.
-  const [truthfulBuckets, setTruthfulBuckets] = useState(false);
-  const [blockedBuckets, setBlockedBuckets] = useState(false);
-  useEffect(() => {
-    if (supportsTruthfulOutputBuckets(summarySection.data)) setTruthfulBuckets(true);
-    if (supportsReportBlockedBuckets(summarySection.data)) setBlockedBuckets(true);
-  }, [summarySection.data]);
+  const [summarySection, setSummarySection] = useState<ReportsArtifactsEnvelope["sections"]["summary"]>({
+    status: "unavailable",
+    data: null,
+  });
   // ET-RPT-05 — the summary has a LOADING phase; "temporarily unavailable"
   // is said only after it was asked for and did not come back.
   const [summaryAnswered, setSummaryAnswered] = useState(false);
-  // True while the list on screen came from the user-scoped fallback, where
-  // workspace totals cannot be computed (ET-RPT-05).
+  // True while the list on screen came from the user-scoped fallback.
   const [userScopedView, setUserScopedView] = useState(false);
+
+  const summaryData = summarySection.status === "ok" ? summarySection.data : null;
+  /*
+   * ROLLOUT COMPATIBILITY. What the API accepts is learned from its summary;
+   * until the summary answers (or when it could not be read) the current
+   * contract is assumed. An API proven older is sent only what it accepts.
+   */
+  const caps = {
+    recordStatus: summaryData ? supportsRecordStatus(summaryData) : true,
+    truthfulBuckets: summaryData ? supportsTruthfulOutputBuckets(summaryData) : true,
+    blockedBuckets: summaryData ? supportsReportBlockedBuckets(summaryData) : true,
+  };
+  const apiQuery = apiQueryFor(filters, caps);
+  const apiQueryKey = JSON.stringify(apiQuery);
 
   const loadSummary = useCallback(async () => {
     if (!workspaceId) return;
@@ -421,7 +412,6 @@ export function ReportsIndex() {
       )) as ReportsArtifactsEnvelope;
       setSummarySection(envelope.sections.summary);
     } catch {
-      // Its own failure, reported in its own section. The list is unaffected.
       setSummarySection({ status: "unavailable", data: null });
     } finally {
       setSummaryAnswered(true);
@@ -429,100 +419,56 @@ export function ReportsIndex() {
   }, [workspaceId]);
 
   const reload = useCallback(
-    async (
-      currentFilter: LifecycleFilter,
-      currentSearch: string,
-      currentCursor: string | null,
-    ) => {
+    async (queryKey: string, unfiltered: boolean, currentCursor: string | null) => {
       if (!workspaceId) return;
-      // Newest request wins, and the one it replaces is cancelled.
       const generation = (listGeneration.current += 1);
       listAbort.current?.abort();
       const controller = new AbortController();
       listAbort.current = controller;
       const isCurrent = () => generation === listGeneration.current;
-      // ONLY the FIRST load shows the skeleton.
-      //
-      // This set `{ status: "loading" }` unconditionally, and the render
-      // returns `<ReportsLoading />` for that status — so every debounced
-      // keystroke tore the whole page down, search input included, and rebuilt
-      // it when the response landed. The input lost its DOM node and its focus
-      // mid-word, which is the "it reloads before the next character" the
-      // operator sees. The debounce was never the problem; the remount was.
-      //
-      // A reload with results already on screen now keeps them, and marks the
-      // list stale instead.
-      setState((prev) =>
-        prev.status === "ready" ? prev : { status: "loading" },
-      );
+      // ONLY the first load shows the skeleton; a reload keeps the results
+      // (and the search field's focus) on screen.
+      setState((prev) => (prev.status === "ready" ? prev : { status: "loading" }));
       setRefreshing(true);
+      const query = JSON.parse(queryKey) as ReturnType<typeof apiQueryFor>;
       const params = new URLSearchParams({
         teamId: workspaceId,
-        lifecycle: currentFilter,
-        // THE PERFORMANCE FIX. The workspace aggregations cannot be
-        // changed by a filter, a search or a page, so the list does not ask
-        // for them; they are fetched once, by `loadSummary`.
+        lifecycle: query.lifecycle,
+        // The workspace aggregations are fetched once by `loadSummary`.
         summary: "0",
       });
-      const trimmed = currentSearch.trim();
-      if (trimmed) params.set("search", trimmed.slice(0, 80));
+      if (query.status) params.set("status", query.status);
+      if (query.sort) params.set("sort", query.sort);
+      if (query.search) params.set("search", query.search);
       if (currentCursor) params.set("cursor", currentCursor);
       try {
-        const envelope = (await apiFetch(
-          `/v1/reports/artifacts?${params.toString()}`,
-          { method: "GET", signal: controller.signal },
-        )) as ReportsArtifactsEnvelope;
+        const envelope = (await apiFetch(`/v1/reports/artifacts?${params.toString()}`, {
+          method: "GET",
+          signal: controller.signal,
+        })) as ReportsArtifactsEnvelope;
         if (!isCurrent()) return;
-        // Phase IA-self-serve-regression-fix — workspace-scoped
-        // aggregator returned 200 but with zero artifacts. For
-        // self-serve PERSONAL workspace users that's a known false
-        // negative: the bootstrap may have missed the TeamMember
-        // row, or evidence may live under a different teamId than
-        // the active workspace. Re-query the user-scoped fallback
-        // (`/v1/reports`) which finds reports via evidence
-        // ownership, scoped back to the selected workspace.
-        // THE FALLBACK IS A BOOTSTRAP PROBE, NOT AN EMPTY-RESULT HANDLER.
-        //
-        // It exists for one case: a personal workspace whose TeamMember row
-        // the bootstrap missed, where the aggregator legitimately returns
-        // zero. It fired on ANY empty result — including the entirely correct
-        // emptiness of a search or a lifecycle filter — and
-        // `tryUserScopedReports` queries `/v1/reports` with NEITHER the search
-        // nor the lifecycle parameter, and reports its summary as
-        // `unavailable`.
-        //
-        // So typing a query produced: the UNFILTERED list back (search looked
-        // broken), a filter that appeared to do nothing, and
-        // "Summary is temporarily unavailable" — three symptoms, one cause.
-        //
-        // It now runs ONLY for the unfiltered default view, which is the only
-        // shape it was ever able to reason about.
-        const isUnfilteredView = currentFilter === "all" && trimmed.length === 0;
+        // THE FALLBACK IS A BOOTSTRAP PROBE, NOT AN EMPTY-RESULT HANDLER: it
+        // runs only for the unfiltered default view, the one shape the
+        // user-scoped route (which takes no filter) can describe.
         if (
-          isUnfilteredView &&
+          unfiltered &&
           envelope.sections.artifacts.status === "ok" &&
           envelope.sections.artifacts.items.length === 0
         ) {
           const recovered = await tryUserScopedReports(workspaceId);
-          if (recovered && isCurrent()) {
+          if (recovered && isCurrent() && recovered.sections.artifacts.items.length > 0) {
             setUserScopedView(true);
             setState({ status: "ready", envelope: recovered });
             return;
           }
         }
-        // The list owns the list. The summary has its own state and its own
-        // request, so nothing here can blank it.
         setUserScopedView(false);
         setState({ status: "ready", envelope });
       } catch (err) {
-        // An aborted request is a request we replaced on purpose.
         if ((err as { name?: string })?.name === "AbortError" || !isCurrent()) return;
         const e = err as { message?: string; statusCode?: number };
-        // Phase IA-self-serve-regression-fix — 404 from the
-        // workspace-scoped aggregator means "you are not a
-        // TeamMember of the supplied teamId". For self-serve
-        // PERSONAL users that's a known bootstrap gap; fall back
-        // to the user-scoped list instead of surfacing the error.
+        // 404 = not a member of this workspace: the personal-workspace
+        // bootstrap gap. Fall back to the user-scoped list.
         if (e.statusCode === 404) {
           const recovered = await tryUserScopedReports(workspaceId);
           if (recovered && isCurrent()) {
@@ -548,34 +494,19 @@ export function ReportsIndex() {
     [workspaceId],
   );
 
-  // Provider-state scalars, narrowed before the effect so the dependency
-  // array is statically checkable.
   const ctxStateName = ctxState.name;
   const ctxErrorCode = ctxState.name === "FAILED" ? ctxState.errorCode : null;
   const ctxMessage = ctxState.name === "FAILED" ? ctxState.message : null;
-  /*
-   * There used to be a `queryRef` here, holding the current filter and search
-   * so the workspace-switch effect could fire the list request itself. Its own
-   * comment already warned that "firing them from here as well would issue the
-   * same request twice" — and it did, because the effect also reset the cursor
-   * and that alone re-runs the list effect. The ref went with the duplicate
-   * call: nothing reads the live query except the effect that owns it.
-   */
   useEffect(() => {
     if (ctxStateName === "IDLE" || ctxStateName === "LOADING_CONTEXT") {
       setState({ status: "loading" });
       return;
     }
     if (ctxStateName === "FAILED") {
-      const isAuth =
-        ctxErrorCode === "AUTH_REQUIRED" ||
-        ctxErrorCode === "PERMISSION_DENIED";
+      const isAuth = ctxErrorCode === "AUTH_REQUIRED" || ctxErrorCode === "PERMISSION_DENIED";
       setState({
         status: isAuth ? "auth_error" : "unavailable",
-        code:
-          ctxErrorCode === "PERMISSION_DENIED"
-            ? "permission_denied"
-            : "auth_required",
+        code: ctxErrorCode === "PERMISSION_DENIED" ? "permission_denied" : "auth_required",
         message: ctxMessage,
       } as LoadState);
       return;
@@ -584,101 +515,50 @@ export function ReportsIndex() {
       setState({ status: "no_workspace" });
       return;
     }
-    /*
-     * TWO EFFECTS WERE ISSUING THE SAME LIST REQUEST.
-     *
-     * This one called `reload` directly AND reset the cursor with a fresh
-     * `[]`. A new array is never `Object.is`-equal to the old one, so React
-     * committed a state change even when the cursor was already empty, and
-     * that commit re-ran the list effect below — whose dependency array
-     * includes `cursors`. The second request then aborted the first.
-     *
-     * Measured on /reports in an organization workspace: four requests to
-     * `/v1/reports/artifacts?lifecycle=all&summary=0`, three of them cancelled
-     * after 3-20ms (twice that pair, because dev double-invokes effects). Every
-     * cancelled one had already made the server run the aggregation.
-     *
-     * The list effect below says it owns this query, so it does. This effect
-     * keeps the two things only IT can do: send a workspace switch back to
-     * page 1, and refresh the summary sections, which the list request
-     * deliberately does not carry (`summary=0`).
-     *
-     * The cursor reset returns the SAME reference when there is nothing to
-     * reset, so React bails out and no needless commit happens. When there IS
-     * a cursor to drop, the new array is exactly the dependency change that
-     * makes the list effect re-query page 1 — which is the intent, expressed
-     * once rather than twice.
-     */
+    // A workspace switch goes back to page 1 (same reference when already
+    // there, so no needless commit) and re-reads the summary. The list effect
+    // below owns the list request.
     setCursors((prev) => (prev.length > 0 ? [] : prev));
     void loadSummary();
-    // Reload when the workspace switches (or provider state resolves).
   }, [ctxStateName, ctxErrorCode, ctxMessage, workspaceId, loadSummary]);
 
-  // THE LIST QUERY. Filter, search and page all describe one request, so one
-  // effect owns it. Search keeps its short existing debounce; a filter click
-  // and a page turn fire immediately, because there is nothing to wait for.
+  const unfiltered = !isFiltered(filters);
+  // THE LIST QUERY. Filters, search and page describe one request, so one
+  // effect owns it. Typing keeps a short debounce; everything else is instant.
   useEffect(() => {
     if (!workspaceId) return;
     const cursor = cursors.length > 0 ? cursors[cursors.length - 1] : null;
     const t = setTimeout(() => {
-      void reload(filter, search, cursor);
-    }, search ? 250 : 0);
+      void reload(apiQueryKey, unfiltered, cursor);
+    }, filters.q.trim() ? 250 : 0);
     return () => clearTimeout(t);
-  }, [filter, search, cursors, reload, workspaceId]);
+  }, [apiQueryKey, unfiltered, filters.q, cursors, reload, workspaceId]);
 
-  // FILTER AND SEARCH RESET THE PAGE.
-  //
-  // A cursor describes a position in one ordered result set; carrying it into
-  // a different query points at a row that may not be in it. Both changes send
-  // the operator to page 1 of the new query, which is also the only page whose
-  // existence is guaranteed.
-  const changeFilter = useCallback((next: LifecycleFilter) => {
-    setFilter(next);
+  // A different query is a different ordered set: back to page 1.
+  const changeFilters = useCallback((next: ReportsFilters) => {
+    setFilters(next);
     setCursors([]);
   }, []);
-  // A deep link opens on its filter (2026-09-29; e.g. Billing →
-  // "First issuance pending"). Read after mount so the server-rendered and
-  // first client render agree; an unknown value is ignored.
-  const deepLinkApplied = useRef(false);
-  useEffect(() => {
-    if (deepLinkApplied.current) return;
-    const linked = lifecycleFilterFromSearch(window.location.search);
-    if (!linked || linked === "all") {
-      deepLinkApplied.current = true;
-      return;
-    }
-    // A truthful-bucket filter waits until the API has shown it supports it.
-    if (TRUTHFUL_BUCKET_FILTERS.has(linked) && !truthfulBuckets) return;
-    // ET-RPT-01/02 — so does a blocked / updated-report filter.
-    if (REPORT_BLOCKED_BUCKET_FILTERS.has(linked) && !blockedBuckets) return;
-    deepLinkApplied.current = true;
-    changeFilter(linked);
-  }, [changeFilter, truthfulBuckets, blockedBuckets]);
-  const changeSearch = useCallback((next: string) => {
-    setSearch(next);
-    setCursors([]);
-  }, []);
+  const patchFilters = useCallback(
+    (patch: Partial<ReportsFilters>) => changeFilters({ ...filters, ...patch }),
+    [changeFilters, filters],
+  );
+  const clearFilters = useCallback(
+    () => changeFilters({ ...DEFAULT_FILTERS, sort: filters.sort }),
+    [changeFilters, filters.sort],
+  );
 
-  /*
-   * AFTER A GENERATION REQUEST, RE-READ — never assume.
-   *
-   * The row showed the server's outcome message and nothing else moved, so
-   * the tiles and the row's own status kept describing the moment before the
-   * click. Both are re-read from the server: a queued request moves the record
-   * into "pending" only when the server says it did, and nothing is marked
-   * complete optimistically.
-   */
+  // AFTER A GENERATION REQUEST, RE-READ — never assume.
   const refreshAfterAction = useCallback(() => {
     void loadSummary();
     const cursor = cursors.length > 0 ? cursors[cursors.length - 1] : null;
-    void reload(filter, search, cursor);
-  }, [loadSummary, reload, filter, search, cursors]);
+    void reload(apiQueryKey, unfiltered, cursor);
+  }, [loadSummary, reload, apiQueryKey, unfiltered, cursors]);
 
   /*
-   * POLL WHILE A VISIBLE ROW HAS LIVE WORK — at the interval the server
-   * states, and only the list (the summary is re-read once when the work
-   * ends). Bounded: a row that stays live past ten minutes stops being polled
-   * and the page keeps its manual refresh.
+   * POLL WHILE A VISIBLE ROW HAS LIVE WORK — at the interval the server states,
+   * list only (the summary is re-read once when the work ends). Bounded to ten
+   * minutes. A poll is silent: nothing is announced to assistive technology.
    */
   const liveInterval =
     state.status === "ready" && state.envelope.sections.artifacts.status === "ok"
@@ -699,254 +579,408 @@ export function ReportsIndex() {
     pollStartedAt.current ??= Date.now();
     if (Date.now() - pollStartedAt.current > 10 * 60_000) return;
     const cursor = cursors.length > 0 ? cursors[cursors.length - 1] : null;
-    const t = setTimeout(() => void reload(filter, search, cursor), liveInterval);
+    const t = setTimeout(() => void reload(apiQueryKey, unfiltered, cursor), liveInterval);
     return () => clearTimeout(t);
-  }, [liveInterval, state, reload, loadSummary, filter, search, cursors]);
+  }, [liveInterval, state, reload, loadSummary, apiQueryKey, unfiltered, cursors]);
 
-  if (state.status === "loading") {
-    return <ReportsLoading />;
-  }
-  if (state.status === "no_workspace") {
-    return <ReportsNoWorkspace />;
-  }
-  if (state.status === "auth_error") {
-    return <ReportsAuthError code={state.code} />;
-  }
-  if (state.status === "unavailable") {
-    return <ReportsUnavailable message={state.message} />;
-  }
+  if (state.status === "loading") return <ReportsLoading copy={copy} />;
+  if (state.status === "no_workspace") return <ReportsNoWorkspace copy={copy} />;
+  if (state.status === "auth_error") return <ReportsAuthError code={state.code} copy={copy} />;
+  if (state.status === "unavailable") return <ReportsUnavailable message={state.message} copy={copy} />;
 
   const { envelope } = state;
   const { sections } = envelope;
-  // Pages of PAGE_SIZE over the server total. Null when the server could not
-  // give a total — the pager then shows the page number without a false "of N".
   const pageCount =
     sections.artifacts.total != null
       ? Math.max(1, Math.ceil(sections.artifacts.total / REPORTS_PAGE_SIZE))
       : null;
+  const listTotal = sections.artifacts.total ?? sections.artifacts.items.length;
+  const filtered = isFiltered(filters);
+  const advancedCount = advancedFilterCount(filters);
 
-  const allLifecycleFilters: Array<[LifecycleFilter, string]> = [
-    ["all", "All"],
-    ["report_ready", "Report ready"],
-    ["report_pending", "Report pending"],
-    ["report_failed", "Report failed"],
-    ["report_update_failed", "Updated report failed"],
-    ["report_blocked", "Report blocked"],
-    ["package_ready", "Package ready"],
-    ["package_pending", "Package pending"],
-    ["package_failed", "Package failed"],
-    ["package_blocked", "Package blocked"],
-    ["package_missing", "Package missing"],
-    ["report_awaiting_issuance", "First issuance pending"],
-    ["report_not_issued", "Not issued (plan)"],
-    ["entitlement_unavailable", "Subscription check pending"],
-  ];
-  // Offered only when the API has shown it supports them (see above).
-  const lifecycleFilters = allLifecycleFilters.filter(
-    ([key]) =>
-      (truthfulBuckets || !TRUTHFUL_BUCKET_FILTERS.has(key)) &&
-      (blockedBuckets || !REPORT_BLOCKED_BUCKET_FILTERS.has(key)),
+  // Filter options offered only where the API has proven it accepts them.
+  const lifecycleOffered = (v: string) =>
+    (caps.truthfulBuckets ||
+      !["package_missing", "report_awaiting_issuance", "report_not_issued", "entitlement_unavailable"].includes(v)) &&
+    (caps.blockedBuckets || !["report_update_failed", "report_blocked"].includes(v));
+
+  /** The active advanced dimensions, each removable on its own. */
+  const activeAdvanced: Array<{ key: string; label: string; clear: Partial<ReportsFilters> }> = [];
+  if (!PRIMARY_STATUS_FILTERS.includes(filters.status)) {
+    activeAdvanced.push({
+      key: "status",
+      label: `${copy.filters.statusLabel}: ${copy.filters.status[filters.status]}`,
+      clear: { status: "all" },
+    });
+  }
+  if (filters.report !== "any") {
+    activeAdvanced.push({
+      key: "report",
+      label: `${copy.filters.reportLabel}: ${copy.filters.report[filters.report]}`,
+      clear: { report: "any" },
+    });
+  }
+  if (filters.package !== "any") {
+    activeAdvanced.push({
+      key: "package",
+      label: `${copy.filters.packageLabel}: ${copy.filters.package[filters.package]}`,
+      clear: { package: "any" },
+    });
+  }
+  if (filters.entitlement !== "any") {
+    activeAdvanced.push({
+      key: "entitlement",
+      label: `${copy.filters.entitlementLabel}: ${copy.filters.entitlement[filters.entitlement]}`,
+      clear: { entitlement: "any" },
+    });
+  }
+
+  const metrics = PRIMARY_METRICS.filter(
+    (m) => (caps.recordStatus || !m.recordStatus) && typeof summaryData?.[m.field] === "number",
   );
+  // Records exist, none holds a current artifact: say why instead of an empty
+  // "ready" story (each row's status carries the reason).
+  const noCurrentArtifacts =
+    !filtered &&
+    summaryData != null &&
+    summaryData.totalEvidenceWithArtifacts === 0 &&
+    sections.artifacts.items.length > 0;
 
   return (
     <PageShell
       data-reports-index
       header={
         <PageHeader
-          eyebrow="Deliverables"
+          eyebrow={copy.page.eyebrow}
           title={
-            /* The canonical title treatment — `.app-title-row` +
-               `.app-title-icon`, the same geometry Notifications, Cases and
-               Search render. `aria-hidden` because the heading beside it
-               already names the page. */
             <span className="app-title-row">
               <span aria-hidden className="app-title-icon">
                 <FileText strokeWidth={1.75} data-reports-title-icon />
               </span>
-              <span data-reports-title>Reports &amp; Artifacts</span>
+              <span data-reports-title>{copy.page.title}</span>
             </span>
           }
-          subtitle={
-            <>
-              Generated report snapshots and verification packages. These are
-              workspace deliverables — they record integrity at the time of
-              generation and do NOT assert legal admissibility, authenticity, or
-              "court-ready" status.
-            </>
-          }
+          subtitle={copy.page.subtitle}
           contextStrip={
-            <span
-              title={envelope.generatedAt}
-              style={{ fontSize: 12.5, color: "var(--ink-muted, #94a3b8)" }}
-            >
-              Refreshed {formatRelativeTime(envelope.generatedAt)}
+            <span title={envelope.generatedAt} className="rpt-refreshed">
+              {fillReportsCopy(copy.page.refreshed, { when: time.ago(envelope.generatedAt) })}
             </span>
           }
         />
       }
     >
-      {/* THE WORKSPACE STRIP IS GONE (2026-08-26).
-          It rendered "Reports & artifacts for Personal Space · Personal
-          Space" — the workspace named twice in one line, under a global header
-          that already names it a third time. The list re-scopes on switch
-          either way (`reload` depends on `workspaceId`), so the strip carried
-          no information the page did not already show.
-
-          The contextual help stays: it is a real expandable surface with real
-          content about snapshot integrity. It is restyled, not deleted. */}
       <ContextualHelp surface="reports" collapsedByDefault />
 
-      {/* Operational summary */}
-      {summarySection.status === "ok" && summarySection.data ? (
-        <PageSection title="Operational summary" data-reports-summary>
-          <ul className="rpt-summary__grid" data-reports-summary-grid>
-            {(supportsTruthfulOutputBuckets(summarySection.data)
-              ? SUMMARY_METRICS
-              : [...SUMMARY_METRICS, ...LEGACY_SUMMARY_METRICS]
-            ).filter(
-              (m) => typeof summarySection.data![m.field] === "number",
-            ).map((m) => (
-              <li key={m.key}>
-                {/*
-                  A card with a filter IS that filter (2026-09-29): its number
-                  equals the filter's total, so it opens it. Cards without one
-                  are workspace totals that describe no row set.
-                */}
-                <div
-                  role={m.filter ? "button" : undefined}
-                  tabIndex={m.filter ? 0 : undefined}
-                  aria-pressed={m.filter ? filter === m.filter : undefined}
-                  aria-label={m.filter ? `${m.label}: ${summarySection.data![m.field]}. Show these records` : undefined}
-                  onClick={m.filter ? () => changeFilter(m.filter as LifecycleFilter) : undefined}
-                  onKeyDown={
-                    m.filter
-                      ? (e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            changeFilter(m.filter as LifecycleFilter);
-                          }
-                        }
-                      : undefined
-                  }
-                  style={m.filter ? { cursor: "pointer" } : undefined}
-                  className="app-metric-card rpt-metric"
-                  data-rpt-tone={m.tone}
-                  data-reports-summary-key={m.key}
-                  data-reports-summary-filter={m.filter ?? undefined}
-                  data-reports-summary-value={String(
-                    summarySection.data![m.field],
-                  )}
+      {/* ---------------------------------------------------- summary */}
+      <PageSection title={copy.summary.heading} data-reports-summary>
+        {summaryData && metrics.length > 0 ? (
+          <>
+            <ul className="rpt-summary__grid" data-reports-summary-grid>
+              {metrics.map((m) => {
+                const value = summaryData[m.field] as number;
+                const label = copy.metrics[m.copy].label;
+                const defId = `rpt-metric-def-${m.key}`;
+                const filterKey =
+                  m.apply.status ?? m.apply.report ?? m.apply.package ?? m.apply.entitlement ?? "all";
+                return (
+                  <li key={m.key}>
+                    <button
+                      type="button"
+                      className="app-metric-card rpt-metric"
+                      data-app-metric-tone={m.tone(value)}
+                      aria-pressed={isOnly(filters, m.apply)}
+                      aria-label={fillReportsCopy(copy.summary.showRecords, { label, count: value })}
+                      aria-describedby={defId}
+                      onClick={() => changeFilters(applyOnly(filters, m.apply))}
+                      data-reports-summary-key={m.key}
+                      data-reports-summary-filter={filterKey}
+                      data-reports-summary-value={String(value)}
+                    >
+                      <span className="app-metric-card__value">{value}</span>
+                      <span className="app-metric-card__label">{label}</span>
+                      <span id={defId} className="app-metric-card__meta">
+                        {copy.metrics[m.copy].definition}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <details className="rpt-breakdown" data-reports-breakdown>
+              <summary className="rpt-breakdown__toggle">{copy.summary.breakdown}</summary>
+              <div className="rpt-breakdown__groups">
+                {BREAKDOWN.map((group) => {
+                  const items = group.items.filter(
+                    (i) =>
+                      typeof summaryData[i.field] === "number" &&
+                      (i.apply?.status == null || caps.recordStatus),
+                  );
+                  if (items.length === 0) return null;
+                  return (
+                    <section key={group.group} className="rpt-breakdown__group" aria-label={copy.summary[group.group]}>
+                      <h3 className="rpt-breakdown__heading">{copy.summary[group.group]}</h3>
+                      <ul className="rpt-breakdown__list">
+                        {items.map((i) => {
+                          const value = summaryData[i.field] as number;
+                          const label = copy.breakdown[i.field];
+                          return (
+                            <li key={i.field}>
+                              {i.apply ? (
+                                <button
+                                  type="button"
+                                  className="rpt-breakdown__item"
+                                  aria-pressed={isOnly(filters, i.apply)}
+                                  aria-label={fillReportsCopy(copy.summary.showRecords, { label, count: value })}
+                                  onClick={() => changeFilters(applyOnly(filters, i.apply!))}
+                                  data-reports-breakdown-key={i.field}
+                                  data-reports-breakdown-value={String(value)}
+                                >
+                                  <span>{label}</span>
+                                  <span className="rpt-breakdown__value">{value}</span>
+                                </button>
+                              ) : (
+                                <span
+                                  className="rpt-breakdown__item rpt-breakdown__item--static"
+                                  data-reports-breakdown-key={i.field}
+                                  data-reports-breakdown-value={String(value)}
+                                >
+                                  <span>{label}</span>
+                                  <span className="rpt-breakdown__value">{value}</span>
+                                </span>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
+                  );
+                })}
+              </div>
+            </details>
+          </>
+        ) : (
+          <Card variant="status" tone="neutral">
+            <span className="cc-section-note rpt-note" data-cc-section-status={summarySection.status}>
+              {!summaryAnswered
+                ? copy.summary.loading
+                : userScopedView
+                  ? copy.summary.userScoped
+                  : copy.summary.unavailable}
+            </span>
+          </Card>
+        )}
+      </PageSection>
+
+      {/* ---------------------------------------------------- filters */}
+      <PageSection title={copy.filters.heading} data-reports-filters>
+        <FilterBar filtered={filtered} onReset={clearFilters} resetLabel={copy.filters.clear}>
+          <FilterBar.Search
+            label={copy.filters.searchLabel}
+            placeholder={copy.filters.searchLabel}
+            value={filters.q}
+            onChange={(q) => patchFilters({ q: q.slice(0, 80) })}
+            data-reports-search-input
+          />
+          {caps.recordStatus ? (
+            <div
+              className="cases-segments rpt-segments"
+              role="group"
+              aria-label={copy.filters.statusLabel}
+              data-reports-status-selector
+            >
+              {PRIMARY_STATUS_FILTERS.map((s) => {
+                const active = filters.status === s;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => patchFilters({ status: s })}
+                    data-reports-status-filter={s}
+                    className={`cases-filter-chip${active ? " is-active" : ""}`}
+                  >
+                    {copy.filters.status[s]}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className="app-secondary-action rpt-advanced-toggle"
+            aria-expanded={advancedOpen}
+            aria-controls={advancedPanelId}
+            onClick={() => setAdvancedOpen((v) => !v)}
+            data-reports-advanced-toggle
+          >
+            <SlidersHorizontal size={16} aria-hidden />
+            <span>{copy.filters.advanced}</span>
+            {advancedCount > 0 ? (
+              <span className="rpt-advanced-toggle__count" data-reports-advanced-count={advancedCount}>
+                {fillReportsCopy(copy.filters.advancedActive, { n: advancedCount })}
+              </span>
+            ) : null}
+          </button>
+          {caps.recordStatus ? (
+            <FilterBar.Select
+              label={copy.filters.sortLabel}
+              value={filters.sort}
+              onChange={(v) => patchFilters({ sort: v === "oldest" ? "oldest" : "newest" })}
+              options={[
+                { value: "newest", label: copy.filters.sort.newest },
+                { value: "oldest", label: copy.filters.sort.oldest },
+              ]}
+              data-reports-sort
+            />
+          ) : null}
+        </FilterBar>
+
+        <div
+          id={advancedPanelId}
+          role="region"
+          aria-label={copy.filters.advancedTitle}
+          className="rpt-advanced"
+          hidden={!advancedOpen}
+          data-reports-advanced-panel
+        >
+          <div className="rpt-advanced__grid">
+            {caps.recordStatus ? (
+              <FilterBar.Select
+                showLabel
+                label={copy.filters.statusLabel}
+                value={filters.status}
+                onChange={(v) => patchFilters({ status: (STATUS_FILTERS as readonly string[]).includes(v) ? (v as StatusFilter) : "all" })}
+                options={STATUS_FILTERS.map((s) => ({ value: s, label: copy.filters.status[s] }))}
+                data-reports-advanced-status
+              />
+            ) : null}
+            <FilterBar.Select
+              showLabel
+              label={copy.filters.reportLabel}
+              value={filters.report}
+              onChange={(v) =>
+                patchFilters({ report: REPORT_DIMENSION.find((d) => d === v) ?? "any" })
+              }
+              options={[
+                { value: "any", label: copy.filters.any },
+                ...REPORT_DIMENSION.filter(lifecycleOffered).map((d) => ({ value: d, label: copy.filters.report[d] })),
+              ]}
+              data-reports-advanced-report
+            />
+            <FilterBar.Select
+              showLabel
+              label={copy.filters.packageLabel}
+              value={filters.package}
+              onChange={(v) =>
+                patchFilters({ package: PACKAGE_DIMENSION.find((d) => d === v) ?? "any" })
+              }
+              options={[
+                { value: "any", label: copy.filters.any },
+                ...PACKAGE_DIMENSION.filter(lifecycleOffered).map((d) => ({ value: d, label: copy.filters.package[d] })),
+              ]}
+              data-reports-advanced-package
+            />
+            <FilterBar.Select
+              showLabel
+              label={copy.filters.entitlementLabel}
+              value={filters.entitlement}
+              onChange={(v) =>
+                patchFilters({ entitlement: ENTITLEMENT_DIMENSION.find((d) => d === v) ?? "any" })
+              }
+              options={[
+                { value: "any", label: copy.filters.any },
+                ...ENTITLEMENT_DIMENSION.filter(lifecycleOffered).map((d) => ({
+                  value: d,
+                  label: copy.filters.entitlement[d],
+                })),
+              ]}
+              data-reports-advanced-entitlement
+            />
+          </div>
+          <button
+            type="button"
+            className="app-secondary-action rpt-advanced__done"
+            onClick={() => setAdvancedOpen(false)}
+            data-reports-advanced-done
+          >
+            {copy.filters.done}
+          </button>
+        </div>
+
+        {activeAdvanced.length > 0 ? (
+          <ul className="rpt-active-filters" data-reports-active-filters>
+            {activeAdvanced.map((a) => (
+              <li key={a.key}>
+                <button
+                  type="button"
+                  className="rpt-active-filter"
+                  aria-label={fillReportsCopy(copy.filters.removeFilter, { label: a.label })}
+                  onClick={() => patchFilters(a.clear)}
+                  data-reports-active-filter={a.key}
                 >
-                  <span className="app-metric-card__value rpt-metric__value">
-                    {summarySection.data![m.field]}
-                  </span>
-                  <span className="app-metric-card__label rpt-metric__label">
-                    {m.label}
-                  </span>
-                </div>
+                  <span>{a.label}</span>
+                  <span aria-hidden>✕</span>
+                </button>
               </li>
             ))}
           </ul>
-        </PageSection>
-      ) : (
-        <PageSection title="Operational summary">
-          <Card variant="status" tone="neutral">
-            <span
-              className="cc-section-note"
-              data-cc-section-status={summarySection.status}
-              style={{ color: "var(--ink-secondary, #475569)", fontSize: 13.5 }}
-            >
-              {!summaryAnswered
-                ? "Loading the summary…"
-                : userScopedView
-                  ? "Workspace totals are not available for this view: these records were found through your own account, not through workspace membership. The list below is complete for you."
-                  : "Summary is temporarily unavailable. The artifact list below remains usable."}
-            </span>
-          </Card>
-        </PageSection>
-      )}
-
-      {/* Filters */}
-      <PageSection title="Filters" data-reports-filters>
-        <FilterBar>
-          <FilterBar.Search
-            label="Search by evidence title"
-            placeholder="Search by evidence title"
-            value={search}
-            onChange={changeSearch}
-            data-reports-search-input
-          />
-          <div
-            className="cases-filter-chips"
-            role="tablist"
-            aria-label="Artifact lifecycle filters"
-          >
-            {lifecycleFilters.map(([key, label]) => {
-              const active = filter === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => changeFilter(key)}
-                  data-reports-filter={key}
-                  className={`cases-filter-chip${active ? " is-active" : ""}`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </FilterBar>
+        ) : null}
       </PageSection>
 
-      {/* Artifact list */}
+      {/* ---------------------------------------------------- records */}
       <PageSection
-        /* THE TOTAL for the current query, from the server. It read
-           `items.length` — always 25 on a workspace with 278 reports, which
-           announced the page size as if it were the answer. */
-        title={`Evidence records · ${
-          sections.artifacts.total ?? sections.artifacts.items.length
-        }`}
+        title={`${copy.list.heading} · ${listTotal}`}
         data-reports-list
         data-reports-refreshing={refreshing ? "true" : "false"}
+        aria-busy={refreshing}
       >
-        {sections.artifacts.status !== "ok" ? (
+        {noCurrentArtifacts ? (
+          <Card variant="status" tone="neutral">
+            <div className="rpt-note" data-reports-no-artifacts>
+              <strong>{copy.empty.noArtifactsTitle}</strong> {copy.empty.noArtifactsBody}
+            </div>
+          </Card>
+        ) : null}
+        {sections.artifacts.status !== "ok" && sections.artifacts.items.length === 0 ? (
           <Card variant="status" tone="pending">
-            <span
-              className="cc-section-note"
-              data-cc-section-status={sections.artifacts.status}
-              style={{ color: "var(--ink-secondary, #475569)", fontSize: 13.5 }}
-            >
-              Artifact list is temporarily unavailable. Retry shortly.
+            <span className="cc-section-note rpt-note" data-cc-section-status={sections.artifacts.status}>
+              {copy.list.unavailable}
             </span>
           </Card>
         ) : sections.artifacts.items.length === 0 ? (
-          <ReportsEmptyState filter={filter} search={search} />
+          <ReportsEmptyState filtered={filtered} onClear={clearFilters} copy={copy} />
         ) : (
-          <ul className="rpt-list" data-reports-list-items>
-              {sections.artifacts.items.map((row) => (
-                <ArtifactRowView
-                  key={row.evidenceId}
-                  row={row}
-                  teamId={row.teamId}
-                  onOutputsRequested={refreshAfterAction}
-                />
-            ))}
-          </ul>
+          <div className="app-table-surface rpt-table-surface">
+            <table className="app-table rpt-table" data-reports-list-items aria-label={copy.list.heading}>
+              <thead>
+                <tr>
+                  <th scope="col">{copy.list.columns.evidence}</th>
+                  <th scope="col">{copy.list.columns.status}</th>
+                  <th scope="col">{copy.list.columns.report}</th>
+                  <th scope="col">{copy.list.columns.package}</th>
+                  <th scope="col">{copy.list.columns.integrity}</th>
+                  <th scope="col">{copy.list.columns.captured}</th>
+                  <th scope="col" className="rpt-table__actions-head">
+                    {copy.list.columns.actions}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {sections.artifacts.items.map((row) => (
+                  <ArtifactRowView
+                    key={row.evidenceId}
+                    row={row}
+                    copy={copy}
+                    ago={time.ago}
+                    onOutputsRequested={refreshAfterAction}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-        {/* REAL PAGINATION, replacing the note that told an operator to go
-            somewhere else. Previous/Next over the cursor stack, with the page
-            count derived from the server's own total — never from
-            `rows.length`. Both controls are truthfully disabled at the ends. */}
-        {sections.artifacts.status === "ok" &&
-        (page > 1 || sections.artifacts.nextCursor) ? (
-          <nav
-            className="rpt-pagination"
-            aria-label="Pagination"
-            data-reports-pagination
-          >
+        {sections.artifacts.status === "ok" && (page > 1 || sections.artifacts.nextCursor) ? (
+          <nav className="rpt-pagination" aria-label={copy.list.pagination} data-reports-pagination>
             <button
               type="button"
               className="app-secondary-action"
@@ -954,11 +988,12 @@ export function ReportsIndex() {
               disabled={page <= 1 || refreshing}
               data-reports-prev-page
             >
-              Previous
+              {copy.list.previous}
             </button>
-            <span className="rpt-pagination__status" aria-live="polite">
-              Page {page}
-              {pageCount !== null ? ` of ${pageCount}` : ""}
+            <span className="rpt-pagination__status">
+              {pageCount !== null
+                ? fillReportsCopy(copy.list.pageOf, { page, count: pageCount })
+                : fillReportsCopy(copy.list.page, { page })}
             </span>
             <button
               type="button"
@@ -970,176 +1005,255 @@ export function ReportsIndex() {
               disabled={!sections.artifacts.nextCursor || refreshing}
               data-reports-next-page
             >
-              Next
+              {copy.list.next}
             </button>
           </nav>
         ) : null}
       </PageSection>
 
       <PageSection data-reports-footnote>
-        <div
-          className="cc-section-note"
-          data-cc-section-status="not_applicable"
-          style={{ fontSize: 12.5, color: "var(--ink-muted, #94a3b8)", lineHeight: 1.6 }}
-        >
-          Browsing this page never triggers report or package generation
-          and never marks any artifact as viewed. Signed download URLs are
-          only minted on explicit per-row action (the Download buttons
-          above), the same gated path used by the evidence-detail page.
+        <div className="cc-section-note rpt-footnote" data-cc-section-status="not_applicable">
+          {copy.footnote}
         </div>
       </PageSection>
     </PageShell>
   );
 }
 
+// ---------------------------------------------------------------------------
+// One record
+// ---------------------------------------------------------------------------
+
+const FAILURE_REASONS: ReadonlySet<DeliverableStatusReason> = new Set([
+  "REPORT_FAILED",
+  "PACKAGE_FAILED",
+  "REPORT_UPDATE_FAILED",
+  "ARTIFACT_MISSING",
+]);
+
+/**
+ * The status badge's tone. Danger ONLY for a genuine failure this reader can
+ * act on (the row offers a verb); a failure escalated to operators, a block or
+ * an owed output is a warning; in progress and "nothing owed" are neutral.
+ */
+function deliverableTone(status: DeliverableStatus, reason: DeliverableStatusReason, actionable: boolean): AppTone {
+  switch (status) {
+    case "READY":
+      return "green";
+    case "NEEDS_ATTENTION":
+      return FAILURE_REASONS.has(reason) && actionable ? "red" : "amber";
+    case "INCOMPLETE":
+      return "amber";
+    case "IN_PROGRESS":
+    case "NOT_AVAILABLE":
+      return "slate";
+  }
+}
+
+/** A per-output state's tone: ready green, failed red, blocked amber, the rest neutral. */
+function outputTone(state: ReportLifecycle | PackageLifecycle): string {
+  switch (state) {
+    case "ready":
+      return "green";
+    case "failed":
+      return "red";
+    case "blocked":
+      return "amber";
+    default:
+      return "slate";
+  }
+}
+
+/** The server's verbs for this row, per output. Nothing invented. */
+function outputVerbsFor(row: ArtifactRow): Array<{ kind: OutputKind; action: "GENERATE" | "RETRY" | "RECOVER" }> {
+  const verbs: Array<{ kind: OutputKind; action: "GENERATE" | "RETRY" | "RECOVER" }> = [];
+  for (const kind of ["report", "verificationPackage"] as const) {
+    const a = row.outputs?.[kind].action;
+    if (a === "GENERATE" || a === "RETRY" || a === "RECOVER") verbs.push({ kind, action: a });
+  }
+  return verbs;
+}
+
+/** Verified is the only positive integrity outcome; it alone reads green. */
+function integrityTone(status: string): string {
+  const raw = String(status ?? "").trim().toUpperCase();
+  if (raw === "RECORDED_INTEGRITY_VERIFIED") return "green";
+  if (raw === "FAILED") return "red";
+  if (raw === "REVIEW_REQUIRED") return "amber";
+  return "slate";
+}
+
 function ArtifactRowView({
   row,
-  teamId,
+  copy,
+  ago,
   onOutputsRequested,
 }: {
   row: ArtifactRow;
-  teamId: string | null;
+  copy: ReportsCopy;
+  ago: (iso: string | null | undefined) => string;
   onOutputsRequested?: () => void;
 }) {
-  return (
-    <li
-      className="rpt-row"
-      data-reports-row-id={row.evidenceId}
-    >
-      <div className="rpt-row__body">
-        <Link href={`/evidence/${row.evidenceId}`} className="rpt-row__link">
-          {/* A — PRIMARY: the record's name, resolved once through the
-              canonical cascade. B — SECONDARY: what it IS, in the neutral
-              classification voice, so a kind can never be mistaken for a
-              state. */}
-          <div className="rpt-row__head">
-            <span className="rpt-row__title">
-              {getDisplayTitle({
-                id: row.evidenceId,
-                title: row.title,
-                displayFileName: row.displayFileName,
-                originalFileName: row.originalFileName,
-                type: row.type,
-                mimeType: row.mimeType,
-                itemCount: null,
-              })}
-            </span>
-            <span className="rpt-row__type">{humanize(row.type)}</span>
-          </div>
+  const title = getDisplayTitle({
+    id: row.evidenceId,
+    title: row.title,
+    displayFileName: row.displayFileName,
+    originalFileName: row.originalFileName,
+    type: row.type,
+    mimeType: row.mimeType,
+    itemCount: null,
+  });
+  const typeLabel = getEvidenceTypeLabel({ type: row.type, mimeType: row.mimeType, itemCount: null } as never);
+  const verbs = outputVerbsFor(row);
+  const olderPackage =
+    row.package.state !== "ready" ? (row.outputs?.verificationPackage.latestAvailableVersion ?? null) : null;
 
-          {/* C — STATUS / METADATA, one coherent group.
-              The two lifecycle states were capsules; they are plain coloured
-              text now. Two pills beside an integrity verdict made three chips
-              on one line and the eye had nothing to land on. */}
-          <div className="rpt-row__meta">
-            <span
-              className="rpt-status"
-              data-tone={reportStatusAttr(row.report.state)}
-              data-reports-report-state={row.report.state}
-            >
-              Report {reportLabel(row.report.state)}
-              {row.report.version ? ` · v${row.report.version}` : ""}
-            </span>
-            <span
-              className="rpt-status"
-              data-tone={packageStatusAttr(row.package.state)}
-              data-reports-package-state={row.package.state}
-            >
-              Package {packageLabel(row.package.state)}
-              {row.package.version ? ` · v${row.package.version}` : ""}
-            </span>
-            {row.package.state !== "ready" &&
-            row.outputs?.verificationPackage.latestAvailableVersion ? (
-              <span
-                className="rpt-status"
-                data-tone="slate"
-                data-reports-historical-package-version={
-                  row.outputs.verificationPackage.latestAvailableVersion
-                }
-              >
-                {/* It names the report it certifies, so it is never read as proof for
-                    the latest report (2026-09-29). */}
-                Older package v{row.outputs.verificationPackage.latestAvailableVersion} certifies
-                an earlier report — not the latest report{" "}
-                {row.report.version ? `v${row.report.version}` : ""}, which has no package yet
-              </span>
-            ) : null}
-            {row.verificationStatus ? (
-              /* "Integrity Recorded Integrity Verified" was the raw enum
-                 humanised — RECORDED_INTEGRITY_VERIFIED — with the word
-                 "Integrity" already in front of it. Same value, same meaning,
-                 said once. */
-              <span
-                className="rpt-status"
-                data-tone={integrityToneAttr(row.verificationStatus)}
-                data-reports-verification={row.verificationStatus}
-              >
-                {/* The ORIGINAL evidence integrity check — not a statement about
-                    any report or package (2026-09-29). */}
-                Original evidence: {integrityLabel(row.verificationStatus)}
-              </span>
-            ) : null}
+  return (
+    <tr className="rpt-row" data-reports-row-id={row.evidenceId} data-reports-row-status={row.deliverable?.status}>
+      <td className="rpt-cell rpt-cell--evidence">
+        <div className="rpt-evidence">
+          <Link
+            href={`/evidence/${row.evidenceId}`}
+            className="rpt-row__title"
+            data-reports-open-evidence={row.evidenceId}
+          >
+            {title}
+          </Link>
+          <span className="rpt-row__meta">
+            <span className="rpt-row__type">{typeLabel}</span>
             {row.caseId ? (
-              <Link
-                href={`/cases/${row.caseId}`}
-                onClick={(e) => e.stopPropagation()}
-                data-reports-case-link={row.caseId}
-                className="rpt-row__case"
-              >
-                {/* The NAME, not the identifier. A truncated uuid is not
-                    something a person recognises; the short id survives only
-                    for a legacy row that genuinely has no name. */}
-                Case: {row.caseTitle ?? `#${row.caseId.slice(0, 6)}`}
+              // The NAME; the short id only for a legacy case that has none.
+              <Link href={`/cases/${row.caseId}`} className="rpt-row__case" data-reports-case-link={row.caseId}>
+                {row.caseTitle ?? `#${row.caseId.slice(0, 6)}`}
               </Link>
             ) : null}
-            {/* Business metadata the organization supplied, and the reason
-                this row matches a Customer ID search. Same weight as the other
-                meta items — it asserts nothing about the record's integrity. */}
             {row.intakeCustomerId ? (
-              <span
-                className="rpt-row__captured"
-                data-reports-customer-id={row.intakeCustomerId}
-                title="Customer ID supplied by your organization"
-              >
-                Customer: {row.intakeCustomerId}
+              <span className="rpt-row__muted" data-reports-customer-id={row.intakeCustomerId}>
+                {fillReportsCopy(copy.list.customer, { id: row.intakeCustomerId })}
               </span>
             ) : null}
-            <time dateTime={row.createdAt} className="rpt-row__captured">
-              Captured {formatRelativeTime(row.createdAt)}
-            </time>
-            {row.package.blockedReason ? (
-              <span
-                className="rpt-status"
-                data-tone="amber"
-                data-reports-package-blocked-reason={row.package.blockedReason}
-              >
-                Export blocked by governance: {row.package.blockedReason}
+          </span>
+        </div>
+      </td>
+      <td className="rpt-cell">
+        <span className="rpt-cell__label">{copy.list.columns.status}</span>
+        {row.deliverable ? (
+          <span className="rpt-status-cell">
+            <AppStatusBadge
+              tone={deliverableTone(row.deliverable.status, row.deliverable.reason, verbs.length > 0)}
+              dot
+              data-reports-row-status-badge={row.deliverable.status}
+            >
+              {copy.statuses[row.deliverable.status]}
+            </AppStatusBadge>
+            {row.deliverable.reason !== "COMPLETE" ? (
+              <span className="rpt-row__reason" data-reports-row-reason={row.deliverable.reason}>
+                {copy.reasons[row.deliverable.reason]}
               </span>
             ) : null}
-          </div>
-        </Link>
-      {/* Phase 2.1 — Explicit per-row download actions. The page
-          remains side-effect-free on browse (mount does NOT call any
-          download endpoint). These buttons only fire on EXPLICIT user
-          click, mirroring the evidence-detail download flow. The
-          backend (`/v1/evidence/:id/report/latest`,
-          `/v1/evidence/:id/verification-package`) still gates on
-          workspace policy + retention; this UI never simulates
-          permission. */}
+          </span>
+        ) : (
+          <span className="rpt-row__muted">—</span>
+        )}
+      </td>
+      <td className="rpt-cell">
+        <span className="rpt-cell__label">{copy.list.columns.report}</span>
+        <OutputCell
+          state={row.report.state}
+          version={row.report.version}
+          generatedAtUtc={row.report.generatedAtUtc}
+          copy={copy}
+          ago={ago}
+          dataAttr={{ "data-reports-report-state": row.report.state }}
+        />
+      </td>
+      <td className="rpt-cell">
+        <span className="rpt-cell__label">{copy.list.columns.package}</span>
+        <OutputCell
+          state={row.package.state}
+          version={row.package.version}
+          generatedAtUtc={row.package.generatedAtUtc}
+          copy={copy}
+          ago={ago}
+          dataAttr={{ "data-reports-package-state": row.package.state }}
+        />
+        {olderPackage ? (
+          // It names the report it certifies, so it is never read as proof for
+          // the latest report (2026-09-29).
+          <span className="rpt-row__muted rpt-row__note" data-reports-historical-package-version={olderPackage}>
+            {fillReportsCopy(copy.list.olderPackage, { n: olderPackage })}
+          </span>
+        ) : null}
+      </td>
+      <td className="rpt-cell">
+        <span className="rpt-cell__label">{copy.list.columns.integrity}</span>
+        {row.verificationStatus ? (
+          // The ORIGINAL evidence integrity check — not a statement about any
+          // report or package.
+          <span
+            className="rpt-status"
+            data-tone={integrityTone(row.verificationStatus)}
+            data-reports-verification={row.verificationStatus}
+          >
+            {getVerificationStatusLabel(row.verificationStatus)}
+          </span>
+        ) : (
+          <span className="rpt-row__muted">—</span>
+        )}
+      </td>
+      <td className="rpt-cell">
+        <span className="rpt-cell__label">{copy.list.columns.captured}</span>
+        <time dateTime={row.createdAt} title={formatUserDate(row.createdAt)} className="rpt-row__muted">
+          {ago(row.createdAt)}
+        </time>
+      </td>
+      <td className="rpt-cell rpt-cell--actions">
         <ArtifactRowActions
           row={row}
-          teamId={teamId}
+          title={title}
+          teamId={row.teamId}
+          copy={copy}
           onOutputsRequested={onOutputsRequested}
         />
-      </div>
-    </li>
+      </td>
+    </tr>
+  );
+}
+
+function OutputCell({
+  state,
+  version,
+  generatedAtUtc,
+  copy,
+  ago,
+  dataAttr,
+}: {
+  state: ReportLifecycle | PackageLifecycle;
+  version: number | null;
+  generatedAtUtc: string | null;
+  copy: ReportsCopy;
+  ago: (iso: string | null | undefined) => string;
+  dataAttr: Record<string, string>;
+}) {
+  return (
+    <span className="rpt-output">
+      <span className="rpt-status" data-tone={outputTone(state)} {...dataAttr}>
+        {copy.outputStates[state]}
+        {version ? ` · ${fillReportsCopy(copy.list.version, { n: version })}` : ""}
+      </span>
+      {state === "ready" && generatedAtUtc ? (
+        <time dateTime={generatedAtUtc} title={formatUserDate(generatedAtUtc)} className="rpt-row__muted">
+          {ago(generatedAtUtc)}
+        </time>
+      ) : null}
+    </span>
   );
 }
 
 /**
  * The row's sentence for a refused generation request. A declined request
- * (409) carries the server's own reason sentence; 403 is the domain
- * permission `evidence.generate_report`, which OWNER, ADMIN and MEMBER hold.
+ * (409) carries the server's own reason sentence; 403 is the domain permission
+ * `evidence.generate_report`, which OWNER, ADMIN and MEMBER hold.
  */
 function requestErrorMessage(err: unknown): string {
   const e = err as { statusCode?: number };
@@ -1151,70 +1265,66 @@ function requestErrorMessage(err: unknown): string {
 }
 
 /**
- * Phase 2.1 — per-row download actions. Only renders buttons for
- * states that have an actionable next step. Non-actionable states
- * (pending / not_requested / unavailable) get a quiet help label
- * instead — never a dead button.
+ * THE ROW'S ACTIONS — the server's, never this page's guess.
+ *
+ *   * PRIMARY: the server's verb when it offers one (Generate / Retry /
+ *     Recover), else the report download.
+ *   * The two DOWNLOADS stay visible buttons, each inside the governance
+ *     pre-flight (`GovernedExportAction`).
+ *   * Everything else — a second verb, Open evidence, Open case — is in the
+ *     row's overflow menu.
+ *   * No verb when the server offers none; the reason is stated instead.
  */
 function ArtifactRowActions({
   row,
+  title,
   teamId,
+  copy,
   onOutputsRequested,
 }: {
   row: ArtifactRow;
+  title: string;
   teamId: string | null;
+  copy: ReportsCopy;
   onOutputsRequested?: () => void;
 }) {
-  // `regen` covers every request to the one generation endpoint: a per-output
-  // action, or the separate new version.
+  const router = useRouter();
   const [busy, setBusy] = useState<null | "report" | "package" | "regen">(null);
   const [error, setError] = useState<string | null>(null);
-  // The server's own sentence for the last request, shown in the row.
-  // ET-RPT-06 — the outcome keeps its own tone: a TERMINAL, blocked or
-  // queue-unavailable answer is not a success and is not shown in green.
+  // ET-RPT-06 — the outcome keeps its own tone.
   const [regenNotice, setRegenNotice] = useState<{ message: string; tone: GenerationOutcomeTone } | null>(null);
 
-  const triggerReport = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const triggerReport = async () => {
     if (busy) return;
     setBusy("report");
     setError(null);
     try {
-      const resp = (await apiFetch(
-        `/v1/evidence/${row.evidenceId}/report/latest`,
-        { method: "GET" },
-      )) as { url?: string };
+      const resp = (await apiFetch(`/v1/evidence/${row.evidenceId}/report/latest`, { method: "GET" })) as {
+        url?: string;
+      };
       if (resp.url) {
-        // Open in a new tab so the operator keeps the Reports queue
-        // intact behind the download.
         window.open(resp.url, "_blank", "noopener,noreferrer");
       } else {
         setError("Report URL is unavailable.");
       }
     } catch (err) {
-      // RGA-04 — one shared vocabulary for report download failures.
       setError(describeArtifactDownloadFailure("report", err).message);
     } finally {
       setBusy(null);
     }
   };
 
-  const triggerPackage = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const triggerPackage = async () => {
     if (busy) return;
     setBusy("package");
     setError(null);
     try {
-      const resp = (await apiFetch(
-        `/v1/evidence/${row.evidenceId}/verification-package`,
-        { method: "GET" },
-      )) as { url?: string; code?: string; message?: string };
+      const resp = (await apiFetch(`/v1/evidence/${row.evidenceId}/verification-package`, {
+        method: "GET",
+      })) as { url?: string; code?: string; message?: string };
       if (resp.url) {
         window.open(resp.url, "_blank", "noopener,noreferrer");
       } else {
-        // RGA-04 — a 2xx with no URL carries a bounded code (e.g. pending).
         setError(
           describeArtifactDownloadFailure("verificationPackage", {
             code: resp.code,
@@ -1223,34 +1333,23 @@ function ArtifactRowActions({
         );
       }
     } catch (err) {
-      // RGA-04 — one shared vocabulary for package download failures.
       setError(describeArtifactDownloadFailure("verificationPackage", err).message);
     } finally {
       setBusy(null);
     }
   };
 
-  /**
-   * ONE OUTPUT'S ACTION — the verb the server chose for that output, with its
-   * intent. A report whose package is missing offers "Recover package" and
-   * the server rebuilds only the package, from the stored report.
-   */
-  const requestOutput = async (
-    e: React.MouseEvent,
-    intent: "GENERATE" | "RETRY" | "RECOVER",
-    output: OutputKind,
-  ) => {
-    e.preventDefault();
-    e.stopPropagation();
+  /** ONE OUTPUT'S ACTION — the verb the server chose for that output. */
+  const requestOutput = async (intent: "GENERATE" | "RETRY" | "RECOVER", output: OutputKind) => {
     if (busy) return;
     setBusy("regen");
     setError(null);
     setRegenNotice(null);
     try {
-      const resp = (await apiFetch(
-        `/v1/evidence/${row.evidenceId}/reports/regenerate`,
-        { method: "POST", body: JSON.stringify({ intent, output }) },
-      )) as GenerationResponse;
+      const resp = (await apiFetch(`/v1/evidence/${row.evidenceId}/reports/regenerate`, {
+        method: "POST",
+        body: JSON.stringify({ intent, output }),
+      })) as GenerationResponse;
       const outcome = readGenerationOutcome(resp);
       setRegenNotice({ message: outcome.message, tone: outcome.tone });
     } catch (err) {
@@ -1262,223 +1361,131 @@ function ArtifactRowActions({
     }
   };
 
-
   const reportReady = row.report.state === "ready";
   const packageReady = row.package.state === "ready";
+  const verbs = outputVerbsFor(row);
+  const primaryVerb = verbs[0] ?? null;
+  const extraVerbs = verbs.slice(1);
 
-  /**
-   * THE ACTIONS ARE THE SERVER'S, PER OUTPUT.
-   *
-   * This row once derived a verb from the legacy five-value lifecycle, then
-   * rendered one verb for both outputs. Each output now shows the verb the
-   * server chose for IT (`outputs.*.action`), so a missing package reads
-   * "Recover package" rather than a regeneration of both. No outputs → no
-   * verb: nothing is invented for a row the server did not describe.
-   */
-  const outputVerbs: Array<{
-    kind: OutputKind;
-    action: "GENERATE" | "RETRY" | "RECOVER";
-  }> = [];
-  for (const kind of ["report", "verificationPackage"] as const) {
-    const a = row.outputs?.[kind].action;
-    if (a === "GENERATE" || a === "RETRY" || a === "RECOVER") {
-      outputVerbs.push({ kind, action: a });
-    }
-  }
-
-  /*
-   * WHY NO VERB, when a person should know: escalated to operators, under
-   * integrity review, a legal hold. Short here; the full sentence is the
-   * tooltip, and Evidence Detail (one click away) states it in full.
-   */
+  // WHY NO VERB, when a person should know (escalated, under review, a hold,
+  // no permission). Short here; the full sentence is the tooltip.
   const withheldOutput =
-    (["report", "verificationPackage"] as const)
-      .map((kind) => row.outputs?.[kind] ?? null)
-      .find((output) => output !== null && outputNoteShort(output) !== null) ?? null;
+    verbs.length > 0
+      ? null
+      : ((["report", "verificationPackage"] as const)
+          .map((kind) => row.outputs?.[kind] ?? null)
+          .find((output) => output !== null && outputNoteShort(output) !== null) ?? null);
   const withheld = withheldOutput
     ? outputTerminalReasonCopy(withheldOutput.terminalReasonCode)
       ? (withheldOutput.terminalReasonCode ?? null)
       : (withheldOutput.actionUnavailableReason ?? null)
     : null;
 
+  const menuActions: AppRowAction[] = [
+    ...extraVerbs.map(({ kind, action }) => ({
+      key: `verb-${kind}`,
+      label: outputActionLabel(kind, action, "compact"),
+      onSelect: () => void requestOutput(action, kind),
+      disabled: busy !== null,
+    })),
+    {
+      key: "open-evidence",
+      label: copy.list.openEvidence,
+      onSelect: () => router.push(`/evidence/${row.evidenceId}`),
+      separated: extraVerbs.length > 0,
+    },
+    ...(row.caseId
+      ? [{ key: "open-case", label: copy.list.openCase, onSelect: () => router.push(`/cases/${row.caseId}`) }]
+      : []),
+  ];
+
   return (
-    <div
-      className="rpt-row__actions"
-      data-reports-row-actions={row.evidenceId}
-    >
+    <div className="rpt-row__actions" data-reports-row-actions={row.evidenceId}>
+      {primaryVerb ? (
+        <button
+          type="button"
+          className="app-primary-action rpt-row__action"
+          data-reports-regenerate={row.evidenceId}
+          data-reports-output={primaryVerb.kind}
+          data-reports-generate-verb={primaryVerb.action}
+          onClick={() => void requestOutput(primaryVerb.action, primaryVerb.kind)}
+          disabled={busy !== null}
+        >
+          {/* The COMPACT label: a shortening of the full one, never a
+              different name for the same operation. */}
+          {busy === "regen" ? copy.list.requesting : outputActionLabel(primaryVerb.kind, primaryVerb.action, "compact")}
+        </button>
+      ) : null}
       {reportReady ? (
-        // Phase G3.2 — every Report PDF download is governed by the
-        // export-eligibility preflight. Blocked verdicts disable the
-        // button + surface the reason inline; this is the same gate
-        // the evidence detail page applies.
         <GovernedExportAction
           evidenceId={row.evidenceId}
           teamId={teamId}
           actionLabel={DOWNLOAD_REPORT_LABEL}
           compactWhenAllowed
-          onAction={() =>
-            void triggerReport({
-              preventDefault() {},
-              stopPropagation() {},
-            } as unknown as React.MouseEvent)
-          }
+          onAction={() => void triggerReport()}
           renderAction={({ disabled, onClick }) => (
             <button
-              /* CANONICAL PURPLE — `app-primary-action`.
-                 This was `<Button variant="primary">`, and that legacy
-                 variant is the marketing CTA: a coral-to-pink gradient
-                 (`--btn-primary-bg`) belonging to the login page, not to the
-                 redesigned app. The token keeps its real consumers; this
-                 surface simply stops borrowing it. */
               type="button"
-              className="app-primary-action rpt-row__action"
+              className={`${primaryVerb ? "app-secondary-action" : "app-primary-action"} rpt-row__action`}
               data-reports-download-report={row.evidenceId}
               onClick={onClick}
               disabled={busy !== null || disabled}
             >
-              {busy === "report" ? "Opening…" : DOWNLOAD_REPORT_LABEL}
+              {busy === "report" ? copy.list.opening : DOWNLOAD_REPORT_LABEL}
             </button>
           )}
         />
-      ) : (
-        <span
-          className="app-status-badge" data-tone="slate"
-          data-reports-report-action-status={row.report.state}
-          style={{ opacity: 0.7 }}
-        >
-          {/* COMMERCIAL CLOSURE (2026-09-08) — the copy follows the server's
-              lifecycle. "Report not requested" used to be the label a Free
-              record got from the user-scoped fallback while the workspace
-              aggregator called the same record "generating" forever; both
-              described an absence rather than a state. */}
-          {row.report.state === "pending"
-            ? "Report generating — refresh shortly"
-            : row.report.state === "failed"
-              ? outputVerbs.length === 0
-                ? "Report generation failed — needs operator review"
-                : "Report generation failed"
-              : row.report.state === "blocked"
-                ? "Report blocked — a workspace policy changed or prevents it"
-                : row.report.state === "not_requested"
-                  ? "Report not generated yet"
-                  : "Report not included for this record"}
-        </span>
-      )}
+      ) : null}
       {packageReady ? (
         <GovernedExportAction
           evidenceId={row.evidenceId}
           teamId={teamId}
           actionLabel={DOWNLOAD_PACKAGE_LABEL}
           compactWhenAllowed
-          onAction={() =>
-            void triggerPackage({
-              preventDefault() {},
-              stopPropagation() {},
-            } as unknown as React.MouseEvent)
-          }
+          onAction={() => void triggerPackage()}
           renderAction={({ disabled, onClick }) => (
             <button
-              /* CANONICAL DARK — the filled secondary variant, which keeps its
-                 white label on hover and focus. The legacy `Button` wrapper
-                 did not compose with it, so the hover fell through to a pale
-                 ground with dark text. */
               type="button"
               className="app-secondary-action app-secondary-action--filled rpt-row__action"
               data-reports-download-package={row.evidenceId}
               onClick={onClick}
               disabled={busy !== null || disabled}
             >
-              {busy === "package" ? "Opening…" : DOWNLOAD_PACKAGE_LABEL}
+              {busy === "package" ? copy.list.opening : DOWNLOAD_PACKAGE_LABEL}
             </button>
           )}
         />
-      ) : row.package.state === "blocked" ? (
+      ) : null}
+      <AppRowMenu
+        label={fillReportsCopy(copy.list.moreActions, { title })}
+        actions={menuActions}
+        dataPrefix="reports"
+        triggerLabel={copy.list.moreActionsShort}
+        triggerLabelClassName="rpt-when-narrow"
+        icon={<MoreHorizontal size={16} aria-hidden />}
+      />
+      {withheld && withheldOutput ? (
         <span
-          className="app-status-badge" data-tone="slate"
-          data-reports-package-action-status="blocked"
-          style={{ opacity: 0.7 }}
-        >
-          Package blocked — {row.package.blockedReason ?? "governance policy"}
-        </span>
-      ) : (
-        <span
-          className="app-status-badge" data-tone="slate"
-          data-reports-package-action-status={row.package.state}
-          style={{ opacity: 0.7 }}
-        >
-          {row.package.state === "pending"
-            ? "Package generating — refresh shortly"
-            : row.package.state === "failed"
-              ? "Package generation failed"
-              : row.package.state === "not_requested"
-                ? "Package not generated yet"
-                : "Package not included for this record"}
-        </span>
-      )}
-      {withheld ? (
-        <span
-          className="app-status-badge"
+          className="app-status-text rpt-row__note"
           data-tone="slate"
           data-reports-action-withheld={withheld}
-          title={withheldOutput ? (outputNoteCopy(withheldOutput) ?? undefined) : undefined}
-          style={{ opacity: 0.7 }}
+          title={outputNoteCopy(withheldOutput) ?? undefined}
         >
-          {withheldOutput ? outputNoteShort(withheldOutput) : null}
+          {outputNoteShort(withheldOutput)}
         </span>
       ) : null}
-      {outputVerbs.map(({ kind, action }) => (
-        <Button
-          key={kind}
-          variant="secondary"
-          size="sm"
-          data-reports-regenerate={row.evidenceId}
-          data-reports-output={kind}
-          data-reports-generate-verb={action}
-          data-reports-regenerate-trigger-report-state={row.report.state}
-          data-reports-regenerate-trigger-package-state={row.package.state}
-          onClick={(e) => void requestOutput(e, action, kind)}
-          disabled={busy !== null}
-        >
-          {/* The COMPACT label: always a shortening of the full one, never a
-              different name for the same operation. */}
-          {busy === "regen" ? "Requesting…" : outputActionLabel(kind, action, "compact")}
-        </Button>
-      ))}
-      <Link
-        href={`/evidence/${row.evidenceId}`}
-        className="app-secondary-action rpt-row__open"
-        data-reports-open-evidence={row.evidenceId}
-      >
-        Open evidence
-      </Link>
-      {/* No updated-report action on this row (2026-09-29): it is the
-          record's explicit, reasoned action, in Evidence Detail. */}
       {error ? (
-        <span
-          role="alert"
-          data-reports-row-error={row.evidenceId}
-          style={{
-            color: "#B23442",
-            fontSize: 12,
-            width: "100%",
-            marginTop: 4,
-          }}
-        >
+        <span role="alert" className="app-status-text rpt-row__feedback" data-tone="red" data-reports-row-error={row.evidenceId}>
           {error}
         </span>
       ) : null}
       {regenNotice ? (
         <span
           role={regenNotice.tone === "error" ? "alert" : "status"}
-          className="app-status-text"
+          className="app-status-text rpt-row__feedback"
           data-tone={GENERATION_OUTCOME_STATUS_TONE[regenNotice.tone]}
           data-reports-row-regen-notice={row.evidenceId}
           data-reports-row-regen-tone={regenNotice.tone}
-          style={{
-            fontSize: 12,
-            width: "100%",
-            marginTop: 4,
-          }}
         >
           {regenNotice.message}
         </span>
@@ -1487,11 +1494,6 @@ function ArtifactRowActions({
   );
 }
 
-// Map artifact lifecycle → the canonical `.app-status-badge[data-tone]`
-// vocabulary (green ready · amber pending · red failed · slate neutral).
-// This replaces the previous hack of borrowing CASE-STATUS names ("OPEN",
-// "ON_HOLD", "CLOSED") purely for their colour, plus the inline red style
-// that existed only because the borrowed system had no failed tint.
 /** ET-RPT-06 — an outcome tone on the shared status-text scale. */
 const GENERATION_OUTCOME_STATUS_TONE: Record<GenerationOutcomeTone, string> = {
   success: "green",
@@ -1499,185 +1501,57 @@ const GENERATION_OUTCOME_STATUS_TONE: Record<GenerationOutcomeTone, string> = {
   error: "red",
 };
 
-function reportStatusAttr(state: ReportLifecycle): string {
-  switch (state) {
-    case "ready":
-      return "green";
-    case "pending":
-      return "amber";
-    case "blocked":
-      return "indigo";
-    case "failed":
-      return "red";
-    default:
-      return "slate";
-  }
-}
-
-function packageStatusAttr(state: PackageLifecycle): string {
-  switch (state) {
-    case "ready":
-      return "green";
-    case "pending":
-      return "amber";
-    case "blocked":
-      return "indigo";
-    case "failed":
-      return "red";
-    default:
-      return "slate";
-  }
-}
-
-function reportLabel(state: ReportLifecycle): string {
-  switch (state) {
-    case "ready":
-      return "ready";
-    case "pending":
-      return "pending";
-    case "blocked":
-      return "blocked";
-    case "failed":
-      return "failed";
-    case "unavailable":
-      return "unavailable";
-    case "not_requested":
-      return "not requested";
-  }
-}
-
-function packageLabel(state: PackageLifecycle): string {
-  switch (state) {
-    case "ready":
-      return "ready";
-    case "pending":
-      return "pending";
-    case "blocked":
-      return "blocked by governance";
-    case "failed":
-      return "failed";
-    case "unavailable":
-      return "unavailable";
-    case "not_requested":
-      return "not requested";
-  }
-}
-
 /**
- * THE EMPTY STATE, aware of what was asked.
- *
- * It said "No reports yet" under every condition — including a workspace with
- * 278 reports where the operator had selected "Report pending". That reads as
- * "you have none", which was false; the truthful statement is that nothing
- * matches the query.
- *
- * The CTA is offered only where it makes sense. "Open evidence" answers "you
- * have no reports yet"; it does not answer "this filter matched nothing", and
- * a button that does not follow from the sentence above it is noise.
+ * THE EMPTY STATE, aware of what was asked: a workspace with nothing yet
+ * (first use, with the way to start) is not a filter that matched nothing
+ * (with the way back).
  */
 function ReportsEmptyState({
-  filter,
-  search,
+  filtered,
+  onClear,
+  copy,
 }: {
-  filter: LifecycleFilter;
-  search: string;
+  filtered: boolean;
+  onClear: () => void;
+  copy: ReportsCopy;
 }) {
-  const filtered = filter !== "all" || search.trim().length > 0;
-  const title = !filtered
-    ? "No reports yet"
-    : search.trim().length > 0
-      ? "No reports match your search."
-      : "No reports match this filter.";
-  const body = !filtered
-    ? "Reports are generated from signed evidence. Capture or upload evidence to create your first report."
-    : "Adjust the filter or the search to widen the query.";
-
   return (
-    /*
-      ONE EMPTY SURFACE, NOT THREE.
-
-      This wrapper carried `cases-empty` — a class from the CASES stylesheet
-      that paints its own 1px border, 14px radius and 32px padding — and then
-      put a `framed` `EmptyState` inside it, which draws a second dashed
-      frame of its own. Rendered inside the section's card that made three
-      nested boxes for one sentence, which is what read as a rectangle inside
-      a rectangle.
-
-      The wrapper now carries only the data attributes end-to-end probes read;
-      `EmptyState framed` is the single canonical empty surface and draws the
-      one border. Same primitive Teams and every other empty state uses — no
-      new component, and no borrowed stylesheet from a different feature.
-    */
-    <div
-      data-reports-empty={filter}
-      data-reports-empty-kind={filtered ? "no_match" : "no_data"}
-    >
+    <div data-reports-empty={filtered ? "filtered" : "workspace"} data-reports-empty-kind={filtered ? "no_match" : "no_data"}>
       <EmptyState
         framed
-        title={title}
-        purpose={body}
+        title={filtered ? copy.empty.filteredTitle : copy.empty.workspaceTitle}
+        purpose={filtered ? copy.empty.filteredBody : copy.empty.workspaceBody}
         action={
-          !filtered ? (
-            <Link
-              href="/evidence"
-              /* CANONICAL PURPLE. This carried `--btn-primary-bg` inline — the
-                 coral-to-pink login CTA — as eight lines of hand-written
-                 geometry. `app-primary-action` is the redesigned app's purple
-                 action, with its own hover and focus ring. The token itself is
-                 untouched; this surface stops borrowing it. */
-              className="app-primary-action"
-              data-reports-empty-state-cta
-            >
-              Open evidence
+          filtered ? (
+            <button type="button" className="app-secondary-action" onClick={onClear} data-reports-empty-clear>
+              {copy.empty.clearFilters}
+            </button>
+          ) : (
+            <Link href="/evidence" className="app-primary-action" data-reports-empty-state-cta>
+              {copy.empty.workspaceAction}
             </Link>
-          ) : null
+          )
         }
       />
     </div>
   );
 }
 
-function ReportsLoading() {
+function ReportsLoading({ copy }: { copy: ReportsCopy }) {
   return (
-    <PageShell
-      data-reports-loading
-      header={
-        <PageHeader eyebrow="Deliverables" title="Reports & Artifacts" />
-      }
-    >
+    <PageShell data-reports-loading header={<PageHeader eyebrow={copy.page.eyebrow} title={copy.page.title} />}>
       <PageSection>
         <Card variant="empty" padding="comfortable">
-          <div
-            style={{
-              height: 120,
-              borderRadius: "var(--radius-card, 14px)",
-              background:
-                "linear-gradient(90deg, rgba(15,23,42,0.04), rgba(15,23,42,0.08), rgba(15,23,42,0.04))",
-            }}
-            aria-hidden="true"
-          />
+          <div className="rpt-skeleton" aria-hidden="true" />
         </Card>
       </PageSection>
     </PageShell>
   );
 }
 
-function ReportsNoWorkspace() {
-  // Phase EMERGENCY-RECOVERY — after the personal-workspace bootstrap,
-  // an authenticated user always has at least a personal Team. Landing
-  // here means the canonical envelope itself couldn't surface a
-  // workspace. The shell renders WorkspaceRecoveryPanel above this in
-  // that case; this fallback only shows transient empty UI.
-  //
-  // Phase 2.2 — replace dead-end text with a structured AccessGate so
-  // the operator can browse / switch workspaces or open settings.
+function ReportsNoWorkspace({ copy }: { copy: ReportsCopy }) {
   return (
-    <PageShell
-      data-reports-no-workspace
-      header={
-        <PageHeader eyebrow="Deliverables" title="Reports & Artifacts" />
-      }
-    >
+    <PageShell data-reports-no-workspace header={<PageHeader eyebrow={copy.page.eyebrow} title={copy.page.title} />}>
       <PageSection>
         <AccessGate
           kind="WORKSPACE_REQUIRED"
@@ -1695,23 +1569,11 @@ function ReportsNoWorkspace() {
   );
 }
 
-function ReportsAuthError({
-  code,
-}: {
-  code: "auth_required" | "permission_denied";
-}) {
-  // Phase 2.2 — replace dead-end text with a structured AccessGate.
-  // The page itself is wrapped in PageRouteGate at the route layer; this
-  // surface fires only when /v1/reports/artifacts itself returns 401 or
-  // 403 (which can happen for cross-workspace access). AccessGate gives
-  // the operator an explicit next step instead of "permission required"
-  // text with nothing to click.
+function ReportsAuthError({ code, copy }: { code: "auth_required" | "permission_denied"; copy: ReportsCopy }) {
   return (
     <PageShell
       data-reports-auth-error={code}
-      header={
-        <PageHeader eyebrow="Deliverables" title="Reports & Artifacts" />
-      }
+      header={<PageHeader eyebrow={copy.page.eyebrow} title={copy.page.title} />}
     >
       <PageSection>
         {code === "auth_required" ? (
@@ -1720,9 +1582,7 @@ function ReportsAuthError({
             surface="Reports"
             headline="Sign in to view artifacts"
             reason="Your session has expired or you aren't signed in. Sign in to load this workspace's report and verification-package state."
-            actions={[
-              { label: "Sign in", href: "/login", variant: "primary" },
-            ]}
+            actions={[{ label: "Sign in", href: "/login", variant: "primary" }]}
             testid="reports-access-gate-auth"
           />
         ) : (
@@ -1743,73 +1603,17 @@ function ReportsAuthError({
   );
 }
 
-function ReportsUnavailable({ message }: { message: string }) {
+function ReportsUnavailable({ message, copy }: { message: string; copy: ReportsCopy }) {
   return (
     <PageShell
       data-reports-unavailable
-      header={
-        <PageHeader
-          eyebrow="Deliverables"
-          title="Temporarily unavailable"
-          subtitle={message}
-        />
-      }
+      header={<PageHeader eyebrow={copy.page.eyebrow} title="Temporarily unavailable" subtitle={message} />}
     >
       <PageSection>
         <Card variant="empty" padding="comfortable">
-          <EmptyState
-            title="Reports & Artifacts couldn't load"
-            purpose={message}
-          />
+          <EmptyState title="Reports & Artifacts couldn't load" purpose={message} />
         </Card>
       </PageSection>
     </PageShell>
   );
-}
-
-/**
- * INTEGRITY, said once.
- *
- * The column carried the raw enum through `humanize`, so
- * `RECORDED_INTEGRITY_VERIFIED` rendered as "Recorded Integrity Verified" —
- * behind a label that already said "Integrity". The word appeared twice and
- * the verdict was buried in the middle of it.
- *
- * The enum is unchanged and so is its meaning; only the leading
- * `RECORDED_INTEGRITY_` prefix is dropped, because the label supplies it. Any
- * value this does not recognise is humanised as before rather than hidden — a
- * state nobody can read is worse than a long one.
- */
-function integrityLabel(status: string): string {
-  const raw = String(status ?? "").trim().toUpperCase();
-  const stripped = raw.replace(/^RECORDED_INTEGRITY_/, "").replace(/^INTEGRITY_/, "");
-  return humanize(stripped || raw);
-}
-
-/** Verified is the only positive integrity outcome; it alone reads green. */
-function integrityToneAttr(status: string): string {
-  const raw = String(status ?? "").trim().toUpperCase();
-  if (raw.endsWith("VERIFIED")) return "green";
-  if (raw.includes("FAIL") || raw.includes("MISMATCH")) return "red";
-  return "slate";
-}
-
-function humanize(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function formatRelativeTime(iso: string): string {
-  const t = new Date(iso).getTime();
-  const diff = Date.now() - t;
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(iso).toISOString().slice(0, 10);
 }

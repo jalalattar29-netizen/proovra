@@ -41,72 +41,92 @@ test("the Billing review link names a filter the Reports page accepts", () => {
   assert.ok(filter && LIFECYCLE_FILTERS.includes(filter), href);
 });
 
-test("the Reports page applies a deep-linked filter after mount", () => {
-  const index = readFileSync(
-    new URL("../components/reports-experience/ReportsIndex.tsx", import.meta.url),
-    "utf8",
+// ---------------------------------------------------------------------------
+// 2026-10-16 — the filter model: four canonical dimensions in the URL.
+// ---------------------------------------------------------------------------
+
+test("a legacy ?lifecycle= link lands on the dimension that value belongs to, and the URL is rewritten canonically", async () => {
+  const { filtersFromSearch, filtersToSearch } = await import("../components/reports-experience/types");
+  const billing = filtersFromSearch("?lifecycle=report_awaiting_issuance");
+  assert.equal(billing.report, "report_awaiting_issuance");
+  assert.equal(billing.status, "all");
+  assert.equal(filtersFromSearch("?lifecycle=package_missing").package, "package_missing");
+  assert.equal(filtersFromSearch("?lifecycle=entitlement_unavailable").entitlement, "entitlement_unavailable");
+  // Written back in the canonical form; the legacy key is cleared.
+  const url = filtersToSearch(billing);
+  assert.equal(url.report, "report_awaiting_issuance");
+  assert.equal(url.lifecycle, null);
+  assert.equal(url.status, null);
+});
+
+test("invalid or stale params fall back to their default one dimension at a time — never forwarded", async () => {
+  const { filtersFromSearch, DEFAULT_FILTERS } = await import("../components/reports-experience/types");
+  assert.deepEqual(filtersFromSearch(""), DEFAULT_FILTERS);
+  assert.deepEqual(
+    filtersFromSearch("?status=FAILED_TERMINAL&report=package_ready&package=retry_budget_exhausted&sort=sideways&lifecycle=%27%3B--"),
+    DEFAULT_FILTERS,
   );
-  assert.match(index, /lifecycleFilterFromSearch\(window\.location\.search\)/);
+  // One bad value does not discard the good ones beside it.
+  const mixed = filtersFromSearch("?status=needs_attention&report=bogus&q=Joint&sort=oldest");
+  assert.equal(mixed.status, "needs_attention");
+  assert.equal(mixed.report, "any");
+  assert.equal(mixed.q, "Joint");
+  assert.equal(mixed.sort, "oldest");
+  // Search is bounded to what the server accepts.
+  assert.equal(filtersFromSearch(`?q=${"x".repeat(200)}`).q.length, 80);
+});
+
+test("the API query: dimensions compose, defaults are omitted", async () => {
+  const { apiQueryFor, DEFAULT_FILTERS } = await import("../components/reports-experience/types");
+  const all = { recordStatus: true, truthfulBuckets: true, blockedBuckets: true };
+  assert.deepEqual(apiQueryFor(DEFAULT_FILTERS, all), { lifecycle: "all" });
+  assert.deepEqual(
+    apiQueryFor(
+      { ...DEFAULT_FILTERS, status: "needs_attention", report: "report_ready", package: "package_missing", sort: "oldest", q: " Joint " },
+      all,
+    ),
+    { status: "needs_attention", lifecycle: "report_ready,package_missing", sort: "oldest", search: "Joint" },
+  );
 });
 
 // ROLLOUT COMPATIBILITY — the web app deploys on every push to main, before the
-// API it talks to. Against the previous API it must behave exactly as before.
-test("an API without the truthful buckets keeps the previous cards and is never sent a filter it rejects", async () => {
-  const { supportsTruthfulOutputBuckets, TRUTHFUL_BUCKET_FILTERS } = await import(
-    "../components/reports-experience/types"
-  );
-  const previousApiSummary = { reportsReady: 3, reportsNotRequested: 2, packagesNotRequested: 1 };
-  assert.equal(supportsTruthfulOutputBuckets(previousApiSummary as never), false);
-  assert.equal(supportsTruthfulOutputBuckets({ ...previousApiSummary, reportsNotIssued: 0 } as never), true);
-  assert.equal(supportsTruthfulOutputBuckets(null), false);
-
-  // Exactly the filters the previous API's enum did not accept are gated.
-  assert.deepEqual(
-    [...TRUTHFUL_BUCKET_FILTERS].sort(),
-    ["entitlement_unavailable", "package_missing", "report_awaiting_issuance", "report_not_issued"],
-  );
-
-  const index = readFileSync(
-    new URL("../components/reports-experience/ReportsIndex.tsx", import.meta.url),
-    "utf8",
-  );
-  // The previous cards return when the API lacks the new buckets…
-  assert.match(index, /supportsTruthfulOutputBuckets\(summarySection\.data\)\s*\?\s*SUMMARY_METRICS\s*:\s*\[\.\.\.SUMMARY_METRICS, \.\.\.LEGACY_SUMMARY_METRICS\]/);
-  // …the new filters are offered only once the API has shown them…
-  assert.match(index, /\(truthfulBuckets \|\| !TRUTHFUL_BUCKET_FILTERS\.has\(key\)\)/);
-  // …and a deep link to one waits for that proof.
-  assert.match(index, /TRUTHFUL_BUCKET_FILTERS\.has\(linked\) && !truthfulBuckets/);
-});
-
-test("ET-RPT-01/02 — the blocked and updated-report buckets are gated the same way", async () => {
-  const { supportsReportBlockedBuckets, REPORT_BLOCKED_BUCKET_FILTERS } = await import(
-    "../components/reports-experience/types"
-  );
-  assert.equal(supportsReportBlockedBuckets({ reportsReady: 1, reportsNotIssued: 0 } as never), false);
+// API it talks to. An older API is never sent a parameter it would reject or
+// silently ignore.
+test("an API without the record status is sent at most ONE lifecycle it accepts, and no status or sort", async () => {
+  const { apiQueryFor, supportsRecordStatus, supportsTruthfulOutputBuckets, supportsReportBlockedBuckets, DEFAULT_FILTERS } =
+    await import("../components/reports-experience/types");
+  assert.equal(supportsRecordStatus({ reportsReady: 1 } as never), false);
+  assert.equal(supportsRecordStatus({ reportsReady: 1, recordsTotal: 3 } as never), true);
+  assert.equal(supportsRecordStatus(null), false);
+  assert.equal(supportsTruthfulOutputBuckets({ reportsReady: 3 } as never), false);
   assert.equal(supportsReportBlockedBuckets({ reportsReady: 1, reportsBlocked: 0, reportsUpdateFailed: 0 } as never), true);
-  assert.deepEqual([...REPORT_BLOCKED_BUCKET_FILTERS].sort(), ["report_blocked", "report_update_failed"]);
-  const index = readFileSync(
-    new URL("../components/reports-experience/ReportsIndex.tsx", import.meta.url),
-    "utf8",
+
+  const f = { ...DEFAULT_FILTERS, status: "needs_attention" as const, report: "report_failed" as const, package: "package_ready" as const, sort: "oldest" as const };
+  assert.deepEqual(apiQueryFor(f, { recordStatus: false, truthfulBuckets: true, blockedBuckets: true }), {
+    lifecycle: "report_failed",
+  });
+  // A bucket the API has not proven is never sent.
+  assert.deepEqual(
+    apiQueryFor({ ...DEFAULT_FILTERS, report: "report_update_failed" }, { recordStatus: false, truthfulBuckets: true, blockedBuckets: false }),
+    { lifecycle: "all" },
   );
-  assert.match(index, /\(blockedBuckets \|\| !REPORT_BLOCKED_BUCKET_FILTERS\.has\(key\)\)/);
-  assert.match(index, /REPORT_BLOCKED_BUCKET_FILTERS\.has\(linked\) && !blockedBuckets/);
-  // The cards render only when the API sends the field.
-  assert.match(index, /field: "reportsBlocked", filter: "report_blocked"/);
-  assert.match(index, /field: "reportsUpdateFailed", filter: "report_update_failed"/);
-  // A blocked report row says so; it is not "not generated yet".
-  assert.match(index, /row\.report\.state === "blocked"\s*\?\s*"Report blocked/);
+  assert.deepEqual(
+    apiQueryFor({ ...DEFAULT_FILTERS, package: "package_missing" }, { recordStatus: true, truthfulBuckets: false, blockedBuckets: true }),
+    { lifecycle: "all" },
+  );
 });
 
-test("ET-RPT-05/06 — the summary has a loading phase and a fallback-view notice; outcomes keep their tone", () => {
+test("the page reads its filters from the URL and writes them back", () => {
   const index = readFileSync(
     new URL("../components/reports-experience/ReportsIndex.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(index, /!summaryAnswered\s*\?\s*"Loading the summary…"/);
-  assert.match(index, /:\s*userScopedView\s*$/m);
+  assert.match(index, /filtersFromSearch\(searchParams\?\.toString\(\) \?\? ""\)/);
+  assert.match(index, /useUrlFilterSync\("\/reports", filtersToSearch\(filters\)\)/);
+  // ET-RPT-05/06 — the summary has a loading phase and a fallback-view notice;
+  // outcomes keep their tone.
+  assert.match(index, /!summaryAnswered\s*\?\s*copy\.summary\.loading/);
   assert.match(index, /setUserScopedView\(true\);/);
   assert.match(index, /setRegenNotice\(\{ message: outcome\.message, tone: outcome\.tone \}\)/);
   assert.match(index, /data-tone=\{GENERATION_OUTCOME_STATUS_TONE\[regenNotice\.tone\]\}/);
-  assert.doesNotMatch(index, /color: "#167A5B"/);
 });
