@@ -11,7 +11,11 @@
  */
 import { prisma } from "../db.js";
 import { getObjectStream } from "../storage.js";
-import { DEFAULT_REPORT_VERIFY_BASE_URL, recoverOrphanedReportLinks } from "../verification-link-recovery.js";
+import {
+  DEFAULT_REPORT_VERIFY_BASE_URL,
+  recoverOrphanedReportLinks,
+  redactVerificationTokens,
+} from "../verification-link-recovery.js";
 
 async function readObject(bucket: string, key: string): Promise<Buffer> {
   const body = (await getObjectStream({ bucket, key, versionId: null })) as AsyncIterable<Uint8Array>;
@@ -28,7 +32,7 @@ async function main(): Promise<number> {
     apply,
     verifyBaseUrl: process.env.REPORT_VERIFY_BASE_URL?.trim() || DEFAULT_REPORT_VERIFY_BASE_URL,
   });
-  console.log(`[verification-link-recovery] SUMMARY ${JSON.stringify(summary)}`);
+  console.log(`[verification-link-recovery] SUMMARY ${redactVerificationTokens(JSON.stringify(summary))}`);
   return summary.failed > 0 ? 4 : 0;
 }
 
@@ -38,7 +42,7 @@ main()
     process.exit(code);
   })
   .catch(async (err) => {
-    console.error(err);
+    console.error(redactVerificationTokens(err instanceof Error ? (err.stack ?? err.message) : String(err)));
     await prisma.$disconnect();
     process.exit(1);
   });

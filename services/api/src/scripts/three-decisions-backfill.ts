@@ -587,7 +587,7 @@ export async function reconcileEvidenceLifecycle(options: {
   return summary;
 }
 
-async function main(): Promise<number> {
+export async function main(): Promise<number> {
   const command = process.argv[2];
   const apply = flag("apply");
   const maxBatches = arg("max-batches") ? Number(arg("max-batches")) : undefined;

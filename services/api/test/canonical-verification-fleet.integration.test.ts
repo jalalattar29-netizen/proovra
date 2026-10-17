@@ -143,6 +143,9 @@ describe("canonical verification for the pre-canonical fleet", () => {
   });
 
   it("BACKFILL: dry run counts exactly, writes nothing; apply issues ONE reference per eligible record on every plan; re-run issues nothing", async () => {
+    // Refusal counts are asserted EXACTLY, as the delta over the database
+    // this file starts from (the harness seeds records of its own).
+    const base = await backfill.backfillVerificationReferences({});
     const eligible: string[] = [];
     for (const plan of PLANS) eligible.push(await legacyRecord(plan));
     const refused = {
@@ -164,11 +167,13 @@ describe("canonical verification for the pre-canonical fleet", () => {
     expect(dry.eligible).toBe(missingEligible);
     expect(dry.issued).toBe(missingEligible);
     expect(dry.failed).toBe(0);
-    expect(dry.refusedNotFinalized).toBeGreaterThanOrEqual(1);
-    expect(dry.refusedDeleted).toBeGreaterThanOrEqual(1);
-    expect(dry.refusedDestroyed).toBeGreaterThanOrEqual(1);
-    expect(dry.refusedArchived).toBeGreaterThanOrEqual(2);
-    expect(dry.refusedIntegrity).toBeGreaterThanOrEqual(1);
+    expect(dry.scanned - base.scanned).toBe(PLANS.length + Object.keys(refused).length);
+    expect(dry.refusedNotFinalized - base.refusedNotFinalized).toBe(1);
+    expect(dry.refusedDeleted - base.refusedDeleted).toBe(1);
+    expect(dry.refusedDestroyed - base.refusedDestroyed).toBe(1);
+    expect(dry.refusedArchived - base.refusedArchived).toBe(2);
+    expect(dry.refusedIntegrity - base.refusedIntegrity).toBe(1);
+    expect(dry.skippedRowMoved).toBe(0);
     expect(dry.nextCursor).toBeNull();
     for (const id of eligible) expect(await refOf(id)).toBeNull();
 
@@ -207,6 +212,68 @@ describe("canonical verification for the pre-canonical fleet", () => {
     }
     const refs = await Promise.all(ids.map(refOf));
     expect(new Set(refs).size).toBe(ids.length);
+  }, 300_000);
+
+  it("BACKFILL RESUME + FAIL CLOSED: bounded batches resume from the cursor; a failing record stops the run with failed=1, a resumable cursor and exit code 4", async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 5; i++) ids.push(await legacyRecord(PLANS[i]!));
+    const total = await prisma.evidence.count();
+
+    // Bounded: one batch of 2, then resume from its cursor until done.
+    let cursor: string | null = null;
+    let scanned = 0;
+    let issued = 0;
+    let runs = 0;
+    do {
+      const part = await backfill.backfillVerificationReferences({ apply: true, batchSize: 2, maxBatches: 1, after: cursor });
+      expect(part.failed).toBe(0);
+      expect(part.scanned).toBeLessThanOrEqual(2);
+      scanned += part.scanned;
+      issued += part.issued;
+      cursor = part.nextCursor;
+      runs += 1;
+    } while (cursor && runs < total + 2);
+    expect(cursor).toBeNull();
+    expect(scanned).toBe(total); // every row exactly once across the resumed runs
+    expect(issued).toBe(ids.length);
+    for (const id of ids) expect(await refOf(id)).toMatch(REF_SHAPE);
+
+    // Fail closed: a record whose write fails stops the run at that record.
+    // Pinned ids: one pending record before the failing one and one after it.
+    const first = await legacyRecord("FREE", { id: "00000000-0000-4000-8000-000000000001" });
+    const failing = await legacyRecord("PRO", { id: "80000000-0000-4000-8000-000000000000" });
+    const last = await legacyRecord("TEAM", { id: "ffffffff-ffff-4fff-bfff-ffffffffffff" });
+    const upToFailing = await prisma.evidence.count({ where: { id: { lte: failing } } });
+    await prisma.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION fleet_fail_ref() RETURNS trigger AS $f$
+      BEGIN IF NEW.id = '${failing}'::uuid AND NEW.verification_ref IS NOT NULL THEN RAISE EXCEPTION 'injected'; END IF; RETURN NEW; END; $f$ LANGUAGE plpgsql`);
+    await prisma.$executeRawUnsafe(`CREATE TRIGGER fleet_fail_ref BEFORE UPDATE ON evidence FOR EACH ROW EXECUTE FUNCTION fleet_fail_ref()`);
+    try {
+      const failed = await backfill.backfillVerificationReferences({ apply: true });
+      expect(failed).toMatchObject({ failed: 1, issued: 1 });
+      // It stopped AT the failing record: nothing after it was touched…
+      expect(failed.scanned).toBe(upToFailing);
+      expect(await refOf(first)).toMatch(REF_SHAPE);
+      expect(await refOf(failing)).toBeNull();
+      expect(await refOf(last)).toBeNull();
+      // …and the cursor is the record before it, so a resume retries it.
+      expect(failed.nextCursor).not.toBeNull();
+      expect(failed.nextCursor! < failing).toBe(true);
+      // The CLI turns any failure into a nonzero exit.
+      const argv = process.argv;
+      process.argv = [argv[0]!, "three-decisions-backfill.ts", "verification-references", "--apply"];
+      try {
+        expect(await backfill.main()).toBe(4);
+      } finally {
+        process.argv = argv;
+      }
+    } finally {
+      await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS fleet_fail_ref ON evidence`);
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS fleet_fail_ref()`);
+    }
+    const resumed = await backfill.backfillVerificationReferences({ apply: true });
+    expect(resumed).toMatchObject({ failed: 0, issued: 2 });
+    expect(await refOf(failing)).toMatch(REF_SHAPE);
+    expect(await refOf(last)).toMatch(REF_SHAPE);
   }, 300_000);
 
   it("RECORD-ID LINKS: inside the grace a record with its reference opens the CANONICAL page; before reconciliation the legacy page still works; outside the grace → uniform 404", async () => {
@@ -350,6 +417,14 @@ describe("canonical verification for the pre-canonical fleet", () => {
     );
     const conflictPdf = await pdfWith([`${base}/${conflictToken}`]);
     await store(conflictId, 1, conflictPdf, sha(conflictPdf));
+    // The same unstored token printed in two DIFFERENT records' reports: no
+    // attribution is provable, so neither is recovered.
+    const sharedToken = tok();
+    for (const plan of ["FREE", "PRO"] as const) {
+      const id = await legacyRecord(plan);
+      const pdf = await pdfWith([`${base}/${sharedToken}`]);
+      await store(id, 1, pdf, sha(pdf));
+    }
     const ineligibleId = await legacyRecord("PAYG", { deletedAt: new Date() });
     const ineligiblePdf = await pdfWith([`${base}/${tok()}`]);
     await store(ineligibleId, 1, ineligiblePdf, sha(ineligiblePdf));
@@ -365,17 +440,22 @@ describe("canonical verification for the pre-canonical fleet", () => {
       recovered: 0,
       shaMismatch: 1,
       wrongHost: 1,
-      ambiguous: 1,
+      ambiguous: 3, // one report with two tokens + two records sharing one token
       refusedConflict: 1,
       refusedIneligible: 1,
       failed: 0,
     });
     expect(dry.readFailed.MISSING_OBJECT - baseline.readFailed.MISSING_OBJECT).toBe(1);
     expect(JSON.stringify(dry)).not.toContain(orphanToken);
+    expect(JSON.stringify(dry)).not.toContain(sharedToken);
+    expect(recovery.redactVerificationTokens(`failed for ${orphanToken} at /verify/${sharedToken}`)).toBe(
+      "failed for pvs_[redacted] at /verify/pvs_[redacted]",
+    );
     expect(await prisma.verificationShareToken.count({ where: { evidenceId: orphanId } })).toBe(0);
 
     const applied = await recovery.recoverOrphanedReportLinks({ prisma: prisma as never, readObject, apply: true, verifyBaseUrl: base });
     expect(applied).toMatchObject({ mode: "APPLY", recovered: 1, alreadyPresent: 2, failed: 0 });
+    expect(await prisma.verificationShareToken.count({ where: { tokenHash: runtime.hashVerificationShareToken(sharedToken) } })).toBe(0);
     const rows = await prisma.verificationShareToken.findMany({ where: { evidenceId: orphanId } });
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ purpose: "REPORT", reportVersion: 1, tokenHash: runtime.hashVerificationShareToken(orphanToken) });

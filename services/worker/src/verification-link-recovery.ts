@@ -107,13 +107,20 @@ export function decideReportLinkRecovery(
   return { kind: "CANDIDATE", token: [...tokens][0]! };
 }
 
+/** Output never carries a share token: any `pvs_…` run is masked. */
+export function redactVerificationTokens(text: string): string {
+  return String(text).replace(/pvs_[A-Za-z0-9_-]+/g, "pvs_[redacted]");
+}
+
 export type ReadFailureReason = "MISSING_OBJECT" | "STORAGE_PERMISSION" | "STORAGE_READ_FAILED" | "INVALID_PDF" | "OTHER";
 
 /** A read failure's bounded reason (no identifiers). */
 export function classifyReadFailure(err: unknown, stage: "storage" | "pdf"): ReadFailureReason {
   if (stage === "pdf") return "INVALID_PDF";
   const e = err as { name?: string; Code?: string; code?: string; $metadata?: { httpStatusCode?: number } };
-  const code = String(e?.name ?? e?.Code ?? e?.code ?? "");
+  // A generic JS error's name ("Error", "TypeError") is not a storage code.
+  const name = e?.name && !/^(?:Error|TypeError|RangeError|SyntaxError)$/.test(e.name) ? e.name : undefined;
+  const code = String(name ?? e?.Code ?? e?.code ?? "");
   const status = e?.$metadata?.httpStatusCode;
   if (/NoSuchKey|NotFound|NoSuchVersion/i.test(code) || status === 404) return "MISSING_OBJECT";
   if (/AccessDenied|Forbidden/i.test(code) || status === 403) return "STORAGE_PERMISSION";
@@ -173,6 +180,8 @@ export async function recoverOrphanedReportLinks(options: {
     orderBy: [{ evidenceId: "asc" }, { version: "asc" }],
     select: { evidenceId: true, version: true, storageBucket: true, storageKey: true, pdfSha256: true },
   });
+  // PASS 1 — read only: every digest-matched report's single candidate token.
+  const candidates: Array<{ r: (typeof reports)[number]; token: string; tokenHash: string }> = [];
   for (const r of reports) {
     s.scanned += 1;
     let bytes: Buffer;
@@ -208,7 +217,25 @@ export async function recoverOrphanedReportLinks(options: {
       s.wrongHost += 1;
       continue;
     }
-    const tokenHash = hashVerificationShareToken(decision.token);
+    candidates.push({ r, token: decision.token, tokenHash: hashVerificationShareToken(decision.token) });
+  }
+
+  // ATTRIBUTION — a token is recoverable only when every report printing it
+  // belongs to ONE record. The same token in two records' reports is never
+  // guessed at: all of them are ambiguous.
+  const recordsByToken = new Map<string, Set<string>>();
+  for (const c of candidates) {
+    const set = recordsByToken.get(c.tokenHash) ?? new Set<string>();
+    set.add(c.r.evidenceId);
+    recordsByToken.set(c.tokenHash, set);
+  }
+
+  // PASS 2 — decide (and, with --apply, write) per report.
+  for (const { r, token, tokenHash } of candidates) {
+    if ((recordsByToken.get(tokenHash)?.size ?? 0) > 1) {
+      s.ambiguous += 1;
+      continue;
+    }
     const existing = await prisma.verificationShareToken.findUnique({
       where: { tokenHash },
       select: { evidenceId: true },
@@ -241,7 +268,7 @@ export async function recoverOrphanedReportLinks(options: {
           purpose: "REPORT",
           reportVersion: r.version,
           audience: `Report version ${r.version} (recovered from the stored report)`,
-          token: decision.token,
+          token,
           now,
         });
         await appendAdminAuditChainRowTx(
@@ -282,7 +309,7 @@ export async function recoverOrphanedReportLinks(options: {
       else s.refusedConflict += 1;
     } catch (err) {
       s.failed += 1;
-      console.error(`[verification-link-recovery] FAILED for ${r.evidenceId.slice(0, 8)}…/v${r.version}: ${(err as Error).message}`);
+      console.error(`[verification-link-recovery] FAILED for ${r.evidenceId.slice(0, 8)}…/v${r.version}: ${redactVerificationTokens((err as Error).message)}`);
     }
   }
   return s;
