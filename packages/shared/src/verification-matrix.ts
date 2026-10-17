@@ -142,6 +142,8 @@ export type PackageSealFact =
  */
 export type PublicationFact =
   | { kind: "THIS_PAGE" }
+  /** The record's canonical verification page: no owner publication step. */
+  | { kind: "CANONICAL" }
   | { kind: "PUBLISHED" }
   | { kind: "NOT_PUBLISHED" }
   | { kind: "DOCUMENT" };
@@ -449,6 +451,12 @@ function publicationRow(publication: PublicationFact): VerificationMatrixRow {
   switch (publication.kind) {
     case "THIS_PAGE":
       return row("public_verify_publication", "VERIFIED", "Published: this is the record's PROOVRA Public Verify page.");
+    case "CANONICAL":
+      return row(
+        "public_verify_publication",
+        "NOT_APPLICABLE",
+        "This is the record's permanent PROOVRA verification page; it opens through its verification reference and does not depend on owner publication.",
+      );
     case "PUBLISHED":
       return row("public_verify_publication", "VERIFIED", "Published on PROOVRA Public Verify.");
     case "NOT_PUBLISHED":

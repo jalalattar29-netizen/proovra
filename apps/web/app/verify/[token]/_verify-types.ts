@@ -380,6 +380,8 @@ export type VerificationSignalInput = {
 
 export type VerificationPackageIntegrity = {
   available: boolean;
+  /** The matrix's package_signature status — the card never contradicts it. */
+  sealCheck?: "VERIFIED" | "FAILED" | "NOT_CHECKED" | "NOT_APPLICABLE" | "UNAVAILABLE";
   version: string | null;
   generatedAtUtc: string | null;
   packageType?: string | null;
@@ -502,6 +504,7 @@ export type VerifyResponse = {
    * Already emitted by services/api/src/routes/evidence.routes.ts.
    */
   trustDecisionSource?:
+    | "LIVE_VERIFICATION"
     | "REPORT_SNAPSHOT"
     | "VERIFICATION_PACKAGE_SNAPSHOT"
     | "LIVE_SHARED_FALLBACK"

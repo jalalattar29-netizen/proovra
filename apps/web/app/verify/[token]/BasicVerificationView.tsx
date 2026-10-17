@@ -131,6 +131,10 @@ export type CanonicalVerificationFacts = {
   preservation: { objectLockMode: string | null; retainUntilUtc: string | null };
   lastUpdatedAtUtc: string | null;
   limitations: string[];
+  /** When this page was checked (the API's request time). */
+  checkedAtUtc?: string | null;
+  /** The disclosure decision: OWNER_PUBLISHED, or VERIFICATION_ONLY for a record the owner has not published. */
+  disclosure?: "OWNER_PUBLISHED" | "VERIFICATION_ONLY";
 };
 
 /** A canonical reference the page cannot show as an active record — said truthfully. */
@@ -242,7 +246,7 @@ export function VerifyLinkNotice({ link }: { link: VerifyLinkInfo | null | undef
       }}
     >
       {link.kind === "LEGACY_RECORD_ID"
-        ? `This is an older link that uses the record's ID. It stops working on ${until}. Ask the record's owner for a new verification link before then.`
+        ? `This is an older link that uses the record's ID. It stops working on ${until}. Use the record's verification reference on this page, or ask its owner for a new link, before then.`
         : `This verification link stops working on ${until}.`}
     </p>
   );
@@ -261,6 +265,7 @@ export default function BasicVerificationView({
   /** The canonical page's extra verification-safe facts, when opened by reference. */
   canonical?: CanonicalVerificationFacts | null;
 }) {
+  const packageSealCheck = matrix?.rows.find((r) => r.key === "package_signature")?.status ?? null;
   const o = data.original;
   const originalDetail =
     o.state === "verified"
@@ -277,6 +282,8 @@ export default function BasicVerificationView({
   const tsaDetail =
     data.timestamp.state === "verified"
       ? `A trusted timestamp was issued (${fmt(data.timestamp.tokenTimeUtc)}). PROOVRA validated the authority's signature and certificate chain when it was issued, and the token certifies the recorded digest. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}`
+      : data.timestamp.state === "not_checked" && data.timestamp.basis === "TOKEN_OBTAINED_NOT_VALIDATED"
+        ? "A timestamp token was obtained, but it could not be validated because no timestamp trust anchor was available. It is not presented as a trusted timestamp."
       : data.timestamp.state === "not_checked" && data.timestamp.basis === "TOKEN_RECORDED_NOT_VALIDATED"
         ? `A timestamp token was recorded (${fmt(data.timestamp.tokenTimeUtc)}) before PROOVRA validated timestamp tokens, and it has not been validated since. It is not presented as a trusted timestamp.`
         : data.timestamp.state === "not_checked"
@@ -416,11 +423,13 @@ export default function BasicVerificationView({
         />
         <Row
           label="Verification package"
-          state={data.package.issued ? "verified" : "not_issued"}
+          // ONE SEAL AUTHORITY: the matrix's package_signature row. An issued
+          // package whose seal PROOVRA did not check is never shown as verified.
+          state={data.package.issued ? (packageSealCheck === "NOT_CHECKED" ? "not_checked" : "verified") : "not_issued"}
           badge={data.package.issued ? "Issued" : undefined}
           detail={
             data.package.issued
-              ? `Certifies report version ${data.package.certifiesReportVersion}; assembled ${fmt(data.package.assembledAtUtc)}.${packageCheck(data.package)}`
+              ? `Certifies report version ${data.package.certifiesReportVersion}; assembled ${fmt(data.package.assembledAtUtc)}.${packageCheck(data.package)}${packageSealCheck === "NOT_CHECKED" ? " PROOVRA did not check this seal against a registered PROOVRA key; check it with the package's README." : ""}`
               : data.package.latestReportLacksPackage
                 ? "The latest report has no verification package yet."
                 : "No verification package has been issued for this record."

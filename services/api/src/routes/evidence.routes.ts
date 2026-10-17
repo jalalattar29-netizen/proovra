@@ -134,6 +134,7 @@ import {
   // RGA-02 — the change vocabulary of a stale confirmation.
   outputOfferChangeCopy,
   type OutputOfferChangeCode,
+  resolveTsaTrustState,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -884,6 +885,8 @@ type PublicVerifyVersioning = {
 
 type PublicVerificationPackageIntegrity = {
   available: boolean;
+  /** Public Verify only: the matrix's package_signature status (one seal authority). */
+  sealCheck?: "VERIFIED" | "FAILED" | "NOT_CHECKED" | "NOT_APPLICABLE" | "UNAVAILABLE";
   version: number | null;
   generatedAtUtc: string | null;
   packageType: string | null;
@@ -13647,6 +13650,19 @@ action: "evidence.certification_requested",
       });
       return reply.code(404).send({ message: "Evidence not found" });
     }
+    /*
+     * THE PUBLIC VERIFY DISCLOSURE DECISION (2026-10-17). Every identifier of
+     * a record — its canonical pvr_ reference, a report/package pvs_ token, a
+     * record-id link inside its grace — opens the SAME Public Verify page,
+     * projected by the same tier decision below (entitlement, restricted case,
+     * link projection). Owner publication is not identity; it is the owner's
+     * consent to show the record's CONTENT and DESCRIPTIVE details publicly.
+     * A record the owner has not published (reachable only through a canonical
+     * identifier) is shown VERIFICATION-ONLY: every verification fact and the
+     * full page structure, with content previews, titles and file names,
+     * location, capture/device details and the internal id withheld.
+     */
+    const verificationOnly = evidence.publicVerifyState !== "PUBLISHED";
     {
       const evidenceStatus = evidence.status as
         | prismaPkg.EvidenceStatus
@@ -14115,13 +14131,14 @@ if (Array.isArray(latestReport?.embeddedPreviewsSnapshot)) {
 }
 
 const publicVerifyAccessPolicy = resolveEvidenceContentAccessPolicyForSurface({
-  configuredMode: process.env.PUBLIC_VERIFY_CONTENT_MODE ?? "preview_only",
+  // Verification-only: integrity and metadata review — no preview, no download.
+  configuredMode: verificationOnly ? "metadata_only" : (process.env.PUBLIC_VERIFY_CONTENT_MODE ?? "preview_only"),
   surface: "public_verify",
 });
 const content = await buildPublicEvidenceContent({
   accessPolicy: publicVerifyAccessPolicy,
-  originalReleaseAllowed: await originalReleaseForPublic(evidence.id),
-  previews: reportPreviewMap,
+  originalReleaseAllowed: verificationOnly ? false : await originalReleaseForPublic(evidence.id),
+  previews: verificationOnly ? new Map() : reportPreviewMap,
   evidence: {
     id: evidence.id,
     mimeType: evidence.mimeType,
@@ -14131,11 +14148,11 @@ const content = await buildPublicEvidenceContent({
     storageVersionId: evidence.storageVersionId ?? null,
     fileSha256: evidence.fileSha256,
     intakePlanJson: evidence.intakePlanJson ?? null,
-originalFileName: evidence.originalFileName ?? null,
-displayFileName: evidence.displayFileName ?? null,
+originalFileName: verificationOnly ? null : (evidence.originalFileName ?? null),
+displayFileName: verificationOnly ? null : (evidence.displayFileName ?? null),
     recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
   },
-  parts,
+  parts: verificationOnly ? parts.map((part) => ({ ...part, originalFileName: null })) : parts,
 });
 // ET-CUS-07: original URLs handed to an anonymous viewer are an access fact.
 await recordOriginalRelease({
@@ -14376,8 +14393,14 @@ const liveCoreChecksFailed =
 // UC-TRUST-005 — the stored-bytes state is an input to the headline: a gone or
 // substituted original forces review; one not re-verified inside the freshness
 // window never keeps a "high reliance" verdict.
+// ONE FACT AUTHORITY ON THE PAGE (2026-10-17). Public Verify states the
+// record as it is NOW: every status on the page — the matrix, the signals and
+// the original-evidence checks — comes from the live decision, so a timestamp
+// validated or a package sealed after a report was issued never reads
+// "Not checked" in one place and "Verified" in another. What changed since the
+// issued report is stated explicitly by trustDecisionConsistency.
 const trustDecision = publicVerifyTrustShared.applyStoredBytesToTrustDecision(
-  liveCoreChecksFailed ? liveTrustDecision : snapshotTrustDecision ?? liveTrustDecision,
+  liveTrustDecision,
   storedBytes,
   { digestColumnsMatchSignedFingerprint },
 );
@@ -14665,13 +14688,14 @@ const overallIntegrity =
               sealKeyVersion: latestVerificationPackage.sealSigningKeyVersion,
             }
           : { kind: "LEGACY" },
-      publication: { kind: "THIS_PAGE" },
+      // A canonical identifier has no publication step: say so, never "Published".
+      publication: canonical ? { kind: "CANONICAL" } : { kind: "THIS_PAGE" },
     });
     const overview = buildPublicVerifyOverview({
       acquisitionIdentity,
       evidence: {
         id: evidence.id,
-title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?? null,
+title: verificationOnly ? null : (evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?? null),
         type: evidence.type,
         status: evidence.status,
         verificationStatus: responseVerificationStatus,
@@ -14828,6 +14852,13 @@ const trustDecisionConsistency = buildTrustDecisionConsistency({
 });
 
 verificationPackageIntegrity = withPackageSealState(verificationPackageIntegrity, latestVerificationPackage);
+// ONE SEAL AUTHORITY: the package card states the same seal check as the
+// matrix's package_signature row (a seal not bound to a registered PROOVRA key
+// is "not checked" in both places).
+verificationPackageIntegrity = {
+  ...verificationPackageIntegrity,
+  sealCheck: verificationMatrix.rows.find((r) => r.key === "package_signature")?.status ?? "UNAVAILABLE",
+};
 
 const { verificationSnapshot, liveAnchoring } =
   buildPublicVerifyConsistencySections({
@@ -14902,12 +14933,12 @@ const defaultPreviewItem =
   content.primaryItem ??
   null;
 const display = buildEvidenceDisplayDescriptor({
-title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?? null,
+title: verificationOnly ? null : (evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?? null),
   summary: content.summary,
   itemCount,
 });
 
-const captureContext = hasCaptureLocationMetadata({
+const captureContext = !verificationOnly && hasCaptureLocationMetadata({
   lat: decimalToNumber(evidence.lat),
   lng: decimalToNumber(evidence.lng),
 })
@@ -15071,6 +15102,8 @@ const basicVerification = buildBasicVerification({
   deviceTimeIso: evidence.deviceTimeIso ?? null,
   signedAtUtc: evidence.signedAtUtc ?? null,
   tsaStatus: presentedTsa ?? null,
+  tsaTokenPresent: Boolean(evidence.tsaTokenBase64),
+  tsaFailureCode: evidence.tsaFailureCode ?? null,
   tsaImprintMatches: timestampDigestMatches ?? null,
   tsaGenTimeUtc: evidence.tsaGenTimeUtc ?? null,
   // (2026-10-13) The OTS record for the one resolver (resolveOtsAnchoring).
@@ -15122,26 +15155,19 @@ const link = shareLink
       // owner for a share link before it does.
       expiresAtUtc: evidence.legacyVerifyUuidUntilUtc ? evidence.legacyVerifyUuidUntilUtc.toISOString() : null,
     };
-if (canonical) {
-  /*
-   * THE CANONICAL PAGE'S DISCLOSURE BOUNDARY (owner decision 2026-10-14).
-   * Verification-safe facts only: the original-integrity verdict, digests,
-   * signature and custody checks, RFC 3161 and OTS states, report/package
-   * versions and digests, the signing key reference, and the preservation
-   * state. Never the internal evidence id, the owner, workspace or account,
-   * identity rows, location, device details, storage keys, bucket names, file
-   * names, content previews or any download. Originals and artifacts stay
-   * behind authenticated access or a separate restricted recipient link.
-   */
-  return reply.code(200).send({
-    tier: "BASIC",
-    basicVerification,
-    verificationMatrix: withholdIdentityRows(verificationMatrix),
-    link: { kind: "CANONICAL" as const, expiresAtUtc: null },
-    canonicalVerification: {
+/*
+ * THE CANONICAL IDENTITY ON THE PAGE. Whichever identifier opened it, the page
+ * states the record's permanent reference and when it was checked; the link
+ * kind says how it was reached. The tier and the disclosure below are the
+ * same for every identifier of the record.
+ */
+const canonicalVerificationFacts = canonical
+  ? {
       reference: canonical.reference,
       status: "AVAILABLE" as const,
       issuedAtUtc: canonical.issuedAtUtc ? canonical.issuedAtUtc.toISOString() : null,
+      checkedAtUtc: verifiedAt.toISOString(),
+      disclosure: verificationOnly ? ("VERIFICATION_ONLY" as const) : ("OWNER_PUBLISHED" as const),
       signature: {
         keyId: evidence.signingKeyId ?? null,
         keyVersion: evidence.signingKeyVersion ?? null,
@@ -15153,55 +15179,56 @@ if (canonical) {
           ? evidence.storageObjectLockRetainUntilUtc.toISOString()
           : null,
       },
-      lastUpdatedAtUtc: latestReport?.generatedAtUtc
-        ? new Date(latestReport.generatedAtUtc).toISOString()
-        : null,
+      lastUpdatedAtUtc: latestReport?.generatedAtUtc ? new Date(latestReport.generatedAtUtc).toISOString() : null,
       limitations: [
         "This page verifies the record and its artifacts. It does not publish the original evidence files.",
         "Verification states what PROOVRA's records and stored proofs show; it is not a legal finding.",
       ],
-    },
-  });
-}
+    }
+  : null;
+// A record-id link keeps its own kind: it says when its grace ends.
+const pageLink =
+  canonical && canonical.via !== "LEGACY_RECORD_ID"
+    ? { kind: "CANONICAL" as const, expiresAtUtc: null }
+    : link;
 
 // A link can narrow the projection, never widen it.
 if (!richVerifyEntitled || shareLink?.projection === "BASIC") {
   return reply.code(200).send({
     tier: "BASIC",
-    evidenceId: evidence.id,
+    evidenceId: verificationOnly ? null : evidence.id,
     basicVerification,
     // The BASIC tier never describes who submitted the record.
     verificationMatrix: withholdIdentityRows(verificationMatrix),
-    link,
+    link: pageLink,
+    ...(canonicalVerificationFacts ? { canonicalVerification: canonicalVerificationFacts } : {}),
   });
 }
 
 return reply.code(200).send({
   tier: "RICH",
   basicVerification,
-  link,
-  evidenceId: evidence.id,
-  mediaIntelligenceAdvisory,
+  link: pageLink,
+  ...(canonicalVerificationFacts ? { canonicalVerification: canonicalVerificationFacts } : {}),
+  // Verification-only: the internal id and every descriptive/content detail
+  // the owner has not published are withheld (see the disclosure decision).
+  disclosure: verificationOnly ? "VERIFICATION_ONLY" : "OWNER_PUBLISHED",
+  evidenceId: verificationOnly ? null : evidence.id,
+  mediaIntelligenceAdvisory: verificationOnly ? null : mediaIntelligenceAdvisory,
   acquisition,
   // UC-PROV-003 — reported by the capture client; public-safe (no source URL / title).
-  captureManifest,
+  captureManifest: verificationOnly ? null : captureManifest,
   // PHASE 12B — redaction verification badge (converged from the
   // deleted anonymous /v1/redaction/public/verify/:evidenceId probe).
-  redaction,
-  technicalMetadata,
+  redaction: verificationOnly ? null : redaction,
+  technicalMetadata: verificationOnly ? null : technicalMetadata,
   trustDecision,
   verificationMatrix,
 trustDecisionConsistency,
   verificationSnapshot,
   liveAnchoring,
   verificationPackageIntegrity,
-trustDecisionSource: trustDecision
-  ? latestReport?.trustDecisionSnapshot
-    ? "REPORT_SNAPSHOT"
-    : latestVerificationPackage?.trustDecisionSnapshot
-      ? "VERIFICATION_PACKAGE_SNAPSHOT"
-      : "LIVE_SHARED_FALLBACK"
-  : "UNAVAILABLE",
+trustDecisionSource: trustDecision ? "LIVE_VERIFICATION" : "UNAVAILABLE",
 trustDecisionSnapshot: {
   reportVersion: latestReport?.version ?? null,
   reportGeneratedAtUtc: latestReport?.generatedAtUtc
@@ -15251,9 +15278,9 @@ outputContext: ((): CanonicalOutputContext => {
   certifications: publicCertifications,
   display,
   captureContext,
-  locationState: publicLocationState(buildEvidenceLocationState(evidence, allCustodyEvents)),
-  overview,
-  humanSummary,
+  locationState: verificationOnly ? null : publicLocationState(buildEvidenceLocationState(evidence, allCustodyEvents)),
+  overview: verificationOnly ? { ...overview, evidenceId: null } : overview,
+  humanSummary: verificationOnly ? { ...humanSummary, evidenceId: null } : humanSummary,
   evidenceContent: {
     summary: content.summary,
     items: content.items,
@@ -15273,7 +15300,19 @@ defaultPreviewItemId: defaultPreviewItem?.id ?? null,
     tsa: {
       status: presentedTsa,
       // UC-TRUST-002 — VALIDATED / RECORDED_NOT_VALIDATED / FAILED / …
-      proofStatus: publicVerifyTrustShared.resolveTsaProofStatus(evidence),
+      // ONE TSA AUTHORITY: a kept token whose validation was never performed
+      // (no trust anchor) is "recorded, not validated" here exactly as the
+      // matrix and the signal state it — never "failed".
+      proofStatus: ((): string => {
+        const proof = publicVerifyTrustShared.resolveTsaProofStatus(evidence);
+        if (proof !== "FAILED") return proof;
+        const trust = resolveTsaTrustState({
+          presentedStatus: presentedTsa ?? null,
+          tokenPresent: Boolean(evidence.tsaTokenBase64),
+          failureCode: evidence.tsaFailureCode ?? null,
+        });
+        return trust.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED" ? "RECORDED_NOT_VALIDATED" : proof;
+      })(),
       provider: evidence.tsaProvider,
       url: evidence.tsaUrl,
       serialNumber: evidence.tsaSerialNumber,

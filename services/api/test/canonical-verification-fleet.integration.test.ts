@@ -289,11 +289,16 @@ describe("canonical verification for the pre-canonical fleet", () => {
     await prisma.evidence.update({ where: { id: pending }, data: { publicVerifyState: "NOT_PUBLISHED" } });
     const viaId = await publicVerify(pending);
     expect(viaId.statusCode, viaId.body).toBe(200);
-    expect(viaId.json().tier).toBe("BASIC");
-    expect(viaId.json().canonicalVerification).toMatchObject({ reference: ref, status: "AVAILABLE" });
+    expect(viaId.json().canonicalVerification).toMatchObject({ reference: ref, status: "AVAILABLE", disclosure: "VERIFICATION_ONLY" });
     const viaRef = await publicVerify(ref);
     expect(viaRef.statusCode).toBe(200);
-    expect(viaRef.json().canonicalVerification).toEqual(viaId.json().canonicalVerification);
+    // The SAME page through either identifier: one tier, one disclosure, one reference.
+    const stable = (b: Record<string, unknown>) => {
+      const canonical = { ...(b.canonicalVerification as Record<string, unknown>) };
+      delete canonical.checkedAtUtc; // the request time, different on every answer
+      return { tier: b.tier, disclosure: b.disclosure, canonical };
+    };
+    expect(stable(viaRef.json())).toEqual(stable(viaId.json()));
 
     // Outside the grace the id is not a capability: byte-identical to an id that never existed.
     const expired = await legacyRecord("PRO", { legacyVerifyUuidUntilUtc: null });
@@ -310,11 +315,23 @@ describe("canonical verification for the pre-canonical fleet", () => {
     const ref = (await refOf(id))!;
     const row = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { teamId: true, ownerUserId: true, fileSha256: true } });
 
+    // Published by its owner: the established page, with owner-consented
+    // details — but never the owner, the workspace, storage or original bytes.
     const ok = await publicVerify(ref);
     expect(ok.statusCode).toBe(200);
-    for (const forbidden of [id, row.ownerUserId, row.teamId!, "storageKey", "storageBucket", "X-Amz-Signature", "ownerUserId"]) {
+    expect(ok.json().disclosure).toBe("OWNER_PUBLISHED");
+    for (const forbidden of [row.ownerUserId, row.teamId!, "storageKey", "storageBucket", "X-Amz-Signature", "ownerUserId"]) {
       expect(ok.body, `the canonical page leaks ${forbidden}`).not.toContain(forbidden);
     }
+    // Not published: verification-only — the internal id is withheld as well.
+    await prisma.evidence.update({ where: { id }, data: { publicVerifyState: "NOT_PUBLISHED" } });
+    const vo = await publicVerify(ref);
+    expect(vo.statusCode).toBe(200);
+    expect(vo.json()).toMatchObject({ tier: expect.any(String), disclosure: "VERIFICATION_ONLY", evidenceId: null });
+    for (const forbidden of [id, row.ownerUserId, row.teamId!, "X-Amz-Signature", "Pre-canonical TEAM"]) {
+      expect(vo.body, `the verification-only page leaks ${forbidden}`).not.toContain(forbidden);
+    }
+    await prisma.evidence.update({ where: { id }, data: { publicVerifyState: "PUBLISHED" } });
 
     const mint = async (extra: Record<string, unknown>) => {
       const token = runtime.generateVerificationShareToken();

@@ -187,6 +187,11 @@ const BRONZE_RAIL_STYLE: CSSProperties = {
 };
 
 function extractTimestampStatus(data: VerifyResponse): string | null {
+  // ONE TSA AUTHORITY: the API's trust-aligned proof status wins over the raw
+  // column — a kept token whose validation was never performed (no trust
+  // anchor) is "recorded, not validated", never a failed timestamp.
+  const proof = (data.storageAndTimestamping?.tsa as { proofStatus?: string | null } | undefined)?.proofStatus;
+  if (proof === "RECORDED_NOT_VALIDATED") return "RECORDED_NOT_VALIDATED";
   const raw =
     data.storageAndTimestamping?.tsa?.status ??
     data.tsa?.status ??
@@ -380,6 +385,8 @@ function buildStoragePresentation(
 
 function describeSnapshotSource(source?: string | null): string {
   switch (source) {
+    case "LIVE_VERIFICATION":
+      return "Checked now (live verification)";
     case "REPORT_SNAPSHOT":
       return "Report snapshot";
     case "VERIFICATION_PACKAGE_SNAPSHOT":
@@ -1833,9 +1840,13 @@ function VerificationPackageIntegrityCard({
   // when it was built) that carries every integrity artifact. File names alone
   // gave an unsealed legacy package the same success badge.
   const unsealed = integrity.available && integrity.sealed !== true;
+  // ONE SEAL AUTHORITY: a seal PROOVRA did not check against a registered key
+  // (the matrix's package_signature row) is never "complete".
+  const sealNotChecked = integrity.available && integrity.sealed === true && integrity.sealCheck === "NOT_CHECKED";
   const complete =
     integrity.available &&
     integrity.sealed === true &&
+    !sealNotChecked &&
     integrity.manifestPresent &&
     integrity.signedManifestPresent &&
     integrity.checksumIndexPresent &&
@@ -1845,6 +1856,8 @@ function VerificationPackageIntegrityCard({
     ? "Package Integrity Complete"
     : unsealed
       ? "Legacy Package — Not Sealed"
+      : sealNotChecked
+        ? "Sealed — Seal Not Checked"
       : integrity.available
         ? "Package Integrity Partial"
         : "Package Not Generated";
@@ -1859,6 +1872,8 @@ function VerificationPackageIntegrityCard({
     ? "The verification package includes the complete integrity materials for independent review."
     : unsealed
       ? "This package predates sealed packages: its contents are not bound by a signed seal, so it is not presented as independently verifiable."
+      : sealNotChecked
+        ? "The package is sealed, but its seal key was not bound to a registered PROOVRA key when it was issued, so PROOVRA did not check the seal. Check it with the commands in the package's README."
       : integrity.available
         ? "A verification package version exists, but this public response has not confirmed every package artifact."
         : "No generated verification package was exposed in this verification response.";
@@ -2453,6 +2468,8 @@ export default function VerifyPage() {
     useState<VerifyTrustDecision | null>(null);
   const [serverVerificationMatrix, setServerVerificationMatrix] =
     useState<VerificationMatrix | null>(null);
+  // The API states the page's statuses from the live decision (LIVE_VERIFICATION).
+  const [trustDecisionLive, setTrustDecisionLive] = useState(false);
   const [trustSnapshotDivergence, setTrustSnapshotDivergence] =
     useState<NonNullable<VerifyResponse["trustDecisionConsistency"]> | null>(null);
   const [verificationSnapshot, setVerificationSnapshot] =
@@ -2531,6 +2548,7 @@ function isAccessEventType(eventType?: string | null): boolean {
     // an API deployed before the verification matrix still sends a score,
     // weighted points, a verdict and a reliance level; none of it survives.
     setServerTrustDecision(readStoredTrustDecision(data.trustDecision));
+    setTrustDecisionLive((data as { trustDecisionSource?: string | null }).trustDecisionSource === "LIVE_VERIFICATION");
     setServerVerificationMatrix(parseVerificationMatrix(data.verificationMatrix));
     // Issue #7: surface snapshot/live divergence. The API returns
     // trustDecisionConsistency.consistentWithSnapshot === false when the
@@ -2682,6 +2700,9 @@ setFullCustodyTimeline(fullTimeline);
       effectiveHumanSummary?.evidenceId ??
       data.evidenceId ??
       data.id ??
+      // A withheld id is never replaced by the link the visitor holds: the
+      // record is identified by its permanent verification reference.
+      (data as { canonicalVerification?: { reference?: string | null } }).canonicalVerification?.reference ??
       params?.token ??
       null;
 
@@ -3564,6 +3585,7 @@ const executiveBadges = useMemo<
             humanSummary?.evidenceId ??
             overview?.evidenceId ??
             evidenceId ??
+            canonicalFacts?.reference ??
             params?.token ??
             "N/A",
           show: true,
@@ -3771,6 +3793,7 @@ const executiveBadges = useMemo<
       reviewerEvidenceTypeLabel,
       title,
       evidenceId,
+      canonicalFacts?.reference,
       params?.token,
       submittedByEmail,
       authProvider,
@@ -4272,7 +4295,9 @@ with this evidence record.
                 wordBreak: "break-all",
               }}
             >
-              Token: {params?.token ?? ""}
+              {canonicalFacts?.reference
+                ? `Reference: ${canonicalFacts.reference}`
+                : `Token: ${params?.token ?? ""}`}
             </div>
           </div>
 
@@ -4343,6 +4368,39 @@ with this evidence record.
 <VerificationSummaryCard matrix={verificationMatrix} decision={trustDecision} />
 {outputContext ? (
   <OutputContextBadge outputContext={outputContext} />
+) : null}
+{canonicalFacts ? (
+  <Card>
+    <section
+      aria-labelledby="verify-canonical"
+      data-verify-canonical
+      data-verify-disclosure={canonicalFacts.disclosure ?? "OWNER_PUBLISHED"}
+      style={{ ...glassCardStyle, padding: 24, display: "grid", gap: 12 }}
+    >
+      <div style={{ ...VERIFY_TYPO.kicker, fontSize: 11 }}>Verification Reference</div>
+      <h2 id="verify-canonical" style={{ ...VERIFY_TYPO.h3, fontSize: 22, margin: 0 }}>
+        This record&apos;s permanent verification page
+      </h2>
+      <div style={{ display: "grid", gap: 6, ...VERIFY_TYPO.small, overflowWrap: "anywhere" }}>
+        {canonicalFacts.reference ? (
+          <div>
+            Reference: <code data-verify-canonical-reference>{canonicalFacts.reference}</code>
+          </div>
+        ) : null}
+        {canonicalFacts.issuedAtUtc ? <div>Issued: {formatDateTime(canonicalFacts.issuedAtUtc)}</div> : null}
+        {canonicalFacts.checkedAtUtc ? (
+          <div data-verify-canonical-checked-at>Checked: {formatDateTime(canonicalFacts.checkedAtUtc)}</div>
+        ) : null}
+      </div>
+      {canonicalFacts.disclosure === "VERIFICATION_ONLY" ? (
+        <p data-verify-disclosure-notice style={{ ...VERIFY_TYPO.small, margin: 0 }}>
+          The record&apos;s owner has not published its content. Every verification check is shown; content
+          previews, titles and file names, location and capture details are withheld, and the original files are
+          never published here.
+        </p>
+      ) : null}
+    </section>
+  </Card>
 ) : null}
 <Card>
   <div
@@ -4820,9 +4878,9 @@ Reviewer Action
           color: VERIFY_BRAND.ink,
         }}
       >
-        The trust decision shown here is sourced from the fixed snapshot taken at
-        report or package generation time. Later activity can change the live page
-        without necessarily changing the preserved evidence integrity state.
+        {trustDecisionLive
+          ? "The statuses on this page are checked now. They differ from the fixed snapshot taken when the report or package was generated; the reasons are listed below. Later activity can change the live page without changing the preserved evidence integrity state."
+          : "The trust decision shown here is sourced from the fixed snapshot taken at report or package generation time. Later activity can change the live page without necessarily changing the preserved evidence integrity state."}
       </div>
 
       {trustSnapshotDivergence.reasons?.length ? (

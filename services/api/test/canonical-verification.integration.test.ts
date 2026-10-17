@@ -175,17 +175,23 @@ describe("canonical verification identity (Postgres + Redis + MinIO, real worker
     expect(manifest.recordVerificationUrl).toMatch(new RegExp(`/verify/${ref}$`));
     expect(entries.get("README.txt")?.toString("utf8") ?? "").toContain(ref);
 
-    // The anonymous page opens without login and shows verification-safe facts only.
+    // The anonymous page opens without login: the ESTABLISHED Public Verify
+    // page (never a stripped replacement). The owner has not published this
+    // record, so it is shown verification-only.
     const page = await publicVerify(ref);
     expect(page.statusCode, page.body).toBe(200);
     expect(page.headers["cache-control"]).toBe("no-store");
     const body = page.json();
-    expect(body.tier).toBe("BASIC");
+    expect(body.tier).toBe("RICH");
+    expect(body.disclosure).toBe("VERIFICATION_ONLY");
     expect(body.link).toEqual({ kind: "CANONICAL", expiresAtUtc: null });
-    expect(body.canonicalVerification).toMatchObject({ reference: ref, status: "AVAILABLE" });
+    expect(body.canonicalVerification).toMatchObject({ reference: ref, status: "AVAILABLE", disclosure: "VERIFICATION_ONLY" });
     expect(body.basicVerification.report.issued).toBe(true);
+    expect(body.evidenceId).toBeNull();
+    expect(body.contentAccessPolicy).toMatchObject({ allowContentView: false, allowDownload: false });
     const raw = page.body;
-    for (const forbidden of [evidenceId, ev.ownerUserId, ev.teamId!, ev.storageKey!, ev.storageBucket!, "evidenceId", "ownerUserId", "storageKey", "storageBucket", "@example", "\"lat\"", "\"lng\"", "ipAddress", "userAgent"]) {
+    // Values, never keys: the full page carries withheld fields as null.
+    for (const forbidden of [evidenceId, ev.ownerUserId, ev.teamId!, ev.storageKey!, ev.storageBucket!, "@example", "ipAddress", "userAgent"]) {
       expect(raw, `the canonical page leaks ${forbidden}`).not.toContain(forbidden);
     }
     // No original, report or package download is offered.

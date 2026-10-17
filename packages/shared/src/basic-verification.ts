@@ -17,6 +17,7 @@
  * not_issued | not_checked. "verified" means the check named in `basis` was
  * performed and passed — never "a record of it exists".
  */
+import { resolveTsaTrustState } from "./trust-signal-state.js";
 import {
   resolveOtsAnchoring,
   toOtsAnchoringView,
@@ -152,6 +153,8 @@ export type BasicVerification = {
       | "TOKEN_RECORDED_NOT_VALIDATED"
       | "IMPRINT_MATCHES_TOKEN_SIGNATURE_NOT_VERIFIED"
       | "TOKEN_RECORDED_IMPRINT_NOT_COMPARED"
+      /** A token was obtained but never validated (no trust anchor was available). */
+      | "TOKEN_OBTAINED_NOT_VALIDATED"
       | null;
     /** The authority's own time for the token. */
     tokenTimeUtc: string | null;
@@ -238,6 +241,14 @@ export function buildBasicVerification(input: {
   deviceTimeIso?: string | null;
   signedAtUtc: Date | string | null;
   tsaStatus: string | null;
+  /**
+   * (2026-10-17) THE TSA TRUST AUTHORITY'S INPUTS (resolveTsaTrustState): a
+   * FAILED status with a kept token whose validation was not performed (no
+   * trust anchor) is "not checked", exactly as the matrix and the signal say —
+   * never "failed". Absent from older callers: the status alone is read.
+   */
+  tsaTokenPresent?: boolean | null;
+  tsaFailureCode?: string | null;
   tsaImprintMatches: boolean | null;
   tsaGenTimeUtc: Date | string | null;
   /** The OpenTimestamps record (ots-anchoring.ts OtsAnchoringInput). */
@@ -273,9 +284,17 @@ export function buildBasicVerification(input: {
   // the token was validated; RECORDED_NOT_VALIDATED is a kept legacy token.
   const tsa = String(input.tsaStatus ?? "").toUpperCase();
   const tsaPositive = tsa === "STAMPED" || tsa === "GRANTED" || tsa === "VERIFIED" || tsa === "SUCCEEDED";
+  const tsaTrust =
+    tsa === "FAILED" && input.tsaTokenPresent !== undefined
+      ? resolveTsaTrustState({ presentedStatus: tsa, tokenPresent: input.tsaTokenPresent ?? null, failureCode: input.tsaFailureCode ?? null })
+      : null;
   const timestampState: ComponentVerificationState =
     tsa === "FAILED"
-      ? "failed"
+      ? tsaTrust?.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED"
+        ? "not_checked"
+        : tsaTrust?.state === "UNAVAILABLE"
+          ? "not_issued"
+          : "failed"
       : tsaPositive
         ? input.tsaImprintMatches === false
           ? "failed"
@@ -294,7 +313,9 @@ export function buildBasicVerification(input: {
         ? null
         : tsa === "RECORDED_NOT_VALIDATED"
           ? "TOKEN_RECORDED_NOT_VALIDATED"
-          : "TOKEN_RECORDED_IMPRINT_NOT_COMPARED";
+          : tsa === "FAILED"
+            ? "TOKEN_OBTAINED_NOT_VALIDATED"
+            : "TOKEN_RECORDED_IMPRINT_NOT_COMPARED";
 
   // THE ONE OTS AUTHORITY (2026-10-13): the state is resolved from the stored
   // proof bytes, never from a status, a txid or a recording time.

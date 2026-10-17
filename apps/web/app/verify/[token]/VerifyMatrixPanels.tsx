@@ -253,7 +253,8 @@ export function VerificationSummaryCard({
           Reviewer Action
         </div>
         <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.ink }}>
-          Publication posture:{" "}
+          {/* The OpenTimestamps state, named for what it is (never a publication posture). */}
+          Bitcoin anchoring (OpenTimestamps):{" "}
           {decision.anchoringStatusLabel || "Bitcoin anchoring status requires review"}.
         </div>
         <div

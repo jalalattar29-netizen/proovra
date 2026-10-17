@@ -189,7 +189,9 @@ export function BasicVerificationView({ data, matrix = null }: { data: BasicVeri
             detail={
               data.timestamp.state === "verified"
                 ? `A trusted timestamp was issued (${fmt(data.timestamp.tokenTimeUtc)}). PROOVRA validated the authority's signature and certificate chain when it was issued, and the token certifies the recorded digest. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}`
-                : data.timestamp.state === "not_checked" && data.timestamp.basis === "TOKEN_RECORDED_NOT_VALIDATED"
+                : data.timestamp.state === "not_checked" && data.timestamp.basis === "TOKEN_OBTAINED_NOT_VALIDATED"
+                  ? "A timestamp token was obtained, but it could not be validated because no timestamp trust anchor was available. It is not presented as a trusted timestamp."
+                  : data.timestamp.state === "not_checked" && data.timestamp.basis === "TOKEN_RECORDED_NOT_VALIDATED"
                   ? `A timestamp token was recorded (${fmt(data.timestamp.tokenTimeUtc)}) before PROOVRA validated timestamp tokens, and it has not been validated since. It is not presented as a trusted timestamp.`
                   : data.timestamp.state === "not_checked"
                 ? data.timestamp.basis === "TOKEN_RECORDED_IMPRINT_NOT_COMPARED"
