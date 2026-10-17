@@ -1,5 +1,5 @@
 /**
- * THE REFERENCE ORANGE, READ FROM THE CARD THAT DEFINES IT.
+ * THE REFERENCE ORANGE, READ FROM THE NOTIFICATIONS SURFACE THAT PAINTS IT.
  *
  * The product had three oranges doing one job: `--warning-ink` (#B45309),
  * `--orange-ink` (#C2410C) and `--orange-500` (#EA580C). Operations "High",
@@ -7,53 +7,56 @@
  * over-limit row painted the middle one, which reads burnt — closer to brown
  * than to caution.
  *
- * The Notifications severity card is the authority: "High / Important, not
- * urgent." resolves `--app-metric-tone` to `--orange-500`. This file pins that
- * card so the value the rest of the product now follows cannot move without
- * this failing first.
+ * The Notifications "High" severity used to be pinned through its metric card
+ * ("High / Important, not urgent."). That card is gone (2026-10-17): the page
+ * is an inbox, not a dashboard, and severity survives as ROW METADATA. The
+ * authority therefore moved with it — a High row's tone badge resolves
+ * `--ops-tone-high` to `--orange-500` (notifications.css), and so does the
+ * row's own severity rail. This file pins that badge, plus the root tokens, so
+ * the value the rest of the product follows cannot move without this failing
+ * first.
  */
 
 import { expect, test } from "@playwright/test";
 
 import { installApi } from "./_fixtures";
 
-test("the High card is the orange every warning surface follows", async ({ page }) => {
+test("a High row's badge is the orange every warning surface follows", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await installApi(page, "personal-pro", { metricScenario: true });
   await page.goto("/notifications");
-  await page.waitForSelector("[data-notifications-metric='high']");
+  await page.waitForSelector('[data-inbox-item-tone="high"]', { timeout: 15_000 });
 
-  const card = await page.evaluate(() => {
-    const el = document.querySelector<HTMLElement>("[data-notifications-metric='high']")!;
-    const value = el.querySelector<HTMLElement>(".app-metric-card__value")!;
-    const label = el.querySelector<HTMLElement>(".app-metric-card__label")!;
-    const meta = el.querySelector<HTMLElement>(".app-metric-card__meta")!;
+  const probe = await page.evaluate(() => {
+    const row = document.querySelector<HTMLElement>('[data-inbox-item-tone="high"]')!;
+    const badge = row.querySelector<HTMLElement>('[data-tone-chip="high"]')!;
     const root = getComputedStyle(document.documentElement);
     return {
-      label: label.textContent?.trim(),
-      meta: meta.textContent?.trim(),
-      tone: getComputedStyle(el).getPropertyValue("--app-metric-tone").trim(),
-      valueColor: getComputedStyle(value).color,
+      badgeText: badge.textContent?.trim(),
+      badgeColor: getComputedStyle(badge).color,
+      rail: getComputedStyle(row).borderLeftColor,
       orange500: root.getPropertyValue("--orange-500").trim(),
       orangeInk: root.getPropertyValue("--orange-ink").trim(),
       toneOrange: root.getPropertyValue("--tone-orange").trim(),
+      // The card that used to carry this pin must not quietly come back.
+      metricCards: document.querySelectorAll("[data-notifications-metric]").length,
     };
   });
 
-  // The element this whole pass is calibrated against.
-  expect(card.label).toBe("High");
-  expect(card.meta).toBe("Important, not urgent.");
+  // The element this whole pass is now calibrated against.
+  expect(probe.metricCards).toBe(0);
+  expect(probe.badgeText).toBe("HIGH");
 
   // It resolves `--orange-500`, and that is #EA580C.
-  expect(card.orange500.toUpperCase()).toBe("#EA580C");
-  expect(card.tone.toUpperCase()).toBe("#EA580C");
-  expect(card.valueColor).toBe("rgb(234, 88, 12)");
+  expect(probe.orange500.toUpperCase()).toBe("#EA580C");
+  expect(probe.badgeColor).toBe("rgb(234, 88, 12)");
+  expect(probe.rail).toBe("rgb(234, 88, 12)");
 
-  // The shared tone alias follows the card rather than the retired ink, which
-  // is what makes Operations High and this card the same colour.
-  expect(card.toneOrange.toUpperCase()).toBe("#EA580C");
+  // The shared tone alias follows the same value rather than the retired ink,
+  // which is what makes Operations High and a High notification one colour.
+  expect(probe.toneOrange.toUpperCase()).toBe("#EA580C");
   expect(
-    card.orangeInk.toUpperCase(),
+    probe.orangeInk.toUpperCase(),
     "--orange-ink still exists for its own job; it is simply no longer the semantic warning",
   ).toBe("#C2410C");
 });

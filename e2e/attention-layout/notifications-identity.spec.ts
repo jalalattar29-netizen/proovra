@@ -100,14 +100,25 @@ test.describe("Notifications presents itself as Notifications", () => {
     await open(page, "/notifications", "personal-free");
     const freeBody = await page.locator("body").innerText();
 
-    // Same title, same subtitle, same summary anatomy.
+    // Same title, same subtitle, same control anatomy.
     for (const body of [proBody, freeBody]) {
       expect(body).toContain("Notifications");
       expect(body).toContain(
         "Updates, assignments, mentions and integrity alerts relevant to you.",
       );
     }
-    expect(await page.locator("[data-notifications-metric]").count()).toBe(6);
+    // NO KPI WALL. The six severity/total cards were the dashboard chrome this
+    // page shed (2026-10-17); what replaces them is ONE read-state control.
+    expect(await page.locator("[data-notifications-metric]").count()).toBe(0);
+    expect(await page.locator("[data-notifications-summary]").count()).toBe(0);
+    expect(await page.locator(".app-metric-card").count()).toBe(0);
+    // Named by accessible name: the Unread chip may carry an aria-hidden count
+    // badge, which is a description, never part of the control's name.
+    const chips = page.locator("[data-inbox-quick-filters] [data-inbox-filter-chip]");
+    await expect(chips).toHaveCount(3);
+    for (const [i, name] of ["All", "Unread", "Read"].entries()) {
+      await expect(chips.nth(i)).toHaveAccessibleName(name);
+    }
   });
 });
 
@@ -116,15 +127,23 @@ test.describe("Notifications presents itself as Notifications", () => {
 // ===========================================================================
 
 test.describe("Personal Free, empty", () => {
-  test("offers a caught-up state and NO call to action", async ({ page }) => {
+  test("offers the All view's empty state and NO call to action", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await open(page, "/notifications", "personal-free", { emptyInbox: true });
 
-    const empty = page.locator("[data-state='empty']");
+    // The empty state is SCOPED TO THE VIEW: with All selected and nothing
+    // returned, it is the All empty — not a global "caught up" panel keyed off
+    // the live total, which used to sit above a list of history.
+    const empty = page.locator("[data-state='empty'][data-inbox-empty-view='all']");
     await expect(empty).toBeVisible();
+    await expect(page.locator("[data-state='empty']")).toHaveCount(1);
+    // It takes the list's place.
+    expect(await page.locator("[data-inbox-item]").count()).toBe(0);
 
     const text = await empty.innerText();
-    expect(text).toContain("You're all caught up");
+    expect(text).toContain("No notifications yet");
+    expect(text).toContain("Updates relevant to this workspace will appear here.");
+    expect(text).not.toMatch(/all caught up/i);
     // The operations lifecycle sentence is gone. A notification is an event
     // addressed to a person; it has no condition lifecycle to explain, and
     // "they stay in History" described a surface that is now /operations.
@@ -138,15 +157,28 @@ test.describe("Personal Free, empty", () => {
     expect(await empty.locator("button").count()).toBe(0);
   });
 
-  test("still renders the metric cards, reading zero", async ({ page }) => {
+  test("still renders the read-state control, with no Unread badge at zero", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await open(page, "/notifications", "personal-free", { emptyInbox: true });
 
-    const values = await page
-      .locator("[data-notifications-metric] .app-metric-card__value")
-      .allTextContents();
-    expect(values).toHaveLength(6);
-    for (const value of values) expect(value.trim()).toBe("0");
+    // The control is still there over an empty inbox — the reader can still
+    // ask the read-state question — and All is the one selected view.
+    const chips = page.locator("[data-inbox-quick-filters] [data-inbox-filter-chip]");
+    await expect(chips).toHaveText(["All", "Unread", "Read"]);
+    await expect(
+      page.locator('[data-inbox-quick-filters] [aria-pressed="true"]'),
+    ).toHaveCount(1);
+    await expect(page.locator('[data-inbox-filter-chip="all"]')).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    // Zero unread is shown as NO badge, not a "0" pill — and nothing is
+    // announced for it.
+    expect(await page.locator("[data-inbox-unread-count]").count()).toBe(0);
+    expect(await page.locator("#inbox-unread-count-desc").count()).toBe(0);
+    expect(await page.locator("[data-notifications-metric]").count()).toBe(0);
   });
 
   test("does not offer a workspace-scope control it cannot use", async ({
@@ -165,35 +197,38 @@ test.describe("Personal Free, empty", () => {
 // ===========================================================================
 
 test.describe("Notifications reuses the canonical visual systems", () => {
-  test("the metric cards ARE the canonical card primitive, not a lookalike", async ({
+  test("the read-state chips ARE the canonical chip primitive, not a lookalike", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await open(page, "/notifications", "team-admin");
 
+    // The metric cards this used to measure are gone (2026-10-17) — and with
+    // them every `.app-metric-card` on this page. The one control left is the
+    // All / Unread / Read row, so the same claim is now made about it.
+    expect(await page.locator("[data-notifications-metric]").count()).toBe(0);
+    expect(await page.locator(".app-metric-card").count()).toBe(0);
+
     // MEASURE THE PRIMITIVE ITSELF, in this document.
     //
-    // Comparing against a card rendered on Intake Links would need that page's
-    // data in this project's fixture — a second copy of a fixture, to prove a
-    // shared style. Instead a bare probe carrying ONLY `.app-metric-card` is
-    // injected here and measured against the real card. If they resolve
-    // identically, the notification card IS the primitive rather than
-    // something styled to look like it; if a page-local rule had overridden
-    // it, the two would diverge. The Intake Links side of the same claim is
-    // asserted in the intake-links-layout project.
+    // A bare probe carrying ONLY the shared chip classes (`.app-chip` sized up
+    // by the sheet's `.ops-quick-chip`) is injected here and measured against
+    // the real chip. If they resolve identically, the read-state control IS
+    // the shared definition rather than something styled inline to look like
+    // it; if a page-local rule had overridden it, the two would diverge.
     const measured = await page.evaluate(() => {
-      // An UNPRESSED card. `All` leads the row and is pressed whenever no
+      // An UNPRESSED chip. `All` leads the row and is pressed whenever no
       // narrowing is in force — which is the page's opening state — and the
       // pressed variant deliberately paints a different surface. Measuring it
       // against a bare probe would compare the selected style to the resting
       // one and report a divergence that is the design.
       const real = document.querySelector(
-        '[data-notifications-metric][aria-pressed="false"]',
+        '[data-inbox-quick-filters] [data-inbox-filter-chip][aria-pressed="false"]',
       ) as HTMLElement | null;
       if (!real) return null;
 
       const probe = document.createElement("button");
-      probe.className = "app-metric-card";
+      probe.className = "app-chip ops-quick-chip";
       probe.style.position = "absolute";
       probe.style.visibility = "hidden";
       document.body.appendChild(probe);
@@ -210,7 +245,7 @@ test.describe("Notifications reuses the canonical visual systems", () => {
 
       const cs = getComputedStyle(real);
       return {
-        shared: real.classList.contains("app-metric-card"),
+        shared: real.classList.contains("app-chip"),
         reference,
         resolved: {
           radius: cs.borderTopLeftRadius,
@@ -220,22 +255,20 @@ test.describe("Notifications reuses the canonical visual systems", () => {
           background: cs.backgroundColor,
           display: cs.display,
         },
-        hasValue: Boolean(real.querySelector(".app-metric-card__value")),
-        hasLabel: Boolean(real.querySelector(".app-metric-card__label")),
-        hasMeta: Boolean(real.querySelector(".app-metric-card__meta")),
-        // The rail is painted from a tone VARIABLE the route resolves — the
-        // primitive itself never names a semantic colour.
-        tone: cs.getPropertyValue("--app-metric-tone").trim(),
+        tag: real.tagName,
+        // A label the reader can read — the chip's own text, not a figure.
+        label: (real.getAttribute("aria-label") ?? real.textContent ?? "").trim(),
+        inlineStyle: real.getAttribute("style"),
       };
     });
 
-    expect(measured, "Notifications rendered no metric card").not.toBeNull();
+    expect(measured, "Notifications rendered no read-state chip").not.toBeNull();
     expect(measured!.shared).toBe(true);
     expect(measured!.resolved).toEqual(measured!.reference);
-    expect(measured!.hasValue).toBe(true);
-    expect(measured!.hasLabel).toBe(true);
-    expect(measured!.hasMeta).toBe(true);
-    expect(measured!.tone.length).toBeGreaterThan(0);
+    expect(measured!.tag).toBe("BUTTON");
+    expect(measured!.label.length).toBeGreaterThan(0);
+    // No inline override standing in for the shared definition.
+    expect(measured!.inlineStyle).toBeNull();
   });
 
   test("the retired inline pill summary is gone", async ({ page }) => {
@@ -289,7 +322,7 @@ test.describe("Notifications reuses the canonical visual systems", () => {
       "no canonical row action on a notification row",
     ).toBeGreaterThan(0);
 
-    // Same technique as the metric card: a bare probe carrying only
+    // Same technique as the read-state chip: a bare probe carrying only
     // `.app-secondary-action` — the class Intake Links rows use for
     // "View submissions" and "Open" — measured against the real control.
     const measured = await page.evaluate(() => {
@@ -404,14 +437,20 @@ test.describe("Notification row semantics", () => {
 });
 
 // ===========================================================================
-// §11, §30 — the metric grid across every required viewport, LTR and RTL
+// §11, §30 — the read-state row across every required viewport, LTR and RTL
+//
+// This section measured the six-card metric grid. The grid is gone; the
+// control that replaced it — All / Unread / Read, in the toolbar beside
+// Filters and Sort — must hold the same promise: nothing escapes its row,
+// nothing is crushed, no label is clipped, and the page never scrolls
+// sideways, at every width this product supports and in both directions.
 // ===========================================================================
 
 const METRIC_VIEWPORTS = [1440, 1280, 1024, 768, 390, 375, 320];
 
-test.describe("the metric grid reflows without overflow", () => {
+test.describe("the read-state row reflows without overflow", () => {
   for (const direction of ["ltr", "rtl"] as const) {
-    test(`${direction}: six cards fit at every supported width`, async ({
+    test(`${direction}: the quick-filter row and toolbar fit at every supported width`, async ({
       page,
     }) => {
       for (const width of METRIC_VIEWPORTS) {
@@ -433,31 +472,46 @@ test.describe("the metric grid reflows without overflow", () => {
           if (doc.scrollWidth - doc.clientWidth > 1) {
             bad.push("page scrolls sideways");
           }
-          const cards = Array.from(
-            document.querySelectorAll<HTMLElement>("[data-notifications-metric]"),
-          );
-          if (cards.length !== 6) bad.push(`expected 6 cards, saw ${cards.length}`);
-          const grid = document.querySelector(
-            "[data-notifications-metric-grid]",
+          if (document.querySelectorAll("[data-notifications-metric]").length) {
+            bad.push("a metric card is back");
+          }
+          const toolbar = document.querySelector(
+            "[data-inbox-toolbar]",
           ) as HTMLElement | null;
-          if (!grid) {
-            bad.push("no metric grid");
+          const quick = document.querySelector(
+            "[data-inbox-quick-filters]",
+          ) as HTMLElement | null;
+          if (!toolbar || !quick) {
+            bad.push("no toolbar / quick-filter row");
             return bad;
           }
-          const gb = grid.getBoundingClientRect();
-          for (const card of cards) {
-            const cb = card.getBoundingClientRect();
-            // Inside its own grid, with a pixel of sub-pixel tolerance.
-            if (cb.left < gb.left - 1 || cb.right > gb.right + 1) {
-              bad.push(`card escapes the grid: ${card.textContent?.slice(0, 20)}`);
+          const tb = toolbar.getBoundingClientRect();
+          if (tb.right > doc.clientWidth + 1 || tb.left < -1) {
+            bad.push("toolbar escapes the viewport");
+          }
+          const chips = Array.from(
+            quick.querySelectorAll<HTMLElement>("[data-inbox-filter-chip]"),
+          );
+          if (chips.length !== 3) bad.push(`expected 3 chips, saw ${chips.length}`);
+          for (const chip of chips) {
+            const cb = chip.getBoundingClientRect();
+            // Inside the toolbar, with a pixel of sub-pixel tolerance.
+            if (cb.left < tb.left - 1 || cb.right > tb.right + 1) {
+              bad.push(`chip escapes the toolbar: ${chip.textContent?.slice(0, 20)}`);
             }
-            // A crushed figure is a card that has stopped being readable.
-            if (cb.width < 60) bad.push(`card crushed to ${Math.round(cb.width)}px`);
-            const value = card.querySelector(
-              ".app-metric-card__value",
-            ) as HTMLElement | null;
-            if (value && value.scrollWidth > value.clientWidth + 1) {
-              bad.push("figure is clipped");
+            // A crushed control is one that has stopped being a target.
+            if (cb.width < 40) bad.push(`chip crushed to ${Math.round(cb.width)}px`);
+            if (chip.scrollWidth > chip.clientWidth + 1) {
+              bad.push(`label is clipped: ${chip.textContent?.slice(0, 20)}`);
+            }
+          }
+          // The Filters / Sort controls hold too.
+          for (const el of Array.from(
+            toolbar.querySelectorAll<HTMLElement>(".ops-toolbar__controls > *"),
+          )) {
+            const eb = el.getBoundingClientRect();
+            if (eb.left < tb.left - 1 || eb.right > tb.right + 1) {
+              bad.push(`control escapes the toolbar: ${el.className}`);
             }
           }
           return bad;
@@ -467,17 +521,19 @@ test.describe("the metric grid reflows without overflow", () => {
     });
   }
 
-  test("equal visual rhythm — every card in a row shares one height", async ({
+  test("equal visual rhythm — every read-state chip shares one height", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await open(page, "/notifications", "team-admin");
     const heights = await page.evaluate(() =>
       Array.from(
-        document.querySelectorAll<HTMLElement>("[data-notifications-metric]"),
+        document.querySelectorAll<HTMLElement>(
+          "[data-inbox-quick-filters] [data-inbox-filter-chip]",
+        ),
       ).map((el) => Math.round(el.getBoundingClientRect().height)),
     );
-    expect(heights).toHaveLength(6);
+    expect(heights).toHaveLength(3);
     expect(new Set(heights).size, `heights differ: ${heights.join(", ")}`).toBe(1);
   });
 });

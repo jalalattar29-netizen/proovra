@@ -149,10 +149,27 @@ test.describe("Archived returns archived notifications only", () => {
     await installApi(page, "personal-pro", { emptyInbox: true });
     await page.goto("/notifications");
     await page.waitForSelector("[data-state='empty']", { timeout: 15_000 });
-    // With nothing at all, the page says the reader is caught up.
-    await expect(page.locator("[data-state='empty']")).toContainText(
+    // With nothing at all, the All view says so — scoped to the view, not a
+    // global "caught up" panel keyed off the live total.
+    const allEmpty = page.locator("[data-inbox-empty-view='all']");
+    await expect(allEmpty).toContainText("No notifications yet");
+    await expect(page.locator("[data-state='empty']")).not.toContainText(
       /all caught up/i,
     );
+
+    // The same empty population, seen through the archive, is an empty
+    // ARCHIVE: its own copy, and no "clear filters" — nothing is broken.
+    await page.goto("/notifications?lifecycle=archived");
+    const archiveEmpty = page.locator("[data-inbox-empty-view='archive']");
+    await expect(archiveEmpty).toBeVisible({ timeout: 15_000 });
+    await expect(archiveEmpty).toContainText("No archived notifications.");
+    await expect(archiveEmpty).toContainText(
+      "Archiving a notification files it here and takes it out of your active list.",
+    );
+    await expect(page.locator('[data-inbox-empty-reason="filters"]')).toHaveCount(0);
+    await expect(page.locator('[data-action="clear-filter"]')).toHaveCount(0);
+    // It takes the list's place.
+    await expect(page.locator("[data-inbox-item]")).toHaveCount(0);
   });
 });
 
@@ -251,7 +268,14 @@ test.describe("The filter toolbar is compact, not a wall of pills", () => {
     // half of All — a read notification is found there, never lost.
     await expect(quick).toHaveCount(3);
     await expect(quick.nth(0)).toHaveText("All");
-    await expect(quick.nth(1)).toHaveText("Unread");
+    // The Unread chip carries the server's unread total as an aria-hidden
+    // badge (2 in this scenario); its NAME stays "Unread" and the count is
+    // announced as its description instead.
+    await expect(quick.nth(1)).toHaveAccessibleName("Unread");
+    await expect(
+      quick.nth(1).locator('[data-inbox-unread-count="2"]'),
+    ).toHaveText("2");
+    await expect(quick.nth(1)).toHaveAccessibleDescription("2 unread");
     await expect(quick.nth(2)).toHaveText("Read");
     // ARCHIVED IS NOT A FOURTH PILL. It is a status, and standing it beside
     // the read states implied they were alternatives when only those three
@@ -375,7 +399,7 @@ test.describe("The filter toolbar is compact, not a wall of pills", () => {
 // §29–§30 — HIERARCHY AND RESULT COUNT
 // ===========================================================================
 
-test("the page reads title → metrics → toolbar → list, in that order", async ({
+test("the page reads title → read-state control → list, with no metric band", async ({
   page,
 }) => {
   await openNotifications(page);
@@ -386,14 +410,21 @@ test("the page reads title → metrics → toolbar → list, in that order", asy
     };
     return {
       title: y("[data-notifications-title]"),
-      metrics: y("[data-notifications-summary]"),
+      // The six-card summary band that sat between the title and the toolbar
+      // is gone (2026-10-17); the read-state control is the first thing after
+      // the header.
+      metrics: document.querySelectorAll(
+        "[data-notifications-summary], [data-notifications-metric-grid], [data-notifications-metric]",
+      ).length,
+      quick: y("[data-inbox-quick-filters]"),
       toolbar: y("[data-inbox-toolbar]"),
       list: y("[data-inbox-items]"),
     };
   });
-  expect(order.title).toBeLessThan(order.metrics);
-  expect(order.metrics).toBeLessThan(order.toolbar);
-  expect(order.toolbar).toBeLessThan(order.list);
+  expect(order.metrics).toBe(0);
+  expect(order.title).toBeLessThan(order.toolbar);
+  expect(order.toolbar).toBeLessThanOrEqual(order.quick);
+  expect(order.quick).toBeLessThan(order.list);
 });
 
 test("the result count speaks about notifications, and about the archive", async ({
@@ -464,83 +495,89 @@ test("the title icon is the Cases primitive, decorative, and beside the title", 
 });
 
 // ===========================================================================
-// §3–§8 — THE METRIC TONES, resolved from canonical tokens
+// §3–§8 — THE SEVERITY TONES, resolved from canonical tokens
+//
+// The six metric cards that used to carry these tones are gone (2026-10-17).
+// Severity survives as ROW METADATA, so the same canonical mapping is now
+// asserted where it is painted: each row's tone badge. And the control that
+// replaced the cards — All / Unread / Read — is pinned for order and ink.
 // ===========================================================================
 
-test("metric cards lead with All and resolve the canonical tones", async ({
+test("the read-state control leads with All; row badges resolve the canonical tones", async ({
   page,
 }) => {
   await openNotifications(page);
-  const cards = await page.evaluate(() => {
-    const norm = (v: string) => v.replace(/\s+/g, "").toLowerCase();
-    return Array.from(
-      document.querySelectorAll("[data-notifications-metric]"),
-    ).map((el) => {
-      const cs = getComputedStyle(el as HTMLElement);
-      const value = el.querySelector(
-        ".app-metric-card__value",
-      ) as HTMLElement | null;
-      return {
-        key: el.getAttribute("data-notifications-metric"),
-        tone: norm(cs.getPropertyValue("--app-metric-tone")),
-        valueColor: value ? norm(getComputedStyle(value).color) : "",
-      };
-    });
-  });
+  expect(await page.locator("[data-notifications-metric]").count()).toBe(0);
 
-  // ORDER — All is leftmost in LTR.
-  expect(cards.map((c) => c.key)).toEqual([
-    "all",
-    "unread",
-    "critical",
-    "high",
-    "warning",
-    "info",
-  ]);
+  // ORDER — All is leftmost in LTR, and the row is the read-state question.
+  const order = await page.evaluate(() =>
+    Array.from(
+      document.querySelectorAll("[data-inbox-quick-filters] [data-inbox-filter-chip]"),
+    )
+      .map((el) => ({
+        key: el.getAttribute("data-inbox-filter-chip"),
+        left: el.getBoundingClientRect().left,
+      }))
+      .sort((a, b) => a.left - b.left)
+      .map((c) => c.key),
+  );
+  expect(order).toEqual(["all", "unread", "read"]);
 
-  // TONES — each is the canonical token's value, and the number wears it.
+  // TONES — each severity badge wears its canonical token's value. The
+  // mapping was corrected to the canonical semantics — critical is danger
+  // (red), warning is the brand purple — in 2866f107 (2026-08-27) and
+  // b83bf5e0 (2026-09-03); the rationale is recorded in notifications.css.
   const expected: Record<string, string> = {
-    all: "#0f172a", // --ink-primary   : the darkest neutral
-    // The three below were unread = purple, critical = blue, warning = red.
-    // The mapping was corrected to the canonical semantics — unread is a
-    // state (informational blue), critical is danger (red), warning is the
-    // brand purple — in 2866f107 (2026-08-27) and b83bf5e0 (2026-09-03); the
-    // rationale is recorded above the rules in notifications.css and the
-    // declarations are pinned by analytics-and-semantic-metrics.test.ts.
-    unread: "#2563eb", // --info       : canonical informational blue
-    critical: "#dc2626", // --error    : canonical danger red
-    high: "#ea580c", // --orange-500   : standard orange
-    warning: "#6d28d9", // --accent-600: brand purple
-    info: "#475569", // --ink-secondary: neutral informational
+    critical: "rgb(220,38,38)", // --error      #DC2626
+    high: "rgb(234,88,12)", // --orange-500     #EA580C
+    warning: "rgb(109,40,217)", // --accent-600 #6D28D9
+    info: "rgb(100,116,139)", // --ops-tone-info #64748B
   };
-  const rgb: Record<string, string> = {
-    "#0f172a": "rgb(15,23,42)",
-    "#6d28d9": "rgb(109,40,217)",
-    "#2563eb": "rgb(37,99,235)",
-    "#ea580c": "rgb(234,88,12)",
-    "#dc2626": "rgb(220,38,38)",
-    "#475569": "rgb(71,85,105)",
-  };
-  for (const card of cards) {
-    const want = expected[card.key!]!;
-    expect(card.tone, `${card.key} tone`).toBe(want);
-    expect(card.valueColor, `${card.key} number colour`).toBe(rgb[want]);
+  const badges = async () =>
+    page.evaluate(() =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>("li[data-inbox-item-tone] [data-tone-chip]"),
+      ).map((el) => ({
+        tone: el.getAttribute("data-tone-chip"),
+        text: el.textContent?.trim(),
+        color: getComputedStyle(el).color.replace(/\s+/g, ""),
+      })),
+    );
+
+  // Active: critical, high, warning. Archived: critical, info — so every
+  // tone is measured on a real row.
+  const seen = new Set<string>();
+  for (const view of ["active", "archived"] as const) {
+    if (view === "archived") {
+      await enableArchived(page);
+      await expect.poll(async () => (await renderedKeys(page)).length).toBe(2);
+    }
+    for (const b of await badges()) {
+      expect(b.text, `${b.tone} label`).toBe(b.tone!.toUpperCase());
+      expect(b.color, `${b.tone} badge colour`).toBe(expected[b.tone!]);
+      seen.add(b.tone!);
+    }
   }
+  expect([...seen].sort()).toEqual(["critical", "high", "info", "warning"]);
 });
 
-test("no metric tone is silver — All is ink, not a hairline", async ({
+test("no read-state chip is silver — its label is ink, not a hairline", async ({
   page,
 }) => {
   await openNotifications(page);
-  // The regression this replaces: `All` painted `--border-strong`, a
-  // 14%-alpha hairline, so the leading number read as a disabled control.
-  const alpha = await page.evaluate(() => {
-    const el = document.querySelector(
-      '[data-notifications-metric="all"] .app-metric-card__value',
-    ) as HTMLElement | null;
-    return el ? getComputedStyle(el).color : "";
-  });
-  expect(alpha).not.toMatch(/rgba\([^)]*,\s*0?\.\d+\)/);
+  // The regression this replaced on the cards: `All` painted
+  // `--border-strong`, a 14%-alpha hairline, so the leading label read as a
+  // disabled control. The read-state chips must not repeat it, selected or
+  // not.
+  const colours = await page.evaluate(() =>
+    Array.from(
+      document.querySelectorAll<HTMLElement>(
+        "[data-inbox-quick-filters] [data-inbox-filter-chip]:not(:disabled)",
+      ),
+    ).map((el) => getComputedStyle(el).color),
+  );
+  expect(colours).toHaveLength(3);
+  for (const c of colours) expect(c).not.toMatch(/rgba\([^)]*,\s*0?\.\d+\)/);
 });
 
 // ===========================================================================

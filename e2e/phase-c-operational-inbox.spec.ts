@@ -292,9 +292,19 @@ test.describe("Phase C — operational inbox @critical", () => {
     expect(src).toContain("data-inbox-item-read={item.isRead");
     // An exact total, so the count cannot quietly round.
     expect(src).toContain("data-inbox-total-exact");
-    // Empty is explained rather than blank, and says WHICH empty it is.
-    expect(src).toContain('data-inbox-empty-reason="archive"');
-    expect(src).toContain('data-inbox-empty-reason="filters"');
+    // Empty is explained rather than blank, and says WHICH empty it is. The
+    // reason is now decided per view (what THIS view returned) and rendered
+    // through one scoped mechanism, so the source carries the attribute bound
+    // to the computed reason plus a named copy entry for each reason — the
+    // archive and filter empties included.
+    expect(src).toContain("data-inbox-empty-reason={emptyReason}");
+    expect(src).toContain("data-inbox-empty-view={emptyReason}");
+    expect(src).toMatch(/EMPTY_COPY[^=]*=\s*\{[\s\S]*?\barchive:\s*\{[\s\S]*?title:\s*"No archived notifications\."/);
+    expect(src).toMatch(/EMPTY_COPY[^=]*=\s*\{[\s\S]*?\bfilters:\s*\{\s*title:\s*"No notifications match these filters\."/);
+    // The filter empty offers its way out; the old global "caught up" panel
+    // keyed off the live total is gone.
+    expect(src).toContain('emptyReason === "filters"');
+    expect(src).not.toContain('data-state="filter-empty"');
     // Paging is a real cursor, not a client-side slice.
     expect(src).toContain("data-inbox-next-cursor");
     // And the deferral panel it replaced is not still shipping alongside it.

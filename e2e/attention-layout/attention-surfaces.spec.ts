@@ -267,18 +267,21 @@ for (const surface of SURFACES) {
   });
 }
 
-test("the notification metric cards do not clip in RTL", async ({ page }) => {
+test("the read-state chips do not clip in RTL", async ({ page }) => {
+  // The six metric cards this measured are gone (2026-10-17); the control
+  // that replaced them must keep the same promise at a phone width, mirrored.
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page, "/notifications", "team-admin");
   await setDirection(page, "rtl");
-  const cards = page.locator("[data-notifications-metric]");
-  const count = await cards.count();
-  expect(count).toBe(6);
+  expect(await page.locator("[data-notifications-metric]").count()).toBe(0);
+  const chips = page.locator("[data-inbox-quick-filters] [data-inbox-filter-chip]");
+  const count = await chips.count();
+  expect(count).toBe(3);
   for (let i = 0; i < count; i += 1) {
-    const clipped = await cards.nth(i).evaluate(
+    const clipped = await chips.nth(i).evaluate(
       (el) => el.scrollWidth - el.clientWidth > 1,
     );
-    expect(clipped, `metric card ${i} clips its label in RTL`).toBe(false);
+    expect(clipped, `read-state chip ${i} clips its label in RTL`).toBe(false);
   }
 });
 
@@ -287,18 +290,20 @@ test("the notification metric cards do not clip in RTL", async ({ page }) => {
 // ============================================================================
 
 test.describe("Accessibility", () => {
-  test("metric cards are keyboard reachable and announce their state", async ({
+  test("the read-state chips are keyboard reachable and announce their state", async ({
     page,
   }) => {
     await open(page, "/notifications", "team-admin");
-    const chip = page.locator("[data-notifications-metric]:not([disabled])").first();
+    const chip = page
+      .locator("[data-inbox-quick-filters] [data-inbox-filter-chip]:not([disabled])")
+      .first();
     await expect(chip).toBeVisible();
 
     // It is a real button, so it takes focus from the keyboard.
     await chip.focus();
     expect(
       await page.evaluate(() =>
-        document.activeElement?.hasAttribute("data-notifications-metric"),
+        document.activeElement?.hasAttribute("data-inbox-filter-chip"),
       ),
     ).toBe(true);
 
@@ -308,7 +313,9 @@ test.describe("Accessibility", () => {
 
   test("focus is VISIBLE, not just present", async ({ page }) => {
     await open(page, "/notifications", "team-admin");
-    const chip = page.locator("[data-notifications-metric]:not([disabled])").first();
+    const chip = page
+      .locator("[data-inbox-quick-filters] [data-inbox-filter-chip]:not([disabled])")
+      .first();
     await chip.focus();
     const shadow = await chip.evaluate((el) => getComputedStyle(el).boxShadow);
     // The focus ring is a box-shadow token; "none" would mean an invisible
@@ -318,21 +325,31 @@ test.describe("Accessibility", () => {
 
   test("severity is never communicated by colour alone", async ({ page }) => {
     await open(page, "/notifications", "team-admin");
+    // The severity cards (label + explanation beside a tone rail) are gone;
+    // severity now lives on each ROW, and every row carries it as TEXT — its
+    // badge reads CRITICAL / HIGH / WARNING / INFO — so the tone colour and
+    // the row rail are a supporting cue and never the signal itself.
+    const rows = await page.evaluate(() =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>("li[data-inbox-item-tone]"),
+      ).map((li) => ({
+        tone: li.getAttribute("data-inbox-item-tone"),
+        badge: li.querySelector("[data-tone-chip]")?.textContent?.trim() ?? "",
+      })),
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row.badge, `${row.tone} row has no severity text`).toBe(
+        row.tone!.toUpperCase(),
+      );
+    }
+    // And the read-state control names each view in words.
     const labels = await page
-      .locator("[data-notifications-metric] .app-metric-card__label")
+      .locator("[data-inbox-quick-filters] [data-inbox-filter-chip]")
       .allTextContents();
-    expect(labels.length).toBe(6);
-    // Every card carries its meaning as TEXT — a label and an explanation —
-    // beside the figure, so the tone rail is a supporting cue and never the
-    // signal itself.
+    expect(labels.length).toBe(3);
     for (const label of labels) {
       expect(label.trim().length).toBeGreaterThan(0);
-    }
-    const metas = await page
-      .locator("[data-notifications-metric] .app-metric-card__meta")
-      .allTextContents();
-    for (const meta of metas) {
-      expect(meta.trim().length).toBeGreaterThan(0);
     }
   });
 
