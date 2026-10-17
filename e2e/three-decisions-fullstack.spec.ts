@@ -154,7 +154,12 @@ test.describe("three product decisions — the real stack", () => {
     // Never indexed: the verify layout's robots metadata (the production
     // X-Robots-Tag header is pinned by verify-capability-noindex.test.ts).
     await expect(reviewer.locator('meta[name="robots"]').first()).toHaveAttribute("content", /noindex/);
-    await expect(reviewer.locator('[data-verify-tier="basic"]')).toBeVisible();
+    // The ESTABLISHED Public Verify page (2026-10-17) — never the stripped
+    // replacement — shown verification-only for a record its owner has not
+    // published: no internal id, previews or original files.
+    await expect(reviewer.locator('[data-verify-tier="basic"]')).toHaveCount(0);
+    await expect(reviewer.getByText("What was checked, signal by signal")).toBeVisible();
+    await expect(reviewer.locator("[data-verify-disclosure-notice]")).toBeVisible();
     expect(await reviewer.content()).not.toContain(evidenceId);
     // The internal id is not a link to the page.
     await reviewer.goto(`/verify/${evidenceId}`);

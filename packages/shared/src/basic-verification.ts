@@ -292,9 +292,7 @@ export function buildBasicVerification(input: {
     tsa === "FAILED"
       ? tsaTrust?.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED"
         ? "not_checked"
-        : tsaTrust?.state === "UNAVAILABLE"
-          ? "not_issued"
-          : "failed"
+        : "failed"
       : tsaPositive
         ? input.tsaImprintMatches === false
           ? "failed"

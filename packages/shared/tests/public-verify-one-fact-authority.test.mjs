@@ -56,8 +56,8 @@ test("RFC 3161: a kept token never validated (no trust anchor) is not_checked in
   assert.equal(row.status, "NOT_CHECKED");
 });
 
-test("RFC 3161: no token obtained reads not_issued (matrix: Unavailable); a refused token stays failed", () => {
-  assert.equal(basic({ tsaTokenPresent: false, tsaFailureCode: null }).timestamp.state, "not_issued");
+test("RFC 3161: a request that obtained no token stays failed (\"none was obtained\"; matrix: Unavailable, not obtained)", () => {
+  assert.equal(basic({ tsaTokenPresent: false, tsaFailureCode: null }).timestamp.state, "failed");
   assert.equal(matrixTsa({ tsaStatus: "FAILED", tsaTokenPresent: false }).status, "UNAVAILABLE");
   // An older caller without the authority's inputs keeps the status-only reading.
   assert.equal(basic({}).timestamp.state, "failed");

@@ -189,7 +189,9 @@ test("TRUTH: one status per fact — matrix, signals and original-evidence check
       VERIFIED: ["verified"],
       NOT_CHECKED: ["not_checked"],
       FAILED: ["failed"],
-      UNAVAILABLE: ["not_issued", "pending"],
+      // "Not obtained": the matrix says Unavailable, Basic Verify says the
+      // request failed and none was obtained — never a positive state.
+      UNAVAILABLE: ["not_issued", "pending", "failed"],
       NOT_APPLICABLE: ["not_issued", "pending"],
     };
     expect(tsaStates[rows.tsa_token!.status], `matrix ${rows.tsa_token!.status} vs original evidence ${basic.timestamp.state}`).toContain(basic.timestamp.state);
