@@ -50,6 +50,11 @@
       "types": "./dist/zod-runtime-config.d.ts",
       "import": "./dist/zod-runtime-config.js",
       "default": "./dist/zod-runtime-config.js"
+    },
+    "./tile-endpoint-policy": {
+      "types": "./dist/tile-endpoint-policy.d.ts",
+      "import": "./dist/tile-endpoint-policy.js",
+      "default": "./dist/tile-endpoint-policy.js"
     }
   },
   "files": [

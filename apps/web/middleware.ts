@@ -9,6 +9,7 @@ const RUNBOOK_DETAIL_PATH = /^\/admin\/platform\/runbooks\/([^/]+)\/?$/;
 
 import { findSurfaceTierRule } from "./lib/surface/tiers";
 import { isLocalOrPreviewHost } from "./lib/security/request-host";
+import { resolveApprovedTileTemplate } from "@proovra/shared/tile-endpoint-policy";
 
 const APP_BASE = process.env.NEXT_PUBLIC_APP_BASE;
 const WEB_BASE = process.env.NEXT_PUBLIC_WEB_BASE;
@@ -102,6 +103,22 @@ const R2_HOST = "https://*.r2.cloudflarestorage.com";
  */
 const STORAGE_ORIGIN = (process.env.NEXT_PUBLIC_STORAGE_ORIGIN ?? "").trim();
 
+/**
+ * The recorded-location map draws tiles ONLY from the deployment's approved
+ * endpoint (AUD-025, the shared policy — never a public provider). Its origin
+ * is named in img-src so an internal HTTP tile server works too; with no
+ * approved endpoint nothing is added.
+ */
+const TILE_ORIGIN = (() => {
+  const t = resolveApprovedTileTemplate(process.env.NEXT_PUBLIC_CAPTURE_LOCATION_TILE_URL).template;
+  if (!t) return "";
+  try {
+    return new URL(t.replace(/{[xyzs]}/g, "0")).origin;
+  } catch {
+    return "";
+  }
+})();
+
 function buildCsp(nonce: string, isProd: boolean, relaxed: boolean, allowEval: boolean) {
   // ✅ في production: ممنوع relaxed وممنوع eval نهائياً
   const effectiveRelaxed = isProd ? false : relaxed;
@@ -139,7 +156,7 @@ function buildCsp(nonce: string, isProd: boolean, relaxed: boolean, allowEval: b
      * is added in production, and a deployment whose API or object store is
      * unreachable to the renderer now fails on a stated input.
      */
-    `img-src 'self' data: blob: https: ${API_BASE} ${R2_HOST}${STORAGE_ORIGIN ? ` ${STORAGE_ORIGIN}` : ""}`,
+    `img-src 'self' data: blob: https: ${API_BASE} ${R2_HOST}${STORAGE_ORIGIN ? ` ${STORAGE_ORIGIN}` : ""}${TILE_ORIGIN ? ` ${TILE_ORIGIN}` : ""}`,
     `media-src 'self' blob: https: ${API_BASE} ${R2_HOST}${STORAGE_ORIGIN ? ` ${STORAGE_ORIGIN}` : ""}`,
     "font-src 'self' data: https:",
 

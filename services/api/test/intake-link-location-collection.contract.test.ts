@@ -245,20 +245,15 @@ describe("Intake Links — location collection contract", () => {
     );
   });
 
-  it("Capture flow stays byte-identical when sourceLabel prop omitted", () => {
+  it("the map states the record's OWN source label, and never invents one", () => {
     const panel = read(
       "apps/web/components/capture-location/CaptureLocationMapPanel.tsx",
     );
-    assert.match(
-      panel,
-      /sourceLabel\?: string \| null/,
-      "prop is optional so legacy callers compile unchanged",
-    );
-    assert.match(
-      panel,
-      /props\.sourceLabel \?\? display\.sourceLabel/,
-      "default falls back to the shared CAPTURE label — legacy capture pages unchanged",
-    );
+    assert.match(panel, /sourceLabel\?: string \| null/, "prop is optional so legacy callers compile unchanged");
+    // 2026-10-17: an omitted source is omitted; an explicit null is "not
+    // recorded" — the generic capture label is no longer claimed for a record.
+    assert.ok(panel.includes('props.sourceLabel === undefined ? null : (props.sourceLabel ?? "Location source not recorded")'));
+    assert.ok(!panel.includes("props.sourceLabel ?? display.sourceLabel"));
   });
 
   it("the create wizard renders the Location collection card-radio", () => {

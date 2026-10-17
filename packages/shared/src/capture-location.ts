@@ -1224,3 +1224,7 @@ export function locationRequirementRowValue(locale: string | null | undefined, l
     ? copy.values[level as LocationRequirementLevel]
     : copy.none;
 }
+
+// AUD-025 — the approved tile endpoint: one policy, its own module (the web
+// middleware imports it at the edge without the rest of this package).
+export { PUBLIC_TILE_PROVIDER_HOSTS, resolveApprovedTileTemplate } from "./tile-endpoint-policy.js";

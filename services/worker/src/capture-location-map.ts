@@ -4,6 +4,7 @@ import {
   buildCaptureLocationPdfFallbackSvg,
   type CaptureLocationDisplayModel,
   type CaptureLocationInput,
+  resolveApprovedTileTemplate,
 } from "@proovra/shared";
 
 const DEFAULT_TILE_REQUEST_TIMEOUT_MS = 2_500;
@@ -20,55 +21,11 @@ const DEFAULT_TILE_REQUEST_TIMEOUT_MS = 2_500;
  * refused even then: a configured endpoint must be the deployment's own,
  * approved tile server. A refused or missing endpoint renders locally.
  */
-const PUBLIC_TILE_PROVIDER_HOSTS = [
-  "openstreetmap.org",
-  "openstreetmap.fr",
-  "openstreetmap.de",
-  "osm.org",
-  "opentopomap.org",
-  "mapbox.com",
-  "googleapis.com",
-  "google.com",
-  "gstatic.com",
-  "arcgisonline.com",
-  "arcgis.com",
-  "cartocdn.com",
-  "stadiamaps.com",
-  "stamen.com",
-  "thunderforest.com",
-  "maptiler.com",
-  "here.com",
-  "hereapi.com",
-  "virtualearth.net",
-  "bing.com",
-  "wikimedia.org",
-  "esri.com",
-  "tomtom.com",
-  "mapquest.com",
-];
+// The approved-endpoint policy lives in @proovra/shared (one rule for the
+// report worker and the web map): resolveApprovedTileTemplate.
+export { resolveApprovedTileTemplate };
 
 export type CaptureLocationMapMode = "static" | "fallback" | "off";
-
-/** The approved tile template, or null with the bounded reason it was refused. */
-export function resolveApprovedTileTemplate(
-  raw: string | null | undefined,
-): { template: string | null; refused: "NOT_CONFIGURED" | "INVALID_URL" | "PUBLIC_PROVIDER" | null } {
-  const value = raw?.trim();
-  if (!value) return { template: null, refused: "NOT_CONFIGURED" };
-  if (!value.includes("{z}") || !value.includes("{x}") || !value.includes("{y}")) {
-    return { template: null, refused: "INVALID_URL" };
-  }
-  let host: string;
-  try {
-    const url = new URL(value.replace(/\{[xyzs]\}/g, "0"));
-    if (url.protocol !== "https:" && url.protocol !== "http:") return { template: null, refused: "INVALID_URL" };
-    host = url.hostname.toLowerCase().replace(/\.$/, "");
-  } catch {
-    return { template: null, refused: "INVALID_URL" };
-  }
-  const isPublic = PUBLIC_TILE_PROVIDER_HOSTS.some((h) => host === h || host.endsWith("." + h));
-  return isPublic ? { template: null, refused: "PUBLIC_PROVIDER" } : { template: value, refused: null };
-}
 
 /** Read per call, so the deployment's configuration is the only thing that decides. */
 export function resolveCaptureLocationMapMode(env: NodeJS.ProcessEnv = process.env): {

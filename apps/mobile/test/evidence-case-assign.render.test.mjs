@@ -84,7 +84,9 @@ test("T-12: a recorded capture location renders the map (shared display model) w
   await r.press("Integrity");
   assert.ok(r.hasText("Capture location"));
   assert.equal(r.byTestId("capture-location-map").length, 1);
-  assert.ok(r.byLabel("Capture context map preview").length > 0);
+  // The recorded-location card (no approved tile endpoint here): the facts, no pseudo-map.
+  assert.ok(r.byLabel("Recorded location").length > 0);
+  assert.equal(r.byTestId("capture-location-map-unavailable").length, 1);
   assert.ok(r.hasText("Boundary: Device-reported position."));
   assert.ok(r.byLabel("Open in map").length > 0, "no way to open the location in a map");
   // AUD-025 — no tile is requested from a third party with the evidence
@@ -92,7 +94,8 @@ test("T-12: a recorded capture location renders the map (shared display model) w
   const remote = r.root.findAll((n) => typeof n.type === "string" && typeof n.props?.source?.uri === "string");
   assert.deepEqual(remote.map((n) => n.props.source.uri), []);
   assert.ok(!JSON.stringify(r.renderer.toJSON()).includes("tile.openstreetmap"));
-  assert.ok(r.hasText("Map imagery unavailable · rendered locally from recorded coordinates"));
+  assert.ok(r.hasText("Map preview unavailable"));
+  assert.ok(!r.hasText("Map imagery unavailable · rendered locally from recorded coordinates"));
 });
 
 test("T-12: no recorded location, no map — never synthesised", async () => {

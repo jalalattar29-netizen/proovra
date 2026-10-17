@@ -370,10 +370,11 @@ describe("capture-location map actions", () => {
     codeOnly.indexOf("Open in map"),
   );
 
-  it("wear the canonical tokens, not literal legacy colours", () => {
-    expect(actions).toContain("var(--card, #ffffff)");
-    expect(actions).toContain("var(--ink-primary, #0f172a)");
-    expect(actions).toContain("var(--accent-600, #6d28d9)");
+  it("wear the canonical action primitive, not literal legacy colours", () => {
+    // 2026-10-17 — the actions sit on the Recorded location card (no longer over
+    // dark map tiles), so they are the shared .app-secondary-action itself.
+    expect(actions).toContain('className="app-secondary-action"');
+    expect(actions).not.toMatch(/#[0-9a-fA-F]{6}(?!))/);
   });
 
   it("dropped the old dark translucent pill entirely", () => {

@@ -254,6 +254,8 @@ export {
   LOCATION_REQUEST_OUTCOMES,
   LOCATION_REQUIREMENT_LEVELS,
   isValidCaptureCoordinatePair,
+  resolveApprovedTileTemplate,
+  PUBLIC_TILE_PROVIDER_HOSTS,
   locationRequestOutcomeFromCustody,
   locationRequirementFromIntakePlan,
   parseLocationRequestOutcome,
