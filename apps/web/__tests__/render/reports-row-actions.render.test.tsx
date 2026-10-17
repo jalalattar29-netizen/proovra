@@ -231,8 +231,11 @@ describe("Reports row — generation actions", () => {
   it("summary metrics name what they count; failures are in the breakdown and open their filter", async () => {
     const { container } = await mount();
     const tile = (k: string) => container.querySelector(`[data-reports-summary-key='${k}']`);
-    expect(tile("reports_ready")?.textContent).toContain("Reports ready");
-    expect(tile("reports_ready")?.getAttribute("data-reports-summary-filter")).toBe("report_ready");
+    // An API without record-status counts has no summary cards (all four are
+    // record statuses); the retired "Reports ready" card never comes back, and
+    // every counter stays reachable in the breakdown.
+    expect(tile("reports_ready")).toBeNull();
+    expect(tile("packages_ready")).toBeNull();
     const failed = container.querySelector("[data-reports-breakdown-key='reportsFailed']") as HTMLButtonElement;
     expect(failed.getAttribute("data-reports-breakdown-value")).toBe("1");
     expect(container.querySelector("[data-reports-breakdown-key='totalEvidenceWithArtifacts']")?.textContent).toContain(

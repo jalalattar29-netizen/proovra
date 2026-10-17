@@ -176,18 +176,17 @@ test("the case relationship is canonical blue, and not a badge", () => {
   assert.doesNotMatch(INDEX, /data-reports-case-link[\s\S]{0,160}#6D28D9/);
 });
 
-test("the summary is at most SIX metrics, each a filter with one definition and a tone", () => {
-  // 2026-10-16 — fifteen cards became six. Each names the filter its number
-  // equals and carries its definition; everything else is in ONE disclosure.
+test("the summary is EXACTLY FOUR metrics, each a filter with one definition and a tone", () => {
+  // 2026-10-16 — fifteen cards became six; 2026-10-17 — six became four:
+  // All records, In progress, Needs attention, Incomplete, in that order.
+  // "Reports ready" / "Packages ready" restated the Ready filter.
   const block = INDEX.slice(INDEX.indexOf("const PRIMARY_METRICS"), INDEX.indexOf("const BREAKDOWN"));
   const fields = (block.match(/field: "[a-zA-Z]+"/g) ?? []).map((f) => f.slice(8, -1));
   assert.deepEqual(fields, [
-    "reportsReady",
-    "packagesReady",
+    "recordsTotal",
     "recordsInProgress",
     "recordsNeedingAttention",
     "recordsIncomplete",
-    "recordsTotal",
   ]);
   assert.match(INDEX, /<details className="rpt-breakdown" data-reports-breakdown>/);
   for (const f of ["reportsFailed", "reportsUpdateFailed", "packagesMissingForLatestReport", "totalArtifactVersions"]) {
@@ -195,7 +194,7 @@ test("the summary is at most SIX metrics, each a filter with one definition and 
   }
   // The number wears the card's tone through the canonical metric card.
   assert.match(INDEX, /className="app-metric-card rpt-metric"/);
-  assert.match(INDEX, /data-app-metric-tone=\{m\.tone\(value\)\}/);
+  assert.match(INDEX, /data-app-metric-tone=\{m\.tone\}/);
   assert.match(INDEX, /aria-describedby=\{defId\}/);
 });
 
@@ -229,6 +228,9 @@ test("a refresh does not tear the page down — that was the typing lag", () => 
 });
 
 test("filters keep their canonical chip component and every state", () => {
+  // The states live in the shared filter vocabulary (types.ts); the page
+  // renders them through the canonical segmented chips and AppListbox.
+  const TYPES_SRC = read("apps/web/components/reports-experience/types.ts");
   for (const key of [
     "all",
     "report_ready",
@@ -240,12 +242,17 @@ test("filters keep their canonical chip component and every state", () => {
     "package_blocked",
   ]) {
     assert.match(
-      INDEX,
+      INDEX + TYPES_SRC,
       new RegExp(`"${key}"`),
       `the ${key} filter must still exist`,
     );
   }
   assert.match(INDEX, /cases-filter-chip/);
+  // Sort and the advanced dimensions use the app's shared listbox, the search
+  // the shared search field — never a page-local imitation.
+  assert.match(INDEX, /<AppListbox/);
+  assert.match(INDEX, /className="app-search-field rpt-toolbar__search"/);
+  assert.doesNotMatch(INDEX, /FilterBar\.Select/);
 });
 
 // ---------------------------------------------------------------------------
@@ -539,7 +546,7 @@ test("the summary value uses the canonical metric typography", () => {
   const PRIMITIVES = read("apps/web/components/app-primitives/app-primitives.css");
   assert.match(PRIMITIVES, /\.app-metric-card__value \{[\s\S]{0,300}font-variant-numeric: tabular-nums;/);
   assert.match(INDEX, /className="app-metric-card__value"/);
-  assert.match(CSS, /\.rpt-summary__grid \{[\s\S]{0,300}repeat\(6, minmax\(0, 1fr\)\)/);
+  assert.match(CSS, /\.rpt-summary__grid \{[\s\S]{0,300}repeat\(4, minmax\(0, 1fr\)\)/);
 });
 
 // ---------------------------------------------------------------------------
@@ -622,8 +629,8 @@ test("changing filter or search resets to page 1", () => {
   // different query points at a row that may not be in it.
   assert.match(INDEX, /const changeFilters = useCallback\(\(next: ReportsFilters\) => \{\s*\n\s*setFilters\(next\);\s*\n\s*setCursors\(\[\]\);/);
   // Every control goes through it: search, status, advanced, sort, metrics.
-  assert.match(INDEX, /onChange=\{\(q\) => patchFilters\(\{ q: q\.slice\(0, 80\) \}\)\}/);
-  assert.match(INDEX, /onClick=\{\(\) => patchFilters\(\{ status: s \}\)\}/);
+  assert.match(INDEX, /onChange=\{\(e\) => patchFilters\(\{ q: e\.target\.value\.slice\(0, 80\) \}\)\}/);
+  assert.match(INDEX, /onClick=\{\(\) => patchFilters\(\{ status: st \}\)\}/);
   assert.match(INDEX, /onClick=\{\(\) => changeFilters\(applyOnly\(filters, m\.apply\)\)\}/);
   assert.doesNotMatch(INDEX, /setFilters\((?!next)/);
 });

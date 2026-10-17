@@ -155,6 +155,10 @@ export type ReportsCopy = {
     /** {title} */
     moreActions: string;
     moreActionsShort: string;
+    /** The compact visible label of the Report PDF download (its accessible name stays the full label). */
+    reportPdfShort: string;
+    /** The compact visible label of the package download. */
+    packageZipShort: string;
     openEvidence: string;
     openCase: string;
     /** {id} */
@@ -304,6 +308,8 @@ const REPORTS_EN: ReportsCopy = {
     olderPackage: "Older package v{n} certifies an earlier report, not the latest one.",
     moreActions: "More actions for {title}",
     moreActionsShort: "More",
+    reportPdfShort: "Report PDF",
+    packageZipShort: "Package ZIP",
     openEvidence: "Open evidence",
     openCase: "Open case",
     customer: "Customer: {id}",
@@ -486,6 +492,8 @@ const REPORTS_DE: ReportsCopy = {
     olderPackage: "Das ältere Paket v{n} bestätigt einen früheren Bericht, nicht den neuesten.",
     moreActions: "Weitere Aktionen für {title}",
     moreActionsShort: "Mehr",
+    reportPdfShort: "Bericht-PDF",
+    packageZipShort: "Paket-ZIP",
     openEvidence: "Beweismittel öffnen",
     openCase: "Fall öffnen",
     customer: "Kunde: {id}",
@@ -660,6 +668,8 @@ const REPORTS_AR: ReportsCopy = {
     olderPackage: "الحزمة الأقدم بالإصدار {n} تثبت تقريرًا سابقًا، وليس أحدث تقرير.",
     moreActions: "إجراءات إضافية لـ {title}",
     moreActionsShort: "المزيد",
+    reportPdfShort: "تقرير PDF",
+    packageZipShort: "حزمة ZIP",
     openEvidence: "فتح الدليل",
     openCase: "فتح القضية",
     customer: "العميل: {id}",

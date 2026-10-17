@@ -66,10 +66,10 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { PageShell, PageHeader, PageSection, FilterBar } from "../ui";
+import { PageShell, PageHeader, PageSection } from "../ui";
 import { Card } from "../ui/Card";
 import { EmptyState } from "../ui/EmptyState";
-import { FileText, MoreHorizontal, SlidersHorizontal } from "lucide-react";
+import { Download, FileText, MoreHorizontal, Search, SlidersHorizontal } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import "./reports.css";
 // THE canonical Evidence title cascade, type label and integrity label — the
@@ -88,6 +88,7 @@ import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { AccessGate } from "../access/AccessGate";
 import { AppStatusBadge, type AppTone } from "../app-primitives/AppStatusBadge";
 import { AppRowMenu, type AppRowAction } from "../app-primitives/AppRowMenu";
+import { AppListbox } from "../app-primitives/AppListbox";
 // Phase G3.2 — every Report PDF / Verification Package ZIP download MUST route
 // through the governance pre-flight wrapper (`/v1/governance/export-eligibility`).
 import { GovernedExportAction } from "../governance/GovernedExportAction";
@@ -128,29 +129,30 @@ const REPORTS_PAGE_SIZE = 25;
 type MetricTone = "success" | "warning" | "danger" | "info" | "accent" | "neutral";
 
 /**
- * At most SIX. Each counts RECORDS, has one definition (shared copy) and names
- * the filter whose list total it equals — clicking it applies exactly that
- * filter and nothing else, so the number and the rows below always agree.
+ * EXACTLY FOUR (2026-10-17), in this order. Each counts RECORDS, has one
+ * definition (shared copy) and names the filter whose list total it equals —
+ * clicking it applies exactly that filter, so the number and the rows below
+ * always agree. "Reports ready" and "Packages ready" left the summary: they
+ * restated the Ready status filter and the per-row state.
  *
- * Danger is reserved for a genuine actionable failure on a ROW; "Needs
- * attention" also holds blocks and escalations nobody here can act on, so it
- * reads as a warning. Pending is neutral.
+ * The TONE names what the card MEANS, in the canonical metric-card tones
+ * (`data-app-metric-tone`, app-primitives.css): informational blue, progress
+ * purple, attention orange, danger red. Every card also carries its label and
+ * definition as text, so colour is never the only signal.
  */
 const PRIMARY_METRICS: ReadonlyArray<{
   key: string;
   field: keyof ReportsSummary;
   copy: keyof ReportsCopy["metrics"];
   apply: Partial<ReportsFilters>;
-  tone: (n: number) => MetricTone;
+  tone: MetricTone;
   /** Needs the record-status API. */
   recordStatus: boolean;
 }> = [
-  { key: "reports_ready", field: "reportsReady", copy: "reportsReady", apply: { report: "report_ready" }, tone: (n) => (n > 0 ? "success" : "neutral"), recordStatus: false },
-  { key: "packages_ready", field: "packagesReady", copy: "packagesReady", apply: { package: "package_ready" }, tone: (n) => (n > 0 ? "success" : "neutral"), recordStatus: false },
-  { key: "in_progress", field: "recordsInProgress", copy: "inProgress", apply: { status: "in_progress" }, tone: () => "neutral", recordStatus: true },
-  { key: "needs_attention", field: "recordsNeedingAttention", copy: "needsAttention", apply: { status: "needs_attention" }, tone: (n) => (n > 0 ? "warning" : "neutral"), recordStatus: true },
-  { key: "incomplete", field: "recordsIncomplete", copy: "incomplete", apply: { status: "incomplete" }, tone: (n) => (n > 0 ? "warning" : "neutral"), recordStatus: true },
-  { key: "records", field: "recordsTotal", copy: "records", apply: {}, tone: () => "neutral", recordStatus: true },
+  { key: "records", field: "recordsTotal", copy: "records", apply: {}, tone: "info", recordStatus: true },
+  { key: "in_progress", field: "recordsInProgress", copy: "inProgress", apply: { status: "in_progress" }, tone: "accent", recordStatus: true },
+  { key: "needs_attention", field: "recordsNeedingAttention", copy: "needsAttention", apply: { status: "needs_attention" }, tone: "warning", recordStatus: true },
+  { key: "incomplete", field: "recordsIncomplete", copy: "incomplete", apply: { status: "incomplete" }, tone: "danger", recordStatus: true },
 ];
 
 /** Everything else, in ONE disclosure. A row with `apply` opens its filter. */
@@ -673,8 +675,10 @@ export function ReportsIndex() {
 
       {/* ---------------------------------------------------- summary */}
       <PageSection title={copy.summary.heading} data-reports-summary>
-        {summaryData && metrics.length > 0 ? (
+        {summaryData ? (
           <>
+            {metrics.length > 0 ? (
+            <div className="rpt-summary">
             <ul className="rpt-summary__grid" data-reports-summary-grid>
               {metrics.map((m) => {
                 const value = summaryData[m.field] as number;
@@ -687,7 +691,7 @@ export function ReportsIndex() {
                     <button
                       type="button"
                       className="app-metric-card rpt-metric"
-                      data-app-metric-tone={m.tone(value)}
+                      data-app-metric-tone={m.tone}
                       aria-pressed={isOnly(filters, m.apply)}
                       aria-label={fillReportsCopy(copy.summary.showRecords, { label, count: value })}
                       aria-describedby={defId}
@@ -706,6 +710,8 @@ export function ReportsIndex() {
                 );
               })}
             </ul>
+            </div>
+            ) : null}
             <details className="rpt-breakdown" data-reports-breakdown>
               <summary className="rpt-breakdown__toggle">{copy.summary.breakdown}</summary>
               <div className="rpt-breakdown__groups">
@@ -773,14 +779,28 @@ export function ReportsIndex() {
 
       {/* ---------------------------------------------------- filters */}
       <PageSection title={copy.filters.heading} data-reports-filters>
-        <FilterBar filtered={filtered} onReset={clearFilters} resetLabel={copy.filters.clear}>
-          <FilterBar.Search
-            label={copy.filters.searchLabel}
-            placeholder={copy.filters.searchLabel}
-            value={filters.q}
-            onChange={(q) => patchFilters({ q: q.slice(0, 80) })}
-            data-reports-search-input
-          />
+        {/* THE SHARED CONTROLS (2026-10-17): the search field, AppListbox and
+            the ghost reset are the ones Operations, the Evidence library and
+            Intake Links use — their hover, focus ring, open and disabled states
+            come from app-primitives, not from this page. The segmented control
+            is the app's `.cases-segments` pattern. ONE filter state: the
+            summary cards and the segments both write `filters.status`, and
+            both reflect it (aria-pressed). */}
+        <div className="rpt-toolbar" role="search" data-reports-toolbar>
+          <div className="app-search-field rpt-toolbar__search">
+            <span className="app-search-icon" aria-hidden>
+              <Search size={16} />
+            </span>
+            <input
+              type="search"
+              className="app-search-input"
+              value={filters.q}
+              onChange={(e) => patchFilters({ q: e.target.value.slice(0, 80) })}
+              placeholder={copy.filters.searchLabel}
+              aria-label={copy.filters.searchLabel}
+              data-reports-search-input
+            />
+          </div>
           {caps.recordStatus ? (
             <div
               className="cases-segments rpt-segments"
@@ -788,18 +808,18 @@ export function ReportsIndex() {
               aria-label={copy.filters.statusLabel}
               data-reports-status-selector
             >
-              {PRIMARY_STATUS_FILTERS.map((s) => {
-                const active = filters.status === s;
+              {PRIMARY_STATUS_FILTERS.map((st) => {
+                const active = filters.status === st;
                 return (
                   <button
-                    key={s}
+                    key={st}
                     type="button"
                     aria-pressed={active}
-                    onClick={() => patchFilters({ status: s })}
-                    data-reports-status-filter={s}
+                    onClick={() => patchFilters({ status: st })}
+                    data-reports-status-filter={st}
                     className={`cases-filter-chip${active ? " is-active" : ""}`}
                   >
-                    {copy.filters.status[s]}
+                    {copy.filters.status[st]}
                   </button>
                 );
               })}
@@ -822,18 +842,27 @@ export function ReportsIndex() {
             ) : null}
           </button>
           {caps.recordStatus ? (
-            <FilterBar.Select
-              label={copy.filters.sortLabel}
-              value={filters.sort}
-              onChange={(v) => patchFilters({ sort: v === "oldest" ? "oldest" : "newest" })}
-              options={[
-                { value: "newest", label: copy.filters.sort.newest },
-                { value: "oldest", label: copy.filters.sort.oldest },
-              ]}
-              data-reports-sort
-            />
+            <div className="rpt-toolbar__sort" data-reports-sort={filters.sort}>
+              <span className="app-visually-hidden" id={`${advancedPanelId}-sort`}>
+                {copy.filters.sortLabel}
+              </span>
+              <AppListbox
+                value={filters.sort}
+                ariaLabelledby={`${advancedPanelId}-sort`}
+                onChange={(v) => patchFilters({ sort: v === "oldest" ? "oldest" : "newest" })}
+                options={[
+                  { value: "newest", label: copy.filters.sort.newest },
+                  { value: "oldest", label: copy.filters.sort.oldest },
+                ]}
+              />
+            </div>
           ) : null}
-        </FilterBar>
+          {filtered ? (
+            <button type="button" className="app-ghost-action" onClick={clearFilters} data-reports-clear-filters>
+              {copy.filters.clear}
+            </button>
+          ) : null}
+        </div>
 
         <div
           id={advancedPanelId}
@@ -845,57 +874,60 @@ export function ReportsIndex() {
         >
           <div className="rpt-advanced__grid">
             {caps.recordStatus ? (
-              <FilterBar.Select
-                showLabel
-                label={copy.filters.statusLabel}
+            <div className="rpt-advanced__field" data-reports-advanced-status={filters.status}>
+              <span className="rpt-advanced__label" id={`${advancedPanelId}-status`}>
+                {copy.filters.statusLabel}
+              </span>
+              <AppListbox
                 value={filters.status}
+                ariaLabelledby={`${advancedPanelId}-status`}
                 onChange={(v) => patchFilters({ status: (STATUS_FILTERS as readonly string[]).includes(v) ? (v as StatusFilter) : "all" })}
-                options={STATUS_FILTERS.map((s) => ({ value: s, label: copy.filters.status[s] }))}
-                data-reports-advanced-status
+                options={STATUS_FILTERS.map((st) => ({ value: st, label: copy.filters.status[st] }))}
               />
+            </div>
             ) : null}
-            <FilterBar.Select
-              showLabel
-              label={copy.filters.reportLabel}
-              value={filters.report}
-              onChange={(v) =>
-                patchFilters({ report: REPORT_DIMENSION.find((d) => d === v) ?? "any" })
-              }
-              options={[
-                { value: "any", label: copy.filters.any },
-                ...REPORT_DIMENSION.filter(lifecycleOffered).map((d) => ({ value: d, label: copy.filters.report[d] })),
-              ]}
-              data-reports-advanced-report
-            />
-            <FilterBar.Select
-              showLabel
-              label={copy.filters.packageLabel}
-              value={filters.package}
-              onChange={(v) =>
-                patchFilters({ package: PACKAGE_DIMENSION.find((d) => d === v) ?? "any" })
-              }
-              options={[
-                { value: "any", label: copy.filters.any },
-                ...PACKAGE_DIMENSION.filter(lifecycleOffered).map((d) => ({ value: d, label: copy.filters.package[d] })),
-              ]}
-              data-reports-advanced-package
-            />
-            <FilterBar.Select
-              showLabel
-              label={copy.filters.entitlementLabel}
-              value={filters.entitlement}
-              onChange={(v) =>
-                patchFilters({ entitlement: ENTITLEMENT_DIMENSION.find((d) => d === v) ?? "any" })
-              }
-              options={[
-                { value: "any", label: copy.filters.any },
-                ...ENTITLEMENT_DIMENSION.filter(lifecycleOffered).map((d) => ({
-                  value: d,
-                  label: copy.filters.entitlement[d],
-                })),
-              ]}
-              data-reports-advanced-entitlement
-            />
+            <div className="rpt-advanced__field" data-reports-advanced-report={filters.report}>
+              <span className="rpt-advanced__label" id={`${advancedPanelId}-report`}>
+                {copy.filters.reportLabel}
+              </span>
+              <AppListbox
+                value={filters.report}
+                ariaLabelledby={`${advancedPanelId}-report`}
+                onChange={(v) => patchFilters({ report: REPORT_DIMENSION.find((d) => d === v) ?? "any" })}
+                options={[
+                  { value: "any", label: copy.filters.any },
+                  ...REPORT_DIMENSION.filter(lifecycleOffered).map((d) => ({ value: d, label: copy.filters.report[d] })),
+                ]}
+              />
+            </div>
+            <div className="rpt-advanced__field" data-reports-advanced-package={filters.package}>
+              <span className="rpt-advanced__label" id={`${advancedPanelId}-package`}>
+                {copy.filters.packageLabel}
+              </span>
+              <AppListbox
+                value={filters.package}
+                ariaLabelledby={`${advancedPanelId}-package`}
+                onChange={(v) => patchFilters({ package: PACKAGE_DIMENSION.find((d) => d === v) ?? "any" })}
+                options={[
+                  { value: "any", label: copy.filters.any },
+                  ...PACKAGE_DIMENSION.filter(lifecycleOffered).map((d) => ({ value: d, label: copy.filters.package[d] })),
+                ]}
+              />
+            </div>
+            <div className="rpt-advanced__field" data-reports-advanced-entitlement={filters.entitlement}>
+              <span className="rpt-advanced__label" id={`${advancedPanelId}-entitlement`}>
+                {copy.filters.entitlementLabel}
+              </span>
+              <AppListbox
+                value={filters.entitlement}
+                ariaLabelledby={`${advancedPanelId}-entitlement`}
+                onChange={(v) => patchFilters({ entitlement: ENTITLEMENT_DIMENSION.find((d) => d === v) ?? "any" })}
+                options={[
+                  { value: "any", label: copy.filters.any },
+                  ...ENTITLEMENT_DIMENSION.filter(lifecycleOffered).map((d) => ({ value: d, label: copy.filters.entitlement[d] })),
+                ]}
+              />
+            </div>
           </div>
           <button
             type="button"
@@ -950,6 +982,7 @@ export function ReportsIndex() {
         ) : sections.artifacts.items.length === 0 ? (
           <ReportsEmptyState filtered={filtered} onClear={clearFilters} copy={copy} />
         ) : (
+          <div className="rpt-records">
           <div className="app-table-surface rpt-table-surface">
             <table className="app-table rpt-table" data-reports-list-items aria-label={copy.list.heading}>
               <thead>
@@ -977,6 +1010,7 @@ export function ReportsIndex() {
                 ))}
               </tbody>
             </table>
+          </div>
           </div>
         )}
         {sections.artifacts.status === "ok" && (page > 1 || sections.artifacts.nextCursor) ? (
@@ -1428,10 +1462,13 @@ function ArtifactRowActions({
               type="button"
               className={`${primaryVerb ? "app-secondary-action" : "app-primary-action"} rpt-row__action`}
               data-reports-download-report={row.evidenceId}
+              aria-label={DOWNLOAD_REPORT_LABEL}
+              title={DOWNLOAD_REPORT_LABEL}
               onClick={onClick}
               disabled={busy !== null || disabled}
             >
-              {busy === "report" ? copy.list.opening : DOWNLOAD_REPORT_LABEL}
+              <Download size={14} aria-hidden />
+              <span>{busy === "report" ? copy.list.opening : copy.list.reportPdfShort}</span>
             </button>
           )}
         />
@@ -1448,10 +1485,13 @@ function ArtifactRowActions({
               type="button"
               className="app-secondary-action app-secondary-action--filled rpt-row__action"
               data-reports-download-package={row.evidenceId}
+              aria-label={DOWNLOAD_PACKAGE_LABEL}
+              title={DOWNLOAD_PACKAGE_LABEL}
               onClick={onClick}
               disabled={busy !== null || disabled}
             >
-              {busy === "package" ? copy.list.opening : DOWNLOAD_PACKAGE_LABEL}
+              <Download size={14} aria-hidden />
+              <span>{busy === "package" ? copy.list.opening : copy.list.packageZipShort}</span>
             </button>
           )}
         />

@@ -5,9 +5,13 @@
  * (+ `data-app-metric-tone`), `.app-table` / `.app-table-surface`,
  * `.app-status-badge`, `.cases-segments` / `.cases-filter-chip`,
  * `.app-primary-action` / `.app-secondary-action`, `.app-menu` (AppRowMenu)
- * and the FilterBar. This sheet only arranges them: the six-metric grid, the
- * breakdown disclosure, the advanced-filter panel, and the table that becomes
- * stacked cards on a narrow screen. Every inline offset is LOGICAL, so the
+ * `.app-search-field`, `AppListbox` and `.app-ghost-action`. This sheet only
+ * arranges them: the four-metric grid, the breakdown disclosure, the toolbar,
+ * the advanced-filter panel, and the table that becomes stacked cards when ITS
+ * CONTAINER is narrow. Breakpoints are CONTAINER queries, not viewport ones:
+ * the page column is narrower than the viewport (the sidebar), so a viewport
+ * query stacked the table on an ordinary laptop — the Operations sheet makes
+ * the same choice for the same reason. Every inline offset is LOGICAL, so the
  * page mirrors under `dir="rtl"`.
  */
 
@@ -48,28 +52,65 @@
 }
 
 /* ------------------------------------------------------------- summary */
+.rpt-summary {
+  container-type: inline-size;
+  container-name: rpt-summary;
+}
 .rpt-summary__grid {
   display: grid;
-  /* Six on a laptop, three on a tablet, two on a phone — never a row of
-     digits too narrow to read. */
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  /* Four across the page column; two when the column is narrow; one on a
+     phone — never a row of digits too narrow to read. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-@media (max-width: 1180px) {
-  .rpt-summary__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-@media (max-width: 560px) {
+@container rpt-summary (max-width: 720px) {
   .rpt-summary__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+@container rpt-summary (max-width: 360px) {
+  .rpt-summary__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Only as tall as its content: a compact card, not a hero tile. */
+.rpt-metric {
+  min-block-size: 0;
+  padding-block: 12px;
+}
 .rpt-metric .app-metric-card__value {
   font-size: 24px;
+  line-height: 1.1;
+}
+
+/* ------------------------------------------------------------- toolbar */
+.rpt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.rpt-toolbar__search {
+  flex: 2 1 240px;
+  min-inline-size: 0;
+}
+.rpt-toolbar__sort {
+  flex: 0 1 190px;
+  min-inline-size: 150px;
+  margin-inline-start: auto;
+}
+.rpt-advanced__field {
+  display: grid;
+  gap: 4px;
+  min-inline-size: 0;
+}
+.rpt-advanced__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-secondary);
 }
 
 .rpt-breakdown {
@@ -215,6 +256,10 @@
 }
 
 /* ------------------------------------------------------------- records */
+.rpt-records {
+  container-type: inline-size;
+  container-name: rpt-records;
+}
 .rpt-table-surface {
   overflow-x: auto;
 }
@@ -314,15 +359,23 @@
 .rpt-status[data-tone="slate"] {
   color: var(--ink-secondary);
 }
+/* ONE line of actions per row: the compact labelled downloads and the
+   overflow menu never wrap into a two-line row in the table. */
 .rpt-row__actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
 }
 .rpt-row__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   white-space: nowrap;
+}
+.rpt-row__actions .app-status-text {
+  white-space: normal;
 }
 .rpt-row__feedback {
   flex-basis: 100%;
@@ -347,9 +400,9 @@
   color: var(--ink-secondary);
 }
 
-/* NARROW: the same rows, stacked as cards. One DOM, so each row's governed
-   downloads pre-flight once; nothing is rendered twice and hidden. */
-@media (max-width: 960px) {
+/* NARROW CONTAINER: the same rows, stacked as cards. One DOM, so each row's
+   governed downloads pre-flight once; nothing is rendered twice and hidden. */
+@container rpt-records (max-width: 860px) {
   .rpt-table-surface {
     background: transparent;
     border: 0;
@@ -407,6 +460,7 @@
     padding-block-start: 10px;
   }
   .rpt-row__actions {
+    flex-wrap: wrap;
     justify-content: flex-start;
     inline-size: 100%;
   }
@@ -420,7 +474,7 @@
     display: inline;
   }
 }
-@media (max-width: 480px) {
+@container rpt-records (max-width: 480px) {
   .rpt-table tbody td {
     flex-wrap: wrap;
   }

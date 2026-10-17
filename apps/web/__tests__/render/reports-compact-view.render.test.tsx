@@ -217,12 +217,33 @@ const listRequests = () => requests.filter((r) => r.startsWith("/v1/reports/arti
 const lastList = () => new URLSearchParams(listRequests().at(-1)!.split("?")[1]);
 /** Visible words, without the parts a screen shows only as data. */
 const words = (el: Element) => el.textContent ?? "";
+/** Choose an option in a shared AppListbox (the app's canonical select). */
+async function pick(container: HTMLElement, hook: string, label: string) {
+  const trigger = container.querySelector(`${hook} [role='combobox']`) as HTMLButtonElement;
+  expect(trigger, `${hook} must be a shared AppListbox`).toBeTruthy();
+  fireEvent.click(trigger);
+  const option = await waitFor(() => {
+    const o = Array.from(document.querySelectorAll("[role='option']")).find((el) => el.textContent?.trim() === label);
+    expect(o, `option "${label}"`).toBeTruthy();
+    return o as HTMLElement;
+  });
+  fireEvent.click(option);
+}
 
 describe("Reports — compact summary", () => {
-  it("shows at most six metrics, each with a definition, and nothing counted twice among the record statuses", async () => {
+  it("shows EXACTLY four metrics in order, in their canonical semantic tones, each with a definition, nothing counted twice", async () => {
     const { container } = await mount();
     const tiles = container.querySelectorAll("[data-reports-summary-key]");
-    expect(tiles.length).toBe(6);
+    expect(tiles.length).toBe(4);
+    expect(Array.from(tiles).map((t) => [t.getAttribute("data-reports-summary-key"), t.getAttribute("data-app-metric-tone"), t.querySelector(".app-metric-card__label")?.textContent])).toEqual([
+      ["records", "info", "All records"],
+      ["in_progress", "accent", "In progress"],
+      ["needs_attention", "warning", "Needs attention"],
+      ["incomplete", "danger", "Incomplete"],
+    ]);
+    // The redundant cards are gone.
+    expect(container.querySelector("[data-reports-summary-key='reports_ready']")).toBeNull();
+    expect(container.querySelector("[data-reports-summary-key='packages_ready']")).toBeNull();
     const value = (k: string) => Number(container.querySelector(`[data-reports-summary-key='${k}']`)!.getAttribute("data-reports-summary-value"));
     // The record statuses shown add up to no more than the total.
     expect(value("in_progress") + value("needs_attention") + value("incomplete")).toBeLessThanOrEqual(value("records"));
@@ -276,16 +297,31 @@ describe("Reports — filters", () => {
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     expect(panel.hidden).toBe(false);
-    expect(container.querySelector("select[data-reports-sort]")).toBeTruthy();
+    // Sort is the shared AppListbox (combobox + listbox), not a native select.
+    expect(container.querySelector("[data-reports-sort] [role='combobox']")?.getAttribute("aria-haspopup")).toBe("listbox");
+    expect(container.querySelector("select")).toBeNull();
+    // The search is the shared search field.
+    expect(container.querySelector(".app-search-field input[data-reports-search-input]")).toBeTruthy();
+  });
+
+  it("ONE filter state: a summary card and the status segments always agree", async () => {
+    const { container } = await mount();
+    fireEvent.click(container.querySelector("[data-reports-summary-key='in_progress']")!);
+    await waitFor(() => expect(lastList().get("status")).toBe("in_progress"));
+    expect(container.querySelector("[data-reports-status-filter='in_progress']")!.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(container.querySelector("[data-reports-status-filter='needs_attention']")!);
+    await waitFor(() => expect(lastList().get("status")).toBe("needs_attention"));
+    expect(container.querySelector("[data-reports-summary-key='needs_attention']")!.getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector("[data-reports-summary-key='in_progress']")!.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("primary and advanced dimensions compose into ONE request, and each active one can be removed", async () => {
     const { container } = await mount();
     fireEvent.click(container.querySelector("[data-reports-status-filter='needs_attention']")!);
     fireEvent.click(container.querySelector("[data-reports-advanced-toggle]")!);
-    fireEvent.change(container.querySelector("select[data-reports-advanced-report]")!, { target: { value: "report_failed" } });
-    fireEvent.change(container.querySelector("select[data-reports-advanced-package]")!, { target: { value: "package_failed" } });
-    fireEvent.change(container.querySelector("select[data-reports-sort]")!, { target: { value: "oldest" } });
+    await pick(container, "[data-reports-advanced-report]", "Failed");
+    await pick(container, "[data-reports-advanced-package]", "Failed");
+    await pick(container, "[data-reports-sort]", "Oldest captured first");
     await waitFor(() => {
       const q = lastList();
       expect(q.get("status")).toBe("needs_attention");
@@ -416,7 +452,12 @@ describe("Reports — row truth and actions", () => {
   it("downloads stay visible; secondary actions are in a labelled, keyboard-operable overflow menu", async () => {
     const { container } = await mount();
     const r = container.querySelector("[data-reports-row-id='ev-superseded']")!;
-    expect(r.querySelector("[data-reports-download-report]")?.textContent).toBe("Download Report PDF");
+    // A compact one-line action: short visible words, the full accessible name.
+    const dl = r.querySelector("[data-reports-download-report]") as HTMLButtonElement;
+    expect(dl.getAttribute("aria-label")).toBe("Download Report PDF");
+    expect(dl.textContent).toBe("Report PDF");
+    expect(dl.tagName).toBe("BUTTON");
+    expect((r.querySelector("[data-reports-download-package]") as HTMLElement).getAttribute("aria-label")).toBe("Download Verification Package ZIP");
     expect(r.querySelector("[data-reports-download-package]")).toBeTruthy();
     const trigger = r.querySelector("[data-reports-row-menu-trigger]") as HTMLButtonElement;
     expect(trigger.getAttribute("aria-label")).toBe("More actions for Record ev-superseded");
@@ -468,7 +509,13 @@ describe("Reports — language, direction, semantics, layout", () => {
       "Captured",
     ]);
     const css = readFileSync(`${process.cwd()}/components/reports-experience/reports.css`, "utf8");
-    expect(css).toMatch(/@media \(max-width: 960px\) \{[\s\S]*\.rpt-table tr,[\s\S]*display: block;/);
+    // Stacks by its CONTAINER's width (the page column), never the viewport —
+    // a viewport query stacked the table on an ordinary laptop.
+    expect(css).toMatch(/\.rpt-records \{\s*container-type: inline-size;/);
+    expect(css).toMatch(/@container rpt-records \(max-width: 860px\) \{[\s\S]*\.rpt-table tr,[\s\S]*display: block;/);
+    expect(css).not.toMatch(/@media \(max-width: 960px\)/);
+    // One line of actions per table row.
+    expect(css).toMatch(/\.rpt-row__actions \{[^}]*flex-wrap: nowrap;/);
     expect(css).toMatch(/\.rpt-cell__label \{\s*display: none;/);
     // Logical offsets only, so the page mirrors in RTL.
     expect(css).not.toMatch(/(?:margin|padding)-(?:left|right)|\bleft:|\bright:/);
