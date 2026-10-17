@@ -11,11 +11,9 @@ import {
   type InboxItemAction,
 } from "../../src/product/inbox";
 import {
-  ARCHIVED_ALWAYS_READ,
   DEFAULT_INBOX_SORT,
   INBOX_FILTER_LABELS,
   INBOX_SORT_OPTIONS,
-  NOTIFICATION_METRICS,
   PRIMARY_VIEW_LABELS,
   READ_STATE_VIEWS,
   TONE_LABELS,
@@ -24,8 +22,8 @@ import {
   buildInboxQueryPath,
   deriveInboxFilterContext,
   inboxItemMeta,
-  inboxMetricCount,
-  inboxPopulationTotal,
+  inboxEmptyReason,
+  INBOX_EMPTY_COPY,
   inboxResultNoun,
   inboxShowingText,
   inboxWorkspaceOptions,
@@ -45,7 +43,6 @@ const isReadStateView = (v: string): v is "all" | "unread" | "read" => v === "al
 import {
   notificationCategoryLabel,
   notificationItemText,
-  notificationReadViewExplanation,
   notificationReadViewLabel,
   notificationSourceLabels,
 } from "@proovra/shared";
@@ -61,7 +58,6 @@ import {
   ProovraSheet,
   ProovraEmpty,
   ProovraFilterChips,
-  ProovraKpiGrid,
   ProovraPageHeader,
   ProovraCursorPager,
   ProovraLoadingState,
@@ -292,38 +288,17 @@ export default function NotificationsScreen() {
         onPress={() => router.push("/(stack)/settings/notifications")}
       />
 
-      {shell ? (
-        <View accessibilityLabel="Notification summary" style={styles.block}>
-          <ProovraKpiGrid
-            items={NOTIFICATION_METRICS.map((m) => {
-              const impossible = m.key === "unread" && archived;
-              return {
-                key: m.key,
-                // All / Unread / Read in the reader's words (shared authority).
-                label: isReadStateView(m.key) ? notificationReadViewLabel(locale, m.key) : m.label,
-                value: String(inboxMetricCount(m.key, shell)),
-                caption: impossible
-                  ? ARCHIVED_ALWAYS_READ
-                  : isReadStateView(m.key)
-                    ? notificationReadViewExplanation(locale, m.key)
-                    : m.explanation,
-                tone: m.tone,
-                selected: primaryView === m.key,
-                // The one impossible card is inert, and says why.
-                onPress: impossible ? undefined : () => selectView(m.key),
-              };
-            })}
-          />
-          {!shell.mayAssertAllClear ? (
-            <ProovraText variant="label" color={theme.color.status.pending.fg}>
-              {`Some sources could not be read, so this may not be everything.${
-                shell.incompleteSources.length > 0
-                  ? ` Affected: ${notificationSourceLabels(locale, shell.incompleteSources).join(", ")}.`
-                  : ""
-              }`}
-            </ProovraText>
-          ) : null}
-        </View>
+      {/* NO KPI WALL (2026-10-17) — the web's decision: an inbox, not a
+          dashboard. The read-state chips below are the one control; Unread
+          carries the server's unread total. Honesty about partial reads stays. */}
+      {shell && !shell.mayAssertAllClear ? (
+        <ProovraText variant="label" color={theme.color.status.pending.fg}>
+          {`Some sources could not be read, so this may not be everything.${
+            shell.incompleteSources.length > 0
+              ? ` Affected: ${notificationSourceLabels(locale, shell.incompleteSources).join(", ")}.`
+              : ""
+          }`}
+        </ProovraText>
       ) : null}
 
       {shell && archived && shell.historyAvailable === false ? (
@@ -406,29 +381,28 @@ export default function NotificationsScreen() {
             <ProovraButton label="Retry" variant="secondary" fullWidth={false} onPress={() => void load()} />
           </View>
         </ProovraCard>
-      ) : items.length === 0 && archived && activeCount === 1 && primaryView === "all" ? (
-        // Tested BEFORE the population: the archived reply carries no
-        // scopeSummary and its summary.total is the archive's own size, so an
-        // empty archive would otherwise read "You're all caught up" — the web
-        // falls into exactly that (inbox/page.tsx:1761 vs :1780).
-        <ProovraEmpty
-          framed
-          title="No archived notifications."
-          purpose="Archiving a notification files it here and takes it out of your active list."
-        />
-      ) : inboxPopulationTotal(state.data) === 0 ? (
-        <ProovraEmpty
-          framed
-          title="You're all caught up"
-          purpose="You don't have any notifications right now. New updates will appear here when something relevant happens."
-        />
       ) : items.length === 0 ? (
-        <ProovraEmpty
-          framed
-          title="No notifications match these filters."
-          purpose="Try changing or clearing the active filters."
-          action={<ProovraButton label="Clear filters" variant="secondary" fullWidth={false} onPress={clearAllFilters} />}
-        />
+        // ONE EMPTY STATE, decided by what THIS view returned (shared rule).
+        (() => {
+          const reason = inboxEmptyReason({
+            primaryView,
+            archived,
+            activeCount,
+            mayAssertAllClear: shell?.mayAssertAllClear ?? true,
+          });
+          return (
+            <ProovraEmpty
+              framed
+              title={INBOX_EMPTY_COPY[reason].title}
+              purpose={INBOX_EMPTY_COPY[reason].body}
+              action={
+                reason === "filters" ? (
+                  <ProovraButton label="Clear filters" variant="secondary" fullWidth={false} onPress={clearAllFilters} />
+                ) : undefined
+              }
+            />
+          );
+        })()
       ) : (
         <View style={styles.list}>
           {items.map((item) => {

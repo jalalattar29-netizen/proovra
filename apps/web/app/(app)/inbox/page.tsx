@@ -53,7 +53,6 @@ import { useOptionalLocale } from "../../providers";
 import { PageShell, PageHeader } from "../../../components/ui";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
-import { EmptyState } from "../../../components/ui/EmptyState";
 import { AppListbox } from "../../../components/app-primitives";
 import { AppAnchoredOverlay } from "../../../components/app-primitives/AppAnchoredOverlay";
 import {
@@ -292,24 +291,8 @@ const TONE_LABELS: Record<InboxTone, string> = {
 };
 
 /**
- * THE NOTIFICATION SUMMARY, AS METRIC CARDS.
- *
- * These were inline pills beside a running count — visually the weakest thing
- * on the page, and inconsistent with how every other PROOVRA surface presents
- * a row of figures. They are now the canonical `.app-metric-card`, the same
- * primitive Intake Links uses for its KPI row.
- *
- * They are still FILTERS, not a breakdown: `Unread` narrows by read state and
- * the four severities narrow by tone, so the counts deliberately do not sum to
- * `All`. Each card says what it means in its own words rather than leaving the
- * reader to discover that by adding them up.
- *
- * ORDER is by what a person opening their notifications actually asks: what
- * did I miss (Unread), how much is there (All), and then severity descending.
- *
- * `accent` names a TONE, never a colour. The stylesheet resolves it to the
- * canonical `--ops-tone-*` tokens, so this list cannot become a second place
- * where "critical" is decided.
+ * (2026-10-17) The summary metric cards were removed: Notifications is an
+ * inbox, not a dashboard. Severity remains row metadata and a deep-link view.
  */
 /**
  * THE PRIMARY VIEW. Six alternatives, and the metric cards ARE its control.
@@ -322,10 +305,6 @@ type PrimaryView = "all" | "unread" | "read" | InboxTone;
 
 /** The metric cards and the quick-filter chips are two controls over the SAME
  *  value, which is why they always agree about what is selected. */
-/** The six cards: All, Unread and the four severities. Read is a VIEW (the
- *  quick row), not a seventh card — its count is All minus Unread, and the
- *  cards are one set of alternatives. */
-type NotificationMetricKey = Exclude<PrimaryView, "read">;
 
 /** The three the quick row shows permanently — the read-state question, All /
  *  Unread / Read. READ IS A STATE, NOT A DISAPPEARANCE: a notification you
@@ -348,58 +327,23 @@ function isPrimaryView(v: string | null | undefined): v is PrimaryView {
   return !!v && PRIMARY_VIEW_VALUES.includes(v as PrimaryView);
 }
 
-const NOTIFICATION_METRICS: ReadonlyArray<{
-  key: NotificationMetricKey;
-  label: string;
-  explanation: string;
-  accent: string;
-  /** Severity cards filter by tone; Unread and All do not. */
-  tone?: InboxTone;
-}> = [
-  /* ALL LEADS. It is the population every other card is a subset of, and it
-     is the state the page opens in, so the row reads left-to-right from
-     "everything" into the narrowings of it. */
-  {
-    key: "all",
-    label: "All",
-    explanation: "Everything currently addressed to you.",
-    accent: "all",
+/** The empty state of each view: what THIS view returned, said truthfully. */
+type InboxEmptyReason = "all" | "unread" | "read" | "archive" | "filters" | "incomplete";
+const EMPTY_COPY: Readonly<Record<InboxEmptyReason, { title: string; body: string }>> = {
+  all: { title: "No notifications yet", body: "Updates relevant to this workspace will appear here." },
+  unread: { title: "You’re all caught up", body: "There are no unread notifications." },
+  read: { title: "No read notifications", body: "Notifications you have opened will appear here." },
+  archive: {
+    title: "No archived notifications.",
+    body: "Archiving a notification files it here and takes it out of your active list.",
   },
-  {
-    key: "unread",
-    label: "Unread",
-    explanation: "Not opened yet.",
-    accent: "unread",
+  filters: { title: "No notifications match these filters.", body: "Try changing or clearing the active filters." },
+  // Never an all-clear over a partial read.
+  incomplete: {
+    title: "Nothing to show from the sources that could be read",
+    body: "Some sources could not be read, so this may not be everything. Try again shortly.",
   },
-  {
-    key: "critical",
-    label: "Critical",
-    explanation: "Needs attention now.",
-    accent: "critical",
-    tone: "critical",
-  },
-  {
-    key: "high",
-    label: "High",
-    explanation: "Important, not urgent.",
-    accent: "high",
-    tone: "high",
-  },
-  {
-    key: "warning",
-    label: "Warning",
-    explanation: "Worth a look.",
-    accent: "warning",
-    tone: "warning",
-  },
-  {
-    key: "info",
-    label: "Info",
-    explanation: "For your awareness.",
-    accent: "info",
-    tone: "info",
-  },
-];
+};
 
 /* CATEGORY_LABELS USED TO LIVE HERE — one of three hand-kept copies of the
    category vocabulary (the header bell and the native app had the others, and
@@ -621,22 +565,6 @@ function InboxPageInner() {
    * behind them, rather than collapsing to zero because High is now the only
    * thing counted.
    */
-  const metricCount = (
-    key: NotificationMetricKey,
-    data: InboxEnvelope,
-  ): number => {
-    // `metricSummary` is the canonical basis — see its docstring on the
-    // envelope. The fallbacks keep a pre-deploy envelope rendering numbers
-    // rather than blanks; they are not a second aggregation.
-    const m = data.metricSummary;
-    if (key === "unread") return m?.unread ?? data.scopeSummary?.unread ?? 0;
-    if (key === "all") {
-      return m?.total ?? data.scopeSummary?.total ?? data.summary.total;
-    }
-    return (
-      m?.byTone[key] ?? data.scopeSummary?.byTone[key] ?? data.summary.byTone[key] ?? 0
-    );
-  };
 
   /**
    * SELECTING A VIEW REPLACES THE PREVIOUS ONE. Always. No toggle-off.
@@ -846,6 +774,8 @@ function InboxPageInner() {
     setCategory("all");
     setArchived(false);
     setWorkspaceFilter("all");
+    // A severity view (reachable by a deep link) is a filter too.
+    setPrimaryView((v) => (v === "all" || v === "unread" || v === "read" ? v : "all"));
   }, []);
 
   /**
@@ -886,6 +816,9 @@ function InboxPageInner() {
   // filter/tone change; appended on Load More.
   const [items, setItems] = useState<InboxItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  // A failed "Load more" keeps what is shown and offers a retry — it is never
+  // described as the end of the list.
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
   const buildUrl = useCallback(
@@ -933,6 +866,7 @@ function InboxPageInner() {
   const load = useCallback(async () => {
     const attempt = request.begin();
     setState({ kind: "loading" });
+    setLoadMoreError(null);
     try {
       // `apiFetch` already returns the parsed JSON body (see
       // `apps/web/lib/api.ts:233`). Calling `.json()` on the result
@@ -989,7 +923,13 @@ function InboxPageInner() {
       // Append the new page; refresh the envelope so summary counts +
       // truncation flags stay current. We deliberately do NOT reset
       // items on a Load-More response — the user is paging forward.
-      setItems((prev) => [...prev, ...data.items]);
+      // De-duplicated by id: a row that moved between pages (read, resolved
+      // or archived while browsing) is never listed twice.
+      setItems((prev) => {
+        const seen = new Set(prev.map((i) => i.id));
+        return [...prev, ...data.items.filter((i) => !seen.has(i.id))];
+      });
+      setLoadMoreError(null);
       setNextCursor(data.pagination?.nextCursor ?? null);
       setState((prev) =>
         prev.kind === "ready" ? { kind: "ready", data } : prev,
@@ -1001,7 +941,7 @@ function InboxPageInner() {
       // what the user is already looking at. Surface a one-shot error
       // alert via state.error? Simpler: log + leave UI unchanged.
       // The Load More button itself becomes the retry surface.
-      if (attempt.isCurrent()) console.error("[inbox] load-more failed:", message);
+      if (attempt.isCurrent()) setLoadMoreError(message);
     } finally {
       setLoadingMore(false);
     }
@@ -1226,6 +1166,21 @@ function InboxPageInner() {
   const shellData: InboxEnvelope | null =
     state.kind === "ready" ? state.data : lastEnvelope;
 
+  /** The server's unread total for the scope — never counted from the page. */
+  const unreadBadge: number | null =
+    shellData?.metricSummary?.unread ?? shellData?.scopeSummary?.unread ?? null;
+
+  /** Which empty state applies to THIS view's (empty) result. */
+  const emptyReason: InboxEmptyReason =
+    state.kind === "ready" && state.data.completeness && !state.data.completeness.mayAssertAllClear
+      ? "incomplete"
+      : archived && category === "all" && workspaceFilter === "all"
+        ? "archive"
+        : category !== "all" || workspaceFilter !== "all" || archived ||
+            !(primaryView === "all" || primaryView === "unread" || primaryView === "read")
+          ? "filters"
+          : primaryView;
+
   /**
    * WHAT THE COUNT IS COUNTING, in the page's own vocabulary.
    *
@@ -1332,81 +1287,21 @@ function InboxPageInner() {
            still matters (a failed anchor is not a mention) and it is still
            filterable; it is simply no longer the headline.
            ================================================================== */}
-      {shellData && (
-        <section
-          data-notifications-summary
-          aria-label="Notification summary"
-          className="ops-metrics"
-        >
-          <ul className="ops-metrics__grid" data-notifications-metric-grid>
-            {NOTIFICATION_METRICS.map((metric) => {
-              const count = metricCount(metric.key, shellData);
-              // ONE comparison, because there is ONE piece of state. Exactly
-              // one card is selected at every moment, and selecting another
-              // transfers it — no card can be "also" selected.
-              const active = primaryView === metric.key;
-              // A ZERO COUNT IS A FACT, NOT A DISABLED CONTROL.
-              //
-              // Zero-count severity cards used to be `disabled` and painted at
-              // 55% opacity, which said "this card is unavailable" when what
-              // was true is "this number is currently zero". It also trapped
-              // the reader: with Unread at 0 selected, every other zero card
-              // was inert, so there was no way out but back to a card that
-              // happened to be non-empty.
-              //
-              // The one card that IS unavailable is Unread while Archived is
-              // on — archiving marks read, so that intersection cannot exist.
-              // That one says why.
-              const impossible = metric.key === "unread" && archived;
-              const descId = `notif-metric-${metric.key}`;
-              return (
-                <li key={metric.key}>
-                  <button
-                    type="button"
-                    className="app-metric-card ops-metric"
-                    data-ops-metric-tone={metric.accent}
-                    data-notifications-metric={metric.key}
-                    data-notifications-metric-count={count}
-                    data-notifications-metric-active={active ? "true" : "false"}
-                    data-notifications-metric-zero={count === 0 ? "true" : "false"}
-                    aria-pressed={active}
-                    aria-describedby={descId}
-                    disabled={impossible}
-                    title={
-                      impossible
-                        ? "Archived notifications are always marked read."
-                        : undefined
-                    }
-                    onClick={() => selectMetric(metric.key)}
-                  >
-                    <span className="app-metric-card__value">{count}</span>
-                    <span className="app-metric-card__label">
-                      {metric.label}
-                    </span>
-                    <span className="app-metric-card__meta" id={descId}>
-                      {metric.explanation}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-
-          {/* PHASE 2.3 — HONESTY BEFORE REASSURANCE.
-              A "0 unread" over a partial read is the same lie as a dashboard
-              saying "all clear", told in less space. When the server could not
-              read every source, the page says so instead of implying calm. */}
-          {shellData.completeness &&
-          !shellData.completeness.mayAssertAllClear ? (
-            <p data-notifications-incomplete className="ops-metrics__note">
-              Some sources could not be read, so this may not be everything.
-              {shellData.completeness.incompleteSources.length > 0
-                ? ` Affected: ${notificationSourceLabels(locale, shellData.completeness.incompleteSources).join(", ")}.`
-                : ""}
-            </p>
-          ) : null}
-        </section>
-      )}
+      {/* NO KPI WALL (2026-10-17). The six severity/total cards made a
+           personal inbox look like an operations dashboard, and their LIVE
+           counts disagreed with the history the list shows. The page keeps
+           one control — All / Unread / Read — with an authoritative Unread
+           badge, and says so when not every source could be read. */}
+      {shellData &&
+      shellData.completeness &&
+      !shellData.completeness.mayAssertAllClear ? (
+        <p data-notifications-incomplete className="ops-metrics__note">
+          Some sources could not be read, so this may not be everything.
+          {shellData.completeness.incompleteSources.length > 0
+            ? ` Affected: ${notificationSourceLabels(locale, shellData.completeness.incompleteSources).join(", ")}.`
+            : ""}
+        </p>
+      ) : null}
 
       {shellData && archived && shellData.historyAvailable === false ? (
         <section
@@ -1477,6 +1372,11 @@ function InboxPageInner() {
                       : undefined
                   }
                   data-inbox-filter-chip={key}
+                  aria-describedby={
+                    key === "unread" && unreadBadge != null && unreadBadge > 0
+                      ? "inbox-unread-count-desc"
+                      : undefined
+                  }
                   data-inbox-filter-chip-active={active ? "true" : "false"}
                   data-active={active ? "true" : "false"}
                   className="app-chip ops-quick-chip"
@@ -1484,9 +1384,31 @@ function InboxPageInner() {
                   {key === "all" || key === "unread" || key === "read"
                     ? notificationReadViewLabel(locale, key)
                     : PRIMARY_VIEW_LABELS[key]}
+                  {/* The ONE count shown: the server's unread total over the
+                      whole scope (never the loaded page). All has no badge —
+                      no authoritative total of live + history is served for
+                      every view, and a guessed number is worse than none. */}
+                  {key === "unread" && unreadBadge != null && unreadBadge > 0 ? (
+                    <>
+                      <span
+                        className="ops-filters-count"
+                        data-inbox-unread-count={unreadBadge}
+                        aria-hidden="true"
+                      >
+                        {unreadBadge > 99 ? "99+" : unreadBadge}
+                      </span>
+                    </>
+                  ) : null}
                 </button>
               );
             })}
+            {/* The Unread count, announced as the Unread control's DESCRIPTION
+                (aria-describedby) — outside the button so its name stays "Unread". */}
+            {unreadBadge != null && unreadBadge > 0 ? (
+              <span id="inbox-unread-count-desc" className="app-visually-hidden">
+                {unreadBadge} unread
+              </span>
+            ) : null}
           </div>
 
           <div className="ops-toolbar__controls">
@@ -1775,76 +1697,29 @@ function InboxPageInner() {
         </div>
       )}
 
-      {state.kind === "ready" &&
-        (state.data.scopeSummary?.total ?? state.data.summary.total) === 0 && (
-          <div data-state="empty">
-            <EmptyState
-              framed
-              /* A NOTIFICATION empty state, not an operations one.
-                 It used to read "Nothing requires your attention right now",
-                 explain that items "leave this list automatically when their
-                 source stops raising them", and offer "Open workspace command
-                 center" as its primary action. All three describe a shared
-                 condition lifecycle — which is what /operations tracks. A
-                 notification is an event addressed to a person; it does not
-                 have a lifecycle the reader needs explained, and the CTA sent
-                 a Personal Free user to Home for a workbench they do not have.
-
-                 NO CTA. There is nothing useful to do from an empty
-                 notification list, and a button that merely navigates
-                 elsewhere is worse than the honest absence of one. */
-              title="You're all caught up"
-              purpose="You don't have any notifications right now. New updates will appear here when something relevant happens."
-            />
+      {/* ONE EMPTY STATE, SCOPED TO THE VIEW (2026-10-17). It used to key off
+           the LIVE population, so with every live item resolved the page said
+           "You're all caught up — you don't have any notifications" ABOVE a
+           list of history. It is now decided by what THIS view returned, and
+           it takes the list's place — never a panel above results. */}
+      {state.kind === "ready" && visibleItems.length === 0 && !nextCursor && (
+        <div data-state="empty" data-inbox-empty-view={emptyReason}>
+          <div className="ops-empty" data-inbox-empty-reason={emptyReason}>
+            <p className="ops-empty__title">{EMPTY_COPY[emptyReason].title}</p>
+            <p className="ops-empty__body">{EMPTY_COPY[emptyReason].body}</p>
+            {emptyReason === "filters" ? (
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                data-action="clear-filter"
+                className="app-secondary-action"
+              >
+                Clear filters
+              </button>
+            ) : null}
           </div>
-        )}
-
-      {state.kind === "ready" &&
-        (state.data.scopeSummary?.total ?? state.data.summary.total) > 0 &&
-        visibleItems.length === 0 && (
-          <div data-state="filter-empty">
-            {/* THREE DIFFERENT NOTHINGS, three different sentences.
-                One generic "no items match" for all of them made an empty
-                archive look like a broken filter, and a broken filter look
-                like an empty inbox. The reader needs to know which of the
-                three they are in, because only one of them has an action.
-
-                CENTRED, and sized to the message. The copy used to sit hard
-                against the top-inline-start corner of a wide outlined
-                rectangle, which reads as a panel that failed to finish
-                loading rather than as an answer. */}
-            {archived && activeFilterCount === 1 && category === "all" ? (
-              <div className="ops-empty" data-inbox-empty-reason="archive">
-                <p className="ops-empty__title">No archived notifications.</p>
-                <p className="ops-empty__body">
-                  Archiving a notification files it here and takes it out of
-                  your active list.
-                </p>
-              </div>
-            ) : (
-              <div className="ops-empty" data-inbox-empty-reason="filters">
-                <p className="ops-empty__title">
-                  No notifications match these filters.
-                </p>
-                <p className="ops-empty__body">
-                  Try changing or clearing the active filters.
-                </p>
-                {/* The CANONICAL action button, not a text link. Clearing is a
-                    real action with a real consequence, and it is the only
-                    thing to do from this state — it should look like something
-                    you press. */}
-                <button
-                  type="button"
-                  onClick={clearAllFilters}
-                  data-action="clear-filter"
-                  className="app-secondary-action"
-                >
-                  Clear filters
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+        </div>
+      )}
 
       {/* ==================================================================
            ONE FLAT, ORDERED STREAM.
@@ -2092,6 +1967,11 @@ function InboxPageInner() {
           </Button>
         </div>
       )}
+      {state.kind === "ready" && loadMoreError ? (
+        <p role="status" data-inbox-load-more-error className="ops-metrics__note">
+          Couldn’t load more notifications. The ones above are unchanged — use Load more to try again.
+        </p>
+      ) : null}
 
     </PageShell>
   );

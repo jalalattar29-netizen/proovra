@@ -518,3 +518,42 @@ export function inboxItemMeta(item: InboxViewItem, formatDate: (iso: string) => 
 export function isInboxTone(v: string | null | undefined): v is InboxTone {
   return v === "critical" || v === "high" || v === "warning" || v === "info";
 }
+
+/* ------------------------------------------------------------ empty states */
+
+/**
+ * ONE EMPTY STATE, SCOPED TO THE VIEW (2026-10-17) — the web's rule
+ * (inbox/page.tsx `emptyReason`). It is decided only when THIS view returned
+ * nothing, never from the live population: a page of resolved history with no
+ * live item is history, not "you don't have any notifications".
+ */
+export type InboxEmptyReason = "all" | "unread" | "read" | "archive" | "filters" | "incomplete";
+
+export const INBOX_EMPTY_COPY: Readonly<Record<InboxEmptyReason, { title: string; body: string }>> = {
+  all: { title: "No notifications yet", body: "Updates relevant to this workspace will appear here." },
+  unread: { title: "You’re all caught up", body: "There are no unread notifications." },
+  read: { title: "No read notifications", body: "Notifications you have opened will appear here." },
+  archive: {
+    title: "No archived notifications.",
+    body: "Archiving a notification files it here and takes it out of your active list.",
+  },
+  filters: { title: "No notifications match these filters.", body: "Try changing or clearing the active filters." },
+  incomplete: {
+    title: "Nothing to show from the sources that could be read",
+    body: "Some sources could not be read, so this may not be everything. Try again shortly.",
+  },
+};
+
+export function inboxEmptyReason(input: {
+  primaryView: PrimaryView;
+  archived: boolean;
+  /** Active ADVANCED filters, Archived included. */
+  activeCount: number;
+  mayAssertAllClear: boolean;
+}): InboxEmptyReason {
+  if (!input.mayAssertAllClear) return "incomplete";
+  if (input.archived && input.activeCount === 1 && input.primaryView === "all") return "archive";
+  if (input.activeCount > 0) return "filters";
+  if (input.primaryView === "all" || input.primaryView === "unread" || input.primaryView === "read") return input.primaryView;
+  return "filters";
+}

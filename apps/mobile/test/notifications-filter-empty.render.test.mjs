@@ -73,11 +73,12 @@ test("filters that match nothing show the filtered-empty state, and Clear filter
   r.unmount();
 });
 
-test("an empty inbox says the reader is caught up, with no action", async () => {
+test("an empty inbox says there are no notifications yet — scoped to All, with no action", async () => {
   inbox = () => env([], 0);
   const r = await renderComponent(h(M.TestProviders, null, h(M.default, {})));
   await settle();
-  assert.ok(r.hasText("You're all caught up"));
+  assert.ok(r.hasText("No notifications yet"));
+  assert.ok(!r.hasText("You don't have any notifications right now. New updates will appear here when something relevant happens."));
   assert.equal(r.byLabel("Clear filters").length, 0);
   r.unmount();
 });

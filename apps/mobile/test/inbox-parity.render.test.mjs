@@ -78,28 +78,27 @@ const render = async () => {
 };
 const inboxReads = () => requests.filter((q) => q.method === "GET" && q.path.startsWith("/v1/me/inbox?")).map((q) => q.path);
 
-test("the notification summary: six metric cards from metricSummary, each with the web's explanation", async () => {
+test("no KPI wall (2026-10-17): no summary cards — one All / Unread / Read control", async () => {
   const r = await render();
-  assert.equal(r.byLabel("Notification summary").length, 1);
+  assert.equal(r.byLabel("Notification summary").length, 0);
   for (const [label, value] of [["All", 7], ["Unread", 3], ["Critical", 1], ["High", 2], ["Warning", 0], ["Info", 4]]) {
-    assert.equal(r.byLabel(`${label}: ${value}`).length, 1, `metric card ${label}=${value} missing`);
+    assert.equal(r.byLabel(`${label}: ${value}`).length, 0, `metric card ${label}=${value} must not render`);
   }
-  assert.ok(r.hasText("Everything currently addressed to you."));
-  assert.ok(r.hasText("Needs attention now."));
+  for (const view of ["All", "Unread", "Read"]) assert.equal(r.byLabel(`Show: ${view}`).length, 1, view);
   assert.ok(r.hasText("Updates, assignments, mentions and integrity alerts relevant to you."));
   r.unmount();
 });
 
-test("the cards are ONE primary view on the wire: Unread then High asks for High, never the intersection", async () => {
+test("the read-state control is ONE primary view on the wire: Unread, then Read, never an intersection", async () => {
   const r = await render();
   assert.equal(inboxReads()[0], "/v1/me/inbox?include=resolved&sort=newest", "the first read must send the sort and the notification-history opt-in, nothing else");
-  await r.press("Unread: 3");
+  await r.press("Show: Unread");
   await settle();
   assert.ok(inboxReads().includes("/v1/me/inbox?readState=unread&include=resolved&sort=newest"));
-  await r.press("High: 2");
+  await r.press("Show: Read");
   await settle();
   const last = inboxReads().at(-1);
-  assert.equal(last, "/v1/me/inbox?tone=high&include=resolved&sort=newest");
+  assert.equal(last, "/v1/me/inbox?readState=read&include=resolved&sort=newest");
   r.unmount();
 });
 
@@ -159,15 +158,14 @@ test("a category filter is sent, counted on the Filters control, and removable f
   r.unmount();
 });
 
-test("Archived disables Unread (archiving marks read) and moves an Unread view back to All", async () => {
+test("Archived moves an Unread view back to All (archiving marks read)", async () => {
   const r = await render();
-  await r.press("Unread: 3");
+  await r.press("Show: Unread");
   await settle();
   await r.press("Filters");
   await r.press("Status: Archived");
   await settle();
   assert.equal(inboxReads().at(-1), "/v1/me/inbox?lifecycle=archived&sort=newest");
-  assert.ok(r.hasText("Archived notifications are always marked read."));
   r.unmount();
 });
 

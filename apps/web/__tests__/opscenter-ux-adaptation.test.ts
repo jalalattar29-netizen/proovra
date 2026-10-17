@@ -555,7 +555,8 @@ test("a zero count NEVER disables or fades a metric card", () => {
   // And the page must not have grown its own copy of the rule.
   const PAGE_SRC = read("app/(app)/inbox/page.tsx");
   assert.doesNotMatch(PAGE_SRC, /count === 0 &&/);
-  assert.match(PAGE_SRC, /data-notifications-metric-zero=/);
+  // (2026-10-17) The metric cards themselves are gone from Notifications.
+  assert.doesNotMatch(PAGE_SRC, /data-notifications-metric=/);
 
   // The stylesheet carries no value-dependent de-emphasis either.
   const CSS = read("components/notifications/notifications.css");
@@ -656,7 +657,14 @@ test("Notifications: the empty state offers no CTA at all", () => {
   assert.doesNotMatch(PAGE, /data-action="empty-open-home"/);
   assert.doesNotMatch(PAGE, /data-action="empty-open-evidence"/);
   assert.doesNotMatch(PAGE, /data-action="empty-open-organizations"/);
-  assert.match(PAGE, /title="You're all caught up"/);
+  // (2026-10-17) ONE EMPTY STATE PER VIEW, never "you don't have any
+  // notifications" while history exists: All, Unread and Read each say what
+  // THEIR result is, inside the list region.
+  assert.doesNotMatch(PAGE, /You don't have any notifications/);
+  assert.match(PAGE, /title: "No notifications yet"/);
+  assert.match(PAGE, /title: "You’re all caught up", body: "There are no unread notifications."/);
+  assert.match(PAGE, /title: "No read notifications", body: "Notifications you have opened will appear here."/);
+  assert.doesNotMatch(PAGE, /data-action="clear-filter"[sS]{0,40}empty-open/);
 });
 
 test("bell popover manages focus (trap + restore to trigger); no Bell-only eligibility logic", () => {

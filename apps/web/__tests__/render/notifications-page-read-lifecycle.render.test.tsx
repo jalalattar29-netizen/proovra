@@ -96,10 +96,13 @@ function envelope(path: string) {
     canSnooze: !r.resolvedAt,
     context: {},
   }));
+  // FAITHFUL TO THE SERVER: the scope/metric counts are LIVE items only —
+  // resolved history joins the LIST, never these counts (me-inbox.routes.ts).
+  const live = rows.filter((r) => !r.resolvedAt);
   const metric = {
-    total: rows.length,
-    unread: rows.filter((r) => !r.isRead).length,
-    byTone: { critical: 0, high: 0, warning: 0, info: rows.length },
+    total: live.length,
+    unread: live.filter((r) => !r.isRead).length,
+    byTone: { critical: 0, high: 0, warning: 0, info: live.length },
   };
   return {
     generatedAt: "2026-10-01T12:00:00.000Z",
@@ -140,7 +143,14 @@ vi.mock("../../lib/api", () => ({
       if (row && action[2] === "unread") row.isRead = false;
       return { itemKey: key, isRead: row?.isRead ?? false };
     }
-    if (path.startsWith("/v1/me/inbox")) return envelope(path);
+    if (path.startsWith("/v1/me/inbox")) {
+      if (hang) return new Promise(() => {});
+      if (failNext === "list") {
+        failNext = null;
+        throw Object.assign(new Error("boom"), { status: 503 });
+      }
+      return envelope(path);
+    }
     return {};
   },
   ApiError: class ApiError extends Error {},
@@ -154,10 +164,14 @@ function listCalls() {
   return calls.filter((c) => c.method === "GET" && c.path.startsWith("/v1/me/inbox?"));
 }
 
-function cardCount(key: string): number {
-  const card = document.querySelector(`[data-notifications-metric="${key}"]`);
-  return Number(card?.getAttribute("data-notifications-metric-count"));
+/** The Unread badge (the server's unread total); 0 when the badge is absent. */
+function unreadBadge(): number {
+  const b = document.querySelector("[data-inbox-unread-count]");
+  return b ? Number(b.getAttribute("data-inbox-unread-count")) : 0;
 }
+
+let failNext: "list" | null = null;
+let hang = false;
 
 beforeEach(() => {
   calls.length = 0;
@@ -213,15 +227,14 @@ describe("Notifications page — All / Unread / Read", () => {
     expect(listCalls().every((c) => !c.path.includes("readState"))).toBe(true);
   });
 
-  it("Mark as read keeps the row in All as read and the Unread card reconciles from the server", async () => {
+  it("Mark as read keeps the row in All (and Read) and the Unread badge reconciles from the server", async () => {
     render(<InboxPage />);
     await ready();
-    expect(cardCount("unread")).toBe(2);
-    expect(cardCount("all")).toBe(3);
+    expect(unreadBadge()).toBe(2);
     fireEvent.click(screen.getByRole("button", { name: "Mark as read: You were mentioned" }));
-    await waitFor(() => expect(cardCount("unread")).toBe(1));
+    await waitFor(() => expect(unreadBadge()).toBe(1));
     // Read moves a row between the halves of All; it never shrinks All.
-    expect(cardCount("all")).toBe(3);
+    expect(document.querySelectorAll("[data-inbox-item]")).toHaveLength(3);
     const row = document.querySelector('[data-inbox-item-key="discussion_mention:m1"]');
     expect(row, "read must not remove the row from All").not.toBeNull();
     expect(row?.getAttribute("data-inbox-item-read")).toBe("true");
@@ -307,5 +320,106 @@ describe("Notifications page — notification history (resolved notifications)",
     await ready();
     expect(document.body.textContent).toContain("Earlier notifications");
     expect(document.body.textContent).not.toContain("notification_history");
+  });
+});
+
+describe("Notifications page — no KPI wall, and every empty state is scoped to its view (2026-10-17)", () => {
+  beforeEach(() => {
+    failNext = null;
+    hang = false;
+  });
+
+  it("renders no summary/KPI cards — one All / Unread / Read control with an authoritative Unread badge only", async () => {
+    render(<InboxPage />);
+    await ready();
+    expect(document.querySelectorAll("[data-notifications-metric]")).toHaveLength(0);
+    expect(document.querySelector("[data-notifications-summary]")).toBeNull();
+    const quick = document.querySelector("[data-inbox-quick-filters]") as HTMLElement;
+    expect(within(quick).getAllByRole("button").map((b) => b.getAttribute("data-inbox-filter-chip"))).toEqual(["all", "unread", "read"]);
+    // The server's unread total, never a count of the loaded page.
+    expect(unreadBadge()).toBe(2);
+    expect(quick.querySelector('[data-inbox-filter-chip="all"] [data-inbox-unread-count]')).toBeNull();
+  });
+
+  it("REGRESSION: with only historical (resolved, read) notifications, All lists them and never claims there are none", async () => {
+    rows = [
+      { itemKey: "report_failure:old1", category: "report_failure", tone: "high", title: "Old report failure", href: "/reports", isRead: true, resolvedAt: "2026-08-01T00:00:00.000Z" },
+      { itemKey: "collaboration:old2", category: "collaboration", tone: "info", title: "Old team update", href: "/collaboration-teams", isRead: true, resolvedAt: "2026-08-02T00:00:00.000Z" },
+    ];
+    render(<InboxPage />);
+    await ready();
+    expect(document.querySelectorAll("[data-inbox-item]")).toHaveLength(2);
+    expect(document.querySelector('[data-state="empty"]')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/don.t have any notifications/i);
+    expect(document.body.textContent).not.toMatch(/all caught up/i);
+    for (const row of Array.from(document.querySelectorAll("[data-inbox-item]"))) {
+      expect(row.querySelector("[data-inbox-item-resolved]")).not.toBeNull();
+    }
+  });
+
+  it("Unread with zero unread and read history: a scoped all-caught-up IN the list region, and no history beneath it", async () => {
+    rows = rows.map((r) => ({ ...r, isRead: true }));
+    window.history.replaceState(null, "", "/notifications?view=unread");
+    render(<InboxPage />);
+    await waitFor(() => expect(document.querySelector('[data-state="empty"]')).not.toBeNull());
+    const empty = document.querySelector('[data-state="empty"]') as HTMLElement;
+    expect(empty.getAttribute("data-inbox-empty-view")).toBe("unread");
+    expect(empty.textContent).toContain("You’re all caught up");
+    expect(empty.textContent).toContain("There are no unread notifications.");
+    expect(empty.textContent).not.toMatch(/don.t have any notifications/i);
+    expect(document.querySelectorAll("[data-inbox-item]")).toHaveLength(0);
+    fireEvent.click(within(document.querySelector("[data-inbox-quick-filters]") as HTMLElement).getByRole("button", { name: "All" }));
+    await waitFor(() => expect(document.querySelectorAll("[data-inbox-item]")).toHaveLength(3));
+    expect(document.querySelector('[data-state="empty"]')).toBeNull();
+  });
+
+  it("Read with nothing read, and a truly empty All, each say what THEIR result is", async () => {
+    rows = rows.map((r) => ({ ...r, isRead: false }));
+    window.history.replaceState(null, "", "/notifications?view=read");
+    render(<InboxPage />);
+    await waitFor(() => expect(document.querySelector('[data-state="empty"]')).not.toBeNull());
+    expect(document.querySelector('[data-state="empty"]')!.textContent).toContain("No read notifications");
+    cleanup();
+    rows = [];
+    window.history.replaceState(null, "", "/notifications");
+    render(<InboxPage />);
+    await waitFor(() => expect(document.querySelector('[data-state="empty"]')).not.toBeNull());
+    const empty = document.querySelector('[data-state="empty"]') as HTMLElement;
+    expect(empty.getAttribute("data-inbox-empty-view")).toBe("all");
+    expect(empty.textContent).toContain("No notifications yet");
+    expect(empty.textContent).toContain("Updates relevant to this workspace will appear here.");
+  });
+
+  it("loading, a failed request and an incomplete read are never an all-clear", async () => {
+    hang = true;
+    render(<InboxPage />);
+    await waitFor(() => expect(document.querySelector('[data-state="loading"]')).not.toBeNull());
+    expect(document.querySelector('[data-state="empty"]')).toBeNull();
+    cleanup();
+    hang = false;
+    failNext = "list";
+    render(<InboxPage />);
+    await waitFor(() => expect(document.querySelector('[data-state="error"]')).not.toBeNull());
+    expect(document.querySelector('[data-state="empty"]')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/all caught up/i);
+    cleanup();
+    rows = rows.map((r) => ({ ...r, isRead: true }));
+    incompleteSources = ["discussion_mention"];
+    window.history.replaceState(null, "", "/notifications?view=unread");
+    render(<InboxPage />);
+    await waitFor(() => expect(document.querySelector('[data-state="empty"]')).not.toBeNull());
+    expect(document.querySelector('[data-state="empty"]')!.getAttribute("data-inbox-empty-view")).toBe("incomplete");
+    expect(document.body.textContent).not.toMatch(/all caught up/i);
+  });
+
+  it("the read-state control is keyboard operable and announces its selection", async () => {
+    render(<InboxPage />);
+    await ready();
+    const unread = document.querySelector('[data-inbox-filter-chip="unread"]') as HTMLButtonElement;
+    unread.focus();
+    expect(document.activeElement).toBe(unread);
+    fireEvent.click(unread);
+    await waitFor(() => expect(unread.getAttribute("aria-pressed")).toBe("true"));
+    expect(document.querySelector('[data-inbox-filter-chip="all"]')!.getAttribute("aria-pressed")).toBe("false");
   });
 });

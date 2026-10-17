@@ -53,20 +53,18 @@ function code(src: string): string {
 // 6.1 — the notification centre stops dressing as an incident console
 // ============================================================================
 
-test("the page leads with UNREAD, not with a severity scoreboard", () => {
-  // The lead is still Unread — it is the FIRST metric card. The summary is now
-  // a row of canonical metric cards rather than a running count with severity
-  // pills beside it, and what this guards is unchanged: the page's own
-  // question ("what did I miss?") comes before severity, so a personal feed
-  // never opens with CRITICAL.
-  const list = NOTIFICATIONS.slice(
-    NOTIFICATIONS.indexOf("const NOTIFICATION_METRICS"),
-  );
-  assert.ok(
-    list.indexOf('key: "unread"') < list.indexOf('key: "critical"'),
-    "Unread must lead the summary, ahead of any severity",
-  );
-  assert.match(NOTIFICATIONS, /data-notifications-metric=/);
+test("no KPI wall: the page is an inbox, led by the All / Unread / Read control", () => {
+  // 2026-10-17 — the six summary cards (All, Unread and four severities) made
+  // a personal feed an operations dashboard, and their LIVE counts disagreed
+  // with the history the list shows. None may come back.
+  assert.doesNotMatch(NOTIFICATIONS, /data-notifications-metric=/);
+  assert.doesNotMatch(NOTIFICATIONS, /app-metric-card/);
+  assert.doesNotMatch(NOTIFICATIONS, /const NOTIFICATION_METRICS/);
+  // One read-state control, in this order.
+  assert.match(NOTIFICATIONS, /QUICK_PRIMARY_VIEWS: ReadonlyArray<PrimaryView> = \["all", "unread", "read"\]/);
+  // The only count is the server's unread total — never counted from the page.
+  assert.match(NOTIFICATIONS, /shellData\?\.metricSummary\?\.unread \?\? shellData\?\.scopeSummary\?\.unread \?\? null/);
+  assert.match(NOTIFICATIONS, /data-inbox-unread-count=/);
 });
 
 test("the five giant severity KPI cards are gone", () => {
@@ -86,12 +84,9 @@ test("severity survives as filterable METADATA", () => {
   // is no longer a SECOND axis beside them: the six cards are one value, so
   // "unread AND high" is not a state the page can hold. Selecting a severity
   // card replaces whatever was selected.
-  for (const tone of ["critical", "high", "warning", "info"]) {
-    assert.ok(
-      NOTIFICATIONS.includes(`key: "${tone}"`),
-      `the summary must offer a ${tone} card`,
-    );
-  }
+  // Every row still wears its severity as a labelled badge.
+  assert.match(NOTIFICATIONS, /data-inbox-item-tone={item.tone}/);
+  assert.match(NOTIFICATIONS, /\{TONE_LABELS\[item\.tone\]\}/);
   // All / Unread / Read are the read-state alternatives; the severities sit
   // beside them in the SAME single value.
   assert.match(NOTIFICATIONS, /type PrimaryView = "all" \| "unread" \| "read" \| InboxTone/);
@@ -396,59 +391,11 @@ test("the Operations route introduces no colour literal", () => {
 // ============================================================================
 
 test("severity is never carried by colour alone", () => {
-  // Every chip renders its LABEL as text beside the count; the colour is a
-  // supporting cue on the left edge.
-  // Every CARD renders its label AND an explanation as text; the tone rail is
-  // a supporting cue on the inline-start edge, never the signal itself.
-  assert.match(NOTIFICATIONS, /app-metric-card__label/);
-  assert.match(NOTIFICATIONS, /app-metric-card__meta/);
-  assert.match(NOTIFICATIONS, /\{metric\.label\}/);
-  assert.match(NOTIFICATIONS, /\{metric\.explanation\}/);
-  // The tone is a VARIABLE the route resolves, and it now resolves from the
-  // CANONICAL design tokens rather than from this route's own `--ops-tone-*`
-  // block — the same families the status badges and the Intake Links KPI
-  // cards consume, so a colour cannot be defined twice and drift.
-  // Asserted as the PROPERTY, not as a list of the tokens the mapping happened
-  // to use. The list was a snapshot: it named `--info` because `critical`
-  // resolved to it, so swapping critical to red and warning to purple failed a
-  // guard about token PROVENANCE for a reason that had nothing to do with
-  // provenance. What must hold is that every card resolves from the canonical
-  // palette and none reintroduces this route's private `--ops-tone-*`.
-  const CANONICAL_TOKENS = new Set([
-    "--ink-primary",
-    "--ink-secondary",
-    "--accent-600",
-    "--info",
-    "--orange-500",
-    "--error",
-    "--success",
-  ]);
-  const resolved = [
-    ...NOTIFICATIONS_CSS.matchAll(/--app-metric-tone:\s*var\((--[\w-]+)\)/g),
-  ].map((m) => m[1]);
-  assert.ok(
-    resolved.length >= 6,
-    `every metric card must resolve a tone; found ${resolved.length}`,
-  );
-  for (const token of resolved) {
-    assert.ok(
-      CANONICAL_TOKENS.has(token),
-      `a metric card resolves its tone from ${token}, which is not a canonical design token`,
-    );
-    assert.ok(
-      !token.startsWith("--ops-tone-"),
-      `a metric card must not resolve its tone from this route's private ${token}`,
-    );
-  }
-  // And the mapping names tokens, never literals.
-  const map = NOTIFICATIONS_CSS.slice(
-    NOTIFICATIONS_CSS.indexOf('.ops-metric[data-ops-metric-tone="all"]'),
-    NOTIFICATIONS_CSS.indexOf('.ops-metric[data-ops-metric-tone="all"]') + 800,
-  );
-  assert.ok(
-    !/#[0-9a-fA-F]{3,8}\b/.test(map),
-    "the tone mapping must name tokens, never hexes",
-  );
+  // Severity is metadata ON THE ROW: a text label in the badge, the colour a
+  // supporting cue. (The coloured summary cards are gone — 2026-10-17.)
+  assert.match(NOTIFICATIONS, /\{TONE_LABELS\[item\.tone\]\}/);
+  const map = NOTIFICATIONS_CSS;
+  assert.ok(!/--ops-tone-[a-z]+:s*#/.test(map), "tones name canonical tokens, never hexes");
 });
 
 test("the severity chips are real buttons with pressed state", () => {

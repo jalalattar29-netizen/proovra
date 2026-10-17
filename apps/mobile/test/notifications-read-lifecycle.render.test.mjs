@@ -94,7 +94,6 @@ test("opens on All, offers All / Unread / Read, and Read asks the server for rea
   const r = await render();
   assert.ok(!inboxReads()[0].includes("readState"), inboxReads()[0]);
   assert.ok(r.hasText("You were mentioned") && r.hasText("Team update"), "All holds read and unread");
-  assert.equal(r.byLabel("Read: 1").length, 1, "the Read card counts the read population");
   await r.press("Show: Read");
   await settle();
   assert.ok(inboxReads().some((p) => p.includes("readState=read")), inboxReads().join("\n"));
@@ -103,15 +102,12 @@ test("opens on All, offers All / Unread / Read, and Read asks the server for rea
   r.unmount();
 });
 
-test("Mark as read keeps the row in All, and the Unread card reconciles from the server", async () => {
+test("Mark as read keeps the row in All as read history", async () => {
   const r = await render();
-  assert.equal(r.byLabel("Unread: 2").length, 1);
   await r.press("Mark as read: You were mentioned");
   await settle();
   assert.ok(r.hasText("You were mentioned"), "read must not remove the row from All");
   assert.equal(r.byLabel("Mark as unread: You were mentioned").length, 1);
-  assert.equal(r.byLabel("Unread: 1").length, 1, "the count above the list did not move");
-  assert.equal(r.byLabel("Read: 2").length, 1);
   r.unmount();
 });
 
