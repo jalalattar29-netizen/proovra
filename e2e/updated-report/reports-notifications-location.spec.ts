@@ -92,7 +92,7 @@ test("LOCATION: each record states its canonical location; only recorded coordin
   }
 });
 
-test("REPORTS: at most six metrics; each applies exactly its filter; the listed records match the metric; no raw codes", async ({ page }) => {
+test("REPORTS: exactly four semantic metrics; each applies exactly its filter; a compact one-line table; shared controls; no raw codes", async ({ page }) => {
   test.setTimeout(300_000);
   await signIn(page, A.email);
   await page.goto("/reports");
@@ -101,21 +101,47 @@ test("REPORTS: at most six metrics; each applies exactly its filter; the listed 
   const metrics = summary.locator("[data-reports-summary-key]");
   await expect(metrics.first()).toBeVisible();
   const keys = await metrics.evaluateAll((els) => els.map((e) => e.getAttribute("data-reports-summary-key")));
-  expect(keys.length).toBeGreaterThan(0);
-  expect(keys.length).toBeLessThanOrEqual(6);
+  // Exactly four, in order, in the canonical semantic tones.
+  expect(keys).toEqual(["records", "in_progress", "needs_attention", "incomplete"]);
+  const tones = await metrics.evaluateAll((els) => els.map((e) => e.getAttribute("data-app-metric-tone")));
+  expect(tones).toEqual(["info", "accent", "warning", "danger"]);
+  // The four sit in ONE row on a desktop page column.
+  const tops = await metrics.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+  expect(new Set(tops).size).toBe(1);
   await expect(page.locator("[data-reports-breakdown]")).toHaveCount(1);
   await expect(page.locator("[data-reports-status-selector]")).toHaveCount(1);
 
   const valueOf = async (key: string) =>
     Number(await summary.locator(`[data-reports-summary-key="${key}"]`).first().getAttribute("data-reports-summary-value"));
-  // All three records were issued: three records, three reports ready, nothing needs attention.
+  // All three records were issued: three records, nothing in progress or needing attention.
   expect(await valueOf("records")).toBe(3);
-  expect(await valueOf("reports_ready")).toBe(3);
   expect(await valueOf("needs_attention")).toBe(0);
+  await expect(page.locator('[data-reports-summary-key="reports_ready"], [data-reports-summary-key="packages_ready"]')).toHaveCount(0);
 
-  await summary.locator('[data-reports-summary-key="reports_ready"]').first().click();
-  await expect(page).toHaveURL(/report=report_ready/);
+  // THE COMPACT TABLE: a real table (not stacked cards) on a desktop column,
+  // one normal-height row per record, its actions on ONE line.
+  const table = page.locator("table[data-reports-list-items]");
+  await expect(table).toBeVisible();
+  expect(await table.evaluate((t) => getComputedStyle(t).display)).toBe("table");
   await expect(page.locator("[data-reports-row-id]")).toHaveCount(3);
+  for (const row of await page.locator("[data-reports-row-id]").all()) {
+    const actions = row.locator("[data-reports-row-actions]");
+    const h = await actions.evaluate((el) => el.getBoundingClientRect().height);
+    expect(h, "the row's actions wrapped onto a second line").toBeLessThan(48);
+    await expect(row.locator("[data-reports-download-report]")).toHaveAttribute("aria-label", "Download Report PDF");
+  }
+  // Shared controls: search field, AppListbox sort (no native select).
+  await expect(page.locator(".app-search-field [data-reports-search-input]")).toBeVisible();
+  await expect(page.locator("[data-reports-sort] [role='combobox']")).toBeVisible();
+  await expect(page.locator("[data-reports-index] select")).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("reports-desktop.png"), fullPage: true });
+
+  // The Ready segment and the summary cards share ONE filter state.
+  await page.locator('[data-reports-status-filter="ready"]').click();
+  await expect(page).toHaveURL(/status=ready/);
+  await expect(page.locator("[data-reports-row-id]")).toHaveCount(3);
+  await summary.locator('[data-reports-summary-key="records"]').first().click();
+  await expect(page.locator('[data-reports-status-filter="all"]')).toHaveAttribute("aria-pressed", "true");
 
   await summary.locator('[data-reports-summary-key="needs_attention"]').first().click();
   await expect(page).toHaveURL(/status=needs_attention/);
@@ -129,9 +155,20 @@ test("REPORTS: at most six metrics; each applies exactly its filter; the listed 
 
   const text = await page.locator("[data-reports-index]").innerText();
   expect(text, "a raw internal code reached the Reports page").not.toMatch(RAW_CODE);
+
+  // NARROW: the established stacked rows — no horizontal page scroll hiding actions.
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/reports");
+  await expect(summary).toBeVisible({ timeout: 60_000 });
+  expect(await table.evaluate((t) => getComputedStyle(t).display)).toBe("block");
+  const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(over).toBeLessThanOrEqual(0);
+  await expect(page.locator("[data-reports-download-report]").first()).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("reports-narrow.png"), fullPage: true });
+  await page.setViewportSize({ width: 1366, height: 900 });
 });
 
-test("NOTIFICATIONS: a read mention stays in All and Read, leaves Unread,survives a reload (and at 45 days old), and the count moves by exactly one", async ({ page }) => {
+test("NOTIFICATIONS: a read mention stays in All and Read, leaves Unread, survives a reload (and at 45 days old), and the count moves by exactly one", async ({ page }) => {
   test.setTimeout(300_000);
   const handle = B.email.split("@")[0]!.toLowerCase();
   const thread = await A.api.post("/v1/collaboration/threads", {
@@ -196,4 +233,30 @@ test("NOTIFICATIONS: a read mention stays in All and Read, leaves Unread,survive
 
   const text = await page.locator("main").innerText();
   expect(text, "a raw internal code reached the Notifications page").not.toMatch(RAW_CODE);
+
+  // AN INBOX, NOT A DASHBOARD (2026-10-17): no KPI cards; All lists the read
+  // history with NO empty panel and never claims there is nothing.
+  await page.locator('[data-inbox-filter-chip="all"]').click();
+  await expect(find()).toHaveCount(1);
+  await expect(page.locator("[data-notifications-metric]")).toHaveCount(0);
+  await expect(page.locator('[data-state="empty"]')).toHaveCount(0);
+  expect(await page.locator("main").innerText()).not.toMatch(/don.t have any notifications/i);
+  await page.screenshot({ path: test.info().outputPath("notifications-all-read-history.png"), fullPage: true });
+  // Everything read (the bell's mark-all-read): Unread = 0 while All keeps the
+  // whole history.
+  const all = await B.api.post("/v1/me/inbox/mark-all-read", { data: {} });
+  expect(all.ok(), await all.text()).toBe(true);
+  await expect.poll(unread, { timeout: 30_000 }).toBe(0);
+  await page.reload();
+  await page.locator('[data-inbox-filter-chip="all"]').click();
+  await expect(find()).toHaveCount(1);
+  await expect(page.locator('[data-state="empty"]')).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("notifications-all-zero-unread.png"), fullPage: true });
+  // Unread = 0: a scoped all-caught-up in the list's place, no history under it.
+  await page.locator('[data-inbox-filter-chip="unread"]').click();
+  const empty = page.locator('[data-state="empty"][data-inbox-empty-view="unread"]');
+  await expect(empty).toBeVisible();
+  await expect(empty).toContainText("There are no unread notifications.");
+  await expect(page.locator("[data-inbox-item]")).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("notifications-unread-zero.png"), fullPage: true });
 });

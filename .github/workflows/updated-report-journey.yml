@@ -10,7 +10,7 @@ name: updated-report-journey
 # the stack's loopback API. Nothing contacts Production, and no secret is used:
 # every key is minted inside the stack for the length of the job.
 #
-# Every Playwright spec runs (52 tests; fewer passed fails the job): the
+# Every Playwright spec runs (55 tests; fewer passed fails the job): the
 # report-and-package truth proof (fresh v1/v2/v3 packages: seal, key binding,
 # disclosure profiles, canonical trust states, cross-artifact consistency),
 # the accessibility contract, the incident-shaped journey (v1 issued with an
@@ -119,6 +119,9 @@ jobs:
           NEXT_PUBLIC_API_BASE: http://127.0.0.1:58081
           NEXT_PUBLIC_WEB_BASE: http://127.0.0.1:53000
           NEXT_PUBLIC_APP_BASE: http://127.0.0.1:53000
+          # The recorded-location map draws from an APPROVED tile endpoint only
+          # (AUD-025); the location spec answers this stand-in host itself.
+          NEXT_PUBLIC_CAPTURE_LOCATION_TILE_URL: http://tiles.rga.test/{z}/{x}/{y}.png
         run: |
           pnpm exec next build
           # The bundle must point at the stack, never at Production.
@@ -145,7 +148,7 @@ jobs:
           # A long harness that "passes" without running is not a pass: count.
           passed=$(grep -Eo '[0-9]+ passed' /tmp/journey.log | tail -1 | grep -Eo '[0-9]+')
           echo "passed=${passed:-0}"
-          if [ "$status" -ne 0 ] || [ "${passed:-0}" -lt 52 ]; then
+          if [ "$status" -ne 0 ] || [ "${passed:-0}" -lt 55 ]; then
             grep -E "✘|Error:|Expected|Received|  [0-9]+\) " /tmp/journey.log | head -60 \
               | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g' | xargs -0 -I{} echo "::error title=updated-report journey failed (passed=${passed:-0})::{}"
             exit 1

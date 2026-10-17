@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "fd792624a00d7154c19c965c8897975083b189f67fea53dfc0d723a2d7af6b89",
-  "consumerInventoryHash": "fc80bcd88aa22938ca21a9ee87ce006d2f102202058ba7a3f90f33b826303372",
+  "consumerInventoryHash": "7157d8d7826319e4d7cd9fbd1dfc93a36164765d8ed810a0efd31372b491d760",
   "dispositionsHash": "b91e4fd4699fa26a59e2784e582b53fc7407b0b9712580d59c56732b6a28aee5",
   "totals": {
     "RegisteredRoutes": 1193,
@@ -11932,7 +11932,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/archive",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:184",
+      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:180",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11956,7 +11956,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/read",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:184",
+      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:180",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11968,7 +11968,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/remind",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:1086",
+      "productConsumer": "apps/web/app/(app)/inbox/page.tsx:1026",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11992,7 +11992,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/unarchive",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:184",
+      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:180",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -12016,7 +12016,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/items/:itemKey/unread",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:184",
+      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:180",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -12028,7 +12028,7 @@
       "method": "POST",
       "route": "/v1/me/inbox/mark-all-read",
       "registeringFile": "services/api/src/routes/me-inbox.routes.ts",
-      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:219",
+      "productConsumer": "apps/mobile/app/(tabs)/notifications.tsx:215",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -108109,7 +108109,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 1302,
+          "line": 1336,
           "caller": "triggerReport",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -108713,7 +108713,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 1322,
+          "line": 1356,
           "caller": "triggerPackage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118138,7 +118138,7 @@
         },
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 114,
+          "line": 110,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -118146,7 +118146,7 @@
         },
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 135,
+          "line": 131,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -118154,7 +118154,7 @@
         },
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 157,
+          "line": 153,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -118162,7 +118162,7 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 941,
+          "line": 875,
           "caller": "InboxPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118170,7 +118170,7 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 985,
+          "line": 919,
           "caller": "InboxPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118178,7 +118178,7 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 1035,
+          "line": 975,
           "caller": "InboxPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118212,7 +118212,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/index.tsx:180 (HomeScreen, MOBILE); apps/mobile/app/(tabs)/notifications.tsx:114 (NotificationsScreen, MOBILE); apps/mobile/app/(tabs)/notifications.tsx:135 (NotificationsScreen, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/index.tsx:180 (HomeScreen, MOBILE); apps/mobile/app/(tabs)/notifications.tsx:110 (NotificationsScreen, MOBILE); apps/mobile/app/(tabs)/notifications.tsx:131 (NotificationsScreen, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -124624,7 +124624,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 296,
+          "line": 298,
           "caller": "tryUserScopedReports",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124728,7 +124728,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 409,
+          "line": 411,
           "caller": "ReportsIndex",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124736,7 +124736,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 445,
+          "line": 447,
           "caller": "ReportsIndex",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124746,7 +124746,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/reports.tsx:96 (ReportsScreen, MOBILE); apps/mobile/app/(stack)/reports.tsx:159 (ReportsScreen, MOBILE); apps/web/components/reports-experience/ReportsIndex.tsx:409 (ReportsIndex, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/reports.tsx:96 (ReportsScreen, MOBILE); apps/mobile/app/(stack)/reports.tsx:159 (ReportsScreen, MOBILE); apps/web/components/reports-experience/ReportsIndex.tsx:411 (ReportsIndex, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -149404,7 +149404,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 1349,
+          "line": 1383,
           "caller": "requestOutput",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -161757,7 +161757,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 184,
+          "line": 180,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -161765,7 +161765,7 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 1086,
+          "line": 1026,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -161775,7 +161775,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:184 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1086 (postAction, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:180 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1026 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -161877,7 +161877,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 184,
+          "line": 180,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -161885,7 +161885,7 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 1086,
+          "line": 1026,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -161903,7 +161903,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:184 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1086 (postAction, WEB); apps/web/components/app-shell-v2/NotificationBell.tsx:412 (mutate, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:180 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1026 (postAction, WEB); apps/web/components/app-shell-v2/NotificationBell.tsx:412 (mutate, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -161949,7 +161949,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 1086,
+          "line": 1026,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -161959,7 +161959,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:1086 (postAction, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/inbox/page.tsx:1026 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162052,7 +162052,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 184,
+          "line": 180,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -162060,7 +162060,7 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 1086,
+          "line": 1026,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162070,7 +162070,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:184 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1086 (postAction, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:180 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1026 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162163,7 +162163,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 184,
+          "line": 180,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -162171,7 +162171,7 @@
         },
         {
           "file": "apps/web/app/(app)/inbox/page.tsx",
-          "line": 1086,
+          "line": 1026,
           "caller": "postAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162181,7 +162181,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:184 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1086 (postAction, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:180 (NotificationsScreen, MOBILE); apps/web/app/(app)/inbox/page.tsx:1026 (postAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162227,7 +162227,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(tabs)/notifications.tsx",
-          "line": 219,
+          "line": 215,
           "caller": "NotificationsScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -162245,7 +162245,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:219 (NotificationsScreen, MOBILE); apps/web/components/app-shell-v2/NotificationBell.tsx:446 (markAllRead, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/notifications.tsx:215 (NotificationsScreen, MOBILE); apps/web/components/app-shell-v2/NotificationBell.tsx:446 (markAllRead, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

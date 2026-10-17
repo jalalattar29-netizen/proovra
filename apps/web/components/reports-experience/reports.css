@@ -88,6 +88,8 @@
 
 /* ------------------------------------------------------------- toolbar */
 .rpt-toolbar {
+  container-type: inline-size;
+  container-name: rpt-toolbar;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -193,6 +195,14 @@
 .rpt-segments {
   flex: 0 1 auto;
 }
+/* On a phone every status stays visible: the strip wraps instead of
+   scrolling a choice out of sight. */
+@container rpt-toolbar (max-width: 560px) {
+  .rpt-segments {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+}
 .rpt-advanced-toggle {
   display: inline-flex;
   align-items: center;
@@ -281,6 +291,8 @@
   display: grid;
   gap: 2px;
   min-width: 0;
+  /* Wide enough that a typical title fits one line: one normal-height row. */
+  min-inline-size: 200px;
   max-inline-size: 320px;
 }
 .rpt-row__title {

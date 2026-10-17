@@ -323,12 +323,15 @@ describe("canonical verification for the pre-canonical fleet", () => {
     for (const forbidden of [row.ownerUserId, row.teamId!, "storageKey", "storageBucket", "X-Amz-Signature", "ownerUserId"]) {
       expect(ok.body, `the canonical page leaks ${forbidden}`).not.toContain(forbidden);
     }
-    // Not published: verification-only — the internal id is withheld as well.
-    await prisma.evidence.update({ where: { id }, data: { publicVerifyState: "NOT_PUBLISHED" } });
+    // Not published: verification-only — the internal id, and the RECORDED
+    // LOCATION, are withheld as well (no coordinates, accuracy or map position).
+    await prisma.evidence.update({ where: { id }, data: { publicVerifyState: "NOT_PUBLISHED", lat: 52.520008, lng: 13.404954, accuracyMeters: 12 } as never });
     const vo = await publicVerify(ref);
     expect(vo.statusCode).toBe(200);
     expect(vo.json()).toMatchObject({ tier: expect.any(String), disclosure: "VERIFICATION_ONLY", evidenceId: null });
-    for (const forbidden of [id, row.ownerUserId, row.teamId!, "X-Amz-Signature", "Pre-canonical TEAM"]) {
+    expect(vo.json().captureContext ?? null).toBeNull();
+    expect(vo.json().locationState ?? null).toBeNull();
+    for (const forbidden of [id, row.ownerUserId, row.teamId!, "X-Amz-Signature", "Pre-canonical TEAM", "52.52", "13.40"]) {
       expect(vo.body, `the verification-only page leaks ${forbidden}`).not.toContain(forbidden);
     }
     await prisma.evidence.update({ where: { id }, data: { publicVerifyState: "PUBLISHED" } });

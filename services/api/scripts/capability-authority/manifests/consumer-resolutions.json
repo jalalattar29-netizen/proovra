@@ -236,14 +236,14 @@
       "reviewedAtUtc": "2026-09-22"
     },
     {
-      "site": "apps/mobile/app/(tabs)/notifications.tsx:184",
-      "helper": "inboxItemActionPath(itemKey, action) — action is the InboxItemAction union; re-anchored from :176 (the localised notification text imports moved the lines; earlier from :156); replaces the :103 (remind) and :127 entries, whose calls 9266916 merged into act()",
+      "site": "apps/mobile/app/(tabs)/notifications.tsx:180",
+      "helper": "inboxItemActionPath(itemKey, action) — action is the InboxItemAction union; re-anchored to :180 (2026-10-17: the KPI grid left the screen); earlier from :184, :176 (the localised notification text imports moved the lines; earlier from :156); replaces the :103 (remind) and :127 entries, whose calls 9266916 merged into act()",
       "callSitesRead": [
-        "apps/mobile/app/(tabs)/notifications.tsx:184",
-        "apps/mobile/app/(tabs)/notifications.tsx:205",
-        "apps/mobile/app/(tabs)/notifications.tsx:475",
-        "apps/mobile/app/(tabs)/notifications.tsx:486",
-        "apps/mobile/app/(tabs)/notifications.tsx:495"
+        "apps/mobile/app/(tabs)/notifications.tsx:180",
+        "apps/mobile/app/(tabs)/notifications.tsx:201",
+        "apps/mobile/app/(tabs)/notifications.tsx:449",
+        "apps/mobile/app/(tabs)/notifications.tsx:460",
+        "apps/mobile/app/(tabs)/notifications.tsx:469"
       ],
       "routes": [
         "POST /v1/me/inbox/items/:itemKey/read",

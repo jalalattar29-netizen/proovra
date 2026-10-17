@@ -374,7 +374,7 @@ describe("capture-location map actions", () => {
     // 2026-10-17 — the actions sit on the Recorded location card (no longer over
     // dark map tiles), so they are the shared .app-secondary-action itself.
     expect(actions).toContain('className="app-secondary-action"');
-    expect(actions).not.toMatch(/#[0-9a-fA-F]{6}(?!))/);
+    expect(actions).not.toMatch(/rgba\(14,22,26|rgba\(15,42,36/);
   });
 
   it("dropped the old dark translucent pill entirely", () => {

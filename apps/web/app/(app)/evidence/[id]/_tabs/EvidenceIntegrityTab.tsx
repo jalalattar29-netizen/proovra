@@ -497,6 +497,7 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           <LocationStateNote location={location} />
           <div className="evidence-detail-map-shell">
             <CaptureLocationMapPanel
+              showBoundary={false}
               lat={workspace.sourceCaptureLocation.lat ?? 0}
               lng={workspace.sourceCaptureLocation.lng ?? 0}
               accuracyMeters={workspace.sourceCaptureLocation.accuracyMeters}

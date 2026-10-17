@@ -280,7 +280,8 @@ describe("Phase 14 — Stage 6 deep-link affordances (frontend)", () => {
       resolve(WEB_ROOT, "components/reports-experience/ReportsIndex.tsx"),
     );
     expect(src).not.toMatch(/\/search\?documentType=REPORT/);
-    expect(src).toMatch(/<FilterBar\.Search/);
+    // The in-page search is the app's shared search field (2026-10-17).
+    expect(src).toMatch(/className="app-search-field rpt-toolbar__search"/);
     expect(src).toMatch(/data-reports-search-input/);
     // The field is wired to the query the aggregator actually honours.
     expect(src).toMatch(/params\.set\("search"/);

@@ -50,6 +50,8 @@ type CaptureLocationMapPanelProps = {
   sourceLabel?: string | null;
   /** Test/override seam; defaults to the deployment's approved endpoint. */
   tileTemplate?: string | null;
+  /** Off where the surrounding page already states the location boundary. */
+  showBoundary?: boolean;
 };
 
 const BOUNDARY =
@@ -285,9 +287,11 @@ export default function CaptureLocationMapPanel(props: CaptureLocationMapPanelPr
         </div>
       )}
 
+      {props.showBoundary === false ? null : (
       <p style={{ margin: 0, padding: "10px 16px 14px", fontSize: 12, lineHeight: 1.5, color: "var(--ink-secondary, #475569)" }} data-capture-location-boundary>
         {BOUNDARY}
       </p>
+      )}
     </div>
   );
 }

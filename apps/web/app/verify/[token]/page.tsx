@@ -4525,6 +4525,7 @@ with this evidence record.
                         captureContext?.lng !== null &&
                         captureContext?.lng !== undefined ? (
                           <CaptureLocationMapPanel
+                            showBoundary={false}
                             lat={captureContext.lat}
                             lng={captureContext.lng}
                             accuracyMeters={captureContext.accuracyMeters}
