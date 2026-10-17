@@ -66,7 +66,7 @@ test("the stack carries all five actions, with the trash one red on white", asyn
   const stack = page.locator(".evidence-detail-hero-icon-actions");
   await stack.waitFor();
 
-  const labels = await stack.locator("button span").allTextContents();
+  const labels = await stack.locator("a span, button span").allTextContents();
   expect(labels).toEqual([
     "Verification link",
     "Lock",
@@ -76,7 +76,7 @@ test("the stack carries all five actions, with the trash one red on white", asyn
   ]);
 
   // One geometry for all five.
-  const boxes = await stack.locator("button").evaluateAll((els) =>
+  const boxes = await stack.locator("a, button").evaluateAll((els) =>
     els.map((e) => {
       const r = e.getBoundingClientRect();
       return { w: Math.round(r.width), h: Math.round(r.height) };

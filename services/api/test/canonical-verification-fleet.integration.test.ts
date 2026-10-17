@@ -321,6 +321,9 @@ describe("canonical verification for the pre-canonical fleet", () => {
     };
     const base = "https://app.proovra.com/verify";
     const tok = () => runtime.generateVerificationShareToken();
+    // The recovery scans EVERY report; a shared integration database holds
+    // other suites' reports, so read failures are asserted as a delta.
+    const baseline = await recovery.recoverOrphanedReportLinks({ prisma: prisma as never, readObject, verifyBaseUrl: base });
 
     // The orphan: three report versions printing the SAME unstored token (Reem's shape).
     const orphanId = await legacyRecord("FREE", { publicVerifyState: "NOT_PUBLISHED", legacyVerifyUuidUntilUtc: null });
@@ -367,7 +370,7 @@ describe("canonical verification for the pre-canonical fleet", () => {
       refusedIneligible: 1,
       failed: 0,
     });
-    expect(dry.readFailed.MISSING_OBJECT).toBe(1);
+    expect(dry.readFailed.MISSING_OBJECT - baseline.readFailed.MISSING_OBJECT).toBe(1);
     expect(JSON.stringify(dry)).not.toContain(orphanToken);
     expect(await prisma.verificationShareToken.count({ where: { evidenceId: orphanId } })).toBe(0);
 
