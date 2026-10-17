@@ -10,7 +10,7 @@
     "routes": 1193,
     "routesWithAnyTestCaller": 44,
     "testOnlyRoutes": 4,
-    "testCallSites": 91,
+    "testCallSites": 92,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -320,10 +320,11 @@
     },
     {
       "routeId": "GET /public/verify/:id",
-      "testCallerCount": 4,
+      "testCallerCount": 5,
       "testOnly": false,
       "testCallerFiles": [
         "e2e/updated-report/canonical-verification.spec.ts",
+        "e2e/updated-report/public-verify-identifiers.spec.ts",
         "e2e/updated-report/report-package-truth.spec.ts",
         "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts"
       ]
@@ -7267,5 +7268,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "b0175fa2aaf104f321e5f137c3e59bab3dc9410d6b10b318c79e2f3bcf083aad"
+  "contentHash": "75ac0975b90e1e828b4228fe726b435534fc7b33cb0d615c9eff188ab6f6ce21"
 }
