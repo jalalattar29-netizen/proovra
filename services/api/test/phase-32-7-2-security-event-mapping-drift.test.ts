@@ -1431,6 +1431,11 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // CAPTURE ATTEMPT IDEMPOTENCY (2026-10-15, AUD-026) — one nullable
       // capture_sessions column and a per-owner unique index. EXPAND only.
       "20281015120000_capture_session_client_attempt",
+      // VERIFICATION DISCLOSURE POLICY (2026-10-18) — the disclosure columns, the
+      // reviewer-link original grant and one custody type, with a deterministic
+      // in-migration backfill (PUBLISHED -> CONTENT_PREVIEW) and the revocation of
+      // OWNER_SHARE links that answered 404. EXPAND + BACKFILL.
+      "20281018000000_verification_disclosure_policy",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */
