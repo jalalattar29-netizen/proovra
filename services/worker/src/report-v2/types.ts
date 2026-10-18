@@ -297,6 +297,12 @@ export type ReportEvidence = {
   tsaFailureReason: string | null;
   tsaFailureCode?: string | null;
   tsaValidatedAtUtc?: string | null;
+  /**
+   * (2026-10-18) The validation was performed later, from the token retained
+   * at intake: a TIMESTAMP_APPLIED custody event carries payload.repair_source
+   * "tsa_kept_token_validated" (reportLifecycleFields reads it from the chain).
+   */
+  tsaValidatedFromRetainedToken?: boolean | null;
   otsProofBase64?: string | null;
   otsHash?: string | null;
   otsStatus?: string | null;

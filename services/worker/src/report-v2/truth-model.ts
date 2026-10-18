@@ -461,6 +461,9 @@ export function buildTrustDecision(params: {
       tsaFailureCode: params.evidence.tsaFailureCode ?? null,
       tsaTokenPresent: Boolean(params.evidence.tsaTokenBase64),
       tsaValidatedAtUtc: params.evidence.tsaValidatedAtUtc ?? null,
+      // (2026-10-18) The same custody marker the API passes: a NEW report issued
+      // after the retained-token repair states how the timestamp was validated.
+      tsaValidatedFromRetainedToken: params.evidence.tsaValidatedFromRetainedToken === true,
       otsStatus: params.evidence.otsStatus,
       otsHash: params.evidence.otsHash,
       otsAnchoredAtUtc: params.evidence.otsAnchoredAtUtc,
