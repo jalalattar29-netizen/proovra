@@ -16,6 +16,9 @@ import {
   type ReportFreshness,
   evidenceLocationCopy,
   locationRequirementRowValue,
+  parseVerificationDisclosureMode,
+  VERIFICATION_DISCLOSURE_MODE_LABELS,
+  type VerificationDisclosureMode,
 } from "@proovra/shared";
 import { projectLocationState } from "./evidence-detail";
 import { isOtsSummaryFact, otsCard, otsStatusLine, readOts, type OtsState, type OtsVerificationKey } from "./ots-anchoring";
@@ -182,8 +185,19 @@ export function recordSummaryItems(r: RecordView, fmt: (iso: string) => string):
 
 /* ---------------------------------------------------- public verification */
 
+/**
+ * The review workspace's `publicVerificationSummary` (2026-10-18): the
+ * canonical page's ACCESS state (NOT_INCLUDED | AVAILABLE | WITHDRAWN |
+ * SUSPENDED) and its DISCLOSURE policy (disclosureMode, showRecordedLocation).
+ * The publication model (publicationState / published / configured) is
+ * retired: nothing is "published" — every finalized record has its page.
+ */
 export interface PublicVerificationView {
   state: string | null;
+  /** VERIFICATION_ONLY | CONTENT_PREVIEW — what anonymous visitors of the pvr_ page see. */
+  disclosureMode: VerificationDisclosureMode | null;
+  /** Whether the page shows the recorded location (only with CONTENT_PREVIEW). */
+  showRecordedLocation: boolean;
   sharePath: string | null;
   disabledReason: string | null;
   analyticsAvailable: boolean;
@@ -198,6 +212,8 @@ export function projectPublicVerification(rw: unknown): PublicVerificationView |
   if (Object.keys(pv).length === 0) return null;
   return {
     state: s(pv["state"]),
+    disclosureMode: parseVerificationDisclosureMode(pv["disclosureMode"]),
+    showRecordedLocation: pv["showRecordedLocation"] === true,
     sharePath: s(pv["sharePath"]),
     disabledReason: s(pv["disabledReason"]),
     analyticsAvailable: pv["analyticsAvailable"] === true,
@@ -208,60 +224,69 @@ export function projectPublicVerification(rw: unknown): PublicVerificationView |
   };
 }
 
-/** `_lib.tsx:334` describePublicVerificationState, verbatim. */
+/** The canonical page's access state, in words (NOT_INCLUDED | AVAILABLE | WITHDRAWN | SUSPENDED). */
 export function describePublicVerificationState(pv: PublicVerificationView | null): { label: string; detail: string } {
   const reason = pv?.disabledReason ?? null;
   switch (pv?.state) {
     case "NOT_INCLUDED":
       return { label: "Not included on plan", detail: reason || "Public verification is not included in the current workspace capability set." };
-    case "NOT_CONFIGURED":
-      return {
-        label: "Not configured",
-        detail:
-          reason ||
-          "Public verification is supported for this workspace, but this evidence record does not have a publishable verification surface configured.",
-      };
-    case "CONFIGURED_NOT_PUBLISHED":
-      return { label: "Configured but not published", detail: reason || "Public verification is configured for this evidence record, but it has not been published yet." };
-    case "PUBLISHED":
-      return { label: "Published", detail: "Public verification is published and the public route should resolve." };
+    case "AVAILABLE":
+      return { label: "Available", detail: "The record's permanent verification page answers every link to it." };
+    case "WITHDRAWN":
+      return { label: "Withdrawn", detail: reason || "The verification page was withdrawn; every link to it answers that it was withdrawn." };
     case "SUSPENDED":
-      return { label: "Suspended", detail: reason || "Public verification was suspended and the public route is intentionally unavailable." };
-    case "UNPUBLISHED":
-      return { label: "Unpublished", detail: reason || "Public verification was unpublished and no public verification link is currently active." };
+      return { label: "Suspended", detail: reason || "The verification page is temporarily suspended." };
     default:
-      return { label: "State unavailable", detail: reason || "The publication state could not be resolved from the current evidence record." };
+      return { label: "State unavailable", detail: reason || "The verification page state could not be resolved from the current evidence record." };
   }
 }
 
 /**
- * `_lib.tsx:327` buildPublishedVerificationUrl — ONLY a PUBLISHED summary has
- * a link, and it is the server's `sharePath` on the public web origin. Never
- * synthesised: no origin configured, or no path, means no link.
+ * The record's disclosure on its verification page, read-only (2026-10-18):
+ * "Verification only" / "Content preview", and whether the recorded location
+ * is shown. Changing it is web-only by design (step-up, version check, the
+ * visitor preview) — the phone shows it and hands off to the web record page.
  */
-export function buildPublishedVerificationUrl(pv: PublicVerificationView | null, origin: string | null): string | null {
-  if (!pv || pv.state !== "PUBLISHED" || !pv.sharePath || !origin) return null;
-  const base = origin.replace(/\/+$/, "");
-  return `${base}${pv.sharePath.startsWith("/") ? pv.sharePath : `/${pv.sharePath}`}`;
+export interface VerificationDisclosureSummary {
+  modeLabel: string;
+  locationLabel: string;
+  /** What visitors see, in one sentence. */
+  sentence: string;
+}
+export function describeVerificationDisclosure(pv: PublicVerificationView | null): VerificationDisclosureSummary | null {
+  if (!pv || !pv.disclosureMode) return null;
+  const location = pv.disclosureMode === "CONTENT_PREVIEW" && pv.showRecordedLocation;
+  return {
+    modeLabel: VERIFICATION_DISCLOSURE_MODE_LABELS[pv.disclosureMode],
+    locationLabel: location ? "Recorded location shown" : "Recorded location hidden",
+    sentence:
+      pv.disclosureMode === "VERIFICATION_ONLY"
+        ? "Visitors see the complete verification result; the record's content is withheld."
+        : "Visitors see the complete verification result with a preview of the record's content.",
+  };
+}
+
+/** The handoff label for the web-only disclosure editor. */
+export const MANAGE_VERIFICATION_PAGE_ON_WEB = "Manage verification page on the web";
+
+/** The web record page, where the verification page's disclosure is managed. Null without a web origin. */
+export function webRecordPageUrl(origin: string | null, evidenceId: string): string | null {
+  if (!origin || !evidenceId) return null;
+  return `${origin.replace(/\/+$/, "")}/evidence/${encodeURIComponent(evidenceId)}`;
 }
 
 /**
  * THE record's verification link (web `resolveCanonicalVerificationLink`, _lib.tsx):
  * the review workspace's canonical contract (`canonicalVerification`) — the
  * permanent `pvr_` page the report's QR code carries — and only while that
- * page is AVAILABLE. The legacy published link is used ONLY when the API
- * predates the contract (no field at all), never to stand in for a canonical
- * link that exists.
+ * page is AVAILABLE. The retired publication model has no link: without the
+ * canonical contract there is none (never a legacy record-id link).
  */
 export function resolveCanonicalVerificationLink(rw: unknown, origin: string | null): string | null {
-  const root = o(rw);
-  if (!("canonicalVerification" in root)) {
-    return buildPublishedVerificationUrl(projectPublicVerification(rw), origin);
-  }
-  const c = o(root["canonicalVerification"]);
+  const c = o(o(rw)["canonicalVerification"]);
   const path = s(c["verifyPath"]);
-  if (!path || c["status"] !== "AVAILABLE" || !origin) return null;
-  return `${origin.replace(/\/+$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+  if (!path || !path.startsWith("/verify/pvr_") || c["status"] !== "AVAILABLE" || !origin) return null;
+  return `${origin.replace(/\/+$/, "")}${path}`;
 }
 
 /** EvidenceArtifactsTab.tsx:503 — a counter is a number only when analytics exist. */
@@ -269,15 +294,12 @@ export function publicVerificationCounter(pv: PublicVerificationView, value: num
   return pv.analyticsAvailable ? String(value) : "Not available";
 }
 
-/** `_lib.tsx:1444` getPublicVerificationTone → native tones. */
+/** The access state's tone. An available page is neutral — a reachable page is not a verification. */
 export function publicVerificationTone(state: string | null): "verified" | "risk" | "pending" | "neutral" {
   switch (state) {
-    case "PUBLISHED":
-      return "verified";
-    case "SUSPENDED":
+    case "WITHDRAWN":
       return "risk";
-    case "CONFIGURED_NOT_PUBLISHED":
-    case "UNPUBLISHED":
+    case "SUSPENDED":
       return "pending";
     default:
       return "neutral";

@@ -141,6 +141,7 @@ import {
   buildPreservationMatrix,
   buildSnapshotTiming,
   resolveCanonicalVerificationLink,
+  webRecordPageUrl,
   buildSourceContextFacts,
   buildUnlockBody,
   custodyChainLabel,
@@ -183,6 +184,7 @@ import {
   PreservationMatrix,
   PrivateNotesHead,
   PublicVerificationSharing,
+  VerificationDisclosureCard,
   RecordSummaryCard,
   ReviewHero,
   SnapshotTimingSection,
@@ -1759,6 +1761,8 @@ export default function EvidenceDetailScreen() {
             <ProovraText variant="label" color={theme.color.ink.secondary}>{generationNote}</ProovraText>
           ) : null}
           <LatestVerificationLinkCard shareUrl={shareUrl} publicVerification={publicVerification} />
+          {/* Disclosure is web-only by design: shown read-only here, with an explicit handoff. */}
+          {publicVerification ? <VerificationDisclosureCard publicVerification={publicVerification} manageUrl={webRecordPageUrl(webOrigin(), String(id))} /> : null}
           {/* T-14 — package download and every retained version (web ArtifactHistorySection). */}
           <ArtifactHistoryPanel evidenceId={String(id)} history={artifactHistory} pairs={matchedPairs} />
           {publicVerification ? <PublicVerificationSharing publicVerification={publicVerification} shareUrl={shareUrl} /> : null}
