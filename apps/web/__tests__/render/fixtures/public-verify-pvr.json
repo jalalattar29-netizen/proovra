@@ -1,0 +1,1089 @@
+{
+ "tier": "RICH",
+ "basicVerification": {
+  "schema": "PROOVRA_BASIC_VERIFICATION",
+  "version": 1,
+  "checkedAtUtc": "2026-10-18T13:24:21.390Z",
+  "original": {
+   "state": "verified",
+   "basis": "SIGNATURE_AND_FINGERPRINT_AND_CUSTODY_CHAIN",
+   "checks": {
+    "fingerprintMatchesSignedHash": true,
+    "signatureValid": true,
+    "custodyChainValid": true,
+    "digestColumnsMatchSignedFingerprint": true
+   },
+   "fileSha256": "1792dcf0246bfc9e4e68a63ae7b5c36d9697a8c7e67f09276b7975a1c8b92647",
+   "fingerprintHash": "e9188342638fb0ef3fe9452fc29c88d234ff267e3ac81594db4119461e7dd34c",
+   "serverReceivedAtUtc": "2026-10-18T13:24:20.475Z",
+   "deviceDeclaredCaptureAtUtc": "2026-10-01T07:41:07.123Z",
+   "captureTimeStatement": "Device-declared capture time (reported by the capture client, not proven): 2026-10-01T07:41:07.123Z",
+   "capturedAtUtcDeclared": "2026-10-18T13:24:20.475Z",
+   "finalizedAtUtc": "2026-10-18T13:24:21.001Z"
+  },
+  "storedBytes": {
+   "lastVerifiedAtUtc": "2026-10-18T13:24:21.001Z",
+   "lastCheckedAtUtc": "2026-10-18T13:24:21.001Z",
+   "intervalDays": 30,
+   "freshnessHours": 24,
+   "pinnedVersionId": "85d76b8f-22d5-4e16-bbe5-ea8cf5aaf011",
+   "recordedDigest": "1792dcf0246bfc9e4e68a63ae7b5c36d9697a8c7e67f09276b7975a1c8b92647",
+   "state": "verified_current",
+   "failureCode": null,
+   "checkStatus": "VERIFIED"
+  },
+  "verdict": {
+   "state": "verified",
+   "storedBytesCheck": "VERIFIED",
+   "label": "Recorded integrity verified; stored file re-verified"
+  },
+  "timestamp": {
+   "state": "not_issued",
+   "basis": null,
+   "tokenTimeUtc": null
+  },
+  "anchoring": {
+   "state": "not_checked",
+   "otsState": "ANCHORED",
+   "otsVerification": "ATTESTATION_RECORDED",
+   "status": "Attestation recorded",
+   "label": "Bitcoin attestation recorded",
+   "sentence": "The proof names Bitcoin block 860000; PROOVRA has not checked it against the Bitcoin main chain.",
+   "secondaryStatus": "Not independently checked against Bitcoin",
+   "chain": null,
+   "failureCode": null,
+   "proofSha256": "201622f1e404fabd44bd124c1e2faf25ed071bc6a24c2cb4231c9aec837e0c8d",
+   "attestationType": "BITCOIN_BLOCK_HEADER",
+   "bitcoinBlockHeight": 860000,
+   "bitcoinTxid": null,
+   "submittedAtUtc": null,
+   "anchoredAtUtc": "2026-10-18T13:24:21.322Z",
+   "validator": "proovra-ots-proof/2 (sha256, append, prepend, reverse, hexlify)"
+  },
+  "report": {
+   "issued": false,
+   "latestVersion": null,
+   "issuedAtUtc": null,
+   "digestRecorded": false,
+   "sha256": null
+  },
+  "package": {
+   "issued": false,
+   "certifiesReportVersion": null,
+   "assembledAtUtc": null,
+   "sealed": false,
+   "packageSha256": null,
+   "sealKeyFingerprint": null,
+   "latestReportLacksPackage": false
+  }
+ },
+ "link": {
+  "kind": "CANONICAL",
+  "expiresAtUtc": null
+ },
+ "canonicalVerification": {
+  "reference": "pvr_QjjdkigT-DA-6NiRUxcm0FmKXqM",
+  "status": "AVAILABLE",
+  "issuedAtUtc": "2026-10-18T13:24:21.001Z",
+  "checkedAtUtc": "2026-10-18T13:24:21.390Z",
+  "disclosure": "VERIFICATION_ONLY",
+  "signature": {
+   "keyId": "point7_test_ed25519",
+   "keyVersion": 1,
+   "keyFingerprintSha256": "2da86cc26db85042d19a5964c917cf27d815dd68f31b215823ca20ea947b90e6"
+  },
+  "preservation": {
+   "objectLockMode": null,
+   "retainUntilUtc": null
+  },
+  "lastUpdatedAtUtc": null,
+  "limitations": [
+   "This page verifies the record and its artifacts. It does not publish the original evidence files.",
+   "Verification states what PROOVRA's records and stored proofs show; it is not a legal finding."
+  ]
+ },
+ "disclosure": "VERIFICATION_ONLY",
+ "evidenceId": null,
+ "mediaIntelligenceAdvisory": null,
+ "acquisition": {
+  "schemaVersion": "PROOVRA_PUBLIC_ACQUISITION_V1",
+  "acquisition": {
+   "mode": "PROOVRA_WEB_UPLOAD",
+   "category": "UPLOAD",
+   "recorded": true,
+   "recordedBy": "RECORDED_AT_CREATION",
+   "label": "Uploaded to PROOVRA",
+   "statement": "Files were submitted through PROOVRA Web Upload. PROOVRA observed receipt, preservation and integrity from intake onward. Creation, authorship and editing before submission were not observed.",
+   "isDirectCapture": false,
+   "provenanceTier": "IMPORTED_EXISTING_MEDIA",
+   "boundary": "PROOVRA proves receipt, the preserved bytes, their integrity and custody from upload onward; it did not observe creation or editing before receipt.",
+   "channelAuthority": "SERVER_ROUTE",
+   "channelAuthorityLabel": "Recorded by the PROOVRA server from the receiving route"
+  },
+  "captureSession": null,
+  "deviceSignature": {
+   "applicable": false,
+   "verdict": "MISSING"
+  },
+  "deviceAttestation": {
+   "applicable": false,
+   "verdict": "NOT_ATTEMPTED",
+   "verified": false
+  },
+  "integrity": {
+   "establishedAtUtc": "2026-10-18T13:24:21.001Z",
+   "establishedBy": "PROOVRA_SERVER_COMPLETION"
+  },
+  "artifacts": {
+   "original": 6,
+   "captureRecord": 0,
+   "derived": 0
+  },
+  "limitations": [
+   {
+    "code": "CREATION_NOT_OBSERVED_BY_PROOVRA",
+    "text": "PROOVRA did not observe how, when or by whom the file was created, or whether it was edited before it was received."
+   }
+  ],
+  "qualifier": "PROOVRA records how and when material was received and preserved. It does not establish that the content is true, who authored it, the identity of people shown, or that events occurred as depicted. Legal admissibility and evidentiary weight require separate review."
+ },
+ "captureManifest": null,
+ "redaction": null,
+ "technicalMetadata": null,
+ "trustDecision": {
+  "tone": "warning",
+  "presentationState": "PARTIALLY_VERIFIED",
+  "presentationTone": "warning",
+  "anchoringState": "recorded",
+  "anchoringStatusLabel": "Attestation recorded",
+  "summary": "Cryptographic integrity of the preserved bytes was not checked. Any signal marked “Not checked” was not independently verified. This record does not by itself establish authorship, factual truth, pre-PROOVRA history or legal admissibility.",
+  "reviewerAction": "The RFC 3161 timestamp is not validated; do not rely on it as a trusted timestamp.",
+  "integrityReviewRequired": false,
+  "signals": [
+   {
+    "key": "core_integrity",
+    "label": "Core integrity",
+    "state": "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
+    "measuredAtUtc": null,
+    "status": "partial",
+    "tone": "neutral",
+    "summary": "Integrity materials recorded",
+    "detail": "Recorded digest, canonical fingerprint, and signature material are present, but the recorded-integrity state has not yet been finalized as explicitly verified."
+   },
+   {
+    "key": "signature",
+    "label": "Digital signature",
+    "state": "PASSED",
+    "measuredAtUtc": null,
+    "status": "passed",
+    "tone": "success",
+    "summary": "Signature verified",
+    "detail": "The Ed25519 signature verified against the recomputed canonical fingerprint with the recorded public key, which is available for independent verification."
+   },
+   {
+    "key": "trusted_timestamp",
+    "label": "Trusted timestamp",
+    "state": "UNAVAILABLE",
+    "measuredAtUtc": null,
+    "status": "missing",
+    "tone": "neutral",
+    "summary": "Timestamp not recorded",
+    "detail": "No RFC 3161 timestamp state was included. The evidence may still have other integrity controls, but timestamp reliance is limited."
+   },
+   {
+    "otsVerification": "ATTESTATION_RECORDED",
+    "key": "bitcoin_anchoring",
+    "label": "Bitcoin anchoring",
+    "state": "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
+    "measuredAtUtc": "2026-10-18T13:24:21.322Z",
+    "status": "partial",
+    "tone": "neutral",
+    "summary": "Attestation recorded",
+    "detail": "The proof names Bitcoin block 860000; PROOVRA has not checked it against the Bitcoin main chain."
+   },
+   {
+    "key": "immutable_storage",
+    "label": "Immutable storage",
+    "state": "UNAVAILABLE",
+    "measuredAtUtc": null,
+    "status": "missing",
+    "tone": "neutral",
+    "summary": "Immutable retention not confirmed",
+    "detail": "The stored object's Object Lock retention could not be confirmed."
+   },
+   {
+    "key": "custody_chain",
+    "label": "Custody chain",
+    "state": "PASSED",
+    "measuredAtUtc": null,
+    "status": "passed",
+    "tone": "success",
+    "summary": "8 forensic events recorded; hash chain verified",
+    "detail": "A forensic custody chronology is recorded and its hash chain was recomputed and matched."
+   },
+   {
+    "key": "identity",
+    "label": "Workspace identity",
+    "state": "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
+    "measuredAtUtc": null,
+    "status": "partial",
+    "tone": "neutral",
+    "summary": "Authenticated workspace user identity recorded",
+    "detail": "Authenticated workspace user identity was recorded for reviewer context. Submitted by the authenticated workspace user through an email-and-password account. PROOVRA did not establish the person's real-world identity."
+   },
+   {
+    "key": "verification_package",
+    "label": "Verification package",
+    "state": "NOT_APPLICABLE",
+    "measuredAtUtc": null,
+    "status": "not_applicable",
+    "tone": "neutral",
+    "summary": "Not included for this record",
+    "detail": "No downloadable verification package is included for this record. This does not affect its integrity: the fingerprint, signature, timestamp, anchoring and custody materials are recorded and are assessed individually above, and they can be checked from this page."
+   }
+  ]
+ },
+ "verificationMatrix": {
+  "schema": "PROOVRA_VERIFICATION_MATRIX_V1",
+  "rows": [
+   {
+    "key": "file_integrity",
+    "label": "File integrity",
+    "status": "NOT_CHECKED",
+    "statement": "Integrity materials recorded",
+    "measuredAtUtc": null
+   },
+   {
+    "key": "record_signature",
+    "label": "Record signature",
+    "status": "VERIFIED",
+    "statement": "Signature verified",
+    "measuredAtUtc": null
+   },
+   {
+    "key": "custody_chain",
+    "label": "PROOVRA custody chain",
+    "status": "VERIFIED",
+    "statement": "8 forensic events recorded; hash chain verified",
+    "measuredAtUtc": null
+   },
+   {
+    "key": "package_signature",
+    "label": "Package signature",
+    "status": "NOT_APPLICABLE",
+    "statement": "No verification package has been issued for this record.",
+    "measuredAtUtc": null
+   },
+   {
+    "key": "package_completeness",
+    "label": "Package completeness",
+    "status": "NOT_APPLICABLE",
+    "statement": "No verification package has been issued for this record.",
+    "measuredAtUtc": null
+   },
+   {
+    "key": "tsa_token",
+    "label": "Trusted timestamp (RFC 3161)",
+    "status": "UNAVAILABLE",
+    "statement": "Timestamp not recorded",
+    "measuredAtUtc": null
+   },
+   {
+    "key": "ots_anchoring",
+    "label": "OpenTimestamps",
+    "status": "NOT_CHECKED",
+    "statement": "The proof names Bitcoin block 860000; PROOVRA has not checked it against the Bitcoin main chain.",
+    "measuredAtUtc": "2026-10-18T13:24:21.322Z",
+    "statusLabel": "Attestation recorded",
+    "otsState": "ANCHORED",
+    "otsVerification": "ATTESTATION_RECORDED"
+   },
+   {
+    "key": "storage_protection",
+    "label": "Storage protection",
+    "status": "UNAVAILABLE",
+    "statement": "Immutable retention not confirmed",
+    "measuredAtUtc": null
+   },
+   {
+    "key": "account_identity",
+    "label": "Account identity",
+    "status": "NOT_CHECKED",
+    "statement": "Email account (email address not verified).",
+    "measuredAtUtc": "2026-10-18T13:24:20.475Z"
+   },
+   {
+    "key": "organization_verification",
+    "label": "Organization verification",
+    "status": "NOT_CHECKED",
+    "statement": "Not established.",
+    "measuredAtUtc": "2026-10-18T13:24:20.475Z"
+   },
+   {
+    "key": "capture_method",
+    "label": "Capture method",
+    "status": "NOT_APPLICABLE",
+    "statement": "Uploaded to PROOVRA, not captured by PROOVRA.",
+    "measuredAtUtc": null
+   },
+   {
+    "key": "pre_proovra_provenance",
+    "label": "Pre-PROOVRA provenance",
+    "status": "NOT_CHECKED",
+    "statement": "PROOVRA did not observe creation or editing before submission. Not established: how, when and by whom the files were created, and any editing before submission.",
+    "measuredAtUtc": null
+   },
+   {
+    "key": "public_verify_publication",
+    "label": "Public Verify publication",
+    "status": "NOT_APPLICABLE",
+    "statement": "This is the record's permanent PROOVRA verification page; it opens through its verification reference and does not depend on owner publication.",
+    "measuredAtUtc": null
+   }
+  ],
+  "summary": "Cryptographic integrity of the preserved bytes was not checked. Any signal marked “Not checked” was not independently verified. This record does not by itself establish authorship, factual truth, pre-PROOVRA history or legal admissibility.",
+  "limitation": "This record does not by itself establish authorship, factual truth, pre-PROOVRA history or legal admissibility."
+ },
+ "trustDecisionConsistency": {
+  "source": "LIVE_SHARED_FALLBACK",
+  "consistentWithSnapshot": null,
+  "tone": "neutral",
+  "accessOnly": false,
+  "integrityCritical": false,
+  "reasons": []
+ },
+ "verificationSnapshot": {
+  "source": "LIVE_SHARED_FALLBACK",
+  "generatedAtUtc": null,
+  "reportVersion": null,
+  "packageVersion": null,
+  "trustDecisionSnapshot": null,
+  "otsStatusAtGeneration": "UNAVAILABLE",
+  "reportSignature": null,
+  "verificationPackageSignature": null
+ },
+ "liveAnchoring": {
+  "lastUpdatedAtUtc": "2026-10-18T13:24:21.322Z",
+  "hasAdvancedSinceSnapshot": false,
+  "newerReportAvailable": false,
+  "newerPackageAvailable": false,
+  "autoRefreshRecommended": false
+ },
+ "verificationPackageIntegrity": {
+  "available": true,
+  "version": 2,
+  "generatedAtUtc": "2026-10-15T10:00:00.000Z",
+  "packageType": "FULL_FORENSIC",
+  "manifestPresent": true,
+  "signedManifestPresent": true,
+  "manifestDigestPresent": true,
+  "checksumIndexPresent": true,
+  "auditExportIncluded": true,
+  "custodyExportIncluded": true,
+  "accessExportIncluded": true,
+  "packageFormatVersion": 5,
+  "sealed": true,
+  "sealCheck": "NOT_CHECKED",
+  "sealStatement": "Sealed — seal not checked against a published PROOVRA key."
+ },
+ "trustDecisionSource": "LIVE_VERIFICATION",
+ "trustDecisionSnapshot": {
+  "reportVersion": null,
+  "reportGeneratedAtUtc": null,
+  "verificationPackageVersion": null,
+  "verificationPackageGeneratedAtUtc": null
+ },
+ "outputContext": {
+  "outputType": "PUBLIC_VERIFY_LIVE",
+  "isSnapshotOutput": false,
+  "isLiveOutput": true,
+  "snapshotGeneratedAtUtc": null,
+  "liveObservedAtUtc": "2026-10-18T13:24:21.466Z",
+  "liveDeltaMaterials": [
+   "custodyChain",
+   "otsAnchoring"
+  ],
+  "legalBoundary": "PROOVRA verifies recorded preservation state only. It does not independently prove factual truth, authorship, context, intent, evidentiary weight, or legal admissibility. Reviewers must apply their own legal interpretation layer."
+ },
+ "contentAccessPolicy": {
+  "mode": "metadata_only",
+  "allowContentView": false,
+  "allowDownload": false
+ },
+ "contentExposureDecision": {
+  "mode": "metadata_only",
+  "allowContentView": false,
+  "allowDownload": false,
+  "rationale": "Public verification access is restricted to integrity and metadata review."
+ },
+ "certifications": {
+  "custodian": null,
+  "qualifiedPerson": null
+ },
+ "display": {
+  "displayTitle": "Digital Evidence Record",
+  "displayDescription": "Multipart evidence package • 6 text • 245 B"
+ },
+ "captureContext": null,
+ "locationState": null,
+ "overview": {
+  "recordStatus": "Signed",
+  "recordLifecycleStatus": "SIGNED",
+  "verificationStatus": "Technical materials available",
+  "verificationStatusCode": "MATERIALS_AVAILABLE",
+  "integrityHeadline": "Integrity Materials Recorded",
+  "evidenceTitle": "Digital Evidence Record",
+  "contentStructure": "multipart",
+  "contentCompositionSummary": "6 text",
+  "primaryContentLabel": "Text",
+  "previewableItemCount": 0,
+  "downloadableItemCount": 0,
+  "primaryContentKind": "text",
+  "totalContentSizeBytes": "245",
+  "totalContentSizeDisplay": "245 B",
+  "evidenceId": null,
+  "evidenceType": "Document Evidence Package",
+  "evidenceStructure": "Multipart evidence package",
+  "itemCount": 6,
+  "captureMethod": "Uploaded to PROOVRA",
+  "captureMethodCode": "MULTIPART_PACKAGE",
+  "acquisitionMode": "PROOVRA_WEB_UPLOAD",
+  "mimeType": "text/plain",
+  "submittedByEmail": null,
+  "submittedByAuthProvider": "Email",
+  "identityLevel": "Shared-workspace member account",
+  "identityLevelCode": "ORGANIZATION_ACCOUNT",
+  "identitySnapshot": {
+   "basis": "OBSERVED_AT_CAPTURE",
+   "basisLabel": "Recorded when the record was created",
+   "accountLabel": "Email account (email address not verified)",
+   "workspaceTypeLabel": "Shared workspace",
+   "organizationVerificationLabel": "Not established"
+  },
+  "workspaceName": null,
+  "organizationName": null,
+  "organizationVerified": false,
+  "createdAt": "2026-10-18T13:24:20.489Z",
+  "capturedAtUtc": "2026-10-18T13:24:20.475Z",
+  "capturedAtUtcLabel": "Server-recorded intake time",
+  "capturedAtUtcProvenance": "server_clock",
+  "uploadedAtUtc": "2026-10-18T13:24:21.001Z",
+  "uploadedAtUtcLabel": "Server-recorded upload completion time",
+  "uploadedAtUtcProvenance": "server_clock",
+  "signedAtUtc": "2026-10-18T13:24:21.001Z",
+  "signedAtUtcLabel": "Server-recorded signing time",
+  "signedAtUtcProvenance": "server_clock",
+  "recordedIntegrityVerifiedAtUtc": null,
+  "lastVerifiedAtUtc": null,
+  "lastVerifiedSource": "Verification source not recorded",
+  "lastVerifiedSourceCode": null,
+  "lastVerifiedAtUtcLabel": "Last meaningful technical verification (report generation or reviewer technical-verification action). Public page views do not update this field.",
+  "lastPublicVerifyViewAtUtc": null,
+  "lastPublicVerifyViewAtUtcLabel": "Most recent anonymous public verify page view (analytics only — not a technical verification).",
+  "currentPublicVerifyViewAtUtc": "2026-10-18T13:24:21.390Z",
+  "currentPublicVerifyViewAtUtcLabel": "Timestamp of the current public verify page request (analytics only — not a technical verification).",
+  "reviewReadyAtUtc": null,
+  "verificationPackageGeneratedAtUtc": null,
+  "verificationPackageVersion": null,
+  "reviewerSummaryVersion": null,
+  "reportVersion": null,
+  "reportGeneratedAtUtc": null,
+  "timestampStatus": "Timestamp unavailable",
+  "otsStatus": "Attestation recorded",
+  "storageProtection": "Storage protection not applied",
+  "chainOfCustodyPresent": true
+ },
+ "humanSummary": {
+  "integrityStatus": "Integrity Materials Recorded",
+  "recordStatus": "Signed",
+  "verificationStatus": "Technical materials available",
+  "contentStructure": "multipart",
+  "previewableItemCount": 0,
+  "downloadableItemCount": 0,
+  "totalContentSizeDisplay": "245 B",
+  "summary": "Cryptographic integrity of the preserved bytes was not checked. Any signal marked “Not checked” was not independently verified. This record does not by itself establish authorship, factual truth, pre-PROOVRA history or legal admissibility.",
+  "whatIsVerified": "This verification checks the recorded integrity state of the evidence record, including fingerprint consistency, signature validation, recorded custody chain continuity, timestamp linkage, and OpenTimestamps linkage where available.",
+  "evidenceTitle": "Digital Evidence Record",
+  "evidenceId": null,
+  "evidenceType": "Document Evidence Package",
+  "evidenceStructure": "Multipart evidence package",
+  "captureMethod": "Uploaded to PROOVRA",
+  "fileType": "text/plain",
+  "submittedBy": null,
+  "authProvider": "Email",
+  "identityLevel": "Shared-workspace member account",
+  "organization": null,
+  "workspace": null,
+  "organizationVerified": false,
+  "createdAt": "2026-10-18T13:24:20.489Z",
+  "capturedAtUtc": "2026-10-18T13:24:20.475Z",
+  "uploadedAtUtc": "2026-10-18T13:24:21.001Z",
+  "signedAtUtc": "2026-10-18T13:24:21.001Z",
+  "recordedIntegrityVerifiedAtUtc": null,
+  "lastVerifiedAtUtc": null,
+  "lastVerifiedSource": "Verification source not recorded",
+  "lastPublicVerifyViewAtUtc": null,
+  "currentPublicVerifyViewAtUtc": "2026-10-18T13:24:21.390Z",
+  "chainOfCustodyPresent": true,
+  "reportVersion": null,
+  "reportGeneratedAtUtc": null,
+  "verificationPackageVersion": null,
+  "verificationPackageGeneratedAtUtc": null,
+  "reviewerSummaryVersion": null,
+  "timestampStatus": "Timestamp unavailable",
+  "otsStatus": "Attestation recorded",
+  "storageProtection": "Storage protection not applied"
+ },
+ "evidenceContent": {
+  "summary": {
+   "structure": "multipart",
+   "itemCount": 6,
+   "previewableItemCount": 0,
+   "downloadableItemCount": 0,
+   "imageCount": 0,
+   "videoCount": 0,
+   "audioCount": 0,
+   "pdfCount": 0,
+   "textCount": 6,
+   "otherCount": 0,
+   "primaryKind": "text",
+   "primaryMimeType": "text/plain",
+   "totalSizeBytes": "245",
+   "totalSizeDisplay": "245 B"
+  },
+  "items": [
+   {
+    "id": "7f93a1d8-d704-4fd9-ab77-4802bfa6c4e6",
+    "index": 0,
+    "label": "000-Item 1",
+    "originalFileName": null,
+    "mimeType": "text/plain",
+    "kind": "text",
+    "sizeBytes": "44",
+    "durationMs": null,
+    "sha256": "37a97c87cb0e4078df09654eb34618e8fe8c75e3e8733eaba4bf7de9ce6d961d",
+    "isPrimary": true,
+    "artifactRole": "primary_evidence",
+    "artifactRoleLabel": "Primary evidence",
+    "artifactRoleSource": "fallback_root",
+    "checklistStepId": null,
+    "checklistStepLabel": null,
+    "previewable": false,
+    "downloadable": false,
+    "viewUrl": null,
+    "displaySizeLabel": "44 B",
+    "previewRole": "metadata_only",
+    "originalPreservationNote": "Original preserved text evidence item: 000-Item 1.",
+    "reviewerRepresentationLabel": "Primary text review surface",
+    "reviewerRepresentationNote": "Direct reviewer preview is restricted for preserved evidence item 000-Item 1. Use the verification materials and access policy shown here to understand what remains exposed.",
+    "verificationMaterialsNote": "Verification materials for this text item include the recorded digest, custody linkage, timestamping state, and OpenTimestamps/Bitcoin anchoring records associated with the evidence record.",
+    "previewDataUrl": null,
+    "previewTextExcerpt": null,
+    "previewCaption": null
+   },
+   {
+    "id": "c5a9cd50-befb-4b4a-8824-aaf6203afe5c",
+    "index": 1,
+    "label": "001-Item 2",
+    "originalFileName": null,
+    "mimeType": "text/plain",
+    "kind": "text",
+    "sizeBytes": "40",
+    "durationMs": null,
+    "sha256": "629cf701890615a874fa0da826311faaf4dda454bd9827e40857f0277375b968",
+    "isPrimary": false,
+    "artifactRole": "supporting_evidence",
+    "artifactRoleLabel": "Supporting evidence",
+    "artifactRoleSource": "fallback_first",
+    "checklistStepId": null,
+    "checklistStepLabel": null,
+    "previewable": false,
+    "downloadable": false,
+    "viewUrl": null,
+    "displaySizeLabel": "40 B",
+    "previewRole": "metadata_only",
+    "originalPreservationNote": "Original preserved text evidence item: 001-Item 2.",
+    "reviewerRepresentationLabel": "Supporting text review surface",
+    "reviewerRepresentationNote": "Direct reviewer preview is restricted for preserved evidence item 001-Item 2. Use the verification materials and access policy shown here to understand what remains exposed.",
+    "verificationMaterialsNote": "Verification materials for this text item include the recorded digest, custody linkage, timestamping state, and OpenTimestamps/Bitcoin anchoring records associated with the evidence record.",
+    "previewDataUrl": null,
+    "previewTextExcerpt": null,
+    "previewCaption": null
+   },
+   {
+    "id": "a237d3f4-017a-412c-93d4-6f05ed0e5aa7",
+    "index": 2,
+    "label": "002-Item 3",
+    "originalFileName": null,
+    "mimeType": "text/plain",
+    "kind": "text",
+    "sizeBytes": "43",
+    "durationMs": null,
+    "sha256": "16a9bd72fe55c91ee99267c2315c0c2dd87939a67903b31ceb7b9b22b11bc7b3",
+    "isPrimary": false,
+    "artifactRole": "supporting_evidence",
+    "artifactRoleLabel": "Supporting evidence",
+    "artifactRoleSource": "fallback_first",
+    "checklistStepId": null,
+    "checklistStepLabel": null,
+    "previewable": false,
+    "downloadable": false,
+    "viewUrl": null,
+    "displaySizeLabel": "43 B",
+    "previewRole": "metadata_only",
+    "originalPreservationNote": "Original preserved text evidence item: 002-Item 3.",
+    "reviewerRepresentationLabel": "Supporting text review surface",
+    "reviewerRepresentationNote": "Direct reviewer preview is restricted for preserved evidence item 002-Item 3. Use the verification materials and access policy shown here to understand what remains exposed.",
+    "verificationMaterialsNote": "Verification materials for this text item include the recorded digest, custody linkage, timestamping state, and OpenTimestamps/Bitcoin anchoring records associated with the evidence record.",
+    "previewDataUrl": null,
+    "previewTextExcerpt": null,
+    "previewCaption": null
+   },
+   {
+    "id": "791e5955-e083-4b62-bffe-b6dcc2031d79",
+    "index": 3,
+    "label": "003-Item 4",
+    "originalFileName": null,
+    "mimeType": "text/plain",
+    "kind": "text",
+    "sizeBytes": "37",
+    "durationMs": null,
+    "sha256": "067e1ee2e82cc23228526deaa7fc2e0f21b01b945732912fbc80e318d2a76f54",
+    "isPrimary": false,
+    "artifactRole": "supporting_evidence",
+    "artifactRoleLabel": "Supporting evidence",
+    "artifactRoleSource": "fallback_first",
+    "checklistStepId": null,
+    "checklistStepLabel": null,
+    "previewable": false,
+    "downloadable": false,
+    "viewUrl": null,
+    "displaySizeLabel": "37 B",
+    "previewRole": "metadata_only",
+    "originalPreservationNote": "Original preserved text evidence item: 003-Item 4.",
+    "reviewerRepresentationLabel": "Supporting text review surface",
+    "reviewerRepresentationNote": "Direct reviewer preview is restricted for preserved evidence item 003-Item 4. Use the verification materials and access policy shown here to understand what remains exposed.",
+    "verificationMaterialsNote": "Verification materials for this text item include the recorded digest, custody linkage, timestamping state, and OpenTimestamps/Bitcoin anchoring records associated with the evidence record.",
+    "previewDataUrl": null,
+    "previewTextExcerpt": null,
+    "previewCaption": null
+   },
+   {
+    "id": "433f861f-d387-4fca-b5ea-0e5d8d95a056",
+    "index": 4,
+    "label": "004-Item 5",
+    "originalFileName": null,
+    "mimeType": "text/plain",
+    "kind": "text",
+    "sizeBytes": "40",
+    "durationMs": null,
+    "sha256": "50411b04a9415b729e4aeeab6577961359f4a84b4f393949742f3dac0321fb53",
+    "isPrimary": false,
+    "artifactRole": "supporting_evidence",
+    "artifactRoleLabel": "Supporting evidence",
+    "artifactRoleSource": "fallback_first",
+    "checklistStepId": null,
+    "checklistStepLabel": null,
+    "previewable": false,
+    "downloadable": false,
+    "viewUrl": null,
+    "displaySizeLabel": "40 B",
+    "previewRole": "metadata_only",
+    "originalPreservationNote": "Original preserved text evidence item: 004-Item 5.",
+    "reviewerRepresentationLabel": "Supporting text review surface",
+    "reviewerRepresentationNote": "Direct reviewer preview is restricted for preserved evidence item 004-Item 5. Use the verification materials and access policy shown here to understand what remains exposed.",
+    "verificationMaterialsNote": "Verification materials for this text item include the recorded digest, custody linkage, timestamping state, and OpenTimestamps/Bitcoin anchoring records associated with the evidence record.",
+    "previewDataUrl": null,
+    "previewTextExcerpt": null,
+    "previewCaption": null
+   },
+   {
+    "id": "38aa8045-5f6b-4a57-883a-a007b87e803b",
+    "index": 5,
+    "label": "005-Item 6",
+    "originalFileName": null,
+    "mimeType": "text/plain",
+    "kind": "text",
+    "sizeBytes": "41",
+    "durationMs": null,
+    "sha256": "3ac91db05c508f190f6bb10710c8cd4b84fb357fbf3bbdc0d6ccf80107c8b90e",
+    "isPrimary": false,
+    "artifactRole": "supporting_evidence",
+    "artifactRoleLabel": "Supporting evidence",
+    "artifactRoleSource": "fallback_first",
+    "checklistStepId": null,
+    "checklistStepLabel": null,
+    "previewable": false,
+    "downloadable": false,
+    "viewUrl": null,
+    "displaySizeLabel": "41 B",
+    "previewRole": "metadata_only",
+    "originalPreservationNote": "Original preserved text evidence item: 005-Item 6.",
+    "reviewerRepresentationLabel": "Supporting text review surface",
+    "reviewerRepresentationNote": "Direct reviewer preview is restricted for preserved evidence item 005-Item 6. Use the verification materials and access policy shown here to understand what remains exposed.",
+    "verificationMaterialsNote": "Verification materials for this text item include the recorded digest, custody linkage, timestamping state, and OpenTimestamps/Bitcoin anchoring records associated with the evidence record.",
+    "previewDataUrl": null,
+    "previewTextExcerpt": null,
+    "previewCaption": null
+   }
+  ],
+  "primaryItem": {
+   "id": "7f93a1d8-d704-4fd9-ab77-4802bfa6c4e6",
+   "index": 0,
+   "label": "000-Item 1",
+   "originalFileName": null,
+   "mimeType": "text/plain",
+   "kind": "text",
+   "sizeBytes": "44",
+   "durationMs": null,
+   "sha256": "37a97c87cb0e4078df09654eb34618e8fe8c75e3e8733eaba4bf7de9ce6d961d",
+   "isPrimary": true,
+   "artifactRole": "primary_evidence",
+   "artifactRoleLabel": "Primary evidence",
+   "artifactRoleSource": "fallback_root",
+   "checklistStepId": null,
+   "checklistStepLabel": null,
+   "previewable": false,
+   "downloadable": false,
+   "viewUrl": null,
+   "displaySizeLabel": "44 B",
+   "previewRole": "metadata_only",
+   "originalPreservationNote": "Original preserved text evidence item: 000-Item 1.",
+   "reviewerRepresentationLabel": "Primary text review surface",
+   "reviewerRepresentationNote": "Direct reviewer preview is restricted for preserved evidence item 000-Item 1. Use the verification materials and access policy shown here to understand what remains exposed.",
+   "verificationMaterialsNote": "Verification materials for this text item include the recorded digest, custody linkage, timestamping state, and OpenTimestamps/Bitcoin anchoring records associated with the evidence record.",
+   "previewDataUrl": null,
+   "previewTextExcerpt": null,
+   "previewCaption": null
+  },
+  "defaultPreviewItemId": "7f93a1d8-d704-4fd9-ab77-4802bfa6c4e6",
+  "previewPolicy": {
+   "contentVisible": false,
+   "previewEnabled": false,
+   "downloadableFromVerify": false,
+   "rationale": "This verification flow exposes metadata and technical verification materials without exposing the evidence content itself.",
+   "privacyNotice": "Evidence content is not directly exposed through this verification flow."
+  }
+ },
+ "integrityProof": {
+  "overallIntegrity": true,
+  "canonicalHashMatches": true,
+  "signatureValid": true,
+  "digestColumnsMatchSignedFingerprint": true,
+  "signingKeyRevokedAtUtc": null,
+  "signingKeyMatchesRecord": true,
+  "storedBytesCheck": "VERIFIED",
+  "custodyChainValid": true,
+  "custodyChainMode": "hashed",
+  "custodyChainFailureReason": null,
+  "timestampDigestMatches": null,
+  "otsHashMatches": true
+ },
+ "custodyLifecycle": {
+  "forensicEventCount": 8,
+  "accessEventCount": 4,
+  "forensicEvents": [
+   {
+    "sequence": 1,
+    "atUtc": "2026-10-18T13:24:20.475Z",
+    "eventType": "EVIDENCE_CREATED",
+    "payloadSummary": "Evidence record created.",
+    "prevEventHash": null,
+    "eventHash": "9524108c5a832f1097474ce3b1dd4175d9112bec2f5eac6e78ca3f1a164f97a3",
+    "category": "forensic"
+   },
+   {
+    "sequence": 2,
+    "atUtc": "2026-10-18T13:24:20.475Z",
+    "eventType": "IDENTITY_SNAPSHOT_RECORDED",
+    "payloadSummary": "Identity snapshot recorded • Identity: ORGANIZATION_ACCOUNT • Email:  • Provider: EMAIL",
+    "prevEventHash": "9524108c5a832f1097474ce3b1dd4175d9112bec2f5eac6e78ca3f1a164f97a3",
+    "eventHash": "c7d97ced9a09f4fc59ea07629d73973ac9f80e804a5e9f1d0328b92bff549c76",
+    "category": "forensic"
+   },
+   {
+    "sequence": 3,
+    "atUtc": "2026-10-18T13:24:20.501Z",
+    "eventType": "UPLOAD_AUTHORIZED",
+    "payloadSummary": "Upload authorization recorded (presigned URL issued; bytes not yet confirmed) • Mode: initial intake authorization for multipart evidence",
+    "prevEventHash": "c7d97ced9a09f4fc59ea07629d73973ac9f80e804a5e9f1d0328b92bff549c76",
+    "eventHash": "69e88d3f87e0d42ee0d4eeb073cba7a06c3f1c1f46ab1cd37bd416e225c54ddb",
+    "category": "forensic"
+   },
+   {
+    "sequence": 4,
+    "atUtc": "2026-10-18T13:24:21.001Z",
+    "eventType": "UPLOAD_COMPLETED",
+    "payloadSummary": "Multipart evidence package completed • Items: 6 • Size: 245 bytes",
+    "prevEventHash": "69e88d3f87e0d42ee0d4eeb073cba7a06c3f1c1f46ab1cd37bd416e225c54ddb",
+    "eventHash": "aada4cff0face86a53d7a0bcd7013b942a265637dfe6bb52e1dfe5ad6b708ead",
+    "category": "forensic"
+   },
+   {
+    "sequence": 5,
+    "atUtc": "2026-10-18T13:24:21.001Z",
+    "eventType": "SIGNATURE_APPLIED",
+    "payloadSummary": "Cryptographic signature applied • Key: point7_test_ed25519 • Version: 1",
+    "prevEventHash": "aada4cff0face86a53d7a0bcd7013b942a265637dfe6bb52e1dfe5ad6b708ead",
+    "eventHash": "b88986793c08a0ab840939cb4fd8433dbb75bbcae378a5ee68aa24f7aed8bffc",
+    "category": "forensic"
+   },
+   {
+    "sequence": 6,
+    "atUtc": "2026-10-18T13:24:21.001Z",
+    "eventType": "EVIDENCE_COMPLETED",
+    "payloadSummary": "Evidence record completed.",
+    "prevEventHash": "b88986793c08a0ab840939cb4fd8433dbb75bbcae378a5ee68aa24f7aed8bffc",
+    "eventHash": "34d2058a72e4fbef7dfcf59706b9f4f49ca08ed83c836653b934f77a0dd19da3",
+    "category": "forensic"
+   },
+   {
+    "sequence": 7,
+    "atUtc": "2026-10-18T13:24:21.001Z",
+    "eventType": "VERIFICATION_REFERENCE_ISSUED",
+    "payloadSummary": null,
+    "prevEventHash": "34d2058a72e4fbef7dfcf59706b9f4f49ca08ed83c836653b934f77a0dd19da3",
+    "eventHash": "6bbe7cd273c60537ae7f3d196436a07fe2afa52aebd4d3bf4d4f243804070693",
+    "category": "forensic"
+   },
+   {
+    "sequence": 8,
+    "atUtc": "2026-10-18T13:24:21.133Z",
+    "eventType": "STORAGE_PROTECTION_UNAVAILABLE",
+    "payloadSummary": null,
+    "prevEventHash": "6bbe7cd273c60537ae7f3d196436a07fe2afa52aebd4d3bf4d4f243804070693",
+    "eventHash": "b84503140b8e01006c390445e5bf8fdcc3b7b5b46273993e093704d603e98dcd",
+    "category": "forensic"
+   }
+  ],
+  "accessEvents": [
+   {
+    "sequence": 9,
+    "atUtc": "2026-10-18T13:24:21.305Z",
+    "eventType": "EVIDENCE_VIEWED",
+    "payloadSummary": "Protected evidence file accessed.",
+    "prevEventHash": "b84503140b8e01006c390445e5bf8fdcc3b7b5b46273993e093704d603e98dcd",
+    "eventHash": "1018a837fc23540be682fbd365d39d7ca604dcd5c068383a7e13d1dd965d2229",
+    "category": "access"
+   },
+   {
+    "sequence": 10,
+    "atUtc": "2026-10-18T13:24:21.330Z",
+    "eventType": "EVIDENCE_VIEWED",
+    "payloadSummary": "Protected evidence file accessed.",
+    "prevEventHash": "1018a837fc23540be682fbd365d39d7ca604dcd5c068383a7e13d1dd965d2229",
+    "eventHash": "eb7178bbe487b1324af11e8d51308e09f8556adf4cb253af14144d1d0d632d5f",
+    "category": "access"
+   },
+   {
+    "sequence": 11,
+    "atUtc": "2026-10-18T13:24:21.338Z",
+    "eventType": "EVIDENCE_VIEWED",
+    "payloadSummary": "Protected evidence file accessed.",
+    "prevEventHash": "eb7178bbe487b1324af11e8d51308e09f8556adf4cb253af14144d1d0d632d5f",
+    "eventHash": "42af6ee86683e3575d1f685cd57456281451870fbaa5b668b20194d72ac89ca8",
+    "category": "access"
+   },
+   {
+    "sequence": 12,
+    "atUtc": "2026-10-18T13:24:21.344Z",
+    "eventType": "EVIDENCE_VIEWED",
+    "payloadSummary": "Protected evidence file accessed.",
+    "prevEventHash": "42af6ee86683e3575d1f685cd57456281451870fbaa5b668b20194d72ac89ca8",
+    "eventHash": "5af2aec38344973d848d0ebdbd2ac0497ed25826b1b9dd37096bba90c4c1e5bd",
+    "category": "access"
+   }
+  ],
+  "truncated": false,
+  "displayLimit": 500,
+  "chronologyNote": "Forensic events describe integrity-relevant lifecycle actions. Access events describe later viewing, download, or verification access activity."
+ },
+ "custodyDisplayCounts": {
+  "forensicAtReportGeneration": 8,
+  "currentForensicEvents": 8,
+  "currentForensic": 8,
+  "accessAfterReportGeneration": 4,
+  "currentAccessEvents": 4,
+  "totalDisplayedEvents": 12,
+  "totalDisplayedNow": 12,
+  "reportGeneratedAtUtc": null
+ },
+ "legalAssessment": {
+  "limitations": {
+   "short": "This page verifies the recorded integrity state of the evidence record. It does not independently prove factual truth, authorship, context, or legal admissibility.",
+   "detailed": "Technical verification supports detection of post-completion changes to the recorded evidence state. It does not by itself establish who created the content, whether the depicted events are true, or whether any court, insurer, regulator, or authority must accept the material."
+  },
+  "reviewGuidance": {
+   "reviewerWorkflow": [
+    "First review the evidence content and item structure.",
+    "Then review the recorded integrity outcome and custody chronology.",
+    "Finally evaluate relevance, context, authorship, and admissibility separately."
+   ],
+   "contentReviewNote": "The evidence content is not directly exposed here, but its recorded integrity state and supporting technical materials remain reviewable.",
+   "legalAssessmentNote": "Use the evidence content together with the technical verification record; neither should be treated as a substitute for the other.",
+   "integrityAssessmentNote": "The recorded technical integrity checks passed for the available materials.",
+   "multipartReviewNote": "This record contains multiple items and should be reviewed as a package, including the role of the primary item."
+  }
+ },
+ "storageAndTimestamping": {
+  "storage": {
+   "immutable": false,
+   "expired": false,
+   "mode": null,
+   "retainUntil": null,
+   "legalHold": null,
+   "region": "auto",
+   "verification": "FAILED",
+   "verified": false,
+   "source": "OBSERVED",
+   "protection": "NOT_APPLIED"
+  },
+  "tsa": {
+   "status": null,
+   "proofStatus": "NOT_REQUESTED",
+   "provider": null,
+   "url": null,
+   "serialNumber": null,
+   "genTimeUtc": null,
+   "hashAlgorithm": null,
+   "messageImprint": null,
+   "inputDigestHex": "1792dcf0246bfc9e4e68a63ae7b5c36d9697a8c7e67f09276b7975a1c8b92647",
+   "inputKind": null,
+   "legacyMode": true,
+   "failureReason": null,
+   "digestMatchesTimestampInput": null,
+   "digestMatchesFileHash": null,
+   "digestCheckConclusive": false,
+   "timestampAvailable": false,
+   "timestampedDigestLabel": "Timestamped Digest / Canonical Package Digest",
+   "timestampedDigestNote": null
+  },
+  "ots": {
+   "state": "ANCHORED",
+   "verification": "CHAIN_VERIFIED",
+   "title": "Bitcoin anchoring",
+   "status": "Independently verified",
+   "label": "Independently verified against the Bitcoin main chain",
+   "sentence": "Merkle root matches Bitcoin block 860000; 12 confirmations at 2026-10-15 08:00:00 UTC.",
+   "secondaryStatus": null,
+   "tone": "success",
+   "failureCode": null,
+   "failureLabel": null,
+   "committedDigestHex": "e9188342638fb0ef3fe9452fc29c88d234ff267e3ac81594db4119461e7dd34c",
+   "proofSha256": "201622f1e404fabd44bd124c1e2faf25ed071bc6a24c2cb4231c9aec837e0c8d",
+   "attestationType": "BITCOIN_BLOCK_HEADER",
+   "bitcoinBlockHeight": 860000,
+   "bitcoinTxid": null,
+   "submittedAtUtc": null,
+   "anchoredAtUtc": "2026-10-18T13:24:21.322Z",
+   "validator": "proovra-ots-proof/2 (sha256, append, prepend, reverse, hexlify)",
+   "chain": {
+    "status": "VERIFIED",
+    "failureCode": null,
+    "blockHeight": 860000,
+    "blockHash": "00000000000000000001abababababababababababababababababababababab",
+    "blockTimeUtc": "2026-08-01T00:00:00.000Z",
+    "confirmations": 12,
+    "minConfirmations": 6,
+    "checkedAtUtc": "2026-10-15T08:00:00.000Z",
+    "verifiedAtUtc": "2026-10-15T08:00:00.000Z",
+    "verifier": "proovra-ots-chain/1;core=310100;min=6;proof=201622f1e404fabd"
+   },
+   "calendar": null,
+   "proofPresent": true,
+   "lastUpdatedAtUtc": "2026-10-18T13:24:21.322Z"
+  },
+  "anchor": {
+   "mode": "ready",
+   "provider": null,
+   "configured": false,
+   "anchorHash": null,
+   "transactionId": null,
+   "anchoredAtUtc": null
+  }
+ },
+ "provenanceTime": {
+  "schema": "PROOVRA_PROVENANCE_TIME_V1",
+  "entries": [
+   {
+    "kind": "DEVICE_OBSERVED",
+    "atUtc": "2026-10-01T07:41:07.123Z",
+    "source": "CAPTURE_DEVICE_CLOCK",
+    "confidence": "CLIENT_REPORTED",
+    "label": "Device-declared capture time"
+   },
+   {
+    "kind": "SERVER_RECEIVED",
+    "atUtc": "2026-10-18T13:24:20.475Z",
+    "source": "PROOVRA_SERVER",
+    "confidence": "SERVER_OBSERVED",
+    "label": "Server received at"
+   },
+   {
+    "kind": "RECORD_CREATED",
+    "atUtc": "2026-10-18T13:24:20.489Z",
+    "source": "PROOVRA_SERVER",
+    "confidence": "SERVER_OBSERVED",
+    "label": "Record created"
+   },
+   {
+    "kind": "FINALIZED",
+    "atUtc": "2026-10-18T13:24:21.001Z",
+    "source": "PROOVRA_SERVER",
+    "confidence": "SERVER_OBSERVED",
+    "label": "Finalized and signed"
+   },
+   {
+    "kind": "OTS_ANCHORED",
+    "atUtc": "2026-10-18T13:24:21.322Z",
+    "source": "PROOVRA_SERVER",
+    "confidence": "SERVER_OBSERVED",
+    "label": "Bitcoin attestation recorded by PROOVRA"
+   }
+  ],
+  "captureTime": {
+   "kind": "DEVICE_OBSERVED",
+   "atUtc": "2026-10-01T07:41:07.123Z",
+   "source": "CAPTURE_DEVICE_CLOCK",
+   "confidence": "CLIENT_REPORTED",
+   "label": "Device-declared capture time"
+  },
+  "captureTimeStatement": "Device-declared capture time: 2026-10-01T07:41:07.123Z"
+ },
+ "technicalMaterials": {
+  "fileSha256": "1792dcf0246bfc9e4e68a63ae7b5c36d9697a8c7e67f09276b7975a1c8b92647",
+  "fileSha256Label": "Synthetic composite of per-part SHA-256 hashes (multipart). See multipartManifestSha256 for the canonical reproducible digest.",
+  "multipartManifestSha256": "b9795eeeea18bc7e8169f106646b2716a30c096222d6d92f6b28bbf4c48e6c64",
+  "multipartManifestSha256Label": "Reproducible SHA-256 of newline-joined per-part SHA-256 hashes in part-index order",
+  "hashSemantics": "multipart_composite",
+  "fingerprintHash": "e9188342638fb0ef3fe9452fc29c88d234ff267e3ac81594db4119461e7dd34c",
+  "signatureBase64": "nIfhwn4Qo2z9GEnJ3pCaKuOVzyAZO3D5huMjpxiUwnz/YS6a7xV6zplM4rUbkPnhCSBgPSP3I7dkOf2pLDw2DA==",
+  "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA/UfMOaB2P6DQswf0pwfDSz7uuak3f4ms/VTuboRYTGs=\n-----END PUBLIC KEY-----",
+  "signingKeyId": "point7_test_ed25519",
+  "signingKeyVersion": 1,
+  "tsaMessageImprint": null,
+  "tsaInputDigestHex": null,
+  "tsaInputKind": null,
+  "legacyMode": true,
+  "otsProofPresent": true
+ },
+ "versioning": {
+  "latestReportVersion": null,
+  "latestReportGeneratedAtUtc": null,
+  "verificationPackageVersion": null,
+  "verificationPackageGeneratedAtUtc": null,
+  "reviewerSummaryVersion": null
+ },
+ "recordFacts": {
+  "verificationReference": "pvr_QjjdkigT-DA-6NiRUxcm0FmKXqM",
+  "recordKindLabel": "Multipart package · 6 items",
+  "itemCount": 6,
+  "reportIssuedAtUtc": "2026-10-15T10:00:00.000Z",
+  "storedFileLastRecheckedAtUtc": "2026-10-18T09:00:00.000Z",
+  "checkedAtUtc": "2026-10-18T13:24:21.390Z",
+  "identity": {
+   "disclosure": "WITHHELD",
+   "statement": "Withheld by the record’s disclosure policy"
+  }
+ }
+}
