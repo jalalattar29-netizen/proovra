@@ -356,6 +356,10 @@ export function parseCanonicalMobileDeepLink(url: string): ParsedMobileDeepLink 
  * verification URL (…/verify/<id> or ?id=<id>), a proovra://verify?id=<id> link,
  * or a bare id. Public/read-only — it does NOT go through the tenant resolve gate
  * (that is only for evidence/cases). Returns null when nothing usable is present.
+ *
+ * A verification PACKAGE link (…/verify/package/<packageId>) is not a record
+ * reference: it is never read as the id "package" (extractVerificationPackageId
+ * reads it, and the screen opens the web package page).
  */
 export function extractVerificationId(input: string): string | null {
   const raw = (input ?? "").trim();
@@ -363,20 +367,43 @@ export function extractVerificationId(input: string): string | null {
   // Try to parse as a URL first.
   try {
     const u = new URL(raw);
-    const qp = u.searchParams.get("id");
-    if (qp && qp.trim()) return qp.trim();
+    // Self-contained (the GUARD test slices this function out alone).
     const segs =
       u.protocol === "proovra:"
         ? [u.hostname, ...u.pathname.split("/").filter(Boolean)]
         : u.pathname.split("/").filter(Boolean);
     const vi = segs.lastIndexOf("verify");
+    if (vi >= 0 && segs[vi + 1] === "package") return null;
+    const qp = u.searchParams.get("id");
+    if (qp && qp.trim()) return qp.trim();
     if (vi >= 0 && segs[vi + 1]) return decodeURIComponent(segs[vi + 1]).trim();
     // A URL with no verify segment/param carries no id.
     return null;
   } catch {
     // Not a URL — treat as a bare id, but reject anything with whitespace/slashes.
-    return /^[\w.-]+$/.test(raw) ? raw : null;
+    return /^[\w.-]+$/.test(raw) && raw !== "package" ? raw : null;
   }
+}
+
+/** The package id of a web verification package link (…/verify/package/<packageId>), or null. */
+export function extractVerificationPackageId(input: string): string | null {
+  const raw = (input ?? "").trim();
+  if (!raw) return null;
+  try {
+    const segs = verifyUrlSegments(new URL(raw));
+    const vi = segs.lastIndexOf("verify");
+    if (vi < 0 || segs[vi + 1] !== "package") return null;
+    const id = decodeURIComponent(segs[vi + 2] ?? "").trim();
+    return id && /^[\w.-]+$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function verifyUrlSegments(u: URL): string[] {
+  return u.protocol === "proovra:"
+    ? [u.hostname, ...u.pathname.split("/").filter(Boolean)]
+    : u.pathname.split("/").filter(Boolean);
 }
 
 export type MobileDeepLinkOutcome =

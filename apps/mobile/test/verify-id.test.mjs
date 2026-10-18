@@ -36,3 +36,12 @@ test("bare id passes through; junk / empty / non-verify URL → null", () => {
   assert.equal(extractVerificationId("has space"), null);
   assert.equal(extractVerificationId("https://proovra.com/something/else"), null);
 });
+
+test("a verification PACKAGE link is never read as the id \"package\"", async () => {
+  assert.equal(extractVerificationId("https://www.proovra.com/verify/package/pkg_123"), null);
+  assert.equal(extractVerificationId("https://www.proovra.com/verify/package/pkg_123?id=x"), null);
+  assert.equal(extractVerificationId("proovra://verify/package/pkg_123"), null);
+  assert.equal(extractVerificationId("package"), null);
+  // A canonical reference still resolves.
+  assert.equal(extractVerificationId("https://www.proovra.com/verify/pvr_7pLuIsF1Z_JiaqHKByYM72RwUcM"), "pvr_7pLuIsF1Z_JiaqHKByYM72RwUcM");
+});
