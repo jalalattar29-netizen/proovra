@@ -185,10 +185,11 @@ model Evidence {
   // PUBLISHED preserves pre-Phase-14 behavior exactly. UNPUBLISHED /
   // SUSPENDED return 404 from the public verify route; NOT_PUBLISHED
   // is the safe pre-state for governance-required workflows.
-  /// ET-PKG-07 (2026-09-30) — UNPUBLISHED BY DEFAULT. A record becomes public
-  /// only when its owner publishes it; and even then it is reachable only
-  /// through a share token (VerificationShareToken), never by its id.
-  publicVerifyState             PublicVerifyState @default(NOT_PUBLISHED) @map("public_verify_state")
+  /// RETIRED (2026-10-18, migration 20281018000000). A read-only compatibility
+  /// column kept so a rollback to the previous image finds it: nothing writes
+  /// it and nothing reads it. verificationDisclosureMode / showRecordedLocation
+  /// (disclosure) and verificationAccessState (access) replaced it.
+  publicVerifyState            PublicVerifyState @default(NOT_PUBLISHED) @map("public_verify_state")
   /// ET-PKG-07 — until when a record published BEFORE share tokens existed
   /// may still be verified by its id (the bounded transition; set once by the
   /// 20280816000001 backfill). NULL = never by id. An owner can end it early.
@@ -253,6 +254,22 @@ model Evidence {
   verificationAccessChangedByUserId String? @map("verification_access_changed_by_user_id") @db.Uuid
   /// Bounded code (LEGAL_REQUEST | PRIVACY_REQUEST | SECURITY_INCIDENT | OPERATOR_REVIEW).
   verificationAccessReason      String?   @map("verification_access_reason") @db.VarChar(64)
+
+  /// VERIFICATION DISCLOSURE POLICY (2026-10-18). What the canonical pvr_ page
+  /// DISCLOSES about the record's content — independent of access (above):
+  /// VERIFICATION_ONLY (default: the complete verification truth and a generic
+  /// item inventory, nothing descriptive) | CONTENT_PREVIEW (also the title,
+  /// item names, owner roles and safe previews). Never original downloads.
+  /// Written only by the verification-disclosure authority
+  /// (services/api/src/services/public-verify/verification-disclosure.service.ts).
+  verificationDisclosureMode    String    @default("VERIFICATION_ONLY") @map("verification_disclosure_mode") @db.VarChar(24)
+  /// The recorded location on the pvr_ page. True only with CONTENT_PREVIEW
+  /// (a database CHECK refuses anything else).
+  showRecordedLocation          Boolean   @default(false) @map("show_recorded_location")
+  /// Compare-and-swap token of the policy; 0 = never changed by an owner.
+  verificationDisclosureVersion Int       @default(0) @map("verification_disclosure_version")
+  verificationDisclosureChangedAtUtc DateTime? @map("verification_disclosure_changed_at_utc") @db.Timestamptz(6)
+  verificationDisclosureChangedByUserId String? @map("verification_disclosure_changed_by_user_id") @db.Uuid
 
   /// RETENTION ARCHIVE (owner decision 2026-10-14). When the record left the
   /// 90-day Trash for the Retention Archive because a retention barrier still
@@ -2532,6 +2549,10 @@ model VerificationShareToken {
   maxUses          Int?      @map("max_uses")
   useCount         Int       @default(0) @map("use_count")
   lastUsedAtUtc    DateTime? @map("last_used_at_utc") @db.Timestamptz(6)
+  /// An explicit grant: this reviewer link may hand out the ORIGINAL files
+  /// (still subject to the export gate). Default false — no link downloads
+  /// originals unless its creator said so; a pvr_ reference never does.
+  allowOriginalDownload Boolean  @default(false) @map("allow_original_download")
 
   evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
 
@@ -3487,6 +3508,8 @@ enum CustodyEventType {
   VERIFICATION_REFERENCE_ISSUED
   VERIFICATION_ACCESS_WITHDRAWN
   VERIFICATION_ACCESS_REINSTATED
+  // Verification disclosure policy (2026-10-18) — administrative.
+  VERIFICATION_DISCLOSURE_CHANGED
 }
 
 enum AuthProvider {
