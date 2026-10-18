@@ -91,11 +91,33 @@ export interface TrustState {
   endToEndReady: number;
   signedWithoutReport: number;
   reportedWithoutPackage: number;
-  verifyPublished: number;
-  verifySuspended: number;
+  /**
+   * (2026-10-18) The records' canonical verification pages (trust summary
+   * `verificationPages`): every finalized record has one — nothing is
+   * "unpublished". By disclosure policy, and pages whose access is withdrawn
+   * or suspended.
+   */
+  verificationPages: VerificationPagesCount;
   needingAttention: number;
   submissionsAwaitingReview: number;
   empty: boolean;
+}
+
+export interface VerificationPagesCount {
+  contentPreview: number;
+  verificationOnly: number;
+  unavailable: number;
+}
+
+/** `verificationPages{contentPreview, verificationOnly, unavailable}` (trust summary / command-center pipeline). */
+export function parseVerificationPages(v: unknown): VerificationPagesCount {
+  const o = obj(v);
+  return { contentPreview: n0(o.contentPreview), verificationOnly: n0(o.verificationOnly), unavailable: n0(o.unavailable) };
+}
+
+/** Pages that answer (content preview + verification only). */
+export function availableVerificationPages(p: VerificationPagesCount): number {
+  return p.contentPreview + p.verificationOnly;
 }
 
 /** web buildTrustState. Null when the summary was not read — never a card of zeros. */
@@ -120,8 +142,7 @@ export function parseTrustState(summary: unknown): TrustState | null {
     endToEndReady: n0(s.endToEndReady),
     signedWithoutReport: n0(s.signedWithoutReport),
     reportedWithoutPackage: n0(s.reportedWithoutPackage),
-    verifyPublished: n0(obj(s.publicVerify).published),
-    verifySuspended: n0(obj(s.publicVerify).suspended),
+    verificationPages: parseVerificationPages(s.verificationPages),
     needingAttention: n0(s.needingAttention),
     submissionsAwaitingReview: n0(obj(s.intake).submissionsAwaitingReview),
     empty: totalEvidence === 0,
@@ -166,10 +187,23 @@ export function buildTrustRows(t: TrustState): TrustRow[] {
       tone: t.otsFailed > 0 ? "danger" : "neutral",
     },
     { key: "signed", label: "Signed records", segments: [{ text: `${t.signed} of ${t.totalEvidence}`, tone: "neutral" }], tone: "neutral" },
-    { key: "verify", label: "Public verification links live", segments: [{ text: `${t.verifyPublished}`, tone: "neutral" }], tone: "neutral" },
+    {
+      key: "verify",
+      label: "Verification pages",
+      segments: [
+        { text: `${t.verificationPages.verificationOnly} verification only`, tone: "neutral" },
+        { text: `${t.verificationPages.contentPreview} content preview`, tone: "neutral" },
+      ],
+      tone: "neutral",
+    },
   ];
-  if (t.verifySuspended > 0) {
-    out.push({ key: "verify-suspended", label: "Public verification links paused", segments: [{ text: `${t.verifySuspended}`, tone: "danger" }], tone: "danger" });
+  if (t.verificationPages.unavailable > 0) {
+    out.push({
+      key: "verify-unavailable",
+      label: "Verification pages unavailable (withdrawn or suspended)",
+      segments: [{ text: `${t.verificationPages.unavailable}`, tone: "warn" }],
+      tone: "warn",
+    });
   }
   if (t.needingAttention > 0) {
     out.push({ key: "attention", label: "Records needing attention", segments: [{ text: `${t.needingAttention}`, tone: "danger" }], tone: "danger" });
@@ -191,7 +225,8 @@ export interface PipelineData {
   packagesQueued: number;
   packagesFailed: number;
   packagesBlocked: number;
-  verifyUnpublished: number;
+  /** The pipeline's canonical verification pages; null when an older server sent none. */
+  verificationPages: VerificationPagesCount | null;
 }
 
 export function parsePipeline(commandCenter: unknown): PipelineData | null {
@@ -213,7 +248,7 @@ export function parsePipeline(commandCenter: unknown): PipelineData | null {
     packagesQueued: int(p.queued) ?? n0(p.missingFromReported),
     packagesFailed: n0(p.failed),
     packagesBlocked: n0(p.blocked),
-    verifyUnpublished: n0(obj(d.publicVerify).unpublished),
+    verificationPages: d.verificationPages && typeof d.verificationPages === "object" ? parseVerificationPages(d.verificationPages) : null,
   };
 }
 
@@ -319,7 +354,6 @@ export function buildReportProduction(pipeline: PipelineData | null, recent: Rea
   const packagesPending = p?.packagesQueued ?? 0;
   const reportsFailed = p?.reportsFailed ?? 0;
   const packagesFailed = (p?.packagesFailed ?? 0) + (p?.packagesBlocked ?? 0);
-  const unpublished = p?.verifyUnpublished ?? 0;
   const needsAction: DeliverableIssue[] = [];
   if (reportsFailed + packagesFailed > 0) {
     needsAction.push({
@@ -341,16 +375,6 @@ export function buildReportProduction(pipeline: PipelineData | null, recent: Rea
       href: "/reports",
     });
   }
-  if (reportsReady > 0 && unpublished > 0) {
-    needsAction.push({
-      key: "publish_ready",
-      label: "Reports ready but verification not published",
-      count: Math.min(reportsReady, unpublished),
-      tone: "action",
-      actionLabel: "Publish verification",
-      href: "/evidence",
-    });
-  }
   return {
     reportsReady,
     packagesReady,
@@ -369,7 +393,6 @@ export const HOME_INTEGRITY_REVIEW_HREF = "/evidence?verificationStatus=REVIEW_R
 export const HOME_TSA_FAILURES_HREF = "/evidence?tsaStatus=FAILED,REJECTED,ERROR";
 export const HOME_OTS_PENDING_HREF = "/evidence?otsStatus=PENDING,UPGRADING,QUEUED";
 export const HOME_ANCHORING_FAILURES_HREF = "/evidence?otsStatus=FAILED,ERRORED,ERROR";
-export const HOME_PUBLISH_VERIFICATION_HREF = "/evidence?publicVerifyState=NOT_PUBLISHED,UNPUBLISHED";
 
 /* ------------------------------------------------------------- priorities */
 
@@ -526,17 +549,19 @@ export function buildWorkspacePriorities(args: {
       href: HOME_OTS_PENDING_HREF,
     });
   }
-  const unpublished = p?.verifyUnpublished ?? 0;
-  if (unpublished > 0 && args.reportCount > 0) {
+  // (2026-10-18) Nothing is "published": every finalized record has its page.
+  // Only a page that answers "unavailable" (withdrawn or suspended) is work.
+  const unavailablePages = p?.verificationPages?.unavailable ?? t?.verificationPages.unavailable ?? 0;
+  if (unavailablePages > 0) {
     out.push({
-      key: "publish_verification",
+      key: "verification_pages_unavailable",
       severity: "info",
-      count: unpublished,
-      label: `${unpublished} record${plural(unpublished, " is", "s are")} ready but not publicly verifiable`,
-      whyItMatters: "External recipients cannot independently verify these records yet.",
-      recommendedAction: "Publish their verification pages so links can be shared.",
-      actionLabel: "Publish verification",
-      href: HOME_PUBLISH_VERIFICATION_HREF,
+      count: unavailablePages,
+      label: `${unavailablePages} verification page${plural(unavailablePages, " is", "s are")} withdrawn or suspended`,
+      whyItMatters: "Every link to these records' verification pages answers that the page is unavailable.",
+      recommendedAction: "Review the withdrawal on each record's page on the web.",
+      actionLabel: "Open evidence",
+      href: "/evidence",
     });
   }
   if (args.reportsReady > 0) {
@@ -654,9 +679,10 @@ export function shouldShowGettingStarted(args: {
   evidenceCount: number | null;
   reportCount: number | null;
   caseCount: number | null;
-  verifyPublished: number | null;
+  /** Verification pages that answer (content preview + verification only). */
+  verificationPages: number | null;
 }): boolean {
-  return args.evidenceCount === 0 && (args.reportCount ?? 0) === 0 && (args.caseCount ?? 0) === 0 && (args.verifyPublished ?? 0) === 0;
+  return args.evidenceCount === 0 && (args.reportCount ?? 0) === 0 && (args.caseCount ?? 0) === 0 && (args.verificationPages ?? 0) === 0;
 }
 
 /** web HomeHeader — time-of-day greeting. */
@@ -731,7 +757,7 @@ export function buildHomeSummary(args: {
   const overallStatus: HomeSummary["overallStatus"] =
     (t && (t.tsaFailed > 0 || t.otsFailed > 0)) || args.storage?.limitReached
       ? "critical"
-      : (t && (t.needingAttention > 0 || t.verifySuspended > 0)) || failedOutput > 0
+      : (t && (t.needingAttention > 0 || t.verificationPages.unavailable > 0)) || failedOutput > 0
         ? "action_required"
         : args.priorities.some((p) => p.severity !== "info") || unsigned > 0 || (t?.otsPending ?? 0) > 0
           ? "needs_attention"
@@ -880,7 +906,7 @@ export function buildHomeKpis(s: HomeSources, opts: HomeKpiOptions = {}): HomeKp
           ? "End-to-end readiness appears with your first record"
           : stuck > 0
             ? `${formatKpiNumber(ready)} of ${formatKpiNumber(trust.totalEvidence)} have report + package · ${formatKpiNumber(stuck)} need attention`
-            : `${formatKpiNumber(ready)} of ${formatKpiNumber(trust.totalEvidence)} have report + package · ${formatKpiNumber(trust.verifyPublished)} verify pages live`,
+            : `${formatKpiNumber(ready)} of ${formatKpiNumber(trust.totalEvidence)} have report + package · ${formatKpiNumber(availableVerificationPages(trust.verificationPages))} verification pages available`,
       tone: trust.needingAttention > 0 ? "risk" : stuck > 0 ? "pending" : ready > 0 ? "verified" : "neutral",
       href: "/evidence",
     };

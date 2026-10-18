@@ -151,7 +151,7 @@ test("without a pipeline the deliverables fall back to the reports list", () => 
 test("priorities come from shared workspace facts, ranked critical > warning > info", () => {
   const p = H.buildWorkspacePriorities({
     trust: H.parseTrustState({ totalEvidence: 10, tsa: { failed: 2 }, ots: { pending: 4 }, needingAttention: 1, intake: { submissionsAwaitingReview: 3 } }),
-    pipeline: H.parsePipeline(pipe({ packages: { queued: 5 }, publicVerify: { unpublished: 2 }, reports: { ready: 1 } })),
+    pipeline: H.parsePipeline(pipe({ packages: { queued: 5 }, verificationPages: { verificationOnly: 1, contentPreview: 0, unavailable: 0 }, reports: { ready: 1 } })),
     reportCount: 1,
     mattersNeedingWork: 0,
     reportsReady: 1,
@@ -166,6 +166,25 @@ test("priorities come from shared workspace facts, ranked critical > warning > i
   // Warnings rank by affected count.
   assert.deepEqual(p.slice(1, 4).map((x) => x.key), ["complete_packages", "ots_pending", "review_submissions"]);
   assert.equal(p.length, 5, "the web caps the list at five");
+});
+
+test("(2026-10-18) no publish priority or CTA: only withdrawn/suspended verification pages are work", () => {
+  assert.equal(H.HOME_PUBLISH_VERIFICATION_HREF, undefined);
+  const base = { trust: null, reportCount: 3, mattersNeedingWork: 0, reportsReady: 0, storage: null, intakeIncluded: false, activeLinks: null };
+  const quiet = H.buildWorkspacePriorities({ ...base, pipeline: H.parsePipeline(pipe({ verificationPages: { verificationOnly: 7, contentPreview: 2, unavailable: 0 } })) });
+  assert.ok(!quiet.some((x) => /publish/i.test(`${x.key} ${x.label} ${x.actionLabel}`)));
+  const p = H.buildWorkspacePriorities({ ...base, pipeline: H.parsePipeline(pipe({ verificationPages: { verificationOnly: 7, contentPreview: 2, unavailable: 2 } })) });
+  const row = p.find((x) => x.key === "verification_pages_unavailable");
+  assert.equal(row.count, 2);
+  assert.equal(row.label, "2 verification pages are withdrawn or suspended");
+  // The pipeline reads verificationPages, never the retired publicVerify bucket.
+  assert.deepEqual(H.parsePipeline(pipe({ verificationPages: { verificationOnly: 7, contentPreview: 2, unavailable: 2 } })).verificationPages, { verificationOnly: 7, contentPreview: 2, unavailable: 2 });
+  assert.equal(H.parsePipeline(pipe({ publicVerify: { unpublished: 9 } })).verificationPages, null);
+  // The trust state counts pages by disclosure.
+  const t = H.parseTrustState({ totalEvidence: 9, verificationPages: { verificationOnly: 7, contentPreview: 2, unavailable: 0 } });
+  assert.deepEqual(t.verificationPages, { contentPreview: 2, verificationOnly: 7, unavailable: 0 });
+  assert.equal(H.availableVerificationPages(t.verificationPages), 9);
+  assert.equal("verifyPublished" in t, false);
 });
 
 test("the one-person inbox is NOT a source of workspace priorities", () => {
@@ -300,10 +319,13 @@ test("a plan without a percentage reports usage without inventing a fraction", (
 /* --------------------------------------------------------- trust rows */
 
 test("the verification summary says each count in its own tone", () => {
-  const rows = H.buildTrustRows(H.parseTrustState({ totalEvidence: 176, tsa: { stamped: 138, failed: 34 }, ots: { anchored: 170, pending: 6 }, signed: 172, publicVerify: { published: 4, suspended: 1 } }));
+  const rows = H.buildTrustRows(H.parseTrustState({ totalEvidence: 176, tsa: { stamped: 138, failed: 34 }, ots: { anchored: 170, pending: 6 }, signed: 172, verificationPages: { verificationOnly: 170, contentPreview: 4, unavailable: 1 } }));
   const tsa = rows.find((r) => r.key === "tsa");
   assert.deepEqual(tsa.segments, [{ text: "138 stamped", tone: "ok" }, { text: "34 failed", tone: "danger" }]);
   assert.equal(rows.find((r) => r.key === "signed").segments[0].text, "172 of 176");
-  assert.ok(rows.some((r) => r.key === "verify-suspended"));
+  // (2026-10-18) Verification pages by disclosure; withdrawn/suspended pages are their own row. Nothing is "published".
+  assert.deepEqual(rows.find((r) => r.key === "verify").segments.map((x) => x.text), ["170 verification only", "4 content preview"]);
+  assert.ok(rows.some((r) => r.key === "verify-unavailable"));
+  assert.ok(!rows.some((r) => /publish/i.test(r.label)));
   assert.equal(rows.some((r) => r.key === "attention"), false, "a zero attention count adds no row");
 });

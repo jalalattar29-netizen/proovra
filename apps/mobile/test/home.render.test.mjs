@@ -72,7 +72,7 @@ const OK = () => ({
           evidence: { created: 0, uploading: 0, uploaded: 0, signed: 100, reported: 1180, stuckUploading: 0 },
           reports: { ready: 12, versionsTotal: 14, queued: 0, failed: 0, missingFromSigned: 0 },
           packages: { ready: 3, versionsTotal: 3, queued: 0, blocked: 0, failed: 0, missingFromReported: 0 },
-          publicVerify: { published: 0, unpublished: 0, suspended: 0 },
+          verificationPages: { verificationOnly: 0, contentPreview: 0, unavailable: 0 },
         },
       },
     },
@@ -83,7 +83,7 @@ const OK = () => ({
     signed: 1280,
     tsa: { stamped: 1278, pending: 0, failed: 2, none: 0 },
     ots: { anchored: 1276, pending: 4, failed: 0, none: 0 },
-    publicVerify: { published: 0, unpublished: 1280, suspended: 0 },
+    verificationPages: { verificationOnly: 1280, contentPreview: 0, unavailable: 0 },
     intake: { submissionsAwaitingReview: 0 },
   }),
   "/v1/billing/overview": () => ({
@@ -244,7 +244,7 @@ test("Workspace views: Overview, Operations and Analytics each carry the web's m
 test("an empty workspace offers the first workflow, not a verdict", async () => {
   routes["/v1/evidence"] = () => ({ items: [], nextCursor: null });
   routes["/v1/dashboard/command-center"] = () => ({ sections: { caseOperations: { status: "ok", data: { activeCasesCount: 0, topCases: [] } } } });
-  routes["/v1/dashboard/trust-summary"] = () => ({ totalEvidence: 0, publicVerify: { published: 0, unpublished: 0, suspended: 0 } });
+  routes["/v1/dashboard/trust-summary"] = () => ({ totalEvidence: 0, verificationPages: { verificationOnly: 0, contentPreview: 0, unavailable: 0 } });
   const r = await render();
   assert.ok(r.hasText("Your newest records appear here after the first capture."));
   assert.ok(r.hasText("Start your first evidence workflow"));

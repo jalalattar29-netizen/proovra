@@ -3,7 +3,7 @@
  * not have, ported rule-for-rule from `home-view-model.ts`:
  *
  *   buildActiveMatters      ← buildActiveMatters   (command-center caseOperations.topCases)
- *   buildVerificationHealth ← buildVerificationHealth (trust-summary publicVerify)
+ *   buildVerificationHealth ← buildVerificationHealth (trust-summary verificationPages)
  *   buildRecentReports      ← buildRecentReports   (GET /v1/reports items)
  *   buildTeamWork           ← buildTeamWork        (platform context + trust-summary intake)
  *
@@ -86,7 +86,7 @@ export function buildActiveMatters(commandCenter: unknown, reportCaseIds: Readon
       if (escalations > 0) reasons.push(`${escalations} blocked`);
       if (chain === "needs_report") reasons.push("no report yet");
       else if (chain === "missing_package") reasons.push("package missing");
-      else if (chain === "needs_publication") reasons.push("verification not published");
+      else if (chain === "needs_publication") reasons.push("verification page unavailable");
       const verdict: MatterVerdict = escalations > 0 || overdue > 0 ? "action_required" : needsWork ? "needs_work" : "healthy";
       return {
         caseId,
@@ -121,12 +121,15 @@ export function matterChainLabel(r: ActiveMatterRow): string | null {
 // ---------------------------------------------------------------------------
 
 export interface VerificationHealth {
-  live: number;
-  unpublished: number;
-  suspended: number;
+  /** Pages that disclose verification only (trust summary `verificationPages.verificationOnly`). */
+  verificationOnly: number;
+  /** Pages that disclose a content preview. */
+  contentPreview: number;
+  /** Pages whose access is withdrawn or suspended. */
+  unavailable: number;
   empty: boolean;
-  /** command-center timeline `verification_published` events, newest first (max 3). */
-  recentPublications: Array<{ label: string; href: string; occurredAt: string }>;
+  /** command-center timeline `verification_disclosure_changed` events, newest first (max 3). */
+  recentDisclosureChanges: Array<{ label: string; href: string; occurredAt: string }>;
   /** Recent reports whose package is ready — the public verify page works (max 5). */
   verifiable: Array<{ evidenceId: string; title: string }>;
 }
@@ -142,16 +145,15 @@ export function buildVerificationHealth(
   if (!trustSummary || typeof trustSummary !== "object") return null;
   const s = obj(trustSummary);
   const total = num(s.totalEvidence);
-  const live = num(obj(s.publicVerify).published);
-  const suspended = num(obj(s.publicVerify).suspended);
+  const pages = obj(s.verificationPages);
   const empty = total === 0;
-  const recentPublications = rows(obj(obj(obj(extras.commandCenter).sections).timeline).items)
+  const recentDisclosureChanges = rows(obj(obj(obj(extras.commandCenter).sections).timeline).items)
     .map(obj)
-    .filter((it) => it.kind === "verification_published" && str(it.occurredAt))
+    .filter((it) => it.kind === "verification_disclosure_changed" && str(it.occurredAt))
     .sort((a, b) => ((str(a.occurredAt) ?? "") < (str(b.occurredAt) ?? "") ? 1 : -1))
     .slice(0, 3)
     .map((it) => ({
-      label: str(it.label) ?? "Verification published",
+      label: str(it.label) ?? "Verification page disclosure changed",
       href: str(it.href) ?? "/evidence",
       occurredAt: str(it.occurredAt) as string,
     }));
@@ -160,11 +162,11 @@ export function buildVerificationHealth(
     .slice(0, 5)
     .map((r) => ({ evidenceId: r.evidenceId, title: r.title }));
   return {
-    live,
-    suspended,
+    verificationOnly: num(pages.verificationOnly),
+    contentPreview: num(pages.contentPreview),
+    unavailable: num(pages.unavailable),
     empty,
-    unpublished: empty ? 0 : Math.max(0, total - live - suspended),
-    recentPublications,
+    recentDisclosureChanges,
     verifiable,
   };
 }
