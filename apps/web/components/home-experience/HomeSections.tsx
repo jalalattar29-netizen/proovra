@@ -742,7 +742,7 @@ export function ReportProductionCard({
         <ProductionStat label="Failed" value={production.reportsFailed + production.packagesFailed} tone="danger" />
       </div>
       {/* Phase HOME-INTELLIGENCE — deliverable issues that need the
-          user (failures, package gaps, unpublished verification). */}
+          user (failures, package gaps). */}
       {production.needsAction.length > 0 ? (
         <ul data-report-needs-action style={{ ...listStyle, marginBottom: 10, gap: 5 }}>
           {production.needsAction.map((i) => {
@@ -1019,21 +1019,22 @@ function VerifyStat({ label, value }: { label: string; value: number; tone?: "da
 }
 
 export function VerificationHealthCard({ health }: { health: VerificationHealth }) {
-  const liveActive = health.live > 0;
+  const available = health.contentPreview + health.verificationOnly;
+  const liveActive = available > 0;
   return (
-    <SectionCard title="Public verification links" testId="verification-health" fill>
+    <SectionCard title="Verification pages" testId="verification-health" fill>
       {health.empty ? (
         <p data-verify-empty style={{ margin: "0 0 10px 0", fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
-          Public verification links appear once you publish a record — letting anyone independently
-          confirm your evidence.
+          Every finalized record gets a permanent verification page — letting anyone independently confirm your
+          evidence.
         </p>
       ) : null}
-      {/* Phase HOME-POLISH — Live verification is PROOVRA's public face: it
-          gets the hero treatment in the UNIFIED success green (only when live
-          > 0; a zero count stays neutral, never green). */}
+      {/* Available pages get the hero treatment in the UNIFIED success green
+          (only when > 0; a zero count stays neutral, never green). Every
+          finalized record has a page: the split is what they disclose. */}
       <div data-verify-stats style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
         <div
-          data-verify-stat="Live"
+          data-verify-stat="Available"
           style={{
             flex: "1.4 1 0",
             minWidth: 0,
@@ -1044,38 +1045,28 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
           }}
         >
           <div style={{ fontSize: 26, fontWeight: 780, color: liveActive ? HOME_SEMANTIC.success.strong : HOME_SEMANTIC.neutral.numberInk, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-            {health.live}
+            {available}
           </div>
           <div style={{ fontSize: 11, color: "#526071", marginTop: 4 }}>
-            verification page{health.live === 1 ? "" : "s"} live
+            verification page{available === 1 ? "" : "s"} available
           </div>
         </div>
-        <VerifyStat label="Not published" value={health.unpublished} />
-        <VerifyStat label="Suspended" value={health.suspended} />
+        <VerifyStat label="Content preview" value={health.contentPreview} />
+        <VerifyStat label="Verification only" value={health.verificationOnly} />
+        <VerifyStat label="Unavailable" value={health.unavailable} />
       </div>
-      {health.unpublished > 0 ? (
-        <Link
-          href="/evidence"
-          data-verify-publish
-          style={{ ...secondaryButtonStyle, marginTop: 10, background: "#6D28D9", color: "white", border: "1px solid #6D28D9" }}
-        >
-          Publish verification
-        </Link>
-      ) : null}
-      {/* Phase HOME-DECISIONS — recently published verification pages
-          (real publish timestamps from the timeline projection). */}
-      {health.recentPublications.length > 0 ? (
-        <div data-verify-recent-publications style={{ marginTop: 10 }}>
+      {health.recentDisclosureChanges.length > 0 ? (
+        <div data-verify-recent-disclosure-changes style={{ marginTop: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: HOME_COLORS.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>
-            Recently published
+            Recently changed
           </div>
           <ul style={{ ...listStyle, gap: 4 }}>
-            {health.recentPublications.map((pub) => (
-              <li key={pub.href + pub.occurredAt} style={{ ...listItemStyle, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, background: HOME_SEMANTIC.success.subtleBg }}>
-                <Link href={pub.href} style={{ ...listItemTitleStyle, minWidth: 0, textDecoration: "none", color: HOME_SEMANTIC.success.text, fontSize: 12.5 }} title={pub.label}>
-                  {pub.label}
+            {health.recentDisclosureChanges.map((change) => (
+              <li key={change.href + change.occurredAt} style={{ ...listItemStyle, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, background: HOME_SEMANTIC.neutral.softBg }}>
+                <Link href={change.href} style={{ ...listItemTitleStyle, minWidth: 0, textDecoration: "none", fontSize: 12.5 }} title={change.label}>
+                  {change.label}
                 </Link>
-                <span style={{ ...listItemTimeStyle, flexShrink: 0 }}>{formatRelative(pub.occurredAt)}</span>
+                <span style={{ ...listItemTimeStyle, flexShrink: 0 }}>{formatRelative(change.occurredAt)}</span>
               </li>
             ))}
           </ul>
@@ -1314,10 +1305,15 @@ function trustRows(
     },
     otsTrustRow(trust),
     { key: "signed", label: "Signed records", value: `${trust.signed} of ${trust.totalEvidence}`, tone: "neutral" },
-    { key: "verify", label: "Public verification links live", value: `${trust.verifyPublished}`, tone: "neutral" },
+    {
+      key: "verify",
+      label: "Verification pages available",
+      value: `${trust.verifyContentPreview + trust.verifyVerificationOnly} (${trust.verifyContentPreview} content preview · ${trust.verifyVerificationOnly} verification only)`,
+      tone: "neutral",
+    },
   ];
-  if (trust.verifySuspended > 0) {
-    rows.push({ key: "verify-suspended", label: "Public verification links paused", value: `${trust.verifySuspended}`, tone: "danger" });
+  if (trust.verifyUnavailable > 0) {
+    rows.push({ key: "verify-unavailable", label: "Verification pages unavailable", value: `${trust.verifyUnavailable}`, tone: "danger" });
   }
   if (trust.needingAttention > 0) {
     rows.push({ key: "attention", label: "Records needing attention", value: `${trust.needingAttention}`, tone: "danger" });
@@ -1440,8 +1436,8 @@ const ACTIVITY_GLYPH: Record<string, string> = {
   report_generated: "M6 3h9l4 4v14H6zM14 3v5h5M9.5 13.5l2 2 3.5-3.5",
   // A package — a closed box.
   package_generated: "M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9",
-  // A published verification page — a globe.
-  verification_published:
+  // A verification page's disclosure changed — a globe.
+  verification_disclosure_changed:
     "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18",
   // A request back to a contributor — an outbound arrow.
   request_more_sent: "M4 12h13M13 7l5 5-5 5M20 4v16",
@@ -1475,7 +1471,7 @@ function activityDot(kind: string): string {
     evidence_finalized: "#6D28D9",
     report_generated: "#16a34a",
     package_generated: "#0d9488",
-    verification_published: "#0e7490",
+    verification_disclosure_changed: "#0e7490",
     request_more_sent: "#b45309",
     lifecycle_transition: "#0891b2",
     destruction_review: "#b45309",

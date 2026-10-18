@@ -1,31 +1,38 @@
 /**
- * ET-PKG-07 — the owner's controls for public verification links, rendered.
+ * ET-PKG-07 / 2026-10-18 — the owner's controls for SECURE REVIEWER SHARES
+ * (pvs_), rendered.
  *
- * The server tests prove what a link can and cannot open. This proves what the
- * OWNER can do about it from the record page, by driving the real panel:
+ * The server tests prove what a share can and cannot open. This proves what
+ * the OWNER can do about it from the record page, by driving the real panel:
  *
- *   - see the active links, and tell an expired link from a revoked one;
- *   - create a link — choosing who it is for — and copy it, once;
- *   - be told, before it happens, that the first link publishes the record;
- *   - revoke one recipient's link, and replace (rotate) one;
+ *   - see the active shares with their profile, and tell expired from revoked;
+ *   - create a share — recipient, expiry, use limit, profile — and copy it once;
+ *   - grant "Allow original file download" only on a Content preview share,
+ *     and confirm identity (step-up) when it is granted;
+ *   - creating a share never publishes anything (no confirmation, no
+ *     `published` field, no record refresh);
+ *   - a share on a withdrawn/suspended page reads as the SERVER says
+ *     (usable / inactiveReason PAGE_NOT_AVAILABLE) — never derived here;
+ *   - revoke one reviewer's share, and replace (rotate) one;
  *   - see when the legacy record-id link ends, and end it early;
- *   - and never see a stored link's secret.
+ *   - and never see a stored share's secret.
  */
 // @vitest-environment jsdom
 import React from "react";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, cleanup, fireEvent, waitFor } from "@testing-library/react";
 
-type Call = { method: string; path: string; body: unknown };
+type Call = { method: string; path: string; body: unknown; headers: Record<string, string> };
 let calls: Call[] = [];
 let routes: Record<string, (call: Call) => unknown> = {};
 
 vi.mock("../../lib/api", () => ({
-  apiFetch: async (path: string, init: { method?: string; body?: string } = {}) => {
+  apiFetch: async (path: string, init: { method?: string; body?: string; headers?: Record<string, string> } = {}) => {
     const call: Call = {
       method: (init.method ?? "GET").toUpperCase(),
       path,
       body: init.body ? JSON.parse(init.body) : null,
+      headers: init.headers ?? {},
     };
     calls.push(call);
     const handler = routes[`${call.method} ${path}`];
@@ -38,7 +45,31 @@ vi.mock("../../lib/api", () => ({
 }));
 vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
 
-import { PublicVerificationLinksPanel } from "../../components/evidence-outputs/PublicVerificationLinksPanel";
+/** The step-up flow, reduced to what this panel relies on: a 401
+ * STEP_UP_REQUIRED is answered by a challenge, then the action is retried
+ * with the proof header. `stepUps` records each challenge. */
+let stepUps = 0;
+vi.mock("../../components/identity-security/StepUpModal", () => {
+  const control = {
+    state: { kind: "idle" },
+    runStepUpAction: async (fn: (headers?: Record<string, string>) => Promise<unknown>) => {
+      try {
+        return await fn();
+      } catch (err) {
+        if ((err as { code?: string }).code !== "STEP_UP_REQUIRED") throw err;
+        stepUps += 1;
+        return fn({ "x-step-up-challenge": "challenge-1" });
+      }
+    },
+    cancel: () => {},
+    closeIdle: () => {},
+    startChallenge: async () => {},
+    verifyAndRetry: async () => {},
+  };
+  return { useStepUpAction: () => control, StepUpModal: () => null };
+});
+
+import { ReviewerSharesPanel } from "../../components/evidence-outputs/ReviewerSharesPanel";
 import { ToastProvider } from "../../components/ui";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
 
@@ -64,13 +95,16 @@ function link(over: Record<string, unknown> = {}) {
     maxUses: null,
     useCount: 2,
     lastUsedAtUtc: null,
+    usable: true,
+    inactiveReason: null,
+    allowOriginalDownload: false,
     ...over,
   };
 }
 
 function listing(over: Record<string, unknown> = {}) {
   return {
-    publicVerifyState: "PUBLISHED",
+    verificationAccessState: "AVAILABLE",
     shareable: true,
     legacy: null,
     links: [link()],
@@ -82,12 +116,12 @@ async function mount(onChanged = () => {}) {
   const view = render(
     <ToastProvider>
       <ConfirmActionProvider>
-        <PublicVerificationLinksPanel evidenceId={EVIDENCE} teamId="team-1" onChanged={onChanged} />
+        <ReviewerSharesPanel evidenceId={EVIDENCE} teamId="team-1" onChanged={onChanged} />
       </ConfirmActionProvider>
     </ToastProvider>,
   );
   await waitFor(() =>
-    expect(view.container.querySelector("p.app-field__help")?.textContent).not.toBe("Loading links…"),
+    expect(view.container.querySelector("p.app-field__help")?.textContent).not.toBe("Loading reviewer shares…"),
   );
   return view;
 }
@@ -109,15 +143,17 @@ async function confirmModal(accept: boolean) {
 }
 
 const posts = () => calls.filter((c) => c.method === "POST");
+const bodies = () => posts().map(({ method, path, body }) => ({ method, path, body }));
 
 beforeEach(() => {
   calls = [];
+  stepUps = 0;
   routes = { [`GET ${BASE}`]: () => listing() };
 });
 afterEach(() => cleanup());
 
-describe("Public verification links — owner controls", () => {
-  it("lists the active link with its actions; expired and revoked links are told apart, and no secret is rendered", async () => {
+describe("Secure reviewer shares — owner controls", () => {
+  it("lists the active share with its profile and actions; expired and revoked are told apart, and no secret is rendered", async () => {
     routes[`GET ${BASE}`] = () =>
       listing({
         links: [
@@ -132,13 +168,14 @@ describe("Public verification links — owner controls", () => {
     const active = container.querySelectorAll("[data-verification-links='active'] [data-verification-link]");
     expect(active.length).toBe(1);
     expect(active[0]!.textContent).toContain("Opposing counsel");
+    expect(active[0]!.querySelector("[data-verification-link-profile]")!.textContent).toBe("Content preview");
     expect(active[0]!.querySelector("[data-verification-link-action='revoke']")).not.toBeNull();
     expect(active[0]!.querySelector("[data-verification-link-action='rotate']")).not.toBeNull();
 
     // Inactive links are behind a toggle that says how many there are.
     expect(container.querySelector("[data-verification-links='inactive']")).toBeNull();
     const toggle = container.querySelector("[data-verification-links-toggle='inactive']")!;
-    expect(toggle.textContent).toContain("Show 3 expired or revoked links");
+    expect(toggle.textContent).toContain("Show 3 expired or revoked shares");
     fireEvent.click(toggle);
 
     const state = (id: string) => container.querySelector(`[data-verification-link='${id}']`)!;
@@ -158,36 +195,46 @@ describe("Public verification links — owner controls", () => {
     expect(container.innerHTML).not.toContain(`/verify/${EVIDENCE}`);
   });
 
-  it("creates a link for a named recipient and shows it once, to copy", async () => {
+  it("creates a share for a named recipient and shows it once, to copy — it never publishes anything", async () => {
     routes[`POST ${BASE}`] = () => ({
       link: link({ id: "link-new", audience: "The insurer" }),
       token: TOKEN,
       verifyPath: `/verify/${TOKEN}`,
-      published: false,
     });
+    const onChanged = vi.fn();
     const written: string[] = [];
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: { writeText: async (t: string) => void written.push(t) },
     });
-    const { container } = await mount();
+    const { container } = await mount(onChanged);
 
-    // No recipient, no link.
+    // No recipient, no share.
     const submit = container.querySelector("[data-verification-link-action='create']") as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
     fireEvent.change(container.querySelector("#verification-link-audience")!, { target: { value: "  The insurer " } });
     expect(submit.disabled).toBe(false);
-    expect(submit.textContent).toBe("Create recipient link");
+    expect(submit.textContent).toBe("Create reviewer share");
 
     fireEvent.submit(container.querySelector("[data-verification-link-form]")!);
     await waitFor(() => expect(container.querySelector("[data-verification-link-created]")).not.toBeNull());
 
-    // The record was already public: no publish confirmation was needed.
-    expect(posts()).toEqual([
+    // No publish confirmation, no step-up (no download grant), no refresh of
+    // the record's page state: a share never publishes.
+    expect(document.querySelector("[data-confirm-action-modal]")).toBeNull();
+    expect(stepUps).toBe(0);
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(bodies()).toEqual([
       {
         method: "POST",
         path: BASE,
-        body: { audience: "The insurer", expiresInDays: 30, projection: "STANDARD", maxUses: null },
+        body: {
+          audience: "The insurer",
+          expiresInDays: 30,
+          projection: "STANDARD",
+          maxUses: null,
+          allowOriginalDownload: false,
+        },
       },
     ]);
 
@@ -223,43 +270,74 @@ describe("Public verification links — owner controls", () => {
     expect((posts()[0]!.body as { maxUses: number }).maxUses).toBe(3);
   });
 
-  it("a private record says so, and its first link is created only after the owner confirms publishing", async () => {
-    routes[`GET ${BASE}`] = () => listing({ publicVerifyState: "NOT_PUBLISHED", links: [] });
-    routes[`POST ${BASE}`] = () => ({
-      link: link({ id: "first" }),
-      token: TOKEN,
-      verifyPath: `/verify/${TOKEN}`,
-      published: true,
-    });
-    const onChanged = vi.fn();
-    const { container } = await mount(onChanged);
+  it("Allow original file download is offered only on a Content preview share, and granting it asks for step-up", async () => {
+    routes[`POST ${BASE}`] = (call) => {
+      // The server answers 401 STEP_UP_REQUIRED until the proof is attached.
+      if (!call.headers["x-step-up-challenge"]) {
+        throw Object.assign(new Error("step-up"), { statusCode: 401, code: "STEP_UP_REQUIRED" });
+      }
+      return {
+        link: link({ id: "link-dl", audience: "Expert", allowOriginalDownload: true }),
+        token: TOKEN,
+        verifyPath: `/verify/${TOKEN}`,
+      };
+    };
+    const { container } = await mount();
+    const grant = container.querySelector("[data-verification-link-original-download-toggle]") as HTMLInputElement;
+    // Default profile is Content preview: the grant is available, and off.
+    expect(grant.disabled).toBe(false);
+    expect(grant.checked).toBe(false);
+    expect(container.querySelector("label[for='verification-link-original-download']")!.textContent).toBe(
+      "Allow original file download",
+    );
 
-    expect(container.querySelector("[data-verification-links-state]")!.getAttribute("data-verification-links-state")).toBe("private");
-    expect(container.textContent).toContain("A recipient link is for one named person");
-    expect(container.textContent).toContain("No active links.");
-    const submit = container.querySelector("[data-verification-link-action='create']") as HTMLButtonElement;
-    expect(submit.textContent).toBe("Create recipient link");
-
-    fireEvent.change(container.querySelector("#verification-link-audience")!, { target: { value: "Counsel" } });
-
-    // Declined: nothing is created and nothing is published.
+    fireEvent.change(container.querySelector("#verification-link-audience")!, { target: { value: "Expert" } });
+    fireEvent.click(grant);
+    expect(grant.checked).toBe(true);
     fireEvent.submit(container.querySelector("[data-verification-link-form]")!);
-    const text = await confirmModal(false);
-    expect(text).toContain("Allow recipient links for this record?");
-    expect(text).toContain("can show more of this record than its verification page");
-    await waitFor(() => expect(document.querySelector("[data-confirm-action-modal]")).toBeNull());
-    expect(posts()).toEqual([]);
-    expect(onChanged).not.toHaveBeenCalled();
-
-    // Confirmed: created, and the page is told the publication state changed.
-    fireEvent.submit(container.querySelector("[data-verification-link-form]")!);
-    await confirmModal(true);
     await waitFor(() => expect(container.querySelector("[data-verification-link-created]")).not.toBeNull());
-    expect(posts().length).toBe(1);
-    expect(onChanged).toHaveBeenCalledTimes(1);
+
+    expect(stepUps).toBe(1);
+    expect(posts().length).toBe(2);
+    expect(posts()[0]!.body).toMatchObject({ projection: "STANDARD", allowOriginalDownload: true });
+    expect(posts()[1]!.headers["x-step-up-challenge"]).toBe("challenge-1");
   });
 
-  it("revokes one recipient's link after a confirmation that names it", async () => {
+  it("a Verification only share never carries the download grant", async () => {
+    routes[`POST ${BASE}`] = () => ({ link: link({ id: "b", projection: "BASIC" }), token: TOKEN, verifyPath: `/verify/${TOKEN}` });
+    const { container } = await mount();
+    const grant = () => container.querySelector("[data-verification-link-original-download-toggle]") as HTMLInputElement;
+    fireEvent.change(container.querySelector("#verification-link-audience")!, { target: { value: "Clerk" } });
+    fireEvent.click(grant());
+    expect(grant().checked).toBe(true);
+
+    // Switch the profile to Verification only (BASIC): the grant is cleared and disabled.
+    fireEvent.click(container.querySelector("#verification-link-projection")!);
+    const basic = await waitFor(() => {
+      const opt = Array.from(document.querySelectorAll("[role='option']")).find((o) => /Verification only/.test(o.textContent ?? ""));
+      expect(opt).toBeTruthy();
+      return opt as HTMLElement;
+    });
+    fireEvent.click(basic);
+    await waitFor(() => expect(grant().disabled).toBe(true));
+    expect(grant().checked).toBe(false);
+    expect(container.textContent).toContain("Available only with the Content preview profile.");
+
+    fireEvent.submit(container.querySelector("[data-verification-link-form]")!);
+    await waitFor(() => expect(posts().length).toBe(1));
+    expect(posts()[0]!.body).toMatchObject({ projection: "BASIC", allowOriginalDownload: false });
+    expect(stepUps).toBe(0);
+  });
+
+  it("a share with the download grant says so on its row", async () => {
+    routes[`GET ${BASE}`] = () => listing({ links: [link({ allowOriginalDownload: true })] });
+    const { container } = await mount();
+    expect(container.querySelector("[data-verification-link-original-download]")!.textContent).toContain(
+      "Original download allowed",
+    );
+  });
+
+  it("revokes one reviewer's share after a confirmation that names it", async () => {
     routes[`POST ${BASE}/link-active/revoke`] = () => {
       routes[`GET ${BASE}`] = () =>
         listing({ links: [link({ state: "REVOKED", revokedAtUtc: "2026-09-30T10:00:00.000Z", revocationReason: "OWNER" })] });
@@ -269,13 +347,13 @@ describe("Public verification links — owner controls", () => {
 
     fireEvent.click(container.querySelector("[data-verification-link-action='revoke']")!);
     const text = await confirmModal(true);
-    expect(text).toContain("Revoke this verification link?");
+    expect(text).toContain("Revoke this reviewer share?");
     expect(text).toContain("Opposing counsel");
-    expect(text).toContain("Other links for this record are not affected");
+    expect(text).toContain("Other reviewer shares and the verification page are not affected");
 
-    await waitFor(() => expect(container.textContent).toContain("No active links."));
+    await waitFor(() => expect(container.textContent).toContain("No active reviewer shares."));
     expect(posts().map((c) => c.path)).toEqual([`${BASE}/link-active/revoke`]);
-    expect(container.querySelector("[data-verification-links-toggle='inactive']")!.textContent).toContain("1 expired or revoked link");
+    expect(container.querySelector("[data-verification-links-toggle='inactive']")!.textContent).toContain("1 expired or revoked share");
   });
 
   it("declining the revoke confirmation changes nothing", async () => {
@@ -287,7 +365,7 @@ describe("Public verification links — owner controls", () => {
     expect(container.querySelectorAll("[data-verification-links='active'] [data-verification-link]").length).toBe(1);
   });
 
-  it("replaces a link: the old one stops, and the new one is shown once", async () => {
+  it("replaces a share: the old one stops, and the new one is shown once", async () => {
     const NEXT = "pvs_" + "r".repeat(43);
     routes[`POST ${BASE}/link-active/rotate`] = () => ({
       link: link({ id: "link-next", rotatedFromId: "link-active" }),
@@ -299,7 +377,7 @@ describe("Public verification links — owner controls", () => {
 
     fireEvent.click(container.querySelector("[data-verification-link-action='rotate']")!);
     const text = await confirmModal(true);
-    expect(text).toContain("Replace this verification link?");
+    expect(text).toContain("Replace this reviewer share?");
     expect(text).toContain("stops working immediately");
 
     await waitFor(() => expect(container.querySelector("[data-verification-link-url]")).not.toBeNull());
@@ -364,7 +442,7 @@ describe("Public verification links — owner controls", () => {
     expect(list.textContent).toContain("Showing the 2 that end soonest.");
     const first = list.querySelector(`[data-verification-legacy-record='${OTHER}'] a`)!;
     expect(first.textContent).toBe("Harbour claim photo");
-    expect(first.getAttribute("href")).toBe(`/evidence/${OTHER}?tab=artifacts#public-verification-links`);
+    expect(first.getAttribute("href")).toBe(`/evidence/${OTHER}?tab=artifacts#verification-page`);
     expect(list.querySelector(`[data-verification-legacy-record='${EVIDENCE}'] a`)!.textContent).toBe("Untitled record");
     // The list links to controls — it never renders a /verify/<id> link itself.
     expect(list.innerHTML).not.toContain("/verify/");
@@ -396,11 +474,11 @@ describe("Public verification links — owner controls", () => {
   });
 
   it("a record that cannot be shared yet offers no form and says why", async () => {
-    routes[`GET ${BASE}`] = () => listing({ publicVerifyState: "NOT_PUBLISHED", shareable: false, links: [] });
+    routes[`GET ${BASE}`] = () => listing({ shareable: false, links: [] });
     const { container } = await mount();
     expect(container.querySelector("[data-verification-link-form]")).toBeNull();
     expect(container.querySelector("[data-verification-links-unshareable]")!.textContent).toContain(
-      "once the record is finalized, and not while it is in Trash",
+      "A reviewer share can be created once the record is finalized, and not while it is in Trash",
     );
   });
 
@@ -431,57 +509,59 @@ describe("Public verification links — owner controls", () => {
       return listing();
     };
     const { container } = await mount();
-    expect(container.querySelector("[role='alert']")!.textContent).toContain("The links could not be loaded.");
+    expect(container.querySelector("[role='alert']")!.textContent).toContain("The reviewer shares could not be loaded.");
     fail = false;
     fireEvent.click(Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "Try again")!);
     await waitFor(() => expect(container.querySelector("[data-verification-links='active']")).not.toBeNull());
   });
 });
 
-describe("UC-OUT-001 / CANONICAL VERIFICATION — which links answer on an unpublished record", () => {
-  it("a link PRINTED in a report opens the canonical page on an unpublished record, so it reads Active", async () => {
-    routes[`GET ${BASE}`] = () =>
-      listing({
-        publicVerifyState: "NOT_PUBLISHED",
-        links: [link({ id: "link-report", purpose: "REPORT", reportVersion: 1, audience: null })],
-      });
+describe("Which shares answer — the SERVER's projection, never derived here", () => {
+  it("an ACTIVE share the server marks usable reads Active", async () => {
+    routes[`GET ${BASE}`] = () => listing({ links: [link({ id: "link-owner" })] });
     const { container } = await mount();
-    const row = container.querySelector("[data-verification-link='link-report']") as HTMLElement;
-    expect(row).not.toBeNull();
+    const row = container.querySelector("[data-verification-link='link-owner']") as HTMLElement;
     expect(row.getAttribute("data-verification-link-usable")).toBe("true");
-    expect(row.textContent).not.toContain("Inactive — record not published");
+    expect(row.textContent).toContain("Active");
+    expect(container.querySelector("[data-verification-links-state]")!.getAttribute("data-verification-links-state")).toBe(
+      "available",
+    );
   });
 
-  it("an ACTIVE recipient link on an unpublished record reads 'Inactive — record not published'", async () => {
+  it("on a withdrawn page an ACTIVE share reads 'Inactive — verification page not available' (PAGE_NOT_AVAILABLE)", async () => {
     routes[`GET ${BASE}`] = () =>
       listing({
-        publicVerifyState: "NOT_PUBLISHED",
-        links: [link({ id: "link-owner", purpose: "OWNER_SHARE", audience: "Opposing counsel" })],
+        verificationAccessState: "WITHDRAWN",
+        links: [link({ id: "link-owner", usable: false, inactiveReason: "PAGE_NOT_AVAILABLE" })],
       });
     const { container } = await mount();
     const row = container.querySelector("[data-verification-link='link-owner']") as HTMLElement;
     expect(row.getAttribute("data-verification-link-usable")).toBe("false");
-    expect(row.textContent).toContain("Inactive — record not published");
+    expect(row.querySelector("[data-verification-link-inactive]")!.getAttribute("data-verification-link-inactive")).toBe(
+      "PAGE_NOT_AVAILABLE",
+    );
+    expect(row.textContent).toContain("Inactive — verification page not available");
     expect(row.querySelector(".evidence-detail-link-row__main")?.textContent).not.toMatch(/\bActive\b/);
+    expect(container.querySelector("[data-verification-links-state]")!.getAttribute("data-verification-links-state")).toBe(
+      "page-unavailable",
+    );
   });
 
-  it("the same link on a published record is Active and usable", async () => {
-    routes[`GET ${BASE}`] = () =>
-      listing({ links: [link({ id: "link-report", purpose: "REPORT", reportVersion: 1, audience: null })] });
-    const { container } = await mount();
-    const row = container.querySelector("[data-verification-link='link-report']") as HTMLElement;
-    expect(row.getAttribute("data-verification-link-usable")).toBe("true");
-    expect(row.textContent).toContain("Active");
-  });
-
-  it("the server projection decides: usable:false / RECORD_NOT_PUBLISHED is shown inactive even if the listing says PUBLISHED", async () => {
+  it("a REPORT link the server marks usable reads Active whatever the listing's page state says", async () => {
     routes[`GET ${BASE}`] = () =>
       listing({
-        links: [link({ id: "link-report", purpose: "REPORT", reportVersion: 1, audience: null, usable: false, inactiveReason: "RECORD_NOT_PUBLISHED" })],
+        verificationAccessState: "SUSPENDED",
+        links: [link({ id: "link-report", purpose: "REPORT", reportVersion: 1, audience: null })],
       });
     const { container } = await mount();
     const row = container.querySelector("[data-verification-link='link-report']") as HTMLElement;
-    expect(row.getAttribute("data-verification-link-usable")).toBe("false");
-    expect(row.textContent).toContain("Inactive — record not published");
+    expect(row.getAttribute("data-verification-link-usable")).toBe("true");
+    // A printed link carries no reviewer profile badge.
+    expect(row.querySelector("[data-verification-link-profile]")).toBeNull();
+  });
+
+  it("the panel never says 'published' or offers to publish", async () => {
+    const { container } = await mount();
+    expect(container.textContent).not.toMatch(/publish/i);
   });
 });

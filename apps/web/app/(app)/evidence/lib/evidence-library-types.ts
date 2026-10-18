@@ -38,7 +38,8 @@ export type EvidenceListQuery = {
    * value or comma-separated list). */
   tsaStatus?: string;
   otsStatus?: string;
-  publicVerifyState?: string;
+  /** The verification page's disclosure: VERIFICATION_ONLY, CONTENT_PREVIEW (comma-joined). */
+  verificationDisclosure?: string;
   verificationStatus?: string;
   /** UC-0 — acquisition categories (UPLOAD, SECURE_INTAKE, MOBILE_APP, NOT_RECORDED). */
   acquisition?: string;
@@ -276,7 +277,8 @@ export type EvidenceRecord = {
   lastVerifiedSource: string | null;
   verificationPackageGeneratedAtUtc: string | null;
   verificationPackageVersion: number | null;
-  publicVerifyState: string | null;
+  /** What the record's permanent verification page discloses (null on an older API). */
+  verificationDisclosureMode?: "VERIFICATION_ONLY" | "CONTENT_PREVIEW" | null;
   latestReportVersion: number | null;
   reviewReadyAtUtc: string | null;
   reviewerSummaryVersion: number | null;

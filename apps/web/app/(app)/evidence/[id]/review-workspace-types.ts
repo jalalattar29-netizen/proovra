@@ -127,14 +127,13 @@ export type ClientSignalCollectionState =
   | "DETECTED"
   | "UNAVAILABLE";
 
-export type PublicVerificationDetailState =
-  | "NOT_INCLUDED"
-  | "NOT_CONFIGURED"
-  | "CONFIGURED_NOT_PUBLISHED"
-  | "PUBLISHED"
-  | "SUSPENDED"
-  | "UNPUBLISHED"
-  | "UNKNOWN_ERROR";
+/**
+ * The record's verification page, as the review workspace summarises it
+ * (disclosure model 2026-10-18). Every finalized record HAS a page; there is
+ * no publication state. NOT_INCLUDED = the workspace plan has no public
+ * verification; otherwise the page's ACCESS state.
+ */
+export type PublicVerificationDetailState = "NOT_INCLUDED" | "AVAILABLE" | "WITHDRAWN" | "SUSPENDED";
 
 export type SourceContext = {
   sourceType:
@@ -469,10 +468,11 @@ export type ReviewWorkspaceResponse = {
   };
   publicVerificationSummary: {
     state: PublicVerificationDetailState;
-    publicationState: string | null;
+    /** What anonymous visitors of the permanent page see (the record's disclosure policy). */
+    disclosureMode: "VERIFICATION_ONLY" | "CONTENT_PREVIEW";
+    /** Meaningful only with CONTENT_PREVIEW. */
+    showRecordedLocation: boolean;
     enabled: boolean;
-    configured: boolean;
-    published: boolean;
     sharePath: string | null;
     routeAccessible: boolean;
     publicViewCount: number;

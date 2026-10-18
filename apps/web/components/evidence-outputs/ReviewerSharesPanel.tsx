@@ -1,28 +1,34 @@
 "use client";
 
 /**
- * RECIPIENT LINKS — restricted sharing, the owner's controls (ET-PKG-07,
- * 2026-09-30; separated from canonical verification 2026-10-14).
+ * SECURE REVIEWER SHARES — the owner's controls for `pvs_` OWNER_SHARE links
+ * (ET-PKG-07; disclosure model 2026-10-18).
  *
- * Every record with an issued report already has its permanent canonical
- * verification page (VerificationAccessPanel) — it needs no link from here and
- * no publication. THIS panel is the separate, advanced feature: a link for a
- * named recipient, with an expiry, a use limit and revocation, that may show
- * more of the record than the verification page does. It is an opaque share
- * token, never the record's id:
+ * Every finalized record already has its permanent verification page
+ * (ManageVerificationPagePanel) — it needs no share from here. A reviewer
+ * share is the separate feature: a link for one named reviewer, with an
+ * expiry, a use limit and revocation, disclosing what ITS OWN profile allows:
  *
- *   create   name the audience, choose an expiry, and get the link ONCE
+ *   Content preview    (STANDARD) — optionally with an explicit grant to
+ *                      download the original files (step-up required);
+ *   Verification only  (BASIC)    — the verification result alone.
+ *
+ * It is an opaque token, never the record's id:
+ *
+ *   create   name the reviewer, choose expiry / use limit / profile, get it ONCE
  *   copy     only at creation or rotation — the server keeps a hash, not the link
- *   revoke   one link; every other recipient keeps theirs
- *   rotate   replace one link; the old one stops at once
- *   view     every link with its state: active, expired, revoked, used up
+ *   revoke   one share; every other reviewer keeps theirs
+ *   rotate   replace one share; the old one stops at once
+ *   view     every share with its state and whether it answers right now
+ *            (the SERVER's `usable` / `inactiveReason`, never derived here)
  *   legacy   the old record-id link, when the record has one, with its end date
  *
- * Creating the FIRST link on an unpublished record is the act of publishing it,
- * and says so before it happens.
+ * Creating a share never publishes anything and never changes what the
+ * verification page itself discloses.
  */
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Ban, CheckCircle2, Clock, Download, PauseCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { AppListbox, AppStatusBadge, type AppTone } from "../app-primitives";
 import { StepUpModal, useStepUpAction } from "../identity-security/StepUpModal";
@@ -33,7 +39,7 @@ import { formatUserDate, formatUserDateTime } from "../../lib/date";
 import {
   absoluteVerifyUrl,
   createVerificationLink,
-  evidencePublicLinksHref,
+  evidenceVerificationPageHref,
   legacyVerifyLinkInventory,
   listVerificationLinks,
   revokeLegacyVerifyLink,
@@ -52,6 +58,12 @@ const STATE_LABEL: Record<VerificationLinkState, string> = {
   REVOKED: "Revoked",
   EXHAUSTED: "Use limit reached",
 };
+const STATE_ICON: Record<VerificationLinkState, ReactNode> = {
+  ACTIVE: <CheckCircle2 size={12} aria-hidden="true" />,
+  EXPIRED: <Clock size={12} aria-hidden="true" />,
+  REVOKED: <Ban size={12} aria-hidden="true" />,
+  EXHAUSTED: <Clock size={12} aria-hidden="true" />,
+};
 const STATE_TONE: Record<VerificationLinkState, AppTone> = {
   ACTIVE: "green",
   EXPIRED: "slate",
@@ -68,25 +80,34 @@ const EXPIRY_OPTIONS: ReadonlyArray<{ value: ExpiryChoice; label: string }> = [
   { value: "never", label: "No expiry" },
 ];
 type ProjectionChoice = "STANDARD" | "BASIC";
+/** The share's own disclosure profile: STANDARD = content preview, BASIC = verification only. */
+export const SHARE_PROFILE_LABEL: Record<ProjectionChoice, string> = {
+  STANDARD: "Content preview",
+  BASIC: "Verification only",
+};
 const PROJECTION_OPTIONS: ReadonlyArray<{ value: ProjectionChoice; label: string; description: string }> = [
   {
     value: "STANDARD",
-    label: "Standard verification page",
-    description: "Everything this record's public page is allowed to show.",
+    label: SHARE_PROFILE_LABEL.STANDARD,
+    description: "The verification result plus the title, description, item names and previews.",
   },
   {
     value: "BASIC",
-    label: "Integrity result only",
-    description: "Hash, signature, timestamp and anchoring checks. No title, preview or details.",
+    label: SHARE_PROFILE_LABEL.BASIC,
+    description: "The verification result only. No title, preview or details.",
   },
 ];
+
+function profileLabel(projection: string): string {
+  return projection === "BASIC" ? SHARE_PROFILE_LABEL.BASIC : SHARE_PROFILE_LABEL.STANDARD;
+}
 
 function purposeLabel(link: VerificationLink): string {
   if (link.purpose === "REPORT") {
     return link.reportVersion != null ? `Printed in report version ${link.reportVersion}` : "Printed in a report";
   }
   if (link.purpose === "PACKAGE") return "Carried by a verification package";
-  return link.audience ?? "Shared link";
+  return link.audience ?? "Reviewer share";
 }
 
 function revokedNote(link: VerificationLink): string | null {
@@ -97,7 +118,7 @@ function revokedNote(link: VerificationLink): string | null {
     : `Revoked${when ? ` on ${when}` : ""}.`;
 }
 
-export function PublicVerificationLinksPanel({
+export function ReviewerSharesPanel({
   evidenceId,
   teamId,
   onChanged,
@@ -105,7 +126,7 @@ export function PublicVerificationLinksPanel({
   evidenceId: string;
   /** The record's workspace — the step-up challenge is bound to it. */
   teamId: string | null;
-  /** Called after a change that may alter the record's publication state. */
+  /** Called after a change the record page summarises (the legacy link). */
   onChanged?: () => void;
 }) {
   const { addToast } = useToast();
@@ -120,6 +141,7 @@ export function PublicVerificationLinksPanel({
   const [expiry, setExpiry] = useState<ExpiryChoice>("30");
   const [projection, setProjection] = useState<ProjectionChoice>("STANDARD");
   const [maxUses, setMaxUses] = useState("");
+  const [allowOriginalDownload, setAllowOriginalDownload] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   // The workspace's records still reachable by record id — read on request.
   const [inventory, setInventory] = useState<LegacyVerifyLinkInventory | null>(null);
@@ -144,7 +166,7 @@ export function PublicVerificationLinksPanel({
 
   const active = useMemo(() => (listing?.links ?? []).filter((l) => l.state === "ACTIVE"), [listing]);
   const inactive = useMemo(() => (listing?.links ?? []).filter((l) => l.state !== "ACTIVE"), [listing]);
-  const published = listing?.publicVerifyState === "PUBLISHED";
+  const pageAvailable = listing?.verificationAccessState === "AVAILABLE";
   const maxUsesValue = maxUses.trim() === "" ? null : Number(maxUses);
   const maxUsesInvalid = maxUsesValue !== null && (!Number.isInteger(maxUsesValue) || maxUsesValue < 1);
   const canCreate = audience.trim().length > 0 && !maxUsesInvalid && busy === null;
@@ -160,16 +182,6 @@ export function PublicVerificationLinksPanel({
 
   const create = async () => {
     if (!listing || !canCreate) return;
-    if (!published) {
-      const ok = await confirm({
-        title: "Allow recipient links for this record?",
-        description:
-          "A recipient link can show more of this record than its verification page. Anyone who holds the link can open it until it expires, reaches its use limit or you revoke it. The record's id alone opens nothing.",
-        confirmLabel: "Allow and create link",
-        testId: "verification-link-publish",
-      });
-      if (!ok) return;
-    }
     setBusy("create");
     try {
       const result = await stepUp.runStepUpAction((headers) =>
@@ -180,6 +192,8 @@ export function PublicVerificationLinksPanel({
             expiresInDays: expiry === "never" ? null : Number(expiry),
             projection,
             maxUses: maxUsesValue,
+            // Only a content-preview share can carry the download grant.
+            allowOriginalDownload: projection === "STANDARD" && allowOriginalDownload,
           },
           headers,
         ),
@@ -187,12 +201,12 @@ export function PublicVerificationLinksPanel({
       setCreated(result);
       setAudience("");
       setMaxUses("");
+      setAllowOriginalDownload(false);
       await load();
-      if (result.published) onChanged?.();
-      addToast("Verification link created", "success");
+      addToast("Reviewer share created", "success");
     } catch (err) {
       if ((err as { code?: string } | null)?.code !== "STEP_UP_CANCEL") {
-        notifyApiError(addToast, err, { message: "The verification link could not be created." });
+        notifyApiError(addToast, err, { message: "The reviewer share could not be created." });
       }
     } finally {
       setBusy(null);
@@ -201,9 +215,9 @@ export function PublicVerificationLinksPanel({
 
   const revoke = async (link: VerificationLink) => {
     const ok = await confirm({
-      title: "Revoke this verification link?",
-      description: `"${purposeLabel(link)}" will stop working immediately. Other links for this record are not affected. This cannot be undone — create a new link if the recipient needs access again.`,
-      confirmLabel: "Revoke link",
+      title: "Revoke this reviewer share?",
+      description: `"${purposeLabel(link)}" will stop working immediately. Other reviewer shares and the verification page are not affected. This cannot be undone — create a new share if the reviewer needs access again.`,
+      confirmLabel: "Revoke share",
       tone: "danger",
       testId: "verification-link-revoke",
     });
@@ -212,9 +226,9 @@ export function PublicVerificationLinksPanel({
     try {
       await revokeVerificationLink(evidenceId, link.id);
       await load();
-      addToast("Verification link revoked", "success");
+      addToast("Reviewer share revoked", "success");
     } catch (err) {
-      notifyApiError(addToast, err, { message: "The verification link could not be revoked." });
+      notifyApiError(addToast, err, { message: "The reviewer share could not be revoked." });
     } finally {
       setBusy(null);
     }
@@ -222,9 +236,9 @@ export function PublicVerificationLinksPanel({
 
   const rotate = async (link: VerificationLink) => {
     const ok = await confirm({
-      title: "Replace this verification link?",
-      description: `The current link for "${purposeLabel(link)}" stops working immediately and a new one is created with the same audience and expiry. You will need to send the new link to the recipient.`,
-      confirmLabel: "Replace link",
+      title: "Replace this reviewer share?",
+      description: `The current link for "${purposeLabel(link)}" stops working immediately and a new one is created with the same recipient, expiry and profile. You will need to send the new link to the reviewer.`,
+      confirmLabel: "Replace share",
       testId: "verification-link-rotate",
     });
     if (!ok) return;
@@ -233,9 +247,9 @@ export function PublicVerificationLinksPanel({
       const result = await rotateVerificationLink(evidenceId, link.id);
       setCreated(result);
       await load();
-      addToast("Verification link replaced", "success");
+      addToast("Reviewer share replaced", "success");
     } catch (err) {
-      notifyApiError(addToast, err, { message: "The verification link could not be replaced." });
+      notifyApiError(addToast, err, { message: "The reviewer share could not be replaced." });
     } finally {
       setBusy(null);
     }
@@ -280,36 +294,38 @@ export function PublicVerificationLinksPanel({
     }
   };
 
-  // UC-OUT-001 — the server's projection decides whether a link answers; an
-  // older API without the field falls back to the record's publication state.
-  // CANONICAL VERIFICATION (2026-10-14) — a link printed in a report or
-  // package opens the record's canonical page whatever the publication state.
-  const printedLink = (link: VerificationLink): boolean => link.purpose === "REPORT" || link.purpose === "PACKAGE";
-  const linkUsable = (link: VerificationLink): boolean =>
-    link.usable ?? (link.state === "ACTIVE" && (published || printedLink(link)));
-  const linkNotPublished = (link: VerificationLink): boolean =>
-    link.state === "ACTIVE" &&
-    (link.inactiveReason === "RECORD_NOT_PUBLISHED" ||
-      (link.inactiveReason === undefined && !published && !printedLink(link)));
-
   const row = (link: VerificationLink) => (
     <li
       key={link.id}
       className="evidence-detail-link-row"
       data-verification-link={link.id}
       data-verification-link-state={link.state}
-      // UC-OUT-001 — an ACTIVE link on an unpublished record does not answer
-      // (Public Verify says "not found"); it is never labelled "Active".
-      data-verification-link-usable={linkUsable(link) ? "true" : "false"}
+      // The SERVER says whether the link answers: an ACTIVE share on a
+      // withdrawn or suspended page answers what the page answers, and is
+      // never labelled "Active".
+      data-verification-link-usable={link.usable ? "true" : "false"}
     >
       <div className="evidence-detail-link-row__main">
         <strong>{purposeLabel(link)}</strong>
-        {linkNotPublished(link) ? (
-          <AppStatusBadge tone="slate">Inactive — record not published</AppStatusBadge>
+        {link.state === "ACTIVE" && !link.usable ? (
+          <AppStatusBadge tone="amber" data-verification-link-inactive={link.inactiveReason ?? "UNKNOWN"}>
+            <PauseCircle size={12} aria-hidden="true" /> Inactive — verification page not available
+          </AppStatusBadge>
         ) : (
-          <AppStatusBadge tone={STATE_TONE[link.state]}>{STATE_LABEL[link.state]}</AppStatusBadge>
+          <AppStatusBadge tone={STATE_TONE[link.state]}>
+            {STATE_ICON[link.state]} {STATE_LABEL[link.state]}
+          </AppStatusBadge>
         )}
-        {link.projection === "BASIC" ? <AppStatusBadge tone="slate">Integrity result only</AppStatusBadge> : null}
+        {link.purpose === "OWNER_SHARE" ? (
+          <AppStatusBadge tone="slate" data-verification-link-profile={link.projection}>
+            {profileLabel(link.projection)}
+          </AppStatusBadge>
+        ) : null}
+        {link.allowOriginalDownload ? (
+          <AppStatusBadge tone="amber" data-verification-link-original-download>
+            <Download size={12} aria-hidden="true" /> Original download allowed
+          </AppStatusBadge>
+        ) : null}
       </div>
       <p className="app-field__help">
         Created {formatUserDate(link.createdAtUtc)}
@@ -329,7 +345,7 @@ export function PublicVerificationLinksPanel({
             onClick={() => void rotate(link)}
             data-verification-link-action="rotate"
           >
-            Replace link
+            Replace share
           </button>
           <button
             type="button"
@@ -347,29 +363,29 @@ export function PublicVerificationLinksPanel({
 
   return (
     <section
-      id="public-verification-links"
+      id="reviewer-shares"
       className="evidence-detail-links-panel"
-      data-evidence-section="public-verification-links"
-      aria-labelledby="public-verification-links-title"
+      data-evidence-section="reviewer-shares"
+      aria-labelledby="reviewer-shares-title"
     >
-      <h2 id="public-verification-links-title" className="evidence-detail-verify-card__title">
-        Recipient links
+      <h2 id="reviewer-shares-title" className="evidence-detail-verify-card__title">
+        Secure reviewer shares
       </h2>
 
-      {loadState === "loading" ? <p className="app-field__help">Loading links…</p> : null}
+      {loadState === "loading" ? <p className="app-field__help">Loading reviewer shares…</p> : null}
       {loadState === "forbidden" ? (
         <p className="app-field__help" data-verification-links-forbidden>
-          Managing recipient links needs a role with the publish permission in this workspace.
+          Managing reviewer shares needs a role with the publish permission in this workspace.
         </p>
       ) : null}
       {loadState === "unavailable" ? (
         <p className="app-field__help" data-verification-links-unavailable>
-          Recipient links are not available for this record yet.
+          Reviewer shares are not available for this record yet.
         </p>
       ) : null}
       {loadState === "error" ? (
         <p className="app-field__help" role="alert">
-          The links could not be loaded.{" "}
+          The reviewer shares could not be loaded.{" "}
           <button type="button" className="evidence-detail-inline-link" onClick={() => void load()}>
             Try again
           </button>
@@ -378,10 +394,10 @@ export function PublicVerificationLinksPanel({
 
       {loadState === "ready" && listing ? (
         <>
-          <p className="app-field__help" data-verification-links-state={published ? "published" : "private"}>
-            {published
-              ? "Recipient links are allowed for this record. Each link below works only for the person you gave it to, until it expires, reaches its use limit or you revoke it."
-              : "A recipient link is for one named person and can show more of the record than the verification page. The verification page itself is always available and needs no link from here."}
+          <p className="app-field__help" data-verification-links-state={pageAvailable ? "available" : "page-unavailable"}>
+            {pageAvailable
+              ? "A reviewer share is for one named reviewer. It shows what its own profile allows, until it expires, reaches its use limit or you revoke it. Creating one never changes what the verification page discloses."
+              : "The verification page is withdrawn or suspended, so every share answers that it is not available until the page is reinstated."}
           </p>
 
           {created ? (
@@ -396,7 +412,7 @@ export function PublicVerificationLinksPanel({
                 readOnly
                 value={absoluteVerifyUrl(created.verifyPath)}
                 onFocus={(e) => e.currentTarget.select()}
-                aria-label="New verification link"
+                aria-label="New reviewer share link"
                 data-verification-link-url
               />
               <div className="evidence-detail-link-row__actions">
@@ -425,7 +441,7 @@ export function PublicVerificationLinksPanel({
               </div>
               <p className="app-field__help">
                 {listing.legacy.active
-                  ? `This record was published before share links existed, so links and QR codes that use its id — including those printed in earlier reports — still work until ${formatUserDate(listing.legacy.expiresAtUtc)}. After that only share links work. It cannot be extended.`
+                  ? `This record was shared by its record ID before share links existed, so links and QR codes that use its id — including those printed in earlier reports — still work until ${formatUserDate(listing.legacy.expiresAtUtc)}. After that only share links work. It cannot be extended.`
                   : `Links that use this record's id stopped working on ${formatUserDate(listing.legacy.expiresAtUtc)}.`}
               </p>
               {listing.legacy.active ? (
@@ -480,7 +496,7 @@ export function PublicVerificationLinksPanel({
                     {inventory.records.map((r) => (
                       <li key={r.evidenceId} className="evidence-detail-link-row" data-verification-legacy-record={r.evidenceId}>
                         <div className="evidence-detail-link-row__main">
-                          <Link className="evidence-detail-inline-link" href={evidencePublicLinksHref(r.evidenceId)}>
+                          <Link className="evidence-detail-inline-link" href={evidenceVerificationPageHref(r.evidenceId)}>
                             {r.title?.trim() || "Untitled record"}
                           </Link>
                         </div>
@@ -498,7 +514,7 @@ export function PublicVerificationLinksPanel({
               {active.map(row)}
             </ul>
           ) : (
-            <p className="app-field__help">No active links.</p>
+            <p className="app-field__help">No active reviewer shares.</p>
           )}
 
           {inactive.length > 0 ? (
@@ -510,7 +526,7 @@ export function PublicVerificationLinksPanel({
                 onClick={() => setShowInactive((v) => !v)}
                 data-verification-links-toggle="inactive"
               >
-                {showInactive ? "Hide" : "Show"} {inactive.length} expired or revoked link{inactive.length === 1 ? "" : "s"}
+                {showInactive ? "Hide" : "Show"} {inactive.length} expired or revoked share{inactive.length === 1 ? "" : "s"}
               </button>
               {showInactive ? (
                 <ul className="evidence-detail-link-list" data-verification-links="inactive">
@@ -531,7 +547,7 @@ export function PublicVerificationLinksPanel({
             >
               <div>
                 <label className="app-field-label" htmlFor="verification-link-audience">
-                  Who is this link for?
+                  Recipient
                 </label>
                 <input
                   id="verification-link-audience"
@@ -541,7 +557,7 @@ export function PublicVerificationLinksPanel({
                   onChange={(e) => setAudience(e.target.value)}
                   placeholder="For example: opposing counsel, the insurer, the court clerk"
                 />
-                <p className="app-field__help">Only you see this label. It lets you revoke one recipient later.</p>
+                <p className="app-field__help">Only your workspace sees this label. It lets you revoke one reviewer later.</p>
               </div>
               <div>
                 <label className="app-field-label" htmlFor="verification-link-expiry">
@@ -557,15 +573,37 @@ export function PublicVerificationLinksPanel({
               </div>
               <div>
                 <label className="app-field-label" htmlFor="verification-link-projection">
-                  What the link shows
+                  Profile
                 </label>
                 <AppListbox
                   id="verification-link-projection"
-                  ariaLabel="What the link shows"
+                  ariaLabel="Profile"
                   value={projection}
                   options={PROJECTION_OPTIONS}
-                  onChange={setProjection}
+                  onChange={(next) => {
+                    setProjection(next);
+                    if (next !== "STANDARD") setAllowOriginalDownload(false);
+                  }}
                 />
+              </div>
+              <div>
+                <label className="evidence-detail-switch" htmlFor="verification-link-original-download">
+                  <input
+                    id="verification-link-original-download"
+                    type="checkbox"
+                    checked={projection === "STANDARD" && allowOriginalDownload}
+                    disabled={projection !== "STANDARD"}
+                    aria-describedby="verification-link-original-download-help"
+                    onChange={(e) => setAllowOriginalDownload(e.target.checked)}
+                    data-verification-link-original-download-toggle
+                  />
+                  <span>Allow original file download</span>
+                </label>
+                <p className="app-field__help" id="verification-link-original-download-help">
+                  {projection === "STANDARD"
+                    ? "The reviewer can download the original files, subject to your export controls. Granting it asks you to confirm your identity."
+                    : "Available only with the Content preview profile."}
+                </p>
               </div>
               <div>
                 <label className="app-field-label" htmlFor="verification-link-max-uses">
@@ -587,12 +625,12 @@ export function PublicVerificationLinksPanel({
                 ) : null}
               </div>
               <button type="submit" className="app-secondary-action" disabled={!canCreate} data-verification-link-action="create">
-                {busy === "create" ? "Creating…" : "Create recipient link"}
+                {busy === "create" ? "Creating…" : "Create reviewer share"}
               </button>
             </form>
           ) : (
             <p className="app-field__help" data-verification-links-unshareable>
-              A link can be created once the record is finalized, and not while it is in Trash.
+              A reviewer share can be created once the record is finalized, and not while it is in Trash.
             </p>
           )}
         </>

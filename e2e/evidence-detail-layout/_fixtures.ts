@@ -348,11 +348,11 @@ function makeWorkspace(): unknown {
       fixedArtifactNote: "Fixed generated materials reflect the state recorded when produced.",
     },
     publicVerificationSummary: {
-      state: "PUBLISHED",
-      publicationState: "PUBLISHED",
+      // (2026-10-18) The page's access state + its disclosure policy.
+      state: "AVAILABLE",
+      disclosureMode: "VERIFICATION_ONLY",
+      showRecordedLocation: false,
       enabled: true,
-      configured: true,
-      published: true,
       // The LEGACY record-id link (ET-PKG-07): this fixture record predates
       // share links and is inside its bounded grace.
       sharePath: `/verify/${EVIDENCE_ID}`,
@@ -568,7 +568,8 @@ function respond(path: string): unknown {
   // ET-PKG-07 — the public-links panel. The fixture record was published
   // before share links existed, so it carries the legacy record-id link (the
   // `sharePath` above) and one active share link.
-  // CANONICAL VERIFICATION (2026-10-14) — the Verification access panel.
+  // MANAGE VERIFICATION PAGE (2026-10-18) — the page's reference, access and
+  // disclosure, with the server's visitor preview.
   if (path.includes("/verification-access")) {
     return {
       status: "AVAILABLE",
@@ -577,12 +578,24 @@ function respond(path: string): unknown {
       issuedAtUtc: "2026-07-04T05:23:22Z",
       withdrawal: null,
       canWithdraw: true,
+      disclosure: {
+        mode: "VERIFICATION_ONLY",
+        showRecordedLocation: false,
+        version: 1,
+        changedAtUtc: null,
+        visitorPreview: {
+          shown: ["The complete verification result", "The permanent verification reference"],
+          withheld: ["Title and description", "Content previews", "Recorded location and device time"],
+          never: ["Original file downloads", "Email addresses, IP addresses or browser details"],
+        },
+      },
+      canChangeDisclosure: true,
     };
   }
   if (path.includes("/verify-links")) {
     const iso = (s: string) => s;
     return {
-      publicVerifyState: "PUBLISHED",
+      verificationAccessState: "AVAILABLE",
       shareable: true,
       legacy: { active: true, expiresAtUtc: iso("2027-01-06T02:22:02Z"), graceDays: 180 },
       links: [
@@ -603,6 +616,9 @@ function respond(path: string): unknown {
           maxUses: null,
           useCount: 1,
           lastUsedAtUtc: iso("2026-07-10T02:22:02Z"),
+          usable: true,
+          inactiveReason: null,
+          allowOriginalDownload: false,
         },
       ],
     };

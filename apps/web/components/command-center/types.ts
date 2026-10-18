@@ -288,10 +288,15 @@ export type PipelineDetail = {
     failed: number;
     missingFromReported: number;
   };
-  publicVerify: {
-    published: number;
-    unpublished: number;
-    suspended: number;
+  /**
+   * The verification pages (disclosure model 2026-10-18): every finalized
+   * record has one. Available pages by what they disclose; unavailable =
+   * withdrawn or suspended.
+   */
+  verificationPages: {
+    contentPreview: number;
+    verificationOnly: number;
+    unavailable: number;
   };
 };
 
@@ -301,6 +306,8 @@ export type TimelineEvent = {
     | "evidence_finalized"
     | "report_generated"
     | "package_generated"
+    // An owner changed what a record's verification page discloses.
+    | "verification_disclosure_changed"
     | "lifecycle_transition"
     | "hold_placed"
     | "hold_released"

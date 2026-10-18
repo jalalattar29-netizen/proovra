@@ -22,7 +22,8 @@ export type EvidenceFilterState = {
    */
   tsaStatus: string;
   otsStatus: string;
-  publicVerifyState: string;
+  /** The verification page's disclosure (VERIFICATION_ONLY, CONTENT_PREVIEW). */
+  verificationDisclosure: string;
   verificationStatus: string;
   /** UC-0 — acquisition category from the server's acquisition authority. */
   acquisition: string;
@@ -206,6 +207,20 @@ export function EvidenceFilters({
             { value: "all", label: "All" },
             { value: "report-available", label: "Report available" },
             { value: "report-missing", label: "Report not recorded" },
+          ]}
+        />
+        {/* What each record's permanent verification page discloses — every
+            finalized record has one; there is no "published" filter. */}
+        <FilterChip
+          id="verification-disclosure-filter"
+          label="Verification page"
+          prefix="Verification page:"
+          value={value.verificationDisclosure}
+          onChange={(next) => update("verificationDisclosure", next)}
+          options={[
+            { value: "all", label: "All" },
+            { value: "VERIFICATION_ONLY", label: "Verification only" },
+            { value: "CONTENT_PREVIEW", label: "Content preview" },
           ]}
         />
         <FilterChip

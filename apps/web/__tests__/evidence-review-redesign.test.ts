@@ -354,7 +354,7 @@ test("the shared rail still has its four sections and Review does not fork it", 
     "Risk Signals",
     "Review Workflow",
     "Attributes",
-    "Public Verification",
+    "Verification page",
   ]);
   assert.doesNotMatch(REVIEW, /evidence-detail-sidebar|EvidenceRecordRail/);
 });

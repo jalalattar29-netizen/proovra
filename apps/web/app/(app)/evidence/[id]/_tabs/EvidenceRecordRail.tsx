@@ -26,8 +26,8 @@ import { AppStatusText } from "../../../../../components/app-primitives";
 import { formatUserDateTime } from "../../../../../lib/date";
 import {
   getPriorityTone,
-  getPublicVerificationTone,
   getWorkflowStatusTone,
+  type VerificationPageState,
 } from "./_lib";
 import type { ReviewWorkspaceResponse } from "../review-workspace-types";
 
@@ -40,14 +40,13 @@ export type EvidenceRailSignal = {
 export function EvidenceRecordRail({
   workspace,
   signals,
-  publicVerificationLabel,
-  publicVerificationDetail,
+  verificationPage,
   shareUrl,
 }: {
   workspace: ReviewWorkspaceResponse;
   signals: EvidenceRailSignal[];
-  publicVerificationLabel: string;
-  publicVerificationDetail: string;
+  /** The verification page's access + disclosure, from describeVerificationPageState. */
+  verificationPage: VerificationPageState | null;
   shareUrl: string | null;
 }) {
   return (
@@ -127,22 +126,17 @@ export function EvidenceRecordRail({
         </div>
       </section>
 
-      {/* Phase CAPTURE-CLOSURE Part C — compact public-verification
-          shortcut. The rail only carries the publication-state chip + a
-          shortcut link (no full detail duplication); the detail counts
-          live in the Artifacts tab. */}
+      {/* Phase CAPTURE-CLOSURE Part C — compact verification-page shortcut.
+          The rail carries the page's state (access · disclosure) and a
+          shortcut link; the controls live in the Artifacts tab. */}
       <section
         className="evidence-detail-side-block"
         data-evidence-side="public-verification-shortcut"
       >
         <div className="evidence-detail-rail-heading-row">
-          <h2 className="evidence-detail-rail-heading">Public Verification</h2>
-          <AppStatusText
-            tone={getPublicVerificationTone(
-              workspace.publicVerificationSummary.state,
-            )}
-          >
-            {publicVerificationLabel}
+          <h2 className="evidence-detail-rail-heading">Verification page</h2>
+          <AppStatusText tone={verificationPage?.tone ?? "slate"}>
+            {verificationPage?.label ?? "State unavailable"}
           </AppStatusText>
         </div>
         {shareUrl ? (
@@ -157,7 +151,7 @@ export function EvidenceRecordRail({
           </a>
         ) : (
           <p className="evidence-detail-muted evidence-detail-rail-note">
-            {publicVerificationDetail}
+            {verificationPage?.detail ?? "The verification page's state is not available."}
           </p>
         )}
       </section>

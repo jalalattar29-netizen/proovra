@@ -240,13 +240,14 @@ test("an absent last-view timestamp is 'Not recorded', not a fabricated date", (
 // E) The verification link is real, or absent
 // ---------------------------------------------------------------------------
 
-// CANONICAL VERIFICATION (owner decision 2026-10-14) — the verify card IS the
-// Verification access panel: the record's permanent page, from the server.
-const ACCESS_PANEL = read("components/evidence-outputs/VerificationAccessPanel.tsx");
+// MANAGE VERIFICATION PAGE (2026-10-18) — the verify card IS the one control
+// for the record's permanent page: its reference from the server, its access
+// and what it discloses.
+const ACCESS_PANEL = read("components/evidence-outputs/ManageVerificationPagePanel.tsx");
 const ACCESS_PANEL_CODE = code(ACCESS_PANEL);
 
 test("the link renders only from the server's canonical verifyPath", () => {
-  assert.match(TAB, /<VerificationAccessPanel evidenceId=\{evidenceId\} \/>/);
+  assert.match(TAB, /<ManageVerificationPagePanel\b[\s\S]{0,120}evidenceId=\{evidenceId\}/);
   assert.match(ACCESS_PANEL, /access\?\.verifyPath \? absoluteVerifyUrl\(access\.verifyPath\) : null/);
   assert.match(ACCESS_PANEL, /href=\{url\}/);
   // No synthesised path, no guessed origin, and never the record id.
@@ -263,23 +264,31 @@ test("an external link is opened safely", () => {
 test("without a link the card shows the state and its reason", () => {
   assert.match(ACCESS_PANEL, /data-verification-access-status=\{access\.status\}/);
   assert.match(ACCESS_PANEL, /\{STATUS_DETAIL\[access\.status\]\}/);
-  assert.match(ACCESS_PANEL, /NOT_ISSUED: "Issued with the first report"/);
-  assert.match(ACCESS_PANEL, /It does not publish the original evidence files\./);
+  assert.match(ACCESS_PANEL, /NOT_ISSUED: "Issued at finalization"/);
+  assert.match(ACCESS_PANEL, /it never offers the\s+original files\./);
+});
+
+test("the reviewer shares sit directly below the page control, not behind a publication step", () => {
+  assert.match(TAB, /<ManageVerificationPagePanel[\s\S]*?<ReviewerSharesPanel/);
+  assert.doesNotMatch(TAB_CODE, /PublicVerificationLinksPanel|VerificationAccessPanel|advanced-sharing/);
+  // The tenant for the step-up is the record's own workspace.
+  assert.match(TAB, /teamId=\{workspace\.evidence\.teamId \?\? workspace\.reviewWorkflow\?\.teamId \?\? null\}/);
 });
 
 // ---------------------------------------------------------------------------
 // F) Tab and rail cannot contradict each other
 // ---------------------------------------------------------------------------
 
-test("both surfaces read the same publication projection", () => {
-  // The tab renders the label from describePublicVerificationState(summary);
-  // the rail tones from the same summary.state. One source, two renderings.
-  assert.match(PAGE, /describePublicVerificationState\(workspace\.publicVerificationSummary\)/);
-  assert.match(TAB, /publicVerificationState\?\.label/);
-  assert.match(RAIL, /getPublicVerificationTone\(\s*\n?\s*workspace\.publicVerificationSummary\.state,?\s*\n?\s*\)/);
-  assert.match(PAGE, /publicVerificationLabel=\{\s*\n?\s*publicVerificationState\?\.label \?\? "State unavailable"\s*\n?\s*\}/);
-  // Neither surface derives publication state from anything else.
+test("both surfaces read the same verification-page projection", () => {
+  // One describer (access · disclosure) from the server summary; the tab
+  // prints its label, the rail its label, detail and tone.
+  assert.match(PAGE, /describeVerificationPageState\(workspace\.publicVerificationSummary\)/);
+  assert.match(TAB, /verificationPageState\?\.label/);
+  assert.match(PAGE, /verificationPage=\{verificationPageState\}/);
+  assert.match(RAIL, /tone=\{verificationPage\?\.tone \?\? "slate"\}/);
+  // Neither surface derives a publication state from anything.
   assert.doesNotMatch(TAB_CODE, /artifactStatus[\s\S]{0,40}published/i);
+  assert.doesNotMatch(TAB_CODE + RAIL, /PUBLISHED|publicVerifyState/);
 });
 
 test("the rail is reused once and Artifacts does not fork it", () => {
@@ -293,7 +302,7 @@ test("the rail is reused once and Artifacts does not fork it", () => {
     "Risk Signals",
     "Review Workflow",
     "Attributes",
-    "Public Verification",
+    "Verification page",
   ]);
 });
 

@@ -8,7 +8,7 @@
  * approved that way proves possession of a phone the CALLER chose, not of one
  * the ACCOUNT owns — so a stolen session supplied the attacker's own number,
  * received its own code, approved its own challenge, and walked through every
- * gate the product has: publication, reviewer decisions, escalation resolution,
+ * gate the product has: widening a verification page's disclosure, reviewer decisions, escalation resolution,
  * destruction approval and execution, governance policy updates, delegated
  * admin grants.
  *
@@ -117,24 +117,23 @@ function factorPanel(page: Page) {
 }
 
 /**
- * The evidence-publication surface — a real `requireStepUpForSensitiveAction`
- * gate.
+ * The verification-page disclosure surface — a real
+ * `requireStepUpForSensitiveAction` gate (purpose PUBLIC_VERIFY_PUBLISH).
  *
- * Publication is irreversible in the sense that matters (a link already shared
- * has been live), so the panel control opens a TYPED-CONFIRM dialog and the
- * DIALOG's submit is what issues the request. `fire()` drives that whole
- * sequence, because a spec that clicked only the panel control would sit
- * waiting for a request the product never had any reason to send.
+ * (2026-10-18) The publication routes this suite used as its vehicle are
+ * retired. Every finalized record has a permanent verification page; WIDENING
+ * what it discloses (Verification only → Content preview) is the sensitive
+ * action now, gated exactly as publishing was. `fire()` chooses Content
+ * preview in the Manage verification page control and saves — the save issues
+ * PUT /v1/evidence/:id/verification-disclosure, which answers 401
+ * STEP_UP_REQUIRED until the challenge is approved.
  */
-function publishSurface(page: Page) {
-  const dialog = page.locator(
-    '[data-confirm-action-modal="evidence-public-verify-publish"]',
-  );
+function disclosureSurface(page: Page) {
   return {
-    panel: page.locator('[data-evidence-section="public-verify-publication"]'),
-    control: page.locator("[data-cc-public-verify-publish]"),
-    blocked: page.locator("[data-cc-public-verify-blocked]"),
-    dialog,
+    panel: page.locator('[data-evidence-section="verification-page"]'),
+    control: page.locator('[data-verification-disclosure-mode="CONTENT_PREVIEW"]'),
+    save: page.locator('[data-verification-disclosure-action="save"]'),
+    forbidden: page.locator("[data-verification-disclosure-forbidden]"),
     modal: page.locator("[data-step-up-modal]"),
     modalState: () =>
       page.locator("[data-step-up-modal]").getAttribute("data-step-up-state"),
@@ -144,40 +143,29 @@ function publishSurface(page: Page) {
     verify: page.locator("[data-step-up-verify]"),
     failed: page.locator("[data-step-up-failed]"),
 
-    /** Panel control → typed-confirm dialog → the request. */
+    /** Content preview → Save → the request. */
     async fire(): Promise<void> {
       await expect(
-        this.panel,
-        "the public-verify panel renders only for an enterprise-entitled " +
-          "workspace; its absence is an entitlement-projection defect, not a " +
-          "step-up one",
+        this.panel.locator('[role="radiogroup"]'),
+        "the Manage verification page control renders the disclosure radiogroup " +
+          "for every record whose page exists",
       ).toBeVisible({ timeout: 30_000 });
-      const blockedCount = await this.blocked.count();
-      if (blockedCount > 0) {
+      if ((await this.forbidden.count()) > 0) {
         throw new Error(
-          "the publish control is blocked: " +
-            `"${(await this.blocked.first().textContent())?.trim()}". ` +
-            "This is a fixture precondition (reviewWorkflow.teamId, " +
-            "publicVerifyIncluded, summary.enabled, summary.configured — the " +
-            "last needs ANCHOR_PROVIDER on the API process), not a NEW-058 defect.",
+          "the disclosure control is permission-disabled for the owner — a fixture " +
+            "precondition (evidence.publish_verify), not a NEW-058 defect.",
         );
       }
       await expect(this.control).toBeEnabled({ timeout: 30_000 });
-      await page
-        .locator("[data-cc-public-verify-reason]")
-        .fill("Published by the NEW-058 account-bound step-up proof.");
       await this.control.click();
-      await expect(dialog).toBeVisible({ timeout: 15_000 });
-      await dialog.locator("[data-confirm-action-typed-input]").fill("PUBLISH");
-      const submit = dialog.locator('[data-confirm-action-submit="true"]');
-      await expect(submit).toBeEnabled({ timeout: 10_000 });
-      await submit.click();
+      await expect(this.save).toBeEnabled({ timeout: 10_000 });
+      await this.save.click();
     },
   };
 }
 
-/** Seed a NOT_PUBLISHED evidence record and open its overview tab. */
-async function openPublishableEvidence(
+/** Seed an evidence record (its page discloses VERIFICATION_ONLY) and open its Artifacts tab. */
+async function openDisclosableEvidence(
   page: Page,
   fixture: UiEnterpriseFixture,
   title: string,
@@ -186,12 +174,7 @@ async function openPublishableEvidence(
     teamId: fixture.tenant.workspaceId,
     title,
   });
-  await sql(
-    `UPDATE evidence SET public_verify_state = 'NOT_PUBLISHED'::"PublicVerifyState"
-      WHERE id = $1::uuid`,
-    [id],
-  );
-  await page.goto(`${WEB_BASE}/evidence/${id}?tab=overview`, {
+  await page.goto(`${WEB_BASE}/evidence/${id}?tab=artifacts`, {
     waitUntil: "domcontentloaded",
   });
   return id;
@@ -208,9 +191,9 @@ async function factorRows(userId: string) {
   );
 }
 
-async function publishStateOf(evidenceId: string): Promise<string> {
+async function disclosureModeOf(evidenceId: string): Promise<string> {
   const rows = await sql<{ state: string }>(
-    `SELECT public_verify_state::text AS state FROM evidence WHERE id = $1::uuid`,
+    `SELECT verification_disclosure_mode::text AS state FROM evidence WHERE id = $1::uuid`,
     [evidenceId],
   );
   return rows[0]?.state ?? "<absent>";
@@ -392,8 +375,8 @@ test.describe("NEW-058 — the gate reads the factor, not the request", () => {
     const handset = uniqueHandset();
     await enrolContactFactor(page, handset);
 
-    await openPublishableEvidence(page, fixture, "N058 wire subject");
-    const ui = publishSurface(page);
+    await openDisclosableEvidence(page, fixture, "N058 wire subject");
+    const ui = disclosureSurface(page);
 
     // Capture the challenge-start REQUEST BODY as Chromium sends it.
     const startRequest = page.waitForRequest(
@@ -451,14 +434,14 @@ test.describe("NEW-058 — the gate reads the factor, not the request", () => {
     const handset = uniqueHandset();
     await enrolContactFactor(page, handset);
 
-    const evidenceId = await openPublishableEvidence(
+    const evidenceId = await openDisclosableEvidence(
       page,
       fixture,
       "N058 spend subject",
     );
-    expect(await publishStateOf(evidenceId)).toBe("NOT_PUBLISHED");
+    expect(await disclosureModeOf(evidenceId)).toBe("VERIFICATION_ONLY");
 
-    const ui = publishSurface(page);
+    const ui = disclosureSurface(page);
 
     const mark = probe.mark();
     await ui.fire();
@@ -466,16 +449,16 @@ test.describe("NEW-058 — the gate reads the factor, not the request", () => {
 
     // The visible result…
     await expect
-      .poll(async () => publishStateOf(evidenceId), {
+      .poll(async () => disclosureModeOf(evidenceId), {
         message: "the protected mutation must reach its durable postcondition",
         timeout: 30_000,
       })
-      .toBe("PUBLISHED");
+      .toBe("CONTENT_PREVIEW");
 
     // …and EXACTLY ONE of it. A step-up surface that replays its 401 would
     // perform the mutation twice and burn two attempts (NEW-035).
     const publishes = probe
-      .apiMutations("POST", `/v1/governance/evidence/${evidenceId}/publish`)
+      .apiMutations("PUT", `/v1/evidence/${evidenceId}/verification-disclosure`)
       .slice(mark);
     expect(
       publishes.length,
@@ -502,12 +485,12 @@ test.describe("NEW-058 — the gate reads the factor, not the request", () => {
     // DELIBERATELY NOT ENROLLED.
     expect(await factorRows(fixture.owner.userId)).toEqual([]);
 
-    const evidenceId = await openPublishableEvidence(
+    const evidenceId = await openDisclosableEvidence(
       page,
       fixture,
       "N058 unenrolled subject",
     );
-    const ui = publishSurface(page);
+    const ui = disclosureSurface(page);
 
     /**
      * THE SERVER IS THE AUTHORITY, AND IT IS ASSERTED DIRECTLY.
@@ -558,7 +541,7 @@ test.describe("NEW-058 — the gate reads the factor, not the request", () => {
     expect(await ui.enrollLink.getAttribute("href")).toBe("/settings#security");
 
     // And the mutation did NOT happen.
-    expect(await publishStateOf(evidenceId)).toBe("NOT_PUBLISHED");
+    expect(await disclosureModeOf(evidenceId)).toBe("VERIFICATION_ONLY");
 
     // The link goes where it says it goes, and the panel is there.
     await ui.enrollLink.click();
@@ -578,12 +561,12 @@ test.describe("NEW-058 — the gate reads the factor, not the request", () => {
     const handset = uniqueHandset();
     await enrolContactFactor(page, handset);
 
-    const evidenceId = await openPublishableEvidence(
+    const evidenceId = await openDisclosableEvidence(
       page,
       fixture,
       "N058 wrong-code subject",
     );
-    const ui = publishSurface(page);
+    const ui = disclosureSurface(page);
     await ui.fire();
 
     await expect
@@ -608,7 +591,7 @@ test.describe("NEW-058 — the gate reads the factor, not the request", () => {
       .toMatch(/verifying|failed/);
 
     // The durable postcondition is the one that matters: nothing moved.
-    expect(await publishStateOf(evidenceId)).toBe("NOT_PUBLISHED");
+    expect(await disclosureModeOf(evidenceId)).toBe("VERIFICATION_ONLY");
 
     await assertBoundaryClean(probe, "wrong code");
     proven("p7.new058.stepup.wrong_code_refused_without_elevation");
@@ -624,12 +607,12 @@ test.describe("NEW-058 — the gate reads the factor, not the request", () => {
     const handset = uniqueHandset();
     await enrolContactFactor(page, handset);
 
-    const evidenceId = await openPublishableEvidence(
+    const evidenceId = await openDisclosableEvidence(
       page,
       fixture,
       "N058 revoke subject",
     );
-    const ui = publishSurface(page);
+    const ui = disclosureSurface(page);
     await ui.fire();
 
     await expect
@@ -674,13 +657,13 @@ test.describe("NEW-058 — the gate reads the factor, not the request", () => {
     // The elevation must not complete the mutation.
     await page.waitForTimeout(0);
     await expect
-      .poll(async () => publishStateOf(evidenceId), {
+      .poll(async () => disclosureModeOf(evidenceId), {
         message:
           "an elevation authorised by a factor that has since been revoked must " +
           "not be spendable",
         timeout: 20_000,
       })
-      .toBe("NOT_PUBLISHED");
+      .toBe("VERIFICATION_ONLY");
 
     await assertBoundaryClean(probe, "revoked factor");
     proven("p7.new058.stepup.revoked_factor_kills_an_unspent_elevation");

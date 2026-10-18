@@ -2,10 +2,9 @@
  * PHASE 13 — POINT 7: JOURNEY E, the evidence-governance and video-redaction
  * write surfaces.
  *
- * Three registered write routes had no product surface:
- *
- *   POST /v1/governance/evidence/:id/publish      — public verification on
- *   POST /v1/governance/evidence/:id/unpublish    — public verification off
+ *   PUT  /v1/evidence/:id/verification-disclosure   — what the record's
+ *        permanent verification page discloses (2026-10-18; it replaces the
+ *        retired /v1/governance/evidence/:id/publish|unpublish routes)
  *   POST /v1/redaction/videos/:evidenceId/frames/batch
  *   POST /v1/redaction/videos/:evidenceId/tracks/group
  *
@@ -18,11 +17,12 @@
  *
  * THE STEP-UP LEG IS PART OF THE JOURNEY, NOT AN EXCUSE
  * ---------------------------------------------------------------------------
- * `publish` and `unpublish` are gated by `requireStepUpForSensitiveAction`
- * (governance.routes.ts:837-845 and :875-883) — a DIFFERENT mechanism from
- * the account step-up the workspace-lifecycle routes use. It accepts nothing
- * but an `x-proovra-step-up-challenge-id` naming a challenge that was
- * APPROVED out of band with a one-time code.
+ * WIDENING a verification page's disclosure (Verification only → Content
+ * preview, or showing the recorded location) is gated by
+ * `requireStepUpForSensitiveAction` with purpose PUBLIC_VERIFY_PUBLISH — the
+ * gate publication carried. It accepts nothing but an
+ * `x-proovra-step-up-challenge-id` naming a challenge that was APPROVED out of
+ * band with a one-time code. Narrowing never needs it.
  *
  * That gate is untouched here. What changed is only where the code comes
  * from: the recording messaging provider mints and records it locally, the
@@ -31,24 +31,11 @@
  * through the product's own routes — `step-up/start`, `step-up/check`, then
  * the original mutation retried once with the challenge id — and the
  * middleware consumes the challenge exactly once. Nothing reads the
- * `step_up_challenges` row: the service never persists the code, so a
- * database-driven approval could only be manufactured by writing one, which
- * would demonstrate that the gate can be written around rather than that a
- * user can pass it.
+ * `step_up_challenges` row.
  *
- * WHAT "REQUIRES PUBLISHED FIRST" ACTUALLY MEANS, MEASURED RATHER THAN ASSUMED
- * ---------------------------------------------------------------------------
- * The withdrawal CONTROL requires it: the panel renders the withdraw button
- * only when `summary.state === "PUBLISHED"` and otherwise renders the publish
- * button in its place (PublicVerifyPublicationPanel.tsx:102, :290-320). The
- * ROUTE does not: `ALLOWED_TRANSITIONS` in publication.service.ts:49-54 also
- * permits `NOT_PUBLISHED → UNPUBLISHED`. So the ordering is a property of the
- * surface, and this suite proves the surface's version of it — the publish
- * journey ends by asserting the withdraw control has APPEARED where the
- * publish control was, and the withdrawal journey begins by asserting that a
- * never-published record offers no withdraw control at all. Claiming the
- * server enforced an order it does not enforce would have been the easy
- * sentence and the false one.
+ * There is no "publish first" ordering any more: every finalized record has
+ * its page, and the disclosure is a compare-and-swap on the record's policy
+ * version, recorded in the custody chain as VERIFICATION_DISCLOSURE_CHANGED.
  */
 
 import { test, expect, type Page } from "@playwright/test";
@@ -101,549 +88,252 @@ async function signInAsOwner(
 
 test.describe("JOURNEY E — evidence governance and video redaction", () => {
   // =========================================================================
-  // 22. POST /v1/governance/evidence/:id/publish
+  // 22. PUT /v1/evidence/:id/verification-disclosure — WIDENING (step-up)
   //
-  // The full journey, step-up included: the panel refuses the first attempt
-  // with 401 STEP_UP_REQUIRED, the challenge is started and approved through
-  // the product's own routes with the code the handset actually received, and
-  // the ORIGINAL mutation is retried once with the challenge id. Every
-  // dimension the driver asserts applies here unchanged — the challenge is a
-  // leg of the journey, not a reason to check less.
-  //
-  // `apiFetch` no longer replays a 401 that names a deliberate denial code, so
-  // one activation is one POST. The driver still counts SUCCESSFUL mutations
-  // rather than requests on a step-up surface, because a challenge is not a
-  // write; if the request count ever doubles, that is the replay regression
-  // returning, not expected behaviour.
+  // The full journey, step-up included: the save is refused with 401
+  // STEP_UP_REQUIRED, the challenge is started and approved through the
+  // product's own routes with the code the handset actually received, and the
+  // ORIGINAL mutation is retried once with the challenge id. The driver counts
+  // SUCCESSFUL mutations on a step-up surface, because a challenge is not a
+  // write.
   // =========================================================================
 
-  test("p7.ui.evidence.public_verify_published", async ({ page }) => {
-    const fixture = await buildEnterpriseFixture({ label: "ev-publish" });
+  test("p7.ui.evidence.verification_disclosure_widened", async ({ page }) => {
+    const fixture = await buildEnterpriseFixture({ label: "ev-disclosure-widen" });
     const { probe } = await signInAsOwner(page, fixture);
-
     const ws = fixture.tenant.workspaceId;
 
     /**
-     * A PAIR of subjects, both moved to NOT_PUBLISHED.
-     *
-     * `Evidence.publicVerifyState` DEFAULTS to PUBLISHED, so a freshly created
-     * record renders the WITHDRAW control; moving it to NOT_PUBLISHED is
-     * initial state, and the transition that follows is the product's.
-     *
-     * There are two of them because publication is one-way on its subject:
-     * once the authorized pass has published a record the panel offers
-     * withdrawal in place of publication, so the injected-500 pass would be
-     * acting on a surface that no longer carries the control — the product
-     * behaving correctly, reported as a failure. `open()` selects whichever
-     * subject is still unpublished. The durable count spans the pair, so
-     * "exactly one row moved" stays exactly as strict as everywhere else.
+     * A PAIR of subjects, both disclosing VERIFICATION_ONLY (the default).
+     * Once the authorized pass has widened one, the injected-500 pass needs a
+     * subject that still offers the change; `open()` selects it. The durable
+     * count spans the pair, so "exactly one row moved" stays strict.
      */
     const subjects: string[] = [];
     for (const n of [1, 2]) {
-      const id = await seedEvidence(page, {
-        teamId: ws,
-        title: `P7 UI public-verify subject ${n}`,
-      });
-      subjects.push(id);
+      subjects.push(await seedEvidence(page, { teamId: ws, title: `P7 UI disclosure subject ${n}` }));
     }
+    let target = subjects[0]!;
+
+    const handset = uniqueHandset();
+    // The step-up gate resolves its destination from the account's OWN
+    // enrolled factor (NEW-058): enrolment is the precondition, driven
+    // through the product's own surface.
+    await enrolContactFactor(page, handset);
+    const handsetBaseline = handsetFor(handset, "verification_start").length;
+
+    const panel = () => page.locator('[data-evidence-section="verification-page"]');
+    const contentPreview = () => panel().locator('[data-verification-disclosure-mode="CONTENT_PREVIEW"]');
+    const saveControl = () => panel().locator('[data-verification-disclosure-action="save"]');
+
+    const open = async () => {
+      const rows = await sql<{ id: string }>(
+        `SELECT id FROM evidence
+          WHERE id = ANY($1::uuid[]) AND verification_disclosure_mode::text = 'VERIFICATION_ONLY'
+          ORDER BY created_at ASC`,
+        [subjects],
+      );
+      expect(rows.length, "both subjects already show a content preview").toBeGreaterThan(0);
+      target = rows[0]!.id;
+      await page.goto(`/evidence/${target}?tab=artifacts`, { waitUntil: "domcontentloaded" });
+      await expectSurfaceRendered(page, EVIDENCE_ROUTE_ID);
+      await expect(panel().locator('[role="radiogroup"]')).toBeVisible({ timeout: 30_000 });
+      await expect(contentPreview()).toBeEnabled({ timeout: 30_000 });
+    };
+
+    const arm = async () => {
+      await contentPreview().click();
+      await expect(saveControl()).toBeEnabled({ timeout: 10_000 });
+    };
+
+    const widened = (where: string, params: unknown[]) =>
+      countRows("evidence", `${where} AND verification_disclosure_mode::text = 'CONTENT_PREVIEW'`, params);
+
+    await proveMutationCapability({
+      page,
+      probe,
+      descriptor: {
+        capabilityId: "p7.ui.evidence.verification_disclosure_widened",
+        pageUrl: "/evidence/{id}?tab=artifacts",
+        control: '[data-verification-disclosure-mode="CONTENT_PREVIEW"] → [data-verification-disclosure-action="save"] → step-up',
+        method: "PUT",
+        apiPath: "PUT /v1/evidence/:id/verification-disclosure",
+        pathFragment: "/verification-disclosure",
+        tenantWorkspaceId: ws,
+      },
+      open,
+      arm,
+      fire: async ({ double, keyboard }) => {
+        if (double) await activateTwice(saveControl(), keyboard);
+        else await activateOnce(saveControl(), keyboard);
+      },
+      submitControl: saveControl,
+      statusRegion: () => panel().locator("[data-verification-disclosure-notice]"),
+      errorStatusRegion: () => panel().locator("[data-verification-disclosure-problem]"),
+      countHere: () => widened("id = ANY($1::uuid[])", [subjects]),
+      countThere: () => widened("team_id = $1", [fixture.otherTenant.workspaceId]),
+      successCopy: /Saved\. The verification page now shows: Content preview/i,
+      expectStatus: 200,
+      resolveStepUp: stepUpWithRecordedCode(page, handset),
+      expectRefreshed: async () => {
+        // The panel prints the SERVER's answer: the saved mode and its preview.
+        await expect(panel().locator("[data-verification-disclosure]")).toHaveAttribute(
+          "data-verification-disclosure",
+          "CONTENT_PREVIEW",
+          { timeout: 20_000 },
+        );
+        await expect(saveControl()).toBeDisabled();
+        const custody = await countRows(
+          "custody_events",
+          "evidence_id = $1 AND event_type = 'VERIFICATION_DISCLOSURE_CHANGED'",
+          [target],
+        );
+        expect(custody, "the change must be recorded in the custody chain").toBeGreaterThan(0);
+      },
+    });
+
+    proven("p7.ui.evidence.verification_disclosure_widened");
+
+    const handsetTraffic = handsetFor(handset, "verification_start").slice(handsetBaseline);
+    expect(handsetTraffic.length, "the challenge must have sent exactly one code to this handset").toBe(1);
+    expect(handsetTraffic[0]!.code).toBeTruthy();
+
+    // A caller in another tenant is refused by the SERVER, not a hidden control.
+    await page.context().clearCookies();
+    await login(page, fixture.outsider);
+    await proveServerRefusal({
+      page,
+      capabilityId: "p7.ui.evidence.verification_disclosure_widened",
+      pageUrl: "/evidence/{id}?tab=artifacts",
+      control: '[data-verification-disclosure-action="save"]',
+      method: "PUT",
+      apiPath: "PUT /v1/evidence/:id/verification-disclosure",
+      requestPath: `/v1/evidence/${subjects[1]}/verification-disclosure`,
+      body: { mode: "CONTENT_PREVIEW", showRecordedLocation: false, expectedVersion: 0 },
+      tenantWorkspaceId: ws,
+      countRowsNow: () => widened("id = ANY($1::uuid[])", [subjects]),
+    });
+  });
+
+  // =========================================================================
+  // 23. PUT /v1/evidence/:id/verification-disclosure — NARROWING (no step-up)
+  //
+  // Its own test: narrowing a page back to Verification only is never gated,
+  // and that is a claim about the product that deserves its own proof rather
+  // than a tail on the widening journey.
+  // =========================================================================
+
+  test("p7.ui.evidence.verification_disclosure_narrowed", async ({ page }) => {
+    const fixture = await buildEnterpriseFixture({ label: "ev-disclosure-narrow" });
+    const { probe } = await signInAsOwner(page, fixture);
+    const ws = fixture.tenant.workspaceId;
+
+    const subjects: string[] = [];
+    for (const n of [1, 2]) {
+      subjects.push(await seedEvidence(page, { teamId: ws, title: `P7 UI narrowing subject ${n}` }));
+    }
+    // Initial state, not the transition under test: both pages show a content
+    // preview with the recorded location.
     await sql(
-      `UPDATE evidence SET public_verify_state = 'NOT_PUBLISHED'::"PublicVerifyState"
+      `UPDATE evidence
+          SET verification_disclosure_mode = 'CONTENT_PREVIEW', show_recorded_location = true
         WHERE id = ANY($1::uuid[])`,
       [subjects],
     );
     let target = subjects[0]!;
 
-    // One handset per journey: the provider rate-limits verification starts
-    // per recipient per hour, and the recorder answers with the newest code
-    // for an alias — two journeys sharing a number would read each other's.
-    const handset = uniqueHandset();
-
-    /**
-     * PHASE 13 (FIXTURE CORRECTION) — ENROL THE CONTACT FACTOR FIRST.
-     *
-     * Publication is gated by `requireStepUpForSensitiveAction`, and since
-     * NEW-058 that gate resolves its destination from the account's OWN ACTIVE,
-     * verified contact factor rather than from a handset the caller names. An
-     * account with no factor gets `STEP_UP_ENROLLMENT_REQUIRED` and the
-     * challenge never leaves the enrolment step — which is exactly what
-     * `stepUpWithRecordedCode` reported here, naming this remedy.
-     *
-     * Enrolment is a PRECONDITION of this capability, not the capability, and it
-     * is driven through the product's own surface (`/settings#security`) rather
-     * than seeded — an `mfa_factors` row written directly would prove the gate
-     * can be written around, not that a user can satisfy it.
-     */
-    await enrolContactFactor(page, handset);
-
-    // Everything the handset received UP TO HERE belongs to the precondition.
-    const handsetBaseline = handsetFor(handset, "verification_start").length;
-
-
-    const publishControl = () => page.locator("[data-cc-public-verify-publish]");
+    const panel = () => page.locator('[data-evidence-section="verification-page"]');
+    const verificationOnly = () => panel().locator('[data-verification-disclosure-mode="VERIFICATION_ONLY"]');
+    const saveControl = () => panel().locator('[data-verification-disclosure-action="save"]');
 
     const open = async () => {
       const rows = await sql<{ id: string }>(
         `SELECT id FROM evidence
-          WHERE id = ANY($1::uuid[])
-            AND public_verify_state = 'NOT_PUBLISHED'::"PublicVerifyState"
+          WHERE id = ANY($1::uuid[]) AND verification_disclosure_mode::text = 'CONTENT_PREVIEW'
           ORDER BY created_at ASC`,
         [subjects],
       );
-      expect(
-        rows.length,
-        "both subjects are already published — the fixture can no longer offer " +
-          "the control under test",
-      ).toBeGreaterThan(0);
+      expect(rows.length, "both subjects already disclose verification only").toBeGreaterThan(0);
       target = rows[0]!.id;
-
-      await page.goto(`/evidence/${target}?tab=overview`, {
-        waitUntil: "domcontentloaded",
-      });
+      await page.goto(`/evidence/${target}?tab=artifacts`, { waitUntil: "domcontentloaded" });
       await expectSurfaceRendered(page, EVIDENCE_ROUTE_ID);
-      await expect(
-        page.locator('[data-evidence-section="public-verify-publication"]'),
-        "the public-verify panel is rendered only when useEnterpriseSurfaceAccess() " +
-          "is true. If it is absent on a workspace whose Organization holds an " +
-          "ACTIVE ENTERPRISE contract, the enterprise projection in the " +
-          "platform-context envelope is the defect, not this test.",
-      ).toBeVisible({ timeout: 30_000 });
-
-      const blocked = page.locator("[data-cc-public-verify-blocked]");
-      if ((await blocked.count()) > 0) {
-        throw new Error(
-          `The publish control is blocked: "${(await blocked.first().textContent())?.trim()}". ` +
-            "The four preconditions are reviewWorkflow.teamId, " +
-            "workspaceCapabilitySnapshot.publicVerifyIncluded, summary.enabled and " +
-            "summary.configured (PublicVerifyPublicationPanel.tsx:106-116). " +
-            "`configured` is derived from getAnchorStatus(), which for a record " +
-            "with no evidence_anchors row is Boolean(process.env.ANCHOR_PROVIDER) — " +
-            "so the API process must export ANCHOR_PROVIDER.",
-        );
-      }
-      await expect(publishControl()).toBeEnabled({ timeout: 30_000 });
+      await expect(panel().locator("[data-verification-disclosure-location]")).toBeChecked({ timeout: 30_000 });
     };
 
-    // The internal note is optional and is recorded in the custody chain only
-    // — filling it is what proves it never reaches the public surface.
     const arm = async () => {
-      await page
-        .locator("[data-cc-public-verify-reason]")
-        .fill("Published by the Point-7 UI capability matrix.");
+      await verificationOnly().click();
+      // Narrowing clears the location and disables it — the reason is stated.
+      await expect(panel().locator("[data-verification-disclosure-location]")).toBeDisabled();
+      await expect(panel().locator("[data-verification-disclosure-location-help]")).toContainText(
+        "Available only with Content preview",
+      );
+      await expect(saveControl()).toBeEnabled({ timeout: 10_000 });
     };
+
+    const narrowed = (where: string, params: unknown[]) =>
+      countRows(
+        "evidence",
+        `${where} AND verification_disclosure_mode::text = 'VERIFICATION_ONLY' AND show_recorded_location = false`,
+        params,
+      );
 
     await proveMutationCapability({
       page,
       probe,
       descriptor: {
-        capabilityId: "p7.ui.evidence.public_verify_published",
-        pageUrl: "/evidence/{id}",
-        control:
-          '[data-cc-public-verify-publish] → [data-confirm-action-modal="evidence-public-verify-publish"] → step-up',
-        method: "POST",
-        apiPath: "POST /v1/governance/evidence/:id/publish",
-        // "/publish" is NOT a substring of "/unpublish" (the character before
-        // `publish` there is `n`, not `/`), so the two legs stay distinct.
-        pathFragment: "/publish",
+        capabilityId: "p7.ui.evidence.verification_disclosure_narrowed",
+        pageUrl: "/evidence/{id}?tab=artifacts",
+        control: '[data-verification-disclosure-mode="VERIFICATION_ONLY"] → [data-verification-disclosure-action="save"]',
+        method: "PUT",
+        apiPath: "PUT /v1/evidence/:id/verification-disclosure",
+        pathFragment: "/verification-disclosure",
         tenantWorkspaceId: ws,
       },
       open,
       arm,
-      /**
-       * Publication is irreversible in the sense that matters — a link
-       * already shared has been live — so the control is typed-confirm gated
-       * and the DIALOG's submit issues the request. The double activation
-       * targets the dialog; the panel's own control is what must be observed
-       * disabling itself for the whole round trip, step-up included.
-       */
       fire: async ({ double, keyboard }) => {
-        await activateOnce(publishControl(), keyboard);
-        const modal = page.locator(
-          '[data-confirm-action-modal="evidence-public-verify-publish"]',
-        );
-        await expect(modal).toBeVisible({ timeout: 15_000 });
-        await modal.locator("[data-confirm-action-typed-input]").fill("PUBLISH");
-        const dialogSubmit = modal.locator('[data-confirm-action-submit="true"]');
-        await expect(dialogSubmit).toBeEnabled({ timeout: 10_000 });
-        if (double) await activateTwice(dialogSubmit, keyboard);
-        else await activateOnce(dialogSubmit, keyboard);
+        if (double) await activateTwice(saveControl(), keyboard);
+        else await activateOnce(saveControl(), keyboard);
       },
-      submitControl: publishControl,
-      statusRegion: () => page.locator("[data-cc-public-verify-status]"),
-      countHere: () =>
-        countRows(
-          "evidence",
-          `id = ANY($1::uuid[]) AND public_verify_state = 'PUBLISHED'::"PublicVerifyState"`,
-          [subjects],
-        ),
-      countThere: () =>
-        countRows(
-          "evidence",
-          `team_id = $1 AND public_verify_state = 'PUBLISHED'::"PublicVerifyState"`,
-          [fixture.otherTenant.workspaceId],
-        ),
-      successCopy: /now published to public verification/i,
+      submitControl: saveControl,
+      statusRegion: () => panel().locator("[data-verification-disclosure-notice]"),
+      errorStatusRegion: () => panel().locator("[data-verification-disclosure-problem]"),
+      countHere: () => narrowed("id = ANY($1::uuid[])", [subjects]),
+      countThere: () => narrowed("team_id = $1", [fixture.otherTenant.workspaceId]),
+      successCopy: /Saved\. The verification page now shows: Verification only/i,
       expectStatus: 200,
-      resolveStepUp: stepUpWithRecordedCode(page, handset),
       expectRefreshed: async () => {
-        // The panel re-reads the record rather than patching its own state,
-        // and the proof is that the CONTROL changed identity: publication and
-        // withdrawal are the same slot, and only the server's answer decides
-        // which one occupies it.
-        await expect(
-          page.locator('[data-evidence-section="public-verify-publication"]'),
-          "the panel must re-read and report the new state without a reload",
-        ).toHaveAttribute("data-cc-public-verify-state", "PUBLISHED", {
-          timeout: 20_000,
-        });
-        await expect(
-          page.locator("[data-cc-public-verify-unpublish]"),
-          "a published record must now offer withdrawal — this is the ordering " +
-            "the withdrawal capability depends on, asserted rather than assumed",
-        ).toBeVisible({ timeout: 20_000 });
-        await expect(
-          publishControl(),
-          "and it must stop offering to publish what is already published",
-        ).toHaveCount(0);
-        // The internal note is custody-chain only. A note that reached the
-        // public surface would be a privacy failure, not a copy bug.
+        await expect(panel().locator("[data-verification-disclosure]")).toHaveAttribute(
+          "data-verification-disclosure",
+          "VERIFICATION_ONLY",
+          { timeout: 20_000 },
+        );
         const custody = await countRows(
           "custody_events",
-          "evidence_id = $1 AND event_type = 'PUBLIC_VERIFY_PUBLISHED'",
+          "evidence_id = $1 AND event_type = 'VERIFICATION_DISCLOSURE_CHANGED'",
           [target],
         );
-        expect(
-          custody,
-          "publication must be recorded in the custody chain",
-        ).toBeGreaterThan(0);
+        expect(custody).toBeGreaterThan(0);
       },
     });
 
-    proven("p7.ui.evidence.public_verify_published");
-
-    // The step-up challenge was genuinely exercised: a code was minted for
-    // this handset and consumed. Asserted from the recorder, because the
-    // database deliberately holds no code to check.
-    /**
-     * PHASE 13 (SPEC CORRECTION) — COUNT THE CHALLENGE'S CODE, NOT THE
-     * PRECONDITION'S.
-     *
-     * Since NEW-058 the step-up gate resolves its destination from the account's
-     * own ENROLLED contact factor, so enrolment and the challenge necessarily
-     * address the SAME handset — enrolling on a different number would leave the
-     * gate with no factor to resolve. That means this handset legitimately
-     * receives two `verification_start` records in the journey: one to enrol the
-     * factor (the precondition) and one for the challenge (the behaviour).
-     *
-     * A flat `toBe(1)` over the whole run therefore measured the fixture rather
-     * than the product. The claim is preserved exactly by baselining at the point
-     * enrolment finishes — the same discipline `proveMutationCapability` uses for
-     * the console — so "the CHALLENGE sent exactly one code" stays a strict
-     * assertion, and a challenge that silently sent two still fails.
-     */
-    const handsetTraffic = handsetFor(handset, "verification_start").slice(
-      handsetBaseline,
-    );
-    expect(
-      handsetTraffic.length,
-      "the challenge must have sent exactly one code to this handset",
-    ).toBe(1);
-    expect(
-      handsetTraffic[0]!.code,
-      "a verification_start with no code means a provider other than the " +
-        "recording one served the request",
-    ).toBeTruthy();
-
-    // A caller in another tenant is refused before the gate is even reached
-    // (`requireMember(..., "evidence.publish_verify")` runs first), so the
-    // refusal is the SERVER's and not a hidden button's.
-    await page.context().clearCookies();
-    await login(page, fixture.outsider);
-    await proveServerRefusal({
-      page,
-      capabilityId: "p7.ui.evidence.public_verify_published",
-      pageUrl: "/evidence/{id}",
-      control: "[data-cc-public-verify-publish]",
-      method: "POST",
-      apiPath: "POST /v1/governance/evidence/:id/publish",
-      requestPath: `/v1/governance/evidence/${subjects[1]}/publish`,
-      body: { teamId: ws, reason: null },
-      tenantWorkspaceId: ws,
-      countRowsNow: () =>
-        countRows(
-          "evidence",
-          `id = ANY($1::uuid[]) AND public_verify_state = 'PUBLISHED'::"PublicVerifyState"`,
-          [subjects],
-        ),
-    });
-  });
-
-  // =========================================================================
-  // 23. POST /v1/governance/evidence/:id/unpublish
-  //
-  // Its own test rather than a tail on the publication journey, because two
-  // full driver passes plus two step-up challenges in one test would be one
-  // test doing two capabilities' worth of work — and the first thing to break
-  // under that weight is the wall clock, which fails for a reason unrelated
-  // to the product.
-  //
-  // The ordering the withdrawal control depends on is not assumed away: the
-  // journey opens by proving that a NEVER-PUBLISHED record offers no
-  // withdrawal control at all, and the publication journey above ends by
-  // proving that publishing is what makes it appear.
-  // =========================================================================
-
-  test("p7.ui.evidence.public_verify_unpublished", async ({ page }) => {
-    const fixture = await buildEnterpriseFixture({ label: "ev-unpublish" });
-    const { probe } = await signInAsOwner(page, fixture);
-
-    const ws = fixture.tenant.workspaceId;
-
-    // --- The precondition, measured on a record that was never published.
-    const neverPublished = await seedEvidence(page, {
-      teamId: ws,
-      title: "P7 UI never-published record",
-    });
-    await sql(
-      `UPDATE evidence SET public_verify_state = 'NOT_PUBLISHED'::"PublicVerifyState" WHERE id = $1`,
-      [neverPublished],
-    );
-    await page.goto(`/evidence/${neverPublished}?tab=overview`, {
-      waitUntil: "domcontentloaded",
-    });
-    await expectSurfaceRendered(page, EVIDENCE_ROUTE_ID);
-    /**
-     * PHASE 13 (SPEC CORRECTION) — the PERSISTED COLUMN and the PROJECTED
-     * SUMMARY STATE are two different vocabularies, deliberately.
-     *
-     * The `UPDATE` above writes the column `public_verify_state =
-     * 'NOT_PUBLISHED'`, and this assertion then expected that same spelling back
-     * out of the UI. The API does not echo the column — it PROJECTS an operator-
-     * facing state (`evidence.routes.ts:4206-4208`):
-     *
-     *   case "NOT_PUBLISHED": case null:
-     *     state: configured ? "CONFIGURED_NOT_PUBLISHED" : "NOT_CONFIGURED"
-     *
-     * The distinction is the product's design, not drift: the panel's own
-     * blocked-reason ladder branches on `!published && !summary.configured` to
-     * say "this record has no publishable verification surface configured yet",
-     * so "not published, but there IS something to publish" has to be a
-     * different answer from "there is nothing to publish".
-     *
-     * `configured` is deterministic in this run, not incidental: the runner
-     * exports `ANCHOR_PROVIDER`, which is what makes a record with no anchor row
-     * report a configured verification surface. So the exact projected state is
-     * asserted — this is a tightening, not a relaxation: the previous expectation
-     * could never hold, and the weaker "anything that is not PUBLISHED" would
-     * not distinguish a configured record from an unconfigurable one.
-     */
-    await expect(
-      page.locator('[data-evidence-section="public-verify-publication"]'),
-    ).toHaveAttribute(
-      "data-cc-public-verify-state",
-      "CONFIGURED_NOT_PUBLISHED",
-      { timeout: 30_000 },
-    );
-    await expect(
-      page.locator("[data-cc-public-verify-unpublish]"),
-      "a record that was never published must not offer withdrawal — the " +
-        "control and the state are the same slot",
-    ).toHaveCount(0);
-    await expect(
-      page.locator("[data-cc-public-verify-publish]"),
-      "…and must offer publication in its place",
-    ).toBeVisible({ timeout: 20_000 });
-
-    /**
-     * A PAIR of PUBLISHED subjects, left at the schema default rather than
-     * driven through the publication form — publication is capability
-     * twenty-two and is driven through the browser there. Re-driving it here
-     * would be re-proving that capability rather than proving withdrawal, and
-     * would put two step-up challenges in one test.
-     *
-     * Two of them for the same reason as above: withdrawal is one-way on its
-     * subject, so the injected-500 pass needs a record still in the
-     * pre-state.
-     */
-    const subjects: string[] = [];
-    for (const n of [1, 2]) {
-      const id = await seedEvidence(page, {
-        teamId: ws,
-        title: `P7 UI withdrawal subject ${n}`,
-      });
-      subjects.push(id);
-    }
-    const seededStates = await sql<{ public_verify_state: string }>(
-      `SELECT public_verify_state FROM evidence WHERE id = ANY($1::uuid[])`,
-      [subjects],
-    );
-    expect(
-      seededStates.map((r) => r.public_verify_state),
-      "a freshly created record is expected to default to PUBLISHED; if that " +
-        "default changed, this precondition must be seeded explicitly instead",
-    ).toEqual(["PUBLISHED", "PUBLISHED"]);
-
-    let target = subjects[0]!;
-    const handset = uniqueHandset();
-
-    /**
-     * PHASE 13 (FIXTURE CORRECTION) — ENROL THE CONTACT FACTOR FIRST.
-     *
-     * Publication is gated by `requireStepUpForSensitiveAction`, and since
-     * NEW-058 that gate resolves its destination from the account's OWN ACTIVE,
-     * verified contact factor rather than from a handset the caller names. An
-     * account with no factor gets `STEP_UP_ENROLLMENT_REQUIRED` and the
-     * challenge never leaves the enrolment step — which is exactly what
-     * `stepUpWithRecordedCode` reported here, naming this remedy.
-     *
-     * Enrolment is a PRECONDITION of this capability, not the capability, and it
-     * is driven through the product's own surface (`/settings#security`) rather
-     * than seeded — an `mfa_factors` row written directly would prove the gate
-     * can be written around, not that a user can satisfy it.
-     */
-    await enrolContactFactor(page, handset);
-
-    // Everything the handset received UP TO HERE belongs to the precondition.
-    const handsetBaseline = handsetFor(handset, "verification_start").length;
-
-
-    const unpublishControl = () =>
-      page.locator("[data-cc-public-verify-unpublish]");
-
-    const open = async () => {
-      const rows = await sql<{ id: string }>(
-        `SELECT id FROM evidence
-          WHERE id = ANY($1::uuid[])
-            AND public_verify_state = 'PUBLISHED'::"PublicVerifyState"
-          ORDER BY created_at ASC`,
-        [subjects],
-      );
-      expect(
-        rows.length,
-        "both subjects are already withdrawn — the fixture can no longer offer " +
-          "the control under test",
-      ).toBeGreaterThan(0);
-      target = rows[0]!.id;
-
-      await page.goto(`/evidence/${target}?tab=overview`, {
-        waitUntil: "domcontentloaded",
-      });
-      await expectSurfaceRendered(page, EVIDENCE_ROUTE_ID);
-      await expect(
-        page.locator('[data-evidence-section="public-verify-publication"]'),
-      ).toBeVisible({ timeout: 30_000 });
-      await expect(unpublishControl()).toBeEnabled({ timeout: 30_000 });
-    };
-
-    const arm = async () => {
-      await page
-        .locator("[data-cc-public-verify-reason]")
-        .fill("Withdrawn by the Point-7 UI capability matrix.");
-    };
-
-    await proveMutationCapability({
-      page,
-      probe,
-      descriptor: {
-        capabilityId: "p7.ui.evidence.public_verify_unpublished",
-        pageUrl: "/evidence/{id}",
-        control:
-          '[data-cc-public-verify-unpublish] → [data-confirm-action-modal="evidence-public-verify-unpublish"] → step-up',
-        method: "POST",
-        apiPath: "POST /v1/governance/evidence/:id/unpublish",
-        pathFragment: "/unpublish",
-        tenantWorkspaceId: ws,
-      },
-      open,
-      arm,
-      // Withdrawal is confirmation-gated but NOT typed-confirm gated: taking
-      // a public link down is the safe direction, and a typed phrase in front
-      // of the safe direction is a reason not to take it.
-      fire: async ({ double, keyboard }) => {
-        await activateOnce(unpublishControl(), keyboard);
-        const modal = page.locator(
-          '[data-confirm-action-modal="evidence-public-verify-unpublish"]',
-        );
-        await expect(modal).toBeVisible({ timeout: 15_000 });
-        const dialogSubmit = modal.locator('[data-confirm-action-submit="true"]');
-        await expect(dialogSubmit).toBeEnabled({ timeout: 10_000 });
-        if (double) await activateTwice(dialogSubmit, keyboard);
-        else await activateOnce(dialogSubmit, keyboard);
-      },
-      submitControl: unpublishControl,
-      statusRegion: () => page.locator("[data-cc-public-verify-status]"),
-      countHere: () =>
-        countRows(
-          "evidence",
-          `id = ANY($1::uuid[]) AND public_verify_state = 'UNPUBLISHED'::"PublicVerifyState"`,
-          [subjects],
-        ),
-      countThere: () =>
-        countRows(
-          "evidence",
-          `team_id = $1 AND public_verify_state = 'UNPUBLISHED'::"PublicVerifyState"`,
-          [fixture.otherTenant.workspaceId],
-        ),
-      successCopy: /withdrawn from public verification/i,
-      expectStatus: 200,
-      resolveStepUp: stepUpWithRecordedCode(page, handset),
-      expectRefreshed: async () => {
-        await expect(
-          page.locator('[data-evidence-section="public-verify-publication"]'),
-          "the panel must re-read and report the withdrawn state without a reload",
-        ).toHaveAttribute("data-cc-public-verify-state", "UNPUBLISHED", {
-          timeout: 20_000,
-        });
-        await expect(
-          unpublishControl(),
-          "a withdrawn record must stop offering withdrawal",
-        ).toHaveCount(0, { timeout: 20_000 });
-        const custody = await countRows(
-          "custody_events",
-          "evidence_id = $1 AND event_type = 'PUBLIC_VERIFY_UNPUBLISHED'",
-          [target],
-        );
-        expect(
-          custody,
-          "withdrawal must be recorded in the custody chain",
-        ).toBeGreaterThan(0);
-      },
-    });
-
-    proven("p7.ui.evidence.public_verify_unpublished");
-
-    // Baselined past the enrolment code for the same reason as the publish
-    // journey above: NEW-058 makes enrolment and the challenge share one
-    // handset, so only the records AFTER enrolment belong to the challenge.
-    const handsetTraffic = handsetFor(handset, "verification_start").slice(
-      handsetBaseline,
-    );
-    expect(
-      handsetTraffic.length,
-      "the challenge must have sent exactly one code to this handset",
-    ).toBe(1);
-    expect(handsetTraffic[0]!.code).toBeTruthy();
+    proven("p7.ui.evidence.verification_disclosure_narrowed");
 
     await page.context().clearCookies();
     await login(page, fixture.outsider);
     await proveServerRefusal({
       page,
-      capabilityId: "p7.ui.evidence.public_verify_unpublished",
-      pageUrl: "/evidence/{id}",
-      control: "[data-cc-public-verify-unpublish]",
-      method: "POST",
-      apiPath: "POST /v1/governance/evidence/:id/unpublish",
-      requestPath: `/v1/governance/evidence/${subjects[1]}/unpublish`,
-      body: { teamId: ws, reason: null },
+      capabilityId: "p7.ui.evidence.verification_disclosure_narrowed",
+      pageUrl: "/evidence/{id}?tab=artifacts",
+      control: '[data-verification-disclosure-action="save"]',
+      method: "PUT",
+      apiPath: "PUT /v1/evidence/:id/verification-disclosure",
+      requestPath: `/v1/evidence/${subjects[1]}/verification-disclosure`,
+      body: { mode: "VERIFICATION_ONLY", showRecordedLocation: false, expectedVersion: 0 },
       tenantWorkspaceId: ws,
-      countRowsNow: () =>
-        countRows(
-          "evidence",
-          `id = ANY($1::uuid[]) AND public_verify_state = 'UNPUBLISHED'::"PublicVerifyState"`,
-          [subjects],
-        ),
+      countRowsNow: () => narrowed("id = ANY($1::uuid[])", [subjects]),
     });
   });
-
 
   // =========================================================================
   // 24. Video frame registration and track grouping

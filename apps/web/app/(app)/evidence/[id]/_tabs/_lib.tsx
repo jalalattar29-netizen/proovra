@@ -35,9 +35,8 @@ import {
   evidenceLocationCopy,
   getReviewerArtifactRoleLabel,
   locationRequirementRowValue,
-  OTS_VERIFICATION_TONES,
-  parseOtsVerificationKey,
   readOtsAnchoringView,
+  VERIFICATION_DISCLOSURE_MODE_LABELS,
   type OtsChainView,
   type OtsState,
   type OtsStateTone,
@@ -86,7 +85,7 @@ export type EvidenceDetailCtx = {
   evidenceId: string;
 
   // Derived / memoized values from the orchestrator
-  publicVerificationState: { label: string; detail: string } | null;
+  verificationPageState: VerificationPageState | null;
   otsStatusPresentation: OtsStatusPresentation | null;
   technicalReadinessSummary: string;
   reviewSignals: RiskSignal[];
@@ -281,9 +280,9 @@ export function describeContentItemRole(item: {
 /**
  * A media KIND's tone.
  *
- * SEPARATE FROM `pillTone` ON PURPOSE. `pillTone` classifies a STATE by
- * substring — "READY", "PENDING", "FAILED" — and the content-item card was
- * passing it a media kind. "IMAGE" matches none of its branches, so every kind
+ * A KIND, NOT A STATE. The content-item card used to pass a media kind to a
+ * substring STATE classifier (since deleted) that matched "READY", "PENDING",
+ * "FAILED". "IMAGE" matches none of its branches, so every kind
  * fell through to the neutral default and the card's type label was the same
  * grey for a photo, a video and a PDF. A kind is a CLASSIFICATION, not a
  * state; it needed its own table, and this is it.
@@ -314,51 +313,6 @@ export function mediaKindTone(kind: string): AppTone {
   return MEDIA_KIND_TONE[kind.trim().toLowerCase()] ?? "slate";
 }
 
-export function pillTone(status: string) {
-  const normalized = status.trim().toUpperCase();
-
-  // OpenTimestamps (2026-10-15): the OTS keys speak their own tones
-  // (OTS_VERIFICATION_TONES). Only CHAIN_VERIFIED is success; an ANCHORED
-  // proof or a recorded attestation was not checked against Bitcoin.
-  const otsKey = parseOtsVerificationKey(normalized);
-  if (otsKey) {
-    const tone = OTS_VERIFICATION_TONES[otsKey];
-    return tone === "success" ? "success" : tone === "danger" ? "danger" : otsKey === "PENDING" ? "warning" : "neutral";
-  }
-  if (normalized.includes("ANCHORED") || normalized.includes("NOT_INDEPENDENTLY")) return "neutral";
-
-  if (
-    normalized.includes("READY") ||
-    normalized.includes("VERIFIED") ||
-    normalized.includes("ACTIVE") ||
-    normalized.includes("AVAILABLE") ||
-    normalized.includes("RECORDED")
-  ) {
-    return "success";
-  }
-
-  if (
-    normalized.includes("WARNING") ||
-    normalized.includes("LIMIT") ||
-    normalized.includes("PENDING") ||
-    normalized.includes("REVIEW") ||
-    normalized.includes("SUPPORTED")
-  ) {
-    return "warning";
-  }
-
-  if (
-    normalized.includes("FAILED") ||
-    normalized.includes("DANGER") ||
-    normalized.includes("DELETED") ||
-    normalized.includes("TRASH")
-  ) {
-    return "danger";
-  }
-
-  return "neutral";
-}
-
 // ---------------------------------------------------------------------------
 // Status / availability describers (kept canonical; tests pin output strings)
 // ---------------------------------------------------------------------------
@@ -374,13 +328,6 @@ export function buildShareUrl(path: string | null | undefined): string | null {
     "";
 
   return `${base.replace(/\/+$/, "")}${normalized.startsWith("/") ? normalized : `/${normalized}`}`;
-}
-
-export function buildPublishedVerificationUrl(
-  summary: ReviewWorkspaceResponse["publicVerificationSummary"] | null | undefined
-): string | null {
-  if (!summary || summary.state !== "PUBLISHED") return null;
-  return buildShareUrl(summary.sharePath);
 }
 
 /** Why the canonical verification page cannot be opened right now. */
@@ -400,20 +347,16 @@ const CANONICAL_UNAVAILABLE: Record<string, string> = {
 
 /**
  * THE record's verification link for every owner surface on this page — the
- * canonical `pvr_` page from the canonical contract, never the optional
- * publication / recipient-link state. Only an API that predates the contract
- * (no `canonicalVerification` field at all) falls back to the legacy
- * published link, so a web deployed ahead of its API never loses the link.
+ * canonical `pvr_` page from the canonical contract, never a reviewer share.
+ * There is no publication state to fall back to (retired 2026-10-18): an
+ * envelope without the contract has no link.
  */
-export function resolveCanonicalVerificationLink(
-  workspace: Pick<ReviewWorkspaceResponse, "publicVerificationSummary"> & {
-    canonicalVerification?: ReviewWorkspaceResponse["canonicalVerification"];
-  },
-): { url: string | null; reason: string | null } {
+export function resolveCanonicalVerificationLink(workspace: {
+  canonicalVerification?: ReviewWorkspaceResponse["canonicalVerification"];
+}): { url: string | null; reason: string | null } {
   const canonical = workspace.canonicalVerification;
   if (canonical === undefined) {
-    const legacy = buildPublishedVerificationUrl(workspace.publicVerificationSummary);
-    return { url: legacy, reason: legacy ? null : CANONICAL_UNAVAILABLE.NOT_FOUND };
+    return { url: null, reason: CANONICAL_UNAVAILABLE.NOT_FOUND };
   }
   if (canonical.verifyPath && canonical.status === "AVAILABLE") {
     return { url: buildShareUrl(canonical.verifyPath), reason: null };
@@ -422,9 +365,17 @@ export function resolveCanonicalVerificationLink(
   return { url: null, reason: CANONICAL_UNAVAILABLE[key] ?? CANONICAL_UNAVAILABLE.NOT_FOUND };
 }
 
-export function describePublicVerificationState(
+/**
+ * THE VERIFICATION PAGE, summarised for the record page (disclosure model
+ * 2026-10-18). Every finalized record has a permanent page; this states its
+ * ACCESS (available / withdrawn / suspended) and, when available, what it
+ * DISCLOSES — read from the server's summary, never decided here.
+ */
+export type VerificationPageState = { label: string; detail: string; tone: AppTone };
+
+export function describeVerificationPageState(
   summary: ReviewWorkspaceResponse["publicVerificationSummary"]
-): { label: string; detail: string } {
+): VerificationPageState {
   switch (summary.state) {
     case "NOT_INCLUDED":
       return {
@@ -432,43 +383,39 @@ export function describePublicVerificationState(
         detail:
           summary.disabledReason ||
           "Public verification is not included in the current workspace capability set.",
+        tone: "slate",
       };
-    // Evidence-output incident (2026-10-05): both mean "unpublished". The API
-    // derived NOT_CONFIGURED from the unrelated external-anchor provider, so
-    // the copy is written for what is true of the record either way, and the
-    // older API's disabledReason (which repeated the claim) is not echoed.
-    case "NOT_CONFIGURED":
-    case "CONFIGURED_NOT_PUBLISHED":
+    case "AVAILABLE": {
+      const contentPreview = summary.disclosureMode === "CONTENT_PREVIEW";
       return {
-        label: "Not published",
+        label: `Available · ${VERIFICATION_DISCLOSURE_MODE_LABELS[contentPreview ? "CONTENT_PREVIEW" : "VERIFICATION_ONLY"]}`,
+        detail: contentPreview
+          ? `Anyone with the permanent reference sees the verification result and a content preview${
+              summary.showRecordedLocation ? ", including the recorded location" : ""
+            }.`
+          : "Anyone with the permanent reference sees the verification result only.",
+        tone: "green",
+      };
+    }
+    case "WITHDRAWN":
+      return {
+        label: "Withdrawn",
         detail:
-          "This record is private. Publish it, or create a share link, if someone outside the workspace needs to verify it.",
-      };
-    case "PUBLISHED":
-      return {
-        label: "Published",
-        detail: "Public verification is published and the public route should resolve.",
+          summary.disabledReason ||
+          "The verification page was withdrawn; every link to it answers that it was withdrawn.",
+        tone: "red",
       };
     case "SUSPENDED":
       return {
         label: "Suspended",
-        detail:
-          summary.disabledReason ||
-          "Public verification was suspended and the public route is intentionally unavailable.",
-      };
-    case "UNPUBLISHED":
-      return {
-        label: "Unpublished",
-        detail:
-          summary.disabledReason ||
-          "Public verification was unpublished and no public verification link is currently active.",
+        detail: summary.disabledReason || "The verification page is temporarily suspended.",
+        tone: "amber",
       };
     default:
       return {
         label: "State unavailable",
-        detail:
-          summary.disabledReason ||
-          "The publication state could not be resolved from the current evidence record.",
+        detail: "The verification page's state could not be read from the current evidence record.",
+        tone: "slate",
       };
   }
 }
@@ -1521,22 +1468,6 @@ export function getPriorityTone(priority: string | null | undefined): AppTone {
       return "blue";
     case "LOW":
       return "slate";
-    default:
-      return "slate";
-  }
-}
-
-export function getPublicVerificationTone(
-  state: ReviewWorkspaceResponse["publicVerificationSummary"]["state"]
-): AppTone {
-  switch (state) {
-    case "PUBLISHED":
-      return "green";
-    case "SUSPENDED":
-      return "red";
-    case "CONFIGURED_NOT_PUBLISHED":
-    case "UNPUBLISHED":
-      return "amber";
     default:
       return "slate";
   }

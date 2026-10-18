@@ -199,7 +199,7 @@ test("the rail declares exactly four sections, in order", () => {
     "Risk Signals",
     "Review Workflow",
     "Attributes",
-    "Public Verification",
+    "Verification page",
   ]);
 });
 
@@ -227,7 +227,9 @@ test("the rail reuses the same projections — no field was added", () => {
   assert.match(RAIL, /workspace\.reviewWorkflow\.priority/);
   assert.match(RAIL, /workspace\.relationships\.caseName/);
   assert.match(RAIL, /workspace\.reviewWorkflow\.dueAt/);
-  assert.match(RAIL, /workspace\.publicVerificationSummary\.state/);
+  // The verification page's state arrives already described by the one
+  // projection (describeVerificationPageState), not re-derived in the rail.
+  assert.match(RAIL, /verificationPage\?\.label/);
 });
 
 test("the rail is defined ONCE and mounted once — no tab-specific duplicate", () => {
@@ -257,7 +259,8 @@ test("rail sections are visually separated", () => {
 test("rail tones come from the real projection values, not from string sniffing", () => {
   assert.match(LIB, /export function getWorkflowStatusTone\(/);
   assert.match(LIB, /export function getPriorityTone\(/);
-  assert.match(LIB, /export function getPublicVerificationTone\(/);
+  assert.match(LIB, /export function describeVerificationPageState\(/);
+  assert.doesNotMatch(LIB, /getPublicVerificationTone|function pillTone/);
   assert.match(RAIL, /getWorkflowStatusTone\(workspace\.reviewWorkflow\.status\)/);
   assert.match(RAIL, /getPriorityTone\(workspace\.reviewWorkflow\.priority\)/);
 });

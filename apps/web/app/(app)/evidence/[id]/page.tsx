@@ -27,6 +27,7 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { multipartRecordKindLabel } from "@proovra/shared";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -67,7 +68,7 @@ import {
   buildRiskSignals,
   buildTechnicalReadinessSummary,
   describeOtsStatus,
-  describePublicVerificationState,
+  describeVerificationPageState,
   describeReportArtifactStatus,
   OUTPUT_STATE_COPY,
   describeVerificationPackageStatus,
@@ -389,8 +390,8 @@ function EvidenceDetailPageInner() {
   const evidence = workspace?.evidence ?? null;
   const workspaceCaps = workspace?.workspaceCapabilitySnapshot ?? null;
 
-  const publicVerificationState = useMemo(
-    () => (workspace ? describePublicVerificationState(workspace.publicVerificationSummary) : null),
+  const verificationPageState = useMemo(
+    () => (workspace ? describeVerificationPageState(workspace.publicVerificationSummary) : null),
     [workspace],
   );
   const otsStatusPresentation = useMemo(
@@ -417,7 +418,11 @@ function EvidenceDetailPageInner() {
         label: "Captured",
         value: formatValue(formatUserDateTime(workspace.evidence.capturedAtUtc)),
       },
-      { label: "MIME type", value: workspace.evidence.mimeType || "Not recorded" },
+      // A multipart record is a package of items: its first part's MIME type
+      // would describe one item, not the record.
+      workspace.relationships.itemCount > 1
+        ? { label: "Record type", value: multipartRecordKindLabel(workspace.relationships.itemCount) }
+        : { label: "MIME type", value: workspace.evidence.mimeType || "Not recorded" },
       { label: "File size", value: formatBytes(workspace.evidence.sizeBytes) },
       { label: "Workspace", value: workspaceCaps?.workspaceName || "Not recorded" },
       { label: "Case", value: workspace.relationships.caseName || "Unassigned" },
@@ -452,15 +457,15 @@ function EvidenceDetailPageInner() {
         ),
       },
       {
-        label: "Public verification",
-        value: publicVerificationState?.label ?? "State unavailable",
+        label: "Verification page",
+        value: verificationPageState?.label ?? "State unavailable",
       },
       {
         label: "Case assignment",
         value: workspace.relationships.caseName || "Unassigned",
       },
     ];
-  }, [publicVerificationState, workspace, workspaceCaps]);
+  }, [verificationPageState, workspace, workspaceCaps]);
 
   const saveWorkflow = async () => {
     if (!evidenceId) return;
@@ -793,11 +798,11 @@ function EvidenceDetailPageInner() {
    * every mutating panel on this page calls after a SUCCESSFUL write — so each
    * success unmounted the panel that had just been given something to say.
    *
-   * `PublicVerifyPublicationPanel` is the case that exposed it: it announces
-   * "This record is now published to public verification." from its own
-   * `role="status"` / `aria-live="polite"` region and then calls `onChanged()`.
-   * The region came back mounted and EMPTY, so a screen-reader user published
-   * evidence to a PUBLIC surface — or withdrew it — and was told nothing. It also
+   * The (since retired) publication panel is the case that exposed it: it
+   * announced its result from its own `role="status"` / `aria-live="polite"`
+   * region and then called `onChanged()`. The region came back mounted and
+   * EMPTY, so a screen-reader user changed a PUBLIC surface and was told
+   * nothing. The Manage verification page panel announces the same way. It also
    * discarded the panel's transient state (the reason field, step-up progress)
    * and flashed a full-page spinner over a page the user was reading.
    *
@@ -968,7 +973,7 @@ function EvidenceDetailPageInner() {
     preservation,
     trustDecision,
     evidenceId,
-    publicVerificationState,
+    verificationPageState,
     otsStatusPresentation,
     technicalReadinessSummary,
     reviewSignals,
@@ -1194,8 +1199,8 @@ function EvidenceDetailPageInner() {
                 •
               </span>
               <span className="evidence-detail-meta-item">
-                {workspace.relationships.multipart
-                  ? `${workspace.relationships.itemCount} items`
+                {workspace.relationships.itemCount > 1
+                  ? multipartRecordKindLabel(workspace.relationships.itemCount)
                   : "Single item"}
               </span>
             </div>
@@ -1417,12 +1422,7 @@ function EvidenceDetailPageInner() {
           <EvidenceRecordRail
             workspace={workspace}
             signals={reviewSignals}
-            publicVerificationLabel={
-              publicVerificationState?.label ?? "State unavailable"
-            }
-            publicVerificationDetail={
-              publicVerificationState?.detail ?? "No publication detail available."
-            }
+            verificationPage={verificationPageState}
             shareUrl={shareUrl}
           />
         </div>

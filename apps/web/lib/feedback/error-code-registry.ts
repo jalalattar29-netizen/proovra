@@ -70,6 +70,7 @@ export type ErrorCodeDisposition =
 const PUBLIC_INTAKE = "apps/web/app/intake/[token]/page.tsx";
 const REGISTER = "apps/web/app/register/page.tsx";
 const EXCHANGE = "apps/web/app/(app)/exchange/page.tsx";
+const MANAGE_VERIFICATION_PAGE = "apps/web/components/evidence-outputs/ManageVerificationPagePanel.tsx";
 
 export const ERROR_CODE_DISPOSITIONS: Readonly<
   Record<string, ErrorCodeDisposition>
@@ -241,7 +242,13 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   RECORD_NOT_SHAREABLE: { disposition: "customer", where: "global" },
   VERIFICATION_LINK_NOT_FOUND: { disposition: "customer", where: "global" },
   LEGACY_LINK_NOT_ACTIVE: { disposition: "customer", where: "global" },
-  PUBLICATION_NOT_AVAILABLE: { disposition: "customer", where: "global" },
+  // The verification page's disclosure (2026-10-18): contextual copy in the
+  // one control that changes it.
+  DISCLOSURE_CHANGE_NOT_PERMITTED: { disposition: "customer", where: MANAGE_VERIFICATION_PAGE },
+  DISCLOSURE_LOCATION_REQUIRES_CONTENT_PREVIEW: { disposition: "customer", where: MANAGE_VERIFICATION_PAGE },
+  DISCLOSURE_POLICY_INVALID: { disposition: "customer", where: MANAGE_VERIFICATION_PAGE },
+  DISCLOSURE_RECORD_NOT_CHANGEABLE: { disposition: "customer", where: MANAGE_VERIFICATION_PAGE },
+  DISCLOSURE_VERSION_CONFLICT: { disposition: "customer", where: MANAGE_VERIFICATION_PAGE },
   PACKAGE_BLOCKED_BY_POLICY: { disposition: "customer", where: "global" },
   REPORT_BLOCKED_BY_TEMPLATE_POLICY: { disposition: "customer", where: "global" },
   PACKAGE_BLOCKED_BY_TEMPLATE_POLICY: { disposition: "customer", where: "global" },

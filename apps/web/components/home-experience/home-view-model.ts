@@ -46,7 +46,7 @@
  * union) and asserted by the coverage test that imports it, not by this file
  * holding a second reference to it.
  */
-import { evidencePublicLinksHref } from "../../lib/verification-links-href";
+import { evidenceVerificationPageHref } from "../../lib/verification-links-href";
 import {
   PLATFORM_ADVISORY_PRIORITY,
   UNRECOGNISED_SOURCE_PRIORITY,
@@ -131,13 +131,6 @@ export const HOME_OTS_PENDING_HREF = "/evidence?otsStatus=PENDING,UPGRADING,QUEU
 export const HOME_ANCHORING_FAILURES_HREF =
   "/evidence?otsStatus=FAILED,ERRORED,ERROR";
 
-/**
- * Records where verification is not yet public (NOT_PUBLISHED or
- * UNPUBLISHED — both fold into the `publicVerify.unpublished` count).
- */
-export const HOME_PUBLISH_VERIFICATION_HREF =
-  "/evidence?publicVerifyState=NOT_PUBLISHED,UNPUBLISHED";
-
 /** Unfiltered Evidence queue — the canonical "primary workspace" link. */
 export const HOME_EVIDENCE_QUEUE_HREF = "/evidence";
 
@@ -152,7 +145,6 @@ export type HeroAction = {
     | "generate_reports"
     | "complete_packages"
     | "fix_integrity"
-    | "publish_verification"
     | "complete_cases"
     | "capture_first"
     | "create_first_case"
@@ -339,9 +331,14 @@ export type TrustState = {
   signedWithoutReport: number;
   /** Evidence at REPORTED with no Package row. Operational issue. */
   reportedWithoutPackage: number;
-  verifyPublished: number;
-  /** Public verification links that were live but are now suspended. */
-  verifySuspended: number;
+  /**
+   * The verification pages (disclosure model 2026-10-18): every finalized
+   * record has one. Available pages by what they disclose, and pages that
+   * are withdrawn or suspended — from trust-summary.verificationPages.
+   */
+  verifyContentPreview: number;
+  verifyVerificationOnly: number;
+  verifyUnavailable: number;
   needingAttention: number;
   /** True when there is genuinely nothing to show yet. */
   empty: boolean;
@@ -369,7 +366,7 @@ export type ActivityEvent = {
     | "evidence_finalized"
     | "report_generated"
     | "package_generated"
-    | "verification_published"
+    | "verification_disclosure_changed"
     | "request_more_sent"
     | "lifecycle_transition"
     | "destruction_review"
@@ -423,8 +420,8 @@ export type ChecklistStep = {
 /**
  * Phase HOME-INTELLIGENCE — a ranked, explained workspace action for
  * ACTIVE users. Every priority is derived from live operational data
- * (often COMBINING domains — e.g. reports ready + verification
- * unpublished); never static copy, never fabricated.
+ * (often COMBINING domains — e.g. reports ready + packages missing);
+ * never static copy, never fabricated.
  */
 export type WorkspacePriority = {
   key:
@@ -435,7 +432,6 @@ export type WorkspacePriority = {
     | "complete_packages"
     | "matters_need_reports"
     | "ots_pending"
-    | "publish_verification"
     | "reports_ready"
     | "storage_pressure"
     | "create_intake_link"
@@ -538,12 +534,14 @@ export type ActiveMatterRow = {
   verifyLiveCount: number;
   /**
    * Where this matter sits in the deliverable chain:
-   *   needs_report → missing_package → needs_publication → ready.
+   *   needs_report → missing_package → page_unavailable → ready.
+   * (Every finalized record has a verification page; "page_unavailable"
+   * means none of the matter's pages is currently available.)
    * "none" when the matter has no evidence yet.
    */
   verificationStatus:
     | "ready"
-    | "needs_publication"
+    | "page_unavailable"
     | "missing_package"
     | "needs_report"
     | "none";
@@ -596,7 +594,7 @@ export type IntakePipeline = {
  * action navigates to the surface where the fix lives.
  */
 export type DeliverableIssue = {
-  key: "failed_deliverables" | "package_gap" | "publish_ready" | "suspended_verification";
+  key: "failed_deliverables" | "package_gap" | "unavailable_verification";
   label: string;
   count: number;
   tone: "danger" | "warn" | "action";
@@ -745,32 +743,30 @@ export type VerifiableRecord = {
 };
 
 /**
- * Public verification posture — a user-facing deliverable status. Only
- * the three REAL publicVerifyState values are surfaced (live / not
- * published / suspended); we deliberately do NOT invent a "pending"
- * verification state because the backend has none.
+ * Verification pages — a user-facing deliverable status (disclosure model
+ * 2026-10-18). Every finalized record HAS a permanent page; the counts say
+ * what the available ones disclose and how many are unavailable (withdrawn
+ * or suspended). There is no "published / not published" state.
  */
 export type VerificationHealth = {
-  live: number;
-  unpublished: number;
-  suspended: number;
+  contentPreview: number;
+  verificationOnly: number;
+  unavailable: number;
   /** Recently verifiable records (have a package → public verify works). */
   verifiable: VerifiableRecord[];
   /**
    * Phase HOME-INTELLIGENCE — cross-signal verification issues, each a
-   * real aggregate count: packages ready but verification unpublished
-   * (pipeline.publicVerify × packages), and reported evidence missing
-   * a package. Recent verify-view analytics exist only on a
+   * real aggregate count: unavailable verification pages, and reported
+   * evidence missing a package. Recent verify-view analytics exist only on a
    * per-evidence endpoint (review-workspace) — NOT shown here rather
    * than fetched N+1 (documented future capability).
    */
   issues: DeliverableIssue[];
   /**
-   * Phase HOME-DECISIONS — recently published verification pages,
-   * projected from the command-center timeline's
-   * `verification_published` events (Evidence.publicVerifyPublishedAtUtc).
+   * Recent disclosure changes, projected from the command-center
+   * timeline's `verification_disclosure_changed` events.
    */
-  recentPublications: Array<{ label: string; href: string; occurredAt: string }>;
+  recentDisclosureChanges: Array<{ label: string; href: string; occurredAt: string }>;
   /** True when there is no evidence yet (zero scaffold). */
   empty: boolean;
 };
@@ -1035,10 +1031,10 @@ export type HomeCommandCenterInput = {
           failed?: number;
           missingFromReported?: number;
         };
-        publicVerify?: {
-          published?: number;
-          unpublished?: number;
-          suspended?: number;
+        verificationPages?: {
+          contentPreview?: number;
+          verificationOnly?: number;
+          unavailable?: number;
         };
       } | null;
     };
@@ -1122,7 +1118,7 @@ export type HomeTrustSummaryInput = {
    * row. Surfaces as an Operational Issue on Home.
    */
   reportedWithoutPackage?: number;
-  publicVerify?: { published?: number; unpublished?: number; suspended?: number };
+  verificationPages?: { contentPreview?: number; verificationOnly?: number; unavailable?: number };
   needingAttention?: number;
 };
 
@@ -1603,9 +1599,9 @@ function buildRecentReports(
         ? `/v1/evidence/${encodeURIComponent(evidenceId)}/verification-package`
         : null;
       // ET-PKG-07 — Home no longer links to /verify/<evidence id>: a record's
-      // id is not a public link. This is the record's link controls, where a
-      // share link is created, revoked or replaced.
-      const verify = r.package?.available ? evidencePublicLinksHref(evidenceId) : null;
+      // id is not a public link. This opens the record's verification page
+      // controls (its permanent page, its disclosure and reviewer shares).
+      const verify = r.package?.available ? evidenceVerificationPageHref(evidenceId) : null;
       return {
         evidenceId,
         evidenceTitle: r.title ?? evidenceId,
@@ -1666,8 +1662,9 @@ function buildTrustState(
     endToEndReady: s.endToEndReady ?? 0,
     signedWithoutReport: s.signedWithoutReport ?? 0,
     reportedWithoutPackage: s.reportedWithoutPackage ?? 0,
-    verifyPublished: s.publicVerify?.published ?? 0,
-    verifySuspended: s.publicVerify?.suspended ?? 0,
+    verifyContentPreview: s.verificationPages?.contentPreview ?? 0,
+    verifyVerificationOnly: s.verificationPages?.verificationOnly ?? 0,
+    verifyUnavailable: s.verificationPages?.unavailable ?? 0,
     needingAttention: s.needingAttention ?? 0,
     empty: totalEvidence === 0,
   };
@@ -1735,9 +1732,11 @@ const ACTIVITY_KIND_LABELS: Record<string, { kind: ActivityEvent["kind"]; label:
   // raw event names never leak to the UI.
   lifecycle_transition: { kind: "lifecycle_transition", label: "Evidence lifecycle updated" },
   destruction_review: { kind: "destruction_review", label: "Retention review recorded" },
-  // Phase HOME-INTELLIGENCE — projected by the new command-center
-  // timeline source over Evidence.publicVerifyPublishedAtUtc.
-  verification_published: { kind: "verification_published", label: "Verification published" },
+  // (2026-10-18) An owner changed what a verification page discloses.
+  verification_disclosure_changed: {
+    kind: "verification_disclosure_changed",
+    label: "Verification page disclosure changed",
+  },
 };
 
 function dayBucket(iso: string, nowMs: number): "today" | "yesterday" | "earlier" {
@@ -1950,7 +1949,8 @@ function buildChecklist(args: {
   evidenceCount: number;
   caseCount: number;
   reportCount: number;
-  verifyPublished: number;
+  /** Available verification pages (any disclosure). */
+  verifyAvailable: number;
 }): ChecklistStep[] {
   return [
     {
@@ -1977,8 +1977,8 @@ function buildChecklist(args: {
     {
       key: "share_verification",
       label: "Share verification",
-      // Real signal: at least one public verification page is live.
-      done: args.verifyPublished > 0,
+      // Real signal: at least one verification page is available to share.
+      done: args.verifyAvailable > 0,
       visible: true,
       href: "/evidence",
     },
@@ -2278,22 +2278,8 @@ function buildWorkspacePriorities(args: {
   }
 
   // ---- info ---------------------------------------------------------------
-  const unpublished = p?.publicVerify?.unpublished ?? 0;
-  if (unpublished > 0 && args.reportCount > 0) {
-    out.push({
-      key: "publish_verification",
-      severity: "info",
-      domains: ["verification", "report"],
-      count: unpublished,
-      label: `${unpublished} record${unpublished === 1 ? " is" : "s are"} ready but not publicly verifiable`,
-      whyItMatters: "External recipients cannot independently verify these records yet.",
-      recommendedAction: "Publish their verification pages so links can be shared.",
-      actionLabel: "Publish verification",
-      // Phase HOME-CTA-NORMALIZATION — single source of truth.
-      href: HOME_PUBLISH_VERIFICATION_HREF,
-      derivedFrom: ["dashboard/command-center.pipelineDetail.publicVerify.unpublished"],
-    });
-  }
+  // (2026-10-18) No "publish verification" priority: every finalized record
+  // already has its verification page.
   if (args.reportsReady > 0) {
     out.push({
       key: "reports_ready",
@@ -2379,7 +2365,7 @@ function buildExecutiveSummary(args: {
       ? "critical"
       : args.trust.needingAttention > 0 ||
           failedOutput > 0 ||
-          args.trust.verifySuspended > 0
+          args.trust.verifyUnavailable > 0
         ? "action_required"
         : args.priorities.some((p) => p.severity !== "info") ||
             unsigned > 0 ||
@@ -2519,21 +2505,6 @@ function pickHeroAction(args: {
     };
   }
 
-  // 5. Verification ready but not published.
-  const unpublished = pipeline?.publicVerify?.unpublished ?? 0;
-  if (unpublished > 0 && args.reportCount > 0) {
-    return {
-      kind: "publish_verification",
-      title: `${unpublished} record${unpublished === 1 ? "" : "s"} ready to publish`,
-      detail: "Make a public verification link available so others can verify your evidence.",
-      count: unpublished,
-      // Phase HOME-CTA-NORMALIZATION — single source of truth.
-      href: HOME_PUBLISH_VERIFICATION_HREF,
-      ctaLabel: "Publish verification",
-      tone: "action",
-    };
-  }
-
   // 6. Cases with gaps.
   if (args.caseHealth.length > 0) {
     return {
@@ -2656,7 +2627,7 @@ function buildActiveMatters(
           : packagesReadyCount === 0
             ? "missing_package"
             : verifyLiveCount === 0
-              ? "needs_publication"
+              ? "page_unavailable"
               : "ready";
 
     const chainIncomplete =
@@ -2669,7 +2640,7 @@ function buildActiveMatters(
     if (escalations > 0) reasons.push(`${escalations} blocked`);
     if (verificationStatus === "needs_report") reasons.push("no report yet");
     else if (verificationStatus === "missing_package") reasons.push("package missing");
-    else if (verificationStatus === "needs_publication") reasons.push("verification not published");
+    else if (verificationStatus === "page_unavailable") reasons.push("verification page unavailable");
     const verdict: ActiveMatterRow["verdict"] =
       escalations > 0 || overdue > 0
         ? "action_required"
@@ -2773,7 +2744,6 @@ function buildReportProduction(args: {
   // Every count is a real aggregate; failed deliverables live as
   // OperationalIncident inbox items, so the action routes there (no
   // fabricated retry — no retry endpoint exists for report jobs).
-  const unpublished = p?.publicVerify?.unpublished ?? 0;
   const needsAction: DeliverableIssue[] = [];
   if (reportsFailed + packagesFailed > 0) {
     needsAction.push({
@@ -2795,16 +2765,6 @@ function buildReportProduction(args: {
       href: "/reports",
     });
   }
-  if (reportsReady > 0 && unpublished > 0) {
-    needsAction.push({
-      key: "publish_ready",
-      label: "Reports ready but verification not published",
-      count: Math.min(reportsReady, unpublished),
-      tone: "action",
-      actionLabel: "Publish verification",
-      href: "/evidence",
-    });
-  }
 
   return {
     reportsReady,
@@ -2819,9 +2779,9 @@ function buildReportProduction(args: {
 }
 
 /**
- * Verification Health — the public-verify deliverable status. Counts are
- * the REAL publicVerifyState aggregates from trust-summary; verifiable
- * rows are reports whose package is ready (the public verify page works).
+ * Verification Health — the verification pages' deliverable status. Counts
+ * are the REAL trust-summary.verificationPages aggregates; verifiable rows are
+ * reports whose package is ready (their page controls are one click away).
  */
 function buildVerificationHealth(args: {
   trust: TrustState;
@@ -2829,14 +2789,14 @@ function buildVerificationHealth(args: {
   pipeline: PipelineData;
   cc: HomeCommandCenterInput | null;
 }): VerificationHealth {
-  // Phase HOME-DECISIONS — recent publications from the timeline's
-  // verification_published events (real publish timestamps).
-  const recentPublications = (args.cc?.sections?.timeline?.items ?? [])
-    .filter((it) => it.kind === "verification_published" && it.occurredAt)
+  // Recent disclosure changes from the timeline's
+  // verification_disclosure_changed events (real change timestamps).
+  const recentDisclosureChanges = (args.cc?.sections?.timeline?.items ?? [])
+    .filter((it) => it.kind === "verification_disclosure_changed" && it.occurredAt)
     .sort((a, b) => ((a.occurredAt ?? "") < (b.occurredAt ?? "") ? 1 : -1))
     .slice(0, 3)
     .map((it) => ({
-      label: it.label ?? "Verification published",
+      label: it.label ?? "Verification page disclosure changed",
       href: it.href ?? "/evidence",
       occurredAt: it.occurredAt as string,
     }));
@@ -2851,21 +2811,9 @@ function buildVerificationHealth(args: {
 
   // Phase HOME-INTELLIGENCE — cross-signal issues (all real aggregates).
   const p = args.pipeline ?? null;
-  const packagesReady = p?.packages?.ready ?? 0;
-  const verifyUnpublished = p?.publicVerify?.unpublished ?? 0;
   const packagesMissing =
     p?.packages?.queued ?? p?.packages?.missingFromReported ?? 0;
   const issues: DeliverableIssue[] = [];
-  if (packagesReady > 0 && verifyUnpublished > 0) {
-    issues.push({
-      key: "publish_ready",
-      label: "Package ready but verification not published",
-      count: Math.min(packagesReady, verifyUnpublished),
-      tone: "action",
-      actionLabel: "Publish verification",
-      href: "/evidence",
-    });
-  }
   if (packagesMissing > 0) {
     issues.push({
       key: "package_gap",
@@ -2876,13 +2824,13 @@ function buildVerificationHealth(args: {
       href: "/reports",
     });
   }
-  // Phase HOME-EXEC — suspended verification is action-required: a
-  // previously shareable page is no longer externally verifiable.
-  if (args.trust.verifySuspended > 0) {
+  // Phase HOME-EXEC — an unavailable page (withdrawn or suspended) is
+  // action-required: a page that was shareable no longer verifies anything.
+  if (args.trust.verifyUnavailable > 0) {
     issues.unshift({
-      key: "suspended_verification",
-      label: "Suspended verification needs review",
-      count: args.trust.verifySuspended,
+      key: "unavailable_verification",
+      label: "Verification pages withdrawn or suspended",
+      count: args.trust.verifyUnavailable,
       tone: "danger",
       actionLabel: "Open evidence",
       href: "/evidence",
@@ -2890,12 +2838,12 @@ function buildVerificationHealth(args: {
   }
 
   return {
-    live: args.trust.verifyPublished,
-    unpublished: args.trust.empty ? 0 : Math.max(0, args.trust.totalEvidence - args.trust.verifyPublished - args.trust.verifySuspended),
-    suspended: args.trust.verifySuspended,
+    contentPreview: args.trust.verifyContentPreview,
+    verificationOnly: args.trust.verifyVerificationOnly,
+    unavailable: args.trust.verifyUnavailable,
     verifiable,
     issues,
-    recentPublications,
+    recentDisclosureChanges,
     empty: args.trust.empty,
   };
 }
@@ -3442,7 +3390,7 @@ function buildKpis(args: {
       ? "End-to-end readiness appears with your first record"
       : stuck > 0
         ? `${formatKpiNumber(endToEndReady)} of ${formatKpiNumber(totalEvidence)} have report + package · ${formatKpiNumber(stuck)} need attention`
-        : `${formatKpiNumber(endToEndReady)} of ${formatKpiNumber(totalEvidence)} have report + package · ${formatKpiNumber(args.trust.verifyPublished)} verify pages live`;
+        : `${formatKpiNumber(endToEndReady)} of ${formatKpiNumber(totalEvidence)} have report + package · ${formatKpiNumber(args.trust.verifyContentPreview + args.trust.verifyVerificationOnly)} verification pages available`;
 
   const rp = args.reportProduction;
   const deliverablesFailed = rp.reportsFailed + rp.packagesFailed;
@@ -3786,20 +3734,20 @@ export function normalizeHomeViewModel(
     evidenceCount,
     caseCount,
     reportCount,
-    verifyPublished: trustState.verifyPublished,
+    verifyAvailable: trustState.verifyContentPreview + trustState.verifyVerificationOnly,
   });
   const visibleSteps = checklist.filter((s) => s.visible);
   const checklistComplete =
     visibleSteps.length > 0 && visibleSteps.every((s) => s.done);
 
   // Phase HOME-POLISH — onboarding is for TRULY NEW users only.
-  // Any real work (evidence, reports, matters, live verification)
+  // Any real work (evidence, reports, matters, a verification page)
   // permanently retires the Getting Started card.
   const showGettingStarted =
     evidenceCount === 0 &&
     reportCount === 0 &&
     caseCount === 0 &&
-    trustState.verifyPublished === 0;
+    trustState.verifyContentPreview + trustState.verifyVerificationOnly === 0;
 
   const heroAction = pickHeroAction({
     intakeIncluded: features.intakeIncluded,

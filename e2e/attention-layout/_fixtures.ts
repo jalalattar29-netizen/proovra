@@ -188,7 +188,7 @@ export const EMPTY_TRUST_SUMMARY = {
   endToEndReady: 0,
   signedWithoutReport: 0,
   reportedWithoutPackage: 0,
-  publicVerify: { published: 0, unpublished: 0, suspended: 0 },
+  verificationPages: { contentPreview: 0, verificationOnly: 0, unavailable: 0 },
   needingAttention: 0,
   intake: { submissionsAwaitingReview: 0, submissionsNeedingMoreInfo: 0 },
 };
@@ -201,7 +201,7 @@ export const TRUST_SUMMARY = {
   endToEndReady: 62,
   signedWithoutReport: 8,
   reportedWithoutPackage: 5,
-  publicVerify: { published: 40, unpublished: 78, suspended: 2 },
+  verificationPages: { contentPreview: 40, verificationOnly: 78, unavailable: 2 },
   needingAttention: 14,
   intake: { submissionsAwaitingReview: 3, submissionsNeedingMoreInfo: 1 },
 };
@@ -752,7 +752,7 @@ const HOME_COMMAND_CENTER = {
         { kind: "evidence_finalized", title: "Joint Scene Examination by Fire Investigators.jpg", occurredAt: new Date(Date.now() - 12 * 60_000).toISOString(), href: "/evidence/ev-1" },
         { kind: "report_generated", title: "Joint Scene Examination by Fire Investigators.jpg", occurredAt: new Date(Date.now() - 3 * 3_600_000).toISOString(), href: "/evidence/ev-1" },
         { kind: "package_generated", title: "Joint Scene Examination by Fire Investigators.jpg", occurredAt: new Date(Date.now() - 26 * 3_600_000).toISOString(), href: "/evidence/ev-2" },
-        { kind: "verification_published", title: "landing-network-bg.png", occurredAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), href: "/evidence/ev-3" },
+        { kind: "verification_disclosure_changed", title: "landing-network-bg.png", occurredAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), href: "/evidence/ev-3" },
         { kind: "hold_placed", title: "20260704_014724.mp4", occurredAt: new Date(Date.now() - 3 * 86_400_000).toISOString(), href: "/evidence/ev-4" },
         { kind: "lifecycle_transition", title: "Scene overview.jpg", occurredAt: new Date(Date.now() - 5 * 86_400_000).toISOString(), href: "/evidence/ev-5" },
         { kind: "destruction_review", title: "Archived interview.zip", occurredAt: new Date(Date.now() - 8 * 86_400_000).toISOString(), href: "/evidence/ev-6" },

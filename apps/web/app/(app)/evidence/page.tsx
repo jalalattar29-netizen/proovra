@@ -49,7 +49,7 @@ import {
 } from "./lib/evidence-library-helpers";
 import { buildReviewPriority } from "./lib/evidence-library-alerts";
 import { trustFilterChips, type TrustChipKey } from "./lib/evidence-trust-filter-chips";
-import { evidencePublicLinksHref } from "../../../lib/verification-links-href";
+import { evidenceVerificationPageHref } from "../../../lib/verification-links-href";
 
 const SERVER_PAGE_LIMIT = 50;
 
@@ -65,7 +65,7 @@ const DEFAULT_FILTERS: EvidenceFilterState = {
   sort: "newest",
   tsaStatus: "all",
   otsStatus: "all",
-  publicVerifyState: "all",
+  verificationDisclosure: "all",
   verificationStatus: "all",
   acquisition: "all",
 };
@@ -99,8 +99,8 @@ function buildEvidenceLibrarySummaryPath(query: EvidenceListQuery) {
   if (query.otsStatus && query.otsStatus !== "all") {
     params.set("otsStatus", query.otsStatus);
   }
-  if (query.publicVerifyState && query.publicVerifyState !== "all") {
-    params.set("publicVerifyState", query.publicVerifyState);
+  if (query.verificationDisclosure && query.verificationDisclosure !== "all") {
+    params.set("verificationDisclosure", query.verificationDisclosure);
   }
   if (query.verificationStatus && query.verificationStatus !== "all") {
     params.set("verificationStatus", query.verificationStatus);
@@ -133,8 +133,8 @@ function buildEvidenceListPath(query: EvidenceListQuery) {
   if (query.otsStatus && query.otsStatus !== "all") {
     params.set("otsStatus", query.otsStatus);
   }
-  if (query.publicVerifyState && query.publicVerifyState !== "all") {
-    params.set("publicVerifyState", query.publicVerifyState);
+  if (query.verificationDisclosure && query.verificationDisclosure !== "all") {
+    params.set("verificationDisclosure", query.verificationDisclosure);
   }
   if (query.verificationStatus && query.verificationStatus !== "all") {
     params.set("verificationStatus", query.verificationStatus);
@@ -200,8 +200,8 @@ function readUrlFilterOverrides(): Partial<EvidenceFilterState> {
   if (tsa) out.tsaStatus = tsa.toUpperCase();
   const ots = params.get("otsStatus");
   if (ots) out.otsStatus = ots.toUpperCase();
-  const pv = params.get("publicVerifyState");
-  if (pv) out.publicVerifyState = pv.toUpperCase();
+  const disclosure = params.get("verificationDisclosure");
+  if (disclosure) out.verificationDisclosure = disclosure.toUpperCase();
   const vs = params.get("verificationStatus");
   if (vs) out.verificationStatus = vs.toUpperCase();
   const acq = params.get("acquisition");
@@ -337,8 +337,8 @@ function EvidenceLibraryPageInner() {
             : "all",
       tsaStatus: filters.tsaStatus !== "all" ? filters.tsaStatus : undefined,
       otsStatus: filters.otsStatus !== "all" ? filters.otsStatus : undefined,
-      publicVerifyState:
-        filters.publicVerifyState !== "all" ? filters.publicVerifyState : undefined,
+      verificationDisclosure:
+        filters.verificationDisclosure !== "all" ? filters.verificationDisclosure : undefined,
       verificationStatus:
         filters.verificationStatus !== "all" ? filters.verificationStatus : undefined,
       acquisition: filters.acquisition !== "all" ? filters.acquisition : undefined,
@@ -358,7 +358,7 @@ function EvidenceLibraryPageInner() {
       filters.type,
       filters.tsaStatus,
       filters.otsStatus,
-      filters.publicVerifyState,
+      filters.verificationDisclosure,
       filters.verificationStatus,
       filters.acquisition,
     ]
@@ -1118,10 +1118,10 @@ function EvidenceLibraryPageInner() {
   };
 
   // ET-PKG-07 — the library no longer copies /verify/<record id>: a record's
-  // id is not a public link. It opens the record's link controls, where a
-  // share link is created (and shown once), revoked or replaced.
+  // id is not a public link. It opens the record's verification page
+  // controls (disclosure, access and secure reviewer shares).
   const openVerificationLinks = (evidenceId: string) => {
-    router.push(evidencePublicLinksHref(evidenceId));
+    router.push(evidenceVerificationPageHref(evidenceId));
   };
 
   const runBulkAction = useCallback(

@@ -27,7 +27,7 @@ import {
 } from "../../app/verify/[token]/VerifyMatrixPanels";
 import { trustFilterChips } from "../../app/(app)/evidence/lib/evidence-trust-filter-chips";
 import { otsFilterValueLabel, otsRawStatusPresentation } from "../../lib/ots-presentation";
-import { pillTone } from "../../app/(app)/evidence/[id]/_tabs/_lib";
+import { OTS_VERIFICATION_TONES } from "@proovra/shared";
 
 afterEach(() => cleanup());
 
@@ -221,14 +221,14 @@ describe("(e) filter chips and admin badges", () => {
     const chips = trustFilterChips({
       otsStatus: "PENDING,UPGRADING,QUEUED",
       tsaStatus: "FAILED",
-      publicVerifyState: "NOT_PUBLISHED",
+      verificationDisclosure: "CONTENT_PREVIEW",
       verificationStatus: "REVIEW_REQUIRED,FAILED",
     });
     const labels = chips.map((c) => c.label);
     expect(labels).toEqual([
       "Trust timestamp: Failed",
       "Bitcoin anchoring: Pending",
-      "Public verification: Not published",
+      "Verification page: Content preview",
       "Needs integrity review",
     ]);
     for (const label of labels) expect(label).not.toMatch(RAW_CODE);
@@ -261,13 +261,15 @@ describe("(e) filter chips and admin badges", () => {
     }
   });
 
-  it("the owner status pill never paints an unchecked attestation green", () => {
-    expect(pillTone("ANCHORED")).toBe("neutral");
-    expect(pillTone("ATTESTATION_RECORDED")).toBe("neutral");
-    expect(pillTone("CHAIN_CONFIRMATIONS_PENDING")).toBe("neutral");
-    expect(pillTone("CHAIN_UNAVAILABLE")).toBe("neutral");
-    expect(pillTone("CHAIN_VERIFIED")).toBe("success");
-    expect(pillTone("CHAIN_FAILED")).toBe("danger");
-    expect(pillTone("PENDING")).toBe("warning");
+  it("the shared OpenTimestamps tones never paint an unchecked attestation green", () => {
+    // The owner page's substring tone mapper is gone; the shared table is the
+    // one authority every surface reads.
+    expect(OTS_VERIFICATION_TONES.ATTESTATION_RECORDED).toBe("neutral");
+    expect(OTS_VERIFICATION_TONES.CHAIN_CONFIRMATIONS_PENDING).toBe("neutral");
+    expect(OTS_VERIFICATION_TONES.CHAIN_UNAVAILABLE).toBe("neutral");
+    expect(OTS_VERIFICATION_TONES.PENDING).toBe("neutral");
+    expect(OTS_VERIFICATION_TONES.CHAIN_VERIFIED).toBe("success");
+    expect(OTS_VERIFICATION_TONES.CHAIN_FAILED).toBe("danger");
+    expect(otsRawStatusPresentation("ANCHORED").tone).not.toBe("success");
   });
 });

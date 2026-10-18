@@ -560,8 +560,9 @@ test("20. media TYPE labels take the required colours, from their own table", ()
   );
   assert.doesNotMatch(table, /document|text|other/);
   assert.match(EV_LIB, /return MEDIA_KIND_TONE\[kind\.trim\(\)\.toLowerCase\(\)\] \?\? "slate";/);
-  // `pillTone` still exists for the STATES that legitimately use it.
-  assert.match(EV_LIB, /export function pillTone\(status: string\)/);
+  // The substring STATE classifier is gone (it had no consumer left); a kind
+  // never reaches a state classifier again.
+  assert.doesNotMatch(EV_LIB, /export function pillTone\(/);
   // AND the classifier that decides what a record IS was not touched. The
   // library folds application/pdf into `document`; changing that would be a
   // change to categorisation, not to a label's colour.
@@ -571,14 +572,14 @@ test("20. media TYPE labels take the required colours, from their own table", ()
   );
 });
 
-test("21. the record rail states its workflow and publication as text", () => {
+test("21. the record rail states its workflow and verification page as text", () => {
   assert.match(EV_RAIL, /<AppStatusText\s*\n\s*tone=\{getWorkflowStatusTone/);
-  assert.match(EV_RAIL, /<AppStatusText\s*\n\s*tone=\{getPublicVerificationTone/);
+  assert.match(EV_RAIL, /<AppStatusText tone=\{verificationPage\?\.tone \?\? "slate"\}>/);
   assert.doesNotMatch(EV_RAIL, /AppStatusBadge/);
-  // "Not started" is still the derived fallback, and publication state is
-  // still read from the projection — neither is re-derived here.
+  // "Not started" is still the derived fallback, and the page's state is
+  // read from the one projection — neither is re-derived here.
   assert.match(EV_RAIL, /: "Not started"/);
-  assert.match(EV_RAIL, /workspace\.publicVerificationSummary\.state/);
+  assert.match(EV_RAIL, /verificationPage\?\.label \?\? "State unavailable"/);
 });
 
 // ===========================================================================

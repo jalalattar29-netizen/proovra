@@ -80,7 +80,7 @@ test("Getting Started is HIDDEN for active users (any real work retires it)", ()
   assert.equal(withReports.showGettingStarted, false);
 
   const withVerify = normalizeHomeViewModel(
-    baseInputs({ trustSummary: { totalEvidence: 0, publicVerify: { published: 3 } } }),
+    baseInputs({ trustSummary: { totalEvidence: 0, verificationPages: { verificationOnly: 3 } } }),
   );
   assert.equal(withVerify.showGettingStarted, false);
 });
@@ -142,7 +142,7 @@ test("KPI cards render real view-model values (no fabrication)", () => {
         totalEvidence: 334,
         signed: 300, // 300 records have a signature
         endToEndReady: 200, // ...but only 200 have full deliverable chain
-        publicVerify: { published: 118 },
+        verificationPages: { contentPreview: 18, verificationOnly: 100 },
         needingAttention: 0,
       },
       commandCenter: {
@@ -564,7 +564,7 @@ test("INTEL: priorities rank critical > warning > info with reasons and actions"
         tsa: { failed: 33 },
         ots: { pending: 10 },
         needingAttention: 14,
-        publicVerify: { published: 5 },
+        verificationPages: { verificationOnly: 5 },
       },
       reports: {
         items: [{ evidenceId: "e1", title: "R", report: { available: true } }],
@@ -572,7 +572,7 @@ test("INTEL: priorities rank critical > warning > info with reasons and actions"
       commandCenter: {
         sections: {
           pipelineDetail: {
-            data: { publicVerify: { unpublished: 3 }, packages: { queued: 0 } },
+            data: { verificationPages: { verificationOnly: 3 }, packages: { queued: 0 } },
           },
         },
       },
@@ -608,7 +608,7 @@ test("INTEL: zero data emits zero priorities (all-clear, nothing fabricated)", (
   assert.equal(vm.workspacePriorities.length, 0);
 });
 
-test("DECISIONS: matter deliverable chain → needs_report / missing_package / needs_publication / ready", () => {
+test("DECISIONS: matter deliverable chain → needs_report / missing_package / page_unavailable / ready", () => {
   // Phase HOME-DECISIONS — the bounded per-case aggregates drive the
   // full chain verdict (spec Part 3 status logic).
   const cc = {
@@ -634,7 +634,9 @@ test("DECISIONS: matter deliverable chain → needs_report / missing_package / n
   assert.equal(byId["no-package"].verificationStatus, "missing_package");
   assert.equal(byId["no-package"].verdict, "needs_work");
   assert.ok(byId["no-package"].statusLabel.includes("package missing"));
-  assert.equal(byId["no-verify"].verificationStatus, "needs_publication");
+  // Every finalized record has a page; none of this matter's is available.
+  assert.equal(byId["no-verify"].verificationStatus, "page_unavailable");
+  assert.ok(byId["no-verify"].statusLabel.includes("verification page unavailable"));
   assert.equal(byId["no-verify"].verdict, "needs_work");
   assert.equal(byId["done"].verificationStatus, "ready");
   assert.equal(byId["done"].verdict, "healthy");
@@ -692,7 +694,7 @@ test("DECISIONS: storage pressure and reports-ready emit ranked decisions", () =
   assert.ok(keys.indexOf("storage_pressure") < keys.indexOf("reports_ready"));
 });
 
-test("DECISIONS: recent verification publications surface in Verification Health", () => {
+test("DECISIONS: recent disclosure changes surface in Verification Health", () => {
   const t = new Date(NOW - 3600_000).toISOString();
   const vm = normalizeHomeViewModel(
     baseInputs({
@@ -700,18 +702,34 @@ test("DECISIONS: recent verification publications surface in Verification Health
         sections: {
           timeline: {
             items: [
-              { id: "v1", kind: "verification_published", occurredAt: t, label: "Verification published — Door camera", href: "/evidence/e1" },
+              { id: "v1", kind: "verification_disclosure_changed", occurredAt: t, label: "Verification page shows a content preview — Door camera", href: "/evidence/e1" },
             ],
           },
         },
       },
     }),
   );
-  assert.equal(vm.verificationHealth.recentPublications.length, 1);
-  assert.equal(vm.verificationHealth.recentPublications[0].label, "Verification published — Door camera");
-  // No publications ⇒ empty list, nothing fabricated.
+  assert.equal(vm.verificationHealth.recentDisclosureChanges.length, 1);
+  assert.equal(vm.verificationHealth.recentDisclosureChanges[0].label, "Verification page shows a content preview — Door camera");
+  // No changes ⇒ empty list, nothing fabricated.
   const empty = normalizeHomeViewModel(baseInputs());
-  assert.equal(empty.verificationHealth.recentPublications.length, 0);
+  assert.equal(empty.verificationHealth.recentDisclosureChanges.length, 0);
+});
+
+test("DECISIONS: verification page counts are the server's, never a derived 'not published'", () => {
+  const vm = normalizeHomeViewModel(
+    baseInputs({
+      trustSummary: { totalEvidence: 12, signed: 12, verificationPages: { contentPreview: 3, verificationOnly: 8, unavailable: 1 } },
+    }),
+  );
+  assert.equal(vm.verificationHealth.contentPreview, 3);
+  assert.equal(vm.verificationHealth.verificationOnly, 8);
+  assert.equal(vm.verificationHealth.unavailable, 1);
+  assert.ok(!("unpublished" in vm.verificationHealth));
+  // There is nothing to publish: no priority, hero action or issue asks for it.
+  assert.ok(!vm.workspacePriorities.some((p) => /publish/i.test(p.key + p.actionLabel)));
+  assert.ok(!vm.verificationHealth.issues.some((i) => /publish/i.test(i.key + i.actionLabel)));
+  assert.ok(!vm.reportProduction.needsAction.some((i) => /publish/i.test(i.key + i.actionLabel)));
 });
 
 test("INTEL: matter with escalations/overdue → action_required (ranked first)", () => {
@@ -736,16 +754,16 @@ test("INTEL: matter with escalations/overdue → action_required (ranked first)"
   assert.equal(vm.activeMatters[0].verdict, "action_required");
 });
 
-test("INTEL: verification issues combine package/publish signals (real counts)", () => {
+test("INTEL: verification issues are real signals — package gaps, never 'publish' (real counts)", () => {
   const vm = normalizeHomeViewModel(
     baseInputs({
-      trustSummary: { totalEvidence: 10, signed: 8, publicVerify: { published: 2 } },
+      trustSummary: { totalEvidence: 10, signed: 8, verificationPages: { verificationOnly: 2 } },
       commandCenter: {
         sections: {
           pipelineDetail: {
             data: {
               packages: { ready: 4, queued: 3 },
-              publicVerify: { unpublished: 5 },
+              verificationPages: { verificationOnly: 5 },
             },
           },
         },
@@ -753,7 +771,7 @@ test("INTEL: verification issues combine package/publish signals (real counts)",
     }),
   );
   const issues = Object.fromEntries(vm.verificationHealth.issues.map((i) => [i.key, i]));
-  assert.equal(issues.publish_ready.count, 4); // min(packagesReady=4, unpublished=5)
+  assert.equal(issues.publish_ready, undefined);
   assert.equal(issues.package_gap.count, 3);
   // Empty pipeline ⇒ no issues fabricated.
   const empty = normalizeHomeViewModel(baseInputs());
@@ -769,7 +787,7 @@ test("INTEL: report needs-action surfaces failures without fabricating a retry",
             data: {
               reports: { ready: 2, queued: 0, failed: 3 },
               packages: { ready: 1, queued: 2, failed: 1 },
-              publicVerify: { unpublished: 1 },
+              verificationPages: { verificationOnly: 1 },
             },
           },
         },
@@ -789,7 +807,7 @@ test("INTEL: report needs-action surfaces failures without fabricating a retry",
   assert.ok(!/retry/i.test(cardSrc), "no fabricated retry in Report Production");
 });
 
-test("INTEL: verification_published events render; identical labels collapse ×N", () => {
+test("INTEL: verification_disclosure_changed events render; identical labels collapse ×N", () => {
   const t = (h: number) => new Date(NOW - h * 3600_000).toISOString();
   const vm = normalizeHomeViewModel(
     baseInputs({
@@ -797,7 +815,7 @@ test("INTEL: verification_published events render; identical labels collapse ×N
         sections: {
           timeline: {
             items: [
-              { id: "v1", kind: "verification_published", occurredAt: t(1), label: "Verification published — Door camera", href: "/evidence/e1" },
+              { id: "v1", kind: "verification_disclosure_changed", occurredAt: t(1), label: "Verification page shows verification only — Door camera", href: "/evidence/e1" },
               { id: "r1", kind: "report_generated", occurredAt: t(2), href: "/evidence/e1" },
               { id: "r2", kind: "report_generated", occurredAt: t(3), href: "/evidence/e2" },
               { id: "r3", kind: "report_generated", occurredAt: t(4), href: "/evidence/e3" },
@@ -809,8 +827,8 @@ test("INTEL: verification_published events render; identical labels collapse ×N
   );
   const today = vm.activity.find((g) => g.key === "today");
   assert.ok(today);
-  const verify = today?.events.find((e) => e.kind === "verification_published");
-  assert.equal(verify?.label, "Verification published — Door camera");
+  const verify = today?.events.find((e) => e.kind === "verification_disclosure_changed");
+  assert.equal(verify?.label, "Verification page shows verification only — Door camera");
   const reports = today?.events.filter((e) => e.kind === "report_generated") ?? [];
   assert.equal(reports.length, 1, "identical report labels collapse to one row");
   assert.equal(reports[0].repeatCount, 3);
@@ -897,7 +915,7 @@ test("EXEC: all-clear data → Healthy with the normal-operations sentence", () 
         signed: 5,
         tsa: { stamped: 5 },
         ots: { anchored: 5 },
-        publicVerify: { published: 5 },
+        verificationPages: { verificationOnly: 5 },
       },
     }),
   );
@@ -921,15 +939,15 @@ test("EXEC: unsigned records block the healthy state", () => {
   assert.notEqual(vm.executiveSummary.overallStatus, "healthy");
 });
 
-test("EXEC: suspended verification → action_required + danger issue first", () => {
+test("EXEC: unavailable (withdrawn/suspended) verification pages → action_required + danger issue first", () => {
   const vm = normalizeHomeViewModel(
     baseInputs({
-      trustSummary: { totalEvidence: 10, signed: 10, publicVerify: { published: 8, suspended: 2 } },
+      trustSummary: { totalEvidence: 10, signed: 10, verificationPages: { verificationOnly: 8, unavailable: 2 } },
     }),
   );
   assert.equal(vm.executiveSummary.overallStatus, "action_required");
   const first = vm.verificationHealth.issues[0];
-  assert.equal(first?.key, "suspended_verification");
+  assert.equal(first?.key, "unavailable_verification");
   assert.equal(first?.count, 2);
   assert.equal(first?.tone, "danger");
 });
@@ -1023,20 +1041,21 @@ test("CLOSURE: priority hrefs match the trust-summary bucket — destination cou
   assert.equal(byKey["resolve_integrity"], "/evidence?verificationStatus=REVIEW_REQUIRED,FAILED");
   assert.notEqual(byKey["resolve_integrity"], "/evidence?status=uploaded");
 
+  // (2026-10-18) No priority deep-links to a publication filter any more:
+  // every finalized record has its verification page.
   const verifyVm = normalizeHomeViewModel(
     baseInputs({
       commandCenter: {
         sections: {
-          pipelineDetail: { data: { publicVerify: { unpublished: 4 } } },
+          pipelineDetail: { data: { verificationPages: { verificationOnly: 4 } } },
         },
       },
       reports: { items: [{ evidenceId: "e", title: "R", report: { available: true } }] },
     }),
   );
-  const verifyByKey = Object.fromEntries(verifyVm.workspacePriorities.map((p) => [p.key, p.href]));
-  // publicVerify.unpublished bucket includes both NOT_PUBLISHED and UNPUBLISHED
-  // (trust-summary.service.ts:132-134).
-  assert.equal(verifyByKey["publish_verification"], "/evidence?publicVerifyState=NOT_PUBLISHED,UNPUBLISHED");
+  for (const p of verifyVm.workspacePriorities) {
+    assert.doesNotMatch(p.href, /publicVerifyState/);
+  }
 });
 
 // CTA-NORMALIZATION — three Home Integrity surfaces (header, queue,

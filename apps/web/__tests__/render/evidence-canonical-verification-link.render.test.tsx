@@ -5,8 +5,8 @@
  * (`PUBLISHED` + `sharePath`, a record-id link inside its grace) while every
  * other surface had moved to the canonical `pvr_` page — and for records
  * outside that grace it had nothing to open. One resolver now decides it for
- * every owner surface: the canonical contract when the API sends it; only an
- * API that predates the contract falls back to the published link.
+ * every owner surface: the canonical contract. The publication model is
+ * retired (2026-10-18), so nothing falls back to a published record-id link.
  */
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -21,27 +21,19 @@ import {
 } from "../../app/(app)/evidence/[id]/_tabs/_lib";
 
 const REF = "pvr_AbCdEfGhIjKlMnOpQrStUvWxYz0";
-const published = {
-  state: "PUBLISHED",
-  sharePath: "/verify/11111111-1111-4111-8111-111111111111",
-} as never;
-const unpublished = { state: "CONFIGURED_NOT_PUBLISHED", sharePath: null } as never;
 
 const canonical = (over: Record<string, unknown> = {}) =>
   ({ status: "AVAILABLE", reference: REF, verifyPath: `/verify/${REF}`, issuedAtUtc: null, refusalReason: null, ...over }) as never;
 
 describe("resolveCanonicalVerificationLink — one source for every owner surface", () => {
-  it("an AVAILABLE canonical reference is THE link — independent of publication", () => {
-    for (const summary of [published, unpublished]) {
-      const r = resolveCanonicalVerificationLink({ publicVerificationSummary: summary, canonicalVerification: canonical() });
-      expect(r.url).toMatch(new RegExp(`/verify/${REF}$`));
-      expect(r.reason).toBeNull();
-    }
+  it("an AVAILABLE canonical reference is THE link", () => {
+    const r = resolveCanonicalVerificationLink({ canonicalVerification: canonical() });
+    expect(r.url).toMatch(new RegExp(`/verify/${REF}$`));
+    expect(r.reason).toBeNull();
   });
 
-  it("REGRESSION: a historical PUBLISHED record-id link never stands in for a canonical link the API says is not available", () => {
+  it("REGRESSION: nothing stands in for a canonical link the API says is not available", () => {
     const r = resolveCanonicalVerificationLink({
-      publicVerificationSummary: published,
       canonicalVerification: canonical({ status: "NOT_ISSUED", reference: null, verifyPath: null }),
     });
     expect(r.url).toBeNull();
@@ -57,16 +49,16 @@ describe("resolveCanonicalVerificationLink — one source for every owner surfac
       [{ status: "NOT_ISSUED", reference: null, verifyPath: null, refusalReason: "INTEGRITY_FAILED" }, /integrity/],
     ];
     for (const [over, reason] of cases) {
-      const r = resolveCanonicalVerificationLink({ publicVerificationSummary: published, canonicalVerification: canonical(over) });
+      const r = resolveCanonicalVerificationLink({ canonicalVerification: canonical(over) });
       expect(r.url).toBeNull();
       expect(r.reason).toMatch(reason);
     }
   });
 
-  it("only an API without the contract falls back to the published link", () => {
-    const r = resolveCanonicalVerificationLink({ publicVerificationSummary: published });
-    expect(r.url).toMatch(/\/verify\/11111111-1111-4111-8111-111111111111$/);
-    expect(resolveCanonicalVerificationLink({ publicVerificationSummary: unpublished }).url).toBeNull();
+  it("an envelope without the contract has no link — there is no publication fallback", () => {
+    const r = resolveCanonicalVerificationLink({});
+    expect(r.url).toBeNull();
+    expect(r.reason).toMatch(/No verification link is available/);
   });
 });
 
