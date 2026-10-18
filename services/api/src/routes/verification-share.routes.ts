@@ -32,7 +32,6 @@ import { authorizeOrFail } from "../middleware/authorize.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { noteCustodyFailure } from "../services/custody-events-observability.js";
 import { resolveEvidenceOperationAccess } from "../services/evidence/evidence-record-access.service.js";
-import { PublicationError, publishPublicVerify } from "../services/governance/publication.service.js";
 import {
   VERIFICATION_LINK_MAX_EXPIRY_DAYS,
   VERIFICATION_LINK_MAX_USES_CEILING,
@@ -59,6 +58,11 @@ const CreateBody = z.object({
   expiresInDays: z.number().int().min(1).max(VERIFICATION_LINK_MAX_EXPIRY_DAYS).nullable(),
   projection: z.enum(VERIFICATION_SHARE_PROJECTIONS).default("STANDARD"),
   maxUses: z.number().int().min(1).max(VERIFICATION_LINK_MAX_USES_CEILING).nullable().default(null),
+  /**
+   * (2026-10-18) An explicit grant: this reviewer link may hand out the
+   * original files (STANDARD links only; still subject to the export gate).
+   */
+  allowOriginalDownload: z.boolean().default(false),
 });
 
 function audit(
@@ -137,11 +141,6 @@ function shareErrorToReply(err: unknown, reply: FastifyReply): FastifyReply {
         return reply.code(409).send({ code: "VERIFICATION_LINK_NOT_ACTIVE", ...details });
     }
   }
-  if (err instanceof PublicationError) {
-    return reply
-      .code(err.code === "evidence_not_in_workspace" ? 404 : 409)
-      .send({ code: "PUBLICATION_NOT_AVAILABLE", reason: err.code });
-  }
   throw err;
 }
 
@@ -159,44 +158,28 @@ export async function verificationShareRoutes(app: FastifyInstance) {
     const body = CreateBody.parse(req.body ?? {});
     const ctx = await authorizeShare(req, reply, id);
     if (!ctx) return reply;
-    let record = ctx.record;
+    const record = ctx.record;
     if (!recordIsShareable(record)) {
       return reply.code(409).send({ code: "RECORD_NOT_SHAREABLE" });
     }
 
-    // THE FIRST LINK PUBLISHES — explicitly, through the publication authority.
-    let published = false;
-    if (record.publicVerifyState !== "PUBLISHED") {
-      // UC-OUT-005 — a legacy Personal record stored with team_id NULL is
-      // published in its owner's personal workspace (the rule the report and
-      // package writers use), not refused for lacking a team row.
+    // (2026-10-18) A reviewer share never publishes or changes the record's
+    // disclosure policy. Granting the ORIGINAL files is the sensitive part: it
+    // needs a fresh step-up, as publishing did.
+    if (body.allowOriginalDownload && body.projection === "STANDARD") {
       const workspaceId = await resolveShareWorkspaceId(record);
-      if (!workspaceId) {
-        // A record with no workspace at all has no publication workflow to run.
-        return reply.code(409).send({ code: "PUBLICATION_NOT_AVAILABLE", reason: "record_has_no_workspace" });
-      }
-      const gate = await requireStepUpForSensitiveAction({
-        req,
-        reply,
-        teamId: workspaceId,
-        userId: ctx.actorUserId,
-        purpose: "PUBLIC_VERIFY_PUBLISH",
-        resourceKind: "evidence",
-        resourceId: id,
-      });
-      if (gate.sent) return reply;
-      try {
-        await publishPublicVerify({
-          evidenceId: id,
+      if (workspaceId) {
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
           teamId: workspaceId,
-          actorUserId: ctx.actorUserId,
-          reason: `Public verification link created for: ${body.audience}`.slice(0, 400),
+          userId: ctx.actorUserId,
+          purpose: "PUBLIC_VERIFY_PUBLISH",
+          resourceKind: "evidence",
+          resourceId: id,
         });
-      } catch (err) {
-        return shareErrorToReply(err, reply);
+        if (gate.sent) return reply;
       }
-      published = true;
-      record = (await loadRecordForShare(id)) ?? record;
     }
 
     try {
@@ -207,6 +190,7 @@ export async function verificationShareRoutes(app: FastifyInstance) {
         expiresInDays: body.expiresInDays,
         projection: body.projection,
         maxUses: body.maxUses,
+        allowOriginalDownload: body.allowOriginalDownload,
       });
       audit(req, {
         actorUserId: ctx.actorUserId,
@@ -218,7 +202,7 @@ export async function verificationShareRoutes(app: FastifyInstance) {
           projection: created.link.projection,
           expiresAtUtc: created.link.expiresAtUtc,
           maxUses: created.link.maxUses,
-          published,
+          allowOriginalDownload: created.link.allowOriginalDownload,
         },
       });
       return reply.code(201).send({
@@ -226,7 +210,6 @@ export async function verificationShareRoutes(app: FastifyInstance) {
         // Shown once. It cannot be read back: only its hash is stored.
         token: created.token,
         verifyPath: `/verify/${created.token}`,
-        published,
       });
     } catch (err) {
       return shareErrorToReply(err, reply);

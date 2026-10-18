@@ -56,14 +56,6 @@ import {
   releaseLegalHoldAnyStore,
 } from "../services/governance/legal-hold.service.js";
 import {
-  PublicationError,
-  projectPublicationState,
-  publishPublicVerify,
-  restorePublicVerify,
-  suspendPublicVerify,
-  unpublishPublicVerify,
-} from "../services/governance/publication.service.js";
-import {
   listRetentionCandidates,
   reconcileRetention,
 } from "../services/governance/retention-sweeper.service.js";
@@ -860,151 +852,11 @@ export async function governanceRoutes(app: FastifyInstance) {
     },
   );
 
-  // Phase 14 — Public verify publication workflow
-  // ===========================================================================
-
-  app.post(
-    "/v1/governance/evidence/:id/publish",
-    { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const { id } = ParamsId.parse(req.params);
-      const body = z
-        .object({
-          teamId: z.string().uuid(),
-          reason: z.string().max(400).nullable().optional(),
-        })
-        .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId, "evidence.publish_verify");
-      if (!ok) return;
-      const gate = await requireStepUpForSensitiveAction({
-        req, reply,
-        teamId: body.teamId,
-        userId: ok.actorUserId,
-        purpose: "PUBLIC_VERIFY_PUBLISH",
-        resourceKind: "evidence",
-        resourceId: id,
-      });
-      if (gate.sent) return;
-      try {
-        const updated = await publishPublicVerify({
-          evidenceId: id,
-          teamId: body.teamId,
-          actorUserId: ok.actorUserId,
-          reason: body.reason ?? null,
-        });
-        return reply
-          .code(200)
-          .send({ publication: projectPublicationState(updated) });
-      } catch (err) {
-        return publicationErrorToReply(err, reply);
-      }
-    },
-  );
-
-  app.post(
-    "/v1/governance/evidence/:id/unpublish",
-    { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const { id } = ParamsId.parse(req.params);
-      const body = z
-        .object({
-          teamId: z.string().uuid(),
-          reason: z.string().max(400).nullable().optional(),
-        })
-        .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId, "evidence.publish_verify");
-      if (!ok) return;
-      const gate = await requireStepUpForSensitiveAction({
-        req, reply,
-        teamId: body.teamId,
-        userId: ok.actorUserId,
-        purpose: "PUBLIC_VERIFY_UNPUBLISH",
-        resourceKind: "evidence",
-        resourceId: id,
-      });
-      if (gate.sent) return;
-      try {
-        const updated = await unpublishPublicVerify({
-          evidenceId: id,
-          teamId: body.teamId,
-          actorUserId: ok.actorUserId,
-          reason: body.reason ?? null,
-        });
-        return reply
-          .code(200)
-          .send({ publication: projectPublicationState(updated) });
-      } catch (err) {
-        return publicationErrorToReply(err, reply);
-      }
-    },
-  );
-
-  app.post(
-    "/v1/governance/evidence/:id/suspend",
-    { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const { id } = ParamsId.parse(req.params);
-      const body = z
-        .object({
-          teamId: z.string().uuid(),
-          reason: z.string().min(1).max(400),
-        })
-        .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId, "evidence.publish_verify");
-      if (!ok) return;
-      const gate = await requireStepUpForSensitiveAction({
-        req, reply,
-        teamId: body.teamId,
-        userId: ok.actorUserId,
-        purpose: "PUBLIC_VERIFY_SUSPEND",
-        resourceKind: "evidence",
-        resourceId: id,
-      });
-      if (gate.sent) return;
-      try {
-        const updated = await suspendPublicVerify({
-          evidenceId: id,
-          teamId: body.teamId,
-          actorUserId: ok.actorUserId,
-          reason: body.reason,
-        });
-        return reply
-          .code(200)
-          .send({ publication: projectPublicationState(updated) });
-      } catch (err) {
-        return publicationErrorToReply(err, reply);
-      }
-    },
-  );
-
-  app.post(
-    "/v1/governance/evidence/:id/restore",
-    { preHandler: requireAuth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const { id } = ParamsId.parse(req.params);
-      const body = z
-        .object({
-          teamId: z.string().uuid(),
-          reason: z.string().max(400).nullable().optional(),
-        })
-        .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId, "evidence.publish_verify");
-      if (!ok) return;
-      try {
-        const updated = await restorePublicVerify({
-          evidenceId: id,
-          teamId: body.teamId,
-          actorUserId: ok.actorUserId,
-          reason: body.reason ?? null,
-        });
-        return reply
-          .code(200)
-          .send({ publication: projectPublicationState(updated) });
-      } catch (err) {
-        return publicationErrorToReply(err, reply);
-      }
-    },
-  );
+  // Phase 14's public-verify publication workflow (publish / unpublish /
+  // suspend / restore) was RETIRED on 2026-10-18: a record's canonical page
+  // always opens; what it discloses is the record's disclosure policy, written
+  // only by PUT /v1/evidence/:id/verification-disclosure; withdrawal is the
+  // canonical access state (/verification-access/withdraw).
 
   // ===========================================================================
   // Phase 14 — Retention reconciliation (cron-protected)
@@ -1081,20 +933,3 @@ export async function governanceRoutes(app: FastifyInstance) {
   );
 }
 
-function publicationErrorToReply(err: unknown, reply: FastifyReply): void {
-  if (err instanceof PublicationError) {
-    const status =
-      err.code === "evidence_not_in_workspace"
-        ? 404
-        : err.code === "invalid_state_transition"
-          ? 409
-          : err.code === "publication_approval_required"
-            ? 412
-            : err.code === "reason_required"
-              ? 422
-              : 400;
-    reply.code(status).send({ error: { code: err.code } });
-    return;
-  }
-  reply.code(500).send({ error: { code: "internal_error" } });
-}

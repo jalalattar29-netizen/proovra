@@ -2213,7 +2213,6 @@ async function prepareReportArtifacts(
       lastVerifiedAtUtc: true,
       lastVerifiedSource: true,
       // A withdrawn canonical page is the only reason a report prints no link.
-      publicVerifyState: true,
       verificationAccessState: true,
       verificationPackageGeneratedAtUtc: true,
       verificationPackageVersion: true,

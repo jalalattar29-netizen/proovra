@@ -1,4 +1,13 @@
-import type { TrustDecision, TrustSignal } from "@proovra/shared";
+/**
+ * SNAPSHOT vs LIVE (2026-10-18). An issued report or package is a snapshot of
+ * what was true at issue, in that release's words. The comparison reads both
+ * sides through the one legacy snapshot normalizer (signalMovement): it
+ * compares CANONICAL STATES, never summaries, details or tones, so improved
+ * wording is never a change, a legitimate advance (a kept token validated
+ * later, an attestation independently verified) is information, and only a
+ * signal that FAILED since issue is an integrity alarm.
+ */
+import { signalMovement, type SignalMovement, type TrustDecision } from "@proovra/shared";
 
 export type TrustDecisionConsistencySource =
   | "REPORT_SNAPSHOT"
@@ -11,6 +20,8 @@ export type TrustDecisionConsistencyReasonCode =
   | "ARTIFACT_VERSION_CHANGED"
   | "FORENSIC_CUSTODY_CHANGED"
   | "CORE_INTEGRITY_SIGNALS_CHANGED"
+  /** A legitimate improvement since issue (never an alarm). */
+  | "VERIFICATION_ADVANCED"
   | "UNKNOWN_DIFFERENCE";
 
 export type TrustDecisionConsistencyTone = "neutral" | "info" | "warning" | "danger";
@@ -41,6 +52,11 @@ type BuildTrustDecisionConsistencyInput = {
   latestReportVersion?: number | null;
   latestVerificationPackageGeneratedAtUtc?: Date | string | null;
   latestVerificationPackageVersion?: number | null;
+  /**
+   * Forensic-INTEGRITY custody events (isForensicIntegrityCustodyEventType):
+   * administrative events — the verification reference, the page's access
+   * state, its disclosure policy — are never counted.
+   */
   forensicEventsAtSnapshot?: number | null;
   currentForensicEvents?: number | null;
   accessEventsAfterSnapshot?: number | null;
@@ -59,26 +75,10 @@ function toEpoch(value: Date | string | null | undefined): number | null {
   return Number.isNaN(date.getTime()) ? null : date.getTime();
 }
 
-function getSignal(decision: TrustDecision | null, key: string): TrustSignal | null {
-  return decision?.signals.find((signal) => signal.key === key) ?? null;
-}
-
-function signalChanged(
-  snapshot: TrustDecision | null,
-  live: TrustDecision,
-  key: string
-): boolean {
-  const before = getSignal(snapshot, key);
-  const after = getSignal(live, key);
-
-  if (!before && !after) return false;
-  if (!before || !after) return true;
-
-  return (
-    before.status !== after.status ||
-    before.summary !== after.summary ||
-    before.detail !== after.detail ||
-    before.tone !== after.tone
+function movementOf(snapshot: TrustDecision | null, live: TrustDecision, key: string): SignalMovement {
+  return signalMovement(
+    snapshot?.signals.find((signal) => signal.key === key) ?? null,
+    live.signals.find((signal) => signal.key === key) ?? null,
   );
 }
 
@@ -120,11 +120,17 @@ export function buildTrustDecisionConsistency(
     });
   }
 
-  if (
-    signalChanged(input.snapshotTrustDecision, input.liveTrustDecision, "bitcoin_anchoring") ||
-    input.snapshotTrustDecision.anchoringState !==
-      input.liveTrustDecision.anchoringState
-  ) {
+  const anchoringMovement = movementOf(input.snapshotTrustDecision, input.liveTrustDecision, "bitcoin_anchoring");
+  if (anchoringMovement === "ADVANCED") {
+    pushReason(reasons, {
+      code: "VERIFICATION_ADVANCED",
+      label: "Verification advanced after the snapshot",
+      detail:
+        "A check the issued artifact stated as not yet verified has since been verified. The issued artifact keeps what was true when it was issued.",
+      tone: "info",
+      integrityCritical: false,
+    });
+  } else if (anchoringMovement !== "SAME") {
     pushReason(reasons, {
       code: "PUBLICATION_STATUS_CHANGED",
       label: "OpenTimestamps or Bitcoin anchoring status changed after the snapshot",
@@ -185,24 +191,47 @@ export function buildTrustDecisionConsistency(
     });
   }
 
-  const integritySignalsChanged = Array.from(INTEGRITY_CRITICAL_SIGNAL_KEYS).some(
-    (key) => signalChanged(input.snapshotTrustDecision, input.liveTrustDecision, key)
+  const coreMovements = Array.from(INTEGRITY_CRITICAL_SIGNAL_KEYS).map((key) =>
+    movementOf(input.snapshotTrustDecision, input.liveTrustDecision, key),
   );
-  if (integritySignalsChanged) {
+  if (coreMovements.includes("REGRESSED")) {
     pushReason(reasons, {
       code: "CORE_INTEGRITY_SIGNALS_CHANGED",
-      label: "Core integrity, signature, timestamp, or storage signals changed",
+      label: "An integrity, signature, timestamp, or storage check failed after the snapshot",
       detail:
-        "The live technical verification state no longer matches the fixed snapshot for one or more integrity-critical signals such as core digest consistency, signature materials, trusted timestamping, or immutable-storage controls.",
+        "A check that did not fail when the artifact was issued fails now. Review the current verification result before relying on the issued artifact.",
       tone: "danger",
       integrityCritical: true,
     });
+  } else if (coreMovements.includes("CHANGED")) {
+    pushReason(reasons, {
+      code: "CORE_INTEGRITY_SIGNALS_CHANGED",
+      label: "An integrity, signature, timestamp, or storage check reads differently than at issue",
+      detail:
+        "The current state of one of these checks differs from the issued artifact without having failed. Read the current verification result together with the issued artifact.",
+      tone: "warning",
+      integrityCritical: false,
+    });
+  } else if (coreMovements.includes("ADVANCED")) {
+    pushReason(reasons, {
+      code: "VERIFICATION_ADVANCED",
+      label: "Verification advanced after the snapshot",
+      detail:
+        "A check the issued artifact stated as not yet verified has since been verified (for example, a timestamp token validated from the copy kept at intake). The issued artifact keeps what was true when it was issued.",
+      tone: "info",
+      integrityCritical: false,
+    });
   }
 
-  const snapshotMatchesLive =
-    JSON.stringify(input.snapshotTrustDecision) === JSON.stringify(input.liveTrustDecision);
+  // Any other signal whose canonical state moved (never its words).
+  const otherMoved = input.liveTrustDecision.signals.some(
+    (signal) =>
+      signal.key !== "bitcoin_anchoring" &&
+      !INTEGRITY_CRITICAL_SIGNAL_KEYS.has(signal.key) &&
+      movementOf(input.snapshotTrustDecision, input.liveTrustDecision, signal.key) !== "SAME",
+  );
 
-  if (!snapshotMatchesLive && reasons.length === 0) {
+  if (otherMoved && reasons.length === 0) {
     pushReason(reasons, {
       code: "UNKNOWN_DIFFERENCE",
       label: "A live verification difference was detected",
@@ -216,7 +245,7 @@ export function buildTrustDecisionConsistency(
   const integrityCritical = reasons.some((reason) => reason.integrityCritical);
   const accessOnly =
     reasons.length > 0 &&
-    reasons.every((reason) => reason.code === "ACCESS_ACTIVITY_CHANGED");
+    reasons.every((reason) => reason.code === "ACCESS_ACTIVITY_CHANGED" || reason.code === "VERIFICATION_ADVANCED");
 
   const tone: TrustDecisionConsistencyTone = integrityCritical
     ? "danger"

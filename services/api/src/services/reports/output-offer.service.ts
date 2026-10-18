@@ -28,14 +28,13 @@ import {
   deriveReportFreshness,
   diffOutputOfferBindings,
   OTS_ANCHORING_RECORD_SELECT,
-  OTS_STATES,
   resolveOtsCustodyFacts,
   resolveRecordOtsAnchoring,
   toOtsAnchoringView,
   type OtsAnchoringView,
   type OtsState,
   type OtsVerificationKey,
-  parseOtsVerificationKey,
+  snapshotAnchoringAtIssue,
   type OutputOfferBinding,
   type OutputOfferChangeCode,
   type OutputOfferEnvelope,
@@ -70,20 +69,17 @@ export type ReportableFacts = {
   freshness: ReportFreshness;
 };
 
-/** The OTS state a report stated (its anchorSnapshot.otsState); null for a legacy report. */
-function reportOtsStateOf(anchorSnapshot: unknown): OtsState | null {
-  const raw =
-    anchorSnapshot && typeof anchorSnapshot === "object" && !Array.isArray(anchorSnapshot)
-      ? (anchorSnapshot as Record<string, unknown>).otsState
-      : null;
-  return typeof raw === "string" && (OTS_STATES as readonly string[]).includes(raw) ? (raw as OtsState) : null;
-}
-
-/** The verification the report stated (anchorSnapshot.otsVerification); null for a legacy report. */
-function reportOtsVerificationOf(anchorSnapshot: unknown): OtsVerificationKey | null {
-  return anchorSnapshot && typeof anchorSnapshot === "object" && !Array.isArray(anchorSnapshot)
-    ? parseOtsVerificationKey((anchorSnapshot as Record<string, unknown>).otsVerification)
-    : null;
+/**
+ * What a report stated about anchoring at issue — the one legacy snapshot
+ * normalizer (snapshotAnchoringAtIssue): its recorded otsState/otsVerification,
+ * else its own Bitcoin signal. null without a report.
+ */
+function reportAnchoringAtIssue(
+  report: { anchorSnapshot?: unknown; trustDecisionSnapshot?: unknown } | null | undefined,
+): { state: OtsState; verification: OtsVerificationKey } | null {
+  if (!report) return null;
+  const atIssue = snapshotAnchoringAtIssue(report.anchorSnapshot ?? null, report.trustDecisionSnapshot ?? null);
+  return { state: atIssue.otsState, verification: atIssue.otsVerification };
 }
 
 const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null);
@@ -117,6 +113,7 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
         custodyThroughSequence: true,
         lastVerifiedAtUtcSnapshot: true,
         anchorSnapshot: true,
+        trustDecisionSnapshot: true,
       },
     }),
   ]);
@@ -178,11 +175,11 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
       ots: {
         state: ots.state,
         anchoredAtUtc: ots.anchoredAtUtc,
-        reportState: reportOtsStateOf(latest?.anchorSnapshot),
+        reportState: reportAnchoringAtIssue(latest)?.state ?? null,
         // Only an independent chain VERIFIED after the report is a change worth
         // a new version; a recorded attestation is not.
         verification: ots.verification,
-        reportVerification: reportOtsVerificationOf(latest?.anchorSnapshot),
+        reportVerification: reportAnchoringAtIssue(latest)?.verification ?? null,
         verifiedAtUtc: ots.chain?.verifiedAtUtc ?? null,
       },
       custodyAfterReport: {

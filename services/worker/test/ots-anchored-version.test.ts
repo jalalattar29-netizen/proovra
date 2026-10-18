@@ -74,7 +74,6 @@ const {
   ensureOtsAnchoredReportVersion,
   otsChainVerifiedRequestKey,
   reconcileOtsAnchoredReportVersion,
-  reportStatedOtsState,
   reportStatedChainVerification,
   OTS_ANCHORED_MACHINE_ID,
 } = await import("../src/ots-anchored-version.js");
@@ -211,7 +210,6 @@ describe("the automatic version decision", () => {
 
   it("a legacy report without a stated state is eligible once", async () => {
     h.reports.push({ version: 3, anchorSnapshot: { mode: "off" } });
-    expect(reportStatedOtsState({ mode: "off" })).toBeNull();
     expect((await ensureOtsAnchoredReportVersion({ evidenceId: "ev-1", anchoring: VERIFIED })).outcome).toBe("requested");
   });
 

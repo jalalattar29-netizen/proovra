@@ -135,6 +135,12 @@ import {
   outputOfferChangeCopy,
   type OutputOfferChangeCode,
   resolveTsaTrustState,
+  isForensicIntegrityCustodyEventType,
+  multipartRecordKindLabel,
+  parseVerificationDisclosurePolicy,
+  WITHHELD_BY_DISCLOSURE_POLICY,
+  type PublicVerifyIdentifierKind,
+  VERIFICATION_DISCLOSURE_MODES,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -485,6 +491,12 @@ import { buildEvidenceReviewGovernance } from "../services/evidence-review/gover
 import { requirePermission } from "../services/governance.service.js";
 import { buildTrustDecisionConsistency } from "../services/trust-decision-consistency.service.js";
 import { buildPublicVerifyConsistencySections } from "../services/public-verify-consistency.service.js";
+import {
+  projectBasicPublicVerification,
+  projectPublicVerification,
+  resolvePublicVerifyDisclosure,
+} from "../services/public-verify/public-verify-projection.js";
+import { resolvePackageSealCheck } from "../services/public-verify/package-seal-check.service.js";
 
 import { primaryPublishedPackageWhere, publishedProfilePackageWhere, asPublishedPackage } from "@proovra/shared-runtime/reports";
 const EvidenceTypeSchema = prismaPkg.EvidenceType
@@ -887,6 +899,11 @@ type PublicVerificationPackageIntegrity = {
   available: boolean;
   /** Public Verify only: the matrix's package_signature status (one seal authority). */
   sealCheck?: "VERIFIED" | "FAILED" | "NOT_CHECKED" | "NOT_APPLICABLE" | "UNAVAILABLE";
+  /** (2026-10-18) The matrix row's own sentences and qualifiers — the card prints them, never its own. */
+  sealStatement?: string | null;
+  sealQualifiers?: string[];
+  completenessCheck?: "VERIFIED" | "FAILED" | "NOT_CHECKED" | "NOT_APPLICABLE" | "UNAVAILABLE";
+  completenessStatement?: string | null;
   version: number | null;
   generatedAtUtc: string | null;
   packageType: string | null;
@@ -1222,7 +1239,10 @@ const SAFE_EVIDENCE_SELECT = {
   verificationPackageGeneratedAtUtc: true,
   verificationPackageVersion: true,
   verificationPackageMetadata: true,
-  publicVerifyState: true,
+  // (2026-10-18) The canonical page: its access state and its disclosure policy.
+  verificationAccessState: true,
+  verificationDisclosureMode: true,
+  showRecordedLocation: true,
   // ET-PKG-07 — the bounded grace of the legacy record-id link.
   legacyVerifyUuidUntilUtc: true,
   latestReportVersion: true,
@@ -1372,14 +1392,16 @@ type AnchorStatusSummary = {
   anchoredAtUtc: string | null;
 };
 
+/**
+ * (2026-10-18) The owner's view of the record's verification page: whether the
+ * workspace includes Public Verify, and the canonical page's ACCESS state. What
+ * the page discloses is its own field (disclosureMode / showRecordedLocation).
+ */
 type PublicVerificationDetailState =
   | "NOT_INCLUDED"
-  | "NOT_CONFIGURED"
-  | "CONFIGURED_NOT_PUBLISHED"
-  | "PUBLISHED"
-  | "SUSPENDED"
-  | "UNPUBLISHED"
-  | "UNKNOWN_ERROR";
+  | "AVAILABLE"
+  | "WITHDRAWN"
+  | "SUSPENDED";
 
 type ClientSignalCollectionState =
   | "NOT_COLLECTED"
@@ -1389,10 +1411,10 @@ type ClientSignalCollectionState =
 
 type ReviewWorkspacePublicVerificationSummary = {
   state: PublicVerificationDetailState;
-  publicationState: string | null;
+  /** The record's disclosure policy (what anonymous visitors of the pvr_ page see). */
+  disclosureMode: "VERIFICATION_ONLY" | "CONTENT_PREVIEW";
+  showRecordedLocation: boolean;
   enabled: boolean;
-  configured: boolean;
-  published: boolean;
   sharePath: string | null;
   routeAccessible: boolean;
   publicViewCount: number;
@@ -1456,7 +1478,8 @@ type SafeEvidence = {
   lastVerifiedSource: prismaPkg.VerificationSource | null;
   verificationPackageGeneratedAtUtc: string | null;
   verificationPackageVersion: number | null;
-  publicVerifyState: string | null;
+  /** (2026-10-18) The canonical page's disclosure policy mode. */
+  verificationDisclosureMode: string | null;
   latestReportVersion: number | null;
   reviewReadyAtUtc: string | null;
   reviewerSummaryVersion: number | null;
@@ -1934,7 +1957,9 @@ function normalizePublicPayloadValue(value: unknown): string | null {
   if (typeof value === "string") {
     const t = value.trim();
     if (!t) return null;
-    return t.includes("@") ? maskPublicEmail(t) : t;
+    // (2026-10-18) A value that looks like an address is dropped, never masked:
+    // a masked email still identifies a domain and a person.
+    return t.includes("@") ? null : t;
   }
   if (typeof value === "number" || typeof value === "boolean") {
     return String(value);
@@ -2215,6 +2240,24 @@ function otsAnchoringInputFor(
   };
 }
 
+/**
+ * (2026-10-18) Whether the RFC 3161 token was validated LATER from the copy
+ * kept at intake: the repair writes a TIMESTAMP_APPLIED custody event carrying
+ * this marker when it validates a token the intake had recorded FAILED. Read
+ * from the chain, never inferred from times or statuses.
+ */
+function tsaValidatedFromRetainedToken(
+  custodyEvents: ReadonlyArray<{ eventType: string; payload: unknown }>,
+): boolean {
+  return custodyEvents.some(
+    (e) =>
+      e.eventType === "TIMESTAMP_APPLIED" &&
+      Boolean(e.payload) &&
+      typeof e.payload === "object" &&
+      (e.payload as Record<string, unknown>).repair_source === "tsa_kept_token_validated",
+  );
+}
+
 function liveTrustFactsFor(
   evidence: {
     tsaFailureCode?: string | null;
@@ -2222,17 +2265,41 @@ function liveTrustFactsFor(
     tsaValidatedAtUtc?: Date | null;
     otsProofBase64?: string | null;
     otsUpgradedAtUtc?: Date | null;
+    otsChainVerificationStatus?: string | null;
+    otsChainCheckedAtUtc?: Date | null;
+    otsChainVerifiedAtUtc?: Date | null;
+    otsChainBlockHeight?: number | null;
+    otsChainBlockHash?: string | null;
+    otsChainBlockTimeUtc?: Date | null;
+    otsChainConfirmations?: number | null;
+    otsChainVerifier?: string | null;
+    otsChainFailureCode?: string | null;
   },
   signatureVerified: boolean | null,
   custodyChainValid: boolean,
+  custodyEvents: ReadonlyArray<{ eventType: string; payload: unknown }>,
 ) {
   return {
     tsaFailureCode: evidence.tsaFailureCode ?? null,
     tsaTokenPresent: Boolean(evidence.tsaTokenBase64),
     tsaValidatedAtUtc: evidence.tsaValidatedAtUtc?.toISOString() ?? null,
+    tsaValidatedFromRetainedToken: tsaValidatedFromRetainedToken(custodyEvents),
     // The bytes go to the decision so it resolves the anchoring state itself.
     otsProofBase64: evidence.otsProofBase64 ?? null,
     otsUpgradedAtUtc: evidence.otsUpgradedAtUtc?.toISOString() ?? null,
+    // (2026-10-18) The persisted independent chain check: without it the live
+    // decision could never state CHAIN_VERIFIED, and the matrix contradicted
+    // the anchoring view on the same page. The decision binds it to the proof
+    // (bindOtsChainRecord) and drops it unless every fact is present.
+    otsChainVerificationStatus: evidence.otsChainVerificationStatus ?? null,
+    otsChainCheckedAtUtc: evidence.otsChainCheckedAtUtc ?? null,
+    otsChainVerifiedAtUtc: evidence.otsChainVerifiedAtUtc ?? null,
+    otsChainBlockHeight: evidence.otsChainBlockHeight ?? null,
+    otsChainBlockHash: evidence.otsChainBlockHash ?? null,
+    otsChainBlockTimeUtc: evidence.otsChainBlockTimeUtc ?? null,
+    otsChainConfirmations: evidence.otsChainConfirmations ?? null,
+    otsChainVerifier: evidence.otsChainVerifier ?? null,
+    otsChainFailureCode: evidence.otsChainFailureCode ?? null,
     signatureVerified,
     custodyChainValid,
   };
@@ -2578,14 +2645,14 @@ anchorHash ? `Anchor: ${anchorHash}` : null,
       const identityLevel = normalizePublicPayloadValue(
         obj.identityLevelSnapshot
       );
-      const submittedByEmail = normalizePublicPayloadValue(obj.submittedByEmail);
       const authProvider = normalizePublicPayloadValue(
         obj.submittedByAuthProvider
       );
+      // (2026-10-18) No email, masked or not, ever leaves a public custody
+      // summary: the allowlist is the identity level and the sign-in provider.
       return [
         "Identity snapshot recorded",
         identityLevel ? `Identity: ${identityLevel}` : null,
-        submittedByEmail ? `Email: ${submittedByEmail}` : null,
         authProvider ? `Provider: ${authProvider}` : null,
       ]
         .filter(Boolean)
@@ -2606,12 +2673,12 @@ anchorHash ? `Anchor: ${anchorHash}` : null,
     
 
     case prismaPkg.CustodyEventType.ANCHOR_FAILED: {
+      // Stored failure text is unbounded (it may quote a service response):
+      // the public summary names the provider only.
       const provider = normalizePublicPayloadValue(obj.provider);
-      const reason = normalizePublicPayloadValue(obj.reason);
       return [
         "OpenTimestamps Bitcoin anchoring failed",
         provider ? `Provider: ${provider}` : null,
-        reason ? `Reason: ${reason}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -2743,7 +2810,7 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
       ? e.verificationPackageGeneratedAtUtc.toISOString()
       : null,
     verificationPackageVersion: e.verificationPackageVersion ?? null,
-    publicVerifyState: e.publicVerifyState ?? null,
+    verificationDisclosureMode: e.verificationDisclosureMode ?? null,
     latestReportVersion: e.latestReportVersion ?? null,
     reviewReadyAtUtc: e.reviewReadyAtUtc
       ? e.reviewReadyAtUtc.toISOString()
@@ -3129,7 +3196,7 @@ function buildEvidenceListBaseWhere(params: {
   };
   const tsaFilter = inOrEq(query.tsaStatus);
   const otsFilter = inOrEq(query.otsStatus);
-  const publicVerifyFilter = inOrEq(query.publicVerifyState);
+  const disclosureFilter = inOrEq(query.verificationDisclosure);
   const verificationStatusFilter = inOrEq(query.verificationStatus);
   const acquisitionFilter = buildEvidenceListAcquisitionFilter(query.acquisition);
 
@@ -3175,8 +3242,8 @@ function buildEvidenceListBaseWhere(params: {
       ...(reportReadyFilter ? [reportReadyFilter] : []),
       ...(tsaFilter !== null ? [{ tsaStatus: tsaFilter } satisfies Prisma.EvidenceWhereInput] : []),
       ...(otsFilter !== null ? [{ otsStatus: otsFilter } satisfies Prisma.EvidenceWhereInput] : []),
-      ...(publicVerifyFilter !== null
-        ? [{ publicVerifyState: publicVerifyFilter } satisfies Prisma.EvidenceWhereInput]
+      ...(disclosureFilter !== null
+        ? [{ verificationDisclosureMode: disclosureFilter } satisfies Prisma.EvidenceWhereInput]
         : []),
       ...(verificationStatusFilter !== null
         ? [{ verificationStatus: verificationStatusFilter } satisfies Prisma.EvidenceWhereInput]
@@ -3840,12 +3907,13 @@ type EvidenceListQuery = {
    * trust-summary.service.ts:tsaBucket/otsBucket).
    *
    * tsaStatus / otsStatus are plain VARCHAR columns (not enums) in
-   * the Prisma schema; publicVerifyState and verificationStatus are
-   * typed enums.
+   * the Prisma schema; verificationStatus is a typed enum. The disclosure
+   * filter reads the canonical page's policy (VERIFICATION_ONLY /
+   * CONTENT_PREVIEW) — the retired publication state is never read.
    */
   tsaStatus: string[] | null;
   otsStatus: string[] | null;
-  publicVerifyState: prismaPkg.PublicVerifyState[] | null;
+  verificationDisclosure: Array<(typeof VERIFICATION_DISCLOSURE_MODES)[number]> | null;
   verificationStatus: prismaPkg.VerificationStatus[] | null;
   /**
    * UC-0 — acquisition categories (UPLOAD, SECURE_INTAKE, MOBILE_APP,
@@ -4064,10 +4132,10 @@ function parseEvidenceListQuery(query: Record<string, unknown>): EvidenceListQue
     EVIDENCE_OTS_STATUSES,
     "otsStatus",
   );
-  const publicVerifyState = parseEvidenceMultiEnumFilter<prismaPkg.PublicVerifyState>(
-    query.publicVerifyState,
-    PUBLIC_VERIFY_STATES,
-    "publicVerifyState",
+  const verificationDisclosure = parseEvidenceMultiEnumFilter<(typeof VERIFICATION_DISCLOSURE_MODES)[number]>(
+    query.verificationDisclosure,
+    VERIFICATION_DISCLOSURE_MODES,
+    "verificationDisclosure",
   );
   const verificationStatus = parseEvidenceMultiEnumFilter<prismaPkg.VerificationStatus>(
     query.verificationStatus,
@@ -4087,7 +4155,7 @@ function parseEvidenceListQuery(query: Record<string, unknown>): EvidenceListQue
     reportReady: reportReadyRaw as EvidenceListQuery["reportReady"],
     tsaStatus,
     otsStatus,
-    publicVerifyState,
+    verificationDisclosure,
     verificationStatus,
     acquisition: parseEvidenceMultiEnumFilter(
       query.acquisition,
@@ -4135,13 +4203,6 @@ const EVIDENCE_OTS_STATUSES = [
   "ERROR",
   "ABANDONED",
 ] as const;
-
-const PUBLIC_VERIFY_STATES = [
-  "NOT_PUBLISHED",
-  "PUBLISHED",
-  "UNPUBLISHED",
-  "SUSPENDED",
-] as const satisfies readonly prismaPkg.PublicVerifyState[];
 
 const VERIFICATION_STATUSES = [
   "MATERIALS_AVAILABLE",
@@ -4195,6 +4256,13 @@ function parseEvidenceMultiEnumFilter<T extends string>(
 async function buildPublicEvidenceContent(params: {
   accessPolicy: PublicVerifyContentAccessPolicy;
   /**
+   * (2026-10-18) Where the item labels may come from. OWNER_WORKSPACE keeps the
+   * storage-key fallback for the owner's own files; PUBLIC never derives a
+   * label from a storage key (part keys embed the original file name) — an
+   * item without an owner-given name is labelled by its position.
+   */
+  labelSource: "OWNER_WORKSPACE" | "PUBLIC";
+  /**
    * May an ORIGINAL object be presigned for this viewer at all (2026-09-29,
    * audit M2)? Decided by THE download gate (authenticated) or by export
    * eligibility (public), never by the surface policy alone: a surface that
@@ -4247,6 +4315,8 @@ async function buildPublicEvidenceContent(params: {
   originalUrlsIssued: number;
 }> {
   let originalUrlsIssued = 0;
+  const labelKey = (key: string | null | undefined): string | null =>
+    params.labelSource === "OWNER_WORKSPACE" ? key ?? null : null;
   const multipart = params.parts.length > 1;
   const singlePart = params.parts.length === 1 ? params.parts[0]! : null;
 
@@ -4331,7 +4401,7 @@ async function buildPublicEvidenceContent(params: {
             partIndex: part.partIndex,
             mimeType: part.mimeType,
             originalFileName: part.originalFileName,
-            storageKey: part.storageKey,
+            storageKey: labelKey(part.storageKey),
           });
 
           const preview = params.previews?.get(part.id);
@@ -4419,7 +4489,7 @@ async function buildPublicEvidenceContent(params: {
                 singlePart?.originalFileName ??
                 params.evidence.originalFileName ??
                 null,
-              storageKey: key,
+              storageKey: labelKey(key),
             });
 
             const preview = params.previews?.get(itemId);
@@ -4432,7 +4502,7 @@ async function buildPublicEvidenceContent(params: {
                 singlePart?.originalFileName ??
                 params.evidence.originalFileName ??
                 params.evidence.displayFileName ??
-                resolveOriginalAssetDisplayName({
+                (params.labelSource === "PUBLIC" ? null : resolveOriginalAssetDisplayName({
                   originalFileName:
                     singlePart?.originalFileName ??
                     params.evidence.originalFileName ??
@@ -4442,7 +4512,7 @@ async function buildPublicEvidenceContent(params: {
                   recordedAt: params.evidence.recordedAt ?? null,
                   partIndex: itemIndex,
                   multipart: false,
-                }),
+                })),
               mimeType: mimeType ?? null,
               kind,
               sizeBytes,
@@ -5318,141 +5388,51 @@ function buildPublicVerificationSummaryBase(params: {
   reportDownloadCount: number;
   verificationPackageDownloadCount: number;
 }): Omit<ReviewWorkspacePublicVerificationSummary, "activeShareLinkCount" | "legacyLinkExpiresAtUtc"> {
-  const publicationState =
-    typeof params.evidence.publicVerifyState === "string"
-      ? params.evidence.publicVerifyState.trim().toUpperCase()
-      : null;
-
+  const policy = parseVerificationDisclosurePolicy(params.evidence);
+  const common = {
+    disclosureMode: policy.mode,
+    showRecordedLocation: policy.showRecordedLocation,
+    publicViewCount: params.publicViewCount,
+    authenticatedViewCount: params.authenticatedViewCount,
+    lastPublicViewAt: params.lastPublicViewAt,
+    reportDownloadCount: params.reportDownloadCount,
+    verificationPackageDownloadCount: params.verificationPackageDownloadCount,
+    analyticsAvailable: true,
+  };
   if (!params.workspaceCapabilitySnapshot.publicVerifyIncluded) {
     return {
+      ...common,
       state: "NOT_INCLUDED",
-      publicationState,
       enabled: false,
-      configured: false,
-      published: false,
       sharePath: null,
       routeAccessible: false,
-      publicViewCount: params.publicViewCount,
-      authenticatedViewCount: params.authenticatedViewCount,
-      lastPublicViewAt: params.lastPublicViewAt,
-      reportDownloadCount: params.reportDownloadCount,
-      verificationPackageDownloadCount:
-        params.verificationPackageDownloadCount,
-      analyticsAvailable: true,
-      disabledReason:
-        "Public verification is not included in the current workspace capability set.",
+      disabledReason: "Public verification is not included in the current workspace capability set.",
     };
   }
-
-  // Evidence-output incident (2026-10-05) — public verification is AVAILABLE
-  // here: the workspace includes it (the NOT_INCLUDED return above) and
-  // publishing or an opaque share link needs nothing else. This used to read
-  // `params.anchor.configured` — i.e. whether the unrelated external-anchor
-  // provider (ANCHOR_PROVIDER, not TSA, not OTS, not Public Verify) was set —
-  // so every unpublished record in a deployment without that provider was told
-  // its "public verification" was "not configured". The intelligence layer
-  // had already dropped that coupling; this projection still carried it.
-  const configured = true;
-
-  switch (publicationState) {
-    case "PUBLISHED":
-      return {
-        state: "PUBLISHED",
-        publicationState,
-        enabled: true,
-        configured,
-        published: true,
-        sharePath: params.sharePath,
-        // Reachable only through a working link: a share token, or the legacy
-        // record-id link while its grace runs.
-        routeAccessible: params.activeShareLinkCount > 0 || params.sharePath !== null,
-        publicViewCount: params.publicViewCount,
-        authenticatedViewCount: params.authenticatedViewCount,
-        lastPublicViewAt: params.lastPublicViewAt,
-        reportDownloadCount: params.reportDownloadCount,
-        verificationPackageDownloadCount:
-          params.verificationPackageDownloadCount,
-        analyticsAvailable: true,
-        disabledReason: null,
-      };
-    case "SUSPENDED":
-      return {
-        state: "SUSPENDED",
-        publicationState,
-        enabled: true,
-        configured,
-        published: false,
-        sharePath: null,
-        routeAccessible: false,
-        publicViewCount: params.publicViewCount,
-        authenticatedViewCount: params.authenticatedViewCount,
-        lastPublicViewAt: params.lastPublicViewAt,
-        reportDownloadCount: params.reportDownloadCount,
-        verificationPackageDownloadCount:
-          params.verificationPackageDownloadCount,
-        analyticsAvailable: true,
-        disabledReason:
-          "Public verification was suspended and the public route is intentionally unavailable.",
-      };
-    case "UNPUBLISHED":
-      return {
-        state: "UNPUBLISHED",
-        publicationState,
-        enabled: true,
-        configured,
-        published: false,
-        sharePath: null,
-        routeAccessible: false,
-        publicViewCount: params.publicViewCount,
-        authenticatedViewCount: params.authenticatedViewCount,
-        lastPublicViewAt: params.lastPublicViewAt,
-        reportDownloadCount: params.reportDownloadCount,
-        verificationPackageDownloadCount:
-          params.verificationPackageDownloadCount,
-        analyticsAvailable: true,
-        disabledReason:
-          "Public verification was unpublished and the public route is intentionally unavailable.",
-      };
-    case "NOT_PUBLISHED":
-    case null:
-      return {
-        state: configured ? "CONFIGURED_NOT_PUBLISHED" : "NOT_CONFIGURED",
-        publicationState,
-        enabled: true,
-        configured,
-        published: false,
-        sharePath: null,
-        routeAccessible: false,
-        publicViewCount: params.publicViewCount,
-        authenticatedViewCount: params.authenticatedViewCount,
-        lastPublicViewAt: params.lastPublicViewAt,
-        reportDownloadCount: params.reportDownloadCount,
-        verificationPackageDownloadCount:
-          params.verificationPackageDownloadCount,
-        analyticsAvailable: true,
-        disabledReason:
-          "This record is private. Publish it, or create a share link, if someone outside the workspace needs to verify it.",
-      };
-    default:
-      return {
-        state: "UNKNOWN_ERROR",
-        publicationState,
-        enabled: true,
-        configured,
-        published: false,
-        sharePath: null,
-        routeAccessible: false,
-        publicViewCount: params.publicViewCount,
-        authenticatedViewCount: params.authenticatedViewCount,
-        lastPublicViewAt: params.lastPublicViewAt,
-        reportDownloadCount: params.reportDownloadCount,
-        verificationPackageDownloadCount:
-          params.verificationPackageDownloadCount,
-        analyticsAvailable: true,
-        disabledReason:
-          "The publication state could not be resolved from the current evidence record.",
-      };
+  // THE CANONICAL PAGE'S ACCESS STATE decides reachability for every
+  // identifier; the disclosure policy decides what it shows.
+  const access = String((params.evidence as { verificationAccessState?: string | null }).verificationAccessState ?? "AVAILABLE");
+  if (access === "WITHDRAWN" || access === "SUSPENDED") {
+    return {
+      ...common,
+      state: access,
+      enabled: true,
+      sharePath: null,
+      routeAccessible: false,
+      disabledReason:
+        access === "WITHDRAWN"
+          ? "The verification page was withdrawn; every link to it answers that it was withdrawn."
+          : "The verification page is temporarily suspended.",
+    };
   }
+  return {
+    ...common,
+    state: "AVAILABLE",
+    enabled: true,
+    sharePath: params.sharePath,
+    routeAccessible: true,
+    disabledReason: null,
+  };
 }
 
 function buildSourceContext(params: {
@@ -5651,41 +5631,20 @@ function buildResolvedReviewerAlerts(params: {
           "Public verification is not included in the current workspace capability set.",
       });
       break;
-    // Evidence-output incident (2026-10-05): an unpublished record is PRIVATE —
-    // the default, not a fault — and nothing about it is "not configured".
-    // (NOT_CONFIGURED is no longer produced; a record from an older summary is
-    // worded the same truthful way.)
-    case "NOT_CONFIGURED":
-    case "CONFIGURED_NOT_PUBLISHED":
+    // (2026-10-18) An AVAILABLE page is the normal state, whatever it
+    // discloses: no alert. Only a page that answers "unavailable" is one.
+    case "WITHDRAWN":
       operationalAlerts.push({
-        severity: "info" as const,
-        label: "Not published for public verification",
-        detail:
-          "This record is private. Publish it, or create a share link, if someone outside the workspace needs to verify it.",
+        severity: "warning" as const,
+        label: "Verification page withdrawn",
+        detail: "Every link to this record's verification page answers that the page was withdrawn.",
       });
       break;
     case "SUSPENDED":
       operationalAlerts.push({
         severity: "warning" as const,
-        label: "Public verification suspended",
-        detail:
-          "Public verification was suspended and the public route is intentionally unavailable.",
-      });
-      break;
-    case "UNPUBLISHED":
-      operationalAlerts.push({
-        severity: "info" as const,
-        label: "Public verification unpublished",
-        detail:
-          "Public verification was unpublished and no public verification link is currently active.",
-      });
-      break;
-    case "UNKNOWN_ERROR":
-      operationalAlerts.push({
-        severity: "warning" as const,
-        label: "Public verification state unavailable",
-        detail:
-          "The current evidence record returned an unknown publication state. Verify the publication state before sharing.",
+        label: "Verification page suspended",
+        detail: "The verification page is temporarily suspended.",
       });
       break;
     default:
@@ -8667,7 +8626,7 @@ return {
         reportReady: "all",
         tsaStatus: null,
         otsStatus: null,
-        publicVerifyState: null,
+        verificationDisclosure: null,
         verificationStatus: null,
         acquisition: null,
         sort: "newest",
@@ -9954,6 +9913,7 @@ return {
           });
         const content = await buildPublicEvidenceContent({
           accessPolicy: authenticatedContentAccessPolicy,
+          labelSource: "OWNER_WORKSPACE",
   originalReleaseAllowed: await originalReleaseForViewer(id, ownerUserId),
           previews: reportPreviewMap,
           evidence: {
@@ -10119,7 +10079,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             otsAnchoredAtUtc: evidence.otsAnchoredAtUtc?.toISOString() ?? null,
             otsCalendar: evidence.otsCalendar ?? null,
             otsFailureReason: boundedOtsFailureCode(evidence.otsFailureReason),
-            ...liveTrustFactsFor(evidence, signingKey ? signatureValid : null, custodyChain.valid),
+            ...liveTrustFactsFor(evidence, signingKey ? signatureValid : null, custodyChain.valid, allCustodyEvents),
             signatureValidity: signingKey ? signatureValidity : null,
             storageImmutable: storage?.immutable ?? null,
             storageObjectLockMode: storage?.mode ?? null,
@@ -10826,6 +10786,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
 
 const content = await buildPublicEvidenceContent({
   accessPolicy: authenticatedContentAccessPolicy,
+  labelSource: "OWNER_WORKSPACE",
   originalReleaseAllowed: await originalReleaseForViewer(id, ownerUserId),
   evidence: {
     id: evidence.id,
@@ -11113,6 +11074,7 @@ const authenticatedContentAccessPolicy: PublicVerifyContentAccessPolicy =
 
 const content = await buildPublicEvidenceContent({
   accessPolicy: authenticatedContentAccessPolicy,
+  labelSource: "OWNER_WORKSPACE",
   originalReleaseAllowed: await originalReleaseForViewer(id, ownerUserId),
   evidence: {
     id: refreshed.id,
@@ -13330,23 +13292,33 @@ action: "evidence.certification_requested",
      * internal id. A legacy per-version REPORT/PACKAGE token printed by an
      * earlier report is the same kind of link and gets the same projection.
      */
+    /*
+     * THREE SURFACES, ONE ACCESS DECISION (2026-10-18). Every identifier of a
+     * record resolves to the record's canonical access state (AVAILABLE /
+     * WITHDRAWN / SUSPENDED / RETAINED / PURGED) — a reviewer share can never
+     * weaken it. What the answer DISCLOSES is decided once, below, by the
+     * disclosure decision: the record's policy for a canonical identifier, the
+     * link's own profile for a reviewer share.
+     */
     let canonical: {
       reference: string | null;
       issuedAtUtc: Date | null;
       status: CanonicalVerificationStatus;
-      via: "REFERENCE" | "LEGACY_REPORT_TOKEN" | "LEGACY_RECORD_ID";
-    } | null = null;
+      via: "REFERENCE" | "LEGACY_REPORT_TOKEN" | "LEGACY_RECORD_ID" | "REVIEWER_SHARE";
+    };
+    let identifierKind: PublicVerifyIdentifierKind;
     let id: string;
+    const canonicalStateSelect = {
+      lifecycleState: true,
+      destroyedAtUtc: true,
+      verificationAccessState: true,
+      verificationRef: true,
+      verificationRefIssuedAtUtc: true,
+    } as const;
     if (isVerificationRefShape(presented)) {
       const row = await prisma.evidence.findUnique({
         where: { verificationRef: presented },
-        select: {
-          id: true,
-          lifecycleState: true,
-          destroyedAtUtc: true,
-          verificationAccessState: true,
-          verificationRefIssuedAtUtc: true,
-        },
+        select: { id: true, ...canonicalStateSelect },
       });
       if (!row) {
         return reply.code(404).send({ message: "Evidence not found" });
@@ -13357,6 +13329,7 @@ action: "evidence.certification_requested",
         status: resolveCanonicalVerificationStatus(row),
         via: "REFERENCE",
       };
+      identifierKind = "CANONICAL_REFERENCE";
       id = row.id;
     } else if (isVerificationShareTokenShape(presented)) {
       const resolved = await resolveVerificationShareToken(prisma, presented);
@@ -13377,61 +13350,56 @@ action: "evidence.certification_requested",
       }
       shareLink = resolved.row;
       id = resolved.row.evidenceId;
-      if (shareLink.purpose === "REPORT" || shareLink.purpose === "PACKAGE") {
-        // A link an issued report or package carries: the record's canonical
-        // page, reached through the link format that report version printed.
-        const row = await prisma.evidence.findUnique({
-          where: { id },
-          select: {
-            lifecycleState: true,
-            destroyedAtUtc: true,
-            verificationAccessState: true,
-            verificationRef: true,
-            verificationRefIssuedAtUtc: true,
-          },
-        });
-        if (!row) {
-          return reply.code(404).send({ message: "Evidence not found" });
-        }
-        canonical = {
-          reference: row.verificationRef ?? null,
-          issuedAtUtc: row.verificationRefIssuedAtUtc ?? null,
-          status: resolveCanonicalVerificationStatus(row),
-          via: "LEGACY_REPORT_TOKEN",
-        };
+      const row = await prisma.evidence.findUnique({ where: { id }, select: canonicalStateSelect });
+      if (!row) {
+        return reply.code(404).send({ message: "Evidence not found" });
       }
+      // A link an issued report or package printed is the record's canonical
+      // page; an owner's recipient link is a reviewer share with its own profile.
+      const artifactLink = shareLink.purpose === "REPORT" || shareLink.purpose === "PACKAGE";
+      canonical = {
+        reference: row.verificationRef ?? null,
+        issuedAtUtc: row.verificationRefIssuedAtUtc ?? null,
+        status: resolveCanonicalVerificationStatus(row),
+        via: artifactLink ? "LEGACY_REPORT_TOKEN" : "REVIEWER_SHARE",
+      };
+      identifierKind = artifactLink ? "LEGACY_ARTIFACT_LINK" : "REVIEWER_SHARE";
     } else {
       const idParse = z.string().uuid().safeParse(presented);
       if (!idParse.success) {
         return reply.code(404).send({ message: "Evidence not found" });
       }
       id = idParse.data;
-      // HISTORICAL RECORD-ID LINKS (printed by reports before share tokens):
-      // inside the record's bounded legacy grace, a record that holds its
-      // canonical reference is served THROUGH that identity — the same
-      // verification-only canonical page a `pvr_` link opens, independent of
-      // publication. Outside the grace the id is not a capability (the uniform
-      // 404 below). A record still without a reference keeps the legacy
-      // published-only behaviour until the reconciliation issues it.
+      // HISTORICAL RECORD-ID LINKS (printed by reports before share tokens): a
+      // capability only inside the record's bounded legacy grace AND only for a
+      // record holding its canonical reference — it opens that canonical page,
+      // under the record's disclosure policy. Every other id is the uniform 404.
       const legacyRow = await prisma.evidence.findUnique({
         where: { id },
-        select: {
-          legacyVerifyUuidUntilUtc: true,
-          lifecycleState: true,
-          destroyedAtUtc: true,
-          verificationAccessState: true,
-          verificationRef: true,
-          verificationRefIssuedAtUtc: true,
-        },
+        select: { legacyVerifyUuidUntilUtc: true, teamId: true, ...canonicalStateSelect },
       });
-      if (legacyRow?.verificationRef && legacyVerifyLinkActive(legacyRow)) {
-        canonical = {
-          reference: legacyRow.verificationRef,
-          issuedAtUtc: legacyRow.verificationRefIssuedAtUtc ?? null,
-          status: resolveCanonicalVerificationStatus(legacyRow),
-          via: "LEGACY_RECORD_ID",
-        };
+      if (!legacyRow?.verificationRef || !legacyVerifyLinkActive(legacyRow)) {
+        if (legacyRow) {
+          auditVerificationAction(req, {
+            userId: null,
+            action: "verification.page_opened",
+            outcome: "denied",
+            denialReason: "record_id_is_not_a_capability",
+            resourceId: id,
+            teamId: legacyRow.teamId,
+            metadata: { outcome: "record_id_is_not_a_capability" },
+          });
+        }
+        // Byte-identical to an id that never existed and to an invalid segment.
+        return reply.code(404).send({ message: "Evidence not found" });
       }
+      canonical = {
+        reference: legacyRow.verificationRef,
+        issuedAtUtc: legacyRow.verificationRefIssuedAtUtc ?? null,
+        status: resolveCanonicalVerificationStatus(legacyRow),
+        via: "LEGACY_RECORD_ID",
+      };
+      identifierKind = "LEGACY_RECORD_ID";
     }
 
     // Phase 1 — second bucket, keyed by evidence id. We parse the id
@@ -13453,7 +13421,7 @@ action: "evidence.certification_requested",
     (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
     req.log = req.log.child({ evidenceId: id });
 
-    if (canonical && canonical.status !== "AVAILABLE") {
+    if (canonical.status !== "AVAILABLE") {
       auditVerificationAction(req, {
         userId: null,
         action: "verification.page_opened",
@@ -13500,10 +13468,10 @@ action: "evidence.certification_requested",
         integrityCheckOutcome: true,
         integrityCheckFailureCode: true,
         integrityRecheckRequestedAtUtc: true,
-        // Phase 14 — explicit publication state gate. Records that
-        // are NOT_PUBLISHED / SUSPENDED / UNPUBLISHED are not
-        // returned from the public verify route.
-        publicVerifyState: true,
+        // The record's disclosure policy (2026-10-18): what the canonical page
+        // discloses. Never a gate — access is the canonical state above.
+        verificationDisclosureMode: true,
+        showRecordedLocation: true,
         title: true,
         originalFileName: true,
         displayFileName: true,
@@ -13608,61 +13576,21 @@ action: "evidence.certification_requested",
     if (!evidence) {
       return reply.code(404).send({ message: "Evidence not found" });
     }
-    // ET-PKG-07 — a bare record id is a capability ONLY inside the bounded
-    // legacy grace. Outside it (every record published since, and every legacy
-    // record once its grace ends or its owner ends it) the answer is the same
-    // 404 an unknown id gets.
-    if (!shareLink && !canonical && !legacyVerifyLinkActive(evidence)) {
-      auditVerificationAction(req, {
-        userId: null,
-        action: "verification.page_opened",
-        outcome: "denied",
-        denialReason: "record_id_is_not_a_capability",
-        resourceId: id,
-        teamId: evidence.teamId,
-        metadata: { outcome: "record_id_is_not_a_capability" },
-      });
-      // Byte-identical to an id that never existed and to an invalid segment
-      // (anti-enumeration). The web page, which holds the URL it was given,
-      // tells a holder of an old record-id link that the format is retired.
-      return reply.code(404).send({ message: "Evidence not found" });
-    }
-    // Phase 14 — additive publication gate. When the evidence is not
-    // explicitly PUBLISHED (NOT_PUBLISHED / SUSPENDED / UNPUBLISHED),
-    // return 404 with no leak of state. This is BEFORE finalization
-    // and policy checks so suspension is fast-fail and the response
-    // body never contains governance state.
-    // CANONICAL VERIFICATION IDENTITY — the canonical page never depends on
-    // owner publication; only a restricted recipient link and a legacy
-    // record-id link still do.
-    if (!canonical && evidence.publicVerifyState !== "PUBLISHED") {
-      auditVerificationAction(req, {
-        userId: null,
-        action: "verification.page_opened",
-        outcome: "denied",
-        denialReason: "publication_not_available",
-        resourceId: id,
-        teamId: evidence.teamId,
-        metadata: {
-          outcome: "publication_not_available",
-          publicVerifyState: evidence.publicVerifyState,
-        },
-      });
-      return reply.code(404).send({ message: "Evidence not found" });
-    }
     /*
-     * THE PUBLIC VERIFY DISCLOSURE DECISION (2026-10-17). Every identifier of
-     * a record — its canonical pvr_ reference, a report/package pvs_ token, a
-     * record-id link inside its grace — opens the SAME Public Verify page,
-     * projected by the same tier decision below (entitlement, restricted case,
-     * link projection). Owner publication is not identity; it is the owner's
-     * consent to show the record's CONTENT and DESCRIPTIVE details publicly.
-     * A record the owner has not published (reachable only through a canonical
-     * identifier) is shown VERIFICATION-ONLY: every verification fact and the
-     * full page structure, with content previews, titles and file names,
-     * location, capture/device details and the internal id withheld.
+     * THE DISCLOSURE DECISION (2026-10-18). Made once, here, after the record's
+     * access state and before anything is computed for the page; applied once,
+     * at the end, by projectPublicVerification — the only authority on which
+     * fields leave this route.
      */
-    const verificationOnly = evidence.publicVerifyState !== "PUBLISHED";
+    const recordDisclosurePolicy = parseVerificationDisclosurePolicy(evidence);
+    const disclosure = resolvePublicVerifyDisclosure({
+      identifierKind,
+      recordPolicy: recordDisclosurePolicy,
+      share:
+        identifierKind === "REVIEWER_SHARE" && shareLink
+          ? { projection: shareLink.projection, allowOriginalDownload: shareLink.allowOriginalDownload === true }
+          : null,
+    });
     {
       const evidenceStatus = evidence.status as
         | prismaPkg.EvidenceStatus
@@ -13919,6 +13847,45 @@ action: "evidence.certification_requested",
         });
     }
 
+    /*
+     * THE LAST GATES (2026-10-18), before anything is computed or written for
+     * the page: the tier, and the reviewer link's use. A request that ends in
+     * a 410 (a use-limited link spent) has recorded no view, no custody event,
+     * no recheck request, no original release and no success audit.
+     */
+    const verifiedAt = new Date();
+/*
+ * A RESTRICTED CASE KEEPS ITS DETAILS PRIVATE (2026-09-29, audit M4).
+ * A record linked to a case with an access list answers the BASIC tier only:
+ * the minimal original-integrity result every valid link keeps, never the
+ * rich projection (content previews, case and acquisition context).
+ */
+const inRestrictedCase =
+  (await prisma.caseEvidenceLink.count({
+    where: { evidenceId: evidence.id, case: { access: { some: {} } } },
+  })) > 0;
+const richVerifyEntitled =
+  !inRestrictedCase &&
+  (await resolveEvidenceOutputEligibility({
+    evidenceId: evidence.id,
+    ownerUserId: evidence.ownerUserId,
+    teamId: evidence.teamId ?? null,
+  })
+    .then((e) => e.issuance.decision === "ENTITLED")
+    .catch(() => false));
+// The answer describes the record NOW; no shared cache may hold it.
+reply.header("Cache-Control", "no-store");
+/*
+ * ET-PKG-07 — THE LINK IS USED HERE, once every gate above has passed and an
+ * answer is about to be given. The use is counted and dated; with a use limit
+ * the increment is conditional, so the request that would exceed it gets the
+ * same 410 a spent link gets. What the caller is told about the link is its
+ * kind and when it stops working — never its audience or who made it.
+ */
+if (shareLink && !(await recordVerificationShareUse(prisma, shareLink, verifiedAt))) {
+  return reply.code(410).send(verificationLinkGoneBody("EXHAUSTED"));
+}
+
     const allCustodyEvents = await prisma.custodyEvent.findMany({
       where: { evidenceId: id },
       orderBy: { sequence: "asc" },
@@ -13953,6 +13920,9 @@ const latestReport = await prisma.report.findFirst({
     pdfSignedAtUtc: true,
     // (2026-10-13) The OTS state the report stated (anchorSnapshot.otsState).
     anchorSnapshot: true,
+    // (2026-10-18) Identity as the report stated it (never the email).
+    identityLevelSnapshot: true,
+    submittedByAuthProviderSnapshot: true,
   },
 });
 
@@ -13960,11 +13930,13 @@ const latestVerificationPackage = await prisma.verificationPackage.findFirst({
   where: primaryPublishedPackageWhere({ evidenceId: id }),
   orderBy: { version: "desc" },
   select: {
+    id: true,
     version: true,
     generatedAtUtc: true,
     packageType: true,
     storageBucket: true,
     storageKey: true,
+    s3VersionId: true,
     trustDecisionSnapshot: true,
     packageFormatVersion: true,
     sealSha256: true,
@@ -14130,15 +14102,18 @@ if (Array.isArray(latestReport?.embeddedPreviewsSnapshot)) {
   }
 }
 
+// (2026-10-18) The page never offers originals because it is public: only a
+// reviewer link whose creator granted originals does, and still only where the
+// export gate allows. No environment setting widens a public page.
 const publicVerifyAccessPolicy = resolveEvidenceContentAccessPolicyForSurface({
-  // Verification-only: integrity and metadata review — no preview, no download.
-  configuredMode: verificationOnly ? "metadata_only" : (process.env.PUBLIC_VERIFY_CONTENT_MODE ?? "preview_only"),
+  configuredMode: disclosure.originalDownload ? "full_access" : "preview_only",
   surface: "public_verify",
 });
 const content = await buildPublicEvidenceContent({
   accessPolicy: publicVerifyAccessPolicy,
-  originalReleaseAllowed: verificationOnly ? false : await originalReleaseForPublic(evidence.id),
-  previews: verificationOnly ? new Map() : reportPreviewMap,
+  labelSource: "PUBLIC",
+  originalReleaseAllowed: disclosure.originalDownload ? await originalReleaseForPublic(evidence.id) : false,
+  previews: reportPreviewMap,
   evidence: {
     id: evidence.id,
     mimeType: evidence.mimeType,
@@ -14148,20 +14123,11 @@ const content = await buildPublicEvidenceContent({
     storageVersionId: evidence.storageVersionId ?? null,
     fileSha256: evidence.fileSha256,
     intakePlanJson: evidence.intakePlanJson ?? null,
-originalFileName: verificationOnly ? null : (evidence.originalFileName ?? null),
-displayFileName: verificationOnly ? null : (evidence.displayFileName ?? null),
+    originalFileName: evidence.originalFileName ?? null,
+    displayFileName: evidence.displayFileName ?? null,
     recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
   },
-  parts: verificationOnly ? parts.map((part) => ({ ...part, originalFileName: null })) : parts,
-});
-// ET-CUS-07: original URLs handed to an anonymous viewer are an access fact.
-await recordOriginalRelease({
-  evidenceId: evidence.id,
-  actorUserId: null,
-  channel: "public_verify",
-  originalUrlsIssued: content.originalUrlsIssued,
-  ip: req.ip,
-  userAgent: req.headers["user-agent"],
+  parts,
 });
 
     const recomputedFingerprintHash = sha256Hex(
@@ -14351,7 +14317,7 @@ const liveTrustDecision = buildEvidenceTrustDecision({
     otsCalendar: evidence.otsCalendar ?? null,
     // ET-OTS-04 — a bounded code on the public payload, never stored text.
     otsFailureReason: boundedOtsFailureCode(evidence.otsFailureReason),
-    ...liveTrustFactsFor(evidence, signatureValid, custodyChain.valid),
+    ...liveTrustFactsFor(evidence, signatureValid, custodyChain.valid, allCustodyEvents),
     signatureValidity,
     storageImmutable: storageProtection?.immutable ?? null,
     storageObjectLockMode: storageProtection?.mode ?? null,
@@ -14422,7 +14388,6 @@ const overallIntegrity =
   digestColumnsMatchSignedFingerprint !== false &&
   !storedBytesContradict;
 
-    const verifiedAt = new Date();
     const responseVerificationStatus = evidence.verificationStatus ?? null;
 
     // Public-verify post-processing.
@@ -14443,6 +14408,781 @@ const overallIntegrity =
     //   do NOT include the analytics view if the record cannot meaningfully
     //   be verified yet. The verify response itself still serves the public
     //   page (which explains the not-yet-finalized state honestly).
+    const custodyDisplayContext = {
+      itemCount: content.summary.itemCount,
+      structure: content.summary.structure,
+      isIntake: resolveEvidenceAcquisition(evidence).mode === "SECURE_INTAKE_LINK",
+    } as const;
+
+    const mappedForensicEvents = latestForDisplay(forensicCustodyEvents).map((event) =>
+      mapPublicCustodyEvent(event, custodyDisplayContext)
+    );
+    const mappedAccessEvents = latestForDisplay(accessCustodyEvents).map((event) =>
+      mapPublicCustodyEvent(event, custodyDisplayContext)
+    );
+
+    // Phase 1 — apply public-verify identity exposure policy. The
+    // default-redacted policy strips submittedByEmail entirely and
+    // hides workspaceName / organizationName unless the operator
+    // explicitly opted in via PUBLIC_VERIFY_EXPOSE_ATTRIBUTION=true.
+    // organizationVerified (boolean) and submittedByAuthProvider
+    // (the human label only, not the raw enum code) remain by
+    // default — they communicate auth provenance without identifying
+    // the organization.
+    const identityExposure = getPublicVerifyIdentityExposure();
+    if (!identityExposure.exposeAttribution) {
+      req.log.info(
+        {
+          evidenceId: id,
+          reason: identityExposure.reason,
+          redacted: [
+            "submittedByEmail",
+            "workspaceName",
+            "organizationName",
+          ],
+        },
+        "public_verify.identity_redacted",
+      );
+    }
+    // THE acquisition identity (creation-time custody snapshot). Every identity
+    // field of the public overview reads it — never the record's columns,
+    // which earlier report runs may have rewritten from current state.
+    const acquisitionIdentity = resolveAcquisitionIdentitySnapshot({
+      custodyEvents: allCustodyEvents,
+      row: evidence,
+      acquisitionMode: evidence.acquisitionMode ?? null,
+    });
+    // THE per-signal statement of this record (no score, no overall verdict):
+    // the live/snapshot signals, the capture-time identity, the acquisition
+    // channel, the latest published package's seal and this page itself.
+    // (2026-10-18) ONE SEAL CHECK: the registered key's binding, and for a
+    // legacy seal the stored package read back read-only (package-seal-check).
+    const packageSealCheck = await resolvePackageSealCheck(latestVerificationPackage ?? null);
+    const verificationMatrix = buildVerificationMatrix({
+      signals: trustDecision?.signals ?? [],
+      identity: acquisitionIdentity,
+      acquisitionMode: evidence.acquisitionMode ?? null,
+      acquisitionModeSource: evidence.acquisitionModeSource ?? null,
+      packageSeal: packageSealCheck.fact,
+      // The page states its disclosure; a reviewer share states its own profile.
+      publication:
+        identifierKind === "REVIEWER_SHARE"
+          ? { kind: "REVIEWER_SHARE" }
+          : { kind: "CANONICAL", disclosure: recordDisclosurePolicy.mode },
+    });
+    const overview = buildPublicVerifyOverview({
+      acquisitionIdentity,
+      evidence: {
+        id: evidence.id,
+title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?? null,
+        type: evidence.type,
+        status: evidence.status,
+        verificationStatus: responseVerificationStatus,
+        captureMethod: evidence.captureMethod ?? null,
+        acquisitionMode: evidence.acquisitionMode ?? null,
+        acquisitionModeSource: evidence.acquisitionModeSource ?? null,
+        identityLevelSnapshot: (acquisitionIdentity.identityLevel as prismaPkg.IdentityLevel | null),
+        // Phase 1 — PII redaction. submittedByEmail is ALWAYS null
+        // on the public surface. maskPublicEmail (used downstream)
+        // still leaked the domain, which is enough to identify the
+        // submitter's organization for a journalist's source or an
+        // insurance claimant. The mask is no longer reachable on
+        // the public response path.
+        submittedByEmail: null,
+        submittedByAuthProvider: (acquisitionIdentity.authProvider as prismaPkg.AuthProvider | null),
+        workspaceNameSnapshot: identityExposure.exposeAttribution
+          ? acquisitionIdentity.workspaceName
+          : null,
+        organizationNameSnapshot: identityExposure.exposeAttribution
+          ? acquisitionIdentity.organizationName
+          : null,
+        organizationVerifiedSnapshot: acquisitionIdentity.organizationVerified,
+        mimeType: evidence.mimeType,
+        createdAt: evidence.createdAt,
+        capturedAtUtc: evidence.capturedAtUtc,
+        uploadedAtUtc: evidence.uploadedAtUtc,
+        signedAtUtc: evidence.signedAtUtc,
+        recordedIntegrityVerifiedAtUtc:
+          evidence.recordedIntegrityVerifiedAtUtc,
+        // Phase D Blocker 1 — pass through the ACTUAL meaningful-verification
+        // timestamp from the database. Do NOT inject the current page-view
+        // time as "last verified". The current page-view time flows through
+        // currentPublicVerifyViewAtUtc below.
+        lastVerifiedAtUtc: evidence.lastVerifiedAtUtc,
+        lastVerifiedSource: evidence.lastVerifiedSource ?? null,
+        lastPublicVerifyViewAtUtc:
+          evidence.lastPublicVerifyViewAtUtc ?? null,
+        reviewReadyAtUtc: evidence.reviewReadyAtUtc,
+verificationPackageGeneratedAtUtc:
+  latestVerificationPackage?.generatedAtUtc ??
+  evidence.verificationPackageGeneratedAtUtc,
+
+verificationPackageVersion:
+  latestVerificationPackage?.version ??
+  evidence.verificationPackageVersion,
+          latestReportVersion: evidence.latestReportVersion,
+        reviewerSummaryVersion: evidence.reviewerSummaryVersion,
+        reportGeneratedAtUtc: evidence.reportGeneratedAtUtc,
+      },
+      latestReport,
+      itemCount,
+      storageProtection,
+      timestampStatus: presentedTsa,
+      timestampDigestMatches,
+      otsStatus: otsAnchoring.state,
+      overallIntegrity,
+      chainOfCustodyPresent: forensicCustodyEvents.length > 0,
+      anchor,
+      contentSummary: content.summary,
+      trustDecision,
+      // Phase D Blocker 1 — surface the current page-view time as a
+      // separate analytics field. The verify page renders this as
+      // "Current public verify page view", NOT "Last verified".
+      currentPublicVerifyViewAtUtc: verifiedAt,
+    });
+
+    const humanSummary = buildPublicVerifyHumanSummary({
+      overview,
+      canonicalHashMatches,
+      signatureValid,
+      custodyChainValid: custodyChain.valid,
+      timestampDigestMatches,
+      otsHashMatches,
+      overallIntegrity,
+      trustDecision,
+    });
+
+    const limitations = buildPublicVerifyLimitations();
+
+    const reviewGuidance = buildPublicReviewGuidance({
+      itemCount: content.summary.itemCount,
+      previewableItemCount: content.summary.previewableItemCount,
+      overallIntegrity,
+    });
+
+    const integrityProof: PublicVerifyIntegrityProof & {
+      digestColumnsMatchSignedFingerprint: boolean | null;
+      signingKeyRevokedAtUtc: string | null;
+      signingKeyMatchesRecord: boolean | null;
+      storedBytesCheck: string;
+    } = {
+  overallIntegrity,
+  canonicalHashMatches,
+  signatureValid,
+  // UC-TRUST-001 / 003 / 008 — what the verdict also rests on.
+  digestColumnsMatchSignedFingerprint,
+  signingKeyRevokedAtUtc,
+  signingKeyMatchesRecord,
+  storedBytesCheck: publicVerifyTrustShared.storedBytesCheckStatusOf(storedBytes),
+  custodyChainValid: custodyChain.valid,
+  custodyChainMode: custodyChain.mode,
+  custodyChainFailureReason: custodyChain.reason,
+  timestampDigestMatches,
+  otsHashMatches,
+};
+
+const custodyLifecycle = buildPublicCustodyLifecycle({
+  forensicEvents: mappedForensicEvents,
+  accessEvents: mappedAccessEvents,
+  forensicEventCount: forensicCustodyEvents.length,
+  accessEventCount: accessCustodyEvents.length,
+});
+
+const reportGeneratedAtUtc =
+  latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null;
+
+const forensicEventsAtReportGeneration = reportGeneratedAtUtc
+  ? forensicCustodyEvents.filter((ev) => ev.atUtc <= reportGeneratedAtUtc)
+  : forensicCustodyEvents;
+// (2026-10-18) What counts as a forensic change after issue: forensic events
+// that are not administrative (a verification reference issued, the page's
+// access or disclosure changed, is never an integrity change).
+const forensicIntegrityEvents = forensicCustodyEvents.filter((ev) => isForensicIntegrityCustodyEventType(ev.eventType));
+const forensicIntegrityEventsAtSnapshot = reportGeneratedAtUtc
+  ? forensicIntegrityEvents.filter((ev) => ev.atUtc <= reportGeneratedAtUtc)
+  : forensicIntegrityEvents;
+
+const accessEventsAfterReportGeneration = reportGeneratedAtUtc
+  ? accessCustodyEvents.filter((ev) => ev.atUtc > reportGeneratedAtUtc)
+  : accessCustodyEvents;
+
+const snapshotGeneratedAtUtc =
+  trustDecisionConsistencySource === "REPORT_SNAPSHOT"
+    ? latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null
+    : trustDecisionConsistencySource === "VERIFICATION_PACKAGE_SNAPSHOT"
+      ? latestVerificationPackage?.generatedAtUtc ??
+        evidence.verificationPackageGeneratedAtUtc ??
+        null
+      : null;
+
+const trustDecisionConsistency = buildTrustDecisionConsistency({
+  snapshotTrustDecision,
+  liveTrustDecision,
+  source: trustDecisionConsistencySource,
+  snapshotGeneratedAtUtc,
+  latestReportGeneratedAtUtc:
+    latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null,
+  latestReportVersion:
+    latestReport?.version ?? evidence.latestReportVersion ?? null,
+  latestVerificationPackageGeneratedAtUtc:
+    latestVerificationPackage?.generatedAtUtc ??
+    evidence.verificationPackageGeneratedAtUtc ??
+    null,
+  latestVerificationPackageVersion:
+    latestVerificationPackage?.version ??
+    evidence.verificationPackageVersion ??
+    null,
+  forensicEventsAtSnapshot: forensicIntegrityEventsAtSnapshot.length,
+  currentForensicEvents: forensicIntegrityEvents.length,
+  accessEventsAfterSnapshot: accessEventsAfterReportGeneration.length,
+});
+
+verificationPackageIntegrity = withPackageSealState(verificationPackageIntegrity, latestVerificationPackage);
+// ONE SEAL AUTHORITY: the package card states the same seal check as the
+// matrix's package_signature row (a seal not bound to a registered PROOVRA key
+// is "not checked" in both places).
+{
+  const sealRow = verificationMatrix.rows.find((r) => r.key === "package_signature");
+  const completenessRow = verificationMatrix.rows.find((r) => r.key === "package_completeness");
+  verificationPackageIntegrity = {
+    ...verificationPackageIntegrity,
+    sealCheck: sealRow?.status ?? "UNAVAILABLE",
+    // The card prints the matrix's own sentences: the card and the matrix can
+    // never state two different seal checks.
+    sealStatement: sealRow?.statement ?? null,
+    sealQualifiers: sealRow?.qualifiers ?? [],
+    completenessCheck: completenessRow?.status ?? "UNAVAILABLE",
+    completenessStatement: completenessRow?.statement ?? null,
+  };
+}
+
+const { verificationSnapshot, liveAnchoring } =
+  buildPublicVerifyConsistencySections({
+    source: trustDecisionConsistencySource,
+    trustDecisionSnapshot: snapshotTrustDecision,
+    latestReport,
+    latestVerificationPackage,
+    verificationPackageIntegrity,
+    currentOts: otsAnchoring,
+    otsUpgradedAtUtc: evidence.otsUpgradedAtUtc
+      ? evidence.otsUpgradedAtUtc.toISOString()
+      : null,
+  });
+
+const custodyDisplayCounts = {
+  forensicAtReportGeneration: forensicEventsAtReportGeneration.length,
+  currentForensicEvents: forensicCustodyEvents.length,
+  currentForensic: forensicCustodyEvents.length,
+  accessAfterReportGeneration: accessEventsAfterReportGeneration.length,
+  currentAccessEvents: accessCustodyEvents.length,
+  totalDisplayedEvents:
+    forensicCustodyEvents.length + accessCustodyEvents.length,
+  totalDisplayedNow:
+    forensicCustodyEvents.length + accessCustodyEvents.length,
+  reportGeneratedAtUtc: reportGeneratedAtUtc
+    ? reportGeneratedAtUtc.toISOString()
+    : null,
+};
+
+const technicalMaterials = buildTechnicalMaterials({
+  evidence: {
+    fileSha256: evidence.fileSha256,
+    multipartManifestSha256: evidence.multipartManifestSha256 ?? null,
+    hashSemantics: evidence.hashSemantics ?? null,
+    fingerprintHash: evidence.fingerprintHash,
+    signatureBase64: evidence.signatureBase64,
+    signingKeyId: evidence.signingKeyId,
+    signingKeyVersion: evidence.signingKeyVersion,
+    tsaMessageImprint: evidence.tsaMessageImprint,
+    tsaInputDigestHex: evidence.tsaInputDigestHex,
+    tsaInputKind: evidence.tsaInputKind,
+    otsProofBase64: usableOtsProofBase64(evidence),
+  },
+  publicKeyPem: signingKey.publicKeyPem,
+  partsCount: parts.length,
+});
+
+const versioning: PublicVerifyVersioning = {
+  latestReportVersion:
+    latestReport?.version ?? evidence.latestReportVersion ?? null,
+  latestReportGeneratedAtUtc: latestReport?.generatedAtUtc
+    ? latestReport.generatedAtUtc.toISOString()
+    : evidence.reportGeneratedAtUtc
+      ? evidence.reportGeneratedAtUtc.toISOString()
+      : null,
+verificationPackageVersion:
+  latestVerificationPackage?.version ??
+  evidence.verificationPackageVersion ??
+  null,
+
+verificationPackageGeneratedAtUtc:
+  latestVerificationPackage?.generatedAtUtc
+    ? latestVerificationPackage.generatedAtUtc.toISOString()
+    : evidence.verificationPackageGeneratedAtUtc
+      ? evidence.verificationPackageGeneratedAtUtc.toISOString()
+      : null,
+        reviewerSummaryVersion: evidence.reviewerSummaryVersion ?? null,
+};
+const defaultPreviewItem =
+  content.items.find((item) => item.previewable && item.viewUrl) ??
+  content.items.find((item) => item.viewUrl) ??
+  content.primaryItem ??
+  null;
+const display = buildEvidenceDisplayDescriptor({
+title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?? null,
+  summary: content.summary,
+  itemCount,
+});
+
+const captureContext = hasCaptureLocationMetadata({
+  lat: decimalToNumber(evidence.lat),
+  lng: decimalToNumber(evidence.lng),
+})
+  ? {
+      statusLabel: CAPTURE_LOCATION_STATUS_LABEL,
+      description: CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+      lat: decimalToNumber(evidence.lat),
+      lng: decimalToNumber(evidence.lng),
+      accuracyMeters: decimalToNumber(evidence.accuracyMeters),
+      capturedAtUtc: evidence.capturedAtUtc
+        ? evidence.capturedAtUtc.toISOString()
+        : evidence.createdAt.toISOString(),
+      deviceTimeIso: evidence.deviceTimeIso ?? null,
+      source: evidenceLocationSourceLabel(evidence.locationSource),
+      externalMapUrl:
+        buildCaptureLocationExternalMapUrl({
+          lat: decimalToNumber(evidence.lat),
+          lng: decimalToNumber(evidence.lng),
+          accuracyMeters: decimalToNumber(evidence.accuracyMeters),
+        }) ?? null,
+      legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
+    }
+  : null;
+
+// Phase 31.12 — bounded public-safe media intelligence advisory.
+// Returns null when there are no surfaceable signals OR when the
+// projection fails. NEVER throws — the verify response is unchanged
+// (other than `mediaIntelligenceAdvisory: null`) in the no-data
+// case. The projection re-uses the canonical team-scoped read.
+const mediaIntelligenceAdvisory = evidence.teamId
+  ? await (async () => {
+      try {
+        const { projectVerifyMediaIntelligence } = await import(
+          "../services/media-intelligence/verify-projection.service.js"
+        );
+        return await projectVerifyMediaIntelligence(
+          { teamId: evidence.teamId!, evidenceId: evidence.id },
+        );
+      } catch {
+        return null;
+      }
+    })()
+  : null;
+
+// UC-0 — THE public acquisition projection (`PublicVerifyAcquisition`,
+// @proovra/shared). It replaced `captureTrust`, whose flat shape the page
+// read through a nested `chain.*` path it never received. Always present for
+// a verifiable record — a legacy record states "Not recorded", never a
+// failure. Public-safe by construction (bounded enums, counts and server
+// timestamps only). `evidence` was resolved from this route's token and has
+// already passed every publication/integrity gate above.
+const acquisition = await (async () => {
+  try {
+    const { loadPublicVerifyAcquisition } = await import("@proovra/shared-runtime");
+    return await loadPublicVerifyAcquisition(prisma, evidence.id);
+  } catch (err) {
+    req.log.warn(
+      { evidenceId: evidence.id, err: err instanceof Error ? err.name : "unknown" },
+      "public_verify.acquisition_projection_failed",
+    );
+    return null;
+  }
+})();
+
+// UC-PROV-003 — the validated capture-manifest facts the capture client
+// reported, DATA-MINIMIZED for the public page (publicCaptureManifestFacts
+// drops the private source URL and page title; the domain remains). Never
+// throws; null when the record has no manifest facts.
+const captureManifest = await (async () => {
+  try {
+    const { loadProvenanceChain } = await import("@proovra/shared-runtime");
+    const chain = await loadProvenanceChain(prisma, evidence.id);
+    return chain.captureManifestFacts
+      ? publicVerifyTrustShared.publicCaptureManifestFacts(chain.captureManifestFacts)
+      : null;
+  } catch {
+    return null;
+  }
+})();
+
+// PHASE 12B (Evidence Operations) — bounded public-safe redaction
+// projection. This is the CANONICAL public home of the redaction
+// verification badge: the anonymous evidenceId probe
+// GET /v1/redaction/public/verify/:evidenceId was deleted and its
+// fields converged here, behind this route's rate limits, publication
+// gate, integrity gate, destroyed gate, finalization gate, and audit.
+// Workspace-anchored via teamId. Never throws; null when the record
+// has no redaction project and no extracted video frames.
+const redaction = await (async () => {
+  try {
+    const { projectVerifyRedaction } = await import(
+      "../services/redaction/verify-redaction-projection.service.js"
+    );
+    return await projectVerifyRedaction({
+      teamId: evidence.teamId ?? null,
+      evidenceId: evidence.id,
+    });
+  } catch {
+    return null;
+  }
+})();
+
+// Enterprise Technical Metadata layer — privacy-safe Media / EXIF /
+// Capture Environment projection. Never throws; null when no data.
+const technicalMetadata = await (async () => {
+  try {
+    const { projectVerifyTechnicalMetadata } = await import(
+      "../services/technical-metadata/verify-projection.service.js"
+    );
+    return await projectVerifyTechnicalMetadata({
+      teamId: evidence.teamId ?? null,
+      evidenceId: evidence.id,
+    });
+  } catch {
+    return null;
+  }
+})();
+
+/*
+ * DECISION B (2026-09-29) — BASIC VERIFICATION IS NEVER WITHHELD FOR BILLING.
+ *
+ * Every published, non-revoked, non-destroyed link answers with the basic
+ * projection: what the integrity checks established, the real chronology, and
+ * whether a report/package has been issued — nothing else. The rich view (the
+ * payload below: titles, previews, custody detail, technical materials) is
+ * served only while the owner's commercial subject is entitled to issued
+ * outputs. A lapsed subscription therefore turns a link BASIC; it never makes
+ * a valid link claim the evidence does not exist, and it never exposes paid
+ * material because a link is public.
+ */
+const pairedPackageForBasic = latestReport
+  ? await prisma.verificationPackage.findFirst({
+      where: primaryPublishedPackageWhere({ evidenceId: evidence.id, version: latestReport.version }),
+      select: {
+        version: true,
+        reportVersion: true,
+        generatedAtUtc: true,
+        packageFormatVersion: true,
+        // ET-PKG-02: the published check for a package a recipient holds.
+        packageSha256: true,
+        sealSigningKeySha256: true,
+      },
+    }).then((row) => (row ? asPublishedPackage(row) : null))
+  : null;
+// ET-SM-07 — `storedBytes` was resolved (and a recheck requested when it is
+// not current) above, before the verdict, because it is an input to it.
+const basicVerification = buildBasicVerification({
+  now: verifiedAt,
+  storedBytes,
+  digestColumnsMatchSignedFingerprint,
+  integrity: {
+    fingerprintMatches: canonicalHashMatches,
+    signatureValid,
+    custodyChainValid: custodyChain.valid,
+  },
+  fileSha256: evidence.fileSha256 ?? null,
+  fingerprintHash: evidence.fingerprintHash ?? null,
+  // UC-PROV-001 — the server clock at record creation; projected as
+  // `serverReceivedAtUtc`, never as a device-declared capture time.
+  capturedAtUtc: evidence.capturedAtUtc ?? null,
+  deviceTimeIso: evidence.deviceTimeIso ?? null,
+  signedAtUtc: evidence.signedAtUtc ?? null,
+  tsaStatus: presentedTsa ?? null,
+  tsaTokenPresent: Boolean(evidence.tsaTokenBase64),
+  tsaFailureCode: evidence.tsaFailureCode ?? null,
+  tsaImprintMatches: timestampDigestMatches ?? null,
+  tsaGenTimeUtc: evidence.tsaGenTimeUtc ?? null,
+  // (2026-10-13) The OTS record for the one resolver (resolveOtsAnchoring).
+  ots: otsInput,
+  latestReport: latestReport
+    ? { version: latestReport.version, generatedAtUtc: latestReport.generatedAtUtc, pdfSha256: latestReport.pdfSha256 ?? null }
+    : null,
+  pairedPackage: pairedPackageForBasic,
+});
+const link = shareLink
+  ? {
+      kind: "SHARE_TOKEN" as const,
+      expiresAtUtc: shareLink.expiresAtUtc ? shareLink.expiresAtUtc.toISOString() : null,
+    }
+  : {
+      kind: "LEGACY_RECORD_ID" as const,
+      // A legacy link says when it stops working, so its holder can ask the
+      // owner for a share link before it does.
+      expiresAtUtc: evidence.legacyVerifyUuidUntilUtc ? evidence.legacyVerifyUuidUntilUtc.toISOString() : null,
+    };
+/*
+ * THE CANONICAL IDENTITY ON THE PAGE. Whichever identifier opened it, the page
+ * states the record's permanent reference and when it was checked; the link
+ * kind says how it was reached. The tier and the disclosure below are the
+ * same for every identifier of the record.
+ */
+const canonicalVerificationFacts = {
+      reference: canonical.reference,
+      status: "AVAILABLE" as const,
+      issuedAtUtc: canonical.issuedAtUtc ? canonical.issuedAtUtc.toISOString() : null,
+      checkedAtUtc: verifiedAt.toISOString(),
+      signature: {
+        keyId: evidence.signingKeyId ?? null,
+        keyVersion: evidence.signingKeyVersion ?? null,
+        keyFingerprintSha256: evidence.signingKeySha256 ?? null,
+      },
+      preservation: {
+        objectLockMode: evidence.storageObjectLockMode ?? null,
+        retainUntilUtc: evidence.storageObjectLockRetainUntilUtc
+          ? evidence.storageObjectLockRetainUntilUtc.toISOString()
+          : null,
+      },
+      lastUpdatedAtUtc: latestReport?.generatedAtUtc ? new Date(latestReport.generatedAtUtc).toISOString() : null,
+      limitations: [
+        "This page verifies the record and its artifacts. It does not publish the original evidence files.",
+        "Verification states what PROOVRA's records and stored proofs show; it is not a legal finding.",
+      ],
+    };
+/*
+ * THE RECORD FACTS (2026-10-18), named for what they are: the permanent
+ * Verification reference (never an "Evidence ID"), the record's kind (a
+ * multipart record is a package of N items, never its first part's MIME
+ * type), when the latest report was ISSUED and when the stored file was last
+ * RECHECKED — two different facts — and identity as observed at capture
+ * beside identity as the latest report stated it. Identity that exists but is
+ * not disclosed says so; it is never "Not recorded".
+ */
+const identityWithheld = !identityExposure.exposeAttribution;
+const recordFacts = {
+  verificationReference: canonical.reference,
+  recordKindLabel:
+    itemCount > 1 ? multipartRecordKindLabel(itemCount) : `Single item · ${evidence.mimeType ?? "type not recorded"}`,
+  itemCount,
+  reportIssuedAtUtc: latestReport?.generatedAtUtc ? latestReport.generatedAtUtc.toISOString() : null,
+  reportVersion: latestReport?.version ?? null,
+  storedFileLastRecheckedAtUtc: storedBytes.lastCheckedAtUtc ?? null,
+  storedFileRecheck: publicVerifyTrustShared.storedBytesCheckStatusOf(storedBytes),
+  checkedAtUtc: verifiedAt.toISOString(),
+  identity: {
+    disclosure: identityWithheld ? ("WITHHELD" as const) : ("SHOWN" as const),
+    statement: identityWithheld ? WITHHELD_BY_DISCLOSURE_POLICY : null,
+    captureTime: overview.identitySnapshot ?? null,
+    atReportTime: latestReport
+      ? {
+          reportVersion: latestReport.version,
+          identityLevel: latestReport.identityLevelSnapshot ?? null,
+          authProvider: latestReport.submittedByAuthProviderSnapshot
+            ? mapAuthProviderLabel(latestReport.submittedByAuthProviderSnapshot)
+            : null,
+        }
+      : null,
+  },
+};
+// A record-id link keeps its own kind (it says when its grace ends); so does a
+// reviewer share (it says when it expires).
+const pageLink =
+  canonical.via === "REFERENCE" || canonical.via === "LEGACY_REPORT_TOKEN"
+    ? { kind: "CANONICAL" as const, expiresAtUtc: null }
+    : link;
+
+/*
+ * THE COMPLETE PUBLIC FACT SET. Nothing here is sent as is: the projection
+ * below (projectPublicVerification) is the only authority on which of these
+ * facts leave, under the disclosure decided above.
+ */
+const fullFacts = {
+  tier: "RICH" as const,
+  basicVerification,
+  link: pageLink,
+  canonicalVerification: canonicalVerificationFacts,
+  recordFacts,
+  mediaIntelligenceAdvisory,
+  acquisition,
+  // UC-PROV-003 — reported by the capture client; public-safe (no source URL / title).
+  captureManifest,
+  // PHASE 12B — redaction verification badge.
+  redaction,
+  technicalMetadata,
+  trustDecision,
+  verificationMatrix,
+trustDecisionConsistency,
+  verificationSnapshot,
+  liveAnchoring,
+  verificationPackageIntegrity,
+trustDecisionSource: trustDecision ? "LIVE_VERIFICATION" : "UNAVAILABLE",
+trustDecisionSnapshot: {
+  reportVersion: latestReport?.version ?? null,
+  reportGeneratedAtUtc: latestReport?.generatedAtUtc
+    ? latestReport.generatedAtUtc.toISOString()
+    : null,
+  verificationPackageVersion: latestVerificationPackage?.version ?? null,
+  verificationPackageGeneratedAtUtc: latestVerificationPackage?.generatedAtUtc
+    ? latestVerificationPackage.generatedAtUtc.toISOString()
+    : null,
+},
+// Phase 2 — canonical OutputContext shape. The public verify
+// endpoint is a PUBLIC_VERIFY_LIVE output; the snapshot-vs-live
+// distinction is explicit in this field so Phase 3 UI can render
+// "Verdict source: REPORT_SNAPSHOT (as of …)" cleanly without
+// re-deriving the semantics in the page.
+// Live-delta materials are the categories that may have advanced
+// since the sealed snapshot — custody chain (append-only) and OTS
+// anchoring (live-updating-after-snapshot).
+outputContext: ((): CanonicalOutputContext => {
+  const snapshotGen =
+    latestReport?.generatedAtUtc?.toISOString() ??
+    latestVerificationPackage?.generatedAtUtc?.toISOString() ??
+    null;
+  return {
+    outputType: "PUBLIC_VERIFY_LIVE",
+    isSnapshotOutput: false,
+    isLiveOutput: true,
+    snapshotGeneratedAtUtc: snapshotGen,
+    liveObservedAtUtc: new Date().toISOString(),
+    liveDeltaMaterials: ["custodyChain", "otsAnchoring"],
+    legalBoundary: buildCanonicalLegalBoundaryMaterial()
+      .publicVerifyBoundary,
+  };
+})(),
+  contentAccessPolicy: publicVerifyAccessPolicy,
+    contentExposureDecision: {
+    mode: publicVerifyAccessPolicy.mode,
+    allowContentView: publicVerifyAccessPolicy.allowContentView,
+    allowDownload: publicVerifyAccessPolicy.allowDownload,
+    rationale:
+      publicVerifyAccessPolicy.mode === "metadata_only"
+        ? "Public verification access is restricted to integrity and metadata review."
+        : publicVerifyAccessPolicy.mode === "preview_only"
+          ? "Public verification access allows controlled preview without unrestricted download."
+          : "Public verification access allows reviewer-facing preview and download according to the configured policy.",
+  },
+  certifications: publicCertifications,
+  display,
+  captureContext,
+  locationState: publicLocationState(buildEvidenceLocationState(evidence, allCustodyEvents)),
+  overview,
+  humanSummary,
+  evidenceContent: {
+    summary: content.summary,
+    items: content.items,
+    primaryItem: content.primaryItem,
+defaultPreviewItemId: defaultPreviewItem?.id ?? null,
+      previewPolicy: content.previewPolicy,
+  },
+  integrityProof,
+  custodyLifecycle,
+  custodyDisplayCounts,
+  legalAssessment: {
+    limitations,
+    reviewGuidance,
+  },
+  storageAndTimestamping: {
+    storage: storageProtection,
+    tsa: {
+      status: presentedTsa,
+      // UC-TRUST-002 — VALIDATED / RECORDED_NOT_VALIDATED / FAILED / …
+      // ONE TSA AUTHORITY: a kept token whose validation was never performed
+      // (no trust anchor) is "recorded, not validated" here exactly as the
+      // matrix and the signal state it — never "failed".
+      proofStatus: ((): string => {
+        const proof = publicVerifyTrustShared.resolveTsaProofStatus(evidence);
+        if (proof !== "FAILED") return proof;
+        const trust = resolveTsaTrustState({
+          presentedStatus: presentedTsa ?? null,
+          tokenPresent: Boolean(evidence.tsaTokenBase64),
+          failureCode: evidence.tsaFailureCode ?? null,
+        });
+        return trust.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED" ? "RECORDED_NOT_VALIDATED" : proof;
+      })(),
+      provider: evidence.tsaProvider,
+      url: evidence.tsaUrl,
+      serialNumber: evidence.tsaSerialNumber,
+      genTimeUtc: evidence.tsaGenTimeUtc
+        ? evidence.tsaGenTimeUtc.toISOString()
+        : null,
+      hashAlgorithm: evidence.tsaHashAlgorithm,
+messageImprint: evidence.tsaMessageImprint,
+      inputDigestHex: evidence.tsaInputDigestHex ?? evidence.fileSha256,
+      inputKind: evidence.tsaInputKind ?? null,
+      legacyMode: !evidence.tsaInputDigestHex,
+      failureReason: evidence.tsaFailureReason,
+digestMatchesTimestampInput: timestampDigestMatches,
+digestMatchesFileHash:
+  timestampStatusIsPositive && evidence.fileSha256 && evidence.tsaMessageImprint
+    ? evidence.tsaMessageImprint.toLowerCase() === evidence.fileSha256.toLowerCase()
+    : null,
+digestCheckConclusive: timestampDigestMatches !== null,
+timestampAvailable: timestampStatusIsPositive,
+timestampedDigestLabel:
+  getTimestampDigestLabel({
+    itemCount,
+    tsaInputKind: evidence.tsaInputKind,
+  }),
+timestampedDigestNote:
+  evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
+    ? "This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material."
+    : null,
+    },
+    // (2026-10-13) THE WIRE CONTRACT: exactly the shared view (clients read
+    // it with readOtsAnchoringView), plus operational siblings that are not
+    // state. No bucket, storage key, credential or URL.
+    ots: {
+      ...otsAnchoringView,
+      calendar: evidence.otsCalendar ?? null,
+      proofPresent: Boolean(usableOtsProofBase64(evidence)),
+      lastUpdatedAtUtc:
+        evidence.otsUpgradedAtUtc?.toISOString() ?? otsAnchoringView.anchoredAtUtc ?? null,
+    },
+    anchor,
+  },
+  // UC-PROV-001 — every time, named by what observed it.
+  provenanceTime: publicVerifyTrustShared.buildProvenanceTimeline({
+    serverReceivedAtUtc: evidence.capturedAtUtc,
+    recordCreatedAtUtc: evidence.createdAt,
+    finalizedAtUtc: evidence.signedAtUtc,
+    deviceTimeIso: evidence.deviceTimeIso ?? null,
+    tsa: { status: evidence.tsaStatus, validatedAtUtc: evidence.tsaValidatedAtUtc, genTimeUtc: evidence.tsaGenTimeUtc },
+    ots: otsInput,
+  }),
+  technicalMaterials,
+  versioning,
+};
+
+// A link can narrow the projection, never widen it. The BASIC tier never
+// describes who submitted the record.
+const body =
+  richVerifyEntitled && shareLink?.projection !== "BASIC"
+    ? projectPublicVerification(fullFacts as unknown as Record<string, unknown>, disclosure, {
+        attributionExposed: identityExposure.exposeAttribution,
+      })
+    : projectBasicPublicVerification(
+        { ...fullFacts, tier: "BASIC", verificationMatrix: withholdIdentityRows(verificationMatrix) } as unknown as Record<string, unknown>,
+        disclosure,
+      );
+
+/*
+ * THE WRITES (2026-10-18) — only now, after the final access, tier and
+ * disclosure decision: the original release (counted from what this answer
+ * actually carries), the analytics view, the debounced VERIFY_VIEWED custody
+ * event and the success audit.
+ */
+const originalUrlsIssued = Array.isArray((body.evidenceContent as { items?: unknown[] } | undefined)?.items)
+  ? ((body.evidenceContent as { items: Array<{ viewUrl?: unknown }> }).items).filter((i) => typeof i.viewUrl === "string").length
+  : 0;
+// ET-CUS-07: original URLs handed to an anonymous viewer are an access fact.
+await recordOriginalRelease({
+  evidenceId: evidence.id,
+  actorUserId: null,
+  channel: "public_verify",
+  originalUrlsIssued,
+  ip: req.ip,
+  userAgent: req.headers["user-agent"],
+});
     const evidenceStatusForGate = evidence.status as
       | prismaPkg.EvidenceStatus
       | null;
@@ -14627,744 +15367,7 @@ const overallIntegrity =
       },
     });
 
-    const custodyDisplayContext = {
-      itemCount: content.summary.itemCount,
-      structure: content.summary.structure,
-      isIntake: resolveEvidenceAcquisition(evidence).mode === "SECURE_INTAKE_LINK",
-    } as const;
 
-    const mappedForensicEvents = latestForDisplay(forensicCustodyEvents).map((event) =>
-      mapPublicCustodyEvent(event, custodyDisplayContext)
-    );
-    const mappedAccessEvents = latestForDisplay(accessCustodyEvents).map((event) =>
-      mapPublicCustodyEvent(event, custodyDisplayContext)
-    );
-
-    // Phase 1 — apply public-verify identity exposure policy. The
-    // default-redacted policy strips submittedByEmail entirely and
-    // hides workspaceName / organizationName unless the operator
-    // explicitly opted in via PUBLIC_VERIFY_EXPOSE_ATTRIBUTION=true.
-    // organizationVerified (boolean) and submittedByAuthProvider
-    // (the human label only, not the raw enum code) remain by
-    // default — they communicate auth provenance without identifying
-    // the organization.
-    const identityExposure = getPublicVerifyIdentityExposure();
-    if (!identityExposure.exposeAttribution) {
-      req.log.info(
-        {
-          evidenceId: id,
-          reason: identityExposure.reason,
-          redacted: [
-            "submittedByEmail",
-            "workspaceName",
-            "organizationName",
-          ],
-        },
-        "public_verify.identity_redacted",
-      );
-    }
-    // THE acquisition identity (creation-time custody snapshot). Every identity
-    // field of the public overview reads it — never the record's columns,
-    // which earlier report runs may have rewritten from current state.
-    const acquisitionIdentity = resolveAcquisitionIdentitySnapshot({
-      custodyEvents: allCustodyEvents,
-      row: evidence,
-      acquisitionMode: evidence.acquisitionMode ?? null,
-    });
-    // THE per-signal statement of this record (no score, no overall verdict):
-    // the live/snapshot signals, the capture-time identity, the acquisition
-    // channel, the latest published package's seal and this page itself.
-    const verificationMatrix = buildVerificationMatrix({
-      signals: trustDecision?.signals ?? [],
-      identity: acquisitionIdentity,
-      acquisitionMode: evidence.acquisitionMode ?? null,
-      acquisitionModeSource: evidence.acquisitionModeSource ?? null,
-      packageSeal: !latestVerificationPackage
-        ? { kind: "NONE" }
-        : latestVerificationPackage.sealSigningKeyId && latestVerificationPackage.sealSigningKeyVersion != null
-          ? {
-              kind: "PUBLISHED",
-              sealKeyId: latestVerificationPackage.sealSigningKeyId,
-              sealKeyVersion: latestVerificationPackage.sealSigningKeyVersion,
-            }
-          : { kind: "LEGACY" },
-      // A canonical identifier has no publication step: say so, never "Published".
-      publication: canonical ? { kind: "CANONICAL" } : { kind: "THIS_PAGE" },
-    });
-    const overview = buildPublicVerifyOverview({
-      acquisitionIdentity,
-      evidence: {
-        id: evidence.id,
-title: verificationOnly ? null : (evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?? null),
-        type: evidence.type,
-        status: evidence.status,
-        verificationStatus: responseVerificationStatus,
-        captureMethod: evidence.captureMethod ?? null,
-        acquisitionMode: evidence.acquisitionMode ?? null,
-        acquisitionModeSource: evidence.acquisitionModeSource ?? null,
-        identityLevelSnapshot: (acquisitionIdentity.identityLevel as prismaPkg.IdentityLevel | null),
-        // Phase 1 — PII redaction. submittedByEmail is ALWAYS null
-        // on the public surface. maskPublicEmail (used downstream)
-        // still leaked the domain, which is enough to identify the
-        // submitter's organization for a journalist's source or an
-        // insurance claimant. The mask is no longer reachable on
-        // the public response path.
-        submittedByEmail: null,
-        submittedByAuthProvider: (acquisitionIdentity.authProvider as prismaPkg.AuthProvider | null),
-        workspaceNameSnapshot: identityExposure.exposeAttribution
-          ? acquisitionIdentity.workspaceName
-          : null,
-        organizationNameSnapshot: identityExposure.exposeAttribution
-          ? acquisitionIdentity.organizationName
-          : null,
-        organizationVerifiedSnapshot: acquisitionIdentity.organizationVerified,
-        mimeType: evidence.mimeType,
-        createdAt: evidence.createdAt,
-        capturedAtUtc: evidence.capturedAtUtc,
-        uploadedAtUtc: evidence.uploadedAtUtc,
-        signedAtUtc: evidence.signedAtUtc,
-        recordedIntegrityVerifiedAtUtc:
-          evidence.recordedIntegrityVerifiedAtUtc,
-        // Phase D Blocker 1 — pass through the ACTUAL meaningful-verification
-        // timestamp from the database. Do NOT inject the current page-view
-        // time as "last verified". The current page-view time flows through
-        // currentPublicVerifyViewAtUtc below.
-        lastVerifiedAtUtc: evidence.lastVerifiedAtUtc,
-        lastVerifiedSource: evidence.lastVerifiedSource ?? null,
-        lastPublicVerifyViewAtUtc:
-          evidence.lastPublicVerifyViewAtUtc ?? null,
-        reviewReadyAtUtc: evidence.reviewReadyAtUtc,
-verificationPackageGeneratedAtUtc:
-  latestVerificationPackage?.generatedAtUtc ??
-  evidence.verificationPackageGeneratedAtUtc,
-
-verificationPackageVersion:
-  latestVerificationPackage?.version ??
-  evidence.verificationPackageVersion,
-          latestReportVersion: evidence.latestReportVersion,
-        reviewerSummaryVersion: evidence.reviewerSummaryVersion,
-        reportGeneratedAtUtc: evidence.reportGeneratedAtUtc,
-      },
-      latestReport,
-      itemCount,
-      storageProtection,
-      timestampStatus: presentedTsa,
-      timestampDigestMatches,
-      otsStatus: otsAnchoring.state,
-      overallIntegrity,
-      chainOfCustodyPresent: forensicCustodyEvents.length > 0,
-      anchor,
-      contentSummary: content.summary,
-      trustDecision,
-      // Phase D Blocker 1 — surface the current page-view time as a
-      // separate analytics field. The verify page renders this as
-      // "Current public verify page view", NOT "Last verified".
-      currentPublicVerifyViewAtUtc: verifiedAt,
-    });
-
-    const humanSummary = buildPublicVerifyHumanSummary({
-      overview,
-      canonicalHashMatches,
-      signatureValid,
-      custodyChainValid: custodyChain.valid,
-      timestampDigestMatches,
-      otsHashMatches,
-      overallIntegrity,
-      trustDecision,
-    });
-
-    const limitations = buildPublicVerifyLimitations();
-
-    const reviewGuidance = buildPublicReviewGuidance({
-      itemCount: content.summary.itemCount,
-      previewableItemCount: content.summary.previewableItemCount,
-      overallIntegrity,
-    });
-
-    const integrityProof: PublicVerifyIntegrityProof & {
-      digestColumnsMatchSignedFingerprint: boolean | null;
-      signingKeyRevokedAtUtc: string | null;
-      signingKeyMatchesRecord: boolean | null;
-      storedBytesCheck: string;
-    } = {
-  overallIntegrity,
-  canonicalHashMatches,
-  signatureValid,
-  // UC-TRUST-001 / 003 / 008 — what the verdict also rests on.
-  digestColumnsMatchSignedFingerprint,
-  signingKeyRevokedAtUtc,
-  signingKeyMatchesRecord,
-  storedBytesCheck: publicVerifyTrustShared.storedBytesCheckStatusOf(storedBytes),
-  custodyChainValid: custodyChain.valid,
-  custodyChainMode: custodyChain.mode,
-  custodyChainFailureReason: custodyChain.reason,
-  timestampDigestMatches,
-  otsHashMatches,
-};
-
-const custodyLifecycle = buildPublicCustodyLifecycle({
-  forensicEvents: mappedForensicEvents,
-  accessEvents: mappedAccessEvents,
-  forensicEventCount: forensicCustodyEvents.length,
-  accessEventCount: accessCustodyEvents.length,
-});
-
-const reportGeneratedAtUtc =
-  latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null;
-
-const forensicEventsAtReportGeneration = reportGeneratedAtUtc
-  ? forensicCustodyEvents.filter((ev) => ev.atUtc <= reportGeneratedAtUtc)
-  : forensicCustodyEvents;
-
-const accessEventsAfterReportGeneration = reportGeneratedAtUtc
-  ? accessCustodyEvents.filter((ev) => ev.atUtc > reportGeneratedAtUtc)
-  : accessCustodyEvents;
-
-const snapshotGeneratedAtUtc =
-  trustDecisionConsistencySource === "REPORT_SNAPSHOT"
-    ? latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null
-    : trustDecisionConsistencySource === "VERIFICATION_PACKAGE_SNAPSHOT"
-      ? latestVerificationPackage?.generatedAtUtc ??
-        evidence.verificationPackageGeneratedAtUtc ??
-        null
-      : null;
-
-const trustDecisionConsistency = buildTrustDecisionConsistency({
-  snapshotTrustDecision,
-  liveTrustDecision,
-  source: trustDecisionConsistencySource,
-  snapshotGeneratedAtUtc,
-  latestReportGeneratedAtUtc:
-    latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null,
-  latestReportVersion:
-    latestReport?.version ?? evidence.latestReportVersion ?? null,
-  latestVerificationPackageGeneratedAtUtc:
-    latestVerificationPackage?.generatedAtUtc ??
-    evidence.verificationPackageGeneratedAtUtc ??
-    null,
-  latestVerificationPackageVersion:
-    latestVerificationPackage?.version ??
-    evidence.verificationPackageVersion ??
-    null,
-  forensicEventsAtSnapshot: forensicEventsAtReportGeneration.length,
-  currentForensicEvents: forensicCustodyEvents.length,
-  accessEventsAfterSnapshot: accessEventsAfterReportGeneration.length,
-});
-
-verificationPackageIntegrity = withPackageSealState(verificationPackageIntegrity, latestVerificationPackage);
-// ONE SEAL AUTHORITY: the package card states the same seal check as the
-// matrix's package_signature row (a seal not bound to a registered PROOVRA key
-// is "not checked" in both places).
-verificationPackageIntegrity = {
-  ...verificationPackageIntegrity,
-  sealCheck: verificationMatrix.rows.find((r) => r.key === "package_signature")?.status ?? "UNAVAILABLE",
-};
-
-const { verificationSnapshot, liveAnchoring } =
-  buildPublicVerifyConsistencySections({
-    source: trustDecisionConsistencySource,
-    trustDecisionSnapshot: snapshotTrustDecision,
-    latestReport,
-    latestVerificationPackage,
-    verificationPackageIntegrity,
-    currentOts: otsAnchoring,
-    otsUpgradedAtUtc: evidence.otsUpgradedAtUtc
-      ? evidence.otsUpgradedAtUtc.toISOString()
-      : null,
-  });
-
-const custodyDisplayCounts = {
-  forensicAtReportGeneration: forensicEventsAtReportGeneration.length,
-  currentForensicEvents: forensicCustodyEvents.length,
-  currentForensic: forensicCustodyEvents.length,
-  accessAfterReportGeneration: accessEventsAfterReportGeneration.length,
-  currentAccessEvents: accessCustodyEvents.length,
-  totalDisplayedEvents:
-    forensicCustodyEvents.length + accessCustodyEvents.length,
-  totalDisplayedNow:
-    forensicCustodyEvents.length + accessCustodyEvents.length,
-  reportGeneratedAtUtc: reportGeneratedAtUtc
-    ? reportGeneratedAtUtc.toISOString()
-    : null,
-};
-
-const technicalMaterials = buildTechnicalMaterials({
-  evidence: {
-    fileSha256: evidence.fileSha256,
-    multipartManifestSha256: evidence.multipartManifestSha256 ?? null,
-    hashSemantics: evidence.hashSemantics ?? null,
-    fingerprintHash: evidence.fingerprintHash,
-    signatureBase64: evidence.signatureBase64,
-    signingKeyId: evidence.signingKeyId,
-    signingKeyVersion: evidence.signingKeyVersion,
-    tsaMessageImprint: evidence.tsaMessageImprint,
-    tsaInputDigestHex: evidence.tsaInputDigestHex,
-    tsaInputKind: evidence.tsaInputKind,
-    otsProofBase64: usableOtsProofBase64(evidence),
-  },
-  publicKeyPem: signingKey.publicKeyPem,
-  partsCount: parts.length,
-});
-
-const versioning: PublicVerifyVersioning = {
-  latestReportVersion:
-    latestReport?.version ?? evidence.latestReportVersion ?? null,
-  latestReportGeneratedAtUtc: latestReport?.generatedAtUtc
-    ? latestReport.generatedAtUtc.toISOString()
-    : evidence.reportGeneratedAtUtc
-      ? evidence.reportGeneratedAtUtc.toISOString()
-      : null,
-verificationPackageVersion:
-  latestVerificationPackage?.version ??
-  evidence.verificationPackageVersion ??
-  null,
-
-verificationPackageGeneratedAtUtc:
-  latestVerificationPackage?.generatedAtUtc
-    ? latestVerificationPackage.generatedAtUtc.toISOString()
-    : evidence.verificationPackageGeneratedAtUtc
-      ? evidence.verificationPackageGeneratedAtUtc.toISOString()
-      : null,
-        reviewerSummaryVersion: evidence.reviewerSummaryVersion ?? null,
-};
-const defaultPreviewItem =
-  content.items.find((item) => item.previewable && item.viewUrl) ??
-  content.items.find((item) => item.viewUrl) ??
-  content.primaryItem ??
-  null;
-const display = buildEvidenceDisplayDescriptor({
-title: verificationOnly ? null : (evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?? null),
-  summary: content.summary,
-  itemCount,
-});
-
-const captureContext = !verificationOnly && hasCaptureLocationMetadata({
-  lat: decimalToNumber(evidence.lat),
-  lng: decimalToNumber(evidence.lng),
-})
-  ? {
-      statusLabel: CAPTURE_LOCATION_STATUS_LABEL,
-      description: CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
-      lat: decimalToNumber(evidence.lat),
-      lng: decimalToNumber(evidence.lng),
-      accuracyMeters: decimalToNumber(evidence.accuracyMeters),
-      capturedAtUtc: evidence.capturedAtUtc
-        ? evidence.capturedAtUtc.toISOString()
-        : evidence.createdAt.toISOString(),
-      deviceTimeIso: evidence.deviceTimeIso ?? null,
-      source: evidenceLocationSourceLabel(evidence.locationSource),
-      externalMapUrl:
-        buildCaptureLocationExternalMapUrl({
-          lat: decimalToNumber(evidence.lat),
-          lng: decimalToNumber(evidence.lng),
-          accuracyMeters: decimalToNumber(evidence.accuracyMeters),
-        }) ?? null,
-      legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
-    }
-  : null;
-
-// Phase 31.12 — bounded public-safe media intelligence advisory.
-// Returns null when there are no surfaceable signals OR when the
-// projection fails. NEVER throws — the verify response is unchanged
-// (other than `mediaIntelligenceAdvisory: null`) in the no-data
-// case. The projection re-uses the canonical team-scoped read.
-const mediaIntelligenceAdvisory = evidence.teamId
-  ? await (async () => {
-      try {
-        const { projectVerifyMediaIntelligence } = await import(
-          "../services/media-intelligence/verify-projection.service.js"
-        );
-        return await projectVerifyMediaIntelligence(
-          { teamId: evidence.teamId!, evidenceId: evidence.id },
-        );
-      } catch {
-        return null;
-      }
-    })()
-  : null;
-
-// UC-0 — THE public acquisition projection (`PublicVerifyAcquisition`,
-// @proovra/shared). It replaced `captureTrust`, whose flat shape the page
-// read through a nested `chain.*` path it never received. Always present for
-// a verifiable record — a legacy record states "Not recorded", never a
-// failure. Public-safe by construction (bounded enums, counts and server
-// timestamps only). `evidence` was resolved from this route's token and has
-// already passed every publication/integrity gate above.
-const acquisition = await (async () => {
-  try {
-    const { loadPublicVerifyAcquisition } = await import("@proovra/shared-runtime");
-    return await loadPublicVerifyAcquisition(prisma, evidence.id);
-  } catch (err) {
-    req.log.warn(
-      { evidenceId: evidence.id, err: err instanceof Error ? err.name : "unknown" },
-      "public_verify.acquisition_projection_failed",
-    );
-    return null;
-  }
-})();
-
-// UC-PROV-003 — the validated capture-manifest facts the capture client
-// reported, DATA-MINIMIZED for the public page (publicCaptureManifestFacts
-// drops the private source URL and page title; the domain remains). Never
-// throws; null when the record has no manifest facts.
-const captureManifest = await (async () => {
-  try {
-    const { loadProvenanceChain } = await import("@proovra/shared-runtime");
-    const chain = await loadProvenanceChain(prisma, evidence.id);
-    return chain.captureManifestFacts
-      ? publicVerifyTrustShared.publicCaptureManifestFacts(chain.captureManifestFacts)
-      : null;
-  } catch {
-    return null;
-  }
-})();
-
-// PHASE 12B (Evidence Operations) — bounded public-safe redaction
-// projection. This is the CANONICAL public home of the redaction
-// verification badge: the anonymous evidenceId probe
-// GET /v1/redaction/public/verify/:evidenceId was deleted and its
-// fields converged here, behind this route's rate limits, publication
-// gate, integrity gate, destroyed gate, finalization gate, and audit.
-// Workspace-anchored via teamId. Never throws; null when the record
-// has no redaction project and no extracted video frames.
-const redaction = await (async () => {
-  try {
-    const { projectVerifyRedaction } = await import(
-      "../services/redaction/verify-redaction-projection.service.js"
-    );
-    return await projectVerifyRedaction({
-      teamId: evidence.teamId ?? null,
-      evidenceId: evidence.id,
-    });
-  } catch {
-    return null;
-  }
-})();
-
-// Enterprise Technical Metadata layer — privacy-safe Media / EXIF /
-// Capture Environment projection. Never throws; null when no data.
-const technicalMetadata = await (async () => {
-  try {
-    const { projectVerifyTechnicalMetadata } = await import(
-      "../services/technical-metadata/verify-projection.service.js"
-    );
-    return await projectVerifyTechnicalMetadata({
-      teamId: evidence.teamId ?? null,
-      evidenceId: evidence.id,
-    });
-  } catch {
-    return null;
-  }
-})();
-
-/*
- * DECISION B (2026-09-29) — BASIC VERIFICATION IS NEVER WITHHELD FOR BILLING.
- *
- * Every published, non-revoked, non-destroyed link answers with the basic
- * projection: what the integrity checks established, the real chronology, and
- * whether a report/package has been issued — nothing else. The rich view (the
- * payload below: titles, previews, custody detail, technical materials) is
- * served only while the owner's commercial subject is entitled to issued
- * outputs. A lapsed subscription therefore turns a link BASIC; it never makes
- * a valid link claim the evidence does not exist, and it never exposes paid
- * material because a link is public.
- */
-const pairedPackageForBasic = latestReport
-  ? await prisma.verificationPackage.findFirst({
-      where: primaryPublishedPackageWhere({ evidenceId: evidence.id, version: latestReport.version }),
-      select: {
-        version: true,
-        reportVersion: true,
-        generatedAtUtc: true,
-        packageFormatVersion: true,
-        // ET-PKG-02: the published check for a package a recipient holds.
-        packageSha256: true,
-        sealSigningKeySha256: true,
-      },
-    }).then((row) => (row ? asPublishedPackage(row) : null))
-  : null;
-// ET-SM-07 — `storedBytes` was resolved (and a recheck requested when it is
-// not current) above, before the verdict, because it is an input to it.
-const basicVerification = buildBasicVerification({
-  now: verifiedAt,
-  storedBytes,
-  digestColumnsMatchSignedFingerprint,
-  integrity: {
-    fingerprintMatches: canonicalHashMatches,
-    signatureValid,
-    custodyChainValid: custodyChain.valid,
-  },
-  fileSha256: evidence.fileSha256 ?? null,
-  fingerprintHash: evidence.fingerprintHash ?? null,
-  // UC-PROV-001 — the server clock at record creation; projected as
-  // `serverReceivedAtUtc`, never as a device-declared capture time.
-  capturedAtUtc: evidence.capturedAtUtc ?? null,
-  deviceTimeIso: evidence.deviceTimeIso ?? null,
-  signedAtUtc: evidence.signedAtUtc ?? null,
-  tsaStatus: presentedTsa ?? null,
-  tsaTokenPresent: Boolean(evidence.tsaTokenBase64),
-  tsaFailureCode: evidence.tsaFailureCode ?? null,
-  tsaImprintMatches: timestampDigestMatches ?? null,
-  tsaGenTimeUtc: evidence.tsaGenTimeUtc ?? null,
-  // (2026-10-13) The OTS record for the one resolver (resolveOtsAnchoring).
-  ots: otsInput,
-  latestReport: latestReport
-    ? { version: latestReport.version, generatedAtUtc: latestReport.generatedAtUtc, pdfSha256: latestReport.pdfSha256 ?? null }
-    : null,
-  pairedPackage: pairedPackageForBasic,
-});
-/*
- * A RESTRICTED CASE KEEPS ITS DETAILS PRIVATE (2026-09-29, audit M4).
- * A record linked to a case with an access list answers the BASIC tier only:
- * the minimal original-integrity result every valid link keeps, never the
- * rich projection (content previews, case and acquisition context).
- */
-const inRestrictedCase =
-  (await prisma.caseEvidenceLink.count({
-    where: { evidenceId: evidence.id, case: { access: { some: {} } } },
-  })) > 0;
-const richVerifyEntitled =
-  !inRestrictedCase &&
-  (await resolveEvidenceOutputEligibility({
-    evidenceId: evidence.id,
-    ownerUserId: evidence.ownerUserId,
-    teamId: evidence.teamId ?? null,
-  })
-    .then((e) => e.issuance.decision === "ENTITLED")
-    .catch(() => false));
-// The answer describes the record NOW; no shared cache may hold it.
-reply.header("Cache-Control", "no-store");
-/*
- * ET-PKG-07 — THE LINK IS USED HERE, once every gate above has passed and an
- * answer is about to be given. The use is counted and dated; with a use limit
- * the increment is conditional, so the request that would exceed it gets the
- * same 410 a spent link gets. What the caller is told about the link is its
- * kind and when it stops working — never its audience or who made it.
- */
-if (shareLink && !(await recordVerificationShareUse(prisma, shareLink, verifiedAt))) {
-  return reply.code(410).send(verificationLinkGoneBody("EXHAUSTED"));
-}
-const link = shareLink
-  ? {
-      kind: "SHARE_TOKEN" as const,
-      expiresAtUtc: shareLink.expiresAtUtc ? shareLink.expiresAtUtc.toISOString() : null,
-    }
-  : {
-      kind: "LEGACY_RECORD_ID" as const,
-      // A legacy link says when it stops working, so its holder can ask the
-      // owner for a share link before it does.
-      expiresAtUtc: evidence.legacyVerifyUuidUntilUtc ? evidence.legacyVerifyUuidUntilUtc.toISOString() : null,
-    };
-/*
- * THE CANONICAL IDENTITY ON THE PAGE. Whichever identifier opened it, the page
- * states the record's permanent reference and when it was checked; the link
- * kind says how it was reached. The tier and the disclosure below are the
- * same for every identifier of the record.
- */
-const canonicalVerificationFacts = canonical
-  ? {
-      reference: canonical.reference,
-      status: "AVAILABLE" as const,
-      issuedAtUtc: canonical.issuedAtUtc ? canonical.issuedAtUtc.toISOString() : null,
-      checkedAtUtc: verifiedAt.toISOString(),
-      disclosure: verificationOnly ? ("VERIFICATION_ONLY" as const) : ("OWNER_PUBLISHED" as const),
-      signature: {
-        keyId: evidence.signingKeyId ?? null,
-        keyVersion: evidence.signingKeyVersion ?? null,
-        keyFingerprintSha256: evidence.signingKeySha256 ?? null,
-      },
-      preservation: {
-        objectLockMode: evidence.storageObjectLockMode ?? null,
-        retainUntilUtc: evidence.storageObjectLockRetainUntilUtc
-          ? evidence.storageObjectLockRetainUntilUtc.toISOString()
-          : null,
-      },
-      lastUpdatedAtUtc: latestReport?.generatedAtUtc ? new Date(latestReport.generatedAtUtc).toISOString() : null,
-      limitations: [
-        "This page verifies the record and its artifacts. It does not publish the original evidence files.",
-        "Verification states what PROOVRA's records and stored proofs show; it is not a legal finding.",
-      ],
-    }
-  : null;
-// A record-id link keeps its own kind: it says when its grace ends.
-const pageLink =
-  canonical && canonical.via !== "LEGACY_RECORD_ID"
-    ? { kind: "CANONICAL" as const, expiresAtUtc: null }
-    : link;
-
-// A link can narrow the projection, never widen it.
-if (!richVerifyEntitled || shareLink?.projection === "BASIC") {
-  return reply.code(200).send({
-    tier: "BASIC",
-    evidenceId: verificationOnly ? null : evidence.id,
-    basicVerification,
-    // The BASIC tier never describes who submitted the record.
-    verificationMatrix: withholdIdentityRows(verificationMatrix),
-    link: pageLink,
-    ...(canonicalVerificationFacts ? { canonicalVerification: canonicalVerificationFacts } : {}),
-  });
-}
-
-return reply.code(200).send({
-  tier: "RICH",
-  basicVerification,
-  link: pageLink,
-  ...(canonicalVerificationFacts ? { canonicalVerification: canonicalVerificationFacts } : {}),
-  // Verification-only: the internal id and every descriptive/content detail
-  // the owner has not published are withheld (see the disclosure decision).
-  disclosure: verificationOnly ? "VERIFICATION_ONLY" : "OWNER_PUBLISHED",
-  evidenceId: verificationOnly ? null : evidence.id,
-  mediaIntelligenceAdvisory: verificationOnly ? null : mediaIntelligenceAdvisory,
-  acquisition,
-  // UC-PROV-003 — reported by the capture client; public-safe (no source URL / title).
-  captureManifest: verificationOnly ? null : captureManifest,
-  // PHASE 12B — redaction verification badge (converged from the
-  // deleted anonymous /v1/redaction/public/verify/:evidenceId probe).
-  redaction: verificationOnly ? null : redaction,
-  technicalMetadata: verificationOnly ? null : technicalMetadata,
-  trustDecision,
-  verificationMatrix,
-trustDecisionConsistency,
-  verificationSnapshot,
-  liveAnchoring,
-  verificationPackageIntegrity,
-trustDecisionSource: trustDecision ? "LIVE_VERIFICATION" : "UNAVAILABLE",
-trustDecisionSnapshot: {
-  reportVersion: latestReport?.version ?? null,
-  reportGeneratedAtUtc: latestReport?.generatedAtUtc
-    ? latestReport.generatedAtUtc.toISOString()
-    : null,
-  verificationPackageVersion: latestVerificationPackage?.version ?? null,
-  verificationPackageGeneratedAtUtc: latestVerificationPackage?.generatedAtUtc
-    ? latestVerificationPackage.generatedAtUtc.toISOString()
-    : null,
-},
-// Phase 2 — canonical OutputContext shape. The public verify
-// endpoint is a PUBLIC_VERIFY_LIVE output; the snapshot-vs-live
-// distinction is explicit in this field so Phase 3 UI can render
-// "Verdict source: REPORT_SNAPSHOT (as of …)" cleanly without
-// re-deriving the semantics in the page.
-// Live-delta materials are the categories that may have advanced
-// since the sealed snapshot — custody chain (append-only) and OTS
-// anchoring (live-updating-after-snapshot).
-outputContext: ((): CanonicalOutputContext => {
-  const snapshotGen =
-    latestReport?.generatedAtUtc?.toISOString() ??
-    latestVerificationPackage?.generatedAtUtc?.toISOString() ??
-    null;
-  return {
-    outputType: "PUBLIC_VERIFY_LIVE",
-    isSnapshotOutput: false,
-    isLiveOutput: true,
-    snapshotGeneratedAtUtc: snapshotGen,
-    liveObservedAtUtc: new Date().toISOString(),
-    liveDeltaMaterials: ["custodyChain", "otsAnchoring"],
-    legalBoundary: buildCanonicalLegalBoundaryMaterial()
-      .publicVerifyBoundary,
-  };
-})(),
-  contentAccessPolicy: publicVerifyAccessPolicy,
-    contentExposureDecision: {
-    mode: publicVerifyAccessPolicy.mode,
-    allowContentView: publicVerifyAccessPolicy.allowContentView,
-    allowDownload: publicVerifyAccessPolicy.allowDownload,
-    rationale:
-      publicVerifyAccessPolicy.mode === "metadata_only"
-        ? "Public verification access is restricted to integrity and metadata review."
-        : publicVerifyAccessPolicy.mode === "preview_only"
-          ? "Public verification access allows controlled preview without unrestricted download."
-          : "Public verification access allows reviewer-facing preview and download according to the configured policy.",
-  },
-  certifications: publicCertifications,
-  display,
-  captureContext,
-  locationState: verificationOnly ? null : publicLocationState(buildEvidenceLocationState(evidence, allCustodyEvents)),
-  overview: verificationOnly ? { ...overview, evidenceId: null } : overview,
-  humanSummary: verificationOnly ? { ...humanSummary, evidenceId: null } : humanSummary,
-  evidenceContent: {
-    summary: content.summary,
-    items: content.items,
-    primaryItem: content.primaryItem,
-defaultPreviewItemId: defaultPreviewItem?.id ?? null,
-      previewPolicy: content.previewPolicy,
-  },
-  integrityProof,
-  custodyLifecycle,
-  custodyDisplayCounts,
-  legalAssessment: {
-    limitations,
-    reviewGuidance,
-  },
-  storageAndTimestamping: {
-    storage: storageProtection,
-    tsa: {
-      status: presentedTsa,
-      // UC-TRUST-002 — VALIDATED / RECORDED_NOT_VALIDATED / FAILED / …
-      // ONE TSA AUTHORITY: a kept token whose validation was never performed
-      // (no trust anchor) is "recorded, not validated" here exactly as the
-      // matrix and the signal state it — never "failed".
-      proofStatus: ((): string => {
-        const proof = publicVerifyTrustShared.resolveTsaProofStatus(evidence);
-        if (proof !== "FAILED") return proof;
-        const trust = resolveTsaTrustState({
-          presentedStatus: presentedTsa ?? null,
-          tokenPresent: Boolean(evidence.tsaTokenBase64),
-          failureCode: evidence.tsaFailureCode ?? null,
-        });
-        return trust.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED" ? "RECORDED_NOT_VALIDATED" : proof;
-      })(),
-      provider: evidence.tsaProvider,
-      url: evidence.tsaUrl,
-      serialNumber: evidence.tsaSerialNumber,
-      genTimeUtc: evidence.tsaGenTimeUtc
-        ? evidence.tsaGenTimeUtc.toISOString()
-        : null,
-      hashAlgorithm: evidence.tsaHashAlgorithm,
-messageImprint: evidence.tsaMessageImprint,
-      inputDigestHex: evidence.tsaInputDigestHex ?? evidence.fileSha256,
-      inputKind: evidence.tsaInputKind ?? null,
-      legacyMode: !evidence.tsaInputDigestHex,
-      failureReason: evidence.tsaFailureReason,
-digestMatchesTimestampInput: timestampDigestMatches,
-digestMatchesFileHash:
-  timestampStatusIsPositive && evidence.fileSha256 && evidence.tsaMessageImprint
-    ? evidence.tsaMessageImprint.toLowerCase() === evidence.fileSha256.toLowerCase()
-    : null,
-digestCheckConclusive: timestampDigestMatches !== null,
-timestampAvailable: timestampStatusIsPositive,
-timestampedDigestLabel:
-  getTimestampDigestLabel({
-    itemCount,
-    tsaInputKind: evidence.tsaInputKind,
-  }),
-timestampedDigestNote:
-  evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
-    ? "This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material."
-    : null,
-    },
-    // (2026-10-13) THE WIRE CONTRACT: exactly the shared view (clients read
-    // it with readOtsAnchoringView), plus operational siblings that are not
-    // state. No bucket, storage key, credential or URL.
-    ots: {
-      ...otsAnchoringView,
-      calendar: evidence.otsCalendar ?? null,
-      proofPresent: Boolean(usableOtsProofBase64(evidence)),
-      lastUpdatedAtUtc:
-        evidence.otsUpgradedAtUtc?.toISOString() ?? otsAnchoringView.anchoredAtUtc ?? null,
-    },
-    anchor,
-  },
-  // UC-PROV-001 — every time, named by what observed it.
-  provenanceTime: publicVerifyTrustShared.buildProvenanceTimeline({
-    serverReceivedAtUtc: evidence.capturedAtUtc,
-    recordCreatedAtUtc: evidence.createdAt,
-    finalizedAtUtc: evidence.signedAtUtc,
-    deviceTimeIso: evidence.deviceTimeIso ?? null,
-    tsa: { status: evidence.tsaStatus, validatedAtUtc: evidence.tsaValidatedAtUtc, genTimeUtc: evidence.tsaGenTimeUtc },
-    ots: otsInput,
-  }),
-  technicalMaterials,
-  versioning,
-});
+return reply.code(200).send(body);
   });
 }

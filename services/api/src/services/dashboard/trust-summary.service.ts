@@ -9,7 +9,7 @@
  *   - `tsaStatus`          (RFC 3161 trusted timestamp state)
  *   - the OpenTimestamps proof (resolveRecordOtsAnchoring — the one OTS state)
  *   - `signatureBase64`    (Ed25519 signature present ⇒ signed)
- *   - `publicVerifyState`  (public verification page state)
+ *   - verification pages     (disclosure policy and access state)
  *   - `verificationStatus` (overall integrity verdict)
  *
  * This service aggregates those columns by GROUP BY for a single
@@ -96,10 +96,15 @@ export type TrustSummary = {
    * but whose package builder did not.
    */
   reportedWithoutPackage: number;
-  publicVerify: {
-    published: number;
-    unpublished: number;
-    suspended: number;
+  /**
+   * (2026-10-18) The records' canonical verification pages: what each page
+   * discloses (its disclosure policy), and pages whose access is withdrawn or
+   * suspended. Every finalized record has a page; nothing is "unpublished".
+   */
+  verificationPages: {
+    contentPreview: number;
+    verificationOnly: number;
+    unavailable: number;
   };
   /**
    * Evidence whose overall integrity verdict needs a human:
@@ -246,7 +251,7 @@ export async function buildTrustSummary(input: {
       // (2026-10-13) Each row's OTS state, resolved from its stored proof.
       countOtsStates(baseWhere),
       prisma.evidence.groupBy({
-        by: ["publicVerifyState"],
+        by: ["verificationDisclosureMode", "verificationAccessState"],
         where: baseWhere,
         _count: { _all: true },
       }),
@@ -272,7 +277,7 @@ export async function buildTrustSummary(input: {
           status: "REPORTED" as never,
           reports: { some: {} },
           verificationPackages: { some: primaryPublishedPackageWhere() },
-          NOT: { publicVerifyState: "SUSPENDED" as never },
+          verificationAccessState: "AVAILABLE",
         },
       }),
       /*
@@ -331,12 +336,11 @@ export async function buildTrustSummary(input: {
     tsa[bucket] += g._count._all;
   }
 
-  const publicVerify = { published: 0, unpublished: 0, suspended: 0 };
+  const verificationPages = { contentPreview: 0, verificationOnly: 0, unavailable: 0 };
   for (const g of verifyGroups) {
-    const v = String(g.publicVerifyState ?? "").toUpperCase();
-    if (v === "PUBLISHED") publicVerify.published += g._count._all;
-    else if (v === "SUSPENDED") publicVerify.suspended += g._count._all;
-    else publicVerify.unpublished += g._count._all;
+    if (g.verificationAccessState !== "AVAILABLE") verificationPages.unavailable += g._count._all;
+    else if (g.verificationDisclosureMode === "CONTENT_PREVIEW") verificationPages.contentPreview += g._count._all;
+    else verificationPages.verificationOnly += g._count._all;
   }
 
   return {
@@ -347,7 +351,7 @@ export async function buildTrustSummary(input: {
     endToEndReady,
     signedWithoutReport,
     reportedWithoutPackage,
-    publicVerify,
+    verificationPages,
     needingAttention,
     intake: { submissionsAwaitingReview, submissionsNeedingMoreInfo },
   };

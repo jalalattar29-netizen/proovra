@@ -31,7 +31,6 @@ import { createReportGenerationRequest } from "@proovra/shared-runtime/reports";
 import {
   OTS_ANCHORING_RECORD_SELECT,
   isTerminalJobExecutionState,
-  parseOtsState,
   parseOtsVerificationKey,
   resolveRecordOtsAnchoring,
   type OtsAnchoring,
@@ -66,13 +65,6 @@ export function otsChainVerifiedRequestKey(proofSha256: string, blockHash: strin
   const proof = proofSha256.trim().toLowerCase().slice(0, OTS_CHAIN_VERIFIED_KEY_PART);
   const block = blockHash.trim().toLowerCase().slice(-OTS_CHAIN_VERIFIED_KEY_PART);
   return `ots-chain-verified:${proof}:${block}`;
-}
-
-/** The state a report stated, read from its anchor snapshot; null for a legacy report. */
-export function reportStatedOtsState(anchorSnapshot: unknown): ReturnType<typeof parseOtsState> | null {
-  if (!anchorSnapshot || typeof anchorSnapshot !== "object") return null;
-  const raw = (anchorSnapshot as Record<string, unknown>).otsState;
-  return raw == null ? null : parseOtsState(raw);
 }
 
 /** Did this report already state THIS chain verification (same proof, same block)? */

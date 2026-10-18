@@ -185,7 +185,7 @@ describe("the two halves of intake identity", () => {
         lifecycleState: "ACTIVE",
         archivedAt: null,
         lockedAt: null,
-        publicVerifyState: null,
+        verificationDisclosureMode: null,
         storageObjectLockLegalHoldStatus: null,
         retentionPolicySource: null,
         retentionUntilUtc: null,

@@ -744,6 +744,8 @@ export async function getObjectRange(params: {
   bucket: string;
   key: string;
   range: string;
+  /** Read this version (an issued artifact's sealed one), not the latest. */
+  versionId?: string | null;
 }): Promise<Buffer> {
   const bucket = clean(params.bucket);
   const key = clean(params.key);
@@ -757,6 +759,7 @@ export async function getObjectRange(params: {
       Bucket: bucket,
       Key: key,
       Range: params.range,
+      ...(params.versionId ? { VersionId: params.versionId } : {}),
     })
   );
 

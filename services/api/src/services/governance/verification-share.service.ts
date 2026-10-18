@@ -8,9 +8,12 @@
  * must respect, and the projection an owner is shown (never a token hash;
  * the token itself exists only in the response that creates or rotates it).
  *
- * A link is necessary, not sufficient: the record must also be PUBLISHED.
- * Publishing stays with the publication authority (publication.service.ts);
- * the route decides when creating a link publishes.
+ * (2026-10-18) A reviewer share (pvs_) is its own capability: it never
+ * depends on — and never changes — the record's disclosure policy, and it never
+ * weakens the record's canonical access state (a withdrawn, suspended or
+ * retained page answers the same for every identifier). What it discloses is
+ * its own profile: STANDARD (content preview) or BASIC (verification only),
+ * plus an explicit original-download grant.
  */
 import type { PrismaClient } from "@prisma/client";
 import {
@@ -57,14 +60,15 @@ export type VerificationLinkView = {
   reportVersion: number | null;
   state: VerificationShareState;
   /**
-   * UC-OUT-001 — does following this link answer right now? A link is
-   * necessary, not sufficient: the record must also be PUBLISHED. An ACTIVE
-   * link on an unpublished record is NOT usable (Public Verify answers "not
-   * found"), and the owner is told so instead of a green "Active".
+   * Does following this link answer right now? An ACTIVE link on a record
+   * whose verification page is withdrawn or suspended answers what the page
+   * answers, and the owner is told so instead of a green "Active".
    */
   usable: boolean;
   /** Why an ACTIVE link does not answer; null when usable or not ACTIVE. */
-  inactiveReason: "RECORD_NOT_PUBLISHED" | null;
+  inactiveReason: "PAGE_NOT_AVAILABLE" | null;
+  /** OWNER_SHARE only: may this link hand out the original files? */
+  allowOriginalDownload: boolean;
   createdAtUtc: string;
   createdByUserId: string | null;
   expiresAtUtc: string | null;
@@ -90,17 +94,11 @@ const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 export function projectVerificationLink(
   row: VerificationShareRow,
   now: Date = new Date(),
-  publication: { publicVerifyState: string } | null = null,
+  record: { verificationAccessState: string } | null = null,
 ): VerificationLinkView {
   const state = verificationShareStateOf(row, now);
-  // Without the record's publication state the answer is not known; every
-  // owner-facing listing passes it.
-  const published = publication === null ? null : publication.publicVerifyState === "PUBLISHED";
-  // CANONICAL VERIFICATION (owner decision 2026-10-14) — a link an issued
-  // report or package printed opens the record's canonical page, which never
-  // depends on publication. Only a recipient link still needs it.
-  const printed = row.purpose === "REPORT" || row.purpose === "PACKAGE";
-  const needsPublication = !printed && published === false;
+  // Every identifier answers the page's access state (withdrawn/suspended).
+  const pageUnavailable = record !== null && record.verificationAccessState !== "AVAILABLE";
   return {
     id: row.id,
     purpose: row.purpose,
@@ -108,8 +106,9 @@ export function projectVerificationLink(
     audience: row.audience,
     reportVersion: row.reportVersion,
     state,
-    usable: state === "ACTIVE" && !needsPublication,
-    inactiveReason: state === "ACTIVE" && needsPublication ? "RECORD_NOT_PUBLISHED" : null,
+    usable: state === "ACTIVE" && !pageUnavailable,
+    inactiveReason: state === "ACTIVE" && pageUnavailable ? "PAGE_NOT_AVAILABLE" : null,
+    allowOriginalDownload: row.purpose === "OWNER_SHARE" && row.allowOriginalDownload === true,
     createdAtUtc: row.createdAtUtc.toISOString(),
     createdByUserId: row.createdByUserId,
     expiresAtUtc: iso(row.expiresAtUtc),
@@ -130,7 +129,7 @@ type RecordForShare = {
   status: string;
   lifecycleState: string;
   deletedAt: Date | null;
-  publicVerifyState: string;
+  verificationAccessState: string;
   legacyVerifyUuidUntilUtc: Date | null;
 };
 
@@ -147,7 +146,7 @@ export async function loadRecordForShare(
       status: true,
       lifecycleState: true,
       deletedAt: true,
-      publicVerifyState: true,
+      verificationAccessState: true,
       legacyVerifyUuidUntilUtc: true,
     },
   });
@@ -169,7 +168,8 @@ export async function listVerificationLinks(
   client: PrismaClient = defaultPrisma,
   now: Date = new Date(),
 ): Promise<{
-  publicVerifyState: string;
+  /** The canonical page's access state (AVAILABLE / WITHDRAWN / SUSPENDED). */
+  verificationAccessState: string;
   links: VerificationLinkView[];
   legacy: LegacyVerifyLinkView | null;
 }> {
@@ -179,7 +179,7 @@ export async function listVerificationLinks(
     take: 500,
   })) as VerificationShareRow[];
   return {
-    publicVerifyState: record.publicVerifyState,
+    verificationAccessState: record.verificationAccessState,
     links: rows.map((r) => projectVerificationLink(r, now, record)),
     legacy: record.legacyVerifyUuidUntilUtc
       ? {
@@ -199,6 +199,8 @@ export type CreateVerificationLinkInput = {
   expiresInDays: number | null;
   projection: VerificationShareProjection;
   maxUses: number | null;
+  /** An explicit grant to hand out the original files (STANDARD links only). */
+  allowOriginalDownload?: boolean;
 };
 
 /**
@@ -237,6 +239,8 @@ export async function createVerificationLink(
       createdByUserId: input.actorUserId,
       expiresAtUtc,
       maxUses: input.maxUses,
+      // Originals only with content: a BASIC link never downloads.
+      allowOriginalDownload: input.projection === "STANDARD" && input.allowOriginalDownload === true,
       now,
     });
     const row = (await tx.verificationShareToken.findUniqueOrThrow({
@@ -363,7 +367,9 @@ export async function legacyVerifyLinkInventory(
   const where = {
     ...scope,
     legacyVerifyUuidUntilUtc: { gt: now },
-    publicVerifyState: "PUBLISHED" as const,
+    // A record-id link opens the canonical page, so only a record holding its
+    // reference is reachable by its id (GET /public/verify/:id).
+    verificationRef: { not: null },
     lifecycleState: { notIn: ["TRASHED" as const, "DESTROYED" as const] },
   };
   const [activeCount, bounds, records] = await Promise.all([

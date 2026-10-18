@@ -68,7 +68,6 @@ export async function reconcileRetention(
       retentionUntilUtc: true,
       retentionReconciliationFlaggedAtUtc: true,
       archivedAt: true,
-      publicVerifyState: true,
     },
     take: batchSize,
     orderBy: { retentionUntilUtc: "asc" },
@@ -166,7 +165,8 @@ export type RetentionCandidateRow = {
   retentionPolicySource: string | null;
   flaggedAtUtc: string | null;
   caseId: string | null;
-  publicVerifyState: string;
+  /** (2026-10-18) What the record's verification page discloses. */
+  verificationDisclosureMode: string;
 };
 
 export async function listRetentionCandidates(
@@ -195,7 +195,7 @@ export async function listRetentionCandidates(
         select: { caseId: true },
         take: 1,
       },
-      publicVerifyState: true,
+      verificationDisclosureMode: true,
     },
     orderBy: { retentionReconciliationFlaggedAtUtc: "desc" },
     take: Math.min(Math.max(input.limit ?? 50, 1), 200),
@@ -209,6 +209,6 @@ export async function listRetentionCandidates(
       flaggedAtUtc:
         r.retentionReconciliationFlaggedAtUtc?.toISOString() ?? null,
       caseId: r.caseLinks[0]?.caseId ?? null,
-      publicVerifyState: r.publicVerifyState,
+      verificationDisclosureMode: r.verificationDisclosureMode,
     }));
 }

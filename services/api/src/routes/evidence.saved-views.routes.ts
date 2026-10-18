@@ -65,7 +65,9 @@ const SavedViewFiltersSchema = z.object({
   // multi-enum filters above (comma-joined values, default "all").
   tsaStatus: z.string().max(160).optional().default("all"),
   otsStatus: z.string().max(160).optional().default("all"),
-  publicVerifyState: z.string().max(160).optional().default("all"),
+  // (2026-10-18) The canonical page's disclosure policy; replaces the retired
+  // publication-state filter (a stored view with the old key drops it).
+  verificationDisclosure: z.string().max(160).optional().default("all"),
   verificationStatus: z.string().max(160).optional().default("all"),
   sort: z.string().max(64).optional().default("newest"),
 });

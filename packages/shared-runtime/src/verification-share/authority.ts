@@ -102,6 +102,8 @@ export type VerificationShareRow = {
   maxUses: number | null;
   useCount: number;
   lastUsedAtUtc: Date | null;
+  /** (2026-10-18) An explicit grant: this reviewer link may hand out the original files. */
+  allowOriginalDownload: boolean;
 };
 
 export function verificationShareStateOf(
@@ -127,6 +129,8 @@ export type MintVerificationShareInput = {
   createdByUserId?: string | null;
   expiresAtUtc?: Date | null;
   maxUses?: number | null;
+  /** (2026-10-18) OWNER_SHARE only: an explicit grant to hand out the original files. */
+  allowOriginalDownload?: boolean;
   rotatedFromId?: string | null;
   /**
    * A token generated earlier by the caller (the worker embeds the link in a
@@ -161,6 +165,7 @@ export async function mintVerificationShareTokenTx(
       createdAtUtc: input.now ?? new Date(),
       expiresAtUtc: input.expiresAtUtc ?? null,
       maxUses: input.maxUses ?? null,
+      allowOriginalDownload: input.purpose === "OWNER_SHARE" && input.allowOriginalDownload === true,
       rotatedFromId: input.rotatedFromId ?? null,
     },
     select: { id: true },
@@ -265,6 +270,8 @@ export async function rotateVerificationShareTokenTx(
     createdByUserId: input.actorUserId,
     expiresAtUtc: input.expiresAtUtc === undefined ? current.expiresAtUtc : input.expiresAtUtc,
     maxUses: current.maxUses,
+    // A rotation keeps the link's profile, including its download grant.
+    allowOriginalDownload: (current as { allowOriginalDownload?: boolean }).allowOriginalDownload === true,
     rotatedFromId: current.id,
     now,
   });

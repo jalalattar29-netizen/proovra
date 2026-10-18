@@ -74,7 +74,7 @@ function baseEvidence() {
     lifecycleState: "ACTIVE" as string | null,
     archivedAt: null as Date | null,
     lockedAt: null as Date | null,
-    publicVerifyState: null as string | null,
+    verificationDisclosureMode: null as string | null,
     storageObjectLockLegalHoldStatus: null as string | null,
     retentionPolicySource: null as string | null,
     retentionUntilUtc: null as Date | null,

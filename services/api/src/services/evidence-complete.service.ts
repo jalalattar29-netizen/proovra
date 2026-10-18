@@ -1384,7 +1384,9 @@ const captureMethod =
             in: [EvidenceStatus.CREATED, EvidenceStatus.UPLOADING],
           },
         },
-        data: { ...finalizeData, publicVerifyState: "NOT_PUBLISHED" },
+        // (2026-10-18) The disclosure policy starts at its column default
+        // (VERIFICATION_ONLY); finalization writes no publication state.
+        data: finalizeData,
       });
       if (finalizeClaim.count !== 1) {
         // Race lost — another finalize won between the early-return

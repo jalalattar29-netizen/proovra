@@ -624,14 +624,14 @@ export type CaseOperationsItem = {
   lastActivityAtUtc: string | null;
   // Phase HOME-DECISIONS — per-matter deliverable readiness. Bounded
   // read-only aggregates over the existing Evidence relations
-  // (reports / verificationPackages / publicVerifyState), computed
+  // (reports / verificationPackages / canonical verification pages), computed
   // ONLY for the ≤TOP_CASES_LIMIT case ids already selected above —
   // never a workspace-wide scan.
   /** Evidence records in this matter with ≥1 report. */
   reportsReadyCount: number;
   /** Evidence records in this matter with ≥1 verification package. */
   packagesReadyCount: number;
-  /** Evidence records in this matter with a LIVE public verify page. */
+  /** Evidence records in this matter whose canonical verification page is available. */
   verifyLiveCount: number;
 };
 
@@ -686,10 +686,15 @@ export type PipelineDetail = {
     failed: number;
     missingFromReported: number;
   };
-  publicVerify: {
-    published: number;
-    unpublished: number;
-    suspended: number;
+  /**
+   * (2026-10-18) The records' canonical verification pages: what each page
+   * discloses (its disclosure policy), and pages whose access is withdrawn or
+   * suspended. Every finalized record has a page; nothing is "unpublished".
+   */
+  verificationPages: {
+    contentPreview: number;
+    verificationOnly: number;
+    unavailable: number;
   };
 };
 
@@ -700,9 +705,9 @@ export type TimelineEvent = {
     | "evidence_finalized"
     | "report_generated"
     | "package_generated"
-    // Phase HOME-INTELLIGENCE — projected from the existing
-    // Evidence.publicVerifyPublishedAtUtc column (read-only).
-    | "verification_published"
+    // (2026-10-18) An owner changed what a record's verification page
+    // discloses (Evidence.verificationDisclosureChangedAtUtc, read-only).
+    | "verification_disclosure_changed"
     | "lifecycle_transition"
     | "hold_placed"
     | "hold_released"
@@ -1678,7 +1683,7 @@ async function runCaseOperations(
             by: ["caseId"],
             where: {
               caseId: { in: caseIds },
-              evidence: { teamId, publicVerifyState: "PUBLISHED" },
+              evidence: { teamId, verificationRef: { not: null }, verificationAccessState: "AVAILABLE" },
             },
             _count: { _all: true },
           })
@@ -1960,13 +1965,11 @@ async function runPipelineDetail(
           where: primaryPublishedPackageWhere({ evidence: { teamId, deletedAt: null } }),
         }),
         // Phase HOME-NUMERIC-TRUTH-FIX — same `deletedAt: null`
-        // omission as the status groupBy above. publicVerify.published
-        // / .unpublished / .suspended feed the Verification Health
-        // widget and its arithmetic interacts with `packagesReady`
-        // (which already filters deletedAt). Soft-deleted rows would
-        // inflate every bucket here too.
+        // omission as the status groupBy above. verificationPages feed the
+        // Verification Health widget; soft-deleted rows would inflate every
+        // bucket here too.
         prisma.evidence.groupBy({
-          by: ["publicVerifyState"],
+          by: ["verificationDisclosureMode", "verificationAccessState"],
           where: { AND: [pop.workingEvidence] },
           _count: { _all: true },
         }),
@@ -1976,10 +1979,9 @@ async function runPipelineDetail(
       const row = grouped.find((g) => String(g.status) === s);
       return row ? row._count._all : 0;
     };
-    const verifyCount = (s: string): number => {
-      const row = publicVerify.find((g) => String(g.publicVerifyState) === s);
-      return row ? row._count._all : 0;
-    };
+    const pageCount = (match: (g: { verificationDisclosureMode: string; verificationAccessState: string }) => boolean): number =>
+      publicVerify.filter(match).reduce((n, g) => n + g._count._all, 0);
+    const pageUnavailable = (g: { verificationAccessState: string }) => g.verificationAccessState !== "AVAILABLE";
 
     const signed = stateCount("SIGNED");
     const reported = stateCount("REPORTED");
@@ -2041,10 +2043,10 @@ async function runPipelineDetail(
           // `reports.missingFromSigned` above. Never sum with `queued`.
           missingFromReported: packagesQueued,
         },
-        publicVerify: {
-          published: verifyCount("PUBLISHED"),
-          unpublished: verifyCount("UNPUBLISHED"),
-          suspended: verifyCount("SUSPENDED"),
+        verificationPages: {
+          contentPreview: pageCount((g) => !pageUnavailable(g) && g.verificationDisclosureMode === "CONTENT_PREVIEW"),
+          verificationOnly: pageCount((g) => !pageUnavailable(g) && g.verificationDisclosureMode !== "CONTENT_PREVIEW"),
+          unavailable: pageCount(pageUnavailable),
         },
       },
     };
@@ -2367,15 +2369,15 @@ async function runTimeline(
     prisma.evidence.findMany({
       where: {
         AND: [pop.evidence],
-        publicVerifyState: "PUBLISHED",
-        publicVerifyPublishedAtUtc: { gte: since14d },
+        verificationDisclosureChangedAtUtc: { gte: since14d },
       },
-      orderBy: { publicVerifyPublishedAtUtc: "desc" },
+      orderBy: { verificationDisclosureChangedAtUtc: "desc" },
       take: 10,
       select: {
         id: true,
         title: true,
-        publicVerifyPublishedAtUtc: true,
+        verificationDisclosureMode: true,
+        verificationDisclosureChangedAtUtc: true,
       },
     }),
     prisma.evidenceLifecycleEvent.findMany({
@@ -2495,23 +2497,22 @@ async function runTimeline(
     anyFailed = true;
   }
 
-  // Phase HOME-INTELLIGENCE — public verification published. The
-  // publish flow already persists `publicVerifyPublishedAtUtc` (and a
-  // PUBLIC_VERIFY_PUBLISHED custody event); the timeline simply never
-  // projected it. Minimal read-only projection over the existing
-  // Evidence columns — no new tables, no writes.
+  // (2026-10-18) A verification page's disclosure changed. The disclosure
+  // authority persists verificationDisclosureChangedAtUtc (and a
+  // VERIFICATION_DISCLOSURE_CHANGED custody event); read-only projection.
   try {
     const rows = settledRows(sources[3]);
     anyOk = true;
     for (const r of rows) {
-      if (!r.publicVerifyPublishedAtUtc) continue;
+      if (!r.verificationDisclosureChangedAtUtc) continue;
+      const what = r.verificationDisclosureMode === "CONTENT_PREVIEW" ? "shows a content preview" : "shows verification only";
       items.push({
-        id: `verify-published:${r.id}`,
-        kind: "verification_published",
-        occurredAt: r.publicVerifyPublishedAtUtc.toISOString(),
+        id: `verify-disclosure:${r.id}:${r.verificationDisclosureChangedAtUtc.getTime()}`,
+        kind: "verification_disclosure_changed",
+        occurredAt: r.verificationDisclosureChangedAtUtc.toISOString(),
         label: r.title
-          ? `Verification published — ${r.title}`
-          : "Verification published",
+          ? `Verification page ${what} — ${r.title}`
+          : `Verification page ${what}`,
         subtitle: null,
         href: `/evidence/${r.id}`,
         severity: "info",
@@ -4521,7 +4522,7 @@ function classifyTimelineDomain(kind: TimelineEvent["kind"]): OperationalDomain 
       return "reports";
     case "package_generated":
       return "packages";
-    case "verification_published":
+    case "verification_disclosure_changed":
       return "packages";
     case "lifecycle_transition":
       return "evidence_pipeline";
@@ -4584,8 +4585,8 @@ function annotateTimelineEvents(
           return "Evidence transitioned to a finalized state. The downstream report + package pipeline takes over from here.";
         case "report_generated":
           return "A report row was created. The verification package pipeline continues if governance permits.";
-        case "verification_published":
-          return "A public verification page went live for this record — anyone with the link can independently confirm it.";
+        case "verification_disclosure_changed":
+          return "An owner changed what this record's permanent verification page discloses. The verification result it states is unchanged.";
         case "package_generated":
           return "A verification package row was created. Operators may now offer download or external review.";
         case "lifecycle_transition":

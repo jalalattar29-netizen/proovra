@@ -25,7 +25,11 @@ import { randomUUID } from "node:crypto";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { roleHasPermission } from "@proovra/shared";
+import {
+  VERIFICATION_DISCLOSURE_MODES,
+  describeVerificationDisclosure,
+  roleHasPermission,
+} from "@proovra/shared";
 import {
   VERIFICATION_WITHDRAWAL_REASONS,
   CANONICAL_VERIFICATION_PROJECTION_SELECT,
@@ -43,6 +47,13 @@ import {
   resolveEvidenceOperationAccess,
   type EvidenceRecordPermission,
 } from "../services/evidence/evidence-record-access.service.js";
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import {
+  DisclosurePolicyInvalid,
+  changeVerificationDisclosure,
+  disclosureWidens,
+  readVerificationDisclosure,
+} from "../services/public-verify/verification-disclosure.service.js";
 
 const ParamsId = z.object({ id: z.string().uuid() });
 const RestoreBody = z.object({
@@ -50,6 +61,12 @@ const RestoreBody = z.object({
   clientRequestKey: z.string().trim().min(8).max(120).optional(),
 });
 const WithdrawBody = z.object({ reason: z.enum(VERIFICATION_WITHDRAWAL_REASONS) });
+const DisclosureBody = z.object({
+  mode: z.enum(VERIFICATION_DISCLOSURE_MODES),
+  showRecordedLocation: z.boolean(),
+  /** The policy version the caller saw (compare-and-swap). */
+  expectedVersion: z.number().int().min(0),
+});
 const ArchiveListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().uuid().optional(),
@@ -313,6 +330,10 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
     const canWithdraw = (
       await resolveEvidenceOperationAccess({ userId: actorUserId, evidenceId: id, permission: "evidence.verification.withdraw" })
     ).allowed;
+    const canChangeDisclosure = (
+      await resolveEvidenceOperationAccess({ userId: actorUserId, evidenceId: id, permission: "evidence.publish_verify" })
+    ).allowed;
+    const disclosure = await readVerificationDisclosure(id);
     return reply.code(200).send({
       // THE canonical contract (issued at finalization; then permanent). Spelled
       // out, not spread, so the clients' contract audit can read the envelope.
@@ -330,6 +351,120 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
             }
           : null,
       canWithdraw,
+      /*
+       * THE DISCLOSURE POLICY (2026-10-18): what anonymous visitors of the
+       * permanent reference see, and the plain-language preview of it, both
+       * from the server — the client renders them, it never decides them.
+       */
+      disclosure: disclosure
+        ? {
+            mode: disclosure.mode,
+            showRecordedLocation: disclosure.showRecordedLocation,
+            version: disclosure.version,
+            changedAtUtc: iso(disclosure.changedAtUtc),
+            visitorPreview: describeVerificationDisclosure(disclosure),
+          }
+        : null,
+      canChangeDisclosure,
+    });
+  });
+
+  /*
+   * MANAGE THE VERIFICATION PAGE'S DISCLOSURE (2026-10-18). The only route
+   * that writes the policy, through the one authority. A change that discloses
+   * MORE (verification only → content preview, or showing recorded location)
+   * needs a fresh step-up, as publishing did; narrowing never does. Access is
+   * never touched: a withdrawn page stays withdrawn whatever its policy.
+   */
+  app.put("/v1/evidence/:id/verification-disclosure", { preHandler: requireAuth }, async (req, reply) => {
+    const { id } = ParamsId.parse(req.params);
+    const parsed = DisclosureBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ code: "DISCLOSURE_POLICY_INVALID", message: "Choose a disclosure mode and whether to show the recorded location." });
+    }
+    const body = parsed.data;
+    if (body.showRecordedLocation && body.mode !== "CONTENT_PREVIEW") {
+      return reply.code(400).send({
+        code: "DISCLOSURE_LOCATION_REQUIRES_CONTENT_PREVIEW",
+        message: "Recorded location can be shown only when the page shows a content preview.",
+      });
+    }
+    const actorUserId = await authorize(req, reply, id, "evidence.publish_verify", {
+      code: "DISCLOSURE_CHANGE_NOT_PERMITTED",
+      message: "Changing what the verification page discloses needs a role with the publish permission.",
+    });
+    if (!actorUserId) return reply;
+    const current = await readVerificationDisclosure(id);
+    if (!current) return reply.code(404).send(NOT_FOUND);
+    if (disclosureWidens(current, body)) {
+      const row = await prisma.evidence.findUnique({ where: { id }, select: { teamId: true } });
+      if (row?.teamId) {
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: row.teamId,
+          userId: actorUserId,
+          purpose: "PUBLIC_VERIFY_PUBLISH",
+          resourceKind: "evidence",
+          resourceId: id,
+        });
+        if (gate.sent) return reply;
+      }
+    }
+    let result;
+    try {
+      result = await changeVerificationDisclosure({
+        evidenceId: id,
+        actorUserId,
+        mode: body.mode,
+        showRecordedLocation: body.showRecordedLocation,
+        expectedVersion: body.expectedVersion,
+        ip: req.ip,
+      });
+    } catch (err) {
+      if (err instanceof DisclosurePolicyInvalid) {
+        return reply.code(400).send({ code: "DISCLOSURE_LOCATION_REQUIRES_CONTENT_PREVIEW", message: err.message });
+      }
+      throw err;
+    }
+    if (result.outcome === "NOT_FOUND") return reply.code(404).send(NOT_FOUND);
+    if (result.outcome === "RECORD_NOT_CHANGEABLE") {
+      return reply.code(409).send({ code: "DISCLOSURE_RECORD_NOT_CHANGEABLE", message: "This record no longer exists in a state whose page can change." });
+    }
+    if (result.outcome === "CONFLICT") {
+      return reply.code(409).send({
+        code: "DISCLOSURE_VERSION_CONFLICT",
+        message: "The page's disclosure was changed elsewhere. Review the current setting and try again.",
+        current: {
+          mode: result.current.mode,
+          showRecordedLocation: result.current.showRecordedLocation,
+          version: result.current.version,
+        },
+      });
+    }
+    if (result.outcome === "CHANGED") {
+      audit(req, {
+        actorUserId,
+        teamId: result.teamId ?? null,
+        evidenceId: id,
+        action: "verification.disclosure_changed",
+        metadata: {
+          fromMode: result.previous.mode,
+          toMode: result.current.mode,
+          fromShowRecordedLocation: result.previous.showRecordedLocation,
+          toShowRecordedLocation: result.current.showRecordedLocation,
+          version: result.current.version,
+        },
+      });
+    }
+    return reply.code(200).send({
+      changed: result.outcome === "CHANGED",
+      disclosure: {
+        mode: result.current.mode,
+        showRecordedLocation: result.current.showRecordedLocation,
+        version: result.current.version,
+        visitorPreview: describeVerificationDisclosure(result.current),
+      },
     });
   });
 

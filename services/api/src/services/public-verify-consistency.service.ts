@@ -1,5 +1,5 @@
-import type { OtsAnchoring, OtsState, TrustDecision } from "@proovra/shared";
-import { OTS_STATES } from "@proovra/shared";
+import type { OtsAdvanceSinceIssue, OtsAnchoring, OtsState, OtsVerificationKey, TrustDecision } from "@proovra/shared";
+import { otsAdvanceSinceIssue, snapshotAnchoringAtIssue } from "@proovra/shared";
 
 export type PublicVerifySnapshotSource =
   | "REPORT_SNAPSHOT"
@@ -14,10 +14,13 @@ export type PublicVerifySnapshotSection = {
   packageVersion: number | null;
   trustDecisionSnapshot: TrustDecision | null;
   /**
-   * The OTS state the latest report stated (its anchorSnapshot.otsState).
-   * A legacy report without one, or no report, reads UNAVAILABLE.
+   * The OTS state the latest report stated at issue: its anchorSnapshot.otsState;
+   * for a report issued before otsState was recorded, the report's own Bitcoin
+   * signal (snapshotAnchoringAtIssue). UNAVAILABLE only when neither exists.
    */
   otsStatusAtGeneration: OtsState;
+  /** The OTS verification the report stated at issue (ATTESTATION_RECORDED for a legacy anchored report). */
+  otsVerificationAtGeneration: OtsVerificationKey;
   reportSignature: {
     status: string | null;
     signedAtUtc: string | null;
@@ -37,34 +40,24 @@ export type PublicVerifySnapshotSection = {
 export type PublicVerifyLiveAnchoringSection = {
   lastUpdatedAtUtc: string | null;
   hasAdvancedSinceSnapshot: boolean;
+  /**
+   * HOW anchoring advanced since the report was issued; NONE when the report
+   * already stated what is true now (an attestation recorded before issue did
+   * not "advance" since).
+   */
+  advance: OtsAdvanceSinceIssue | null;
   newerReportAvailable: boolean;
   newerPackageAvailable: boolean;
   autoRefreshRecommended: boolean;
 };
 
 /**
- * The OTS state a report stated: its `anchorSnapshot.otsState`, written by the
- * worker. A legacy report without it (or no report) reads UNAVAILABLE — never
- * re-derived from a status word or a trust-signal reading.
+ * The OTS state a report stated at issue — from the report's OWN snapshot
+ * (snapshotAnchoringAtIssue): its recorded otsState, else its Bitcoin signal,
+ * else its stored status word. Never the record's current state.
  */
-export function reportOtsStateOf(anchorSnapshot: unknown): OtsState {
-  const raw =
-    anchorSnapshot && typeof anchorSnapshot === "object" && !Array.isArray(anchorSnapshot)
-      ? (anchorSnapshot as Record<string, unknown>).otsState
-      : null;
-  return typeof raw === "string" && (OTS_STATES as readonly string[]).includes(raw) ? (raw as OtsState) : "UNAVAILABLE";
-}
-
-/** Progress order: only a move toward ANCHORED is an advance. */
-function rankOtsState(state: OtsState | null | undefined): number {
-  switch (state) {
-    case "ANCHORED":
-      return 2;
-    case "PENDING":
-      return 1;
-    default:
-      return 0;
-  }
+export function reportOtsStateOf(anchorSnapshot: unknown, trustDecisionSnapshot: unknown = null): OtsState {
+  return snapshotAnchoringAtIssue(anchorSnapshot, trustDecisionSnapshot).otsState;
 }
 
 function isLaterThan(
@@ -87,6 +80,8 @@ export function buildPublicVerifyConsistencySections(params: {
     pdfSignedAtUtc: Date | null;
     /** The report's anchor snapshot; its `otsState` is the state the report stated. */
     anchorSnapshot?: unknown;
+    /** The report's own trust snapshot (its Bitcoin signal, for a legacy report). */
+    trustDecisionSnapshot?: unknown;
   } | null;
   latestVerificationPackage: {
     version: number;
@@ -105,7 +100,10 @@ export function buildPublicVerifyConsistencySections(params: {
   verificationSnapshot: PublicVerifySnapshotSection;
   liveAnchoring: PublicVerifyLiveAnchoringSection;
 } {
-  const otsStatusAtGeneration = reportOtsStateOf(params.latestReport?.anchorSnapshot ?? null);
+  const atIssue = params.latestReport
+    ? snapshotAnchoringAtIssue(params.latestReport.anchorSnapshot ?? null, params.latestReport.trustDecisionSnapshot ?? null)
+    : { otsState: "UNAVAILABLE" as OtsState, otsVerification: "UNAVAILABLE" as OtsVerificationKey };
+  const otsStatusAtGeneration = atIssue.otsState;
 
   const generatedAtUtc =
     params.source === "REPORT_SNAPSHOT"
@@ -121,6 +119,7 @@ export function buildPublicVerifyConsistencySections(params: {
     packageVersion: params.latestVerificationPackage?.version ?? null,
     trustDecisionSnapshot: params.trustDecisionSnapshot,
     otsStatusAtGeneration,
+    otsVerificationAtGeneration: atIssue.otsVerification,
     reportSignature: params.latestReport
       ? {
           status: params.latestReport.pdfSignatureStatus ?? "SIGNING_UNAVAILABLE",
@@ -148,7 +147,8 @@ export function buildPublicVerifyConsistencySections(params: {
     lastUpdatedAtUtc:
       params.otsUpgradedAtUtc ?? (current.state === "ANCHORED" ? current.anchoredAtUtc : null) ?? null,
     hasAdvancedSinceSnapshot:
-      params.latestReport != null && rankOtsState(current.state) > rankOtsState(otsStatusAtGeneration),
+      params.latestReport != null && otsAdvanceSinceIssue(atIssue.otsVerification, current.verification) !== "NONE",
+    advance: params.latestReport ? otsAdvanceSinceIssue(atIssue.otsVerification, current.verification) : null,
     newerReportAvailable: isLaterThan(
       params.latestReport?.generatedAtUtc ?? null,
       generatedAtUtc,

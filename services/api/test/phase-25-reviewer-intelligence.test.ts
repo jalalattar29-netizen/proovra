@@ -131,7 +131,7 @@ describe("Phase 25 — shared search projection engine", () => {
         deletedAt: null,
         lifecycleState: "ACTIVE",
         archivedAt: null,
-        publicVerifyState: "PUBLISHED",
+        verificationDisclosureMode: "CONTENT_PREVIEW",
         storageObjectLockLegalHoldStatus: null,
         retentionPolicySource: "WORKSPACE_POLICY",
         retentionUntilUtc: null,
@@ -151,7 +151,7 @@ describe("Phase 25 — shared search projection engine", () => {
     expect(p.contributorScoped).toBe(false);
     expect(p.reviewerRestricted).toBe(false);
     expect(p.searchableTags).toContain("PHOTO");
-    expect(p.searchableTags).toContain("PUBLISHED");
+    expect(p.searchableTags).toContain("CONTENT_PREVIEW");
   });
 
   it("buildEvidenceProjection refuses team-mismatched records (anti-enumeration)", () => {
@@ -171,7 +171,7 @@ describe("Phase 25 — shared search projection engine", () => {
         deletedAt: null,
         lifecycleState: "ACTIVE",
         archivedAt: null,
-        publicVerifyState: null,
+        verificationDisclosureMode: null,
         storageObjectLockLegalHoldStatus: null,
         retentionPolicySource: null,
         retentionUntilUtc: null,
@@ -199,7 +199,7 @@ describe("Phase 25 — shared search projection engine", () => {
       caseId: null,
       lifecycleState: "ACTIVE",
       archivedAt: null,
-      publicVerifyState: null,
+      verificationDisclosureMode: null,
       storageObjectLockLegalHoldStatus: null,
       retentionPolicySource: null,
       retentionUntilUtc: null,

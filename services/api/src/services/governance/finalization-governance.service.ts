@@ -143,20 +143,11 @@ export async function evaluateFinalizationGovernance(input: {
   if (decision.allowed) return { allowed: true };
   const evidence = { id: decision.evidenceId };
   const action = decision.action;
-  // A REFUSED FINALIZATION PUBLISHES NOTHING, AND SAYS SO (2026-09-29).
-  // Every record is created with public_verify_state PUBLISHED (the
-  // column default), so a refused, never-signed record read "Published"
-  // in the library filter. It is marked NOT_PUBLISHED; a later
-  // finalization under a changed policy then needs an explicit publish.
-  // A signed record is never touched here.
-  // ET-CUS-11: the NOT_PUBLISHED mark and the refusal's custody event
-  // commit together, and a failure fails the request rather than leaving
-  // a record marked with no trace (both used to be swallowed).
+  // A REFUSED FINALIZATION DISCLOSES NOTHING (2026-10-18): a never-signed
+  // record has no verification page at all (it is not finalized), and its
+  // disclosure policy is its column default. ET-CUS-11: the refusal's custody
+  // event commits or the request fails.
   await prisma.$transaction(async (tx) => {
-    await tx.evidence.updateMany({
-      where: { id: evidence.id, signedAtUtc: null },
-      data: { publicVerifyState: "NOT_PUBLISHED" },
-    });
     // ET-INT-13 — ONE refusal event per unchanged refusal. An anonymous
     // contributor retrying a governance-denied submit appended a new
     // EXPORT_BLOCKED_BY_POLICY per retry, growing the chain without bound.

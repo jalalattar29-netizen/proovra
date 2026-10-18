@@ -48,13 +48,14 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
   let record: { id: string; ref: string; ownerEmail: string };
 
   const A = () => h.fixtures.teamA;
-  const call = (method: "GET" | "POST" | "PUT", url: string, token: string | null, payload?: unknown) =>
+  const call = (method: "GET" | "POST" | "PUT", url: string, token: string | null, payload?: unknown, challengeId?: string) =>
     h.app.inject({
       method,
       url,
       headers: {
         ...(token ? { authorization: `Bearer ${token}` } : {}),
         ...(payload !== undefined ? { "content-type": "application/json" } : {}),
+        ...(challengeId ? { "x-proovra-step-up-challenge-id": challengeId } : {}),
       },
       ...(payload !== undefined ? { payload: JSON.stringify(payload) } : {}),
     });
@@ -265,7 +266,8 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
           version: 1,
           storageBucket: "proovra-test",
           storageKey: `reports/${record.id}/v1.pdf`,
-          generatedAtUtc: new Date(Date.now() - 60_000),
+          // Issued after finalization (every creation-time event is before it).
+          generatedAtUtc: new Date(),
           pdfSha256: "ab".repeat(32),
           trustDecisionSnapshot: legacySnapshot as never,
           anchorSnapshot: { provider: "opentimestamps", otsStatus: "ANCHORED" } as never,
@@ -308,6 +310,302 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
       // Attestation recorded at issuance → independently verified now.
       expect(live.advance).toBe("CHAIN_VERIFIED_SINCE_ISSUE");
       expect(live.hasAdvancedSinceSnapshot).toBe(true);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // The disclosure contract: the owner authority, both modes, the location
+  // toggle, reviewer shares, access states and where the writes happen.
+  // ---------------------------------------------------------------------------
+  describe("contract — the owner's disclosure authority", () => {
+    const secret = { value: null as Buffer | null };
+    let totp: typeof import("../src/services/security/mfa-totp.js");
+
+    beforeAll(async () => {
+      totp = await import("../src/services/security/mfa-totp.js");
+      const { sealSecret } = await import("../src/services/security/mfa-secret-storage.js");
+      secret.value = totp.generateTotpSecretBytes();
+      const sealed = sealSecret(secret.value);
+      const now = new Date();
+      await prisma.mfaFactor.create({
+        data: {
+          userId: A().ownerUserId,
+          kind: "TOTP",
+          status: "ACTIVE",
+          label: "Authenticator",
+          secretCiphertext: Buffer.from(sealed.ciphertext),
+          secretIv: Buffer.from(sealed.iv),
+          secretAuthTag: Buffer.from(sealed.authTag),
+          secretKekId: sealed.kekId,
+          verifiedAtUtc: now,
+          enrolledAt: now,
+        },
+      });
+    });
+
+    async function stepUp(purpose = "PUBLIC_VERIFY_PUBLISH"): Promise<string> {
+      await prisma.mfaFactor.updateMany({ where: { userId: A().ownerUserId, kind: "TOTP" }, data: { lastUsedAt: null } });
+      const started = await call("POST", "/v1/identity-security/step-up/start", A().ownerToken, {
+        teamId: A().teamId,
+        purpose,
+        resourceKind: "evidence",
+        resourceId: record.id,
+      });
+      expect(started.statusCode, started.body).toBe(200);
+      const challengeId = (started.json().challenge as { id: string }).id;
+      const code = totp.computeTotpCode(secret.value!, totp.timeStep(Math.floor(Date.now() / 1000)));
+      const checked = await call("POST", "/v1/identity-security/step-up/check", A().ownerToken, { teamId: A().teamId, challengeId, code });
+      expect(checked.statusCode, checked.body).toBe(200);
+      return challengeId;
+    }
+    const policyOf = () =>
+      prisma.evidence.findUniqueOrThrow({
+        where: { id: record.id },
+        select: { verificationDisclosureMode: true, showRecordedLocation: true, verificationDisclosureVersion: true },
+      });
+    const put = (body: unknown, token = A().ownerToken, challengeId?: string) =>
+      call("PUT", `/v1/evidence/${record.id}/verification-disclosure`, token, body, challengeId);
+
+    it("D1 the owner reads the policy and the server's own visitor preview; a viewer may not change it", async () => {
+      const res = await call("GET", `/v1/evidence/${record.id}/verification-access`, A().ownerToken);
+      expect(res.statusCode, res.body).toBe(200);
+      const d = res.json().disclosure;
+      expect(d.mode).toBe("VERIFICATION_ONLY");
+      expect(d.showRecordedLocation).toBe(false);
+      expect(d.version).toBe(0);
+      expect(d.visitorPreview.never).toContain("Original file downloads");
+      expect(res.json().canChangeDisclosure).toBe(true);
+      const viewer = await put({ mode: "CONTENT_PREVIEW", showRecordedLocation: false, expectedVersion: 0 }, A().viewerToken);
+      expect(viewer.statusCode).toBe(403);
+      expect(viewer.json().code).toBe("DISCLOSURE_CHANGE_NOT_PERMITTED");
+      expect((await policyOf()).verificationDisclosureMode).toBe("VERIFICATION_ONLY");
+    });
+
+    it("D2 location only with content preview; widening needs a fresh step-up and changes nothing without it", async () => {
+      const bad = await put({ mode: "VERIFICATION_ONLY", showRecordedLocation: true, expectedVersion: 0 });
+      expect(bad.statusCode).toBe(400);
+      expect(bad.json().code).toBe("DISCLOSURE_LOCATION_REQUIRES_CONTENT_PREVIEW");
+      const noStepUp = await put({ mode: "CONTENT_PREVIEW", showRecordedLocation: false, expectedVersion: 0 });
+      expect(noStepUp.statusCode).toBe(401);
+      expect((await policyOf()).verificationDisclosureVersion).toBe(0);
+    });
+
+    it("D3 a change is CAS-protected, audited in custody, idempotent, and one of two concurrent changes wins", async () => {
+      const changed = await put({ mode: "CONTENT_PREVIEW", showRecordedLocation: false, expectedVersion: 0 }, A().ownerToken, await stepUp());
+      expect(changed.statusCode, changed.body).toBe(200);
+      expect(changed.json().changed).toBe(true);
+      expect(changed.json().disclosure.version).toBe(1);
+      const events = await prisma.custodyEvent.findMany({ where: { evidenceId: record.id, eventType: "VERIFICATION_DISCLOSURE_CHANGED" as never } });
+      expect(events).toHaveLength(1);
+      expect(JSON.stringify(events[0]!.payload)).not.toMatch(/@/);
+      // The same request again: nothing changes, nothing is appended.
+      const again = await put({ mode: "CONTENT_PREVIEW", showRecordedLocation: false, expectedVersion: 0 });
+      expect(again.statusCode).toBe(200);
+      expect(again.json().changed).toBe(false);
+      // A stale version asking for something else is a conflict, never a lost update.
+      const stale = await put({ mode: "VERIFICATION_ONLY", showRecordedLocation: false, expectedVersion: 0 });
+      expect(stale.statusCode).toBe(409);
+      expect(stale.json().code).toBe("DISCLOSURE_VERSION_CONFLICT");
+      expect(stale.json().current.version).toBe(1);
+      // Two narrowing changes at version 1 at once (no step-up needed to narrow).
+      const [a, b] = await Promise.all([
+        put({ mode: "VERIFICATION_ONLY", showRecordedLocation: false, expectedVersion: 1 }),
+        put({ mode: "CONTENT_PREVIEW", showRecordedLocation: false, expectedVersion: 1 }),
+      ]);
+      const codes = [a.statusCode, b.statusCode].sort();
+      // CONTENT_PREVIEW at version 1 is already the policy (idempotent 200), the
+      // narrowing either applies first (then the other is a 409) or second.
+      expect(codes.every((c) => c === 200 || c === 409)).toBe(true);
+      const after = await policyOf();
+      expect(after.verificationDisclosureVersion).toBeLessThanOrEqual(2);
+      expect(await prisma.custodyEvent.count({ where: { evidenceId: record.id, eventType: "VERIFICATION_DISCLOSURE_CHANGED" as never } })).toBe(
+        after.verificationDisclosureVersion,
+      );
+      // Leave the record in CONTENT_PREVIEW for the next block.
+      if (after.verificationDisclosureMode !== "CONTENT_PREVIEW") {
+        const back = await put(
+          { mode: "CONTENT_PREVIEW", showRecordedLocation: false, expectedVersion: after.verificationDisclosureVersion },
+          A().ownerToken,
+          await stepUp(),
+        );
+        expect(back.statusCode, back.body).toBe(200);
+      }
+    });
+
+    it("D4 CONTENT_PREVIEW: title, names and roles appear; location, emails, storage keys, part ids and originals still do not", async () => {
+      const page = await anonymousPage();
+      expect(page.status, page.text).toBe(200);
+      expect((page.body.disclosure as { mode: string }).mode).toBe("CONTENT_PREVIEW");
+      for (const token of NAME_TOKENS) expect(page.text).toContain(token);
+      expect(page.text).toContain("Kestrel");
+      expect(page.text).not.toContain(String(GPS.lat));
+      expect(page.body.captureContext ?? null).toBeNull();
+      expect(page.body.locationState ?? null).toBeNull();
+      expect(page.text).not.toContain("***@");
+      expect(page.text).not.toMatch(/evidence\/[0-9a-f-]{36}\/parts\//);
+      expect(page.text).not.toContain(record.id);
+      expect(page.text).not.toMatch(/X-Amz-(Signature|Credential)/);
+      const items = (page.body.evidenceContent as { items: Array<{ id: string; viewUrl: unknown }> }).items;
+      expect(items.map((i) => i.id)).toEqual(["item-1", "item-2", "item-3", "item-4", "item-5", "item-6"]);
+      expect(items.every((i) => i.viewUrl === null)).toBe(true);
+      // The device-reported capture time is a capture fact content preview shows.
+      expect(page.text).toContain("2026-10-01T07:41:07");
+    });
+
+    it("D5 location appears only after its own explicit decision, worded as recorded — never verified", async () => {
+      const v = (await policyOf()).verificationDisclosureVersion;
+      const res = await put({ mode: "CONTENT_PREVIEW", showRecordedLocation: true, expectedVersion: v }, A().ownerToken, await stepUp());
+      expect(res.statusCode, res.body).toBe(200);
+      const page = await anonymousPage();
+      expect((page.body.disclosure as { recordedLocation: boolean }).recordedLocation).toBe(true);
+      const ctx = page.body.captureContext as { lat: number; lng: number } | null;
+      expect(ctx?.lat).toBeCloseTo(GPS.lat, 4);
+      expect(page.text).not.toMatch(/verified location|location verified/i);
+      // Switching back to verification only clears the location decision.
+      const back = await put({ mode: "VERIFICATION_ONLY", showRecordedLocation: false, expectedVersion: v + 1 });
+      expect(back.statusCode, back.body).toBe(200);
+      expect((await policyOf()).showRecordedLocation).toBe(false);
+      const vo = await anonymousPage();
+      for (const token of NAME_TOKENS) expect(vo.text).not.toContain(token);
+      expect(vo.text).not.toContain(String(GPS.lat));
+    });
+  });
+
+  describe("contract — reviewer shares (pvs_) keep their own profile and never widen access", () => {
+    async function mint(opts: { projection?: "STANDARD" | "BASIC"; maxUses?: number | null; allowOriginalDownload?: boolean } = {}) {
+      const { mintVerificationShareTokenTx } = await import("@proovra/shared-runtime");
+      return prisma.$transaction((tx) =>
+        mintVerificationShareTokenTx(tx, {
+          evidenceId: record.id,
+          teamId: A().teamId,
+          purpose: "OWNER_SHARE",
+          projection: opts.projection ?? "STANDARD",
+          audience: "Insurer reviewer",
+          maxUses: opts.maxUses ?? null,
+          allowOriginalDownload: opts.allowOriginalDownload ?? false,
+        }),
+      );
+    }
+
+    it("S1 a STANDARD share shows content to its reviewer on a VERIFICATION_ONLY record; no originals without a grant", async () => {
+      const { token } = await mint();
+      const res = await publicVerify(token);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json().disclosure).toMatchObject({ mode: "CONTENT_PREVIEW", source: "REVIEWER_SHARE", originalDownload: false, recordedLocation: false });
+      expect(res.body).toContain(NAME_TOKENS[0]);
+      expect(res.body).not.toContain(String(GPS.lat));
+      expect(res.body).not.toMatch(/X-Amz-Signature/);
+      // The pvr_ page is unaffected by the share.
+      const pvr = await anonymousPage();
+      expect(pvr.text).not.toContain(NAME_TOKENS[0]);
+    });
+
+    it("S2 an explicit download grant hands out the sealed originals — and records their release", async () => {
+      const { token } = await mint({ allowOriginalDownload: true });
+      const before = await prisma.custodyEvent.count({ where: { evidenceId: record.id } });
+      const res = await publicVerify(token);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json().disclosure.originalDownload).toBe(true);
+      const urls = (res.json().evidenceContent.items as Array<{ viewUrl: string | null }>).filter((i) => typeof i.viewUrl === "string");
+      expect(urls.length).toBeGreaterThan(0);
+      await new Promise((r) => setTimeout(r, 300));
+      const releases = await prisma.custodyEvent.findMany({
+        where: { evidenceId: record.id, sequence: { gt: before } },
+        select: { eventType: true, payload: true },
+      });
+      expect(releases.some((e) => JSON.stringify(e.payload).includes("public_original_url_issued"))).toBe(true);
+    });
+
+    it("S3 a BASIC share answers verification only; a spent use-limited share is 410 and writes nothing", async () => {
+      const basic = await mint({ projection: "BASIC" });
+      const b = await publicVerify(basic.token);
+      expect(b.statusCode).toBe(200);
+      expect(b.json().disclosure.mode).toBe("VERIFICATION_ONLY");
+      expect(b.body).not.toContain(NAME_TOKENS[0]);
+
+      const once = await mint({ maxUses: 1 });
+      expect((await publicVerify(once.token)).statusCode).toBe(200);
+      await new Promise((r) => setTimeout(r, 300));
+      const views = await prisma.verificationView.count({ where: { evidenceId: record.id } });
+      const custody = await prisma.custodyEvent.count({ where: { evidenceId: record.id } });
+      const spent = await publicVerify(once.token);
+      expect(spent.statusCode).toBe(410);
+      await new Promise((r) => setTimeout(r, 300));
+      expect(await prisma.verificationView.count({ where: { evidenceId: record.id } })).toBe(views);
+      expect(await prisma.custodyEvent.count({ where: { evidenceId: record.id } })).toBe(custody);
+    });
+
+    it("S4 revoked and expired shares are 410", async () => {
+      const revoked = await mint();
+      await prisma.verificationShareToken.update({ where: { id: revoked.id }, data: { revokedAtUtc: new Date(), revocationReason: "OWNER_REVOKED" } });
+      expect((await publicVerify(revoked.token)).statusCode).toBe(410);
+      const expired = await mint();
+      await prisma.verificationShareToken.update({ where: { id: expired.id }, data: { expiresAtUtc: new Date(Date.now() - 1000) } });
+      expect((await publicVerify(expired.token)).statusCode).toBe(410);
+    });
+  });
+
+  describe("contract — access states decide reachability for every identifier; nothing is written before a denial", () => {
+    it("A1 a withdrawn page is 410 for pvr_, a reviewer share and a grace record id — with no view, no custody, no recheck", async () => {
+      const { mintVerificationShareTokenTx } = await import("@proovra/shared-runtime");
+      const share = await prisma.$transaction((tx) =>
+        mintVerificationShareTokenTx(tx, { evidenceId: record.id, teamId: A().teamId, purpose: "OWNER_SHARE", projection: "STANDARD", audience: "r" }),
+      );
+      await prisma.evidence.update({
+        where: { id: record.id },
+        data: { legacyVerifyUuidUntilUtc: new Date(Date.now() + 86_400_000) },
+      });
+      expect((await publicVerify(record.id)).statusCode).toBe(200);
+      const withdrawn = await call("POST", `/v1/evidence/${record.id}/verification-access/withdraw`, A().ownerToken, { reason: "PRIVACY_REQUEST" });
+      expect(withdrawn.statusCode, withdrawn.body).toBe(200);
+      await new Promise((r) => setTimeout(r, 300));
+      const before = {
+        views: await prisma.verificationView.count({ where: { evidenceId: record.id } }),
+        custody: await prisma.custodyEvent.count({ where: { evidenceId: record.id } }),
+        recheck: (await prisma.evidence.findUniqueOrThrow({ where: { id: record.id }, select: { integrityRecheckRequestedAtUtc: true } }))
+          .integrityRecheckRequestedAtUtc,
+      };
+      for (const segment of [record.ref, share.token, record.id]) {
+        const res = await publicVerify(segment);
+        expect(res.statusCode, segment).toBe(410);
+        for (const t of NAME_TOKENS) expect(res.body).not.toContain(t);
+      }
+      await new Promise((r) => setTimeout(r, 300));
+      expect(await prisma.verificationView.count({ where: { evidenceId: record.id } })).toBe(before.views);
+      expect(await prisma.custodyEvent.count({ where: { evidenceId: record.id } })).toBe(before.custody);
+      expect(
+        (await prisma.evidence.findUniqueOrThrow({ where: { id: record.id }, select: { integrityRecheckRequestedAtUtc: true } }))
+          .integrityRecheckRequestedAtUtc?.toISOString() ?? null,
+      ).toBe(before.recheck?.toISOString() ?? null);
+      // A disclosure change never reinstates access.
+      const reinstate = await call("POST", `/v1/evidence/${record.id}/verification-access/reinstate`, A().ownerToken, {});
+      expect(reinstate.statusCode).toBe(200);
+      expect((await publicVerify(record.ref)).statusCode).toBe(200);
+    });
+
+    it("A2 an unknown reference, an unknown share and an id outside its grace are the same 404 and write nothing", async () => {
+      const before = { views: await prisma.verificationView.count(), custody: await prisma.custodyEvent.count() };
+      const unknownRef = await publicVerify("pvr_AAAAAAAAAAAAAAAAAAAAAAAAAAA");
+      const unknownShare = await publicVerify(`pvs_${"A".repeat(43)}`);
+      const unknownId = await publicVerify("00000000-0000-4000-8000-000000000000");
+      for (const r of [unknownRef, unknownShare, unknownId]) {
+        expect(r.statusCode).toBe(404);
+        expect(r.body).toBe(unknownRef.body);
+      }
+      await new Promise((r) => setTimeout(r, 300));
+      expect(await prisma.verificationView.count()).toBe(before.views);
+      expect(await prisma.custodyEvent.count()).toBe(before.custody);
+    });
+
+    it("A3 a trashed record's page answers RETAINED and discloses nothing about the record", async () => {
+      await prisma.evidence.update({ where: { id: record.id }, data: { lifecycleState: "TRASHED", deletedAt: new Date() } as never });
+      const res = await publicVerify(record.ref);
+      expect([200, 410]).toContain(res.statusCode);
+      expect(res.json().canonicalVerification?.status ?? res.json().code).toBeTruthy();
+      for (const t of NAME_TOKENS) expect(res.body).not.toContain(t);
+      expect(res.body).not.toContain("Kestrel");
+      expect(res.json().verificationMatrix ?? null).toBeNull();
+      await prisma.evidence.update({ where: { id: record.id }, data: { lifecycleState: "ACTIVE", deletedAt: null } as never });
     });
   });
 });

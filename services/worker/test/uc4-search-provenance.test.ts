@@ -34,7 +34,7 @@ function project(chunks: string[]) {
       lifecycleState: "ACTIVE",
       archivedAt: null,
       lockedAt: null,
-      publicVerifyState: "PUBLISHED",
+      verificationDisclosureMode: "CONTENT_PREVIEW",
       storageObjectLockLegalHoldStatus: null,
       retentionPolicySource: null,
       retentionUntilUtc: null,

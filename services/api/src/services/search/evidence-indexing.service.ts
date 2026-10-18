@@ -432,7 +432,8 @@ export async function indexEvidence(
       // service promotes that tag to a result-row badge so users
       // know mutations on this row are gated.
       lockedAt: evidence.lockedAt ?? null,
-      publicVerifyState: evidence.publicVerifyState ?? null,
+      verificationDisclosureMode: evidence.verificationDisclosureMode ?? null,
+      verificationAccessState: evidence.verificationAccessState ?? null,
       storageObjectLockLegalHoldStatus:
         evidence.storageObjectLockLegalHoldStatus ?? null,
       retentionPolicySource: evidence.retentionPolicySource ?? null,
