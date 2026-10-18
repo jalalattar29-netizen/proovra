@@ -225,8 +225,19 @@ test("package and publication rows say only what the surface can know", () => {
   assert.match(rowOf(published, "package_signature").statement, /package-seal key pkg version 2/);
   assert.equal(statusOf(published, "package_completeness"), "VERIFIED");
   assert.equal(statusOf(matrix({ packageSeal: { kind: "LEGACY" } }), "package_signature"), "NOT_CHECKED");
+  assert.deepEqual(rowOf(matrix({ packageSeal: { kind: "LEGACY" } }), "package_signature").qualifiers, ["LEGACY_SEAL"]);
+  // (2026-10-18) A legacy seal verified read-only against a published key; one not checked; one that failed.
+  const legacyVerified = matrix({ packageSeal: { kind: "LEGACY_VERIFIED", sealKeyId: "pkg", sealKeyVersion: 1 } });
+  assert.equal(statusOf(legacyVerified, "package_signature"), "VERIFIED");
+  assert.match(rowOf(legacyVerified, "package_signature").statement, /published PROOVRA package-seal key pkg version 1/);
+  const unbound = matrix({ packageSeal: { kind: "LEGACY_UNBOUND" } });
+  assert.equal(statusOf(unbound, "package_signature"), "NOT_CHECKED");
+  assert.equal(rowOf(unbound, "package_signature").statement, "Sealed — seal not checked against a published PROOVRA key.");
+  assert.deepEqual(rowOf(unbound, "package_signature").qualifiers, ["LEGACY_SEAL"]);
+  assert.equal(statusOf(matrix({ packageSeal: { kind: "FAILED" } }), "package_signature"), "FAILED");
   assert.equal(statusOf(matrix({ packageSeal: { kind: "NONE" } }), "package_signature"), "NOT_APPLICABLE");
-  assert.equal(statusOf(matrix({ publication: { kind: "THIS_PAGE" } }), "public_verify_publication"), "VERIFIED");
+  assert.equal(statusOf(matrix({ publication: { kind: "CANONICAL", disclosure: "VERIFICATION_ONLY" } }), "public_verify_publication"), "NOT_APPLICABLE");
+  assert.equal(statusOf(matrix({ publication: { kind: "REVIEWER_SHARE" } }), "public_verify_publication"), "NOT_APPLICABLE");
   assert.equal(statusOf(matrix({ publication: { kind: "DOCUMENT" } }), "public_verify_publication"), "NOT_APPLICABLE");
 });
 
@@ -265,10 +276,9 @@ test("an old stored snapshot is read back without its score, verdict or legacy a
   const json = JSON.stringify(d);
   assert.doesNotMatch(json, /"(points|maxPoints|score|scoreLabel|verdict|verdictLabel|relianceLevel|confidenceLabel|primaryReason|passedSignals)"/);
   assert.deepEqual(findForbiddenCustomerClaims(json), []);
-  // A legacy anchoring "passed" (awarded for a txid on the row) reads UNAVAILABLE — never anchored.
-  assert.equal(d.signals.find((s) => s.key === "bitcoin_anchoring").state, "UNAVAILABLE");
-  assert.equal(d.anchoringState, "unavailable");
-  assert.equal(d.anchoringStatusLabel, "Unavailable");
+  // (2026-10-18) A legacy anchoring "passed" reads as the attestation it recorded — never verified.
+  assert.equal(d.signals.find((s) => s.key === "bitcoin_anchoring").state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
+  assert.equal(d.anchoringState, "recorded");
   assert.notEqual(d.presentationState, "VERIFIED_FINALIZED");
   assert.match(d.summary, /^Cryptographic integrity and PROOVRA custody checks passed/);
   assert.equal(readStoredTrustDecision(null), null);
@@ -327,8 +337,10 @@ test("OTS projection per state: pending, anchored, failed, unavailable and not r
   assert.equal(confirming.statusLabel, "Verification pending");
   assert.equal(confirming.statement, `The proof matches Bitcoin block ${ANCHORED_PROOF.blockHeight}; 2 of 6 confirmations recorded.`);
   const nodeDown = ots(chainColumnsFor(ANCHORED_PROOF, { status: "UNAVAILABLE" }));
-  assert.equal(nodeDown.status, "UNAVAILABLE");
-  assert.equal(nodeDown.statusLabel, "Verification unavailable");
+  // (2026-10-18) The verifier being down concludes nothing: Attestation recorded / Not checked.
+  assert.equal(nodeDown.status, "NOT_CHECKED");
+  assert.equal(nodeDown.statusLabel, "Attestation recorded");
+  assert.deepEqual(nodeDown.qualifiers, ["ATTESTATION_RECORDED", "VERIFIER_UNAVAILABLE"]);
   const contradicted = ots(chainColumnsFor(ANCHORED_PROOF, { status: "FAILED" }));
   assert.equal(contradicted.status, "FAILED");
   assert.equal(contradicted.statusLabel, "Verification failed");

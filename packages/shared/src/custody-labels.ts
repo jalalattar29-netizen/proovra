@@ -90,6 +90,7 @@ const LABELS: Readonly<Record<string, string>> = {
   VERIFICATION_REFERENCE_ISSUED: "Verification reference issued",
   VERIFICATION_ACCESS_WITHDRAWN: "Verification page withdrawn",
   VERIFICATION_ACCESS_REINSTATED: "Verification page reinstated",
+  VERIFICATION_DISCLOSURE_CHANGED: "Verification page disclosure changed",
 };
 
 /**

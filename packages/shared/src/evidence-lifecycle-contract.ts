@@ -120,7 +120,7 @@ export const EVIDENCE_LIFECYCLE_MATERIALS = [
   "evidence.otsBitcoinTxid",
   "evidence.otsAnchoredAtUtc",
   "evidence.otsUpgradedAtUtc",
-  "evidence.publicVerifyState",
+  "evidence.verificationDisclosureMode",
   "evidence.recordedIntegrityVerifiedAtUtc",
   "evidence.verificationPackageVersion",
   "evidence.verificationPackageGeneratedAtUtc",
@@ -188,7 +188,9 @@ export const EVIDENCE_LIFECYCLE_FAILURE_CODES = [
   "PACKAGE_SIGNATURE_FAILED",
   "PACKAGE_ELIGIBILITY_DENIED",
   "PUBLIC_VERIFY_GATE_DENIED",
-  "PUBLIC_VERIFY_PUBLISH_FAILED",
+  // (2026-10-18) The disclosure authority's refusals; the publish workflow is retired.
+  "DISCLOSURE_VERSION_CONFLICT",
+  "DISCLOSURE_RECORD_NOT_CHANGEABLE",
 ] as const;
 
 export type EvidenceLifecycleFailureCode =
@@ -689,24 +691,22 @@ const STEP_DEFS: Record<
     id: "PublicVerifyPublished",
     eventName: EVIDENCE_LIFECYCLE_EVENT_NAMES.PublicVerifyPublished,
     description:
-      "Evidence is made viewable on the public verify page. publicVerifyState transitions through NOT_CONFIGURED -> CONFIGURED_NOT_PUBLISHED -> PUBLISHED, with SUSPENDED/UNPUBLISHED as terminal-for-publication states.",
+      "(2026-10-18) The record's canonical verification page (pvr_) always opens; its owner decides what it DISCLOSES: VERIFICATION_ONLY (default) or CONTENT_PREVIEW, with recorded location an independent explicit choice. The step id is historical; the retired publication state is no longer written.",
     writerResponsibility:
-      "services/api/src/routes/evidence.routes.ts (public-verify publish/unpublish handlers). Phase 1: writer not yet formally consolidated — see custodyEventGap.",
+      "services/api/src/services/public-verify/verification-disclosure.service.ts (changeVerificationDisclosure) — the only writer, through PUT /v1/evidence/:id/verification-disclosure.",
     timestampMeaning:
-      "Evidence.publicVerifyState transition time (column-update timestamp). Per-view custody is recorded via VERIFY_VIEWED, but the publication state-change itself is currently surfaced via the column update, not a dedicated custody event.",
+      "Evidence.verificationDisclosureChangedAtUtc — the moment an owner changed the policy; the VERIFICATION_DISCLOSURE_CHANGED custody event commits in the same transaction.",
     requiredInputs: [
       "evidence.row",
       "report.row",
       "verificationPackage.row",
     ],
-    producedMaterials: ["evidence.publicVerifyState"],
-    custodyEventType: null,
-    custodyEventGap: true,
-    custodyEventGapReason:
-      "No dedicated CustodyEventType value exists for publication state changes. VERIFY_VIEWED is emitted per public view but is not the same as a publish/unpublish event. Phase 2 should add a PUBLIC_VERIFY_STATE_CHANGED custody event type and route the column update through that emitter.",
+    producedMaterials: ["evidence.verificationDisclosureMode"],
+    custodyEventType: "VERIFICATION_DISCLOSURE_CHANGED",
+    custodyEventGap: false,
     failureCodes: [
-      "PUBLIC_VERIFY_GATE_DENIED",
-      "PUBLIC_VERIFY_PUBLISH_FAILED",
+      "DISCLOSURE_VERSION_CONFLICT",
+      "DISCLOSURE_RECORD_NOT_CHANGEABLE",
     ],
     retryPolicy: "Operator-driven; no automatic retry.",
     snapshotSemantics: "live",

@@ -471,7 +471,9 @@ export type {
 export {
   classifyCustodyEventType,
   isAccessCustodyEventType,
+  isAdministrativeCustodyEventType,
   isForensicCustodyEventType,
+  isForensicIntegrityCustodyEventType,
   RETENTION_ACTIVITY_CUSTODY_EVENT_TYPES,
 } from "./custody.js";
 
@@ -527,6 +529,8 @@ export {
 } from "./trust-decision.js";
 
 export * from "./verification-matrix.js";
+export * from "./verification-disclosure.js";
+export * from "./snapshot-comparison.js";
 
 export type {
   AnchorSemantics,
@@ -1463,7 +1467,6 @@ export {
 // Phase 14 — enterprise governance canonical types
 export type {
   CaseLegalHoldStatus,
-  PublicVerifyState,
   RedactionField,
   RedactionMode,
   RedactionPolicy,
@@ -1475,7 +1478,6 @@ export type {
 export {
   CASE_LEGAL_HOLD_STATUSES,
   DEFAULT_REDACTION_POLICY,
-  PUBLIC_VERIFY_STATES,
   REDACTION_FIELDS,
   REDACTION_MODES,
   REDACTION_SCOPES,
@@ -1484,7 +1486,6 @@ export {
   maskEmail,
   maskGpsCoordinate,
   maskPhone,
-  publicVerifyStateAllowsAccess,
   resolveRedactionPolicy,
 } from "./governance.js";
 

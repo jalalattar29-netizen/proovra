@@ -119,6 +119,42 @@ export function toVerificationStatus(state: TrustSignalState): VerificationStatu
   return VERIFICATION_STATUS_BY_STATE[state];
 }
 
+/**
+ * QUALIFIERS (2026-10-18). A qualifier describes HOW a status came about; it
+ * never changes the status. The status is projected from the state alone
+ * (toVerificationStatus), so no qualifier can turn NOT_CHECKED into VERIFIED.
+ *
+ *   ATTESTATION_RECORDED          an OpenTimestamps proof names a Bitcoin block; not independently checked
+ *   PENDING                       the check is waiting on an external step (calendar, confirmations)
+ *   TOKEN_KEPT_NOT_VALIDATED      an RFC 3161 token was obtained and kept but not validated
+ *   VALIDATED_FROM_RETAINED_TOKEN a VERIFIED timestamp validated later from the token kept at intake
+ *   LEGACY_SEAL                   a package seal issued before seals were bound to a published key
+ *   VERIFIER_UNAVAILABLE          the independent verifier could not run; nothing was concluded
+ */
+export const VERIFICATION_QUALIFIERS = [
+  "ATTESTATION_RECORDED",
+  "PENDING",
+  "TOKEN_KEPT_NOT_VALIDATED",
+  "VALIDATED_FROM_RETAINED_TOKEN",
+  "LEGACY_SEAL",
+  "VERIFIER_UNAVAILABLE",
+] as const;
+export type VerificationQualifier = (typeof VERIFICATION_QUALIFIERS)[number];
+
+export const VERIFICATION_QUALIFIER_LABELS: Readonly<Record<VerificationQualifier, string>> = {
+  ATTESTATION_RECORDED: "Attestation recorded",
+  PENDING: "Pending",
+  TOKEN_KEPT_NOT_VALIDATED: "Token kept, not validated",
+  VALIDATED_FROM_RETAINED_TOKEN: "Validated from the token retained at intake",
+  LEGACY_SEAL: "Legacy seal",
+  VERIFIER_UNAVAILABLE: "Verifier unavailable",
+};
+
+export function parseVerificationQualifiers(value: unknown): VerificationQualifier[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((q): q is VerificationQualifier => (VERIFICATION_QUALIFIERS as readonly unknown[]).includes(q));
+}
+
 export function parseVerificationStatus(value: unknown): VerificationStatus | null {
   return typeof value === "string" && (VERIFICATION_STATUSES as readonly string[]).includes(value)
     ? (value as VerificationStatus)
@@ -170,11 +206,13 @@ export function resolveSnapshotSignalState(signal: {
   if (signal.key === "verification_package") {
     return status === "missing" ? "UNAVAILABLE" : "NOT_APPLICABLE";
   }
-  // A legacy anchoring `passed` was awarded for a txid on the row, not for a
-  // validated proof; a stored snapshot cannot be re-validated, so it states
-  // nothing about anchoring. Only an explicit PASSED (a validated proof) counts.
-  if (signal.key === "bitcoin_anchoring" && status === "passed") {
-    return "UNAVAILABLE";
+  // A legacy anchoring `passed` / `anchored` / `finalized` was awarded when the
+  // record carried a Bitcoin attestation (2026-10-18): what that artifact stated
+  // at issue is an attestation RECORDED — never independently verified, and
+  // never "unavailable" (it was there). Only an explicit CHAIN_VERIFIED counts
+  // as verified (above).
+  if (signal.key === "bitcoin_anchoring" && (status === "passed" || status === "anchored" || status === "finalized")) {
+    return "PRESENT_NOT_INDEPENDENTLY_VERIFIED";
   }
   // Likewise a legacy timestamp `passed` predates "only a validated token
   // passes" (a STAMPED token could pass unvalidated): it says only that a
@@ -318,7 +356,9 @@ export const OTS_TRUST_BY_VERIFICATION: Readonly<Record<OtsVerificationKey, Trus
   PENDING: "PENDING",
   ATTESTATION_RECORDED: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
   CHAIN_CONFIRMATIONS_PENDING: "PENDING",
-  CHAIN_UNAVAILABLE: "UNAVAILABLE",
+  // An unavailable verifier changes nothing about the attestation: still
+  // recorded, still not independently checked (NOT_CHECKED + VERIFIER_UNAVAILABLE).
+  CHAIN_UNAVAILABLE: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
   CHAIN_FAILED: "FAILED",
   CHAIN_VERIFIED: "PASSED",
   FAILED: "FAILED",
@@ -347,6 +387,22 @@ export function otsVerificationOfSignalState(state: TrustSignalState, marker: un
       return "NOT_REQUESTED";
     default:
       return "UNAVAILABLE";
+  }
+}
+
+/** The qualifiers an OpenTimestamps verification key carries (never a status). */
+export function otsQualifiersOf(verification: OtsVerificationKey): VerificationQualifier[] {
+  switch (verification) {
+    case "ATTESTATION_RECORDED":
+      return ["ATTESTATION_RECORDED"];
+    case "CHAIN_CONFIRMATIONS_PENDING":
+      return ["ATTESTATION_RECORDED", "PENDING"];
+    case "CHAIN_UNAVAILABLE":
+      return ["ATTESTATION_RECORDED", "VERIFIER_UNAVAILABLE"];
+    case "PENDING":
+      return ["PENDING"];
+    default:
+      return [];
   }
 }
 

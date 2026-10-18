@@ -368,7 +368,12 @@ export type EvidenceProjectionInput = {
      *  fixtures pre-dating the audit) may omit this field; the
      *  projection treats undefined the same as null (no badge). */
     lockedAt?: Date | null;
-    publicVerifyState: string | null;
+    /**
+     * (2026-10-18) The canonical page's disclosure policy and access state. The
+     * retired publication state is never read.
+     */
+    verificationDisclosureMode: string | null;
+    verificationAccessState?: string | null;
     storageObjectLockLegalHoldStatus: string | null;
     retentionPolicySource: string | null;
     retentionUntilUtc: Date | null;
@@ -473,7 +478,8 @@ export function buildEvidenceProjection(
   }
 
   const legalHoldState = evidence.storageObjectLockLegalHoldStatus ?? null;
-  const publicVerifyState = evidence.publicVerifyState ?? null;
+  const disclosureMode = evidence.verificationDisclosureMode ?? null;
+  const pageAccess = evidence.verificationAccessState ?? "AVAILABLE";
   const extractedChunks = (input.extractedTextChunks ?? []).filter(
     (s): s is string => typeof s === "string" && s.length > 0,
   );
@@ -526,11 +532,13 @@ export function buildEvidenceProjection(
   ].filter((s) => s.length > 0);
   const searchableText = sanitiseSearchBody(bodyParts.join("\n").trim());
 
+  // PUBLIC: the record's canonical page discloses its content (content
+  // preview); SUSPENDED: the page is withdrawn or suspended; else INTERNAL.
   const exportState =
-    publicVerifyState === "PUBLISHED"
-      ? "PUBLIC"
-      : publicVerifyState === "SUSPENDED"
-        ? "SUSPENDED"
+    pageAccess === "WITHDRAWN" || pageAccess === "SUSPENDED"
+      ? "SUSPENDED"
+      : disclosureMode === "CONTENT_PREVIEW"
+        ? "PUBLIC"
         : "INTERNAL";
 
   const projection: SearchDocumentProjection = {
@@ -555,7 +563,7 @@ export function buildEvidenceProjection(
       reconstructedProvenance: hasReconstructed
         ? DERIVED_RECONSTRUCTED_PROVENANCE
         : null,
-      publicVerifyState,
+      verificationDisclosureMode: disclosureMode,
       retentionPolicySource: evidence.retentionPolicySource ?? null,
       lifecycleState: lifecycle,
       // Internal to the document — never projected onto a result row. The
@@ -566,7 +574,7 @@ export function buildEvidenceProjection(
     }),
     searchableTags: sanitiseSearchTags([
       evidence.type,
-      publicVerifyState,
+      disclosureMode,
       legalHoldState ? "legal_hold" : null,
       evidence.archivedAt ? "archived" : null,
       // Search-inclusion-audit — surface lockedAt as a "locked"
@@ -586,7 +594,7 @@ export function buildEvidenceProjection(
       extracted.length > 0 ? "derived_text" : null,
       hasReconstructed ? "derived_reconstructed" : null,
     ]),
-    visibilityScope: { publicVerifyState },
+    visibilityScope: { verificationDisclosureMode: disclosureMode, verificationAccessState: pageAccess },
     governanceScope: {
       legalHoldState,
       lifecycleState: lifecycle,

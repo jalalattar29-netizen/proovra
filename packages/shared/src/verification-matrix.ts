@@ -42,12 +42,16 @@ import { resolveEvidenceAcquisition } from "./evidence-acquisition.js";
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   OTS_TRUST_BY_VERIFICATION,
+  otsQualifiersOf,
   otsVerificationOfSignalState,
+  parseVerificationQualifiers,
   resolveSnapshotSignalState,
   toVerificationStatus,
   type TrustSignalState,
+  type VerificationQualifier,
   type VerificationStatus,
 } from "./trust-signal-state.js";
+import { VERIFICATION_DISCLOSURE_MODE_LABELS, type VerificationDisclosureMode } from "./verification-disclosure.js";
 
 export const VERIFICATION_MATRIX_SCHEMA = "PROOVRA_VERIFICATION_MATRIX_V1" as const;
 
@@ -81,7 +85,7 @@ export const VERIFICATION_MATRIX_LABELS: Readonly<Record<VerificationMatrixKey, 
   organization_verification: "Organization verification",
   capture_method: "Capture method",
   pre_proovra_provenance: "Pre-PROOVRA provenance",
-  public_verify_publication: "Public Verify publication",
+  public_verify_publication: "Verification page disclosure",
 };
 
 export type VerificationMatrixRow = {
@@ -103,6 +107,8 @@ export type VerificationMatrixRow = {
   otsState?: OtsState;
   /** The canonical OpenTimestamps verification key, on the ots_anchoring row only. */
   otsVerification?: OtsVerificationKey;
+  /** How the status came about. A qualifier never changes the status. */
+  qualifiers?: VerificationQualifier[];
 };
 
 export type VerificationMatrix = {
@@ -131,8 +137,21 @@ export const VERIFICATION_LIMITATION =
 export type PackageSealFact =
   | { kind: "SELF" }
   | { kind: "PUBLISHED"; sealKeyId: string; sealKeyVersion: number }
+  /**
+   * (2026-10-18) A seal issued before seals were bound to a key id, verified
+   * READ-ONLY now: its signature checks against a PACKAGE_SEAL key PROOVRA
+   * publishes, whose fingerprint is the one the package row recorded.
+   */
+  | { kind: "LEGACY_VERIFIED"; sealKeyId: string; sealKeyVersion: number; completenessVerified?: boolean }
+  /** A seal that could not be checked against a key PROOVRA publishes. */
+  | { kind: "LEGACY_UNBOUND" }
+  /** A seal that was checked and did not verify (signature or key binding). */
+  | { kind: "FAILED" }
   | { kind: "LEGACY" }
   | { kind: "NONE" };
+
+/** The one sentence for a seal not checked against a published PROOVRA key. */
+export const LEGACY_SEAL_NOT_CHECKED_STATEMENT = "Sealed — seal not checked against a published PROOVRA key.";
 
 /**
  * The record's Public Verify publication, as the surface knows it:
@@ -141,11 +160,14 @@ export type PackageSealFact =
  *   DOCUMENT    a generated document: publication can change after it
  */
 export type PublicationFact =
-  | { kind: "THIS_PAGE" }
-  /** The record's canonical verification page: no owner publication step. */
-  | { kind: "CANONICAL" }
-  | { kind: "PUBLISHED" }
-  | { kind: "NOT_PUBLISHED" }
+  /**
+   * The record's permanent verification page (pvr_), disclosing what the
+   * record's disclosure policy allows. Signed-in surfaces state the record's
+   * current policy with the same fact.
+   */
+  | { kind: "CANONICAL"; disclosure: VerificationDisclosureMode }
+  /** A reviewer share link (pvs_): its own disclosure profile applies. */
+  | { kind: "REVIEWER_SHARE" }
   | { kind: "DOCUMENT" };
 
 /** A trust signal as built now or as read from a stored snapshot. */
@@ -159,6 +181,8 @@ export type VerificationSignalInput = {
   otsVerification?: string | null;
   /** bitcoin_anchoring only: the one sentence with its facts. */
   detail?: string | null;
+  /** How the state came about (VERIFICATION_QUALIFIERS); never a status. */
+  qualifiers?: unknown;
 };
 
 export type VerificationIdentityInput = Pick<
@@ -196,14 +220,39 @@ function row(
 function signalRow(
   key: VerificationMatrixKey,
   signal: VerificationSignalInput | undefined,
-  statementFor?: (status: VerificationStatus, summary: string, state: TrustSignalState) => string,
+  statementFor?: (status: VerificationStatus, summary: string, state: TrustSignalState, qualifiers: VerificationQualifier[]) => string,
 ): VerificationMatrixRow {
   if (!signal) return row(key, "UNAVAILABLE", "Not recorded for this record.");
   const state = resolveSnapshotSignalState(signal);
   const status = toVerificationStatus(state);
   const summary = (signal.summary ?? "").trim() || "Not recorded for this record.";
-  return row(key, status, statementFor ? statementFor(status, summary, state) : summary, signal.measuredAtUtc ?? null);
+  const qualifiers = parseVerificationQualifiers(signal.qualifiers);
+  return {
+    ...row(key, status, statementFor ? statementFor(status, summary, state, qualifiers) : summary, signal.measuredAtUtc ?? null),
+    ...(qualifiers.length > 0 ? { qualifiers } : {}),
+  };
 }
+
+/**
+ * THE TSA ROW. A token validated later from the copy retained at intake keeps
+ * VERIFIED and says so (statusLabel, qualifier, the validation time in
+ * measuredAtUtc).
+ */
+function tsaRow(signal: VerificationSignalInput | undefined): VerificationMatrixRow {
+  const r = signalRow("tsa_token", signal, (status, summary, _state, qualifiers) =>
+    status === "VERIFIED"
+      ? qualifiers.includes("VALIDATED_FROM_RETAINED_TOKEN")
+        ? `RFC 3161 timestamp validated from the token retained at intake. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}`
+        : `RFC 3161 timestamp validated. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}`
+      : summary,
+  );
+  return r.status === "VERIFIED" && r.qualifiers?.includes("VALIDATED_FROM_RETAINED_TOKEN")
+    ? { ...r, statusLabel: TSA_RETAINED_TOKEN_STATUS_LABEL }
+    : r;
+}
+
+/** The status words of a timestamp validated later from the token kept at intake. */
+export const TSA_RETAINED_TOKEN_STATUS_LABEL = "Verified — validated from the timestamp token retained at intake";
 
 /**
  * THE OTS ROW: the canonical anchoring verification (ots-anchoring.ts), read
@@ -261,6 +310,7 @@ function otsRowOf(verification: OtsVerificationKey, statement: string | null, me
     statusLabel: OTS_VERIFICATION_WORDS[verification],
     otsState: OTS_LIFECYCLE_OF_VERIFICATION[verification],
     otsVerification: verification,
+    ...(otsQualifiersOf(verification).length > 0 ? { qualifiers: otsQualifiersOf(verification) } : {}),
   };
 }
 
@@ -430,13 +480,45 @@ function packageRows(seal: PackageSealFact): VerificationMatrixRow[] {
           "PROOVRA verified that the sealed manifest covers every file in the package before publishing it.",
         ),
       ];
-    case "LEGACY":
+    case "LEGACY_VERIFIED":
       return [
         row(
           "package_signature",
-          "NOT_CHECKED",
-          "Issued before package seals were bound to a published PROOVRA key. Check the seal with the package's README.",
+          "VERIFIED",
+          `Sealed before seals were bound to a key id; the seal verifies against published PROOVRA package-seal key ${seal.sealKeyId} version ${seal.sealKeyVersion}, whose fingerprint the package record carries.`,
         ),
+        seal.completenessVerified === false
+          ? row("package_completeness", "NOT_CHECKED", "The verified seal covers the package's checksum index; not every stored file was re-read here. Check the files with the package's README.")
+          : row(
+              "package_completeness",
+              "VERIFIED",
+              "The verified seal covers the package's checksum index, and every file in the stored package matches it.",
+            ),
+      ];
+    case "LEGACY_UNBOUND":
+      return [
+        { ...row("package_signature", "NOT_CHECKED", LEGACY_SEAL_NOT_CHECKED_STATEMENT), qualifiers: ["LEGACY_SEAL"] },
+        row("package_completeness", "NOT_CHECKED", "Check the package's files against its sealed manifest with the package's README."),
+      ];
+    case "FAILED":
+      return [
+        row(
+          "package_signature",
+          "FAILED",
+          "The package seal did not verify against the PROOVRA key its record names. Do not rely on the package until this is reviewed.",
+        ),
+        row("package_completeness", "NOT_CHECKED", "Completeness is not stated for a package whose seal did not verify."),
+      ];
+    case "LEGACY":
+      return [
+        {
+          ...row(
+            "package_signature",
+            "NOT_CHECKED",
+            "Issued before package seals were bound to a published PROOVRA key. Check the seal with the package's README.",
+          ),
+          qualifiers: ["LEGACY_SEAL"],
+        },
         row("package_completeness", "NOT_CHECKED", "Check the package's files against its manifest with the package's README."),
       ];
     default:
@@ -449,18 +531,20 @@ function packageRows(seal: PackageSealFact): VerificationMatrixRow[] {
 
 function publicationRow(publication: PublicationFact): VerificationMatrixRow {
   switch (publication.kind) {
-    case "THIS_PAGE":
-      return row("public_verify_publication", "VERIFIED", "Published: this is the record's PROOVRA Public Verify page.");
     case "CANONICAL":
       return row(
         "public_verify_publication",
         "NOT_APPLICABLE",
-        "This is the record's permanent PROOVRA verification page; it opens through its verification reference and does not depend on owner publication.",
+        publication.disclosure === "CONTENT_PREVIEW"
+          ? `The record's permanent PROOVRA verification page. Disclosure: ${VERIFICATION_DISCLOSURE_MODE_LABELS.CONTENT_PREVIEW} — the title, item names and safe previews are shown; original files are never offered here.`
+          : `The record's permanent PROOVRA verification page. Disclosure: ${VERIFICATION_DISCLOSURE_MODE_LABELS.VERIFICATION_ONLY} — the complete verification result is shown and the record's content is withheld.`,
       );
-    case "PUBLISHED":
-      return row("public_verify_publication", "VERIFIED", "Published on PROOVRA Public Verify.");
-    case "NOT_PUBLISHED":
-      return row("public_verify_publication", "NOT_APPLICABLE", "Not published for public verification (private record).");
+    case "REVIEWER_SHARE":
+      return row(
+        "public_verify_publication",
+        "NOT_APPLICABLE",
+        "Opened through a reviewer share link; what it discloses is set by that link, which can be revoked or expire.",
+      );
     default:
       return row(
         "public_verify_publication",
@@ -527,9 +611,7 @@ export function buildVerificationMatrix(input: BuildVerificationMatrixInput): Ve
     signalRow("custody_chain", signal("custody_chain")),
     ...packageRows(input.packageSeal),
     // A validated token: what was validated, then the one bounded sentence.
-    signalRow("tsa_token", signal("trusted_timestamp"), (status, summary) =>
-      status === "VERIFIED" ? `RFC 3161 timestamp validated. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}` : summary,
-    ),
+    tsaRow(signal("trusted_timestamp")),
     otsRow(signal("bitcoin_anchoring")),
     signalRow("storage_protection", signal("immutable_storage")),
     ...identityRows(input.identity),
@@ -595,6 +677,7 @@ export function parseVerificationMatrix(value: unknown): VerificationMatrix | nu
       statement: typeof o.statement === "string" ? o.statement : "",
       measuredAtUtc: typeof o.measuredAtUtc === "string" ? o.measuredAtUtc : null,
       ...(typeof o.statusLabel === "string" ? { statusLabel: o.statusLabel } : {}),
+      ...(parseVerificationQualifiers(o.qualifiers).length > 0 ? { qualifiers: parseVerificationQualifiers(o.qualifiers) } : {}),
     });
   }
   return {

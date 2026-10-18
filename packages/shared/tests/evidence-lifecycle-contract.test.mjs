@@ -189,8 +189,8 @@ test("PublicVerifyPublished is a live publication state, not a snapshot", () => 
   const def = getLifecycleStepDefinition("PublicVerifyPublished");
   assert.equal(def.snapshotSemantics, "live");
   assert.ok(
-    def.producedMaterials.includes("evidence.publicVerifyState"),
-    "PublicVerifyPublished must produce evidence.publicVerifyState",
+    def.producedMaterials.includes("evidence.verificationDisclosureMode"),
+    "PublicVerifyPublished must produce the disclosure policy (evidence.verificationDisclosureMode)",
   );
 });
 
@@ -212,13 +212,13 @@ test("OTSAnchoredLater is live-updating-after-snapshot", () => {
 test("steps with custodyEventGap=true name a real reason", () => {
   const gaps = listEvidenceLifecycleSteps().filter((d) => d.custodyEventGap);
   // From the Phase 1 design: DigestComputed, CanonicalFingerprintCreated,
-  // CustodyChainUpdated (meta-writer), PublicVerifyPublished (no enum yet).
+  // CustodyChainUpdated (meta-writer). PublicVerifyPublished's gap closed on
+  // 2026-10-18 (VERIFICATION_DISCLOSURE_CHANGED).
   const gapIds = gaps.map((g) => g.id).sort();
   assert.deepEqual(gapIds, [
     "CanonicalFingerprintCreated",
     "CustodyChainUpdated",
     "DigestComputed",
-    "PublicVerifyPublished",
   ]);
   for (const g of gaps) {
     assert.ok(
@@ -256,13 +256,13 @@ test("material availability derivation reflects only present, non-empty values",
     "evidence.fileSha256": "abc",
     "evidence.fingerprintHash": "",
     "evidence.signatureBase64": null,
-    "evidence.publicVerifyState": "PUBLISHED",
+    "evidence.verificationDisclosureMode": "CONTENT_PREVIEW",
   };
   const avail = deriveLifecycleMaterialAvailability(input);
   assert.equal(avail["evidence.fileSha256"], true);
   assert.equal(avail["evidence.fingerprintHash"], false);
   assert.equal(avail["evidence.signatureBase64"], false);
-  assert.equal(avail["evidence.publicVerifyState"], true);
+  assert.equal(avail["evidence.verificationDisclosureMode"], true);
   assert.equal(avail["evidence.row"], false, "absent material defaults to false");
 });
 

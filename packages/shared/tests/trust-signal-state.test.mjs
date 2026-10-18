@@ -66,17 +66,18 @@ test("every state has one presentation, and only PASSED is a passed signal", () 
 });
 
 test("legacy snapshots without a state are re-read conservatively", () => {
-  // A legacy anchoring "passed" was awarded for a txid on the row, not for a
-  // proof executed to a Bitcoin attestation: it reads UNAVAILABLE, never anchored.
+  // (2026-10-18) A legacy anchoring "passed" was awarded when the record carried
+  // a Bitcoin attestation: at issue it stated an attestation RECORDED — never
+  // independently verified (PASSED) and never "unavailable" (it was there).
   assert.equal(
     resolveSnapshotSignalState({
       key: "bitcoin_anchoring",
       status: "passed",
       summary: "OpenTimestamps proof anchored to a Bitcoin block; not checked against the Bitcoin chain",
     }),
-    "UNAVAILABLE",
+    "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
   );
-  assert.equal(resolveSnapshotSignalState({ key: "bitcoin_anchoring", status: "passed", summary: "Anchored in Bitcoin" }), "UNAVAILABLE");
+  assert.equal(resolveSnapshotSignalState({ key: "bitcoin_anchoring", status: "passed", summary: "Anchored in Bitcoin" }), "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
   // An explicit PASSED stored before independent chain verification existed
   // is an attestation the proof named — present, never verified. Only a
   // snapshot that marks the chain verification keeps PASSED.
@@ -133,7 +134,11 @@ test("OTS: the state comes from the proof bytes; only a valid upgraded proof is 
   assert.equal(borrowed.state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
   // Pending confirmations, verifier unavailable and a chain contradiction are never PASSED.
   assert.equal(ots({ proofBase64: ANCHORED_PROOF.base64, chain: chainRecordFor(ANCHORED_PROOF, { status: "INSUFFICIENT_CONFIRMATIONS" }) }).state, "PENDING");
-  assert.equal(ots({ proofBase64: ANCHORED_PROOF.base64, chain: chainRecordFor(ANCHORED_PROOF, { status: "UNAVAILABLE" }) }).state, "UNAVAILABLE");
+  // (2026-10-18) An unavailable verifier concludes nothing: the attestation is
+  // still recorded and still not independently checked.
+  const verifierDown = ots({ proofBase64: ANCHORED_PROOF.base64, chain: chainRecordFor(ANCHORED_PROOF, { status: "UNAVAILABLE" }) });
+  assert.equal(verifierDown.state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
+  assert.equal(verifierDown.otsVerification, "CHAIN_UNAVAILABLE");
   assert.equal(ots({ proofBase64: ANCHORED_PROOF.base64, chain: chainRecordFor(ANCHORED_PROOF, { status: "FAILED" }) }).state, "FAILED");
   // Status ANCHORED + anchored-at over the real pending proof: PENDING, no measured time.
   const claimed = ots({ proofBase64: REAL.boundProofBase64, anchoredAtUtc: "2026-10-01T00:00:00Z" });

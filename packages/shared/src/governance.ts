@@ -18,26 +18,9 @@
 // State catalogs
 // -----------------------------------------------------------------------------
 
-export const PUBLIC_VERIFY_STATES = [
-  "NOT_PUBLISHED",
-  "PUBLISHED",
-  "SUSPENDED",
-  "UNPUBLISHED",
-] as const;
-export type PublicVerifyState = (typeof PUBLIC_VERIFY_STATES)[number];
-
-/**
- * Returns true when the state allows the public verify route to
- * surface the record. The route adds its own additional gates
- * (status === SIGNED / REPORTED, policy.allowPublicVerify, etc.) —
- * this predicate just answers "is the explicit publication state
- * compatible with being shown".
- */
-export function publicVerifyStateAllowsAccess(
-  state: PublicVerifyState,
-): boolean {
-  return state === "PUBLISHED";
-}
+// The publication-state catalog was RETIRED on 2026-10-18: a record's canonical
+// verification page is governed by its access state and its disclosure policy
+// (verification-disclosure.ts), never by a publication state.
 
 export const RETENTION_POLICY_SOURCES = [
   "WORKSPACE_DEFAULT",

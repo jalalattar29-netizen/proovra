@@ -38,9 +38,14 @@ const otsRowOf = (decision) =>
     publication: { kind: "DOCUMENT" },
   }).rows.find((r) => r.key === "ots_anchoring");
 
-test("a legacy stored anchoring pass reads UNAVAILABLE — the cause of the production contradiction", () => {
+// (2026-10-18) A legacy anchoring pass was awarded for a Bitcoin attestation
+// on the record: at issue it stated an attestation RECORDED (never verified,
+// never "unavailable"). The shipped proof still decides the package row below.
+test("a legacy stored anchoring pass reads ATTESTATION_RECORDED (Not checked), never Unavailable or Verified", () => {
   const stored = readStoredTrustDecision(legacySnapshot);
-  assert.equal(otsRowOf(stored).otsState, "UNAVAILABLE");
+  assert.equal(otsRowOf(stored).otsState, "ANCHORED");
+  assert.equal(otsRowOf(stored).otsVerification, "ATTESTATION_RECORDED");
+  assert.equal(otsRowOf(stored).status, "NOT_CHECKED");
 });
 
 test("withShippedAnchoring: the matrix states the anchoring of the proof the package ships (real upgraded proof)", () => {

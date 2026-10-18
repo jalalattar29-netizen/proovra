@@ -19,6 +19,7 @@ import {
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   TRUST_SIGNAL_STATE_PRESENTATION,
+  otsQualifiersOf,
   otsTrustStateOf,
   otsVerificationOfSignalState,
   resolveOtsTrustState,
@@ -26,6 +27,7 @@ import {
   resolveTsaTrustState,
   toVerificationStatus,
   type TrustSignalState,
+  type VerificationQualifier,
 } from "./trust-signal-state.js";
 import {
   VERIFICATION_MATRIX_LABELS,
@@ -99,6 +101,8 @@ export type TrustSignal = {
   detail: string;
   /** bitcoin_anchoring only: the canonical OTS verification key (CHAIN_VERIFIED is the only PASSED). */
   otsVerification?: OtsVerificationKey;
+  /** How the state came about (never a status; see VERIFICATION_QUALIFIERS). */
+  qualifiers?: VerificationQualifier[];
 };
 
 /**
@@ -234,6 +238,13 @@ export type TrustDecisionEvidenceInput = {
   /** True when the RFC 3161 token is kept on the record. */
   tsaTokenPresent?: boolean | null;
   tsaValidatedAtUtc?: string | null;
+  /**
+   * (2026-10-18) The validation was performed LATER, by the repair that
+   * validated the token kept at intake (custody repair_source
+   * "tsa_kept_token_validated"). The timeline stays truthful: intake marked the
+   * timestamp FAILED, reports issued before the repair state it so.
+   */
+  tsaValidatedFromRetainedToken?: boolean | null;
   otsStatus?: string | null;
   otsHash?: string | null;
   otsAnchoredAtUtc?: string | null;
@@ -376,9 +387,11 @@ function makeSignal(params: {
   // as "Recorded" rather than "Verified".
   tone?: TrustDecisionTone;
   otsVerification?: OtsVerificationKey;
+  qualifiers?: VerificationQualifier[];
 }): TrustSignal {
   return {
     ...(params.otsVerification ? { otsVerification: params.otsVerification } : {}),
+    ...(params.qualifiers && params.qualifiers.length > 0 ? { qualifiers: params.qualifiers } : {}),
     key: params.key,
     label: params.label,
     state: params.state,
@@ -598,6 +611,11 @@ function buildSignatureSignal(
 }
 
 
+/** The one wording of a timestamp validated later from the token kept at intake. */
+export const TSA_RETAINED_TOKEN_VALIDATED_SUMMARY = "Verified — validated from the timestamp token retained at intake";
+export const TSA_RETAINED_TOKEN_VALIDATED_DETAIL =
+  "The RFC 3161 token was obtained at intake and kept; validation did not run then, so intake recorded the timestamp as not validated and reports issued before the validation state it that way. The kept token was later validated (signature, certificate chain and certified digest) without contacting the timestamp authority again.";
+
 function buildTimestampSignal(
   evidence: TrustDecisionEvidenceInput
 ): TrustSignal {
@@ -634,6 +652,19 @@ function buildTimestampSignal(
     NOT_APPLICABLE: "",
   };
 
+  // (2026-10-18) A token validated later from the copy retained at intake: the
+  // same VERIFIED state, stated with how and when it was validated.
+  if (tsa.state === "PASSED" && evidence.tsaValidatedFromRetainedToken) {
+    return makeSignal({
+      key: "trusted_timestamp",
+      label: "Trusted timestamp",
+      state: tsa.state,
+      measuredAtUtc: tsa.measuredAtUtc,
+      summary: TSA_RETAINED_TOKEN_VALIDATED_SUMMARY,
+      detail: `${TSA_RETAINED_TOKEN_VALIDATED_DETAIL} ${TSA_VALIDATED_QUALIFICATION_STATEMENT}`,
+      qualifiers: ["VALIDATED_FROM_RETAINED_TOKEN"],
+    });
+  }
   return makeSignal({
     key: "trusted_timestamp",
     label: "Trusted timestamp",
@@ -641,6 +672,7 @@ function buildTimestampSignal(
     measuredAtUtc: tsa.measuredAtUtc,
     summary: tsa.label,
     detail: detail[tsa.state],
+    qualifiers: tsa.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED" ? ["TOKEN_KEPT_NOT_VALIDATED"] : [],
   });
 }
 
@@ -675,6 +707,7 @@ function anchoringSignalOf(ots: ReturnType<typeof otsTrustStateOf>): TrustSignal
     summary: OTS_VERIFICATION_WORDS[ots.otsVerification],
     detail: ots.label,
     otsVerification: ots.otsVerification,
+    qualifiers: otsQualifiersOf(ots.otsVerification),
   });
 }
 

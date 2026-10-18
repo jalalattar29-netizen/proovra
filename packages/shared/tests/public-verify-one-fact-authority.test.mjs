@@ -63,16 +63,22 @@ test("RFC 3161: a request that obtained no token stays failed (\"none was obtain
   assert.equal(basic({}).timestamp.state, "failed");
 });
 
-test("Publication: the canonical page never claims an owner publication step", () => {
-  const row = buildVerificationMatrix({
-    signals: [],
-    identity: null,
-    acquisitionMode: null,
-    acquisitionModeSource: null,
-    packageSeal: { kind: "NONE" },
-    publication: { kind: "CANONICAL" },
-  }).rows.find((r) => r.key === "public_verify_publication");
-  assert.equal(row.status, "NOT_APPLICABLE");
-  assert.match(row.statement, /does not depend on owner publication/);
-  assert.doesNotMatch(row.statement, /^Published/);
+test("Disclosure: the canonical page states its disclosure policy and never claims an owner publication step", () => {
+  const rowFor = (disclosure) =>
+    buildVerificationMatrix({
+      signals: [],
+      identity: null,
+      acquisitionMode: null,
+      acquisitionModeSource: null,
+      packageSeal: { kind: "NONE" },
+      publication: { kind: "CANONICAL", disclosure },
+    }).rows.find((r) => r.key === "public_verify_publication");
+  for (const disclosure of ["VERIFICATION_ONLY", "CONTENT_PREVIEW"]) {
+    const row = rowFor(disclosure);
+    assert.equal(row.status, "NOT_APPLICABLE");
+    assert.match(row.statement, /permanent PROOVRA verification page/);
+    assert.doesNotMatch(row.statement, /^Published/);
+  }
+  assert.match(rowFor("VERIFICATION_ONLY").statement, /Verification only — the complete verification result is shown and the record.s content is withheld/);
+  assert.match(rowFor("CONTENT_PREVIEW").statement, /Content preview — .*original files are never offered/);
 });

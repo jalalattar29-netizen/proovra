@@ -16,7 +16,6 @@ import assert from "node:assert/strict";
 import {
   CASE_LEGAL_HOLD_STATUSES,
   DEFAULT_REDACTION_POLICY,
-  PUBLIC_VERIFY_STATES,
   REDACTION_FIELDS,
   REDACTION_MODES,
   REDACTION_SCOPES,
@@ -25,29 +24,12 @@ import {
   maskEmail,
   maskGpsCoordinate,
   maskPhone,
-  publicVerifyStateAllowsAccess,
   resolveRedactionPolicy,
 } from "../dist/index.js";
 
 // -----------------------------------------------------------------------------
 // Catalogs
 // -----------------------------------------------------------------------------
-
-test("PUBLIC_VERIFY_STATES has the four canonical states", () => {
-  assert.deepEqual([...PUBLIC_VERIFY_STATES].sort(), [
-    "NOT_PUBLISHED",
-    "PUBLISHED",
-    "SUSPENDED",
-    "UNPUBLISHED",
-  ]);
-});
-
-test("publicVerifyStateAllowsAccess — only PUBLISHED is visible", () => {
-  assert.equal(publicVerifyStateAllowsAccess("PUBLISHED"), true);
-  for (const s of ["NOT_PUBLISHED", "SUSPENDED", "UNPUBLISHED"]) {
-    assert.equal(publicVerifyStateAllowsAccess(s), false, s);
-  }
-});
 
 test("RETENTION_POLICY_SOURCES has the four canonical sources", () => {
   assert.deepEqual([...RETENTION_POLICY_SOURCES].sort(), [
