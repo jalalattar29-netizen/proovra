@@ -15,8 +15,10 @@
  *      before the click; after it, real tiles at the recorded z/x/y, marker,
  *      accuracy radius, attribution — desktop and phone.
  *   2. Tiles failing after consent: the Recorded location card, facts kept.
- *   3. Public Verify of a PUBLISHED record: the same, consent first.
- *   4. Public Verify of an UNPUBLISHED record: no coordinates in the API
+ *   3. Public Verify of a record whose owner decided to show its recorded
+ *      location (CONTENT_PREVIEW + show_recorded_location): the Recorded
+ *      Location card, consent first.
+ *   4. Public Verify of a VERIFICATION_ONLY record: no coordinates in the API
  *      answer or the page, no consent control, no tile request.
  */
 import { deflateSync } from "node:zlib";
@@ -199,7 +201,8 @@ test("TILES FAIL after consent: the Recorded location card with the same facts �
 test("PUBLIC VERIFY, published: consent first, then the same real map; unpublished: no coordinates, no control, no tile request", async ({ browser }) => {
   test.setTimeout(300_000);
   await clearTestRateLimits();
-  sql(`UPDATE evidence SET public_verify_state = 'PUBLISHED' WHERE id = $1`, [evidenceId]);
+  // The owner's explicit location decision: CONTENT_PREVIEW with the recorded location shown.
+  sql(`UPDATE evidence SET verification_disclosure_mode = 'CONTENT_PREVIEW', show_recorded_location = true WHERE id = $1`, [evidenceId]);
   const pub = (await (await fetch(`${API_BASE}/public/verify/${ref}`)).json()) as { captureContext?: { lat: number; lng: number; accuracyMeters: number } };
   expect(pub.captureContext).toMatchObject({ lat: LAT, lng: LNG, accuracyMeters: ACCURACY });
 
@@ -210,6 +213,10 @@ test("PUBLIC VERIFY, published: consent first, then the same real map; unpublish
     await p.goto(`/verify/${ref}`);
     const consent = p.locator('[data-capture-location-map="consent"]');
     await expect(consent).toBeVisible({ timeout: 90_000 });
+    // The Recorded Location card states the location as recorded / device-reported — never verified.
+    const card = p.getByTestId("verify-recorded-location");
+    await expect(card).toContainText("Recorded Location");
+    await expect(card).not.toContainText(/\bverified\b/i);
     await p.waitForTimeout(1_500);
     expect(seen, "Public Verify requested a tile before consent").toEqual([]);
     await consent.locator('[data-map-action="load-interactive-map"]').click();
@@ -224,7 +231,7 @@ test("PUBLIC VERIFY, published: consent first, then the same real map; unpublish
 
     // UNPUBLISHED: the API withholds the location, so there is nothing to draw
     // and nothing that reveals a hidden location exists.
-    sql(`UPDATE evidence SET public_verify_state = 'NOT_PUBLISHED' WHERE id = $1`, [evidenceId]);
+    sql(`UPDATE evidence SET show_recorded_location = false, verification_disclosure_mode = 'VERIFICATION_ONLY' WHERE id = $1`, [evidenceId]);
     await clearTestRateLimits();
     const raw = await (await fetch(`${API_BASE}/public/verify/${ref}`)).text();
     for (const leak of ["52.52", "13.40", '"captureContext":{']) expect(raw, `the API leaks ${leak}`).not.toContain(leak);
