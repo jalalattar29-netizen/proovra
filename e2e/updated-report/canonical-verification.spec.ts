@@ -102,8 +102,8 @@ test("SIGNING: a new record's permanent pvr_ reference is issued at finalization
   const a = await access(id);
   expect(a).toMatchObject({ status: "AVAILABLE", reference: fresh.ref, verifyPath: `/verify/${fresh.ref}`, refusalReason: null });
   expect(await workspaceCanonical(id)).toMatchObject({ status: a.status, reference: a.reference, verifyPath: a.verifyPath });
-  // Publication never decides it.
-  sql(`UPDATE evidence SET public_verify_state = 'NOT_PUBLISHED' WHERE id = $1`, [id]);
+  // The disclosure policy never decides it (it decides what the page shows).
+  sql(`UPDATE evidence SET verification_disclosure_mode = 'VERIFICATION_ONLY', show_recorded_location = false WHERE id = $1`, [id]);
   expect((await access(id)).verifyPath).toBe(`/verify/${fresh.ref}`);
 });
 
@@ -156,7 +156,7 @@ test("PRE-CANONICAL: no stand-in link; the backfill issues the reference without
   sql(
     `DO $$ BEGIN
        ALTER TABLE evidence DISABLE TRIGGER evidence_verification_ref_set_once;
-       UPDATE evidence SET verification_ref = NULL, public_verify_state = 'PUBLISHED',
+       UPDATE evidence SET verification_ref = NULL, verification_disclosure_mode = 'CONTENT_PREVIEW',
          legacy_verify_uuid_until_utc = now() + interval '90 days' WHERE id = '${id}';
        ALTER TABLE evidence ENABLE TRIGGER evidence_verification_ref_set_once;
      END $$;`,
@@ -178,8 +178,10 @@ test("PRE-CANONICAL: no stand-in link; the backfill issues the reference without
   await page.waitForSelector(".evidence-detail-hero", { timeout: 60_000 });
   const disabled = page.locator('button[data-evidence-action="open-verification-link"]').first();
   await expect(disabled).toBeDisabled();
-  // The printed record-id link still opens inside the grace (historical page).
-  expect((await publicVerify(id)).status).toBe(200);
+  // (2026-10-18) A record-id link opens only the canonical page, so before the
+  // record holds its reference it is the uniform 404 — the backfill below is
+  // what makes the printed link work again (run it with every deploy).
+  expect((await publicVerify(id)).status).toBe(404);
 
   // THE OPERATOR BACKFILL: dry run changes nothing; apply issues; rerun is a no-op.
   const dry = backfill(false);
