@@ -99,7 +99,7 @@ import {
   hasCoreCryptoMaterials,
   isIntegrityVerified,
   normalizeStorageTone,
-  normalizeTimestampTone,
+  timestampToneOf,
 } from "./truth-model.js";
 import {
   buildOrganizationDisplay,
@@ -1406,14 +1406,13 @@ const primaryContentItem = resolvePrimaryContentItem(
     primaryContentItem?.originalFileName ?? primaryContentItem?.label
   );
   const mismatchSummary = buildMismatchNarrative({
-    evidence: otsEvidence,
+    trustDecision,
     integrityVerified,
     forensicEventCount: custody.forensic.length,
   });
 
-  const timestampTone = normalizeTimestampTone(
-    canonicalMaterials.timestampState.tsaStatus
-  );
+  // THE canonical TSA reading (the trust decision's signal), never a raw word.
+  const timestampTone = timestampToneOf(trustDecision);
   const storageTone = normalizeStorageTone(
     canonicalMaterials.storageState.isProtected,
     canonicalMaterials.storageState.storageObjectLockMode,

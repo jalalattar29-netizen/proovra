@@ -23,9 +23,11 @@ import {
   mapTimestampStatusPublicLabel,
 } from "./normalizers.js";
 import {
+  TSA_RETAINED_TOKEN_STATUS_LABEL,
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   formatTimestampForReportUtc,
 } from "@proovra/shared";
+import { timestampSignalOf, timestampToneOf } from "./truth-model.js";
 import { buildOtsAnchoringRows, otsReportBoundary, otsVerificationLabelFor, reportOtsAnchoring } from "./ots-presentation.js";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 
@@ -43,21 +45,6 @@ export function getTimestampDigestValueLabel(params: {
   return isMultipart
     ? "Timestamped Digest / Canonical Package Digest"
     : "Timestamped Digest / Original File SHA-256";
-}
-
-function mapTimestampTone(status: string | null | undefined): Tone {
-  const value = safe(status, "").toUpperCase();
-
-  if (["STAMPED", "GRANTED", "VERIFIED", "SUCCEEDED"].includes(value)) {
-    return "success";
-  }
-  if (["PENDING", "UNAVAILABLE", "RECORDED_NOT_VALIDATED"].includes(value)) {
-    return "warning";
-  }
-  if (value === "FAILED") {
-    return "danger";
-  }
-  return "neutral";
 }
 
 function isMeaningfulTechnicalRow(row: KeyValueRow): boolean {
@@ -374,12 +361,16 @@ const fingerprintRows: KeyValueRow[] = [
     fingerprintRows,
     timestampRows: buildTimestampRows(evidence, contentSummary),
     anchoringRows: buildOtsRows(evidence).concat(buildAnchorRows(anchorSummary)),
-    timestampStatusLabel: mapTimestampStatusPublicLabel(
-      canonicalMaterials.timestampState.tsaStatus
-    ),
-    timestampStatusTone: mapTimestampTone(
-      canonicalMaterials.timestampState.tsaStatus
-    ),
+    // A token validated later from the copy retained at intake keeps the
+    // VERIFIED status and states how (the shared matrix's TSA status words).
+    timestampStatusLabel: timestampSignalOf(canonicalMaterials.trustDecision?.decision)?.qualifiers?.includes(
+      "VALIDATED_FROM_RETAINED_TOKEN",
+    )
+      ? TSA_RETAINED_TOKEN_STATUS_LABEL
+      : mapTimestampStatusPublicLabel(canonicalMaterials.timestampState.tsaStatus),
+    // THE canonical TSA reading (resolveTsaTrustState via the trust decision),
+    // projected to its verification status — never a raw status word.
+    timestampStatusTone: timestampToneOf(canonicalMaterials.trustDecision?.decision),
     otsStatusLabel: otsVerificationLabelFor(canonicalMaterials.otsState.verification),
     otsStatusTone: otsTone,
     tsaMessageImprint: safe(evidence.tsaMessageImprint),

@@ -1,14 +1,14 @@
 import {
   isAccessCustodyEventType,
   formatTimestampForReportUtc,
+  type TrustSignal,
 } from "@proovra/shared";
 import {
   ReportCustodyEvent,
   TimelineRow,
   CalloutModel,
-  ReportEvidence,
 } from "./types.js";
-import { normalizeTimestampFailureReason, safe } from "./formatters.js";
+import { safe } from "./formatters.js";
 import {
   mapCustodyEventLabel,
   normalizeReviewerText,
@@ -119,39 +119,45 @@ export function buildTimelineRows(
   });
 }
 
+/**
+ * MISMATCH DETECTION (2026-10-18) — built from the CANONICAL states (the trust
+ * decision's signals, the same states the verification matrix projects), never
+ * from a raw stored status or a stored free-text failure reason:
+ *
+ *   - a layer is a mismatch only when its canonical state is FAILED. A kept
+ *     RFC 3161 token that was not validated is NOT_CHECKED (resolveTsaTrustState),
+ *     never a mismatch; an OpenTimestamps failure is stated in its bounded
+ *     words (the anchoring signal's summary), never the stored reason text;
+ *   - "no mismatch" is stated only when nothing failed — never beside a
+ *     danger issue.
+ */
 export function buildMismatchNarrative(params: {
-  evidence: ReportEvidence;
+  trustDecision: { signals: ReadonlyArray<TrustSignal> };
   integrityVerified: boolean;
   forensicEventCount: number;
 }): CalloutModel {
-  const issues: string[] = [];
+  const failed = params.trustDecision.signals.filter((s) => s.state === "FAILED");
+  // The anchoring signal's detail is its one bounded sentence (presentOtsAnchoring);
+  // every other layer states its bounded summary.
+  const dangerIssues = failed.map((s) => {
+    const words = (s.key === "bitcoin_anchoring" && s.detail.trim() ? s.detail : s.summary).trim();
+    return `${s.label}: ${words.replace(/[.]?$/, ".")}`;
+  });
+  const cautionIssues: string[] = [];
 
-  if (!params.integrityVerified) {
-    issues.push(
+  if (!params.integrityVerified && !failed.some((s) => s.key === "core_integrity")) {
+    cautionIssues.push(
       "Recorded integrity did not reach a verified state and should be reviewed manually."
     );
   }
 
-if (safe(params.evidence.tsaStatus, "").toUpperCase() === "FAILED") {
-  issues.push(normalizeTimestampFailureReason(params.evidence.tsaFailureReason));
-}
-
-  if (safe(params.evidence.otsStatus, "").toUpperCase() === "FAILED") {
-    issues.push(
-      `OpenTimestamps processing reported a failure${
-        params.evidence.otsFailureReason
-          ? `: ${params.evidence.otsFailureReason}`
-          : "."
-      }`
-    );
-  }
-
   if (params.forensicEventCount === 0) {
-    issues.push(
+    cautionIssues.push(
       "No forensic custody events were included in this report payload."
     );
   }
 
+  const issues = [...dangerIssues, ...cautionIssues];
   if (issues.length === 0) {
     return {
       title: "Mismatch detection",
@@ -164,6 +170,6 @@ if (safe(params.evidence.tsaStatus, "").toUpperCase() === "FAILED") {
   return {
     title: "Mismatch detection",
     body: issues.join(" "),
-    tone: issues.length > 1 ? "danger" : "warning",
+    tone: dangerIssues.length > 0 ? "danger" : "warning",
   };
 }
