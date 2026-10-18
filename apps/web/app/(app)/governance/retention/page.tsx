@@ -35,6 +35,7 @@ import { OperationalBreadcrumb } from "../../../../components/navigation/Operati
 import { RetentionInheritanceSummary } from "../../../../components/governance/RetentionInheritanceSummary";
 import { RetentionConflictAlert } from "../../../../components/governance/RetentionConflictAlert";
 import { StatusBadge } from "../../../../components/ui/StatusBadge";
+import { VERIFICATION_DISCLOSURE_MODE_LABELS, parseVerificationDisclosureMode } from "@proovra/shared";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Button } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
@@ -136,7 +137,8 @@ type RetentionCandidate = {
   retentionPolicySource: string | null;
   flaggedAtUtc: string | null;
   caseId: string | null;
-  publicVerifyState: string;
+  /** What the record's permanent verification page discloses. */
+  verificationDisclosureMode: string | null;
 };
 
 const RETENTION_SOURCE_LABEL: Record<
@@ -470,9 +472,12 @@ function RetentionPoliciesPageInner() {
         ),
     },
     {
-      key: "verifyState",
-      header: "Verify state",
-      render: (c) => <StatusBadge status={c.publicVerifyState} />,
+      key: "verificationPage",
+      header: "Verification page",
+      // The shared disclosure vocabulary; an unknown or absent value reads as
+      // the fail-closed default, never as a raw code.
+      render: (c) =>
+        VERIFICATION_DISCLOSURE_MODE_LABELS[parseVerificationDisclosureMode(c.verificationDisclosureMode) ?? "VERIFICATION_ONLY"],
     },
     {
       key: "case",

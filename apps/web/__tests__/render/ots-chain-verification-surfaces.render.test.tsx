@@ -216,14 +216,14 @@ describe("(e) filter chips and admin badges", () => {
     const chips = trustFilterChips({
       otsStatus: "PENDING,UPGRADING,QUEUED",
       tsaStatus: "FAILED",
-      publicVerifyState: "NOT_PUBLISHED",
+      verificationDisclosure: "CONTENT_PREVIEW",
       verificationStatus: "REVIEW_REQUIRED,FAILED",
     });
     const labels = chips.map((c) => c.label);
     expect(labels).toEqual([
       "Trust timestamp: Failed",
       "Bitcoin anchoring: Pending",
-      "Public verification: Not published",
+      "Verification page: Content preview",
       "Needs integrity review",
     ]);
     for (const label of labels) expect(label).not.toMatch(RAW_CODE);

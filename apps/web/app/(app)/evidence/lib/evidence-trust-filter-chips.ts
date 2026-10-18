@@ -5,16 +5,34 @@
  * values are said in the shared OpenTimestamps vocabulary — a stored ANCHORED
  * is "Attestation recorded", never "Anchored" or "Verified".
  */
+import { VERIFICATION_DISCLOSURE_MODE_LABELS, parseVerificationDisclosureMode } from "@proovra/shared";
 import { humaniseCode, otsFilterValueLabel } from "../../../../lib/ots-presentation";
 
-export type TrustChipKey = "tsaStatus" | "otsStatus" | "publicVerifyState" | "verificationStatus" | "status" | "type";
+export type TrustChipKey = "tsaStatus" | "otsStatus" | "verificationDisclosure" | "verificationStatus" | "status" | "type";
 
 export type TrustChipFilters = {
   tsaStatus?: string;
   otsStatus?: string;
-  publicVerifyState?: string;
+  /** The verification page's disclosure (VERIFICATION_ONLY, CONTENT_PREVIEW). */
+  verificationDisclosure?: string;
   verificationStatus?: string;
 };
+
+/**
+ * "Verification only / Content preview" — the shared disclosure vocabulary.
+ * An unknown value is never echoed as a raw code.
+ */
+export function verificationDisclosureFilterLabel(raw: string): string {
+  return Array.from(
+    new Set(
+      raw
+        .split(",")
+        .map((v) => parseVerificationDisclosureMode(v.trim().toUpperCase()))
+        .filter((v): v is NonNullable<typeof v> => v !== null)
+        .map((v) => VERIFICATION_DISCLOSURE_MODE_LABELS[v]),
+    ),
+  ).join(" / ");
+}
 
 /** A comma-separated filter value in words, each distinct word once. */
 export function humaniseTrustFilterValue(raw: string): string {
@@ -39,8 +57,9 @@ export function trustFilterChips(filters: TrustChipFilters): Array<{ key: TrustC
   if (isSet(filters.otsStatus)) {
     chips.push({ key: "otsStatus", label: `Bitcoin anchoring: ${otsFilterValueLabel(filters.otsStatus)}` });
   }
-  if (isSet(filters.publicVerifyState)) {
-    chips.push({ key: "publicVerifyState", label: `Public verification: ${humaniseTrustFilterValue(filters.publicVerifyState)}` });
+  if (isSet(filters.verificationDisclosure)) {
+    const words = verificationDisclosureFilterLabel(filters.verificationDisclosure);
+    if (words) chips.push({ key: "verificationDisclosure", label: `Verification page: ${words}` });
   }
   // Phase HOME-CLOSURE — the "needs integrity review" filter reads as one
   // phrase, not its raw enum union ("REVIEW_REQUIRED, FAILED").
