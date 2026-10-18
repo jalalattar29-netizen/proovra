@@ -196,6 +196,27 @@ export async function loadCanonicalFacts(evidenceId: string): Promise<CanonicalA
 }
 
 /**
+ * The repair marker the API reads too (evidence.routes tsaValidatedFromRetainedToken):
+ * a TIMESTAMP_APPLIED custody event whose payload.repair_source is
+ * "tsa_kept_token_validated" records that the token kept at intake was
+ * validated later. Read from the chain, never inferred from times or statuses.
+ */
+export const TSA_RETAINED_TOKEN_REPAIR_SOURCE = "tsa_kept_token_validated";
+
+export function tsaValidatedFromRetainedToken(
+  custody: ReadonlyArray<{ eventType?: string | null; payload?: unknown }>,
+): boolean {
+  return custody.some(
+    (e) =>
+      e.eventType === "TIMESTAMP_APPLIED" &&
+      Boolean(e.payload) &&
+      typeof e.payload === "object" &&
+      !Array.isArray(e.payload) &&
+      (e.payload as Record<string, unknown>).repair_source === TSA_RETAINED_TOKEN_REPAIR_SOURCE,
+  );
+}
+
+/**
  * THE report payload's timestamp/anchoring fields from one lifecycle row and
  * the custody chain read with it — the one mapping, used when a run prepares
  * its payload and again when it takes its render snapshot. A STAMPED token
@@ -221,6 +242,9 @@ export function reportLifecycleFields(
     tsaFailureReason: row.tsaFailureReason ?? null,
     tsaFailureCode: row.tsaFailureCode ?? null,
     tsaValidatedAtUtc: row.tsaValidatedAtUtc?.toISOString() ?? null,
+    // The shared trust decision reads this only for a timestamp that IS
+    // validated (PASSED); it never upgrades any other state.
+    tsaValidatedFromRetainedToken: tsaValidatedFromRetainedToken(custody),
     otsProofBase64: row.otsProofBase64 ?? null,
     otsHash: row.otsHash ?? null,
     otsStatus: row.otsStatus ?? null,

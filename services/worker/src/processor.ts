@@ -701,7 +701,7 @@ function buildPackageVerificationUrl(packageId: string): string {
   return absoluteInternalUrl(base, `/package/${encodeURIComponent(packageId)}`);
 }
 
-function buildVerifyUrl(verificationRef: string): string {
+export function buildVerifyUrl(verificationRef: string): string {
   const base = envValue(
     "REPORT_VERIFY_BASE_URL",
     "https://app.proovra.com/verify"

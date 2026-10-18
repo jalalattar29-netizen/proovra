@@ -61,6 +61,7 @@ import {
   type OtsChainRecord,
   type OtsState,
   type OtsVerificationKey,
+  type TrustSignal,
   deriveCanonicalWorkspaceScope,
   describeCanonicalWorkspaceScope,
   evidenceLocationSourceLabel,
@@ -2130,6 +2131,69 @@ function buildIntegritySummary(params: {
   };
 }
 
+/**
+ * THE README timestamp line (2026-10-18): the TSA truth from the shared
+ * reading — the package trust decision's trusted-timestamp signal
+ * (resolveTsaTrustState, with the retained-token qualifier) — never from a raw
+ * status word. A token whose validation FAILED is never "not validated", and a
+ * kept token that was never validated is never a failure.
+ */
+export function readmeTimestampTruth(
+  signal: Pick<TrustSignal, "state" | "qualifiers"> | null | undefined,
+): "VALIDATED" | "VALIDATED_FROM_RETAINED_TOKEN" | "TOKEN_KEPT_NOT_VALIDATED" | "VALIDATION_FAILED" | "PENDING" | "NOT_OBTAINED" {
+  switch (signal?.state) {
+    case "PASSED":
+      return signal.qualifiers?.includes("VALIDATED_FROM_RETAINED_TOKEN") ? "VALIDATED_FROM_RETAINED_TOKEN" : "VALIDATED";
+    case "PRESENT_NOT_INDEPENDENTLY_VERIFIED":
+    case "NOT_CHECKED":
+      return "TOKEN_KEPT_NOT_VALIDATED";
+    case "FAILED":
+      return "VALIDATION_FAILED";
+    case "PENDING":
+    case "STALE":
+      return "PENDING";
+    default:
+      return "NOT_OBTAINED";
+  }
+}
+
+export function buildReadmeTimestampLine(params: {
+  hasTimestampToken: boolean;
+  timestampSignal: Pick<TrustSignal, "state" | "summary" | "qualifiers"> | null;
+  timestampStateLabel: string | null;
+  hasTimestampValidationRecord: boolean;
+  evidenceFileSha256: string | null;
+}): string {
+  const truth = readmeTimestampTruth(params.timestampSignal);
+  const digest = params.evidenceFileSha256;
+  const validationRecord = params.hasTimestampValidationRecord
+    ? " timestamp-validation.json records the bounded validation state."
+    : "";
+  if (params.hasTimestampToken) {
+    const what =
+      truth === "VALIDATED_FROM_RETAINED_TOKEN"
+        ? "the RFC 3161 reply (DER) received and retained at intake, which PROOVRA validated later from that retained token"
+        : "the RFC 3161 reply (DER) PROOVRA validated";
+    return `timestamp.tsr
+Included in this package: ${what}. timestamp-validation.json records what that validation established — signature, certificate chain to PROOVRA's configured trust anchor, signer validity at the stamped time, message imprint, nonce and policy — and what it did not (qualified status was not evaluated). The certified digest is evidenceFileSha256 in package-manifest.json${digest ? ` (${digest})` : ""}. See "TIMESTAMP VERIFICATION LEVELS" and "COMMANDS" below.`;
+  }
+  const label =
+    (params.timestampSignal?.summary ?? "").trim() || params.timestampStateLabel || "Not recorded";
+  const statement: Record<ReturnType<typeof readmeTimestampTruth>, string> = {
+    VALIDATED: " It was validated, but the token is not included in this package.",
+    VALIDATED_FROM_RETAINED_TOKEN:
+      " It was validated later from the timestamp token retained at intake, but the token is not included in this package.",
+    TOKEN_KEPT_NOT_VALIDATED:
+      " A reply was received from the timestamp authority and kept, but it was not validated, so it is not presented as a trusted timestamp and is not included.",
+    VALIDATION_FAILED:
+      " A reply was received from the timestamp authority and validating it failed, so it must not be relied on as a trusted timestamp and is not included.",
+    PENDING: " The trusted timestamp was not finalized when this package was assembled.",
+    NOT_OBTAINED: " No trusted timestamp was obtained for this record.",
+  };
+  return `timestamp.tsr
+Not included in this package. Trusted timestamp: ${label}.${statement[truth]}${validationRecord} Integrity verification still relies on hashes, digital signature, preserved originals, custody continuity, and any available anchoring material.`;
+}
+
 function buildReadme(params: {
   evidenceFiles: VerificationEvidenceFile[];
   anchorMode: AnchorMode;
@@ -2142,7 +2206,8 @@ function buildReadme(params: {
   signingKeyVersion?: number;
   hasReportArtifact: boolean;
   hasTimestampToken: boolean;
-  timestampStatus?: string | null;
+  /** THE package trust decision's trusted-timestamp signal (resolveTsaTrustState). */
+  timestampSignal?: Pick<TrustSignal, "state" | "summary" | "qualifiers"> | null;
   ots?: OtsPackageArtifactCompanion | null;
   metadata: VerificationPackageMetadata;
   /** From the seal: when the report was issued and this package assembled. */
@@ -2213,17 +2278,14 @@ The OpenTimestamps and RFC 3161 materials in this package (anchor.json, opentime
 `
       : "";
   const reviewerEvidence = buildReviewerEvidenceMetadata(params.metadata);
-  const timestampStatus = String(params.timestampStatus ?? "").toUpperCase();
 
-  const timestampReadmeLine = params.hasTimestampToken
-    ? `timestamp.tsr
-Included in this package: the RFC 3161 reply (DER) PROOVRA validated. timestamp-validation.json records what that validation established — signature, certificate chain to PROOVRA's configured trust anchor, signer validity at the stamped time, message imprint, nonce and policy — and what it did not (qualified status was not evaluated). The certified digest is evidenceFileSha256 in package-manifest.json${digest ? ` (${digest})` : ""}. See "TIMESTAMP VERIFICATION LEVELS" and "COMMANDS" below.`
-    : `timestamp.tsr
-Not included in this package. Trusted timestamp: ${params.timestampStateLabel ?? "Not recorded"}.${
-        timestampStatus === "FAILED" || timestampStatus === "RECORDED_NOT_VALIDATED"
-          ? " A reply was received from the timestamp authority but PROOVRA did not validate it, so it is not presented as a trusted timestamp and is not included."
-          : ""
-      }${params.hasTimestampValidationRecord ? " timestamp-validation.json records the bounded validation state." : ""} Integrity verification still relies on hashes, digital signature, preserved originals, custody continuity, and any available anchoring material.`;
+  const timestampReadmeLine = buildReadmeTimestampLine({
+    hasTimestampToken: params.hasTimestampToken,
+    timestampSignal: params.timestampSignal ?? null,
+    timestampStateLabel: params.timestampStateLabel ?? null,
+    hasTimestampValidationRecord: params.hasTimestampValidationRecord === true,
+    evidenceFileSha256: digest,
+  });
 
   const verifyUrl = params.packageVerificationUrl ?? null;
   const identitySection = `Package ID: ${safeText(params.packageId, "Not recorded (issued before package identities)")}
@@ -3710,7 +3772,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           signingKeyVersion: data.signingKeyVersion,
           hasReportArtifact: Boolean(data.reportPdf),
           hasTimestampToken,
-          timestampStatus: metadata.tsaStatus ?? null,
+          timestampSignal: packageTrustDecision.signals.find((s) => s.key === "trusted_timestamp") ?? null,
           ots: otsCompanion,
           metadata,
           chronology: data.seal

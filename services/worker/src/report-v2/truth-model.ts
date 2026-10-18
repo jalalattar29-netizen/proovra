@@ -1,4 +1,15 @@
-import { OTS_VERIFICATION_WORDS, isOrganizationVerifiedAtCapture, otsVerificationOfSignalState, presentOtsAnchoring } from "@proovra/shared";
+import {
+  OTS_VERIFICATION_WORDS,
+  TSA_RETAINED_TOKEN_STATUS_LABEL,
+  TSA_VALIDATED_QUALIFICATION_STATEMENT,
+  isOrganizationVerifiedAtCapture,
+  otsVerificationOfSignalState,
+  presentOtsAnchoring,
+  toVerificationStatus,
+  type TrustSignal,
+  type TrustSignalState,
+  type VerificationStatus,
+} from "@proovra/shared";
 import {
   buildEvidenceTrustDecision,
   buildCanonicalEvidenceMaterials,
@@ -20,9 +31,6 @@ import {
   safe,
   safeBooleanLabel,
 } from "./formatters.js";
-import {
-  mapTimestampStatusPublicLabel,
-} from "./normalizers.js";
 
 export function isIntegrityVerified(evidence: ReportEvidence): boolean {
   return isExplicitRecordedIntegrityVerified({
@@ -40,18 +48,68 @@ export function hasCoreCryptoMaterials(evidence: ReportEvidence): boolean {
   });
 }
 
-export function normalizeTimestampTone(
-  status: string | null | undefined
-): Tone {
-  const s = safe(status, "").toUpperCase();
+/**
+ * THE report tone of a canonical verification status (the matrix vocabulary,
+ * packages/shared trust-signal-state). The only tone authority for a
+ * verification layer in the report: a tone is never read from a raw status
+ * word (GRANTED, VERIFIED, SUCCEEDED, FAILED …).
+ */
+export const VERIFICATION_STATUS_TONE: Readonly<Record<VerificationStatus, Tone>> = {
+  VERIFIED: "success",
+  FAILED: "danger",
+  NOT_CHECKED: "warning",
+  UNAVAILABLE: "neutral",
+  NOT_APPLICABLE: "neutral",
+};
 
-  // The presented status: STAMPED is a VALIDATED token and the only success.
-  if (s === "STAMPED") return "success";
-  // ET-TSA-01: a kept, never-validated token is a caution, not a failure;
-  // legacy positive strings never carried a validation either.
-  if (["PENDING", "UNAVAILABLE", "RECORDED_NOT_VALIDATED", "GRANTED", "VERIFIED", "SUCCEEDED"].includes(s)) return "warning";
-  if (s) return "danger";
-  return "neutral";
+export function verificationStatusTone(status: VerificationStatus): Tone {
+  return VERIFICATION_STATUS_TONE[status];
+}
+
+/** The trusted-timestamp signal of a trust decision (resolveTsaTrustState). */
+export function timestampSignalOf(
+  decision: { signals: ReadonlyArray<TrustSignal> } | null | undefined,
+): TrustSignal | null {
+  return decision?.signals.find((s) => s.key === "trusted_timestamp") ?? null;
+}
+
+/** The canonical state of the trusted timestamp; no signal is UNAVAILABLE. */
+export function timestampStateOf(
+  decision: { signals: ReadonlyArray<TrustSignal> } | null | undefined,
+): TrustSignalState {
+  return timestampSignalOf(decision)?.state ?? "UNAVAILABLE";
+}
+
+/**
+ * THE trusted-timestamp status words: the same signal the tone reads, so label
+ * and tone always agree. The signal's summary is resolveTsaTrustState's label
+ * ("RFC 3161 timestamp validated", "Timestamp token recorded; not validated",
+ * "Timestamp token obtained; not validated (no trust anchor was available)",
+ * "Timestamp token obtained; validation failed", "Trusted timestamp not
+ * obtained", …); a token validated later from the copy retained at intake
+ * reads the matrix's TSA_RETAINED_TOKEN_STATUS_LABEL.
+ */
+export function timestampStatusLabelOf(
+  decision: { signals: ReadonlyArray<TrustSignal> } | null | undefined,
+): string {
+  const signal = timestampSignalOf(decision);
+  if (!signal) return "Timestamp not recorded";
+  if (signal.state === "PASSED" && signal.qualifiers?.includes("VALIDATED_FROM_RETAINED_TOKEN")) {
+    return TSA_RETAINED_TOKEN_STATUS_LABEL;
+  }
+  return signal.summary.trim() || "Timestamp not recorded";
+}
+
+/**
+ * THE trusted-timestamp tone: the shared TSA reading (resolveTsaTrustState,
+ * carried by the trust decision's signal) projected to its verification
+ * status. VERIFIED success, FAILED danger, NOT_CHECKED warning, UNAVAILABLE
+ * neutral — a kept token that was never validated is NOT_CHECKED, never danger.
+ */
+export function timestampToneOf(
+  decision: { signals: ReadonlyArray<TrustSignal> } | null | undefined,
+): Tone {
+  return verificationStatusTone(toVerificationStatus(timestampStateOf(decision)));
 }
 
 export function normalizeStorageTone(
@@ -154,44 +212,71 @@ export function buildTimestampCallout(
   canonicalMaterials: CanonicalEvidenceMaterials,
   failureReason: string | null | undefined
 ): CalloutModel {
-  const tone = normalizeTimestampTone(
-    canonicalMaterials.timestampState.tsaStatus
-  );
+  // THE canonical TSA reading (2026-10-18): the trust decision's
+  // trusted-timestamp signal, never the raw stored status. Evidence-output
+  // incident (2026-10-05): a kept reply that was not validated was received —
+  // "could not be obtained" was false — and it is a caution, not a failure.
+  const signal = timestampSignalOf(canonicalMaterials.trustDecision?.decision);
+  const state = signal?.state ?? "UNAVAILABLE";
+  const tone = verificationStatusTone(toVerificationStatus(state));
+  const rawStatus = safe(canonicalMaterials.timestampState?.tsaStatus, "").toUpperCase();
 
-  // Evidence-output incident (2026-10-05): a FAILED status with a KEPT reply
-  // means the authority answered and PROOVRA could not validate the answer
-  // (Production: no trust anchor configured). "Could not be obtained" was
-  // false. Still a failure tone, and still never presented as a timestamp.
-  if (tone === "danger" && canonicalMaterials.timestampState.tokenPresent) {
-    const noAnchor = /trust anchor/i.test(String(failureReason ?? ""));
-    return {
-      title: "Trusted timestamp received but not validated",
-      body:
-        "A timestamp token was received from the timestamp authority, but it could not be validated, so this report does not rely on it as a trusted timestamp." +
-        (noAnchor ? " No timestamp trust anchor was configured to validate it." : ""),
-      tone,
-    };
+  switch (state) {
+    case "PASSED":
+      return signal?.qualifiers?.includes("VALIDATED_FROM_RETAINED_TOKEN")
+        ? {
+            title: "Trusted timestamp validated from the token retained at intake",
+            body:
+              "The RFC 3161 timestamp token received and retained at intake was validated later; the record's timeline keeps the intake outcome. " +
+              TSA_VALIDATED_QUALIFICATION_STATEMENT,
+            tone,
+          }
+        : {
+            title: "Trusted timestamp validated",
+            body:
+              "An RFC 3161 timestamp token was validated and may support later review of when the recorded integrity state existed. " +
+              TSA_VALIDATED_QUALIFICATION_STATEMENT,
+            tone,
+          };
+    case "PRESENT_NOT_INDEPENDENTLY_VERIFIED":
+    case "NOT_CHECKED": {
+      const noAnchor = /trust anchor/i.test(String(failureReason ?? ""));
+      return {
+        title: "Trusted timestamp received but not validated",
+        body:
+          "A timestamp token was received from the timestamp authority and kept, but it has not been validated, so this report does not rely on it as a trusted timestamp." +
+          (noAnchor ? " No timestamp trust anchor was configured to validate it." : ""),
+        tone,
+      };
+    }
+    case "FAILED":
+      return {
+        title: "Trusted timestamp validation failed",
+        body:
+          "A timestamp token was received from the timestamp authority, and validating it failed. It must not be relied on as a trusted timestamp.",
+        tone,
+      };
+    case "PENDING":
+    case "STALE":
+      return {
+        title: "Trusted timestamp not finalized",
+        body:
+          "A trusted timestamp was not finalized in the current report state. The evidence record can still be reviewed using its recorded fingerprint, signature, custody, and storage materials.",
+        tone,
+      };
+    default:
+      return rawStatus === "FAILED" || rawStatus === "UNAVAILABLE"
+        ? {
+            title: "Trusted timestamp could not be obtained",
+            body: normalizeTimestampFailureReason(failureReason),
+            tone,
+          }
+        : {
+            title: "Trusted timestamp not reported",
+            body: "No trusted timestamp record was included.",
+            tone,
+          };
   }
-
-  return {
-    title:
-      tone === "success"
-        ? "Trusted timestamp recorded"
-        : tone === "warning"
-          ? "Trusted timestamp not finalized"
-          : tone === "danger"
-            ? "Trusted timestamp could not be obtained"
-            : "Trusted timestamp not reported",
-    body:
-      tone === "success"
-        ? "An RFC 3161 timestamp record is available and may support later review of when the recorded integrity state existed."
-        : tone === "warning"
-          ? "A trusted timestamp was not finalized in the current report state. The evidence record can still be reviewed using its recorded fingerprint, signature, custody, and storage materials."
-          : tone === "danger"
-            ? normalizeTimestampFailureReason(failureReason)
-            : "No trusted timestamp record was included.",
-    tone,
-  };
 }
 
 /**
@@ -223,7 +308,7 @@ export function buildIntegrityReadinessSummary(
   canonicalMaterials: CanonicalEvidenceMaterials
 ): string {
   return [
-    mapTimestampStatusPublicLabel(canonicalMaterials.timestampState.tsaStatus),
+    timestampStatusLabelOf(canonicalMaterials.trustDecision?.decision),
     safeBooleanLabel(
       canonicalMaterials.storageState.isProtected,
       "Immutable",
@@ -394,6 +479,9 @@ export function buildTrustDecision(params: {
       tsaFailureCode: params.evidence.tsaFailureCode ?? null,
       tsaTokenPresent: Boolean(params.evidence.tsaTokenBase64),
       tsaValidatedAtUtc: params.evidence.tsaValidatedAtUtc ?? null,
+      // (2026-10-18) The same custody marker the API passes: a NEW report issued
+      // after the retained-token repair states how the timestamp was validated.
+      tsaValidatedFromRetainedToken: params.evidence.tsaValidatedFromRetainedToken === true,
       otsStatus: params.evidence.otsStatus,
       otsHash: params.evidence.otsHash,
       otsAnchoredAtUtc: params.evidence.otsAnchoredAtUtc,

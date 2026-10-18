@@ -306,33 +306,6 @@ export function mapCustodyEventLabel(eventType: string | null | undefined, paylo
   return custodyEventLabel(eventType, payload);
 }
 
-export function mapTimestampStatusPublicLabel(
-  status: string | null | undefined
-): string {
-  switch (safe(status, "").toUpperCase()) {
-    case "STAMPED":
-      // The PRESENTED status: STAMPED is a validated token.
-      return "Trusted timestamp validated";
-    case "GRANTED":
-    case "VERIFIED":
-    case "SUCCEEDED":
-      return "Trusted timestamp recorded, not validated";
-    case "RECORDED_NOT_VALIDATED":
-      // ET-TSA-01: a token kept from before validation existed; never validated.
-      return "Trusted timestamp recorded, not validated";
-    case "PENDING":
-      return "Trusted timestamp pending";
-    case "UNAVAILABLE":
-      return "Trusted timestamp unavailable";
-    case "FAILED":
-      // The record holds no validated token; whether one was received is
-      // stated by the canonical TSA state (resolveTsaTrustState).
-      return "Trusted timestamp not validated";
-    default:
-      return "Trusted timestamp not configured";
-  }
-}
-
 export function mapObjectLockModePublicLabel(
   mode: string | null | undefined
 ): string {

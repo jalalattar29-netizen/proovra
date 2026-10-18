@@ -63,7 +63,6 @@ import {
   reportIdentityRows,
   mapObjectLockModePublicLabel,
   mapRecordStatusLabel,
-  mapTimestampStatusPublicLabel,
   mapCustodyEventLabel,
   mapVerificationSourceLabel,
   mapVerificationStatusLabel,
@@ -99,7 +98,8 @@ import {
   hasCoreCryptoMaterials,
   isIntegrityVerified,
   normalizeStorageTone,
-  normalizeTimestampTone,
+  timestampToneOf,
+  timestampStatusLabelOf,
 } from "./truth-model.js";
 import {
   buildOrganizationDisplay,
@@ -552,7 +552,7 @@ function buildVerificationSummaryRows(
   );
   add(
     "Timestamp Status",
-    mapTimestampStatusPublicLabel(canonicalMaterials.timestampState.tsaStatus)
+    timestampStatusLabelOf(canonicalMaterials.trustDecision?.decision)
   );
   add(
     "Anchoring Status",
@@ -619,9 +619,7 @@ function buildReviewReadinessRows(
     },
     {
       label: "Timestamp Status",
-      value: mapTimestampStatusPublicLabel(
-        canonicalMaterials.timestampState.tsaStatus
-      ),
+      value: timestampStatusLabelOf(canonicalMaterials.trustDecision?.decision),
     },
 
 {
@@ -856,9 +854,7 @@ function buildStorageRows(
     },
     {
       label: "RFC 3161 Status",
-      value: mapTimestampStatusPublicLabel(
-        canonicalMaterials.timestampState.tsaStatus
-      ),
+      value: timestampStatusLabelOf(canonicalMaterials.trustDecision?.decision),
     },
     {
       label: "Bitcoin Anchoring Status",
@@ -1214,7 +1210,7 @@ function buildTechnicalAppendixCourtRows(params: {
     },
     {
       label: "Timestamp Material",
-      value: mapTimestampStatusPublicLabel(params.evidence.tsaStatus),
+      value: timestampStatusLabelOf(params.canonicalMaterials.trustDecision?.decision),
     },
 {
   // The Bitcoin anchoring card's sentence (canonical materials).
@@ -1406,14 +1402,13 @@ const primaryContentItem = resolvePrimaryContentItem(
     primaryContentItem?.originalFileName ?? primaryContentItem?.label
   );
   const mismatchSummary = buildMismatchNarrative({
-    evidence: otsEvidence,
+    trustDecision,
     integrityVerified,
     forensicEventCount: custody.forensic.length,
   });
 
-  const timestampTone = normalizeTimestampTone(
-    canonicalMaterials.timestampState.tsaStatus
-  );
+  // THE canonical TSA reading (the trust decision's signal), never a raw word.
+  const timestampTone = timestampToneOf(trustDecision);
   const storageTone = normalizeStorageTone(
     canonicalMaterials.storageState.isProtected,
     canonicalMaterials.storageState.storageObjectLockMode,
@@ -1890,7 +1885,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
         externalMode,
         input.acquisition?.isIntake === true
       ),
-      timestampRows: buildTimestampRows(canonicalMaterials.timestampState, contentSummary),
+      timestampRows: buildTimestampRows(canonicalMaterials.timestampState, contentSummary, canonicalMaterials.trustDecision?.decision),
       otsRows: buildOtsRows(otsEvidence),
       anchorRows: buildAnchorRows(anchorSummary),
       signingKeyReference: buildPublicSigningKeyReference(

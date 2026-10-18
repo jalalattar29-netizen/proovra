@@ -20,12 +20,13 @@ import {
   mapAuthProviderLabel,
   reportIdentityLevelLabel,
   reportIdentityRows,
-  mapTimestampStatusPublicLabel,
 } from "./normalizers.js";
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
+  type TrustSignal,
   formatTimestampForReportUtc,
 } from "@proovra/shared";
+import { timestampStateOf, timestampStatusLabelOf, timestampToneOf } from "./truth-model.js";
 import { buildOtsAnchoringRows, otsReportBoundary, otsVerificationLabelFor, reportOtsAnchoring } from "./ots-presentation.js";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 
@@ -43,21 +44,6 @@ export function getTimestampDigestValueLabel(params: {
   return isMultipart
     ? "Timestamped Digest / Canonical Package Digest"
     : "Timestamped Digest / Original File SHA-256";
-}
-
-function mapTimestampTone(status: string | null | undefined): Tone {
-  const value = safe(status, "").toUpperCase();
-
-  if (["STAMPED", "GRANTED", "VERIFIED", "SUCCEEDED"].includes(value)) {
-    return "success";
-  }
-  if (["PENDING", "UNAVAILABLE", "RECORDED_NOT_VALIDATED"].includes(value)) {
-    return "warning";
-  }
-  if (value === "FAILED") {
-    return "danger";
-  }
-  return "neutral";
 }
 
 function isMeaningfulTechnicalRow(row: KeyValueRow): boolean {
@@ -249,7 +235,9 @@ export function buildTechnicalIdentityRows(
 
 export function buildTimestampRows(
   evidence: ReportEvidence | CanonicalTimestampStateMaterial,
-  contentSummary?: ReportEvidenceContentSummary
+  contentSummary: ReportEvidenceContentSummary | undefined,
+  /** THE trust decision: the canonical trusted-timestamp signal states the status. */
+  trustDecision: { signals: ReadonlyArray<TrustSignal> } | null | undefined,
 ): KeyValueRow[] {
 
   const timestampDigestLabel = getTimestampDigestValueLabel({
@@ -266,10 +254,10 @@ export function buildTimestampRows(
     { label: "Hash Algorithm", value: safe((evidence as ReportEvidence).tsaHashAlgorithm) },
     {
       label: "Timestamp Status",
-      value: mapTimestampStatusPublicLabel(evidence.tsaStatus),
+      value: timestampStatusLabelOf(trustDecision),
     },
     // The validation's scope, stated here once rather than in the signal card.
-    ...(/^trusted timestamp validated$/i.test(mapTimestampStatusPublicLabel(evidence.tsaStatus))
+    ...(timestampStateOf(trustDecision) === "PASSED"
       ? [{ label: "Validation Scope", value: TSA_VALIDATED_QUALIFICATION_STATEMENT }]
       : []),
     {
@@ -372,14 +360,15 @@ const fingerprintRows: KeyValueRow[] = [
     ),
     signatureRows,
     fingerprintRows,
-    timestampRows: buildTimestampRows(evidence, contentSummary),
+    timestampRows: buildTimestampRows(evidence, contentSummary, canonicalMaterials.trustDecision?.decision),
     anchoringRows: buildOtsRows(evidence).concat(buildAnchorRows(anchorSummary)),
-    timestampStatusLabel: mapTimestampStatusPublicLabel(
-      canonicalMaterials.timestampState.tsaStatus
-    ),
-    timestampStatusTone: mapTimestampTone(
-      canonicalMaterials.timestampState.tsaStatus
-    ),
+    // A token validated later from the copy retained at intake keeps the
+    // VERIFIED status and states how (the shared matrix's TSA status words).
+    // The same signal states the words and the tone: they always agree.
+    timestampStatusLabel: timestampStatusLabelOf(canonicalMaterials.trustDecision?.decision),
+    // THE canonical TSA reading (resolveTsaTrustState via the trust decision),
+    // projected to its verification status — never a raw status word.
+    timestampStatusTone: timestampToneOf(canonicalMaterials.trustDecision?.decision),
     otsStatusLabel: otsVerificationLabelFor(canonicalMaterials.otsState.verification),
     otsStatusTone: otsTone,
     tsaMessageImprint: safe(evidence.tsaMessageImprint),
