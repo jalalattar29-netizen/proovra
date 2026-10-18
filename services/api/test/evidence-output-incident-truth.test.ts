@@ -38,19 +38,28 @@ function fn(src: string, name: string): string {
 describe("public verification — a fact about the record, not about ANCHOR_PROVIDER", () => {
   const builder = code(fn(ROUTES, "buildPublicVerificationSummaryBase"));
 
-  it("availability no longer reads the external-anchor provider", () => {
+  // (2026-10-18) The publication model is retired: availability is the
+  // canonical page's ACCESS state, a fact about the record; what the page shows
+  // is the record's disclosure policy. Neither reads the anchor provider.
+  it("availability no longer reads the external-anchor provider — it reads the access state", () => {
     expect(builder).not.toMatch(/params\.anchor\.configured/);
-    expect(builder).toMatch(/const configured = true;/);
-    expect(builder).toMatch(/This record is private\. Publish it, or create a share link/);
+    expect(builder).not.toMatch(/publicVerifyState/);
+    expect(builder).toMatch(/const access = String\(/);
+    expect(builder).toMatch(/if \(access === "WITHDRAWN" \|\| access === "SUSPENDED"\)/);
+    expect(builder).toMatch(/state: "AVAILABLE",\s*enabled: true,/);
+    expect(builder).toMatch(/disclosureMode: policy\.mode,/);
     expect(builder).not.toMatch(/no published verification record is configured/);
   });
 
-  it("the review alert for an unpublished record is informational and never says 'not configured'", () => {
+  it("an AVAILABLE page raises no alert whatever it discloses; only a withdrawn or suspended page warns — never 'not configured'", () => {
     const routeCode = code(ROUTES);
     expect(routeCode).not.toMatch(/label: "Public verification not configured"/);
-    expect(routeCode).toMatch(
-      /case "NOT_CONFIGURED":\s*case "CONFIGURED_NOT_PUBLISHED":\s*operationalAlerts\.push\(\{\s*severity: "info" as const,\s*label: "Not published for public verification"/,
-    );
+    expect(routeCode).not.toMatch(/case "NOT_CONFIGURED":/);
+    expect(routeCode).not.toMatch(/label: "Not published for public verification"/);
+    const alerts = code(fn(ROUTES, "buildResolvedReviewerAlerts"));
+    expect(alerts).not.toMatch(/case "AVAILABLE":/);
+    expect(alerts).toMatch(/case "WITHDRAWN":\s*operationalAlerts\.push\(\{\s*severity: "warning" as const,\s*label: "Verification page withdrawn"/);
+    expect(alerts).toMatch(/case "SUSPENDED":\s*operationalAlerts\.push\(\{\s*severity: "warning" as const,\s*label: "Verification page suspended"/);
   });
 
   it("the web labels both unpublished states the same truthful way", () => {

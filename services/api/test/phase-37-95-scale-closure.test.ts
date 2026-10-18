@@ -70,11 +70,18 @@ describe("Phase 37.95 — public verify enumeration safety", () => {
     expect(GATE).toMatch(/enforceDistinctClientLimit\(\{/);
   });
 
-  it("public verify gates on publicVerifyState (records NOT_PUBLISHED / SUSPENDED return 404)", () => {
-    // The select clause must include publicVerifyState; the route must
-    // check it before responding.
+  // (2026-10-18) The publication gate is RETIRED. Every identifier of a record
+  // resolves to the canonical page's ACCESS state (+ lifecycle) first; a
+  // withdrawn / suspended / retained / purged page answers its own status code
+  // with no record data, and the route never reads publicVerifyState.
+  it("public verify gates on the canonical access state before any record data (never on publicVerifyState)", () => {
     const slice = routeSource(EVIDENCE_ROUTES, "GET", "/public/verify/:id");
-    expect(slice).toMatch(/publicVerifyState/);
+    expect(slice).not.toMatch(/publicVerifyState/);
+    const gate = slice.indexOf('if (canonical.status !== "AVAILABLE") {');
+    const recordRead = slice.indexOf("const evidence = await prisma.evidence.findFirst({");
+    expect(gate).toBeGreaterThan(-1);
+    expect(recordRead).toBeGreaterThan(gate);
+    expect(slice.slice(gate, recordRead)).toMatch(/return reply\.code\(CANONICAL_STATE_HTTP\[canonical\.status\]\)\.send\(\{/);
   });
 
   it("public verify never selects internalNotes (operator-private field stays server-side)", () => {
@@ -85,29 +92,49 @@ describe("Phase 37.95 — public verify enumeration safety", () => {
     expect(firstSelect![0]).not.toMatch(/\binternalNotes:\s*true\b/);
   });
 
-  it("public verify response handler does NOT echo storageKey / storageBucket back to the client", () => {
+  it("public verify response handler does NOT echo storageKey / storageBucket back to the client", async () => {
     // The SELECT clause may include storage* for internal use (deriving
     // signed package URLs), but the response object MUST NOT echo them.
-    // The success response itself — the handler's one `reply.code(200).send`.
-    // (The handler legitimately passes `storageKey: evidence.storageKey` INTO
-    // `buildPublicEvidenceContent` to match parts; that argument is internal
-    // use, not the response.) Assert storageKey is never one of the keys in
-    // the assembled body.
+    // (2026-10-18) ONE success response: the body the disclosure projection
+    // returns (RICH: projectPublicVerification, BASIC:
+    // projectBasicPublicVerification). The projection is an ALLOWLIST, so the
+    // guarantee is proven on the projection itself, with storage facts
+    // injected everywhere a careless fact set could carry them.
     const handler = routeSource(EVIDENCE_ROUTES, "GET", "/public/verify/:id");
-    // 2026-09-29: TWO success responses — the BASIC tier (Decision B: minimal,
-    // subscription-independent) and the RICH tier. 2026-10-14: a third, the
-    // stripped canonical page; 2026-10-17: REMOVED — every identifier of a
-    // record answers the same BASIC or RICH page. None may echo storage.
-    const marker = "return reply.code(200).send({";
-    const count = handler.split(marker).length - 1;
-    expect(count).toBe(2);
-    for (let occurrence = 0; occurrence < count; occurrence++) {
-      const slice = enclosingSource(handler, marker, "statement", {
-        occurrence,
-        fileName: "evidence.routes.ts",
-      });
-      expect(slice).not.toMatch(/storageKey:\s*evidence\.storageKey/);
-      expect(slice).not.toMatch(/storageBucket/);
+    expect(handler.split("return reply.code(200).send(").length - 1).toBe(1);
+    expect(handler).toContain("return reply.code(200).send(body);");
+    expect(handler).toMatch(/const body =\s*richVerifyEntitled[\s\S]{0,200}\? projectPublicVerification\(/);
+
+    const { projectPublicVerification, projectBasicPublicVerification } = await import(
+      "../src/services/public-verify/public-verify-projection.js"
+    );
+    const leaky = {
+      tier: "RICH",
+      storageKey: "evidence/secret-key.bin",
+      storageBucket: "internal-bucket",
+      overview: { evidenceId: "11111111-1111-4111-8111-111111111111", storageKey: undefined },
+      evidenceContent: {
+        items: [{ index: 0, sha256: "a".repeat(64), storageKey: "evidence/secret-key.bin", storageBucket: "internal-bucket" }],
+      },
+      storageAndTimestamping: { storage: { bucket: "internal-bucket", key: "evidence/secret-key.bin", versionId: "v1" } },
+    };
+    for (const mode of ["VERIFICATION_ONLY", "CONTENT_PREVIEW"] as const) {
+      const disclosure = {
+        mode,
+        recordedLocation: false,
+        source: "RECORD_POLICY" as const,
+        originalDownload: false,
+        withheldStatement: "Withheld by the record’s disclosure policy",
+      };
+      for (const body of [
+        projectPublicVerification(leaky, disclosure as never, { attributionExposed: false }),
+        projectBasicPublicVerification(leaky, disclosure as never),
+      ]) {
+        const wire = JSON.stringify(body);
+        expect(wire).not.toContain("internal-bucket");
+        expect(wire).not.toContain("secret-key.bin");
+        expect(wire).not.toContain("11111111-1111-4111-8111-111111111111");
+      }
     }
   });
 

@@ -90,13 +90,17 @@ describe("runPipelineDetail — every groupBy excludes soft-deleted evidence", (
     );
   });
 
-  it("the publicVerify groupBy ALSO carries `deletedAt: null`", () => {
+  // (2026-10-18) The publication groupBy (publicVerifyState) became the
+  // verification-pages groupBy (disclosure policy × access state); it keeps
+  // the same population.
+  it("the verification-pages groupBy ALSO carries the working-evidence population", () => {
     const start = SRC.indexOf("async function runPipelineDetail");
     const after = SRC.indexOf("\nasync function ", start + 1);
     const body = SRC.slice(start, after > 0 ? after : start + 12_000);
     expect(body).toMatch(
-      /prisma\.evidence\.groupBy\(\{\s*by:\s*\[\s*"publicVerifyState"\s*\][\s\S]*?where:\s*\{\s*AND:\s*\[pop\.workingEvidence\]\s*\}/,
+      /prisma\.evidence\.groupBy\(\{\s*by:\s*\[\s*"verificationDisclosureMode",\s*"verificationAccessState"\s*\][\s\S]*?where:\s*\{\s*AND:\s*\[pop\.workingEvidence\]\s*\}/,
     );
+    expect(body).not.toMatch(/publicVerifyState/);
   });
 
   it("the sibling distinct-evidence counts (reportsReady/packagesReady) still carry `deletedAt: null` — symmetry preserved", () => {

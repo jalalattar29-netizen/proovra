@@ -301,9 +301,22 @@ describe("Phase IA-route-authz — governance mutations stay gated", () => {
     expect(LIFECYCLE).toMatch(/permission:\s*"governance\.policy\.read"/);
   });
 
-  it("evidence publish/unpublish/suspend/restore mutations gate on evidence.publish_verify", () => {
-    const calls = gatedOn(GOV, "evidence.publish_verify") ?? [];
-    expect(calls.length).toBeGreaterThanOrEqual(4);
+  // (2026-10-18) The governance publish/unpublish/suspend/restore mutations
+  // were RETIRED with the publication model. The one mutation that changes
+  // what a verification page discloses — PUT /v1/evidence/:id/verification-disclosure
+  // — gates on the same canonical permission, through the evidence-operation
+  // access authority (ACTIVE membership + capability + anti-enumeration).
+  it("the verification disclosure mutation gates on evidence.publish_verify (the publication mutations are retired)", () => {
+    expect(gatedOn(GOV, "evidence.publish_verify") ?? []).toEqual([]);
+    for (const leg of ["publish", "unpublish", "suspend", "restore"]) {
+      expect(GOV).not.toContain(`"/v1/governance/evidence/:id/${leg}"`);
+    }
+    const RV = readSource("../src/routes/evidence-retention-verification.routes.ts");
+    const put = RV.slice(RV.indexOf('app.put("/v1/evidence/:id/verification-disclosure"'));
+    expect(put.length).toBeGreaterThan(0);
+    expect(put).toMatch(/^app\.put\("\/v1\/evidence\/:id\/verification-disclosure", \{ preHandler: requireAuth \}/);
+    expect(put.slice(0, 2000)).toMatch(/await authorize\(req, reply, id, "evidence\.publish_verify"/);
+    expect(RV).toMatch(/resolveEvidenceOperationAccess\(\{ userId: actorUserId, evidenceId, permission \}\)/);
   });
 
   // PHASE 12B CLUSTER 9: the two `/v1/governance/policy` operations no longer

@@ -296,7 +296,8 @@ describe("identity residual defects (live PostgreSQL 16)", () => {
       sort: "newest",
       tsaStatus: "all",
       otsStatus: "all",
-      publicVerifyState: "all",
+      // (2026-10-18) publicVerifyState was renamed with the disclosure model.
+      verificationDisclosure: "all",
       verificationStatus: "all",
     };
     type Mutation = "patch" | "delete" | "default";

@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 324,
-    "classifiedMigrations": 324,
+    "filesystemMigrations": 325,
+    "classifiedMigrations": 325,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 324,
+    "productionSnapshotUnknown": 325,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 324,
-    "classifiedMigrations": 324,
+    "filesystemMigrations": 325,
+    "classifiedMigrations": 325,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 324,
+    "productionSnapshotUnknown": 325,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
       "EXPAND": 98,
-      "BACKFILL": 25,
+      "BACKFILL": 26,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 111,
+      "SAFE_TO_APPLY_NOW": 112,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 2
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 324
+    "ProductionMigrationStateUnknown": 325
   },
   "gateFailures": [],
   "migrations": [
@@ -24632,8 +24632,89 @@
       "evidence": "CAPTURE ATTEMPT IDEMPOTENCY (2026-10-15, AUD-026). One nullable capture_sessions column client_attempt_id (VARCHAR(64)) and a unique index on (owner_user_id, client_attempt_id); NULLs are distinct, so every existing row is unaffected. A retried direct-capture open carrying the same attempt id returns the same live session instead of opening a second. SAFE BEFORE THE NEW CODE: ADD COLUMN of a nullable column without a default is catalogue-only, and previous images never read or write it; the index is built on a column that is NULL everywhere. APPLY BEFORE the API image (its Prisma client maps the column). READINESS: the count is 1 after apply. No backfill. ROLLBACK is code-first; nothing is dropped. NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281018000000_verification_disclosure_policy",
       "order": 323,
+      "sqlPresent": true,
+      "byteLength": 8604,
+      "checksumSha256": "2eb4000082d6ad8b6f579fb17138f3d222e77df5a7f3288e69ee5447b1fa20a1",
+      "checksumSha256Raw": "2eb4000082d6ad8b6f579fb17138f3d222e77df5a7f3288e69ee5447b1fa20a1",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "BACKFILL",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): evidence, verification_share_tokens",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "evidence",
+          "verification_share_tokens"
+        ],
+        "addedColumns": [
+          "allow_original_download",
+          "show_recorded_location",
+          "verification_disclosure_changed_at_utc",
+          "verification_disclosure_changed_by_user_id",
+          "verification_disclosure_mode",
+          "verification_disclosure_version"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [
+          "custodyeventtype"
+        ],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "evidence_recorded_location_requires_content_preview",
+          "evidence_verification_disclosure_mode_check"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "evidence",
+        "verification_share_tokens"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "evidence",
+        "verification_share_tokens"
+      ],
+      "dependencies": [
+        "20260131235343_init",
+        "20280816000000_verification_share_tokens"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 2,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_name='evidence' AND column_name IN ('verification_disclosure_mode','show_recorded_location','verification_disclosure_version','verification_disclosure_changed_at_utc','verification_disclosure_changed_by_user_id')) || ':' || (SELECT count(*) FROM information_schema.columns WHERE table_name='verification_share_tokens' AND column_name='allow_original_download') || ':' || (SELECT count(*) FROM evidence WHERE public_verify_state = 'PUBLISHED' AND verification_disclosure_mode <> 'CONTENT_PREVIEW' AND verification_disclosure_version = 0) || ':' || (SELECT count(*) FROM verification_share_tokens t JOIN evidence e ON e.id = t.evidence_id WHERE t.purpose = 'OWNER_SHARE' AND t.revoked_at_utc IS NULL AND e.public_verify_state <> 'PUBLISHED')\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": "ROLL_FORWARD — code-first; the backfill and the revocation are conditioned UPDATEs and re-running is a no-op; public_verify_state is not modified, so the previous image keeps its publication state.",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "VERIFICATION DISCLOSURE POLICY (2026-10-18). EXPAND + DETERMINISTIC BACKFILL in one file. EXPAND: evidence.verification_disclosure_mode VARCHAR(24) NOT NULL DEFAULT 'VERIFICATION_ONLY' (CHECK vocabulary VERIFICATION_ONLY | CONTENT_PREVIEW), show_recorded_location BOOLEAN NOT NULL DEFAULT false (CHECK: true only with CONTENT_PREVIEW), verification_disclosure_version INTEGER NOT NULL DEFAULT 0 (compare-and-swap token), verification_disclosure_changed_at_utc / _changed_by_user_id (nullable); verification_share_tokens.allow_original_download BOOLEAN NOT NULL DEFAULT false; CustodyEventType VERIFICATION_DISCLOSURE_CHANGED (administrative). Constant defaults are catalogue-only (no table rewrite). CLASSIFIED BACKFILL because it writes existing rows: (1) evidence whose public_verify_state = 'PUBLISHED' and whose policy is still pristine (version 0, never changed) -> CONTENT_PREVIEW; every other state stays VERIFICATION_ONLY; location is never enabled; (2) every active OWNER_SHARE verification_share_tokens row of a record that is NOT PUBLISHED is revoked with revocation_reason DISCLOSURE_MODEL_MIGRATION (those links answered 404 under the publication model and must never start disclosing). REPORT / PACKAGE links, verification_access_state, evidence bytes, hashes, custody events, retention, reports, packages and storage are untouched. public_verify_state is retired read-only (no writer, no reader in the new image) and kept for a rollback; a later contract migration drops it. IDEMPOTENT: columns IF NOT EXISTS, the backfill conditioned on the pristine policy, the revocation on not-yet-revoked; a re-run is a no-op and never overwrites an owner's later choice. Pre/post aggregate counts are RAISE NOTICEd (no identifiers). SAFE BEFORE THE NEW CODE: the previous image neither reads nor writes the new columns; the links it revokes already answered 404 there. APPLY BEFORE the API and worker images (their Prisma client maps the new columns). Window caveat: a record the previous image publishes between this migration and the new image is not mirrored to CONTENT_PREVIEW (fail closed: it shows verification only until its owner widens it). READINESS: '5:1:0:0' after apply. ROLLBACK is code-first (the previous image reads public_verify_state, which this migration does not modify); the columns may stay; revoked links are not reinstated. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 324,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

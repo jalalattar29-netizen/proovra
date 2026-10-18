@@ -12,25 +12,37 @@ function readSource(rel: string): string {
 describe("evidence detail enterprise integrity backend contract", () => {
   const SRC = readSource("../src/routes/evidence.routes.ts");
 
-  it("review-workspace select + safe evidence projection include publicVerifyState", () => {
-    expect(SRC).toMatch(/publicVerifyState:\s*true,/);
-    expect(SRC).toMatch(/publicVerifyState:\s*e\.publicVerifyState \?\? null,/);
+  // (2026-10-18) The publication model is retired: the review workspace reads
+  // the canonical page's ACCESS state and the record's DISCLOSURE policy — never
+  // publicVerifyState.
+  it("review-workspace select + safe evidence projection carry the access state and the disclosure policy", () => {
+    expect(SRC).not.toMatch(/publicVerifyState/);
+    expect(SRC).toMatch(/verificationAccessState: true,\s*verificationDisclosureMode: true,\s*showRecordedLocation: true,/);
+    expect(SRC).toMatch(/verificationDisclosureMode:\s*e\.verificationDisclosureMode \?\? null,/);
   });
 
-  it("defines the canonical public verification state machine", () => {
-    expect(SRC).toMatch(/type PublicVerificationDetailState =/);
-    for (const state of [
+  it("defines the canonical public verification summary states (access) beside the disclosure policy", () => {
+    const states = SRC.match(/type PublicVerificationDetailState =([\s\S]*?);/);
+    expect(states).not.toBeNull();
+    expect([...states![1].matchAll(/"([A-Z_]+)"/g)].map((m) => m[1])).toEqual([
       "NOT_INCLUDED",
-      "NOT_CONFIGURED",
-      "CONFIGURED_NOT_PUBLISHED",
-      "PUBLISHED",
+      "AVAILABLE",
+      "WITHDRAWN",
       "SUSPENDED",
-      "UNPUBLISHED",
-      "UNKNOWN_ERROR",
-    ]) {
-      expect(SRC).toContain(state);
+    ]);
+    // The retired publication vocabulary is gone from the summary.
+    for (const retired of ["NOT_CONFIGURED", "CONFIGURED_NOT_PUBLISHED", "UNPUBLISHED", "UNKNOWN_ERROR"]) {
+      expect(states![1]).not.toContain(retired);
     }
+    const summaryType = SRC.match(/type ReviewWorkspacePublicVerificationSummary = \{([\s\S]*?)\n\};/);
+    expect(summaryType).not.toBeNull();
+    expect(summaryType![1]).toMatch(/disclosureMode: "VERIFICATION_ONLY" \| "CONTENT_PREVIEW";/);
+    expect(summaryType![1]).toMatch(/showRecordedLocation: boolean;/);
+    expect(summaryType![1]).not.toMatch(/publicationState|published:|configured:/);
     expect(SRC).toMatch(/function buildPublicVerificationSummary/);
+    const base = functionSource(SRC, "buildPublicVerificationSummaryBase");
+    expect(base).toMatch(/const policy = parseVerificationDisclosurePolicy\(params\.evidence\);/);
+    expect(base).toMatch(/if \(access === "WITHDRAWN" \|\| access === "SUSPENDED"\)/);
   });
 
   it("buildResolvedReviewerAlerts consumes publicVerificationSummary and artifactStatus", () => {

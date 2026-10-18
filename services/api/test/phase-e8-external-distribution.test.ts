@@ -331,8 +331,15 @@ describe("E8 Test 4 — backend external surfaces enforce the audited contract",
       expect(EVIDENCE_ROUTES).toMatch(/VERIFY_RATE_LIMIT/);
     });
 
-    it("publication gate: not-published surfaces 404 without state disclosure", () => {
-      expect(EVIDENCE_ROUTES).toMatch(/publicVerifyState/);
+    // (2026-10-18) The publication gate is RETIRED: a record's canonical page
+    // always opens subject to its ACCESS state and lifecycle; an unknown
+    // identifier, and a record id that is not a capability, answer the same
+    // uniform 404 with no state disclosure.
+    it("access gate: the canonical access state decides; unknown identifiers answer a uniform 404 without state disclosure", () => {
+      expect(EVIDENCE_ROUTES).not.toMatch(/publicVerifyState/);
+      expect(EVIDENCE_ROUTES).toMatch(/if \(canonical\.status !== "AVAILABLE"\) \{/);
+      expect(EVIDENCE_ROUTES).toMatch(/denialReason: "record_id_is_not_a_capability"/);
+      expect(EVIDENCE_ROUTES).toMatch(/\/\/ Byte-identical to an id that never existed and to an invalid segment\.\s*return reply\.code\(404\)\.send\(\{ message: "Evidence not found" \}\);/);
     });
 
     it("does not expose storage credentials in the response", () => {

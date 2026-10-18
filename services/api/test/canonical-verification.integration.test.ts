@@ -176,18 +176,21 @@ describe("canonical verification identity (Postgres + Redis + MinIO, real worker
     expect(entries.get("README.txt")?.toString("utf8") ?? "").toContain(ref);
 
     // The anonymous page opens without login: the ESTABLISHED Public Verify
-    // page (never a stripped replacement). The owner has not published this
-    // record, so it is shown verification-only.
+    // page (never a stripped replacement). (2026-10-18) The record's
+    // disclosure policy is the default — VERIFICATION_ONLY — so the page states
+    // the complete verification truth and withholds the content.
     const page = await publicVerify(ref);
     expect(page.statusCode, page.body).toBe(200);
     expect(page.headers["cache-control"]).toBe("no-store");
     const body = page.json();
     expect(body.tier).toBe("RICH");
-    expect(body.disclosure).toBe("VERIFICATION_ONLY");
+    const expectedDisclosure = { mode: "VERIFICATION_ONLY", recordedLocation: false, source: "RECORD_POLICY", originalDownload: false };
+    expect(body.disclosure).toMatchObject(expectedDisclosure);
     expect(body.link).toEqual({ kind: "CANONICAL", expiresAtUtc: null });
-    expect(body.canonicalVerification).toMatchObject({ reference: ref, status: "AVAILABLE", disclosure: "VERIFICATION_ONLY" });
+    expect(body.canonicalVerification).toMatchObject({ reference: ref, status: "AVAILABLE", disclosure: expectedDisclosure });
     expect(body.basicVerification.report.issued).toBe(true);
-    expect(body.evidenceId).toBeNull();
+    // The internal id never leaves (the projection is an allowlist).
+    expect(body).not.toHaveProperty("evidenceId");
     expect(body.contentAccessPolicy).toMatchObject({ allowContentView: false, allowDownload: false });
     const raw = page.body;
     // Values, never keys: the full page carries withheld fields as null.
@@ -324,10 +327,21 @@ describe("canonical verification identity (Postgres + Redis + MinIO, real worker
         now: new Date(),
       } as never),
     );
-    await prisma.evidence.update({ where: { id: evidenceId }, data: { publicVerifyState: "NOT_PUBLISHED" } });
+    // (2026-10-18) The printed link is a canonical identifier: it answers
+    // under the record's own disclosure policy, whatever that is now.
     const legacy = await publicVerify(token);
     expect(legacy.statusCode).toBe(200);
     expect(legacy.json().canonicalVerification).toMatchObject({ reference: ref, status: "AVAILABLE" });
+    expect(legacy.json().disclosure).toMatchObject({ mode: "VERIFICATION_ONLY", source: "RECORD_POLICY", originalDownload: false });
+    await prisma.evidence.update({ where: { id: evidenceId }, data: { verificationDisclosureMode: "CONTENT_PREVIEW" } });
+    const widened = await publicVerify(token);
+    expect(widened.statusCode).toBe(200);
+    expect(widened.json().disclosure).toMatchObject({ mode: "CONTENT_PREVIEW", source: "RECORD_POLICY", originalDownload: false });
+    // (The fixture file's own text names the record id, and a content preview
+    // shows that text — so assert the KEY, not the value, here.)
+    expect(widened.json()).not.toHaveProperty("evidenceId");
+    expect(widened.json().evidenceContent.items[0].id).toMatch(/^item-\d+$/);
+    await prisma.evidence.update({ where: { id: evidenceId }, data: { verificationDisclosureMode: "VERIFICATION_ONLY" } });
     expect(legacy.body).not.toContain(evidenceId);
   }, 120_000);
 

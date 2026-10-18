@@ -329,11 +329,14 @@ describe("UC-1 direct web capture — live PostgreSQL 16", () => {
       expect(done.json().denial).toBe("FINALIZATION_BLOCKED_BY_POLICY");
       const ev = await prisma.evidence.findUniqueOrThrow({
         where: { id: evidenceId },
-        select: { status: true, signedAtUtc: true, publicVerifyState: true },
+        select: { status: true, signedAtUtc: true, verificationDisclosureMode: true, verificationDisclosureVersion: true },
       });
       expect(ev.status).not.toBe("SIGNED");
       expect(ev.signedAtUtc).toBeNull();
-      expect(ev.publicVerifyState).not.toBe("PUBLISHED");
+      // (2026-10-18) A refused finalization discloses nothing: the policy stays
+      // at its column default and no one changed it.
+      expect(ev.verificationDisclosureMode).toBe("VERIFICATION_ONLY");
+      expect(ev.verificationDisclosureVersion).toBe(0);
       // No public verification link is served for it.
       const pub = await app.inject({ method: "GET", url: `/public/verify/${evidenceId}` });
       expect(pub.statusCode).toBe(404);

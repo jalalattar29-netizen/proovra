@@ -703,10 +703,12 @@ export const SCENARIOS: ReadonlyArray<ScenarioSpec> = [
     "Disabling a rule stamps it disabled.", BROWSER_ONLY),
   S("p7.ui.intelligence.provider_budget_created", "ENTERPRISE",
     "Creating a provider budget writes an active budget for the active workspace.", BROWSER_ONLY),
-  S("p7.ui.evidence.public_verify_published", "ENTERPRISE",
-    "Publishing evidence to public verify transitions its publication state.", BROWSER_ONLY),
-  S("p7.ui.evidence.public_verify_unpublished", "ENTERPRISE",
-    "Withdrawing evidence from public verify transitions it back.", BROWSER_ONLY),
+  // (2026-10-18) The publication journeys were retired with the publication
+  // model; the owner now manages what the record's verification page discloses.
+  S("p7.ui.evidence.verification_disclosure_widened", "ENTERPRISE",
+    "Widening a record's verification page to a content preview (step-up) moves its disclosure policy.", BROWSER_ONLY),
+  S("p7.ui.evidence.verification_disclosure_narrowed", "ENTERPRISE",
+    "Narrowing a record's verification page back to verification only moves its disclosure policy back.", BROWSER_ONLY),
   S("p7.ui.redaction.video_frames_and_tracks_authored", "ENTERPRISE",
     "Registering a frame batch and grouping detections into tracks both issue their requests.", BROWSER_ONLY),
 ];

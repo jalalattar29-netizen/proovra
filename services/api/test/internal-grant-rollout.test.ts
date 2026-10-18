@@ -92,6 +92,9 @@ describe("internal-grant rollout — migration state", () => {
       "20281014000000_free_outputs_canonical_verification_retention_archive",
       // Capture attempt idempotency (AUD-026) — EXPAND only.
       "20281015120000_capture_session_client_attempt",
+      // Verification disclosure policy (2026-10-18) — EXPAND + deterministic in-migration backfill
+      // (PUBLISHED -> CONTENT_PREVIEW; hidden OWNER_SHARE links revoked).
+      "20281018000000_verification_disclosure_policy",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

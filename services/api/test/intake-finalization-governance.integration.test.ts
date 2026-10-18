@@ -182,12 +182,15 @@ describe("external intake — finalization governance (live PostgreSQL 16)", () 
 
       const ev = await prisma.evidence.findUniqueOrThrow({
         where: { id: s.evidenceId },
-        select: { status: true, signedAtUtc: true, signatureBase64: true, publicVerifyState: true },
+        select: { status: true, signedAtUtc: true, signatureBase64: true, verificationDisclosureMode: true, verificationDisclosureVersion: true },
       });
       expect(ev.status).not.toBe("SIGNED");
       expect(ev.signedAtUtc).toBeNull();
       expect(ev.signatureBase64).toBeNull();
-      expect(ev.publicVerifyState).not.toBe("PUBLISHED");
+      // (2026-10-18) A refused finalization discloses nothing: the policy stays
+      // at its column default and no one changed it.
+      expect(ev.verificationDisclosureMode).toBe("VERIFICATION_ONLY");
+      expect(ev.verificationDisclosureVersion).toBe(0);
       expect((await publicVerify(s.evidenceId)).statusCode).toBe(404);
       expect(
         await prisma.custodyEvent.count({ where: { evidenceId: s.evidenceId, eventType: "EXPORT_BLOCKED_BY_POLICY" } }),
@@ -195,7 +198,7 @@ describe("external intake — finalization governance (live PostgreSQL 16)", () 
     });
   });
 
-  it("a workspace requiring publication approval finalizes the submission SIGNED but NOT_PUBLISHED; public Verify does not serve it", async () => {
+  it("a workspace requiring publication approval finalizes the submission SIGNED under the default verification-only policy; its record id is not a public link", async () => {
     const { submitExternalIntake } = await import("../src/services/external-intake-orchestration.service.js");
     await withPolicy({ requirePublicationApproval: true }, async () => {
       const s = await submission();
@@ -209,10 +212,13 @@ describe("external intake — finalization governance (live PostgreSQL 16)", () 
       expect((await prisma.workflowIntakeLink.findUniqueOrThrow({ where: { id: s.linkId }, select: { usedCount: true } })).usedCount).toBe(1);
       const ev = await prisma.evidence.findUniqueOrThrow({
         where: { id: s.evidenceId },
-        select: { status: true, publicVerifyState: true },
+        select: { status: true, verificationDisclosureMode: true, verificationDisclosureVersion: true },
       });
       expect(ev.status).toBe("SIGNED");
-      expect(ev.publicVerifyState).toBe("NOT_PUBLISHED");
+      // (2026-10-18) Finalization writes no publication state: the record's page
+      // discloses verification only until its owner explicitly widens it.
+      expect(ev.verificationDisclosureMode).toBe("VERIFICATION_ONLY");
+      expect(ev.verificationDisclosureVersion).toBe(0);
       expect((await publicVerify(s.evidenceId)).statusCode).toBe(404);
     });
   });

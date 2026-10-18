@@ -193,8 +193,11 @@ describe("Phase 31.12 — public verify route wiring", () => {
     // Find the public verify select block and assert teamId is there.
     const start = src.indexOf('"/public/verify/:id"');
     expect(start).toBeGreaterThan(0);
+    // (2026-10-18) The block's end marker was the Phase 14 publication gate,
+    // retired with the publication model; the record select now ends where
+    // the disclosure decision begins.
     const end = src.indexOf(
-      "Phase 14 — additive publication gate",
+      "THE DISCLOSURE DECISION (2026-10-18)",
       start,
     );
     expect(end).toBeGreaterThan(start);

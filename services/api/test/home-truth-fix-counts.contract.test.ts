@@ -96,7 +96,10 @@ describe("HOME-TRUTH-FIX — TrustSummary exposes operationally-truthful counts"
     expect(TRUST_SUMMARY).toMatch(/reportedWithoutPackage:\s*number/);
   });
 
-  it("endToEndReady query requires status=REPORTED AND has Report AND has Package AND not-SUSPENDED", () => {
+  // (2026-10-18) "not SUSPENDED" now reads the canonical page ACCESS state —
+  // the publication state is retired. A withdrawn or suspended page is not
+  // end-to-end ready.
+  it("endToEndReady query requires status=REPORTED AND has Report AND has Package AND an AVAILABLE canonical page", () => {
     // The unique comment marker that immediately precedes the actual
     // count() call body (the phrase "End-to-end ready" alone also
     // appears in the function's leading docstring — we need the
@@ -108,7 +111,8 @@ describe("HOME-TRUTH-FIX — TrustSummary exposes operationally-truthful counts"
     expect(tail).toMatch(/status:\s*"REPORTED"/);
     expect(tail).toMatch(/reports:\s*\{\s*some:\s*\{\s*\}\s*\}/);
     expect(tail).toMatch(/verificationPackages:\s*\{\s*some:\s*primaryPublishedPackageWhere\(\)\s*\}/);
-    expect(tail).toMatch(/publicVerifyState:\s*"SUSPENDED"/);
+    expect(tail).toMatch(/verificationAccessState:\s*"AVAILABLE"/);
+    expect(tail).not.toMatch(/publicVerifyState/);
   });
 
   /*

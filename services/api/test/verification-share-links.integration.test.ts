@@ -1,11 +1,21 @@
 /**
  * ET-PKG-07 — public verification is reached through an opaque, revocable
- * share link, never through the record's id. Live PostgreSQL 16, real HTTP.
+ * share link (or the record's permanent canonical reference), never through
+ * the record's id. Live PostgreSQL 16, real HTTP.
  *
  * On a40ca76f GET /public/verify/<evidence id> served every finalized record:
  * published by default, no expiry, no rotation, and the only way to withdraw
  * one recipient was to unpublish for everyone. The id is the primary key and
  * appears in reports, packages, storage keys and internal URLs.
+ *
+ * (2026-10-18) THE DISCLOSURE CONTRACT. The publication model is retired.
+ * Every identifier of a record answers subject to the record's canonical
+ * ACCESS state (AVAILABLE / WITHDRAWN / SUSPENDED) and lifecycle — a reviewer
+ * share can never weaken it. What an answer DISCLOSES is the record's policy
+ * for a canonical identifier and the link's own profile for a reviewer share
+ * (STANDARD = content preview, BASIC = verification only; originals only with
+ * an explicit allowOriginalDownload grant, which needs step-up). Creating a
+ * link never changes the record's disclosure policy.
  */
 import { createHash, generateKeyPairSync, randomBytes, randomUUID, sign } from "node:crypto";
 
@@ -20,6 +30,7 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
   let h: IntegrationHarness;
   let prisma: (typeof import("../src/db.js"))["prisma"];
   let clearRates: () => Promise<unknown>;
+  let generateVerificationRef: () => string;
   const keyId = `pkg07-${randomUUID().slice(0, 8)}`;
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   let ipCounter = 10;
@@ -30,6 +41,7 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
     ({ clearAllRateLimitBuckets: clearRates } = await import("../src/services/rate-limit.js"));
+    ({ generateVerificationRef } = await import("@proovra/shared-runtime"));
     await prisma.signingKey.create({
       data: { keyId, version: 1, publicKeyPem: publicKey.export({ type: "spki", format: "pem" }).toString().trim() },
     });
@@ -45,7 +57,12 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
 
   type Team = IntegrationHarness["fixtures"]["teamA"];
 
-  /** A signed, verifiable record in a workspace. Unpublished unless `over` says otherwise. */
+  /**
+   * A signed, verifiable record in a workspace, holding its canonical
+   * reference (every finalized record is issued one at finalization). Its
+   * disclosure policy is the column default — VERIFICATION_ONLY — unless
+   * `over` says otherwise.
+   */
   async function signedRecord(T: Team, over: Record<string, unknown> = {}): Promise<string> {
     const team = await prisma.team.findUniqueOrThrow({ where: { id: T.teamId }, select: { organizationId: true } });
     const row = await prisma.evidence.create({
@@ -72,13 +89,25 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
         signatureBase64: sign(null, Buffer.from(fingerprintHash, "hex"), privateKey).toString("base64"),
         signingKeyId: keyId,
         signingKeyVersion: 1,
+        verificationRef: generateVerificationRef(),
+        verificationRefIssuedAtUtc: new Date(),
         ...over,
       } as never,
     });
     return row.id;
   }
-  const published = (T: Team, over: Record<string, unknown> = {}) =>
-    signedRecord(T, { publicVerifyState: "PUBLISHED", ...over });
+
+  const policyOf = (id: string) =>
+    prisma.evidence.findUniqueOrThrow({
+      where: { id },
+      select: {
+        verificationDisclosureMode: true,
+        showRecordedLocation: true,
+        verificationDisclosureVersion: true,
+        verificationAccessState: true,
+        verificationRef: true,
+      },
+    });
 
   const api = (method: "GET" | "POST", url: string, token: string, payload?: unknown) =>
     h.app.inject({
@@ -96,21 +125,23 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
       ...body,
     });
     expect(res.statusCode, res.body).toBe(201);
-    return res.json() as { token: string; verifyPath: string; link: { id: string; state: string }; published: boolean };
+    return res.json() as { token: string; verifyPath: string; link: { id: string; state: string; allowOriginalDownload: boolean } };
   };
   const NOT_FOUND = JSON.stringify({ message: "Evidence not found" });
 
-  it("a record is unpublished by default, and its id opens nothing", async () => {
+  it("a new record's page discloses verification only by default, and its id opens nothing", async () => {
     const A = h.fixtures.teamA;
     // Through the real create route (a Personal Space, which any plan may record in).
     const viaApi = await api("POST", "/v1/evidence", h.fixtures.personal.token, { type: "PHOTO", mimeType: "image/jpeg" });
     expect(viaApi.statusCode, viaApi.body).toBe(201);
     const created = await prisma.evidence.findUniqueOrThrow({ where: { id: viaApi.json().id as string } });
-    expect(created.publicVerifyState).toBe("NOT_PUBLISHED");
+    expect(created.verificationDisclosureMode).toBe("VERIFICATION_ONLY");
+    expect(created.showRecordedLocation).toBe(false);
+    expect(created.verificationDisclosureVersion).toBe(0);
     expect(created.legacyVerifyUuidUntilUtc).toBeNull();
 
     const id = await signedRecord(A);
-    expect((await prisma.evidence.findUniqueOrThrow({ where: { id } })).publicVerifyState).toBe("NOT_PUBLISHED");
+    expect(await policyOf(id)).toMatchObject({ verificationDisclosureMode: "VERIFICATION_ONLY", verificationAccessState: "AVAILABLE" });
     const res = await verify(id);
     expect(res.statusCode).toBe(404);
     expect(res.body).toBe(NOT_FOUND);
@@ -124,9 +155,9 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     expect(res.body).toBe(NOT_FOUND);
   };
 
-  it("a PUBLISHED record is still not reachable by its id — only a share token opens it", async () => {
+  it("a record is not reachable by its id — a share token opens it under the link's own profile, and the record's policy is untouched", async () => {
     const A = h.fixtures.teamA;
-    const id = await published(A);
+    const id = await signedRecord(A);
     const byId = await verify(id);
     expectRecordIdEnded(byId);
     // ...and byte-identical to an id that never existed.
@@ -136,15 +167,32 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     expect(token).toMatch(/^pvs_[A-Za-z0-9_-]{43}$/);
     expect(verifyPath).toBe(`/verify/${token}`);
     expect(link.state).toBe("ACTIVE");
+    expect(link.allowOriginalDownload).toBe(false);
     const ok = await verify(token);
     expect(ok.statusCode, ok.body).toBe(200);
-    expect(ok.json().evidenceId).toBe(id);
-    expect(ok.json().link).toMatchObject({ kind: "SHARE_TOKEN" });
+    const body = ok.json();
+    // The internal record id never leaves; the page names the record by its
+    // permanent reference.
+    expect(body.evidenceId).toBeUndefined();
+    expect(ok.body).not.toContain(id);
+    const { verificationRef } = await policyOf(id);
+    expect(body.canonicalVerification).toMatchObject({ reference: verificationRef, status: "AVAILABLE" });
+    expect(body.link).toMatchObject({ kind: "SHARE_TOKEN" });
+    // A STANDARD reviewer share opens content BY ITSELF — no publication step —
+    // and never hands out originals without an explicit grant.
+    expect(body.disclosure).toMatchObject({ mode: "CONTENT_PREVIEW", source: "REVIEWER_SHARE", originalDownload: false, recordedLocation: false });
+    // Creating the link changed nothing about the record's own page.
+    expect(await policyOf(id)).toMatchObject({
+      verificationDisclosureMode: "VERIFICATION_ONLY",
+      verificationDisclosureVersion: 0,
+      verificationAccessState: "AVAILABLE",
+    });
+    expect(await prisma.custodyEvent.count({ where: { evidenceId: id, eventType: "VERIFICATION_DISCLOSURE_CHANGED" } })).toBe(0);
   });
 
   it("only the token's hash is stored: the link cannot be recovered from the database", async () => {
     const A = h.fixtures.teamA;
-    const id = await published(A);
+    const id = await signedRecord(A);
     const { token, link } = await createLink(A, id);
     const row = await prisma.verificationShareToken.findUniqueOrThrow({ where: { id: link.id } });
     expect(row.tokenHash).toBe(sha(token));
@@ -155,7 +203,16 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     expect(listed.statusCode).toBe(200);
     expect(listed.body).not.toContain(token);
     expect(listed.body).not.toContain(row.tokenHash);
-    expect(listed.json().links[0]).toMatchObject({ id: link.id, state: "ACTIVE", audience: "Opposing counsel" });
+    expect(listed.json()).toMatchObject({ verificationAccessState: "AVAILABLE", shareable: true });
+    expect(listed.json()).not.toHaveProperty("published");
+    expect(listed.json().links[0]).toMatchObject({
+      id: link.id,
+      state: "ACTIVE",
+      audience: "Opposing counsel",
+      usable: true,
+      inactiveReason: null,
+      allowOriginalDownload: false,
+    });
   });
 
   it("a random token, a malformed one, an unknown reference and an unknown id are byte-identical 404s", async () => {
@@ -175,7 +232,7 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
 
   it("an expired link answers 410 and releases nothing; the record's other links still work", async () => {
     const A = h.fixtures.teamA;
-    const id = await published(A);
+    const id = await signedRecord(A);
     const expired = await createLink(A, id, { audience: "Expired recipient" });
     const live = await createLink(A, id, { audience: "Live recipient" });
     await prisma.verificationShareToken.update({
@@ -199,7 +256,7 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
 
   it("revoking one link withdraws that recipient only", async () => {
     const A = h.fixtures.teamA;
-    const id = await published(A);
+    const id = await signedRecord(A);
     const a = await createLink(A, id, { audience: "Recipient A" });
     const b = await createLink(A, id, { audience: "Recipient B" });
 
@@ -211,8 +268,8 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     expect(gone.statusCode).toBe(410);
     expect(gone.json().code).toBe("VERIFICATION_LINK_REVOKED");
     expect((await verify(b.token)).statusCode).toBe(200);
-    // The record itself was never unpublished.
-    expect((await prisma.evidence.findUniqueOrThrow({ where: { id } })).publicVerifyState).toBe("PUBLISHED");
+    // The record's own page was never touched: access and policy unchanged.
+    expect(await policyOf(id)).toMatchObject({ verificationAccessState: "AVAILABLE", verificationDisclosureMode: "VERIFICATION_ONLY" });
     // Revoking again changes nothing.
     const again = await api("POST", `/v1/evidence/${id}/verify-links/${a.link.id}/revoke`, A.ownerToken);
     expect(again.json()).toMatchObject({ changed: false, link: { state: "REVOKED" } });
@@ -220,7 +277,7 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
 
   it("rotating a link stops the old token at once and returns its replacement once", async () => {
     const A = h.fixtures.teamA;
-    const id = await published(A);
+    const id = await signedRecord(A);
     const first = await createLink(A, id, { audience: "Insurer", expiresInDays: 14, projection: "BASIC" });
 
     const rotated = await api("POST", `/v1/evidence/${id}/verify-links/${first.link.id}/rotate`, A.ownerToken);
@@ -245,7 +302,7 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
 
   it("a use limit is exact, even under concurrent requests; use count and last-used are recorded", async () => {
     const A = h.fixtures.teamA;
-    const id = await published(A);
+    const id = await signedRecord(A);
     const limited = await createLink(A, id, { audience: "One-time recipient", maxUses: 2 });
 
     const answers = await Promise.all(Array.from({ length: 6 }, () => verify(limited.token)));
@@ -261,22 +318,26 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     expect(listed.links.find((l: { id: string }) => l.id === limited.link.id)).toMatchObject({ state: "EXHAUSTED", useCount: 2, maxUses: 2 });
   });
 
-  it("the legacy record-id link works only inside its bounded grace, says when it ends, and the owner can end it", async () => {
+  it("the legacy record-id link works only inside its bounded grace and only for a record holding its reference, says when it ends, and the owner can end it", async () => {
     const A = h.fixtures.teamA;
     const until = new Date(Date.now() + 90 * DAY);
-    const legacy = await published(A, { legacyVerifyUuidUntilUtc: until });
+    const legacy = await signedRecord(A, { legacyVerifyUuidUntilUtc: until });
 
     const during = await verify(legacy);
     expect(during.statusCode, during.body).toBe(200);
     expect(during.json().link).toEqual({ kind: "LEGACY_RECORD_ID", expiresAtUtc: until.toISOString() });
+    // It opens the CANONICAL page: the record's own policy, never originals.
+    expect(during.json().disclosure).toMatchObject({ mode: "VERIFICATION_ONLY", source: "RECORD_POLICY", originalDownload: false });
 
     const listed = (await api("GET", `/v1/evidence/${legacy}/verify-links`, A.ownerToken)).json();
     expect(listed.legacy).toEqual({ active: true, expiresAtUtc: until.toISOString(), graceDays: 180 });
 
     // The grace has run out: the id is no longer a capability.
-    const lapsed = await published(A, { legacyVerifyUuidUntilUtc: new Date(Date.now() - 60_000) });
-    const after = await verify(lapsed);
-    expectRecordIdEnded(after);
+    const lapsed = await signedRecord(A, { legacyVerifyUuidUntilUtc: new Date(Date.now() - 60_000) });
+    expectRecordIdEnded(await verify(lapsed));
+    // Inside a grace but without a canonical reference: not a capability either.
+    const unreferenced = await signedRecord(A, { legacyVerifyUuidUntilUtc: until, verificationRef: null, verificationRefIssuedAtUtc: null });
+    expectRecordIdEnded(await verify(unreferenced));
 
     // The owner ends the legacy link early; a share link on the same record is unaffected.
     const share = await createLink(A, legacy);
@@ -288,7 +349,7 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     // Nothing brings it back, and a record without one never gains one.
     const again = await api("POST", `/v1/evidence/${legacy}/verify-links/legacy/revoke`, A.ownerToken);
     expect(again.json()).toMatchObject({ changed: false });
-    const fresh = await published(A);
+    const fresh = await signedRecord(A);
     const none = await api("POST", `/v1/evidence/${fresh}/verify-links/legacy/revoke`, A.ownerToken);
     expect(none.statusCode).toBe(409);
     expect(none.json().code).toBe("LEGACY_LINK_NOT_ACTIVE");
@@ -298,7 +359,7 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     const A = h.fixtures.teamA;
     await prisma.user.update({ where: { id: A.ownerUserId }, data: { currentWorkspaceId: A.teamId } });
     const soon = new Date(Date.now() + 5 * DAY);
-    const id = await published(A, { legacyVerifyUuidUntilUtc: soon });
+    const id = await signedRecord(A, { legacyVerifyUuidUntilUtc: soon });
     const res = await api("GET", "/v1/verify-links/legacy-inventory", A.ownerToken);
     expect(res.statusCode, res.body).toBe(200);
     const inv = res.json();
@@ -316,7 +377,7 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
   it("links are bound to their own record and workspace: another tenant can neither see nor manage them", async () => {
     const A = h.fixtures.teamA;
     const B = h.fixtures.teamB;
-    const id = await published(A);
+    const id = await signedRecord(A);
     const { token, link } = await createLink(A, id);
 
     for (const [method, url, payload] of [
@@ -331,52 +392,115 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
       expect(res.body).toBe(NOT_FOUND);
     }
     // A's link id under B's own record is not found either.
-    const bRecord = await published(B);
+    const bRecord = await signedRecord(B);
     const crossed = await api("POST", `/v1/evidence/${bRecord}/verify-links/${link.id}/revoke`, B.ownerToken);
     expect(crossed.statusCode).toBe(404);
     expect(crossed.json().code).toBe("VERIFICATION_LINK_NOT_FOUND");
     // The link still works, and opens only its own record.
     const ok = await verify(token);
     expect(ok.statusCode).toBe(200);
-    expect(ok.json().evidenceId).toBe(id);
+    expect(ok.json().canonicalVerification.reference).toBe((await policyOf(id)).verificationRef);
   });
 
-  it("a member who can read but not publish is refused; creating the first link on an unpublished record needs step-up", async () => {
+  it("a member who can read but not share is refused; creating a link never changes the disclosure policy; granting originals needs step-up", async () => {
     const A = h.fixtures.teamA;
-    const id = await published(A);
+    const id = await signedRecord(A);
     const asViewer = await api("GET", `/v1/evidence/${id}/verify-links`, A.viewerToken);
     expect(asViewer.statusCode).toBe(403);
     expect(asViewer.json().code).toBe("VERIFICATION_LINKS_NOT_PERMITTED");
     const viewerCreate = await api("POST", `/v1/evidence/${id}/verify-links`, A.viewerToken, { audience: "x", expiresInDays: 1 });
     expect(viewerCreate.statusCode).toBe(403);
 
-    // Publishing is never implicit: without the step-up proof, nothing is published and no link exists.
-    const unpublished = await signedRecord(A);
-    const attempt = await api("POST", `/v1/evidence/${unpublished}/verify-links`, A.ownerToken, { audience: "First recipient", expiresInDays: 7 });
-    expect(attempt.statusCode).toBe(401);
-    expect(attempt.json().error.code).toBe("STEP_UP_REQUIRED");
-    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: unpublished } })).publicVerifyState).toBe("NOT_PUBLISHED");
-    expect(await prisma.verificationShareToken.count({ where: { evidenceId: unpublished } })).toBe(0);
+    // A plain reviewer link needs no step-up and leaves the record's policy alone.
+    const plain = await api("POST", `/v1/evidence/${id}/verify-links`, A.ownerToken, { audience: "First recipient", expiresInDays: 7 });
+    expect(plain.statusCode, plain.body).toBe(201);
+    expect(plain.json()).not.toHaveProperty("published");
+    expect(await policyOf(id)).toMatchObject({ verificationDisclosureMode: "VERIFICATION_ONLY", verificationDisclosureVersion: 0 });
+
+    // Handing out the ORIGINAL files is the sensitive grant: without a fresh
+    // step-up nothing is created.
+    const before = await prisma.verificationShareToken.count({ where: { evidenceId: id } });
+    const originals = await api("POST", `/v1/evidence/${id}/verify-links`, A.ownerToken, {
+      audience: "Expert witness",
+      expiresInDays: 7,
+      allowOriginalDownload: true,
+    });
+    expect(originals.statusCode, originals.body).toBe(401);
+    expect(originals.json().error.code).toBe("STEP_UP_REQUIRED");
+    expect(await prisma.verificationShareToken.count({ where: { evidenceId: id } })).toBe(before);
+
+    // A BASIC link never downloads, so it never asks for the grant's step-up
+    // and the grant is not recorded.
+    const basic = await createLink(A, id, { audience: "Insurer", projection: "BASIC", allowOriginalDownload: true });
+    expect(basic.link.allowOriginalDownload).toBe(false);
+    expect(await policyOf(id)).toMatchObject({ verificationDisclosureMode: "VERIFICATION_ONLY", verificationDisclosureVersion: 0 });
   });
 
-  it("a link is necessary, not sufficient: suspending or unpublishing the record closes every link", async () => {
+  it("withdrawing or suspending the canonical page closes every link (410 / 503), a trashed record's links answer RETAINED, and a share never weakens access", async () => {
     const A = h.fixtures.teamA;
-    const id = await published(A);
-    const { token } = await createLink(A, id);
+    const id = await signedRecord(A);
+    const { token, link } = await createLink(A, id);
     expect((await verify(token)).statusCode).toBe(200);
-    for (const state of ["SUSPENDED", "UNPUBLISHED", "NOT_PUBLISHED"] as const) {
-      await prisma.evidence.update({ where: { id }, data: { publicVerifyState: state } });
+
+    const listingOf = async () =>
+      ((await api("GET", `/v1/evidence/${id}/verify-links`, A.ownerToken)).json().links as Array<{ id: string; usable: boolean; inactiveReason: string | null; state: string }>).find(
+        (l) => l.id === link.id,
+      )!;
+
+    for (const [access, status, code] of [
+      ["WITHDRAWN", 410, "VERIFICATION_RECORD_WITHDRAWN"],
+      ["SUSPENDED", 503, "VERIFICATION_RECORD_TEMPORARILY_UNAVAILABLE"],
+    ] as const) {
+      await prisma.evidence.update({ where: { id }, data: { verificationAccessState: access } });
       const res = await verify(token);
-      expect(res.statusCode, state).toBe(404);
-      expect(res.body).toBe(NOT_FOUND);
+      expect(res.statusCode, access).toBe(status);
+      expect(res.json().code).toBe(code);
+      // No record data, no internal id.
+      expect(res.body).not.toContain("PKG-07 private title");
+      expect(res.body).not.toContain(id);
+      expect(res.json()).not.toHaveProperty("verificationMatrix");
+      // The link itself is still ACTIVE, and the owner sees why it does not answer.
+      expect(await listingOf()).toMatchObject({ state: "ACTIVE", usable: false, inactiveReason: "PAGE_NOT_AVAILABLE" });
+      // A denied request spends no use.
+      expect((await prisma.verificationShareToken.findUniqueOrThrow({ where: { id: link.id } })).useCount).toBe(1);
     }
-    await prisma.evidence.update({ where: { id }, data: { publicVerifyState: "PUBLISHED", lifecycleState: "TRASHED", deletedAt: new Date() } });
-    expect((await verify(token)).statusCode).toBe(404);
+
+    // Reinstated: the same link answers again.
+    await prisma.evidence.update({ where: { id }, data: { verificationAccessState: "AVAILABLE" } });
+    expect((await verify(token)).statusCode).toBe(200);
+    expect(await listingOf()).toMatchObject({ usable: true, inactiveReason: null });
+
+    // Trashed: the canonical state is RETAINED for every identifier — a
+    // truthful answer with no record content.
+    await prisma.evidence.update({ where: { id }, data: { lifecycleState: "TRASHED", deletedAt: new Date() } });
+    const retained = await verify(token);
+    expect(retained.statusCode).toBe(200);
+    expect(retained.json().code).toBe("VERIFICATION_RECORD_RETAINED");
+    expect(retained.body).not.toContain("PKG-07 private title");
+    expect(retained.json()).not.toHaveProperty("verificationMatrix");
+  });
+
+  it("a link's own profile decides what it discloses — a BASIC link narrows a content-preview page, and location is never added by a link", async () => {
+    const A = h.fixtures.teamA;
+    const id = await signedRecord(A, { verificationDisclosureMode: "CONTENT_PREVIEW", showRecordedLocation: false });
+    const basic = await createLink(A, id, { audience: "Insurer", projection: "BASIC" });
+    const narrowed = await verify(basic.token);
+    expect(narrowed.statusCode, narrowed.body).toBe(200);
+    expect(narrowed.json().disclosure).toMatchObject({ mode: "VERIFICATION_ONLY", source: "REVIEWER_SHARE", recordedLocation: false });
+    expect(narrowed.body).not.toContain("PKG-07 private title");
+
+    const standard = await createLink(A, id, { audience: "Counsel" });
+    const shown = await verify(standard.token);
+    expect(shown.statusCode, shown.body).toBe(200);
+    // Location follows the record's explicit decision (off here) — a link never adds it.
+    expect(shown.json().disclosure).toMatchObject({ mode: "CONTENT_PREVIEW", recordedLocation: false });
+    expect(shown.json().captureContext ?? null).toBeNull();
+    expect(shown.json().locationState ?? null).toBeNull();
   });
 
   it("the public answer is an allow-list: nothing about the link's audience, its creator, the workspace or holds", async () => {
     const A = h.fixtures.teamA;
-    const id = await published(A);
+    const id = await signedRecord(A);
     const audience = `Secret-audience-${randomUUID().slice(0, 8)}`;
     const basic = await createLink(A, id, { audience, projection: "BASIC" });
     const res = await verify(basic.token);
@@ -384,7 +508,15 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     const body = res.json();
     // A BASIC link narrows the projection whatever the record is entitled to.
     expect(body.tier).toBe("BASIC");
-    expect(Object.keys(body).sort()).toEqual(["basicVerification", "evidenceId", "link", "tier", "verificationMatrix"]);
+    expect(Object.keys(body).sort()).toEqual([
+      "basicVerification",
+      "canonicalVerification",
+      "disclosure",
+      "link",
+      "recordFacts",
+      "tier",
+      "verificationMatrix",
+    ]);
     // The matrix at this tier never describes who submitted the record.
     for (const key of ["account_identity", "organization_verification"]) {
       const row = body.verificationMatrix.rows.find((r: { key: string }) => r.key === key);
@@ -394,10 +526,12 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     expect(Object.keys(body.link).sort()).toEqual(["expiresAtUtc", "kind"]);
     for (const forbidden of [
       audience,
+      id,
       A.ownerUserId,
       A.teamId,
       basic.link.id,
       "PKG-07 private title",
+      "evidenceId",
       "createdByUserId",
       "tokenHash",
       "audience",
@@ -427,7 +561,7 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
 
   it("a record holds at most 25 active owner links; a revoked one frees a place", async () => {
     const A = h.fixtures.teamA;
-    const id = await published(A);
+    const id = await signedRecord(A);
     const made: string[] = [];
     for (let i = 0; i < 25; i++) made.push((await createLink(A, id, { audience: `Recipient ${i}` })).link.id);
     const over = await api("POST", `/v1/evidence/${id}/verify-links`, A.ownerToken, { audience: "One too many", expiresInDays: 1 });
@@ -436,8 +570,8 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     await api("POST", `/v1/evidence/${id}/verify-links/${made[0]}/revoke`, A.ownerToken);
     await createLink(A, id, { audience: "Fits now" });
   });
-  describe("UC-OUT-001 / UC-OUT-005 — printed links on private records, and NULL-team records", () => {
-    it("CANONICAL VERIFICATION: a REPORT link printed by an earlier report opens the canonical page on an unpublished record, and the listing marks it usable", async () => {
+  describe("UC-OUT-001 / UC-OUT-005 — printed links, and NULL-team records", () => {
+    it("CANONICAL VERIFICATION: a REPORT link printed by an earlier report opens the canonical page under the record's policy, and the listing marks it usable", async () => {
       const A = h.fixtures.teamA;
       const id = await signedRecord(A);
       const { mintVerificationShareTokenTx } = await import("@proovra/shared-runtime");
@@ -450,12 +584,12 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
           audience: "Report version 1",
         }),
       );
-      // (2026-10-14) A link a report printed is the record's canonical page,
-      // whatever the publication state — the verification-only projection,
-      // never the internal id.
+      // A link a report printed is the record's canonical page — the record's
+      // own disclosure policy (verification only here), never the internal id.
       const res = await verify(minted.token);
       expect(res.statusCode, res.body).toBe(200);
       expect(res.json().link).toEqual({ kind: "CANONICAL", expiresAtUtc: null });
+      expect(res.json().disclosure).toMatchObject({ mode: "VERIFICATION_ONLY", source: "RECORD_POLICY", originalDownload: false });
       expect(res.body).not.toContain(id);
 
       const listing = await api("GET", `/v1/evidence/${id}/verify-links`, A.ownerToken);
@@ -467,15 +601,14 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
       expect(link.usable).toBe(true);
       expect(link.inactiveReason).toBeNull();
 
-      // Publishing makes the same link usable.
-      await prisma.evidence.update({ where: { id }, data: { publicVerifyState: "PUBLISHED" } });
-      const after = await api("GET", `/v1/evidence/${id}/verify-links`, A.ownerToken);
-      const again = (after.json().links as Array<{ purpose: string; usable: boolean }>).find((l) => l.purpose === "REPORT")!;
-      expect(again.usable).toBe(true);
-      expect((await verify(minted.token)).statusCode).toBe(200);
+      // The owner's policy is what the same printed link discloses next.
+      await prisma.evidence.update({ where: { id }, data: { verificationDisclosureMode: "CONTENT_PREVIEW" } });
+      const after = await verify(minted.token);
+      expect(after.statusCode).toBe(200);
+      expect(after.json().disclosure).toMatchObject({ mode: "CONTENT_PREVIEW", source: "RECORD_POLICY", originalDownload: false });
     });
 
-    it("UC-OUT-005: a NULL-team personal record resolves to its owner's personal workspace for publication and the legacy inventory", async () => {
+    it("UC-OUT-005: a NULL-team personal record resolves to its owner's personal workspace for sharing and the legacy inventory", async () => {
       const P = h.fixtures.personal;
       const { resolveShareWorkspaceId, legacyVerifyLinkInventory } = await import(
         "../src/services/governance/verification-share.service.js"
@@ -488,7 +621,8 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
           teamId: null,
           ownerUserId: P.userId,
           signedAtUtc: new Date(),
-          publicVerifyState: "PUBLISHED",
+          verificationRef: generateVerificationRef(),
+          verificationRefIssuedAtUtc: new Date(),
           legacyVerifyUuidUntilUtc: new Date(Date.now() + 10 * DAY),
         } as never,
         select: { id: true, teamId: true, ownerUserId: true },
@@ -499,10 +633,10 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     });
   });
 
-  it("UC-OUT-005: the owner of a NULL-team legacy record can publish it by creating a link, and the link answers", async () => {
+  it("UC-OUT-005: the owner of a NULL-team legacy record can share it by creating a link, and the link answers; an originals grant reaches the step-up in the personal workspace", async () => {
     const P = h.fixtures.personal;
     const row = await prisma.evidence.create({
-      data: { title: "legacy NULL-team publish", type: "PHOTO", status: "SIGNED", teamId: null, ownerUserId: P.userId, signedAtUtc: new Date() } as never,
+      data: { title: "legacy NULL-team share", type: "PHOTO", status: "SIGNED", teamId: null, ownerUserId: P.userId, signedAtUtc: new Date() } as never,
       select: { id: true },
     });
     const fileSha256 = sha(randomUUID());
@@ -517,23 +651,23 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
         signatureBase64: sign(null, Buffer.from(fingerprintHash, "hex"), privateKey).toString("base64"),
         signingKeyId: keyId,
         signingKeyVersion: 1,
+        verificationRef: generateVerificationRef(),
+        verificationRefIssuedAtUtc: new Date(),
       } as never,
     });
-    // The route resolves the personal workspace and reaches the publish
-    // step-up (it used to refuse 409 record_has_no_workspace).
-    const first = await api("POST", `/v1/evidence/${row.id}/verify-links`, P.token, { audience: "Court clerk", expiresInDays: 30 });
-    expect(first.statusCode, first.body).toBe(401);
-    expect(first.json().error.code).toBe("STEP_UP_REQUIRED");
-    // The publication authority accepts the NULL-team record in its owner's
-    // personal workspace (and refuses another workspace).
-    const { publishPublicVerify, PublicationError } = await import("../src/services/governance/publication.service.js");
-    await expect(
-      publishPublicVerify({ evidenceId: row.id, teamId: h.fixtures.teamA.teamId, actorUserId: P.userId, reason: "x" }),
-    ).rejects.toBeInstanceOf(PublicationError);
-    await publishPublicVerify({ evidenceId: row.id, teamId: P.teamId, actorUserId: P.userId, reason: "owner published" });
-    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: row.id } })).publicVerifyState).toBe("PUBLISHED");
+    // The route resolves the personal workspace (it used to refuse 409
+    // record_has_no_workspace) and the originals grant reaches its step-up.
+    const grant = await api("POST", `/v1/evidence/${row.id}/verify-links`, P.token, {
+      audience: "Court clerk",
+      expiresInDays: 30,
+      allowOriginalDownload: true,
+    });
+    expect(grant.statusCode, grant.body).toBe(401);
+    expect(grant.json().error.code).toBe("STEP_UP_REQUIRED");
+    // A plain link needs no publication and no step-up, and it answers.
     const res = await api("POST", `/v1/evidence/${row.id}/verify-links`, P.token, { audience: "Court clerk", expiresInDays: 30 });
     expect(res.statusCode, res.body).toBe(201);
     expect((await verify(res.json().token as string)).statusCode).toBe(200);
+    expect(await policyOf(row.id)).toMatchObject({ verificationDisclosureMode: "VERIFICATION_ONLY", verificationDisclosureVersion: 0 });
   });
 });

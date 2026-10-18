@@ -204,22 +204,22 @@
       "provingScenario": "p7.ui.intelligence.provider_budget_created"
     },
     {
-      "capabilityId": "evidence.public_verify_published",
+      "capabilityId": "evidence.verification_disclosure_widened",
       "page": "/evidence/:id",
-      "control": "[data-cc-public-verify-publish]",
-      "method": "POST",
-      "path": "/v1/governance/evidence/:id/publish",
-      "consumer": "apps/web/app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx",
-      "provingScenario": "p7.ui.evidence.public_verify_published"
+      "control": "[data-verification-disclosure-mode=\"CONTENT_PREVIEW\"] → [data-verification-disclosure-action=\"save\"] → step-up",
+      "method": "PUT",
+      "path": "/v1/evidence/:id/verification-disclosure",
+      "consumer": "apps/web/components/evidence-outputs/ManageVerificationPagePanel.tsx",
+      "provingScenario": "p7.ui.evidence.verification_disclosure_widened"
     },
     {
-      "capabilityId": "evidence.public_verify_unpublished",
+      "capabilityId": "evidence.verification_disclosure_narrowed",
       "page": "/evidence/:id",
-      "control": "[data-cc-public-verify-unpublish]",
-      "method": "POST",
-      "path": "/v1/governance/evidence/:id/unpublish",
-      "consumer": "apps/web/app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx",
-      "provingScenario": "p7.ui.evidence.public_verify_unpublished"
+      "control": "[data-verification-disclosure-mode=\"VERIFICATION_ONLY\"] → [data-verification-disclosure-action=\"save\"]",
+      "method": "PUT",
+      "path": "/v1/evidence/:id/verification-disclosure",
+      "consumer": "apps/web/components/evidence-outputs/ManageVerificationPagePanel.tsx",
+      "provingScenario": "p7.ui.evidence.verification_disclosure_narrowed"
     },
     {
       "capabilityId": "redaction.video_frames_and_tracks_authored",

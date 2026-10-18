@@ -20,7 +20,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { IntegrationHarness } from "./integration-harness.js";
 // ET-PKG-07 — a record's id is not a public link: requests go through a share
 // link (the record is published and the link minted on first use).
-import { shareLinkFor } from "./helpers/verify-share.js";
+import { createReviewerShareLink, shareLinkFor } from "./helpers/verify-share.js";
 
 describe("verify / byte-serving privacy boundaries (live PostgreSQL 16, real HTTP)", () => {
   let h: IntegrationHarness;
@@ -98,7 +98,10 @@ describe("verify / byte-serving privacy boundaries (live PostgreSQL 16, real HTT
   const viewUrls = (body: unknown): unknown[] =>
     JSON.stringify(body).match(/"viewUrl":("[^"]*"|null)/g)?.map((m) => m.slice(10)) ?? [];
 
-  it("H3: under preview_only no item carries a presigned URL to the original; full_access does", async () => {
+  // (2026-10-18) Originals leave only through a reviewer link that explicitly
+  // grants them (allowOriginalDownload); full_access alone never links one,
+  // and neither does a plain content-preview link.
+  it("H3: under preview_only no item carries a presigned URL to the original; full_access does only for a link that grants originals", async () => {
     const id = await signedRecord();
     const preview = await verify(id);
     expect(preview.statusCode, preview.body).toBe(200);
@@ -108,8 +111,13 @@ describe("verify / byte-serving privacy boundaries (live PostgreSQL 16, real HTT
     if (pBody.tier === "RICH") {
       expect(viewUrls(pBody).every((u) => u === "null"), "no original URL under preview_only").toBe(true);
       process.env.PUBLIC_VERIFY_CONTENT_MODE = "full_access";
-      const full = (await verify(id)).json();
-      expect(viewUrls(full).some((u) => u !== "null"), "full_access still links the original").toBe(true);
+      const plain = (await verify(id)).json();
+      expect(viewUrls(plain).every((u) => u === "null"), "full_access without a grant links no original").toBe(true);
+      expect(plain.disclosure).toMatchObject({ mode: "CONTENT_PREVIEW", originalDownload: false });
+      const granted = await createReviewerShareLink(prisma, id, { allowOriginalDownload: true });
+      const full = (await h.app.inject({ method: "GET", url: `/public/verify/${granted}` })).json();
+      expect(full.disclosure).toMatchObject({ mode: "CONTENT_PREVIEW", source: "REVIEWER_SHARE", originalDownload: true });
+      expect(viewUrls(full).some((u) => u !== "null"), "full_access + an originals grant links the original").toBe(true);
     } else {
       // A BASIC answer carries no content at all.
       expect(viewUrls(pBody)).toEqual([]);
