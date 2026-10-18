@@ -155,6 +155,8 @@ describe("projectPublicVerification — the allowlist", () => {
     expect((body.custodyLifecycle as Record<string, unknown>).accessEvents).toEqual([]);
     expect((body.custodyLifecycle as Record<string, unknown>).accessActivity).toEqual({ count: 2, latestAtUtc: "2026-10-18T00:00:00Z" });
     expect((body.disclosure as Record<string, unknown>).withheldStatement).toBe("Withheld by the record’s disclosure policy");
+    // No preview is advertised on a page that withholds content.
+    expect((body.evidenceContent as { previewPolicy: Record<string, unknown> }).previewPolicy).toMatchObject({ contentVisible: false, previewEnabled: false, downloadableFromVerify: false });
   });
 
   it("CONTENT_PREVIEW: names, roles, previews and device time; still no location, email, ids, storage or originals", () => {
@@ -236,6 +238,8 @@ describe("buildTrustDecisionConsistency — states, never words", () => {
     expect(r.reasons.map((x) => x.code)).toEqual(["VERIFICATION_ADVANCED"]);
     expect(r.integrityCritical).toBe(false);
     expect(r.tone).toBe("info");
+    // An advance is information, not access activity.
+    expect(r.accessOnly).toBe(false);
   });
   it("only a failure since issue is danger", () => {
     const issued = decision();

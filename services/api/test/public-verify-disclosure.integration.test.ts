@@ -222,6 +222,11 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
       expect(facts).toHaveProperty("reportIssuedAtUtc");
       expect(facts).toHaveProperty("storedFileLastRecheckedAtUtc");
       expect(page.text).not.toContain(record.id);
+      // The owner's report rows carry the same reference, so clients open the canonical page.
+      const reports = await call("GET", `/v1/reports?teamId=${A().teamId}`, A().ownerToken);
+      expect(reports.statusCode, reports.body).toBe(200);
+      const mine = (reports.json().items as Array<{ evidenceId: string; verificationRef: string | null }>).find((r) => r.evidenceId === record.id);
+      expect(mine?.verificationRef).toBe(record.ref);
     });
 
     it("C7 identity that exists but is withheld says so — never 'Not recorded'", async () => {

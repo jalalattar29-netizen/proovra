@@ -115,7 +115,7 @@ export function HomeActiveMattersSection({
 
 export function HomeVerificationHealthSection({ health }: { health: VerificationHealth }) {
   const router = useRouter();
-  const openVerify = (evidenceId: string) => router.push(`/verify?id=${encodeURIComponent(evidenceId)}` as never);
+  const openVerify = (verificationRef: string) => router.push(`/verify?id=${encodeURIComponent(verificationRef)}` as never);
   return (
     <ProovraSection title="Verification pages">
       {health.empty ? (
@@ -164,7 +164,7 @@ export function HomeVerificationHealthSection({ health }: { health: Verification
                     Live
                   </ProovraText>
                 </View>
-                <Link label="Open verify →" onPress={() => openVerify(v.evidenceId)} />
+                <Link label="Open verify →" onPress={() => openVerify(v.verificationRef)} />
               </View>
             );
           })}

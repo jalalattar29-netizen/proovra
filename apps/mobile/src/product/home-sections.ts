@@ -131,7 +131,7 @@ export interface VerificationHealth {
   /** command-center timeline `verification_disclosure_changed` events, newest first (max 3). */
   recentDisclosureChanges: Array<{ label: string; href: string; occurredAt: string }>;
   /** Recent reports whose package is ready — the public verify page works (max 5). */
-  verifiable: Array<{ evidenceId: string; title: string }>;
+  verifiable: Array<{ evidenceId: string; title: string; verificationRef: string }>;
 }
 
 /**
@@ -158,9 +158,10 @@ export function buildVerificationHealth(
       occurredAt: str(it.occurredAt) as string,
     }));
   const verifiable = (extras.recentReports ?? [])
-    .filter((r) => r.packageReady)
+    // Only a record holding its permanent reference opens a verification page.
+    .filter((r) => r.packageReady && r.verificationRef)
     .slice(0, 5)
-    .map((r) => ({ evidenceId: r.evidenceId, title: r.title }));
+    .map((r) => ({ evidenceId: r.evidenceId, title: r.title, verificationRef: r.verificationRef as string }));
   return {
     verificationOnly: num(pages.verificationOnly),
     contentPreview: num(pages.contentPreview),
@@ -186,6 +187,8 @@ export interface RecentReportRow {
   reportPdfApiPath: string;
   /** GET /v1/evidence/:id/verification-package, when a package exists. */
   packageZipApiPath: string | null;
+  /** The permanent verification reference (pvr_); the verify page opens by it, never by the record id. */
+  verificationRef: string | null;
 }
 
 /** web buildRecentReports — GET /v1/reports rows whose report is available (max 5). */
@@ -207,6 +210,7 @@ export function buildRecentReports(reports: unknown): RecentReportRow[] {
         generatedAtUtc: str(obj(r.report).generatedAtUtc),
         reportPdfApiPath: `/v1/evidence/${enc}/report/latest`,
         packageZipApiPath: packageReady ? `/v1/evidence/${enc}/verification-package` : null,
+        verificationRef: typeof r.verificationRef === "string" && r.verificationRef.startsWith("pvr_") ? r.verificationRef : null,
       };
     });
 }

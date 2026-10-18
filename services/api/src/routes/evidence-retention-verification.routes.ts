@@ -440,6 +440,14 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
           showRecordedLocation: result.current.showRecordedLocation,
           version: result.current.version,
         },
+        // The web client's error envelope carries `details`.
+        details: {
+          current: {
+            mode: result.current.mode,
+            showRecordedLocation: result.current.showRecordedLocation,
+            version: result.current.version,
+          },
+        },
       });
     }
     if (result.outcome === "CHANGED") {
@@ -463,6 +471,7 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
         mode: result.current.mode,
         showRecordedLocation: result.current.showRecordedLocation,
         version: result.current.version,
+        changedAtUtc: iso((await readVerificationDisclosure(id))?.changedAtUtc ?? null),
         visitorPreview: describeVerificationDisclosure(result.current),
       },
     });

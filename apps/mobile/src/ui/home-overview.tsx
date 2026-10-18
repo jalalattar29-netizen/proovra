@@ -533,13 +533,13 @@ export function HomeReportRow({ row }: { row: RecentReportRow }) {
         {row.packageZipApiPath ? (
           <ProovraButton label="Download package" variant="secondary" onPress={() => void trigger("package", row.packageZipApiPath as string)} />
         ) : null}
-        {row.packageReady ? (
+        {row.packageReady && row.verificationRef ? (
           <ProovraButton
             label="Verify page"
             variant="secondary"
             onPress={() => {
               setMenuOpen(false);
-              router.push(`/verify?id=${encodeURIComponent(row.evidenceId)}` as never);
+              router.push(`/verify?id=${encodeURIComponent(row.verificationRef as string)}` as never);
             }}
           />
         ) : null}

@@ -243,13 +243,13 @@ export function buildTrustDecisionConsistency(
   }
 
   const integrityCritical = reasons.some((reason) => reason.integrityCritical);
-  const accessOnly =
-    reasons.length > 0 &&
-    reasons.every((reason) => reason.code === "ACCESS_ACTIVITY_CHANGED" || reason.code === "VERIFICATION_ADVANCED");
+  const accessOnly = reasons.length > 0 && reasons.every((reason) => reason.code === "ACCESS_ACTIVITY_CHANGED");
+  // Access activity and legitimate advances are both informational.
+  const infoOnly = reasons.length > 0 && reasons.every((reason) => reason.tone === "info");
 
   const tone: TrustDecisionConsistencyTone = integrityCritical
     ? "danger"
-    : accessOnly
+    : infoOnly
       ? "info"
       : reasons.length > 0
         ? "warning"

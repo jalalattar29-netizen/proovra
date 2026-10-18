@@ -43,7 +43,7 @@ beforeEach(async () => {
     "/v1/billing/overview": () => ({}),
     "/v1/reports": () => ({
       items: [
-        { evidenceId: "e1", title: "Roof photo", report: { available: true, generatedAtUtc: TODAY }, package: { available: true } },
+        { evidenceId: "e1", title: "Roof photo", report: { available: true, generatedAtUtc: TODAY }, package: { available: true }, verificationRef: "pvr_Abcdefghijklmnopqrstuvwxyz0" },
         { evidenceId: "e2", title: "Gutter video", report: { available: true, generatedAtUtc: "2020-01-01T00:00:00.000Z" }, package: { available: false } },
         { evidenceId: "e3", title: "Not yet", report: { available: false }, package: { available: false } },
       ],
@@ -214,7 +214,7 @@ test("verification pages: recent disclosure changes and the verifiable records, 
   assert.equal(r.byTestId("home-verifiable-e1").length, 1);
   assert.equal(r.byTestId("home-verifiable-e2").length, 0);
   await r.press("Open verify →");
-  assert.equal(M.calls.push.at(-1), "/verify?id=e1");
+  assert.equal(M.calls.push.at(-1), "/verify?id=pvr_Abcdefghijklmnopqrstuvwxyz0");
 });
 
 test("report production: stats, needs-action rows, and the row's More actions", async () => {

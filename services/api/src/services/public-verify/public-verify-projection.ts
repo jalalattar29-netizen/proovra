@@ -178,7 +178,20 @@ function projectEvidenceContent(content: unknown, d: PublicVerifyDisclosureFacts
     items,
     primaryItem: primary,
     defaultPreviewItemId: defaultPreview ? (defaultPreview.id as string) : null,
-    previewPolicy: content.previewPolicy ?? null,
+    // The preview policy is stated from THIS answer's disclosure, never passed
+    // through from the content builder.
+    previewPolicy: {
+      contentVisible: d.mode === "CONTENT_PREVIEW" && items.length > 0,
+      previewEnabled: d.mode === "CONTENT_PREVIEW" && items.some((i) => i.previewable === true),
+      downloadableFromVerify: d.originalDownload && items.some((i) => typeof i.viewUrl === "string"),
+      rationale:
+        d.mode === "VERIFICATION_ONLY"
+          ? "This page states the complete verification result; the record's content is withheld by its disclosure policy."
+          : d.originalDownload
+            ? "This reviewer link allows content preview and the original files its creator granted."
+            : "This page allows a controlled content preview. Original files are not offered here.",
+      privacyNotice: "Anyone holding this link can view what this page discloses.",
+    },
   };
 }
 
@@ -239,6 +252,8 @@ function projectOverview(o: unknown, d: PublicVerifyDisclosureFacts, attribution
     if ((k === "workspaceName" || k === "organizationName") && attribution) continue;
     delete out[k];
   }
+  if ("previewableItemCount" in out && d.mode === "VERIFICATION_ONLY") out.previewableItemCount = 0;
+  if ("downloadableItemCount" in out && !d.originalDownload) out.downloadableItemCount = 0;
   if (d.mode === "VERIFICATION_ONLY") {
     for (const k of OVERVIEW_DESCRIPTIVE) if (k in out) out[k] = null;
     if ("evidenceTitle" in o) out.evidenceTitle = "Digital Evidence Record";

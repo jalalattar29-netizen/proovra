@@ -111,6 +111,12 @@ export type UserReportRow = {
   caseId: string | null;
   createdAt: string;
   /**
+   * (2026-10-18) The record's permanent verification reference (pvr_), so a
+   * client opens the canonical page — never the record id, which is a
+   * capability only inside the bounded legacy grace. Null until issued.
+   */
+  verificationRef: string | null;
+  /**
    * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the canonical output
    * state, so this fallback and the workspace aggregator describe a record the
    * same way. The client renders this and never derives a state from
@@ -283,6 +289,7 @@ export default async function registerReportsRoutes(
         mimeType: string | null;
         type: string;
         status: string;
+        verificationRef: string | null;
         caseLinks: Array<{ caseId: string }>;
         createdAt: Date;
       };
@@ -305,6 +312,7 @@ export default async function registerReportsRoutes(
           mimeType: true,
           type: true,
           status: true,
+          verificationRef: true,
           caseLinks: {
             orderBy: { linkedAtUtc: "asc" },
             select: { caseId: true },
@@ -519,6 +527,7 @@ export default async function registerReportsRoutes(
           status: String(r.status),
           caseId: r.caseLinks[0]?.caseId ?? null,
           createdAt: r.createdAt.toISOString(),
+          verificationRef: r.verificationRef ?? null,
           report: {
             available: report !== null,
             version: report?.version ?? null,
