@@ -1,8 +1,12 @@
 /**
- * The public Verify Record tab shows the acquisition statement and the
- * workspace. Its label list said "Capture Method" after the summary field was
- * renamed "Acquisition", so the row was filtered out, and "Workspace" was
- * never listed.
+ * The public Verify Record tab shows the acquisition statement (its label
+ * list once said "Capture Method" after the field was renamed "Acquisition",
+ * so the row was filtered out).
+ *
+ * Converged 2026-10-18: the tab carries record metadata only. "Evidence ID",
+ * a MIME "File Type", client-derived statuses and identity fields are not
+ * record-tab fields: the verification reference, report issuance, stored-file
+ * recheck and identity are recordFacts, and every status is a matrix row.
  */
 import React from "react";
 import { readFileSync } from "node:fs";
@@ -30,27 +34,32 @@ function RecordTab({ fields }: { fields: ReadonlyArray<{ label: string; value: s
 afterEach(cleanup);
 
 describe("Verify Record tab", () => {
-  it("renders Acquisition and Workspace", () => {
+  it("renders Acquisition; never an Evidence ID, a File Type or an identity field", () => {
     const { getByTestId, queryByTestId } = render(
       <RecordTab
         fields={[
           { label: "Evidence ID", value: "ev-1" },
           { label: "Acquisition", value: "Reported by the client as Android screen capture (PROOVRA app)" },
-          { label: "Workspace", value: "Investigations" },
+          { label: "File Type", value: "text/plain" },
+          { label: "Identity Level", value: "Shared-workspace member account" },
           { label: "Integrity Scope", value: "not a record-tab field" },
         ]}
       />,
     );
     expect(getByTestId("record-field-Acquisition").textContent).toContain("Reported by the client as Android screen capture");
-    expect(getByTestId("record-field-Workspace").textContent).toContain("Investigations");
+    expect(queryByTestId("record-field-Evidence ID")).toBeNull();
+    expect(queryByTestId("record-field-File Type")).toBeNull();
+    expect(queryByTestId("record-field-Identity Level")).toBeNull();
     expect(queryByTestId("record-field-Integrity Scope")).toBeNull();
   });
 
-  it("the page uses the list, and every listed identity/acquisition label is one the summary produces", () => {
+  it("the page uses the list, and every listed label is one the page produces", () => {
     expect(page).toContain("selectRecordTabFields(summaryFields)");
     expect(RECORD_TAB_FIELD_LABELS).not.toContain("Capture Method");
-    for (const label of ["Acquisition", "Workspace", "Identity Level", "Organization", "Organization Verified"]) {
-      expect(RECORD_TAB_FIELD_LABELS).toContain(label);
+    for (const label of ["Evidence ID", "File Type", "Verification Status", "Integrity Status", "Submitted By"]) {
+      expect(RECORD_TAB_FIELD_LABELS).not.toContain(label);
+    }
+    for (const label of RECORD_TAB_FIELD_LABELS) {
       expect(page).toContain(`label: "${label}"`);
     }
   });

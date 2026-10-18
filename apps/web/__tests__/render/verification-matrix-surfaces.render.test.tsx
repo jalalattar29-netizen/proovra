@@ -7,9 +7,10 @@
  * and reads as Unavailable — never anchored — and the bounded summary and the
  * fixed limitation are always stated.
  *
- * The web deploys before the API, so the old response shape (score, verdict,
- * relianceLevel, points …) is fed through each surface here: none of it may
- * reach the page.
+ * The old response shape (score, verdict, relianceLevel, points …) is fed
+ * through each surface here: none of it may reach the page. Public Verify
+ * (2026-10-18) states the API's matrix only — a response without one says
+ * "Verification matrix unavailable"; the client never rebuilds rows.
  */
 import React from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -18,16 +19,16 @@ import {
   VERIFICATION_LIMITATION,
   buildVerificationMatrix,
   findForbiddenCustomerClaims,
+  parseVerificationMatrix,
   readStoredTrustDecision,
   type BasicVerification,
-  type VerificationMatrix,
 } from "@proovra/shared";
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   VerificationMatrixGrid,
   VerificationSummaryCard,
-  matrixRequiresIntegrityReview,
-  resolveVerifyMatrix,
 } from "../../app/verify/[token]/VerifyMatrixPanels";
 import BasicVerificationView from "../../app/verify/[token]/BasicVerificationView";
 import { TrustDecisionSummary } from "../../app/(app)/evidence/[id]/_tabs/technical-appendix/TrustDecisionSummary";
@@ -77,26 +78,14 @@ function expectNoRetiredClaims(text: string) {
   expect(text).not.toMatch(/Passed signals|No degraded signals/i);
 }
 
-describe("Public Verify — matrix panels (old API without verificationMatrix)", () => {
-  const decision = readStoredTrustDecision(oldApiTrustDecision())!;
-  const matrix = resolveVerifyMatrix(null, decision);
+describe("Public Verify — matrix panels (the API's matrix is the only source)", () => {
+  const fixture = JSON.parse(
+    readFileSync(join(__dirname, "fixtures", "public-verify-verification-only.json"), "utf8"),
+  ) as { verificationMatrix: unknown; trustDecision: unknown };
+  const matrix = parseVerificationMatrix(fixture.verificationMatrix)!;
+  const decision = readStoredTrustDecision(fixture.trustDecision)!;
 
-  it("derives the signal rows from the trust decision when the API sent no matrix", () => {
-    expect(matrix.rows.map((r) => r.key)).toEqual([
-      "file_integrity",
-      "record_signature",
-      "custody_chain",
-      "tsa_token",
-      "ots_anchoring",
-      "storage_protection",
-    ]);
-    const ots = matrix.rows.find((r) => r.key === "ots_anchoring")!;
-    expect(ots.status).toBe("UNAVAILABLE");
-    expect(ots.otsState).toBe("UNAVAILABLE");
-    expect(matrix.limitation).toBe(VERIFICATION_LIMITATION);
-  });
-
-  it("renders the bounded summary, the limitation and each row's status — never a score or verdict", () => {
+  it("renders the bounded summary, the limitation and each row's status (icon + word) — never a score or verdict", () => {
     const { container, getByTestId } = render(
       <div>
         <VerificationSummaryCard matrix={matrix} decision={decision} />
@@ -105,48 +94,32 @@ describe("Public Verify — matrix panels (old API without verificationMatrix)",
     );
     const text = container.textContent ?? "";
     expectNoRetiredClaims(text);
-    expect(getByTestId("verify-matrix-summary").textContent).toMatch(
-      /Cryptographic integrity and PROOVRA custody checks passed for the preserved bytes\./,
-    );
     expect(getByTestId("verify-matrix-summary").textContent).toMatch(/“Not checked” was not independently verified/);
-    expect(getByTestId("verify-matrix-limitation").textContent).toBe(VERIFICATION_LIMITATION);
-    // The legacy anchoring signal reads its one word and sentence: Unavailable.
-    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("Unavailable");
-    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).toMatch(
-      /The OpenTimestamps proof material cannot currently be read./,
+    expect(getByTestId("verify-matrix-limitation").textContent).toBe(matrix.limitation);
+    // The summary sentence never repeats the limitation: one legal boundary.
+    expect(text.match(/does not by itself establish authorship/g)).toHaveLength(1);
+    // The server's statusLabel, with its icon.
+    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("✓Independently verified");
+    expect(getByTestId("verify-matrix-status-file_integrity").textContent).toBe("○Not checked");
+    expect(getByTestId("verify-matrix-status-file_integrity").getAttribute("data-status")).toBe("NOT_CHECKED");
+    expect(getByTestId("verify-matrix-status-record_signature").textContent).toBe("✓Verified");
+  });
+
+  it("states every row verbatim, with its qualifiers", () => {
+    const rows = matrix.rows.map((r) =>
+      r.key === "package_signature" ? { ...r, status: "NOT_CHECKED" as const, qualifiers: ["LEGACY_SEAL" as const] } : r,
     );
-    expect(text).not.toMatch(/Attestation recorded|Independent Bitcoin verification/);
-    expect(getByTestId("verify-matrix-status-file_integrity").textContent).toBe("Verified");
-    // The old wire summary and reviewer action never reach the page.
-    expect(text).not.toContain("Rely on this record.");
-    expect(text).not.toContain("All signals passed.");
+    const { getByTestId } = render(<VerificationMatrixGrid rows={rows} />);
+    for (const row of matrix.rows) {
+      expect(getByTestId(`verify-matrix-row-${row.key}`).textContent).toContain(row.statement);
+    }
+    expect(getByTestId("verify-matrix-row-package_signature").textContent).toContain("Legacy seal");
   });
 
-  it("uses the API's matrix verbatim when one is sent", () => {
-    const server: VerificationMatrix = buildVerificationMatrix({
-      signals: decision.signals,
-      identity: null,
-      acquisitionMode: null,
-      packageSeal: { kind: "NONE" },
-      publication: { kind: "THIS_PAGE" },
-    });
-    expect(resolveVerifyMatrix(server, decision)).toBe(server);
-    const { getByTestId } = render(<VerificationMatrixGrid rows={server.rows} />);
-    expect(getByTestId("verify-matrix-status-public_verify_publication").textContent).toBe("Verified");
-  });
-
-  it("a FAILED file-integrity, signature or custody row requires integrity review", () => {
-    expect(matrixRequiresIntegrityReview(matrix, decision)).toBe(false);
-    const failed: VerificationMatrix = {
-      ...matrix,
-      rows: matrix.rows.map((r) => (r.key === "custody_chain" ? { ...r, status: "FAILED" } : r)),
-    };
-    expect(matrixRequiresIntegrityReview(failed, decision)).toBe(true);
-    const ots: VerificationMatrix = {
-      ...matrix,
-      rows: matrix.rows.map((r) => (r.key === "ots_anchoring" ? { ...r, status: "FAILED" } : r)),
-    };
-    expect(matrixRequiresIntegrityReview(ots, decision)).toBe(false);
+  it("without the API's matrix the summary says so — no client rebuild", () => {
+    const { getByTestId, queryByTestId } = render(<VerificationSummaryCard matrix={null} decision={decision} />);
+    expect(getByTestId("verify-matrix-unavailable").textContent).toBe("Verification matrix unavailable");
+    expect(queryByTestId("verify-matrix-summary")).toBeNull();
   });
 });
 
@@ -179,14 +152,18 @@ describe("Public Verify — BASIC tier renders the matrix", () => {
       identity: null,
       acquisitionMode: null,
       packageSeal: { kind: "NONE" },
-      publication: { kind: "THIS_PAGE" },
+      publication: { kind: "CANONICAL", disclosure: "VERIFICATION_ONLY" },
     });
     const { container, getByTestId } = render(<BasicVerificationView data={basicData()} matrix={matrix} />);
     expectNoRetiredClaims(container.textContent ?? "");
     expect(getByTestId("verify-matrix-summary").textContent).toMatch(/custody checks passed/);
     expect(getByTestId("verify-matrix-limitation").textContent).toBe(VERIFICATION_LIMITATION);
-    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).toMatch(/Unavailable/);
-    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).not.toMatch(/VERIFIED|Not checked|Attestation recorded/);
+    // The anchoring row is stated as the shared matrix built it — a legacy
+    // anchoring "passed" is never "Verified" / "Independently verified".
+    const ots = matrix.rows.find((r) => r.key === "ots_anchoring")!;
+    expect(ots.status).not.toBe("VERIFIED");
+    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).toContain(ots.statement);
+    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).not.toMatch(/Independently verified/);
   });
 
   it("renders no matrix section when an older API sent none", () => {

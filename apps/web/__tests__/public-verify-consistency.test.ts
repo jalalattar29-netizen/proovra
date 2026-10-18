@@ -75,18 +75,20 @@ test("verify page exposes manual anchoring refresh and avoids reload loops", () 
   );
 });
 
-test("verify page labels snapshot and live anchoring separately", () => {
-  assert.match(VERIFY_PAGE_SOURCE, /Verification package snapshot/);
-  assert.match(VERIFY_PAGE_SOURCE, /Live anchoring status/);
-  assert.match(
-    VERIFY_PAGE_SOURCE,
-    /Anchoring has advanced since this package was generated\. A newer report\/package may be available\./,
+test("verify page states the anchoring now, at issue and its advance in ONE card (2026-10-18)", () => {
+  const sections = readFileSync(
+    resolve(__dirname, "..", "app", "verify", "[token]", "VerifyRecordSections.tsx"),
+    "utf8",
   );
-  // The live section states the server view's one sentence for every state
-  // but NOT_REQUESTED (2026-10-15), toned by the verification: pending is
-  // amber (never danger), only CHAIN_VERIFIED green, failures danger.
-  assert.match(VERIFY_PAGE_SOURCE, /otsView\.state !== "NOT_REQUESTED" \?/);
-  assert.match(VERIFY_PAGE_SOURCE, /data-verify-ots-sentence=\{otsView\.verification\}/);
-  assert.match(VERIFY_PAGE_SOURCE, /\{otsView\.sentence\}/);
+  // Now: the matrix row (status + statusLabel + qualifiers); at issue: the
+  // issued artifact's snapshot; the advance sentence only for a real advance.
+  assert.match(VERIFY_PAGE_SOURCE, /<OtsAnchoringCard\s+row=\{matrixRow\("ots_anchoring"\)\}/);
+  assert.match(sections, /data-verify-ots-now/);
+  assert.match(sections, /data-verify-ots-at-issue/);
+  assert.match(sections, /liveAnchoring\?\.advance && liveAnchoring\.advance !== "NONE"/);
+  assert.match(sections, /CHAIN_VERIFIED_SINCE_ISSUE: "Independently verified since the report was issued"/);
+  assert.match(sections, /ATTESTATION_RECORDED_SINCE_ISSUE: "Bitcoin attestation recorded since the report was issued"/);
+  // The old two-section wording is gone.
+  assert.doesNotMatch(VERIFY_PAGE_SOURCE, /Live anchoring status|Anchoring has advanced since this package was generated/);
   assert.doesNotMatch(VERIFY_PAGE_SOURCE, /currentOtsStatus/);
 });

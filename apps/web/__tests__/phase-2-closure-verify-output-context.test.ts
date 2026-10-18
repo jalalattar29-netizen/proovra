@@ -52,16 +52,13 @@ test("OutputContextBadge exposes data-testid for downstream assertions", () => {
   );
 });
 
-test("OutputContextBadge renders canonical legal boundary from outputContext.legalBoundary", () => {
+test("the page states ONE legal boundary — the matrix limitation — and the badge never repeats it (2026-10-18)", () => {
   const src = readFileSync(PAGE, "utf8");
-  assert.ok(
-    /data-testid="output-context-legal-boundary"/.test(src),
-    "Legal-boundary line must carry data-testid='output-context-legal-boundary'",
-  );
-  assert.ok(
-    /\{outputContext\.legalBoundary\}/.test(src),
-    "Legal-boundary line must render outputContext.legalBoundary directly (canonical source)",
-  );
+  assert.doesNotMatch(src, /data-testid="output-context-legal-boundary"/);
+  assert.doesNotMatch(src, /{outputContext.legalBoundary}/);
+  const panels = readFileSync(PAGE.replace(/page.tsx$/, "VerifyMatrixPanels.tsx"), "utf8");
+  assert.match(panels, /data-verify-legal-boundary/);
+  assert.match(panels, /{matrix.limitation}/);
 });
 
 test("no overall verdict label is authored on the page — the headline is the matrix summary", () => {

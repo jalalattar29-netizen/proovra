@@ -149,15 +149,20 @@ function otsRow(over: Record<string, unknown>) {
 }
 
 describe("Public Verify — the Bitcoin anchoring matrix row", () => {
+  // The rich page prints the row's server statusLabel (the shared matrix sets
+  // it to OTS_VERIFICATION_WORDS[verification]) beside the status icon.
   it("(a) an attestation recorded is a neutral 'Attestation recorded' — never Verified", () => {
-    const { getByTestId } = render(<VerificationMatrixGrid rows={[otsRow({})]} />);
-    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("Attestation recorded");
+    const { getByTestId } = render(<VerificationMatrixGrid rows={[otsRow({ statusLabel: "Attestation recorded" })]} />);
+    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("○Attestation recorded");
+    expect(getByTestId("verify-matrix-status-ots_anchoring").getAttribute("data-status")).toBe("NOT_CHECKED");
     expect(otsMatrixRowPresentation(otsRow({}))?.tone).toBe("neutral");
   });
 
   it("(b) CHAIN_VERIFIED on a VERIFIED row is the only ✓; on a row that is not VERIFIED it is not believed", () => {
-    const { getByTestId } = render(<VerificationMatrixGrid rows={[otsRow({ status: "VERIFIED", otsVerification: "CHAIN_VERIFIED" })]} />);
-    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("✓ Independently verified");
+    const { getByTestId } = render(
+      <VerificationMatrixGrid rows={[otsRow({ status: "VERIFIED", otsVerification: "CHAIN_VERIFIED", statusLabel: "Independently verified" })]} />,
+    );
+    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("✓Independently verified");
     expect(otsMatrixRowPresentation(otsRow({ status: "VERIFIED", otsVerification: "CHAIN_VERIFIED" }))?.tone).toBe("success");
     expect(otsMatrixRowPresentation(otsRow({ status: "NOT_CHECKED", otsVerification: "CHAIN_VERIFIED" }))).toMatchObject({
       word: "Attestation recorded",
