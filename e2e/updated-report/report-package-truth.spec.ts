@@ -65,7 +65,7 @@ import {
   consistencyFindings,
   extractPackage,
   provisionVerifiedOrganization,
-  publishAndShare,
+  shareWithReviewer,
   readmeCommands,
   sh,
   sha256,
@@ -446,7 +446,7 @@ test("J3 v3 — a re-issued report states the same recorded attestation; nothing
 
 test("J4 Public Verify, the review workspace and the package carry the same canonical states and identity", async () => {
   test.setTimeout(300_000);
-  const token = publishAndShare(evidenceId, teamId, owner.userId);
+  const token = shareWithReviewer(evidenceId, teamId, owner.userId);
   const pv = await publicRecord(`/public/verify/${encodeURIComponent(token)}`);
   expect(pv.status).toBe(200);
   const pvSignals = ((pv.body.trustDecision as Record<string, unknown>).signals ?? []) as Array<Record<string, unknown>>;

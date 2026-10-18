@@ -4,9 +4,10 @@
  * Every helper acts through a product authority wherever one exists. Two
  * fixtures stand in for parties the disposable stack does not have, and say so:
  *
- *   * publishAndShare — the owner's interactive step-up approval for
- *     publishing and minting a share link; the product's own services
- *     (publishPublicVerify, createVerificationLink) run inside the API image.
+ *   * shareWithReviewer — the owner's interactive approval for minting a
+ *     reviewer share link; the product's own service (createVerificationLink)
+ *     runs inside the API image. (2026-10-18: there is no publication step —
+ *     a STANDARD share discloses content by its own profile.)
  *   * provisionVerifiedOrganization — the sales-led Enterprise provisioning
  *     authority (inside the API image, against the stack database) and the
  *     organization-verification decision (one column).
@@ -32,19 +33,17 @@ function nodeIn(service: "api" | "worker", script: string): string {
   return stackExec(service, ["node", "--input-type=module", "-e", script]);
 }
 
-/** FIXTURE (owner step-up): publish the record and mint a STANDARD share link; returns the token. */
-export function publishAndShare(evidenceId: string, teamId: string, ownerUserId: string): string {
+/** FIXTURE (owner approval): mint a STANDARD reviewer share link; returns the token. */
+export function shareWithReviewer(evidenceId: string, teamId: string, ownerUserId: string): string {
   const out = nodeIn(
     "api",
-    `const pub = await import("/app/services/api/dist/services/governance/publication.service.js");
-     const share = await import("/app/services/api/dist/services/governance/verification-share.service.js");
-     await pub.publishPublicVerify({ evidenceId: ${JSON.stringify(evidenceId)}, teamId: ${JSON.stringify(teamId)}, actorUserId: ${JSON.stringify(ownerUserId)}, reason: "truth journey" });
+    `const share = await import("/app/services/api/dist/services/governance/verification-share.service.js");
      const record = await share.loadRecordForShare(${JSON.stringify(evidenceId)});
      const r = await share.createVerificationLink({ record, actorUserId: ${JSON.stringify(ownerUserId)}, audience: "truth journey", expiresInDays: 7, projection: "STANDARD", maxUses: null });
      console.log("TOKEN=" + r.token); process.exit(0);`,
   );
   const m = out.match(/TOKEN=(\S+)/);
-  if (!m) throw new Error(`publishAndShare: no token in ${out}`);
+  if (!m) throw new Error(`shareWithReviewer: no token in ${out}`);
   return m[1]!;
 }
 

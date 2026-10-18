@@ -70,13 +70,17 @@ export async function resolvePackageSealCheck(pkg: SealCheckPackageRow | null): 
   if ((pkg.packageFormatVersion ?? 0) < PACKAGE_FORMAT_VERSION_SEALED || !pkg.sealSha256 || !pkg.sealSigningKeySha256) {
     return { fact: { kind: "LEGACY" }, completenessVerified: null };
   }
-  const cached = memo.get(pkg.id);
+  // Keyed by the row's whole seal identity: an issued row never changes, so
+  // this is the id in practice — and a different row state is never served a
+  // stale answer.
+  const key = [pkg.id, pkg.sealSha256, pkg.sealSigningKeySha256, pkg.sealSigningKeyId ?? "", pkg.sealSigningKeyVersion ?? ""].join("|");
+  const cached = memo.get(key);
   if (cached) return cached;
   const pending = decide(pkg);
-  memo.set(pkg.id, pending);
+  memo.set(key, pending);
   const result = await pending.catch(() => null);
   if (!result || result.transient) {
-    memo.delete(pkg.id);
+    memo.delete(key);
     return result ? { fact: result.fact, completenessVerified: result.completenessVerified } : { fact: { kind: "LEGACY_UNBOUND" }, completenessVerified: null };
   }
   return { fact: result.fact, completenessVerified: result.completenessVerified };
