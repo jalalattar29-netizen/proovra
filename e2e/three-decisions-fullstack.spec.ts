@@ -139,11 +139,14 @@ test.describe("three product decisions — the real stack", () => {
     await page.goto(`/evidence/${evidenceId}`);
     await page.waitForSelector(".evidence-detail-hero", { timeout: 30_000 });
     await page.getByRole("tab", { name: "Artifacts" }).click();
-    const panel = page.locator('[data-evidence-section="verification-access"]');
+    const panel = page.locator('[data-evidence-section="verification-page"]');
     await expect(panel.locator('[data-verification-access-status="AVAILABLE"]')).toBeVisible({ timeout: 30_000 });
     await expect(panel.locator("[data-verification-access-reference]")).toHaveText(reference);
     await expect(panel.locator('[data-verification-access-action="open"]')).toHaveAttribute("href", new RegExp(`/verify/${reference}$`));
-    await expect(panel).toContainText("It does not publish the original evidence files.");
+    await expect(panel).toContainText("it never offers the original files.");
+    // A new record discloses verification only, and says so from the server.
+    await expect(panel.locator('[data-verification-disclosure-mode="VERIFICATION_ONLY"]')).toHaveAttribute("aria-checked", "true");
+    await expect(panel.locator("[data-verification-visitor-preview]")).toContainText("What anonymous visitors see");
     await expect(page.getByText("This record is private. It has no public verification page until you create a link")).toHaveCount(0);
 
     const anonymous = await browser.newContext();

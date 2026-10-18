@@ -273,7 +273,7 @@ test("the shared rail is reused once and Discussion does not fork it", () => {
     "Risk Signals",
     "Review Workflow",
     "Attributes",
-    "Public Verification",
+    "Verification page",
   ]);
 });
 

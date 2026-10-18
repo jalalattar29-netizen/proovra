@@ -47,8 +47,8 @@ import { formatUserDateTime } from "../../../../../lib/date";
 import { ArtifactHistorySection } from "../components/ArtifactHistorySection";
 import { RuntimeStatusBanner } from "../../../../../components/operational";
 import { formatBytes } from "./_lib";
-import { PublicVerificationLinksPanel } from "../../../../../components/evidence-outputs/PublicVerificationLinksPanel";
-import { VerificationAccessPanel } from "../../../../../components/evidence-outputs/VerificationAccessPanel";
+import { ManageVerificationPagePanel } from "../../../../../components/evidence-outputs/ManageVerificationPagePanel";
+import { ReviewerSharesPanel } from "../../../../../components/evidence-outputs/ReviewerSharesPanel";
 
 
 /**
@@ -829,7 +829,7 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const {
     workspace,
     evidenceId,
-    publicVerificationState,
+    verificationPageState,
     stalePending,
     setStalePending,
     setPollStartedAt,
@@ -1035,26 +1035,26 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         packageStatus={packageStatus}
       />
 
-      {/* CANONICAL VERIFICATION (owner decision 2026-10-14) — the record's
-          permanent verification page: the same link the report's QR code and
-          the package carry, open without login, never published by hand and
-          never expiring. */}
+      {/* MANAGE VERIFICATION PAGE (disclosure model 2026-10-18) — the ONE
+          control for the record's permanent verification page: the same page
+          the report's QR code and the package carry. Every finalized record
+          has it; the owner chooses what it discloses. Secure reviewer shares
+          (pvs_) sit directly below it. The tenant is the RECORD's workspace
+          (evidence.teamId), never an optional reviewer workflow. */}
       <section className="evidence-detail-verify-card-host" data-evidence-section="latest-artifacts">
         <div data-latest-artifact="verify">
-          <VerificationAccessPanel evidenceId={evidenceId} />
+          <ManageVerificationPagePanel
+            evidenceId={evidenceId}
+            teamId={workspace.evidence.teamId ?? workspace.reviewWorkflow?.teamId ?? null}
+            onChanged={() => void loadWorkspace()}
+          />
         </div>
-      </section>
-
-      {/* Restricted recipient links are a SEPARATE, advanced feature: a link
-          for one named person with an expiry, a use limit and revocation. */}
-      <details className="evidence-detail-advanced" data-evidence-section="advanced-sharing">
-        <summary>Advanced sharing — recipient links</summary>
-        <PublicVerificationLinksPanel
+        <ReviewerSharesPanel
           evidenceId={evidenceId}
-          teamId={workspace.reviewWorkflow?.teamId ?? null}
+          teamId={workspace.evidence.teamId ?? workspace.reviewWorkflow?.teamId ?? null}
           onChanged={() => void loadWorkspace()}
         />
-      </details>
+      </section>
 
       {/* Only when something is downloadable: a downloads incident is about
           the download controls below, not about the record. */}
@@ -1119,8 +1119,8 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         <div className="evidence-detail-sharing-grid" data-evidence-facts-grid>
           {[
             {
-              label: "Verification status",
-              value: publicVerificationState?.label ?? "State unavailable",
+              label: "Verification page",
+              value: verificationPageState?.label ?? "State unavailable",
             },
             { label: "Public views", value: counter(summary.publicViewCount) },
             {

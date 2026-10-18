@@ -349,6 +349,6 @@ test("the shared rail is reused once and the appendix does not fork it", () => {
     "Risk Signals",
     "Review Workflow",
     "Attributes",
-    "Public Verification",
+    "Verification page",
   ]);
 });

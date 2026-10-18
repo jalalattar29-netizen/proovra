@@ -1287,7 +1287,7 @@ describe("convergence — one shell for every workspace kind", () => {
       "Risk Signals",
       "Review Workflow",
       "Attributes",
-      "Public Verification",
+      "Verification page",
     ]);
   });
 

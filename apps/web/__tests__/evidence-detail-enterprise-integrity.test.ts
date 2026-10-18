@@ -35,30 +35,29 @@ const SRC = readDirRecursive(EVIDENCE_DETAIL_DIR)
   .map((p) => readFileSync(p, "utf8"))
   .join("\n\n/* --- file boundary --- */\n\n");
 
-test("the verification link is the CANONICAL page; publication is only the older-API fallback", () => {
+test("the verification link is the CANONICAL page; there is no publication fallback", () => {
   // One resolver for every owner surface on the page: the canonical contract
-  // (`canonicalVerification`, the record's permanent pvr_ page) when the API
-  // sends it; only an API that predates it falls back to the published link.
+  // (`canonicalVerification`, the record's permanent pvr_ page). The
+  // publication model is retired (2026-10-18): nothing falls back to it.
   assert.match(SRC, /function resolveCanonicalVerificationLink/);
   assert.match(SRC, /const canonical = workspace\.canonicalVerification;/);
-  assert.match(SRC, /if \(canonical === undefined\) \{\s*const legacy = buildPublishedVerificationUrl/);
+  assert.match(SRC, /if \(canonical === undefined\) \{\s*return \{ url: null, reason: CANONICAL_UNAVAILABLE\.NOT_FOUND \};/);
   assert.match(SRC, /canonical\.verifyPath && canonical\.status === "AVAILABLE"/);
   assert.match(SRC, /const shareUrl = canonicalLink\.url;/);
-  // The legacy helper still gates on PUBLISHED (it serves only the fallback).
-  assert.match(SRC, /summary\.state !== "PUBLISHED"/);
+  assert.doesNotMatch(SRC, /buildPublishedVerificationUrl|"PUBLISHED"/);
   // Integrity failure always disables the link.
   assert.match(SRC, /\{shareUrl && !isIntegrityFailed \? \(/);
 });
 
-test("public verification copy comes from canonical state mapping", () => {
-  assert.match(SRC, /function describePublicVerificationState/);
-  // Evidence-output incident (2026-10-05): "configured" came from the unrelated
-  // external-anchor provider; an unpublished record is labelled for what it is.
-  assert.match(SRC, /label: "Not published"/);
-  assert.doesNotMatch(SRC, /Configured but not published|label: "Not configured"/);
+test("verification page copy comes from the access + disclosure mapping", () => {
+  assert.match(SRC, /function describeVerificationPageState/);
+  // Every finalized record has a page: nothing is labelled "published" or
+  // "not published"; an available page states what it discloses.
+  assert.doesNotMatch(SRC, /label: "Not published"|label: "Published"|label: "Unpublished"/);
+  assert.match(SRC, /label: `Available · \$\{VERIFICATION_DISCLOSURE_MODE_LABELS/);
   assert.match(SRC, /Not included on plan/);
-  assert.match(SRC, /Suspended/);
-  assert.match(SRC, /Unpublished/);
+  assert.match(SRC, /label: "Withdrawn"/);
+  assert.match(SRC, /label: "Suspended"/);
 });
 
 test("client signal wording distinguishes missing, false, detected, and unavailable", () => {

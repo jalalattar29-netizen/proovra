@@ -153,13 +153,13 @@ const EXPECTED_CONSUMERS = [
   // label, so the record-side form reads as the same form as the group's own
   // — which is the point of there being one writer behind both.
   "components/collaboration/TeamResponsibilityPanel.tsx",
-  // Public verification links on Evidence Detail (ET-PKG-07). The create form
-  // labels audience, expiry, detail level and use limit with the canonical
-  // field label; what it paints under the Evidence Detail route stylesheet is
-  // measured in e2e/evidence-detail-layout/public-verification-links.spec.ts.
-  "components/evidence-outputs/PublicVerificationLinksPanel.tsx",
-  // CANONICAL VERIFICATION (2026-10-14) — the withdrawal reason field.
-  "components/evidence-outputs/VerificationAccessPanel.tsx",
+  // MANAGE VERIFICATION PAGE (2026-10-18) — the withdrawal reason field.
+  "components/evidence-outputs/ManageVerificationPagePanel.tsx",
+  // Secure reviewer shares on Evidence Detail (ET-PKG-07). The create form
+  // labels recipient, expiry, profile and use limit with the canonical field
+  // label; what it paints under the Evidence Detail route stylesheet is
+  // measured in e2e/evidence-detail-layout/verification-page-controls.spec.ts.
+  "components/evidence-outputs/ReviewerSharesPanel.tsx",
   "components/search/SearchAuditLogPanel.tsx",
 ];
 

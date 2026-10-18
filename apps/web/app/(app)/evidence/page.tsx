@@ -49,7 +49,7 @@ import {
 } from "./lib/evidence-library-helpers";
 import { buildReviewPriority } from "./lib/evidence-library-alerts";
 import { trustFilterChips, type TrustChipKey } from "./lib/evidence-trust-filter-chips";
-import { evidencePublicLinksHref } from "../../../lib/verification-links-href";
+import { evidenceVerificationPageHref } from "../../../lib/verification-links-href";
 
 const SERVER_PAGE_LIMIT = 50;
 
@@ -1121,7 +1121,7 @@ function EvidenceLibraryPageInner() {
   // id is not a public link. It opens the record's link controls, where a
   // share link is created (and shown once), revoked or replaced.
   const openVerificationLinks = (evidenceId: string) => {
-    router.push(evidencePublicLinksHref(evidenceId));
+    router.push(evidenceVerificationPageHref(evidenceId));
   };
 
   const runBulkAction = useCallback(

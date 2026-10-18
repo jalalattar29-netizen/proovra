@@ -1,9 +1,15 @@
 /**
- * Public verification links — the owner controls (ET-PKG-07).
+ * The record's verification page and its secure reviewer shares — the owner
+ * controls (ET-PKG-07; disclosure model 2026-10-18).
  *
- * A public link is an opaque share token, never the record's id. The token is
- * returned ONCE, by the call that creates or rotates a link; the server keeps
- * only its hash, so nothing here can fetch it again.
+ * Every finalized record has ONE permanent verification page (`pvr_`). The
+ * owner decides what it DISCLOSES (verification only, or a content preview,
+ * optionally with the recorded location); the SERVER decides and describes
+ * what anonymous visitors see. Nothing here publishes anything.
+ *
+ * A reviewer share (`pvs_`) is an opaque token, never the record's id. The
+ * token is returned ONCE, by the call that creates or rotates a share; the
+ * server keeps only its hash, so nothing here can fetch it again.
  */
 import { apiFetch } from "../api";
 
@@ -12,18 +18,21 @@ export type VerificationLinkState = "ACTIVE" | "EXPIRED" | "REVOKED" | "EXHAUSTE
 export type VerificationLink = {
   id: string;
   purpose: "OWNER_SHARE" | "REPORT" | "PACKAGE" | string;
+  /** STANDARD = content preview; BASIC = verification only. */
   projection: "BASIC" | "STANDARD" | string;
   audience: string | null;
   reportVersion: number | null;
   state: VerificationLinkState;
   /**
-   * UC-OUT-001 — does following the link answer right now (the record must
-   * also be PUBLISHED)? Projected by the API; optional only so a web build
-   * deployed ahead of the API still renders (it then derives it).
+   * Does following the link answer right now? Projected by the API: an ACTIVE
+   * link on a record whose verification page is withdrawn or suspended
+   * answers what the page answers. The client never derives it.
    */
-  usable?: boolean;
+  usable: boolean;
   /** Why an ACTIVE link does not answer; null when usable or not ACTIVE. */
-  inactiveReason?: "RECORD_NOT_PUBLISHED" | null;
+  inactiveReason: "PAGE_NOT_AVAILABLE" | null;
+  /** OWNER_SHARE only: may this share hand out the original files? */
+  allowOriginalDownload: boolean;
   createdAtUtc: string;
   createdByUserId: string | null;
   expiresAtUtc: string | null;
@@ -42,8 +51,11 @@ export type LegacyVerifyLink = {
   graceDays: number;
 };
 
+/** The verification page's access state — every identifier answers it. */
+export type VerificationAccessState = "AVAILABLE" | "WITHDRAWN" | "SUSPENDED";
+
 export type VerificationLinkListing = {
-  publicVerifyState: string;
+  verificationAccessState: VerificationAccessState | string;
   shareable: boolean;
   links: VerificationLink[];
   legacy: LegacyVerifyLink | null;
@@ -54,16 +66,17 @@ export type CreatedVerificationLink = {
   /** Shown once. It cannot be fetched again. */
   token: string;
   verifyPath: string;
-  published?: boolean;
   replacedLinkId?: string;
 };
 
 export type CreateVerificationLinkInput = {
   audience: string;
-  /** Days until the link expires; null = no expiry. */
+  /** Days until the share expires; null = no expiry. */
   expiresInDays: number | null;
   projection: "BASIC" | "STANDARD";
   maxUses: number | null;
+  /** STANDARD (content preview) shares only; needs a fresh step-up when true. */
+  allowOriginalDownload: boolean;
 };
 
 const base = (evidenceId: string) => `/v1/evidence/${encodeURIComponent(evidenceId)}/verify-links`;
@@ -73,7 +86,7 @@ export function listVerificationLinks(evidenceId: string): Promise<VerificationL
   return apiFetch(base(evidenceId)) as Promise<VerificationLinkListing>;
 }
 
-/** `headers` carries the step-up proof when creating the first link publishes the record. */
+/** `headers` carries the step-up proof when the share grants the original files. */
 export function createVerificationLink(
   evidenceId: string,
   input: CreateVerificationLinkInput,
@@ -116,7 +129,7 @@ export type LegacyVerifyLinkInventory = {
 
 /**
  * The active workspace's records that can still be opened by their record id
- * (the bounded transition for records published before share links existed).
+ * (the bounded transition for records shared before share links existed).
  * The workspace is the caller's own; nothing is passed.
  */
 export function legacyVerifyLinkInventory(): Promise<LegacyVerifyLinkInventory> {
@@ -132,12 +145,12 @@ export function absoluteVerifyUrl(verifyPath: string): string {
   return `${origin.replace(/\/+$/, "")}${verifyPath.startsWith("/") ? verifyPath : `/${verifyPath}`}`;
 }
 
-export { evidencePublicLinksHref } from "../verification-links-href";
+export { evidenceVerificationPageHref } from "../verification-links-href";
 
 /**
  * THE CANONICAL VERIFICATION PAGE (owner decision 2026-10-14) — the record's
- * permanent verification reference and its state. Distinct from the recipient
- * links above: it needs no link creation, no publication and never expires.
+ * permanent verification reference and its state. Distinct from the reviewer
+ * shares above: it needs no link creation, no publication and never expires.
  */
 export type CanonicalVerificationStatus =
   | "NOT_ISSUED"
@@ -153,6 +166,23 @@ export type VerificationWithdrawalReason =
   | "SECURITY_INCIDENT"
   | "OPERATOR_REVIEW";
 
+export type VerificationDisclosureMode = "VERIFICATION_ONLY" | "CONTENT_PREVIEW";
+
+/**
+ * What anonymous visitors of the permanent reference see — written by the
+ * SERVER from the saved policy. The client prints it; it never derives it.
+ */
+export type VisitorPreview = { shown: string[]; withheld: string[]; never: string[] };
+
+export type VerificationDisclosure = {
+  mode: VerificationDisclosureMode;
+  showRecordedLocation: boolean;
+  /** The policy version (compare-and-swap for the next change). */
+  version: number;
+  changedAtUtc?: string | null;
+  visitorPreview: VisitorPreview;
+};
+
 export type VerificationAccess = {
   status: CanonicalVerificationStatus;
   reference: string | null;
@@ -160,10 +190,39 @@ export type VerificationAccess = {
   issuedAtUtc: string | null;
   withdrawal: { state: string; reason: string | null; changedAtUtc: string | null } | null;
   canWithdraw: boolean;
+  /** The disclosure policy; null while the record has no page to disclose from. */
+  disclosure: VerificationDisclosure | null;
+  /** May the caller change the disclosure (the publish permission)? */
+  canChangeDisclosure: boolean;
 };
 
 export function getVerificationAccess(evidenceId: string): Promise<VerificationAccess> {
   return apiFetch(`/v1/evidence/${encodeURIComponent(evidenceId)}/verification-access`) as Promise<VerificationAccess>;
+}
+
+export type VerificationDisclosureChange = {
+  mode: VerificationDisclosureMode;
+  showRecordedLocation: boolean;
+  /** The version the caller saw; a newer one answers 409 DISCLOSURE_VERSION_CONFLICT. */
+  expectedVersion: number;
+};
+
+/**
+ * Change what the verification page discloses. Widening it (content preview,
+ * or the recorded location) answers 401 STEP_UP_REQUIRED until `headers`
+ * carries a fresh step-up proof; narrowing never does. The server decides
+ * which change widens — the client only retries through the step-up flow.
+ */
+export function changeVerificationDisclosure(
+  evidenceId: string,
+  change: VerificationDisclosureChange,
+  headers?: Record<string, string>,
+): Promise<{ changed: boolean; disclosure: VerificationDisclosure }> {
+  return apiFetch(`/v1/evidence/${encodeURIComponent(evidenceId)}/verification-disclosure`, {
+    method: "PUT",
+    headers: json(headers),
+    body: JSON.stringify(change),
+  }) as Promise<{ changed: boolean; disclosure: VerificationDisclosure }>;
 }
 
 export function withdrawVerificationAccess(

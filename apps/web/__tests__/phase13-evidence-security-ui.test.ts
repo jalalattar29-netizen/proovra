@@ -6,9 +6,11 @@
  * string appeared nowhere in apps/web, so no consumer scan could find a
  * caller because there was none.
  *
- *   POST /v1/governance/evidence/:id/publish
- *   POST /v1/governance/evidence/:id/unpublish
- *        → app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx
+ *   (2026-10-18) The publication routes this family once wired
+ *   (/v1/governance/evidence/:id/publish|unpublish) are RETIRED. The record's
+ *   verification page is permanent; what it discloses is changed through
+ *   PUT /v1/evidence/:id/verification-disclosure
+ *        → components/evidence-outputs/ManageVerificationPagePanel.tsx
  *   POST /v1/capture/devices/:id/revoke
  *        → app/(app)/security-center/components/CaptureDevicesSection.tsx
  *   POST /v1/redaction/videos/:evidenceId/frames/batch
@@ -39,8 +41,9 @@ import { fileURLToPath } from "node:url";
 const WEB_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string) => readFileSync(join(WEB_ROOT, rel), "utf8");
 
-const PUBLICATION_PANEL =
-  "app/(app)/evidence/[id]/components/PublicVerifyPublicationPanel.tsx";
+const DISCLOSURE_PANEL = "components/evidence-outputs/ManageVerificationPagePanel.tsx";
+const VERIFICATION_CLIENT = "lib/api/verification-links.ts";
+const ARTIFACTS_TAB = "app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx";
 const OVERVIEW_TAB = "app/(app)/evidence/[id]/_tabs/EvidenceOverviewTab.tsx";
 const CAPTURE_DEVICES =
   "app/(app)/security-center/components/CaptureDevicesSection.tsx";
@@ -146,90 +149,48 @@ function assertControlContract(rel: string, opts: { busyToken: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /v1/governance/evidence/:id/publish  +  /unpublish
+// PUT /v1/evidence/:id/verification-disclosure (the publication routes retired)
 // ---------------------------------------------------------------------------
 
-test("evidence publication: publish + unpublish are reachable, confirmed, and step-up aware", () => {
-  const src = read(PUBLICATION_PANEL);
+test("verification disclosure: the one writer is reachable, compare-and-swap and step-up aware", () => {
+  const client = read(VERIFICATION_CLIENT);
+  const src = read(DISCLOSURE_PANEL);
 
-  // One call site serves both routes through a bounded action union.
   assert.ok(
-    src.includes(
-      "`/v1/governance/evidence/${encodeURIComponent(evidenceId)}/${action}`",
-    ),
-    "the publication call must address the exact governance path",
+    client.includes("`/v1/evidence/${encodeURIComponent(evidenceId)}/verification-disclosure`"),
+    "the disclosure call must address the exact route",
   );
-  assert.ok(
-    /action: "publish" \| "unpublish"/.test(src),
-    "the action must be a bounded union of the two registered routes",
-  );
-  assert.ok(
-    src.includes('run("publish")') && src.includes('run("unpublish")'),
-    "both publish and unpublish must have their own control",
-  );
-  assert.ok(
-    src.includes("data-cc-public-verify-publish") &&
-      src.includes("data-cc-public-verify-unpublish"),
-    "both controls must be addressable",
-  );
-  assert.ok(src.includes('method: "POST"'), "the publication routes are POST");
+  assert.ok(/method: "PUT"/.test(client), "the disclosure route is PUT");
+  assert.ok(client.includes("expectedVersion: number"), "the change carries the version it saw");
 
-  // Workspace context: both routes REQUIRE teamId in the body.
-  assert.ok(
-    /body: JSON\.stringify\(\{\s*\n?\s*teamId,/.test(src),
-    "the workspace-scoped body must carry teamId",
-  );
-
-  // Destructive/irreversible → an explicit typed confirmation.
-  assert.ok(
-    src.includes('requireConfirmText: "PUBLISH"'),
-    "publishing to a public route must require an explicit typed confirmation",
-  );
-  assert.ok(
-    src.includes("evidence-public-verify-unpublish"),
-    "withdrawing must be confirmed too — policy changes never unpublish",
-  );
-
-  // The step-up gate is composed, not bypassed.
+  // The step-up gate is composed, not bypassed (widening answers 401).
   assert.ok(
     src.includes("stepUp.runStepUpAction") && src.includes("<StepUpModal"),
     "a 401 STEP_UP_REQUIRED must open the canonical challenge, not dead-end",
   );
-
-  // Every documented 4xx has a distinct, bounded state.
-  for (const status of ["403", "404", "409", "412", "422"]) {
-    assert.ok(
-      src.includes(`status === ${status}`),
-      `no bounded state for the ${status} the publication routes can return`,
-    );
+  // Every documented refusal has a bounded state.
+  for (const code of [
+    "DISCLOSURE_VERSION_CONFLICT",
+    "DISCLOSURE_CHANGE_NOT_PERMITTED",
+    "DISCLOSURE_LOCATION_REQUIRES_CONTENT_PREVIEW",
+    "DISCLOSURE_RECORD_NOT_CHANGEABLE",
+  ]) {
+    assert.ok(src.includes(code), `no bounded state for ${code}`);
   }
-
-  // Success refreshes the underlying record.
-  assert.ok(
-    src.includes("await onChanged()"),
-    "a successful publication change must refetch the record",
-  );
-
-  assertControlContract(PUBLICATION_PANEL, { busyToken: "setPending" });
+  // Success refreshes the record page; the result is announced politely.
+  assert.ok(src.includes("onChanged?.()"), "a saved change must refresh the record page");
+  assert.ok(src.includes('role="status"') && src.includes('aria-live="polite"'));
+  assert.ok(src.includes('role="radiogroup"') && src.includes('role="radio"'));
 });
 
-test("evidence publication: the panel is rendered from the evidence detail surface", () => {
-  const tab = read(OVERVIEW_TAB);
-  assert.ok(
-    tab.includes(
-      'import PublicVerifyPublicationPanel from "../components/PublicVerifyPublicationPanel"',
-    ),
-    "the Overview tab must import the publication panel",
-  );
-  assert.match(
-    tab,
-    /<PublicVerifyPublicationPanel\b[\s\S]*?onChanged=\{loadWorkspace\}/,
-    "the panel must be rendered with the orchestrator's refresh callback",
-  );
-  assert.ok(
-    tab.includes("publicVerifyIncluded={workspaceCaps?.publicVerifyIncluded"),
-    "the control must be disabled when the plan does not include public verify",
-  );
+test("verification disclosure: the control is rendered from the evidence detail surface; publication is gone", () => {
+  const tab = read(ARTIFACTS_TAB);
+  assert.match(tab, /<ManageVerificationPagePanel\b[\s\S]*?onChanged=\{\(\) => void loadWorkspace\(\)\}/);
+  const overview = read(OVERVIEW_TAB);
+  assert.doesNotMatch(overview, /PublicVerifyPublicationPanel|governance\/evidence\/.*publish/);
+  for (const rel of [DISCLOSURE_PANEL, VERIFICATION_CLIENT, ARTIFACTS_TAB, OVERVIEW_TAB]) {
+    assert.doesNotMatch(read(rel), /\/v1\/governance\/evidence\/[^`"]*\/(publish|unpublish|suspend|restore)/);
+  }
 });
 
 // ---------------------------------------------------------------------------
