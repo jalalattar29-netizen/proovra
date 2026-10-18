@@ -15,7 +15,7 @@
  * `appendPackageEntry` call emits the four offline files therefore proves no
  * generated package can contain them.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -105,18 +105,22 @@ describe("Offline Verifier decommission — product surfaces removed", () => {
 });
 
 describe("Offline Verifier decommission — Public Verify preserved", () => {
-  const verifyPage = read("apps/web/app/verify/[token]/page.tsx");
+  // (2026-10-18) The page is split into sections; read every file of it.
+  const verifyDir = "apps/web/app/verify/[token]";
+  const verifyPage = readdirSync(repo(verifyDir))
+    .filter((f) => /\.tsx?$/.test(f))
+    .map((f) => read(`${verifyDir}/${f}`))
+    .join("\n");
 
   it("the public verify page still exists and no longer gates on an offline verifier", () => {
-    expect(verifyPage.length).toBeGreaterThan(0);
+    expect(read(`${verifyDir}/page.tsx`).length).toBeGreaterThan(0);
     expect(verifyPage).not.toContain("offlineVerifierIncluded");
     expect(verifyPage).not.toContain("Offline Verifier");
   });
 
-  it("package-integrity 'complete' no longer requires the removed offline verifier", () => {
-    // The `complete` gate must still check the CORE materials...
+  it("package integrity is the server's seal and completeness check — never a client gate on an offline verifier", () => {
+    expect(verifyPage).toContain("sealCheck");
+    expect(verifyPage).toContain("completenessCheck");
     expect(verifyPage).toContain("integrity.manifestPresent");
-    expect(verifyPage).toContain("integrity.checksumIndexPresent");
-    expect(verifyPage).toContain("integrity.auditExportIncluded");
   });
 });
