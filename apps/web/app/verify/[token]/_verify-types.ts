@@ -26,7 +26,6 @@ export type VerifyOverview = {
   captureMethod?: string | null;
   captureMethodCode?: string | null;
   mimeType?: string | null;
-  submittedByEmail?: string | null;
   submittedByAuthProvider?: string | null;
   submittedByAuthProviderCode?: string | null;
   identityLevel?: string | null;
@@ -187,7 +186,6 @@ export type VerifyLimitations = {
 };
 
 export type VerifyIdentity = {
-  submittedByEmail?: string | null;
   submittedByAuthProvider?: string | null;
   submittedByAuthProviderLabel?: string | null;
   submittedByUserId?: string | null;

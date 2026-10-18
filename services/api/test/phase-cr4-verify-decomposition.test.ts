@@ -35,7 +35,7 @@
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -86,6 +86,14 @@ function listVerifyV2Files(): Array<{ rel: string; abs: string }> {
 // ---------------------------------------------------------------------------
 
 const TOKEN_PAGE = readWeb("app/verify/[token]/page.tsx");
+/**
+ * (2026-10-18) The page is split into sections (VerifyRecordSections,
+ * VerifyContentReview, …): the contract pins read every file of the route.
+ */
+const TOKEN_PAGE_ALL = readdirSync(resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "apps/web/app/verify/[token]"))
+  .filter((f) => /\.tsx?$/.test(f))
+  .map((f) => readWeb(`app/verify/[token]/${f}`))
+  .join("\n");
 const VERIFY_PROJECTION_SVC = readFileSync(
   apiSrcPath("services/media-intelligence/verify-projection.service.ts"),
   "utf8",
@@ -343,16 +351,19 @@ describe("CR4 Group 2 — E5 forbidden-surface patterns stay false across the ve
 // ---------------------------------------------------------------------------
 
 describe("CR4 Group 3 — recorded-integrity-verified phrase preserved", () => {
-  it("token page contains the canonical lowercase phrase 'recorded integrity verified'", () => {
-    expect(/recorded integrity verified/i.test(TOKEN_PAGE)).toBe(true);
+  // (2026-10-18) The integrity statement is the server's matrix row; the page
+  // derives no integrity headline of its own.
+  it("token page derives no integrity headline of its own (no client verdict builders)", () => {
+    expect(TOKEN_PAGE_ALL).not.toMatch(/buildVerificationVerdict|buildLegacyTrustDecisionFallback|mismatchMessages/);
   });
 
   it("token page references integrityProof type (data contract preserved)", () => {
     expect(/integrityProof/.test(TOKEN_PAGE)).toBe(true);
   });
 
-  it("token page references the masked submitter email field type", () => {
-    expect(/submittedByEmail/.test(TOKEN_PAGE)).toBe(true);
+  // (2026-10-18) No email reaches the public page, masked or not.
+  it("token page never references a submitter email", () => {
+    expect(/submittedByEmail/.test(TOKEN_PAGE_ALL)).toBe(false);
   });
 
   it("the page states the per-signal verification matrix and its bounded summary — no overall verdict label (2026-10-08)", () => {
@@ -509,11 +520,13 @@ const TSA_FORBIDDEN_STATES = [
 ];
 
 describe("CR4 Group 8 — TSA state vocabulary", () => {
-  for (const allowed of TSA_STATES) {
-    it(`token page recognises TSA state ${allowed}`, () => {
-      expect(TOKEN_PAGE.includes(allowed)).toBe(true);
-    });
-  }
+  // (2026-10-18) The RFC 3161 statement is the matrix tsa_token row (status,
+  // statusLabel, qualifiers); the page reads no raw TSA status word.
+  void TSA_STATES;
+  it("token page states the timestamp through the matrix tsa_token row, never a raw TSA status word", () => {
+    expect(TOKEN_PAGE_ALL).toContain("tsa_token");
+    expect(TOKEN_PAGE_ALL).not.toMatch(/(?:tsaStatus|timestampStatus)\s*={2,3}\s*["'`]/);
+  });
   for (const forbidden of TSA_FORBIDDEN_STATES) {
     for (const surface of allVerifySurfaceTexts()) {
       it(`${surface.label} :: TSA-context forbidden state '${forbidden}' not paired with timestamp wording`, () => {
@@ -544,11 +557,13 @@ const OTS_FORBIDDEN_STATES = [
 ];
 
 describe("CR4 Group 9 — OTS state vocabulary", () => {
-  for (const allowed of OTS_STATES) {
-    it(`token page recognises OTS state ${allowed}`, () => {
-      expect(TOKEN_PAGE.includes(allowed)).toBe(true);
-    });
-  }
+  // (2026-10-18) The OpenTimestamps statement is the matrix ots_anchoring row
+  // and the server's anchoring view; the page reads no raw OTS status word.
+  void OTS_STATES;
+  it("token page states anchoring through the matrix ots_anchoring row, never a raw OTS status word", () => {
+    expect(TOKEN_PAGE_ALL).toContain("ots_anchoring");
+    expect(TOKEN_PAGE_ALL).not.toMatch(/otsStatus\s*={2,3}\s*["'`]/);
+  });
   for (const forbidden of OTS_FORBIDDEN_STATES) {
     for (const surface of allVerifySurfaceTexts()) {
       it(`${surface.label} :: OTS-context forbidden state '${forbidden}' not paired with otsStatus wording`, () => {
@@ -574,11 +589,10 @@ describe("CR4 Group 10 — custody vs access count separation", () => {
     ).toBe(true);
   });
 
-  it("token page filters on category === 'access' at least once", () => {
-    expect(
-      /category\s*===\s*["'`]access["'`]/.test(TOKEN_PAGE) ||
-        /["'`]access["'`]\s*===\s*[\w.]*category/.test(TOKEN_PAGE),
-    ).toBe(true);
+  // (2026-10-18) Access activity is the server's aggregate (count + latest);
+  // the public page lists no access events.
+  it("token page states access activity as the server's aggregate, never a list", () => {
+    expect(TOKEN_PAGE_ALL).toContain("accessActivity");
   });
 
   it("token page references isAccessCustodyEventType helper (E5 categorisation)", () => {
@@ -687,8 +701,9 @@ describe("CR4 Group 14 — E5 trust-content imports preserved", () => {
     );
   });
 
-  it("token page imports buildEvidenceTrustDecision from @proovra/shared (canonical verdict)", () => {
-    expect(/buildEvidenceTrustDecision/.test(TOKEN_PAGE)).toBe(true);
+  // (2026-10-18) The API computes the decision once; the page renders it.
+  it("token page never builds a trust decision on the client", () => {
+    expect(/buildEvidenceTrustDecision/.test(TOKEN_PAGE_ALL)).toBe(false);
   });
 
   // Defence-in-depth: nothing in the verify tree re-implements a local

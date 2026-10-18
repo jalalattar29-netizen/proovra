@@ -141,13 +141,13 @@ describe("Home priority hrefs must use values the Evidence filter accepts", () =
     expect(EVIDENCE_ROUTES_SRC).not.toMatch(/PUBLIC_VERIFY_STATES|query\.publicVerifyState/);
   });
 
-  it("HOME_PUBLISH_VERIFICATION_HREF emits only values in VERIFICATION_DISCLOSURE_MODES", () => {
-    const { param, values } = splitHref(readHrefConstant(HOME_VM_SRC, "HOME_PUBLISH_VERIFICATION_HREF"));
-    expect(param, "the Home priority must deep-link with the filter the list route reads").toBe("verificationDisclosure");
-    for (const v of values) {
-      expect(allowlists.verificationDisclosure, `HOME_PUBLISH_VERIFICATION_HREF value ${v} must be in VERIFICATION_DISCLOSURE_MODES`).toContain(v);
-    }
-    assertPriorityUsesConstant(HOME_VM_SRC, "publish_verification", "HOME_PUBLISH_VERIFICATION_HREF");
+  // (2026-10-18) Every finalized record already has its verification page:
+  // there is nothing to "publish", so Home carries no publish priority — and no
+  // href may deep-link to the retired publication filter.
+  it("Home carries no publish priority and no href to the retired publication filter", () => {
+    expect(HOME_VM_SRC).not.toMatch(/HOME_PUBLISH_VERIFICATION_HREF|publish_verification/);
+    expect(HOME_VM_SRC).not.toMatch(/publicVerifyState=/);
+    expect(allowlists.verificationDisclosure.sort()).toEqual(["CONTENT_PREVIEW", "VERIFICATION_ONLY"]);
   });
 
   it("HOME_INTEGRITY_REVIEW_HREF emits only values in VERIFICATION_STATUSES (and the priority uses the constant)", () => {

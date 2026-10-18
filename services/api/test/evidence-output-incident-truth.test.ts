@@ -62,10 +62,12 @@ describe("public verification — a fact about the record, not about ANCHOR_PROV
     expect(alerts).toMatch(/case "SUSPENDED":\s*operationalAlerts\.push\(\{\s*severity: "warning" as const,\s*label: "Verification page suspended"/);
   });
 
-  it("the web labels both unpublished states the same truthful way", () => {
+  // (2026-10-18) There is no unpublished state: an available page states what
+  // it discloses, and nothing is "not configured".
+  it("the web labels an available page by what it discloses — never 'not published' or 'not configured'", () => {
     const lib = read("apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx");
-    expect(lib).toMatch(/case "NOT_CONFIGURED":\s*case "CONFIGURED_NOT_PUBLISHED":\s*return \{\s*label: "Not published"/);
-    expect(code(lib)).not.toMatch(/publishable verification surface configured/);
+    expect(lib).toMatch(/case "AVAILABLE": \{[\s\S]{0,200}VERIFICATION_DISCLOSURE_MODE_LABELS/);
+    expect(code(lib)).not.toMatch(/Not published|CONFIGURED_NOT_PUBLISHED|NOT_CONFIGURED|publishable verification surface configured/);
   });
 });
 

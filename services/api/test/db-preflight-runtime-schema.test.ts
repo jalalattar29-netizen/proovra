@@ -87,6 +87,7 @@ function databaseWith(present: {
   incidentMessageCode?: boolean;
   threeDecisions?: boolean;
   captureClientAttempt?: boolean;
+  disclosurePolicy?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (sql.includes("WORKSPACE_OPERATIONS")) return present.reconciliationEnumValue === true;
@@ -156,6 +157,13 @@ function databaseWith(present: {
     if (sql.includes("table_name = 'capture_sessions'") && sql.includes("column_name = 'client_attempt_id'")) {
       return present.captureClientAttempt === true;
     }
+    // 20281018000000 — the verification disclosure policy and the share download grant.
+    if (
+      (sql.includes("table_name = 'evidence'") && sql.includes("column_name = 'verification_disclosure_mode'")) ||
+      (sql.includes("table_name = 'verification_share_tokens'") && sql.includes("column_name = 'allow_original_download'"))
+    ) {
+      return present.disclosurePolicy === true;
+    }
     // 20281014000000 — canonical verification identity + archive restore requests.
     if (
       (sql.includes("table_name = 'evidence'") && sql.includes("column_name = 'verification_ref'")) ||
@@ -220,6 +228,7 @@ const FULLY_MIGRATED = {
   incidentMessageCode: true,
   threeDecisions: true,
   captureClientAttempt: true,
+  disclosurePolicy: true,
 };
 
 describe("runtime schema requirements", () => {
@@ -258,6 +267,16 @@ describe("runtime schema requirements", () => {
     expect(reason.split("\n").length).toBeLessThanOrEqual(
       result.missing.length * LINES_PER_REQUIREMENT + FIXED_OVERHEAD,
     );
+  });
+
+  it("the verification disclosure columns absent is REFUSED (20281018000000)", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, disclosurePolicy: false }));
+    expect(result.ok).toBe(false);
+    expect(result.missing.map((m) => m.id)).toEqual(
+      expect.arrayContaining(["evidence.verification_disclosure_mode", "verification_share_tokens.allow_original_download"]),
+    );
+    expect(describeRuntimeSchemaFailure(result)).toContain("20281018000000_verification_disclosure_policy");
   });
 
   it("the FULLY MIGRATED schema is accepted", async () => {

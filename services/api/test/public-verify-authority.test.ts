@@ -296,7 +296,7 @@ describe("source pins — one authority, no way back", () => {
         const text = readFileSync(f, "utf8");
         // Comments may name the retired column; code may not use it.
         const code = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
-        if (/\bpublicVerifyState\b|\bpublic_verify_state\b/.test(code)) offenders.push(f.slice(ROOT.length + 1));
+        if (/\bpublicVerifyState\b|\bpublic_verify_state\b/.test(code)) offenders.push(f.slice(ROOT.length + 1).split("\\").join("/"));
       }
     }
     expect(offenders).toEqual(["services/api/src/scripts/verification-disclosure-fleet.ts"]);

@@ -356,6 +356,22 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     suppliedBy: "20281014000000_free_outputs_canonical_verification_retention_archive",
   },
   {
+    id: "evidence.verification_disclosure_mode",
+    kind: "column",
+    detail: 'column public."evidence"."verification_disclosure_mode" must exist',
+    requiredBy:
+      "the verification disclosure policy: the public route selects it to decide what the pvr_ page discloses, and the library filter, dashboards and search read it; a whole-row evidence read fails without it",
+    suppliedBy: "20281018000000_verification_disclosure_policy",
+  },
+  {
+    id: "verification_share_tokens.allow_original_download",
+    kind: "column",
+    detail: 'column public."verification_share_tokens"."allow_original_download" must exist',
+    requiredBy:
+      "a reviewer share's explicit original-download grant: every share read (resolution, listing, rotation) selects it",
+    suppliedBy: "20281018000000_verification_disclosure_policy",
+  },
+  {
     id: "evidence_archive_restore_requests.table",
     kind: "table",
     detail: 'table public."evidence_archive_restore_requests" must exist',
@@ -616,6 +632,20 @@ const PROBES = Object.freeze({
      WHERE table_schema = 'public'
        AND table_name = 'evidence'
        AND column_name = 'verification_ref'
+     LIMIT 1`,
+  "evidence.verification_disclosure_mode": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'evidence'
+       AND column_name = 'verification_disclosure_mode'
+     LIMIT 1`,
+  "verification_share_tokens.allow_original_download": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'verification_share_tokens'
+       AND column_name = 'allow_original_download'
      LIMIT 1`,
   "evidence_archive_restore_requests.table": `
     SELECT 1

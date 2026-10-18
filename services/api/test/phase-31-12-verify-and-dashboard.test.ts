@@ -257,10 +257,11 @@ describe("Phase 31.12 — Verify page UI", () => {
     );
   });
 
-  it("state setter is wired into applyVerifyResponse", () => {
-    expect(src).toMatch(
-      /setMediaIntelligenceAdvisory\(data\.mediaIntelligenceAdvisory \?\? null\)/,
-    );
+  // (2026-10-18) The advisory block was removed (below); the page keeps no
+  // state for a field it never renders — and the projection withholds the
+  // advisory from a verification-only answer altogether.
+  it("the page keeps no state for the removed advisory block", () => {
+    expect(src).not.toMatch(/setMediaIntelligenceAdvisory/);
   });
 
   it("Media Intelligence / Advisory Observations block is REMOVED from the verify page (product decision)", () => {
