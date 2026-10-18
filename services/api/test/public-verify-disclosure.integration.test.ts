@@ -611,4 +611,49 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
       await prisma.evidence.update({ where: { id: record.id }, data: { lifecycleState: "ACTIVE", deletedAt: null } as never });
     });
   });
+
+  describe("fleet — the report prints aggregates only; reconcile closes deploy-window drift and nothing else", () => {
+    it("F1 report: counts only — no id, name, email or coordinate", async () => {
+      const { fleetReport } = await import("../src/scripts/verification-disclosure-fleet.js");
+      const report = await fleetReport();
+      const text = JSON.stringify(report);
+      expect(report.policyColumnsPresent).toBe(true);
+      expect(text).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/);
+      expect(text).not.toContain("@");
+      expect(text).not.toContain(String(GPS.lat));
+      for (const t of NAME_TOKENS) expect(text).not.toContain(t);
+      expect(report.partsWithNameBearingStorageKey as number).toBeGreaterThanOrEqual(6);
+      expect(report.recordsWithCoordinates as number).toBeGreaterThanOrEqual(1);
+    });
+
+    it("F2 reconcile: dry run writes nothing; apply maps only an untouched record; a re-run is a no-op; owner choices and new links are kept", async () => {
+      const { reconcile } = await import("../src/scripts/verification-disclosure-fleet.js");
+      // A record the previous image published AFTER the migration ran.
+      const drifted = A().evidenceId;
+      await prisma.evidence.update({
+        where: { id: drifted },
+        data: { publicVerifyState: "PUBLISHED", verificationDisclosureMode: "VERIFICATION_ONLY", verificationDisclosureVersion: 0, verificationDisclosureChangedAtUtc: null } as never,
+      });
+      // The disclosure record (owner-decided, version > 0) and a share made now.
+      const { mintVerificationShareTokenTx } = await import("@proovra/shared-runtime");
+      const fresh = await prisma.$transaction((tx) =>
+        mintVerificationShareTokenTx(tx, { evidenceId: record.id, teamId: A().teamId, purpose: "OWNER_SHARE", projection: "STANDARD", audience: "new" }),
+      );
+      const ownerBefore = await prisma.evidence.findUniqueOrThrow({ where: { id: record.id }, select: { verificationDisclosureMode: true, verificationDisclosureVersion: true } });
+      const dry = await reconcile({ apply: false, batch: 2, after: null, maxBatches: null });
+      expect(dry!.policyDrift).toBeGreaterThanOrEqual(1);
+      expect(dry!.policyReconciled).toBe(0);
+      expect((await prisma.evidence.findUniqueOrThrow({ where: { id: drifted }, select: { verificationDisclosureMode: true } })).verificationDisclosureMode).toBe("VERIFICATION_ONLY");
+      const applied = await reconcile({ apply: true, batch: 2, after: null, maxBatches: null });
+      expect(applied!.failed).toBe(0);
+      expect((await prisma.evidence.findUniqueOrThrow({ where: { id: drifted }, select: { verificationDisclosureMode: true, showRecordedLocation: true } }))).toEqual({
+        verificationDisclosureMode: "CONTENT_PREVIEW",
+        showRecordedLocation: false,
+      });
+      const again = await reconcile({ apply: true, batch: 500, after: null, maxBatches: null });
+      expect(again!.policyDrift).toBe(0);
+      expect(await prisma.evidence.findUniqueOrThrow({ where: { id: record.id }, select: { verificationDisclosureMode: true, verificationDisclosureVersion: true } })).toEqual(ownerBefore);
+      expect((await prisma.verificationShareToken.findUniqueOrThrow({ where: { id: fresh.id } })).revokedAtUtc).toBeNull();
+    });
+  });
 });
