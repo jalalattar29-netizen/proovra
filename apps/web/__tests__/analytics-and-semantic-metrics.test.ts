@@ -227,7 +227,7 @@ test("an activity row carries a glyph for its kind, and the same one every time"
     "evidence_finalized",
     "report_generated",
     "package_generated",
-    "verification_published",
+    "verification_disclosure_changed",
     "hold_placed",
     "destruction_review",
     "incident_opened",

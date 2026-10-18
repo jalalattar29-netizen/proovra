@@ -155,11 +155,11 @@ test.describe("Home V2 acceptance", () => {
 
     const verify = page.locator("[data-self-serve-section='verification-health']");
     await expect(verify).toBeVisible();
-    await expect(verify.locator("[data-verify-issue='suspended_verification']")).toBeVisible();
-    await expect(verify.locator("[data-verify-recent-publications]")).toBeVisible();
+    await expect(verify.locator("[data-verify-issue='unavailable_verification']")).toBeVisible();
+    await expect(verify.locator("[data-verify-recent-disclosure-changes]")).toBeVisible();
 
     const activity = page.locator("[data-self-serve-section='activity']");
-    await expect(activity.locator("[data-activity-kind='verification_published']")).toBeVisible();
+    await expect(activity.locator("[data-activity-kind='verification_disclosure_changed']")).toBeVisible();
     await expect(activity.locator("[data-activity-kind='intake_failed']")).toBeVisible();
 
     await assertNoBannedLinks(page);
@@ -210,7 +210,7 @@ test.describe("Home V2 acceptance", () => {
     if (await verifyLink.count()) {
       const href = await verifyLink.getAttribute("href");
       expect(href, "must open the record's link controls").toMatch(
-        /^\/evidence\/[0-9a-f-]{36}\?tab=artifacts#public-verification-links$/,
+        /^\/evidence\/[0-9a-f-]{36}\?tab=artifacts#verification-page$/,
       );
     }
     await expect(page.locator("a[href^='/verify/']")).toHaveCount(0);

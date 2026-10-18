@@ -3426,14 +3426,17 @@ function PipelineDetailSection({
         />
       </div>
 
-      <h3 className="ec-pipeline-heading">Public verify</h3>
-      <div className="ec-pipeline-strip" data-cc-pipeline-public-verify>
-        <PipelineStage label="Published" value={d.publicVerify.published} />
-        <PipelineStage label="Unpublished" value={d.publicVerify.unpublished} />
+      {/* Every finalized record has a permanent verification page: the
+          split is what the available pages disclose, and how many are
+          withdrawn or suspended. There is nothing to "publish". */}
+      <h3 className="ec-pipeline-heading">Verification pages</h3>
+      <div className="ec-pipeline-strip" data-cc-pipeline-verification-pages>
+        <PipelineStage label="Content preview" value={d.verificationPages.contentPreview} />
+        <PipelineStage label="Verification only" value={d.verificationPages.verificationOnly} />
         <PipelineStage
-          label="Suspended"
-          value={d.publicVerify.suspended}
-          severe={d.publicVerify.suspended > 0}
+          label="Unavailable"
+          value={d.verificationPages.unavailable}
+          severe={d.verificationPages.unavailable > 0}
         />
       </div>
     </SectionShell>
