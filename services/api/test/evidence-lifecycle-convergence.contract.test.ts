@@ -494,20 +494,33 @@ describe("trash unpublishes as a stated rule", () => {
     );
   });
 
-  it("trashing a published record suspends publication through the publication authority", () => {
-    // An explicit, RECORDED transition. Before this, publication ended at trash
-    // time silently: no event, no audit line, and no way for an operator to see
-    // that public exposure had changed.
-    expect(LIFECYCLE_SERVICE).toContain("suspendPublicVerify");
-    expect(LIFECYCLE_SERVICE).toContain('reason: "Record moved to trash"');
+  // (2026-10-18) The publication model is retired. Trash no longer writes a
+  // publication state (the suspendPublicVerify call went with the
+  // publication authority): the canonical page's reachability is a function
+  // of the lifecycle and the access state, stated for every identifier.
+  it("trash writes no publication or disclosure state", () => {
+    const body = code(LIFECYCLE_SERVICE);
+    expect(body).not.toContain("suspendPublicVerify");
+    expect(body).not.toContain("publication.service");
+    expect(body).not.toMatch(/publicVerifyState/);
+    // Nor does it touch the disclosure policy or the access state: restoring a
+    // record restores its page under the policy trash never changed.
+    expect(body).not.toMatch(/verificationDisclosureMode|showRecordedLocation|verificationAccessState/);
   });
 
-  it("restoring from trash does NOT re-publish", () => {
-    // Re-exposing a record to the public internet is a decision a person makes,
-    // not one a restore infers. The suspend call is scoped to TRASH only.
-    expect(LIFECYCLE_SERVICE).toContain(
-      'if (input.action === "TRASH" && evidence.teamId)',
-    );
+  it("the canonical page answers RETAINED for a trashed record and comes back on restore — under the unchanged policy", async () => {
+    const { resolveCanonicalVerificationStatus } = await import("@proovra/shared-runtime");
+    // Trashed (or retention-archived / under a destruction claim): RETAINED,
+    // for every identifier, without any write at trash time.
+    for (const lifecycleState of ["TRASHED", "RETENTION_ARCHIVED", "PENDING_DESTRUCTION"]) {
+      expect(resolveCanonicalVerificationStatus({ lifecycleState, verificationAccessState: "AVAILABLE" })).toBe("RETAINED");
+    }
+    // Restored to ACTIVE: AVAILABLE again — nothing to "re-publish".
+    expect(resolveCanonicalVerificationStatus({ lifecycleState: "ACTIVE", verificationAccessState: "AVAILABLE" })).toBe("AVAILABLE");
+    // A withdrawal the owner made stays a withdrawal across trash and restore.
+    expect(resolveCanonicalVerificationStatus({ lifecycleState: "ACTIVE", verificationAccessState: "WITHDRAWN" })).toBe("WITHDRAWN");
+    // Destroyed: PURGED.
+    expect(resolveCanonicalVerificationStatus({ lifecycleState: "DESTROYED", verificationAccessState: "AVAILABLE" })).toBe("PURGED");
   });
 });
 

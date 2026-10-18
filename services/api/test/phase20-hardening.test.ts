@@ -711,7 +711,7 @@ describe("Phase 20 — route permission matrix (high-risk surfaces)", () => {
     }
   });
 
-  it("governance routes wire step-up on every documented sensitive purpose", async () => {
+  it("governance routes wire step-up on every documented sensitive purpose (verification disclosure widening included)", async () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
     const src = await readFile(
@@ -722,13 +722,30 @@ describe("Phase 20 — route permission matrix (high-risk surfaces)", () => {
     );
     for (const purpose of [
       "LEGAL_HOLD_RELEASE",
-      "PUBLIC_VERIFY_PUBLISH",
-      "PUBLIC_VERIFY_UNPUBLISH",
-      "PUBLIC_VERIFY_SUSPEND",
       "GOVERNANCE_POLICY_UPDATE",
     ]) {
       expect(src).toMatch(new RegExp(`purpose:\\s*"${purpose}"`));
     }
+    for (const retired of ["PUBLIC_VERIFY_PUBLISH", "PUBLIC_VERIFY_UNPUBLISH", "PUBLIC_VERIFY_SUSPEND"]) {
+      expect(src).not.toMatch(new RegExp(`purpose:\\s*"${retired}"`));
+    }
+
+    // (2026-10-18) The publication routes (publish / unpublish / suspend /
+    // restore) were retired. Widening what a verification page discloses is
+    // the step-up'd act now, on PUT /v1/evidence/:id/verification-disclosure
+    // (only when the change discloses MORE), and granting originals on a
+    // reviewer link is the other.
+    const disclosureRoutes = await readFile(
+      fileURLToPath(new URL("../src/routes/evidence-retention-verification.routes.ts", import.meta.url)),
+      "utf8",
+    );
+    const put = disclosureRoutes.slice(disclosureRoutes.indexOf('app.put("/v1/evidence/:id/verification-disclosure"'));
+    expect(put).toMatch(/if \(disclosureWidens\(current, body\)\) \{[\s\S]*?requireStepUpForSensitiveAction\(\{[\s\S]*?purpose:\s*"PUBLIC_VERIFY_PUBLISH"/);
+    const shareRoutes = await readFile(
+      fileURLToPath(new URL("../src/routes/verification-share.routes.ts", import.meta.url)),
+      "utf8",
+    );
+    expect(shareRoutes).toMatch(/if \(body\.allowOriginalDownload && body\.projection === "STANDARD"\) \{[\s\S]*?purpose:\s*"PUBLIC_VERIFY_PUBLISH"/);
   });
 
   it("integrations routes wire step-up on API key create + revoke", async () => {

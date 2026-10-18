@@ -29,6 +29,12 @@ const EVIDENCE_ROUTES_SRC = readFileSync(
   resolve(__dirname, "..", "src", "routes", "evidence.routes.ts"),
   "utf8",
 );
+// (2026-10-18) The disclosure-policy vocabulary lives in packages/shared; the
+// list route imports VERIFICATION_DISCLOSURE_MODES from there.
+const DISCLOSURE_VOCAB_SRC = readFileSync(
+  resolve(__dirname, "..", "..", "..", "packages", "shared", "src", "verification-disclosure.ts"),
+  "utf8",
+);
 const HOME_VM_SRC = readFileSync(
   resolve(__dirname, "..", "..", "..", "apps", "web", "components", "home-experience", "home-view-model.ts"),
   "utf8",
@@ -88,7 +94,7 @@ describe("Home priority hrefs must use values the Evidence filter accepts", () =
   const allowlists = {
     tsaStatus: readAllowlist(EVIDENCE_ROUTES_SRC, "EVIDENCE_TSA_STATUSES"),
     otsStatus: readAllowlist(EVIDENCE_ROUTES_SRC, "EVIDENCE_OTS_STATUSES"),
-    publicVerifyState: readAllowlist(EVIDENCE_ROUTES_SRC, "PUBLIC_VERIFY_STATES"),
+    verificationDisclosure: readAllowlist(DISCLOSURE_VOCAB_SRC, "VERIFICATION_DISCLOSURE_MODES"),
     verificationStatus: readAllowlist(EVIDENCE_ROUTES_SRC, "VERIFICATION_STATUSES"),
   };
 
@@ -125,11 +131,21 @@ describe("Home priority hrefs must use values the Evidence filter accepts", () =
     assertPriorityUsesConstant(HOME_VM_SRC, "tsa_failures", "HOME_TSA_FAILURES_HREF");
   });
 
-  it("HOME_PUBLISH_VERIFICATION_HREF emits only values in PUBLIC_VERIFY_STATES", () => {
+  // (2026-10-18) The publication filter (publicVerifyState) is RETIRED: the list
+  // route reads `verificationDisclosure` against the shared disclosure modes
+  // and silently ignores the old parameter — so a Home href still sending it
+  // would open an UNFILTERED queue whose count disagrees with the priority.
+  it("the list route filters by verificationDisclosure (shared modes) and no longer reads publicVerifyState", () => {
+    expect(allowlists.verificationDisclosure).toEqual(["VERIFICATION_ONLY", "CONTENT_PREVIEW"]);
+    expect(EVIDENCE_ROUTES_SRC).toMatch(/parseEvidenceMultiEnumFilter<\(typeof VERIFICATION_DISCLOSURE_MODES\)\[number\]>\(\s*query\.verificationDisclosure,\s*VERIFICATION_DISCLOSURE_MODES,/);
+    expect(EVIDENCE_ROUTES_SRC).not.toMatch(/PUBLIC_VERIFY_STATES|query\.publicVerifyState/);
+  });
+
+  it("HOME_PUBLISH_VERIFICATION_HREF emits only values in VERIFICATION_DISCLOSURE_MODES", () => {
     const { param, values } = splitHref(readHrefConstant(HOME_VM_SRC, "HOME_PUBLISH_VERIFICATION_HREF"));
-    expect(param).toBe("publicVerifyState");
+    expect(param, "the Home priority must deep-link with the filter the list route reads").toBe("verificationDisclosure");
     for (const v of values) {
-      expect(allowlists.publicVerifyState, `HOME_PUBLISH_VERIFICATION_HREF value ${v} must be in PUBLIC_VERIFY_STATES`).toContain(v);
+      expect(allowlists.verificationDisclosure, `HOME_PUBLISH_VERIFICATION_HREF value ${v} must be in VERIFICATION_DISCLOSURE_MODES`).toContain(v);
     }
     assertPriorityUsesConstant(HOME_VM_SRC, "publish_verification", "HOME_PUBLISH_VERIFICATION_HREF");
   });

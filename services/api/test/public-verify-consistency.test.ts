@@ -82,6 +82,10 @@ describe("public verify consistency helpers (2026-10-13)", () => {
     expect(liveAnchoring).toEqual({
       lastUpdatedAtUtc: "2026-06-08T11:30:00Z",
       hasAdvancedSinceSnapshot: true,
+      // (2026-10-18) HOW it advanced, by canonical state (otsAdvanceSinceIssue):
+      // the report stated PENDING; an attestation has been recorded since (the
+      // chain itself is not verified, so not CHAIN_VERIFIED_SINCE_ISSUE).
+      advance: "ATTESTATION_RECORDED_SINCE_ISSUE",
       newerReportAvailable: false,
       newerPackageAvailable: true,
       autoRefreshRecommended: false,

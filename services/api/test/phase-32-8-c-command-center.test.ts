@@ -820,12 +820,12 @@ describe("Phase 32.8C (Full Rebuild) — case operations + reviewer orchestratio
     }
   });
 
-  it("pipelineDetail envelope covers evidence + reports + packages + public-verify breakdown", () => {
+  it("pipelineDetail envelope covers evidence + reports + packages + verification-pages breakdown", () => {
     for (const field of [
       "evidence: {",
       "reports: {",
       "packages: {",
-      "publicVerify: {",
+      "verificationPages: {",
       "stuckUploading",
       "missingFromSigned",
       "missingFromReported",
@@ -834,11 +834,17 @@ describe("Phase 32.8C (Full Rebuild) — case operations + reviewer orchestratio
     }
   });
 
-  it("public-verify stage breakdown reads the real PublicVerifyState enum (PUBLISHED / UNPUBLISHED / SUSPENDED)", () => {
-    expect(SERVICE).toMatch(/by:\s*\["publicVerifyState"\]/);
-    expect(SERVICE).toContain('verifyCount("PUBLISHED")');
-    expect(SERVICE).toContain('verifyCount("UNPUBLISHED")');
-    expect(SERVICE).toContain('verifyCount("SUSPENDED")');
+  // (2026-10-18) The publication breakdown (PUBLISHED / UNPUBLISHED / SUSPENDED)
+  // was retired with the publication model. Every finalized record has a
+  // canonical page; the breakdown is what each page discloses, plus pages whose
+  // access is withdrawn or suspended — read from the real columns.
+  it("verification-pages breakdown reads the disclosure policy and the access state (no publication state)", () => {
+    expect(SERVICE).toMatch(/by:\s*\["verificationDisclosureMode", "verificationAccessState"\]/);
+    expect(SERVICE).not.toMatch(/publicVerifyState/);
+    expect(SERVICE).toContain('const pageUnavailable = (g: { verificationAccessState: string }) => g.verificationAccessState !== "AVAILABLE";');
+    expect(SERVICE).toMatch(/contentPreview: pageCount\(\(g\) => !pageUnavailable\(g\) && g\.verificationDisclosureMode === "CONTENT_PREVIEW"\)/);
+    expect(SERVICE).toMatch(/verificationOnly: pageCount\(\(g\) => !pageUnavailable\(g\) && g\.verificationDisclosureMode !== "CONTENT_PREVIEW"\)/);
+    expect(SERVICE).toMatch(/unavailable: pageCount\(pageUnavailable\)/);
   });
 });
 
@@ -861,6 +867,8 @@ describe("Phase 32.8C (Full Rebuild) — organizational intelligence + timeline 
       "evidence_finalized",
       "report_generated",
       "package_generated",
+      // (2026-10-18) verification_published became verification_disclosure_changed.
+      "verification_disclosure_changed",
       "lifecycle_transition",
       "hold_placed",
       "hold_released",

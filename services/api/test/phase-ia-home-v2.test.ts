@@ -293,7 +293,11 @@ describe("Phase IA-home-v2 — trust state", () => {
     expect(SVC).toMatch(/groupBy/);
     expect(SVC).toMatch(/tsaStatus/);
     expect(SVC).toMatch(/otsStatus/);
-    expect(SVC).toMatch(/publicVerifyState/);
+    // (2026-10-18) Verification pages: disclosure policy x access state (the
+    // publication state is retired).
+    expect(SVC).toMatch(/by:\s*\["verificationDisclosureMode", "verificationAccessState"\]/);
+    expect(SVC).toMatch(/verificationPages:\s*\{\s*contentPreview:\s*number;\s*verificationOnly:\s*number;\s*unavailable:\s*number;\s*\}/);
+    expect(SVC).not.toMatch(/publicVerifyState/);
     expect(SVC).toMatch(/signatureBase64:\s*\{\s*not:\s*null\s*\}/);
     const ROUTE = readApi("src/routes/dashboard.routes.ts");
     expect(ROUTE).toMatch(/\/v1\/dashboard\/trust-summary/);
