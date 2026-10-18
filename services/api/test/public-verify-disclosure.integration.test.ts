@@ -228,6 +228,16 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
       expect(facts.identity.statement).toBe("Withheld by the record’s disclosure policy");
     });
 
+    it("C0 a client cannot choose its own disclosure: query parameters never widen the page", async () => {
+      for (const q of ["disclosure=CONTENT_PREVIEW", "mode=CONTENT_PREVIEW", "verificationDisclosureMode=CONTENT_PREVIEW", "showRecordedLocation=true", "projection=STANDARD"]) {
+        const res = await call("GET", `/public/verify/${encodeURIComponent(record.ref)}?${q}`, null);
+        expect(res.statusCode, q).toBe(200);
+        expect(res.json().disclosure.mode, q).toBe("VERIFICATION_ONLY");
+        for (const token of NAME_TOKENS) expect(res.body, q).not.toContain(token);
+        expect(res.body, q).not.toContain(String(GPS.lat));
+      }
+    });
+
     it("C8 no title, description, owner role or 'Original:' sentence leaves the API", async () => {
       const page = await anonymousPage();
       expect(page.text).not.toContain("Kestrel");
