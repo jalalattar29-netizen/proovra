@@ -94,7 +94,7 @@ top level of it.
 | OK | `parseReportUrl` | `GET /v1/evidence/:id/report/latest` | evidenceId, generatedAtUtc, reviewerSnapshot, snapshots, storage, url, version | url |
 | OK | `parseReviewerWorkflow` | `GET /v1/evidence/:id/reviewer-workflow` | available, workflow | available, workflow |
 | OK | `parseReviewerWorkflowEvents` | `GET /v1/evidence/:id/reviewer-workflow/events` | items | items |
-| OK | `parseVerificationAccess` | `GET /v1/evidence/:id/verification-access` | canWithdraw, issuedAtUtc, reference, refusalReason, status, verifyPath, withdrawal | reference, status, verifyPath |
+| OK | `parseVerificationAccess` | `GET /v1/evidence/:id/verification-access` | canChangeDisclosure, canWithdraw, disclosure, issuedAtUtc, reference, refusalReason, sta… | reference, status, verifyPath |
 | OK | `parseReportUrl` | `GET /v1/evidence/:id/verification-package` | action, code, disclosureProfile, evidenceId, generatedAtUtc, latestAvailablePackageVersi… | url |
 | OK | `parseRetentionArchive` | `GET /v1/evidence/retention-archive` | items, nextCursor | items, nextCursor |
 | OK | `parseValidatedIntake` | `GET /v1/external-intake/:token` | link, parts, request, resumed, session | link, request, session |

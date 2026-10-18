@@ -39,7 +39,7 @@ beforeEach(async () => {
     }),
     "/v1/evidence": () => ({ items: [] }),
     "/v1/dashboard/command-center": () => ({ sections: { caseOperations: { status: "ok", data: { activeCasesCount: 9, topCases: TOP } } } }),
-    "/v1/dashboard/trust-summary": () => ({ totalEvidence: 10, publicVerify: { published: 3, unpublished: 6, suspended: 1 }, intake: { submissionsAwaitingReview: 5 } }),
+    "/v1/dashboard/trust-summary": () => ({ totalEvidence: 10, verificationPages: { verificationOnly: 6, contentPreview: 3, unavailable: 1 }, intake: { submissionsAwaitingReview: 5 } }),
     "/v1/billing/overview": () => ({}),
     "/v1/reports": () => ({
       items: [
@@ -79,7 +79,7 @@ test("active matters: verdict first, reasons, the deliverable chain, legal hold"
   assert.ok(r.byLabel("Action required").length >= 1);
   assert.ok(r.byLabel("Healthy").length >= 1);
   assert.equal(r.byLabel("Legal hold").length, 1, "the legal-hold chip is missing");
-  assert.ok(texts.some((t) => t.startsWith("1 unreviewed · 2 overdue · verification not published · E 4 · R 2 · P 1 · V 0 · 4 records")), "the matter reasons / chain were not shown");
+  assert.ok(texts.some((t) => t.startsWith("1 unreviewed · 2 overdue · verification page unavailable · E 4 · R 2 · P 1 · V 0 · 4 records")), "the matter reasons / chain were not shown");
   await act(async () => { r.byTestId("home-matter-c-hot")[0].props.onPress(); });
   assert.equal(M.calls.push.at(-1), "/case/c-hot");
 });
@@ -97,15 +97,16 @@ test("no matters offers Create case; an unavailable projection is not called emp
   assert.equal(r.hasText("No active matters yet"), false);
 });
 
-test("verification health: live / not published / suspended, and Publish verification", async () => {
+test("verification pages: the server's counts by disclosure — no publish CTA (2026-10-18)", async () => {
   const r = await render();
-  assert.ok(r.hasText("Public verification links"));
-  assert.ok(r.hasText("verification pages live"));
-  // 10 total − 3 live − 1 suspended, as the web computes it.
-  assert.ok(r.texts().includes("6"), "not-published count missing");
-  assert.ok(r.hasText("Suspended"));
-  await r.press("Publish verification");
-  assert.equal(M.calls.push.at(-1), "/evidence");
+  assert.ok(r.hasText("Verification pages"));
+  assert.equal(r.byLabel("Verification only: 6").length, 1);
+  assert.equal(r.byLabel("Content preview: 3").length, 1);
+  assert.equal(r.byLabel("Unavailable: 1").length, 1);
+  // The publication model is retired: nothing to publish, nothing "not published".
+  assert.equal(r.byLabel("Publish verification").length, 0);
+  assert.equal(r.hasText("Not published"), false);
+  assert.equal(r.hasText("Public verification links"), false);
 });
 
 test("report production lists available reports with their package state", async () => {
@@ -167,7 +168,7 @@ test("Verification summary: each signal in its own words, the boundary note", as
     signed: 172,
     tsa: { stamped: 138, pending: 0, failed: 34, none: 4 },
     ots: { anchored: 170, pending: 6, failed: 0, none: 0 },
-    publicVerify: { published: 3, unpublished: 172, suspended: 1 },
+    verificationPages: { verificationOnly: 170, contentPreview: 3, unavailable: 1 },
     needingAttention: 2,
     intake: { submissionsAwaitingReview: 0 },
   });
@@ -176,37 +177,39 @@ test("Verification summary: each signal in its own words, the boundary note", as
   assert.ok(r.hasText("Time-stamp proof (TSA)"));
   assert.ok(r.texts().some((t) => t.includes("34 failed")));
   assert.ok(r.texts().some((t) => t.includes("4 not stamped")));
-  assert.ok(r.hasText("Public verification links paused"));
+  assert.ok(r.hasText("Verification pages unavailable (withdrawn or suspended)"));
   assert.ok(r.hasText("Records needing attention"));
   assert.ok(r.hasText("PROOVRA records integrity signals; it does not determine factual truth or legal admissibility."));
   assert.equal(r.hasText("Capture first evidence"), false);
 });
 
 test("an empty trust summary explains the signals and offers Capture first evidence", async () => {
-  routes["/v1/dashboard/trust-summary"] = () => ({ totalEvidence: 0, publicVerify: { published: 0, unpublished: 0, suspended: 0 } });
+  routes["/v1/dashboard/trust-summary"] = () => ({ totalEvidence: 0, verificationPages: { verificationOnly: 0, contentPreview: 0, unavailable: 0 } });
   const r = await render();
   assert.ok(r.hasText("No evidence captured yet — these are the integrity signals each record will earn once captured."));
   await r.press("Capture first evidence");
   assert.equal(M.calls.push.at(-1), "/capture");
 });
 
-test("public verification: recently published and the verifiable records, with Open verify", async () => {
+test("verification pages: recent disclosure changes and the verifiable records, with Open verify", async () => {
   routes["/v1/dashboard/command-center"] = () => ({
     sections: {
       caseOperations: { status: "ok", data: { activeCasesCount: 9, topCases: TOP } },
       timeline: {
         status: "ok",
         items: [
-          { id: "t1", kind: "verification_published", label: "Verification published — Roof photo", href: "/evidence/e1", occurredAt: TODAY },
+          { id: "t1", kind: "verification_disclosure_changed", label: "Verification page shows a content preview — Roof photo", href: "/evidence/e1", occurredAt: TODAY },
+          { id: "t0", kind: "verification_published", label: "Verification published — retired kind", href: "/evidence/e1", occurredAt: TODAY },
           { id: "t2", kind: "report_generated", label: "Report generated — Roof photo", href: "/evidence/e1", occurredAt: TODAY },
         ],
       },
     },
   });
   const r = await render();
-  assert.ok(r.hasText("RECENTLY PUBLISHED"));
-  assert.ok(r.hasText("Verification published — Roof photo"));
-  assert.equal(r.hasText("Report generated — Roof photo"), false, "only publications are listed");
+  assert.ok(r.hasText("RECENT DISCLOSURE CHANGES"));
+  assert.ok(r.hasText("Verification page shows a content preview — Roof photo"));
+  assert.equal(r.hasText("Verification published — retired kind"), false, "the retired publication kind is not listed");
+  assert.equal(r.hasText("Report generated — Roof photo"), false, "only disclosure changes are listed");
   // e1 has a package, so its public verify page works; e2 does not.
   assert.equal(r.byTestId("home-verifiable-e1").length, 1);
   assert.equal(r.byTestId("home-verifiable-e2").length, 0);
@@ -224,7 +227,7 @@ test("report production: stats, needs-action rows, and the row's More actions", 
           evidence: { created: 0, uploading: 0, uploaded: 0, signed: 2, reported: 8, stuckUploading: 0 },
           reports: { ready: 2, versionsTotal: 2, queued: 0, failed: 1, missingFromSigned: 0 },
           packages: { ready: 1, versionsTotal: 1, queued: 3, blocked: 0, failed: 0, missingFromReported: 3 },
-          publicVerify: { published: 3, unpublished: 6, suspended: 1 },
+          verificationPages: { verificationOnly: 6, contentPreview: 3, unavailable: 1 },
         },
       },
     },
@@ -243,7 +246,7 @@ test("report production: stats, needs-action rows, and the row's More actions", 
   assert.equal(r.byLabel("Failed: 1").length, 1);
   assert.ok(r.hasText("1 · Failed deliverables need attention"));
   assert.ok(r.hasText("3 · Reported evidence missing a package"));
-  assert.ok(r.hasText("2 · Reports ready but verification not published"));
+  assert.equal(r.hasText("2 · Reports ready but verification not published"), false, "the publish row is retired");
   const minted = () => requested.filter((p) => p.includes("/report/latest"));
   assert.equal(minted().length, 0, "a report URL was minted without a tap (it records a custody download)");
   await act(async () => { r.byLabel("More actions")[0].props.onPress(); });

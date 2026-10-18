@@ -92,13 +92,15 @@ test("a real verification response renders its header, items, integrity, acquisi
     "Primary evidence item · clip.mp4", "Original: IMG_0042.MOV",
     "c2lnbmF0dXJl", "key-7 (v3)", "tx".repeat(20),
     "Secure Intake Link", "Accepted", "iPhone 15", "iOS 18.1",
-    "Evidence signed", "2 later access events are not integrity-relevant.",
+    "Evidence signed", "Access activity: 2 events",
   ]) {
     assert.ok(r.hasText(text), `missing: ${text}`);
   }
   assert.ok(r.texts().some((t) => t.includes("Duration: 2:05")), "duration not in the web's m:ss");
   assert.ok(r.byLabel("Check Latest Anchoring Status").length === 1);
-  assert.ok(r.hasText("Token: tok-1"), "the token chip is missing");
+  // The identifier the page was opened with is never echoed or re-shared (2026-10-18).
+  assert.ok(!r.texts().some((t) => t.includes("tok-1")), "the opening identifier is not printed");
+  assert.equal(r.byTestId("verify-share-url").length, 0, "no canonical reference → no share link");
 });
 
 /* ---- T-14 (VerifyCaptureIntegritySection.tsx:129 original file) ---- */
@@ -188,24 +190,30 @@ test("a pasted token opens its verification", async () => {
   assert.equal(asked, "/public/verify/abc123token");
 });
 
-test("the header badge is green only for an unqualified verified status", async () => {
+test("no header badge tone is inferred from the server's status words (verifyStatusTone is gone)", async () => {
   const P = await loadModule("src/product/public-verify.ts", []);
-  assert.equal(P.verifyStatusTone("Verified"), "verified");
-  assert.equal(P.verifyStatusTone("Review required"), "pending");
-  assert.equal(P.verifyStatusTone("Integrity mismatch"), "risk");
-  assert.equal(P.verifyStatusTone("Verified — anchoring pending"), "pending");
-  assert.equal(P.verifyStatusTone(null), "pending");
+  assert.equal(P.verifyStatusTone, undefined);
+  // Without a matrix the screen says the matrix is unavailable instead of a word-derived badge.
+  answer = () => ({ status: 200, body: { overview: { evidenceTitle: "Roof photo", verificationStatus: "Verified" }, technicalMaterials: { fileSha256: "cd".repeat(32) } } });
+  const r = await render();
+  assert.equal(r.byTestId("verify-matrix-unavailable").length, 1);
+  assert.equal(r.byLabel("Verified").length, 0, "no badge reads the overview's words");
+  r.unmount();
 });
 
 
 test("Copy Verification Link writes the link itself to the clipboard", async () => {
   process.env.EXPO_PUBLIC_WEB_BASE = process.env.EXPO_PUBLIC_WEB_BASE || "https://www.proovra.com";
   globalThis.__CLIPBOARD__ = undefined;
-  answer = () => ({ status: 200, body: { evidenceId: "ev-1", overview: { evidenceTitle: "Roof photo", verificationStatus: "Verified" }, technicalMaterials: { fileSha256: "cd".repeat(32) } } });
+  answer = () => ({
+    status: 200,
+    body: { recordFacts: { verificationReference: "pvr_7pLuIsF1Z_JiaqHKByYM72RwUcM" }, overview: { evidenceTitle: "Roof photo", verificationStatus: "Verified" }, technicalMaterials: { fileSha256: "cd".repeat(32) } },
+  });
   const r = await render();
   const shown = r.byTestId("verify-share-url")[0];
   assert.ok(shown, "no verification link on screen");
   const link = [shown.props.children].flat().join("");
+  assert.ok(link.endsWith("/verify/pvr_7pLuIsF1Z_JiaqHKByYM72RwUcM"), link);
   await r.press("Copy Verification Link");
   for (let i = 0; i < 3; i += 1) await act(async () => { await new Promise((x) => setTimeout(x, 0)); });
   assert.equal(globalThis.__CLIPBOARD__, link);

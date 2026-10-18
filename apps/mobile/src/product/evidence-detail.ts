@@ -64,12 +64,6 @@ export interface ProvenanceView {
   statement: string | null;
 }
 
-export interface PublicVerifyView {
-  state: string | null;
-  published: boolean;
-  disabledReason: string | null;
-}
-
 function o(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
 }
@@ -356,10 +350,6 @@ export function projectProvenance(rw: unknown): ProvenanceView | null {
   return { mode, category: s(acq["category"]), label, statement: s(acq["statement"]) };
 }
 
-export function projectPublicVerify(rw: unknown): PublicVerifyView {
-  const pv = o(o(rw)["publicVerificationSummary"]);
-  return { state: s(pv["state"]), published: b(pv["published"]), disabledReason: s(pv["disabledReason"]) };
-}
 
 /* ----------------------------------------------------- Technical metadata + EXIF */
 

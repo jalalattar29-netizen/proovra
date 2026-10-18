@@ -20,7 +20,15 @@ import {
   readStoredTrustDecision,
   toVerificationStatus,
   VERIFICATION_LIMITATION,
+  VERIFICATION_STATUS_LABELS,
+  VERIFICATION_QUALIFIER_LABELS,
+  VERIFICATION_DISCLOSURE_MODE_LABELS,
+  WITHHELD_BY_DISCLOSURE_POLICY,
+  parseVerificationDisclosureMode,
+  parseVerificationQualifiers,
   type TrustSignalState,
+  type VerificationDisclosureMode,
+  type VerificationQualifier,
   type VerificationStatus,
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
@@ -248,7 +256,8 @@ export function parseVerifyView(payload: unknown): VerifyView {
       const e = obj(raw);
       return { eventType: str(e["eventType"]) ?? "EVENT", atUtc: str(e["atUtc"]), summary: publicEventSummary(str(e["payloadSummary"])) };
     }),
-    accessEventCount: num(custody["accessEventCount"]),
+    // The anonymous route aggregates access activity: a count, never a list.
+    accessEventCount: num(obj(custody["accessActivity"])["count"]) ?? num(custody["accessEventCount"]),
     acquisition,
     device,
   };
@@ -264,59 +273,21 @@ export function formatVerifyDuration(ms: number | null): string | null {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export function publicVerifyUrl(origin: string | null, token: string): string | null {
-  return origin ? `${origin}/verify/${encodeURIComponent(token)}` : null;
-}
-
-// ---------------------------------------------------------------------------
-// ET-PKG-07 — a public link is a SHARE TOKEN the server issues, never the
-// record's id. The native library used to build /verify/<evidence id> locally
-// and share that. It now asks the server for a link (POST
-// /v1/evidence/:id/verify-links — the same route the web's owner controls
-// use) and shares what comes back. The token is in that one response only;
-// revoking, replacing and listing links are on the web record page.
-// ---------------------------------------------------------------------------
-
-/** The owner's label for a link made from the phone. Only the owner ever sees it. */
-export const NATIVE_SHARE_LINK_AUDIENCE = "Shared from the PROOVRA mobile app";
-/** A link made from the phone expires; the web controls offer other choices. */
-export const NATIVE_SHARE_LINK_EXPIRY_DAYS = 30;
-
-export function verificationLinkCreatePath(evidenceId: string): string {
-  return `/v1/evidence/${encodeURIComponent(evidenceId)}/verify-links`;
-}
-
-export function verificationLinkCreateBody(): {
-  audience: string;
-  expiresInDays: number;
-  projection: "STANDARD";
-  maxUses: null;
-} {
-  return {
-    audience: NATIVE_SHARE_LINK_AUDIENCE,
-    expiresInDays: NATIVE_SHARE_LINK_EXPIRY_DAYS,
-    projection: "STANDARD",
-    maxUses: null,
-  };
-}
-
 /**
- * The create response, read by its real keys (`verifyPath`, `published`,
- * `link.expiresAtUtc`). Anything that is not a share-token path is no link.
+ * THE link the verify screen shares or copies (2026-10-18): the record's
+ * canonical page, `/verify/<pvr_ reference>`, read from the server's
+ * `recordFacts.verificationReference` (else `canonicalVerification.reference`).
+ * The identifier the page was opened with — a reviewer `pvs_` share, a legacy
+ * record id — is never re-shared. No reference, or no web origin: no link.
  */
-export function parseCreatedVerificationLink(
-  res: unknown,
-): { verifyPath: string; published: boolean; expiresAtUtc: string | null } | null {
-  if (!res || typeof res !== "object") return null;
-  const r = res as Record<string, unknown>;
-  const verifyPath = typeof r["verifyPath"] === "string" ? (r["verifyPath"] as string) : "";
-  if (!verifyPath.startsWith("/verify/pvs_")) return null;
-  const link = r["link"] && typeof r["link"] === "object" ? (r["link"] as Record<string, unknown>) : {};
-  return {
-    verifyPath,
-    published: r["published"] === true,
-    expiresAtUtc: typeof link["expiresAtUtc"] === "string" ? (link["expiresAtUtc"] as string) : null,
-  };
+export function canonicalVerifyReference(payload: unknown): string | null {
+  const d = obj(payload);
+  const ref = str(obj(d["recordFacts"])["verificationReference"]) ?? str(obj(d["canonicalVerification"])["reference"]);
+  return ref && /^pvr_[A-Za-z0-9_-]+$/.test(ref) ? ref : null;
+}
+export function canonicalVerifyShareUrl(origin: string | null, payload: unknown): string | null {
+  const ref = canonicalVerifyReference(payload);
+  return origin && ref ? `${origin.replace(/\/+$/, "")}/verify/${ref}` : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -486,15 +457,23 @@ export function verifyStatusPillLabel(status?: string | null): string {
   return s || "AVAILABLE";
 }
 
-/** verify-v2/_helpers.ts timestampTone. */
+/**
+ * A raw `storageAndTimestamping.tsa.status` word, for a reply WITHOUT a
+ * verification matrix only (the screen prints the matrix `tsa_token` row —
+ * status, statusLabel, qualifiers — whenever the reply carries one).
+ *
+ * The word is a recorded lifecycle word, never a validation: a legacy
+ * STAMPED / GRANTED / VERIFIED / SUCCEEDED means a token was obtained, and the
+ * shared resolver reads it as "recorded, not validated". No raw word is ever a
+ * success tone here; only the server's matrix can say VERIFIED.
+ */
 export function verifyTimestampTone(status?: string | null): { label: string; tone: VerifyWebTone } {
   const s = (status ?? "").toUpperCase();
-  if (s === "STAMPED" || s === "GRANTED" || s === "VERIFIED" || s === "SUCCEEDED") return { label: s, tone: "success" };
-  if (s === "PENDING") return { label: "PENDING", tone: "warning" };
-  // ET-TSA-01: a kept token that was never validated.
-  if (s === "RECORDED_NOT_VALIDATED") return { label: "RECORDED, NOT VALIDATED", tone: "warning" };
-  if (s === "FAILED") return { label: "FAILED", tone: "warning" };
-  if (s) return { label: s, tone: "warning" };
+  if (s === "STAMPED" || s === "GRANTED" || s === "VERIFIED" || s === "SUCCEEDED" || s === "RECORDED_NOT_VALIDATED")
+    return { label: "Recorded, not validated", tone: "warning" };
+  if (s === "PENDING") return { label: "Pending", tone: "warning" };
+  if (s === "FAILED") return { label: "Failed", tone: "warning" };
+  if (s) return { label: s.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()), tone: "warning" };
   return { label: "Unavailable", tone: "neutral" };
 }
 
@@ -513,39 +492,23 @@ export function verifyOtsTone(
   return { label: otsStatusLine(card), tone: card.tone, state: card.state, verification: card.verification };
 }
 
-function isPositiveTsa(status?: string | null): boolean {
-  return ["STAMPED", "GRANTED", "VERIFIED", "SUCCEEDED"].includes(String(status ?? "").toUpperCase());
-}
-function isFailedTsa(status?: string | null): boolean {
-  return ["FAILED", "UNAVAILABLE", "ERROR"].includes(String(status ?? "").toUpperCase());
-}
-
 // ---------------------------------------------------------------- signals
 
 /**
- * The integrity signals the web page derives its verdict, reviewer actions
- * and mismatch explanations from: `integrityProof` (evidence.routes.ts:13566),
- * `storageAndTimestamping.tsa|ots|storage` (:13892). The TSA status is the
- * RAW `storageAndTimestamping.tsa.status` only — the web's fallback to the
- * humanised `overview.timestampStatus` label is not repeated.
+ * The server's integrity booleans (`integrityProof`, evidence.routes.ts) and
+ * the stored-object facts (`storageAndTimestamping.storage`), as the Integrity
+ * tab prints them. Read, never combined: no verdict, reviewer action or
+ * mismatch sentence is derived from them here (2026-10-18) — the matrix rows
+ * state each check, and a FAILED row is the only "issue" the screen shows.
+ * `tsaStatus` is the RAW word, printed only for a reply without a matrix.
  */
 export interface VerifyIntegritySignals {
   present: boolean;
-  overallIntegrity: boolean | null;
   canonicalHashMatches: boolean | null;
   signatureValid: boolean | null;
   custodyChainValid: boolean | null;
   custodyChainMode: string | null;
   custodyChainFailureReason: string | null;
-  timestampDigestMatches: boolean | null;
-  /** THE canonical OTS state the server sent (unknown → UNAVAILABLE). ANCHORED is NOT a verification. */
-  otsState: OtsState;
-  /** THE derived verification key; CHAIN_VERIFIED is the only positive Bitcoin claim. */
-  otsVerification: OtsVerificationKey;
-  /** The proof does not match the referenced block in the active Bitcoin main chain (CHAIN_FAILED). */
-  otsChainFailed: boolean;
-  /** The stored proof does not commit to the record's digest (FAILED / PROOF_HASH_MISMATCH). */
-  otsProofMismatch: boolean;
   tsaStatus: string | null;
   storage: { immutable: boolean | null; verified: boolean | null; mode: string | null };
 }
@@ -556,21 +519,14 @@ export function parseVerifyIntegritySignals(payload: unknown): VerifyIntegritySi
   const proof = obj(ip);
   const st = obj(d["storageAndTimestamping"]);
   const tsa = obj(st["tsa"]);
-  const otsView = readOts(st["ots"]);
   const storage = obj(st["storage"]);
   return {
     present: Boolean(ip && typeof ip === "object"),
-    overallIntegrity: bool(proof["overallIntegrity"]),
     canonicalHashMatches: bool(proof["canonicalHashMatches"]),
     signatureValid: bool(proof["signatureValid"]),
     custodyChainValid: bool(proof["custodyChainValid"]),
     custodyChainMode: str(proof["custodyChainMode"]),
     custodyChainFailureReason: str(proof["custodyChainFailureReason"]),
-    timestampDigestMatches: bool(proof["timestampDigestMatches"]) ?? bool(tsa["digestMatchesTimestampInput"]),
-    otsState: otsView.state,
-    otsVerification: otsView.verification,
-    otsChainFailed: otsView.verification === "CHAIN_FAILED",
-    otsProofMismatch: otsView.state === "FAILED" && otsView.failureCode === "PROOF_HASH_MISMATCH",
     tsaStatus: upper(tsa["status"]),
     storage: { immutable: bool(storage["immutable"]), verified: bool(storage["verified"]), mode: str(storage["mode"]) },
   };
@@ -660,12 +616,14 @@ export interface VerifyMatrixRowView {
   key: string;
   label: string;
   status: VerificationStatus;
-  /** The Bitcoin anchoring row's status word ("Attestation recorded", "Independently verified ✓", …), localized. */
+  /** The server's status words when they differ from the generic word (OpenTimestamps, a retained-token timestamp). */
   statusLabel?: string;
   /** The canonical OTS state, on the ots_anchoring row only. */
   otsState?: OtsState;
   /** The canonical OTS verification key, on the ots_anchoring row only. */
   otsVerification?: OtsVerificationKey;
+  /** How the status came about (VERIFICATION_QUALIFIERS); never a status. */
+  qualifiers?: VerificationQualifier[];
   statement: string;
   measuredAtUtc: string | null;
   tone: VerifyWebTone;
@@ -676,8 +634,6 @@ export interface VerifyMatrixView {
   summary: string;
   /** The fixed limitation. */
   limitation: string;
-  /** SERVER: `verificationMatrix` from the reply. SIGNALS: derived from the trust signals (an older API). */
-  source: "SERVER" | "SIGNALS";
 }
 
 /** Matrix rows (and their trust-signal keys) whose FAILED status puts the preserved bytes under review. */
@@ -690,51 +646,31 @@ const INTEGRITY_REVIEW_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * `verificationMatrix` (GET /v1/public/verify/:id, BASIC and RICH tiers): the
- * per-signal statement of the record. A reply without one (an API older than
- * this build) is read from its trust signals instead — one row per signal,
- * its status and its recorded words — never from a score or a verdict.
+ * `verificationMatrix` (GET /public/verify/:id, BASIC and RICH tiers): the
+ * per-signal statement of the record, exactly as the server computed it.
+ * A reply without one gets NO matrix — the screen says the matrix is
+ * unavailable; it is never rebuilt here from trust signals (2026-10-18).
  */
 export function parseVerifyMatrix(payload: unknown, locale?: string | null): VerifyMatrixView | null {
-  const d = obj(payload);
-  const matrix = parseVerificationMatrix(d["verificationMatrix"]);
-  if (matrix && matrix.rows.length > 0) {
-    return {
-      rows: matrix.rows.map((r) => (r.key === "ots_anchoring" ? otsMatrixRow(r, locale) : { ...r, tone: verificationStatusTone(r.status) })),
-      summary: matrix.summary,
-      limitation: matrix.limitation || VERIFICATION_LIMITATION,
-      source: "SERVER",
-    };
-  }
-  const decision = readStoredTrustDecision(d["trustDecision"]);
-  if (!decision) return null;
+  const matrix = parseVerificationMatrix(obj(payload)["verificationMatrix"]);
+  if (!matrix || matrix.rows.length === 0) return null;
   return {
-    rows: decision.signals.map((s) => {
-      const status = toVerificationStatus(s.state);
-      if (s.key === "bitcoin_anchoring") {
-        return otsMatrixRow({ key: s.key, status, measuredAtUtc: s.measuredAtUtc, otsVerification: otsVerificationFromTrustSignal(s.state, s.otsVerification) }, locale);
-      }
-      return {
-        key: s.key,
-        label: s.label,
-        status,
-        statement: s.summary || "Not recorded for this record.",
-        measuredAtUtc: s.measuredAtUtc,
-        tone: verificationStatusTone(status),
-      };
-    }),
-    summary: decision.summary,
-    limitation: VERIFICATION_LIMITATION,
-    source: "SIGNALS",
+    rows: matrix.rows.map((r) => (r.key === "ots_anchoring" ? otsMatrixRow(r, locale) : { ...r, tone: verificationStatusTone(r.status) })),
+    summary: matrix.summary,
+    limitation: matrix.limitation || VERIFICATION_LIMITATION,
   };
 }
+
+/** The sentence the screen prints when the reply carries no verification matrix. */
+export const VERIFY_MATRIX_UNAVAILABLE_COPY =
+  "The verification matrix is unavailable in this response. No per-signal verification result is shown.";
 
 /**
  * The Bitcoin anchoring row: the state the row carries (a legacy row without
  * one reads as UNAVAILABLE in the shared parser), in the locale's words.
  */
 function otsMatrixRow(
-  r: { key: string; status: VerificationStatus; measuredAtUtc: string | null; otsVerification?: unknown; statement?: string },
+  r: { key: string; status: VerificationStatus; measuredAtUtc: string | null; otsVerification?: unknown; statement?: string; qualifiers?: VerificationQualifier[] },
   locale?: string | null,
 ): VerifyMatrixRowView {
   const card = otsCardForVerification(r.otsVerification, locale);
@@ -749,10 +685,39 @@ function otsMatrixRow(
     statusLabel: otsBadgeLabel(card),
     otsState: card.state,
     otsVerification: card.verification,
+    ...(r.qualifiers && r.qualifiers.length > 0 ? { qualifiers: r.qualifiers } : {}),
     statement: otsDetail({ sentence, secondaryStatus: card.secondaryStatus }),
     measuredAtUtc: r.measuredAtUtc,
     tone: card.tone,
   };
+}
+
+/** One matrix row by key, or null. */
+export function verifyMatrixRow(matrix: VerifyMatrixView | null, key: string): VerifyMatrixRowView | null {
+  return matrix?.rows.find((r) => r.key === key) ?? null;
+}
+
+/** A row's status words: the server's statusLabel, else the shared status word. */
+export function verifyMatrixStatusWords(r: Pick<VerifyMatrixRowView, "status" | "statusLabel">): string {
+  return r.statusLabel ?? VERIFICATION_STATUS_LABELS[r.status] ?? r.status;
+}
+
+/** A row's qualifiers in words (VERIFICATION_QUALIFIER_LABELS). */
+export function verifyMatrixQualifierWords(r: Pick<VerifyMatrixRowView, "qualifiers">): string[] {
+  return (r.qualifiers ?? []).map((q) => VERIFICATION_QUALIFIER_LABELS[q] ?? q);
+}
+
+/**
+ * The integrity issues the screen states: the matrix rows the SERVER marked
+ * FAILED — label and statement — and nothing else. A failed file-integrity,
+ * record-signature or custody row is danger; any other failed row (a
+ * timestamp, OpenTimestamps, a package seal) is stated by its own row and
+ * does not decide the preserved bytes (the shared summary's rule).
+ */
+export function verifyMatrixIssues(matrix: VerifyMatrixView | null): Array<{ key: string; title: string; body: string; severity: "danger" | "warning" }> {
+  return (matrix?.rows ?? [])
+    .filter((r) => r.status === "FAILED")
+    .map((r) => ({ key: r.key, title: r.label, body: r.statement, severity: INTEGRITY_REVIEW_KEYS.has(r.key) ? ("danger" as const) : ("warning" as const) }));
 }
 
 /** A FAILED file-integrity, record-signature or custody check, from the decision or the matrix. */
@@ -829,232 +794,74 @@ export function parseVerifyOutputContext(payload: unknown): VerifyOutputContextV
   };
 }
 
-// ------------------------------------------------ verdict / actions / issues
-
-export interface VerifyVerdictView {
-  status: "review_required" | "verified" | "partial" | "unavailable";
-  label: string;
-  actionRequired: string;
-  legalStatement: string;
-  tone: "danger" | "warning" | "success" | "neutral";
-}
-
-/**
- * buildVerificationVerdict (page.tsx:1490). Internal: it picks the reviewer
- * statements and the tone; its label is never an overall verdict on screen.
- * Review is required when a file-integrity, record-signature or custody check
- * FAILED (the decision's integrityReviewRequired or a FAILED matrix row).
- */
-export function buildVerifyVerdict(
-  trust: VerifyTrustDecisionView | null,
-  s: VerifyIntegritySignals,
-  matrix: VerifyMatrixView | null = null,
-): VerifyVerdictView {
-  const core = trust?.signals.find((x) => x.key === "core_integrity");
-  const anchoring = trust?.signals.find((x) => x.key === "bitcoin_anchoring");
-  const integrityReviewRequired = verifyIntegrityReviewRequired(trust, matrix);
-  const presentationState = trust?.presentationState ?? null;
-  const coreExplicitlyVerified = core?.state === "PASSED";
-  const publicAnchoringPending =
-    anchoring?.state === "PENDING" || presentationState === "VERIFIED_PENDING_ANCHORING";
-  const timestampMismatch = isPositiveTsa(s.tsaStatus) && s.timestampDigestMatches === false;
-  const timestampUnavailable = (isFailedTsa(s.tsaStatus) || !String(s.tsaStatus ?? "").trim()) && s.timestampDigestMatches !== true;
-  const failedSignals = [s.canonicalHashMatches === false, s.signatureValid === false, s.custodyChainValid === false, timestampMismatch, s.otsProofMismatch].filter(Boolean).length;
-  const passedSignals = [
-    s.canonicalHashMatches === true,
-    s.signatureValid === true,
-    s.custodyChainValid === true,
-    s.timestampDigestMatches === true,
-    s.otsVerification === "CHAIN_VERIFIED",
-    // AUD-014 — only a confirmed read of the stored object passes; a recorded lock does not.
-    s.storage.verified === true,
-  ].filter(Boolean).length;
-  const knownSignals = [
-    s.canonicalHashMatches !== null,
-    s.signatureValid !== null,
-    s.custodyChainValid !== null,
-    s.timestampDigestMatches !== null,
-    s.otsState !== "UNAVAILABLE",
-    s.storage.verified !== null || s.storage.immutable !== null,
-  ].filter(Boolean).length;
-
-  if (integrityReviewRequired || s.overallIntegrity === false || failedSignals > 0) {
-    return {
-      status: "review_required",
-      label: "Review Required",
-      actionRequired:
-        "Do not rely on this record as a finalized integrity result until the failed integrity signal is reviewed by a qualified technical or forensic reviewer.",
-      legalStatement:
-        "One or more returned integrity checks did not pass. This page supports review of the recorded system state, but it must not be interpreted as conclusive proof of authenticity, authorship, factual truth, legal admissibility, or absence of tampering.",
-      tone: "danger",
-    };
-  }
-  if (coreExplicitlyVerified && failedSignals === 0 && !timestampUnavailable) {
-    return {
-      status: "verified",
-      label: "Integrity checks passed",
-      // The OpenTimestamps card states its own status once; the summary does not repeat it.
-      actionRequired: "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility.",
-      legalStatement: "The available cryptographic, custody, timestamping, and storage signals returned in this verification response support the recorded integrity state. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content.",
-      tone: publicAnchoringPending ? "warning" : "success",
-    };
-  }
-  if (presentationState === "PARTIALLY_VERIFIED" || passedSignals > 0 || knownSignals > 0) {
-    return {
-      status: "partial",
-      label: !coreExplicitlyVerified ? "Conditional trust state" : timestampUnavailable ? "Integrity verified; trusted timestamp unavailable" : "Conditional trust state",
-      actionRequired: !coreExplicitlyVerified
-        ? "Core integrity materials are recorded, but the recorded-integrity state has not been finalized as explicitly verified. Use this record with limitations until that state is explicit."
-        : timestampUnavailable
-          ? "Core integrity checks are available, but the trusted timestamp provider did not return a usable token. Review timestamp availability before treating the evidence as timestamp-verified."
-          : "Use this record with caution. Review missing, pending, or unavailable verification layers before treating the evidence as finalized.",
-      legalStatement: !coreExplicitlyVerified
-        ? "Core integrity materials are present, but the recorded-integrity state has not been finalized as explicitly verified. This response should not be summarized as plain verified."
-        : timestampUnavailable
-          ? "Available integrity checks support the recorded evidence state, but trusted timestamp verification is unavailable. No timestamp digest match or mismatch can be concluded from this response."
-          : "Some verification materials were returned, but the response did not provide a complete positive integrity conclusion for every technical layer. The record should be treated as a conditional trust state until missing or pending layers are resolved.",
-      tone: "warning",
-    };
-  }
-  return {
-    status: "unavailable",
-    label: "Verification Unavailable",
-    actionRequired: "Do not rely on this record as verified until verification materials are available and reviewed.",
-    legalStatement: "The verification response did not expose enough technical material to support a complete integrity conclusion.",
-    tone: "neutral",
-  };
-}
-
-/** buildReviewerActions (page.tsx:1774), verbatim. */
-export function buildVerifyReviewerActions(verdict: VerifyVerdictView, s: VerifyIntegritySignals): string[] {
-  const actions: string[] = [];
-  if (verdict.status === "review_required")
-    actions.push("Treat this record as requiring technical review before relying on it as a complete integrity verification result.");
-  if (s.canonicalHashMatches === false)
-    actions.push(
-      "Compare the displayed evidence digest against the original evidence material and confirm whether the preserved content differs from the recorded fingerprint.",
-    );
-  if (s.signatureValid === false)
-    actions.push("Review the digital signature, signing key identifier, key version, and public key material before accepting the signature layer.");
-  if (s.custodyChainValid === false)
-    actions.push("Inspect the custody chain continuity. A custody-chain mismatch may indicate missing, altered, or inconsistent event linkage.");
-  if (isPositiveTsa(s.tsaStatus) && s.timestampDigestMatches === false)
-    actions.push(
-      "Review the trusted timestamp mismatch. A timestamp digest mismatch means the timestamped digest does not match the recorded timestamp input digest.",
-    );
-  if (isFailedTsa(s.tsaStatus))
-    actions.push(
-      "Review timestamp availability. The timestamp provider did not return a usable token, so no timestamp digest match or mismatch can be concluded.",
-    );
-  if (s.otsProofMismatch)
-    actions.push("Review the OpenTimestamps proof: it does not commit to this record's evidence digest.");
-  if (s.otsChainFailed)
-    actions.push(`Review the OpenTimestamps proof: ${otsAnchoringCopy("en").verificationSentences.CHAIN_FAILED}`);
-  if (s.storage.verified !== true)
-    actions.push("Confirm storage immutability or retention status before relying on the storage-protection layer.");
-  if (actions.length === 0)
-    actions.push(
-      "Review the displayed record identity, evidence hash, custody chain, timestamping materials, and access activity before external legal or operational reliance.",
-    );
-  return actions;
-}
-
-/** buildMismatchExplanations (page.tsx:1849), verbatim. */
-export function buildVerifyMismatchExplanations(s: VerifyIntegritySignals): Array<{ title: string; body: string; severity: "danger" | "warning" }> {
-  const out: Array<{ title: string; body: string; severity: "danger" | "warning" }> = [];
-  if (s.canonicalHashMatches === false)
-    out.push({
-      title: "Fingerprint mismatch",
-      severity: "danger",
-      body: "The canonical fingerprint check did not match the recorded evidence state. This is a critical integrity signal and should be reviewed before relying on the record.",
-    });
-  if (s.signatureValid === false)
-    out.push({
-      title: "Digital signature invalid",
-      severity: "danger",
-      body: "The recorded digital signature did not validate against the available verification material. This may affect confidence in the signed record state.",
-    });
-  if (s.custodyChainValid === false)
-    out.push({
-      title: "Custody-chain continuity issue",
-      severity: "danger",
-      body:
-        s.custodyChainFailureReason ??
-        "The custody chain reported an integrity issue. Review previous-event hashes and event hashes to determine where continuity failed.",
-    });
-  if (isPositiveTsa(s.tsaStatus) && s.timestampDigestMatches === false)
-    out.push({
-      title: "Trusted timestamp digest mismatch",
-      severity: "warning",
-      body: "The trusted timestamp digest does not match the recorded timestamp input digest. This does not automatically prove the content is false, but it means the timestamp layer cannot be treated as clean without review.",
-    });
-  if (s.otsProofMismatch)
-    out.push({
-      title: "Bitcoin anchoring failed",
-      severity: "warning",
-      body: "The OpenTimestamps proof does not commit to this record's evidence digest.",
-    });
-  if (s.otsChainFailed)
-    out.push({
-      title: otsAnchoringCopy("en").verificationLabels.CHAIN_FAILED,
-      severity: "danger",
-      body: otsAnchoringCopy("en").verificationSentences.CHAIN_FAILED,
-    });
-  return out;
-}
-
-/** The web `mismatchMessages` (page.tsx:3455), verbatim. */
-export function verifyMismatchMessages(s: VerifyIntegritySignals): string[] {
-  const items: string[] = [];
-  if (s.canonicalHashMatches === false) items.push("The canonical fingerprint check did not match the recorded evidence state.");
-  if (s.signatureValid === false) items.push("The digital signature check failed for the recorded verification materials.");
-  if (s.custodyChainValid === false)
-    items.push(
-      s.custodyChainFailureReason ? `The custody chain reported a mismatch: ${s.custodyChainFailureReason}` : "The custody chain reported an integrity mismatch.",
-    );
-  if (isPositiveTsa(s.tsaStatus) && s.timestampDigestMatches === false)
-    items.push("The trusted timestamp digest did not match the recorded timestamp input digest.");
-  if (isFailedTsa(s.tsaStatus))
-    items.push(
-      "Trusted timestamp unavailable. The timestamp provider did not return a usable token, so no timestamp digest match or mismatch can be concluded.",
-    );
-  if (s.otsProofMismatch) items.push("The OpenTimestamps proof does not commit to this record's evidence digest.");
-  return items;
-}
+// ------------------------------------------------------------ issues
 
 export const VERIFY_REVIEW_COPY = {
   legalKicker: "Legal Review Boundary",
-  actionsKicker: "Recommended Reviewer Actions",
-  actionsBody:
-    "These actions help a legal, insurance, compliance, or forensic reviewer decide what must be checked before relying on this evidence record.",
+  actionsKicker: "Recommended Reviewer Action",
   issuesKicker: "Integrity Issue Explanation",
-  issuesBody: "The following issue explanations translate raw technical mismatch signals into reviewer-facing meaning.",
+  issuesBody: "These signals were checked and FAILED, as the verification matrix states. Each is reported on its own.",
 } as const;
 
 // ------------------------------------------------ snapshot divergence (#7)
 
+export interface VerifyDivergenceReason {
+  code: string | null;
+  label: string;
+  detail: string;
+  /** The server's tone for this reason; VERIFICATION_ADVANCED is informational. */
+  tone: VerifyWebTone;
+  integrityCritical: boolean;
+}
 export interface VerifyDivergenceView {
   accessOnly: boolean;
+  /** The server said a difference is integrity-critical (or a reason is danger). */
+  integrityCritical: boolean;
   kicker: string;
   headline: string;
-  reasons: Array<{ label: string; detail: string }>;
+  reasons: VerifyDivergenceReason[];
 }
 
-/** `trustDecisionConsistency` (evidence.routes.ts:13816) — only when it differs. */
+function consistencyTone(v: unknown): VerifyWebTone {
+  return v === "danger" || v === "warning" || v === "info" ? v : "neutral";
+}
+
+/**
+ * `trustDecisionConsistency` — only when the server says the live page differs
+ * from the issued snapshot. Each reason is printed with the server's own label,
+ * detail and tone: a VERIFICATION_ADVANCED reason is an informational
+ * improvement, never an alarm. The headline never says "no integrity
+ * mismatch" beside a danger or integrity-critical reason.
+ */
 export function parseVerifyDivergence(payload: unknown): VerifyDivergenceView | null {
   const c = obj(obj(payload)["trustDecisionConsistency"]);
   if (c["consistentWithSnapshot"] !== false) return null;
-  const accessOnly = c["accessOnly"] === true;
+  const reasons: VerifyDivergenceReason[] = arr(c["reasons"]).map((r) => {
+    const o2 = obj(r);
+    const code = str(o2["code"]);
+    return {
+      code,
+      label: str(o2["label"]) ?? "Snapshot difference",
+      detail: str(o2["detail"]) ?? "The live page differs from the issued snapshot.",
+      tone: code === "VERIFICATION_ADVANCED" ? "info" : consistencyTone(o2["tone"]),
+      integrityCritical: o2["integrityCritical"] === true,
+    };
+  });
+  const integrityCritical = c["integrityCritical"] === true || reasons.some((r) => r.integrityCritical || r.tone === "danger");
+  const accessOnly = c["accessOnly"] === true && !integrityCritical;
+  const advancedOnly = reasons.length > 0 && reasons.every((r) => r.code === "VERIFICATION_ADVANCED");
   return {
     accessOnly,
-    kicker: accessOnly ? "Live access activity update" : "Live verification status update",
-    headline: accessOnly
-      ? "No integrity mismatch detected. Later page views, downloads, or access activity changed after the fixed report snapshot."
-      : "The live verification state differs from the fixed report snapshot. Review the technical materials if this change matters to your review.",
-    reasons: arr(c["reasons"]).map((r) => {
-      const o2 = obj(r);
-      return { label: str(o2["label"]) ?? "Snapshot difference", detail: str(o2["detail"]) ?? "Later activity changed after the fixed snapshot." };
-    }),
+    integrityCritical,
+    kicker: integrityCritical ? "Live verification status update" : advancedOnly ? "Verification advanced since issue" : accessOnly ? "Live access activity update" : "Live verification status update",
+    headline: integrityCritical
+      ? "The live verification state differs from the fixed report snapshot in an integrity-relevant check. Review the technical materials before relying on the record."
+      : advancedOnly
+        ? "A check the issued artifact stated as not yet verified has since advanced. The issued artifact keeps what was true when it was issued."
+        : accessOnly
+          ? "No integrity-relevant difference was reported. Later activity changed after the fixed report snapshot."
+          : "The live verification state differs from the fixed report snapshot. Review the technical materials if this change matters to your review.",
+    reasons,
   };
 }
 export const VERIFY_DIVERGENCE_COPY = {
@@ -1096,29 +903,60 @@ function formatSignatureStatus(status?: string | null): string {
 export interface VerifyAnchoringView {
   snapshotRows: Array<{ label: string; value: string }>;
   liveRows: Array<{ label: string; value: string; mono?: boolean }>;
+  /** The OpenTimestamps state when the artifact was issued (`verificationSnapshot.otsVerificationAtGeneration`). */
+  atIssueStatus: string;
+  /** The OpenTimestamps state now: the matrix ots_anchoring row's words (else the served OTS view). */
+  currentStatus: string;
+  currentQualifiers: string[];
+  /** The server's `liveAnchoring.advance`, in words — null unless the server says it advanced. */
+  advance: string | null;
   advanced: boolean;
   otsPending: boolean;
   /** The PENDING sentence in the locale's words. */
   otsPendingSentence: string;
 }
 
+/** `liveAnchoring.advance` (otsAdvanceSinceIssue, packages/shared snapshot-comparison.ts), in words. */
+export const OTS_ADVANCE_COPY: Readonly<Record<string, string>> = {
+  PENDING_SINCE_ISSUE: "OpenTimestamps submission recorded after the artifact was issued.",
+  ATTESTATION_RECORDED_SINCE_ISSUE: "A Bitcoin attestation was recorded after the artifact was issued; it is not independently checked against Bitcoin.",
+  CHAIN_VERIFIED_SINCE_ISSUE: "Independently verified against the Bitcoin main chain after the artifact was issued. The issued artifact keeps the state it stated when it was issued.",
+};
+
 /**
- * `verificationSnapshot` + `liveAnchoring` (evidence.routes.ts:13817-13818,
- * built by public-verify-consistency.service.ts). The web renders both blocks
- * only when `verificationSnapshot` is present (page.tsx:5158).
+ * `verificationSnapshot` + `liveAnchoring` (public-verify-consistency.service.ts).
+ * Rendered only when `verificationSnapshot` is present. The at-issue state is
+ * the snapshot's OTS verification; the current state is the server's matrix
+ * row; "advanced" is said ONLY when the server's `liveAnchoring.advance` says
+ * so — never compared here.
  */
-export function parseVerifyAnchoring(payload: unknown, fmt: (iso: string) => string, locale?: string | null): VerifyAnchoringView | null {
+export function parseVerifyAnchoring(
+  payload: unknown,
+  fmt: (iso: string) => string,
+  locale?: string | null,
+  matrix: VerifyMatrixView | null = null,
+): VerifyAnchoringView | null {
   const d = obj(payload);
   const rawSnap = d["verificationSnapshot"];
   if (!rawSnap || typeof rawSnap !== "object") return null;
   const snap = obj(rawSnap);
   const live = obj(d["liveAnchoring"]);
-  // THE live state: the OtsAnchoringView the server sent (liveAnchoring.ots when
-  // present, else storageAndTimestamping.ots). Never re-derived from a txid or a time.
+  // The served OtsAnchoringView (liveAnchoring.ots when present, else
+  // storageAndTimestamping.ots) supplies the facts; never re-derived from a txid or a time.
   const liveOts = obj(live["ots"]);
   const ots = otsCard(Object.keys(liveOts).length > 0 ? liveOts : obj(d["storageAndTimestamping"])["ots"], locale, fmt);
   const copy = otsAnchoringCopy(locale);
+  const otsRow = verifyMatrixRow(matrix, "ots_anchoring");
+  const currentStatus = otsRow ? verifyMatrixStatusWords(otsRow) : otsStatusLine(ots);
+  const snapVerification = str(snap["otsVerificationAtGeneration"]);
   const snapState = str(snap["otsStatusAtGeneration"]);
+  const atIssueStatus = snapVerification
+    ? otsBadgeLabel(otsCardForVerification(snapVerification, locale))
+    : snapState
+      ? otsStateWord(snapState, locale)
+      : "Not recorded in snapshot";
+  const advanceCode = str(live["advance"]);
+  const advance = advanceCode && advanceCode !== "NONE" ? OTS_ADVANCE_COPY[advanceCode] ?? null : null;
   const reportVersion = num(snap["reportVersion"]);
   const packageVersion = num(snap["packageVersion"]);
   const pkgSig = obj(snap["verificationPackageSignature"]);
@@ -1130,10 +968,7 @@ export function parseVerifyAnchoring(payload: unknown, fmt: (iso: string) => str
       { label: "Generated At", value: snapGen ? fmt(snapGen) : "Not recorded" },
       { label: "Report Version", value: reportVersion !== null ? `v${reportVersion}` : "Not recorded" },
       { label: "Package Version", value: packageVersion !== null ? `v${packageVersion}` : "Not recorded" },
-      {
-        label: `${copy.title} (at generation)`,
-        value: snapState ? otsStateWord(snapState, locale) : "Not recorded in snapshot",
-      },
+      { label: `${copy.title} (when issued)`, value: atIssueStatus },
       { label: "Report Signature", value: formatSignatureStatus(str(obj(snap["reportSignature"])["status"])) },
       {
         label: "Package Manifest Signature",
@@ -1143,7 +978,7 @@ export function parseVerifyAnchoring(payload: unknown, fmt: (iso: string) => str
       { label: "Snapshot Signal Summary", value: readStoredTrustDecision(snap["trustDecisionSnapshot"])?.summary ?? "No fixed signal snapshot" },
     ],
     liveRows: [
-      { label: ots.title, value: otsStatusLine(ots) },
+      { label: `${ots.title} (now)`, value: currentStatus },
       // Only the facts present; the txid only when the proof path derived it.
       ...ots.facts
         .filter(isOtsSummaryFact)
@@ -1152,8 +987,12 @@ export function parseVerifyAnchoring(payload: unknown, fmt: (iso: string) => str
       { label: "Latest Report", value: live["newerReportAvailable"] === true ? "Latest report available" : "No newer report recorded" },
       { label: "Latest Package", value: live["newerPackageAvailable"] === true ? "Latest package available" : "No newer package recorded" },
     ],
-    advanced: live["hasAdvancedSinceSnapshot"] === true,
-    otsPending: ots.state === "PENDING",
+    atIssueStatus,
+    currentStatus,
+    currentQualifiers: otsRow ? verifyMatrixQualifierWords(otsRow) : [],
+    advance,
+    advanced: advance !== null,
+    otsPending: (otsRow?.otsState ?? ots.state) === "PENDING",
     otsPendingSentence: ots.sentence,
   };
 }
@@ -1163,7 +1002,6 @@ export const VERIFY_ANCHORING_COPY = {
   snapshotBody: "This section reflects the verification package/report generated at the recorded time.",
   liveKicker: "Live anchoring status",
   liveBody: "This section reflects the current OpenTimestamps/public anchoring state and may advance after the package was generated.",
-  advanced: "Anchoring has advanced since this package was generated. A newer report/package may be available.",
   otsPending: otsAnchoringCopy("en").sentences.PENDING,
 } as const;
 
@@ -1391,7 +1229,7 @@ export const VERIFY_CONTENT_COPY = {
   whatChangedKicker: "What changed since completion",
   whatChangedEmpty: "No later report, package, or reviewer-summary changes were exposed in this verification response.",
   mismatchKicker: "Timestamp / mismatch review",
-  mismatchEmpty: "No explicit digest, signature, custody, timestamp, or OTS mismatches were detected in the current verification result.",
+  mismatchEmpty: "No signal is marked Failed in the verification matrix.",
   representationKicker: "Representation note",
   representationBody:
     "This panel is intended for reviewer understanding of the preserved evidence item. The original file remains separately preserved and the technical sections below describe the recorded integrity, custody, timestamping, and publication state tied to that item.",
@@ -1474,17 +1312,21 @@ export interface VerifyCustodyView {
   present: boolean;
   forensicNarrative: string;
   accessNarrative: string;
+  /** The forensic custody chronology. Access activity is never listed (2026-10-18). */
   fullTimeline: VerifyTimelineEvent[];
-  accessTimeline: VerifyTimelineEvent[];
   fullNote: string | null;
   fullCountLabel: string | null;
+  /** `custodyLifecycle.accessActivity` — an aggregate: how many, and the latest. */
+  accessActivity: { count: number; latestAtUtc: string | null } | null;
   accessCountLabel: string;
 }
 
 /**
- * `custodyLifecycle.forensicEvents|accessEvents` (mapPublicCustodyEvent,
- * evidence.routes.ts:4430 — carries prevEventHash / eventHash) and
- * `custodyDisplayCounts` (:13639).
+ * `custodyLifecycle.forensicEvents` (with prevEventHash / eventHash),
+ * `custodyLifecycle.accessActivity {count, latestAtUtc}` and
+ * `custodyDisplayCounts`. The anonymous route sends access activity as an
+ * aggregate only (`accessEvents: []`); the screen prints the count and the
+ * latest time, never an access chronology.
  */
 export function parseVerifyCustody(payload: unknown): VerifyCustodyView {
   const d = obj(payload);
@@ -1492,26 +1334,27 @@ export function parseVerifyCustody(payload: unknown): VerifyCustodyView {
   const lc = obj(cl);
   const countsRaw = d["custodyDisplayCounts"];
   const counts = countsRaw && typeof countsRaw === "object" ? obj(countsRaw) : null;
-  const forensic = mapTimeline(arr(lc["forensicEvents"]), "forensic");
-  const access = mapTimeline(arr(lc["accessEvents"]), "access");
-  const full = sortTimeline([...forensic, ...access]);
+  const forensic = sortTimeline(mapTimeline(arr(lc["forensicEvents"]), "forensic"));
+  const activityRaw = lc["accessActivity"];
+  const activity = activityRaw && typeof activityRaw === "object" ? obj(activityRaw) : null;
+  const accessActivity = activity ? { count: num(activity["count"]) ?? 0, latestAtUtc: str(activity["latestAtUtc"]) } : null;
   const f = forensic.length;
-  const a = access.length;
+  const a = accessActivity?.count ?? num(counts?.["currentAccessEvents"] ?? null) ?? 0;
 
   const forensicNarrative = counts
-    ? `Forensic custody at report/package generation: ${num(counts["forensicAtReportGeneration"]) ?? f}. Current forensic custody events: ${num(counts["currentForensicEvents"]) ?? f}. Current access activity events: ${num(counts["currentAccessEvents"]) ?? a}. Total displayed now: ${num(counts["totalDisplayedNow"]) ?? num(counts["totalDisplayedEvents"]) ?? f + a}.`
+    ? `Forensic custody at report/package generation: ${num(counts["forensicAtReportGeneration"]) ?? f}. Current forensic custody events: ${num(counts["currentForensicEvents"]) ?? f}. Current access activity events: ${num(counts["currentAccessEvents"]) ?? a}.`
     : f > 0
       ? `The record contains ${f} forensic custody event${f === 1 ? "" : "s"} describing integrity-relevant system activity. These events are displayed separately from later access activity.`
       : "No forensic custody events were returned in this verification record. This means this response does not provide an internal custody-event chain for the evidence record; it should not be read as proof that no handling occurred outside the recorded system workflow.";
   const accessNarrative =
     a > 0
-      ? `The record contains ${a} access-related event${a === 1 ? "" : "s"} such as viewing, verification, or download activity. These events are informational and are not the same thing as forensic custody events.`
-      : "No access-activity entries were returned in this response. The absence of access entries does not alter the recorded integrity outcome.";
+      ? `Access activity: ${a} event${a === 1 ? "" : "s"} such as viewing, verification, or download activity, shown as a count only. Access activity is informational and is not the same thing as forensic custody.`
+      : "No access activity is recorded for this record. The absence of access activity does not alter the recorded integrity outcome.";
 
   let orderNote: string | null = null;
-  for (let i = 1; i < full.length; i += 1) {
-    const prev = full[i - 1]?.atUtc;
-    const cur = full[i]?.atUtc;
+  for (let i = 1; i < forensic.length; i += 1) {
+    const prev = forensic[i - 1]?.atUtc;
+    const cur = forensic[i]?.atUtc;
     if (prev && cur && new Date(cur).getTime() < new Date(prev).getTime()) {
       orderNote =
         "Timestamp order note: custody events are displayed in hash-chain sequence order. Some event timestamps may be slightly out of chronological order because system jobs complete asynchronously.";
@@ -1521,11 +1364,8 @@ export function parseVerifyCustody(payload: unknown): VerifyCustodyView {
   let liveNote: string | null = null;
   if (counts) {
     const after = num(counts["accessAfterReportGeneration"]);
-    const cur = num(counts["currentAccessEvents"]);
     liveNote = `Counts are live and may increase after report or package generation as reviewers open, download, or verify materials.${
-      after !== null && cur !== null
-        ? ` Package access snapshot at generation may be lower or zero by design. Access activity after report/package generation: ${after}. Current access activity total: ${cur}.`
-        : ""
+      after !== null ? ` Access activity after report/package generation: ${after}.` : ""
     }`;
   }
   const note = [liveNote, orderNote].filter(Boolean).join(" ");
@@ -1533,16 +1373,13 @@ export function parseVerifyCustody(payload: unknown): VerifyCustodyView {
     present: Boolean((cl && typeof cl === "object") || counts),
     forensicNarrative,
     accessNarrative,
-    fullTimeline: full.map(stripSequence),
-    accessTimeline: access.map(stripSequence),
+    fullTimeline: forensic.map(stripSequence),
     fullNote: note || null,
-    fullCountLabel: counts
-      ? `Forensic ${num(counts["currentForensicEvents"]) ?? f} • Access ${num(counts["currentAccessEvents"]) ?? a} • Total ${num(counts["totalDisplayedNow"]) ?? num(counts["totalDisplayedEvents"]) ?? full.length}`
-      : null,
-    accessCountLabel: `${a} Event${a === 1 ? "" : "s"}`,
+    fullCountLabel: counts ? `Forensic ${num(counts["currentForensicEvents"]) ?? f} • Access activity ${num(counts["currentAccessEvents"]) ?? a}` : null,
+    accessActivity,
+    accessCountLabel: `${a} access event${a === 1 ? "" : "s"}`,
   };
 }
-
 /** The web's "Scope of this page" panel body (page.tsx:3539). */
 export function verifyScopeText(payload: unknown): string {
   return (
@@ -1587,7 +1424,7 @@ export const VERIFY_TECHNICAL_COPY = {
     "Package integrity is separate from evidence integrity. Evidence integrity verifies the preserved evidence state. Package integrity verifies whether the exported forensic bundle contains the manifest, checksum index, manifest digest reference, and audit exports needed for independent review.",
   custodyTitle: "Custody Chain",
   custodySubtitle:
-    "Complete recorded custody chronology, including integrity-relevant lifecycle events and later access activity when returned by the verification response. Event hashes are shown in full for chain-continuity review.",
+    "The recorded forensic custody chronology: integrity-relevant lifecycle events. Access activity is shown as a count, not a list. Event hashes are shown in full for chain-continuity review.",
   custodyEmptyTitle: "No custody-chain events were returned",
   custodyEmptyBody: "This verification response did not include a complete custody-event chain.",
   accessBoundaryKicker: "Access Activity Boundary",
@@ -1595,10 +1432,10 @@ export const VERIFY_TECHNICAL_COPY = {
     "Access activity is not part of the evidence integrity verdict. It records later interaction with the verification page, files, reports, or packages and must not be treated as proof that the underlying evidence is authentic or admissible. Package access snapshots are taken at generation time; the current activity shown here is live and may include later events not present in the exported package.",
   accessTitle: "Access Activity",
   accessSubtitle:
-    "Access events show later viewing, download, and verification interactions. They are informational activity records, not proof of evidence authenticity, and must not be used alone to infer integrity or legal admissibility.",
-  accessEmptyTitle: "No access activity was returned",
+    "Later viewing, download, and verification interactions, aggregated: how many, and the most recent. They are informational, not proof of evidence authenticity, and must not be used alone to infer integrity or legal admissibility. The individual events are not published.",
+  accessEmptyTitle: "No access activity recorded",
   accessEmptyBody:
-    "No access-activity entries were included in this response. Their absence does not change the recorded integrity result and should not be read as a forensic custody conclusion.",
+    "No access activity is recorded for this record. Its absence does not change the recorded integrity result and should not be read as a forensic custody conclusion.",
   prevHash: "Prev Hash",
   eventHash: "Event Hash",
 } as const;
@@ -1666,7 +1503,8 @@ export function verifyRecordFields(
     ["Integrity Status", trust ? integrityStatusDisplayLabel(trust) : null],
     ["Verification Summary", trust ? trust.summary : null],
     ["Evidence Title", pick("evidenceTitle") ?? "Digital Evidence Record"],
-    ["Evidence ID", pick("evidenceId") ?? str(d["evidenceId"])],
+    // The permanent reference — never an internal record id ("Evidence ID").
+    ["Verification reference", canonicalVerifyReference(d)],
     [
       "Evidence Type",
       getReviewerEvidenceTypeLabel({
@@ -1750,6 +1588,7 @@ export function verifyIntegrityTab(
   fmt: (iso: string) => string,
   integrityReviewRequired: boolean,
   locale?: string | null,
+  matrix: VerifyMatrixView | null = null,
 ): VerifyIntegrityTabView {
   const d = obj(payload);
   const tm = obj(d["technicalMaterials"]);
@@ -1799,7 +1638,17 @@ export function verifyIntegrityTab(
   const tri = (v: boolean | null, yes: string, no: string, unknown: string, yesTone: VerifyWebTone = strong): Omit<VerifyStatusCard, "label"> =>
     v === true ? { value: yes, tone: yesTone } : v === false ? { value: no, tone: "warning" } : { value: unknown, tone: "neutral" };
   const storage = buildStoragePresentation(s.storage);
-  const ts = verifyTimestampTone(s.tsaStatus);
+  // THE timestamp status: the matrix tsa_token row (status words, qualifiers,
+  // validation time); the raw word only for a reply without a matrix.
+  const tsaRow = verifyMatrixRow(matrix, "tsa_token");
+  const ts: { label: string; tone: VerifyWebTone } = tsaRow
+    ? { label: verifyMatrixStatusWords(tsaRow), tone: tsaRow.tone }
+    : verifyTimestampTone(s.tsaStatus);
+  const tsaQualifiers = tsaRow ? verifyMatrixQualifierWords(tsaRow) : [];
+  const tsaValidatedAt =
+    tsaRow && tsaRow.status === "VERIFIED" && tsaRow.qualifiers?.includes("VALIDATED_FROM_RETAINED_TOKEN") && tsaRow.measuredAtUtc
+      ? fmt(tsaRow.measuredAtUtc)
+      : null;
   // THE Bitcoin anchoring card (2026-10-13): the server's OtsAnchoringView.
   const otsC = otsCard(ots, locale, fmt);
   const otsFailureCode = readOts(ots).failureCode;
@@ -1827,6 +1676,8 @@ export function verifyIntegrityTab(
     { label: otsC.title, value: otsStatusLine(otsC), tone: otsC.tone },
     { label: "Storage Protection", value: storage.label, tone: storage.tone },
     { label: "Timestamp Status", value: ts.label, tone: ts.tone },
+    tsaQualifiers.length > 0 ? text("Timestamp Qualifier", tsaQualifiers.join(" · ")) : null,
+    text("Timestamp Validated At", tsaValidatedAt),
     text("Timestamp Provider", str(tsa["provider"])),
     text("Timestamp Time", genTime ? fmt(genTime) : null),
     text("Timestamp Serial", str(tsa["serialNumber"])),
@@ -1852,9 +1703,15 @@ export function verifyIntegrityTab(
 }
 
 export interface VerifyPackageView {
+  /** THE seal statement — the matrix package_signature row's words. */
   decisionLabel: string;
+  /** The completeness statement — the matrix package_completeness row's words. */
   decisionText: string;
+  /** The seal status word (VERIFICATION_STATUS_LABELS). */
   badge: string;
+  sealCheck: VerificationStatus;
+  completenessCheck: VerificationStatus;
+  qualifiers: string[];
   tone: VerifyWebTone;
   version: string | null;
   impact: string;
@@ -1862,12 +1719,19 @@ export interface VerifyPackageView {
   rows: Array<{ label: string; value: string; tone: VerifyWebTone }>;
 }
 
+function packageCheck(v: unknown): VerificationStatus | null {
+  return v === "VERIFIED" || v === "FAILED" || v === "NOT_CHECKED" || v === "NOT_APPLICABLE" || v === "UNAVAILABLE" ? v : null;
+}
+
 /**
- * `verificationPackageIntegrity` (evidence.routes.ts:12913-13020, sent
- * :13819) → the web VerificationPackageIntegrityCard. Exports are credited
- * ONLY when the server says so: the web additionally marks the custody /
- * access exports "Included" whenever the record merely HAS custody / access
- * events (page.tsx:497-501), which says nothing about what the package holds.
+ * `verificationPackageIntegrity` → the package card. THE decision is the
+ * server's seal check (`resolvePackageSealCheck`, the matrix's
+ * package_signature row): VERIFIED is the only success, FAILED is danger,
+ * NOT_CHECKED prints the server's statement ("Sealed — seal not checked
+ * against a published PROOVRA key.") in a warning tone — never "Complete".
+ * A reply without `sealCheck` reads the matrix row; with neither, the seal is
+ * UNAVAILABLE. File presence flags are printed as what the server says the
+ * package holds, never as a verification, and never credited beyond it.
  */
 export function parseVerifyPackage(payload: unknown): VerifyPackageView | null {
   const d = obj(payload);
@@ -1876,31 +1740,43 @@ export function parseVerifyPackage(payload: unknown): VerifyPackageView | null {
   const p = obj(raw);
   const ov = obj(d["overview"]);
   const hs = obj(d["humanSummary"]);
+  const matrix = parseVerificationMatrix(d["verificationMatrix"]);
+  const sigRow = matrix?.rows.find((r) => r.key === "package_signature") ?? null;
+  const compRow = matrix?.rows.find((r) => r.key === "package_completeness") ?? null;
+  const sealCheck = packageCheck(p["sealCheck"]) ?? sigRow?.status ?? "UNAVAILABLE";
+  const completenessCheck = packageCheck(p["completenessCheck"]) ?? compRow?.status ?? "UNAVAILABLE";
+  const sealStatement =
+    str(p["sealStatement"]) ?? (packageCheck(p["sealCheck"]) ? null : sigRow?.statement || null) ?? "The package seal status was not stated by this response.";
+  const completenessStatement =
+    str(p["completenessStatement"]) ??
+    (packageCheck(p["completenessCheck"]) ? null : compRow?.statement || null) ??
+    "The package completeness status was not stated by this response.";
   const version = num(p["version"]) ?? num(ov["verificationPackageVersion"]) ?? num(hs["verificationPackageVersion"]);
-  const available = typeof p["available"] === "boolean" ? (p["available"] as boolean) : version !== null;
   const t = (k: string) => p[k] === true;
-  const complete = available && t("manifestPresent") && t("signedManifestPresent") && t("checksumIndexPresent") && t("auditExportIncluded");
-  const row = (label: string, on: boolean, yes: string) => ({ label, value: on ? yes : "Not available", tone: (on ? "success" : "neutral") as VerifyWebTone });
+  const row = (label: string, on: boolean, yes: string) => ({ label, value: on ? yes : "Not stated", tone: "neutral" as VerifyWebTone });
+  const bothVerified = sealCheck === "VERIFIED" && completenessCheck === "VERIFIED";
   return {
-    decisionLabel: complete ? "Package Integrity Complete" : available ? "Package Integrity Partial" : "Package Not Generated",
-    decisionText: complete
-      ? "The verification package includes the complete integrity materials for independent review."
-      : available
-        ? "A verification package version exists, but this public response has not confirmed every package artifact."
-        : "No generated verification package was exposed in this verification response.",
-    badge: complete ? "Independent Review Enabled" : available ? "Partial Package" : "Unavailable",
-    tone: complete ? "success" : available ? "warning" : "neutral",
+    decisionLabel: sealStatement,
+    decisionText: completenessStatement,
+    badge: VERIFICATION_STATUS_LABELS[sealCheck],
+    sealCheck,
+    completenessCheck,
+    qualifiers: parseVerificationQualifiers(p["sealQualifiers"]).map((q) => VERIFICATION_QUALIFIER_LABELS[q] ?? q),
+    tone: sealCheck === "VERIFIED" ? "success" : sealCheck === "FAILED" ? "danger" : sealCheck === "NOT_CHECKED" ? "warning" : "neutral",
     version: version !== null ? `Version v${version}` : null,
-    impact: complete
-      ? "The exported forensic bundle supports independent verification of package contents, checksums, manifest integrity, custody export, and audit/access materials with standard tooling."
-      : "No downloadable package is available for this record, and its integrity assessment does not depend on one. The fingerprint, signature, timestamp, anchoring and custody materials are published on this page and can each be checked independently with standard tooling.",
+    impact: bothVerified
+      ? "PROOVRA verified the package seal against its published key and checked the manifest. The exported bundle can also be checked independently with standard tooling."
+      : sealCheck === "NOT_APPLICABLE"
+        ? "No downloadable package is available for this record, and its integrity assessment does not depend on one. The fingerprint, signature, timestamp, anchoring and custody materials are published on this page and can each be checked independently with standard tooling."
+        : "This page states only the package checks PROOVRA performed, as shown above. Check the package's seal and manifest yourself with standard tooling before relying on it.",
     generatedAtUtc: str(p["generatedAtUtc"]) ?? str(ov["verificationPackageGeneratedAtUtc"]) ?? str(hs["verificationPackageGeneratedAtUtc"]),
     rows: [
       row("Package Manifest", t("manifestPresent"), "Present"),
-      row("Manifest Signature", t("signedManifestPresent"), "Ed25519 signature present"),
+      row("Manifest Signature", t("signedManifestPresent"), "Signature present"),
       row("Checksum Index", t("checksumIndexPresent"), "Present"),
       row("Custody Export", t("custodyExportIncluded"), "Included"),
-      row("Access / Audit Export", t("accessExportIncluded") || t("auditExportIncluded"), "Included"),
+      row("Access Export", t("accessExportIncluded"), "Included"),
+      row("Audit Export", t("auditExportIncluded"), "Included"),
     ],
   };
 }
@@ -1921,16 +1797,140 @@ function publicEventSummary(raw: string | null): string | null {
   return s ? maskPublicEmailsInText(s) : null;
 }
 
+/* ------------------------------------------------ record facts, disclosure, inventory (2026-10-18) */
+
+export interface VerifyRecordFactsView {
+  /** "Verification reference" — the permanent pvr_ reference; never "Evidence ID". */
+  verificationReference: string | null;
+  /** The server's one description, e.g. "Multipart package · 6 items". */
+  recordKindLabel: string | null;
+  reportIssuedAtUtc: string | null;
+  reportVersion: number | null;
+  storedFileLastRecheckedAtUtc: string | null;
+  /** The stored-file recheck status word, when the server sent one. */
+  storedFileRecheck: string | null;
+  checkedAtUtc: string | null;
+  identity: {
+    disclosure: "WITHHELD" | "SHOWN" | null;
+    statement: string | null;
+    /** The identity facts as recorded when the record was created. */
+    captureTime: Array<{ label: string; value: string }>;
+    /** The identity facts as the issued report stated them. */
+    atReportTime: Array<{ label: string; value: string }> | null;
+    atReportVersion: number | null;
+  };
+}
+
 /**
- * The header badge's tone, from the server's own status words. It was green
- * for every value — including "Review required" and a mismatch — which is
- * precisely the overclaim this page must never make.
+ * `recordFacts` (GET /public/verify/:id) — printed as sent. A withheld
+ * identity prints the server's statement ("Withheld by the record’s
+ * disclosure policy"), never "Not recorded".
  */
-export function verifyStatusTone(label: string | null): "verified" | "risk" | "pending" {
-  const l = (label ?? "").toLowerCase();
-  if (/mismatch|fail|invalid|broken|tamper|revoked|not verified|unverified/.test(l)) return "risk";
-  if (/^verified\b/.test(l) && !/pending|partial|review/.test(l)) return "verified";
-  return "pending";
+export function parseVerifyRecordFacts(payload: unknown): VerifyRecordFactsView | null {
+  const raw = obj(payload)["recordFacts"];
+  if (!raw || typeof raw !== "object") return null;
+  const f = obj(raw);
+  const id = obj(f["identity"]);
+  const ct = obj(id["captureTime"]);
+  const rtRaw = id["atReportTime"];
+  const rt = obj(rtRaw);
+  const facts = (pairs: Array<[string, unknown]>) =>
+    pairs.filter((p): p is [string, string] => typeof p[1] === "string" && p[1].length > 0).map(([label, value]) => ({ label, value }));
+  const disclosure = id["disclosure"] === "WITHHELD" || id["disclosure"] === "SHOWN" ? (id["disclosure"] as "WITHHELD" | "SHOWN") : null;
+  const ref = str(f["verificationReference"]);
+  return {
+    verificationReference: ref && ref.startsWith("pvr_") ? ref : null,
+    recordKindLabel: str(f["recordKindLabel"]),
+    reportIssuedAtUtc: str(f["reportIssuedAtUtc"]),
+    reportVersion: num(f["reportVersion"]),
+    storedFileLastRecheckedAtUtc: str(f["storedFileLastRecheckedAtUtc"]),
+    storedFileRecheck: str(f["storedFileRecheck"]),
+    checkedAtUtc: str(f["checkedAtUtc"]),
+    identity: {
+      disclosure,
+      statement: str(id["statement"]),
+      captureTime: facts([
+        ["Account", ct["accountLabel"]],
+        ["Workspace", ct["workspaceTypeLabel"]],
+        ["Organization verification", ct["organizationVerificationLabel"]],
+        ["Basis", ct["basisLabel"]],
+      ]),
+      atReportTime:
+        rtRaw && typeof rtRaw === "object"
+          ? facts([
+              ["Identity level", rt["identityLevel"]],
+              ["Sign-in provider", rt["authProvider"]],
+            ])
+          : null,
+      atReportVersion: rtRaw && typeof rtRaw === "object" ? num(rt["reportVersion"]) : null,
+    },
+  };
+}
+
+export interface VerifyDisclosureView {
+  mode: VerificationDisclosureMode;
+  /** VERIFICATION_DISCLOSURE_MODE_LABELS — "Verification only" / "Content preview". */
+  modeLabel: string;
+  recordedLocation: boolean;
+  source: string | null;
+  originalDownload: boolean;
+  withheldStatement: string;
+  /** What this page shows under the disclosure the server applied, in one sentence. */
+  sentence: string;
+}
+
+/**
+ * `disclosure` — what the SERVER applied to this answer (the projection
+ * decided it; this only says which, in words). Unknown → no notice.
+ */
+export function parseVerifyDisclosure(payload: unknown): VerifyDisclosureView | null {
+  const d = obj(obj(payload)["disclosure"]);
+  const mode = parseVerificationDisclosureMode(d["mode"]);
+  if (!mode) return null;
+  const withheld = str(d["withheldStatement"]) ?? WITHHELD_BY_DISCLOSURE_POLICY;
+  const source = str(d["source"]);
+  const via = source === "REVIEWER_SHARE" ? "this reviewer link" : "the record’s disclosure policy";
+  return {
+    mode,
+    modeLabel: VERIFICATION_DISCLOSURE_MODE_LABELS[mode],
+    recordedLocation: d["recordedLocation"] === true,
+    source,
+    originalDownload: d["originalDownload"] === true,
+    withheldStatement: withheld,
+    sentence:
+      mode === "VERIFICATION_ONLY"
+        ? `The complete verification result is shown. The record’s content — title, file names, previews, device time and location — is withheld by ${via}.`
+        : `The complete verification result is shown with a preview of the record’s content, as ${via} allows.`,
+  };
+}
+
+export interface VerifyInventoryItem {
+  id: string;
+  /** The server's label: "Item N" when names are withheld, the file name otherwise. */
+  label: string;
+  kindLabel: string;
+  sizeLabel: string | null;
+  sha256: string | null;
+  sha256Short: string | null;
+}
+
+/** `evidenceContent.items` as an inventory: label, kind, size label and SHA-256 (truncated; copy carries the full value). */
+export function parseVerifyInventory(payload: unknown): VerifyInventoryItem[] {
+  const out: VerifyInventoryItem[] = [];
+  arr(obj(obj(payload)["evidenceContent"])["items"]).forEach((raw, i) => {
+    const it = obj(raw);
+    const id = str(it["id"]) ?? `item-${i + 1}`;
+    const sha = str(it["sha256"]);
+    out.push({
+      id,
+      label: str(it["label"]) ?? `Item ${i + 1}`,
+      kindLabel: verifyEvidenceKindLabel(str(it["kind"])),
+      sizeLabel: str(it["displaySizeLabel"]),
+      sha256: sha,
+      sha256Short: sha ? (sha.length > 20 ? `${sha.slice(0, 12)}…${sha.slice(-8)}` : sha) : null,
+    });
+  });
+  return out;
 }
 
 

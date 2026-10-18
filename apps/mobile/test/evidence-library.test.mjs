@@ -249,7 +249,7 @@ test("saved-view body trims values and maps native trash to server deleted", () 
         retention: "all",
         tsaStatus: "all",
         otsStatus: "all",
-        publicVerifyState: "all",
+        verificationDisclosure: "all",
         verificationStatus: "all",
         sort: "priority",
       },

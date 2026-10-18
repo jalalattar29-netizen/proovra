@@ -469,7 +469,7 @@ const ACTIVITY_KIND_LABELS: Readonly<Record<string, string>> = {
   hold_released: "Legal hold released",
   lifecycle_transition: "Evidence lifecycle updated",
   destruction_review: "Retention review recorded",
-  verification_published: "Verification published",
+  verification_disclosure_changed: "Verification page disclosure changed",
 };
 
 /** The web inbox's label for `intake_required_items_missing` (inbox/page.tsx). */

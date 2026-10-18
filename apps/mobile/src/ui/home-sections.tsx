@@ -117,29 +117,26 @@ export function HomeVerificationHealthSection({ health }: { health: Verification
   const router = useRouter();
   const openVerify = (evidenceId: string) => router.push(`/verify?id=${encodeURIComponent(evidenceId)}` as never);
   return (
-    <ProovraSection title="Public verification links">
+    <ProovraSection title="Verification pages">
       {health.empty ? (
         <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-          Public verification links appear once you publish a record — letting anyone independently confirm your evidence.
+          Every finalized record gets a permanent verification page — letting anyone independently confirm your evidence.
         </ProovraText>
       ) : null}
+      {/* Counts by disclosure (the server's verificationPages); nothing here is "published". */}
       <ProovraKpiGrid
         items={[
-          // Only a live count earns the success tone; zeros stay neutral, as on the web.
-          { key: "live", label: `verification page${health.live === 1 ? "" : "s"} live`, value: String(health.live), tone: health.live > 0 ? "verified" : undefined },
-          { key: "unpublished", label: "Not published", value: String(health.unpublished) },
-          { key: "suspended", label: "Suspended", value: String(health.suspended) },
+          { key: "verificationOnly", label: "Verification only", value: String(health.verificationOnly) },
+          { key: "contentPreview", label: "Content preview", value: String(health.contentPreview) },
+          { key: "unavailable", label: "Unavailable", value: String(health.unavailable), tone: health.unavailable > 0 ? "pending" : undefined },
         ]}
       />
-      {health.unpublished > 0 ? (
-        <ProovraButton label="Publish verification" variant="secondary" fullWidth={false} onPress={() => router.push("/evidence" as never)} />
-      ) : null}
-      {health.recentPublications.length > 0 ? (
-        <ProovraCard testID="home-verify-recent-publications">
+      {health.recentDisclosureChanges.length > 0 ? (
+        <ProovraCard testID="home-verify-recent-disclosure">
           <ProovraText variant="label" weight="bold" color={theme.color.ink.muted}>
-            RECENTLY PUBLISHED
+            RECENT DISCLOSURE CHANGES
           </ProovraText>
-          {health.recentPublications.map((pub) => (
+          {health.recentDisclosureChanges.map((pub) => (
             <ProovraListRow
               key={pub.href + pub.occurredAt}
               title={pub.label}

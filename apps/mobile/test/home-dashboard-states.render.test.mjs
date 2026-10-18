@@ -20,7 +20,7 @@ const TRUST = () => ({
   tsa: { stamped: 29, pending: 0, failed: 1, none: 0 },
   ots: { anchored: 20, pending: 6, failed: 2, none: 0 },
   needingAttention: 4,
-  publicVerify: { published: 0, unpublished: 30, suspended: 0 },
+  verificationPages: { verificationOnly: 30, contentPreview: 0, unavailable: 0 },
   intake: { submissionsAwaitingReview: 3 },
 });
 

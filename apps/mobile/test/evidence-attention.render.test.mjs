@@ -129,8 +129,8 @@ test("the Technical tab states each signal's verification status and the bounded
   assert.ok(!/STRONGLY/.test(text));
   const badge = (key) => [...new Set(r.byTestId(`trust-signal-${key}`)[0].findAll((n) => typeof n.props?.label === "string").map((n) => n.props.label))];
   assert.deepEqual(badge("core_integrity"), ["VERIFIED"]);
-  // A legacy "passed" OpenTimestamps signal carries no canonical OTS state: Unavailable, never Anchored.
-  assert.deepEqual(badge("bitcoin_anchoring"), ["Unavailable"]);
+  // The shared legacy normalizer reads an old "passed" OpenTimestamps signal as an attestation recorded — never verified.
+  assert.deepEqual(badge("bitcoin_anchoring"), ["Attestation recorded"]);
   const summary = r.byTestId("trust-summary")[0].findAll((n) => n.type === "Text").map((n) => [].concat(n.props.children).join(""))[0];
   assert.ok(summary.includes("Any signal marked “Not checked” was not independently verified."), summary);
   assert.ok(summary.endsWith(VERIFICATION_LIMITATION), summary);
@@ -448,12 +448,15 @@ test("each relationship has a visible Remove relationship control with the web's
 
 test("identifier rows, the verification link and the coordinates are copied to the device clipboard", async () => {
   routes["/v1/evidence/ev-1"] = () => ({ evidence: { id: "ev-1", status: "SIGNED", type: "PHOTO", fileSha256: "ab".repeat(32) } });
-  // The link is the review workspace's publicVerificationSummary.sharePath on the
-  // public web origin, only when PUBLISHED (evidence.routes.ts:9459-9464,
-  // web _lib.tsx:327). GET /public/verify/:id never sends a `publicUrl`.
+  // The link is the review workspace's canonicalVerification (the permanent pvr_
+  // page) while it is AVAILABLE. GET /public/verify/:id never sends a `publicUrl`.
   process.env.EXPO_PUBLIC_WEB_BASE = "https://www.proovra.com";
   routes["/v1/evidence/ev-1/review-workspace"] = () =>
-    RW({ sourceCaptureLocation: { lat: 51.5007292, lng: -0.1246254, accuracyMeters: 12 }, publicVerificationSummary: { state: "PUBLISHED", sharePath: "/verify/ev-1", analyticsAvailable: false } });
+    RW({
+      sourceCaptureLocation: { lat: 51.5007292, lng: -0.1246254, accuracyMeters: 12 },
+      publicVerificationSummary: { state: "AVAILABLE", disclosureMode: "VERIFICATION_ONLY", showRecordedLocation: false, sharePath: null, analyticsAvailable: false },
+      canonicalVerification: { status: "AVAILABLE", reference: "pvr_7pLuIsF1Z_JiaqHKByYM72RwUcM", verifyPath: "/verify/pvr_7pLuIsF1Z_JiaqHKByYM72RwUcM", issuedAtUtc: null, refusalReason: null },
+    });
   let publicVerifyReads = 0;
   routes["/public/verify/ev-1"] = () => {
     publicVerifyReads += 1;
@@ -470,18 +473,50 @@ test("identifier rows, the verification link and the coordinates are copied to t
   assert.equal(globalThis.__CLIPBOARD__, "51.500729, -0.124625");
   await r.press("Copy verification link");
   await settle();
-  assert.equal(globalThis.__CLIPBOARD__, "https://www.proovra.com/verify/ev-1");
+  assert.equal(globalThis.__CLIPBOARD__, "https://www.proovra.com/verify/pvr_7pLuIsF1Z_JiaqHKByYM72RwUcM");
   assert.equal(publicVerifyReads, 0, "copying the link wrote a public verification view");
 });
 
-test("an unpublished record offers no verification link, and says why (DEFECT: publicUrl was never sent)", async () => {
+test("a withdrawn verification page offers no verification link, and says why (DEFECT: publicUrl was never sent)", async () => {
   process.env.EXPO_PUBLIC_WEB_BASE = "https://www.proovra.com";
   routes["/v1/evidence/ev-1/review-workspace"] = () =>
-    RW({ publicVerificationSummary: { state: "CONFIGURED_NOT_PUBLISHED", sharePath: "/verify/ev-1", disabledReason: null } });
+    RW({
+      publicVerificationSummary: { state: "WITHDRAWN", disclosureMode: "VERIFICATION_ONLY", showRecordedLocation: false, sharePath: null, disabledReason: null },
+      canonicalVerification: { status: "WITHDRAWN", reference: "pvr_7pLuIsF1Z_JiaqHKByYM72RwUcM", verifyPath: "/verify/pvr_7pLuIsF1Z_JiaqHKByYM72RwUcM", issuedAtUtc: null, refusalReason: null },
+    });
   const r = await render();
   const copy = r.byLabel("Copy verification link")[0];
-  assert.ok(copy.props.accessibilityState.disabled, "a link was offered for an unpublished record");
-  assert.ok(r.hasText("Configured but not published"));
-  assert.ok(r.hasText("Public verification is configured for this evidence record, but it has not been published yet."));
+  assert.ok(copy.props.accessibilityState.disabled, "a link was offered for a withdrawn page");
+  assert.ok(r.hasText("Withdrawn"));
+  assert.ok(r.hasText("The verification page was withdrawn; every link to it answers that it was withdrawn."));
+  // The retired publication words are gone.
+  assert.equal(r.hasText("Configured but not published"), false);
+  r.unmount();
+});
+
+test("the verification page's disclosure is shown read-only, with an explicit web handoff (disclosure editing is web-only)", async () => {
+  process.env.EXPO_PUBLIC_WEB_BASE = "https://www.proovra.com";
+  globalThis.__LINKING_OPENED__ = [];
+  const writes = [];
+  const base = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (init?.method && init.method !== "GET") writes.push(`${init.method} ${String(url)}`);
+    return base(url, init);
+  };
+  routes["/v1/evidence/ev-1/review-workspace"] = () =>
+    RW({
+      publicVerificationSummary: { state: "AVAILABLE", disclosureMode: "CONTENT_PREVIEW", showRecordedLocation: true, sharePath: null, analyticsAvailable: true },
+      canonicalVerification: { status: "AVAILABLE", reference: "pvr_7pLuIsF1Z_JiaqHKByYM72RwUcM", verifyPath: "/verify/pvr_7pLuIsF1Z_JiaqHKByYM72RwUcM", issuedAtUtc: null, refusalReason: null },
+    });
+  const r = await render();
+  await r.press("Artifacts");
+  await settle();
+  assert.equal(r.byTestId("verification-disclosure").length, 1);
+  assert.equal(r.byLabel("Content preview").length >= 1, true);
+  assert.equal(r.byLabel("Recorded location shown").length, 1);
+  await r.press("Manage verification page on the web");
+  assert.deepEqual(globalThis.__LINKING_OPENED__, ["https://www.proovra.com/evidence/ev-1"]);
+  // Read-only: the phone never writes the disclosure.
+  assert.ok(!writes.some((w) => w.includes("verification-disclosure")), writes.join(","));
   r.unmount();
 });

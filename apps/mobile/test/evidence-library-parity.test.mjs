@@ -83,6 +83,27 @@ test("a deep link lands pre-filtered and the reason is shown as a dismissible ch
   assert.deepEqual(chips.map((c) => c.label), ["Trust timestamp: Failed / Rejected", "Needs integrity review"]);
 });
 
+test("(2026-10-18) the verification page's disclosure is the filter — the retired publication filter is gone", () => {
+  // The deep link reads `verificationDisclosure`; a stale `publicVerifyState` key is ignored.
+  const o = mod.readFilterOverrides({ verificationDisclosure: "verification_only,content_preview", publicVerifyState: "NOT_PUBLISHED" });
+  assert.deepEqual(o, { verificationDisclosure: "VERIFICATION_ONLY,CONTENT_PREVIEW" });
+  assert.equal("publicVerifyState" in mod.DEFAULT_LIBRARY_FILTERS, false);
+  // The chip, in the shared vocabulary.
+  const chips = mod.activeTrustChips({ ...mod.DEFAULT_LIBRARY_FILTERS, ...o });
+  assert.deepEqual(chips, [{ key: "verificationDisclosure", label: "Verification page: Verification only / Content preview" }]);
+  assert.deepEqual(mod.activeTrustChips({ ...mod.DEFAULT_LIBRARY_FILTERS, verificationDisclosure: "CONTENT_PREVIEW" }).map((c) => c.label), ["Verification page: Content preview"]);
+  // The list and summary query carry it under the API's key.
+  const f = { ...mod.DEFAULT_LIBRARY_FILTERS, verificationDisclosure: "CONTENT_PREVIEW" };
+  const list = new URL(`https://x${mod.buildLibraryQuery(mod.filtersToQuery(f))}`).searchParams;
+  assert.equal(list.get("verificationDisclosure"), "CONTENT_PREVIEW");
+  assert.equal(list.get("publicVerifyState"), null);
+  assert.equal(new URL(`https://x${mod.buildLibrarySummaryPath(f)}`).searchParams.get("verificationDisclosure"), "CONTENT_PREVIEW");
+  // A saved view stores it under the saved-view schema's key.
+  const body = mod.buildSavedViewBody({ name: "Pages", filters: f });
+  assert.equal(body.filters.verificationDisclosure, "CONTENT_PREVIEW");
+  assert.equal("publicVerifyState" in body.filters, false);
+});
+
 test("bulk failures are grouped by the server's own reason; unknown stays unknown", () => {
   const groups = mod.groupBulkFailures([
     { evidenceId: "a", ok: false, reason: "RETENTION_ACTIVE" },

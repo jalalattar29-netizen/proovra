@@ -42,6 +42,7 @@ import {
 } from "../../src/ui";
 import { evidenceStatusDisplay, evidenceTypeLabel } from "../../src/product/domain-display";
 import {
+  availableVerificationPages,
   buildCaseHealthSummary,
   buildHomeKpis,
   buildHomeStorage,
@@ -308,7 +309,7 @@ export default function HomeScreen() {
     evidenceCount,
     reportCount: sources.reports ? ((sources.reports as { items?: unknown[] }).items ?? []).length : null,
     caseCount: matters.activeCasesCount,
-    verifyPublished: trust?.verifyPublished ?? null,
+    verificationPages: trust ? availableVerificationPages(trust.verificationPages) : null,
   });
   const summary = buildHomeSummary({ sources, trust, priorities, production, storage, showGettingStarted });
   const kpis = buildHomeKpis(sources, { intakeIncluded, intakeStats });

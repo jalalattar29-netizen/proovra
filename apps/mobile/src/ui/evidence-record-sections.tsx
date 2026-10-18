@@ -22,7 +22,9 @@ import {
   INTEGRITY_STATE_PRESENTATION,
   PREVIEW_COPY,
   REVIEWER_STATUS_DISCLAIMER,
+  MANAGE_VERIFICATION_PAGE_ON_WEB,
   describePublicVerificationState,
+  describeVerificationDisclosure,
   formatReviewerStatusLabel,
   groupCustodyByDay,
   outputPanelCopy,
@@ -178,13 +180,13 @@ export function EvidenceRecordRail({
         </View>
         <View style={styles.stackTight}>
           <View style={styles.railField}>
-            <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>PUBLIC VERIFICATION</ProovraText>
+            <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>VERIFICATION PAGE</ProovraText>
             <ProovraBadge tone={publicVerificationTone(publicVerification?.state ?? null)} label={pv.label} />
           </View>
           {shareUrl ? (
             <ProovraButton label="Open verification surface" variant="ghost" fullWidth={false} onPress={() => void Linking.openURL(shareUrl)} />
           ) : (
-            <ProovraText variant="label" color={theme.color.ink.muted}>{publicVerification ? pv.detail : "No publication detail available."}</ProovraText>
+            <ProovraText variant="label" color={theme.color.ink.muted}>{publicVerification ? pv.detail : "No verification page detail available."}</ProovraText>
           )}
         </View>
       </View>
@@ -562,13 +564,51 @@ export function PublicVerificationSharing({ publicVerification, shareUrl }: { pu
         items={[
           { label: "Verification status", value: pv.label },
           { label: "Verification link", value: shareUrl ? "Available" : "Not available" },
-          { label: "Publication detail", value: pv.detail },
+          { label: "Page detail", value: pv.detail },
           { label: "Public views", value: counter(publicVerification.publicViewCount) },
           { label: "Report downloads", value: counter(publicVerification.reportDownloadCount) },
           { label: "Package downloads", value: counter(publicVerification.verificationPackageDownloadCount) },
           { label: "Last public view", value: publicVerification.lastPublicViewAt ? (formatUserDateTime(publicVerification.lastPublicViewAt) ?? "Not recorded") : "Not recorded" },
         ]}
       />
+    </ProovraCard>
+  );
+}
+
+/**
+ * THE VERIFICATION PAGE'S DISCLOSURE, read-only (2026-10-18). What anonymous
+ * visitors of the record's permanent page see — Verification only / Content
+ * preview, recorded location shown / hidden — from the review workspace's
+ * summary. Editing it is web-only by design (step-up, version check, the
+ * visitor preview): the phone states it and hands off explicitly; it never
+ * changes it, and never silently diverges.
+ */
+export function VerificationDisclosureCard({
+  publicVerification,
+  manageUrl,
+}: {
+  publicVerification: PublicVerificationView | null;
+  manageUrl: string | null;
+}) {
+  const d = describeVerificationDisclosure(publicVerification);
+  return (
+    <ProovraCard testID="verification-disclosure">
+      <ProovraText variant="h3" weight="semibold">Verification page disclosure</ProovraText>
+      {d ? (
+        <>
+          <View style={styles.row}>
+            <ProovraBadge tone="governance" label={d.modeLabel} />
+            <ProovraBadge tone="neutral" label={d.locationLabel} />
+          </View>
+          <ProovraText variant="label" color={theme.color.ink.secondary}>{d.sentence}</ProovraText>
+        </>
+      ) : (
+        <ProovraText variant="label" color={theme.color.ink.muted}>The disclosure policy is not available in this response.</ProovraText>
+      )}
+      <ProovraText variant="label" color={theme.color.ink.muted}>What the page discloses is managed on the web record page.</ProovraText>
+      {manageUrl ? (
+        <ProovraButton label={MANAGE_VERIFICATION_PAGE_ON_WEB} variant="secondary" fullWidth={false} onPress={() => void Linking.openURL(manageUrl)} />
+      ) : null}
     </ProovraCard>
   );
 }

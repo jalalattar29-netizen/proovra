@@ -9,7 +9,14 @@
  */
 import type { ProovraStatusTone } from "@proovra/ui";
 import type { EvidenceBulkActionName } from "@proovra/shared";
-import { evidenceRecordStatusLabel, OTS_STATES, otsAnchoringCopy, type OtsState } from "@proovra/shared";
+import {
+  evidenceRecordStatusLabel,
+  OTS_STATES,
+  otsAnchoringCopy,
+  parseVerificationDisclosureMode,
+  VERIFICATION_DISCLOSURE_MODE_LABELS,
+  type OtsState,
+} from "@proovra/shared";
 
 /** Server sort values (EvidenceListSortSchema). */
 export const LIBRARY_SORTS = ["newest", "oldest", "priority"] as const;
@@ -46,7 +53,7 @@ export interface LibraryFilters {
   /** Trust-signal deep-link filters (page.tsx:155); set only from route params. */
   tsaStatus: string;
   otsStatus: string;
-  publicVerifyState: string;
+  verificationDisclosure: string;
   verificationStatus: string;
   /** UC-0 acquisition category. */
   acquisition: string;
@@ -64,7 +71,7 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFilters = {
   sort: "newest",
   tsaStatus: "all",
   otsStatus: "all",
-  publicVerifyState: "all",
+  verificationDisclosure: "all",
   verificationStatus: "all",
   acquisition: "all",
 };
@@ -149,7 +156,7 @@ export interface LibraryQueryInput {
   caseAssignment?: string; // "all" | "assigned" | "unassigned"
   tsaStatus?: string;
   otsStatus?: string;
-  publicVerifyState?: string;
+  verificationDisclosure?: string;
   verificationStatus?: string;
   sort: LibrarySort;
   cursor?: string | null;
@@ -169,7 +176,7 @@ function setFilterParams(p: URLSearchParams, input: LibraryQueryInput): void {
   if (refined(input.reportReady)) p.set("reportReady", input.reportReady);
   if (refined(input.tsaStatus)) p.set("tsaStatus", input.tsaStatus);
   if (refined(input.otsStatus)) p.set("otsStatus", input.otsStatus);
-  if (refined(input.publicVerifyState)) p.set("publicVerifyState", input.publicVerifyState);
+  if (refined(input.verificationDisclosure)) p.set("verificationDisclosure", input.verificationDisclosure);
   if (refined(input.verificationStatus)) p.set("verificationStatus", input.verificationStatus);
   if (refined(input.source)) p.set("acquisition", input.source);
 }
@@ -199,7 +206,7 @@ export function filtersToQuery(filters: LibraryFilters, cursor: string | null = 
           : "all",
     tsaStatus: filters.tsaStatus,
     otsStatus: filters.otsStatus,
-    publicVerifyState: filters.publicVerifyState,
+    verificationDisclosure: filters.verificationDisclosure,
     verificationStatus: filters.verificationStatus,
     sort: filters.sort,
     cursor,
@@ -247,7 +254,7 @@ export function filtersAreDefault(f: LibraryFilters): boolean {
 
 /* ------------------------------------------------ Trust-signal deep links */
 
-export type TrustChipKey = "tsaStatus" | "otsStatus" | "publicVerifyState" | "verificationStatus";
+export type TrustChipKey = "tsaStatus" | "otsStatus" | "verificationDisclosure" | "verificationStatus";
 
 function humaniseTrustFilterValue(raw: string): string {
   return raw
@@ -272,12 +279,26 @@ function otsFilterValueLabel(raw: string): string {
     .join(" / ");
 }
 
+/**
+ * A verification-disclosure filter value in words (VERIFICATION_DISCLOSURE_MODE_LABELS):
+ * "Verification only", "Content preview". Never a raw code.
+ */
+function disclosureFilterValueLabel(raw: string): string {
+  return raw
+    .split(",")
+    .map((v) => {
+      const mode = parseVerificationDisclosureMode(v.trim().toUpperCase());
+      return mode ? VERIFICATION_DISCLOSURE_MODE_LABELS[mode] : humaniseTrustFilterValue(v);
+    })
+    .join(" / ");
+}
+
 /** ActiveTrustFilterChips (page.tsx:164) — the reason a deep-linked list is reduced. */
 export function activeTrustChips(f: LibraryFilters): Array<{ key: TrustChipKey; label: string }> {
   const chips: Array<{ key: TrustChipKey; label: string }> = [];
   if (refined(f.tsaStatus)) chips.push({ key: "tsaStatus", label: `Trust timestamp: ${humaniseTrustFilterValue(f.tsaStatus)}` });
   if (refined(f.otsStatus)) chips.push({ key: "otsStatus", label: `${otsAnchoringCopy("en").title}: ${otsFilterValueLabel(f.otsStatus)}` });
-  if (refined(f.publicVerifyState)) chips.push({ key: "publicVerifyState", label: `Public verification: ${humaniseTrustFilterValue(f.publicVerifyState)}` });
+  if (refined(f.verificationDisclosure)) chips.push({ key: "verificationDisclosure", label: `Verification page: ${disclosureFilterValueLabel(f.verificationDisclosure)}` });
   if (refined(f.verificationStatus)) {
     chips.push({
       key: "verificationStatus",
@@ -304,8 +325,10 @@ export function readFilterOverrides(params: Record<string, unknown>): Partial<Li
   if (tsa) out.tsaStatus = tsa.toUpperCase();
   const ots = one("otsStatus");
   if (ots) out.otsStatus = ots.toUpperCase();
-  const pv = one("publicVerifyState");
-  if (pv) out.publicVerifyState = pv.toUpperCase();
+  // (2026-10-18) The publication filter is retired; a link carrying the old
+  // `publicVerifyState` key is ignored (the API drops it too).
+  const disclosure = one("verificationDisclosure");
+  if (disclosure) out.verificationDisclosure = disclosure.toUpperCase();
   const vs = one("verificationStatus");
   if (vs) out.verificationStatus = vs.toUpperCase();
   const acq = one("acquisition");
@@ -1256,7 +1279,7 @@ export function buildSavedViewBody(input: {
       retention: f.retention,
       tsaStatus: f.tsaStatus,
       otsStatus: f.otsStatus,
-      publicVerifyState: f.publicVerifyState,
+      verificationDisclosure: f.verificationDisclosure,
       verificationStatus: f.verificationStatus,
       sort: f.sort,
     },

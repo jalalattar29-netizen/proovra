@@ -19,7 +19,8 @@ export interface TrustSummary {
   needingAttention?: number;
   tsa?: { stamped?: number; pending?: number; failed?: number; none?: number };
   ots?: { anchored?: number; pending?: number; failed?: number; none?: number };
-  publicVerify?: { published?: number; unpublished?: number; suspended?: number };
+  /** (2026-10-18) The canonical verification pages, by disclosure; unavailable = withdrawn or suspended. */
+  verificationPages?: { contentPreview?: number; verificationOnly?: number; unavailable?: number };
 }
 
 export interface Kpi {

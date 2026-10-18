@@ -80,7 +80,7 @@ const rw = {
     ],
   },
   sourceContext: { acquisition: { mode: "PROOVRA_MOBILE_APP", category: "MOBILE_APP", label: "Captured with the PROOVRA app", statement: "This record was captured…" } },
-  publicVerificationSummary: { state: "PUBLISHED", published: true, disabledReason: null },
+  publicVerificationSummary: { state: "AVAILABLE", disclosureMode: "VERIFICATION_ONLY", showRecordedLocation: false, disabledReason: null },
 };
 
 test("custody events bind from custodyLifecycle (forensic + access), drop malformed", () => {
