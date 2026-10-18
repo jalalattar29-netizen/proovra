@@ -149,12 +149,15 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
     await h?.cleanup();
   }, 120_000);
 
+  let dumpCount = 0;
   async function anonymousPage(): Promise<{ status: number; body: Record<string, unknown>; text: string }> {
     const res = await publicVerify(record.ref);
     // Developer aid: write the exact anonymous body to a file for client fixtures.
-    if (process.env.PVC_DUMP_PUBLIC_VERIFY) {
+    if (process.env.PVC_DUMP_DIR) {
       const { writeFileSync } = await import("node:fs");
-      writeFileSync(process.env.PVC_DUMP_PUBLIC_VERIFY, res.body);
+      const name = String(expect.getState().currentTestName ?? "page").replace(/[^A-Za-z0-9]+/g, "-").slice(-60);
+      dumpCount += 1;
+      writeFileSync(`${process.env.PVC_DUMP_DIR}/${String(dumpCount).padStart(3, "0")}-${name}.json`, res.body);
     }
     return { status: res.statusCode, body: res.json() as Record<string, unknown>, text: res.body };
   }
