@@ -10,10 +10,9 @@ import {
 } from "@proovra/shared-evidence-presentation";
 import * as prismaPkg from "@prisma/client";
 import { OTS_VERIFICATION_KEYS, custodyLabelHints } from "@proovra/shared";
-import {
-  mapTimestampStatusPublicLabel,
-  mapCustodyEventLabel,
-} from "../src/report-v2/normalizers.js";
+import { mapCustodyEventLabel } from "../src/report-v2/normalizers.js";
+import { buildTrustDecision, timestampStatusLabelOf, timestampToneOf } from "../src/report-v2/truth-model.js";
+import { reportInputFixture } from "./fixtures/report-v2-input.js";
 import {
   otsStatusLineFor,
   otsStatusWordFor,
@@ -131,10 +130,21 @@ describe("Custody event labels (Phase A/B/C wording sweep)", () => {
 });
 
 describe("TSA labels (Phase A / Phase C)", () => {
-  it("never claims 'verified' in TSA labels", () => {
-    for (const status of ["STAMPED", "PENDING", "UNAVAILABLE", "FAILED", null]) {
-      const label = mapTimestampStatusPublicLabel(status as string | null);
-      expect(label.toLowerCase()).not.toContain("verified");
+  // (2026-10-18) THE TSA status words are the canonical trusted-timestamp
+  // signal's (timestampStatusLabelOf); only a validated token reads
+  // "validated" without "not", and no label says "verified" unless the
+  // timestamp IS validated.
+  it("never claims 'verified' or 'validated' in a TSA label unless the timestamp was validated", () => {
+    for (const status of ["STAMPED", "GRANTED", "VERIFIED", "SUCCEEDED", "RECORDED_NOT_VALIDATED", "PENDING", "UNAVAILABLE", "FAILED", null]) {
+      const decision = buildTrustDecision({
+        evidence: { ...reportInputFixture().evidence, tsaStatus: status, tsaTokenBase64: "dG9rZW4=" } as never,
+        custodyEvents: [],
+      });
+      const label = timestampStatusLabelOf(decision).toLowerCase();
+      // STAMPED without a validation time was never validated (ET-TSA-01).
+      expect(label, String(status)).not.toContain("verified");
+      expect(label.replace(/not validated/g, ""), String(status)).not.toContain("validated");
+      expect(timestampToneOf(decision), String(status)).not.toBe("success");
     }
   });
 });

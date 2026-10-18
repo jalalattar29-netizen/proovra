@@ -26,6 +26,7 @@ import { buildMismatchNarrative } from "../src/report-v2/custody-model.js";
 import {
   buildTimestampCallout,
   buildTrustDecision,
+  timestampStatusLabelOf,
   timestampToneOf,
   verificationStatusTone,
 } from "../src/report-v2/truth-model.js";
@@ -202,7 +203,7 @@ describe("the retained-token repair — a NEW report states it", () => {
     const row = vm.verificationMatrix.rows.find((r) => r.key === "tsa_token")!;
     expect(row.status).toBe("VERIFIED");
     expect(row.statusLabel).toBeUndefined();
-    expect(vm.technicalAppendix.timestampStatusLabel).toBe("Trusted timestamp validated");
+    expect(vm.technicalAppendix.timestampStatusLabel).toBe("RFC 3161 timestamp validated");
   });
 
   it("the marker never upgrades a timestamp that is not validated", () => {
@@ -210,6 +211,36 @@ describe("the retained-token repair — a NEW report states it", () => {
     expect(signal.state).toBe("PRESENT_NOT_INDEPENDENTLY_VERIFIED");
     expect(signal.qualifiers ?? []).not.toContain("VALIDATED_FROM_RETAINED_TOKEN");
   });
+});
+
+describe("the report's TSA status words — the canonical signal, agreeing with the tone", () => {
+  const CASES: Array<[string, Partial<ReportEvidence>, string, string]> = [
+    ["validated", VALIDATED, "RFC 3161 timestamp validated", "success"],
+    ["retained token", RETAINED, TSA_RETAINED_TOKEN_STATUS_LABEL, "success"],
+    ["kept, no anchor", KEPT_NO_ANCHOR, "Timestamp token obtained; not validated (no trust anchor was available)", "warning"],
+    ["kept, no code", KEPT_NO_CODE, "Timestamp token obtained; not validated (no trust anchor was available)", "warning"],
+    ["recorded legacy word", { tsaStatus: "GRANTED", tsaTokenBase64: "dG9rZW4=" }, "Timestamp token recorded; not validated", "warning"],
+    ["validation failed", VALIDATION_FAILED, "Timestamp token obtained; validation failed", "danger"],
+    ["not obtained", NOT_OBTAINED, "Trusted timestamp not obtained", "neutral"],
+  ];
+
+  for (const [name, extra, label, tone] of CASES) {
+    it(name, async () => {
+      expect(timestampStatusLabelOf(decisionFor(extra))).toBe(label);
+      const vm = await buildReportViewModel(reportInputFixture({ evidence: evidenceWith(extra) }));
+      expect(vm.technicalAppendix.timestampStatusLabel).toBe(label);
+      expect(vm.technicalAppendix.timestampStatusTone).toBe(tone);
+      const rows = vm.technicalAppendix.timestampRows.filter((r) => r.label === "Timestamp Status");
+      for (const r of rows) expect(r.value).toBe(label);
+      // Every report row that names the timestamp status states the same words.
+      const json = JSON.stringify(vm);
+      expect(json).not.toMatch(/Trusted timestamp (recorded, not validated|not validated|not configured|pending|unavailable)\b/);
+      expect(json).toContain(label);
+      // The validation scope is stated only beside a validated timestamp.
+      const scope = vm.technicalAppendix.timestampRows.some((r) => r.label === "Validation Scope");
+      expect(scope).toBe(tone === "success");
+    });
+  }
 });
 
 describe("the package README timestamp line — one statement per TSA state", () => {

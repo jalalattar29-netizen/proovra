@@ -1,5 +1,6 @@
 import {
   OTS_VERIFICATION_WORDS,
+  TSA_RETAINED_TOKEN_STATUS_LABEL,
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   isOrganizationVerifiedAtCapture,
   otsVerificationOfSignalState,
@@ -30,9 +31,6 @@ import {
   safe,
   safeBooleanLabel,
 } from "./formatters.js";
-import {
-  mapTimestampStatusPublicLabel,
-} from "./normalizers.js";
 
 export function isIntegrityVerified(evidence: ReportEvidence): boolean {
   return isExplicitRecordedIntegrityVerified({
@@ -80,6 +78,26 @@ export function timestampStateOf(
   decision: { signals: ReadonlyArray<TrustSignal> } | null | undefined,
 ): TrustSignalState {
   return timestampSignalOf(decision)?.state ?? "UNAVAILABLE";
+}
+
+/**
+ * THE trusted-timestamp status words: the same signal the tone reads, so label
+ * and tone always agree. The signal's summary is resolveTsaTrustState's label
+ * ("RFC 3161 timestamp validated", "Timestamp token recorded; not validated",
+ * "Timestamp token obtained; not validated (no trust anchor was available)",
+ * "Timestamp token obtained; validation failed", "Trusted timestamp not
+ * obtained", …); a token validated later from the copy retained at intake
+ * reads the matrix's TSA_RETAINED_TOKEN_STATUS_LABEL.
+ */
+export function timestampStatusLabelOf(
+  decision: { signals: ReadonlyArray<TrustSignal> } | null | undefined,
+): string {
+  const signal = timestampSignalOf(decision);
+  if (!signal) return "Timestamp not recorded";
+  if (signal.state === "PASSED" && signal.qualifiers?.includes("VALIDATED_FROM_RETAINED_TOKEN")) {
+    return TSA_RETAINED_TOKEN_STATUS_LABEL;
+  }
+  return signal.summary.trim() || "Timestamp not recorded";
 }
 
 /**
@@ -290,7 +308,7 @@ export function buildIntegrityReadinessSummary(
   canonicalMaterials: CanonicalEvidenceMaterials
 ): string {
   return [
-    mapTimestampStatusPublicLabel(canonicalMaterials.timestampState.tsaStatus),
+    timestampStatusLabelOf(canonicalMaterials.trustDecision?.decision),
     safeBooleanLabel(
       canonicalMaterials.storageState.isProtected,
       "Immutable",
