@@ -420,8 +420,8 @@
       "sha256": "f70191f6d421acd737af1926c365e3a2ad5962be33583c55a15d33808ce35bcb",
       "layer": "BROWSER",
       "scenarios": [
-        "p7.ui.evidence.public_verify_published",
-        "p7.ui.evidence.public_verify_unpublished",
+        "p7.ui.evidence.verification_disclosure_narrowed",
+        "p7.ui.evidence.verification_disclosure_widened",
         "p7.ui.redaction.video_frames_and_tracks_authored"
       ],
       "runId": "082bddc8",
