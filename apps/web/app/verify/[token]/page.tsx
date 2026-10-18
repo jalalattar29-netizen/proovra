@@ -1,5 +1,16 @@
 "use client";
-import type { JSX } from "react";
+/**
+ * THE PUBLIC VERIFY PAGE (rich tier) — converged 2026-10-18 onto the server
+ * contract (docs/verification/public-verify-convergence-2026-10-18.md).
+ *
+ * The API's matrix, qualifiers and projection are the ONLY truth and
+ * disclosure authorities. This page renders what the API returned: it never
+ * re-derives a status (no client trust-decision rebuild, no client matrix, no
+ * verdict, no TSA-string mismatch inference, no package-integrity rebuild),
+ * never decides what to show from a policy, and never hides a field
+ * cosmetically — the API already withheld what the record's disclosure policy
+ * withholds.
+ */
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -9,27 +20,16 @@ import {
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
   CAPTURE_LOCATION_SHORT_BOUNDARY,
   CAPTURE_LOCATION_SOURCE_LABEL,
-  buildEvidenceTrustDecision,
   evidenceLocationCopy,
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
-  getReviewerEvidenceTypeLabel,
-  getReviewerArtifactRoleLabel,
-  deriveTrustPresentation,
-  getTrustDecisionPresentationTone,
   parseVerificationMatrix,
   readStoredTrustDecision,
   hasCaptureLocationMetadata,
   isAccessCustodyEventType,
-  maskPublicEmail,
   maskPublicEmailsInText,
-  OTS_ANCHORING_COPY,
-  OTS_STATE_WORDS,
   otsBoundaryFor,
-  parseOtsState,
   readOtsAnchoringView,
-  storedBytesCheckStatusOf,
-  VERIFICATION_STATUS_LABELS,
   type VerificationMatrix,
   type OtsAnchoringView,
 } from "@proovra/shared";
@@ -61,21 +61,10 @@ import { VerifyLocationStateSection, readVerifyLocationState } from "./VerifyLoc
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
-// Phase CR4 — `formatUserDateTime` is now consumed inside the extracted
-// `formatDateTime` helper in `verify-v2/_helpers.ts`. The orchestrator
-// no longer imports it directly.
-// Phase CR4 — pure helpers extracted to a presentation-only module
-// under `apps/web/components/verify-v2/`. These functions are byte-stable
-// against the pre-CR4 inline declarations; behaviour is unchanged.
 import {
   firstNonEmpty,
   formatDateTime,
-  normalizeBool,
   normalizeEventLabel,
-  otsTone,
-  statusTone,
-  timestampTone,
-  truncateHash,
 } from "../../../components/verify-v2/_helpers";
 import {
   VerifyTechnicalMetadataSection,
@@ -85,59 +74,45 @@ import {
   VerifyCaptureIntegritySection,
   readPublicVerifyAcquisition,
 } from "../../../components/verify-v2/VerifyCaptureIntegritySection";
-import type { PublicVerifyAcquisition } from "@proovra/shared";
-// PHASE 12B — redaction verification badge. Converged onto this
-// token-bound Verify projection from the deleted anonymous
-// GET /v1/redaction/public/verify/:evidenceId probe.
+// PHASE 12B — redaction verification badge, read from this page's own
+// token-bound projection.
 import {
   VerifyRedactionSection,
   type VerifyRedaction,
 } from "../../../components/verify-v2/VerifyRedactionSection";
-// Type-only imports kept to exactly the symbols this file actually
-// references. Nine type aliases that were imported here but never used
-// anywhere downstream (VerifyTimelineEvent, VerifyReviewTrail,
-// VerifyTechnicalMaterials, VerifyStorageProtection, VerifyOts,
-// VerifyStorageAndTimestamping, VerifyIdentity, TrustSignalStatus,
-// TrustDecisionTone) were dropped. The symbols themselves still exist in
-// ./_verify-types and can be re-imported by any future call site; the
-// removal here is purely a no-longer-referenced-import cleanup with zero
-// runtime effect (type imports are erased by tsc).
 import type {
-  VerifyOverview,
-  VerifyHumanSummary,
-  VerifyCaptureContext,
-  VerifyTsa,
-  VerifyLimitations,
-  VerifyAnchor,
-  VerifyEvidenceAssetKind,
-  VerifyEvidenceAsset,
-  VerifyEvidenceContentSummary,
-  VerifyPreviewPolicy,
-  VerifyContentAccessPolicy,
-  VerifyContentExposureDecision,
   VerifyResponse,
   TimelineItem,
   ToastFn,
-  StorageProtection,
-  OtsDetails,
   TechnicalTabId,
-  VerifyTrustDecision,
-  VerificationVerdict,
-  VerificationSignalInput,
-  VerificationPackageIntegrity,
+  VerifyTsa,
 } from "./_verify-types";
-import {
-  hasAdvancedLiveAnchoring,
-  shouldAutoPollPublicVerify,
-} from "./public-verify-consistency";
+import { shouldAutoPollPublicVerify } from "./public-verify-consistency";
 import { VERIFY_BRAND, VERIFY_FONT, VERIFY_TYPO } from "./_verify-theme";
 import {
   VerificationMatrixGrid,
   VerificationSummaryCard,
-  matrixRequiresIntegrityReview,
-  resolveVerifyMatrix,
   VERIFY_MATRIX_INTRO,
+  VERIFY_MATRIX_UNAVAILABLE,
 } from "./VerifyMatrixPanels";
+import {
+  AccessActivitySummary,
+  ArtifactHistory,
+  ConsistencyReasons,
+  DisclosureNotice,
+  ItemInventoryTable,
+  OtsAnchoringCard,
+  PackageIntegrityCard,
+  Pager,
+  RecordFactsCard,
+  VERIFY_PAGE_CSS,
+  VerifyTabPanel,
+  VerifyTabs,
+  groupForensicEvents,
+  usePaged,
+  type OtsFacts,
+} from "./VerifyRecordSections";
+import { ContentPreviewSurface } from "./VerifyContentReview";
 
 // Re-export the mediaIntelligenceAdvisory shape inline so test contracts can
 // assert the field exists directly in this file without reading _verify-types.
@@ -185,271 +160,6 @@ const BRONZE_RAIL_STYLE: CSSProperties = {
   background: VERIFY_BRAND.bronzeSoft,
   borderRadius: 18,
 };
-
-function extractTimestampStatus(data: VerifyResponse): string | null {
-  // ONE TSA AUTHORITY: the API's trust-aligned proof status wins over the raw
-  // column — a kept token whose validation was never performed (no trust
-  // anchor) is "recorded, not validated", never a failed timestamp.
-  const proof = (data.storageAndTimestamping?.tsa as { proofStatus?: string | null } | undefined)?.proofStatus;
-  if (proof === "RECORDED_NOT_VALIDATED") return "RECORDED_NOT_VALIDATED";
-  const raw =
-    data.storageAndTimestamping?.tsa?.status ??
-    data.tsa?.status ??
-    data.timestamp?.status ??
-    data.tsaStatus ??
-    data.overview?.timestampStatus ??
-    data.humanSummary?.timestampStatus ??
-    null;
-
-  if (!raw || !String(raw).trim()) return null;
-  return String(raw).trim().toUpperCase();
-}
-
-function findEventTime(
-  timeline: TimelineItem[],
-  eventNames: string[]
-): string | null {
-  const targets = new Set(eventNames.map((v) => v.toUpperCase()));
-
-  const matched = timeline
-    .filter((item) => targets.has((item.eventType ?? "").toUpperCase()) && item.atUtc)
-    .sort((a, b) => {
-      const ta = a.atUtc ? new Date(a.atUtc).getTime() : 0;
-      const tb = b.atUtc ? new Date(b.atUtc).getTime() : 0;
-      return tb - ta;
-    });
-
-  return matched[0]?.atUtc ?? null;
-}
-
-function describeEvidenceAssetRole(item: VerifyEvidenceAsset): string {
-  const roleLabel =
-    item.artifactRoleLabel ??
-    (item.artifactRole ? getReviewerArtifactRoleLabel(item.artifactRole) : null) ??
-    (item.isPrimary ? "Primary evidence" : "Supporting evidence");
-  const checklistLabel =
-    typeof item.checklistStepLabel === "string" && item.checklistStepLabel.trim()
-      ? item.checklistStepLabel.trim()
-      : null;
-
-  return checklistLabel ? `${roleLabel} • ${checklistLabel}` : roleLabel;
-}
-
-function buildTsaDetails(data: VerifyResponse) {
-  const tsa = data.storageAndTimestamping?.tsa ?? data.tsa ?? data.timestamp ?? null;
-
-  return {
-    status: extractTimestampStatus(data),
-    provider: firstNonEmpty(tsa?.provider, data.tsaProvider),
-    genTimeUtc: firstNonEmpty(tsa?.genTimeUtc, data.tsaGenTimeUtc),
-    tokenBase64: firstNonEmpty(
-  (tsa as VerifyTsa & { tokenBase64?: string | null })?.tokenBase64,
-  data.tsaTokenBase64
-),
-messageImprint: firstNonEmpty(
-  tsa?.messageImprint,
-  data.tsaMessageImprint
-),
-    inputDigestHex: firstNonEmpty(
-      tsa?.inputDigestHex,
-      data.technicalMaterials?.tsaInputDigestHex
-    ),
-    inputKind: firstNonEmpty(
-      tsa?.inputKind,
-      data.technicalMaterials?.tsaInputKind
-    ),
-    legacyMode:
-      typeof tsa?.legacyMode === "boolean"
-        ? tsa.legacyMode
-        : typeof data.technicalMaterials?.legacyMode === "boolean"
-          ? data.technicalMaterials.legacyMode
-          : null,
-    url: firstNonEmpty(tsa?.url, data.tsaUrl),
-    serialNumber: firstNonEmpty(tsa?.serialNumber, data.tsaSerialNumber),
-    digestCheckConclusive:
-  typeof tsa?.digestCheckConclusive === "boolean"
-    ? tsa.digestCheckConclusive
-    : null,
-timestampAvailable:
-  typeof tsa?.timestampAvailable === "boolean"
-    ? tsa.timestampAvailable
-    : null,
-    hashAlgorithm: firstNonEmpty(tsa?.hashAlgorithm, data.tsaHashAlgorithm),
-    failureReason: firstNonEmpty(tsa?.failureReason, data.tsaFailureReason),
-    digestMatchesTimestampInput:
-      typeof tsa?.digestMatchesTimestampInput === "boolean"
-        ? tsa.digestMatchesTimestampInput
-        : null,
-    digestMatchesFileHash:
-      typeof tsa?.digestMatchesFileHash === "boolean"
-        ? tsa.digestMatchesFileHash
-        : null,
-    timestampedDigestLabel: firstNonEmpty(tsa?.timestampedDigestLabel),
-    timestampedDigestNote: firstNonEmpty(tsa?.timestampedDigestNote),
-  };
-}
-
-function buildOtsDetails(data: VerifyResponse): OtsDetails {
-  // THE Bitcoin anchoring state is the server's (2026-10-13): read, never derived.
-  const ots = data.storageAndTimestamping?.ots ?? data.ots ?? null;
-  const proofBase64 = firstNonEmpty(data.otsProofBase64);
-  return {
-    view: readOtsAnchoringView(ots),
-    calendar: firstNonEmpty(ots?.calendar, data.otsCalendar),
-    proofBase64,
-    proofPresent:
-      typeof ots?.proofPresent === "boolean"
-        ? ots.proofPresent
-        : data.technicalMaterials?.otsProofPresent === true || proofBase64
-          ? true
-          : null,
-    legacyStatus: firstNonEmpty(data.otsStatus, data.overview?.otsStatus, data.humanSummary?.otsStatus),
-  };
-}
-
-function buildStoragePresentation(
-  storage?: StorageProtection | null
-): {
-  badgeLabel: string;
-  badgeTone: "success" | "warning" | "neutral" | "info";
-  detailLabel: string;
-  detailText: string;
-} {
-  const mode = (storage?.mode ?? "").trim().toUpperCase();
-  const immutable = storage?.immutable === true;
-  const verified = storage?.verified === true;
-  const recorded = storage?.source === "RECORDED";
-
-  // ET-PKG-06 — a lock whose retain-until has passed no longer protects.
-  if (storage?.expired === true) {
-    return {
-      badgeLabel: "Retention Expired",
-      badgeTone: "warning",
-      detailLabel: "Storage Protection",
-      detailText:
-        "An Object Lock retention was recorded for this evidence, but its retain-until date has passed, so it no longer prevents the stored object from being altered or deleted.",
-    };
-  }
-
-  // ET-PKG-06 / AUD-014 — what the record says, not a check of the stored
-  // object: anything short of a confirmed read (`verified`) is "Recorded".
-  if (immutable && mode === "COMPLIANCE" && (recorded || !verified)) {
-    return {
-      badgeLabel: "Immutable Storage Recorded",
-      badgeTone: "info",
-      detailLabel: "Storage Protection",
-      detailText:
-        "Object Lock COMPLIANCE retention was recorded for this evidence when it was sealed, until the date shown. This page does not re-check the stored object.",
-    };
-  }
-
-  // AUD-014 — only a successful read of the stored object confirms the lock.
-  if (verified && immutable && mode === "COMPLIANCE") {
-    return {
-      badgeLabel: "Immutable Storage Locked",
-      badgeTone: "success",
-      detailLabel: "Storage Protection",
-      detailText:
-        "A read of the stored object confirmed immutable Object Lock protection in COMPLIANCE mode. Protected objects cannot be altered or deleted before the retention deadline expires.",
-    };
-  }
-
-  if (mode === "GOVERNANCE") {
-    return {
-      badgeLabel: "Governance Retention Active",
-      badgeTone: "info",
-      detailLabel: "Storage Protection",
-      detailText:
-        "This evidence is stored with Object Lock governance retention. Retention controls are active, but governance mode is weaker than compliance mode.",
-    };
-  }
-
-  if (verified) {
-    return {
-      badgeLabel: "Storage Protection Reported",
-      badgeTone: "info",
-      detailLabel: "Storage Protection",
-      detailText:
-        "Storage protection metadata was returned for this evidence, but immutable compliance retention was not fully confirmed.",
-    };
-  }
-
-  return {
-    badgeLabel: "Storage Protection Unverified",
-    badgeTone: "neutral",
-    detailLabel: "Storage Protection",
-    detailText:
-      "Immutable storage metadata was not confirmed in the verification response.",
-  };
-}
-
-function describeSnapshotSource(source?: string | null): string {
-  switch (source) {
-    case "LIVE_VERIFICATION":
-      return "Checked now (live verification)";
-    case "REPORT_SNAPSHOT":
-      return "Report snapshot";
-    case "VERIFICATION_PACKAGE_SNAPSHOT":
-      return "Verification package snapshot";
-    case "LIVE_SHARED_FALLBACK":
-      return "Live fallback (no fixed snapshot)";
-    default:
-      return "Snapshot source not recorded";
-  }
-}
-
-function formatSignatureStatus(status?: string | null): string {
-  const normalized = typeof status === "string" ? status.trim().toUpperCase() : "";
-
-  switch (normalized) {
-    case "SIGNED":
-      return "Signed";
-    case "SIGNING_UNAVAILABLE":
-      return "Signing unavailable";
-    case "FAILED":
-      return "Signing failed";
-    case "PENDING":
-      return "Signing pending";
-    default:
-      return normalized ? normalized.replace(/_/g, " ") : "Not recorded";
-  }
-}
-
-function buildVerificationPackageIntegrity(params: {
-  serverIntegrity?: Partial<VerificationPackageIntegrity> | null;
-  version: string | null;
-  generatedAtUtc: string | null;
-  forensicEventCount: number;
-  accessEventCount: number;
-}): VerificationPackageIntegrity {
-  const server = params.serverIntegrity ?? null;
-  const available = Boolean(server?.available ?? params.version);
-
-  return {
-    available,
-    version: server?.version != null ? String(server.version) : params.version,
-    generatedAtUtc: server?.generatedAtUtc ?? params.generatedAtUtc,
-    packageType: server?.packageType ?? null,
-
-    manifestPresent: server?.manifestPresent === true,
-    signedManifestPresent: server?.signedManifestPresent === true,
-    manifestDigestPresent: server?.manifestDigestPresent === true,
-    checksumIndexPresent: server?.checksumIndexPresent === true,
-    auditExportIncluded: server?.auditExportIncluded === true,
-
-    custodyExportIncluded:
-      server?.custodyExportIncluded === true || params.forensicEventCount > 0,
-
-    accessExportIncluded:
-      server?.accessExportIncluded === true || params.accessEventCount > 0,
-
-    packageFormatVersion: server?.packageFormatVersion ?? null,
-    sealed: server?.sealed === true,
-  };
-}
-
-/** The OpenTimestamps fact labels, from the one shared copy. */
-const OTS_VERIFY_FACTS = OTS_ANCHORING_COPY.en.facts;
 
 function CopyMiniButton({
   value,
@@ -693,44 +403,6 @@ const shown = shouldExpand || !long ? value : `${value.slice(0, 180)}...`;
         {shown}
       </div>
     </div>
-  );
-}
-
-function TechnicalTabButton({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-style={{
-  padding: "12px 14px",
-  borderRadius: 16,
-  border: active
-    ? `1px solid ${VERIFY_BRAND.accent}`
-    : `1px solid ${VERIFY_BRAND.line}`,
-  background: active
-    ? "rgba(11,46,39,0.10)"
-    : "rgba(255,255,255,0.54)",
-  color: VERIFY_BRAND.ink,
-  fontSize: 13,
-  fontWeight: 800,
-  cursor: "pointer",
-  textAlign: "left",
-  minWidth: 220,
-  height: 72,
-  display: "flex",
-  flexDirection: "column",
-  justifyContent: "space-between",
-}}    >
-      {label}
-    </button>
   );
 }
 
@@ -1025,549 +697,6 @@ background:
   );
 }
 
-function formatDuration(durationMs?: number | null): string | null {
-  if (!durationMs || durationMs <= 0) return null;
-
-  const totalSeconds = Math.floor(durationMs / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
-      2,
-      "0"
-    )}`;
-  }
-
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
-function evidenceKindLabel(kind?: VerifyEvidenceAssetKind | null): string {
-  switch (kind) {
-    case "image":
-      return "Image";
-    case "video":
-      return "Video";
-    case "audio":
-      return "Audio";
-    case "pdf":
-      return "PDF";
-    case "text":
-      return "Text";
-    case "other":
-      return "Other";
-    default:
-      return "Evidence";
-  }
-}
-
-function previewRoleLabel(
-  role?: VerifyEvidenceAsset["previewRole"]
-): string | null {
-  switch (role) {
-    case "primary_preview":
-      return "Primary reviewer preview";
-    case "secondary_preview":
-      return "Supporting reviewer preview";
-    case "download_only":
-      return "Download-only access";
-    case "metadata_only":
-      return "Metadata-only access";
-    default:
-      return null;
-  }
-}
-
-function renderVerifyEvidenceMedia(
-  item: VerifyEvidenceAsset | null
-): JSX.Element {
-  const wrapperStyle: CSSProperties = {
-    overflow: "hidden",
-    borderRadius: 22,
-    border: "1px solid #D0D5DD",
-    background:
-      item?.kind === "image" || item?.kind === "pdf"
-        ? "#FFFFFF"
-        : "linear-gradient(180deg, #101828 0%, #0F172A 100%)",
-    minHeight: 340,
-  };
-
-  if (!item || !item.viewUrl) {
-    if (item?.previewDataUrl) {
-      return (
-        <div style={wrapperStyle}>
-          <img
-            src={item.previewDataUrl}
-            alt={item.previewCaption ?? item.label}
-            style={{
-              display: "block",
-              width: "100%",
-              maxHeight: 560,
-              objectFit: "contain",
-              background: "#F8FAFC",
-            }}
-          />
-        </div>
-      );
-    }
-
-    if (item?.previewTextExcerpt) {
-      return (
-        <div
-          style={{
-            ...wrapperStyle,
-            background: "#F8FAFC",
-            padding: 28,
-            display: "grid",
-            gap: 14,
-          }}
-        >
-          <div style={{ fontSize: 14, color: "#475467", lineHeight: 1.8 }}>
-            {item.previewTextExcerpt}
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div
-        style={{
-          ...wrapperStyle,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 32,
-          background: "#F8FAFC",
-        }}
-      >
-        <div style={{ maxWidth: 560, textAlign: "center" }}>
-          <div
-            style={{
-              fontSize: 18,
-              fontWeight: 800,
-              color: "#101828",
-              marginBottom: 10,
-            }}
-          >
-            Evidence content is not directly exposed here
-          </div>
-          <div style={{ fontSize: 14, color: "#667085", lineHeight: 1.7 }}>
-            This verification flow can still validate the recorded integrity state,
-            chain of custody, timestamps, and publication details even when direct
-            evidence viewing is intentionally restricted.
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (item.kind === "image") {
-    return (
-      <div style={wrapperStyle}>
-        <img
-          src={item.viewUrl}
-          alt={item.label}
-          style={{
-            display: "block",
-            width: "100%",
-            maxHeight: 560,
-            objectFit: "contain",
-            background: "#F8FAFC",
-          }}
-        />
-      </div>
-    );
-  }
-
-  if (item.kind === "video") {
-    return (
-      <div style={{ display: "grid", gap: 12 }}>
-        {item.previewDataUrl ? (
-          <div style={wrapperStyle}>
-            <img
-              src={item.previewDataUrl}
-              alt={item.previewCaption ?? `${item.label} poster`}
-              style={{
-                display: "block",
-                width: "100%",
-                maxHeight: 420,
-                objectFit: "contain",
-                background: "#F8FAFC",
-              }}
-            />
-          </div>
-        ) : null}
-        <div style={wrapperStyle}>
-          <video
-            src={item.viewUrl}
-            controls
-            preload="metadata"
-            style={{ display: "block", width: "100%", maxHeight: 560 }}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  if (item.kind === "audio") {
-    return (
-      <div style={{ display: "grid", gap: 12 }}>
-        {item.previewDataUrl ? (
-          <div
-            style={{
-              overflow: "hidden",
-              borderRadius: 22,
-              border: "1px solid #D0D5DD",
-              background: "#FFFFFF",
-            }}
-          >
-            <img
-              src={item.previewDataUrl}
-              alt={item.previewCaption ?? `${item.label} waveform`}
-              style={{
-                display: "block",
-                width: "100%",
-                maxHeight: 260,
-                objectFit: "contain",
-                background: "#F8FAFC",
-              }}
-            />
-          </div>
-        ) : null}
-        <div
-          style={{
-            ...wrapperStyle,
-            padding: 28,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            gap: 18,
-          }}
-        >
-          <div style={{ color: "#EAECF0", fontSize: 14, lineHeight: 1.7 }}>
-            Listen to the preserved audio item through controlled verification
-            access. Original evidence remains separately preserved with the recorded
-            integrity state.
-          </div>
-          <audio src={item.viewUrl} controls preload="metadata" style={{ width: "100%" }} />
-        </div>
-      </div>
-    );
-  }
-
-  if (item.kind === "pdf") {
-    return (
-      <div style={{ display: "grid", gap: 12 }}>
-        {item.previewDataUrl ? (
-          <div style={wrapperStyle}>
-            <img
-              src={item.previewDataUrl}
-              alt={item.previewCaption ?? `${item.label} first page`}
-              style={{
-                display: "block",
-                width: "100%",
-                maxHeight: 480,
-                objectFit: "contain",
-                background: "#F8FAFC",
-              }}
-            />
-          </div>
-        ) : null}
-        <div style={wrapperStyle}>
-          <iframe
-            src={item.viewUrl}
-            title={item.label}
-            style={{ width: "100%", height: 720, border: 0 }}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  if (item.kind === "text") {
-    return (
-      <div
-        style={{
-          ...wrapperStyle,
-          padding: 28,
-          background: "#F8FAFC",
-          color: "#475467",
-          display: "grid",
-          gap: 14,
-        }}
-      >
-        <div style={{ fontSize: 14, lineHeight: 1.7 }}>
-          Text-based evidence is best opened in a dedicated tab so reviewers can
-          inspect the original preserved file directly.
-        </div>
-        <a
-          href={item.viewUrl}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "10px 14px",
-            borderRadius: 12,
-            border: "1px solid #D0D5DD",
-            background: "#FFFFFF",
-            color: "#344054",
-            fontSize: 13,
-            fontWeight: 700,
-            textDecoration: "none",
-            width: "fit-content",
-          }}
-        >
-          Open text evidence
-        </a>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      style={{
-        ...wrapperStyle,
-        padding: 28,
-        background: "#F8FAFC",
-        display: "grid",
-        gap: 12,
-        alignContent: "center",
-      }}
-    >
-      <div style={{ fontSize: 16, fontWeight: 800, color: "#101828" }}>
-        Preview is not available inline for this file type
-      </div>
-      <div style={{ fontSize: 14, color: "#667085", lineHeight: 1.7 }}>
-        The verification record still exposes the preserved file reference and
-        integrity materials for controlled review.
-      </div>
-      <a
-        href={item.viewUrl}
-        target="_blank"
-        rel="noreferrer"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "10px 14px",
-          borderRadius: 12,
-          border: "1px solid #D0D5DD",
-          background: "#FFFFFF",
-          color: "#344054",
-          fontSize: 13,
-          fontWeight: 700,
-          textDecoration: "none",
-          width: "fit-content",
-        }}
-      >
-        Open preserved file
-      </a>
-    </div>
-  );
-}
-
-function buildVerificationVerdict(input: VerificationSignalInput): VerificationVerdict {
-  const coreSignal = input.trustDecision?.signals.find(
-    (signal) => signal.key === "core_integrity"
-  );
-  const publicAnchoringSignal = input.trustDecision?.signals.find(
-    (signal) => signal.key === "bitcoin_anchoring"
-  );
-  const integrityReviewRequired = input.trustDecision?.integrityReviewRequired === true;
-  const presentationState = input.trustDecision?.presentationState ?? null;
-  const coreExplicitlyVerified = coreSignal?.state === "PASSED";
-  const publicAnchoringPending =
-    publicAnchoringSignal?.state === "PENDING" ||
-    presentationState === "VERIFIED_PENDING_ANCHORING";
-  const timestampMismatch =
-    isPositiveTsa(input.tsaStatus) && input.timestampDigestMatches === false;
-  const timestampUnavailable =
-    (isFailedTsa(input.tsaStatus) || !String(input.tsaStatus ?? "").trim()) &&
-    input.timestampDigestMatches !== true;
-
-  // UC-TRUST-005 — the stored bytes are an input to the verdict: a substituted
-  // or missing original is a failed signal; one not re-verified inside the
-  // freshness window never yields the unqualified "Low risk / may rely".
-  const storedBytesContradict =
-    input.storedBytesCheck === "MISMATCH" ||
-    (input.storedBytesCheck === "UNAVAILABLE" && input.storedBytesFailed === true);
-  const storedBytesNotCurrent =
-    input.storedBytesCheck !== undefined && input.storedBytesCheck !== "VERIFIED";
-  const failedSignals = [
-    input.canonicalHashMatches === false,
-    input.signatureValid === false,
-    input.custodyChainValid === false,
-    timestampMismatch,
-    input.otsHashMatches === false,
-    storedBytesContradict,
-  ].filter(Boolean).length;
-
-  const knownSignals = [
-    input.canonicalHashMatches !== null,
-    input.signatureValid !== null,
-    input.custodyChainValid !== null,
-    input.timestampDigestMatches !== null,
-    input.otsHashMatches !== null,
-    input.storageVerified !== null || input.immutableStorage !== null,
-  ].filter(Boolean).length;
-
-  if (
-    integrityReviewRequired ||
-    input.overallIntegrity === false ||
-    failedSignals > 0
-  ) {
-    return {
-      status: "review_required",
-      actionRequired:
-        "Do not rely on this record as a finalized integrity result until the failed integrity signal is reviewed by a qualified technical or forensic reviewer.",
-      legalStatement:
-        "One or more returned integrity checks did not pass. This page supports review of the recorded system state, but it must not be interpreted as conclusive proof of authenticity, authorship, factual truth, legal admissibility, or absence of tampering.",
-      tone: "danger",
-    };
-  }
-
-  if (coreExplicitlyVerified && failedSignals === 0 && !timestampUnavailable && storedBytesNotCurrent) {
-    return {
-      status: "partial",
-      actionRequired:
-        "The recorded integrity checks pass, but the stored original has not been re-read against its signed digest recently. Rely on the recorded state only together with a current stored-file recheck, and separately assess authorship, factual context, relevance, and legal admissibility.",
-      legalStatement:
-        "The cryptographic and custody signals returned in this response support the recorded integrity state. The current stored file is not stated as verified on this page. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content.",
-      tone: "warning",
-    };
-  }
-
-  if (coreExplicitlyVerified && failedSignals === 0 && !timestampUnavailable) {
-    return {
-      status: "verified",
-      // The OpenTimestamps card states its own status once; the summary does not repeat it.
-      actionRequired:
-        "Read each signal's status in the verification matrix, and separately assess authorship, factual context, relevance, and legal admissibility.",
-      legalStatement:
-        "The available cryptographic, custody, timestamping, and storage signals returned in this verification response support the recorded integrity state. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content.",
-      tone: publicAnchoringPending ? "warning" : "success",
-    };
-  }
-
-  if (
-    presentationState === "PARTIALLY_VERIFIED" ||
-    knownSignals > 0
-  ) {
-    return {
-      status: "partial",
-      actionRequired:
-        !coreExplicitlyVerified
-          ? "Core integrity materials are recorded, but the recorded-integrity state has not been finalized as explicitly verified. Use this record with limitations until that state is explicit."
-          : timestampUnavailable
-          ? "Core integrity checks are available, but the trusted timestamp provider did not return a usable token. Review timestamp availability before treating the evidence as timestamp-verified."
-          : "Use this record with caution. Review missing, pending, or unavailable verification layers before treating the evidence as finalized.",
-      legalStatement:
-        !coreExplicitlyVerified
-          ? "Core integrity materials are present, but the recorded-integrity state has not been finalized as explicitly verified. This response should not be summarized as plain verified."
-          : timestampUnavailable
-          ? "Available integrity checks support the recorded evidence state, but trusted timestamp verification is unavailable. No timestamp digest match or mismatch can be concluded from this response."
-          : "Some verification materials were returned, but the response did not provide a complete positive integrity conclusion for every technical layer. The record should be treated as a conditional trust state until missing or pending layers are resolved.",
-      tone: "warning",
-    };
-  }
-
-  return {
-    status: "unavailable",
-    actionRequired:
-      "Do not rely on this record as verified until verification materials are available and reviewed.",
-    legalStatement:
-      "The verification response did not expose enough technical material to support a complete integrity conclusion.",
-    tone: "neutral",
-  };
-}
-
-function buildUnavailableTrustDecision(): VerifyTrustDecision {
-  // No signals were returned: every row reads UNAVAILABLE, nothing more.
-  return {
-    ...deriveTrustPresentation([]),
-    tone: "neutral",
-    presentationTone: "neutral",
-    reviewerAction:
-      "Refresh the verification response or regenerate the report/package so the record's verification signals are available.",
-    signals: [],
-  };
-}
-
-function buildLegacyTrustDecisionFallback(params: {
-  verificationStatus?: string | null;
-  recordedIntegrityVerifiedAtUtc?: string | null;
-  fileSha256?: string | null;
-  fingerprintHash?: string | null;
-  signatureBase64?: string | null;
-  signingKeyId?: string | null;
-  publicKeyPem?: string | null;
-  tsaStatus?: string | null;
-  tsaFailureReason?: string | null;
-  /** Legacy top-level stored status and proof (pre-matrix API only). */
-  otsStatus?: string | null;
-  otsProofBase64?: string | null;
-  storageProtection?: StorageProtection | null;
-  identityLevelSnapshot?: string | null;
-  submittedByEmail?: string | null;
-  submittedByAuthProvider?: string | null;
-  verificationPackageVersion?: number | string | null;
-  verificationPackageGeneratedAtUtc?: string | null;
-  anchor?: VerifyAnchor;
-  custodyEvents: TimelineItem[];
-  /** True ONLY for Secure Intake evidence — drives role-accurate identity
-   *  wording. Authenticated Capture defaults to false. */
-  isIntake?: boolean;
-}): VerifyTrustDecision {
-  return buildEvidenceTrustDecision({
-    isIntake: params.isIntake === true,
-    evidence: {
-      verificationStatus: params.verificationStatus ?? null,
-      recordedIntegrityVerifiedAtUtc:
-        params.recordedIntegrityVerifiedAtUtc ?? null,
-      fileSha256: params.fileSha256 ?? null,
-      fingerprintHash: params.fingerprintHash ?? null,
-      signatureBase64: params.signatureBase64 ?? null,
-      signingKeyId: params.signingKeyId ?? null,
-      publicKeyPem: params.publicKeyPem ?? null,
-      tsaStatus: params.tsaStatus ?? null,
-      tsaFailureReason: params.tsaFailureReason ?? null,
-      // A pre-matrix API sent no decision: the shared builder resolves the
-      // anchoring signal from the stored proof bytes (the one authority).
-      otsStatus: params.otsStatus ?? null,
-      otsProofBase64: params.otsProofBase64 ?? null,
-      storageImmutable: params.storageProtection?.immutable ?? null,
-      storageObjectLockMode: params.storageProtection?.mode ?? null,
-      storageObjectLockRetainUntilUtc: params.storageProtection?.retainUntil ?? null,
-      identityLevelSnapshot: params.identityLevelSnapshot ?? null,
-      submittedByEmail: params.submittedByEmail ?? null,
-      submittedByAuthProvider: params.submittedByAuthProvider ?? null,
-      verificationPackageVersion: params.verificationPackageVersion ?? null,
-      verificationPackageGeneratedAtUtc:
-        params.verificationPackageGeneratedAtUtc ?? null,
-      anchor: params.anchor
-        ? {
-            configured:
-              typeof params.anchor.configured === "boolean"
-                ? params.anchor.configured
-                : null,
-            provider: params.anchor.provider ?? null,
-            anchoredAtUtc: params.anchor.anchoredAtUtc ?? null,
-            transactionId: params.anchor.transactionId ?? null,
-          }
-        : null,
-    },
-    custodyEvents: params.custodyEvents.map((event) => ({
-      eventType: event.eventType ?? null,
-      category: event.category ?? null,
-      eventHash: event.eventHash ?? null,
-      prevEventHash: event.prevEventHash ?? null,
-    })),
-  });
-}
-
 function getTimestampDigestLabel(params: {
   itemCount?: number | null;
   tsaInputKind?: string | null;
@@ -1582,165 +711,14 @@ function getTimestampDigestLabel(params: {
     : "Timestamped Digest / Original File SHA-256";
 }
 
-function isPositiveTsa(status?: string | null): boolean {
-  const s = String(status ?? "").toUpperCase();
-  return ["STAMPED", "GRANTED", "VERIFIED", "SUCCEEDED"].includes(s);
-}
-
-function isFailedTsa(status?: string | null): boolean {
-  const s = String(status ?? "").toUpperCase();
-  return ["FAILED", "UNAVAILABLE", "ERROR"].includes(s);
-}
-
-function buildReviewerActions(params: {
-  verdict: VerificationVerdict;
-  canonicalHashMatches: boolean | null;
-  signatureValid: boolean | null;
-  custodyChainValid: boolean | null;
-  timestampDigestMatches: boolean | null;
-  otsHashMatches: boolean | null;
-  storageProtection: StorageProtection | null;
-  tsaStatus: string | null;
-}): string[] {
-  const actions: string[] = [];
-
-  if (params.verdict.status === "review_required") {
-    actions.push(
-      "Treat this record as requiring technical review before relying on it as a complete integrity verification result."
-    );
-  }
-
-  if (params.canonicalHashMatches === false) {
-    actions.push(
-      "Compare the displayed evidence digest against the original evidence material and confirm whether the preserved content differs from the recorded fingerprint."
-    );
-  }
-
-  if (params.signatureValid === false) {
-    actions.push(
-      "Review the digital signature, signing key identifier, key version, and public key material before accepting the signature layer."
-    );
-  }
-
-  if (params.custodyChainValid === false) {
-    actions.push(
-      "Inspect the custody chain continuity. A custody-chain mismatch may indicate missing, altered, or inconsistent event linkage."
-    );
-  }
-
-  if (
-    isPositiveTsa(params.tsaStatus) &&
-    params.timestampDigestMatches === false
-  ) {
-    actions.push(
-      "Review the trusted timestamp mismatch. A timestamp digest mismatch means the timestamped digest does not match the recorded timestamp input digest."
-    );
-  }
-
-  if (isFailedTsa(params.tsaStatus)) {
-    actions.push(
-      "Review timestamp availability. The timestamp provider did not return a usable token, so no timestamp digest match or mismatch can be concluded."
-    );
-  }
-
-  if (params.otsHashMatches === false) {
-    actions.push(
-      "Review the OpenTimestamps proof and its linked hash. The OTS proof should be checked against the recorded fingerprint/hash material."
-    );
-  }
-
-  if (
-    params.storageProtection?.immutable !== true &&
-    params.storageProtection?.verified !== true
-  ) {
-    actions.push(
-      "Confirm storage immutability or retention status before relying on the storage-protection layer."
-    );
-  }
-
-  if (actions.length === 0) {
-    actions.push(
-      "Review the displayed record identity, evidence hash, custody chain, timestamping materials, and access activity before external legal or operational reliance."
-    );
-  }
-
-  return actions;
-}
-
-function buildMismatchExplanations(params: {
-  canonicalHashMatches: boolean | null;
-  signatureValid: boolean | null;
-  custodyChainValid: boolean | null;
-  timestampDigestMatches: boolean | null;
-  otsHashMatches: boolean | null;
-  custodyChainFailureReason: string | null;
-  tsaStatus: string | null;
-}): Array<{ title: string; body: string; severity: "danger" | "warning" }> {
-  const explanations: Array<{
-    title: string;
-    body: string;
-    severity: "danger" | "warning";
-  }> = [];
-
-  if (params.canonicalHashMatches === false) {
-    explanations.push({
-      title: "Fingerprint mismatch",
-      severity: "danger",
-      body:
-        "The canonical fingerprint check did not match the recorded evidence state. This is a critical integrity signal and should be reviewed before relying on the record.",
-    });
-  }
-
-  if (params.signatureValid === false) {
-    explanations.push({
-      title: "Digital signature invalid",
-      severity: "danger",
-      body:
-        "The recorded digital signature did not validate against the available verification material. This may affect confidence in the signed record state.",
-    });
-  }
-
-  if (params.custodyChainValid === false) {
-    explanations.push({
-      title: "Custody-chain continuity issue",
-      severity: "danger",
-      body:
-        params.custodyChainFailureReason ??
-        "The custody chain reported an integrity issue. Review previous-event hashes and event hashes to determine where continuity failed.",
-    });
-  }
-
-  if (
-    isPositiveTsa(params.tsaStatus) &&
-    params.timestampDigestMatches === false
-  ) {
-    explanations.push({
-      title: "Trusted timestamp digest mismatch",
-      severity: "warning",
-      body:
-        "The trusted timestamp digest does not match the recorded timestamp input digest. This does not automatically prove the content is false, but it means the timestamp layer cannot be treated as clean without review.",
-    });
-  }
-
-  if (params.otsHashMatches === false) {
-    explanations.push({
-      title: "OpenTimestamps hash mismatch",
-      severity: "warning",
-      body:
-        "The OpenTimestamps hash does not match the recorded fingerprint hash. The OTS proof should be manually checked against the expected digest.",
-    });
-  }
-
-  return explanations;
-}
-
 /**
  * Phase 2 closure — render the canonical OutputContext under the verdict
  * card. Reviewers see at a glance whether the verdict is a sealed
  * snapshot (REPORT / VERIFICATION_PACKAGE) or live, the snapshot's
  * generated-at timestamp, when the live view was observed, and which
  * materials may have advanced since the snapshot was sealed (live
- * delta). Pure additive surface; no existing element changed.
+ * delta). The legal boundary is stated once, by the verification matrix
+ * limitation in the summary card — this badge never repeats it.
  */
 function OutputContextBadge({
   outputContext,
@@ -1811,528 +789,123 @@ function OutputContextBadge({
           {deltas.join(", ")}
         </span>
       ) : null}
-      {outputContext.legalBoundary ? (
-        <span
-          data-testid="output-context-legal-boundary"
-          style={{
-            flex: "1 1 100%",
-            marginTop: 4,
-            paddingTop: 8,
-            borderTop: `1px dashed ${VERIFY_BRAND.line}`,
-            color: VERIFY_BRAND.muted,
-            fontSize: 11.5,
-            lineHeight: 1.5,
-          }}
-        >
-          {outputContext.legalBoundary}
-        </span>
-      ) : null}
     </div>
   );
 }
 
-function VerificationPackageIntegrityCard({
-  integrity,
+
+/**
+ * The RFC 3161 token's recorded FACTS (provider, time, serial, digest input).
+ * Its status is the matrix's tsa_token row — never read from these strings.
+ */
+function buildTsaDetails(data: VerifyResponse) {
+  const tsa = data.storageAndTimestamping?.tsa ?? data.tsa ?? data.timestamp ?? null;
+
+  return {
+    provider: firstNonEmpty(tsa?.provider, data.tsaProvider),
+    genTimeUtc: firstNonEmpty(tsa?.genTimeUtc, data.tsaGenTimeUtc),
+    inputDigestHex: firstNonEmpty(tsa?.inputDigestHex, data.technicalMaterials?.tsaInputDigestHex),
+    inputKind: firstNonEmpty(tsa?.inputKind, data.technicalMaterials?.tsaInputKind),
+    legacyMode:
+      typeof tsa?.legacyMode === "boolean"
+        ? tsa.legacyMode
+        : typeof data.technicalMaterials?.legacyMode === "boolean"
+          ? data.technicalMaterials.legacyMode
+          : null,
+    serialNumber: firstNonEmpty(tsa?.serialNumber, data.tsaSerialNumber),
+    hashAlgorithm: firstNonEmpty(tsa?.hashAlgorithm, data.tsaHashAlgorithm),
+    failureReason: firstNonEmpty(tsa?.failureReason, data.tsaFailureReason),
+    timestampedDigestLabel: firstNonEmpty((tsa as VerifyTsa | null)?.timestampedDigestLabel),
+    timestampedDigestNote: firstNonEmpty((tsa as VerifyTsa | null)?.timestampedDigestNote),
+  };
+}
+
+function buildOtsDetails(data: VerifyResponse): { view: OtsAnchoringView; calendar: string | null; proofBase64: string | null } {
+  // THE Bitcoin anchoring state is the server's (2026-10-13): read, never derived.
+  const ots = data.storageAndTimestamping?.ots ?? data.ots ?? null;
+  return {
+    view: readOtsAnchoringView(ots),
+    calendar: firstNonEmpty(ots?.calendar, data.otsCalendar),
+    proofBase64: firstNonEmpty(data.otsProofBase64),
+  };
+}
+
+function toTimelineItem(ev: NonNullable<VerifyResponse["custodyEvents"]>[number], category: TimelineItem["category"]): TimelineItem {
+  return {
+    sequence: ev.sequence ?? null,
+    eventType: ev.eventType ?? "UNKNOWN_EVENT",
+    atUtc: ev.atUtc ?? null,
+    payloadSummary: ev.payloadSummary ?? null,
+    prevEventHash: ev.prevEventHash ?? null,
+    eventHash: ev.eventHash ?? null,
+    category: ev.category ?? category,
+  };
+}
+
+/**
+ * THE forensic chain the API listed. Access activity is never listed (the API
+ * aggregates it: custodyLifecycle.accessActivity); an older response that
+ * still mixes both in `custodyEvents` contributes only its forensic events.
+ */
+function readForensicChain(data: VerifyResponse): TimelineItem[] {
+  const listed =
+    data.custodyLifecycle?.forensicEvents ??
+    data.reviewTrail?.forensicCustodyEvents ??
+    data.forensicCustodyEvents ??
+    null;
+  const items =
+    listed && listed.length > 0
+      ? listed.map((ev) => toTimelineItem(ev, "forensic"))
+      : (data.custodyEvents ?? [])
+          .map((ev) => toTimelineItem(ev, null))
+          .filter((item) => item.category === "forensic" || (!item.category && !isAccessCustodyEventType(item.eventType)));
+  return [...items].sort((a, b) => {
+    const sa = a.sequence ?? Number.MAX_SAFE_INTEGER;
+    const sb = b.sequence ?? Number.MAX_SAFE_INTEGER;
+    if (sa !== sb) return sa - sb;
+    return (a.atUtc ? Date.parse(a.atUtc) : 0) - (b.atUtc ? Date.parse(b.atUtc) : 0);
+  });
+}
+
+/** One group of the forensic chain, 20 events per page. */
+function ForensicChainGroup({
+  title,
+  subtitle,
+  events,
+  forensicMode,
 }: {
-  integrity: VerificationPackageIntegrity;
+  title: string;
+  subtitle: string;
+  events: TimelineItem[];
+  forensicMode: boolean;
 }) {
-  // ET-PKG-05 — "complete" is a SEALED package (format 5, its seal verified
-  // when it was built) that carries every integrity artifact. File names alone
-  // gave an unsealed legacy package the same success badge.
-  const unsealed = integrity.available && integrity.sealed !== true;
-  // ONE SEAL AUTHORITY: a seal PROOVRA did not check against a registered key
-  // (the matrix's package_signature row) is never "complete".
-  const sealNotChecked = integrity.available && integrity.sealed === true && integrity.sealCheck === "NOT_CHECKED";
-  const complete =
-    integrity.available &&
-    integrity.sealed === true &&
-    !sealNotChecked &&
-    integrity.manifestPresent &&
-    integrity.signedManifestPresent &&
-    integrity.checksumIndexPresent &&
-    integrity.auditExportIncluded;
-
-  const decisionLabel = complete
-    ? "Package Integrity Complete"
-    : unsealed
-      ? "Legacy Package — Not Sealed"
-      : sealNotChecked
-        ? "Sealed — Seal Not Checked"
-      : integrity.available
-        ? "Package Integrity Partial"
-        : "Package Not Generated";
-
-  const decisionTone = complete
-    ? "success"
-    : integrity.available
-      ? "warning"
-      : "neutral";
-
-  const decisionText = complete
-    ? "The verification package includes the complete integrity materials for independent review."
-    : unsealed
-      ? "This package predates sealed packages: its contents are not bound by a signed seal, so it is not presented as independently verifiable."
-      : sealNotChecked
-        ? "The package is sealed, but its seal key was not bound to a registered PROOVRA key when it was issued, so PROOVRA did not check the seal. Check it with the commands in the package's README."
-      : integrity.available
-        ? "A verification package version exists, but this public response has not confirmed every package artifact."
-        : "No generated verification package was exposed in this verification response.";
-
-  const rows = [
-    {
-      label: "Package Manifest",
-      value: integrity.manifestPresent ? "Present" : "Not available",
-      tone: integrity.manifestPresent ? "success" : "neutral",
-    },
-{
-  label: "Manifest Signature",
-  value: integrity.signedManifestPresent ? "Ed25519 signature present" : "Not available",
-  tone: integrity.signedManifestPresent ? "success" : "neutral",
-},
-    {
-      label: "Checksum Index",
-      value: integrity.checksumIndexPresent ? "Present" : "Not available",
-      tone: integrity.checksumIndexPresent ? "success" : "neutral",
-    },
-    {
-      label: "Custody Export",
-      value: integrity.custodyExportIncluded ? "Included" : "Not available",
-      tone: integrity.custodyExportIncluded ? "success" : "neutral",
-    },
-    {
-      label: "Access / Audit Export",
-      value: integrity.accessExportIncluded || integrity.auditExportIncluded ? "Included" : "Not available",
-      tone: integrity.accessExportIncluded || integrity.auditExportIncluded ? "success" : "neutral",
-    },
-  ] as const;
-
+  const { page, pages, slice, setPage } = usePaged(events);
+  if (events.length === 0) return null;
   return (
-    <div
-      style={{
-        border: `1px solid ${
-          complete
-            ? "rgba(33,117,93,0.30)"
-            : integrity.available
-              ? "rgba(138,106,47,0.30)"
-              : VERIFY_BRAND.line
-        }`,
-        borderLeft: `7px solid ${
-          complete
-            ? VERIFY_BRAND.success
-            : integrity.available
-              ? VERIFY_BRAND.warning
-              : VERIFY_BRAND.accent
-        }`,
-        background: complete
-          ? "linear-gradient(180deg, rgba(33,117,93,0.11), rgba(255,255,255,0.74))"
-          : integrity.available
-            ? "linear-gradient(180deg, rgba(138,106,47,0.11), rgba(255,255,255,0.74))"
-            : "linear-gradient(180deg, rgba(11,46,39,0.06), rgba(255,255,255,0.74))",
-        borderRadius: 24,
-        padding: 22,
-        display: "grid",
-        gap: 18,
-        boxShadow: "0 16px 38px rgba(16,32,29,0.07)",
-      }}
-    >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: 18,
-          alignItems: "stretch",
-        }}
-      >
-        <div
-          style={{
-            minWidth: 0,
-            wordBreak: "normal",
-            overflowWrap: "break-word",
-            whiteSpace: "normal",
-          }}
-        >
-          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5, marginBottom: 8 }}>
-            Verification Package Integrity
-          </div>
-
-          <div
-            style={{
-              ...VERIFY_TYPO.h3,
-              fontSize: 22,
-              marginBottom: 8,
-              minWidth: 0,
-              wordBreak: "normal",
-              overflowWrap: "break-word",
-              whiteSpace: "normal",
-            }}
-          >
-            {decisionLabel}
-          </div>
-
-          <div
-            style={{
-              ...VERIFY_TYPO.small,
-              fontSize: 13.5,
-              color: VERIFY_BRAND.ink,
-              maxWidth: 860,
-              minWidth: 0,
-              wordBreak: "normal",
-              overflowWrap: "break-word",
-              whiteSpace: "normal",
-            }}
-          >
-            {decisionText}
-          </div>
-        </div>
-
-        <div
-          style={{
-            border: `1px solid ${VERIFY_BRAND.line}`,
-            background: "rgba(255,255,255,0.58)",
-            borderRadius: 18,
-            padding: 16,
-            display: "grid",
-            alignContent: "center",
-            gap: 8,
-            textAlign: "center",
-            minWidth: 0,
-            justifySelf: "stretch",
-          }}
-        >
-          <Badge
-            label={complete ? "Independent Review Enabled" : unsealed ? "Not Sealed" : integrity.available ? "Partial Package" : "Unavailable"}
-            tone={decisionTone}
-          />
-
-          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10 }}>
-            Package Decision
-          </div>
-
-          {integrity.version ? (
-            <div style={{ ...VERIFY_TYPO.small, fontWeight: 900 }}>
-              Version v{integrity.version}
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <div
-        style={{
-          ...BRONZE_RAIL_STYLE,
-          padding: 16,
-          display: "grid",
-          gap: 8,
-        }}
-      >
-        <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>
-          Impact on Trust Decision
-        </div>
-
-        <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
-          {/*
-            P3-3 CLOSURE (2026-09-10) — THE SECOND SENTENCE CONTRADICTED THE
-            BADGE ABOVE IT.
-
-            The absent-package branch read "Package-level integrity can be
-            checked independently from the downloaded verification package" —
-            beside a badge saying "Unavailable", pointing the reader at a
-            download that does not exist for this record. It also implied the
-            package is what makes independent verification possible, which is
-            not true of this product: every proof the package bundles is
-            exposed on THIS page and is checkable from it.
-
-            The replacement says what is true and what the reader can do,
-            without naming an artifact they cannot obtain.
-          */}
-          {complete
-            ? "The exported forensic bundle supports independent verification of package contents, checksums, manifest integrity, custody export, and audit/access materials with standard tooling."
-            : integrity.available
-              ? // ET-PKG-05 — a package EXISTS here; the absent-package sentence said it did not.
-                "A package exists for this record, but it is not confirmed here as a complete sealed set, so the record's integrity assessment does not rest on it. The fingerprint, signature, timestamp, anchoring and custody materials are published on this page and can each be checked independently with standard tooling."
-              : "No downloadable package is available for this record, and its integrity assessment does not depend on one. The fingerprint, signature, timestamp, anchoring and custody materials are published on this page and can each be checked independently with standard tooling."}
-        </div>
-
-        {integrity.generatedAtUtc ? (
-          <div style={{ ...VERIFY_TYPO.small, fontSize: 12.5 }}>
-            Package generated at: {formatDateTime(integrity.generatedAtUtc)}
-          </div>
-        ) : null}
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-          gap: 12,
-        }}
-      >
-        {rows.map((row) => (
-          <div
-            key={row.label}
-            style={{
-              ...VERIFY_SURFACE.inset,
-              padding: 14,
-              display: "grid",
-              gap: 8,
-              minHeight: 84,
-            }}
-          >
-            <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10 }}>
-              {row.label}
-            </div>
-            <Badge label={row.value} tone={row.tone} />
-          </div>
-        ))}
-      </div>
+    <div style={{ display: "grid", gap: 10 }}>
+      <TimelinePanel
+        title={title}
+        subtitle={subtitle}
+        forensicMode={forensicMode}
+        countLabel={`${events.length} event${events.length === 1 ? "" : "s"}`}
+        countTone="info"
+        events={slice}
+        emptyTitle=""
+        emptyBody=""
+        accent={{ dot: VERIFY_BRAND.accent, dotBorder: "rgba(11,46,39,0.16)", line: "rgba(11,46,39,0.25)" }}
+      />
+      <Pager page={page} pages={pages} total={events.length} onPage={setPage} label={title} />
     </div>
   );
 }
 
-function LegalWarningBlock({
-  verdict,
-}: {
-  verdict: VerificationVerdict;
-}) {
-  return (
-    <div
-      style={{
-        border: `1px solid ${
-          verdict.tone === "danger"
-            ? "rgba(181,71,56,0.28)"
-            : "rgba(138,106,47,0.30)"
-        }`,
-        borderLeft: `6px solid ${
-          verdict.tone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.bronze
-        }`,
-        background:
-          verdict.tone === "danger"
-            ? "linear-gradient(180deg, rgba(181,71,56,0.10), rgba(255,255,255,0.68))"
-            : "linear-gradient(180deg, rgba(138,106,47,0.11), rgba(255,255,255,0.68))",
-        borderRadius: 20,
-        padding: 18,
-        display: "grid",
-        gap: 8,
-      }}
-    >
-      <div
-        style={{
-          ...VERIFY_TYPO.kicker,
-          fontSize: 10.5,
-          color: verdict.tone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.warning,
-        }}
-      >
-        Legal Review Boundary
-      </div>
-      <div
-        style={{
-          ...VERIFY_TYPO.small,
-          fontSize: 13.5,
-          color: VERIFY_BRAND.ink,
-        }}
-      >
-        {verdict.legalStatement}
-      </div>
-    </div>
-  );
-}
-
-function ReviewerActionsBlock({
-  actions,
-}: {
-  actions: string[];
-}) {
-  return (
-    <div
-      style={{
-        border: `1px solid ${VERIFY_BRAND.line}`,
-        background: "rgba(255,255,255,0.68)",
-        borderRadius: 22,
-        padding: 20,
-        display: "grid",
-        gap: 14,
-        boxShadow: "0 14px 34px rgba(16,32,29,0.06)",
-      }}
-    >
-      <div>
-        <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5, marginBottom: 6 }}>
-          Recommended Reviewer Actions
-        </div>
-        <div style={{ ...VERIFY_TYPO.small, fontSize: 13, maxWidth: 860 }}>
-          These actions help a legal, insurance, compliance, or forensic reviewer decide what must be checked before relying on this evidence record.
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gap: 10 }}>
-        {actions.map((action, index) => (
-          <div
-            key={`${index}-${action}`}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "32px minmax(0, 1fr)",
-              gap: 12,
-              alignItems: "start",
-              border: `1px solid ${VERIFY_BRAND.softLine}`,
-              background: "rgba(255,255,255,0.44)",
-              borderRadius: 16,
-              padding: 12,
-            }}
-          >
-            <div
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: 999,
-                background: VERIFY_BRAND.accent,
-                color: "#fff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 12,
-                fontWeight: 950,
-              }}
-            >
-              {index + 1}
-            </div>
-            <div
-              style={{
-                ...VERIFY_TYPO.small,
-                fontSize: 13,
-                color: VERIFY_BRAND.ink,
-              }}
-            >
-              {action}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function MismatchExplanationBlock({
-  explanations,
-}: {
-  explanations: Array<{ title: string; body: string; severity: "danger" | "warning" }>;
-}) {
-  if (explanations.length === 0) return null;
-
-  return (
-    <div
-      style={{
-        border: "1px solid rgba(181,71,56,0.28)",
-        background: "rgba(255,255,255,0.70)",
-        borderRadius: 22,
-        padding: 20,
-        display: "grid",
-        gap: 14,
-        boxShadow: "0 14px 34px rgba(16,32,29,0.06)",
-      }}
-    >
-      <div>
-        <div
-          style={{
-            ...VERIFY_TYPO.kicker,
-            fontSize: 10.5,
-            color: VERIFY_BRAND.danger,
-            marginBottom: 6,
-          }}
-        >
-          Integrity Issue Explanation
-        </div>
-        <div style={{ ...VERIFY_TYPO.small, fontSize: 13 }}>
-          The following issue explanations translate raw technical mismatch signals into reviewer-facing meaning.
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gap: 10 }}>
-        {explanations.map((item) => (
-          <div
-            key={item.title}
-            style={{
-              border: `1px solid ${
-                item.severity === "danger"
-                  ? "rgba(181,71,56,0.28)"
-                  : "rgba(138,106,47,0.30)"
-              }`,
-              borderLeft: `6px solid ${
-                item.severity === "danger"
-                  ? VERIFY_BRAND.danger
-                  : VERIFY_BRAND.warning
-              }`,
-              background:
-                item.severity === "danger"
-                  ? VERIFY_BRAND.dangerSoft
-                  : VERIFY_BRAND.warningSoft,
-              borderRadius: 16,
-              padding: 14,
-              display: "grid",
-              gap: 6,
-            }}
-          >
-            <div
-              style={{
-                ...VERIFY_TYPO.value,
-                fontSize: 14,
-                color:
-                  item.severity === "danger"
-                    ? VERIFY_BRAND.danger
-                    : VERIFY_BRAND.warning,
-              }}
-            >
-              {item.title}
-            </div>
-            <div
-              style={{
-                ...VERIFY_TYPO.small,
-                fontSize: 13,
-                color: VERIFY_BRAND.ink,
-              }}
-            >
-              {item.body}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function normalizeVerificationStatusCode(status?: string | null): string {
-  return String(status ?? "").trim().toUpperCase();
-}
-
-function verificationStatusDisplayLabel(status?: string | null): string {
-  const code = normalizeVerificationStatusCode(status);
-
-  if (code === "RECORDED_INTEGRITY_VERIFIED") {
-    return "Recorded integrity state verified";
-  }
-
-  if (code === "MATERIALS_AVAILABLE") {
-    return "Technical materials available";
-  }
-
-  if (code === "REVIEW_REQUIRED") return "Review required";
-  if (code === "FAILED") return "Verification failed";
-
-  return code
-    ? code
-        .toLowerCase()
-        .split("_")
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(" ")
-    : "Technical materials available";
-}
-
-function integrityStatusDisplayLabel(decision: VerifyTrustDecision): string {
-  const core = decision.signals.find((signal) => signal.key === "core_integrity");
-
-  if (core?.state === "PASSED") return "Recorded Integrity Verified";
-  if (core?.state === "FAILED") return "Integrity review required";
-  if (core?.state === "UNAVAILABLE") return "Integrity materials missing";
-
-  return "Integrity materials recorded";
-}
+const TECHNICAL_TABS: ReadonlyArray<{ id: TechnicalTabId; label: string }> = [
+  { id: "record", label: "Record" },
+  { id: "integrity", label: "Integrity" },
+  { id: "package", label: "Package Integrity" },
+  { id: "full-custody", label: "Forensic Chain" },
+  { id: "access", label: "Access Activity" },
+];
 
 export default function VerifyPage() {
   // The location words in the reader's language (en / de / ar).
@@ -2340,12 +913,6 @@ export default function VerifyPage() {
   const params = useParams<{ token: string }>();
   const { addToast } = useToast();
 
-  const [hash, setHash] = useState<string | null>(null);
-  const [fingerprintHash, setFingerprintHash] = useState<string | null>(null);
-  const [signature, setSignature] = useState<string | null>(null);
-  const [forensicTimeline, setForensicTimeline] = useState<TimelineItem[]>([]);
-  const [accessTimeline, setAccessTimeline] = useState<TimelineItem[]>([]);
-  const [fullCustodyTimeline, setFullCustodyTimeline] = useState<TimelineItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   // Decision B — a BASIC answer carries only the basic projection.
@@ -2359,149 +926,14 @@ export default function VerifyPage() {
   // ET-SM-07 — the stored-file recheck state, shown on the rich view too.
   const [storedBytes, setStoredBytes] = useState<BasicVerification["storedBytes"] | null>(null);
 
-  const [title, setTitle] = useState<string | null>(null);
-  const [evidenceId, setEvidenceId] = useState<string | null>(null);
-  const [mimeType, setMimeType] = useState<string | null>(null);
-  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
-  const [verifiedAt, setVerifiedAt] = useState<string | null>(null);
-  const [reportVersion, setReportVersion] = useState<string | null>(null);
-  const [verificationPackageVersion, setVerificationPackageVersion] =
-    useState<string | null>(null);
-  const [reviewerSummaryVersion, setReviewerSummaryVersion] =
-    useState<string | null>(null);
-
-  const [tsaStatus, setTsaStatus] = useState<string | null>(null);
-  const [tsaProvider, setTsaProvider] = useState<string | null>(null);
-  const [tsaGenTimeUtc, setTsaGenTimeUtc] = useState<string | null>(null);
-  const [tsaSerialNumber, setTsaSerialNumber] = useState<string | null>(null);
-  const [tsaHashAlgorithm, setTsaHashAlgorithm] = useState<string | null>(null);
-  const [tsaFailureReason, setTsaFailureReason] = useState<string | null>(null);
-  const [tsaInputDigestHex, setTsaInputDigestHex] = useState<string | null>(null);
-  const [tsaInputKind, setTsaInputKind] = useState<string | null>(null);
-  const [tsaLegacyMode, setTsaLegacyMode] = useState<boolean | null>(null);
-  const [timestampedDigestLabel, setTimestampedDigestLabel] = useState<string | null>(
-    null
-  );
-  const [timestampedDigestNote, setTimestampedDigestNote] = useState<string | null>(
-    null
-  );
-
-  const [publicKeyPem, setPublicKeyPem] = useState<string | null>(null);
-  const [verifyStatus, setVerifyStatus] = useState<string | null>(null);
-  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
-  const [signingKeyId, setSigningKeyId] = useState<string | null>(null);
-  const [signingKeyVersion, setSigningKeyVersion] = useState<number | null>(null);
-
-  const [submittedByEmail, setSubmittedByEmail] = useState<string | null>(null);
-  const [authProvider, setAuthProvider] = useState<string | null>(null);
-  const [identityLevel, setIdentityLevel] = useState<string | null>(null);
-  const [workspaceName, setWorkspaceName] = useState<string | null>(null);
-  const [organizationName, setOrganizationName] = useState<string | null>(null);
-  const [organizationVerified, setOrganizationVerified] = useState<boolean | null>(
-    null
-  );
-
-  const [anchorTransactionId, setAnchorTransactionId] =
-    useState<string | null>(null);
-
-  // THE Bitcoin anchoring state (2026-10-13): the server's OtsAnchoringView,
-  // read through readOtsAnchoringView — a missing or unknown state is
-  // Unavailable. Nothing on this page re-derives it.
-  const [otsView, setOtsView] = useState<OtsAnchoringView>(() => readOtsAnchoringView(null));
-  const [otsLoaded, setOtsLoaded] = useState(false);
-  const [otsLegacyStatus, setOtsLegacyStatus] = useState<string | null>(null);
-  const [otsCalendar, setOtsCalendar] = useState<string | null>(null);
-  const [otsProofBase64, setOtsProofBase64] = useState<string | null>(null);
-  const [otsProofPresent, setOtsProofPresent] = useState<boolean | null>(null);
-  const otsBadge = otsTone(otsView);
-
-  const [canonicalHashMatches, setCanonicalHashMatches] = useState<boolean | null>(null);
-  const [signatureValid, setSignatureValid] = useState<boolean | null>(null);
-  const [custodyChainValid, setCustodyChainValid] = useState<boolean | null>(null);
-  const [custodyChainMode, setCustodyChainMode] = useState<string | null>(null);
-  const [custodyChainFailureReason, setCustodyChainFailureReason] = useState<string | null>(null);
-  const [timestampDigestMatches, setTimestampDigestMatches] = useState<boolean | null>(null);
-  const [otsHashMatches, setOtsHashMatches] = useState<boolean | null>(null);
-  const [overallIntegrity, setOverallIntegrity] = useState<boolean | null>(null);
-
-  const [storageProtection, setStorageProtection] = useState<StorageProtection | null>(null);
-
-  const [overview, setOverview] = useState<VerifyOverview | null>(null);
-  const [humanSummary, setHumanSummary] = useState<VerifyHumanSummary | null>(null);
-  const [captureContext, setCaptureContext] = useState<VerifyCaptureContext>(null);
-  // Phase 31.12 — bounded public-safe media intelligence advisory.
-  // Media Intelligence / Advisory Observations was REMOVED from the
-  // public verify page (product decision). The API still returns
-  // `mediaIntelligenceAdvisory`, so the setter is retained to consume the
-  // field without warnings, but the value is never read/rendered — hence
-  // the empty first tuple slot.
-  const [, setMediaIntelligenceAdvisory] =
-    useState<NonNullable<VerifyResponse["mediaIntelligenceAdvisory"]> | null>(
-      null,
-    );
-  // UC-0 — the typed public acquisition projection (the API's
-  // `acquisition` field, rendered verbatim). Null only when the API sent
-  // no valid projection; a legacy record arrives as "Not recorded".
-  const [acquisition, setAcquisition] =
-    useState<PublicVerifyAcquisition | null>(null);
-  // UC-PROV-003 — the public (data-minimized) capture-manifest facts.
-  const [captureManifest, setCaptureManifest] =
-    useState<ReturnType<typeof readPublicCaptureManifest>>(null);
-  // THE canonical location state (stated when no coordinates are shown).
-  const [locationState, setLocationState] =
-    useState<ReturnType<typeof readVerifyLocationState>>(null);
-
-  // Enterprise Technical Metadata layer — privacy-safe Media / EXIF /
-  // Capture Environment projection. Null when the API has nothing to
-  // surface; we render no section in that case (honest no-data).
-  const [technicalMetadata, setTechnicalMetadata] =
-    useState<VerifyTechnicalMetadata | null>(null);
-
-  // PHASE 12B — bounded public-safe redaction projection. Null when the
-  // record has no redaction project and no reviewed video frames; the
-  // page then renders no redaction section rather than asserting
-  // "not redacted".
-  const [redaction, setRedaction] = useState<VerifyRedaction | null>(null);
-
-  // Phase 4B Final Closure (I3) — lifecycle transparency projection.
-  const [serverTrustDecision, setServerTrustDecision] =
-    useState<VerifyTrustDecision | null>(null);
-  const [serverVerificationMatrix, setServerVerificationMatrix] =
-    useState<VerificationMatrix | null>(null);
-  // The API states the page's statuses from the live decision (LIVE_VERIFICATION).
-  const [trustDecisionLive, setTrustDecisionLive] = useState(false);
-  const [trustSnapshotDivergence, setTrustSnapshotDivergence] =
-    useState<NonNullable<VerifyResponse["trustDecisionConsistency"]> | null>(null);
-  const [verificationSnapshot, setVerificationSnapshot] =
-    useState<VerifyResponse["verificationSnapshot"]>(null);
-  const [outputContext, setOutputContext] =
-    useState<VerifyResponse["outputContext"]>(null);
-  const [liveAnchoring, setLiveAnchoring] =
-    useState<VerifyResponse["liveAnchoring"]>(null);
+  // THE answer, as the API sent it. Every section reads it; none re-derives a status.
+  const [response, setResponse] = useState<VerifyResponse | null>(null);
+  const [serverVerificationMatrix, setServerVerificationMatrix] = useState<VerificationMatrix | null>(null);
+  // Phase 2 closure — canonical OutputContext (snapshot vs live semantics).
+  const [outputContext, setOutputContext] = useState<VerifyResponse["outputContext"]>(null);
   const [refreshingAnchoring, setRefreshingAnchoring] = useState(false);
-  const [custodyDisplayCounts, setCustodyDisplayCounts] =
-    useState<VerifyResponse["custodyDisplayCounts"]>(null);
-  // ET-CUS-13: the returned timeline is the LATEST events of a longer chain.
-  const [custodyTruncatedNote, setCustodyTruncatedNote] = useState<string | null>(null);
-  const [limitations, setLimitations] = useState<VerifyLimitations | null>(null);
-  const [evidenceContentSummary, setEvidenceContentSummary] =
-    useState<VerifyEvidenceContentSummary>(null);
-  const [evidenceItems, setEvidenceItems] = useState<VerifyEvidenceAsset[]>([]);
-  const [primaryContentItem, setPrimaryContentItem] =
-    useState<VerifyEvidenceAsset | null>(null);
-  const [defaultPreviewItemId, setDefaultPreviewItemId] = useState<string | null>(null);
-  const [selectedEvidenceItemId, setSelectedEvidenceItemId] = useState<string | null>(null);
-  const [previewPolicy, setPreviewPolicy] = useState<VerifyPreviewPolicy>(null);
-  const [contentAccessPolicy, setContentAccessPolicy] =
-    useState<VerifyContentAccessPolicy>(null);
-  const [contentExposureDecision, setContentExposureDecision] =
-    useState<VerifyContentExposureDecision>(null);
-  const [serverVerificationPackageIntegrity, setServerVerificationPackageIntegrity] =
-  useState<Partial<VerificationPackageIntegrity> | null>(null);
-const [activeTechnicalTab, setActiveTechnicalTab] =
-  useState<TechnicalTabId>("record");
-
-const [forensicMode, setForensicMode] = useState(false);
+  const [activeTechnicalTab, setActiveTechnicalTab] = useState<TechnicalTabId>("record");
+  const [forensicMode, setForensicMode] = useState(false);
 
   const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchVerifyRef = useRef<
@@ -2516,420 +948,12 @@ const [forensicMode, setForensicMode] = useState(false);
     }
   };
 
-function extractEvidenceContent(data: VerifyResponse) {
-  return {
-    summary: data.evidenceContent?.summary ?? null,
-    items: Array.isArray(data.evidenceContent?.items)
-      ? data.evidenceContent.items
-      : [],
-    primaryItem: data.evidenceContent?.primaryItem ?? null,
-    defaultPreviewItemId: data.evidenceContent?.defaultPreviewItemId ?? null,
-    previewPolicy: data.evidenceContent?.previewPolicy ?? null,
-  };
-}
-
-/** A Bitcoin anchoring state a server sent, in its one word; unknown reads as Unavailable. */
-function otsStateWord(state: string | null | undefined): string {
-  return OTS_STATE_WORDS[parseOtsState(state)];
-}
-
-function isAccessEventType(eventType?: string | null): boolean {
-  return isAccessCustodyEventType(eventType);
-}
-
-  // Applied from the token-fetch effect AND from its poller, both of which
-  // outlive a render. Held in a ref (the same convention as `fetchVerifyRef`
-  // below) so late poll results always run the CURRENT applier without the
-  // one-shot fetch effect re-subscribing and restarting polling every render.
+  // Applied from the token-fetch effect AND from its poller. Held in a ref so
+  // late poll results always run the CURRENT applier.
   const applyVerifyResponse = (data: VerifyResponse) => {
-    const tsaDetails = buildTsaDetails(data);
-    const otsDetails = buildOtsDetails(data);
-    // 2026-10-08 — the wire decision is read through readStoredTrustDecision:
-    // an API deployed before the verification matrix still sends a score,
-    // weighted points, a verdict and a reliance level; none of it survives.
-    setServerTrustDecision(readStoredTrustDecision(data.trustDecision));
-    setTrustDecisionLive((data as { trustDecisionSource?: string | null }).trustDecisionSource === "LIVE_VERIFICATION");
+    setResponse(data);
     setServerVerificationMatrix(parseVerificationMatrix(data.verificationMatrix));
-    // Issue #7: surface snapshot/live divergence. The API returns
-    // trustDecisionConsistency.consistentWithSnapshot === false when the
-    // current live recomputation differs from the report snapshot. We render
-    // a clear warning instead of silently preferring the snapshot.
-    setTrustSnapshotDivergence(
-      data.trustDecisionConsistency?.consistentWithSnapshot === false
-        ? data.trustDecisionConsistency
-        : null
-    );
-    setVerificationSnapshot(data.verificationSnapshot ?? null);
-    // Phase 2 closure — canonical OutputContext carries snapshot vs
-    // live semantics for the verdict card. Stored verbatim from the
-    // API; the renderer below the hero surfaces it.
     setOutputContext(data.outputContext ?? null);
-    setLiveAnchoring(data.liveAnchoring ?? null);
-    setCaptureContext(data.captureContext ?? null);
-    // Phase 31.12 — set the bounded advisory state. The API has
-    // already applied the public-safety projection so we just store
-    // the shape verbatim.
-    setMediaIntelligenceAdvisory(data.mediaIntelligenceAdvisory ?? null);
-    // Enterprise Technical Metadata layer — stored verbatim from the
-    // API's privacy-safe projection (no raw IP / UA / GPS coordinates).
-    setTechnicalMetadata(
-      (data as { technicalMetadata?: typeof technicalMetadata }).technicalMetadata ??
-        null,
-    );
-    // PHASE 12B — bounded redaction projection, stored verbatim from
-    // the API's public-safety projection (counts + bounded codes only).
-    setRedaction(
-      ((data as { redaction?: VerifyRedaction | null }).redaction ??
-        null) as VerifyRedaction | null,
-    );
-    // UC-0 — the ONE typed contract; no reshaping, no fallback guesses.
-    setAcquisition(readPublicVerifyAcquisition(data));
-    setCaptureManifest(readPublicCaptureManifest(data));
-    setLocationState(readVerifyLocationState(data));
-
-    const reviewTrailForensic =
-      data.reviewTrail?.forensicCustodyEvents ??
-      data.custodyLifecycle?.forensicEvents ??
-      null;
-
-    const reviewTrailAccess =
-      data.reviewTrail?.accessCustodyEvents ??
-      data.custodyLifecycle?.accessEvents ??
-      null;
-
-    const rawTimeline: TimelineItem[] = (data.custodyEvents ?? []).map((ev) => ({
-      sequence: ev.sequence ?? null,
-      eventType: ev.eventType ?? "UNKNOWN_EVENT",
-      atUtc: ev.atUtc ?? null,
-      payloadSummary: ev.payloadSummary ?? null,
-      prevEventHash: ev.prevEventHash ?? null,
-      eventHash: ev.eventHash ?? null,
-      category: ev.category ?? null,
-    }));
-
-    const forensicOnly: TimelineItem[] =
-      reviewTrailForensic && reviewTrailForensic.length > 0
-        ? reviewTrailForensic.map((ev) => ({
-            sequence: ev.sequence ?? null,
-            eventType: ev.eventType ?? "UNKNOWN_EVENT",
-            atUtc: ev.atUtc ?? null,
-            payloadSummary: ev.payloadSummary ?? null,
-            prevEventHash: ev.prevEventHash ?? null,
-            eventHash: ev.eventHash ?? null,
-            category: ev.category ?? "forensic",
-          }))
-        : data.forensicCustodyEvents && data.forensicCustodyEvents.length > 0
-          ? data.forensicCustodyEvents.map((ev) => ({
-              sequence: ev.sequence ?? null,
-              eventType: ev.eventType ?? "UNKNOWN_EVENT",
-              atUtc: ev.atUtc ?? null,
-              payloadSummary: ev.payloadSummary ?? null,
-              prevEventHash: ev.prevEventHash ?? null,
-              eventHash: ev.eventHash ?? null,
-              category: ev.category ?? "forensic",
-            }))
-: rawTimeline.filter(
-    (item) => item.category === "forensic" || !isAccessEventType(item.eventType)
-  );
-
-    const accessOnly: TimelineItem[] =
-      reviewTrailAccess && reviewTrailAccess.length > 0
-        ? reviewTrailAccess.map((ev) => ({
-            sequence: ev.sequence ?? null,
-            eventType: ev.eventType ?? "UNKNOWN_EVENT",
-            atUtc: ev.atUtc ?? null,
-            payloadSummary: ev.payloadSummary ?? null,
-            prevEventHash: ev.prevEventHash ?? null,
-            eventHash: ev.eventHash ?? null,
-            category: ev.category ?? "access",
-          }))
-        : data.accessCustodyEvents && data.accessCustodyEvents.length > 0
-          ? data.accessCustodyEvents.map((ev) => ({
-              sequence: ev.sequence ?? null,
-              eventType: ev.eventType ?? "UNKNOWN_EVENT",
-              atUtc: ev.atUtc ?? null,
-              payloadSummary: ev.payloadSummary ?? null,
-              prevEventHash: ev.prevEventHash ?? null,
-              eventHash: ev.eventHash ?? null,
-              category: ev.category ?? "access",
-            }))
-: rawTimeline.filter(
-    (item) => item.category === "access" || isAccessEventType(item.eventType)
-  );
-
-const sortTimeline = (items: TimelineItem[]) =>
-  [...items].sort((a, b) => {
-    const sa = a.sequence ?? Number.MAX_SAFE_INTEGER;
-    const sb = b.sequence ?? Number.MAX_SAFE_INTEGER;
-
-    if (sa !== sb) return sa - sb;
-
-    const ta = a.atUtc ? new Date(a.atUtc).getTime() : 0;
-    const tb = b.atUtc ? new Date(b.atUtc).getTime() : 0;
-
-    return ta - tb;
-  });
-
-const fullTimeline =
-  rawTimeline.length > 0
-    ? sortTimeline(rawTimeline)
-    : sortTimeline([...forensicOnly, ...accessOnly]);
-
-setFullCustodyTimeline(fullTimeline);
-
-    const effectiveOverview = data.overview ?? null;
-    const effectiveHumanSummary = data.humanSummary ?? null;
-
-    const generatedAtFallback =
-      effectiveOverview?.reportGeneratedAtUtc ??
-      effectiveHumanSummary?.reportGeneratedAtUtc ??
-      data.reportGeneratedAtUtc ??
-      data.generatedAtUtc ??
-      findEventTime(forensicOnly, ["REPORT_GENERATED"]) ??
-      null;
-
-    const verifiedAtFallback =
-      effectiveOverview?.lastVerifiedAtUtc ??
-      effectiveHumanSummary?.lastVerifiedAtUtc ??
-      data.verifiedAtUtc ??
-      data.verificationCheckedAtUtc ??
-      null;
-
-    const effectiveEvidenceId =
-      effectiveOverview?.evidenceId ??
-      effectiveHumanSummary?.evidenceId ??
-      data.evidenceId ??
-      data.id ??
-      // A withheld id is never replaced by the link the visitor holds: the
-      // record is identified by its permanent verification reference.
-      (data as { canonicalVerification?: { reference?: string | null } }).canonicalVerification?.reference ??
-      params?.token ??
-      null;
-
-    const effectiveTitle =
-      effectiveOverview?.evidenceTitle ??
-      effectiveHumanSummary?.evidenceTitle ??
-      data.title ??
-      "Digital Evidence Record";
-
-    const effectiveMimeType =
-      effectiveOverview?.mimeType ??
-      effectiveHumanSummary?.fileType ??
-      data.mimeType ??
-      null;
-
-    const effectiveReportVersion =
-      effectiveOverview?.reportVersion ??
-      effectiveHumanSummary?.reportVersion ??
-      (data.reportVersion !== undefined && data.reportVersion !== null
-        ? Number(data.reportVersion)
-        : null);
-
-    const effectiveRecordStatus =
-      effectiveOverview?.recordStatus ??
-      effectiveHumanSummary?.recordStatus ??
-      data.status ??
-      "REPORTED";
-
-    const effectiveVerificationStatus =
-      effectiveOverview?.verificationStatus ?? data.verificationStatus ?? null;
-
-    const effectiveIdentity = data.identity ?? null;
-
-    setHash(data.technicalMaterials?.fileSha256 ?? data.fileSha256 ?? null);
-    setFingerprintHash(
-      data.technicalMaterials?.fingerprintHash ?? data.fingerprintHash ?? null
-    );
-    setSignature(
-      data.technicalMaterials?.signatureBase64 ?? data.signatureBase64 ?? null
-    );
-    setVerifyStatus(effectiveRecordStatus);
-    setVerificationStatus(effectiveVerificationStatus);
-    setTitle(effectiveTitle);
-    setEvidenceId(effectiveEvidenceId);
-    setMimeType(effectiveMimeType);
-    setGeneratedAt(generatedAtFallback);
-    setVerifiedAt(verifiedAtFallback);
-    setReportVersion(
-      effectiveReportVersion !== undefined &&
-        effectiveReportVersion !== null &&
-        Number.isFinite(Number(effectiveReportVersion))
-        ? String(effectiveReportVersion)
-        : null
-    );
-    setVerificationPackageVersion(
-      effectiveOverview?.verificationPackageVersion != null
-        ? String(effectiveOverview.verificationPackageVersion)
-        : effectiveHumanSummary?.verificationPackageVersion != null
-          ? String(effectiveHumanSummary.verificationPackageVersion)
-          : null
-    );
-    setReviewerSummaryVersion(
-      effectiveOverview?.reviewerSummaryVersion != null
-        ? String(effectiveOverview.reviewerSummaryVersion)
-        : effectiveHumanSummary?.reviewerSummaryVersion != null
-          ? String(effectiveHumanSummary.reviewerSummaryVersion)
-          : null
-    );
-
-    setTsaStatus(tsaDetails.status);
-    setTsaProvider(tsaDetails.provider);
-    setTsaGenTimeUtc(tsaDetails.genTimeUtc);
-    setTsaSerialNumber(tsaDetails.serialNumber);
-    setTsaHashAlgorithm(tsaDetails.hashAlgorithm);
-    setTsaFailureReason(tsaDetails.failureReason);
-    setTsaInputDigestHex(tsaDetails.inputDigestHex);
-    setTsaInputKind(tsaDetails.inputKind);
-    setTsaLegacyMode(tsaDetails.legacyMode);
-    setTimestampedDigestLabel(tsaDetails.timestampedDigestLabel);
-    setTimestampedDigestNote(tsaDetails.timestampedDigestNote);
-
-    setPublicKeyPem(
-      data.technicalMaterials?.publicKeyPem ?? data.publicKeyPem ?? null
-    );
-    setSigningKeyId(
-      data.technicalMaterials?.signingKeyId ?? data.signingKeyId ?? null
-    );
-    setSigningKeyVersion(
-      data.technicalMaterials?.signingKeyVersion ??
-        data.signingKeyVersion ??
-        null
-    );
-
-    setSubmittedByEmail(
-      maskPublicEmail(
-        effectiveHumanSummary?.submittedBy ??
-          effectiveOverview?.submittedByEmail ??
-          effectiveIdentity?.submittedByEmail ??
-          null
-      )
-    );
-    setAuthProvider(
-      effectiveHumanSummary?.authProvider ??
-        effectiveOverview?.submittedByAuthProvider ??
-        effectiveIdentity?.submittedByAuthProviderLabel ??
-        effectiveIdentity?.submittedByAuthProvider ??
-        null
-    );
-    setIdentityLevel(
-      effectiveHumanSummary?.identityLevel ??
-        effectiveOverview?.identityLevel ??
-        effectiveIdentity?.identityLevelLabel ??
-        effectiveIdentity?.identityLevel ??
-        null
-    );
-    setWorkspaceName(
-      effectiveHumanSummary?.workspace ??
-        effectiveOverview?.workspaceName ??
-        effectiveIdentity?.workspaceName ??
-        null
-    );
-    setOrganizationName(
-      effectiveHumanSummary?.organization ??
-        effectiveOverview?.organizationName ??
-        effectiveIdentity?.organizationName ??
-        null
-    );
-    setOrganizationVerified(
-      typeof effectiveHumanSummary?.organizationVerified === "boolean"
-        ? effectiveHumanSummary.organizationVerified
-        : typeof effectiveOverview?.organizationVerified === "boolean"
-          ? effectiveOverview.organizationVerified
-          : typeof effectiveIdentity?.organizationVerified === "boolean"
-            ? effectiveIdentity.organizationVerified
-            : null
-    );
-
-    // A transaction id is shown only when the server's ANCHORED view derived it.
-    setAnchorTransactionId(otsDetails.view.bitcoinTxid);
-
-    setForensicTimeline(forensicOnly);
-    setAccessTimeline(accessOnly);
-
-    setOtsView(otsDetails.view);
-    setOtsLoaded(Boolean(data.storageAndTimestamping?.ots ?? data.ots));
-    setOtsLegacyStatus(otsDetails.legacyStatus);
-    setOtsCalendar(otsDetails.calendar);
-    setOtsProofBase64(otsDetails.proofBase64);
-    setOtsProofPresent(otsDetails.proofPresent);
-    const integrity = data.integrityProof ?? data.verification ?? null;
-
-    setCanonicalHashMatches(
-      typeof integrity?.canonicalHashMatches === "boolean"
-        ? integrity.canonicalHashMatches
-        : null
-    );
-    setSignatureValid(
-      typeof integrity?.signatureValid === "boolean"
-        ? integrity.signatureValid
-        : null
-    );
-    setCustodyChainValid(
-      typeof integrity?.custodyChainValid === "boolean"
-        ? integrity.custodyChainValid
-        : null
-    );
-    setCustodyChainMode(integrity?.custodyChainMode ?? null);
-    setCustodyChainFailureReason(
-      integrity?.custodyChainFailureReason ?? null
-    );
-    setTimestampDigestMatches(
-      typeof integrity?.timestampDigestMatches === "boolean"
-        ? integrity.timestampDigestMatches
-        : typeof tsaDetails.digestMatchesTimestampInput === "boolean"
-          ? tsaDetails.digestMatchesTimestampInput
-          : null
-    );
-    setOtsHashMatches(
-      typeof integrity?.otsHashMatches === "boolean" ? integrity.otsHashMatches : null
-    );
-    setOverallIntegrity(
-      typeof integrity?.overallIntegrity === "boolean"
-        ? integrity.overallIntegrity
-        : null
-    );
-
-    const storage =
-      data.storageAndTimestamping?.storage ?? data.storage ?? null;
-
-    setStorageProtection({
-      immutable: normalizeBool(storage?.immutable),
-      mode: storage?.mode ?? null,
-      retainUntil: storage?.retainUntil ?? null,
-      legalHold: storage?.legalHold ?? null,
-      region: storage?.region ?? null,
-      verified: normalizeBool(storage?.verified),
-      source: storage?.source ?? null,
-      expired: normalizeBool(storage?.expired),
-    });
-
-    setOverview(effectiveOverview);
-    setHumanSummary(effectiveHumanSummary);
-    setLimitations(data.limitations ?? null);
-const content = extractEvidenceContent(data);
-
-setEvidenceContentSummary(content.summary);
-setEvidenceItems(content.items);
-setPrimaryContentItem(content.primaryItem);
-setDefaultPreviewItemId(content.defaultPreviewItemId);
-setSelectedEvidenceItemId((current) =>
-  current ??
-  content.defaultPreviewItemId ??
-  content.primaryItem?.id ??
-  content.items[0]?.id ??
-  null
-);
-setPreviewPolicy(content.previewPolicy);
-    setContentAccessPolicy(data.contentAccessPolicy ?? null);
-    setContentExposureDecision(data.contentExposureDecision ?? null);
-setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null);
-    setCustodyDisplayCounts(data.custodyDisplayCounts ?? null);
-    setCustodyTruncatedNote(
-      data.custodyLifecycle?.truncated
-        ? `Showing the latest recorded events of each kind (up to ${data.custodyLifecycle.displayLimit ?? 500}); this chain holds ${(data.custodyLifecycle.forensicEventCount ?? 0) + (data.custodyLifecycle.accessEventCount ?? 0)} events, and the chain-integrity check covers all of them.`
-        : null,
-    );
-    return otsDetails;
   };
   const applyVerifyResponseRef = useRef(applyVerifyResponse);
   applyVerifyResponseRef.current = applyVerifyResponse;
@@ -2950,15 +974,11 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     setLoading(true);
     setError(null);
 
-    const fetchVerify = async (
-      options: { background?: boolean; manual?: boolean } = {},
-    ) => {
+    const fetchVerify = async (options: { background?: boolean; manual?: boolean } = {}) => {
       const background = options.background === true;
       const manual = options.manual === true;
       try {
-        const data = await apiFetch(
-          `/public/verify/${encodeURIComponent(params.token)}`
-        );
+        const data = await apiFetch(`/public/verify/${encodeURIComponent(params.token)}`);
         if (cancelled || !isMountedRef.current) return;
 
         setVerifyLink((data as { link?: VerifyLinkInfo } | null)?.link ?? null);
@@ -3035,8 +1055,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
         captureException(err, { feature: "web_verify" });
 
         if (!background) {
-          const message =
-            toSafeUserError(err, { message: "Verification failed" }).message;
+          const message = toSafeUserError(err, { message: "Verification failed" }).message;
           setError(message);
           addToast(message, "error");
         } else {
@@ -3062,1079 +1081,121 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     };
   }, [params?.token, addToast]);
 
-
-  const storagePresentation = useMemo(
-    () => buildStoragePresentation(storageProtection),
-    [storageProtection]
+  // ---- What the API returned, read once (no re-derivation) -----------------
+  const data = response;
+  // 2026-10-08 — the wire decision is read through readStoredTrustDecision:
+  // an API deployed before the verification matrix still sends a score,
+  // weighted points, a verdict and a reliance level; none of it survives.
+  const trustDecision = useMemo(() => (data ? readStoredTrustDecision(data.trustDecision) : null), [data]);
+  const verificationMatrix = serverVerificationMatrix;
+  const matrixRow = (key: string) => verificationMatrix?.rows.find((row) => row.key === key) ?? null;
+  const recordFacts = data?.recordFacts ?? null;
+  const disclosure = data?.disclosure ?? null;
+  const overview = data?.overview ?? null;
+  const humanSummary = data?.humanSummary ?? null;
+  const tsaDetails = useMemo(() => (data ? buildTsaDetails(data) : null), [data]);
+  const otsDetails = useMemo(() => (data ? buildOtsDetails(data) : null), [data]);
+  const otsView = otsDetails?.view ?? readOtsAnchoringView(null);
+  const forensicTimeline = useMemo(() => (data ? readForensicChain(data) : []), [data]);
+  const forensicGroups = useMemo(() => groupForensicEvents(forensicTimeline), [forensicTimeline]);
+  const evidenceItems = useMemo(
+    () => (Array.isArray(data?.evidenceContent?.items) ? data!.evidenceContent!.items! : []),
+    [data],
   );
+  const evidenceContentSummary = data?.evidenceContent?.summary ?? null;
+  const hash = data?.technicalMaterials?.fileSha256 ?? data?.fileSha256 ?? null;
+  const fingerprintHash = data?.technicalMaterials?.fingerprintHash ?? data?.fingerprintHash ?? null;
+  const signature = data?.technicalMaterials?.signatureBase64 ?? data?.signatureBase64 ?? null;
+  const publicKeyPem = data?.technicalMaterials?.publicKeyPem ?? data?.publicKeyPem ?? null;
+  const signingKeyId = data?.technicalMaterials?.signingKeyId ?? data?.signingKeyId ?? null;
+  const signingKeyVersion = data?.technicalMaterials?.signingKeyVersion ?? data?.signingKeyVersion ?? null;
+  // The custody check's own sentence when it failed (the status is the matrix row).
+  const integrity = data ? data.integrityProof ?? data.verification ?? null : null;
+  const custodyChainFailureReason = integrity?.custodyChainFailureReason ?? null;
+  const captureContext = data?.captureContext ?? null;
+  const technicalMetadata = (data as { technicalMetadata?: VerifyTechnicalMetadata | null } | null)?.technicalMetadata ?? null;
+  const redaction = ((data as { redaction?: VerifyRedaction | null } | null)?.redaction ?? null) as VerifyRedaction | null;
+  const acquisition = data ? readPublicVerifyAcquisition(data) : null;
+  const captureManifest = data ? readPublicCaptureManifest(data) : null;
+  const locationState = data ? readVerifyLocationState(data) : null;
+  const reference = recordFacts?.verificationReference ?? canonicalFacts?.reference ?? null;
+  const canonicalIssuedAtUtc = canonicalFacts?.issuedAtUtc ?? null;
+  const isMultipart = (recordFacts?.itemCount ?? evidenceContentSummary?.itemCount ?? 0) > 1;
 
-  // The server's bounded failure code, in its one label (never a raw reason).
-  const otsFailureDisplayMessage = otsView.failureLabel;
-  const otsFailureTechnicalMessage = otsView.failureCode;
-
-  const liveAnchoringAdvanced = useMemo(
-    () => hasAdvancedLiveAnchoring({ liveAnchoring }),
-    [liveAnchoring],
-  );
-
-  const selectedEvidenceItem = useMemo(
-    () =>
-      evidenceItems.find((item) => item.id === selectedEvidenceItemId) ??
-      evidenceItems.find((item) => item.id === defaultPreviewItemId) ??
-      primaryContentItem ??
-      evidenceItems[0] ??
-      null,
-    [defaultPreviewItemId, evidenceItems, primaryContentItem, selectedEvidenceItemId]
-  );
-
-  const evidenceSectionDescription = useMemo(() => {
-    const parts = [
-      (evidenceContentSummary?.itemCount ?? evidenceItems.length) > 1
-        ? "Multipart evidence package"
-        : evidenceItems.length > 0
-          ? "Single evidence item"
-          : null,
-      evidenceContentSummary?.totalSizeDisplay ?? null,
-      overview?.itemCount != null
-        ? `${overview.itemCount} item${overview.itemCount === 1 ? "" : "s"}`
-        : evidenceItems.length > 0
-          ? `${evidenceItems.length} item${evidenceItems.length === 1 ? "" : "s"}`
-          : null,
-    ].filter(Boolean);
-
-    return parts.join(" • ");
-  }, [evidenceContentSummary?.itemCount, evidenceContentSummary?.totalSizeDisplay, evidenceItems.length, overview?.itemCount]);
-
-  const reviewerEvidenceTypeLabel = useMemo(() => {
-    return getReviewerEvidenceTypeLabel({
-      itemCount:
-        evidenceContentSummary?.itemCount ?? overview?.itemCount ?? evidenceItems.length,
-      structure: evidenceContentSummary?.structure ?? null,
-      imageCount: evidenceContentSummary?.imageCount ?? null,
-      videoCount: evidenceContentSummary?.videoCount ?? null,
-      audioCount: evidenceContentSummary?.audioCount ?? null,
-      pdfCount: evidenceContentSummary?.pdfCount ?? null,
-      textCount: evidenceContentSummary?.textCount ?? null,
-      otherCount: evidenceContentSummary?.otherCount ?? null,
-      evidenceType: overview?.evidenceType ?? humanSummary?.evidenceType ?? null,
-      mimeType: overview?.mimeType ?? null,
-    });
-  }, [
-    evidenceContentSummary?.audioCount,
-    evidenceContentSummary?.imageCount,
-    evidenceContentSummary?.itemCount,
-    evidenceContentSummary?.otherCount,
-    evidenceContentSummary?.pdfCount,
-    evidenceContentSummary?.structure,
-    evidenceContentSummary?.textCount,
-    evidenceContentSummary?.videoCount,
-    evidenceItems.length,
-    humanSummary?.evidenceType,
-    overview?.evidenceType,
-    overview?.itemCount,
-    overview?.mimeType,
-  ]);
-
-  const mismatchMessages = useMemo(() => {
-    const items: string[] = [];
-
-    if (canonicalHashMatches === false) {
-      items.push(
-        "The canonical fingerprint check did not match the recorded evidence state."
-      );
-    }
-
-    if (signatureValid === false) {
-      items.push(
-        "The digital signature check failed for the recorded verification materials."
-      );
-    }
-
-    if (custodyChainValid === false) {
-      items.push(
-        custodyChainFailureReason
-          ? `The custody chain reported a mismatch: ${custodyChainFailureReason}`
-          : "The custody chain reported an integrity mismatch."
-      );
-    }
-
-    if (isPositiveTsa(tsaStatus) && timestampDigestMatches === false) {
-      items.push(
-        "The trusted timestamp digest did not match the recorded timestamp input digest."
-      );
-    }
-
-    if (isFailedTsa(tsaStatus)) {
-      items.push(
-        "Trusted timestamp unavailable. The timestamp provider did not return a usable token, so no timestamp digest match or mismatch can be concluded."
-      );
-    }
-
-    if (otsHashMatches === false) {
-      items.push(
-        "The OpenTimestamps hash did not match the recorded fingerprint hash."
-      );
-    }
-
-    return items;
-  }, [
-    canonicalHashMatches,
-    custodyChainFailureReason,
-    custodyChainValid,
-    otsHashMatches,
-    signatureValid,
-    timestampDigestMatches,
-    tsaStatus,
-  ]);
-
-  const whatChangedSinceCompletion = useMemo(() => {
-    const changes: string[] = [];
-
-    if (reportVersion) {
-      changes.push(`Report artifact version: ${reportVersion}.`);
-    }
-
-    if (verificationPackageVersion) {
-      changes.push(`Verification package version: ${verificationPackageVersion}.`);
-    }
-
-    if (reviewerSummaryVersion) {
-      changes.push(`Reviewer summary version: ${reviewerSummaryVersion}.`);
-    }
-
-    if (generatedAt) {
-      changes.push(`Latest report generated at ${formatDateTime(generatedAt)}.`);
-    }
-
-    if (verifiedAt) {
-      changes.push(`Latest verification recorded at ${formatDateTime(verifiedAt)}.`);
-    }
-
-    return changes;
-  }, [
-    generatedAt,
-    reportVersion,
-    reviewerSummaryVersion,
-    verificationPackageVersion,
-    verifiedAt,
-  ]);
-
-  const heroWhatIsVerifiedText = useMemo(() => {
-    return (
-      humanSummary?.whatIsVerified ??
-      // Phase C #14 / #15 — explicit honest positioning: PROOVRA preserves and
-      // verifies the *recorded integrity state* after intake; it does not
-      // make controlled-capture / device-attestation / examiner-grade
-      // forensic-acquisition / court-acceptance claims.
-      "PROOVRA preserves and verifies the recorded integrity state of the evidence record after intake. It does not prove original device-capture authenticity, factual truth, authorship, context, intent, legal admissibility, or court acceptance."
-    );
-  }, [humanSummary?.whatIsVerified]);
-
-  const hasCaptureLocation = useMemo(
-    () =>
-      hasCaptureLocationMetadata({
-        lat: captureContext?.lat,
-        lng: captureContext?.lng,
-      }),
-    [captureContext?.lat, captureContext?.lng]
-  );
-
-  const captureLocationCapturedAtLabel = useMemo(
-    () =>
-      formatDateTime(
-        // UC-PROV-001 — a server-time label never falls back to the device clock.
-        captureContext?.capturedAtUtc ?? null
-      ),
-    [captureContext?.capturedAtUtc]
-  );
-
-    const verificationVerdict = useMemo(
-    () =>
-      buildVerificationVerdict({
-        trustDecision: serverTrustDecision,
-        overallIntegrity,
-        verificationStatus,
-        canonicalHashMatches,
-        signatureValid,
-        custodyChainValid,
-        timestampDigestMatches,
-        otsHashMatches,
-        tsaStatus,
-        storageVerified: storageProtection?.verified ?? null,
-        immutableStorage: storageProtection?.immutable ?? null,
-        ...(storedBytes
-          ? {
-              storedBytesCheck: storedBytesCheckStatusOf(storedBytes),
-              storedBytesFailed: storedBytes.state === "failed",
-            }
-          : {}),
-      }),
-    [
-      storedBytes,
-      serverTrustDecision,
-      overallIntegrity,
-      verificationStatus,
-      canonicalHashMatches,
-      signatureValid,
-      custodyChainValid,
-      timestampDigestMatches,
-      otsHashMatches,
-      tsaStatus,
-      storageProtection?.verified,
-      storageProtection?.immutable,
-    ]
-  );
-
-  const reviewerActions = useMemo(
-    () =>
-      buildReviewerActions({
-        verdict: verificationVerdict,
-        canonicalHashMatches,
-        signatureValid,
-        custodyChainValid,
-        timestampDigestMatches,
-        otsHashMatches,
-        storageProtection,
-        tsaStatus,
-      }),
-    [
-      verificationVerdict,
-      canonicalHashMatches,
-      signatureValid,
-      custodyChainValid,
-      timestampDigestMatches,
-      otsHashMatches,
-      storageProtection,
-      tsaStatus,
-    ]
-  );
-
-  const mismatchExplanations = useMemo(
-    () =>
-      buildMismatchExplanations({
-        canonicalHashMatches,
-        signatureValid,
-        custodyChainValid,
-        timestampDigestMatches,
-        otsHashMatches,
-        custodyChainFailureReason,
-        tsaStatus,
-      }),
-    [
-      canonicalHashMatches,
-      signatureValid,
-      custodyChainValid,
-      timestampDigestMatches,
-      otsHashMatches,
-      custodyChainFailureReason,
-      tsaStatus,
-    ]
-  );
-
-const trustDecision = useMemo(() => {
-  if (serverTrustDecision) {
-    return serverTrustDecision;
-  }
-
-  if (
-    !verificationStatus &&
-    !hash &&
-    !fingerprintHash &&
-    !signature &&
-    !signingKeyId &&
-    !tsaStatus &&
-    !otsLoaded &&
-    !otsLegacyStatus &&
-    !storageProtection &&
-    !identityLevel &&
-    !submittedByEmail &&
-    !authProvider &&
-    !verificationPackageVersion &&
-    !(overview?.verificationPackageGeneratedAtUtc ?? humanSummary?.verificationPackageGeneratedAtUtc) &&
-    !anchorTransactionId &&
-    forensicTimeline.length === 0 &&
-    accessTimeline.length === 0
-  ) {
-    return buildUnavailableTrustDecision();
-  }
-
-  return buildLegacyTrustDecisionFallback({
-    verificationStatus,
-    recordedIntegrityVerifiedAtUtc:
-      overview?.recordedIntegrityVerifiedAtUtc ??
-      humanSummary?.recordedIntegrityVerifiedAtUtc ??
-      null,
-    fileSha256: hash,
-    fingerprintHash,
-    signatureBase64: signature,
-    signingKeyId,
-    publicKeyPem,
-    tsaStatus,
-    tsaFailureReason,
-    otsStatus: otsLegacyStatus,
-    otsProofBase64,
-    storageProtection,
-    identityLevelSnapshot: identityLevel,
-    submittedByEmail,
-    submittedByAuthProvider: authProvider,
-    verificationPackageVersion,
-    verificationPackageGeneratedAtUtc:
-      overview?.verificationPackageGeneratedAtUtc ??
-      humanSummary?.verificationPackageGeneratedAtUtc ??
-      null,
-    anchor: {
-      configured: otsView.state !== "NOT_REQUESTED",
-      provider: null,
-      anchoredAtUtc: otsView.anchoredAtUtc,
-      transactionId: anchorTransactionId,
-    },
-    custodyEvents: [...forensicTimeline, ...accessTimeline],
-    // UC-0 — intake is the acquisition authority's answer, not a label match.
-    isIntake: acquisition?.acquisition.mode === "SECURE_INTAKE_LINK",
-  });
-}, [
-  accessTimeline,
-  anchorTransactionId,
-  authProvider,
-  fingerprintHash,
-  forensicTimeline,
-  hash,
-  acquisition?.acquisition.mode,
-  humanSummary?.recordedIntegrityVerifiedAtUtc,
-  humanSummary?.verificationPackageGeneratedAtUtc,
-  identityLevel,
-  overview?.recordedIntegrityVerifiedAtUtc,
-  overview?.verificationPackageGeneratedAtUtc,
-  otsLegacyStatus,
-  otsLoaded,
-  otsProofBase64,
-  otsView.anchoredAtUtc,
-  otsView.state,
-  publicKeyPem,
-  serverTrustDecision,
-  signature,
-  signingKeyId,
-  storageProtection,
-  submittedByEmail,
-  tsaFailureReason,
-  tsaStatus,
-  verificationPackageVersion,
-  verificationStatus,
-]);
-
-const verificationPackageIntegrity = useMemo(
-  () =>
-    buildVerificationPackageIntegrity({
-      serverIntegrity: serverVerificationPackageIntegrity,
-      version: verificationPackageVersion,
-      generatedAtUtc:
-        overview?.verificationPackageGeneratedAtUtc ??
-        humanSummary?.verificationPackageGeneratedAtUtc ??
-        null,
-      forensicEventCount: forensicTimeline.length,
-      accessEventCount: accessTimeline.length,
-    }),
-  [
-    serverVerificationPackageIntegrity,
-    verificationPackageVersion,
-    overview?.verificationPackageGeneratedAtUtc,
-    humanSummary?.verificationPackageGeneratedAtUtc,
-    forensicTimeline.length,
-    accessTimeline.length,
-  ]
-);
-
-const verificationMatrix = useMemo(
-  () => resolveVerifyMatrix(serverVerificationMatrix, trustDecision),
-  [serverVerificationMatrix, trustDecision]
-);
-const verdictRequiresReview = matrixRequiresIntegrityReview(
-  verificationMatrix,
-  trustDecision
-);
-const trustDecisionTone = getTrustDecisionPresentationTone(trustDecision);
-const publicationPendingPosture =
-  trustDecision.presentationState === "VERIFIED_PENDING_ANCHORING" ||
-  trustDecision.anchoringState === "pending";
-
-const executiveBadges = useMemo<
-  Array<{
-    label: string;
-    tone: "success" | "warning" | "neutral" | "info";
-    show: boolean;
-  }>
->(
-  () =>
-    verificationMatrix.rows.map((row) => {
-      const tone: "success" | "warning" | "neutral" | "info" =
-        row.status === "VERIFIED"
-          ? "success"
-          : row.status === "FAILED" || row.status === "NOT_CHECKED"
-            ? "warning"
-            : "neutral";
-
-      return {
-        label: `${row.label}: ${row.statusLabel ?? VERIFICATION_STATUS_LABELS[row.status]}`,
-        tone,
-        show: true,
-      };
-    }),
-  [verificationMatrix.rows]
-);
-
-  const forensicCustodyNarrative = useMemo(() => {
-    if (custodyDisplayCounts) {
-      return `Forensic custody at report/package generation: ${
-        custodyDisplayCounts.forensicAtReportGeneration ?? forensicTimeline.length
-      }. Current forensic custody events: ${
-        custodyDisplayCounts.currentForensicEvents ?? forensicTimeline.length
-      }. Current access activity events: ${
-        custodyDisplayCounts.currentAccessEvents ?? accessTimeline.length
-      }. Total displayed now: ${
-        custodyDisplayCounts.totalDisplayedNow ??
-        custodyDisplayCounts.totalDisplayedEvents ??
-        forensicTimeline.length + accessTimeline.length
-      }.`;
-    }
-
-    if (forensicTimeline.length > 0) {
-      return `The record contains ${forensicTimeline.length} forensic custody event${
-        forensicTimeline.length === 1 ? "" : "s"
-      } describing integrity-relevant system activity. These events are displayed separately from later access activity.`;
-    }
-
-    return "No forensic custody events were returned in this verification record. This means this response does not provide an internal custody-event chain for the evidence record; it should not be read as proof that no handling occurred outside the recorded system workflow.";
-  }, [custodyDisplayCounts, forensicTimeline.length, accessTimeline.length]);
-
-  const custodyTimestampOrderNote = useMemo(() => {
-    for (let index = 1; index < fullCustodyTimeline.length; index += 1) {
-      const previousAt = fullCustodyTimeline[index - 1]?.atUtc;
-      const currentAt = fullCustodyTimeline[index]?.atUtc;
-
-      if (!previousAt || !currentAt) continue;
-
-      if (new Date(currentAt).getTime() < new Date(previousAt).getTime()) {
-        return "Timestamp order note: custody events are displayed in hash-chain sequence order. Some event timestamps may be slightly out of chronological order because system jobs complete asynchronously.";
-      }
-    }
-
-    return null;
-  }, [fullCustodyTimeline]);
-
-  const liveCustodyCountsNote = useMemo(() => {
-    if (!custodyDisplayCounts) return null;
-
-    const accessAfterGeneration =
-      custodyDisplayCounts.accessAfterReportGeneration;
-    const currentAccess = custodyDisplayCounts.currentAccessEvents;
-
-    return `Counts are live and may increase after report or package generation as reviewers open, download, or verify materials.${
-      typeof accessAfterGeneration === "number" &&
-      typeof currentAccess === "number"
-        ? ` Package access snapshot at generation may be lower or zero by design. Access activity after report/package generation: ${accessAfterGeneration}. Current access activity total: ${currentAccess}.`
-        : ""
-    }`;
-  }, [custodyDisplayCounts]);
-
-  const accessActivityNarrative = useMemo(() => {
-    if (accessTimeline.length > 0) {
-      return `The record contains ${accessTimeline.length} access-related event${
-        accessTimeline.length === 1 ? "" : "s"
-      } such as viewing, verification, or download activity. These events are informational and are not the same thing as forensic custody events.`;
-    }
-
-    return "No access-activity entries were returned in this response. The absence of access entries does not alter the recorded integrity outcome.";
-  }, [accessTimeline.length]);
-
-  const summaryFields = useMemo(
-    () =>
-      [
-        {
-          label: "Evidence Status At Report Generation",
-          value: overview?.recordStatus ?? statusTone(verifyStatus).label,
-          show: true,
-        },
-{
-  label: "Verification Status",
-  value:
-    trustDecision.signals.find((signal) => signal.key === "core_integrity")
-      ?.status === "partial"
-      ? "Technical materials available"
-      : verificationStatusDisplayLabel(
-          overview?.verificationStatusCode ?? verificationStatus
-        ),
-  show: true,
-},
-{
-  label: "Integrity Status",
-  value: integrityStatusDisplayLabel(trustDecision),
-  show: true,
-},
-        {
-          label: "Evidence Title",
-          value:
-            humanSummary?.evidenceTitle ??
-            overview?.evidenceTitle ??
-            title ??
-            "Digital Evidence Record",
-          show: true,
-        },
-        {
-          label: "Evidence ID",
-          value:
-            humanSummary?.evidenceId ??
-            overview?.evidenceId ??
-            evidenceId ??
-            canonicalFacts?.reference ??
-            params?.token ??
-            "N/A",
-          show: true,
-        },
-        {
-          label: "Evidence Type",
-          value: reviewerEvidenceTypeLabel || "Evidence",
-          show: true,
-        },
-        {
-          label: "Evidence Structure",
-          value:
-            humanSummary?.evidenceStructure ??
-            overview?.evidenceStructure ??
-            "N/A",
-          show: Boolean(
-            humanSummary?.evidenceStructure ?? overview?.evidenceStructure
-          ),
-        },
-        {
-          // UC-0 — the value is the acquisition label ("Not recorded" for a
-          // legacy record), never a structure enum.
-          label: "Acquisition",
-          value:
-            acquisition?.acquisition.label ??
-            humanSummary?.captureMethod ??
-            overview?.captureMethod ??
-            "N/A",
-          show: Boolean(
-            acquisition ?? humanSummary?.captureMethod ?? overview?.captureMethod,
-          ),
-        },
-        {
-          label: "Submitted By",
-          value: submittedByEmail ?? "N/A",
-          show: Boolean(submittedByEmail),
-        },
-        {
-          label: "Auth Provider",
-          value: authProvider ?? "N/A",
-          show: Boolean(authProvider),
-        },
-        {
-          label: "Identity Level",
-          value: identityLevel ?? "N/A",
-          show: Boolean(identityLevel),
-        },
-        {
-          label: "Workspace",
-          value: workspaceName ?? "N/A",
-          show: Boolean(workspaceName),
-        },
-        {
-          label: "Organization",
-          value: organizationName ?? "N/A",
-          show: Boolean(organizationName),
-        },
-        {
-          label: "Organization Verified",
-          value:
-            organizationVerified === true
-              ? "Yes"
-              : organizationVerified === false
-                ? "No"
-                : "N/A",
-          show: organizationVerified !== null,
-        },
-        {
-          label: "Report Version",
-          value:
-            reportVersion ??
-            (overview?.reportVersion != null
-              ? String(overview.reportVersion)
-              : "N/A"),
-          show: Boolean(reportVersion || overview?.reportVersion != null),
-        },
-        {
-          label: "Verification Package Version",
-          value: verificationPackageVersion ?? "N/A",
-          show: Boolean(verificationPackageVersion),
-        },
-        {
-          label: "Reviewer Summary Version",
-          value: reviewerSummaryVersion ?? "N/A",
-          show: Boolean(reviewerSummaryVersion),
-        },
-        {
-          label: "Created At",
-          value: humanSummary?.createdAt
-            ? formatDateTime(humanSummary.createdAt)
-            : overview?.createdAt
-              ? formatDateTime(overview.createdAt)
-              : "N/A",
-          show: Boolean(humanSummary?.createdAt ?? overview?.createdAt),
-        },
-        {
-          // UC-PROV-001 — the server clock at record creation, never a capture time.
-          label: "Server received at",
-          value: humanSummary?.capturedAtUtc
-            ? formatDateTime(humanSummary.capturedAtUtc)
-            : overview?.capturedAtUtc
-              ? formatDateTime(overview.capturedAtUtc)
-              : "N/A",
-          show: Boolean(humanSummary?.capturedAtUtc ?? overview?.capturedAtUtc),
-        },
-        {
-          label: "Uploaded At",
-          value: humanSummary?.uploadedAtUtc
-            ? formatDateTime(humanSummary.uploadedAtUtc)
-            : overview?.uploadedAtUtc
-              ? formatDateTime(overview.uploadedAtUtc)
-              : "N/A",
-          show: Boolean(humanSummary?.uploadedAtUtc ?? overview?.uploadedAtUtc),
-        },
-        {
-          label: "Signed At",
-          value: humanSummary?.signedAtUtc
-            ? formatDateTime(humanSummary.signedAtUtc)
-            : overview?.signedAtUtc
-              ? formatDateTime(overview.signedAtUtc)
-              : "N/A",
-          show: Boolean(humanSummary?.signedAtUtc ?? overview?.signedAtUtc),
-        },
-        {
-          label: "Generated At",
-          value: generatedAt ? formatDateTime(generatedAt) : "N/A",
-          show: Boolean(generatedAt),
-        },
-        {
-          // Phase D Blocker 1 — "Last meaningful verification" instead of
-          // "Last Verified At". This field is now reserved for real
-          // verification events (report generation, reviewer technical
-          // verification). Public page views are tracked separately under
-          // "Last public verify page view".
-          label: "Last meaningful verification",
-          value: verifiedAt ? formatDateTime(verifiedAt) : "N/A",
-          show: Boolean(verifiedAt),
-        },
-        {
-          // Analytics-only — anonymous public verify page view, NOT a
-          // technical verification.
-          label: "Last public verify page view",
-          value: humanSummary?.lastPublicVerifyViewAtUtc
-            ? formatDateTime(humanSummary.lastPublicVerifyViewAtUtc)
-            : overview?.lastPublicVerifyViewAtUtc
-              ? formatDateTime(overview.lastPublicVerifyViewAtUtc)
-              : "N/A",
-          show: Boolean(
-            humanSummary?.lastPublicVerifyViewAtUtc ??
-              overview?.lastPublicVerifyViewAtUtc
-          ),
-        },
-        {
-          label: "Current public verify page view",
-          value: humanSummary?.currentPublicVerifyViewAtUtc
-            ? formatDateTime(humanSummary.currentPublicVerifyViewAtUtc)
-            : overview?.currentPublicVerifyViewAtUtc
-              ? formatDateTime(overview.currentPublicVerifyViewAtUtc)
-              : "N/A",
-          show: Boolean(
-            humanSummary?.currentPublicVerifyViewAtUtc ??
-              overview?.currentPublicVerifyViewAtUtc
-          ),
-        },
-        {
-          label: "File Type",
-          value:
-            humanSummary?.fileType ?? overview?.mimeType ?? mimeType ?? "N/A",
-          show: Boolean(humanSummary?.fileType ?? overview?.mimeType ?? mimeType),
-        },
-        {
-          label: "Timestamp Status",
-          value:
-            humanSummary?.timestampStatus ??
-            overview?.timestampStatus ??
-            tsaStatus ??
-            "N/A",
-          show: Boolean(
-            humanSummary?.timestampStatus ?? overview?.timestampStatus ?? tsaStatus
-          ),
-        },
-        {
-          // The server's Bitcoin anchoring state, never a raw stored status.
-          label: "Bitcoin anchoring",
-          value: otsView.status,
-          show: otsLoaded,
-        },
-        {
-          label: "Storage Protection",
-          value:
-            humanSummary?.storageProtection ??
-            overview?.storageProtection ??
-            storagePresentation.badgeLabel,
-          show: true,
-        },
-      ].filter((item) => item.show),
-    [
-      overview,
-      humanSummary,
-      verifyStatus,
-      verificationStatus,
-      // `overview` and `trustDecision` are listed whole above/below, so their
-      // individual members were redundant re-listings, not extra signals.
-      trustDecision,
-      reviewerEvidenceTypeLabel,
-      title,
-      evidenceId,
-      canonicalFacts?.reference,
-      params?.token,
-      submittedByEmail,
-      authProvider,
-      identityLevel,
-      workspaceName,
-      organizationName,
-      organizationVerified,
-      reportVersion,
-      verificationPackageVersion,
-      reviewerSummaryVersion,
-      generatedAt,
-      verifiedAt,
-      mimeType,
-      tsaStatus,
-      otsView.status,
-      otsLoaded,
-      storagePresentation.badgeLabel,
-      acquisition,
-    ]
-  );
-
-  const technicalCards = useMemo(
-    () =>
-      [
-        {
-          label: "Signature Status",
-          content: (
-            <Badge
-              label={
-                signatureValid === true
-                  ? "Valid"
-                  : signatureValid === false
-                    ? "Invalid"
-                    : signature
-                      ? "Present"
-                      : "Unavailable"
-              }
-tone={
-  signatureValid === true
-    ? verdictRequiresReview
-      ? "info"
-      : "success"
-    : signatureValid === false
-      ? "warning"
-      : signature
-        ? "info"
-        : "neutral"
-}
-            />
-          ),
-          show: true,
-        },
-        {
-          label: "Fingerprint Status",
-          content: (
-            <Badge
-              label={
-                canonicalHashMatches === true
-                  ? "Valid"
-                  : canonicalHashMatches === false
-                    ? "Invalid"
-                    : "Pending"
-              }
-              tone={
-                canonicalHashMatches === true
-                  ? verdictRequiresReview
-                    ? "info"
-                    : "success"
-                  : canonicalHashMatches === false
-                    ? "warning"
-                    : "neutral"
-              }
-            />
-          ),
-          show: true,
-        },
-        {
-          label: "Custody Chain",
-          content: (
-            <Badge
-              label={
-                custodyChainValid === true
-                  ? custodyChainMode === "legacy"
-                    ? "Valid (Legacy)"
-                    : "Valid"
-                  : custodyChainValid === false
-                    ? "Invalid"
-                    : "Pending"
-              }
-              tone={
-                custodyChainValid === true
-                  ? custodyChainMode === "legacy"
-                    ? "info"
-                    : "success"
-                  : custodyChainValid === false
-                    ? "warning"
-                    : "neutral"
-              }
-            />
-          ),
-          show: true,
-        },
-        {
-          label: "Bitcoin anchoring",
-          // Only CHAIN_VERIFIED is the green ✓; FAILED / CHAIN_FAILED are
-          // danger; an unchecked attestation says it was not checked.
-          content: (
-            <span data-verify-ots-badge={otsView.verification} style={{ display: "grid", gap: 6 }}>
-              <Badge
-                label={otsBadge.tone === "success" ? `✓ ${otsBadge.label}` : otsBadge.label}
-                tone={otsBadge.tone}
-              />
-              {otsView.secondaryStatus ? (
-                <span style={{ ...VERIFY_TYPO.small, fontSize: 12 }}>{otsView.secondaryStatus}</span>
-              ) : null}
-            </span>
-          ),
-          show: true,
-        },
-        {
-          label: "Storage Protection",
-          content: (
-            <Badge
-              label={storagePresentation.badgeLabel}
-              tone={storagePresentation.badgeTone}
-            />
-          ),
-          show: true,
-        },
-        {
-          label: "Timestamp Status",
-          content: (
-            <Badge
-              label={timestampTone(tsaStatus).label}
-              tone={timestampTone(tsaStatus).tone}
-            />
-          ),
-          show: true,
-        },
-        {
-          label: "Timestamp Provider",
-          content: tsaProvider ?? null,
-          show: Boolean(tsaProvider),
-        },
-        {
-          label: "Timestamp Time",
-          content: tsaGenTimeUtc ? formatDateTime(tsaGenTimeUtc) : null,
-          show: Boolean(tsaGenTimeUtc),
-        },
-        {
-          label: "Timestamp Serial",
-          content: tsaSerialNumber ?? null,
-          show: Boolean(tsaSerialNumber),
-        },
-        {
-          label: "Hash Algorithm",
-          content: tsaHashAlgorithm ?? null,
-          show: Boolean(tsaHashAlgorithm),
-        },
-        {
-          label: "Signing Key",
-          content: signingKeyId ?? null,
-          show: Boolean(signingKeyId),
-        },
-        {
-          label: "Signing Key Version",
-          content: signingKeyVersion != null ? String(signingKeyVersion) : null,
-          show: signingKeyVersion != null,
-        },
-        {
-          label: "OTS Calendar",
-          content: otsCalendar ?? null,
-          show: Boolean(otsCalendar),
-        },
-        {
-          label: "OTS Proof",
-          content: (
-            <Badge
-              label={
-                otsProofPresent === true
-                  ? "Proof Present"
-                  : otsProofPresent === false
-                    ? "Not Present"
-                    : "Unavailable"
-              }
-              tone={otsProofPresent === true ? "success" : "neutral"}
-            />
-          ),
-          show: otsProofPresent !== null,
-        },
-        // The proof's own facts, as the server's view states them. The
-        // recorded time is when PROOVRA recorded the attestation — never a
-        // block time.
-        {
-          label: "Bitcoin Block Height",
-          content: otsView.bitcoinBlockHeight != null ? String(otsView.bitcoinBlockHeight) : null,
-          show: otsView.bitcoinBlockHeight != null,
-        },
-        {
-          label: OTS_VERIFY_FACTS.anchoredAt,
-          content: otsView.anchoredAtUtc ? formatDateTime(otsView.anchoredAtUtc) : null,
-          show: Boolean(otsView.anchoredAtUtc),
-        },
-        // The Bitcoin main-chain check, when one is recorded (block hash,
-        // confirmations, when PROOVRA checked). Absent, nothing is claimed.
-        {
-          label: OTS_VERIFY_FACTS.blockHash,
-          content: otsView.chain?.blockHash ? truncateHash(otsView.chain.blockHash) : null,
-          show: Boolean(otsView.chain?.blockHash),
-        },
-        {
-          label: OTS_VERIFY_FACTS.confirmations,
-          content:
-            otsView.chain?.confirmations != null
-              ? otsView.chain.minConfirmations != null
-                ? `${otsView.chain.confirmations} (minimum ${otsView.chain.minConfirmations})`
-                : String(otsView.chain.confirmations)
-              : null,
-          show: otsView.chain?.confirmations != null,
-        },
-        {
-          label: OTS_VERIFY_FACTS.checkedAt,
-          content: otsView.chain?.checkedAtUtc ? formatDateTime(otsView.chain.checkedAtUtc) : null,
-          show: Boolean(otsView.chain?.checkedAtUtc),
-        },
-        {
-          label: "OTS Proof SHA-256",
-          content: otsView.proofSha256 ? truncateHash(otsView.proofSha256) : null,
-          show: Boolean(otsView.proofSha256),
-        },
-        {
-          label: "OTS Hash Check",
-          content: (
-            <Badge
-              label={
-                otsHashMatches === true
-                  ? "Hash Matches"
-                  : otsHashMatches === false
-                    ? "Hash Mismatch"
-                    : "Unavailable"
-              }
-              tone={
-                otsHashMatches === true
-                  ? "success"
-                  : otsHashMatches === false
-                    ? "warning"
-                    : "neutral"
-              }
-            />
-          ),
-          show: true,
-        },
-      ].filter((item) => item.show),
-    [
-      signature,
-      signatureValid,
-      canonicalHashMatches,
-      custodyChainValid,
-      custodyChainMode,
-      otsCalendar,
-      otsProofPresent,
-      otsView.bitcoinBlockHeight,
-      otsView.anchoredAtUtc,
-      otsView.proofSha256,
-      otsView.chain,
-      otsHashMatches,
-      otsBadge.label,
-      otsBadge.tone,
-      otsView.verification,
-      otsView.secondaryStatus,
-      storagePresentation,
-      verdictRequiresReview,
-      tsaStatus,
-      tsaProvider,
-      tsaGenTimeUtc,
-      tsaSerialNumber,
-      tsaHashAlgorithm,
-      signingKeyId,
-      signingKeyVersion,
-    ]
-  );
-
-  // The Record tab's fields (_verify-record-tab.ts names them by label).
-  const recordTabFields = useMemo(() => selectRecordTabFields(summaryFields), [summaryFields]);
-
-  const integrityStatusCards = useMemo(
-    () =>
-      technicalCards.filter((card) =>
-        [
-          "Signature Status",
-          "Fingerprint Status",
-          "Custody Chain",
-          "Bitcoin anchoring",
-          "Storage Protection",
-          "Timestamp Status",
-          "Timestamp Provider",
-          "Timestamp Time",
-          "Timestamp Serial",
-          "Hash Algorithm",
-          "Signing Key",
-          "Signing Key Version",
-          "OTS Calendar",
-          "OTS Proof",
-          "Bitcoin Block Height",
-          OTS_VERIFY_FACTS.anchoredAt,
-          OTS_VERIFY_FACTS.blockHash,
-          OTS_VERIFY_FACTS.confirmations,
-          OTS_VERIFY_FACTS.checkedAt,
-          "OTS Proof SHA-256",
-          "OTS Hash Check",
-        ].includes(card.label)
-      ),
-    [technicalCards]
-  );
-
-  const heroTitleSize = "clamp(2rem, 3.2vw, 3.1rem)";
-  const heroTextSize = "clamp(0.95rem, 1.15vw, 1rem)";
-  const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
-
-const glassCardStyle: CSSProperties = {
-  border: `1px solid ${VERIFY_BRAND.line}`,
-  background:
-    "linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(250,251,249,0.90) 100%)",
-  backdropFilter: "blur(10px)",
-  boxShadow: "0 18px 44px rgba(16, 32, 29, 0.075)",
-  borderRadius: 22,
-};
-
-const glassPanelStyle: CSSProperties = {
-  border: `1px solid ${VERIFY_BRAND.softLine}`,
-  background:
-    "linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(248,249,247,0.82) 100%)",
-  borderRadius: 18,
-  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
-};
-
-  const verifyAssetPaths = {
-    logo: "/brand/icon-192.png",
-    headerVelvet: "/brand/site-velvet-bg.webp.png",
+  const otsFacts: OtsFacts = {
+    bitcoinBlockHeight: otsView.bitcoinBlockHeight,
+    anchoredAtUtc: otsView.anchoredAtUtc,
+    bitcoinTxid: otsView.bitcoinTxid,
+    proofSha256: otsView.proofSha256,
+    chain: otsView.chain,
+    sentence: otsView.state !== "NOT_REQUESTED" ? otsView.sentence : null,
+    failureLabel: otsView.failureLabel,
+    boundary: otsBoundaryFor(otsView),
+    statusWord: otsView.status,
   };
-  void verifyAssetPaths;
+
+  const hasCaptureLocation = hasCaptureLocationMetadata({
+    lat: captureContext?.lat,
+    lng: captureContext?.lng,
+  });
+
+  // The Record tab's facts — record metadata as the API returned it. The
+  // verification statuses live in the matrix; identity in recordFacts.
+  const summaryFields = [
+    { label: "Evidence Title", value: overview?.evidenceTitle ?? humanSummary?.evidenceTitle ?? null },
+    { label: "Evidence Type", value: overview?.evidenceType ?? humanSummary?.evidenceType ?? null },
+    { label: "Evidence Structure", value: overview?.evidenceStructure ?? humanSummary?.evidenceStructure ?? null },
+    // UC-0 — the acquisition label ("Not recorded" for a legacy record), never a structure enum.
+    { label: "Acquisition", value: acquisition?.acquisition.label ?? overview?.captureMethod ?? null },
+    { label: "Created At", value: overview?.createdAt ?? humanSummary?.createdAt ?? null, time: true },
+    // UC-PROV-001 — the server clock at record creation, never a capture time.
+    { label: "Server received at", value: overview?.capturedAtUtc ?? humanSummary?.capturedAtUtc ?? null, time: true },
+    { label: "Uploaded At", value: overview?.uploadedAtUtc ?? humanSummary?.uploadedAtUtc ?? null, time: true },
+    { label: "Signed At", value: overview?.signedAtUtc ?? humanSummary?.signedAtUtc ?? null, time: true },
+    // Reserved for real verification events; page views are tracked separately.
+    { label: "Last meaningful verification", value: overview?.lastVerifiedAtUtc ?? humanSummary?.lastVerifiedAtUtc ?? null, time: true },
+    {
+      label: "Last public verify page view",
+      value: overview?.lastPublicVerifyViewAtUtc ?? humanSummary?.lastPublicVerifyViewAtUtc ?? null,
+      time: true,
+    },
+    {
+      label: "Current public verify page view",
+      value: overview?.currentPublicVerifyViewAtUtc ?? humanSummary?.currentPublicVerifyViewAtUtc ?? null,
+      time: true,
+    },
+  ]
+    .filter((field) => Boolean(field.value))
+    .map((field) => ({ label: field.label, value: field.time ? formatDateTime(field.value) : String(field.value) }));
+  const recordTabFields = selectRecordTabFields(summaryFields);
+
+  const technicalFacts = [
+    { label: "Timestamp provider", value: tsaDetails?.provider ?? null },
+    { label: "Timestamp time", value: tsaDetails?.genTimeUtc ? formatDateTime(tsaDetails.genTimeUtc) : null },
+    { label: "Timestamp serial", value: tsaDetails?.serialNumber ?? null },
+    { label: "Timestamp hash algorithm", value: tsaDetails?.hashAlgorithm ?? null },
+    { label: "Signing key", value: signingKeyId },
+    { label: "Signing key version", value: signingKeyVersion != null ? String(signingKeyVersion) : null },
+    { label: "OTS calendar", value: otsDetails?.calendar ?? null },
+  ].filter((fact): fact is { label: string; value: string } => Boolean(fact.value));
+
+  const heroTitleSize = "clamp(1.8rem, 6vw, 3.1rem)";
+  const heroTextSize = "clamp(0.95rem, 1.15vw, 1rem)";
+
+  const glassCardStyle: CSSProperties = {
+    border: `1px solid ${VERIFY_BRAND.line}`,
+    background: "linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(250,251,249,0.90) 100%)",
+    boxShadow: "0 18px 44px rgba(16, 32, 29, 0.075)",
+    borderRadius: 22,
+    minWidth: 0,
+  };
+
+  const glassPanelStyle: CSSProperties = {
+    border: `1px solid ${VERIFY_BRAND.softLine}`,
+    background: "linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(248,249,247,0.82) 100%)",
+    borderRadius: 18,
+    minWidth: 0,
+  };
 
   const VERIFY_HEADER_IMAGE = "/assets/branding/report-header.png";
 
@@ -4158,44 +1219,53 @@ const glassPanelStyle: CSSProperties = {
       "radial-gradient(circle at 12% 0%, rgba(11,46,39,0.055), transparent 30%), radial-gradient(circle at 90% 8%, rgba(96,66,24,0.045), transparent 26%), linear-gradient(180deg, #f6f7f4 0%, #f8faf8 42%, #f2f4f1 100%)",
   };
 
+  const copyVerificationLink = () => {
+    // The record's canonical address — never the link the visitor happened to hold.
+    const url = reference
+      ? `${window.location.origin}/verify/${encodeURIComponent(reference)}`
+      : window.location.href;
+    void navigator.clipboard?.writeText(url);
+    addToast("Verification link copied", "success");
+  };
+
   return (
-<div
-  className="page verify-enterprise-font"
-  style={{
-    ...VERIFY_TYPO.page,
-    fontFamily: "var(--font-jakarta), ui-sans-serif, system-ui, sans-serif",
-  }}
->
-        <section
+    <div
+      className="page verify-enterprise-font verify-page-root"
+      style={{
+        ...VERIFY_TYPO.page,
+        fontFamily: "var(--font-jakarta), ui-sans-serif, system-ui, sans-serif",
+        maxWidth: "100%",
+      }}
+    >
+      <style>{VERIFY_PAGE_CSS}</style>
+      <section
         className="section"
         style={{
           position: "relative",
-          overflow: "hidden",
           paddingTop: 24,
           paddingBottom: 42,
           minHeight: "100vh",
           ...pageBackgroundStyle,
         }}
       >
-                <div className="container" style={{ position: "relative", zIndex: 1 }}>
+        <div className="container" style={{ position: "relative", zIndex: 1, minWidth: 0 }}>
           {/* ET-SM-07 — before any verdict below: whether the STORED FILE was
-              re-read against its signed hash, and when. The checks on this
-              page are made over PROOVRA's signed records. */}
+              re-read against its signed hash, and when. */}
           <VerifyLinkNotice link={verifyLink} />
           {storedBytes ? <StoredBytesNotice integrity={storedBytes} /> : null}
           <div
+            data-print-hide
             style={{
-              marginBottom: 28,
+              marginBottom: 24,
               width: "100%",
-              height: 92,
+              minHeight: 72,
               borderRadius: 26,
-              overflow: "hidden",
-              position: "relative",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              padding: "0 22px 0 34px",
-              background: "transparent",
+              flexWrap: "wrap",
+              gap: 12,
+              padding: "12px 16px",
               border: `1px solid ${VERIFY_BRAND.softLine}`,
               boxShadow: "0 18px 42px rgba(7, 26, 58, 0.10)",
             }}
@@ -4205,13 +1275,14 @@ const glassPanelStyle: CSSProperties = {
               alt="PROOVRA — Integrity in Every Evidence"
               style={{
                 display: "block",
-                width: "min(430px, 58vw)",
+                width: "min(430px, 100%)",
                 maxHeight: 58,
                 objectFit: "contain",
                 objectPosition: "left center",
+                minWidth: 0,
+                flex: "1 1 180px",
               }}
             />
-
             <a
               href="/"
               style={{
@@ -4230,7 +1301,6 @@ const glassPanelStyle: CSSProperties = {
                 textTransform: "uppercase",
                 textDecoration: "none",
                 whiteSpace: "nowrap",
-                boxShadow: "0 8px 22px rgba(16,32,29,0.06)",
               }}
             >
               Back to Home
@@ -4248,7 +1318,7 @@ const glassPanelStyle: CSSProperties = {
               flexWrap: "wrap",
             }}
           >
-            <div style={{ minWidth: 0, flex: "1 1 680px" }}>
+            <div style={{ minWidth: 0, flex: "1 1 320px" }}>
               <h1
                 style={{
                   margin: 0,
@@ -4260,7 +1330,7 @@ const glassPanelStyle: CSSProperties = {
                   maxWidth: 820,
                 }}
               >
-Evidence Verification
+                Evidence Verification
               </h1>
               <p
                 className="page-subtitle"
@@ -4274,31 +1344,29 @@ Evidence Verification
                   fontWeight: 500,
                 }}
               >
-Review each verification signal, the legal boundary,
-recommended reviewer actions, cryptographic materials, custody chain,
-timestamping state, storage protection, and access activity associated
-with this evidence record.
+                Each verification signal as PROOVRA&apos;s records and stored proofs show it, the record&apos;s facts,
+                its issued reports and packages, and its forensic custody chain.
               </p>
             </div>
 
-            <div
-              style={{
-                padding: "10px 14px",
-                borderRadius: 999,
-                border: `1px solid ${VERIFY_BRAND.line}`,
-                background: "rgba(255,255,255,0.42)",
-                color: VERIFY_BRAND.ink,
-                fontSize: 12,
-                fontWeight: 800,
-                backdropFilter: "blur(12px)",
-                maxWidth: "100%",
-                wordBreak: "break-all",
-              }}
-            >
-              {canonicalFacts?.reference
-                ? `Reference: ${canonicalFacts.reference}`
-                : `Token: ${params?.token ?? ""}`}
-            </div>
+            {reference ? (
+              <div
+                data-verify-hero-reference
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 999,
+                  border: `1px solid ${VERIFY_BRAND.line}`,
+                  background: "rgba(255,255,255,0.42)",
+                  color: VERIFY_BRAND.ink,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  maxWidth: "100%",
+                  overflowWrap: "anywhere",
+                }}
+              >
+                Verification reference: {reference}
+              </div>
+            ) : null}
           </div>
 
           {loading ? (
@@ -4307,25 +1375,7 @@ with this evidence record.
                 <div style={{ display: "grid", gap: 14 }}>
                   <Skeleton width="42%" height="18px" />
                   <Skeleton width="100%" height="72px" />
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                      gap: 12,
-                    }}
-                  >
-                    <Skeleton width="100%" height="78px" />
-                    <Skeleton width="100%" height="78px" />
-                    <Skeleton width="100%" height="78px" />
-                  </div>
-                </div>
-              </Card>
-
-              <Card>
-                <div style={{ display: "grid", gap: 12 }}>
-                  <Skeleton width="28%" height="18px" />
-                  <Skeleton width="100%" height="110px" />
-                  <Skeleton width="100%" height="110px" />
+                  <Skeleton width="100%" height="78px" />
                 </div>
               </Card>
             </div>
@@ -4347,2423 +1397,453 @@ with this evidence record.
                 )}
               />
             </Card>
-          ) : !hash &&
-            !signature &&
-            evidenceItems.length === 0 &&
-            !overview &&
-            !humanSummary ? (
+          ) : !data || (!hash && !signature && evidenceItems.length === 0 && !overview && !humanSummary && !recordFacts && !verificationMatrix) ? (
             <Card>
               <EmptyState
                 title="Evidence Not Found"
                 subtitle="The evidence token is invalid, unavailable, or no verification materials were returned."
-                action={() => (
-                  <Button onClick={() => (window.location.href = "/")}>
-                    Back to Home
-                  </Button>
-                )}
+                action={() => <Button onClick={() => (window.location.href = "/")}>Back to Home</Button>}
               />
             </Card>
           ) : (
-            <div style={{ display: "grid", gap: 18 }}>
-<VerificationSummaryCard matrix={verificationMatrix} decision={trustDecision} />
-{outputContext ? (
-  <OutputContextBadge outputContext={outputContext} />
-) : null}
-{canonicalFacts ? (
-  <Card>
-    <section
-      aria-labelledby="verify-canonical"
-      data-verify-canonical
-      data-verify-disclosure={canonicalFacts.disclosure ?? "OWNER_PUBLISHED"}
-      style={{ ...glassCardStyle, padding: 24, display: "grid", gap: 12 }}
-    >
-      <div style={{ ...VERIFY_TYPO.kicker, fontSize: 11 }}>Verification Reference</div>
-      <h2 id="verify-canonical" style={{ ...VERIFY_TYPO.h3, fontSize: 22, margin: 0 }}>
-        This record&apos;s permanent verification page
-      </h2>
-      <div style={{ display: "grid", gap: 6, ...VERIFY_TYPO.small, overflowWrap: "anywhere" }}>
-        {canonicalFacts.reference ? (
-          <div>
-            Reference: <code data-verify-canonical-reference>{canonicalFacts.reference}</code>
-          </div>
-        ) : null}
-        {canonicalFacts.issuedAtUtc ? <div>Issued: {formatDateTime(canonicalFacts.issuedAtUtc)}</div> : null}
-        {canonicalFacts.checkedAtUtc ? (
-          <div data-verify-canonical-checked-at>Checked: {formatDateTime(canonicalFacts.checkedAtUtc)}</div>
-        ) : null}
-      </div>
-      {canonicalFacts.disclosure === "VERIFICATION_ONLY" ? (
-        <p data-verify-disclosure-notice style={{ ...VERIFY_TYPO.small, margin: 0 }}>
-          The record&apos;s owner has not published its content. Every verification check is shown; content
-          previews, titles and file names, location and capture details are withheld, and the original files are
-          never published here.
-        </p>
-      ) : null}
-    </section>
-  </Card>
-) : null}
-<Card>
-  <div
-    style={{
-      ...glassCardStyle,
-      padding: 24,
-      display: "grid",
-      gap: 18,
-    }}
-  >
-    <div>
-      <div style={{ ...VERIFY_TYPO.kicker, fontSize: 11, marginBottom: 8 }}>
-        Verification Matrix
-      </div>
-      <div
-        style={{
-          ...VERIFY_TYPO.h3,
-          fontSize: 22,
-          marginBottom: 8,
-        }}
-      >
-        What was checked, signal by signal
-      </div>
-      <div data-testid="verify-matrix-intro" style={{ ...VERIFY_TYPO.small, maxWidth: 860 }}>
-        {VERIFY_MATRIX_INTRO}
-      </div>
-    </div>
+            <div style={{ display: "grid", gap: 18, minWidth: 0 }}>
+              <VerificationSummaryCard matrix={verificationMatrix} decision={trustDecision} />
+              {outputContext ? <OutputContextBadge outputContext={outputContext} /> : null}
+              {disclosure ? <DisclosureNotice disclosure={disclosure} /> : null}
+              {recordFacts ? (
+                <RecordFactsCard facts={recordFacts} canonicalIssuedAtUtc={canonicalIssuedAtUtc} addToast={addToast} />
+              ) : null}
+              <ConsistencyReasons reasons={data.trustDecisionConsistency?.reasons ?? []} />
 
-<VerificationMatrixGrid rows={verificationMatrix.rows} />
-  </div>
-</Card>
-              {hasCaptureLocation ? (
-                <Card>
+              <section aria-labelledby="verify-matrix-heading" data-verify-card style={{ ...glassCardStyle, padding: "clamp(16px, 4vw, 24px)", display: "grid", gap: 18 }}>
+                <div>
+                  <div style={{ ...VERIFY_TYPO.kicker, fontSize: 11, marginBottom: 8 }}>Verification Matrix</div>
+                  <h2 id="verify-matrix-heading" style={{ ...VERIFY_TYPO.h3, fontSize: 22, margin: "0 0 8px" }}>
+                    What was checked, signal by signal
+                  </h2>
+                  <div data-testid="verify-matrix-intro" style={{ ...VERIFY_TYPO.small, maxWidth: 860 }}>
+                    {VERIFY_MATRIX_INTRO}
+                  </div>
+                </div>
+                {verificationMatrix ? (
+                  <VerificationMatrixGrid rows={verificationMatrix.rows} />
+                ) : (
+                  <div style={{ ...VERIFY_TYPO.value }}>{VERIFY_MATRIX_UNAVAILABLE}</div>
+                )}
+              </section>
+
+              <OtsAnchoringCard
+                row={matrixRow("ots_anchoring")}
+                facts={otsFacts}
+                snapshot={data.verificationSnapshot ?? null}
+                liveAnchoring={data.liveAnchoring ?? null}
+                addToast={addToast}
+              />
+
+              <ArtifactHistory
+                versioning={data.versioning ?? null}
+                snapshot={data.verificationSnapshot ?? null}
+                liveAnchoring={data.liveAnchoring ?? null}
+                tsaRow={matrixRow("tsa_token")}
+                canonicalIssuedAtUtc={canonicalIssuedAtUtc}
+                forensicEvents={forensicTimeline}
+              />
+
+              {hasCaptureLocation && captureContext ? (
+                <section
+                  aria-labelledby="verify-recorded-location"
+                  data-testid="verify-recorded-location"
+                  data-verify-card
+                  style={{ ...glassCardStyle, padding: "clamp(16px, 4vw, 24px)", display: "grid", gap: 18 }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ ...VERIFY_TYPO.kicker, fontSize: 11, marginBottom: 8 }}>Recorded Location</div>
+                    <h2 id="verify-recorded-location" style={{ ...VERIFY_TYPO.h3, fontSize: 22, margin: "0 0 8px" }}>
+                      {verifyLocationCopy.states.RECORDED.label}
+                    </h2>
+                    <div style={{ ...VERIFY_TYPO.body, maxWidth: 860 }}>
+                      {captureContext.description ?? CAPTURE_LOCATION_CONTEXT_DESCRIPTION}
+                    </div>
+                  </div>
                   <div
                     style={{
-                      ...glassCardStyle,
-                      padding: 24,
                       display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
                       gap: 18,
+                      alignItems: "stretch",
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        justifyContent: "space-between",
-                        gap: 16,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div style={{ minWidth: 0, flex: "1 1 620px" }}>
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.kicker,
-                            fontSize: 11,
-                            marginBottom: 8,
-                          }}
-                        >
-                          Capture Context
-                        </div>
-                        <div
-                          style={{
-                            fontSize: cardTitleSize,
-                            fontWeight: 900,
-                            color: VERIFY_BRAND.ink,
-                            lineHeight: 1.12,
-                            letterSpacing: "-0.028em",
-                            marginBottom: 8,
-                          }}
-                        >
-                          📍 {verifyLocationCopy.states.RECORDED.label}
-                        </div>
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.body,
-                            maxWidth: 860,
-                          }}
-                        >
-                          {captureContext?.description ??
-                            CAPTURE_LOCATION_CONTEXT_DESCRIPTION}
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 8,
-                          borderRadius: 999,
-                          border: `1px solid ${VERIFY_BRAND.line}`,
-                          background: "rgba(255,255,255,0.48)",
-                          padding: "10px 14px",
-                          color: VERIFY_BRAND.ink,
-                          fontSize: 11,
-                          fontWeight: 900,
-                          letterSpacing: "0.055em",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Supporting provenance context
-                      </div>
+                    <div style={{ overflow: "hidden", borderRadius: 22, minWidth: 0 }}>
+                      {captureContext.lat != null && captureContext.lng != null ? (
+                        <CaptureLocationMapPanel
+                          showBoundary={false}
+                          lat={captureContext.lat}
+                          lng={captureContext.lng}
+                          accuracyMeters={captureContext.accuracyMeters}
+                          addToast={addToast}
+                          height={280}
+                          sourceLabel={captureContext.source ?? null}
+                        />
+                      ) : null}
                     </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
-                        gap: 18,
-                        alignItems: "stretch",
-                      }}
-                    >
-                      <div
-                        style={{
-                          overflow: "hidden",
-                          borderRadius: 22,
-                          minHeight: 280,
-                        }}
-                      >
-                        {captureContext?.lat !== null &&
-                        captureContext?.lat !== undefined &&
-                        captureContext?.lng !== null &&
-                        captureContext?.lng !== undefined ? (
-                          <CaptureLocationMapPanel
-                            showBoundary={false}
-                            lat={captureContext.lat}
-                            lng={captureContext.lng}
-                            accuracyMeters={captureContext.accuracyMeters}
-                            addToast={addToast}
-                            height={280}
-                            sourceLabel={captureContext.source ?? null}
-                          />
-                        ) : null}
-                      </div>
-
-                      <div
-                        style={{
-                          display: "grid",
-                          gap: 10,
-                          alignContent: "start",
-                        }}
-                      >
-                        {[
-                          [
-                            verifyLocationCopy.heading,
-                            verifyLocationCopy.states.RECORDED.label,
-                          ],
-                          [
-                            "Latitude",
-                            formatCaptureLocationCoordinate(captureContext?.lat),
-                          ],
-                          [
-                            "Longitude",
-                            formatCaptureLocationCoordinate(captureContext?.lng),
-                          ],
-                          [
-                            "Accuracy radius",
-                            formatCaptureLocationAccuracy(
-                              captureContext?.accuracyMeters
-                            ),
-                          ],
-                          ["Server received at", captureLocationCapturedAtLabel],
-                          [
-                            "Source",
-                            captureContext?.source ?? CAPTURE_LOCATION_SOURCE_LABEL,
-                          ],
-                        ].map(([label, value]) => (
-                          <div
-                            key={label}
-                            style={{
-                              ...glassPanelStyle,
-                              padding: 14,
-                              display: "grid",
-                              gap: 5,
-                            }}
-                          >
-                            <div
-                              style={{
-                                ...VERIFY_TYPO.kicker,
-                                fontSize: 10.5,
-                              }}
-                            >
-                              {label}
-                            </div>
-                            <div
-                              style={{
-                                ...VERIFY_TYPO.value,
-                                fontSize: 14,
-                                color: VERIFY_BRAND.ink,
-                              }}
-                            >
-                              {value}
-                            </div>
-                          </div>
-                        ))}
-
-                        <div
-                          style={{
-                            ...glassPanelStyle,
-                            borderLeft: `5px solid ${VERIFY_BRAND.bronze}`,
-                            padding: 16,
-                          }}
-                        >
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.small,
-                              fontSize: 12.5,
-                              color: VERIFY_BRAND.ink,
-                            }}
-                          >
-                            {captureContext?.legalBoundary ??
-                              CAPTURE_LOCATION_LEGAL_BOUNDARY ??
-                              CAPTURE_LOCATION_SHORT_BOUNDARY}
-                          </div>
+                    <div style={{ display: "grid", gap: 10, alignContent: "start" }}>
+                      {[
+                        ["Latitude (device-reported)", formatCaptureLocationCoordinate(captureContext.lat)],
+                        ["Longitude (device-reported)", formatCaptureLocationCoordinate(captureContext.lng)],
+                        ["Accuracy radius (device-reported)", formatCaptureLocationAccuracy(captureContext.accuracyMeters)],
+                        ["Server received at", formatDateTime(captureContext.capturedAtUtc ?? null)],
+                        ...(captureContext.deviceTimeIso ? [["Device-reported time", captureContext.deviceTimeIso]] : []),
+                        ["Source", captureContext.source ?? CAPTURE_LOCATION_SOURCE_LABEL],
+                      ].map(([label, value]) => (
+                        <div key={label} style={{ ...glassPanelStyle, padding: 14, display: "grid", gap: 5 }}>
+                          <div data-verify-label style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>{label}</div>
+                          <div style={{ ...VERIFY_TYPO.value, fontSize: 14, overflowWrap: "anywhere" }}>{value}</div>
+                        </div>
+                      ))}
+                      <div style={{ ...glassPanelStyle, borderLeft: `5px solid ${VERIFY_BRAND.bronze}`, padding: 16 }}>
+                        <div style={{ ...VERIFY_TYPO.small, fontSize: 12.5, color: VERIFY_BRAND.ink }}>
+                          {captureContext.legalBoundary ?? CAPTURE_LOCATION_LEGAL_BOUNDARY ?? CAPTURE_LOCATION_SHORT_BOUNDARY}
                         </div>
                       </div>
                     </div>
                   </div>
-                </Card>
+                </section>
               ) : (
                 <VerifyLocationStateSection location={locationState} />
               )}
-              <LegalWarningBlock verdict={verificationVerdict} />
 
-              <ReviewerActionsBlock actions={reviewerActions} />
-
-              <MismatchExplanationBlock explanations={mismatchExplanations} />
-
-              <Card>
-                                <div
-                  style={{
-                    ...glassCardStyle,
-                    padding: 24,
-                    display: "grid",
-                    gridTemplateColumns: "minmax(0, 1fr)",
-                    gap: 18,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      justifyContent: "space-between",
-                      gap: 18,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 16,
-                        minWidth: 0,
-                        flex: "1 1 640px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 60,
-                          height: 60,
-                          borderRadius: 999,
-background:
-  trustDecisionTone === "danger"
-    ? `linear-gradient(180deg, ${VERIFY_BRAND.danger} 0%, #8f3328 100%)`
-    : trustDecisionTone === "warning"
-      ? `linear-gradient(180deg, ${VERIFY_BRAND.warning} 0%, #6f4f1f 100%)`
-      : `linear-gradient(180deg, ${VERIFY_BRAND.success} 0%, #145c48 100%)`,
-                                display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#fff",
-                          fontSize: 28,
-                          fontWeight: 900,
-                          boxShadow:
-                            trustDecisionTone === "danger"
-                              ? "0 16px 34px rgba(181,71,56,0.20)"
-                              : trustDecisionTone === "warning"
-                                ? "0 16px 34px rgba(138,106,47,0.20)"
-                                : "0 16px 34px rgba(33,117,93,0.20)",
-                          flexShrink: 0,
-                        }}
-                      >
-{trustDecisionTone === "success" ? "✓" : "!"}
-                      </div>
-
-                      <div style={{ minWidth: 0 }}>
-<div
-  style={{
-    ...VERIFY_TYPO.kicker,
-    fontSize: 11,
-    marginBottom: 7,
-  }}
->
-  Verification Signal Summary
-</div>
-                        <div
-                          style={{
-                            fontSize: cardTitleSize,
-                            lineHeight: 1.12,
-                            fontWeight: 900,
-                            color: VERIFY_BRAND.ink,
-                            letterSpacing: "-0.028em",
-                            marginBottom: 9,
-                            wordBreak: "break-word",
-                          }}
-                        >
-Supporting Technical Signals
-                        </div>
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.body,
-                            fontSize: 15,
-                            maxWidth: 820,
-                          }}
-                        >
-The statuses below repeat the verification matrix above, one per signal. Read each signal's status together with the legal boundary and the reviewer action; no overall conclusion is drawn from them.
-                        </div>
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: 999,
-                        border: `1px solid ${statusTone(verifyStatus).border}`,
-                        background: statusTone(verifyStatus).bg,
-                        color: statusTone(verifyStatus).color,
-                        fontSize: 11,
-                        fontWeight: 900,
-                        letterSpacing: "0.055em",
-                        textTransform: "uppercase",
-                        alignSelf: "flex-start",
-                        maxWidth: "100%",
-                      }}
-                    >
-                      {statusTone(verifyStatus).label}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-{executiveBadges.map((item) => (
-  <Badge
-    key={item.label}
-    label={item.label}
-    tone={item.tone}
-    muted={verdictRequiresReview}
-  />
-))}
-                  </div>
-                  <div
-  style={{
-      border: `1px solid ${
-      trustDecisionTone === "success"
-        ? "rgba(33,117,93,0.28)"
-        : trustDecisionTone === "danger"
-          ? "rgba(181,71,56,0.28)"
-          : "rgba(138,106,47,0.32)"
-    }`,
-    borderLeft: `5px solid ${
-      trustDecisionTone === "success"
-        ? VERIFY_BRAND.success
-        : trustDecisionTone === "danger"
-          ? VERIFY_BRAND.danger
-          : VERIFY_BRAND.warning
-    }`,
-    background:
-      trustDecisionTone === "success"
-        ? VERIFY_BRAND.successSoft
-        : trustDecisionTone === "danger"
-          ? VERIFY_BRAND.dangerSoft
-          : VERIFY_BRAND.warningSoft,
-    borderRadius: 18,
-    padding: 18,
-    display: "grid",
-    gap: 8,
-  }}
->
-  <div
-    style={{
-      ...VERIFY_TYPO.kicker,
-      fontSize: 10.5,
-      color:
-        trustDecisionTone === "success"
-          ? VERIFY_BRAND.success
-          : trustDecisionTone === "danger"
-            ? VERIFY_BRAND.danger
-            : VERIFY_BRAND.warning,
-    }}
-  >
-Reviewer Action
-  </div>
-
-  <div
-    style={{
-      ...VERIFY_TYPO.value,
-      fontSize: 15,
-      lineHeight: 1.55,
-    }}
-  >
-{trustDecision.reviewerAction}
-  </div>
-
-  <div
-    style={{
-      ...VERIFY_TYPO.small,
-      fontSize: 13,
-      color: VERIFY_BRAND.ink,
-    }}
-  >
-    This decision is limited to the recorded technical state. It does not prove
-    factual truth, authorship, intent, context, or court admissibility.
-  </div>
-</div>
-
-{/*
-  Issue #7: surface snapshot/live trust divergence to the public viewer.
-  When the report snapshot differs from a live recomputation, we must NOT
-  silently show the older snapshot as positive — render an explicit warning.
-*/}
-{trustSnapshotDivergence ? (() => {
-  const isAccessOnly = trustSnapshotDivergence.accessOnly === true;
-
-  const railColor = isAccessOnly
-    ? VERIFY_BRAND.accent
-    : VERIFY_BRAND.warning;
-
-  const background = isAccessOnly
-    ? "rgba(11,46,39,0.045)"
-    : "rgba(138,106,47,0.075)";
-
-  const borderColor = isAccessOnly
-    ? "rgba(11,46,39,0.16)"
-    : "rgba(138,106,47,0.26)";
-
-  return (
-    <div
-      role="status"
-      style={{
-        border: `1px solid ${borderColor}`,
-        borderLeft: `5px solid ${railColor}`,
-        background,
-        borderRadius: 18,
-        padding: 18,
-        display: "grid",
-        gap: 8,
-      }}
-    >
-      <div
-        style={{
-          ...VERIFY_TYPO.kicker,
-          fontSize: 10.5,
-          color: railColor,
-        }}
-      >
-        {isAccessOnly
-          ? "Live access activity update"
-          : "Live verification status update"}
-      </div>
-
-      <div
-        style={{
-          ...VERIFY_TYPO.value,
-          fontSize: 15,
-          lineHeight: 1.55,
-        }}
-      >
-        {isAccessOnly
-          ? "No integrity mismatch detected. Later page views, downloads, or access activity changed after the fixed report snapshot."
-          : "The live verification state differs from the fixed report snapshot. Review the technical materials if this change matters to your review."}
-      </div>
-
-      <div
-        style={{
-          ...VERIFY_TYPO.small,
-          fontSize: 13,
-          color: VERIFY_BRAND.ink,
-        }}
-      >
-        {trustDecisionLive
-          ? "The statuses on this page are checked now. They differ from the fixed snapshot taken when the report or package was generated; the reasons are listed below. Later activity can change the live page without changing the preserved evidence integrity state."
-          : "The trust decision shown here is sourced from the fixed snapshot taken at report or package generation time. Later activity can change the live page without necessarily changing the preserved evidence integrity state."}
-      </div>
-
-      {trustSnapshotDivergence.reasons?.length ? (
-        <div
-          style={{
-            ...VERIFY_TYPO.small,
-            fontSize: 13,
-            color: VERIFY_BRAND.ink,
-            display: "grid",
-            gap: 8,
-          }}
-        >
-          <strong>Why this appears</strong>
-
-          <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6 }}>
-            {trustSnapshotDivergence.reasons.map((reason, index) => (
-              <li key={`${reason.code ?? "reason"}-${index}`}>
-                <strong>{reason.label ?? "Snapshot difference"}.</strong>{" "}
-                {reason.detail ??
-                  "Later activity changed after the fixed snapshot."}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
-  );
-})() : null}
-
-{verificationSnapshot ? (
-  <div
-    style={{
-      display: "grid",
-      gap: 16,
-    }}
-  >
-    <div
-      style={{
-        ...VERIFY_SURFACE.card,
-        padding: 18,
-        display: "grid",
-        gap: 12,
-      }}
-    >
-      <div style={{ display: "grid", gap: 6 }}>
-        <div
-          style={{
-            ...VERIFY_TYPO.kicker,
-            fontSize: 10.5,
-            color: VERIFY_BRAND.accent,
-          }}
-        >
-          Verification package snapshot
-        </div>
-        <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
-          This section reflects the verification package/report generated at the recorded time.
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: 12,
-        }}
-      >
-        <SummaryField
-          label="Snapshot Source"
-          value={describeSnapshotSource(verificationSnapshot.source)}
-        />
-        <SummaryField
-          label="Generated At"
-          value={
-            verificationSnapshot.generatedAtUtc
-              ? formatDateTime(verificationSnapshot.generatedAtUtc)
-              : "Not recorded"
-          }
-        />
-        <SummaryField
-          label="Report Version"
-          value={
-            verificationSnapshot.reportVersion != null
-              ? `v${verificationSnapshot.reportVersion}`
-              : "Not recorded"
-          }
-        />
-        <SummaryField
-          label="Package Version"
-          value={
-            verificationSnapshot.packageVersion != null
-              ? `v${verificationSnapshot.packageVersion}`
-              : "Not recorded"
-          }
-        />
-        <SummaryField
-          label="Bitcoin Anchoring At Generation"
-          value={otsStateWord(verificationSnapshot.otsStatusAtGeneration)}
-        />
-        <SummaryField
-          label="Report Signature"
-          value={formatSignatureStatus(verificationSnapshot.reportSignature?.status)}
-        />
-        <SummaryField
-          label="Package Manifest Signature"
-          value={
-            verificationSnapshot.verificationPackageSignature?.manifestSigned === true
-              ? "Signed"
-              : verificationSnapshot.verificationPackageSignature?.manifestPresent === true
-                ? "Manifest present; signature not confirmed"
-                : "Not recorded"
-          }
-        />
-        <SummaryField
-          label="Snapshot Signal Summary"
-          value={
-            readStoredTrustDecision(verificationSnapshot.trustDecisionSnapshot)?.summary ??
-            "No fixed trust-decision snapshot"
-          }
-        />
-      </div>
-    </div>
-
-    <div
-      style={{
-        ...VERIFY_SURFACE.card,
-        padding: 18,
-        display: "grid",
-        gap: 12,
-      }}
-    >
-      <div style={{ display: "grid", gap: 6 }}>
-        <div
-          style={{
-            ...VERIFY_TYPO.kicker,
-            fontSize: 10.5,
-            color: VERIFY_BRAND.warning,
-          }}
-        >
-          Live anchoring status
-        </div>
-        <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
-          This section reflects the current OpenTimestamps/public anchoring state and may advance after the package was generated.
-        </div>
-      </div>
-
-      {liveAnchoringAdvanced ? (
-        <div
-          style={{
-            // Informational: an advanced anchoring state is not by itself a
-            // verification, so it is green only for CHAIN_VERIFIED.
-            border: `1px solid ${VERIFY_BRAND.line}`,
-            borderLeft: `5px solid ${otsView.tone === "success" ? VERIFY_BRAND.success : VERIFY_BRAND.accent}`,
-            background: otsView.tone === "success" ? VERIFY_BRAND.successSoft : "rgba(255,255,255,0.44)",
-            borderRadius: 18,
-            padding: 16,
-            ...VERIFY_TYPO.small,
-            fontSize: 13,
-            color: VERIFY_BRAND.ink,
-          }}
-        >
-          Anchoring has advanced since this package was generated. A newer report/package may be available.
-        </div>
-      ) : null}
-
-      {otsView.state !== "NOT_REQUESTED" ? (
-        // The one sentence for the server's verification key. Pending is
-        // amber (never danger); only CHAIN_VERIFIED is green; FAILED /
-        // CHAIN_FAILED are danger; an unchecked attestation is neutral.
-        <div
-          data-verify-ots-sentence={otsView.verification}
-          data-tone={otsView.tone}
-          style={{
-            border: `1px solid ${VERIFY_BRAND.line}`,
-            borderLeft: `5px solid ${
-              otsView.tone === "danger"
-                ? VERIFY_BRAND.danger
-                : otsView.tone === "success"
-                  ? VERIFY_BRAND.success
-                  : otsView.state === "PENDING"
-                    ? VERIFY_BRAND.warning
-                    : VERIFY_BRAND.accent
-            }`,
-            background:
-              otsView.tone === "danger"
-                ? VERIFY_BRAND.dangerSoft
-                : otsView.tone === "success"
-                  ? VERIFY_BRAND.successSoft
-                  : otsView.state === "PENDING"
-                    ? VERIFY_BRAND.warningSoft
-                    : "rgba(255,255,255,0.44)",
-            borderRadius: 18,
-            padding: 16,
-            ...VERIFY_TYPO.small,
-            fontSize: 13,
-            color: VERIFY_BRAND.ink,
-          }}
-        >
-          {otsView.sentence}
-          {otsView.failureLabel ? ` ${otsView.failureLabel}` : null}
-        </div>
-      ) : null}
-
-      {otsBoundaryFor(otsView) ? (
-        // The boundary of what the anchoring shows, stated once here.
-        <div data-verify-ots-boundary style={{ ...VERIFY_TYPO.small, fontSize: 12.5, color: VERIFY_BRAND.ink }}>
-          {otsBoundaryFor(otsView)}
-        </div>
-      ) : null}
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: 12,
-        }}
-      >
-        <SummaryField
-          label="Bitcoin anchoring"
-          value={otsView.secondaryStatus ? `${otsView.label} — ${otsView.secondaryStatus}` : otsView.label}
-        />
-        <SummaryField
-          label={OTS_VERIFY_FACTS.anchoredAt}
-          value={otsView.anchoredAtUtc ? formatDateTime(otsView.anchoredAtUtc) : "Not recorded"}
-        />
-        {otsView.bitcoinBlockHeight != null ? (
-          <SummaryField label="Bitcoin Block Height" value={String(otsView.bitcoinBlockHeight)} />
-        ) : null}
-        {otsView.bitcoinTxid ? (
-          <SummaryField label="Bitcoin Transaction" value={otsView.bitcoinTxid} />
-        ) : null}
-        {otsView.chain?.blockHash ? (
-          <SummaryField label={OTS_VERIFY_FACTS.blockHash} value={otsView.chain.blockHash} />
-        ) : null}
-        {otsView.chain?.confirmations != null ? (
-          <SummaryField
-            label={OTS_VERIFY_FACTS.confirmations}
-            value={
-              otsView.chain.minConfirmations != null
-                ? `${otsView.chain.confirmations} (minimum ${otsView.chain.minConfirmations})`
-                : String(otsView.chain.confirmations)
-            }
-          />
-        ) : null}
-        {otsView.chain?.checkedAtUtc ? (
-          <SummaryField label={OTS_VERIFY_FACTS.checkedAt} value={formatDateTime(otsView.chain.checkedAtUtc)} />
-        ) : null}
-        <SummaryField
-          label="Last Anchoring Update"
-          value={
-            liveAnchoring?.lastUpdatedAtUtc
-              ? formatDateTime(liveAnchoring.lastUpdatedAtUtc)
-              : "Not recorded"
-          }
-        />
-        <SummaryField
-          label="Latest Report"
-          value={liveAnchoring?.newerReportAvailable ? "Latest report available" : "No newer report recorded"}
-        />
-        <SummaryField
-          label="Latest Package"
-          value={liveAnchoring?.newerPackageAvailable ? "Latest package available" : "No newer package recorded"}
-        />
-      </div>
-    </div>
-  </div>
-) : null}
-
-{/*
-  Media Intelligence / Advisory Observations REMOVED (product decision).
-  The public advisory block surfaced only a bounded count of low-value
-  workspace/correlation observations (duplicate/similar material) with no
-  hashes or reviewer-actionable proof, which added no forensic value to
-  the public verification page. Public verification now focuses on the
-  Technical Metadata cards below (Media / EXIF / Capture Environment) and
-  the preservation + custody verdicts above. The API still returns
-  `mediaIntelligenceAdvisory`; it is simply no longer rendered.
-*/}
-
-{/*
-  Enterprise Technical Metadata layer — privacy-safe Media / EXIF /
-  Capture Environment cards. Extracted to VerifyTechnicalMetadataSection
-  (CR4 decomposition) — same testids, same privacy-safe payload, renders
-  null when the projection is absent.
-*/}
-<VerifyTechnicalMetadataSection
-  technicalMetadata={technicalMetadata}
-  typo={VERIFY_TYPO}
-  brand={VERIFY_BRAND}
-/>
-
-{/*
-  UC-0 — "How this record was acquired": a neutral statement from the
-  typed acquisition projection. Cryptographic verification is shown above.
-*/}
-<VerifyCaptureIntegritySection
-  acquisition={acquisition}
-  typo={VERIFY_TYPO}
-  brand={VERIFY_BRAND}
-/>
-<VerifyCaptureManifestSection facts={captureManifest} />
-
-{/*
-  PHASE 12B — redaction verification badge. Reads the `redaction` key of
-  this page's own token-bound projection; the anonymous evidenceId probe
-  it replaced has been deleted. Renders null when the record has no
-  redaction data.
-*/}
-<VerifyRedactionSection
-  redaction={redaction}
-  typo={VERIFY_TYPO}
-  brand={VERIFY_BRAND}
-/>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
-                      gap: 14,
-                    }}
-                  >
-                    {[
-{
-  title: "Legal review outcome",
-  body: verificationVerdict.legalStatement,
-  footer: verificationVerdict.actionRequired,
-},
-                      {
-                        title: "Forensic custody posture",
-                        body: forensicCustodyNarrative,
-                        footer: accessActivityNarrative,
-                      },
-                      {
-                        title: "Scope of this page",
-                        body: heroWhatIsVerifiedText,
-                        footer:
-                          "Technical details, timestamping, anchoring, and access history remain available below in the technical review layer.",
-                      },
-                    ].map((panel) => (
-                      <div
-                        key={panel.title}
-                        style={{
-                          ...glassPanelStyle,
-                          borderLeft: `5px solid ${VERIFY_BRAND.bronze}`,
-                          padding: 18,
-                          display: "grid",
-                          gap: 8,
-                        }}
-                      >
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.kicker,
-                            fontSize: 10.5,
-                          }}
-                        >
-                          {panel.title}
-                        </div>
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.small,
-                            fontSize: 13,
-                            color: VERIFY_BRAND.ink,
-                            wordBreak: "break-word",
-                            overflowWrap: "anywhere",
-                          }}
-                        >
-                          {panel.body}
-                        </div>
-                        {panel.footer ? (
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.small,
-                              fontSize: 12,
-                            }}
-                          >
-                            {panel.footer}
-                          </div>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-
-                    {publicationPendingPosture ? (
-                    <div
-                      style={{
-                        ...glassPanelStyle,
-                        borderLeft: `5px solid ${VERIFY_BRAND.warning}`,
-                        padding: 18,
-                        display: "grid",
-                        gap: 8,
-                      }}
-                    >
-                      <div
-                        style={{
-                          ...VERIFY_TYPO.kicker,
-                          fontSize: 10.5,
-                          color: VERIFY_BRAND.warning,
-                        }}
-                      >
-                        Publication Posture
-                      </div>
-                      <div
-                        style={{
-                          ...VERIFY_TYPO.small,
-                          fontSize: 13,
-                          color: VERIFY_BRAND.ink,
-                        }}
-                      >
-                        Recorded integrity is verified. {otsView.label}: {otsView.sentence} Recheck later if independent Bitcoin verification matters to the review.
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {anchorTransactionId ? (
-                    // The transaction the proof names. A txid is where the
-                    // proof points, not a verification: the card is green
-                    // only when the server's view is CHAIN_VERIFIED.
-                    <div
-                      data-verify-ots-txid-card={otsView.verification}
-                      style={{
-                        ...glassCardStyle,
-                        borderLeft: `5px solid ${otsView.tone === "success" ? VERIFY_BRAND.success : otsView.tone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.accent}`,
-                        padding: 18,
-                        display: "grid",
-                        gap: 8,
-                      }}
-                    >
-                      <div
-                        style={{
-                          ...VERIFY_TYPO.kicker,
-                          fontSize: 10.5,
-                          color: otsView.tone === "success" ? VERIFY_BRAND.success : otsView.tone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.accent,
-                        }}
-                      >
-                        Bitcoin Anchoring
-                      </div>
-                      <div style={{ display: "grid", gap: 10 }}>
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.small,
-                            fontWeight: 700,
-                            color: VERIFY_BRAND.ink,
-                          }}
-                        >
-                          {otsView.tone === "success" ? `✓ ${otsView.label}` : otsView.label}
-                        </div>
-                        {otsView.secondaryStatus ? (
-                          <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.ink }}>
-                            {otsView.secondaryStatus}
-                          </div>
-                        ) : null}
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.small,
-                            color: VERIFY_BRAND.ink,
-                          }}
-                        >
-                          TxID: {truncateHash(anchorTransactionId)}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(anchorTransactionId);
-                            addToast("Transaction ID copied", "success");
-                          }}
-                          style={{
-                            width: "fit-content",
-                            borderRadius: 999,
-                            border: `1px solid ${VERIFY_BRAND.line}`,
-                            background: "rgba(255,255,255,0.62)",
-                            color: VERIFY_BRAND.accent,
-                            fontSize: 12,
-                            fontWeight: 900,
-                            letterSpacing: "0.065em",
-                            textTransform: "uppercase",
-                            padding: "10px 14px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Copy TxID
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {custodyChainFailureReason ? (
-                    <div
-                      style={{
-                        border: `1px solid rgba(181,71,56,0.25)`,
-                        borderLeft: `5px solid ${VERIFY_BRAND.danger}`,
-                        background: VERIFY_BRAND.dangerSoft,
-                        borderRadius: 18,
-                        padding: 18,
-                      }}
-                    >
-                      <div
-                        style={{
-                          ...VERIFY_TYPO.kicker,
-                          fontSize: 10.5,
-                          color: VERIFY_BRAND.danger,
-                          marginBottom: 8,
-                        }}
-                      >
-                        Verification Warning
-                      </div>
-                      <div
-                        style={{
-                          ...VERIFY_TYPO.small,
-                          fontSize: 13,
-                          color: VERIFY_BRAND.ink,
-                          wordBreak: "break-word",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        Custody chain check reported: {custodyChainFailureReason}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {limitations?.short || limitations?.detailed ? (
-                    <div
-                      style={{
-                        ...BRONZE_RAIL_STYLE,
-                        padding: 18,
-                        display: "grid",
-                        gap: 8,
-                      }}
-                    >
-                      <div
-                        style={{
-                          ...VERIFY_TYPO.kicker,
-                          fontSize: 10.5,
-                          color: VERIFY_BRAND.warning,
-                        }}
-                      >
-                        Important limitation
-                      </div>
-                      {limitations?.short ? (
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.small,
-                            fontSize: 13,
-                            color: VERIFY_BRAND.ink,
-                          }}
-                        >
-                          {limitations.short}
-                        </div>
-                      ) : null}
-                      {limitations?.detailed ? (
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.small,
-                            fontSize: 13,
-                            color: VERIFY_BRAND.ink,
-                          }}
-                        >
-                          {limitations.detailed}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              </Card>
+              <VerifyTechnicalMetadataSection technicalMetadata={technicalMetadata} typo={VERIFY_TYPO} brand={VERIFY_BRAND} />
+              {/* UC-0 — "How this record was acquired", from the typed acquisition projection. */}
+              <VerifyCaptureIntegritySection acquisition={acquisition} typo={VERIFY_TYPO} brand={VERIFY_BRAND} />
+              <VerifyCaptureManifestSection facts={captureManifest} />
+              <VerifyRedactionSection redaction={redaction} typo={VERIFY_TYPO} brand={VERIFY_BRAND} />
 
               {evidenceItems.length > 0 ? (
-                <Card>
-                  <div
+                disclosure?.mode === "VERIFICATION_ONLY" ? (
+                  <ItemInventoryTable items={evidenceItems} addToast={addToast} />
+                ) : (
+                  <ContentPreviewSurface
+                    items={evidenceItems}
+                    summary={evidenceContentSummary}
+                    primaryItem={data.evidenceContent?.primaryItem ?? null}
+                    defaultPreviewItemId={data.evidenceContent?.defaultPreviewItemId ?? null}
+                    previewPolicy={data.evidenceContent?.previewPolicy ?? null}
+                    contentAccessPolicy={data.contentAccessPolicy ?? null}
+                    contentExposureDecision={data.contentExposureDecision ?? null}
+                  />
+                )
+              ) : null}
+
+              <section aria-labelledby="verify-technical-heading" data-verify-card style={{ ...glassCardStyle, padding: "clamp(16px, 4vw, 24px)", display: "grid", gap: 18 }}>
+                <div>
+                  <h2 id="verify-technical-heading" style={{ margin: 0, ...VERIFY_TYPO.h3 }}>
+                    Technical Review Materials
+                  </h2>
+                  <div style={{ marginTop: 7, ...VERIFY_TYPO.small, maxWidth: 820 }}>
+                    The raw hashes, signatures, package seal, forensic custody chain and access activity behind the
+                    verification matrix above.
+                  </div>
+                </div>
+                <div
+                  data-print-hide
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 12,
+                    flexWrap: "wrap",
+                    padding: 14,
+                    borderRadius: 18,
+                    border: `1px solid ${forensicMode ? VERIFY_BRAND.accent : VERIFY_BRAND.line}`,
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: "1 1 220px" }}>
+                    <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5, marginBottom: 4 }}>Forensic Review Mode</div>
+                    <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
+                      {forensicMode
+                        ? "Raw technical materials are expanded for forensic review."
+                        : "Enable to expand raw hashes, signatures, public key material, custody hashes, and timestamp proof fields."}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    aria-pressed={forensicMode}
+                    onClick={() => setForensicMode((value) => !value)}
                     style={{
-                      ...glassCardStyle,
-                      padding: 24,
-                      display: "grid",
-                      gap: 18,
+                      minHeight: 42,
+                      padding: "10px 16px",
+                      borderRadius: 999,
+                      border: `1px solid ${forensicMode ? VERIFY_BRAND.accent : VERIFY_BRAND.line}`,
+                      background: forensicMode ? VERIFY_BRAND.accent : "rgba(255,255,255,0.62)",
+                      color: forensicMode ? "#ffffff" : VERIFY_BRAND.accent,
+                      fontSize: 11,
+                      fontWeight: 900,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      cursor: "pointer",
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        justifyContent: "space-between",
-                        gap: 16,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div style={{ minWidth: 0, flex: "1 1 620px" }}>
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.kicker,
-                            fontSize: 11,
-                            marginBottom: 8,
-                          }}
-                        >
-                          Evidence Content Review
-                        </div>
-                        <div
-                          style={{
-                            fontSize: cardTitleSize,
-                            fontWeight: 900,
-                            color: VERIFY_BRAND.ink,
-                            lineHeight: 1.12,
-                            letterSpacing: "-0.028em",
-                            marginBottom: 8,
-                          }}
-                        >
-                          {selectedEvidenceItem
-                            ? `${evidenceKindLabel(
-                                selectedEvidenceItem.kind
-                              )} review surface`
-                            : "Evidence review surface"}
-                        </div>
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.body,
-                            maxWidth: 860,
-                          }}
-                        >
-                          {previewPolicy?.rationale ??
-                            "Review the preserved evidence item here while keeping integrity, custody, and timestamp materials in the same verification record."}
-                        </div>
-                      </div>
+                    {forensicMode ? "Disable Forensic Mode" : "Enable Forensic Mode"}
+                  </button>
+                </div>
 
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 10,
-                          justifyContent: "flex-end",
-                        }}
-                      >
-                        {evidenceSectionDescription ? (
-                          <div
-                            style={{
-                              padding: "10px 14px",
-                              borderRadius: 999,
-                              border: `1px solid ${VERIFY_BRAND.line}`,
-                              background: "rgba(255,255,255,0.46)",
-                              color: VERIFY_BRAND.ink,
-                              fontSize: 11,
-                              fontWeight: 900,
-                              letterSpacing: "0.055em",
-                              textTransform: "uppercase",
-                            }}
-                          >
-                            {evidenceSectionDescription}
-                          </div>
-                        ) : null}
-                        {contentAccessPolicy?.mode ? (
-                          <div
-                            style={{
-                              padding: "10px 14px",
-                              borderRadius: 999,
-                              border: `1px solid ${VERIFY_BRAND.line}`,
-                              background:
-                                contentAccessPolicy.mode === "full_access"
-                                  ? VERIFY_BRAND.successSoft
-                                  : contentAccessPolicy.mode === "preview_only"
-                                    ? "rgba(11,46,39,0.08)"
-                                    : VERIFY_BRAND.warningSoft,
-                              color:
-                                contentAccessPolicy.mode === "full_access"
-                                  ? VERIFY_BRAND.success
-                                  : contentAccessPolicy.mode === "preview_only"
-                                    ? VERIFY_BRAND.accent
-                                    : VERIFY_BRAND.warning,
-                              fontSize: 11,
-                              fontWeight: 900,
-                              letterSpacing: "0.055em",
-                              textTransform: "uppercase",
-                            }}
-                          >
-                            {contentAccessPolicy.mode === "full_access"
-                              ? "Direct evidence access"
-                              : contentAccessPolicy.mode === "preview_only"
-                                ? "Controlled preview access"
-                                : "Metadata-only verification"}
-                          </div>
-                        ) : null}
-                      </div>
+                <VerifyTabs tabs={TECHNICAL_TABS} active={activeTechnicalTab} onChange={setActiveTechnicalTab} label="Technical review materials" />
+
+                {activeTechnicalTab === "record" ? (
+                  <VerifyTabPanel id="record">
+                    <div style={{ ...BRONZE_RAIL_STYLE, padding: 16, ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
+                      Record metadata as returned for this page. It identifies the preserved record and is separate
+                      from the cryptographic proof and from the custody chain.
                     </div>
+                    {recordTabFields.length > 0 ? (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))", gap: 14 }}>
+                        {recordTabFields.map((field) => (
+                          <SummaryField key={field.label} label={field.label} value={field.value} />
+                        ))}
+                      </div>
+                    ) : null}
+                  </VerifyTabPanel>
+                ) : null}
 
-                    <div
-                      style={{
-                        ...BRONZE_RAIL_STYLE,
-                        padding: 18,
-                        display: "grid",
-                        gap: 10,
-                      }}
-                    >
-                      <div
-                        style={{
-                          ...VERIFY_TYPO.kicker,
-                          fontSize: 10.5,
-                        }}
-                      >
-                        Reviewer access note
-                      </div>
-                      <div
-                        style={{
-                          ...VERIFY_TYPO.small,
-                          fontSize: 13,
-                          color: VERIFY_BRAND.ink,
-                        }}
-                      >
-                        {contentExposureDecision?.rationale ??
-                          previewPolicy?.privacyNotice ??
-                          "Displayed content may be a reviewer-facing exposure of the preserved evidence item. Original evidence remains separately preserved and integrity-checked."}
-                      </div>
-                      <div style={{ ...VERIFY_TYPO.small, fontSize: 13 }}>
-                        {previewPolicy?.privacyNotice ??
-                          "Any preview shown here should be interpreted together with the integrity, custody, and timestamp sections below."}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                        gap: 14,
-                      }}
-                    >
-                      <div
-                        style={{
-                          ...glassPanelStyle,
-                          padding: 18,
-                          display: "grid",
-                          gap: 8,
-                        }}
-                      >
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.kicker,
-                            fontSize: 10.5,
-                          }}
-                        >
-                          What changed since completion
-                        </div>
-                        {whatChangedSinceCompletion.length > 0 ? (
-                          whatChangedSinceCompletion.map((entry) => (
-                            <div
-                              key={entry}
-                              style={{
-                                ...VERIFY_TYPO.small,
-                                fontSize: 13,
-                                color: VERIFY_BRAND.ink,
-                              }}
-                            >
-                              {entry}
-                            </div>
-                          ))
-                        ) : (
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.small,
-                              fontSize: 13,
-                            }}
-                          >
-                            No later report, package, or reviewer-summary changes were
-                            exposed in this verification response.
-                          </div>
+                {activeTechnicalTab === "integrity" ? (
+                  <VerifyTabPanel id="integrity">
+                    {verificationMatrix ? (
+                      <VerificationMatrixGrid
+                        rows={verificationMatrix.rows.filter((row) =>
+                          ["file_integrity", "record_signature", "tsa_token", "storage_protection"].includes(row.key),
                         )}
-                      </div>
+                      />
+                    ) : (
+                      <div style={{ ...VERIFY_TYPO.value }}>{VERIFY_MATRIX_UNAVAILABLE}</div>
+                    )}
 
-                      <div
-                        style={{
-                          border:
-                            mismatchMessages.length > 0
-                              ? `1px solid rgba(181,71,56,0.25)`
-                              : `1px solid rgba(33,117,93,0.25)`,
-                          borderLeft:
-                            mismatchMessages.length > 0
-                              ? `5px solid ${VERIFY_BRAND.danger}`
-                              : `5px solid ${VERIFY_BRAND.success}`,
-                          background:
-                            mismatchMessages.length > 0
-                              ? VERIFY_BRAND.dangerSoft
-                              : VERIFY_BRAND.successSoft,
-                          borderRadius: 18,
-                          padding: 18,
-                          display: "grid",
-                          gap: 8,
-                        }}
-                      >
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.kicker,
-                            fontSize: 10.5,
-                            color:
-                              mismatchMessages.length > 0
-                                ? VERIFY_BRAND.danger
-                                : VERIFY_BRAND.success,
-                          }}
-                      >
-                          Timestamp / mismatch review
+                    {hash ? (
+                      <MaterialField
+                        label={
+                          isMultipart
+                            ? "Canonical Package Digest (SHA-256)"
+                            : tsaDetails?.inputKind && tsaDetails.inputKind !== "FILE_SHA256"
+                              ? "File Digest (SHA-256)"
+                              : "Original File SHA-256"
+                        }
+                        subtitle={
+                          isMultipart
+                            ? `${PROOVRA_MULTIPART_REVIEWER_EXPLANATION} ${PROOVRA_MULTIPART_RECOMPUTATION_NOTE}`
+                            : "SHA-256 digest of the original preserved evidence file."
+                        }
+                        value={hash}
+                        forensicMode={forensicMode}
+                        addToast={addToast}
+                        copyMessage={isMultipart ? "Canonical package digest copied" : "File digest copied"}
+                      />
+                    ) : null}
+
+                    {isMultipart ? (
+                      <div style={{ ...BRONZE_RAIL_STYLE, padding: 16, display: "grid", gap: 8 }}>
+                        <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>Multipart integrity boundary</div>
+                        <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
+                          {PROOVRA_MULTIPART_REVIEWER_EXPLANATION} {PROOVRA_MULTIPART_RECOMPUTATION_NOTE}{" "}
+                          {PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE}
                         </div>
-                        {mismatchMessages.length > 0 ? (
-                          mismatchMessages.map((entry) => (
-                            <div
-                              key={entry}
-                              style={{
-                                ...VERIFY_TYPO.small,
-                                fontSize: 13,
-                                color: VERIFY_BRAND.ink,
-                              }}
-                            >
-                              {entry}
-                            </div>
-                          ))
-                        ) : (
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.small,
-                              fontSize: 13,
-                              color: VERIFY_BRAND.ink,
-                            }}
-                          >
-                            No explicit digest, signature, custody, timestamp, or OTS
-                            mismatches were detected in the current verification result.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-{evidenceItems.length > 1 ? (
-  <div
-    style={{
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-      gap: 10,
-    }}
-  >
-                            {evidenceItems.map((item) => {
-                          const active = selectedEvidenceItem?.id === item.id;
-
-                          return (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onClick={() => setSelectedEvidenceItemId(item.id)}
-                              style={{
-                                padding: "12px 14px",
-                                borderRadius: 16,
-                                border: active
-                                  ? `1px solid ${VERIFY_BRAND.accent}`
-                                  : `1px solid ${VERIFY_BRAND.line}`,
-                                background: active
-                                  ? "rgba(11,46,39,0.10)"
-                                  : "rgba(255,255,255,0.54)",
-                                color: VERIFY_BRAND.ink,
-                                fontSize: 13,
-                                fontWeight: 800,
-                                cursor: "pointer",
-                                textAlign: "left",
-                                minWidth: 220,
-                              }}
-                            >
-<div
-  style={{
-    marginBottom: 4,
-
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  }}
->
-  {item.label}
-</div>
-<div
-  style={{
-    ...VERIFY_TYPO.small,
-    fontSize: 12,
-    color: active
-      ? VERIFY_BRAND.accent
-      : VERIFY_BRAND.muted,
-
-    // 👇 يمنع التمدد
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  }}
->
-  {evidenceKindLabel(item.kind)}
-  {` • ${describeEvidenceAssetRole(item)}`}
-</div>
-                            </button>
-                          );
-                        })}
                       </div>
                     ) : null}
 
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
-                        gap: 18,
-                      }}
-                    >
-                      <div style={{ display: "grid", gap: 14 }}>
-                        {renderVerifyEvidenceMedia(selectedEvidenceItem)}
+                    {tsaDetails?.inputDigestHex && tsaDetails.inputDigestHex !== hash ? (
+                      <MaterialField
+                        label={
+                          tsaDetails.timestampedDigestLabel ??
+                          getTimestampDigestLabel({ itemCount: evidenceContentSummary?.itemCount, tsaInputKind: tsaDetails.inputKind })
+                        }
+                        subtitle={
+                          tsaDetails.timestampedDigestNote ??
+                          "This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material."
+                        }
+                        value={tsaDetails.inputDigestHex}
+                        forensicMode={forensicMode}
+                        addToast={addToast}
+                        copyMessage="Timestamped digest copied"
+                      />
+                    ) : null}
 
-                        <div
-                          style={{
-                            ...glassPanelStyle,
-                            padding: 16,
-                            display: "grid",
-                            gap: 8,
-                          }}
-                        >
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.kicker,
-                              fontSize: 10.5,
-                            }}
-                          >
-                            Representation note
-                          </div>
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.small,
-                              fontSize: 13,
-                              color: VERIFY_BRAND.ink,
-                            }}
-                          >
-                            This panel is intended for reviewer understanding of the
-                            preserved evidence item. The original file remains
-                            separately preserved and the technical sections below
-                            describe the recorded integrity, custody, timestamping,
-                            and publication state tied to that item.
-                          </div>
-                        </div>
+                    {tsaDetails?.legacyMode ? (
+                      <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.subtle }}>
+                        Legacy mode: this record predates explicit timestamp-input digest storage.
                       </div>
+                    ) : null}
 
-                      <div style={{ display: "grid", gap: 14 }}>
-                        <div
-                          style={{
-                            ...VERIFY_SURFACE.card,
-                            padding: 18,
-                            display: "grid",
-                            gap: 12,
-                          }}
-                        >
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.kicker,
-                              fontSize: 10.5,
-                            }}
-                          >
-                            Selected Evidence Item
-                          </div>
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.h3,
-                              fontSize: 20,
-                            }}
-                          >
-                            {selectedEvidenceItem?.label ?? "No item selected"}
-                          </div>
-                          <div
-                            style={{
-                              display: "grid",
-                              gap: 10,
-                              ...VERIFY_TYPO.small,
-                              color: VERIFY_BRAND.ink,
-                            }}
-                          >
-                            <div>
-                              <strong>Kind:</strong>{" "}
-                              {evidenceKindLabel(selectedEvidenceItem?.kind)}
-                            </div>
-                            {selectedEvidenceItem?.mimeType ? (
-                              <div>
-                                <strong>MIME Type:</strong>{" "}
-                                {selectedEvidenceItem.mimeType}
-                              </div>
-                            ) : null}
-                            {selectedEvidenceItem?.displaySizeLabel ? (
-                              <div>
-                                <strong>Size:</strong>{" "}
-                                {selectedEvidenceItem.displaySizeLabel}
-                              </div>
-                            ) : null}
-                            {formatDuration(selectedEvidenceItem?.durationMs) ? (
-                              <div>
-                                <strong>Duration:</strong>{" "}
-                                {formatDuration(selectedEvidenceItem?.durationMs)}
-                              </div>
-                            ) : null}
-                            {previewRoleLabel(selectedEvidenceItem?.previewRole) ? (
-                              <div>
-                                <strong>Access role:</strong>{" "}
-                                {previewRoleLabel(selectedEvidenceItem?.previewRole)}
-                              </div>
-                            ) : null}
-                            {selectedEvidenceItem?.sha256 ? (
-                              <div style={VERIFY_TYPO.hash}>
-                                <strong>SHA-256:</strong>{" "}
-                                {selectedEvidenceItem.sha256}
-                              </div>
-                            ) : null}
-                            {selectedEvidenceItem?.originalPreservationNote ? (
-                              <div style={{ lineHeight: 1.7 }}>
-                                <strong>Original:</strong>{" "}
-                                {selectedEvidenceItem.originalPreservationNote}
-                              </div>
-                            ) : null}
-                            {selectedEvidenceItem?.reviewerRepresentationLabel ? (
-                              <div>
-                                <strong>Reviewer surface:</strong>{" "}
-                                {selectedEvidenceItem.reviewerRepresentationLabel}
-                              </div>
-                            ) : null}
-                          </div>
+                    {fingerprintHash ? (
+                      <MaterialField
+                        label="Canonical Fingerprint Hash"
+                        forensicMode={forensicMode}
+                        subtitle="Hash derived from the canonical fingerprint record."
+                        value={fingerprintHash}
+                        addToast={addToast}
+                        copyMessage="Fingerprint hash copied"
+                      />
+                    ) : null}
+                    {signature ? (
+                      <MaterialField
+                        label="Digital Signature"
+                        forensicMode={forensicMode}
+                        subtitle="Recorded signature material associated with this evidence."
+                        value={signature}
+                        addToast={addToast}
+                        copyMessage="Digital signature copied"
+                      />
+                    ) : null}
+                    {publicKeyPem ? (
+                      <MaterialField
+                        label="Public Key"
+                        forensicMode={forensicMode}
+                        subtitle="Public key material available for independent verification."
+                        value={publicKeyPem}
+                        addToast={addToast}
+                        copyMessage="Public key copied"
+                      />
+                    ) : null}
+                    {otsDetails?.proofBase64 ? (
+                      <MaterialField
+                        label="OpenTimestamps Proof"
+                        forensicMode={forensicMode}
+                        subtitle="Recorded OTS proof material for the evidence digest."
+                        value={otsDetails.proofBase64}
+                        addToast={addToast}
+                        copyMessage="OTS proof copied"
+                      />
+                    ) : null}
 
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                            {selectedEvidenceItem?.viewUrl ? (
-                              <a
-                                href={selectedEvidenceItem.viewUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  padding: "10px 14px",
-                                  borderRadius: 999,
-                                  border: `1px solid ${VERIFY_BRAND.accent}`,
-                                  background: VERIFY_BRAND.accent,
-                                  color: "#ffffff",
-                                  fontSize: 11,
-                                  fontWeight: 900,
-                                  letterSpacing: "0.055em",
-                                  textTransform: "uppercase",
-                                  textDecoration: "none",
-                                  boxShadow: "0 12px 26px rgba(11,46,39,0.16)",
-                                }}
-                              >
-                                Open preserved evidence
-                              </a>
-                            ) : null}
-                            {selectedEvidenceItem?.viewUrl &&
-                            selectedEvidenceItem.downloadable ? (
-                              <a
-                                href={selectedEvidenceItem.viewUrl}
-                                download={selectedEvidenceItem.originalFileName ?? true}
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  padding: "10px 14px",
-                                  borderRadius: 999,
-                                  border: `1px solid ${VERIFY_BRAND.line}`,
-                                  background: "rgba(255,255,255,0.54)",
-                                  color: VERIFY_BRAND.ink,
-                                  fontSize: 11,
-                                  fontWeight: 900,
-                                  letterSpacing: "0.055em",
-                                  textTransform: "uppercase",
-                                  textDecoration: "none",
-                                }}
-                              >
-                                Download evidence
-                              </a>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        {selectedEvidenceItem?.reviewerRepresentationNote ? (
-                          <div
-                            style={{
-                              ...BRONZE_RAIL_STYLE,
-                              padding: 18,
-                              display: "grid",
-                              gap: 8,
-                            }}
-                          >
-                            <div
-                              style={{
-                                ...VERIFY_TYPO.kicker,
-                                fontSize: 10.5,
-                                color: VERIFY_BRAND.warning,
-                              }}
-                            >
-                              Reviewer representation note
-                            </div>
-                            <div
-                              style={{
-                                ...VERIFY_TYPO.small,
-                                fontSize: 13,
-                                color: VERIFY_BRAND.ink,
-                              }}
-                            >
-                              {selectedEvidenceItem.reviewerRepresentationNote}
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {selectedEvidenceItem?.verificationMaterialsNote ? (
-                          <div
-                            style={{
-                              ...glassPanelStyle,
-                              borderLeft: `5px solid ${VERIFY_BRAND.accent}`,
-                              padding: 18,
-                              display: "grid",
-                              gap: 8,
-                            }}
-                          >
-                            <div
-                              style={{
-                                ...VERIFY_TYPO.kicker,
-                                fontSize: 10.5,
-                              }}
-                            >
-                              Verification materials note
-                            </div>
-                            <div
-                              style={{
-                                ...VERIFY_TYPO.small,
-                                fontSize: 13,
-                                color: VERIFY_BRAND.ink,
-                              }}
-                            >
-                              {selectedEvidenceItem.verificationMaterialsNote}
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {primaryContentItem &&
-                        selectedEvidenceItem?.id !== primaryContentItem.id ? (
-                          <div
-                            style={{
-                              ...glassPanelStyle,
-                              borderLeft: `5px solid ${VERIFY_BRAND.accent}`,
-                              padding: 18,
-                              display: "grid",
-                              gap: 8,
-                            }}
-                          >
-                            <div
-                              style={{
-                                ...VERIFY_TYPO.kicker,
-                                fontSize: 10.5,
-                              }}
-                            >
-                              Primary evidence item
-                            </div>
-                            <div
-                              style={{
-                                ...VERIFY_TYPO.value,
-                                color: VERIFY_BRAND.ink,
-                              }}
-                            >
-                              {primaryContentItem.label}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSelectedEvidenceItemId(primaryContentItem.id)
-                              }
-                              style={{
-                                width: "fit-content",
-                                padding: "10px 14px",
-                                borderRadius: 999,
-                                border: `1px solid ${VERIFY_BRAND.line}`,
-                                background: "rgba(255,255,255,0.54)",
-                                color: VERIFY_BRAND.accent,
-                                fontSize: 11,
-                                fontWeight: 900,
-                                letterSpacing: "0.055em",
-                                textTransform: "uppercase",
-                                cursor: "pointer",
-                              }}
-                            >
-                              Jump to primary item
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              ) : null}
-
-              <Card>
-                <div
-                  style={{
-                    ...glassCardStyle,
-                    padding: 24,
-                    display: "grid",
-                    gap: 18,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div>
-                      <h3
-                        style={{
-                          margin: 0,
-                          ...VERIFY_TYPO.h3,
-                        }}
-                      >
-                        Technical Review Materials
-                      </h3>
-                      <div
-                        style={{
-                          marginTop: 7,
-                          ...VERIFY_TYPO.small,
-                          maxWidth: 820,
-                        }}
-                      >
-These materials support the Trust Decision shown above. The Trust Decision is the reviewer-facing summary; this technical layer exposes the raw hashes, signatures, custody-chain hashes, timestamp materials, anchoring state, and access activity for deeper forensic review.
-                      </div>
-                    </div>
-                  </div>
-<div
-  style={{
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    flexWrap: "wrap",
-    padding: 14,
-    borderRadius: 18,
-    border: `1px solid ${forensicMode ? VERIFY_BRAND.accent : VERIFY_BRAND.line}`,
-    background: forensicMode
-      ? "rgba(11,46,39,0.08)"
-      : "rgba(255,255,255,0.38)",
-  }}
->
-  <div>
-    <div
-      style={{
-        ...VERIFY_TYPO.kicker,
-        fontSize: 10.5,
-        marginBottom: 4,
-      }}
-    >
-      Forensic Review Mode
-    </div>
-    <div
-      style={{
-        ...VERIFY_TYPO.small,
-        fontSize: 13,
-        color: VERIFY_BRAND.ink,
-      }}
-    >
-      {forensicMode
-        ? "Raw technical materials are expanded for forensic review."
-        : "Enable to expand raw hashes, signatures, public key material, custody hashes, and timestamp proof fields."}
-    </div>
-  </div>
-
-  <button
-    type="button"
-    onClick={() => setForensicMode((value) => !value)}
-    style={{
-      minHeight: 42,
-      padding: "10px 16px",
-      borderRadius: 999,
-      border: forensicMode
-        ? `1px solid ${VERIFY_BRAND.accent}`
-        : `1px solid ${VERIFY_BRAND.line}`,
-      background: forensicMode
-        ? VERIFY_BRAND.accent
-        : "rgba(255,255,255,0.62)",
-      color: forensicMode ? "#ffffff" : VERIFY_BRAND.accent,
-      fontSize: 11,
-      fontWeight: 900,
-      letterSpacing: "0.06em",
-      textTransform: "uppercase",
-      cursor: "pointer",
-      boxShadow: forensicMode
-        ? "0 12px 28px rgba(11,46,39,0.18)"
-        : "0 8px 20px rgba(16,32,29,0.06)",
-    }}
-  >
-    {forensicMode ? "Disable Forensic Mode" : "Enable Forensic Mode"}
-  </button>
-</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                    <TechnicalTabButton
-                      label="Record"
-                      active={activeTechnicalTab === "record"}
-                      onClick={() => setActiveTechnicalTab("record")}
-                    />
-<TechnicalTabButton
-  label="Integrity"
-  active={activeTechnicalTab === "integrity"}
-  onClick={() => setActiveTechnicalTab("integrity")}
-/>
-<TechnicalTabButton
-  label="Package Integrity"
-  active={activeTechnicalTab === "package"}
-  onClick={() => setActiveTechnicalTab("package")}
-/>
-<TechnicalTabButton
-  label="Custody Chain"
-  active={activeTechnicalTab === "full-custody"}
-  onClick={() => setActiveTechnicalTab("full-custody")}
-/>
-                    <TechnicalTabButton
-                      label="Access Activity"
-                      active={activeTechnicalTab === "access"}
-                      onClick={() => setActiveTechnicalTab("access")}
-                    />
-                  </div>
-
-                  {activeTechnicalTab === "record" ? (
-                    <div style={{ display: "grid", gap: 16 }}>
-                      <div
-                        style={{
-                          ...BRONZE_RAIL_STYLE,
-                          padding: 16,
-                          ...VERIFY_TYPO.small,
-                          fontSize: 13,
-                          color: VERIFY_BRAND.ink,
-                        }}
-                      >
-                        Core record identity, lifecycle milestones, and versioning
-                        metadata are shown here. This metadata identifies the
-                        preserved record but is separate from the cryptographic proof
-                        and from any custody-event chronology.
-                      </div>
-
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                          gap: 14,
-                        }}
-                      >
-                        {recordTabFields.map((field) => (
-                          <SummaryField
-                            key={field.label}
-                            label={field.label}
-                            value={field.value}
-                          />
+                    {technicalFacts.length > 0 ? (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))", gap: 14 }}>
+                        {technicalFacts.map((fact) => (
+                          <SummaryField key={fact.label} label={fact.label} value={fact.value} />
                         ))}
                       </div>
-                    </div>
-                  ) : null}
+                    ) : null}
 
-                  {activeTechnicalTab === "integrity" ? (
-                    <div style={{ display: "grid", gap: 14 }}>
-                      <div
-                        style={{
-                          ...BRONZE_RAIL_STYLE,
-                          padding: 16,
-                          display: "grid",
-                          gap: 8,
-                        }}
-                      >
-                        <VerificationMatrixGrid
-  rows={verificationMatrix.rows.filter((row) =>
-    [
-      "file_integrity",
-      "record_signature",
-      "tsa_token",
-      "ots_anchoring",
-      "storage_protection",
-    ].includes(row.key)
-  )}
-/>
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.kicker,
-                            fontSize: 10.5,
-                          }}
-                        >
-                          Integrity scope
-                        </div>
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.small,
-                            fontSize: 13,
-                            color: VERIFY_BRAND.ink,
-                          }}
-                        >
-                          These materials support review of the recorded file hash,
-                          canonical fingerprint, signature, timestamp linkage,
-                          OpenTimestamps proofing, immutable storage indicators, and
-                          publication state. They do not independently resolve
-                          authorship, narrative context, or admissibility.
+                    {tsaDetails?.failureReason ? (
+                      <div style={{ ...glassPanelStyle, borderLeft: `5px solid ${VERIFY_BRAND.warning}`, padding: 16 }}>
+                        <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5, marginBottom: 8 }}>Timestamp request note</div>
+                        <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink, overflowWrap: "anywhere" }}>
+                          {tsaDetails.failureReason}
                         </div>
                       </div>
+                    ) : null}
+                  </VerifyTabPanel>
+                ) : null}
 
-                      {hash ? (
-                        <MaterialField
-                          label={
-                            evidenceContentSummary?.itemCount &&
-                            evidenceContentSummary.itemCount > 1
-                              ? "Canonical Package Digest (SHA-256)"
-                              : tsaInputKind && tsaInputKind !== "FILE_SHA256"
-                                ? "File Digest (SHA-256)"
-                                : "Original File SHA-256"
-                          }
-                          subtitle={
-                            evidenceContentSummary?.itemCount &&
-                            evidenceContentSummary.itemCount > 1
-                              ? `${PROOVRA_MULTIPART_REVIEWER_EXPLANATION} ${PROOVRA_MULTIPART_RECOMPUTATION_NOTE}`
-                              : tsaInputKind && tsaInputKind !== "FILE_SHA256"
-                                ? "SHA-256 digest of the original preserved evidence file. The timestamp layer may instead reference canonical evidence or fingerprint material."
-                                : "SHA-256 digest of the original preserved evidence file."
-                          }
-                          value={hash}
-                          forensicMode={forensicMode}
-                          addToast={addToast}
-                          copyMessage={
-                            evidenceContentSummary?.itemCount &&
-                            evidenceContentSummary.itemCount > 1
-                              ? "Canonical package digest copied"
-                              : tsaInputKind && tsaInputKind !== "FILE_SHA256"
-                                ? "File digest copied"
-                                : "Original file hash copied"
-                          }
-                        />
-                      ) : null}
-
-                      {evidenceContentSummary?.itemCount &&
-                      evidenceContentSummary.itemCount > 1 ? (
-                        <div
-                          style={{
-                            ...BRONZE_RAIL_STYLE,
-                            padding: 16,
-                            display: "grid",
-                            gap: 8,
-                          }}
-                        >
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.kicker,
-                              fontSize: 10.5,
-                            }}
-                          >
-                            Multipart integrity boundary
-                          </div>
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.small,
-                              fontSize: 13,
-                              color: VERIFY_BRAND.ink,
-                            }}
-                          >
-                            {PROOVRA_MULTIPART_REVIEWER_EXPLANATION}{" "}
-                            {PROOVRA_MULTIPART_RECOMPUTATION_NOTE}{" "}
-                            {PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE}
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {tsaInputDigestHex && tsaInputDigestHex !== hash ? (
-                        <MaterialField
-                          label={
-                            timestampedDigestLabel ??
-                            getTimestampDigestLabel({
-                              itemCount: evidenceContentSummary?.itemCount,
-                              tsaInputKind,
-                            })
-                          }
-                          subtitle={
-                            timestampedDigestNote ??
-                            "This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material."
-                          }
-                          value={tsaInputDigestHex}
-                          forensicMode={forensicMode}
-                          addToast={addToast}
-                          copyMessage="Timestamped digest copied"
-                        />
-                      ) : null}
-
-                      {tsaLegacyMode ? (
-                        <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.subtle }}>
-                          Legacy mode: this record predates explicit timestamp-input
-                          digest storage, so timestamp verification falls back to the
-                          recorded legacy digest model.
-                        </div>
-                      ) : null}
-
-                      {fingerprintHash ? (
-                        <MaterialField
-                          label="Canonical Fingerprint Hash"
-                          forensicMode={forensicMode}
-                          subtitle="Hash derived from the canonical fingerprint record."
-                          value={fingerprintHash}
-                          addToast={addToast}
-                          copyMessage="Fingerprint hash copied"
-                        />
-                      ) : null}
-
-                      {signature ? (
-                        <MaterialField
-                          label="Digital Signature"
-                          forensicMode={forensicMode}
-                          subtitle="Recorded signature material associated with this evidence."
-                          value={signature}
-                          addToast={addToast}
-                          copyMessage="Digital signature copied"
-                        />
-                      ) : null}
-
-                      {publicKeyPem ? (
-                        <MaterialField
-                          label="Public Key"
-                          forensicMode={forensicMode}
-                          subtitle="Public key material available for advanced technical review."
-                          value={publicKeyPem}
-                          addToast={addToast}
-                          copyMessage="Public key copied"
-                        />
-                      ) : null}
-
-                      {otsProofBase64 ? (
-                        <MaterialField
-                          label="OpenTimestamps Proof"
-                          forensicMode={forensicMode}
-                          subtitle="Recorded OTS proof material for the evidence digest."
-                          value={otsProofBase64}
-                          addToast={addToast}
-                          copyMessage="OTS proof copied"
-                        />
-                      ) : null}
-
-                      {integrityStatusCards.length > 0 ? (
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                            gap: 14,
-                          }}
-                        >
-                          {integrityStatusCards.map((card) => (
-                            <div
-                              key={card.label}
-                              style={{
-                                ...glassPanelStyle,
-                                padding: 16,
-                                minWidth: 0,
-                                overflow: "hidden",
-                              }}
-                            >
-                              <div
-                                style={{
-                                  ...VERIFY_TYPO.kicker,
-                                  fontSize: 10.5,
-                                  marginBottom: 10,
-                                }}
-                              >
-                                {card.label}
-                              </div>
-
-                              <div
-                                style={{
-                                  ...VERIFY_TYPO.value,
-                                  wordBreak: "break-word",
-                                  overflowWrap: "anywhere",
-                                  minWidth: 0,
-                                }}
-                              >
-                                {card.content}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-
-                      {tsaFailureReason ? (
-                        <div
-                          style={{
-                            border: `1px solid rgba(181,71,56,0.25)`,
-                            borderLeft: `5px solid ${VERIFY_BRAND.danger}`,
-                            background: VERIFY_BRAND.dangerSoft,
-                            borderRadius: 18,
-                            padding: 16,
-                          }}
-                        >
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.kicker,
-                              fontSize: 10.5,
-                              color: VERIFY_BRAND.danger,
-                              marginBottom: 8,
-                            }}
-                          >
-                            Timestamp Failure Reason
-                          </div>
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.small,
-                              fontSize: 13,
-                              color: VERIFY_BRAND.ink,
-                              wordBreak: "break-word",
-                              overflowWrap: "anywhere",
-                            }}
-                          >
-                            {tsaFailureReason}
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {otsFailureDisplayMessage ? (
-                        <div
-                          style={{
-                            border: `1px solid rgba(181,71,56,0.25)`,
-                            borderLeft: `5px solid ${VERIFY_BRAND.danger}`,
-                            background: VERIFY_BRAND.dangerSoft,
-                            borderRadius: 18,
-                            padding: 16,
-                            display: "grid",
-                            gap: 10,
-                          }}
-                        >
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.kicker,
-                              fontSize: 10.5,
-                              color: VERIFY_BRAND.danger,
-                            }}
-                          >
-                            OpenTimestamps Status Note
-                          </div>
-
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.small,
-                              fontSize: 13,
-                              color: VERIFY_BRAND.ink,
-                              wordBreak: "break-word",
-                              overflowWrap: "anywhere",
-                            }}
-                          >
-                            {otsFailureDisplayMessage}
-                          </div>
-
-                          {otsFailureTechnicalMessage ? (
-                            <details style={{ marginTop: 2 }}>
-                              <summary
-                                style={{
-                                  cursor: "pointer",
-                                  ...VERIFY_TYPO.small,
-                                  fontWeight: 900,
-                                  color: VERIFY_BRAND.danger,
-                                  userSelect: "none",
-                                }}
-                              >
-                                Show technical details
-                              </summary>
-
-                              <div
-                                style={{
-                                  marginTop: 10,
-                                  padding: 12,
-                                  borderRadius: 12,
-                                  border: `1px solid rgba(181,71,56,0.22)`,
-                                  background: "rgba(255,255,255,0.36)",
-                                  ...VERIFY_TYPO.hash,
-                                  color: VERIFY_BRAND.ink,
-                                }}
-                              >
-                                {otsFailureTechnicalMessage}
-                              </div>
-                            </details>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {activeTechnicalTab === "package" ? (
-                    <div style={{ display: "grid", gap: 14 }}>
-                      <VerificationPackageIntegrityCard
-                        integrity={verificationPackageIntegrity}
-                      />
-
-                      <div
-                        style={{
-                          ...BRONZE_RAIL_STYLE,
-                          padding: 16,
-                          display: "grid",
-                          gap: 8,
-                        }}
-                      >
-                        <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>
-                          Package verification scope
-                        </div>
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.small,
-                            fontSize: 13,
-                            color: VERIFY_BRAND.ink,
-                          }}
-                        >
-                          Package integrity is separate from evidence integrity.
-                          Evidence integrity verifies the preserved evidence state.
-                          Package integrity verifies whether the exported forensic
-                          bundle contains the manifest, checksum index, manifest
-                          digest reference, and audit exports needed for
-                          independent review.
-                        </div>
+                {activeTechnicalTab === "package" ? (
+                  <VerifyTabPanel id="package">
+                    <PackageIntegrityCard integrity={data.verificationPackageIntegrity ?? null} />
+                    <div style={{ ...BRONZE_RAIL_STYLE, padding: 16, display: "grid", gap: 8 }}>
+                      <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>Package verification scope</div>
+                      <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
+                        Package integrity is separate from evidence integrity. Evidence integrity verifies the preserved
+                        evidence state; the package seal and completeness state whether the exported bundle is bound by
+                        its signature and carries what it lists. A record&apos;s verification does not depend on one: the
+                        fingerprint, signature, timestamp, anchoring and custody materials are stated on this page.
                       </div>
                     </div>
-                  ) : null}
+                  </VerifyTabPanel>
+                ) : null}
 
-{activeTechnicalTab === "full-custody" ? (
-  <TimelinePanel
-    title="Custody Chain"
-    forensicMode={forensicMode}
-    subtitle="Complete recorded custody chronology, including integrity-relevant lifecycle events and later access activity when returned by the verification response. Event hashes are shown in full for chain-continuity review."
-    note={
-      [custodyTruncatedNote, liveCustodyCountsNote, custodyTimestampOrderNote]
-        .filter(Boolean)
-        .join(" ")
-    }
-    countLabel={
-      custodyDisplayCounts
-        ? `Forensic ${custodyDisplayCounts.currentForensicEvents ?? forensicTimeline.length} • Access ${custodyDisplayCounts.currentAccessEvents ?? accessTimeline.length} • Total ${custodyDisplayCounts.totalDisplayedNow ?? custodyDisplayCounts.totalDisplayedEvents ?? fullCustodyTimeline.length}`
-        : null
-    }
-    countTone="info"
-    events={fullCustodyTimeline}
-    emptyTitle="No custody-chain events were returned"
-    emptyBody="This verification response did not include a complete custody-event chain."
-    accent={{
-      dot: VERIFY_BRAND.accent,
-      dotBorder: "rgba(11,46,39,0.16)",
-      line: "rgba(11,46,39,0.25)",
-    }}
-  />
-) : null}
-
-{activeTechnicalTab === "access" ? (
-  <div style={{ display: "grid", gap: 14 }}>
-    <div
-      style={{
-        ...BRONZE_RAIL_STYLE,
-        padding: 16,
-        display: "grid",
-        gap: 6,
-      }}
-    >
-      <div
-        style={{
-          ...VERIFY_TYPO.kicker,
-          fontSize: 10.5,
-          color: VERIFY_BRAND.warning,
-        }}
-      >
-        Access Activity Boundary
-      </div>
-
-        <div
-          style={{
-            ...VERIFY_TYPO.small,
-            fontSize: 13,
-            color: VERIFY_BRAND.ink,
-          }}
-        >
-        Access activity is not part of the evidence integrity verdict. It records
-        later interaction with the verification page, files, reports, or packages
-        and must not be treated as proof that the underlying evidence is authentic
-        or admissible. Package access snapshots are taken at generation time;
-        the current activity shown here is live and may include later events not
-        present in the exported package.
-      </div>
-    </div>
-
-    <TimelinePanel
-      title="Access Activity"
-      forensicMode={forensicMode}
-      subtitle="Access events show later viewing, download, and verification interactions. They are informational activity records, not proof of evidence authenticity, and must not be used alone to infer integrity or legal admissibility."
-      countTone="neutral"
-      events={accessTimeline}
-      emptyTitle="No access activity was returned"
-      emptyBody="No access-activity entries were included in this response. Their absence does not change the recorded integrity result and should not be read as a forensic custody conclusion."
-      accent={{
-        dot: "rgba(11,46,39,0.42)",
-        dotBorder: "rgba(11,46,39,0.12)",
-        line: "rgba(11,46,39,0.16)",
-      }}
-    />
-  </div>
-) : null}
-                </div>
-              </Card>
-
-              <Card>
-                <div
-                  style={{
-                    ...glassCardStyle,
-                    padding: 24,
-                    display: "grid",
-                    gap: 18,
-                  }}
-                >
-                  <div>
-                    <h3
-                      style={{
-                        margin: 0,
-                        ...VERIFY_TYPO.h3,
-                      }}
-                    >
-                      Actions
-                    </h3>
-                    <div
-                      style={{
-                        marginTop: 7,
-                        ...VERIFY_TYPO.small,
-                        maxWidth: 760,
-                      }}
-                    >
-                      Copy the verification link to share this record.
+                {activeTechnicalTab === "full-custody" ? (
+                  <VerifyTabPanel id="full-custody">
+                    <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
+                      {typeof data.custodyLifecycle?.forensicEventCount === "number"
+                        ? `${data.custodyLifecycle.forensicEventCount} forensic event${data.custodyLifecycle.forensicEventCount === 1 ? "" : "s"} recorded. `
+                        : ""}
+                      Event hashes are shown in forensic review mode for chain-continuity review.
+                      {data.custodyLifecycle?.truncated
+                        ? ` Showing the latest recorded events (up to ${data.custodyLifecycle.displayLimit ?? 500}); the chain-integrity check covers all of them.`
+                        : ""}
                     </div>
+                    {custodyChainFailureReason ? (
+                      <div style={{ ...glassPanelStyle, borderLeft: `5px solid ${VERIFY_BRAND.danger}`, padding: 16, ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
+                        <span aria-hidden="true">✕ </span>Custody chain check reported: {custodyChainFailureReason}
+                      </div>
+                    ) : null}
+                    {forensicTimeline.length === 0 ? (
+                      <div style={{ ...VERIFY_TYPO.small, fontSize: 13 }}>No forensic custody events were returned in this response.</div>
+                    ) : null}
+                    <ForensicChainGroup
+                      title="Forensic chain — evidence events"
+                      subtitle="Integrity-relevant lifecycle events of the evidence, in hash-chain order."
+                      events={forensicGroups.integrity}
+                      forensicMode={forensicMode}
+                    />
+                    <ForensicChainGroup
+                      title="Forensic chain — administrative events"
+                      subtitle="How the record is reached or disclosed (for example its verification reference). They stay in the chain but say nothing about the evidence bytes, signatures or custody."
+                      events={forensicGroups.administrative}
+                      forensicMode={forensicMode}
+                    />
+                  </VerifyTabPanel>
+                ) : null}
+
+                {activeTechnicalTab === "access" ? (
+                  <VerifyTabPanel id="access">
+                    <AccessActivitySummary activity={data.custodyLifecycle?.accessActivity ?? null} />
+                  </VerifyTabPanel>
+                ) : null}
+              </section>
+
+              <section aria-labelledby="verify-actions-heading" data-print-hide data-verify-card style={{ ...glassCardStyle, padding: "clamp(16px, 4vw, 24px)", display: "grid", gap: 18 }}>
+                <div>
+                  <h2 id="verify-actions-heading" style={{ margin: 0, ...VERIFY_TYPO.h3 }}>
+                    Actions
+                  </h2>
+                  <div style={{ marginTop: 7, ...VERIFY_TYPO.small, maxWidth: 760 }}>
+                    Copy this record&apos;s permanent verification link to share it.
                   </div>
-
-                  <div
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))", gap: 12 }}>
+                  <button
+                    type="button"
+                    data-verify-copy-link
+                    onClick={copyVerificationLink}
                     style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "repeat(auto-fit, minmax(220px, 1fr))",
-                      gap: 12,
+                      width: "100%",
+                      minHeight: 52,
+                      borderRadius: 999,
+                      border: "1px solid rgba(196,165,91,0.42)",
+                      background: "linear-gradient(180deg, #163f38 0%, #0b2e27 100%)",
+                      color: "#ffffff",
+                      fontSize: 12,
+                      fontWeight: 900,
+                      letterSpacing: "0.065em",
+                      textTransform: "uppercase",
+                      cursor: "pointer",
                     }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const url = window.location.href;
-                        navigator.clipboard.writeText(url);
-                        addToast("Verification link copied", "success");
-                      }}
-                      style={{
-                        width: "100%",
-                        minHeight: 52,
-                        borderRadius: 999,
-                        border: "1px solid rgba(196,165,91,0.42)",
-                        background:
-                          "linear-gradient(180deg, #163f38 0%, #0b2e27 100%)",
-                        color: "#ffffff",
-                        fontSize: 12,
-                        fontWeight: 900,
-                        letterSpacing: "0.065em",
-                        textTransform: "uppercase",
-                        cursor: "pointer",
-                        boxShadow: "0 16px 34px rgba(11,46,39,0.20)",
-                      }}
-                    >
-                      Copy Verification Link
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!fetchVerifyRef.current) return;
-                        setRefreshingAnchoring(true);
-                        void fetchVerifyRef.current({ manual: true });
-                      }}
-                      style={{
-                        width: "100%",
-                        minHeight: 52,
-                        borderRadius: 999,
-                        border: `1px solid ${VERIFY_BRAND.line}`,
-                        background: "rgba(255,255,255,0.54)",
-                        color: VERIFY_BRAND.ink,
-                        fontSize: 12,
-                        fontWeight: 900,
-                        letterSpacing: "0.065em",
-                        textTransform: "uppercase",
-                        cursor: refreshingAnchoring ? "progress" : "pointer",
-                        boxShadow: "0 10px 24px rgba(16,32,29,0.08)",
-                        opacity: refreshingAnchoring ? 0.7 : 1,
-                      }}
-                      disabled={refreshingAnchoring}
-                    >
-                      {refreshingAnchoring
-                        ? "Checking anchoring status..."
-                        : "Check Latest Anchoring Status"}
-                    </button>
-                  </div>
+                    Copy Verification Link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!fetchVerifyRef.current) return;
+                      setRefreshingAnchoring(true);
+                      void fetchVerifyRef.current({ manual: true });
+                    }}
+                    style={{
+                      width: "100%",
+                      minHeight: 52,
+                      borderRadius: 999,
+                      border: `1px solid ${VERIFY_BRAND.line}`,
+                      background: "rgba(255,255,255,0.54)",
+                      color: VERIFY_BRAND.ink,
+                      fontSize: 12,
+                      fontWeight: 900,
+                      letterSpacing: "0.065em",
+                      textTransform: "uppercase",
+                      cursor: refreshingAnchoring ? "progress" : "pointer",
+                      opacity: refreshingAnchoring ? 0.7 : 1,
+                    }}
+                    disabled={refreshingAnchoring}
+                  >
+                    {refreshingAnchoring ? "Checking anchoring status..." : "Check Latest Anchoring Status"}
+                  </button>
                 </div>
-              </Card>
+              </section>
             </div>
           )}
         </div>

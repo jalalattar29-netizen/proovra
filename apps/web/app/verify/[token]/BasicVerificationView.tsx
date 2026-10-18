@@ -133,8 +133,14 @@ export type CanonicalVerificationFacts = {
   limitations: string[];
   /** When this page was checked (the API's request time). */
   checkedAtUtc?: string | null;
-  /** The disclosure decision: OWNER_PUBLISHED, or VERIFICATION_ONLY for a record the owner has not published. */
-  disclosure?: "OWNER_PUBLISHED" | "VERIFICATION_ONLY";
+  /** The disclosure decision the API applied (2026-10-18: the record's disclosure policy). */
+  disclosure?: {
+    mode?: "VERIFICATION_ONLY" | "CONTENT_PREVIEW" | null;
+    recordedLocation?: boolean | null;
+    source?: string | null;
+    originalDownload?: boolean | null;
+    withheldStatement?: string | null;
+  } | null;
 };
 
 /** A canonical reference the page cannot show as an active record — said truthfully. */

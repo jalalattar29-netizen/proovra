@@ -100,7 +100,8 @@ test("verify page renders the redaction badge from its own token-bound projectio
     "utf8",
   );
   assert.match(orchestrator, /<VerifyRedactionSection/);
-  assert.match(orchestrator, /setRedaction\(/);
+  // Read straight from the token-bound answer the page keeps whole (2026-10-18).
+  assert.match(orchestrator, /\?\.redaction \?\? null/);
   // Never CALL the deleted anonymous probe (the file names the removed
   // path in a deletion note on purpose — assert on the call form).
   assert.ok(!/apiFetch\([^)]*\/v1\/redaction\/public\/verify/.test(orchestrator));

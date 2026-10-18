@@ -11,9 +11,10 @@
  *
  *   - the same projection (the established RICH page, its tabs and sections);
  *   - the same canonical reference and the same verification statuses;
- *   - the same disclosure: a record its owner has not published is shown
- *     VERIFICATION-ONLY (no preview, title, file name, location, capture
- *     details, internal id or original bytes), a published record as before;
+ *   - the same disclosure — the record's disclosure policy (2026-10-18): a
+ *     VERIFICATION_ONLY record shows no preview, title, file name, location,
+ *     capture details, internal id or original bytes; a CONTENT_PREVIEW record
+ *     shows its title, item names and safe previews, never the originals;
  *   - one status per fact on the page (matrix, signals, original evidence);
  *   - an anonymous, logged-out page that renders on desktop and phone width.
  */
@@ -38,9 +39,9 @@ const PRIVATE_FILE = "private-original-name";
 
 type Body = Record<string, unknown> & {
   tier?: string;
-  disclosure?: string;
+  disclosure?: { mode: string; recordedLocation: boolean; withheldStatement: string };
   link?: { kind: string };
-  canonicalVerification?: { reference: string; status: string; disclosure?: string };
+  canonicalVerification?: { reference: string; status: string; disclosure?: { mode: string } };
   verificationMatrix?: { rows: Array<{ key: string; status: string; statusLabel?: string; statement: string }> };
   basicVerification?: {
     timestamp: { state: string };
@@ -89,8 +90,9 @@ async function setUp(target: Ids, label: string, publish: boolean) {
   await waitForPair(A.api, id, 1, 300_000);
   sql(
     `UPDATE evidence SET title = $2, original_file_name = $3, display_file_name = $3,
-       public_verify_state = $4, legacy_verify_uuid_until_utc = now() + interval '90 days' WHERE id = $1`,
-    [id, `${PRIVATE_TITLE}-${label}`, `${PRIVATE_FILE}-${label}.txt`, publish ? "PUBLISHED" : "NOT_PUBLISHED"],
+       verification_disclosure_mode = $4, show_recorded_location = false,
+       legacy_verify_uuid_until_utc = now() + interval '90 days' WHERE id = $1`,
+    [id, `${PRIVATE_TITLE}-${label}`, `${PRIVATE_FILE}-${label}.txt`, publish ? "CONTENT_PREVIEW" : "VERIFICATION_ONLY"],
   );
   target.id = id;
   target.ref = refOf(id);
@@ -153,7 +155,7 @@ for (const which of ["unpublished", "published"] as const) {
       // The established page, never the stripped replacement.
       expect(a.body.tier, a.kind).toBe("RICH");
       expect(a.body.canonicalVerification, a.kind).toMatchObject({ reference: r.ref, status: "AVAILABLE" });
-      expect(a.body.disclosure, a.kind).toBe(which === "unpublished" ? "VERIFICATION_ONLY" : "OWNER_PUBLISHED");
+      expect(a.body.disclosure?.mode, a.kind).toBe(which === "unpublished" ? "VERIFICATION_ONLY" : "CONTENT_PREVIEW");
       expect(shape(a.body), a.kind).toEqual(shape(answers[0]!.body));
     }
     expect(answers.map((a) => a.body.link?.kind)).toEqual(["CANONICAL", "CANONICAL", "LEGACY_RECORD_ID"]);
@@ -166,7 +168,7 @@ test("PRIVACY: a record its owner has not published discloses no content, title,
     for (const forbidden of [unpublished.id, PRIVATE_TITLE, PRIVATE_FILE, "52.52", "13.40", "X-Amz-Signature", "data:image", A.userId]) {
       expect(raw, `${kind} leaks ${forbidden}`).not.toContain(forbidden);
     }
-    expect(body.evidenceId, kind).toBeNull();
+    expect(body.evidenceId ?? null, kind).toBeNull();
     expect(body.captureContext ?? null, kind).toBeNull();
     expect(body.locationState ?? null, kind).toBeNull();
     expect((body.contentAccessPolicy as { allowContentView?: boolean; allowDownload?: boolean }).allowContentView, kind).toBe(false);
@@ -211,7 +213,7 @@ test("TRUTH: one status per fact — matrix, signals and original-evidence check
     expect(rows.ots_anchoring!.status === "VERIFIED").toBe(/Independently verified/.test(rows.ots_anchoring!.statusLabel ?? ""));
     // A canonical page has no publication step.
     expect(rows.public_verify_publication).toMatchObject({ status: "NOT_APPLICABLE" });
-    expect(rows.public_verify_publication!.statement).toMatch(/does not depend on owner publication/);
+    expect(rows.public_verify_publication!.statement).toMatch(/Disclosure: (Verification only|Content preview)/);
   }
 });
 
@@ -220,9 +222,13 @@ async function expectFullPage(page: Page, ref: string, verificationOnly: boolean
   // Never the stripped replacement.
   await expect(page.locator('[data-verify-tier="basic"]')).toHaveCount(0);
   await expect(page.getByText("What was checked, signal by signal")).toBeVisible();
-  for (const tab of ["Record", "Integrity", "Package Integrity", "Custody Chain", "Access Activity"]) {
-    await expect(page.getByRole("button", { name: tab, exact: true }).first(), tab).toBeVisible();
+  // An accessible tablist (2026-10-18): the forensic chain and access activity are separate tabs.
+  for (const tab of ["Record", "Integrity", "Package Integrity", "Forensic Chain", "Access Activity"]) {
+    await expect(page.getByRole("tab", { name: tab, exact: true }).first(), tab).toBeVisible();
   }
+  // One identifier on the page: the verification reference — never an "Evidence ID" or a token pill.
+  await expect(page.getByText(/Evidence ID/i)).toHaveCount(0);
+  await expect(page.getByText(/Token:\s*pv[rs]_/)).toHaveCount(0);
   await expect(page.locator("[data-verify-disclosure-notice]")).toHaveCount(verificationOnly ? 1 : 0);
   // No sentence on the page contradicts a status the page states elsewhere.
   const text = await page.locator("body").innerText();
