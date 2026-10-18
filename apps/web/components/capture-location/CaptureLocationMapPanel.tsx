@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CAPTURE_LOCATION_MAP_ATTRIBUTION,
   buildCaptureLocationDisplayModel,
+  PUBLIC_MAP_CONSENT_NOTICE,
   isValidCaptureCoordinatePair,
-  resolveApprovedTileTemplate,
+  resolveInteractiveMapTileSource,
+  type InteractiveMapTileSource,
 } from "@proovra/shared";
 
 /**
@@ -16,21 +18,33 @@ import {
  * under the label "Map imagery unavailable". It looked like a map and carried
  * no geography at all.
  *
- * WHAT IS HERE NOW, by what is true:
- *   - an approved tile endpoint is configured (AUD-025: never a public tile
- *     provider — the one policy, `resolveApprovedTileTemplate`, shared with the
- *     report worker) → a REAL map of the recorded coordinates: tiles, marker,
- *     the recorded accuracy radius, zoom controls and attribution;
- *   - no endpoint, or the tiles fail → a compact "Recorded location" card with
- *     the same facts and actions, saying only that the map PREVIEW is
- *     unavailable — never that the location is;
- *   - coordinates out of range → a neutral unavailable state and no outbound
- *     link (fail closed).
- * Coordinates reported by a device are never shown as verified.
+ * WHAT IS HERE NOW (2026-10-18), by the ONE map policy
+ * (`resolveInteractiveMapTileSource`):
+ *   - the "Recorded location" card — coordinates, accuracy, source, Copy
+ *     coordinates, Open in map — always, immediately;
+ *   - a privately hosted, approved tile endpoint → the REAL map loads at once
+ *     (the location never leaves the deployment);
+ *   - otherwise the REAL OpenStreetMap map the panel drew until ebea6a075, but
+ *     only after the viewer presses "Load interactive map" under a notice that
+ *     loading it sends the approximate location and their IP address to
+ *     OpenStreetMap. No tile is requested before that press (no SSR, prefetch
+ *     or background load); the choice lives in this view's memory only;
+ *   - tiles that genuinely fail → the card says only that the map PREVIEW is
+ *     unavailable, never that the location is;
+ *   - coordinates out of range → a neutral unavailable state, no tile request,
+ *     no outbound link (fail closed).
+ * The report worker is unaffected: it still refuses every public provider.
+ * A location the API withholds is never passed here. Coordinates reported by
+ * a device are never shown as verified.
  */
-const CONFIGURED_TILE_TEMPLATE = resolveApprovedTileTemplate(
+const CONFIGURED_TILE_SOURCE = resolveInteractiveMapTileSource(
   process.env.NEXT_PUBLIC_CAPTURE_LOCATION_TILE_URL,
-).template;
+);
+
+/** The map model's frame. The view keeps THIS aspect ratio, so tiles scale
+ *  uniformly (no stretched tiles, the accuracy circle stays a circle). */
+const MAP_WIDTH = 1200;
+const MAP_HEIGHT = 680;
 
 const MIN_ZOOM = 3;
 const MAX_ZOOM = 19;
@@ -48,7 +62,10 @@ type CaptureLocationMapPanelProps = {
    * recorded" — never as "location not recorded".
    */
   sourceLabel?: string | null;
-  /** Test/override seam; defaults to the deployment's approved endpoint. */
+  /**
+   * Test/override seam. Omitted: the deployment's tile source (the one
+   * policy). A string: resolved through the same policy. null: no imagery.
+   */
   tileTemplate?: string | null;
   /** Off where the surrounding page already states the location boundary. */
   showBoundary?: boolean;
@@ -63,21 +80,32 @@ export default function CaptureLocationMapPanel(props: CaptureLocationMapPanelPr
     typeof props.accuracyMeters === "number" && Number.isFinite(props.accuracyMeters) && props.accuracyMeters >= 0
       ? props.accuracyMeters
       : null;
+  const source: InteractiveMapTileSource | null =
+    props.tileTemplate === undefined
+      ? CONFIGURED_TILE_SOURCE
+      : props.tileTemplate === null
+        ? null
+        : resolveInteractiveMapTileSource(props.tileTemplate);
+  // Public tiles wait for the viewer's explicit choice; an approved private
+  // endpoint loads at once. The choice is this view's only — never stored.
+  const [consented, setConsented] = useState(false);
   const tileTemplate =
-    props.tileTemplate === undefined ? CONFIGURED_TILE_TEMPLATE : resolveApprovedTileTemplate(props.tileTemplate).template;
+    source && (source.mode === "automatic" || consented) ? source.template : null;
 
   const base = useMemo(
     () =>
       valid
-        ? buildCaptureLocationDisplayModel({ lat: props.lat, lng: props.lng, accuracyMeters: accuracy, width: 1200, height: 560 })
+        ? buildCaptureLocationDisplayModel({ lat: props.lat, lng: props.lng, accuracyMeters: accuracy, width: MAP_WIDTH, height: MAP_HEIGHT })
         : null,
     [valid, props.lat, props.lng, accuracy],
   );
   const [zoom, setZoom] = useState<number | null>(null);
   const [tilesFailed, setTilesFailed] = useState(false);
+  const [tilesLoaded, setTilesLoaded] = useState(false);
   useEffect(() => {
     setZoom(null);
     setTilesFailed(false);
+    setTilesLoaded(false);
   }, [props.lat, props.lng, accuracy, tileTemplate]);
 
   const display = useMemo(
@@ -87,8 +115,8 @@ export default function CaptureLocationMapPanel(props: CaptureLocationMapPanelPr
             lat: props.lat,
             lng: props.lng,
             accuracyMeters: accuracy,
-            width: 1200,
-            height: 560,
+            width: MAP_WIDTH,
+            height: MAP_HEIGHT,
             zoom: zoom ?? base.zoom,
             tileTemplate,
           })
@@ -115,6 +143,9 @@ export default function CaptureLocationMapPanel(props: CaptureLocationMapPanelPr
   }
 
   const showTiles = Boolean(tileTemplate) && !tilesFailed && display.tiles.some((t) => t.url);
+  // Waiting for the viewer's choice: public tiles, not yet asked for.
+  const awaitingConsent = source?.mode === "consent" && !consented;
+  const mapState = showTiles ? "tiles" : awaitingConsent ? "consent" : "fallback";
   // Absent (undefined) is omitted; an explicit null is stated as not recorded.
   const sourceText = props.sourceLabel === undefined ? null : (props.sourceLabel ?? "Location source not recorded");
   const coordinates = `${display.latLabel}, ${display.lngLabel}`;
@@ -134,7 +165,7 @@ export default function CaptureLocationMapPanel(props: CaptureLocationMapPanelPr
   const radiusY = accuracy === null ? 0 : Math.min(48, (display.accuracyRadiusPx * 100) / display.height);
 
   return (
-    <div style={panelStyle} data-capture-location-map={showTiles ? "tiles" : "fallback"} role="group" aria-label="Recorded location">
+    <div style={panelStyle} data-capture-location-map={mapState} role="group" aria-label="Recorded location">
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, padding: "14px 16px" }}>
         <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--ink-secondary, #475569)" }}>
@@ -172,9 +203,12 @@ export default function CaptureLocationMapPanel(props: CaptureLocationMapPanelPr
           aria-label={`Map of the recorded location at ${coordinates}${accuracy === null ? "" : `, accuracy ${display.accuracyLabel}`}`}
           data-capture-location-map-view
           data-map-zoom={display.zoom}
+          data-map-loaded={tilesLoaded ? "true" : "false"}
+          aria-busy={!tilesLoaded}
           style={{
             position: "relative",
-            height: props.height ?? 280,
+            width: "100%",
+            aspectRatio: `${display.width} / ${display.height}`,
             overflow: "hidden",
             borderTop: "1px solid var(--border-default, #e2e8f0)",
             background: "var(--surface-muted, #f1f5f9)",
@@ -187,7 +221,12 @@ export default function CaptureLocationMapPanel(props: CaptureLocationMapPanelPr
                 src={tile.url}
                 alt=""
                 draggable={false}
-                referrerPolicy="no-referrer"
+                // OpenStreetMap's tile policy requires a Referer from a browser
+                // (without one it serves an "Access blocked" tile). The ORIGIN
+                // only — never the page path, which can carry an evidence id or
+                // a verification token.
+                referrerPolicy="strict-origin"
+                onLoad={() => setTilesLoaded(true)}
                 onError={() => setTilesFailed(true)}
                 data-map-tile={tile.key}
                 style={{
@@ -271,6 +310,55 @@ export default function CaptureLocationMapPanel(props: CaptureLocationMapPanelPr
           >
             {CAPTURE_LOCATION_MAP_ATTRIBUTION}
           </div>
+          {!tilesLoaded ? (
+            <div
+              data-map-loading
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                insetInlineStart: 10,
+                insetBlockStart: 10,
+                padding: "2px 8px",
+                borderRadius: 6,
+                fontSize: 11.5,
+                background: "rgba(255,255,255,0.85)",
+                color: "var(--ink-secondary, #475569)",
+              }}
+            >
+              Loading map…
+            </div>
+          ) : null}
+        </div>
+      ) : awaitingConsent ? (
+        <div
+          data-capture-location-map-consent
+          style={{
+            display: "grid",
+            justifyItems: "center",
+            alignContent: "center",
+            gap: 10,
+            minHeight: Math.min(props.height ?? 280, 200),
+            padding: "18px 16px",
+            borderTop: "1px solid var(--border-default, #e2e8f0)",
+            background: "var(--surface-muted, #f8fafc)",
+            textAlign: "center",
+          }}
+        >
+          <button
+            type="button"
+            className="app-secondary-action"
+            data-map-action="load-interactive-map"
+            aria-describedby="capture-location-map-consent-notice"
+            onClick={() => setConsented(true)}
+          >
+            Load interactive map
+          </button>
+          <p
+            id="capture-location-map-consent-notice"
+            style={{ margin: 0, maxWidth: 520, fontSize: 12.5, lineHeight: 1.5, color: "var(--ink-secondary, #475569)" }}
+          >
+            {PUBLIC_MAP_CONSENT_NOTICE}
+          </p>
         </div>
       ) : (
         <div

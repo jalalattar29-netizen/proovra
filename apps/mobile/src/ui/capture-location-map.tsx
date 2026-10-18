@@ -1,24 +1,30 @@
 /**
  * THE RECORDED-LOCATION PANEL (native) — the same contract as the web's
- * `components/capture-location/CaptureLocationMapPanel.tsx` (2026-10-17):
+ * `components/capture-location/CaptureLocationMapPanel.tsx` (2026-10-18), by
+ * the ONE map policy `resolveInteractiveMapTileSource`:
  *
- *   - an approved tile endpoint (EXPO_PUBLIC_CAPTURE_LOCATION_TILE_URL, through
- *     the ONE shared policy `resolveApprovedTileTemplate` — never a public tile
- *     provider) → a real map: tiles, marker, the recorded accuracy radius,
- *     attribution;
- *   - otherwise, or when tiles fail → a compact "Recorded location" card with
- *     the same facts, stating only that the map PREVIEW is unavailable — never
- *     the old dark panel that looked like a map and carried no geography;
+ *   - the "Recorded location" card (coordinates, accuracy, source, Open in
+ *     map) always, immediately;
+ *   - a privately hosted, approved tile endpoint
+ *     (EXPO_PUBLIC_CAPTURE_LOCATION_TILE_URL) → the real map loads at once;
+ *   - otherwise the real OpenStreetMap map, only after the user presses "Load
+ *     interactive map" under the notice that it sends the approximate location
+ *     and their IP address to OpenStreetMap — nothing is requested before, and
+ *     the choice is this screen's only;
+ *   - tiles that genuinely fail → "Map preview unavailable", facts kept;
  *   - coordinates out of range → a neutral unavailable state, no outbound link.
- * Coordinates reported by a device are never shown as verified.
+ * The report worker still refuses every public provider. Coordinates reported
+ * by a device are never shown as verified.
  */
 import React, { useMemo, useState } from "react";
 import { Image, Linking, View } from "react-native";
 import {
   CAPTURE_LOCATION_MAP_ATTRIBUTION,
+  PUBLIC_MAP_CONSENT_NOTICE,
   buildCaptureLocationDisplayModel,
   isValidCaptureCoordinatePair,
-  resolveApprovedTileTemplate,
+  resolveInteractiveMapTileSource,
+  type InteractiveMapTileSource,
 } from "@proovra/shared";
 
 import { theme } from "../theme/theme";
@@ -26,7 +32,7 @@ import { ProovraButton, ProovraText } from "./index";
 
 const MODEL_WIDTH = 1200;
 const MODEL_HEIGHT = 640;
-const CONFIGURED_TILE_TEMPLATE = resolveApprovedTileTemplate(process.env.EXPO_PUBLIC_CAPTURE_LOCATION_TILE_URL).template;
+const CONFIGURED_TILE_SOURCE = resolveInteractiveMapTileSource(process.env.EXPO_PUBLIC_CAPTURE_LOCATION_TILE_URL);
 const BOUNDARY =
   "Reported by the capturing device or client: where the device reported itself to be. It does not independently prove where the subject matter was, and the accuracy is recorded metadata, not a guarantee.";
 
@@ -41,12 +47,17 @@ export function CaptureLocationMap({
   lng: number;
   accuracyMeters: number | null;
   sourceLabel?: string | null;
-  /** Test/override seam; defaults to the deployment's approved endpoint. */
+  /** Test/override seam. Omitted: the deployment's source; null: no imagery. */
   tileTemplate?: string | null;
 }) {
   const valid = isValidCaptureCoordinatePair({ lat, lng });
   const accuracy = typeof accuracyMeters === "number" && Number.isFinite(accuracyMeters) && accuracyMeters >= 0 ? accuracyMeters : null;
-  const template = tileTemplate === undefined ? CONFIGURED_TILE_TEMPLATE : resolveApprovedTileTemplate(tileTemplate).template;
+  const source: InteractiveMapTileSource | null =
+    tileTemplate === undefined ? CONFIGURED_TILE_SOURCE : tileTemplate === null ? null : resolveInteractiveMapTileSource(tileTemplate);
+  // Public tiles wait for the user's explicit choice; never stored.
+  const [consented, setConsented] = useState(false);
+  const template = source && (source.mode === "automatic" || consented) ? source.template : null;
+  const awaitingConsent = source?.mode === "consent" && !consented;
   const display = useMemo(
     () =>
       valid
@@ -157,6 +168,18 @@ export function CaptureLocationMap({
               backgroundColor: theme.color.status.info.fg,
             }}
           />
+        </View>
+      ) : awaitingConsent ? (
+        <View style={{ gap: theme.space.s2 }} testID="capture-location-map-consent">
+          <ProovraButton
+            label="Load interactive map"
+            variant="secondary"
+            fullWidth={false}
+            onPress={() => setConsented(true)}
+          />
+          <ProovraText variant="label" color={theme.color.ink.secondary}>
+            {PUBLIC_MAP_CONSENT_NOTICE}
+          </ProovraText>
         </View>
       ) : (
         <ProovraText variant="label" color={theme.color.ink.muted} testID="capture-location-map-unavailable">

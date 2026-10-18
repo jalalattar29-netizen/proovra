@@ -1227,4 +1227,11 @@ export function locationRequirementRowValue(locale: string | null | undefined, l
 
 // AUD-025 — the approved tile endpoint: one policy, its own module (the web
 // middleware imports it at the edge without the rest of this package).
-export { PUBLIC_TILE_PROVIDER_HOSTS, resolveApprovedTileTemplate } from "./tile-endpoint-policy.js";
+export {
+  PUBLIC_INTERACTIVE_TILE_TEMPLATE,
+  PUBLIC_MAP_CONSENT_NOTICE,
+  PUBLIC_TILE_PROVIDER_HOSTS,
+  resolveApprovedTileTemplate,
+  resolveInteractiveMapTileSource,
+  type InteractiveMapTileSource,
+} from "./tile-endpoint-policy.js";

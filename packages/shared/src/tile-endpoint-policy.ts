@@ -53,3 +53,37 @@ export function resolveApprovedTileTemplate(
   return isPublic ? { template: null, refused: "PUBLIC_PROVIDER" } : { template: value, refused: null };
 }
 
+
+/**
+ * THE INTERACTIVE MAP'S TILE SOURCE — browser and native app ONLY
+ * (2026-10-18). ONE policy, three cases:
+ *
+ *   - SERVER (report worker, PDF, package): `resolveApprovedTileTemplate`
+ *     above — every public provider refused (AUD-025). Unchanged.
+ *   - A privately hosted, approved tile endpoint (NEXT_PUBLIC_ / EXPO_PUBLIC_
+ *     CAPTURE_LOCATION_TILE_URL, which this same policy accepts) → the map
+ *     may load AUTOMATICALLY: the location never leaves the deployment.
+ *   - Otherwise → the public OpenStreetMap tiles the map used until
+ *     ebea6a075, but ONLY AFTER THE VIEWER EXPLICITLY ASKS for them: the tile
+ *     z/x/y reveal the approximate location and the provider sees the viewer's
+ *     IP address, so nothing is requested before that choice.
+ *
+ * A location the API withholds never reaches the map layer at all — this
+ * policy only decides HOW a disclosed location may be drawn.
+ */
+export const PUBLIC_INTERACTIVE_TILE_TEMPLATE = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+export type InteractiveMapTileSource =
+  | { mode: "automatic"; template: string }
+  | { mode: "consent"; template: string; provider: "OpenStreetMap" };
+
+export function resolveInteractiveMapTileSource(configured: string | null | undefined): InteractiveMapTileSource {
+  const approved = resolveApprovedTileTemplate(configured).template;
+  return approved
+    ? { mode: "automatic", template: approved }
+    : { mode: "consent", template: PUBLIC_INTERACTIVE_TILE_TEMPLATE, provider: "OpenStreetMap" };
+}
+
+/** What the viewer is told before the first public tile request. */
+export const PUBLIC_MAP_CONSENT_NOTICE =
+  "Loading the map sends the approximate viewed location and your IP address to OpenStreetMap.";

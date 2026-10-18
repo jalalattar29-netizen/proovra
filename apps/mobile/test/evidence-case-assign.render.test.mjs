@@ -84,18 +84,24 @@ test("T-12: a recorded capture location renders the map (shared display model) w
   await r.press("Integrity");
   assert.ok(r.hasText("Capture location"));
   assert.equal(r.byTestId("capture-location-map").length, 1);
-  // The recorded-location card (no approved tile endpoint here): the facts, no pseudo-map.
+  // The recorded-location card and, before any tile, the explicit choice.
   assert.ok(r.byLabel("Recorded location").length > 0);
-  assert.equal(r.byTestId("capture-location-map-unavailable").length, 1);
+  assert.equal(r.byTestId("capture-location-map-consent").length, 1);
+  assert.ok(r.hasText("Loading the map sends the approximate viewed location and your IP address to OpenStreetMap."));
   assert.ok(r.hasText("Boundary: Device-reported position."));
   assert.ok(r.byLabel("Open in map").length > 0, "no way to open the location in a map");
-  // AUD-025 — no tile is requested from a third party with the evidence
-  // coordinates: no remote image source at all, and the map says it is local.
-  const remote = r.root.findAll((n) => typeof n.type === "string" && typeof n.props?.source?.uri === "string");
-  assert.deepEqual(remote.map((n) => n.props.source.uri), []);
+  // No tile is requested before the user asks: no remote image source at all.
+  const remoteUris = () =>
+    r.root.findAll((n) => typeof n.type === "string" && typeof n.props?.source?.uri === "string").map((n) => n.props.source.uri);
+  assert.deepEqual(remoteUris(), []);
   assert.ok(!JSON.stringify(r.renderer.toJSON()).includes("tile.openstreetmap"));
-  assert.ok(r.hasText("Map preview unavailable"));
   assert.ok(!r.hasText("Map imagery unavailable · rendered locally from recorded coordinates"));
+  // After the explicit choice: the real OpenStreetMap tiles.
+  await r.press("Load interactive map");
+  const uris = remoteUris();
+  assert.ok(uris.length > 0, "no tile after consent");
+  for (const u of uris) assert.match(u, /^https:\/\/tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png$/);
+  assert.equal(r.byTestId("capture-location-map-view").length, 1);
 });
 
 test("T-12: no recorded location, no map — never synthesised", async () => {

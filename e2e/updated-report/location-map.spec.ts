@@ -1,18 +1,23 @@
 /**
  * THE RECORDED-LOCATION MAP, end to end on the real stack (production API +
- * worker images, production web build).
+ * worker images, production web build) — 2026-10-18.
  *
- * The web build names an APPROVED tile endpoint (NEXT_PUBLIC_CAPTURE_LOCATION_
- * TILE_URL=http://tiles.rga.test/{z}/{x}/{y}.png — a stand-in for the
- * deployment's own tile server; AUD-025 refuses public providers). Playwright
- * answers that host with generated tiles, so nothing leaves the machine.
+ * The map draws the real OpenStreetMap tiles it used until ebea6a075, but only
+ * after the viewer explicitly presses "Load interactive map" (the one map
+ * policy: `resolveInteractiveMapTileSource`). The report worker still refuses
+ * every public provider.
  *
- *   1. Owner Evidence: a REAL map — tiles requested at the recorded position,
- *      a marker, the recorded accuracy radius, attribution; desktop and phone.
- *   2. Tiles failing: the Recorded location card, never a pseudo-map.
- *   3. Public Verify of a PUBLISHED record: the same location facts and map.
+ * Playwright answers tile.openstreetmap.org itself (generated tiles, nothing
+ * leaves the machine) unless REAL_MAP_TILES=1, which lets the requests through
+ * to OpenStreetMap for screenshots with real geography.
+ *
+ *   1. Owner Evidence: the card and the consent control; NO tile request
+ *      before the click; after it, real tiles at the recorded z/x/y, marker,
+ *      accuracy radius, attribution — desktop and phone.
+ *   2. Tiles failing after consent: the Recorded location card, facts kept.
+ *   3. Public Verify of a PUBLISHED record: the same, consent first.
  *   4. Public Verify of an UNPUBLISHED record: no coordinates in the API
- *      answer or the page — nothing to draw.
+ *      answer or the page, no consent control, no tile request.
  */
 import { deflateSync } from "node:zlib";
 
@@ -27,7 +32,10 @@ test.describe.configure({ mode: "serial" });
 const LAT = 52.520008;
 const LNG = 13.404954;
 const ACCURACY = 12;
-const TILE_HOST = "http://tiles.rga.test";
+const TILE_HOST = "https://tile.openstreetmap.org";
+const REAL = process.env.REAL_MAP_TILES === "1";
+/** Real-mode HTTP statuses from OpenStreetMap (asserted all 200). */
+const realStatuses: number[] = [];
 
 let A: GuestSession;
 let evidenceId = "";
@@ -74,12 +82,21 @@ function tilePng(): Buffer {
 }
 const TILE = tilePng();
 
-/** Serve (or fail) the approved tile host; returns the requested z/x/y paths. */
+/** Serve (or fail) OpenStreetMap tile requests; returns the requested z/x/y paths. */
 async function serveTiles(target: Page | BrowserContext, ok: boolean): Promise<string[]> {
   const seen: string[] = [];
   await target.unroute(`${TILE_HOST}/**`).catch(() => {});
-  await target.route(`${TILE_HOST}/**`, (route) => {
+  await target.route(`${TILE_HOST}/**`, async (route) => {
     seen.push(new URL(route.request().url()).pathname);
+    if (ok && REAL) {
+      // Real OpenStreetMap: the tile must be served (200), not an "Access
+      // blocked" tile, and the Referer must be the ORIGIN only.
+      const referer = route.request().headers()["referer"] ?? "";
+      expect(referer, "the tile request must carry the site origin only").toMatch(/^https?:\/\/[^/]+\/?$/);
+      const response = await route.fetch();
+      realStatuses.push(response.status());
+      return route.fulfill({ response });
+    }
     return ok
       ? route.fulfill({ status: 200, contentType: "image/png", body: TILE })
       : route.fulfill({ status: 503, body: "" });
@@ -116,42 +133,58 @@ test.beforeAll(async () => {
   ref = sql<{ r: string }>(`SELECT verification_ref AS r FROM evidence WHERE id = $1`, [evidenceId])[0]!.r;
 });
 
-test("OWNER EVIDENCE: a real map at the recorded position, with marker, accuracy radius and attribution — desktop and phone", async ({ page }) => {
+test("OWNER EVIDENCE: no tile before the explicit choice; after it the real map with marker, accuracy radius and attribution — desktop and phone", async ({ page }) => {
   test.setTimeout(300_000);
   const seen = await serveTiles(page, true);
   await signIn(page, A.email);
   await openIntegrity(page);
+  const consent = page.locator('[data-capture-location-map="consent"]');
+  await expect(consent).toBeVisible({ timeout: 60_000 });
+  await expect(consent.locator("[data-capture-location-coordinates]")).toContainText("52.520008");
+  await expect(consent).toContainText("Loading the map sends the approximate viewed location and your IP address to OpenStreetMap.");
+  // Nothing has asked OpenStreetMap for anything yet.
+  await page.waitForTimeout(1_500);
+  expect(seen, "a tile was requested before consent").toEqual([]);
+  await expect(consent.locator("img")).toHaveCount(0);
+  await consent.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath("evidence-before-consent.png"), fullPage: false });
+
+  await consent.locator('[data-map-action="load-interactive-map"]').click();
   const panel = page.locator('[data-capture-location-map="tiles"]');
-  await expect(panel).toBeVisible({ timeout: 60_000 });
+  await expect(panel).toBeVisible();
   const map = panel.locator("[data-capture-location-map-view]");
-  await expect(map).toHaveAttribute("role", "img");
   await expect(map).toHaveAttribute("aria-label", /Map of the recorded location at 52\.52/);
   const z = Number(await map.getAttribute("data-map-zoom"));
   await expect.poll(() => seen.includes(tileOf(LAT, LNG, z)), { timeout: 30_000 }).toBe(true);
+  await expect(map).toHaveAttribute("data-map-loaded", "true", { timeout: 30_000 });
   await expect(panel.locator("[data-map-marker]")).toBeVisible();
   await expect(panel.locator("[data-map-accuracy-radius]")).toHaveAttribute("data-map-accuracy-radius", String(ACCURACY));
   await expect(panel.locator("[data-map-attribution]")).toContainText("OpenStreetMap contributors");
-  await expect(panel.locator("[data-capture-location-coordinates]")).toContainText("52.520008");
   await expect(panel.locator('[data-map-action="open-in-map"]')).toHaveAttribute("href", /^https:\/\/www\.openstreetmap\.org\/\?mlat=52\.52/);
-  // Nothing about client-reported coordinates reads as verified.
   await expect(panel).not.toContainText(/verified/i);
+  await page.waitForTimeout(REAL ? 2_500 : 300);
+  if (REAL) expect(realStatuses.length > 0 && realStatuses.every((st) => st === 200), `OpenStreetMap statuses: ${realStatuses.join(",")}`).toBe(true);
   await panel.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: test.info().outputPath("evidence-location-map-desktop.png"), fullPage: false });
+  await page.screenshot({ path: test.info().outputPath("evidence-after-consent-desktop.png"), fullPage: false });
 
+  // Phone width: consent again (the choice is this view's only), then the map.
   await page.setViewportSize({ width: 390, height: 844 });
   await openIntegrity(page);
-  await expect(page.locator('[data-capture-location-map="tiles"]')).toBeVisible({ timeout: 60_000 });
+  await page.locator('[data-map-action="load-interactive-map"]').click();
+  await expect(page.locator('[data-capture-location-map="tiles"] [data-capture-location-map-view]')).toHaveAttribute("data-map-loaded", "true", { timeout: 30_000 });
   const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(over).toBeLessThanOrEqual(0);
+  await page.waitForTimeout(REAL ? 2_500 : 300);
   await page.locator('[data-capture-location-map="tiles"]').scrollIntoViewIfNeeded();
-  await page.screenshot({ path: test.info().outputPath("evidence-location-map-phone.png"), fullPage: false });
+  await page.screenshot({ path: test.info().outputPath("evidence-after-consent-phone.png"), fullPage: false });
 });
 
-test("TILES FAIL: the Recorded location card with the same facts — never the pseudo-map, never 'blocked'", async ({ page }) => {
+test("TILES FAIL after consent: the Recorded location card with the same facts — never the pseudo-map, never 'blocked'", async ({ page }) => {
   test.setTimeout(300_000);
   await serveTiles(page, false);
   await signIn(page, A.email);
   await openIntegrity(page);
+  await page.locator('[data-map-action="load-interactive-map"]').click();
   const panel = page.locator('[data-capture-location-map="fallback"]');
   await expect(panel).toBeVisible({ timeout: 60_000 });
   await expect(panel).toContainText("Map preview unavailable");
@@ -160,10 +193,10 @@ test("TILES FAIL: the Recorded location card with the same facts — never the p
   await expect(panel.locator("img")).toHaveCount(0);
   await expect(panel.locator('[data-map-action="copy-coordinates"]')).toBeVisible();
   await panel.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: test.info().outputPath("evidence-location-fallback.png"), fullPage: false });
+  await page.screenshot({ path: test.info().outputPath("evidence-provider-failure.png"), fullPage: false });
 });
 
-test("PUBLIC VERIFY, published: the same recorded-location facts and map; unpublished: no coordinates anywhere", async ({ browser }) => {
+test("PUBLIC VERIFY, published: consent first, then the same real map; unpublished: no coordinates, no control, no tile request", async ({ browser }) => {
   test.setTimeout(300_000);
   await clearTestRateLimits();
   sql(`UPDATE evidence SET public_verify_state = 'PUBLISHED' WHERE id = $1`, [evidenceId]);
@@ -172,26 +205,38 @@ test("PUBLIC VERIFY, published: the same recorded-location facts and map; unpubl
 
   const anon = await browser.newContext();
   try {
-    await serveTiles(anon, true);
+    const seen = await serveTiles(anon, true);
     const p = await anon.newPage();
     await p.goto(`/verify/${ref}`);
+    const consent = p.locator('[data-capture-location-map="consent"]');
+    await expect(consent).toBeVisible({ timeout: 90_000 });
+    await p.waitForTimeout(1_500);
+    expect(seen, "Public Verify requested a tile before consent").toEqual([]);
+    await consent.locator('[data-map-action="load-interactive-map"]').click();
     const panel = p.locator('[data-capture-location-map="tiles"]');
-    await expect(panel).toBeVisible({ timeout: 90_000 });
+    await expect(panel.locator("[data-capture-location-map-view]")).toHaveAttribute("data-map-loaded", "true", { timeout: 30_000 });
     await expect(panel.locator("[data-capture-location-coordinates]")).toContainText("52.520008");
     await expect(panel.locator("[data-map-accuracy-radius]")).toHaveAttribute("data-map-accuracy-radius", String(ACCURACY));
+    expect(seen.length).toBeGreaterThan(0);
+    await p.waitForTimeout(REAL ? 2_500 : 300);
     await panel.scrollIntoViewIfNeeded();
-    await p.screenshot({ path: test.info().outputPath("public-verify-published-location.png"), fullPage: false });
+    await p.screenshot({ path: test.info().outputPath("public-verify-published-after-consent.png"), fullPage: false });
 
-    // UNPUBLISHED: the API withholds the location, so the page has nothing to draw.
+    // UNPUBLISHED: the API withholds the location, so there is nothing to draw
+    // and nothing that reveals a hidden location exists.
     sql(`UPDATE evidence SET public_verify_state = 'NOT_PUBLISHED' WHERE id = $1`, [evidenceId]);
     await clearTestRateLimits();
     const raw = await (await fetch(`${API_BASE}/public/verify/${ref}`)).text();
     for (const leak of ["52.52", "13.40", '"captureContext":{']) expect(raw, `the API leaks ${leak}`).not.toContain(leak);
+    seen.length = 0;
     const q = await anon.newPage();
     await q.goto(`/verify/${ref}`);
     await expect(q.locator("[data-verify-canonical-reference]").first()).toHaveText(ref, { timeout: 90_000 });
     await expect(q.locator("[data-capture-location-map]")).toHaveCount(0);
+    await expect(q.locator('[data-map-action="load-interactive-map"]')).toHaveCount(0);
     expect(await q.content()).not.toContain("52.52");
+    await q.waitForTimeout(1_500);
+    expect(seen, "an unpublished page requested a tile").toEqual([]);
     await q.screenshot({ path: test.info().outputPath("public-verify-unpublished-no-location.png"), fullPage: false });
   } finally {
     await anon.close();

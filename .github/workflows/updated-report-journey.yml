@@ -119,9 +119,9 @@ jobs:
           NEXT_PUBLIC_API_BASE: http://127.0.0.1:58081
           NEXT_PUBLIC_WEB_BASE: http://127.0.0.1:53000
           NEXT_PUBLIC_APP_BASE: http://127.0.0.1:53000
-          # The recorded-location map draws from an APPROVED tile endpoint only
-          # (AUD-025); the location spec answers this stand-in host itself.
-          NEXT_PUBLIC_CAPTURE_LOCATION_TILE_URL: http://tiles.rga.test/{z}/{x}/{y}.png
+          # No tile endpoint: the map uses the production default (public
+          # OpenStreetMap tiles after the viewer explicitly asks); the location
+          # spec answers tile.openstreetmap.org itself, so CI contacts no one.
         run: |
           pnpm exec next build
           # The bundle must point at the stack, never at Production.

@@ -21,16 +21,21 @@ const APPROVED = "https://tiles.internal.example/{z}/{x}/{y}.png";
 const LAT = 51.5007292;
 const LNG = -0.1246254;
 
-describe("CaptureLocationMapPanel — default (no approved tile endpoint)", () => {
-  it("requests no tile and draws no pseudo-map: a compact Recorded location card with the facts and actions", () => {
+describe("CaptureLocationMapPanel — default (public tiles, explicit consent)", () => {
+  it("BEFORE consent: the Recorded location card and a Load interactive map control — no tile request, no pseudo-map", () => {
     const { container } = render(<CaptureLocationMapPanel lat={LAT} lng={LNG} accuracyMeters={12} sourceLabel="Reported by the submitting browser" />);
-    expect(container.querySelector("[data-capture-location-map]")?.getAttribute("data-capture-location-map")).toBe("fallback");
-    // No image of any kind — the synthetic data: SVG map is gone.
+    expect(container.querySelector("[data-capture-location-map]")?.getAttribute("data-capture-location-map")).toBe("consent");
+    // No image of any kind before the viewer chooses — no tile, no synthetic map.
     expect(container.querySelectorAll("img")).toHaveLength(0);
     expect(container.innerHTML).not.toMatch(/tile\.openstreetmap|data:image\/svg/);
-    expect(container.textContent).not.toMatch(/Map imagery unavailable|Blocked/i);
+    expect(container.textContent).not.toMatch(/Map imagery unavailable|Map preview unavailable|Blocked/i);
+    const load = container.querySelector("[data-map-action='load-interactive-map']") as HTMLButtonElement;
+    expect(load.tagName).toBe("BUTTON");
+    expect(load.textContent).toBe("Load interactive map");
+    expect(container.querySelector(`#${load.getAttribute("aria-describedby")}`)?.textContent).toBe(
+      "Loading the map sends the approximate viewed location and your IP address to OpenStreetMap.",
+    );
     expect(container.textContent).toContain("Recorded location");
-    expect(container.textContent).toContain("Map preview unavailable");
     expect(container.querySelector("[data-capture-location-coordinates]")?.textContent).toContain("51.500729");
     expect(container.textContent).toContain("Accuracy");
     expect(container.querySelector("[data-capture-location-source-label]")?.textContent).toBe("Reported by the submitting browser");
@@ -40,12 +45,45 @@ describe("CaptureLocationMapPanel — default (no approved tile endpoint)", () =
     expect(container.querySelector("[data-capture-location-boundary]")?.textContent).toMatch(/does not independently prove where the subject matter was/);
   });
 
-  it("a public tile provider is refused even when configured (AUD-025)", () => {
+  it("AFTER the explicit click: the real OpenStreetMap map — tiles at the recorded position, marker, accuracy radius, attribution", () => {
+    const { container } = render(<CaptureLocationMapPanel lat={LAT} lng={LNG} accuracyMeters={25} />);
+    expect(container.querySelectorAll("img")).toHaveLength(0);
+    fireEvent.click(container.querySelector("[data-map-action='load-interactive-map']")!);
+    expect(container.querySelector("[data-capture-location-map]")?.getAttribute("data-capture-location-map")).toBe("tiles");
+    const tiles = Array.from(container.querySelectorAll("img[data-map-tile]")) as HTMLImageElement[];
+    expect(tiles.length).toBeGreaterThan(0);
+    for (const t of tiles) expect(t.getAttribute("src")).toMatch(/^https:\/\/tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png$/);
+    // The tile requests carry the site ORIGIN only (OpenStreetMap requires a
+    // Referer) — never the page path, so no evidence id or token.
+    for (const t of tiles) expect(t.getAttribute("referrerpolicy")).toBe("strict-origin");
+    expect(container.querySelector("[data-map-marker]")).toBeTruthy();
+    expect(container.querySelector("[data-map-accuracy-radius]")?.getAttribute("data-map-accuracy-radius")).toBe("25");
+    expect(container.querySelector("[data-map-attribution]")?.textContent).toMatch(/OpenStreetMap contributors/);
+  });
+
+  it("consent is scoped to the view: a newly mounted panel asks again", () => {
+    const first = render(<CaptureLocationMapPanel lat={LAT} lng={LNG} accuracyMeters={12} />);
+    fireEvent.click(first.container.querySelector("[data-map-action='load-interactive-map']")!);
+    expect(first.container.querySelectorAll("img[data-map-tile]").length).toBeGreaterThan(0);
+    first.unmount();
+    const second = render(<CaptureLocationMapPanel lat={LAT} lng={LNG} accuracyMeters={12} />);
+    expect(second.container.querySelectorAll("img")).toHaveLength(0);
+    expect(second.container.querySelector("[data-map-action='load-interactive-map']")).toBeTruthy();
+  });
+
+  it("a public provider passed explicitly is still consent-gated", () => {
     const { container } = render(
       <CaptureLocationMapPanel lat={LAT} lng={LNG} accuracyMeters={12} tileTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" />,
     );
     expect(container.querySelectorAll("img")).toHaveLength(0);
+    expect(container.querySelector("[data-capture-location-map]")?.getAttribute("data-capture-location-map")).toBe("consent");
+  });
+
+  it("no imagery at all (null): the card says the map preview is unavailable, facts kept", () => {
+    const { container } = render(<CaptureLocationMapPanel lat={LAT} lng={LNG} accuracyMeters={12} tileTemplate={null} />);
     expect(container.querySelector("[data-capture-location-map]")?.getAttribute("data-capture-location-map")).toBe("fallback");
+    expect(container.textContent).toContain("Map preview unavailable");
+    expect(container.querySelector("[data-capture-location-coordinates]")?.textContent).toContain("51.500729");
   });
 });
 
