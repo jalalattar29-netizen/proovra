@@ -740,20 +740,6 @@
       "replacement": "POST /v1/lifecycle/legal-holds/:id/release"
     },
     {
-      "routeId": "POST /v1/governance/evidence/:id/restore",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Un-suspend leg of the publication state machine; pairs with suspend and is likewise unsurfaced.",
-      "evidence": "reg services/api/src/routes/governance.routes.ts:938 app.post(\"/v1/governance/evidence/:id/restore\") calling restorePublicVerify (governance.routes.ts:951). No apps/web or apps/mobile call site for `/v1/governance/evidence/.../restore`.",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/governance/evidence/:id/suspend",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "Moderation/abuse-response leg of the publication state machine; not presented on any surface.",
-      "evidence": "reg services/api/src/routes/governance.routes.ts:900 app.post(\"/v1/governance/evidence/:id/suspend\") calling suspendPublicVerify (imported at governance.routes.ts:66-71). No apps/web or apps/mobile call site for `/suspend` under /v1/governance.",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/governance/legal-holds",
       "disposition": "COMPATIBILITY_TOMBSTONE",
       "reason": "Explicitly declared COMPATIBILITY_TEMPORARY adapter over the single canonical Legal-Hold authority; canonical route is product-connected.",
