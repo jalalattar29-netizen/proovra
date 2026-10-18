@@ -128,6 +128,10 @@ const ENTRYPOINTS = Object.freeze({
     // backfill for FREE three-record coverage and canonical verification
     // references (pnpm --filter proovra-api ops:three-decisions-backfill).
     "services/api/src/scripts/three-decisions-backfill.ts",
+    // VERIFICATION DISCLOSURE (2026-10-18) — the read-only fleet report and the
+    // dry-run-first deploy-window reconciliation
+    // (pnpm --filter proovra-api ops:verification-disclosure-fleet).
+    "services/api/src/scripts/verification-disclosure-fleet.ts",
     "services/api/src/seed-signing-key.ts",
     "services/api/prisma/scripts/org-security-policy-readiness.ts",
     // OTS INTEGRITY DECOUPLING (2026-09-09) — the bounded reconciliation for

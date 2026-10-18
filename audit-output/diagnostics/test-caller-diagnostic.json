@@ -5,12 +5,12 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "fd792624a00d7154c19c965c8897975083b189f67fea53dfc0d723a2d7af6b89",
+  "capabilityRouteInventoryHash": "8e5b793fb82dfc9cad058556e14b6b29ab41f1eff60630f2bd87839f8374402e",
   "totals": {
-    "routes": 1193,
+    "routes": 1190,
     "routesWithAnyTestCaller": 44,
     "testOnlyRoutes": 4,
-    "testCallSites": 94,
+    "testCallSites": 95,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -320,10 +320,11 @@
     },
     {
       "routeId": "GET /public/verify/:id",
-      "testCallerCount": 5,
+      "testCallerCount": 6,
       "testOnly": false,
       "testCallerFiles": [
         "e2e/updated-report/canonical-verification.spec.ts",
+        "e2e/updated-report/public-verify-convergence.spec.ts",
         "e2e/updated-report/public-verify-identifiers.spec.ts",
         "e2e/updated-report/report-package-truth.spec.ts",
         "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts"
@@ -5228,30 +5229,6 @@
       "testCallerFiles": []
     },
     {
-      "routeId": "POST /v1/governance/evidence/:id/publish",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
-      "routeId": "POST /v1/governance/evidence/:id/restore",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
-      "routeId": "POST /v1/governance/evidence/:id/suspend",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
-      "routeId": "POST /v1/governance/evidence/:id/unpublish",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
       "routeId": "POST /v1/governance/export-snapshots",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7220,6 +7197,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "PUT /v1/evidence/:id/verification-disclosure",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "PUT /v1/governance/policy",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7268,5 +7251,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "0479cd53ecbfa475d4c5f38031cb715cdd2a7814f713dd1f0966975e448258b0"
+  "contentHash": "bb66e6c31b4de268c289090abf20560f5f5acd76f520c2a1eaea4ac9ad0884ef"
 }
