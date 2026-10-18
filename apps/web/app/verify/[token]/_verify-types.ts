@@ -300,28 +300,6 @@ export type ToastFn = (
   duration?: number
 ) => void;
 
-export type StorageProtection = {
-  immutable: boolean | null;
-  mode: string | null;
-  retainUntil: string | null;
-  legalHold: string | null;
-  region: string | null;
-  verified: boolean | null;
-  source?: "RECORDED" | "OBSERVED" | null;
-  expired?: boolean | null;
-};
-
-export type OtsDetails = {
-  /** THE Bitcoin anchoring state the server sent (readOtsAnchoringView). */
-  view: OtsAnchoringView;
-  calendar: string | null;
-  /** The stored proof material, published for independent checking only. */
-  proofBase64: string | null;
-  proofPresent: boolean | null;
-  /** Legacy top-level stored status — only for the pre-matrix trust fallback. */
-  legacyStatus: string | null;
-};
-
 export type TechnicalTabId =
   | "record"
   | "integrity"
@@ -349,40 +327,24 @@ export type TrustDecisionTone = "success" | "warning" | "danger" | "neutral";
 export type VerifyTrustSignal = TrustSignal;
 export type VerifyTrustDecision = TrustDecision;
 
-export type VerificationVerdict = {
-  status:
-    | "verified"
-    | "review_required"
-    | "partial"
-    | "unavailable";
-  actionRequired: string;
-  legalStatement: string;
-  tone: "success" | "warning" | "danger" | "neutral";
-};
+/** The server's verification-status vocabulary (packages/shared VERIFICATION_STATUSES). */
+export type VerifyStatusCode = "VERIFIED" | "FAILED" | "NOT_CHECKED" | "NOT_APPLICABLE" | "UNAVAILABLE";
 
-export type VerificationSignalInput = {
-  trustDecision?: VerifyTrustDecision | null;
-  overallIntegrity: boolean | null;
-  verificationStatus?: string | null;
-  canonicalHashMatches: boolean | null;
-  signatureValid: boolean | null;
-  custodyChainValid: boolean | null;
-  timestampDigestMatches: boolean | null;
-  otsHashMatches: boolean | null;
-  tsaStatus?: string | null;
-  storageVerified: boolean | null;
-  immutableStorage: boolean | null;
-  /** UC-TRUST-005 — the stored-bytes check status (VERIFIED / MISMATCH / UNAVAILABLE / STALE / PENDING / UNKNOWN). */
-  storedBytesCheck?: string;
-  /** The stored-bytes state is "failed" (a missing version is a failure, a transient outage is not). */
-  storedBytesFailed?: boolean;
-};
-
+/**
+ * THE package card's facts, exactly as the API sent them
+ * (resolvePackageSealCheck). The card prints sealCheck / sealStatement /
+ * completenessCheck / completenessStatement verbatim — the same authority the
+ * matrix's package_signature / package_completeness rows print.
+ */
 export type VerificationPackageIntegrity = {
   available: boolean;
   /** The matrix's package_signature status — the card never contradicts it. */
-  sealCheck?: "VERIFIED" | "FAILED" | "NOT_CHECKED" | "NOT_APPLICABLE" | "UNAVAILABLE";
-  version: string | null;
+  sealCheck?: VerifyStatusCode;
+  sealStatement?: string | null;
+  sealQualifiers?: string[] | null;
+  completenessCheck?: VerifyStatusCode;
+  completenessStatement?: string | null;
+  version: string | number | null;
   generatedAtUtc: string | null;
   packageType?: string | null;
   manifestPresent: boolean;
@@ -415,6 +377,8 @@ export type VerifySnapshotSection = {
   trustDecisionSnapshot?: unknown;
   /** The Bitcoin anchoring state at generation (an OtsState); unknown reads as Unavailable. */
   otsStatusAtGeneration?: string | null;
+  /** The OpenTimestamps verification key at generation (an OtsVerificationKey). */
+  otsVerificationAtGeneration?: string | null;
   reportSignature?: {
     status?: string | null;
     signedAtUtc?: string | null;
@@ -434,12 +398,70 @@ export type VerifySnapshotSection = {
 export type VerifyLiveAnchoring = {
   lastUpdatedAtUtc?: string | null;
   hasAdvancedSinceSnapshot?: boolean | null;
+  /** What advanced since the issued artifact (otsAdvanceSinceIssue); NONE / null: nothing. */
+  advance?: "NONE" | "PENDING_SINCE_ISSUE" | "ATTESTATION_RECORDED_SINCE_ISSUE" | "CHAIN_VERIFIED_SINCE_ISSUE" | null;
   newerReportAvailable?: boolean | null;
   newerPackageAvailable?: boolean | null;
   autoRefreshRecommended?: boolean | null;
 } | null;
 
+/** THE record's facts (2026-10-18 contract): the page states them, never derives them. */
+export type VerifyRecordFacts = {
+  verificationReference?: string | null;
+  recordKindLabel?: string | null;
+  itemCount?: number | null;
+  reportIssuedAtUtc?: string | null;
+  reportVersion?: number | null;
+  storedFileLastRecheckedAtUtc?: string | null;
+  storedFileRecheck?: VerifyStatusCode | null;
+  checkedAtUtc?: string | null;
+  identity?: {
+    disclosure?: "WITHHELD" | "SHOWN" | null;
+    statement?: string | null;
+    captureTime?: {
+      basis?: string | null;
+      basisLabel?: string | null;
+      accountLabel?: string | null;
+      workspaceTypeLabel?: string | null;
+      organizationVerificationLabel?: string | null;
+    } | null;
+    atReportTime?: {
+      reportVersion?: number | null;
+      identityLevel?: string | null;
+      authProvider?: string | null;
+    } | null;
+  } | null;
+};
+
+/** THE disclosure decision the API applied (vocabulary: @proovra/shared verification-disclosure). */
+export type VerifyDisclosure = {
+  mode?: "VERIFICATION_ONLY" | "CONTENT_PREVIEW" | null;
+  recordedLocation?: boolean | null;
+  source?: string | null;
+  originalDownload?: boolean | null;
+  withheldStatement?: string | null;
+};
+
+export type VerifyVersioning = {
+  latestReportVersion?: number | null;
+  latestReportGeneratedAtUtc?: string | null;
+  verificationPackageVersion?: number | null;
+  verificationPackageGeneratedAtUtc?: string | null;
+  reviewerSummaryVersion?: number | null;
+};
+
+export type VerifyConsistencyReason = {
+  code?: string | null;
+  label?: string | null;
+  detail?: string | null;
+  tone?: "info" | "warning" | "danger" | null;
+  integrityCritical?: boolean | null;
+};
+
 export type VerifyResponse = {
+  recordFacts?: VerifyRecordFacts | null;
+  disclosure?: VerifyDisclosure | null;
+  versioning?: VerifyVersioning | null;
   evidenceId?: string | null;
   mediaIntelligenceAdvisory?: {
     hasObservations: boolean;
@@ -599,6 +621,8 @@ export type VerifyResponse = {
     accessEventCount?: number | null;
     forensicEvents?: VerifyTimelineEvent[] | null;
     accessEvents?: VerifyTimelineEvent[] | null;
+    /** Access activity is aggregated by the API — never listed (2026-10-18). */
+    accessActivity?: { count?: number | null; latestAtUtc?: string | null } | null;
     /** ET-CUS-13: the lists are the LATEST events; counts are whole-chain. */
     truncated?: boolean | null;
     displayLimit?: number | null;

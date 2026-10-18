@@ -1,97 +1,39 @@
 "use client";
 
 /**
- * THE VERIFICATION MATRIX on the Public Verify page (2026-10-08).
+ * THE VERIFICATION MATRIX on the Public Verify page (2026-10-08; converged
+ * 2026-10-18).
  *
  * The page states a record signal by signal: the bounded matrix summary, the
  * fixed limitation, and one row per signal with exactly one status word
- * (VERIFIED | FAILED | NOT_CHECKED | NOT_APPLICABLE | UNAVAILABLE). There is no
- * score, weighted point, overall verdict, reliance level or confidence label.
+ * (VERIFIED | FAILED | NOT_CHECKED | NOT_APPLICABLE | UNAVAILABLE), an icon
+ * beside it, the row's qualifiers and its statement. There is no score,
+ * weighted point, overall verdict, reliance level or confidence label.
  *
- * The API sends the matrix; an API deployed before it does not (the web is
- * deployed first), so resolveVerifyMatrix derives the signal rows from the
- * trust decision — already read through readStoredTrustDecision, which strips
- * any score or verdict an old response carries.
+ * The API's matrix is the ONLY source: when a response carries none, the page
+ * says "Verification matrix unavailable" — it never rebuilds rows on the client.
  */
 import {
-  buildVerificationMatrix,
   getTrustDecisionPresentationTone,
   otsVerificationKeyOfState,
   parseOtsState,
   parseOtsVerificationKey,
+  parseVerificationQualifiers,
   presentOtsAnchoring,
   type OtsStateTone,
   type OtsVerificationKey,
-  VERIFICATION_LIMITATION,
-  VERIFICATION_STATUS_LABELS,
-  verificationMatrixSummary,
   type VerificationMatrix,
   type VerificationMatrixRow,
   type VerificationStatus,
 } from "@proovra/shared";
 
+import { formatDateTime } from "../../../components/verify-v2/_helpers";
 import { VERIFY_BRAND, VERIFY_TYPO } from "./_verify-theme";
 import type { VerifyTrustDecision } from "./_verify-types";
+import { QualifierList, StatusMark, statusColor } from "./VerifyRecordSections";
 
-/**
- * The matrix keys a trust decision's own signals project to. When the API
- * predates the verification matrix (the web deploys first), the page states
- * exactly these rows, read from the decision's signals — never identity,
- * capture or package rows it has no facts for.
- */
-const SIGNAL_MATRIX_KEYS: ReadonlyArray<VerificationMatrixRow["key"]> = [
-  "file_integrity",
-  "record_signature",
-  "custody_chain",
-  "tsa_token",
-  "ots_anchoring",
-  "storage_protection",
-];
-
-/** Rows whose FAILED status means the preserved bytes need review. */
-const INTEGRITY_CRITICAL_MATRIX_KEYS: ReadonlyArray<VerificationMatrixRow["key"]> = [
-  "file_integrity",
-  "record_signature",
-  "custody_chain",
-];
-
-/**
- * THE matrix this page states. The API's matrix when it sent one; otherwise
- * the signal rows derived from the trust decision (readStoredTrustDecision
- * has already stripped any score, verdict or reliance an old API sent).
- */
-export function resolveVerifyMatrix(
-  serverMatrix: VerificationMatrix | null,
-  decision: VerifyTrustDecision
-): VerificationMatrix {
-  if (serverMatrix) return serverMatrix;
-  const full = buildVerificationMatrix({
-    signals: decision.signals,
-    identity: null,
-    acquisitionMode: null,
-    packageSeal: { kind: "NONE" },
-    publication: { kind: "THIS_PAGE" },
-  });
-  const rows = full.rows.filter((row) => SIGNAL_MATRIX_KEYS.includes(row.key));
-  return {
-    ...full,
-    rows,
-    summary: verificationMatrixSummary(rows),
-    limitation: VERIFICATION_LIMITATION,
-  };
-}
-
-export function matrixRequiresIntegrityReview(
-  matrix: VerificationMatrix,
-  decision: VerifyTrustDecision
-): boolean {
-  return (
-    decision.integrityReviewRequired === true ||
-    matrix.rows.some(
-      (row) => row.status === "FAILED" && INTEGRITY_CRITICAL_MATRIX_KEYS.includes(row.key)
-    )
-  );
-}
+/** Shown wherever a response carried no verification matrix. */
+export const VERIFY_MATRIX_UNAVAILABLE = "Verification matrix unavailable";
 
 /** The summary without the fixed limitation (stated on its own line). */
 export function matrixSummarySentence(matrix: VerificationMatrix): string {
@@ -142,139 +84,98 @@ export function otsMatrixRowPresentation(
   };
 }
 
-function otsToneColor(tone: OtsStateTone): string {
-  return tone === "success" ? VERIFY_BRAND.success : tone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.accent;
-}
-
-function verificationStatusColor(status: VerificationStatus): string {
-  switch (status) {
-    case "VERIFIED":
-      return VERIFY_BRAND.success;
-    case "FAILED":
-      return VERIFY_BRAND.danger;
-    case "NOT_CHECKED":
-      return VERIFY_BRAND.warning;
-    default:
-      return VERIFY_BRAND.accent;
-  }
-}
-
 /**
  * THE headline of the page (2026-10-08): the bounded matrix summary, the fixed
- * limitation, the anchoring posture and the reviewer action. There is no
- * score, verdict, reliance level or confidence label — the record is stated
- * signal by signal in the matrix below.
+ * limitation (the page's ONE legal boundary) and the reviewer action — all as
+ * the API sent them. There is no score, verdict, reliance level or confidence
+ * label, and no client fallback: without the API's matrix the card says so.
  */
 export function VerificationSummaryCard({
   matrix,
   decision,
 }: {
-  matrix: VerificationMatrix;
-  decision: VerifyTrustDecision;
+  matrix: VerificationMatrix | null;
+  decision: VerifyTrustDecision | null;
 }) {
-  const decisionTone = getTrustDecisionPresentationTone(decision);
-  const palette =
-    decisionTone === "success"
-      ? {
-          rail: VERIFY_BRAND.success,
-          bg: "linear-gradient(180deg, rgba(33,117,93,0.10), rgba(255,255,255,0.78))",
-          border: "rgba(33,117,93,0.30)",
-        }
-      : decisionTone === "danger"
-        ? {
-            rail: VERIFY_BRAND.danger,
-            bg: "linear-gradient(180deg, rgba(181,71,56,0.10), rgba(255,255,255,0.78))",
-            border: "rgba(181,71,56,0.30)",
-          }
-        : {
-            rail: VERIFY_BRAND.warning,
-            bg: "linear-gradient(180deg, rgba(138,106,47,0.11), rgba(255,255,255,0.78))",
-            border: "rgba(138,106,47,0.30)",
-          };
+  const decisionTone = decision ? getTrustDecisionPresentationTone(decision) : "neutral";
+  const rail =
+    decisionTone === "success" ? VERIFY_BRAND.success : decisionTone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.warning;
 
   return (
-    <div
+    <section
+      aria-labelledby="verify-summary-heading"
       data-testid="verify-matrix-summary-card"
+      data-verify-card
       style={{
-        border: `1px solid ${palette.border}`,
-        borderLeft: `7px solid ${palette.rail}`,
-        background: palette.bg,
+        border: `1px solid ${VERIFY_BRAND.line}`,
+        borderLeft: `7px solid ${rail}`,
+        background: "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.80))",
         borderRadius: 24,
-        padding: 24,
+        padding: "clamp(16px, 4vw, 24px)",
         display: "grid",
-        gap: 18,
-        boxShadow: "0 18px 42px rgba(16,32,29,0.08)",
+        gap: 16,
+        minWidth: 0,
       }}
     >
       <div>
-        <div style={{ ...VERIFY_TYPO.kicker, marginBottom: 8 }}>
+        <h2 id="verify-summary-heading" style={{ ...VERIFY_TYPO.kicker, margin: "0 0 8px" }}>
           Verification Summary
-        </div>
-
-        <div
-          data-testid="verify-matrix-summary"
-          style={{
-            fontSize: "clamp(1.15rem, 1.8vw, 1.55rem)",
-            lineHeight: 1.25,
-            fontWeight: 900,
-            letterSpacing: "-0.02em",
-            color: VERIFY_BRAND.ink,
-            marginBottom: 10,
-            maxWidth: 960,
-          }}
-        >
-          {matrixSummarySentence(matrix)}
-        </div>
-
-        <div
-          data-testid="verify-matrix-limitation"
-          style={{
-            ...VERIFY_TYPO.body,
-            fontSize: 14.5,
-            color: VERIFY_BRAND.ink,
-            maxWidth: 900,
-          }}
-        >
-          {matrix.limitation}
-        </div>
+        </h2>
+        {matrix ? (
+          <>
+            <div
+              data-testid="verify-matrix-summary"
+              style={{
+                fontSize: "clamp(1.1rem, 1.8vw, 1.5rem)",
+                lineHeight: 1.3,
+                fontWeight: 900,
+                letterSpacing: "-0.02em",
+                color: VERIFY_BRAND.ink,
+                marginBottom: 10,
+                maxWidth: 960,
+              }}
+            >
+              {matrixSummarySentence(matrix)}
+            </div>
+            <div
+              data-testid="verify-matrix-limitation"
+              data-verify-legal-boundary
+              style={{ ...VERIFY_TYPO.body, fontSize: 14.5, color: VERIFY_BRAND.ink, maxWidth: 900 }}
+            >
+              {matrix.limitation}
+            </div>
+          </>
+        ) : (
+          <div data-testid="verify-matrix-unavailable" style={{ ...VERIFY_TYPO.value, fontSize: 16 }}>
+            {VERIFY_MATRIX_UNAVAILABLE}
+          </div>
+        )}
       </div>
 
-      <div
-        style={{
-          border: `1px solid ${VERIFY_BRAND.softLine}`,
-          background: "rgba(255,255,255,0.44)",
-          borderRadius: 18,
-          padding: 16,
-          display: "grid",
-          gap: 8,
-        }}
-      >
-        <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>
-          Reviewer Action
-        </div>
-        <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.ink }}>
-          {/* The OpenTimestamps state, named for what it is (never a publication posture). */}
-          Bitcoin anchoring (OpenTimestamps):{" "}
-          {decision.anchoringStatusLabel || "Bitcoin anchoring status requires review"}.
-        </div>
+      {decision?.reviewerAction ? (
         <div
           style={{
-            ...VERIFY_TYPO.small,
-            color: VERIFY_BRAND.ink,
-            fontWeight: 850,
+            border: `1px solid ${VERIFY_BRAND.softLine}`,
+            background: "rgba(255,255,255,0.44)",
+            borderRadius: 18,
+            padding: 16,
+            display: "grid",
+            gap: 8,
           }}
         >
-          {decision.reviewerAction}
+          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>Reviewer Action</div>
+          <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.ink, fontWeight: 850 }}>{decision.reviewerAction}</div>
         </div>
-      </div>
-    </div>
+      ) : null}
+    </section>
   );
 }
 
 /**
  * The verification matrix: one row per signal, each with its label, its one
- * canonical status word (VERIFIED | FAILED | NOT_CHECKED | NOT_APPLICABLE |
- * UNAVAILABLE) and its factual statement.
+ * status (icon + the server's statusLabel, or the shared status word), the
+ * row's qualifiers and its factual statement. A timestamp validated later
+ * from the token retained at intake also states when it was validated.
  */
 export function VerificationMatrixGrid({
   rows,
@@ -284,61 +185,48 @@ export function VerificationMatrixGrid({
   return (
     <div
       data-testid="verify-matrix"
+      role="list"
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
         gap: 14,
       }}
     >
       {rows.map((row) => {
-        const ots = otsMatrixRowPresentation(row);
-        const color = ots ? otsToneColor(ots.tone) : verificationStatusColor(row.status);
-
+        const qualifiers = parseVerificationQualifiers((row as { qualifiers?: unknown }).qualifiers);
+        const validatedLater = row.key === "tsa_token" && qualifiers.includes("VALIDATED_FROM_RETAINED_TOKEN") && row.measuredAtUtc;
         return (
           <div
             key={row.key}
+            role="listitem"
             data-testid={`verify-matrix-row-${row.key}`}
             data-status={row.status}
             style={{
               border: `1px solid ${VERIFY_BRAND.line}`,
-              borderLeft: `5px solid ${color}`,
+              borderLeft: `5px solid ${statusColor(row.status)}`,
               background: "rgba(255,255,255,0.64)",
               borderRadius: 18,
               padding: 16,
               display: "grid",
-              gap: 9,
+              gap: 8,
               alignContent: "start",
+              minWidth: 0,
+              breakInside: "avoid",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                alignItems: "flex-start",
-              }}
-            >
-              <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div data-verify-label style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5, minWidth: 0 }}>
                 {row.label}
               </div>
-
-              <div
-                data-testid={`verify-matrix-status-${row.key}`}
-                style={{
-                  color,
-                  fontSize: 12,
-                  fontWeight: 950,
-                  whiteSpace: "nowrap",
-                  letterSpacing: "0.03em",
-                }}
-              >
-                {ots ? ots.badge : (row.statusLabel ?? VERIFICATION_STATUS_LABELS[row.status])}
+              <StatusMark status={row.status} label={row.statusLabel ?? null} testId={`verify-matrix-status-${row.key}`} />
+            </div>
+            <QualifierList qualifiers={qualifiers} />
+            <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink, overflowWrap: "anywhere" }}>{row.statement}</div>
+            {validatedLater ? (
+              <div data-verify-tsa-validated-at style={{ ...VERIFY_TYPO.small, fontSize: 12.5, color: VERIFY_BRAND.ink }}>
+                Validated: {formatDateTime(row.measuredAtUtc)}
               </div>
-            </div>
-
-            <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
-              {row.statement}
-            </div>
+            ) : null}
           </div>
         );
       })}
