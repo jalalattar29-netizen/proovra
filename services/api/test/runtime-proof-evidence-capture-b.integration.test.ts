@@ -657,7 +657,8 @@ describe("K3 runtime proof — evidence capture (part B)", () => {
       sort: "newest",
       tsaStatus: "all",
       otsStatus: "all",
-      publicVerifyState: "all",
+      // (2026-10-18) publicVerifyState was renamed with the disclosure model.
+      verificationDisclosure: "all",
       verificationStatus: "all",
     };
     /** The payload the evidence library's "Save view" action builds. */

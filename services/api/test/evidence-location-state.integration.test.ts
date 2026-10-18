@@ -122,7 +122,17 @@ describe("canonical evidence location state (Postgres + Redis + MinIO, real work
     return { body, raw: res.body };
   }
 
+  /**
+   * (2026-10-18) Public Verify shows the recorded location only by the owner's
+   * explicit decision (disclosure policy CONTENT_PREVIEW + showRecordedLocation)
+   * — a reviewer link never adds it. These cases compare what the two surfaces
+   * STATE about location, so the record carries that decision first.
+   */
   async function verifyLocation(id: string) {
+    await prisma.evidence.update({
+      where: { id },
+      data: { verificationDisclosureMode: "CONTENT_PREVIEW", showRecordedLocation: true },
+    });
     const res = await h.app.inject({
       method: "GET",
       url: `/public/verify/${await shareLinkFor(prisma, id)}`,
@@ -164,6 +174,27 @@ describe("canonical evidence location state (Postgres + Redis + MinIO, real work
   }
 
   describe("owner web (review workspace) and Public Verify state the same canonical location", () => {
+    it("without the owner's location decision Public Verify withholds location entirely — no state, no coordinates — whatever the link", async () => {
+      const id = await signedRecord({ lat: 52.520008, lng: 13.404954, accuracyMeters: 12 });
+      for (const policy of [
+        { verificationDisclosureMode: "VERIFICATION_ONLY", showRecordedLocation: false },
+        { verificationDisclosureMode: "CONTENT_PREVIEW", showRecordedLocation: false },
+      ] as const) {
+        await prisma.evidence.update({ where: { id }, data: policy });
+        const res = await h.app.inject({
+          method: "GET",
+          url: `/public/verify/${await shareLinkFor(prisma, id)}`,
+          remoteAddress: `198.51.100.${1 + Math.floor(Math.random() * 250)}`,
+        });
+        expect(res.statusCode, res.body).toBe(200);
+        expect(res.json().disclosure.recordedLocation).toBe(false);
+        expect(res.json().locationState ?? null).toBeNull();
+        expect(res.json().captureContext ?? null).toBeNull();
+        expect(res.body).not.toContain("52.52");
+        expect(res.body).not.toContain("13.40");
+      }
+    });
+
     it("legacy record with no location facts → Location not recorded, neutral, never Blocked (both surfaces)", async () => {
       const id = await signedRecord({ acquisitionMode: null });
       const { body } = await workspaceLocation(id);

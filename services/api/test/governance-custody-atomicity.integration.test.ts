@@ -9,6 +9,12 @@
  * with a silent catch: the failure left the state changed and the chain
  * without it. A publication transition that LOST its race still appended an
  * event for a change it did not make.
+ *
+ * (2026-10-18) The publication authority was retired; the governance write it
+ * covered is now the verification DISCLOSURE authority
+ * (verification-disclosure.service.ts): the policy update and its
+ * VERIFICATION_DISCLOSURE_CHANGED event commit together, and concurrent
+ * changes are serialized by a compare-and-swap on the policy version.
  */
 import { randomUUID } from "node:crypto";
 
@@ -19,7 +25,7 @@ import type { IntegrationHarness } from "./integration-harness.js";
 describe("governance mutations are atomic with their custody (live PostgreSQL 16)", () => {
   let h: IntegrationHarness;
   let prisma: (typeof import("../src/db.js"))["prisma"];
-  let publication: typeof import("../src/services/governance/publication.service.js");
+  let disclosure: typeof import("../src/services/public-verify/verification-disclosure.service.js");
   let certification: typeof import("../src/services/evidence-certification.service.js");
 
   beforeAll(async () => {
@@ -28,7 +34,7 @@ describe("governance mutations are atomic with their custody (live PostgreSQL 16
     ({ prisma } = await import("../src/db.js"));
     const { registerPrisma } = await import("@proovra/shared-runtime");
     registerPrisma(prisma as never);
-    publication = await import("../src/services/governance/publication.service.js");
+    disclosure = await import("../src/services/public-verify/verification-disclosure.service.js");
     certification = await import("../src/services/evidence-certification.service.js");
   }, 180_000);
   afterAll(async () => {
@@ -40,7 +46,7 @@ describe("governance mutations are atomic with their custody (live PostgreSQL 16
     const team = await prisma.team.findUniqueOrThrow({ where: { id: A.teamId }, select: { organizationId: true } });
     return (
       await prisma.evidence.create({
-        data: { title: `atomic ${randomUUID().slice(0, 6)}`, type: "PHOTO", status: "SIGNED", teamId: A.teamId, organizationId: team.organizationId, ownerUserId: A.ownerUserId, publicVerifyState: "PUBLISHED" } as never,
+        data: { title: `atomic ${randomUUID().slice(0, 6)}`, type: "PHOTO", status: "SIGNED", teamId: A.teamId, organizationId: team.organizationId, ownerUserId: A.ownerUserId, verificationDisclosureMode: "VERIFICATION_ONLY" } as never,
         select: { id: true },
       })
     ).id;
@@ -62,27 +68,93 @@ describe("governance mutations are atomic with their custody (live PostgreSQL 16
   const count = (evidenceId: string, eventType: string) =>
     prisma.custodyEvent.count({ where: { evidenceId, eventType: eventType as never } });
 
-  it("a suspension whose custody event cannot be written does not suspend", async () => {
+  const policyOf = (id: string) =>
+    prisma.evidence.findUniqueOrThrow({
+      where: { id },
+      select: {
+        verificationDisclosureMode: true,
+        showRecordedLocation: true,
+        verificationDisclosureVersion: true,
+        verificationDisclosureChangedAtUtc: true,
+        verificationAccessState: true,
+      },
+    });
+
+  it("a disclosure change whose custody event cannot be written does not change the policy", async () => {
     const id = await record();
     const A = h.fixtures.teamA;
     await expect(
-      withFailingCustody(id, "PUBLIC_VERIFY_SUSPENDED", () =>
-        publication.suspendPublicVerify({ evidenceId: id, teamId: A.teamId, actorUserId: A.ownerUserId, reason: "review" }),
+      withFailingCustody(id, "VERIFICATION_DISCLOSURE_CHANGED", () =>
+        disclosure.changeVerificationDisclosure({
+          evidenceId: id,
+          actorUserId: A.ownerUserId,
+          mode: "CONTENT_PREVIEW",
+          showRecordedLocation: true,
+          expectedVersion: 0,
+        }),
       ),
     ).rejects.toThrow();
-    const ev = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { publicVerifyState: true } });
-    expect(ev.publicVerifyState).toBe("PUBLISHED");
-    expect(await count(id, "PUBLIC_VERIFY_SUSPENDED")).toBe(0);
+    expect(await policyOf(id)).toMatchObject({
+      verificationDisclosureMode: "VERIFICATION_ONLY",
+      showRecordedLocation: false,
+      verificationDisclosureVersion: 0,
+      verificationDisclosureChangedAtUtc: null,
+    });
+    expect(await count(id, "VERIFICATION_DISCLOSURE_CHANGED")).toBe(0);
+
+    // When custody can be written, the policy and its event land together.
+    const ok = await disclosure.changeVerificationDisclosure({
+      evidenceId: id,
+      actorUserId: A.ownerUserId,
+      mode: "CONTENT_PREVIEW",
+      showRecordedLocation: true,
+      expectedVersion: 0,
+    });
+    expect(ok).toMatchObject({ outcome: "CHANGED", current: { mode: "CONTENT_PREVIEW", showRecordedLocation: true, version: 1 } });
+    expect(await policyOf(id)).toMatchObject({ verificationDisclosureMode: "CONTENT_PREVIEW", showRecordedLocation: true, verificationDisclosureVersion: 1 });
+    const events = await prisma.custodyEvent.findMany({ where: { evidenceId: id, eventType: "VERIFICATION_DISCLOSURE_CHANGED" as never } });
+    expect(events).toHaveLength(1);
+    expect(events[0]!.payload).toMatchObject({
+      fromMode: "VERIFICATION_ONLY",
+      toMode: "CONTENT_PREVIEW",
+      fromShowRecordedLocation: false,
+      toShowRecordedLocation: true,
+      changedByUserId: A.ownerUserId,
+    });
+    // Access is a separate axis: never written by a disclosure change.
+    expect((await policyOf(id)).verificationAccessState).toBe("AVAILABLE");
   });
 
-  it("two racing unpublishes make one transition and record exactly one event", async () => {
+  it("two racing changes from the same version make one change and record exactly one event; the loser is a CONFLICT", async () => {
     const id = await record();
     const A = h.fixtures.teamA;
-    await Promise.allSettled([
-      publication.unpublishPublicVerify({ evidenceId: id, teamId: A.teamId, actorUserId: A.ownerUserId }),
-      publication.unpublishPublicVerify({ evidenceId: id, teamId: A.teamId, actorUserId: A.ownerUserId }),
+    const results = await Promise.all([
+      disclosure.changeVerificationDisclosure({ evidenceId: id, actorUserId: A.ownerUserId, mode: "CONTENT_PREVIEW", showRecordedLocation: false, expectedVersion: 0 }),
+      disclosure.changeVerificationDisclosure({ evidenceId: id, actorUserId: A.ownerUserId, mode: "CONTENT_PREVIEW", showRecordedLocation: true, expectedVersion: 0 }),
     ]);
-    expect(await count(id, "PUBLIC_VERIFY_UNPUBLISHED")).toBe(1);
+    const outcomes = results.map((r) => r.outcome).sort();
+    expect(outcomes).toEqual(["CHANGED", "CONFLICT"]);
+    expect(await count(id, "VERIFICATION_DISCLOSURE_CHANGED")).toBe(1);
+    expect((await policyOf(id)).verificationDisclosureVersion).toBe(1);
+    // The loser is told the current policy, so it can review and retry.
+    const loser = results.find((r) => r.outcome === "CONFLICT") as { current: { version: number } };
+    expect(loser.current.version).toBe(1);
+  });
+
+  it("two identical racing changes are idempotent: one change, one event, the other UNCHANGED", async () => {
+    const id = await record();
+    const A = h.fixtures.teamA;
+    const results = await Promise.all(
+      [0, 1].map(() =>
+        disclosure.changeVerificationDisclosure({ evidenceId: id, actorUserId: A.ownerUserId, mode: "CONTENT_PREVIEW", showRecordedLocation: false, expectedVersion: 0 }),
+      ),
+    );
+    expect(results.map((r) => r.outcome).sort()).toEqual(["CHANGED", "UNCHANGED"]);
+    expect(await count(id, "VERIFICATION_DISCLOSURE_CHANGED")).toBe(1);
+    // A stale version asking for what is already true changes nothing either.
+    const stale = await disclosure.changeVerificationDisclosure({ evidenceId: id, actorUserId: A.ownerUserId, mode: "CONTENT_PREVIEW", showRecordedLocation: false, expectedVersion: 0 });
+    expect(stale.outcome).toBe("UNCHANGED");
+    expect(await count(id, "VERIFICATION_DISCLOSURE_CHANGED")).toBe(1);
   });
 
   it("a certification request whose custody event cannot be written creates no certification", async () => {

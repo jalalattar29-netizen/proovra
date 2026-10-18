@@ -569,11 +569,14 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
       expect(done.json().denial).toBe("FINALIZATION_BLOCKED_BY_POLICY");
       const ev = await prisma.evidence.findUniqueOrThrow({
         where: { id: staged.evidenceId },
-        select: { status: true, signedAtUtc: true, publicVerifyState: true },
+        select: { status: true, signedAtUtc: true, verificationDisclosureMode: true, verificationDisclosureVersion: true },
       });
       expect(ev.status).not.toBe("SIGNED");
       expect(ev.signedAtUtc).toBeNull();
-      expect(ev.publicVerifyState).not.toBe("PUBLISHED");
+      // (2026-10-18) A refused finalization discloses nothing: the policy stays
+      // at its column default and no one changed it.
+      expect(ev.verificationDisclosureMode).toBe("VERIFICATION_ONLY");
+      expect(ev.verificationDisclosureVersion).toBe(0);
       // No public verification link is served for the refused record.
       const pub = await harness.app.inject({ method: "GET", url: `/public/verify/${staged.evidenceId}` });
       expect(pub.statusCode).toBe(404);
@@ -584,7 +587,7 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
     });
   });
 
-  it("D3: publication approval — the record finalizes NOT_PUBLISHED and public Verify does not serve it", async () => {
+  it("D3: publication approval — the record finalizes under the default verification-only policy and its record id is not a public link", async () => {
     await withPolicy({ requirePublicationApproval: true }, async () => {
       const staged = await stageDeclared();
       const done = await call(
@@ -595,10 +598,13 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
       expect(done.statusCode, done.body).toBe(200);
       const ev = await prisma.evidence.findUniqueOrThrow({
         where: { id: staged.evidenceId },
-        select: { status: true, publicVerifyState: true },
+        select: { status: true, verificationDisclosureMode: true, verificationDisclosureVersion: true },
       });
       expect(ev.status).toBe("SIGNED");
-      expect(ev.publicVerifyState).toBe("NOT_PUBLISHED");
+      // (2026-10-18) Finalization writes no publication state: the record's page
+      // discloses verification only until its owner explicitly widens it.
+      expect(ev.verificationDisclosureMode).toBe("VERIFICATION_ONLY");
+      expect(ev.verificationDisclosureVersion).toBe(0);
       const pub = await harness.app.inject({ method: "GET", url: `/public/verify/${staged.evidenceId}` });
       expect(pub.statusCode).toBe(404);
     });

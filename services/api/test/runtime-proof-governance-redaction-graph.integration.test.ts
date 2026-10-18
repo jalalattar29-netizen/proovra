@@ -348,79 +348,92 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
       expect((await prisma.workspaceGovernancePolicy.findUniqueOrThrow({ where: { teamId: a.teamId } })).defaultRetentionDays).toBe(400);
     });
 
-    it("POST /v1/governance/evidence/:id/publish and /suspend — step-up moves the publication state and appends custody; refusals leave it unchanged", async () => {
+    // (2026-10-18) The governance publish / suspend routes were RETIRED with the
+    // publication model. The owner decision they carried — what the record's
+    // verification page discloses — is PUT /v1/evidence/:id/verification-disclosure:
+    // step-up only when the change discloses MORE, compare-and-swap on the
+    // policy version, custody + audit, and never a write to the access state.
+    it("PUT /v1/evidence/:id/verification-disclosure — a widening needs step-up, moves the policy and appends custody; narrowing needs none; refusals leave it unchanged", async () => {
       const { teamA: a, teamB: b } = h.fixtures;
-      const evidence = await createEvidence(a.teamId, a.ownerUserId, "PHOTO", { publicVerifyState: "NOT_PUBLISHED" });
+      const evidence = await createEvidence(a.teamId, a.ownerUserId, "PHOTO", { status: "SIGNED", signedAtUtc: new Date() });
       const id = evidence.id;
-      const publishUrl = `/v1/governance/evidence/${id}/publish`;
-      const suspendUrl = `/v1/governance/evidence/${id}/suspend`;
-      // The PublicVerifyPublicationPanel body.
-      const publishBody = { teamId: a.teamId, reason: "Cleared for public verification" };
+      const url = `/v1/evidence/${id}/verification-disclosure`;
+      const policy = () =>
+        prisma.evidence.findUniqueOrThrow({
+          where: { id },
+          select: {
+            verificationDisclosureMode: true,
+            showRecordedLocation: true,
+            verificationDisclosureVersion: true,
+            verificationDisclosureChangedByUserId: true,
+            verificationDisclosureChangedAtUtc: true,
+            verificationAccessState: true,
+          },
+        });
+      const widen = { mode: "CONTENT_PREVIEW", showRecordedLocation: true, expectedVersion: 0 };
 
-      const viewer = await call({ method: "POST", url: publishUrl, token: a.viewerToken, payload: publishBody });
+      const viewer = await call({ method: "PUT", url, token: a.viewerToken, payload: widen });
       expect(viewer.statusCode, viewer.body).toBe(403);
-      const foreign = await call({ method: "POST", url: publishUrl, token: b.ownerToken, payload: publishBody });
+      expect(viewer.json().code).toBe("DISCLOSURE_CHANGE_NOT_PERMITTED");
+      const foreign = await call({ method: "PUT", url, token: b.ownerToken, payload: widen });
       expect(foreign.statusCode).toBe(404);
-      const noStepUp = await call({ method: "POST", url: publishUrl, token: a.ownerToken, payload: publishBody });
+      const invalid = await call({ method: "PUT", url, token: a.ownerToken, payload: { ...widen, mode: "VERIFICATION_ONLY" } });
+      expect(invalid.statusCode).toBe(400);
+      expect(invalid.json().code).toBe("DISCLOSURE_LOCATION_REQUIRES_CONTENT_PREVIEW");
+      const noStepUp = await call({ method: "PUT", url, token: a.ownerToken, payload: widen });
       expect(noStepUp.statusCode).toBe(401);
+      expect(noStepUp.json().error.code).toBe("STEP_UP_REQUIRED");
       // Another tenant with a valid step-up in ITS workspace cannot reach A's record.
       const bChallenge = await stepUp({
         token: b.ownerToken, userId: b.ownerUserId, teamId: b.teamId,
         purpose: "PUBLIC_VERIFY_PUBLISH", resourceKind: "evidence", resourceId: id,
       });
-      const crossTenant = await call({ method: "POST", url: publishUrl, token: b.ownerToken, payload: { teamId: b.teamId }, headers: { [STEP]: bChallenge } });
+      const crossTenant = await call({ method: "PUT", url, token: b.ownerToken, payload: widen, headers: { [STEP]: bChallenge } });
       expect(crossTenant.statusCode).toBe(404);
-      expect(crossTenant.json()).toEqual({ error: { code: "evidence_not_in_workspace" } });
-      expect((await prisma.evidence.findUniqueOrThrow({ where: { id } })).publicVerifyState).toBe("NOT_PUBLISHED");
+      expect(await policy()).toMatchObject({ verificationDisclosureMode: "VERIFICATION_ONLY", showRecordedLocation: false, verificationDisclosureVersion: 0 });
+      expect(await prisma.custodyEvent.count({ where: { evidenceId: id, eventType: "VERIFICATION_DISCLOSURE_CHANGED" as never } })).toBe(0);
 
-      const publishChallenge = await stepUp({
+      const challenge = await stepUp({
         token: a.ownerToken, userId: a.ownerUserId, teamId: a.teamId,
         purpose: "PUBLIC_VERIFY_PUBLISH", resourceKind: "evidence", resourceId: id,
       });
-      const published = await call({ method: "POST", url: publishUrl, token: a.ownerToken, payload: publishBody, headers: { [STEP]: publishChallenge } });
-      expect(published.statusCode, published.body).toBe(200);
-      expect(published.json().publication).toMatchObject({ state: "PUBLISHED", publishedByUserId: a.ownerUserId });
-      const afterPublish = await prisma.evidence.findUniqueOrThrow({ where: { id } });
-      expect(afterPublish.publicVerifyState).toBe("PUBLISHED");
-      expect(afterPublish.publicVerifyPublishedByUserId).toBe(a.ownerUserId);
-      expect(afterPublish.publicVerifyPublishedAtUtc).toBeInstanceOf(Date);
-      const publishCustody = await prisma.custodyEvent.findFirst({ where: { evidenceId: id, eventType: "PUBLIC_VERIFY_PUBLISHED" } });
-      expect(publishCustody?.payload).toMatchObject({ previousState: "NOT_PUBLISHED", actorUserId: a.ownerUserId });
-      expect(publishCustody?.eventHash).toMatch(/^[a-f0-9]{64}$/);
-
-      // Publishing an already-PUBLISHED record is the bounded 409 the audit hit.
-      const republishChallenge = await stepUp({
-        token: a.ownerToken, userId: a.ownerUserId, teamId: a.teamId,
-        purpose: "PUBLIC_VERIFY_PUBLISH", resourceKind: "evidence", resourceId: id,
+      const widened = await call({ method: "PUT", url, token: a.ownerToken, payload: widen, headers: { [STEP]: challenge } });
+      expect(widened.statusCode, widened.body).toBe(200);
+      expect(widened.json()).toMatchObject({ changed: true, disclosure: { mode: "CONTENT_PREVIEW", showRecordedLocation: true, version: 1 } });
+      const after = await policy();
+      expect(after).toMatchObject({
+        verificationDisclosureMode: "CONTENT_PREVIEW",
+        showRecordedLocation: true,
+        verificationDisclosureVersion: 1,
+        verificationDisclosureChangedByUserId: a.ownerUserId,
+        // Access is a separate axis: never written here.
+        verificationAccessState: "AVAILABLE",
       });
-      const republish = await call({ method: "POST", url: publishUrl, token: a.ownerToken, payload: publishBody, headers: { [STEP]: republishChallenge } });
-      expect(republish.statusCode).toBe(409);
-      expect(republish.json()).toEqual({ error: { code: "invalid_state_transition" } });
+      expect(after.verificationDisclosureChangedAtUtc).toBeInstanceOf(Date);
+      const custody = await prisma.custodyEvent.findFirst({ where: { evidenceId: id, eventType: "VERIFICATION_DISCLOSURE_CHANGED" as never } });
+      expect(custody?.payload).toMatchObject({ fromMode: "VERIFICATION_ONLY", toMode: "CONTENT_PREVIEW", toShowRecordedLocation: true, changedByUserId: a.ownerUserId });
+      expect(custody?.eventHash).toMatch(/^[a-f0-9]{64}$/);
 
-      // --- suspend ---
-      const suspendBody = { teamId: a.teamId, reason: "Under internal review" };
-      expect((await call({ method: "POST", url: suspendUrl, token: a.viewerToken, payload: suspendBody })).statusCode).toBe(403);
-      expect((await call({ method: "POST", url: suspendUrl, token: b.ownerToken, payload: suspendBody })).statusCode).toBe(404);
-      const noReason = await call({ method: "POST", url: suspendUrl, token: a.ownerToken, payload: { teamId: a.teamId } });
-      expect(noReason.statusCode).toBe(400);
-      expect((await prisma.evidence.findUniqueOrThrow({ where: { id } })).publicVerifyState).toBe("PUBLISHED");
+      // A stale version is a bounded conflict that names the current policy.
+      const stale = await call({ method: "PUT", url, token: a.ownerToken, payload: { mode: "VERIFICATION_ONLY", showRecordedLocation: false, expectedVersion: 0 } });
+      expect(stale.statusCode).toBe(409);
+      expect(stale.json()).toMatchObject({ code: "DISCLOSURE_VERSION_CONFLICT", current: { mode: "CONTENT_PREVIEW", showRecordedLocation: true, version: 1 } });
+      // Asking for what is already true is idempotent: no change, no event.
+      const same = await call({ method: "PUT", url, token: a.ownerToken, payload: { ...widen, expectedVersion: 0 } });
+      expect(same.statusCode).toBe(200);
+      expect(same.json()).toMatchObject({ changed: false, disclosure: { version: 1 } });
 
-      const suspendChallenge = await stepUp({
-        token: a.ownerToken, userId: a.ownerUserId, teamId: a.teamId,
-        purpose: "PUBLIC_VERIFY_SUSPEND", resourceKind: "evidence", resourceId: id,
+      // --- narrowing: never needs step-up ---
+      const narrowed = await call({ method: "PUT", url, token: a.ownerToken, payload: { mode: "VERIFICATION_ONLY", showRecordedLocation: false, expectedVersion: 1 } });
+      expect(narrowed.statusCode, narrowed.body).toBe(200);
+      expect(narrowed.json()).toMatchObject({ changed: true, disclosure: { mode: "VERIFICATION_ONLY", showRecordedLocation: false, version: 2 } });
+      const events = await prisma.custodyEvent.findMany({
+        where: { evidenceId: id, eventType: "VERIFICATION_DISCLOSURE_CHANGED" as never },
+        orderBy: { sequence: "asc" },
       });
-      const suspended = await call({ method: "POST", url: suspendUrl, token: a.ownerToken, payload: suspendBody, headers: { [STEP]: suspendChallenge } });
-      expect(suspended.statusCode, suspended.body).toBe(200);
-      expect(suspended.json().publication).toMatchObject({ state: "SUSPENDED", suspendedByUserId: a.ownerUserId });
-      // The internal reason is never projected.
-      expect(suspended.body).not.toContain("Under internal review");
-      const afterSuspend = await prisma.evidence.findUniqueOrThrow({ where: { id } });
-      expect(afterSuspend.publicVerifyState).toBe("SUSPENDED");
-      expect(afterSuspend.publicVerifySuspendedByUserId).toBe(a.ownerUserId);
-      expect(afterSuspend.publicVerifySuspensionReason).toBe("Under internal review");
-      const suspendCustody = await prisma.custodyEvent.findFirst({ where: { evidenceId: id, eventType: "PUBLIC_VERIFY_SUSPENDED" } });
-      expect(suspendCustody?.payload).toMatchObject({ previousState: "PUBLISHED", actorUserId: a.ownerUserId, reasonInternal: "Under internal review" });
-      expect(suspendCustody?.sequence).toBeGreaterThan(publishCustody!.sequence);
+      expect(events).toHaveLength(2);
+      expect(events[1]!.payload).toMatchObject({ fromMode: "CONTENT_PREVIEW", toMode: "VERIFICATION_ONLY" });
+      expect(events[1]!.sequence).toBeGreaterThan(events[0]!.sequence);
     });
   });
 

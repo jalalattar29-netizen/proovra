@@ -25,7 +25,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { IntegrationHarness } from "./integration-harness.js";
 // ET-PKG-07 — a record's id is not a public link: requests go through a share
 // link (the record is published and the link minted on first use).
-import { shareLinkFor } from "./helpers/verify-share.js";
+import { createReviewerShareLink, shareLinkFor } from "./helpers/verify-share.js";
 
 describe("byte-release authority (live PostgreSQL 16, real HTTP)", () => {
   let h: IntegrationHarness;
@@ -282,13 +282,16 @@ describe("byte-release authority (live PostgreSQL 16, real HTTP)", () => {
     const viewUrls = (body: unknown): string[] =>
       JSON.stringify(body).match(/"viewUrl":("[^"]*"|null)/g)?.map((m) => m.slice(10)) ?? [];
 
-    const before = await get(`/public/verify/${await shareLinkFor(prisma, id)}`);
+    // (2026-10-18) Originals leave only through a reviewer link that
+    // explicitly grants them.
+    const granted = await createReviewerShareLink(prisma, id, { allowOriginalDownload: true });
+    const before = await get(`/public/verify/${granted}`);
     expect(before.statusCode, before.body).toBe(200);
-    expect(viewUrls(before.json()).some((u) => u !== "null"), "full_access links the original").toBe(true);
+    expect(viewUrls(before.json()).some((u) => u !== "null"), "full_access + an originals grant links the original").toBe(true);
 
     const placed = await hold({ teamId: teamA.teamId, scope: "EVIDENCE", evidenceId: id, by: teamA.ownerUserId });
     try {
-      const during = await get(`/public/verify/${await shareLinkFor(prisma, id)}`);
+      const during = await get(`/public/verify/${granted}`);
       expect(during.statusCode).toBe(200);
       expect(viewUrls(during.json()).every((u) => u === "null"), "no original URL under a hold").toBe(true);
     } finally {

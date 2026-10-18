@@ -295,14 +295,8 @@ vi.mock("../src/services/governance/case-legal-hold.service.js", () => ({
   isEvidenceUnderAnyLegalHold: async () => false,
 }));
 
-vi.mock("../src/services/governance/publication.service.js", () => ({
-  PublicationError: class PublicationError extends Error {},
-  projectPublicationState: () => ({ state: "UNPUBLISHED" }),
-  publishPublicVerify: async () => ({ ok: true }),
-  restorePublicVerify: async () => ({ ok: true }),
-  suspendPublicVerify: async () => ({ ok: true }),
-  unpublishPublicVerify: async () => ({ ok: true }),
-}));
+// (2026-10-18) publication.service.js was deleted with the publication model;
+// governance.routes no longer imports it, so there is nothing to mock.
 
 vi.mock("../src/services/governance/retention-sweeper.service.js", () => ({
   listRetentionCandidates: async () => [],

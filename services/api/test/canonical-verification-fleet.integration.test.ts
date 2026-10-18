@@ -85,7 +85,13 @@ describe("canonical verification for the pre-canonical fleet", () => {
       remoteAddress: `198.51.100.${1 + Math.floor(Math.random() * 250)}`,
     });
 
-  /** A record exactly as Production holds it: signed, historically PUBLISHED, record-id grace, no reference. */
+  /**
+   * A record exactly as Production holds it: signed, historically PUBLISHED,
+   * record-id grace, no reference. (2026-10-18) After
+   * 20281018000000_verification_disclosure_policy a historically PUBLISHED
+   * record carries the backfilled policy CONTENT_PREVIEW (location off); the
+   * retired public_verify_state column stays as it was, read by nothing.
+   */
   async function legacyRecord(plan: (typeof PLANS)[number], data: Record<string, unknown> = {}): Promise<string> {
     const teamId = teamByPlan.get(plan)!;
     const team = await prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { organizationId: true, ownerUserId: true } });
@@ -98,6 +104,7 @@ describe("canonical verification for the pre-canonical fleet", () => {
         organizationId: team.organizationId,
         ownerUserId: team.ownerUserId,
         publicVerifyState: "PUBLISHED",
+        verificationDisclosureMode: "CONTENT_PREVIEW",
         legacyVerifyUuidUntilUtc: new Date(Date.now() + 90 * 86_400_000),
         ...data,
       } as never,
@@ -276,20 +283,27 @@ describe("canonical verification for the pre-canonical fleet", () => {
     expect(await refOf(last)).toMatch(REF_SHAPE);
   }, 300_000);
 
-  it("RECORD-ID LINKS: inside the grace a record with its reference opens the CANONICAL page; before reconciliation the legacy page still works; outside the grace → uniform 404", async () => {
-    // Before reconciliation: the historical behaviour keeps the printed link working.
+  it("RECORD-ID LINKS: inside the grace only a record holding its reference opens — the CANONICAL page under the record's policy; outside the grace → uniform 404", async () => {
+    // (2026-10-18) Before reconciliation the record holds no reference, so its
+    // id is not a capability even inside the grace: the uniform 404 (the
+    // historical record-id page is retired with the publication model).
     const pending = await legacyRecord("FREE");
     const beforeRef = await publicVerify(pending);
-    expect(beforeRef.statusCode, beforeRef.body).toBe(200);
+    expect(beforeRef.statusCode, beforeRef.body).toBe(404);
+    expect(beforeRef.body).toBe((await publicVerify(randomUUID())).body);
 
     // After reconciliation the record-id link resolves THROUGH the canonical identity.
     await prisma.$transaction((tx) => runtime.ensureVerificationRefTx(tx as never, pending, { source: "TEST" }));
     const ref = (await refOf(pending))!;
-    // Publication never decides the canonical page.
+    // The retired publication column decides nothing.
     await prisma.evidence.update({ where: { id: pending }, data: { publicVerifyState: "NOT_PUBLISHED" } });
     const viaId = await publicVerify(pending);
     expect(viaId.statusCode, viaId.body).toBe(200);
-    expect(viaId.json().canonicalVerification).toMatchObject({ reference: ref, status: "AVAILABLE", disclosure: "VERIFICATION_ONLY" });
+    expect(viaId.json().canonicalVerification).toMatchObject({
+      reference: ref,
+      status: "AVAILABLE",
+      disclosure: { mode: "CONTENT_PREVIEW", recordedLocation: false, source: "RECORD_POLICY", originalDownload: false },
+    });
     const viaRef = await publicVerify(ref);
     expect(viaRef.statusCode).toBe(200);
     // The SAME page through either identifier: one tier, one disclosure, one reference.
@@ -315,26 +329,32 @@ describe("canonical verification for the pre-canonical fleet", () => {
     const ref = (await refOf(id))!;
     const row = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { teamId: true, ownerUserId: true, fileSha256: true } });
 
-    // Published by its owner: the established page, with owner-consented
-    // details — but never the owner, the workspace, storage or original bytes.
+    // Historically published (backfilled CONTENT_PREVIEW): the established
+    // page with a content preview — but never the owner, the workspace,
+    // storage, original bytes or (location off) the recorded location.
+    await prisma.evidence.update({ where: { id }, data: { lat: 52.520008, lng: 13.404954, accuracyMeters: 12 } as never });
     const ok = await publicVerify(ref);
     expect(ok.statusCode).toBe(200);
-    expect(ok.json().disclosure).toBe("OWNER_PUBLISHED");
-    for (const forbidden of [row.ownerUserId, row.teamId!, "storageKey", "storageBucket", "X-Amz-Signature", "ownerUserId"]) {
+    expect(ok.json().disclosure).toMatchObject({ mode: "CONTENT_PREVIEW", recordedLocation: false, source: "RECORD_POLICY", originalDownload: false });
+    expect(ok.json()).not.toHaveProperty("evidenceId");
+    expect(ok.json().captureContext ?? null).toBeNull();
+    expect(ok.json().locationState ?? null).toBeNull();
+    for (const forbidden of [row.ownerUserId, row.teamId!, "storageKey", "storageBucket", "X-Amz-Signature", "ownerUserId", "52.52", "13.40"]) {
       expect(ok.body, `the canonical page leaks ${forbidden}`).not.toContain(forbidden);
     }
-    // Not published: verification-only — the internal id, and the RECORDED
-    // LOCATION, are withheld as well (no coordinates, accuracy or map position).
-    await prisma.evidence.update({ where: { id }, data: { publicVerifyState: "NOT_PUBLISHED", lat: 52.520008, lng: 13.404954, accuracyMeters: 12 } as never });
+    // Verification only: the internal id, the title and the RECORDED LOCATION
+    // are withheld (no coordinates, accuracy or map position).
+    await prisma.evidence.update({ where: { id }, data: { verificationDisclosureMode: "VERIFICATION_ONLY" } });
     const vo = await publicVerify(ref);
     expect(vo.statusCode).toBe(200);
-    expect(vo.json()).toMatchObject({ tier: expect.any(String), disclosure: "VERIFICATION_ONLY", evidenceId: null });
+    expect(vo.json()).toMatchObject({ tier: expect.any(String), disclosure: { mode: "VERIFICATION_ONLY", source: "RECORD_POLICY" } });
+    expect(vo.json()).not.toHaveProperty("evidenceId");
     expect(vo.json().captureContext ?? null).toBeNull();
     expect(vo.json().locationState ?? null).toBeNull();
     for (const forbidden of [id, row.ownerUserId, row.teamId!, "X-Amz-Signature", "Pre-canonical TEAM", "52.52", "13.40"]) {
       expect(vo.body, `the verification-only page leaks ${forbidden}`).not.toContain(forbidden);
     }
-    await prisma.evidence.update({ where: { id }, data: { publicVerifyState: "PUBLISHED" } });
+    await prisma.evidence.update({ where: { id }, data: { verificationDisclosureMode: "CONTENT_PREVIEW" } });
 
     const mint = async (extra: Record<string, unknown>) => {
       const token = runtime.generateVerificationShareToken();
@@ -413,7 +433,7 @@ describe("canonical verification for the pre-canonical fleet", () => {
     const baseline = await recovery.recoverOrphanedReportLinks({ prisma: prisma as never, readObject, verifyBaseUrl: base });
 
     // The orphan: three report versions printing the SAME unstored token (Reem's shape).
-    const orphanId = await legacyRecord("FREE", { publicVerifyState: "NOT_PUBLISHED", legacyVerifyUuidUntilUtc: null });
+    const orphanId = await legacyRecord("FREE", { verificationDisclosureMode: "VERIFICATION_ONLY", legacyVerifyUuidUntilUtc: null });
     const orphanToken = tok();
     for (const v of [1, 2, 3]) {
       const pdf = await pdfWith([`${base}/${orphanToken}`]);
