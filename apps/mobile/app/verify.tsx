@@ -5,14 +5,21 @@ import { useLocalSearchParams } from "expo-router";
 import { apiFetch } from "../src/api";
 import { toSafeUserError, type SafeError } from "../src/errors/safe-error";
 import { formatUserDateTime } from "../src/lib/date";
-import { extractVerificationId } from "../src/deep-link";
+import { extractVerificationId, extractVerificationPackageId } from "../src/deep-link";
 import {
   VERIFY_COPY,
-  verifyStatusTone,
+  VERIFY_MATRIX_UNAVAILABLE_COPY,
+  canonicalVerifyShareUrl,
   formatVerifyDuration,
   hasVerificationMaterials,
+  parseVerifyDisclosure,
+  parseVerifyInventory,
+  parseVerifyRecordFacts,
   parseVerifyView,
-  publicVerifyUrl,
+  verifyMatrixIssues,
+  verifyMatrixQualifierWords,
+  verifyMatrixRow,
+  verifyMatrixStatusWords,
   parseVerifyCaptureIntegrity,
   verifyArtifactsLine,
   VERIFY_ANCHORING_COPY,
@@ -25,9 +32,6 @@ import {
   VERIFY_REVIEW_COPY,
   VERIFY_TECHNICAL_COPY,
   VERIFY_TRUST_COPY,
-  buildVerifyMismatchExplanations,
-  buildVerifyReviewerActions,
-  buildVerifyVerdict,
   parseVerifyAnchoring,
   parseVerifyContentReview,
   parseVerifyCustody,
@@ -42,7 +46,6 @@ import {
   verifyExecutiveBadges,
   verifyIntegrityReviewRequired,
   verifyIntegrityTab,
-  verifyMismatchMessages,
   verifyPublicationPending,
   verifyRecordFields,
   verifyScopeText,
@@ -90,6 +93,9 @@ import { otsCard, otsStatusLine } from "../src/product/ots-anchoring";
 import { CaptureLocationMap } from "../src/ui/capture-location-map";
 import { parseVerifyCaptureContext, parseVerifyLocationState } from "../src/product/public-verify";
 
+/** What a person is told about a package link this build cannot open on the web. */
+const VERIFY_PACKAGE_LINK_COPY = "This is a verification package link. Open it in a web browser to review the package.";
+
 /** The raw response; everything the screen shows goes through parseVerifyView. */
 type VerifyData = Record<string, unknown>;
 
@@ -135,6 +141,19 @@ export default function VerifyScreen() {
   const submitManual = useCallback(() => {
     if (!manual.trim()) {
       setError({ kind: "input", title: "Check the details", message: VERIFY_TOKEN_CARD.emptyError });
+      return;
+    }
+    // A verification PACKAGE link (/verify/package/<id>) is the web package
+    // page, not a record reference: open it there instead of reading "package"
+    // as a verification id.
+    const packageId = extractVerificationPackageId(manual);
+    if (packageId) {
+      const origin = webOrigin();
+      if (origin) {
+        void Linking.openURL(`${origin.replace(/\/+$/, "")}/verify/package/${encodeURIComponent(packageId)}`);
+      } else {
+        setError({ kind: "input", title: "Check the details", message: VERIFY_PACKAGE_LINK_COPY });
+      }
       return;
     }
     const extracted = extractVerificationId(manual);
@@ -260,7 +279,12 @@ export default function VerifyScreen() {
   const acq = parseVerifyCaptureIntegrity(data);
   const captureCtx = parseVerifyCaptureContext(data, locale);
   const locationState = parseVerifyLocationState(data, locale);
-  const shareUrl = publicVerifyUrl(webOrigin(), id);
+  // THE shared link: the canonical /verify/<pvr_ reference> — never the pvs_
+  // token or record id this page was opened with.
+  const shareUrl = canonicalVerifyShareUrl(webOrigin(), data);
+  const facts = parseVerifyRecordFacts(data);
+  const disclosure = parseVerifyDisclosure(data);
+  const inventory = parseVerifyInventory(data);
   const Row = ({ k, value, mono }: { k: string; value: string | null; mono?: boolean }) =>
     value ? (
       <View style={styles.hashRow}>
@@ -277,17 +301,17 @@ export default function VerifyScreen() {
   const otsC = otsCard(v.ots, locale, fmt);
   const outputContext = parseVerifyOutputContext(data);
   const signals = parseVerifyIntegritySignals(data);
-  const verdict = buildVerifyVerdict(trust, signals, matrix);
-  const reviewerActions = buildVerifyReviewerActions(verdict, signals);
-  const mismatchExplanations = buildVerifyMismatchExplanations(signals);
-  const mismatchMessages = verifyMismatchMessages(signals);
+  // The only "issues" the screen states: rows the server marked FAILED.
+  const issues = verifyMatrixIssues(matrix);
+  const tsaRow = verifyMatrixRow(matrix, "tsa_token");
+  const otsRow = verifyMatrixRow(matrix, "ots_anchoring");
   const divergence = parseVerifyDivergence(data);
-  const anchoring = parseVerifyAnchoring(data, fmt, locale);
+  const anchoring = parseVerifyAnchoring(data, fmt, locale, matrix);
   const redaction = parseVerifyRedaction(data, fmt);
   const content = parseVerifyContentReview(data, fmt);
   const custody = parseVerifyCustody(data);
   const recordFields = verifyRecordFields(data, trust, fmt);
-  const integrityTab = verifyIntegrityTab(data, signals, fmt, verifyIntegrityReviewRequired(trust, matrix), locale);
+  const integrityTab = verifyIntegrityTab(data, signals, fmt, verifyIntegrityReviewRequired(trust, matrix), locale, matrix);
   const pkg = parseVerifyPackage(data);
   const recordStatus = (data?.["overview"] as Record<string, unknown> | undefined)?.["recordStatus"];
   const selected: VerifyContentItem | null = content
@@ -300,29 +324,101 @@ export default function VerifyScreen() {
       <ProovraSection title="Verification">
         <ProovraText variant="h2" weight="bold" accessibilityRole="header">{VERIFY_TRUST_COPY.pageTitle}</ProovraText>
         <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{VERIFY_TRUST_COPY.pageSubtitle}</ProovraText>
-        <ProovraText variant="label" mono selectable color={theme.color.ink.muted} style={styles.gap}>{`Token: ${id}`}</ProovraText>
         <ProovraCard style={styles.card}>
-          {/* The server's state, or nothing — never an invented "Verified record". */}
-          {/* The server's state, never an overall verdict: with a matrix, its bounded summary is the headline. */}
-          {v.statusLabel && !matrix ? <ProovraBadge tone={verifyStatusTone(v.statusLabel)} label={v.statusLabel} /> : null}
           {v.title ? <ProovraText variant="h2" weight="bold" style={styles.gap}>{v.title}</ProovraText> : null}
-          {v.evidenceType ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{v.evidenceType}</ProovraText> : null}
-          {v.capturedAt ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{formatUserDateTime(v.capturedAt)}</ProovraText> : null}
+          {facts?.recordKindLabel ? (
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary} testID="verify-record-kind">{facts.recordKindLabel}</ProovraText>
+          ) : v.evidenceType ? (
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{v.evidenceType}</ProovraText>
+          ) : null}
           {matrix ? (
             <ProovraText variant="bodySm" testID="verify-headline">{matrix.summary}</ProovraText>
           ) : v.integrityHeadline ? (
             <ProovraText variant="bodySm">{v.integrityHeadline}</ProovraText>
           ) : null}
-          {v.summary ? <ProovraText variant="label" color={theme.color.ink.secondary}>{v.summary}</ProovraText> : null}
+          {v.summary && v.summary !== matrix?.summary ? <ProovraText variant="label" color={theme.color.ink.secondary}>{v.summary}</ProovraText> : null}
         </ProovraCard>
 
-        {/* ---- Verification matrix — `verificationMatrix` (or, from an older API, the trust signals). ---- */}
+        {/* ---- Record facts — `recordFacts`, printed as sent. ---- */}
+        {facts ? (
+          <ProovraCard style={styles.card} testID="verify-record-facts">
+            <Kicker>Record</Kicker>
+            {facts.verificationReference ? (
+              <View style={styles.hashRow}>
+                <ProovraText variant="label" color={theme.color.ink.muted}>Verification reference</ProovraText>
+                <ProovraText variant="bodySm" mono selectable testID="verify-reference">{facts.verificationReference}</ProovraText>
+                <CopyButton value={facts.verificationReference} label="Copy reference" variant="ghost" testID="verify-copy-reference" />
+              </View>
+            ) : null}
+            <Row k="Record" value={facts.recordKindLabel} />
+            <Row
+              k="Report issued"
+              value={facts.reportIssuedAtUtc ? `${fmt(facts.reportIssuedAtUtc)}${facts.reportVersion !== null ? ` · version ${facts.reportVersion}` : ""}` : "No report issued yet"}
+            />
+            <Row
+              k="Stored file last rechecked"
+              value={
+                facts.storedFileLastRecheckedAtUtc
+                  ? `${fmt(facts.storedFileLastRecheckedAtUtc)}${facts.storedFileRecheck ? ` · ${VERIFICATION_STATUS_LABELS[facts.storedFileRecheck as VerificationStatus] ?? facts.storedFileRecheck}` : ""}`
+                  : "Not rechecked yet"
+              }
+            />
+            <Row k="Page checked" value={facts.checkedAtUtc ? fmt(facts.checkedAtUtc) : null} />
+            <View style={styles.inset} testID="verify-identity">
+              <Kicker>Submitter identity</Kicker>
+              {facts.identity.disclosure === "WITHHELD" && facts.identity.statement ? (
+                <ProovraText variant="label" testID="verify-identity-withheld">{facts.identity.statement}</ProovraText>
+              ) : null}
+              {facts.identity.captureTime.length > 0 ? (
+                <>
+                  <ProovraText variant="label" weight="semibold">At capture</ProovraText>
+                  {facts.identity.captureTime.map((r) => (
+                    <ProovraText key={`ct-${r.label}`} variant="label" color={theme.color.ink.secondary}>{`${r.label}: ${r.value}`}</ProovraText>
+                  ))}
+                </>
+              ) : null}
+              {facts.identity.atReportTime ? (
+                <>
+                  <ProovraText variant="label" weight="semibold">
+                    {`At report time${facts.identity.atReportVersion !== null ? ` (report version ${facts.identity.atReportVersion})` : ""}`}
+                  </ProovraText>
+                  {facts.identity.atReportTime.length > 0 ? (
+                    facts.identity.atReportTime.map((r) => (
+                      <ProovraText key={`rt-${r.label}`} variant="label" color={theme.color.ink.secondary}>{`${r.label}: ${r.value}`}</ProovraText>
+                    ))
+                  ) : (
+                    <ProovraText variant="label" color={theme.color.ink.secondary}>
+                      {facts.identity.disclosure === "WITHHELD" && facts.identity.statement ? facts.identity.statement : "Not stated in the issued report."}
+                    </ProovraText>
+                  )}
+                </>
+              ) : null}
+            </View>
+          </ProovraCard>
+        ) : null}
+
+        {/* ---- The disclosure the server applied — `disclosure` (never decided here). ---- */}
+        {disclosure ? (
+          <ProovraCard style={styles.card} testID="verify-disclosure">
+            <Kicker>Verification page disclosure</Kicker>
+            <ProovraBadge tone="governance" label={disclosure.modeLabel} />
+            <ProovraText variant="label">{disclosure.sentence}</ProovraText>
+            <ProovraText variant="label" color={theme.color.ink.secondary}>
+              {disclosure.recordedLocation ? "Recorded location: shown." : "Recorded location: not shown."}
+            </ProovraText>
+            {disclosure.originalDownload ? null : (
+              <ProovraText variant="label" color={theme.color.ink.secondary}>Original files are not offered on this page.</ProovraText>
+            )}
+          </ProovraCard>
+        ) : null}
+
+        {/* ---- Verification matrix — the server's `verificationMatrix`, or a plain statement that it is unavailable. ---- */}
         {matrix ? (
           <ProovraCard style={styles.card} testID="verify-trust-decision">
             <Kicker>{VERIFY_TRUST_COPY.overallKicker}</Kicker>
             <ProovraText variant="bodySm" weight="semibold">{matrix.summary}</ProovraText>
             <ProovraText variant="label" color={theme.color.ink.secondary}>{VERIFY_TRUST_COPY.matrixBoundary}</ProovraText>
-            <MatrixRows matrix={matrix} />
+            <MatrixRows matrix={matrix} fmt={fmt} />
             {matrix.summary.includes(matrix.limitation) ? null : (
               <View style={styles.inset}>
                 <Kicker>{VERIFY_TRUST_COPY.limitationKicker}</Kicker>
@@ -337,7 +433,12 @@ export default function VerifyScreen() {
               </View>
             ) : null}
           </ProovraCard>
-        ) : null}
+        ) : (
+          <ProovraCard style={styles.card} testID="verify-matrix-unavailable">
+            <Kicker>{VERIFY_TRUST_COPY.overallKicker}</Kicker>
+            <ProovraText variant="label">{VERIFY_MATRIX_UNAVAILABLE_COPY}</ProovraText>
+          </ProovraCard>
+        )}
 
         {/* ---- Web OutputContextBadge — `outputContext`. ---- */}
         {outputContext ? (
@@ -362,33 +463,18 @@ export default function VerifyScreen() {
           </ProovraCard>
         ) : null}
 
-        {/* ---- Legal Review Boundary / Recommended Reviewer Actions / Integrity Issue Explanation — `integrityProof`. ---- */}
-        {signals.present ? (
-          <>
-            <ProovraCard style={styles.card} testID="verify-legal-boundary">
-              <Kicker color={verdict.tone === "danger" ? theme.color.status.risk.fg : undefined}>{VERIFY_REVIEW_COPY.legalKicker}</Kicker>
-              <ProovraText variant="bodySm">{verdict.legalStatement}</ProovraText>
-            </ProovraCard>
-            <ProovraCard style={styles.card} testID="verify-reviewer-actions">
-              <Kicker>{VERIFY_REVIEW_COPY.actionsKicker}</Kicker>
-              <ProovraText variant="label" color={theme.color.ink.secondary}>{VERIFY_REVIEW_COPY.actionsBody}</ProovraText>
-              {reviewerActions.map((a, i) => (
-                <ProovraText key={a} variant="label">{`${i + 1}. ${a}`}</ProovraText>
-              ))}
-            </ProovraCard>
-            {mismatchExplanations.length > 0 ? (
-              <ProovraCard style={styles.card} testID="verify-integrity-issues">
-                <Kicker color={theme.color.status.risk.fg}>{VERIFY_REVIEW_COPY.issuesKicker}</Kicker>
-                <ProovraText variant="label" color={theme.color.ink.secondary}>{VERIFY_REVIEW_COPY.issuesBody}</ProovraText>
-                {mismatchExplanations.map((m) => (
-                  <View key={m.title} style={styles.hashRow}>
-                    <ProovraBadge tone={m.severity === "danger" ? "risk" : "pending"} label={m.title} />
-                    <ProovraText variant="label">{m.body}</ProovraText>
-                  </View>
-                ))}
-              </ProovraCard>
-            ) : null}
-          </>
+        {/* ---- Integrity Issue Explanation — the matrix rows the server marked FAILED, and nothing else. ---- */}
+        {issues.length > 0 ? (
+          <ProovraCard style={styles.card} testID="verify-integrity-issues">
+            <Kicker color={theme.color.status.risk.fg}>{VERIFY_REVIEW_COPY.issuesKicker}</Kicker>
+            <ProovraText variant="label" color={theme.color.ink.secondary}>{VERIFY_REVIEW_COPY.issuesBody}</ProovraText>
+            {issues.map((m) => (
+              <View key={m.key} style={styles.hashRow}>
+                <ProovraBadge tone={m.severity === "danger" ? "risk" : "pending"} label={m.title} />
+                <ProovraText variant="label">{m.body}</ProovraText>
+              </View>
+            ))}
+          </ProovraCard>
         ) : null}
 
         {/* ---- Supporting Technical Signals — `trustDecision` + consistency/snapshot/live fields. ---- */}
@@ -412,12 +498,15 @@ export default function VerifyScreen() {
             ) : null}
             {divergence ? (
               <View style={styles.inset} testID="verify-divergence">
-                <Kicker>{divergence.kicker}</Kicker>
+                <Kicker color={divergence.integrityCritical ? theme.color.status.risk.fg : undefined}>{divergence.kicker}</Kicker>
                 <ProovraText variant="bodySm" weight="semibold">{divergence.headline}</ProovraText>
                 <ProovraText variant="label">{VERIFY_DIVERGENCE_COPY.boundary}</ProovraText>
                 {divergence.reasons.length > 0 ? <ProovraText variant="label" weight="semibold">{VERIFY_DIVERGENCE_COPY.why}</ProovraText> : null}
                 {divergence.reasons.map((r, i) => (
-                  <ProovraText key={`${r.label}-${i}`} variant="label">{`• ${r.label}. ${r.detail}`}</ProovraText>
+                  <View key={`${r.code ?? r.label}-${i}`} style={styles.hashRow} testID={`verify-divergence-reason-${r.code ?? i}`}>
+                    <ProovraBadge tone={verifyBadgeTone(r.tone)} label={r.label} />
+                    <ProovraText variant="label">{r.detail}</ProovraText>
+                  </View>
                 ))}
               </View>
             ) : null}
@@ -433,20 +522,18 @@ export default function VerifyScreen() {
                 <View style={styles.inset} testID="verify-live-anchoring">
                   <Kicker>{VERIFY_ANCHORING_COPY.liveKicker}</Kicker>
                   <ProovraText variant="label">{VERIFY_ANCHORING_COPY.liveBody}</ProovraText>
-                  {anchoring.advanced ? <ProovraText variant="label" weight="semibold">{VERIFY_ANCHORING_COPY.advanced}</ProovraText> : null}
+                  {anchoring.advance ? (
+                    <ProovraText variant="label" weight="semibold" testID="verify-ots-advance">{anchoring.advance}</ProovraText>
+                  ) : null}
                   {anchoring.otsPending ? <ProovraText variant="label" weight="semibold">{anchoring.otsPendingSentence}</ProovraText> : null}
                   {anchoring.liveRows.map((r) => (
                     <Row key={r.label} k={r.label} value={r.value} mono={r.mono === true} />
                   ))}
+                  {anchoring.currentQualifiers.length > 0 ? (
+                    <ProovraText variant="label" color={theme.color.ink.secondary}>{anchoring.currentQualifiers.join(" · ")}</ProovraText>
+                  ) : null}
                 </View>
               </>
-            ) : null}
-            {signals.present ? (
-              <View style={styles.inset}>
-                <Kicker>{VERIFY_PANEL_COPY.legalOutcome}</Kicker>
-                <ProovraText variant="label">{verdict.legalStatement}</ProovraText>
-                <ProovraText variant="label" color={theme.color.ink.secondary}>{verdict.actionRequired}</ProovraText>
-              </View>
             ) : null}
             {custody.present ? (
               <View style={styles.inset}>
@@ -513,10 +600,11 @@ export default function VerifyScreen() {
               )}
             </View>
             <View style={styles.inset}>
-              <Kicker color={mismatchMessages.length > 0 ? theme.color.status.risk.fg : undefined}>{VERIFY_CONTENT_COPY.mismatchKicker}</Kicker>
-              {mismatchMessages.length > 0 ? (
-                mismatchMessages.map((m) => <ProovraText key={m} variant="label">{m}</ProovraText>)
-              ) : signals.present ? (
+              <Kicker color={issues.length > 0 ? theme.color.status.risk.fg : undefined}>{VERIFY_CONTENT_COPY.mismatchKicker}</Kicker>
+              {/* The "nothing failed" sentence only when the matrix exists and marks nothing Failed. */}
+              {issues.length > 0 ? (
+                issues.map((m) => <ProovraText key={m.key} variant="label">{`${m.title}: ${m.body}`}</ProovraText>)
+              ) : matrix ? (
                 <ProovraText variant="label">{VERIFY_CONTENT_COPY.mismatchEmpty}</ProovraText>
               ) : null}
             </View>
@@ -575,28 +663,37 @@ export default function VerifyScreen() {
           </ProovraCard>
         ) : null}
 
-        {/* The evidence items (verify page multi-item viewer): kind, original name, duration, size, role. */}
-        {v.items.length > 0 ? (
-          <ProovraCard style={styles.card}>
+        {/* The item inventory — `evidenceContent.items` as the server labelled them ("Item N" when names are withheld). */}
+        {inventory.length > 0 ? (
+          <ProovraCard style={styles.card} testID="verify-inventory">
             <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
-              {v.items.length === 1 ? "Evidence item" : `Evidence items (${v.items.length})`}
+              {inventory.length === 1 ? "Evidence item" : `Evidence items (${inventory.length})`}
             </ProovraText>
-            {v.items.map((it) => (
-              <View key={it.id} style={styles.hashRow} testID={`verify-item-${it.id}`}>
-                <ProovraText variant="bodySm" weight="semibold">{`${it.isPrimary ? "Primary evidence item · " : ""}${it.label}`}</ProovraText>
-                <ProovraText variant="label" color={theme.color.ink.secondary}>
-                  {[
-                    it.kind.toUpperCase(),
-                    it.roleLabel,
-                    formatVerifyDuration(it.durationMs) ? `Duration: ${formatVerifyDuration(it.durationMs)}` : null,
-                    it.sizeLabel,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </ProovraText>
-                {it.originalFileName ? <ProovraText variant="label" color={theme.color.ink.muted}>{`Original: ${it.originalFileName}`}</ProovraText> : null}
-              </View>
-            ))}
+            {inventory.map((it) => {
+              const full = v.items.find((x) => x.id === it.id);
+              return (
+                <View key={it.id} style={styles.hashRow} testID={`verify-item-${it.id}`}>
+                  <ProovraText variant="bodySm" weight="semibold">{`${full?.isPrimary ? "Primary evidence item · " : ""}${it.label}`}</ProovraText>
+                  <ProovraText variant="label" color={theme.color.ink.secondary}>
+                    {[
+                      it.kindLabel,
+                      full?.roleLabel ?? null,
+                      full && formatVerifyDuration(full.durationMs) ? `Duration: ${formatVerifyDuration(full.durationMs)}` : null,
+                      it.sizeLabel,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </ProovraText>
+                  {it.sha256 ? (
+                    <View style={styles.inlineRow}>
+                      <ProovraText variant="label" mono selectable>{`SHA-256 ${it.sha256Short}`}</ProovraText>
+                      <CopyButton value={it.sha256} label="Copy SHA-256" variant="ghost" testID={`verify-copy-sha-${it.id}`} />
+                    </View>
+                  ) : null}
+                  {full?.originalFileName ? <ProovraText variant="label" color={theme.color.ink.muted}>{`Original: ${full.originalFileName}`}</ProovraText> : null}
+                </View>
+              );
+            })}
           </ProovraCard>
         ) : null}
 
@@ -608,10 +705,22 @@ export default function VerifyScreen() {
           <Row k="Signature" value={v.materials.signatureBase64} mono />
           <Row k="Signing key" value={v.materials.signingKey} mono />
           <Row k="Public key" value={v.materials.publicKeyPem} mono />
-          <Row k="Timestamp (RFC 3161)" value={[v.tsa.status, v.tsa.provider, v.tsa.genTimeUtc ? formatUserDateTime(v.tsa.genTimeUtc) : null].filter(Boolean).join(" · ") || null} />
+          {/* The timestamp's status is the matrix tsa_token row — never a raw TSA word. */}
+          <Row
+            k="Timestamp (RFC 3161)"
+            value={
+              [
+                tsaRow ? verifyMatrixStatusWords(tsaRow) : null,
+                v.tsa.provider,
+                v.tsa.genTimeUtc ? formatUserDateTime(v.tsa.genTimeUtc) : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || null
+            }
+          />
           <Row k="Timestamp serial" value={v.tsa.serialNumber} mono />
-          {/* Bitcoin anchoring: the server's verification in the locale's words (only CHAIN_VERIFIED is verified); the txid only when present. */}
-          <Row k={otsC.title} value={`${otsStatusLine(otsC)} — ${otsC.sentence}`} />
+          {/* Bitcoin anchoring: the matrix row's words now (only CHAIN_VERIFIED is verified); the txid only when present. */}
+          <Row k={otsC.title} value={otsRow ? `${verifyMatrixStatusWords(otsRow)} — ${otsRow.statement}` : `${otsStatusLine(otsC)} — ${otsC.sentence}`} />
           {otsC.facts
             .filter((f) => f.key === "txid" || f.key === "anchoredAt" || f.key === "confirmations" || f.key === "checkedAt")
             .map((f) => (
@@ -646,9 +755,8 @@ export default function VerifyScreen() {
                 subtitle={ev.atUtc ? formatUserDateTime(ev.atUtc) : undefined}
               />
             ))}
-            {v.accessEventCount ? (
-              <ProovraText variant="label" color={theme.color.ink.muted}>{`${v.accessEventCount} later access event${v.accessEventCount === 1 ? "" : "s"} are not integrity-relevant.`}</ProovraText>
-            ) : null}
+            {/* Access activity is an aggregate (count + latest), never a list. */}
+            <AccessActivityLine activity={custody.accessActivity} fallbackCount={v.accessEventCount} />
           </ProovraCard>
         ) : null}
 
@@ -733,7 +841,9 @@ export default function VerifyScreen() {
                   <Kicker>{VERIFY_PACKAGE_COPY.kicker}</Kicker>
                   <ProovraText variant="bodySm" weight="bold">{pkg.decisionLabel}</ProovraText>
                   <ProovraText variant="label">{pkg.decisionText}</ProovraText>
+                  {/* The seal status IS the matrix package_signature row. */}
                   <ProovraBadge tone={verifyBadgeTone(pkg.tone)} label={pkg.badge} />
+                  {pkg.qualifiers.length > 0 ? <ProovraText variant="label" color={theme.color.ink.secondary}>{pkg.qualifiers.join(" · ")}</ProovraText> : null}
                   <Kicker>{VERIFY_PACKAGE_COPY.decisionKicker}</Kicker>
                   {pkg.version ? <ProovraText variant="label" weight="semibold">{pkg.version}</ProovraText> : null}
                   <View style={styles.inset}>
@@ -771,22 +881,22 @@ export default function VerifyScreen() {
           ) : null}
 
           {techTab === "access" ? (
-            <View style={{ gap: theme.space.s2 }}>
+            <View style={{ gap: theme.space.s2 }} testID="verify-tab-access">
               <View style={styles.inset}>
                 <Kicker>{VERIFY_TECHNICAL_COPY.accessBoundaryKicker}</Kicker>
                 <ProovraText variant="label">{VERIFY_TECHNICAL_COPY.accessBoundary}</ProovraText>
               </View>
-              <Timeline
-                testID="verify-tab-access"
-                title={VERIFY_TECHNICAL_COPY.accessTitle}
-                subtitle={VERIFY_TECHNICAL_COPY.accessSubtitle}
-                note={null}
-                countLabel={custody.accessCountLabel}
-                events={custody.accessTimeline}
-                emptyTitle={VERIFY_TECHNICAL_COPY.accessEmptyTitle}
-                emptyBody={VERIFY_TECHNICAL_COPY.accessEmptyBody}
-                forensicMode={forensicMode}
-              />
+              <ProovraText variant="bodySm" weight="semibold">{VERIFY_TECHNICAL_COPY.accessTitle}</ProovraText>
+              <ProovraText variant="label" color={theme.color.ink.secondary}>{VERIFY_TECHNICAL_COPY.accessSubtitle}</ProovraText>
+              <ProovraBadge tone="neutral" label={custody.accessCountLabel} />
+              {custody.accessActivity && custody.accessActivity.count > 0 ? (
+                <AccessActivityLine activity={custody.accessActivity} fallbackCount={null} />
+              ) : (
+                <View style={styles.inset}>
+                  <ProovraText variant="label" weight="semibold">{VERIFY_TECHNICAL_COPY.accessEmptyTitle}</ProovraText>
+                  <ProovraText variant="label">{VERIFY_TECHNICAL_COPY.accessEmptyBody}</ProovraText>
+                </View>
+              )}
             </View>
           ) : null}
         </ProovraCard>
@@ -911,6 +1021,18 @@ export default function VerifyScreen() {
 type TechTab = "record" | "integrity" | "package" | "custody" | "access";
 const TECH_TABS: readonly TechTab[] = ["record", "integrity", "package", "custody", "access"];
 
+/** Access activity, aggregated: "Access activity: N events · latest <time>". Never a list. */
+function AccessActivityLine({ activity, fallbackCount }: { activity: { count: number; latestAtUtc: string | null } | null; fallbackCount: number | null }) {
+  const count = activity?.count ?? fallbackCount;
+  if (!count) return null;
+  const latest = activity?.latestAtUtc ? ` · latest ${formatUserDateTime(activity.latestAtUtc)}` : "";
+  return (
+    <ProovraText variant="label" color={theme.color.ink.secondary} testID="verify-access-activity">
+      {`Access activity: ${count} event${count === 1 ? "" : "s"}${latest}`}
+    </ProovraText>
+  );
+}
+
 /** A web "kicker" (small uppercase section label). */
 function Kicker({ children, color }: { children: string; color?: string }) {
   return (
@@ -921,16 +1043,23 @@ function Kicker({ children, color }: { children: string; color?: string }) {
 }
 
 /** One row per matrix signal: its label, its status word and its statement. */
-function MatrixRows({ matrix }: { matrix: VerifyMatrixView }) {
+function MatrixRows({ matrix, fmt }: { matrix: VerifyMatrixView; fmt: (iso: string) => string }) {
   return (
     <View style={{ gap: theme.space.s2 }} testID="verify-matrix">
-      {matrix.rows.map((r) => (
-        <View key={r.key} style={styles.hashRow} testID={`verify-matrix-${r.key}`}>
-          <ProovraText variant="label" weight="semibold" color={theme.color.ink.muted}>{r.label}</ProovraText>
-          <ProovraBadge tone={verifyBadgeTone(r.tone)} label={r.statusLabel ?? VERIFICATION_STATUS_LABELS[r.status as VerificationStatus] ?? r.status} />
-          {r.statement ? <ProovraText variant="label">{r.statement}</ProovraText> : null}
-        </View>
-      ))}
+      {matrix.rows.map((r) => {
+        const qualifiers = verifyMatrixQualifierWords(r);
+        // A timestamp validated later from the token kept at intake: its validation time.
+        const validatedAt = r.key === "tsa_token" && r.qualifiers?.includes("VALIDATED_FROM_RETAINED_TOKEN") && r.measuredAtUtc ? fmt(r.measuredAtUtc) : null;
+        return (
+          <View key={r.key} style={styles.hashRow} testID={`verify-matrix-${r.key}`}>
+            <ProovraText variant="label" weight="semibold" color={theme.color.ink.muted}>{r.label}</ProovraText>
+            <ProovraBadge tone={verifyBadgeTone(r.tone)} label={verifyMatrixStatusWords(r)} />
+            {r.statement ? <ProovraText variant="label">{r.statement}</ProovraText> : null}
+            {qualifiers.length > 0 ? <ProovraText variant="label" color={theme.color.ink.secondary}>{qualifiers.join(" · ")}</ProovraText> : null}
+            {validatedAt ? <ProovraText variant="label" color={theme.color.ink.secondary}>{`Validated ${validatedAt}`}</ProovraText> : null}
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -1089,5 +1218,6 @@ const styles = StyleSheet.create({
     gap: theme.space.s1,
   },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 },
+  inlineRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: theme.space.s2 },
   media: { width: "100%", height: 240, borderRadius: theme.radius.md },
 });

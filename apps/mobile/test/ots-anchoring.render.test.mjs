@@ -327,12 +327,6 @@ test("Public Verify: an unchecked attestation is neutral, CHAIN_VERIFIED success
   assert.equal(PV.verifyOtsTone({ state: "FAILED" }, "en").tone, "danger");
   assert.equal(PV.verifyOtsTone({ state: "PENDING" }, "en").tone, "neutral");
 
-  const signals = (ots) => PV.parseVerifyIntegritySignals({ integrityProof: {}, storageAndTimestamping: { ots } });
-  assert.equal(signals(ANCHORED("ATTESTATION_RECORDED")).otsVerification, "ATTESTATION_RECORDED");
-  const failed = signals(ANCHORED("CHAIN_FAILED", chain("FAILED")));
-  assert.equal(failed.otsChainFailed, true);
-  const notes = PV.buildVerifyMismatchExplanations(failed);
-  assert.ok(notes.some((n) => n.title === "Bitcoin verification failed" && n.severity === "danger"));
 
   // A matrix row carrying CHAIN_VERIFIED is verified; one carrying ATTESTATION_RECORDED is not.
   const matrixRow = (state, otsVerification) => {
@@ -352,6 +346,15 @@ test("Public Verify: an unchecked attestation is neutral, CHAIN_VERIFIED success
   const ver = matrixRow("PASSED", "CHAIN_VERIFIED");
   assert.equal(ver.statusLabel, "Independently verified ✓");
   assert.equal(ver.tone, "success");
+  // A CHAIN_FAILED row is danger, and the review note is the SERVER row itself (2026-10-18:
+  // no mismatch sentence is derived locally from the OTS view).
+  const failedRow = matrixRow("FAILED", "CHAIN_FAILED");
+  assert.equal(failedRow.status, "FAILED");
+  assert.equal(failedRow.tone, "danger");
+  const issues = PV.verifyMatrixIssues({ rows: [failedRow], summary: "", limitation: "" });
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].key, "ots_anchoring");
+  assert.equal(issues[0].body, failedRow.statement);
 });
 
 /* -------------------------------------------------------------- rendered */
