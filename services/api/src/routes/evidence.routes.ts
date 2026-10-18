@@ -141,6 +141,9 @@ import {
   WITHHELD_BY_DISCLOSURE_POLICY,
   type PublicVerifyIdentifierKind,
   VERIFICATION_DISCLOSURE_MODES,
+  OTS_VERIFICATION_WORDS,
+  otsChainRecordOf,
+  type OtsVerificationKey,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -2237,6 +2240,9 @@ function otsAnchoringInputFor(
     anchoredAtUtc: evidence.otsAnchoredAtUtc ?? null,
     upgradedAtUtc: evidence.otsUpgradedAtUtc ?? null,
     submittedAtUtc: custodyEvents ? resolveOtsCustodyFacts(custodyEvents).submittedAtUtc : null,
+    // (2026-10-18) The persisted independent chain check, so every section that
+    // states anchoring (Basic Verify, provenance time) agrees with the matrix.
+    chain: otsChainRecordOf(evidence),
   };
 }
 
@@ -4709,6 +4715,8 @@ function buildPublicVerifyOverview(params: {
   timestampDigestMatches: boolean | null;
   /** The resolved OTS state (resolveRecordOtsAnchoring). */
   otsStatus: OtsState;
+  /** (2026-10-18) Its verification: the label states this, never the lifecycle word alone. */
+  otsVerification?: OtsVerificationKey;
   overallIntegrity: boolean;
   chainOfCustodyPresent: boolean;
   anchor: AnchorStatusSummary;
@@ -4893,7 +4901,7 @@ primaryContentLabel: buildPrimaryContentLabel(
     reportVersion,
     reportGeneratedAtUtc,
     timestampStatus: mapTimestampStatusLabel(params.timestampStatus),
-    otsStatus: mapOtsStatusLabel(params.otsStatus),
+    otsStatus: params.otsVerification ? OTS_VERIFICATION_WORDS[params.otsVerification] : mapOtsStatusLabel(params.otsStatus),
     storageProtection: mapStorageStatusLabel(params.storageProtection),
     chainOfCustodyPresent: params.chainOfCustodyPresent,
   };
@@ -14530,6 +14538,7 @@ verificationPackageVersion:
       timestampStatus: presentedTsa,
       timestampDigestMatches,
       otsStatus: otsAnchoring.state,
+      otsVerification: otsAnchoring.verification,
       overallIntegrity,
       chainOfCustodyPresent: forensicCustodyEvents.length > 0,
       anchor,

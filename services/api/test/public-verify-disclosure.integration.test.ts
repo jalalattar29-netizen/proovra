@@ -209,6 +209,9 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
       const ots = matrix.rows.find((r) => r.key === "ots_anchoring")!;
       expect(ots.status).toBe("VERIFIED");
       expect(ots.statusLabel).toBe("Independently verified");
+      // One statement of anchoring on the whole page: Basic Verify and the summary agree.
+      expect((page.body.basicVerification as { anchoring?: { state: string } }).anchoring?.state).toBe("verified");
+      expect((page.body.humanSummary as { otsStatus: string }).otsStatus).toBe("Independently verified");
     });
 
     it("C6 record facts: the reference is a Verification reference, a multipart record says so, issued vs rechecked are separate", async () => {
