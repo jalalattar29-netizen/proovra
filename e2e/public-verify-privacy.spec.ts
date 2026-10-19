@@ -117,7 +117,19 @@ test.describe("public verify privacy @critical", () => {
       ]) {
         expect(text, `public verify must not carry ${key}`).not.toContain(`"${key}"`);
       }
-      expect(Object.keys(body).sort()).toEqual(["basicVerification", "evidenceId", "link", "tier", "verificationMatrix"]);
+      // (2026-10-18) One server projection answers every public identifier.
+      // The record is named by its verification reference, never its internal
+      // id, and the disclosure that applied is stated.
+      expect(Object.keys(body).sort()).toEqual([
+        "basicVerification",
+        "canonicalVerification",
+        "disclosure",
+        "link",
+        "recordFacts",
+        "tier",
+        "verificationMatrix",
+      ]);
+      expect(text, "public verify must not carry the internal record id").not.toContain(id);
       // The per-signal matrix is public, but at this tier it withholds the
       // account and organization rows: it never describes who submitted.
       const matrixRows = (body.verificationMatrix as { rows: Array<{ key: string; status: string; statement: string }> }).rows;

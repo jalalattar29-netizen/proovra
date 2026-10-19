@@ -102,6 +102,16 @@ describe("the merged migration preserves eight-year evidence (Prisma upgrade on 
     const src = join(API_ROOT, "prisma", "migrations");
     cpSync(src, full, { recursive: true });
     cpSync(src, pre, { recursive: true });
+    // Migrations are ordered by name. Anything after the target is a later
+    // release and may depend on it (2028-10-18's disclosure policy reads
+    // `verification_access_state`). Leave later migrations out of both sets, so
+    // "full" is the database exactly as the target release left it.
+    for (const name of readdirSync(src)) {
+      if (/^\d{14}_/.test(name) && name > TARGET) {
+        rmSync(join(full, name), { recursive: true, force: true });
+        rmSync(join(pre, name), { recursive: true, force: true });
+      }
+    }
     rmSync(join(pre, TARGET), { recursive: true, force: true });
     expect(readdirSync(full)).toContain(TARGET);
     expect(readdirSync(pre)).not.toContain(TARGET);
