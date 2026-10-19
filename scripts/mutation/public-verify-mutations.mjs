@@ -72,17 +72,17 @@ export const MUTATIONS = [
   {
     id: 5,
     name: "drop sealCheck in the web package card",
-    file: "apps/web/app/verify/[token]/VerificationPackageIntegrityCard.tsx",
-    find: "__WEB_SEAL_ANCHOR__",
-    replace: "",
+    file: "apps/web/app/verify/[token]/VerifyRecordSections.tsx",
+    find: `<StatusMark status={integrity.sealCheck} testId="verify-package-seal-status" />`,
+    replace: `<StatusMark status={"VERIFIED"} testId="verify-package-seal-status" />`,
     tests: [WEB_RENDER("__tests__/render/public-verify-page-convergence.render.test.tsx")],
   },
   {
     id: 6,
     name: "drop sealCheck in the mobile package card",
     file: "apps/mobile/src/product/public-verify.ts",
-    find: "__MOBILE_SEAL_ANCHOR__",
-    replace: "",
+    find: `  const sealCheck = packageCheck(p["sealCheck"]) ?? sigRow?.status ?? "UNAVAILABLE";`,
+    replace: `  const sealCheck = "VERIFIED" as VerificationStatus;`,
     tests: [MOBILE("test/public-verify-convergence.test.mjs")],
   },
   {
@@ -108,7 +108,7 @@ export const MUTATIONS = [
     name: "return UNAVAILABLE for a legacy snapshot without otsState",
     file: "packages/shared/src/snapshot-comparison.ts",
     find: `  const comparable = comparableSignalOf(bitcoin);\n  if (comparable?.otsVerification) {`,
-    replace: `  const comparable = comparableSignalOf(bitcoin);\n  if (comparable?.otsVerification && false) {`,
+    replace: `  const comparable = comparableSignalOf(bitcoin);\n  if (comparable?.otsVerification && comparable.key === "__never__") {`,
     rebuild: "shared",
     tests: [SHARED("public-verify-convergence.test.mjs"), API_UNIT("test/public-verify-authority.test.ts")],
   },
@@ -136,7 +136,7 @@ export const MUTATIONS = [
     find: `  if (status === "STAMPED") {`,
     replace: `  if (status === "STAMPED" || status === "GRANTED") {`,
     rebuild: "shared",
-    tests: [SHARED("trust-signal-state.test.mjs", "verification-matrix.test.mjs", "public-verify-one-fact-authority.test.mjs")],
+    tests: [SHARED("public-verify-convergence.test.mjs", "trust-signal-state.test.mjs", "verification-matrix.test.mjs", "public-verify-one-fact-authority.test.mjs")],
   },
   {
     id: 13,
@@ -241,19 +241,29 @@ function main() {
     let killedBy = null;
     try {
       writeFileSync(path, original.replace(m.find, () => m.replace));
-      if (m.rebuild === "shared") rebuildShared();
+      if (m.rebuild === "shared") {
+        try {
+          rebuildShared();
+        } catch {
+          // A mutation that does not compile proves nothing about the tests.
+          killedBy = "MUTATION_DID_NOT_BUILD";
+        }
+      }
+      if (killedBy !== "MUTATION_DID_NOT_BUILD") {
       for (const t of runnable) {
         if (run(t) !== 0) {
           killedBy = `${t.cwd}: ${t.args.filter((a) => !a.startsWith("--")).slice(-2).join(" ")}`;
           break;
         }
       }
+      }
     } finally {
       writeFileSync(path, original);
       if (m.rebuild === "shared") rebuildShared();
     }
-    results.push({ id: m.id, name: m.name, outcome: killedBy ? "KILLED" : "SURVIVED", killedBy });
-    console.log(`[mutation ${m.id}] ${killedBy ? "KILLED" : "SURVIVED"} — ${m.name}${killedBy ? ` (${killedBy})` : ""}`);
+    const outcome = killedBy === "MUTATION_DID_NOT_BUILD" ? "MUTATION_DID_NOT_BUILD" : killedBy ? "KILLED" : "SURVIVED";
+    results.push({ id: m.id, name: m.name, outcome, killedBy });
+    console.log(`[mutation ${m.id}] ${outcome} — ${m.name}${killedBy ? ` (${killedBy})` : ""}`);
   }
   console.log(JSON.stringify(results, null, 2));
   const bad = results.filter((r) => r.outcome !== "KILLED" && !r.outcome.startsWith("SKIPPED"));

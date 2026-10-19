@@ -185,3 +185,15 @@ test("reference issuance and disclosure changes are administrative, never forens
   assert.equal(isForensicIntegrityCustodyEventType("SIGNATURE_APPLIED"), true);
   assert.equal(isForensicIntegrityCustodyEventType("VERIFY_VIEWED"), false);
 });
+
+test("TSA: a raw GRANTED / VERIFIED / SUCCEEDED word is a token recorded, never a validated timestamp", async () => {
+  const { resolveTsaTrustState } = await import("../dist/index.js");
+  for (const word of ["GRANTED", "VERIFIED", "SUCCEEDED", "RECORDED_NOT_VALIDATED"]) {
+    const state = resolveTsaTrustState({ presentedStatus: word, tokenPresent: true });
+    assert.equal(state.state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED", word);
+    assert.equal(tsaRowOf({ tsaStatus: word, tsaTokenPresent: true }).status, "NOT_CHECKED", word);
+  }
+  // Only a STAMPED status with a recorded validation is VERIFIED.
+  assert.equal(tsaRowOf({ tsaStatus: "STAMPED", tsaValidatedAtUtc: "2026-10-12T08:00:00.000Z", tsaTokenPresent: true }).status, "VERIFIED");
+  assert.equal(tsaRowOf({ tsaStatus: "STAMPED", tsaValidatedAtUtc: null, tsaTokenPresent: true }).status, "NOT_CHECKED");
+});
