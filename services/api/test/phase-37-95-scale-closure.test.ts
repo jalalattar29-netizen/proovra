@@ -15,7 +15,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
-import { enclosingSource, routeSource } from "../../../scripts/source-contract/index.mjs";
+import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
 import { listAllFiles } from "./_helpers/file-walker";
 

@@ -25,7 +25,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { IntegrationHarness } from "./integration-harness.js";
 // ET-PKG-07 — a record's id is not a public link: requests go through a share
 // link (the record is published and the link minted on first use).
-import { createReviewerShareLink, shareLinkFor } from "./helpers/verify-share.js";
+import { createReviewerShareLink } from "./helpers/verify-share.js";
 
 describe("byte-release authority (live PostgreSQL 16, real HTTP)", () => {
   let h: IntegrationHarness;
