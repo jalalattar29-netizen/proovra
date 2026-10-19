@@ -71,10 +71,12 @@ describe("Phase HOME-COPY — Operational queue → Action needed", () => {
   });
 });
 
-describe("Phase HOME-COPY — Verification health → Public verification links", () => {
-  it("the SectionCard title reads 'Public verification links'", () => {
+describe("Phase HOME-COPY — Verification health → Verification pages", () => {
+  // (2026-10-18) Every finalized record has a permanent verification page; the
+  // card is about those pages, not about "links" an owner publishes.
+  it("the SectionCard title reads 'Verification pages'", () => {
     expect(HOME_SECTIONS).toMatch(
-      /SectionCard title="Public verification links" testId="verification-health"/,
+      /SectionCard title="Verification pages" testId="verification-health"/,
     );
   });
 
@@ -107,17 +109,16 @@ describe("Phase HOME-COPY — Trust state → Verification summary", () => {
   });
 });
 
-describe("Phase HOME-COPY — Public verification 'live/suspended' wording", () => {
-  it("'Public verification live' is now 'Public verification links live'", () => {
-    expect(HOME_SECTIONS).toMatch(
-      /label: "Public verification links live"/,
-    );
+describe("Phase HOME-COPY — verification page wording", () => {
+  // (2026-10-18) Plain language about the pages themselves: how many are
+  // available, and how many are unavailable (withdrawn or suspended).
+  it("the available pages read 'Verification pages available'", () => {
+    expect(HOME_SECTIONS).toMatch(/label: "Verification pages available"/);
   });
 
-  it("'Public verification suspended' is now 'Public verification links paused' (less punitive)", () => {
-    expect(HOME_SECTIONS).toMatch(
-      /label: "Public verification links paused"/,
-    );
+  it("unavailable pages read 'Verification pages unavailable' — never 'published' wording", () => {
+    expect(HOME_SECTIONS).toMatch(/label: "Verification pages unavailable"/);
+    expect(HOME_SECTIONS).not.toMatch(/label: "[^"]*(?:[Uu]npublished|[Pp]ublished)[^"]*"/);
   });
 
   it("the legacy bare 'Public verification live'/'suspended' labels are gone", () => {

@@ -145,9 +145,9 @@ describe("Phase IA-home-final — banned CTA targets are absent", () => {
   it("Home builds no public link from a record id; it opens the record's link controls", () => {
     const VM = readWeb("components/home-experience/home-view-model.ts");
     expect(VM).not.toMatch(/\/verify\/\$\{/);
-    expect(VM).toMatch(/r\.package\?\.available \? evidencePublicLinksHref\(evidenceId\) : null/);
+    expect(VM).toMatch(/r\.package\?\.available \? evidenceVerificationPageHref\(evidenceId\) : null/);
     const HREF = readWeb("lib/verification-links-href.ts");
-    expect(HREF).toMatch(/\/evidence\/\$\{encodeURIComponent\(evidenceId\)\}\?tab=artifacts#public-verification-links/);
+    expect(HREF).toMatch(/\/evidence\/\$\{encodeURIComponent\(evidenceId\)\}\?tab=artifacts#verification-page/);
     expect(pageExists("/evidence/x")).toBe(true);
   });
 });

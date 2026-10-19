@@ -82,7 +82,7 @@ const CC: HomeCommandCenterInput = {
         evidence: { uploaded: 2, signed: 3, reported: 5, stuckUploading: 0 },
         reports: { ready: 5, failed: 0, missingFromSigned: 1 },
         packages: { ready: 4, failed: 0, blocked: 0, missingFromReported: 0 },
-        publicVerify: { published: 4, unpublished: 1, suspended: 0 },
+        verificationPages: { contentPreview: 4, verificationOnly: 1, unavailable: 0 },
       },
     },
     timeline: {
@@ -105,7 +105,7 @@ const TRUST: HomeTrustSummaryInput = {
   tsa: { stamped: 47, pending: 2, failed: 1, none: 0 },
   ots: { anchored: 44, pending: 5, failed: 1, none: 0 },
   signed: 48,
-  publicVerify: { published: 32, unpublished: 18, suspended: 0 },
+  verificationPages: { contentPreview: 32, verificationOnly: 18, unavailable: 0 },
   needingAttention: 3,
   /**
    * CONTRACT MIGRATION — Attention Architecture closure pass (2026-08-22).
@@ -267,7 +267,9 @@ describe("Phase IA-home-v2 — trust state", () => {
     expect(vm.trustState.tsaPending).toBe(2);
     expect(vm.trustState.otsAnchored).toBe(44);
     expect(vm.trustState.signed).toBe(48);
-    expect(vm.trustState.verifyPublished).toBe(32);
+    expect(vm.trustState.verifyContentPreview).toBe(32);
+    expect(vm.trustState.verifyVerificationOnly).toBe(18);
+    expect(vm.trustState.verifyUnavailable).toBe(0);
     expect(vm.trustState.needingAttention).toBe(3);
     expect(vm.trustState.empty).toBe(false);
   });
@@ -282,7 +284,8 @@ describe("Phase IA-home-v2 — trust state", () => {
     // The V2 trust card reads trust.tsaStamped / otsAnchored / signed.
     expect(SRC).toMatch(/trust\.tsaStamped/);
     expect(SRC).toMatch(/trust\.otsAnchored/);
-    expect(SRC).toMatch(/trust\.verifyPublished/);
+    expect(SRC).toMatch(/trust\.verifyContentPreview/);
+    expect(SRC).toMatch(/trust\.verifyVerificationOnly/);
     // The old static bullets must be gone.
     expect(SRC).not.toMatch(/Digital signatures on every captured record/);
     expect(SRC).not.toMatch(/RFC 3161 trusted timestamp plus OpenTimestamps public anchor/);
@@ -365,16 +368,18 @@ describe("Phase IA-home-v2 — getting started real signals", () => {
     ]);
   });
 
-  it("share_verification.done derives from REAL live verify pages (never hardcoded)", () => {
+  // (2026-10-18) Every finalized record has a page: the step is done when at
+  // least one verification page is available to share.
+  it("share_verification.done derives from REAL available verification pages (never hardcoded)", () => {
     const VM = readWeb("components/home-experience/home-view-model.ts");
-    expect(VM).toMatch(/done:\s*args\.verifyPublished > 0/);
+    expect(VM).toMatch(/done:\s*args\.verifyAvailable > 0/);
     expect(VM).not.toMatch(/key:\s*"share_verification"[\s\S]{0,200}done:\s*false/);
   });
 
   it("Getting Started is gated to TRULY NEW users only (showGettingStarted)", () => {
     const VM = readWeb("components/home-experience/home-view-model.ts");
     expect(VM).toMatch(
-      /showGettingStarted =\s*\n?\s*evidenceCount === 0 &&\s*\n?\s*reportCount === 0 &&\s*\n?\s*caseCount === 0 &&\s*\n?\s*trustState\.verifyPublished === 0/,
+      /showGettingStarted =\s*\n?\s*evidenceCount === 0 &&\s*\n?\s*reportCount === 0 &&\s*\n?\s*caseCount === 0 &&\s*\n?\s*trustState\.verifyContentPreview \+ trustState\.verifyVerificationOnly === 0/,
     );
     // Active fixture user (evidence + reports present) never sees it.
     const vm = build("PRO");
@@ -383,7 +388,7 @@ describe("Phase IA-home-v2 — getting started real signals", () => {
 
   it("checklistComplete flips true only when every visible step is done; UI auto-collapses", () => {
     const vm = build("PRO");
-    // Fixtures satisfy capture+case+report+published verification.
+    // Fixtures satisfy capture+case+report+an available verification page.
     expect(vm.checklistComplete).toBe(true);
     const SRC = readWeb("components/home-experience/HomeSections.tsx");
     expect(SRC).toMatch(/if \(complete\) return null/);
@@ -637,17 +642,18 @@ describe("Phase IA-home-findings — Request & Collect live stats + retry wiring
   });
 });
 
-describe("Phase IA-home-findings — Trust State suspended line", () => {
-  it("verifySuspended maps from publicVerify.suspended (real count)", () => {
+describe("Phase IA-home-findings — Trust State unavailable-pages line", () => {
+  // (2026-10-18) Withdrawn or suspended pages are one real count.
+  it("verifyUnavailable maps from verificationPages.unavailable (real count)", () => {
     const vm = build("PRO", {
-      trustSummary: { ...TRUST, publicVerify: { published: 32, unpublished: 18, suspended: 4 } },
+      trustSummary: { ...TRUST, verificationPages: { contentPreview: 32, verificationOnly: 18, unavailable: 4 } },
     });
-    expect(vm.trustState.verifySuspended).toBe(4);
+    expect(vm.trustState.verifyUnavailable).toBe(4);
   });
 
   it("defaults to 0 when the backend reports none", () => {
     const vm = build("PRO");
-    expect(vm.trustState.verifySuspended).toBe(0);
+    expect(vm.trustState.verifyUnavailable).toBe(0);
   });
 });
 

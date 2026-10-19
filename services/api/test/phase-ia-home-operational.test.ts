@@ -66,7 +66,7 @@ const CC: HomeCommandCenterInput = {
         evidence: { uploaded: 2, signed: 3, reported: 5 },
         reports: { ready: 5, queued: 1, failed: 2, missingFromSigned: 3 },
         packages: { ready: 4, queued: 0, blocked: 1, failed: 1, missingFromReported: 2 },
-        publicVerify: { published: 4, unpublished: 6, suspended: 1 },
+        verificationPages: { contentPreview: 4, verificationOnly: 6, unavailable: 1 },
       },
     },
     timeline: { status: "ok", items: [] },
@@ -78,7 +78,7 @@ const TRUST: HomeTrustSummaryInput = {
   tsa: { stamped: 9, pending: 1, failed: 1 },
   ots: { anchored: 8, pending: 2, failed: 1 },
   signed: 10,
-  publicVerify: { published: 4, unpublished: 6, suspended: 1 },
+  verificationPages: { contentPreview: 4, verificationOnly: 6, unavailable: 1 },
   needingAttention: 2,
 };
 
@@ -307,12 +307,16 @@ describe("Phase IA-home-operational — Report Production", () => {
 // ============================================================================
 
 describe("Phase IA-home-operational — Verification Health", () => {
-  it("shows live / unpublished / suspended from real publicVerify counts", () => {
+  // (2026-10-18) Every finalized record has a page: the counts are what the
+  // available pages disclose and how many are unavailable — 1:1 from the
+  // backend's verificationPages, never derived by subtraction.
+  it("shows content preview / verification only / unavailable from real verificationPages counts", () => {
     const vm = build();
-    expect(vm.verificationHealth.live).toBe(4);
-    expect(vm.verificationHealth.suspended).toBe(1);
-    // unpublished = total − live − suspended = 11 − 4 − 1 = 6.
-    expect(vm.verificationHealth.unpublished).toBe(6);
+    expect(vm.verificationHealth.contentPreview).toBe(4);
+    expect(vm.verificationHealth.verificationOnly).toBe(6);
+    expect(vm.verificationHealth.unavailable).toBe(1);
+    // An unavailable page is the one verification work item.
+    expect(vm.verificationHealth.issues.find((i) => i.key === "unavailable_verification")?.count).toBe(1);
   });
 
   it("lists verifiable records (those with a ready package + verify link)", () => {
@@ -324,7 +328,9 @@ describe("Phase IA-home-operational — Verification Health", () => {
   it("is a zero scaffold when there is no evidence (no fabricated state)", () => {
     const vm = build({ commandCenter: null, trustSummary: { totalEvidence: 0 }, reports: null });
     expect(vm.verificationHealth.empty).toBe(true);
-    expect(vm.verificationHealth.live).toBe(0);
+    expect(vm.verificationHealth.contentPreview).toBe(0);
+    expect(vm.verificationHealth.verificationOnly).toBe(0);
+    expect(vm.verificationHealth.unavailable).toBe(0);
     expect(SECTIONS).toMatch(/data-verify-empty/);
   });
 });
@@ -372,11 +378,12 @@ describe("Phase IA-home-operational — honesty guards", () => {
   });
 
   it("trust + verification values are computed from inputs, never literals", () => {
-    // The trust card reads live fields; verification reads publicVerify.
+    // The trust card reads live fields; verification reads verificationPages.
     expect(SECTIONS).toMatch(/trust\.tsaStamped/);
     expect(SECTIONS).toMatch(/trust\.otsAnchored/);
-    expect(SECTIONS).toMatch(/health\.live/);
-    expect(SECTIONS).toMatch(/health\.suspended/);
+    expect(SECTIONS).toMatch(/health\.contentPreview/);
+    expect(SECTIONS).toMatch(/health\.verificationOnly/);
+    expect(SECTIONS).toMatch(/health\.unavailable/);
   });
 });
 

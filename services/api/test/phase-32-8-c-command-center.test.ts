@@ -939,11 +939,11 @@ describe("Phase 32.8C (Full Rebuild) — enterprise frontend hierarchy + empty s
     expect(CC).toContain('data-cc-pressure-severity="info"');
   });
 
-  it("pipeline detail surfaces granular per-stage data attributes (evidence / reports / packages / public-verify)", () => {
+  it("pipeline detail surfaces granular per-stage data attributes (evidence / reports / packages / verification pages)", () => {
     expect(CC).toContain("data-cc-pipeline-evidence");
     expect(CC).toContain("data-cc-pipeline-reports");
     expect(CC).toContain("data-cc-pipeline-packages");
-    expect(CC).toContain("data-cc-pipeline-public-verify");
+    expect(CC).toContain("data-cc-pipeline-verification-pages");
   });
 
   it("timeline surfaces a stable per-event data attribute", () => {
