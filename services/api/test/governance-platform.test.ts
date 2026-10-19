@@ -327,7 +327,9 @@ describe("governance route surface", () => {
     const routes = await readSrc("../src/routes/evidence-retention-verification.routes.ts");
     const start = routes.indexOf('app.put("/v1/evidence/:id/verification-disclosure"');
     expect(start).toBeGreaterThan(-1);
-    const handler = routes.slice(start, start + 6000);
+    // The handler, cut at the next route registration (never a character budget).
+    const next = routes.indexOf("\n  app.", start + 1);
+    const handler = routes.slice(start, next === -1 ? undefined : next);
     expect(handler).toMatch(/authorize\(req, reply, id, "evidence\.publish_verify"/);
     expect(handler).toMatch(/DISCLOSURE_CHANGE_NOT_PERMITTED/);
   });

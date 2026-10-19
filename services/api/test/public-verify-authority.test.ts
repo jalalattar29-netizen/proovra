@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { buildEvidenceTrustDecision, resolveOtsAnchoring, type TrustDecision } from "@proovra/shared";
+import { buildEvidenceTrustDecision, resolveOtsAnchoring, type TrustDecision, type VerificationDisclosurePolicy } from "@proovra/shared";
 
 import {
   projectBasicPublicVerification,
@@ -29,9 +29,9 @@ import { buildTrustDecisionConsistency } from "../src/services/trust-decision-co
 import { buildPublicVerifyConsistencySections } from "../src/services/public-verify-consistency.service.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const VO = { mode: "VERIFICATION_ONLY" as const, showRecordedLocation: false };
-const CP = { mode: "CONTENT_PREVIEW" as const, showRecordedLocation: false };
-const CPL = { mode: "CONTENT_PREVIEW" as const, showRecordedLocation: true };
+const VO: VerificationDisclosurePolicy = { mode: "VERIFICATION_ONLY", showRecordedLocation: false };
+const CP: VerificationDisclosurePolicy = { mode: "CONTENT_PREVIEW", showRecordedLocation: false };
+const CPL: VerificationDisclosurePolicy = { mode: "CONTENT_PREVIEW", showRecordedLocation: true };
 
 describe("resolvePublicVerifyDisclosure", () => {
   it("canonical identifiers apply the record policy and never offer originals", () => {

@@ -180,10 +180,11 @@ describe("Technical Appendix — TrustDecisionSummary reads any snapshot score-f
     expect(text).not.toMatch(/Verdict|Score|Weighting/);
     expect(text).toContain(VERIFICATION_LIMITATION);
     const anchoring = container.querySelector('[data-trust-signal-key="bitcoin_anchoring"]') as HTMLElement;
-    expect(anchoring.getAttribute("data-trust-signal-status")).toBe("UNAVAILABLE");
+    // (2026-10-18) A legacy anchoring "passed" reads as the attestation it
+    // recorded: NOT_CHECKED — never VERIFIED, never "unavailable".
+    expect(anchoring.getAttribute("data-trust-signal-status")).toBe("NOT_CHECKED");
     // The machine status stays in the data attribute; the reader sees words.
-    expect(anchoring.textContent).toMatch(/Unavailable/);
-    expect(anchoring.textContent).not.toMatch(/UNAVAILABLE|Not checked|Attestation recorded/);
+    expect(anchoring.textContent).not.toMatch(/NOT_CHECKED|Independently verified/);
     const core = container.querySelector('[data-trust-signal-key="core_integrity"]') as HTMLElement;
     expect(core.getAttribute("data-trust-signal-status")).toBe("VERIFIED");
   });

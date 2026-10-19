@@ -275,6 +275,10 @@ test("no process-spawning script is unguarded", () => {
       why: "rehearses migrations against a disposable database it is pointed at",
       guard: /function assertLoopback/,
     },
+    "scripts/mutation/public-verify-mutations.mjs": {
+      why: "runs the repo's own test commands; it hands each child an ALLOWLISTED environment (platform and disposable-infrastructure variables only), never the ambient one",
+      guard: /const CHILD_ENV_ALLOW = /,
+    },
   };
 
   for (const [p, { guard, why }] of Object.entries(EARNED_EXEMPTIONS)) {

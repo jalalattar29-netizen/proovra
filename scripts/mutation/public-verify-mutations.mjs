@@ -172,12 +172,23 @@ export const MUTATIONS = [
   },
 ];
 
+/**
+ * The child environment is an ALLOWLIST: the platform variables a toolchain
+ * needs and the disposable-infrastructure test variables — never the ambient
+ * credentials (no DATABASE_URL, S3, signing or provider secrets leak in).
+ */
+const CHILD_ENV_ALLOW = /^(PATH|Path|PATHEXT|SystemRoot|SYSTEMROOT|windir|ComSpec|HOME|USERPROFILE|APPDATA|LOCALAPPDATA|TEMP|TMP|TMPDIR|HOMEDRIVE|HOMEPATH|PROGRAMFILES|ProgramFiles|ProgramData|CommonProgramFiles|NUMBER_OF_PROCESSORS|PROCESSOR_ARCHITECTURE|OS|LANG|TERM|CI|DOCKER_HOST|TESTCONTAINERS_.*|P7_.*|PNPM_HOME|npm_config_.*)$/;
+function childEnv(extra) {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => CHILD_ENV_ALLOW.test(k)));
+  return Object.assign(env, extra);
+}
+
 function run(t) {
   const r = spawnSync(t.cmd, t.args, {
     cwd: join(ROOT, t.cwd),
     encoding: "utf8",
     shell: process.platform === "win32",
-    env: { ...process.env, ...(t.env ?? {}) },
+    env: childEnv(t.env ?? {}),
     maxBuffer: 64 * 1024 * 1024,
   });
   return r.status;

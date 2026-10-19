@@ -50,7 +50,6 @@ import { formatUserDateTime } from "../../../../../lib/date";
 export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const {
     workspace,
-    workspaceCaps,
     evidence,
     evidenceId,
     canSeeGovernance,
