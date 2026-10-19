@@ -34,6 +34,11 @@ const BROWSER = resolveBrowserExecutablePath();
 // CI runners carry Chrome; a CI run without one is a broken gate, not a skip.
 if (!BROWSER && process.env.CI) throw new Error("report layout tests need Chromium (PUPPETEER_EXECUTABLE_PATH or a system Chrome)");
 const RENDER_TIMEOUT = 180_000;
+// A cold Chrome on a loaded CI runner can take longer than Puppeteer's 30 s to
+// print its endpoint (seen twice on the full worker suite). The headroom is
+// for the launch only; every render and validation timeout is unchanged.
+const LAUNCH_TIMEOUT_MS = 90_000;
+const renderPdf = (html: string) => renderPdfFromHtml(html, { launchTimeoutMs: LAUNCH_TIMEOUT_MS });
 
 function required(input: ReportV2Input) {
   return [
@@ -123,7 +128,7 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
       async () => {
         const { input } = layoutVariant(options);
         const html = await htmlOf(input);
-        const pdf = await renderPdfFromHtml(html);
+        const pdf = await renderPdf(html);
         const findings = checkReportGeometry(await readReportGeometry(pdf), { requiredStatements: required(input) });
         expect(findings).toEqual([]);
 
@@ -144,7 +149,7 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
     "a Web Upload prints no observation-boundary sentence and no provenance essay (2026-10-14)",
     async () => {
       const { input } = layoutVariant(LAYOUT_VARIANTS[0]!);
-      const text = (await extractPdfText(await renderPdfFromHtml(await htmlOf(input)))).replace(/\s+/g, " ");
+      const text = (await extractPdfText(await renderPdf(await htmlOf(input)))).replace(/\s+/g, " ");
       const sentence = "PROOVRA observed the files from upload onward; creation and editing before upload were not observed.";
       expect(text).not.toContain(sentence);
       expect(text).not.toMatch(/How this record entered PROOVRA|Observed by PROOVRA|Not observed by PROOVRA|Pre-PROOVRA provenance/);
@@ -156,7 +161,7 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
     "the PDF names its renderer neutrally, never the host's user agent",
     async () => {
       const { input } = layoutVariant(LAYOUT_VARIANTS[0]!);
-      const doc = await openPdf(await renderPdfFromHtml(await htmlOf(input)));
+      const doc = await openPdf(await renderPdf(await htmlOf(input)));
       try {
         const info = ((await doc.getMetadata()).info ?? {}) as Record<string, unknown>;
         expect(info.Creator).toBe(REPORT_PDF_CREATOR);
@@ -206,7 +211,7 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
       } as const;
       for (const [ots, [status, title, sentence]] of Object.entries(cards)) {
         const { input } = layoutVariant({ name: ots, ots: ots as keyof typeof cards });
-        const pdf = await renderPdfFromHtml(await htmlOf(input));
+        const pdf = await renderPdf(await htmlOf(input));
         const pages = await readReportGeometry(pdf);
         const pageText = pages.map((p) => p.items.map((i) => i.str).join(" ").replace(/\s+/g, " "));
         const all = pageText.join(" ");
@@ -238,7 +243,7 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
     async () => {
       const { input } = layoutVariant(LAYOUT_VARIANTS.find((v) => v.parts === 100)!);
       const html = await htmlOf(input);
-      const text = (await extractPdfText(await renderPdfFromHtml(html))).replace(/\s+/g, "");
+      const text = (await extractPdfText(await renderPdf(html))).replace(/\s+/g, "");
       const hashes = input.custodyEvents.map((e) => e.eventHash!).filter((h) => html.includes(h));
       expect(hashes.length).toBeGreaterThan(100);
       expect(hashes.filter((h) => !text.includes(h))).toEqual([]);
@@ -262,7 +267,7 @@ describe.skipIf(!BROWSER)("mutation proofs", () => {
         `margin: ${REPORT_PAGE.marginTopMm}mm 0 ${REPORT_PAGE.marginBottomMm}mm 0;`,
         "margin: 0;",
       );
-      const pdf = await renderPdfFromHtml(html);
+      const pdf = await renderPdf(html);
       const err = await refusal(() =>
         assertRenderedReport(Buffer.from(pdf), factsOf(long), long.version, { supersedesVersion: null }),
       );
@@ -280,7 +285,7 @@ describe.skipIf(!BROWSER)("mutation proofs", () => {
         "</style>",
         ".report-page { height: 297mm !important; overflow: hidden !important; }</style>",
       );
-      const err = await refusal(() => renderPdfFromHtml(html));
+      const err = await refusal(() => renderPdf(html));
       expect(err.code).toBe("REPORT_OUTPUT_INCONSISTENT");
       expect(err.retriable).toBe(false);
       expect(err.findings.map((f) => f.check)).toContain("CLIPPED_CONTENT");
@@ -296,7 +301,7 @@ describe.skipIf(!BROWSER)("mutation proofs", () => {
       for (const [mutated, name] of [
         [withoutNotice, "supersession notice"],
       ] as const) {
-        const pdf = await renderPdfFromHtml(mutated);
+        const pdf = await renderPdf(mutated);
         const err = await refusal(() =>
           assertRenderedReport(Buffer.from(pdf), factsOf(v2), v2.version, { supersedesVersion: v2.supersession!.previousVersion }),
         );
@@ -312,7 +317,7 @@ describe.skipIf(!BROWSER)("mutation proofs", () => {
     "a long manifest URL wraps inside the page and passes",
     async () => {
       const { input } = layoutVariant(LAYOUT_VARIANTS.find((v) => v.mode === "browser_capture")!);
-      const pdf = await renderPdfFromHtml(await htmlOf(input));
+      const pdf = await renderPdf(await htmlOf(input));
       expect((await extractPdfText(pdf)).replace(/\s+/g, "")).toContain(LONG_MANIFEST_URL);
       expect(checkReportGeometry(await readReportGeometry(pdf), { requiredStatements: required(input) })).toEqual([]);
     },
@@ -375,7 +380,7 @@ describe.skipIf(!BROWSER)("the restored evidence report, rendered", () => {
     "the regression record: every page has a full-A4 background, no page is sparse, no custody row stands alone, the gate accepts it",
     async () => {
       const input = regressionRecordInput("absent");
-      const pdf = await renderPdfFromHtml(await htmlOf(input));
+      const pdf = await renderPdf(await htmlOf(input));
       const pages = await readReportGeometry(pdf);
       // The original v2 was 16 pages; the restored report is markedly shorter.
       expect(pages.length).toBeLessThanOrEqual(12);
@@ -401,7 +406,7 @@ describe.skipIf(!BROWSER)("the restored evidence report, rendered", () => {
     async () => {
       const input = regressionRecordInput("absent");
       const html = (await htmlOf(input)).replace("</style>", "html { background: none !important; } </style>");
-      const rasters = await rasterPages(await renderPdfFromHtml(html));
+      const rasters = await rasterPages(await renderPdf(html));
       expect(rasters.some((r) => whiteBands(r).length > 0)).toBe(true);
     },
     RENDER_TIMEOUT,
@@ -421,7 +426,7 @@ describe.skipIf(!BROWSER)("the restored evidence report, rendered", () => {
         [html.replace("Bitcoin attestation recorded", "Independently verified against the Bitcoin main chain"), "OTS_OVERCLAIM"],
         [html.replace("Account authentication", "Pre-PROOVRA provenance"), "RETIRED_SIGNAL"],
       ] as const) {
-        const pdf = await renderPdfFromHtml(mutated);
+        const pdf = await renderPdf(mutated);
         const err = await refusal(() =>
           assertRenderedReport(Buffer.from(pdf), factsOf(input), input.version, { supersedesVersion: input.supersession!.previousVersion }),
         );
@@ -467,7 +472,7 @@ describe.skipIf(!BROWSER)("the corrected rows and the removed sections, rendered
       `regression record, location ${location}: rows state the canonical facts, removed text is gone, no gap is left`,
       async () => {
         const input = regressionRecordInput(location);
-        const pdf = await renderPdfFromHtml(await htmlOf(input));
+        const pdf = await renderPdf(await htmlOf(input));
         const pages = await readReportGeometry(pdf);
         const pageText = pages.map((p) => p.items.map((i) => i.str).join(" ").replace(/\s+/g, " "));
         const all = pageText.join(" ");
@@ -504,7 +509,7 @@ describe.skipIf(!BROWSER)("the corrected rows and the removed sections, rendered
         // The report printed for a verified snapshot, checked against a record whose snapshot is not verified.
         [html, factsOf(unverified), "IDENTITY_STATUS"],
       ] as const) {
-        const pdf = await renderPdfFromHtml(mutatedHtml);
+        const pdf = await renderPdf(mutatedHtml);
         const err = await refusal(() =>
           assertRenderedReport(Buffer.from(pdf), facts, input.version, { supersedesVersion: input.supersession!.previousVersion }),
         );

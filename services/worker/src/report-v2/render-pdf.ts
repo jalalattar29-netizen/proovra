@@ -165,7 +165,19 @@ function buildFooterTemplate(params: {
   `;
 }
 
-export async function renderPdfFromHtml(html: string): Promise<Buffer> {
+/**
+ * How long Chrome may take to start and print its DevTools endpoint. It covers
+ * the launch only: page, render and validation timeouts are separate. The
+ * production value is Puppeteer's own default.
+ */
+export const BROWSER_LAUNCH_TIMEOUT_MS = 30_000;
+
+export type RenderPdfOptions = {
+  /** Startup headroom for a cold Chrome on a loaded runner (tests only). */
+  launchTimeoutMs?: number;
+};
+
+export async function renderPdfFromHtml(html: string, options: RenderPdfOptions = {}): Promise<Buffer> {
   const executablePath = resolveBrowserExecutablePath();
 
   if (!executablePath) {
@@ -177,6 +189,7 @@ export async function renderPdfFromHtml(html: string): Promise<Buffer> {
   const browser = await puppeteer.launch({
     headless: true,
     executablePath,
+    timeout: options.launchTimeoutMs ?? BROWSER_LAUNCH_TIMEOUT_MS,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
