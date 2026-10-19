@@ -172,6 +172,12 @@ test.beforeAll(async () => {
   ownerUserId = sql<{ owner_user_id: string }>(`SELECT owner_user_id FROM teams WHERE id = $1`, [teamId])[0]!.owner_user_id;
 });
 
+// Each journey reads the public route many times: start every test with a
+// fresh per-client budget, as the other journey specs do.
+test.beforeEach(async () => {
+  await clearTestRateLimits();
+});
+
 test("A0 LIFECYCLE: multipart record → TSA kept-but-FAILED → v1 → repair → attestation → v2 → reference backfilled", async () => {
   test.setTimeout(1_200_000);
   rec.id = await createMultipart(owner.api);
@@ -285,9 +291,11 @@ test("A4 location shown only after its own decision: Recorded Location, consent 
   expect(text).toMatch(/Recorded location/i);
   expect(text).not.toMatch(/verified location|location verified/i);
   expect(tileRequests).toBe(0);
-  const consent = page.getByRole("button", { name: /show map|load map|agree/i }).first();
-  await consent.click();
+  const consent = page.locator('[data-capture-location-map="consent"]');
+  await expect(consent).toBeVisible({ timeout: 90_000 });
+  await consent.locator('[data-map-action="load-interactive-map"]').click();
   await expect.poll(() => tileRequests, { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect(page.locator("[data-capture-location-coordinates]").first()).toContainText(String(GPS.lat));
   await page.screenshot({ path: join(PROOF, "location-shown.png"), fullPage: true });
   // Back to the default for the remaining journeys.
   setDisclosure("VERIFICATION_ONLY", false);
@@ -299,7 +307,7 @@ test("B OpenTimestamps: chain verified → VERIFIED; verifier unavailable → st
   const height = Number((await publicVerify(rec.ref)).body.storageAndTimestamping.ots.bitcoinBlockHeight ?? 860000);
   const chain = (statusWord: string) =>
     sql(
-      `UPDATE evidence SET ots_chain_verification_status = $2, ots_chain_checked_at_utc = now(), ots_chain_verified_at_utc = CASE WHEN $2 = 'VERIFIED' THEN now() ELSE NULL END,
+      `UPDATE evidence SET ots_chain_verification_status = $2::varchar, ots_chain_checked_at_utc = now(), ots_chain_verified_at_utc = CASE WHEN $2::varchar = 'VERIFIED' THEN now() ELSE NULL END,
          ots_chain_block_height = $3, ots_chain_block_hash = $4, ots_chain_block_time_utc = now() - interval '1 day', ots_chain_confirmations = 12,
          ots_chain_verifier = $5, ots_chain_failure_code = NULL WHERE id = $1`,
       [rec.id, statusWord, height, "00000000000000000001" + "ab".repeat(22), `proovra-ots-chain/1;core=310100;min=6;proof=${proofSha.slice(0, 16)}`],

@@ -458,7 +458,9 @@ test("J4 Public Verify, the review workspace and the package carry the same cano
   const surfaceRows = ["package_signature", "package_completeness", "public_verify_publication"];
   expect(statuses(pvMatrix.rows, surfaceRows)).toEqual(statuses(matrixRows(v3Full!), surfaceRows));
   expect(statuses(pvMatrix.rows).package_signature).toBe("VERIFIED");
-  expect(statuses(pvMatrix.rows).public_verify_publication).toBe("VERIFIED");
+  // (2026-10-18) Opened through a reviewer share: the row states that the
+  // share's own profile applies (never "Published").
+  expect(statuses(pvMatrix.rows).public_verify_publication).toBe("NOT_APPLICABLE");
   expect(pvMatrix.summary).toContain(VERIFICATION_LIMITATION);
   expect(findForbiddenCustomerClaims(JSON.stringify(pv.body))).toEqual([]);
   // No score, point or reliance anywhere, and no overall verdict on the trust
