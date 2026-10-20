@@ -147,7 +147,9 @@ describe("Phase 32.6.5 — Sentry filter catches `Stream isn't writeable`", () =
       // `return null` lives inside an `if (message.includes(...))`
       // guard rather than being unconditional.
       expect(src).toMatch(
-        /if\s*\(\s*\n?\s*message\.includes\([\s\S]{0,400}?\)\s*\)\s*\{\s*\n?\s*return\s+null;/,
+        // AUD-41 (2026-10-20): the worker's first clause is now
+        // `(message.includes("ECONNREFUSED") && isRedisEndpointRefusal(message))`.
+        /if\s*\(\s*\n?\s*\(?message\.includes\([\s\S]{0,400}?\)\s*\)\s*\{\s*\n?\s*return\s+null;/,
       );
       // Phase P2.0B added a sibling `beforeSendTransaction(event)`
       // callback that scrubs request headers and returns the

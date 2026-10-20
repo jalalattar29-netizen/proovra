@@ -15,6 +15,14 @@ import { recordQueueReplayResultIfRequested } from "./queue-replay-correlation.j
 import { boundedErrorCode, isExpectedOtsPendingError, isFinalAttempt, jobCommandId } from "./job-event-context.js";
 import { mediaIntelligenceDlqQueue } from "./queue.js";
 import { isOutputProductionRefusedError } from "./output-production-refusal.js";
+import { attemptBudgetOverrun, getBullMqEntries } from "@proovra/shared";
+
+/** AUD-50 — an attempt that overran its declared budget is reported, never aborted. */
+function reportOverBudget(workerInstance: Worker, jobKind: string, jobId: string | undefined, attempt: number, durationMs: number | null) {
+  const over = attemptBudgetOverrun(getBullMqEntries(), (workerInstance as { name?: string }).name ?? null, durationMs);
+  if (!over) return;
+  logger.warn({ jobId: jobId ?? null, attempt, durationMs, budgetMs: over.budgetMs, overByMs: over.overByMs }, `${jobKind}.job.attempt_over_budget`);
+}
 
 export function emitOperationalAlert(params: {
   requestId: string;
@@ -66,6 +74,7 @@ export function bindWorkerEvents(
       },
       `${jobKind}.job.completed`
     );
+    reportOverBudget(workerInstance, jobKind, job.id, job.attemptsMade + 1, durationMs);
     // Phase Y — structured outcome line for log-based metrics.
     instrumentJobOutcome({
       queueName: jobKind,
@@ -110,6 +119,7 @@ export function bindWorkerEvents(
       }),
       commandId: jobCommandId(job) ?? null,
     };
+    reportOverBudget(workerInstance, jobKind, job.id, job.attemptsMade + 1, durationMs);
 
     // 2026-10-20 (AUD-03) — an expected business refusal is never an
     // operational failure: no Sentry event, no critical alert. (The report
@@ -136,6 +146,27 @@ export function bindWorkerEvents(
         attempt: job.attemptsMade + 1,
         durationMs,
         outcome: "stalled",
+        correlationId: requestId,
+        errorMessage: getErrorMessage(err),
+      });
+      return;
+    }
+
+    // AUD-41 (2026-10-20) — ESCALATE ON EXHAUSTION. BullMQ emits `failed` for
+    // EVERY attempt, so a retryable failure that the next attempt fixes raised a
+    // Sentry event and a CRITICAL alert per attempt. Before the last attempt
+    // (and unless the processor discarded the job as non-retryable) it is
+    // logged as a retry and counted; Sentry and the alert fire once, when the
+    // queue has given up.
+    const discarded = (job as unknown as { discarded?: boolean }).discarded === true;
+    if (!isFinalAttempt(job) && !discarded) {
+      logger.warn({ ...context, err }, `${jobKind}.job.attempt_failed_will_retry`);
+      instrumentJobOutcome({
+        queueName: jobKind,
+        jobId: job.id ?? null,
+        attempt: job.attemptsMade + 1,
+        durationMs,
+        outcome: "failed",
         correlationId: requestId,
         errorMessage: getErrorMessage(err),
       });

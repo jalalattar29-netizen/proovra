@@ -141,8 +141,11 @@ export function workerSentryBeforeSend<T>(event: T, hint?: { originalException?:
   // carried by the readiness CRITICAL response and the bounded
   // `redis.connection.error` log line; the duplicate Sentry
   // alert was pure noise.
+  // AUD-41 (2026-10-20): ECONNREFUSED is dropped ONLY for the Redis endpoint.
+  // The bare substring also swallowed a refused TSA, S3 or database
+  // connection — exactly the failures an operator must see.
   if (
-    message.includes("ECONNREFUSED") ||
+    (message.includes("ECONNREFUSED") && isRedisEndpointRefusal(message)) ||
     message.includes("Connection is closed") ||
     message.includes("Connection lost") ||
     message.includes("Stream isn't writeable")
@@ -150,6 +153,30 @@ export function workerSentryBeforeSend<T>(event: T, hint?: { originalException?:
     return null;
   }
   return scrubTelemetryEvent(event);
+}
+
+/** The configured Redis endpoint's `host:port` (REDIS_URL), or null. */
+function redisEndpoint(): { host: string; port: string } | null {
+  const raw = process.env.REDIS_URL ?? "";
+  try {
+    const u = new URL(raw);
+    if (!/^rediss?:$/.test(u.protocol)) return null;
+    return { host: u.hostname, port: u.port || "6379" };
+  } catch {
+    return null;
+  }
+}
+
+/** A refused connection to THE Redis endpoint (`connect ECONNREFUSED <host>:<port>`). */
+export function isRedisEndpointRefusal(message: string): boolean {
+  const ep = redisEndpoint();
+  if (!ep) return false;
+  const m = /ECONNREFUSED\s+\[?([^\s\]]+?)\]?:(\d+)/.exec(message);
+  if (!m) return false;
+  if (m[2] !== ep.port) return false;
+  const host = m[1]!;
+  const loopback = (h: string) => h === "127.0.0.1" || h === "::1" || h === "localhost";
+  return host === ep.host || (loopback(host) && loopback(ep.host));
 }
 
 export function captureException(

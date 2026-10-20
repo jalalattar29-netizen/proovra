@@ -6144,7 +6144,9 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
       );
     }
 
-    captureException(error, { requestId, evidenceId, jobId: job.id ?? null });
+    // AUD-41 (2026-10-20): no per-attempt capture here — the shared `failed`
+    // binding captures once, when the queue has given up (or the job was
+    // discarded as non-retryable).
 
     const durationMs = Date.now() - start;
 
@@ -6579,8 +6581,7 @@ export async function processPurgeDeletedEvidence(job: Job<unknown>) {
     );
     throw new Error(result.outcome);
   } catch (error) {
-    captureException(error, { requestId, evidenceId, jobId: job.id ?? null });
-
+    // AUD-41 (2026-10-20): captured once on exhaustion by the `failed` binding.
     logger.error(
       {
         ...withJobContext({

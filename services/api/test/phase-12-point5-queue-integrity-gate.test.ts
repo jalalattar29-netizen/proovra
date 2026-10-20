@@ -45,6 +45,9 @@ import {
   QueuePayloadRejected,
   RECONCILER_PENDING,
   RETRY_TIMEOUT_IS_ENFORCED,
+  RETRY_TIMEOUT_IS_OBSERVED,
+  RETRY_TIMEOUT_OBSERVER_FILE,
+  attemptBudgetOverrun,
   SWEEP_NAMES,
   assertDiagnosticsSafe,
   assertNoPayloadAuthorityFields,
@@ -511,11 +514,23 @@ describe("Point 5 — canonical registry integrity", () => {
     // this holds the statement and the code together in BOTH directions — the
     // day something enforces the budget this fails until the constant is
     // flipped, and until then nothing may describe it as a limit.
-    const readers = retryTimeoutReaders();
+    // AUD-50 (2026-10-20): the ONE observer (attemptBudgetOverrun) reads the
+    // budget to REPORT an overrun; it is excluded here and pinned below as
+    // non-enforcing. Any other reader means enforcement and must flip the flag.
+    const readers = retryTimeoutReaders().filter((r) => !r.startsWith(`${RETRY_TIMEOUT_OBSERVER_FILE}:`));
     expect(
       readers.length > 0,
       `retry.timeoutMs readers in runtime source: ${readers.join(", ") || "<none>"}`,
     ).toBe(RETRY_TIMEOUT_IS_ENFORCED);
+    expect(RETRY_TIMEOUT_IS_OBSERVED).toBe(true);
+    expect(retryTimeoutReaders().some((r) => r.startsWith(`${RETRY_TIMEOUT_OBSERVER_FILE}:`))).toBe(true);
+    // The observer decides nothing: it returns a report or null, never throws.
+    const entries = getBullMqEntries();
+    const q = entries.find((e) => e.queueName)!;
+    expect(attemptBudgetOverrun(entries, q.queueName, q.retry.timeoutMs + 1)).toEqual({ budgetMs: q.retry.timeoutMs, overByMs: 1 });
+    expect(attemptBudgetOverrun(entries, q.queueName, q.retry.timeoutMs)).toBeNull();
+    expect(attemptBudgetOverrun(entries, "no-such-queue", 1e12)).toBeNull();
+    expect(attemptBudgetOverrun(entries, q.queueName, null)).toBeNull();
   });
 
   it("JobsWithoutReconciler = 0 and RECONCILER_PENDING = []", () => {

@@ -20,7 +20,7 @@ name: deploy-images
 
 on:
   workflow_run:
-    workflows: [ci, playwright-e2e, schema-reproducibility]
+    workflows: [ci, playwright-e2e, schema-reproducibility, updated-report-journey]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -152,43 +152,13 @@ jobs:
       # datasource block — no database connection is made at build time. We
       # therefore pass a non-secret placeholder URL; the real production
       # DATABASE_URL is injected at runtime and never flows through Actions.
-      # The rendered-report gate inside THIS worker image before it is pushed
-      # (2026-10-09: an image that paired PDF.js API 5.4.296 with worker
-      # 5.6.205 shipped and failed every report). Same build, cache-hit push below.
-      - name: Build worker image for the smoke
-        if: matrix.service == 'worker'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: services/worker/Dockerfile
-          platforms: linux/amd64
-          load: true
-          push: false
-          tags: proovra-worker:smoke
-          build-args: |
-            DATABASE_URL=postgres://buildtime:buildtime@localhost:5432/buildtime
-            APP_RELEASE_SHA=${{ env.RELEASE_SHA }}
-          cache-from: type=gha
-
-      # AUD-019 — the step's name promised OCR languages but only ran the PDF
-      # smoke. smoke-ocr-languages.mjs fails unless the SHIPPED image has the
-      # tesseract engine with eng, ara and deu installed and the worker's own
-      # provider recognises an English, a German and an Arabic line.
-      # The Bitcoin verifier smoke runs the image exactly as the production
-      # compose wires it (password only as a read-only file owned by the image's
-      # app user) against a JSON-RPC stand-in: a node in IBD — or on the wrong
-      # chain, stale, lagging, too old, or with bad credentials — is never ready.
-      - name: Smoke — PDF verification, OCR languages and Bitcoin verifier wiring in the worker image
-        if: matrix.service == 'worker'
-        run: |
-          docker run --rm \
-            -e PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK=true \
-            -e SMOKE_EXPECT_RELEASE_SHA="${RELEASE_SHA}" \
-            proovra-worker:smoke node scripts/smoke-pdf-verification.mjs
-          docker run --rm proovra-worker:smoke node scripts/smoke-ocr-languages.mjs
-          node scripts/release/smoke-worker-bitcoin-verifier.mjs proovra-worker:smoke
-
-      - name: Build and push image
+      # AUD-50 (2026-10-20) — ONE BUILD. The smoke used to run on a separate
+      # `load: true` build and the push rebuilt with `pull: true`, so a base
+      # image refreshed between the two shipped bytes nobody had smoked. Now
+      # the image is built and pushed ONCE, by digest and with no tag; the
+      # smokes pull and run THAT digest; only then do the tags point at it.
+      - name: Build and push the image by digest (no tag yet)
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -197,11 +167,10 @@ jobs:
           # Always refresh base/parent images to reduce transient registry
           # layer errors and ensure cache pulls are attempted.
           pull: true
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          outputs: type=image,name=ghcr.io/${{ github.repository_owner }}/proovra-${{ matrix.service }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
           # APP_RELEASE_SHA is the release identity the running service reports
-          # (heartbeat, Sentry, OTel) and the image label below.
+          # (heartbeat, Sentry, OTel) and the image label.
           build-args: |
             DATABASE_URL=postgres://buildtime:buildtime@localhost:5432/buildtime
             APP_RELEASE_SHA=${{ env.RELEASE_SHA }}
@@ -215,3 +184,41 @@ jobs:
           provenance: mode=min
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Pin the built digest
+        run: |
+          digest='${{ steps.build.outputs.digest }}'
+          case "$digest" in sha256:*) ;; *) echo "::error::no image digest from the build"; exit 1 ;; esac
+          echo "IMAGE_REF=ghcr.io/${{ github.repository_owner }}/proovra-${{ matrix.service }}@$digest" >> "$GITHUB_ENV"
+
+      # The rendered-report gate inside THIS worker image before it is tagged
+      # (2026-10-09: an image that paired PDF.js API 5.4.296 with worker
+      # 5.6.205 shipped and failed every report).
+      # AUD-019 — smoke-ocr-languages.mjs fails unless the SHIPPED image has the
+      # tesseract engine with eng, ara and deu installed and the worker's own
+      # provider recognises an English, a German and an Arabic line.
+      # The Bitcoin verifier smoke runs the image exactly as the production
+      # compose wires it (password only as a read-only file owned by the image's
+      # app user) against a JSON-RPC stand-in: a node in IBD — or on the wrong
+      # chain, stale, lagging, too old, or with bad credentials — is never ready.
+      - name: Smoke — PDF verification, OCR languages and Bitcoin verifier wiring in the pushed worker digest
+        if: matrix.service == 'worker'
+        run: |
+          docker pull "$IMAGE_REF"
+          docker run --rm             -e PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK=true             -e SMOKE_EXPECT_RELEASE_SHA="${RELEASE_SHA}"             "$IMAGE_REF" node scripts/smoke-pdf-verification.mjs
+          docker run --rm "$IMAGE_REF" node scripts/smoke-ocr-languages.mjs
+          node scripts/release/smoke-worker-bitcoin-verifier.mjs "$IMAGE_REF"
+
+      - name: Tag the smoked digest
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          for tag in $TAGS; do
+            docker buildx imagetools create --tag "$tag" "$IMAGE_REF"
+          done
+          # Every published tag must resolve to the digest that was smoked.
+          want='${{ steps.build.outputs.digest }}'
+          for tag in $TAGS; do
+            got=$(docker buildx imagetools inspect "$tag" --format '{{json .Manifest}}' | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).digest))')
+            if [ "$got" != "$want" ]; then echo "::error::$tag resolves to $got, not the smoked $want"; exit 1; fi
+          done

@@ -877,13 +877,43 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       const ev = await signedEvidence();
       const id = await request(ev);
       seam.renderedReportUnreadable = 1;
-      expect(await run(id, 0)).toBeTruthy();
+      // The job as BullMQ hands it over; discard() marks it as BullMQ does.
+      const job = {
+        id: `report-${id}`,
+        name: "GenerateReportJob",
+        attemptsMade: 0,
+        data: { commandId: id, traceId: "recovery", schemaVersion: 1 },
+        opts: { attempts: 5, backoff: { type: "exponential", delay: 1000 } },
+        queueName: "report",
+        discarded: false,
+        discard() {
+          this.discarded = true;
+        },
+        updateProgress: async () => undefined,
+        log: async () => undefined,
+      };
+      let err: unknown = null;
+      try {
+        await processor.processGenerateReport(job as never);
+      } catch (e) {
+        err = e;
+      }
+      expect(err).toBeTruthy();
       expect((await state(ev.evidenceId, id)).req).toMatchObject({
         state: "FAILED_TERMINAL",
         terminalReasonCode: "REPORT_PDF_VERIFICATION_FAILED",
       });
-      expect(seam.sentryCaptures.length).toBeGreaterThan(0);
       expect(await incidentsFor(ev.evidenceId)).toBeGreaterThan(0);
+      // AUD-41 (2026-10-20) — the processor no longer captures per attempt; the
+      // REAL failed binding captures a non-retryable (discarded) failure once.
+      expect(job.discarded).toBe(true);
+      expect(seam.sentryCaptures).toEqual([]);
+      const { EventEmitter } = await import("node:events");
+      const worker = Object.assign(new EventEmitter(), { name: "report" });
+      const { bindWorkerEvents } = await import("../../../worker/src/worker-events.js");
+      bindWorkerEvents(worker as never, "report");
+      worker.emit("failed", job, err);
+      expect(seam.sentryCaptures.length).toBe(1);
     }, 300_000);
 
     it("AUD-04: a refusal after a READY report leaves the record READY — never NEEDS_ATTENTION / REPORT_UPDATE_FAILED", async () => {

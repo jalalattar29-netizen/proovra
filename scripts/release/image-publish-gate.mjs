@@ -21,6 +21,10 @@ export const REQUIRED_WORKFLOWS = Object.freeze([
   { file: "ci.yml", name: "ci" },
   { file: "playwright-e2e.yml", name: "playwright-e2e" },
   { file: "schema-reproducibility.yml", name: "schema-reproducibility" },
+  // AUD-50 (2026-10-20) — the production-image updated-report journey (real
+  // API + worker images, PDF renderer, MinIO, browser) was not required: an
+  // image could publish with that journey red, or never run.
+  { file: "updated-report-journey.yml", name: "updated-report-journey" },
 ]);
 
 const SHA = /^[0-9a-f]{40}$/;

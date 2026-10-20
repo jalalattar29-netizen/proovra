@@ -1975,6 +1975,22 @@ function safeRegisterWorker(
   }
 }
 
+// AUD-32 (2026-10-20) — NO CONSUMER STARTS AGAINST AN OLDER SCHEMA. The worker
+// image carries no migrations; it asks the database whether the migration its
+// code was written against is applied, waits a bounded time for one in
+// progress, and exits non-zero otherwise (see schema-head.ts).
+{
+  const { prisma: schemaDb } = await import("./db.js");
+  const { enforceSchemaHeadBeforeConsumers } = await import("./schema-head.js");
+  await enforceSchemaHeadBeforeConsumers({
+    readRows: (name) =>
+      schemaDb.$queryRaw<Array<{ migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }>>`
+        SELECT migration_name, finished_at, rolled_back_at FROM "_prisma_migrations" WHERE migration_name = ${name}`,
+    log: (level, obj, msg) => (level === "error" ? logger.error(obj, msg) : logger.info(obj, msg)),
+    exit: (code) => process.exit(code),
+  });
+}
+
 // Phase O1.3 — wrap the two highest-value job handlers in the
 // bounded OTEL context extractor + child-span helper. This makes the
 // API enqueue → worker handler chain visible as ONE distributed

@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "8e5b793fb82dfc9cad058556e14b6b29ab41f1eff60630f2bd87839f8374402e",
-  "consumerInventoryHash": "268fc3dbb941b882d6c91e9739eb73831cea8ce7954e8861cf4c7418b1b6bc56",
+  "consumerInventoryHash": "1f3c50a81779e1ad02d95907dbf17eb747421a1e9c9967b4acd6bff27da77d0e",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1190,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 10258,
-      "UNRESOLVED_IDENTIFIER": 1435
+      "METHOD_ON_VALUE": 10268,
+      "UNRESOLVED_IDENTIFIER": 1443
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -14164,7 +14164,7 @@
       "method": "POST",
       "route": "/v1/users/cookie-consent",
       "registeringFile": "services/api/src/routes/users.routes.ts",
-      "productConsumer": "apps/web/app/providers.tsx:261",
+      "productConsumer": "apps/web/app/providers.tsx:263",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14584,34 +14584,34 @@
     },
     "registeredQueues": {
       "reportQueueName": [
-        "services/worker/src/index.ts:1983"
+        "services/worker/src/index.ts:1999"
       ],
       "otsUpgradeQueueName": [
-        "services/worker/src/index.ts:2001"
+        "services/worker/src/index.ts:2017"
       ],
       "evidencePurgeQueueName": [
-        "services/worker/src/index.ts:2018"
+        "services/worker/src/index.ts:2034"
       ],
       "searchIndexingQueueName": [
-        "services/worker/src/index.ts:2036"
+        "services/worker/src/index.ts:2052"
       ],
       "mediaIntelligenceQueueName": [
-        "services/worker/src/index.ts:2058"
+        "services/worker/src/index.ts:2074"
       ],
       "derivedAssetsQueueName": [
-        "services/worker/src/index.ts:2080"
+        "services/worker/src/index.ts:2096"
       ],
       "redactionDerivativeQueueName": [
-        "services/worker/src/index.ts:2102"
+        "services/worker/src/index.ts:2118"
       ],
       "graphReconcileQueueName": [
-        "services/worker/src/index.ts:2140"
+        "services/worker/src/index.ts:2156"
       ],
       "miEmbedQueueName": [
-        "services/worker/src/index.ts:2161"
+        "services/worker/src/index.ts:2177"
       ],
       "graphSearchProjectionQueueName": [
-        "services/worker/src/index.ts:2183"
+        "services/worker/src/index.ts:2199"
       ]
     },
     "registryEntries": 30,
@@ -91845,7 +91845,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2573#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2589#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -92984,7 +92984,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2573#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2589#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -93015,7 +93015,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2573#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2589#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -93114,7 +93114,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2573#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2589#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -93145,7 +93145,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2573#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2589#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -93176,7 +93176,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2573#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2589#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -93207,7 +93207,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2573#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2589#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -100642,7 +100642,7 @@
         },
         {
           "file": "apps/web/app/providers.tsx",
-          "line": 106,
+          "line": 108,
           "caller": "fetchMe",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -130790,7 +130790,7 @@
         },
         {
           "file": "apps/web/app/providers.tsx",
-          "line": 102,
+          "line": 104,
           "caller": "fetchMe",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -130800,7 +130800,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/notifications.tsx:115 (NotificationPreferencesScreen, MOBILE); apps/mobile/app/(tabs)/settings.tsx:90 (SettingsScreen, MOBILE); apps/web/app/providers.tsx:102 (fetchMe, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/notifications.tsx:115 (NotificationPreferencesScreen, MOBILE); apps/mobile/app/(tabs)/settings.tsx:90 (SettingsScreen, MOBILE); apps/web/app/providers.tsx:104 (fetchMe, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -175477,7 +175477,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/providers.tsx",
-          "line": 261,
+          "line": 263,
           "caller": "Providers",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -175495,7 +175495,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/providers.tsx:261 (Providers, WEB); apps/web/lib/cookieConsent.ts:131 (persistConsent, WEB)",
+      "dispositionEvidence": "apps/web/app/providers.tsx:263 (Providers, WEB); apps/web/lib/cookieConsent.ts:131 (persistConsent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

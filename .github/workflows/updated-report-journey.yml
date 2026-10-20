@@ -21,18 +21,11 @@ name: updated-report-journey
 # Anonymous viewers of this repository can read ANNOTATIONS but not logs or
 # artifacts, so every failure path annotates its cause.
 
+# AUD-50 (2026-10-20): a REQUIRED workflow of the image-publish gate, so it
+# runs on EVERY push — a path filter would leave a main SHA with no run, which
+# the gate reads as "not green" and refuses to publish.
 on:
   push:
-    paths:
-      - "e2e/updated-report/**"
-      - "apps/web/**"
-      - "services/api/**"
-      - "services/worker/**"
-      # The worker-image smokes it runs (Bitcoin verifier wiring) live here.
-      - "scripts/release/**"
-      - "packages/**"
-      - "playwright.config.ts"
-      - ".github/workflows/updated-report-journey.yml"
   pull_request:
   workflow_dispatch:
 

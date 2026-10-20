@@ -2,6 +2,7 @@
 // BullMQ load so HTTP / pg / ioredis are auto-instrumented. This
 // side-effect import is a no-op when OTEL_ENABLED is not "true".
 import "./observability/otel-bootstrap.js";
+import { PRESENTATION_CONTRACT_HEADER, PRESENTATION_CONTRACT_VERSION } from "@proovra/shared";
 import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import type { FastifyBaseLogger } from "fastify";
@@ -633,6 +634,17 @@ allowedHeaders: [
   "x-proovra-intake-session",
 ],
     origin: (origin, cb) => cb(null, isCorsOriginAllowed(origin)),
+    // AUD-32 (2026-10-20) — the browser may READ the contract version (a
+    // cross-origin response hides every header not exposed).
+    exposedHeaders: [PRESENTATION_CONTRACT_HEADER],
+  });
+
+  // AUD-32 (2026-10-20) — every response states the presentation contract it
+  // was built for, so a client written for an older one can say so instead of
+  // interpreting a response it does not understand (release-contract.ts).
+  app.addHook("onSend", async (_req, reply, payload) => {
+    reply.header(PRESENTATION_CONTRACT_HEADER, String(PRESENTATION_CONTRACT_VERSION));
+    return payload;
   });
 
   await app.register(cookie);

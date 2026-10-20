@@ -4,8 +4,9 @@
  * The worker's state-mutating reconcilers previously guarded only against
  * intra-process re-entrancy (a boolean flag), so two replicas double-ran
  * every reconciler on each tick. `withCronLock` adds a Redis `SET NX PX`
- * advisory lock so only one replica runs a given reconciler per tick, while
- * failing OPEN (still running) if Redis is unavailable.
+ * advisory lock so only one replica runs a given reconciler per tick. Since
+ * AUD-50 (2026-10-20) it fails CLOSED (the tick is skipped) when the lock
+ * cannot be read, and renews its lease while the holder runs.
  *
  * `./queue.js` opens a real Redis connection at import, so it is mocked.
  */
@@ -65,14 +66,37 @@ describe("Phase R10 — withCronLock (F12)", () => {
     expect(redisEval).not.toHaveBeenCalled();
   });
 
-  it("fails OPEN — runs fn when Redis is unavailable (never worse than pre-R10)", async () => {
+  it("AUD-50: fails CLOSED — an unreadable lock skips the tick, it never runs unlocked", async () => {
     redisSet.mockRejectedValue(new Error("redis down"));
     const fn = vi.fn().mockResolvedValue("ran-anyway");
 
     const outcome = await withCronLock("immutable", fn);
 
-    expect(outcome).toEqual({ ran: true, result: "ran-anyway" });
-    expect(fn).toHaveBeenCalledTimes(1);
+    expect(outcome).toEqual({ ran: false, reason: "lock_unavailable" });
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("AUD-50: renews the lease while the holder runs, and stops renewing after", async () => {
+    vi.useFakeTimers();
+    try {
+      redisSet.mockResolvedValue("OK");
+      let finish!: () => void;
+      const running = new Promise<void>((r) => (finish = r));
+      const outcome = withCronLock("destruction", () => running, 3_000);
+      await vi.advanceTimersByTimeAsync(3_500);
+      const renewals = () =>
+        redisEval.mock.calls.filter(([script]) => /pexpire/.test(String(script))).length;
+      expect(renewals()).toBeGreaterThanOrEqual(3);
+      const renewCall = redisEval.mock.calls.find(([script]) => /pexpire/.test(String(script)))!;
+      expect(renewCall.slice(1)).toEqual([1, "cron:lock:destruction", expect.any(String), "3000"]);
+      finish();
+      await outcome;
+      const after = renewals();
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(renewals()).toBe(after);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("releases only if this instance still holds the lock (check-and-delete)", async () => {

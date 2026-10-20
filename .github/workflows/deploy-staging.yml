@@ -126,7 +126,16 @@ jobs:
           node services/api/scripts/release-materialize.mjs --view proposed --out "$RUNNER_TEMP/rc"
           node services/api/scripts/release-deploy.mjs --artifact "$RUNNER_TEMP/rc" --wave "${{ inputs.wave }}" --dry-run
 
-      - name: Apply the selected wave to the Staging database
+      # AUD-50 (2026-10-20): the database is never migrated toward a release
+      # that cannot be deployed. This refuses (exit 12) while no Staging target
+      # is provisioned — BEFORE the wave below touches the database, where the
+      # refusal used to come only after it.
+      - name: Refuse before migrating when there is no deploy target
+        run: node services/api/scripts/staging-deploy-cli.mjs --deploy-target-check
+
+      # Expand waves (A_B, C) land before the code that needs them.
+      - name: Apply the selected wave to the Staging database (expand waves A_B, C)
+        if: ${{ inputs.wave != 'D' }}
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
         run: |
@@ -138,6 +147,15 @@ jobs:
         run: |
           echo "::notice::deploying staging release candidate ${IMAGE_TAG}"
           node services/api/scripts/staging-deploy-cli.mjs --deploy
+
+      # The contract wave (D) removes what the PREVIOUS release still read, so it
+      # runs only after the new release is deployed.
+      - name: Apply the contract wave to the Staging database (after the deploy)
+        if: ${{ inputs.wave == 'D' }}
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: |
+          node services/api/scripts/release-deploy.mjs --artifact "$RUNNER_TEMP/rc" --wave "${{ inputs.wave }}"
 
       - name: Health and build identity
         run: node services/api/scripts/staging-deploy-cli.mjs --health

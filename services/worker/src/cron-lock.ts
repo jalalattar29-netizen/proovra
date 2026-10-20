@@ -13,8 +13,14 @@
  *
  * Safety properties:
  *   - Atomic acquire via `SET ... NX PX` (no check-then-set race).
- *   - Fail-OPEN: if Redis is unavailable the reconciler still runs, degrading
- *     to the pre-R10 single-process behaviour — never worse than today.
+ *   - Fail-CLOSED (AUD-50, 2026-10-20): if the lock cannot be read the tick
+ *     is skipped. These reconcilers schedule destruction, flip retention and
+ *     send notifications; "every replica runs it at once" is exactly the
+ *     failure the lock exists to prevent, so an unreadable lock is not a
+ *     licence to run. The next tick tries again.
+ *   - Renewed lease (AUD-50): while the holder runs, the TTL is extended every
+ *     third of it, so a run longer than the TTL is not joined by a second
+ *     replica halfway through. A renewal that finds the lock lost is logged.
  *   - Safe release: a Lua check-and-delete only releases the lock if THIS
  *     instance still holds it (never frees a lock a later tick re-acquired
  *     after TTL expiry).
@@ -33,12 +39,16 @@ const INSTANCE_ID = randomUUID();
  *  crashed holder frees the lock promptly. */
 export const DEFAULT_CRON_LOCK_TTL_MS = 10 * 60 * 1000;
 
+const RENEW_SCRIPT =
+  "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('pexpire', KEYS[1], ARGV[2]) else return 0 end";
+
 const RELEASE_SCRIPT =
   "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
 
 export type CronLockOutcome<T> =
   | { ran: true; result: T }
-  | { ran: false; reason: "held" };
+  | { ran: false; reason: "held" }
+  | { ran: false; reason: "lock_unavailable" };
 
 /**
  * Run `fn` iff this replica can acquire the named cron lock. Returns
@@ -56,18 +66,32 @@ export async function withCronLock<T>(
     const res = await redisConnection.set(key, INSTANCE_ID, "PX", ttlMs, "NX");
     acquired = res === "OK";
   } catch (err) {
-    // Fail-open — never let a Redis blip stop reconciliation entirely.
-    logger.warn({ err, name }, "cron.lock.acquire_failed_fail_open");
-    return { ran: true, result: await fn() };
+    // Fail-closed (AUD-50): the tick is skipped, never run unlocked.
+    logger.warn({ err, name }, "cron.lock.acquire_failed_skipped");
+    return { ran: false, reason: "lock_unavailable" };
   }
 
   if (!acquired) {
     return { ran: false, reason: "held" };
   }
 
+  const renewEveryMs = Math.max(1_000, Math.floor(ttlMs / 3));
+  const renewal = setInterval(() => {
+    void (async () => {
+      try {
+        const kept = await redisConnection.eval(RENEW_SCRIPT, 1, key, INSTANCE_ID, String(ttlMs));
+        if (kept !== 1) logger.warn({ name }, "cron.lock.renewal_lost");
+      } catch (err) {
+        logger.warn({ err, name }, "cron.lock.renewal_failed");
+      }
+    })();
+  }, renewEveryMs);
+  renewal.unref?.();
+
   try {
     return { ran: true, result: await fn() };
   } finally {
+    clearInterval(renewal);
     try {
       await redisConnection.eval(RELEASE_SCRIPT, 1, key, INSTANCE_ID);
     } catch {

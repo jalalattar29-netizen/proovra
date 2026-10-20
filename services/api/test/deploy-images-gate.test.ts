@@ -91,12 +91,16 @@ describe("decidePublication", () => {
 
   it("requires exactly the workflows that run unfiltered on every push to main", () => {
     expect(REQUIRED_WORKFLOWS.map((w) => w.name).sort()).toEqual(
-      ["ci", "playwright-e2e", "schema-reproducibility"],
+      ["ci", "playwright-e2e", "schema-reproducibility", "updated-report-journey"],
     );
     for (const w of REQUIRED_WORKFLOWS) {
       const src = readFileSync(resolve(REPO, ".github/workflows", w.file), "utf8");
       expect(src).toMatch(new RegExp(`^name: ${w.name}$`, "m"));
       expect(src).toMatch(/^on:\s*\n\s{2}push:\s*\n/m);
+      // AUD-50 (2026-10-20) — unfiltered: no paths / branches filter under push,
+      // or a main SHA could have no run and never publish.
+      const push = /^on:\s*\n\s{2}push:\s*\n((?:\s{4,}.*\n)*)/m.exec(src)?.[1] ?? "";
+      expect(push, `${w.file} filters its push trigger`).not.toMatch(/paths|branches/);
     }
   });
 });
@@ -105,7 +109,7 @@ describe("deploy-images.yml routes publication through the gate", () => {
   it("is never triggered by a raw push", () => {
     expect(WORKFLOW).not.toMatch(/^\s{2}push:/m);
     expect(WORKFLOW).toMatch(
-      /workflow_run:\s*\n\s*workflows: \[ci, playwright-e2e, schema-reproducibility\]\s*\n\s*types: \[completed\]\s*\n\s*branches: \[main\]/,
+      /workflow_run:\s*\n\s*workflows: \[ci, playwright-e2e, schema-reproducibility, updated-report-journey\]\s*\n\s*types: \[completed\]\s*\n\s*branches: \[main\]/,
     );
   });
 
@@ -130,11 +134,23 @@ describe("deploy-images.yml routes publication through the gate", () => {
     expect(WORKFLOW).toMatch(/environment: production-images/);
   });
 
-  it("the worker image's Bitcoin verifier wiring smoke runs before anything is pushed", () => {
-    const smoke = WORKFLOW_CODE.indexOf("node scripts/release/smoke-worker-bitcoin-verifier.mjs proovra-worker:smoke");
-    const push = WORKFLOW_CODE.indexOf("- name: Build and push image");
-    expect(smoke).toBeGreaterThan(-1);
-    expect(push).toBeGreaterThan(smoke);
+  // AUD-50 (2026-10-20): the smoked image IS the published image. One build,
+  // pushed by digest with no tag; the smokes run that digest; tags are created
+  // only afterwards and must resolve to it.
+  it("one build, pushed by digest with no tag, smoked by digest, tagged only after the smoke", () => {
+    expect(WORKFLOW_CODE.match(/uses: docker\/build-push-action/g)?.length).toBe(1);
+    expect(WORKFLOW_CODE).toMatch(/push-by-digest=true/);
+    expect(WORKFLOW_CODE).not.toMatch(/proovra-worker:smoke/);
+    const build = WORKFLOW_CODE.indexOf("- name: Build and push the image by digest");
+    const smoke = WORKFLOW_CODE.indexOf('node scripts/release/smoke-worker-bitcoin-verifier.mjs "$IMAGE_REF"');
+    const tag = WORKFLOW_CODE.indexOf("docker buildx imagetools create --tag");
+    expect(build).toBeGreaterThan(-1);
+    expect(smoke).toBeGreaterThan(build);
+    expect(tag).toBeGreaterThan(smoke);
+    // The build step itself carries no tags.
+    const buildStep = WORKFLOW_CODE.slice(build, WORKFLOW_CODE.indexOf("- name:", build + 10));
+    expect(buildStep).not.toMatch(/^\s*tags:/m);
+    expect(WORKFLOW_CODE).toMatch(/resolves to \$got, not the smoked \$want/);
   });
 
   it("a manual dispatch names a SHA and still goes through the same gate", () => {

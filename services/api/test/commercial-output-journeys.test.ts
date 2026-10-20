@@ -511,7 +511,10 @@ describe("SCENARIO 15 — a FREE workspace does not pollute Operations", () => {
   it("WIRING: a commercial denial opens no incident", () => {
     const p = strip(worker("processor.ts"));
     const denial = p.indexOf("if (isPlanDenial) {");
-    const capture = p.indexOf("captureException(error", denial);
+    // AUD-41 (2026-10-20): the failure path now begins with its duration (no
+    // per-attempt capture; the failed binding escalates on exhaustion).
+    const capture = p.indexOf("const durationMs = Date.now() - start;", denial);
+    expect(capture).toBeGreaterThan(denial);
     expect(p.slice(denial, capture)).not.toMatch(/recordReportFailureIncident/);
   });
 });

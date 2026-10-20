@@ -77,6 +77,10 @@ if (argv.includes("--validate")) {
   const refusals = [...r.refusals, ...w.refusals];
   console.log(JSON.stringify({ ok: refusals.length === 0, refusals }, null, 2));
   if (refusals.length > 0) process.exit(11);
+} else if (argv.includes("--deploy-target-check")) {
+  // AUD-50 (2026-10-20) — run BEFORE any migration: the same answer --deploy
+  // would give, so a release that cannot be deployed never migrates the database.
+  needsInfrastructure("deploy");
 } else if (argv.includes("--deploy")) {
   needsInfrastructure("deploy");
 } else if (argv.includes("--health")) {
@@ -84,6 +88,6 @@ if (argv.includes("--validate")) {
 } else if (argv.includes("--rollback")) {
   needsInfrastructure("roll back");
 } else {
-  console.error("usage: staging-deploy-cli.mjs --validate | --deploy | --health | --rollback");
+  console.error("usage: staging-deploy-cli.mjs --validate | --deploy-target-check | --deploy | --health | --rollback");
   process.exit(2);
 }

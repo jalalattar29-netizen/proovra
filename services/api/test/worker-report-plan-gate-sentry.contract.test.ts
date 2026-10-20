@@ -78,7 +78,7 @@ describe("worker report plan-gate — Sentry classifier", () => {
 
   it("source: captureException is NOT reached by the denial branch", () => {
     const denialAt = PROCESSOR_SRC.indexOf("if (isPlanDenial) {");
-    const captureAt = PROCESSOR_SRC.indexOf("captureException(error", denialAt);
+    const captureAt = PROCESSOR_SRC.indexOf("const durationMs = Date.now() - start;", denialAt);
     expect(denialAt).toBeGreaterThan(-1);
     expect(captureAt).toBeGreaterThan(denialAt);
     // The branch returns control before the failure path begins, as a coded
@@ -97,7 +97,7 @@ describe("worker report plan-gate — Sentry classifier", () => {
 
   it("source: the denial discards the job so it cannot retry a decision that will not change", () => {
     const denialAt = PROCESSOR_SRC.indexOf("if (isPlanDenial) {");
-    const captureAt = PROCESSOR_SRC.indexOf("captureException(error", denialAt);
+    const captureAt = PROCESSOR_SRC.indexOf("const durationMs = Date.now() - start;", denialAt);
     const branch = PROCESSOR_SRC.slice(denialAt, captureAt);
     expect(branch).toMatch(/job\.discard\(\)/);
   });
@@ -106,7 +106,7 @@ describe("worker report plan-gate — Sentry classifier", () => {
     // The withdrawn half of the old contract — see the header. A commercial
     // decision is not an outage, and an operator has nothing to acknowledge.
     const denialAt = PROCESSOR_SRC.indexOf("if (isPlanDenial) {");
-    const captureAt = PROCESSOR_SRC.indexOf("captureException(error", denialAt);
+    const captureAt = PROCESSOR_SRC.indexOf("const durationMs = Date.now() - start;", denialAt);
     const branch = PROCESSOR_SRC.slice(denialAt, captureAt);
     expect(branch).not.toMatch(/reportDlqQueue/);
     expect(branch).not.toMatch(/recordReportFailureIncident/);
@@ -117,11 +117,16 @@ describe("worker report plan-gate — Sentry classifier", () => {
     expect(PROCESSOR_SRC).toMatch(/recordReportFailureIncident\(\{/);
   });
 
-  it("source: catch block still calls captureException for OTHER errors (regression guard)", () => {
-    // Make sure we haven't accidentally suppressed Sentry for every
-    // error — only REPORT_NOT_INCLUDED_IN_PLAN is silenced.
-    expect(PROCESSOR_SRC).toMatch(
-      /captureException\(error,\s*\{\s*requestId,\s*evidenceId,\s*jobId:/,
-    );
+  it("source: OTHER failures still reach Sentry — once, on exhaustion, through the shared failed binding (AUD-41)", () => {
+    // AUD-41 (2026-10-20): the report job no longer captures every attempt;
+    // the failed binding captures a technical failure when the queue gives up
+    // (or the processor discarded it). Behaviour: services/worker/test/
+    // worker-events-business-refusal.test.ts.
+    const events = readFileSync(fileURLToPath(new URL("../../worker/src/worker-events.ts", import.meta.url)), "utf8");
+    const exhaustedAt = events.indexOf("if (!isFinalAttempt(job) && !discarded) {");
+    const captureAt = events.indexOf("captureException(err, {", exhaustedAt);
+    expect(exhaustedAt).toBeGreaterThan(-1);
+    expect(captureAt).toBeGreaterThan(exhaustedAt);
+    expect(PROCESSOR_SRC).not.toMatch(/captureException\(error,\s*\{\s*requestId,\s*evidenceId,\s*jobId:/);
   });
 });

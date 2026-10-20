@@ -1,0 +1,2934 @@
+[
+  {
+    "id": "P1-A",
+    "phase": "P1",
+    "name": "writer: the lifecycle refusal is removed",
+    "file": "packages/shared-runtime/src/reports/report-generation-request.ts",
+    "find": "  if (lifecycleRefusal) return { created: false, reason: lifecycleRefusal, refusal: lifecycleRefusal };",
+    "replace": "",
+    "build": [
+      "shared-runtime"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "PHASE 1"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P1-B",
+    "phase": "P1",
+    "name": "decision: lifecycle is not consulted (archived records produce)",
+    "file": "packages/shared/src/evidence-output-lifecycle.ts",
+    "find": "  const lifecycle = outputLifecycleRefusal(input.subject);\n  if (lifecycle) return { produce: false, refusal: lifecycle };",
+    "replace": "",
+    "build": [
+      "shared",
+      "shared-runtime"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/output-producer-decision.test.mjs"
+        ]
+      },
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "PHASE 1"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P1-C",
+    "phase": "P1",
+    "name": "claim: the producer decision is skipped",
+    "file": "services/worker/src/report-generation-authority.ts",
+    "find": "  if (!claimDecision.produce && claimDecision.refusal) {",
+    "replace": "  if (false && !claimDecision.produce && claimDecision.refusal) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "PHASE 1"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P1-D",
+    "phase": "P1",
+    "name": "report commit: the lifecycle refusal is not applied",
+    "file": "services/worker/src/processor.ts",
+    "find": "  const refusal = outputLifecycleRefusal(e);\n  if (refusal) return { ok: false, refusal };",
+    "replace": "  const refusal = outputLifecycleRefusal(e);\n  if (refusal && Date.now() < 0) return { ok: false, refusal };",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "WHILE its report renders"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P1-E",
+    "phase": "P1",
+    "name": "package commit: the lifecycle guard is removed",
+    "file": "services/worker/src/package-issuance.ts",
+    "find": "    if (refusal) {\n      throw new OutputProductionRefusedError(refusal);\n    }",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "WHILE its package builds"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P1-F",
+    "phase": "P1",
+    "name": "stranded sweep: archived requests are re-enqueued",
+    "file": "services/worker/src/report-generation-authority.ts",
+    "find": "      if (refusal) {\n        await settleReportRequestNotApplicable(prisma as never, { requestId: row.id, refusal });\n        continue;\n      }",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "stranded-request sweep"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P2-A",
+    "phase": "P2",
+    "name": "settlement records the refusal as FAILED_TERMINAL",
+    "file": "packages/shared-runtime/src/reports/report-request-settlement.ts",
+    "find": "      state: \"NOT_APPLICABLE\",\n      terminalReasonCode: input.refusal",
+    "replace": "      state: \"FAILED_TERMINAL\",\n      terminalReasonCode: input.refusal",
+    "build": [
+      "shared-runtime"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "PHASE 2"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P2-B",
+    "phase": "P2",
+    "name": "the outer catch rethrows the refusal instead of settling it",
+    "file": "services/worker/src/processor.ts",
+    "find": "        \"GenerateReportJob settled as not applicable: the record may no longer receive this output\",\n      );\n      return;",
+    "replace": "        \"GenerateReportJob settled as not applicable: the record may no longer receive this output\",\n      );\n      throw error;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "PHASE 2"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P2-C",
+    "phase": "P2",
+    "name": "the inner attempt catch captures a refusal like a failure",
+    "file": "services/worker/src/processor.ts",
+    "find": "    if (isOutputProductionRefusedError(error)) {\n      await job.discard();\n      throw error;\n    }",
+    "replace": "    if (isOutputProductionRefusedError(error) && Date.now() < 0) {\n      await job.discard();\n      throw error;\n    }",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "PHASE 2"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P2-D",
+    "phase": "P2",
+    "name": "the BullMQ failed binding escalates a business refusal",
+    "file": "services/worker/src/worker-events.ts",
+    "find": "    if (isOutputProductionRefusedError(err)) {",
+    "replace": "    if (isOutputProductionRefusedError(err) && Date.now() < 0) {",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/worker-events-business-refusal.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P2-E",
+    "phase": "P2",
+    "name": "the run-time plan refusal becomes the old technical terminal",
+    "file": "services/worker/src/processor.ts",
+    "find": "    throw new OutputProductionRefusedError(\"NOT_APPLICABLE_NOT_ENTITLED\");\n  }\n  const evidenceOutputs = {",
+    "replace": "    throw createWorkerError(\"REPORT_NOT_INCLUDED_IN_PLAN\", false);\n  }\n  const evidenceOutputs = {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "lapses between the claim and the run"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P2-F",
+    "phase": "P2",
+    "name": "the read path counts a refusal after READY as REPORT_UPDATE_FAILED",
+    "file": "packages/shared/src/evidence-output-lifecycle.ts",
+    "find": "  if (\n    isCommerciallyObsoleteTerminalReason(input.reportRequestReasonCode) ||\n    isOutputProductionRefusal(input.reportRequestReasonCode)\n  ) {\n    return false;\n  }",
+    "replace": "  if (\n    (isCommerciallyObsoleteTerminalReason(input.reportRequestReasonCode) ||\n    isOutputProductionRefusal(input.reportRequestReasonCode)) && Date.now() < 0\n  ) {\n    return false;\n  }",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/output-producer-decision.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P2-G",
+    "phase": "P2",
+    "name": "a NOT_APPLICABLE head is not superseded once its condition ends",
+    "file": "packages/shared-runtime/src/reports/report-generation-request.ts",
+    "find": "  const notApplicableObsolete = head?.state === \"NOT_APPLICABLE\";",
+    "replace": "  const notApplicableObsolete = head?.state === \"NOT_APPLICABLE\" && Date.now() < 0;",
+    "build": [
+      "shared-runtime"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "supersedes the NOT_APPLICABLE row"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P2-H",
+    "phase": "P2",
+    "name": "STORAGE_LIMIT_REACHED is not commercial",
+    "file": "packages/shared/src/evidence-output-lifecycle.ts",
+    "find": "  \"STORAGE_LIMIT_REACHED\",\n]);",
+    "replace": "]);",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/output-producer-decision.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P2-I",
+    "phase": "P2",
+    "name": "a storage-allowance package refusal is recorded as a technical failure",
+    "file": "services/worker/src/processor.ts",
+    "find": "        packageAllowanceRefusal.code === \"STORAGE_LIMIT_REACHED\"\n          ? \"NOT_APPLICABLE_STORAGE_LIMIT\"\n          : \"NOT_APPLICABLE_NOT_ENTITLED\",",
+    "replace": "        packageAllowanceRefusal.code === \"STORAGE_LIMIT_REACHED\"\n          ? (\"NOT_APPLICABLE_NOT_ENTITLED\" as const)\n          : \"NOT_APPLICABLE_NOT_ENTITLED\",",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "storage allowance"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P3-A",
+    "phase": "P3",
+    "name": "final VERIFIED rows are due again (the 163/163 loop)",
+    "file": "services/worker/src/ots-initialization-reconciler.ts",
+    "find": "        OR: [{ otsChainConfirmations: null }, { otsChainConfirmations: { lt: OTS_CHAIN_FINAL_CONFIRMATIONS } }],\n",
+    "replace": "        OR: [{ otsChainConfirmations: null }, { otsChainConfirmations: { lt: OTS_CHAIN_FINAL_CONFIRMATIONS * 1000 } }],\n",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "never re-enqueued by the chain catch-up"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P3-B",
+    "phase": "P3",
+    "name": "the sweep serves old anchors first again",
+    "file": "services/worker/src/ots-initialization-reconciler.ts",
+    "find": "  { otsChainCheckedAtUtc: { sort: \"asc\", nulls: \"first\" } },\n",
+    "replace": "  { otsAnchoredAtUtc: \"asc\" },\n",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "longest-unchecked record first"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P3-C",
+    "phase": "P3",
+    "name": "forward OTS verification progress is a contradiction again",
+    "file": "packages/shared/src/canonical-artifact-facts.ts",
+    "find": "      !(f.check === \"OTS_VERIFICATION\" && otsVerificationProgressionCompatible(issuance.otsVerification, later.otsVerification)),",
+    "replace": "      !(f.check === \"OTS_VERIFICATION\" && otsVerificationProgressionCompatible(issuance.otsVerification, later.otsVerification) && Date.now() < 0),",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "WHILE the report renders"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P3-D",
+    "phase": "P3",
+    "name": "a regression counts as progress",
+    "file": "packages/shared/src/snapshot-comparison.ts",
+    "find": "  return OTS_PROGRESS[later] >= OTS_PROGRESS[stated];\n}",
+    "replace": "  return OTS_PROGRESS[later] >= 0 && OTS_PROGRESS[stated] >= 0;\n}",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "REGRESSES while the report renders"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P3-E",
+    "phase": "P3",
+    "name": "an anchored proof whose bytes change is ignored again",
+    "file": "packages/shared/src/canonical-artifact-facts.ts",
+    "find": "      !(f.check === \"OTS_PROOF\" && !(issuance.otsState === \"ANCHORED\" && later.otsState === \"ANCHORED\")) &&",
+    "replace": "      f.check !== \"OTS_PROOF\" &&",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "bytes change while the report renders"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P3-F",
+    "phase": "P3",
+    "name": "P2028 escalates on every attempt",
+    "file": "services/worker/src/job-event-context.ts",
+    "find": "  const transientDatabase = TRANSIENT_DATABASE_ERROR_CODES.has(errorCode(err));",
+    "replace": "  const transientDatabase = TRANSIENT_DATABASE_ERROR_CODES.has(errorCode(err)) && Date.now() < 0;",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/worker-events-business-refusal.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P3-G",
+    "phase": "P3",
+    "name": "the OTS retry policy loses its jitter",
+    "file": "packages/shared/src/queue-integrity/retry-policy.ts",
+    "find": "    backoffJitter: 0.5,\n",
+    "replace": "",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/worker-events-business-refusal.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P3-H",
+    "phase": "P3",
+    "name": "NOT_IN_ACTIVE_CHAIN is rechecked hourly forever",
+    "file": "services/worker/src/ots-state.ts",
+    "find": "    if (age >= OTS_NOT_IN_ACTIVE_CHAIN_GIVE_UP_MS) return null;\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/ots-chain-recheck-bounds.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P4-A",
+    "phase": "P4",
+    "name": "the record snapshot states the stored column (legacy composite) again",
+    "file": "services/worker/src/output-verification.ts",
+    "find": "      fileSha256: digest.canonical,",
+    "replace": "      fileSha256: digest.canonical && row.fileSha256,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "PHASE 4"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P4-B",
+    "phase": "P4",
+    "name": "the legacy single-part composite is not recognised",
+    "file": "packages/shared/src/stored-bytes-integrity.ts",
+    "find": "  if (stored === sha256Hex(raw)) return { canonical: raw, form: \"LEGACY_SINGLE_PART_COMPOSITE\" };",
+    "replace": "  if (stored === sha256Hex(raw) && Date.now() < 0) return { canonical: raw, form: \"LEGACY_SINGLE_PART_COMPOSITE\" };",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/canonical-record-digest.test.mjs"
+        ]
+      },
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "PHASE 4"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P4-C",
+    "phase": "P4",
+    "name": "the package seal states the stored column again",
+    "file": "services/worker/src/processor.ts",
+    "find": "            fileSha256: prepared.reportEvidencePayload.fileSha256 ?? null,",
+    "replace": "            fileSha256: evidence.fileSha256 ?? null,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "PHASE 4"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P4-D",
+    "phase": "P4",
+    "name": "a plain Error records its bare class name again",
+    "file": "services/worker/src/processor.ts",
+    "find": "    const m = /^([A-Z][A-Z0-9_]{2,63})(?:$|[:\\s])/.exec(error.message.trim());\n    if (m) return m[1]!;\n    return `UNCLASSIFIED_${(error.name || \"ERROR\").replace(/[^A-Za-z0-9]/g, \"_\").toUpperCase()}`.slice(0, 64);",
+    "replace": "    return error.name.slice(0, 64);",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/bounded-terminal-reason.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P5-A",
+    "phase": "P5",
+    "name": "a keyed seal's revocation is ignored (PUBLISHED stays)",
+    "file": "services/api/src/services/public-verify/package-seal-check.service.ts",
+    "find": "    if (key.revokedAt) return revokedFact(pkg, key.revokedAt);\n    return {\n      fact: { kind: \"PUBLISHED\"",
+    "replace": "    if (key.revokedAt && Date.now() < 0) return revokedFact(pkg, key.revokedAt);\n    return {\n      fact: { kind: \"PUBLISHED\"",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/public-verify-package-seal-check.test.ts"
+        ]
+      },
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/public-package-record.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P5-B",
+    "phase": "P5",
+    "name": "the whole answer is memoized again (revocation of a legacy key not read)",
+    "file": "services/api/src/services/public-verify/package-seal-check.service.ts",
+    "find": "  if (key.revokedAt) return revokedFact(pkg, key.revokedAt);\n  if (!pkg.storageBucket",
+    "replace": "  if (key.revokedAt && Date.now() < 0) return revokedFact(pkg, key.revokedAt);\n  if (!pkg.storageBucket",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/public-verify-package-seal-check.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P5-C",
+    "phase": "P5",
+    "name": "the seal check says 'after issuance' whatever the dates",
+    "file": "services/api/src/services/public-verify/package-seal-check.service.ts",
+    "find": "      revokedAfterIssuance: issuedAt ? revokedAt.getTime() > issuedAt.getTime() : null,",
+    "replace": "      revokedAfterIssuance: issuedAt ? true : null,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/public-verify-package-seal-check.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P5-D",
+    "phase": "P5",
+    "name": "the canonical verifier does not compare the shipped key with the recorded one",
+    "file": "packages/shared/src/package-seal.ts",
+    "find": "      } else if (expected && shipped.toLowerCase() !== expected) {",
+    "replace": "      } else if (expected && shipped.toLowerCase() !== expected && Date.now() < 0) {",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/package-seal-key-binding.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P5-E",
+    "phase": "P5",
+    "name": "the canonical verifier does not compare the shipped key with the key the signature names",
+    "file": "packages/shared/src/package-seal.ts",
+    "find": "      } else if (named && shipped.toLowerCase() !== named) {",
+    "replace": "      } else if (named && shipped.toLowerCase() !== named && Date.now() < 0) {",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/package-seal-key-binding.test.mjs"
+        ]
+      },
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/staged-package-key-binding.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P5-F",
+    "phase": "P5",
+    "name": "the worker issuance gate does not bind the shipped key",
+    "file": "services/worker/src/output-verification.ts",
+    "find": "    expectedKeyFingerprint: input.expect.seal.signingKeyFingerprint,",
+    "replace": "    expectedKeyFingerprint: null,",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/staged-package-key-binding.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P5-G",
+    "phase": "P5",
+    "name": "a reviewer share discloses the permanent pvr_ reference again",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "        reference: artifactLink ? (row.verificationRef ?? null) : null,",
+    "replace": "        reference: row.verificationRef ?? null,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/verification-share-links.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P5-H",
+    "phase": "P5",
+    "name": "the package record says 'revoked after issuance' whatever the dates",
+    "file": "services/api/src/services/public-verify/public-package-record.service.ts",
+    "find": "      ? new Date(boundKey.revokedAtUtc).getTime() > row.generatedAtUtc.getTime()",
+    "replace": "      ? true",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/public-package-record.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P5-I",
+    "phase": "P5",
+    "name": "the record page states a revoked key as 'not checked'",
+    "file": "packages/shared/src/verification-matrix.ts",
+    "find": "        row(\"package_signature\", \"FAILED\", packageSealKeyRevokedStatement(seal.revokedAfterIssuance), seal.revokedAtUtc),",
+    "replace": "        row(\"package_signature\", \"NOT_CHECKED\", packageSealKeyRevokedStatement(seal.revokedAfterIssuance), seal.revokedAtUtc),",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/package-seal-key-binding.test.mjs"
+        ]
+      },
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/public-verify-package-seal-check.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P5-J",
+    "phase": "P5",
+    "name": "the package page draws a recorded digest as verified",
+    "file": "apps/web/app/verify/package/[packageId]/page.tsx",
+    "find": "              state={record.packageSha256 ? \"not_checked\" : \"not_issued\"}\n              tone={record.packageSha256 ? \"neutral\" : undefined}",
+    "replace": "              state={record.packageSha256 ? \"verified\" : \"not_issued\"}",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/public-package-record-truth.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P5-K",
+    "phase": "P5",
+    "name": "the revoked-key sentence says 'after' for a revocation before issuance",
+    "file": "packages/shared/src/public-package-record.ts",
+    "find": "  KEY_REVOKED_BEFORE_ISSUE: packageSealKeyRevokedStatement(false),",
+    "replace": "  KEY_REVOKED_BEFORE_ISSUE: packageSealKeyRevokedStatement(true),",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/package-seal-key-binding.test.mjs"
+        ]
+      },
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/public-package-record-truth.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P6-A",
+    "phase": "P6",
+    "name": "the single-file original link is not pinned to a version",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "                    key,\n                    versionId: sealedVersionId,\n                    expiresInSeconds: 600,",
+    "replace": "                    key,\n                    expiresInSeconds: 600,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-byte-authority.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P6-B",
+    "phase": "P6",
+    "name": "a record whose primary object is the single file does not fall back to the record's sealed version",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "              (params.evidence.storageBucket === bucket && params.evidence.storageKey === key\n                ? (params.evidence.storageVersionId ?? null)\n                : null);",
+    "replace": "              (params.evidence.storageBucket === bucket && params.evidence.storageKey === key\n                ? null\n                : null);",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-byte-authority.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P6-C",
+    "phase": "P6",
+    "name": "the FULL package skips the original-download policy",
+    "file": "services/api/src/services/evidence/artifact-download-gate.service.ts",
+    "find": "  if (kind === \"package\" && teamId) {\n    const originalsPolicy",
+    "replace": "  if (kind === \"package\" && teamId && Date.now() < 0) {\n    const originalsPolicy",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-byte-authority.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P6-D",
+    "phase": "P6",
+    "name": "the FULL package consults the package policy instead of the original policy",
+    "file": "services/api/src/services/evidence/artifact-download-gate.service.ts",
+    "find": "    const originalsPolicy = await enforceSensitiveAction(\"download_original\", {",
+    "replace": "    const originalsPolicy = await enforceSensitiveAction(\"download_package\", {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-byte-authority.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P7-A",
+    "phase": "P7",
+    "name": "a customer email is written back into an operator document",
+    "file": "docs/operations/internal-grant-production-rollout.md",
+    "find": "export GRANT_KEY=\"owner-test:<customer-email>:team:2026-10\"",
+    "replace": "export GRANT_KEY=\"owner-test:someone.real@hotmail.com:team:2026-10\"",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/pii-tracked-content-scanner.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P7-B",
+    "phase": "P7",
+    "name": "a customer record UUID is written back into a runbook",
+    "file": "docs/runbooks/production-diagnostic-handoff.md",
+    "find": "Only an exact email or an exact user id resolves",
+    "replace": "Only an exact email or an exact user id (c30b0572-96d8-44fb-80d0-94f4520b8980) resolves",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/pii-tracked-content-scanner.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P7-C",
+    "phase": "P7",
+    "name": "the report names the record by its internal UUID again",
+    "file": "services/worker/src/report-v2/build-view-model.ts",
+    "find": "  const verificationReference = buildPublicVerificationReference(input.verificationRef);",
+    "replace": "  const verificationReference = input.evidence.id;",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/report-pdf-layout.test.ts",
+          "-t",
+          "AUD-18"
+        ],
+        "env": {
+          "PUPPETEER_EXECUTABLE_PATH": "C:/Program Files/Google/Chrome/Application/chrome.exe"
+        }
+      }
+    ]
+  },
+  {
+    "id": "P7-D",
+    "phase": "P7",
+    "name": "the footer scrapes a UUID again",
+    "file": "services/worker/src/report-v2/render-pdf.ts",
+    "find": "  if (!/^pvr_[A-Za-z0-9_-]{8,}$/.test(raw)) return \"N/A\";",
+    "replace": "  if (!/^pvr_[A-Za-z0-9_-]{8,}$/.test(raw)) return raw;",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/report-pdf-layout.test.ts",
+          "-t",
+          "AUD-18"
+        ],
+        "env": {
+          "PUPPETEER_EXECUTABLE_PATH": "C:/Program Files/Google/Chrome/Application/chrome.exe"
+        }
+      }
+    ]
+  },
+  {
+    "id": "P7-E",
+    "phase": "P7",
+    "name": "the OTS proof reference prints the record id again",
+    "file": "services/worker/src/report-v2/ots-presentation.ts",
+    "find": "      value: `opentimestamps-proof.ots (sha256:${a.proofSha256.slice(0, 16)})`,",
+    "replace": "      value: `${ev.id ? `record ${ev.id}, ` : \"\"}opentimestamps-proof.ots (sha256:${a.proofSha256.slice(0, 16)})`,",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/report-pdf-layout.test.ts",
+          "-t",
+          "AUD-18"
+        ],
+        "env": {
+          "PUPPETEER_EXECUTABLE_PATH": "C:/Program Files/Google/Chrome/Application/chrome.exe"
+        }
+      }
+    ]
+  },
+  {
+    "id": "P7-F",
+    "phase": "P7",
+    "name": "an undecided location disclosure prints the location (fail-open)",
+    "file": "services/worker/src/report-v2/build-view-model.ts",
+    "find": "const recordedLocationDisclosed = input.recordedLocationDisclosed === true;",
+    "replace": "const recordedLocationDisclosed = input.recordedLocationDisclosed !== false;",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/report-pdf-layout.test.ts",
+          "-t",
+          "AUD-19"
+        ],
+        "env": {
+          "PUPPETEER_EXECUTABLE_PATH": "C:/Program Files/Google/Chrome/Application/chrome.exe"
+        }
+      }
+    ]
+  },
+  {
+    "id": "P7-G",
+    "phase": "P7",
+    "name": "the worker passes 'disclosed' whatever the record decided",
+    "file": "services/worker/src/processor.ts",
+    "find": "  return parseVerificationDisclosurePolicy(row).showRecordedLocation;",
+    "replace": "  return parseVerificationDisclosurePolicy(row).showRecordedLocation || Boolean(row);",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "PHASE 7"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P7-H",
+    "phase": "P7",
+    "name": "the report is not given the record's pvr_",
+    "file": "services/worker/src/processor.ts",
+    "find": "          verificationRef: prepared.verificationRef,\n          recordedLocationDisclosed:",
+    "replace": "          verificationRef: null,\n          recordedLocationDisclosed:",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "PHASE 7"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P7-I",
+    "phase": "P7",
+    "name": "the timezone leaves with the location withheld",
+    "file": "services/api/src/services/public-verify/public-verify-projection.ts",
+    "find": "    captureEnvironment: sub(t.captureEnvironment, TECH_ENVIRONMENT, located ? [\"timezone\"] : []),",
+    "replace": "    captureEnvironment: sub(t.captureEnvironment, TECH_ENVIRONMENT, [\"timezone\"]),",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/public-verify-authority.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P7-J",
+    "phase": "P7",
+    "name": "the network country leaves with the location withheld",
+    "file": "services/api/src/services/public-verify/public-verify-projection.ts",
+    "find": "    network: located && isObj(t.network) ? pick(t.network, [\"country\"]) : null,",
+    "replace": "    network: isObj(t.network) ? pick(t.network, [\"country\"]) : null,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/public-verify-authority.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P7-K",
+    "phase": "P7",
+    "name": "withheld identity keeps its categorical labels",
+    "file": "services/api/src/services/public-verify/public-verify-projection.ts",
+    "find": "  if (!isObj(r) || !isObj(r.identity) || r.identity.disclosure !== \"WITHHELD\") return r;",
+    "replace": "  if (!isObj(r) || !isObj(r.identity) || r.identity.disclosure !== \"WITHHELD\" || Date.now() > 0) return r;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/public-verify-authority.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P7-L",
+    "phase": "P7",
+    "name": "attribution fields leave while attribution is withheld",
+    "file": "services/api/src/services/public-verify/public-verify-projection.ts",
+    "find": "  if (attribution) Object.assign(out, pick(o, lists.attribution));",
+    "replace": "  if (attribution || Date.now() > 0) Object.assign(out, pick(o, lists.attribution));",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/public-verify-authority.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P7-M",
+    "phase": "P7",
+    "name": "content fields leave a VERIFICATION_ONLY page",
+    "file": "services/api/src/services/public-verify/public-verify-projection.ts",
+    "find": "  if (d.mode === \"CONTENT_PREVIEW\") Object.assign(out, pick(o, lists.content));",
+    "replace": "  Object.assign(out, pick(o, lists.content));",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/public-verify-authority.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P7-N",
+    "phase": "P7",
+    "name": "the overview is a pass-through again (denylist)",
+    "file": "services/api/src/services/public-verify/public-verify-projection.ts",
+    "find": "  const out: Obj = pick(o, lists.always);",
+    "replace": "  const out: Obj = { ...o };",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/public-verify-authority.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P8-A",
+    "phase": "P8",
+    "name": "a kept token with no recorded cause reads 'not obtained' (falls through)",
+    "file": "packages/shared/src/trust-signal-state.ts",
+    "find": "    if (input.tokenPresent) {\n      return { state: \"PRESENT_NOT_INDEPENDENTLY_VERIFIED\", label: \"Timestamp token obtained; not validated\", measuredAtUtc: null };",
+    "replace": "    if (input.tokenPresent && Date.now() < 0) {\n      return { state: \"PRESENT_NOT_INDEPENDENTLY_VERIFIED\", label: \"Timestamp token obtained; not validated\", measuredAtUtc: null };",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/tsa-one-presenter.test.mjs"
+        ]
+      },
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/report-tsa-one-authority.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P8-B",
+    "phase": "P8",
+    "name": "the unknown cause is invented again (no trust anchor)",
+    "file": "packages/shared/src/trust-signal-state.ts",
+    "find": "      return { state: \"PRESENT_NOT_INDEPENDENTLY_VERIFIED\", label: \"Timestamp token obtained; not validated\", measuredAtUtc: null };",
+    "replace": "      return { state: \"PRESENT_NOT_INDEPENDENTLY_VERIFIED\", label: \"Timestamp token obtained; not validated (no trust anchor was available)\", measuredAtUtc: null };",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/tsa-one-presenter.test.mjs"
+        ]
+      },
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/report-tsa-one-authority.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P8-C",
+    "phase": "P8",
+    "name": "a provider outage is FAILED again",
+    "file": "packages/shared/src/tsa-status.ts",
+    "find": "      return presented === \"FAILED\" || presented === \"UNAVAILABLE\" ? \"NOT_OBTAINED\" : \"NOT_REQUESTED\";",
+    "replace": "      return presented === \"FAILED\" || presented === \"UNAVAILABLE\" ? \"FAILED\" : \"NOT_REQUESTED\";",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/tsa-one-presenter.test.mjs",
+          "tests/public-verify-one-fact-authority.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P8-D",
+    "phase": "P8",
+    "name": "the FAILED label is 'Timestamp failed' again",
+    "file": "packages/shared/src/tsa-status.ts",
+    "find": "  FAILED: \"Validation failed\",\n};",
+    "replace": "  FAILED: \"Timestamp failed\",\n};",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/tsa-one-presenter.test.mjs"
+        ]
+      },
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/provenance-chain-layer-status.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P8-E",
+    "phase": "P8",
+    "name": "a kept token never validated is amber again",
+    "file": "packages/shared/src/tsa-status.ts",
+    "find": "  RECORDED_NOT_VALIDATED: \"neutral\",\n  NOT_OBTAINED: \"neutral\",",
+    "replace": "  RECORDED_NOT_VALIDATED: \"warning\",\n  NOT_OBTAINED: \"neutral\",",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/tsa-one-presenter.test.mjs"
+        ]
+      },
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/tsa-one-presenter.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P8-F",
+    "phase": "P8",
+    "name": "the custody line says 'Timestamp: validated' for any STAMPED payload again",
+    "file": "services/worker/src/processor.ts",
+    "find": "        tsaStatus ? `Timestamp: ${TSA_PROOF_STATUS_LABELS[tsaProofStatusOfCustodyPayload(obj, \"SIGNATURE_APPLIED\")]}` : null,",
+    "replace": "        tsaStatus ? `Timestamp: ${tsaStatus === \"STAMPED\" ? \"RFC 3161 timestamp validated\" : TSA_PROOF_STATUS_LABELS[tsaProofStatusOfCustodyPayload(obj, \"SIGNATURE_APPLIED\")]}` : null,",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/tsa-custody-line-authority.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P8-G",
+    "phase": "P8",
+    "name": "the custody event's validation fact is ignored",
+    "file": "packages/shared/src/tsa-status.ts",
+    "find": "    tsaValidatedAtUtc: str(\"tsaValidatedAtUtc\"),\n    tsaTokenPresent: Boolean(str(\"tsaSerialNumber\") || str(\"tsaMessageImprint\") || str(\"tsaGenTimeUtc\")),",
+    "replace": "    tsaValidatedAtUtc: status === \"STAMPED\" ? \"validated\" : null,\n    tsaTokenPresent: Boolean(str(\"tsaSerialNumber\") || str(\"tsaMessageImprint\") || str(\"tsaGenTimeUtc\")),",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/tsa-custody-line-authority.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P8-H",
+    "phase": "P8",
+    "name": "an unvalidated token's serial and time are printed as plain facts",
+    "file": "services/worker/src/report-v2/technical-model.ts",
+    "find": "    validatedToken || value == null || value === \"\" ? label : `${label} (${TSA_UNVALIDATED_CLAIM_QUALIFIER})`;",
+    "replace": "    validatedToken || value == null || value === \"\" || Date.now() > 0 ? label : `${label} (${TSA_UNVALIDATED_CLAIM_QUALIFIER})`;",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/report-tsa-one-authority.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P8-I",
+    "phase": "P8",
+    "name": "the owner Integrity tab states an outage as failed",
+    "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+    "find": "  NOT_OBTAINED: \"unavailable\",\n  NOT_REQUESTED: \"unavailable\",\n  FAILED: \"failed\",\n};",
+    "replace": "  NOT_OBTAINED: \"failed\",\n  NOT_REQUESTED: \"unavailable\",\n  FAILED: \"failed\",\n};",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/evidence-integrity-tsa-status.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P8-J",
+    "phase": "P8",
+    "name": "mobile prints a raw FAILED as 'Failed' again",
+    "file": "apps/mobile/src/product/public-verify.ts",
+    "find": "  if (s === \"FAILED\") return { label: \"Not validated\", tone: \"neutral\" };",
+    "replace": "  if (s === \"FAILED\") return { label: \"Failed\", tone: \"warning\" };",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/tsa-one-presenter.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P8-K",
+    "phase": "P8",
+    "name": "the timestamp authority is called under the workspace capacity lock again",
+    "file": "services/api/src/services/evidence-complete.service.ts",
+    "find": "      const tsaResult = await createEvidenceTimestamp({\n        digestHex: fileSha256,\n      });\n\n      // ET-SEC-28 — under the workspace capacity lock (see\n      // lockEvidenceCapacitySubject): a concurrent finalize in this workspace\n      // waits here until this one commits, then sees its bytes.\n      await lockEvidenceCapacitySubject(scope, tx);\n      await assertWorkspaceAllowsStorageGrowth({\n        scope,\n        incomingBytes: incomingGrowth,\n      });",
+    "replace": "      // ET-SEC-28 — under the workspace capacity lock (see\n      // lockEvidenceCapacitySubject): a concurrent finalize in this workspace\n      // waits here until this one commits, then sees its bytes.\n      await lockEvidenceCapacitySubject(scope, tx);\n      await assertWorkspaceAllowsStorageGrowth({\n        scope,\n        incomingBytes: incomingGrowth,\n      });\n\n      const tsaResult = await createEvidenceTimestamp({\n        digestHex: fileSha256,\n      });",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/finalize-tsa-outside-capacity-lock.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P8-L",
+    "phase": "P8",
+    "name": "the web provenance chain prints an unvalidated token's time unqualified",
+    "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx",
+    "find": "      ? ` · token time ${fmt(chain.time.rfc3161.appliedAtUtc)} (${TSA_UNVALIDATED_CLAIM_QUALIFIER})`",
+    "replace": "      ? ` · ${fmt(chain.time.rfc3161.appliedAtUtc)}`",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/provenance-chain-layer-status.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P8-M",
+    "phase": "P8",
+    "name": "the owner review workspace omits the canonical proof status",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "                proofStatus: resolveTsaProofStatus(evidence),",
+    "replace": "                proofStatus: null,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-byte-authority.integration.test.ts",
+          "-t",
+          "AUD-14"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P8-N",
+    "phase": "P8",
+    "name": "Basic Verify reads an outage as failed again",
+    "file": "packages/shared/src/tsa-status.ts",
+    "find": "    case \"FAILED\":\n      return \"failed\";\n    default:\n      return \"not_issued\";",
+    "replace": "    case \"FAILED\":\n      return \"failed\";\n    case \"NOT_OBTAINED\":\n      return \"failed\";\n    default:\n      return \"not_issued\";",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/public-verify-one-fact-authority.test.mjs",
+          "tests/tsa-one-presenter.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P9-A",
+    "phase": "P9",
+    "name": "the client device time is recorded unsanitised",
+    "file": "services/api/src/services/evidence.service.ts",
+    "find": "  const deviceTimeIso = sanitizeClientDeviceTimeIso(params.deviceTimeIso ?? null);",
+    "replace": "  const deviceTimeIso = (params.deviceTimeIso ?? null) || sanitizeClientDeviceTimeIso(null);",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-byte-authority.integration.test.ts",
+          "-t",
+          "AUD-21"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P9-B",
+    "phase": "P9",
+    "name": "the web capture sends the Finish-click time as device time again",
+    "file": "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts",
+    "find": "          captureFileName: primaryFile.name,\n          // AUD-21 (2026-10-20): no deviceTimeIso.",
+    "replace": "          captureFileName: primaryFile.name,\n          deviceTimeIso: new Date().toISOString(),\n          // AUD-21 (2026-10-20): no deviceTimeIso.",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/capture-finalize-resume.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P9-C",
+    "phase": "P9",
+    "name": "a reversed capture window is accepted",
+    "file": "packages/shared/src/capture-window.ts",
+    "find": "  if (start > end) return \"captureStartedAtUtc is after captureEndedAtUtc\";",
+    "replace": "  if (start > end && Date.now() < 0) return \"captureStartedAtUtc is after captureEndedAtUtc\";",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/capture-window.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P9-D",
+    "phase": "P9",
+    "name": "a capture long before its session is accepted",
+    "file": "packages/shared/src/capture-window.ts",
+    "find": "    if (Number.isFinite(opened) && start < opened - CAPTURE_PRE_SESSION_ALLOWANCE_MS) {",
+    "replace": "    if (Number.isFinite(opened) && start < opened - CAPTURE_PRE_SESSION_ALLOWANCE_MS * 1000) {",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/capture-window.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P9-E",
+    "phase": "P9",
+    "name": "the web manifest validator skips the window check",
+    "file": "packages/shared/src/web-capture-manifest.ts",
+    "find": "  if (windowProblem) return { ok: false, error: windowProblem };",
+    "replace": "  if (windowProblem && Date.now() < 0) return { ok: false, error: windowProblem };",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/capture-window.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P9-F",
+    "phase": "P9",
+    "name": "the owner overview labels server receipt 'Captured' again",
+    "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
+    "find": "        label: \"Received by PROOVRA\",",
+    "replace": "        label: \"Captured\",",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/evidence-detail-workspace-convergence.render.test.tsx",
+          "-t",
+          "AUD-25"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P9-G",
+    "phase": "P9",
+    "name": "mobile labels server receipt 'Captured' again",
+    "file": "apps/mobile/src/product/evidence-record.ts",
+    "find": "    { label: \"Received by PROOVRA\", value: r.capturedAtUtc",
+    "replace": "    { label: \"Captured\", value: r.capturedAtUtc",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/received-by-proovra.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P9-H",
+    "phase": "P9",
+    "name": "the summary rail re-derives its tone on the client again",
+    "file": "apps/web/app/verify/[token]/VerifyMatrixPanels.tsx",
+    "find": "  const tone = matrix?.tone ?? null;",
+    "replace": "  const tone = (decision?.presentationTone ?? decision?.tone ?? null) as \"success\" | \"warning\" | \"danger\" | null;",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/verify-summary-server-tone.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P9-I",
+    "phase": "P9",
+    "name": "the matrix tone ignores a FAILED row",
+    "file": "packages/shared/src/verification-matrix.ts",
+    "find": "  if (rows.some((r) => r.status === \"FAILED\")) return \"danger\";",
+    "replace": "  if (rows.some((r) => r.status === \"FAILED\") && Date.now() < 0) return \"danger\";",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/verification-matrix-tone.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P9-J",
+    "phase": "P9",
+    "name": "an ended share link reads Verification Failed and goes to Sentry again",
+    "file": "apps/web/app/verify/[token]/page.tsx",
+    "find": "        const notice = verifyLinkNoticeOf(err);",
+    "replace": "        const notice = null as ReturnType<typeof verifyLinkNoticeOf>;",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/verify-link-notice.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P9-K",
+    "phase": "P9",
+    "name": "a rate limit is not a neutral state",
+    "file": "apps/web/app/verify/[token]/page.tsx",
+    "find": "  if (status === 429) {",
+    "replace": "  if (status === 429 && Date.now() < 0) {",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/verify-link-notice.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P9-L",
+    "phase": "P9",
+    "name": "the consistency result does not say it is as issued",
+    "file": "services/api/src/services/trust-decision-consistency.service.ts",
+    "find": "  if (input.source !== \"REPORT_SNAPSHOT\" && input.source !== \"VERIFICATION_PACKAGE_SNAPSHOT\") return { kind: \"LIVE\" };",
+    "replace": "  if (Date.now() > 0) return { kind: \"LIVE\" };",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/forensic-hardening.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P9-M",
+    "phase": "P9",
+    "name": "the owner Integrity tab states no verdict basis",
+    "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+    "find": "        {divergence?.basis ? (",
+    "replace": "        {divergence?.basis && Date.now() < 0 ? (",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/evidence-integrity-verdict-basis.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P9-N",
+    "phase": "P9",
+    "name": "the extension statement claims the capture happened in the session again",
+    "file": "packages/shared/src/evidence-acquisition.ts",
+    "find": "reports that it captured this web page and delivered it in a server-issued capture session.",
+    "replace": "reports that it captured this web page, in a server-issued capture session.",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/capture-window.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P10-A",
+    "phase": "P10",
+    "name": "the service stores any assignee again",
+    "file": "services/api/src/services/evidence-request.service.ts",
+    "find": "  await assertAssigneeIsActiveMember(client, parsed.teamId, parsed.assignedReviewerUserId);",
+    "replace": "  void assertAssigneeIsActiveMember;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/integrations-api-actor-and-lifecycle.integration.test.ts",
+          "-t",
+          "AUD-09"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P10-B",
+    "phase": "P10",
+    "name": "SESSION_BUSY counts as a definite refusal again",
+    "file": "apps/extension/src/lib/preserve-flow.ts",
+    "find": "  return err instanceof ApiError && err.status >= 400 && err.status < 500 && err.denial !== BUSY_DENIAL;",
+    "replace": "  return err instanceof ApiError && err.status >= 400 && err.status < 500;",
+    "tests": [
+      {
+        "cwd": "apps/extension",
+        "cmd": "node",
+        "args": [
+          "-e",
+          "require('child_process').execSync('node build-test.mjs',{stdio:'inherit'});require('child_process').execSync('node scripts/run-tests.mjs',{stdio:'inherit'})"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P10-C",
+    "phase": "P10",
+    "name": "a busy discard is read as settled again",
+    "file": "apps/extension/src/lib/preserve-flow.ts",
+    "find": "        if (!sealMayHaveHappened && !discardBusy) {",
+    "replace": "        if (!sealMayHaveHappened && (discardBusy || !discardBusy)) {",
+    "tests": [
+      {
+        "cwd": "apps/extension",
+        "cmd": "node",
+        "args": [
+          "-e",
+          "require('child_process').execSync('node build-test.mjs',{stdio:'inherit'});require('child_process').execSync('node scripts/run-tests.mjs',{stdio:'inherit'})"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P10-D",
+    "phase": "P10",
+    "name": "COMPLETE seals without the running count again",
+    "file": "services/api/src/services/capture-trust/continuous-capture.service.ts",
+    "find": "        if (d.recordedThrough === null) throw new DirectCaptureError(\"CONTINUOUS_COMPLETENESS_UNDECLARED\");",
+    "replace": "        if (d.recordedThrough === null && Date.now() < 0) throw new DirectCaptureError(\"CONTINUOUS_COMPLETENESS_UNDECLARED\");",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/uc3-continuous-completeness.integration.test.ts",
+          "-t",
+          "AUD-24"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P10-E",
+    "phase": "P10",
+    "name": "a derivative is stamped with the source digest it never verified",
+    "file": "services/worker/src/derived-assets.processor.ts",
+    "find": "  return sourceRead.digestMatchesRecorded === true ? recordedSha256 : null;",
+    "replace": "  return recordedSha256;",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/derived-assets-processor-lineage.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P10-F",
+    "phase": "P10",
+    "name": "the extract route reads latest-at-key again",
+    "file": "services/api/src/routes/internal-media-intelligence-extract.routes.ts",
+    "find": "            versionId: part.storage_version_id ?? null,",
+    "replace": "            versionId: null,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/aud38-extract-route-pinned.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P10-G",
+    "phase": "P10",
+    "name": "the extract route sends bytes that are not the recorded original",
+    "file": "services/api/src/routes/internal-media-intelligence-extract.routes.ts",
+    "find": "          if (readDigest !== part.sha256.toLowerCase()) {",
+    "replace": "          if (readDigest !== part.sha256.toLowerCase() && Date.now() < 0) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/aud38-extract-route-pinned.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P10-H",
+    "phase": "P10",
+    "name": "the extract route reads a trashed record",
+    "file": "services/api/src/routes/internal-media-intelligence-extract.routes.ts",
+    "find": "      if (outputLifecycleRefusal(evidence)) {",
+    "replace": "      if (outputLifecycleRefusal(evidence) && Date.now() < 0) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/aud38-extract-route-pinned.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P10-I",
+    "phase": "P10",
+    "name": "technical metadata is overwritten again",
+    "file": "services/worker/src/media-intelligence.processor.ts",
+    "find": "          WHERE \"id\" = $3\n            AND \"technical_metadata\" IS NULL`,",
+    "replace": "          WHERE \"id\" = $3`,",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/technical-metadata-write-once.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P10-J",
+    "phase": "P10",
+    "name": "technical metadata parses latest-at-key again",
+    "file": "services/worker/src/media-intelligence.processor.ts",
+    "find": "        versionId: part.storage_version_id ?? null,",
+    "replace": "        versionId: null,",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/technical-metadata-write-once.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P10-K",
+    "phase": "P10",
+    "name": "a downgraded workspace keeps accepting intake",
+    "file": "services/api/src/services/external-intake-orchestration.service.ts",
+    "find": "    if (await intakePlanRefusal({ teamId: input.link.teamId, requesterUserId: input.link.createdByUserId })) {",
+    "replace": "    if ((await intakePlanRefusal({ teamId: input.link.teamId, requesterUserId: input.link.createdByUserId })) && Date.now() < 0) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/intake-finalization-governance.integration.test.ts",
+          "-t",
+          "AUD-36"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P10-L",
+    "phase": "P10",
+    "name": "a link's pending records are unbounded again",
+    "file": "services/api/src/services/external-intake-orchestration.service.ts",
+    "find": "    if (pending >= remaining) {",
+    "replace": "    if (pending >= remaining && Date.now() < 0) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/intake-concurrency.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P10-M",
+    "phase": "P10",
+    "name": "bulk invites skip the External Review gate again",
+    "file": "services/api/src/routes/external-portal.routes.ts",
+    "find": "      // bulk issuance skipped it, so a workspace without External Review could\n      // still grant outside reviewers access in bulk.\n      if (!(await workspaceIncludesExternalReview(ctx.workspaceId))) {",
+    "replace": "      // bulk issuance skipped it, so a workspace without External Review could\n      // still grant outside reviewers access in bulk.\n      if (!(await workspaceIncludesExternalReview(ctx.workspaceId)) && Date.now() < 0) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/runtime-proof-collab-teams-inbox-b.integration.test.ts",
+          "-t",
+          "without External Review"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P10-N",
+    "phase": "P10",
+    "name": "an intake link may live forever again",
+    "file": "services/api/src/services/workflow-intake-link.service.ts",
+    "find": "  if (input.expiresAtUtc.getTime() > Date.now() + MAX_INTAKE_LINK_TTL_MS) {",
+    "replace": "  if (input.expiresAtUtc.getTime() > Date.now() + MAX_INTAKE_LINK_TTL_MS * 1000) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/integrations-api-actor-and-lifecycle.integration.test.ts",
+          "-t",
+          "90 days"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P10-O",
+    "phase": "P10",
+    "name": "the API mint ignores the creator's role again",
+    "file": "services/api/src/routes/integrations-api.routes.ts",
+    "find": "          if (refusal?.kind === \"policy\") {",
+    "replace": "          if (refusal?.kind === \"policy\" && Date.now() < 0) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/integrations-api-actor-and-lifecycle.integration.test.ts",
+          "-t",
+          "may not mint"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P10-P",
+    "phase": "P10",
+    "name": "a file: page address is accepted again",
+    "file": "packages/shared/src/web-capture-manifest.ts",
+    "find": "  if (!isWebPageUrl(page.sourceUrlPrivate)) {",
+    "replace": "  if (!isWebPageUrl(page.sourceUrlPrivate) && Date.now() < 0) {",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/web-capture-url-hygiene.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P10-Q",
+    "phase": "P10",
+    "name": "the URL fragment is kept again",
+    "file": "packages/shared/src/web-capture-manifest.ts",
+    "find": "  return i >= 0 ? raw.slice(0, i) : raw;",
+    "replace": "  return i >= 0 ? raw : raw;",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/web-capture-url-hygiene.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P10-R",
+    "phase": "P10",
+    "name": "the extension names the record by the page title again",
+    "file": "apps/extension/src/lib/preserve-flow.ts",
+    "find": "            originalFileName: `web-capture-${hostOf(capture.pageInfo.url)}`.slice(0, 120),",
+    "replace": "            originalFileName: `web-capture-${capture.pageInfo.title ?? hostOf(capture.pageInfo.url)}`.slice(0, 120),",
+    "tests": [
+      {
+        "cwd": "apps/extension",
+        "cmd": "node",
+        "args": [
+          "-e",
+          "require('child_process').execSync('node build-test.mjs',{stdio:'inherit'});require('child_process').execSync('node scripts/run-tests.mjs',{stdio:'inherit'})"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P10-S",
+    "phase": "P10",
+    "name": "a web upload's coordinates lose their source",
+    "file": "packages/shared/src/intake-link-location.ts",
+    "find": "    case \"PROOVRA_WEB_UPLOAD\":\n    case \"DIRECT_WEB_CAPTURE_EXTENSION\":\n      return \"CAPTURE_BROWSER_GEOLOCATION\";",
+    "replace": "    case \"DIRECT_WEB_CAPTURE_EXTENSION\":\n      return \"CAPTURE_BROWSER_GEOLOCATION\";",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-byte-authority.integration.test.ts",
+          "-t",
+          "AUD-57"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P11-A",
+    "phase": "P11",
+    "name": "the owed narrowing ignores the subject entitlement",
+    "file": "services/api/src/services/billing/owed-output-population.service.ts",
+    "find": "      return scope.kind === \"NARROW\" ? { AND: [{ teamId }, scope.where] } : { teamId };",
+    "replace": "      return { teamId };",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud30-owed-backlog.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P11-B",
+    "phase": "P11",
+    "name": "archived records count as owed backlog again",
+    "file": "services/api/src/services/billing/owed-output-population.service.ts",
+    "find": "  lifecycleState: { in: [...OUTPUT_PRODUCING_LIFECYCLE_STATE_LIST] as EvidenceLifecycleState[] },\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud30-owed-backlog.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P11-C",
+    "phase": "P11",
+    "name": "the cohorts count every signed-no-report record again",
+    "file": "services/api/src/services/admin/evidence-health-cohorts.service.ts",
+    "find": "  const SIGNED_NO_REPORT_OWED: Prisma.EvidenceWhereInput = { AND: [SIGNED_NO_REPORT, owed] };",
+    "replace": "  const SIGNED_NO_REPORT_OWED: Prisma.EvidenceWhereInput = { AND: [SIGNED_NO_REPORT] };",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud30-owed-backlog.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P11-D",
+    "phase": "P11",
+    "name": "the admin drill-down signals are not narrowed",
+    "file": "services/api/src/services/admin/evidence-records.service.ts",
+    "find": "      ...(owedWhere ? [owedWhere] : []),",
+    "replace": "      ...([] as Prisma.EvidenceWhereInput[]),",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud30-owed-backlog.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P11-E",
+    "phase": "P11",
+    "name": "the operations without-report count is not narrowed",
+    "file": "services/api/src/services/operations/evidence-health.service.ts",
+    "find": "        where: { deletedAt: null, status: \"SIGNED\", latestReportVersion: null, AND: [owed] },",
+    "replace": "        where: { deletedAt: null, status: \"SIGNED\", latestReportVersion: null },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud30-owed-backlog.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P11-F",
+    "phase": "P11",
+    "name": "the operations package backlog is not narrowed",
+    "file": "services/api/src/services/operations/evidence-health.service.ts",
+    "find": "          verificationPackageVersion: null,\n          AND: [owed],",
+    "replace": "          verificationPackageVersion: null,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud30-owed-backlog.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P11-G",
+    "phase": "P11",
+    "name": "the matter gap count ignores entitlement",
+    "file": "services/api/src/services/cases/matter-queue.service.ts",
+    "find": "              const owedArms = [OUTPUT_PRODUCING_LIFECYCLE_WHERE, ...(owed ? [owed] : [])];",
+    "replace": "              const owedArms = [OUTPUT_PRODUCING_LIFECYCLE_WHERE];",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud30-owed-backlog.integration.test.ts",
+          "-t",
+          "matter"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P11-H",
+    "phase": "P11",
+    "name": "a security admin may export seats again",
+    "file": "services/api/src/routes/organizations-reports.routes.ts",
+    "find": "const SEATS_EXPORT_ROLES: ReadonlyArray<OrgRole> = [\"ORG_OWNER\", \"ORG_ADMIN\", \"ORG_BILLING_ADMIN\"];",
+    "replace": "const SEATS_EXPORT_ROLES: ReadonlyArray<OrgRole> = [\"ORG_OWNER\", \"ORG_ADMIN\", \"ORG_BILLING_ADMIN\", \"ORG_SECURITY_ADMIN\"];",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud31-org-report-roles.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P11-I",
+    "phase": "P11",
+    "name": "a billing admin may export the oversight reports again",
+    "file": "services/api/src/routes/organizations-reports.routes.ts",
+    "find": "const OVERSIGHT_EXPORT_ROLES: ReadonlyArray<OrgRole> = [\"ORG_OWNER\", \"ORG_ADMIN\", \"ORG_SECURITY_ADMIN\", \"ORG_AUDITOR\"];",
+    "replace": "const OVERSIGHT_EXPORT_ROLES: ReadonlyArray<OrgRole> = [\"ORG_OWNER\", \"ORG_ADMIN\", \"ORG_SECURITY_ADMIN\", \"ORG_AUDITOR\", \"ORG_BILLING_ADMIN\"];",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud31-org-report-roles.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P11-J",
+    "phase": "P11",
+    "name": "the org gate decides by rank again",
+    "file": "services/api/src/routes/organizations-reports.routes.ts",
+    "find": "  const result = await checkOrgAccess(prisma, { orgId, userId, roles });",
+    "replace": "  const result = await checkOrgAccess(prisma, { orgId, userId, minRole: roles[roles.length - 1] });",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud31-org-report-roles.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P11-K",
+    "phase": "P11",
+    "name": "a seed request without dryRun writes again",
+    "file": "services/api/src/routes/ops-seed.routes.ts",
+    "find": "          dryRun: body.dryRun !== false,",
+    "replace": "          dryRun: body.dryRun === true,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud39-operational-seed.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P11-L",
+    "phase": "P11",
+    "name": "any workspace may be seeded again",
+    "file": "services/api/src/services/ops/operational-seed.service.ts",
+    "find": "  assertSeedTeamDesignated(input.teamId);\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud39-operational-seed.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P11-M",
+    "phase": "P11",
+    "name": "cleanup deletes work a reviewer did after the seed",
+    "file": "services/api/src/services/ops/operational-seed.service.ts",
+    "find": "  const removable = ids.workflowIds.filter((id) => !keptIds.has(id));",
+    "replace": "  const removable = ids.workflowIds;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud39-operational-seed.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P11-N",
+    "phase": "P11",
+    "name": "the legacy trash grace is backdated again",
+    "file": "services/api/src/scripts/three-decisions-backfill.ts",
+    "find": "        const trashGraceUntil = new Date(now.getTime() + TRASH_GRACE_DAYS * 24 * 60 * 60 * 1000);",
+    "replace": "        const trashGraceUntil = new Date(deletedAt.getTime() + TRASH_GRACE_DAYS * 24 * 60 * 60 * 1000);",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/legacy-lifecycle-reconciliation.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P12-A",
+    "phase": "P12",
+    "name": "the cron lock runs unlocked when Redis cannot be read",
+    "file": "services/worker/src/cron-lock.ts",
+    "find": "    return { ran: false, reason: \"lock_unavailable\" };",
+    "replace": "    return { ran: true, result: await fn() };",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/phase-r10-cron-lock.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P12-B",
+    "phase": "P12",
+    "name": "the cron lock lease is never renewed",
+    "file": "services/worker/src/cron-lock.ts",
+    "find": "const kept = await redisConnection.eval(RENEW_SCRIPT, 1, key, INSTANCE_ID, String(ttlMs));",
+    "replace": "const kept = 1;",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/phase-r10-cron-lock.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P12-C",
+    "phase": "P12",
+    "name": "the worker accepts a schema that never applied its head",
+    "file": "services/worker/src/schema-head.ts",
+    "find": "  if (mine.length === 0) return { kind: \"HEAD_NOT_APPLIED\", expected };",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/schema-head.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P12-D",
+    "phase": "P12",
+    "name": "the seal verifier accepts a seal naming another report (audit mutant D)",
+    "file": "packages/shared/src/package-seal.ts",
+    "find": "    } else if (reportEntry.sha256 !== seal.reportSha256 || digestOf(reportBytes) !== seal.reportSha256) {",
+    "replace": "    } else if ((reportEntry.sha256 !== seal.reportSha256 || digestOf(reportBytes) !== seal.reportSha256) && Date.now() < 0) {",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/forward-unpinned-guards.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P12-E",
+    "phase": "P12",
+    "name": "every retryable attempt escalates to Sentry and a critical alert again",
+    "file": "services/worker/src/worker-events.ts",
+    "find": "    if (!isFinalAttempt(job) && !discarded) {",
+    "replace": "    if (!isFinalAttempt(job) && !discarded && Date.now() < 0) {",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/worker-events-business-refusal.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P12-F",
+    "phase": "P12",
+    "name": "the API request authority treats a not-entitled record as entitled (audit mutant F)",
+    "file": "services/api/src/services/reports/report-generation-authority.service.ts",
+    "find": "    entitlement: async () => eligibilityIssuance,",
+    "replace": "    entitlement: async () => (eligibilityIssuance ? { ...eligibilityIssuance, decision: \"ENTITLED\", reportsIncluded: true, verificationPackageIncluded: true } : eligibilityIssuance),",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "AUD-33/F"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P12-G",
+    "phase": "P12",
+    "name": "an ARCHIVED record is offered outputs again (audit mutant G)",
+    "file": "packages/shared/src/evidence-output-lifecycle.ts",
+    "find": "    case \"ARCHIVED\":\n      return \"EVIDENCE_ARCHIVED\";\n",
+    "replace": "",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/forward-unpinned-guards.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P12-H",
+    "phase": "P12",
+    "name": "every ECONNREFUSED is dropped from Sentry again",
+    "file": "services/worker/src/sentry.ts",
+    "find": "    (message.includes(\"ECONNREFUSED\") && isRedisEndpointRefusal(message)) ||",
+    "replace": "    message.includes(\"ECONNREFUSED\") ||",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/sentry-econnrefused-scope.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P12-I",
+    "phase": "P12",
+    "name": "an over-budget attempt goes unreported",
+    "file": "packages/shared/src/queue-integrity/retry-policy.ts",
+    "find": "  return durationMs > budgetMs ? { budgetMs, overByMs: durationMs - budgetMs } : null;",
+    "replace": "  return null;",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/worker-events-business-refusal.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P12-J",
+    "phase": "P12",
+    "name": "the CI excusal counts signature lines again",
+    "file": "scripts/ci/vitest-rpc-timeout-excusal.sh",
+    "find": "[ \"$blocks\" = \"$caught\" ] && [ \"$known\" = \"$blocks\" ]",
+    "replace": "[ \"$known\" -ge 1 ]",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/ci-rpc-timeout-excusal.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P12-K",
+    "phase": "P12",
+    "name": "staging may migrate before its deploy target is proven",
+    "file": "services/api/scripts/staging-deploy-guard.mjs",
+    "find": "refuse(\"MIGRATES_BEFORE_DEPLOY_TARGET\"",
+    "replace": "void (\"MIGRATES_BEFORE_DEPLOY_TARGET\"",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/phase-12-point8-staging-deploy-guard.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P12-L",
+    "phase": "P12",
+    "name": "images publish without the updated-report journey",
+    "file": "scripts/release/image-publish-gate.mjs",
+    "find": "  { file: \"updated-report-journey.yml\", name: \"updated-report-journey\" },",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/deploy-images-gate.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P12-M",
+    "phase": "P12",
+    "name": "the API stops stating its presentation contract",
+    "file": "services/api/src/server.ts",
+    "find": "    reply.header(PRESENTATION_CONTRACT_HEADER, String(PRESENTATION_CONTRACT_VERSION));",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud32-contract-header.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P12-N",
+    "phase": "P12",
+    "name": "an older web build ignores a newer API contract",
+    "file": "apps/web/lib/contract-skew.ts",
+    "find": "  if (presentationContractSkew(served) !== \"CLIENT_OLDER\") return;",
+    "replace": "  if (presentationContractSkew(served) !== \"CLIENT_OLDER\" || Date.now() > 0) return;",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/contract-skew-notice.render.test.tsx"
+        ]
+      }
+    ]
+  }
+]

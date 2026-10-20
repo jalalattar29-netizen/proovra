@@ -505,7 +505,8 @@ describe("operations population", () => {
 
     // The branch itself ends where the failure path begins — at the first
     // `captureException`, which a commercial outcome must never reach.
-    const captureAt = code.indexOf("captureException(error", denialAt);
+    // AUD-41 (2026-10-20): the failure path begins with its duration.
+    const captureAt = code.indexOf("const durationMs = Date.now() - start;", denialAt);
     expect(captureAt).toBeGreaterThan(denialAt);
     const denialBranch = code.slice(denialAt, captureAt);
     expect(denialBranch).toMatch(/job\.discard\(\)/);

@@ -1,5 +1,7 @@
 "use client";
 
+import ContractSkewNotice from "../components/ContractSkewNotice";
+
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   clearLocaleCookies,
@@ -281,6 +283,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <LocaleContext.Provider value={localeValue}>
         <ToastProvider>
           <ConfirmActionProvider>{children}</ConfirmActionProvider>
+          {/* AUD-32 — tells an open tab its build is older than the API contract. */}
+          <ContractSkewNotice />
         </ToastProvider>
       </LocaleContext.Provider>
     </AuthContext.Provider>

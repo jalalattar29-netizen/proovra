@@ -279,6 +279,11 @@ test("no process-spawning script is unguarded", () => {
       why: "runs the repo's own test commands; it hands each child an ALLOWLISTED environment (platform and disposable-infrastructure variables only), never the ambient one",
       guard: /const CHILD_ENV_ALLOW = /,
     },
+    // AUD-33 (2026-10-20) — the forward mutation runner, same allowlist design.
+    "scripts/mutation/run-mutations.mjs": {
+      why: "runs the forward mutation catalog's test commands; it hands each child an ALLOWLISTED environment plus a placeholder DATABASE_URL, never the ambient one",
+      guard: /const CHILD_ENV_ALLOW = /,
+    },
   };
 
   for (const [p, { guard, why }] of Object.entries(EARNED_EXEMPTIONS)) {

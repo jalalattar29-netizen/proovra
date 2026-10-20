@@ -49,7 +49,16 @@ describe("worker Sentry scrubbing", () => {
   });
 
   it("the noise filter still runs first: transient Redis refusals are dropped", () => {
-    expect(workerSentryBeforeSend({ message: "x" }, { originalException: new Error("connect ECONNREFUSED 127.0.0.1:6379") })).toBeNull();
+    // AUD-41 (2026-10-20): only a refusal from THE configured Redis endpoint
+    // is noise (sentry-econnrefused-scope.test.ts pins the scope).
+    const before = process.env.REDIS_URL;
+    process.env.REDIS_URL = "redis://127.0.0.1:6379";
+    try {
+      expect(workerSentryBeforeSend({ message: "x" }, { originalException: new Error("connect ECONNREFUSED 127.0.0.1:6379") })).toBeNull();
+    } finally {
+      if (before === undefined) delete process.env.REDIS_URL;
+      else process.env.REDIS_URL = before;
+    }
   });
 
   it("fails closed: an unreadable event is dropped, never sent raw", () => {

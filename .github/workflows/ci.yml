@@ -651,21 +651,12 @@ jobs:
           # else — still fails exactly as before.
           # ---------------------------------------------------------------
           if [ "$rc" != "0" ]; then
-            # The summary lines carry ANSI colour codes, so every pattern
-            # anchors on words, never on adjacency, and every ambiguity
-            # fails closed: "failed" anywhere on a summary-shaped line
-            # disqualifies the excusal outright.
-            files_clean=$(grep -acE "Test Files.*passed" /tmp/api-test.log || true)
-            summary_failed=$(grep -aE "Test Files|Tests " /tmp/api-test.log | grep -ac "failed" || true)
-            # Vitest states how many unhandled errors it caught; every one
-            # of them must match the known signature, which appears exactly
-            # once per error block.
-            caught=$(grep -aoE "caught [0-9]+ unhandled" /tmp/api-test.log | grep -oE "[0-9]+" | head -1)
-            caught=${caught:-0}
-            known=$(grep -ac 'Timeout calling "onTaskUpdate"' /tmp/api-test.log || true)
-            if [ "$files_clean" -ge 1 ] && [ "$summary_failed" = "0" ] \
-               && [ "$caught" -ge 1 ] && [ "$known" -ge "$caught" ]; then
-              echo "::warning::proovra-api: every test passed; exit $rc came from the known vitest onTaskUpdate RPC timeout ($caught unhandled error(s), all matching the known signature). Treated as pass; summary below."
+            # AUD-50 (2026-10-20): the decision lives in one script with its own
+            # tests (services/api/test/ci-rpc-timeout-excusal.test.ts). It counts
+            # unhandled-error BLOCKS, not signature lines: one timeout printed
+            # twice beside a real error was excused by the line count.
+            if bash scripts/ci/vitest-rpc-timeout-excusal.sh /tmp/api-test.log; then
+              echo "::warning::proovra-api: every test passed; exit $rc came from the known vitest onTaskUpdate RPC timeout (every unhandled error matched the known signature). Treated as pass; summary below."
               grep -aE "Test Files|Tests |Errors" /tmp/api-test.log | tail -4
               rc=0
             fi
@@ -1193,3 +1184,38 @@ jobs:
           path: apps/extension/release/proovra-extension-v*.zip
           if-no-files-found: error
           retention-days: 90
+
+  # AUD-33 (2026-10-20) — THE FORWARD MUTATION SUITE RUNS ON EVERY PUSH.
+  #
+  # The audit's mutation run lived in a scratchpad; three guards it showed
+  # unpinned (seal REPORT_BOUND, the API NOT_INCLUDED refusal, the ARCHIVED
+  # output restriction) had no test that failed when they were removed. Every
+  # forward-remediation guard now has a catalogued re-introduced defect
+  # (scripts/mutation/forward-evidence-mutations.json). This job runs every
+  # mutant whose killing tests need no database; forward-mutation.yml runs the
+  # integration ones on the disposable stack. A SURVIVED mutant, a missing
+  # anchor or a red baseline fails the job.
+  forward-mutation-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.28.2"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the shared packages the mutants rebuild
+        run: pnpm run build:shared
+
+      - name: Forward mutation suite — unit mutants
+        run: node scripts/mutation/run-mutations.mjs scripts/mutation/forward-evidence-mutations.json --skip-integration

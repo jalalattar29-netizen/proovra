@@ -1,3 +1,5 @@
+import { observeContractHeader } from "./contract-skew";
+
 const DEFAULT_API_BASE = "https://api.proovra.com";
 const RAW_API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_API_BASE;
 const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
@@ -371,6 +373,8 @@ async function runApiFetch(
   let res: Response;
   try {
     res = await fetchWithAuthRetry(url, init, finalOpts);
+    // AUD-32 — a response from a newer API contract than this build.
+    observeContractHeader(res.headers?.get?.("x-proovra-contract") ?? null);
   } catch (err: unknown) {
     const e: GenericApiError = new Error(
       err instanceof Error ? err.message : "Network error while calling API"

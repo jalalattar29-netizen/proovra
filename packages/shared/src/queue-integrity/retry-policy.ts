@@ -54,6 +54,32 @@ export type RetryPolicy = {
  */
 export const RETRY_TIMEOUT_IS_ENFORCED = false as const;
 
+/**
+ * AUD-50 (2026-10-20) — THE BUDGET IS OBSERVED, NOT ENFORCED.
+ *
+ * Enforcing it would mean abandoning an attempt that may still be writing
+ * (a render, a package, a destruction) while BullMQ retries it — the exact
+ * race the claim fences exist to prevent. So the budget stays a budget, and an
+ * attempt that exceeded it is now REPORTED (`job.attempt_over_budget`) so it
+ * is seen instead of silently overrunning. This is the ONE place the runtime
+ * reads `retry.timeoutMs`; it decides nothing and stops nothing.
+ */
+export const RETRY_TIMEOUT_IS_OBSERVED = true as const;
+export const RETRY_TIMEOUT_OBSERVER_FILE = "packages/shared/src/queue-integrity/retry-policy.ts";
+
+/** The budget an attempt on this queue overran, or null (within budget / unknown queue). */
+export function attemptBudgetOverrun(
+  entries: ReadonlyArray<{ queueName: string | null; retry: RetryPolicy }>,
+  queueName: string | null | undefined,
+  durationMs: number | null | undefined,
+): { budgetMs: number; overByMs: number } | null {
+  if (!queueName || typeof durationMs !== "number" || !Number.isFinite(durationMs)) return null;
+  const entry = entries.find((e) => e.queueName === queueName);
+  if (!entry) return null;
+  const budgetMs = entry.retry.timeoutMs;
+  return durationMs > budgetMs ? { budgetMs, overByMs: durationMs - budgetMs } : null;
+}
+
 export type RecoveryPolicy = {
   /**
    * A durable row sitting in QUEUED longer than this was almost certainly

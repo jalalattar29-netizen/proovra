@@ -199,6 +199,26 @@ export function validateStagingWorkflowSource(yamlText) {
   if (!/release-deploy\.mjs|--wave/.test(code)) {
     refuse("UNBOUNDED_MIGRATIONS", "the workflow does not apply migrations through the wave selector");
   }
+  // AUD-50 (2026-10-20) — ORDER: the deploy target is proven before any wave
+  // is applied (a dry run excepted), and the contract wave D is applied only
+  // after the deploy step.
+  {
+    const lines = code.split("\n");
+    const at = (re) => lines.findIndex((l) => re.test(l));
+    const targetCheck = at(/staging-deploy-cli\.mjs\s+--deploy-target-check/);
+    const applyLines = lines
+      .map((l, i) => (/release-deploy\.mjs\b/.test(l) && !/--dry-run/.test(l) ? i : -1))
+      .filter((i) => i >= 0);
+    const deploy = at(/staging-deploy-cli\.mjs\s+--deploy\s*$/);
+    if (applyLines.length > 0 && (targetCheck < 0 || applyLines.some((i) => i < targetCheck))) {
+      refuse("MIGRATES_BEFORE_DEPLOY_TARGET", "a wave is applied before the deploy target is proven to exist");
+    }
+    const contractGuarded = /if:\s*\$\{\{\s*inputs\.wave\s*==\s*'D'\s*\}\}/.test(code);
+    const lastApply = applyLines.length ? applyLines[applyLines.length - 1] : -1;
+    if (applyLines.length > 0 && (!contractGuarded || deploy < 0 || lastApply < deploy)) {
+      refuse("CONTRACT_BEFORE_DEPLOY", "the contract wave is not applied after the deploy step");
+    }
+  }
   for (const name of PRODUCTION_SECRET_NAMES) {
     if (new RegExp(String.raw`secrets\.${name}\b`).test(code)) {
       refuse("PRODUCTION_SECRET_NAME", `the workflow reads secrets.${name}`);

@@ -2764,3 +2764,6 @@ export {
   scrubTelemetryValue,
   type TelemetryScrubOptions,
 } from "./telemetry-scrub.js";
+
+// AUD-32 (2026-10-20) — the API ↔ client presentation contract version.
+export * from "./release-contract.js";
