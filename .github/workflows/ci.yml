@@ -1215,6 +1215,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build the shared packages the mutants rebuild
+        # Prisma's config requires a DATABASE_URL to generate the client; it is
+        # never connected to (the unit mutants have no database).
+        env:
+          DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder_test
         run: pnpm run build:shared
 
       - name: Forward mutation suite — unit mutants

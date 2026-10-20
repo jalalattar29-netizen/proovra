@@ -31,7 +31,6 @@ import {
 import {
   normalizeTimestampFailureReason,
   safe,
-  safeBooleanLabel,
 } from "./formatters.js";
 
 export function isIntegrityVerified(evidence: ReportEvidence): boolean {

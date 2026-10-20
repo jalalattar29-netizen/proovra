@@ -58,7 +58,9 @@ function run(t) {
 }
 
 function build(pkg) {
-  const r = spawnSync("pnpm", ["build"], { cwd: join(ROOT, "packages", pkg), encoding: "utf8", shell: process.platform === "win32" });
+  // The package builds generate the Prisma client, whose config requires a
+  // DATABASE_URL (never connected to): the same allowlisted env as the tests.
+  const r = spawnSync("pnpm", ["build"], { cwd: join(ROOT, "packages", pkg), encoding: "utf8", shell: process.platform === "win32", env: childEnv() });
   return r.status === 0;
 }
 

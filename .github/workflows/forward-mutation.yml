@@ -71,6 +71,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build the shared packages
+        # Prisma's config requires a DATABASE_URL to generate the client; it
+        # does not connect. The disposable database below is the one it names.
+        env:
+          DATABASE_URL: postgresql://proovra:proovra_password@localhost:5432/proovra_mutation_integration_test
         run: pnpm run build:shared
 
       - name: Migrate the disposable integration database
