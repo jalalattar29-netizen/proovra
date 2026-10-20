@@ -71,6 +71,7 @@ import { prisma } from "./db.js";
 import { logger } from "./logger.js";
 import { enqueueOtsUpgradeJob, isOtsUpgradeScheduled } from "./queue.js";
 import { resolveOtsBitcoinVerifierConfig } from "./ots-bitcoin-config.js";
+import { OTS_CHAIN_FINAL_CONFIRMATIONS, OTS_NOT_IN_ACTIVE_CHAIN_GIVE_UP_MS } from "./ots-state.js";
 
 export interface RunOtsInitializationReconcilerOptions {
   trigger?: string;
@@ -291,8 +292,15 @@ export async function runOtsInitializationReconciler(
   // request lost to a failed in-flight report is recovered here.
   if (resolveOtsBitcoinVerifierConfig().kind !== "disabled") {
     const due = await prisma.evidence.findMany({
-      where: chainCheckDueWhere({ checkedBefore: new Date(now - CHAIN_RECHECK_STALE_MS), verifiedAfter: new Date(now - CHAIN_VERIFIED_RECHECK_WINDOW_MS) }),
-      orderBy: [{ otsAnchoredAtUtc: "asc" }, { id: "asc" }],
+      where: chainCheckDueWhere({
+        checkedBefore: new Date(now - CHAIN_RECHECK_STALE_MS),
+        verifiedAfter: new Date(now - CHAIN_VERIFIED_RECHECK_WINDOW_MS),
+        anchoredAfter: new Date(now - OTS_NOT_IN_ACTIVE_CHAIN_GIVE_UP_MS),
+      }),
+      // 2026-10-20 (AUD-10) — the longest-unchecked record first: a record
+      // that waited is served before one checked recently, whatever its anchor
+      // date, so a bounded batch cannot starve it behind old anchors.
+      orderBy: CHAIN_CHECK_SWEEP_ORDER,
       take: batchSize,
       select: { id: true },
     });
@@ -339,7 +347,13 @@ const CHAIN_RECHECK_STALE_MS = 6 * 60 * 60 * 1000;
 const CHAIN_VERIFIED_RECHECK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** ANCHORED proofs whose independent chain check is due (the queue check decides whether to enqueue). */
-export function chainCheckDueWhere(bounds: { checkedBefore: Date; verifiedAfter: Date }): Prisma.EvidenceWhereInput {
+/** The chain sweep's order: least-recently checked first (never-checked first of all), id as the stable tie-break. */
+export const CHAIN_CHECK_SWEEP_ORDER: Prisma.EvidenceOrderByWithRelationInput[] = [
+  { otsChainCheckedAtUtc: { sort: "asc", nulls: "first" } },
+  { id: "asc" },
+];
+
+export function chainCheckDueWhere(bounds: { checkedBefore: Date; verifiedAfter: Date; anchoredAfter?: Date }): Prisma.EvidenceWhereInput {
   return {
     deletedAt: null,
     otsStatus: "ANCHORED",
@@ -352,13 +366,26 @@ export function chainCheckDueWhere(bounds: { checkedBefore: Date; verifiedAfter:
       },
       {
         otsChainVerificationStatus: "FAILED",
-        otsChainFailureCode: { in: ["NOT_IN_ACTIVE_CHAIN", "REORGED"] },
+        otsChainFailureCode: "REORGED",
         otsChainCheckedAtUtc: { lte: bounds.checkedBefore },
       },
       {
+        // 2026-10-20 (AUD-50) — a proof whose block never entered the active
+        // chain is rechecked for a bounded time after anchoring, not forever.
+        otsChainVerificationStatus: "FAILED",
+        otsChainFailureCode: "NOT_IN_ACTIVE_CHAIN",
+        otsChainCheckedAtUtc: { lte: bounds.checkedBefore },
+        ...(bounds.anchoredAfter ? { otsAnchoredAtUtc: { gte: bounds.anchoredAfter } } : {}),
+      },
+      {
+        // 2026-10-20 (AUD-10) — a VERIFIED outcome deep enough to be final
+        // (>= OTS_CHAIN_FINAL_CONFIRMATIONS) is never due again. Production:
+        // 163 / 163 verified records matched this branch on every 5-minute
+        // tick because the final branch never re-stamps the checked time.
         otsChainVerificationStatus: "VERIFIED",
         otsChainVerifiedAtUtc: { gte: bounds.verifiedAfter },
         otsChainCheckedAtUtc: { lte: bounds.checkedBefore },
+        OR: [{ otsChainConfirmations: null }, { otsChainConfirmations: { lt: OTS_CHAIN_FINAL_CONFIRMATIONS } }],
       },
     ],
   };

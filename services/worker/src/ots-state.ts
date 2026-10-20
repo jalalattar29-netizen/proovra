@@ -623,11 +623,30 @@ function chainWrite(row: OtsRowSnapshot, data: Prisma.EvidenceUpdateInput, phase
  *   terminal contradiction                      → none
  */
 export const OTS_CHAIN_FINAL_CONFIRMATIONS = 144;
-export function nextOtsChainCheckDelayMs(anchoring: Pick<OtsAnchoring, "state" | "chain">): number | null {
+/**
+ * 2026-10-20 (AUD-50) — a proof whose block is not in the active chain is
+ * rechecked with a growing interval (1 h for the first day, 6 h for the first
+ * week, then daily) and given up after 30 days from anchoring: a block that
+ * never appeared in a month is not going to.
+ */
+export const OTS_NOT_IN_ACTIVE_CHAIN_GIVE_UP_MS = 30 * 24 * 60 * 60 * 1000;
+export function nextOtsChainCheckDelayMs(
+  anchoring: Pick<OtsAnchoring, "state" | "chain"> & { anchoredAtUtc?: string | Date | null },
+  now: number = Date.now(),
+): number | null {
+  const HOUR = 60 * 60 * 1000;
   if (anchoring.state !== "ANCHORED") return null;
   const c = anchoring.chain;
-  if (!c) return 60 * 60 * 1000;
-  if (c.status === "VERIFIED") return (c.confirmations ?? 0) >= OTS_CHAIN_FINAL_CONFIRMATIONS ? null : 24 * 60 * 60 * 1000;
+  if (!c) return HOUR;
+  if (c.status === "VERIFIED") return (c.confirmations ?? 0) >= OTS_CHAIN_FINAL_CONFIRMATIONS ? null : 24 * HOUR;
   if (c.status === "FAILED" && TERMINAL_CHAIN_FAILURES.has(String(c.failureCode ?? ""))) return null;
-  return 60 * 60 * 1000;
+  if (c.status === "FAILED" && c.failureCode === "NOT_IN_ACTIVE_CHAIN") {
+    const anchoredAt = anchoring.anchoredAtUtc ? new Date(anchoring.anchoredAtUtc).getTime() : Number.NaN;
+    const age = Number.isFinite(anchoredAt) ? now - anchoredAt : 0;
+    if (age >= OTS_NOT_IN_ACTIVE_CHAIN_GIVE_UP_MS) return null;
+    if (age >= 7 * 24 * HOUR) return 24 * HOUR;
+    if (age >= 24 * HOUR) return 6 * HOUR;
+    return HOUR;
+  }
+  return HOUR;
 }

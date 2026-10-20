@@ -1012,16 +1012,26 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
         failureCode: "BTC_RPC_UNAVAILABLE",
         anchoredAtUtc: new Date(),
       });
+      // Anchored FIRST, checked recently: an anchored-date order serves it
+      // before the starved record and a batch of one never reaches the latter.
+      const competitor = await anchoredWithChain({
+        status: "UNAVAILABLE",
+        confirmations: null,
+        checkedAtUtc: new Date(Date.now() - 7 * hour),
+        verifiedAtUtc: null,
+        failureCode: "BTC_RPC_UNAVAILABLE",
+        anchoredAtUtc: new Date("2019-01-01T00:00:00Z"),
+      });
       const q = await import("../../../worker/src/queue.js");
-      await clearOtsJobs([starved.evidenceId]);
+      await clearOtsJobs([starved.evidenceId, competitor.evidenceId]);
       try {
         const reconciler = await import("../../../worker/src/ots-initialization-reconciler.js");
         await withChainVerifierEnabled(() => reconciler.runOtsInitializationReconciler({ trigger: "test" as never, batchSize: 1 }));
-        expect(await q.isOtsUpgradeScheduled(starved.evidenceId)).toBe(true);
+        expect(await q.isOtsUpgradeScheduled(starved.evidenceId), "the longest-unchecked record is served first").toBe(true);
+        expect(await q.isOtsUpgradeScheduled(competitor.evidenceId), "a batch of one serves one record").toBe(false);
       } finally {
-        await clearOtsJobs([starved.evidenceId]);
+        await clearOtsJobs([starved.evidenceId, competitor.evidenceId]);
       }
-      void hour;
     }, 300_000);
 
     it("AUD-11: the proof is independently verified on the Bitcoin chain WHILE the report renders — the run commits and the package states the issuance snapshot", async () => {

@@ -17,6 +17,12 @@ export type RetryPolicy = {
   /** Base delay; exponential policies double from here. */
   backoffDelayMs: number;
   /**
+   * 2026-10-20 (AUD-41) — the fraction of each backoff delay that is
+   * randomized (BullMQ `backoff.jitter`, 0..1), so a fleet of retries after a
+   * shared outage does not return in lockstep. Absent = no jitter.
+   */
+  backoffJitter?: number;
+  /**
    * The wall-clock BUDGET one attempt is expected to fit in.
    *
    * ET-Q-07 (2026-09-30) — THIS IS NOT AN ENFORCED CEILING, and this comment
@@ -130,6 +136,7 @@ export const RETRY_POLICIES = {
     attempts: 20,
     backoff: "exponential",
     backoffDelayMs: 60_000,
+    backoffJitter: 0.5,
     timeoutMs: 5 * 60 * 1000,
   },
   /** Periodic reconciliation sweeps. */

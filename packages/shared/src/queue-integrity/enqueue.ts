@@ -201,7 +201,11 @@ export async function enqueueCanonicalJob(input: {
       jobId,
       delay: Math.max(0, input.delayMs ?? 0),
       attempts: entry.retry.attempts,
-      backoff: { type: entry.retry.backoff, delay: entry.retry.backoffDelayMs },
+      backoff: {
+        type: entry.retry.backoff,
+        delay: entry.retry.backoffDelayMs,
+        ...(entry.retry.backoffJitter ? { jitter: entry.retry.backoffJitter } : {}),
+      },
       removeOnComplete: input.removeOnComplete ?? 100,
       removeOnFail: input.removeOnFail ?? false,
     });

@@ -30,8 +30,8 @@ Every row names its proof. A finding never leaves this table.
 | AUD-07 | P1 | Customer PII in tracked docs and the generated runbook catalog | OPEN | Git-history rewrite is a separate owner decision |
 | AUD-08 | P1 | Single-part original presign not pinned to the sealed version | OPEN | |
 | AUD-09 | P2 | Integrations API reviewer assignee not workspace-checked | OPEN | |
-| AUD-10 | P2 | Chain catch-up re-enqueues final-VERIFIED rows every tick | OPEN | |
-| AUD-11 | P2 | Forward OTS progress treated as a contradiction | OPEN | |
+| AUD-10 | P2 | Chain catch-up re-enqueues final-VERIFIED rows every tick | FIXED IN PHASE 3 | chainCheckDueWhere excludes VERIFIED rows at >= 144 confirmations; the sweep is ordered least-recently-checked first (CHAIN_CHECK_SWEEP_ORDER) with the existing batch bound and job-id dedup. Real reconciler on live PostgreSQL / Redis: final rows get no job across two passes, a still-confirming row does; a long-unchecked record is served before an older anchor. Mutants P3-A, P3-B killed. |
+| AUD-11 | P2 | Forward OTS progress treated as a contradiction | FIXED IN PHASE 3 | compareIssuanceFactsToRecord accepts forward OTS verification progress (otsVerificationProgressionCompatible, the one ranking); a regression and a changed ANCHORED proof stay contradictions. Forward cases: chain verified during render -> run commits and v1 states ATTESTATION_RECORDED (issuance truth); regression and proof-bytes change -> refused. Mutants P3-C, D, E killed. |
 | AUD-12 | P2 | STORAGE_LIMIT_REACHED treated as a technical CRITICAL | FIXED IN PHASE 2 | A package storage-allowance refusal settles NOT_APPLICABLE_STORAGE_LIMIT. STORAGE_LIMIT_REACHED is in the commercial set for historical rows. Proof: forward storage-allowance case (report stays issued, no package, no Sentry, no incident). Mutants P2-H/P2-I killed. |
 | AUD-13 | P2 | Reviewer share discloses the permanent `pvr_` | OPEN | |
 | AUD-14 | P2 | TSA wording / tone drift across surfaces | OPEN | |
@@ -61,7 +61,7 @@ Every row names its proof. A finding never leaves this table.
 | AUD-38 | P2 | Derivative / extraction truth gaps | OPEN | |
 | AUD-39 | P2 | Ops seed writes onto real evidence | OPEN | |
 | AUD-40 | P2 | Legacy trash backfill backdates grace | OPEN | Forward rule only; no historical rerun |
-| AUD-41 | P2 | Monitoring noise and gaps | OPEN (expected-refusal escalation fixed in Phase 2; OTS P2028 Phase 3; ECONNREFUSED filter and per-attempt Sentry Phase 12) | Phase 2: no Sentry event or critical alert for business refusals (real binding test). |
+| AUD-41 | P2 | Monitoring noise and gaps | OPEN (expected refusals Phase 2; OTS P2028 Phase 3; ECONNREFUSED filter and per-attempt Sentry Phase 12) | Phase 3: transient database errors (P2028, P2034, P1001/1002/1008/1017) in the OTS job are retried quietly, with exponential backoff and 0.5 jitter, and escalate once on exhaustion (real binding: 19 attempts -> 0 captures, final -> 1 capture / 1 alert). Mutants P3-F, P3-G killed. |
 | AUD-42 | P2 | TSA call inside the finalize transaction | OPEN | |
 | AUD-43 | P3 | No DB guard on sealed truth columns | OPEN | |
 | AUD-44 | P3 | Latent "Immutable Storage: Verified" rule | OPEN | |
@@ -70,7 +70,7 @@ Every row names its proof. A finding never leaves this table.
 | AUD-47 | P3 | Raw enums, tone / label drift | OPEN | |
 | AUD-48 | P3 | Public Verify details (live delta, history, CSP, print, headers) | OPEN | |
 | AUD-49 | P3 | Package vocabulary, determinism, tombstones | OPEN | |
-| AUD-50 | P3 | Ops hygiene (cron lock, timeouts, publish gate) | OPEN | |
+| AUD-50 | P3 | Ops hygiene (cron lock, timeouts, publish gate) | OPEN (OTS parts fixed in Phase 3: NOT_IN_ACTIVE_CHAIN backoff 1h/6h/24h and give-up at 30 days; the rest Phase 12) | ots-chain-recheck-bounds.test.ts; mutant P3-H killed. |
 | AUD-51 | P3 | Duplicated helpers | OPEN | |
 | AUD-52 | P3 | Ingress hygiene | OPEN | |
 | AUD-53 | P1 | Legacy single-part composite digest fails the render gate | OPEN | Characterized (Phase 4 block). 16 historical failures and 21 exposed records are HISTORICAL-DATA-ONLY (no re-request). |

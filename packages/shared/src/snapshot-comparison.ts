@@ -77,6 +77,19 @@ const OTS_PROGRESS: Readonly<Record<OtsVerificationKey, number>> = {
   CHAIN_VERIFIED: 4,
 };
 
+/**
+ * 2026-10-20 (AUD-11) — is `later` the same OTS verification as `stated`, or
+ * FORWARD progress from it (attestation recorded -> chain verified)? A failure,
+ * or a lower rank, is a regression and stays a contradiction. The one ranking
+ * above decides, so issuance checks and the live "since issue" statements
+ * cannot disagree about what counts as progress.
+ */
+export function otsVerificationProgressionCompatible(stated: OtsVerificationKey, later: OtsVerificationKey): boolean {
+  if (stated === later) return true;
+  if (later === "FAILED" || later === "CHAIN_FAILED") return false;
+  return OTS_PROGRESS[later] >= OTS_PROGRESS[stated];
+}
+
 const STATUS_PROGRESS: Readonly<Record<VerificationStatus, number>> = {
   FAILED: 0,
   UNAVAILABLE: 1,

@@ -367,7 +367,8 @@ describe("nextOtsChainCheckDelayMs", () => {
   it.each([
     ["INSUFFICIENT_CONFIRMATIONS", { status: "INSUFFICIENT_CONFIRMATIONS" }],
     ["UNAVAILABLE", { status: "UNAVAILABLE" }],
-    ["FAILED NOT_IN_ACTIVE_CHAIN", { status: "FAILED", failureCode: "NOT_IN_ACTIVE_CHAIN" }],
+    // 2026-10-20 (AUD-50) — FAILED NOT_IN_ACTIVE_CHAIN now backs off with the
+    // proof's age and is given up after 30 days: ots-chain-recheck-bounds.test.ts.
     ["FAILED REORGED", { status: "FAILED", failureCode: "REORGED" }],
   ])("%s → 1 h", (_label, o) => {
     const r = row(chain(o));

@@ -29,6 +29,7 @@ import {
   type OtsVerificationKey,
 } from "./ots-anchoring.js";
 import { presentedTsaStatus } from "./tsa-validation-state.js";
+import { otsVerificationProgressionCompatible } from "./snapshot-comparison.js";
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   resolveOtsCustodyFacts,
@@ -218,7 +219,19 @@ export function tsaProgressionCompatible(stated: TrustSignalState, later: TrustS
  * asynchronous layers may only have moved forward.
  */
 export function compareIssuanceFactsToRecord(issuance: CanonicalArtifactFacts, later: CanonicalArtifactFacts): CanonicalFactsFinding[] {
-  const out = compareCanonicalFacts(issuance, later).filter((f) => f.check !== "TSA_STATE" && f.check !== "OTS_STATE" && f.check !== "OTS_PROOF");
+  const out = compareCanonicalFacts(issuance, later).filter(
+    (f) =>
+      f.check !== "TSA_STATE" &&
+      f.check !== "OTS_STATE" &&
+      // A pending proof legitimately gains bytes when it is upgraded; an
+      // ANCHORED proof is final per proof, so a change of its bytes between
+      // the issuance and the later read is a contradiction (2026-10-20).
+      !(f.check === "OTS_PROOF" && !(issuance.otsState === "ANCHORED" && later.otsState === "ANCHORED")) &&
+      // 2026-10-20 (AUD-11) — attestation recorded -> chain verified while a
+      // report/package is built is forward progress, not a contradiction; a
+      // regression still is (otsVerificationProgressionCompatible).
+      !(f.check === "OTS_VERIFICATION" && otsVerificationProgressionCompatible(issuance.otsVerification, later.otsVerification)),
+  );
   if (!tsaProgressionCompatible(issuance.tsaState, later.tsaState)) {
     out.push({ check: "TSA_STATE", detail: `issuance ${issuance.tsaState} cannot precede record ${later.tsaState}` });
   }
