@@ -235,6 +235,18 @@ describe("UC-WEB-001 — resumable Finish & Sign", () => {
   });
 });
 
+describe("AUD-21 — the browser clock at Finish is not a device capture time", () => {
+  it("the create request carries no deviceTimeIso", async () => {
+    const { result } = setup([item("1", "a.png")]);
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    const bodies = creates().map((c) => JSON.parse(String(c.init?.body)));
+    expect(bodies.length).toBeGreaterThan(0);
+    for (const b of bodies) expect(b).not.toHaveProperty("deviceTimeIso");
+  });
+});
+
 describe("UC-WEB-005 — honest post-seal artifact state", () => {
   it("a FAILED report is reported as failed, not as still generating", async () => {
     artifactStatus = {

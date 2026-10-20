@@ -78,7 +78,7 @@ export async function completeScreenCaptureSession(
   } catch {
     throw new DirectCaptureError("SCREEN_MANIFEST_INVALID");
   }
-  const validation = validateScreenCaptureManifest(parsed, { expectedSessionId: session.id });
+  const validation = validateScreenCaptureManifest(parsed, { expectedSessionId: session.id, sessionStartedAtUtc: session.startedAtUtc ?? null });
   if (!validation.ok) {
     throw new DirectCaptureError("SCREEN_MANIFEST_INVALID");
   }

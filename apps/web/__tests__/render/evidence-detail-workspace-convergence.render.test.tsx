@@ -1901,3 +1901,17 @@ describe("evidence output attention — one canonical value across the page", ()
     expect(surfaces()).toEqual({ card: null, tabName: null, indicator: null, banner: null });
   }, 15_000);
 });
+
+/*
+ * AUD-25 (2026-10-20) — capturedAtUtc is when PROOVRA RECEIVED the bytes. The
+ * Overview labelled it "Captured", a claim about the capture PROOVRA never saw.
+ */
+describe("Overview record summary — server receipt is not capture (AUD-25)", () => {
+  it("labels the server receipt time 'Received by PROOVRA', never 'Captured'", async () => {
+    await mountLoaded(LOADED_CONTEXTS[0]!);
+    const labels = [...document.querySelectorAll("[data-evidence-record-grid] .evidence-detail-record-card__label")].map((el) => el.textContent?.trim());
+    expect(labels.length).toBeGreaterThan(3);
+    expect(labels).toContain("Received by PROOVRA");
+    expect(labels).not.toContain("Captured");
+  });
+});

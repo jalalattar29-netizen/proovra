@@ -21,6 +21,7 @@
  * worker share ONE schema.
  */
 
+import { captureWindowProblem } from "./capture-window.js";
 import { CAPTURE_MANIFEST_FACTS_SCHEMA, type CaptureManifestFacts } from "./web-capture-manifest.js";
 
 export const SCREEN_CAPTURE_MANIFEST_SCHEMA_VERSION = "PROOVRA_SCREEN_CAPTURE_MANIFEST_V1" as const;
@@ -149,7 +150,8 @@ function isNonNegInt(v: unknown): v is number {
  */
 export function validateScreenCaptureManifest(
   input: unknown,
-  opts: { expectedSessionId?: string } = {},
+  /** (2026-10-20, AUD-22) the session's open time bounds the claimed window. */
+  opts: { expectedSessionId?: string; sessionStartedAtUtc?: Date | string | null; now?: Date } = {},
 ): ScreenCaptureManifestValidation {
   const B = SCREEN_CAPTURE_MANIFEST_BOUNDS;
   let serialized: string;
@@ -180,6 +182,13 @@ export function validateScreenCaptureManifest(
   if (!isBoundedString(m.captureEndedAtUtc, 40) || Number.isNaN(Date.parse(m.captureEndedAtUtc))) {
     return { ok: false, error: "invalid captureEndedAtUtc" };
   }
+  // AUD-22: a window that cannot be true is refused (start after end, a future
+  // end, a start long before the session opened).
+  const windowProblem = captureWindowProblem(m.captureStartedAtUtc, m.captureEndedAtUtc, {
+    sessionStartedAtUtc: opts.sessionStartedAtUtc ?? null,
+    now: opts.now,
+  });
+  if (windowProblem) return { ok: false, error: windowProblem };
   const device = m.device as Record<string, unknown> | undefined;
   if (!device || typeof device !== "object") return { ok: false, error: "missing device" };
   if (device.platform !== "android") return { ok: false, error: "invalid device.platform" };

@@ -176,7 +176,8 @@ export function itemCountLabel(r: Pick<RecordView, "multipart" | "itemCount">): 
 export function recordSummaryItems(r: RecordView, fmt: (iso: string) => string): Array<{ label: string; value: string }> {
   return [
     { label: "Created", value: r.createdAt ? fmt(r.createdAt) : "Not recorded" },
-    { label: "Captured", value: r.capturedAtUtc ? fmt(r.capturedAtUtc) : "Not recorded" },
+    // AUD-25 (2026-10-20): capturedAtUtc is when PROOVRA received the bytes.
+    { label: "Received by PROOVRA", value: r.capturedAtUtc ? fmt(r.capturedAtUtc) : "Not recorded" },
     { label: "MIME type", value: r.mimeType || "Not recorded" },
     { label: "File size", value: formatBytes(r.sizeBytes) },
     { label: "Workspace", value: r.workspaceName || "Not recorded" },

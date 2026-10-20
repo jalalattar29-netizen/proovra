@@ -34,8 +34,18 @@ export type TrustDecisionConsistencyReason = {
   integrityCritical: boolean;
 };
 
+/**
+ * (2026-10-20, AUD-26) WHICH VERDICT A SURFACE SHOWS. The owner page states
+ * the decision fixed when the report (or package) was issued; Public Verify
+ * states the record now. Each says which, so the two never read as one claim.
+ */
+export type TrustDecisionBasis =
+  | { kind: "AS_ISSUED"; artifact: "REPORT" | "VERIFICATION_PACKAGE"; version: number | null; issuedAtUtc: string | null }
+  | { kind: "LIVE" };
+
 export type TrustDecisionConsistencyResult = {
   source: TrustDecisionConsistencySource;
+  basis: TrustDecisionBasis;
   consistentWithSnapshot: boolean | null;
   tone: TrustDecisionConsistencyTone;
   accessOnly: boolean;
@@ -92,12 +102,24 @@ function pushReason(
   reasons.push(reason);
 }
 
+function basisOf(input: BuildTrustDecisionConsistencyInput): TrustDecisionBasis {
+  if (input.source !== "REPORT_SNAPSHOT" && input.source !== "VERIFICATION_PACKAGE_SNAPSHOT") return { kind: "LIVE" };
+  const at = toEpoch(input.snapshotGeneratedAtUtc);
+  return {
+    kind: "AS_ISSUED",
+    artifact: input.source === "REPORT_SNAPSHOT" ? "REPORT" : "VERIFICATION_PACKAGE",
+    version: input.source === "REPORT_SNAPSHOT" ? (input.latestReportVersion ?? null) : (input.latestVerificationPackageVersion ?? null),
+    issuedAtUtc: at === null ? null : new Date(at).toISOString(),
+  };
+}
+
 export function buildTrustDecisionConsistency(
   input: BuildTrustDecisionConsistencyInput
 ): TrustDecisionConsistencyResult {
   if (!input.snapshotTrustDecision) {
     return {
       source: input.source,
+      basis: basisOf(input),
       consistentWithSnapshot: null,
       tone: "neutral",
       accessOnly: false,
@@ -257,6 +279,7 @@ export function buildTrustDecisionConsistency(
 
   return {
     source: input.source,
+    basis: basisOf(input),
     consistentWithSnapshot: reasons.length === 0,
     tone,
     accessOnly,

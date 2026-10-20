@@ -200,6 +200,24 @@ describe("public verify semantics (Governance Item 1)", () => {
     expect(verifyPageSource).toContain("verificationMatrix");
   });
 
+  // AUD-26 (2026-10-20): the result says which verdict a surface shows.
+  it("states its basis: as issued with report vN at its time, or live", () => {
+    const asIssued = buildTrustDecisionConsistency({
+      snapshotTrustDecision: cloneTrustDecision(),
+      liveTrustDecision: cloneTrustDecision(),
+      source: "REPORT_SNAPSHOT",
+      snapshotGeneratedAtUtc: "2026-01-01T10:20:00.000Z",
+      latestReportVersion: 3,
+    });
+    expect(asIssued.basis).toEqual({ kind: "AS_ISSUED", artifact: "REPORT", version: 3, issuedAtUtc: "2026-01-01T10:20:00.000Z" });
+    const live = buildTrustDecisionConsistency({
+      snapshotTrustDecision: null,
+      liveTrustDecision: cloneTrustDecision(),
+      source: "LIVE_SHARED_FALLBACK",
+    });
+    expect(live.basis).toEqual({ kind: "LIVE" });
+  });
+
   it("classifies access-only divergence as informational and non-integrity-critical", () => {
     const result = buildTrustDecisionConsistency({
       snapshotTrustDecision: cloneTrustDecision(),

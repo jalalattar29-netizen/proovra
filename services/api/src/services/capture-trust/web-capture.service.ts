@@ -78,7 +78,7 @@ export async function completeWebCaptureSession(
   } catch {
     throw new DirectCaptureError("WEB_MANIFEST_INVALID");
   }
-  const validation = validateWebCaptureManifest(parsed, { expectedSessionId: session.id });
+  const validation = validateWebCaptureManifest(parsed, { expectedSessionId: session.id, sessionStartedAtUtc: session.startedAtUtc ?? null });
   if (!validation.ok) {
     throw new DirectCaptureError("WEB_MANIFEST_INVALID");
   }

@@ -14,7 +14,6 @@
  * says "Verification matrix unavailable" — it never rebuilds rows on the client.
  */
 import {
-  getTrustDecisionPresentationTone,
   otsVerificationKeyOfState,
   parseOtsState,
   parseOtsVerificationKey,
@@ -97,14 +96,17 @@ export function VerificationSummaryCard({
   matrix: VerificationMatrix | null;
   decision: VerifyTrustDecision | null;
 }) {
-  const decisionTone = decision ? getTrustDecisionPresentationTone(decision) : "neutral";
-  const rail =
-    decisionTone === "success" ? VERIFY_BRAND.success : decisionTone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.warning;
+  // AUD-27 (2026-10-20): THE server's tone (matrix.tone, decided from every
+  // row, package rows included) — never re-derived here from the decision,
+  // which ignored the package rows and could read green beside a FAILED seal.
+  const tone = matrix?.tone ?? null;
+  const rail = tone === "success" ? VERIFY_BRAND.success : tone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.warning;
 
   return (
     <section
       aria-labelledby="verify-summary-heading"
       data-testid="verify-matrix-summary-card"
+      data-summary-tone={tone ?? "none"}
       data-verify-card
       style={{
         border: `1px solid ${VERIFY_BRAND.line}`,

@@ -117,6 +117,14 @@ export type VerificationMatrix = {
   rows: VerificationMatrixRow[];
   /** The bounded summary, derived from the rows. */
   summary: string;
+  /**
+   * (2026-10-20, AUD-27) THE summary tone, decided by the server from these
+   * rows: danger when any row FAILED, success only when every row is VERIFIED
+   * or NOT_APPLICABLE, warning otherwise. A surface renders it; it never
+   * re-derives a tone from another source (a decision that ignores the
+   * package rows read green beside a FAILED seal).
+   */
+  tone: VerificationMatrixTone;
   /** The fixed limitation, stated on every surface. */
   limitation: string;
 };
@@ -634,8 +642,18 @@ export function buildVerificationMatrix(input: BuildVerificationMatrixInput): Ve
     schema: VERIFICATION_MATRIX_SCHEMA,
     rows,
     summary: verificationMatrixSummary(rows),
+    tone: verificationMatrixTone(rows),
     limitation: VERIFICATION_LIMITATION,
   };
+}
+
+export type VerificationMatrixTone = "success" | "warning" | "danger";
+
+/** The one tone rule for a matrix (AUD-27). */
+export function verificationMatrixTone(rows: ReadonlyArray<Pick<VerificationMatrixRow, "status">>): VerificationMatrixTone {
+  if (rows.some((r) => r.status === "FAILED")) return "danger";
+  if (rows.length > 0 && rows.every((r) => r.status === "VERIFIED" || r.status === "NOT_APPLICABLE")) return "success";
+  return "warning";
 }
 
 /**
@@ -696,6 +714,8 @@ export function parseVerificationMatrix(value: unknown): VerificationMatrix | nu
     schema: VERIFICATION_MATRIX_SCHEMA,
     rows,
     summary: typeof v.summary === "string" ? v.summary : verificationMatrixSummary(rows),
+    // The server's tone; a reply without one gets the same rule over the rows it sent.
+    tone: v.tone === "success" || v.tone === "warning" || v.tone === "danger" ? v.tone : verificationMatrixTone(rows),
     limitation: typeof v.limitation === "string" ? v.limitation : VERIFICATION_LIMITATION,
   };
 }

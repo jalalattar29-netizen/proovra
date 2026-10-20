@@ -2673,6 +2673,7 @@ export * from "./record-signature-validity.js";
 // offer, and in what truthful availability state?"). It never decides
 // authorization or commercial eligibility.
 export * from "./capture-capability.js";
+export * from "./capture-window.js";
 export * from "./web-capture-manifest.js";
 export * from "./screen-capture-manifest.js";
 export * from "./screen-continuous-manifest.js";

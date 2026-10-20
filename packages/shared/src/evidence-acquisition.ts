@@ -374,7 +374,9 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
     category: "DIRECT_WEB_CAPTURE",
     label: "Web capture — PROOVRA extension (client-attested)",
     statement:
-      "The PROOVRA browser extension reports that it captured this web page, in a server-issued capture session. PROOVRA independently recomputed the digest of every captured artifact and established integrity when the session was completed.",
+      // AUD-22 (2026-10-20): the capture is reported, and may precede the
+      // session — the session receives the delivery; it did not frame the capture.
+      "The PROOVRA browser extension reports that it captured this web page and delivered it in a server-issued capture session. PROOVRA independently recomputed the digest of every captured artifact and established integrity when the session was completed.",
     observedByProovra:
       "A server-issued capture session, the captured artifacts as received, and the digest of every artifact, recomputed by PROOVRA.",
     attested:

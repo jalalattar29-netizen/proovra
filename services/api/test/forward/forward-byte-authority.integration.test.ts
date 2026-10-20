@@ -195,4 +195,34 @@ describe("PHASE 6 — original byte authority and download policy (live PostgreS
     expect(await proofOf({ tsaStatus: "FAILED", tsaTokenBase64: "dG9rZW4=", tsaFailureCode: null })).toBe("RECORDED_NOT_VALIDATED");
     expect(await proofOf({ tsaStatus: "FAILED", tsaTokenBase64: "dG9rZW4=", tsaFailureCode: "tsa_message_imprint_mismatch" })).toBe("FAILED");
   });
+
+  /*
+   * AUD-21 (2026-10-20) — a client-declared device time is sanitised like
+   * intake before it is recorded (and later signed into the fingerprint):
+   * unparseable or far-future values are not recorded.
+   */
+  it("AUD-21: createEvidence records a sanitised device time, and nothing for an impossible one", async () => {
+    const create = async (deviceTimeIso: string) => {
+      const res = await harness.app.inject({
+        method: "POST",
+        url: "/v1/evidence",
+        headers: { authorization: `Bearer ${harness.fixtures.teamA.ownerToken}`, "content-type": "application/json" },
+        payload: JSON.stringify({ type: "PHOTO", mimeType: "image/jpeg", teamId: harness.fixtures.teamA.teamId, deviceTimeIso }),
+      });
+      expect(res.statusCode, res.body).toBeLessThan(300);
+      const id = res.json().id as string;
+      created.push(id);
+      return (await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { deviceTimeIso: true } })).deviceTimeIso;
+    };
+    const teamId = harness.fixtures.teamA.teamId;
+    const before = await prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { billingPlan: true, billingStatus: true } });
+    await prisma.team.update({ where: { id: teamId }, data: { billingPlan: "ENTERPRISE", billingStatus: "ACTIVE" } as never });
+    try {
+      expect(await create("2026-10-01T09:15:04+02:00")).toBe("2026-10-01T07:15:04.000Z");
+      expect(await create("not a time")).toBeNull();
+      expect(await create("2999-01-01T00:00:00Z")).toBeNull();
+    } finally {
+      await prisma.team.update({ where: { id: teamId }, data: before as never });
+    }
+  });
 });

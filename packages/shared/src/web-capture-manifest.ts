@@ -17,6 +17,7 @@
  * This module is transport-neutral and dependency-free so the extension, the
  * API and the worker share ONE schema and ONE URL-privacy projection.
  */
+import { captureWindowProblem } from "./capture-window.js";
 
 export const WEB_CAPTURE_MANIFEST_SCHEMA_VERSION = "PROOVRA_WEB_CAPTURE_MANIFEST_V1" as const;
 
@@ -138,7 +139,8 @@ function isBoundedString(v: unknown, max: number): v is string {
  */
 export function validateWebCaptureManifest(
   input: unknown,
-  opts: { expectedSessionId?: string } = {},
+  /** (2026-10-20, AUD-22) the session's open time bounds the claimed window. */
+  opts: { expectedSessionId?: string; sessionStartedAtUtc?: Date | string | null; now?: Date } = {},
 ): WebCaptureManifestValidation {
   const B = WEB_CAPTURE_MANIFEST_BOUNDS;
   let serialized: string;
@@ -172,6 +174,13 @@ export function validateWebCaptureManifest(
   if (!isBoundedString(m.captureEndedAtUtc, 40) || Number.isNaN(Date.parse(m.captureEndedAtUtc))) {
     return { ok: false, error: "invalid captureEndedAtUtc" };
   }
+  // AUD-22: a window that cannot be true is refused (start after end, a future
+  // end, a start long before the session opened).
+  const windowProblem = captureWindowProblem(m.captureStartedAtUtc, m.captureEndedAtUtc, {
+    sessionStartedAtUtc: opts.sessionStartedAtUtc ?? null,
+    now: opts.now,
+  });
+  if (windowProblem) return { ok: false, error: windowProblem };
   const page = m.page as Record<string, unknown> | undefined;
   if (!page || typeof page !== "object") return { ok: false, error: "missing page" };
   if (!isBoundedString(page.domain, B.maxDomainLen)) {

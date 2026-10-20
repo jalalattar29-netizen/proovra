@@ -908,6 +908,28 @@ const TECHNICAL_TABS: ReadonlyArray<{ id: TechnicalTabId; label: string }> = [
   { id: "access", label: "Access Activity" },
 ];
 
+type VerifyLinkNotice = { kind: "LINK_ENDED" | "RATE_LIMITED"; title: string; detail: string };
+
+/** AUD-28 — the expected, non-failure answers of the verify API, in plain words. */
+function verifyLinkNoticeOf(err: unknown): VerifyLinkNotice | null {
+  const status = (err as { statusCode?: number } | null)?.statusCode;
+  if (status === 410) {
+    return {
+      kind: "LINK_ENDED",
+      title: "This verification link is no longer active",
+      detail: "The link was revoked, expired or used up by the person who shared it. Ask them for a new link.",
+    };
+  }
+  if (status === 429) {
+    return {
+      kind: "RATE_LIMITED",
+      title: "Too many checks in a short time",
+      detail: "Please wait a minute and reload this page.",
+    };
+  }
+  return null;
+}
+
 export default function VerifyPage() {
   // The location words in the reader's language (en / de / ar).
   const verifyLocationCopy = evidenceLocationCopy(useLocale().locale);
@@ -915,6 +937,8 @@ export default function VerifyPage() {
   const { addToast } = useToast();
 
   const [error, setError] = useState<string | null>(null);
+  // AUD-28 (2026-10-20): an ended link and a rate limit are states, not failures.
+  const [linkNotice, setLinkNotice] = useState<VerifyLinkNotice | null>(null);
   const [loading, setLoading] = useState(true);
   // Decision B — a BASIC answer carries only the basic projection.
   const [basicOnly, setBasicOnly] = useState<BasicVerification | null>(null);
@@ -981,6 +1005,7 @@ export default function VerifyPage() {
       try {
         const data = await apiFetch(`/public/verify/${encodeURIComponent(params.token)}`);
         if (cancelled || !isMountedRef.current) return;
+        setLinkNotice(null);
 
         setVerifyLink((data as { link?: VerifyLinkInfo } | null)?.link ?? null);
         const canonical = (data as { canonicalVerification?: { status?: string } } | null)?.canonicalVerification;
@@ -1048,6 +1073,17 @@ export default function VerifyPage() {
           setCanonicalState(truthful);
           setError(null);
           clearPolling();
+          return;
+        }
+
+        // AUD-28 (2026-10-20): a share link that has ended (410: revoked,
+        // expired, used up) or a rate limit (429) is an expected answer — a
+        // neutral state, never "Verification Failed" and never a Sentry event.
+        const notice = verifyLinkNoticeOf(err);
+        if (notice) {
+          setLinkNotice(notice);
+          setError(null);
+          if (notice.kind === "LINK_ENDED") clearPolling();
           return;
         }
 
@@ -1381,6 +1417,12 @@ export default function VerifyPage() {
                 </div>
               </Card>
             </div>
+          ) : linkNotice ? (
+            <Card>
+              <div data-testid="verify-link-notice" data-notice={linkNotice.kind}>
+                <EmptyState title={linkNotice.title} subtitle={linkNotice.detail} />
+              </div>
+            </Card>
           ) : error ? (
             <Card>
               <EmptyState

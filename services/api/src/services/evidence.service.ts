@@ -31,6 +31,7 @@ import { ensurePersonalWorkspace } from "./platform-context/workspace-bootstrap.
 import {
   evidenceLocationSourceForAcquisition,
   isEvidenceAcquisitionMode,
+  sanitizeClientDeviceTimeIso,
   type EvidenceAcquisitionMode,
 } from "@proovra/shared";
 // PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
@@ -315,6 +316,11 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
     });
   }
 
+  // AUD-21 (2026-10-20) — the client-declared device time is sanitised like
+  // intake (parseable, not before 1970, not more than 7 days ahead); a value
+  // that fails is not recorded rather than signed into the fingerprint.
+  const deviceTimeIso = sanitizeClientDeviceTimeIso(params.deviceTimeIso ?? null);
+
   const owner = await prisma.user.findUnique({
     where: { id: params.ownerUserId },
     select: {
@@ -581,7 +587,7 @@ data: {
   organizationNameSnapshot,
   organizationVerifiedSnapshot,
   capturedAtUtc: capturedAt,
-  deviceTimeIso: params.deviceTimeIso ?? null,
+  deviceTimeIso,
   lat: params.gps?.lat ?? null,
   lng: params.gps?.lng ?? null,
   accuracyMeters: params.gps?.accuracyMeters ?? null,
@@ -615,7 +621,7 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
         acquisitionModeSource: "RECORDED_AT_CREATION",
         captureSessionId: params.captureSessionId ?? null,
         verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
-        deviceTimeIso: params.deviceTimeIso ?? null,
+        deviceTimeIso,
         gps: params.gps
           ? {
               lat: params.gps.lat,

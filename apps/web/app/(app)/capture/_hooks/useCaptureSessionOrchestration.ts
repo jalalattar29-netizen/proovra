@@ -770,7 +770,10 @@ export function useCaptureSessionOrchestration({
           internalNotes: internalNotes.trim() || undefined,
           originalFileName: items[0]?.relativePath || primaryFile.name,
           captureFileName: primaryFile.name,
-          deviceTimeIso: new Date().toISOString(),
+          // AUD-21 (2026-10-20): no deviceTimeIso. The browser clock at the
+          // Finish click is not a device capture time, yet it was shown as
+          // "Device-declared capture time" and signed into the fingerprint.
+          // PROOVRA records when it received the bytes itself.
           gps,
           locationRequestOutcome: gps ? undefined : locationRequestOutcome,
           checksumSha256Base64: primaryIntegrity.checksumSha256Base64,

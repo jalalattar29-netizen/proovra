@@ -200,8 +200,10 @@ describe("UC-2 android direct screen capture — live PostgreSQL 16", () => {
     const manifest = {
       schemaVersion: SCREEN_CAPTURE_MANIFEST_SCHEMA_VERSION,
       captureSessionId: opts.badSessionInManifest ? "00000000-0000-4000-8000-000000000000" : sessionId,
-      captureStartedAtUtc: "2026-09-17T10:00:00.000Z",
-      captureEndedAtUtc: "2026-09-17T10:00:02.000Z",
+      // AUD-22 (2026-10-20): a window the server can believe — just before the
+      // seal, after the session opened (a month-old window is now refused).
+      captureStartedAtUtc: new Date(Date.now() - 4000).toISOString(),
+      captureEndedAtUtc: new Date(Date.now() - 2000).toISOString(),
       device: {
         platform: "android",
         osVersion: "14",

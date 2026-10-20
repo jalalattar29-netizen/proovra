@@ -197,7 +197,7 @@ describe("UC-1 direct web capture — live PostgreSQL 16", () => {
   }
 
   /** Stage a full web capture up to (but not including) /web-complete. */
-  async function stageWebCapture(opts: { omitDomFromManifest?: boolean; badSessionInManifest?: boolean } = {}) {
+  async function stageWebCapture(opts: { omitDomFromManifest?: boolean; badSessionInManifest?: boolean; windowStartMsAgo?: number } = {}) {
     const token = extensionToken;
     const open = await call("POST", "/v1/capture/direct-sessions", token, {
       mode: "DIRECT_WEB_CAPTURE_EXTENSION",
@@ -232,8 +232,10 @@ describe("UC-1 direct web capture — live PostgreSQL 16", () => {
       schemaVersion: WEB_CAPTURE_MANIFEST_SCHEMA_VERSION,
       captureMode: "VIEWPORT",
       captureSessionId: opts.badSessionInManifest ? "00000000-0000-4000-8000-000000000000" : sessionId,
-      captureStartedAtUtc: "2026-09-17T10:00:00.000Z",
-      captureEndedAtUtc: "2026-09-17T10:00:02.000Z",
+      // AUD-22 (2026-10-20): a window the server can believe — just before the
+      // seal, after the session opened (a month-old window is now refused).
+      captureStartedAtUtc: new Date(Date.now() - (opts.windowStartMsAgo ?? 4000)).toISOString(),
+      captureEndedAtUtc: new Date(Date.now() - 2000).toISOString(),
       page: { domain: "example.com", sourceUrlPrivate: "https://example.com/article?token=secret", title: "Example Article" },
       browser: { name: "Chrome", versionBucket: "140", os: "Windows", viewportW: 1280, viewportH: 800, devicePixelRatio: 1 },
       extensionVersion: "1.0.0",
@@ -354,6 +356,13 @@ describe("UC-1 direct web capture — live PostgreSQL 16", () => {
     const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/web-complete`, token, { manifestJson });
     expect(done.statusCode).toBe(422);
     expect(done.json().denial).toBe("WEB_MANIFEST_ARTIFACT_MISMATCH");
+  });
+
+  it("AUD-22: refuses a capture window that starts long before the session was opened", async () => {
+    const { token, sessionId, manifestJson } = await stageWebCapture({ windowStartMsAgo: 24 * 3600 * 1000 });
+    const res = await call("POST", `/v1/capture/direct-sessions/${sessionId}/web-complete`, token, { manifestJson });
+    expect(res.statusCode, res.body).toBe(422);
+    expect(res.json().denial).toBe("WEB_MANIFEST_INVALID");
   });
 
   it("refuses a manifest bound to a different session", async () => {

@@ -415,7 +415,8 @@ function EvidenceDetailPageInner() {
     return [
       { label: "Created", value: formatUserDateTime(workspace.evidence.createdAt) },
       {
-        label: "Captured",
+        // AUD-25 (2026-10-20): capturedAtUtc is when PROOVRA received the bytes.
+        label: "Received by PROOVRA",
         value: formatValue(formatUserDateTime(workspace.evidence.capturedAtUtc)),
       },
       // A multipart record is a package of items: its first part's MIME type

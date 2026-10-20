@@ -595,6 +595,11 @@ export type ReviewWorkspaceResponse = {
     trustDecision: TrustDecision | null;
     trustDecisionConsistency: {
       source: string;
+      /** (2026-10-20, AUD-26) which verdict the owner page shows. */
+      basis?:
+        | { kind: "AS_ISSUED"; artifact: "REPORT" | "VERIFICATION_PACKAGE"; version: number | null; issuedAtUtc: string | null }
+        | { kind: "LIVE" }
+        | null;
       consistentWithSnapshot: boolean | null;
       tone?: "neutral" | "info" | "warning" | "danger" | null;
       accessOnly?: boolean | null;

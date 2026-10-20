@@ -72,6 +72,17 @@ import {
 // from, nothing more.
 // ---------------------------------------------------------------------------
 
+/** AUD-26 — the one sentence for which verdict the owner page shows. */
+export function verdictBasisSentence(
+  basis: { kind: "AS_ISSUED"; artifact: "REPORT" | "VERIFICATION_PACKAGE"; version: number | null; issuedAtUtc: string | null } | { kind: "LIVE" },
+): string {
+  if (basis.kind === "LIVE") return "The verification statuses on this page are the record's current state.";
+  const what = basis.artifact === "REPORT" ? "report" : "verification package";
+  const version = basis.version != null ? ` v${basis.version}` : "";
+  const when = basis.issuedAtUtc ? ` on ${basis.issuedAtUtc.replace("T", " ").slice(0, 16)} UTC` : "";
+  return `The verification statuses on this page are as issued with ${what}${version}${when}. Public Verify states the record as it is now.`;
+}
+
 type IntegrityState =
   | "verified"
   | "recorded"
@@ -792,6 +803,14 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         <BoundaryNote title="Record boundary noted">
           {workspace.snapshot.fixedArtifactNote}
         </BoundaryNote>
+
+        {/* AUD-26 (2026-10-20): which verdict this page shows — as issued, or
+            now — so it never reads as the same claim as Public Verify's. */}
+        {divergence?.basis ? (
+          <p className="evidence-detail-verdict-basis" data-evidence-verdict-basis={divergence.basis.kind}>
+            {verdictBasisSentence(divergence.basis)}
+          </p>
+        ) : null}
 
         {divergence?.consistentWithSnapshot === false ? (
           <BoundaryCallout
