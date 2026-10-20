@@ -23,12 +23,12 @@ import { PassThrough } from "node:stream";
 import archiver from "archiver";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildVerificationMatrix, serializePackageSeal, buildPackageSeal } from "@proovra/shared";
+import { buildVerificationMatrix, serializePackageSeal, buildPackageSeal, PUBLIC_PACKAGE_KEY_BINDING_TEXT } from "@proovra/shared";
 
 const store = vi.hoisted(() => ({ object: null as Buffer | null, fail: false, reads: 0 }));
 const registry = vi.hoisted(() => ({
   keyed: null as null | { publicKeyPem: string; revokedAt: Date | null; createdAt: Date; fingerprintSha256: string },
-  byFingerprint: null as null | { keyId: string; version: number; publicKeyPem: string },
+  byFingerprint: null as null | { keyId: string; version: number; publicKeyPem: string; revokedAt?: Date | null },
 }));
 
 vi.mock("../src/storage.js", () => ({
@@ -46,8 +46,13 @@ vi.mock("../src/storage.js", () => ({
 vi.mock("../src/db.js", () => ({
   prisma: {
     signingKey: {
-      findFirst: async ({ where }: { where: { fingerprintSha256: string } }) =>
-        registry.byFingerprint && where.fingerprintSha256 ? registry.byFingerprint : null,
+      // A faithful double: honours a `revokedAt: null` filter when one is asked.
+      findFirst: async ({ where }: { where: { fingerprintSha256: string; revokedAt?: null } }) => {
+        const k = registry.byFingerprint;
+        if (!k || !where.fingerprintSha256) return null;
+        if ("revokedAt" in where && where.revokedAt === null && k.revokedAt) return null;
+        return { revokedAt: null, ...k };
+      },
     },
   },
 }));
@@ -213,6 +218,53 @@ describe("resolvePackageSealCheck — one seal authority", () => {
     store.object = good.zip;
     registry.byFingerprint = { keyId: "pkg-seal", version: 1, publicKeyPem: good.pem };
     expect((await mod.resolvePackageSealCheck(row(good, { sealSha256: "a".repeat(64) }))).fact).toEqual({ kind: "FAILED" });
+  });
+
+  /*
+   * AUD-05 (2026-10-20) — A REVOCATION IS STATED AT ONCE. The seal check used
+   * to memoize its whole answer per package; a key revoked after the first
+   * check stayed PUBLISHED until the process restarted. Only the immutable
+   * byte check may be remembered; the registry's revocation is read each time.
+   * And the record page states the package page's one revoked-key sentence.
+   */
+  it("AUD-05: a keyed seal whose key is revoked after the first check reads KEY_REVOKED in the same process", async () => {
+    const r = row(good, { id: "keyed-revoke", sealSigningKeyId: "pkg-seal", sealSigningKeyVersion: 1, generatedAtUtc: new Date("2026-10-01T00:00:00.000Z") });
+    registry.keyed = { publicKeyPem: good.pem, revokedAt: null, createdAt: new Date(), fingerprintSha256: good.fingerprint };
+    expect((await mod.resolvePackageSealCheck(r)).fact.kind).toBe("PUBLISHED");
+    registry.keyed = { ...registry.keyed, revokedAt: new Date("2026-10-15T00:00:00.000Z") };
+    const after = await mod.resolvePackageSealCheck(r);
+    expect(after.fact).toEqual({ kind: "KEY_REVOKED", revokedAtUtc: "2026-10-15T00:00:00.000Z", revokedAfterIssuance: true });
+    expect(after.completenessVerified).toBeNull();
+    const rows = matrixRows(after.fact);
+    expect(rows.signature.status).toBe("FAILED");
+    expect(rows.signature.statement).toBe(PUBLIC_PACKAGE_KEY_BINDING_TEXT.BOUND_KEY_REVOKED);
+    expect(rows.completeness.status).toBe("NOT_CHECKED");
+  });
+
+  it("AUD-05: a key revoked BEFORE the package was issued never reads 'after issuance'", async () => {
+    const r = row(good, { id: "keyed-early", sealSigningKeyId: "pkg-seal", sealSigningKeyVersion: 1, generatedAtUtc: new Date("2026-10-01T00:00:00.000Z") });
+    registry.keyed = { publicKeyPem: good.pem, revokedAt: new Date("2026-09-01T00:00:00.000Z"), createdAt: new Date(), fingerprintSha256: good.fingerprint };
+    const check = await mod.resolvePackageSealCheck(r);
+    expect(check.fact).toEqual({ kind: "KEY_REVOKED", revokedAtUtc: "2026-09-01T00:00:00.000Z", revokedAfterIssuance: false });
+    expect(matrixRows(check.fact).signature.statement).toBe(PUBLIC_PACKAGE_KEY_BINDING_TEXT.KEY_REVOKED_BEFORE_ISSUE);
+  });
+
+  it("AUD-05: a legacy seal verified once, then its key revoked, reads KEY_REVOKED without re-reading the package", async () => {
+    const r = { ...row(good), id: "legacy-revoke", generatedAtUtc: new Date("2026-10-01T00:00:00.000Z") };
+    registry.byFingerprint = { keyId: "pkg-seal", version: 1, publicKeyPem: good.pem, revokedAt: null };
+    expect((await mod.resolvePackageSealCheck(r)).fact.kind).toBe("LEGACY_VERIFIED");
+    const reads = store.reads;
+    registry.byFingerprint = { ...registry.byFingerprint, revokedAt: new Date("2026-10-15T00:00:00.000Z") };
+    expect((await mod.resolvePackageSealCheck(r)).fact).toEqual({
+      kind: "KEY_REVOKED",
+      revokedAtUtc: "2026-10-15T00:00:00.000Z",
+      revokedAfterIssuance: true,
+    });
+    // Revocation un-done (operator correction) is stated at once too, and the
+    // immutable byte check is still not repeated.
+    registry.byFingerprint = { ...registry.byFingerprint, revokedAt: null };
+    expect((await mod.resolvePackageSealCheck(r)).fact.kind).toBe("LEGACY_VERIFIED");
+    expect(store.reads).toBe(reads);
   });
 
   it("storage unavailable: not checked now, and checked again next time — never FAILED", async () => {

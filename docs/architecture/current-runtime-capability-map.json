@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "8e5b793fb82dfc9cad058556e14b6b29ab41f1eff60630f2bd87839f8374402e",
-  "consumerInventoryHash": "df231f15e98e1a215b0059d307371524fc40e391584655f2cc19757f51febbe4",
+  "consumerInventoryHash": "a1bf57ad87075f4f13a104992f757e67f2d9cd366123fbebb7160609a8f38618",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1190,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 10254,
+      "METHOD_ON_VALUE": 10258,
       "UNRESOLVED_IDENTIFIER": 1434
     },
     "MutationFixpointRounds": 9,
@@ -832,7 +832,7 @@
       "method": "GET",
       "route": "/public/verification-packages/:packageId",
       "registeringFile": "services/api/src/routes/public-package-verification.routes.ts",
-      "productConsumer": "apps/web/app/verify/package/[packageId]/page.tsx:72",
+      "productConsumer": "apps/web/app/verify/package/[packageId]/page.tsx:80",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -27496,8 +27496,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@15273",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:15273",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@15277",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:15277",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27595,8 +27595,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@15261",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:15261",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@15265",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:15265",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -28090,8 +28090,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@15279",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:15279",
+      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@15283",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:15283",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -96444,7 +96444,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/verify/package/[packageId]/page.tsx",
-          "line": 72,
+          "line": 80,
           "caller": "PackageRecordPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -96454,7 +96454,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/verify/package/[packageId]/page.tsx:72 (PackageRecordPage, WEB)",
+      "dispositionEvidence": "apps/web/app/verify/package/[packageId]/page.tsx:80 (PackageRecordPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

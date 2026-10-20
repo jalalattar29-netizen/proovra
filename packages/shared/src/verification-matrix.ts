@@ -39,6 +39,7 @@ import {
   type AcquisitionIdentitySnapshot,
 } from "./acquisition-identity.js";
 import { resolveEvidenceAcquisition } from "./evidence-acquisition.js";
+import { packageSealKeyRevokedStatement } from "./public-package-record.js";
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   OTS_TRUST_BY_VERIFICATION,
@@ -145,6 +146,12 @@ export type PackageSealFact =
   | { kind: "LEGACY_VERIFIED"; sealKeyId: string; sealKeyVersion: number; completenessVerified?: boolean }
   /** A seal that could not be checked against a key PROOVRA publishes. */
   | { kind: "LEGACY_UNBOUND" }
+  /**
+   * (2026-10-20, AUD-05 / AUD-34) The seal's key is PROOVRA's registered
+   * PACKAGE_SEAL key, and it is revoked. Read live from the registry on every
+   * check; stated with the package page's one revoked-key sentence.
+   */
+  | { kind: "KEY_REVOKED"; revokedAtUtc: string | null; revokedAfterIssuance: boolean | null }
   /** A seal that was checked and did not verify (signature or key binding). */
   | { kind: "FAILED" }
   | { kind: "LEGACY" }
@@ -499,6 +506,11 @@ function packageRows(seal: PackageSealFact): VerificationMatrixRow[] {
       return [
         { ...row("package_signature", "NOT_CHECKED", LEGACY_SEAL_NOT_CHECKED_STATEMENT), qualifiers: ["LEGACY_SEAL"] },
         row("package_completeness", "NOT_CHECKED", "Check the package's files against its sealed manifest with the package's README."),
+      ];
+    case "KEY_REVOKED":
+      return [
+        row("package_signature", "FAILED", packageSealKeyRevokedStatement(seal.revokedAfterIssuance), seal.revokedAtUtc),
+        row("package_completeness", "NOT_CHECKED", "Completeness is not stated for a package whose seal key is revoked."),
       ];
     case "FAILED":
       return [

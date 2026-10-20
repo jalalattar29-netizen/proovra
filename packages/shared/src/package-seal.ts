@@ -153,6 +153,13 @@ export type SealVerificationCheck =
   | "SEAL_PRESENT"
   | "SIGNATURE_PRESENT"
   | "SIGNATURE_VALID"
+  /**
+   * (2026-10-20, AUD-34) The shipped public key IS the key the signature file
+   * names and, when the caller knows it, the key PROOVRA recorded. Checked
+   * only when the caller passes `publicKeyFingerprint`; otherwise neither
+   * passed nor failed — an unbound result never claims the key was bound.
+   */
+  | "KEY_FINGERPRINT_BOUND"
   | "CHECKSUM_INDEX_BOUND"
   | "ENTRIES_MATCH_INDEX"
   | "NO_UNLISTED_ENTRIES"
@@ -181,6 +188,12 @@ export type SealEntryDigest = { sha256: string; sizeBytes: number };
  * `entries` maps ZIP paths to their exact bytes, or (for large entries) to
  * their streamed SHA-256 and size. Crypto is injected:
  * `sha256Hex(bytes)` and `verifyEd25519(message, signatureBase64, publicKeyPem)`.
+ *
+ * KEY BINDING (2026-10-20, AUD-34): a valid signature by the SHIPPED key says
+ * nothing about who sealed. Pass `publicKeyFingerprint` (SHA-256 of the DER
+ * SubjectPublicKeyInfo of a PEM) and, when known, `expectedKeyFingerprint`
+ * (the fingerprint PROOVRA recorded for the package): the shipped key must
+ * then be the key package-seal.sig names and the recorded key.
  */
 export function verifySealedPackageEntries(input: {
   entries: ReadonlyMap<string, Uint8Array | SealEntryDigest>;
@@ -188,6 +201,8 @@ export function verifySealedPackageEntries(input: {
   verifyEd25519: (message: Uint8Array, signatureBase64: string, publicKeyPem: string) => boolean;
   decodeUtf8: (bytes: Uint8Array) => string;
   hexToBytes: (hex: string) => Uint8Array;
+  publicKeyFingerprint?: (publicKeyPemBytes: Uint8Array) => string | null;
+  expectedKeyFingerprint?: string | null;
 }): SealVerificationResult {
   const passed: SealVerificationCheck[] = [];
   const failures: SealVerificationResult["failures"] = [];
@@ -248,6 +263,25 @@ export function verifySealedPackageEntries(input: {
       }
       if (valid) passed.push("SIGNATURE_VALID");
       else fail("SIGNATURE_VALID", "Ed25519 signature over the seal digest does not verify");
+    }
+    if (input.publicKeyFingerprint) {
+      let shipped: string | null = null;
+      try {
+        shipped = keyBytes ? (input.publicKeyFingerprint(keyBytes) ?? null) : null;
+      } catch {
+        shipped = null;
+      }
+      const named = signature.signingKeyFingerprint ? signature.signingKeyFingerprint.toLowerCase() : null;
+      const expected = input.expectedKeyFingerprint ? input.expectedKeyFingerprint.toLowerCase() : null;
+      if (!shipped) {
+        fail("KEY_FINGERPRINT_BOUND", `public key file ${signature.publicKeyFile} is absent or not a public key`);
+      } else if (named && shipped.toLowerCase() !== named) {
+        fail("KEY_FINGERPRINT_BOUND", "package-seal.sig names another key than the public key the package ships");
+      } else if (expected && shipped.toLowerCase() !== expected) {
+        fail("KEY_FINGERPRINT_BOUND", "the shipped public key is not the key PROOVRA recorded for this package");
+      } else {
+        passed.push("KEY_FINGERPRINT_BOUND");
+      }
     }
   }
 

@@ -20,13 +20,38 @@ export type PublicPackageKeyStatus = "ACTIVE" | "SUPERSEDED" | "REVOKED";
 /**
  *   BOUND               the seal key is registered by PROOVRA for package
  *                       sealing, not revoked.
- *   BOUND_KEY_REVOKED   registered, and revoked since (the record states when).
+ *   BOUND_KEY_REVOKED   registered, and revoked AFTER this package was issued
+ *                       (the record states when).
+ *   KEY_REVOKED_BEFORE_ISSUE registered, and revoked at or before the issue
+ *                       (2026-10-20, AUD-34: "after" is said only when the
+ *                       dates show it).
  *   KEY_NOT_PUBLISHED   the package's seal key is not in the registry for
  *                       package sealing (packages issued before seal keys were
  *                       registered). Not a binding.
  *   NOT_SEALED          a package issued before sealing existed.
  */
-export type PublicPackageKeyBinding = "BOUND" | "BOUND_KEY_REVOKED" | "KEY_NOT_PUBLISHED" | "NOT_SEALED";
+export type PublicPackageKeyBinding =
+  | "BOUND"
+  | "BOUND_KEY_REVOKED"
+  | "KEY_REVOKED_BEFORE_ISSUE"
+  | "KEY_NOT_PUBLISHED"
+  | "NOT_SEALED";
+
+/**
+ * THE ONE REVOKED-KEY SENTENCE (2026-10-20, AUD-34), stated by the package
+ * page and by the record page's package_signature row alike. `true`: revoked
+ * after the package was issued; `false`: at or before; `null`: when is not
+ * known, so neither is said.
+ */
+export function packageSealKeyRevokedStatement(revokedAfterIssuance: boolean | null): string {
+  if (revokedAfterIssuance === true) {
+    return "The seal key is registered by PROOVRA for package sealing and was revoked after this package was issued. Do not rely on the seal as PROOVRA's until this is reviewed.";
+  }
+  if (revokedAfterIssuance === false) {
+    return "The seal key is registered by PROOVRA for package sealing and was revoked before this package was issued. Do not rely on the seal as PROOVRA's.";
+  }
+  return "The seal key is registered by PROOVRA for package sealing and has been revoked. Do not rely on the seal as PROOVRA's until this is reviewed.";
+}
 
 export type PublicPackageSealKey = {
   purpose: "PACKAGE_SEAL";
@@ -71,7 +96,8 @@ export const PUBLIC_PACKAGE_RECORD_STATEMENT =
 
 export const PUBLIC_PACKAGE_KEY_BINDING_TEXT: Readonly<Record<PublicPackageKeyBinding, string>> = {
   BOUND: "The seal key is registered by PROOVRA for package sealing and is not revoked.",
-  BOUND_KEY_REVOKED: "The seal key is registered by PROOVRA for package sealing and was revoked after this package was issued.",
+  BOUND_KEY_REVOKED: packageSealKeyRevokedStatement(true),
+  KEY_REVOKED_BEFORE_ISSUE: packageSealKeyRevokedStatement(false),
   KEY_NOT_PUBLISHED: "This package's seal key is not registered by PROOVRA for package sealing. Its seal can still be checked against the key the package ships, but that key is not bound to PROOVRA.",
   NOT_SEALED: "This package was issued before packages were sealed. Its manifest signature does not cover every file.",
 };

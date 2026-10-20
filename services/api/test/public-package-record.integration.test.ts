@@ -189,6 +189,75 @@ describe("public package record (live PostgreSQL 16)", () => {
     expect((await get(`/public/verification-packages/${f.full2.id}`)).json().keyBinding).toBe("KEY_NOT_PUBLISHED");
   });
 
+  /*
+   * AUD-05 / AUD-34 (2026-10-20) on the real registry: a key revoked after a
+   * first check is stated at once by BOTH surfaces — the package record and
+   * the record page's seal check (no restart, no memo) — in ONE sentence, and
+   * "after issuance" only when the revocation is in fact later.
+   */
+  it("AUD-05/34: a revocation after a first check reads KEY_REVOKED on both surfaces, in one sentence", async () => {
+    const f = await fixture();
+    const keyId = `pkgrec-revoke-${randomUUID().slice(0, 8)}`;
+    const k = generateKeyPairSync("ed25519");
+    const fp = createHash("sha256").update(k.publicKey.export({ type: "spki", format: "der" })).digest("hex");
+    const registry = await import("../src/signing/key-registry.js");
+    await registry.registerSigningKey(prisma, {
+      keyId,
+      version: 1,
+      purpose: "PACKAGE_SEAL",
+      publicKeyPem: k.publicKey.export({ type: "spki", format: "pem" }).toString(),
+    });
+    const issuedAt = new Date(Date.now() - 60_000);
+    await prisma.verificationPackage.update({
+      where: { id: f.full1.id },
+      data: { sealSigningKeyId: keyId, sealSigningKeyVersion: 1, sealSigningKeySha256: fp, generatedAtUtc: issuedAt } as never,
+    });
+    const { resolvePackageSealCheck } = await import("../src/services/public-verify/package-seal-check.service.js");
+    const { buildVerificationMatrix, PUBLIC_PACKAGE_KEY_BINDING_TEXT } = await import("@proovra/shared");
+    const sealRow = () =>
+      prisma.verificationPackage.findUniqueOrThrow({
+        where: { id: f.full1.id },
+        select: {
+          id: true,
+          packageFormatVersion: true,
+          sealSha256: true,
+          sealSigningKeySha256: true,
+          sealSigningKeyId: true,
+          sealSigningKeyVersion: true,
+          storageBucket: true,
+          storageKey: true,
+          s3VersionId: true,
+          generatedAtUtc: true,
+        },
+      });
+    const signatureRow = (fact: Parameters<typeof buildVerificationMatrix>[0]["packageSeal"]) =>
+      buildVerificationMatrix({ signals: [], identity: null, acquisitionMode: null, packageSeal: fact, publication: { kind: "DOCUMENT" } }).rows.find(
+        (r) => r.key === "package_signature",
+      )!;
+
+    expect((await resolvePackageSealCheck(await sealRow())).fact.kind).toBe("PUBLISHED");
+    expect((await get(`/public/verification-packages/${f.full1.id}`)).json().keyBinding).toBe("BOUND");
+
+    await prisma.signingKey.updateMany({ where: { keyId, version: 1, purpose: "PACKAGE_SEAL" }, data: { revokedAt: new Date() } });
+
+    const check = await resolvePackageSealCheck(await sealRow());
+    expect(check.fact).toMatchObject({ kind: "KEY_REVOKED", revokedAfterIssuance: true });
+    const pageBody = (await get(`/public/verification-packages/${f.full1.id}`)).json();
+    expect(pageBody.keyBinding).toBe("BOUND_KEY_REVOKED");
+    const recordRow = signatureRow(check.fact);
+    expect(recordRow.status).toBe("FAILED");
+    expect(recordRow.statement).toBe(PUBLIC_PACKAGE_KEY_BINDING_TEXT[pageBody.keyBinding as "BOUND_KEY_REVOKED"]);
+
+    // A package issued AFTER the revocation is never "revoked after issuance".
+    await prisma.verificationPackage.update({ where: { id: f.full1.id }, data: { generatedAtUtc: new Date(Date.now() + 60_000) } as never });
+    const early = await resolvePackageSealCheck(await sealRow());
+    expect(early.fact).toMatchObject({ kind: "KEY_REVOKED", revokedAfterIssuance: false });
+    const earlyBody = (await get(`/public/verification-packages/${f.full1.id}`)).json();
+    expect(earlyBody.keyBinding).toBe("KEY_REVOKED_BEFORE_ISSUE");
+    expect(signatureRow(early.fact).statement).toBe(PUBLIC_PACKAGE_KEY_BINDING_TEXT.KEY_REVOKED_BEFORE_ISSUE);
+    expect(signatureRow(early.fact).statement).not.toMatch(/after/);
+  });
+
   it("there is no key-inventory endpoint", async () => {
     const res = await get("/public/signing-keys");
     expect(res.statusCode).toBe(404);

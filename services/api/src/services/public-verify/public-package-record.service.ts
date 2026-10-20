@@ -118,12 +118,20 @@ export async function projectPublicPackageRecord(row: Row): Promise<PublicPackag
       ? sealKey
       : null;
   const sealed = (row.packageFormatVersion ?? 0) >= 5;
+  // 2026-10-20 (AUD-34): "revoked after this package was issued" only when the
+  // revocation is in fact later than the issue.
+  const revokedAfterIssue =
+    boundKey?.revokedAtUtc && row.generatedAtUtc
+      ? new Date(boundKey.revokedAtUtc).getTime() > row.generatedAtUtc.getTime()
+      : false;
   const keyBinding: PublicPackageKeyBinding = !sealed
     ? "NOT_SEALED"
     : !boundKey
       ? "KEY_NOT_PUBLISHED"
       : boundKey.status === "REVOKED"
-        ? "BOUND_KEY_REVOKED"
+        ? revokedAfterIssue
+          ? "BOUND_KEY_REVOKED"
+          : "KEY_REVOKED_BEFORE_ISSUE"
         : "BOUND";
 
   return {

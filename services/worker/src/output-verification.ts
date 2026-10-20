@@ -47,7 +47,7 @@ import {
   type SealEntryDigest,
   VERIFICATION_LIMITATION,
 } from "@proovra/shared";
-import { findRegisteredSigningKey } from "@proovra/shared-runtime";
+import { findRegisteredSigningKey, publicFingerprintOfPem } from "@proovra/shared-runtime";
 
 import { Prisma, type CustodyEventType } from "@prisma/client";
 
@@ -579,6 +579,9 @@ export async function assertStagedPackage(input: {
       verifySignature(null, Buffer.from(message), createPublicKey(publicKeyPem), Buffer.from(signatureBase64, "base64")),
     decodeUtf8: (b) => Buffer.from(b).toString("utf8"),
     hexToBytes: (h) => Buffer.from(h, "hex"),
+    // 2026-10-20 (AUD-34): the shipped public key must BE the key that sealed.
+    publicKeyFingerprint: (pem) => publicFingerprintOfPem(Buffer.from(pem)),
+    expectedKeyFingerprint: input.expect.seal.signingKeyFingerprint,
   });
   for (const f of seal.failures) findings.push({ check: `SEAL_${f.check}`, detail: f.detail });
   if (seal.seal) {

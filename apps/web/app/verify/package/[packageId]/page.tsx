@@ -10,6 +10,12 @@
  * the Public Verify API family, and rendered with the Public Verify vocabulary
  * shared with the record page (../../_shared/verify-ui). The package file is
  * hashed in the browser and never uploaded.
+ *
+ * RECORDED IS NOT VERIFIED (2026-10-20, AUD-34). What PROOVRA recorded about
+ * the package — its profile, its digest, the packages issued with it — is
+ * stated as "Recorded", in a neutral tone. "Verified" is said for two things
+ * only: the seal key's live registry binding, and a file the visitor hashed
+ * here that matches the recorded digest.
  */
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -32,12 +38,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BINDING_STATE: Record<PublicPackageKeyBinding, ComponentVerificationState> = {
   BOUND: "verified",
   BOUND_KEY_REVOKED: "failed",
+  KEY_REVOKED_BEFORE_ISSUE: "failed",
   KEY_NOT_PUBLISHED: "not_checked",
   NOT_SEALED: "not_issued",
 };
 const BINDING_BADGE: Record<PublicPackageKeyBinding, string> = {
   BOUND: "Bound to PROOVRA",
   BOUND_KEY_REVOKED: "Key revoked",
+  KEY_REVOKED_BEFORE_ISSUE: "Key revoked",
   KEY_NOT_PUBLISHED: "Key not registered",
   NOT_SEALED: "Not sealed",
 };
@@ -121,7 +129,8 @@ export default function PackageRecordPage() {
             <Row
               testId="package-record-profile"
               label="Disclosure profile"
-              state={record.disclosureProfile === "LEGACY" ? "not_checked" : "verified"}
+              state="not_checked"
+              tone="neutral"
               badge={DISCLOSURE_PROFILE_LABELS[record.disclosureProfile]}
               detail={
                 <>
@@ -133,7 +142,8 @@ export default function PackageRecordPage() {
             />
             <Row
               label="Package file SHA-256"
-              state={record.packageSha256 ? "verified" : "not_issued"}
+              state={record.packageSha256 ? "not_checked" : "not_issued"}
+              tone={record.packageSha256 ? "neutral" : undefined}
               badge={record.packageSha256 ? "Recorded" : undefined}
               detail={
                 record.packageSha256 ? (
@@ -223,7 +233,8 @@ export default function PackageRecordPage() {
           <VerifyCard id="package-related" title="Related packages" style={{ marginTop: 16 }}>
             <Row
               label="Issued with"
-              state={record.issuedWith.length ? "verified" : "not_issued"}
+              state={record.issuedWith.length ? "not_checked" : "not_issued"}
+              tone={record.issuedWith.length ? "neutral" : undefined}
               badge={record.issuedWith.length ? `${record.issuedWith.length}` : "None"}
               detail={
                 record.issuedWith.length ? (
@@ -244,7 +255,8 @@ export default function PackageRecordPage() {
             />
             <Row
               label="Supersedes"
-              state={record.supersedes ? "verified" : "not_issued"}
+              state={record.supersedes ? "not_checked" : "not_issued"}
+              tone={record.supersedes ? "neutral" : undefined}
               badge={record.supersedes ? `Report v${record.supersedes.reportVersion}` : "None"}
               detail={
                 record.supersedes ? (
@@ -268,7 +280,7 @@ export default function PackageRecordPage() {
                     <a href={recordHref(record.supersededBy.packageId)}>
                       <code dir="ltr">{record.supersededBy.packageId}</code>
                     </a>
-                    . This package is unchanged and still verifies.
+                    . A later package does not alter this one; check its seal with the commands in its README.
                   </>
                 ) : (
                   "No later package of this profile has been issued."

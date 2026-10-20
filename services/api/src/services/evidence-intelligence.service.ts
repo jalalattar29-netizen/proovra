@@ -610,7 +610,8 @@ function buildArtifactSummaries(params: {
       generatedByLabel: "Automated report engine",
       downloadCount: null,
       lastDownloadedAtUtc: null,
-      offlineVerificationIncluded: true,
+      // 2026-10-20 (AUD-34): a PDF report carries no offline verifier.
+      offlineVerificationIncluded: false,
     },
     verificationPackage: {
       available: artifactAvailability.verificationPackage.available,
@@ -622,7 +623,10 @@ function buildArtifactSummaries(params: {
       generatedByLabel: "Automated package generator",
       downloadCount: null,
       lastDownloadedAtUtc: null,
-      offlineVerificationIncluded: true,
+      // The package's seal and checksums check offline; its key binding and
+      // revocation are confirmed against Public Verify (AUD-34). Only an
+      // issued package carries them.
+      offlineVerificationIncluded: artifactAvailability.verificationPackage.available ? true : null,
     },
     verificationProofArtifacts: {
       available: Boolean(params.evidence.otsStatus || params.evidence.tsaStatus || params.evidence.signatureBase64),

@@ -400,7 +400,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "verification-methodology",
     title: "Verification methodology",
     summary:
-      "Every evidence artifact carries a SHA-256 hash, an OpenTimestamps proof, a custody event chain, and a verification package. The verify page renders the chain offline.",
+      "Every evidence artifact carries a SHA-256 hash, an OpenTimestamps proof, a custody event chain, and a verification package. The package's seal and checksums can be checked offline with the commands in its README; whether its seal key is PROOVRA's, and not revoked, is checked against Public Verify.",
     body:
       "Verification is anchored by: (1) cryptographic file hash, (2) trusted timestamp via OpenTimestamps, (3) custody event chain, (4) signed verification package. Each step is reproducible by an external auditor with bounded inputs.",
     implementationReferences: [
@@ -449,7 +449,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     summary:
       "Public, vendor-agnostic blockchain anchoring. Proofs are verifiable using the upstream `opentimestamps-client`.",
     body:
-      "We use OpenTimestamps because it is open standard, public, vendor-agnostic, and verifiable offline against the public Bitcoin blockchain. Proof files are shipped inside the verification package ZIP.",
+      "We use OpenTimestamps because it is open standard, public, vendor-agnostic, and verifiable independently against the public Bitcoin blockchain. Proof files are shipped inside the verification package ZIP.",
     implementationReferences: [
       "services/worker/src/jobs/ots-anchoring",
       "services/worker/src/jobs/verification-package",
@@ -615,7 +615,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "how-verification-works",
     title: "How verification works",
     summary:
-      "Hash → trusted timestamp → custody chain → verification package. Every step reproducible offline.",
+      "Hash → trusted timestamp → custody chain → verification package. Each step can be recomputed independently; the seal key's current standing is confirmed against Public Verify.",
     body: "See the Verification Methodology section in the Trust Center for the bounded chain.",
     implementationReferences: ["services/api/src/routes/verify.routes.ts"],
     policyTags: ["METHODOLOGY"],
@@ -638,7 +638,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     title: "How trusted timestamps work",
     summary:
       "Server records UTC timestamps for every transition; OpenTimestamps anchors the file hash to public blockchain.",
-    body: "Every timestamp is UTC; every anchoring proof is offline-verifiable.",
+    body: "Every timestamp is UTC; every anchoring proof can be checked independently of PROOVRA.",
     implementationReferences: ["services/worker/src/jobs/ots-anchoring"],
     policyTags: ["TIMESTAMP"],
   },
@@ -673,7 +673,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "how-verification-packages-work",
     title: "How verification packages work",
     summary:
-      "Verification packages are signed ZIPs containing manifests + proofs + bounded provenance. Offline-verifiable.",
+      "Verification packages are sealed ZIPs containing manifests + proofs + bounded provenance. Their contents can be checked offline; the seal key's binding to PROOVRA and its revocation status are checked against Public Verify.",
     body: "Verification package manifests include trust, governance, methodology, AI disclosure, subprocessor, provider, confidence, correction history, and correction version chain entries.",
     implementationReferences: ["services/worker/src/jobs/verification-package"],
     policyTags: ["VERIFICATION_PACKAGE"],
@@ -1293,7 +1293,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     summary:
       "Verification packages are signed ZIPs containing manifests (trust, governance, methodology, AI disclosure, subprocessor, provider, confidence, correction chain) + OTS proofs + custody chain. The worker emits the package; the signer-registry tracks which key signed which package version.",
     body:
-      "services/worker/src/verification-package-trust-and-governance.ts assembles the five trust + governance manifests plus the per-evidence manifests, packages them into a ZIP, and signs the archive with the active verification_package signer (per the signer-registry). The output is offline-verifiable — an external auditor with the file, the OTS proof, and the public signing key can confirm every claim without contacting PROOVRA. Schema versions are pinned (PROOVRA_TRUST_MANIFEST_V1, PROOVRA_GOVERNANCE_MANIFEST_V1, PROOVRA_METHODOLOGY_MANIFEST_V1, PROOVRA_AI_DISCLOSURE_MANIFEST_V1, PROOVRA_SUBPROCESSOR_MANIFEST_V1) so consumers can validate shape compatibility. Historical packages stay valid when keys rotate — the signer-registry preserves retired keys for verification.",
+      "services/worker/src/verification-package-trust-and-governance.ts assembles the five trust + governance manifests plus the per-evidence manifests, packages them into a ZIP, and signs the archive with the active verification_package signer (per the signer-registry). An external auditor with the file and the OTS proof can recompute its digests and check its signature offline; whether the signing key is PROOVRA's and not revoked is confirmed against Public Verify, which no offline check can establish. Schema versions are pinned (PROOVRA_TRUST_MANIFEST_V1, PROOVRA_GOVERNANCE_MANIFEST_V1, PROOVRA_METHODOLOGY_MANIFEST_V1, PROOVRA_AI_DISCLOSURE_MANIFEST_V1, PROOVRA_SUBPROCESSOR_MANIFEST_V1) so consumers can validate shape compatibility. Historical packages stay valid when keys rotate — the signer-registry preserves retired keys for verification.",
     implementationReferences: [
       "services/worker/src/verification-package-trust-and-governance.ts",
       "services/api/src/services/operations/signer-registry.service.ts",

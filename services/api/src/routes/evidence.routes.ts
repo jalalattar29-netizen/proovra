@@ -13366,7 +13366,11 @@ action: "evidence.certification_requested",
       // page; an owner's recipient link is a reviewer share with its own profile.
       const artifactLink = shareLink.purpose === "REPORT" || shareLink.purpose === "PACKAGE";
       canonical = {
-        reference: row.verificationRef ?? null,
+        // 2026-10-20 (AUD-13): a reviewer share never discloses the record's
+        // permanent reference. Handing it out made the share's revocation
+        // meaningless — the holder kept a capability the owner never granted.
+        // A link an issued artifact printed is the canonical page and keeps it.
+        reference: artifactLink ? (row.verificationRef ?? null) : null,
         issuedAtUtc: row.verificationRefIssuedAtUtc ?? null,
         status: resolveCanonicalVerificationStatus(row),
         via: artifactLink ? "LEGACY_REPORT_TOKEN" : "REVIEWER_SHARE",

@@ -171,12 +171,15 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     const ok = await verify(token);
     expect(ok.statusCode, ok.body).toBe(200);
     const body = ok.json();
-    // The internal record id never leaves; the page names the record by its
-    // permanent reference.
+    // The internal record id never leaves — and (2026-10-20, AUD-13) neither
+    // does the record's PERMANENT reference: a reviewer share is revocable, the
+    // reference is not, so handing it out would outlive the owner's revocation.
     expect(body.evidenceId).toBeUndefined();
     expect(ok.body).not.toContain(id);
     const { verificationRef } = await policyOf(id);
-    expect(body.canonicalVerification).toMatchObject({ reference: verificationRef, status: "AVAILABLE" });
+    expect(verificationRef).toMatch(/^pvr_/);
+    expect(ok.body).not.toContain(verificationRef!);
+    expect(body.canonicalVerification).toMatchObject({ reference: null, status: "AVAILABLE" });
     expect(body.link).toMatchObject({ kind: "SHARE_TOKEN" });
     // A STANDARD reviewer share opens content BY ITSELF — no publication step —
     // and never hands out originals without an explicit grant.
@@ -399,7 +402,12 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     // The link still works, and opens only its own record.
     const ok = await verify(token);
     expect(ok.statusCode).toBe(200);
-    expect(ok.json().canonicalVerification.reference).toBe((await policyOf(id)).verificationRef);
+    // Its own record (by its signed digest), and never the permanent reference (AUD-13).
+    const { verificationRef } = await policyOf(id);
+    const own = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { fileSha256: true } });
+    expect(ok.body).toContain(own.fileSha256!);
+    expect(ok.body).not.toContain(verificationRef!);
+    expect(ok.json().canonicalVerification.reference).toBeNull();
   });
 
   it("a member who can read but not share is refused; creating a link never changes the disclosure policy; granting originals needs step-up", async () => {
