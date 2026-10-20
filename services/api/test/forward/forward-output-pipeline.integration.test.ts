@@ -713,6 +713,33 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       }
     }, 300_000);
 
+    // AUD-33 (2026-10-20) — mutant F: the API request authority's NOT_INCLUDED
+    // answer was unpinned (removing the entitlement reading survived 210
+    // tests). An ACTIVE, signed record on a plan that includes no reports is
+    // refused as NOT_INCLUDED before any request row exists.
+    it("AUD-33/F: the API request authority refuses an ACTIVE record its plan does not include, as NOT_INCLUDED, before any row exists", async () => {
+      const api = await import("../../src/services/reports/report-generation-authority.service.js");
+      const ev = await signedEvidence();
+      const out = await withNotEntitledWorkspace(() =>
+        api.requestReportGeneration({
+          evidenceId: ev.evidenceId,
+          purpose: "evidence_completed",
+          requestedByMachineId: "forward-test",
+        } as never),
+      );
+      expect(out.requested).toBe(false);
+      expect(out.outcome).toBe("NOT_INCLUDED");
+      expect(await requestsOf(ev.evidenceId)).toEqual([]);
+      // The control: the same record on the entitled plan IS requested.
+      const entitled = await api.requestReportGeneration({
+        evidenceId: ev.evidenceId,
+        purpose: "evidence_completed",
+        requestedByMachineId: "forward-test",
+      } as never);
+      expect(entitled.requested).toBe(true);
+    }, 300_000);
+
+
     it("AUD-01: a QUEUED request whose record was archived after enqueue is not run at claim", async () => {
       const ev = await signedEvidence();
       const id = await request(ev);

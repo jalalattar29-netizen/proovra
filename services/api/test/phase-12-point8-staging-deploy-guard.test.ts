@@ -16,6 +16,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -256,5 +257,43 @@ describe("PHASE 12 — POINT 8 C3: the staging preflight command", () => {
     // One production value anywhere and it is not green.
     expect(runPreflight({ ...env, STAGING_STRIPE_SECRET_KEY: syntheticStripeLiveSecret() }).green).toBe(false);
     expect(runPreflight({ ...env, STAGING_PAYPAL_API_BASE: "https://api-m.paypal.com" }).green).toBe(false);
+  });
+});
+
+describe("AUD-50 (2026-10-20) — staging never migrates toward a release it cannot deploy", () => {
+  const source = readFileSync(resolve(REPO, ".github/workflows/deploy-staging.yml"), "utf8");
+
+  it("the committed workflow proves the deploy target before any wave, and applies the contract wave after the deploy", () => {
+    const r = validateStagingWorkflowSource(source);
+    expect(r.refusals.map((f) => f.rule)).not.toContain("MIGRATES_BEFORE_DEPLOY_TARGET");
+    expect(r.refusals.map((f) => f.rule)).not.toContain("CONTRACT_BEFORE_DEPLOY");
+    const check = source.indexOf("--deploy-target-check");
+    const firstApply = source.indexOf("Apply the selected wave");
+    const deploy = source.indexOf("staging-deploy-cli.mjs --deploy\n");
+    const contract = source.indexOf("Apply the contract wave");
+    expect(check).toBeGreaterThan(-1);
+    expect(firstApply).toBeGreaterThan(check);
+    expect(contract).toBeGreaterThan(deploy);
+  });
+
+  it("a workflow that applies a wave before the target check is refused", () => {
+    const bad = source.replace(
+      "      - name: Refuse before migrating when there is no deploy target\n        run: node services/api/scripts/staging-deploy-cli.mjs --deploy-target-check\n",
+      "",
+    );
+    expect(bad).not.toBe(source);
+    expect(validateStagingWorkflowSource(bad).refusals.map((f) => f.rule)).toContain("MIGRATES_BEFORE_DEPLOY_TARGET");
+  });
+
+  it("a workflow that applies every wave before the deploy is refused", () => {
+    const bad = source.replace("if: ${{ inputs.wave == 'D' }}", "if: ${{ inputs.wave == 'X' }}");
+    expect(bad).not.toBe(source);
+    expect(validateStagingWorkflowSource(bad).refusals.map((f) => f.rule)).toContain("CONTRACT_BEFORE_DEPLOY");
+  });
+
+  it("the target check refuses (exit 12) while no Staging environment is provisioned", () => {
+    const r = spawnSync(process.execPath, [resolve(REPO, "services/api/scripts/staging-deploy-cli.mjs"), "--deploy-target-check"], { encoding: "utf8" });
+    expect(r.status).toBe(12);
+    expect(r.stderr).toMatch(/no Staging environment is provisioned/);
   });
 });

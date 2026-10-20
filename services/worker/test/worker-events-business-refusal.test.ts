@@ -139,3 +139,56 @@ describe.runIf(Boolean(REDIS_URL))("the worker event binding (real BullMQ on Red
     }
   }, 30_000);
 });
+
+describe("AUD-41 (2026-10-20) — a retryable failure escalates once, on exhaustion", () => {
+  const technical = () => Object.assign(new Error("STORAGE_WRITE_FAILED"), { code: "STORAGE_WRITE_FAILED" });
+
+  it("attempts before the last are logged as retries: no Sentry event, no critical alert", () => {
+    const error = vi.spyOn(logger, "error");
+    const warn = vi.spyOn(logger, "warn");
+    const emitter = new EventEmitter();
+    bindWorkerEvents(emitter as never, "report");
+    for (let attemptsMade = 1; attemptsMade < 5; attemptsMade += 1) emitter.emit("failed", job(attemptsMade), technical());
+    expect(sentry.captured).toEqual([]);
+    expect(alertsFrom(error)).toBe(0);
+    expect(warn.mock.calls.filter((c) => c[1] === "report.job.attempt_failed_will_retry").length).toBe(4);
+  });
+
+  it("the last attempt is captured and alerted exactly once", () => {
+    const error = vi.spyOn(logger, "error");
+    const emitter = new EventEmitter();
+    bindWorkerEvents(emitter as never, "report");
+    for (let attemptsMade = 1; attemptsMade <= 5; attemptsMade += 1) emitter.emit("failed", job(attemptsMade), technical());
+    expect(sentry.captured).toHaveLength(1);
+    expect(alertsFrom(error)).toBe(1);
+  });
+
+  it("a job the processor discarded (non-retryable) escalates on its first attempt", () => {
+    const error = vi.spyOn(logger, "error");
+    const emitter = new EventEmitter();
+    bindWorkerEvents(emitter as never, "report");
+    emitter.emit("failed", { ...job(1), discarded: true }, technical());
+    expect(sentry.captured).toHaveLength(1);
+    expect(alertsFrom(error)).toBe(1);
+  });
+});
+
+describe("AUD-50 (2026-10-20) — the attempt budget is observed, never enforced", () => {
+  it("a completed attempt that overran its queue's budget is reported", async () => {
+    const { QUEUE_NAMES } = await import("@proovra/shared");
+    const warn = vi.spyOn(logger, "warn");
+    const emitter = Object.assign(new EventEmitter(), { name: QUEUE_NAMES.REPORT });
+    bindWorkerEvents(emitter as never, "report");
+    emitter.emit("completed", { ...job(1), processedOn: 1, finishedOn: 1 + 24 * 60 * 60 * 1000 });
+    expect(warn.mock.calls.filter((c) => c[1] === "report.job.attempt_over_budget")).toHaveLength(1);
+  });
+
+  it("an attempt within its budget is not reported", async () => {
+    const { QUEUE_NAMES } = await import("@proovra/shared");
+    const warn = vi.spyOn(logger, "warn");
+    const emitter = Object.assign(new EventEmitter(), { name: QUEUE_NAMES.REPORT });
+    bindWorkerEvents(emitter as never, "report");
+    emitter.emit("completed", { ...job(1), processedOn: 1, finishedOn: 1001 });
+    expect(warn.mock.calls.filter((c) => c[1] === "report.job.attempt_over_budget")).toHaveLength(0);
+  });
+});
