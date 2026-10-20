@@ -152,6 +152,8 @@ export type VerifyTsa = {
   url?: string | null;
   serialNumber?: string | null;
   genTimeUtc?: string | null;
+  /** (2026-10-20, AUD-17) VALIDATED_TOKEN | CLAIMED_BY_UNVALIDATED_TOKEN | null. */
+  tokenClaimsBasis?: string | null;
   hashAlgorithm?: string | null;
   failureReason?: string | null;
   digestMatchesTimestampInput?: boolean | null;

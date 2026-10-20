@@ -25,3 +25,8 @@ export const RECORD_TAB_FIELD_LABELS: readonly string[] = [
 export function selectRecordTabFields<T extends { label: string }>(fields: readonly T[]): T[] {
   return fields.filter((field) => RECORD_TAB_FIELD_LABELS.includes(field.label));
 }
+
+/** AUD-17 (2026-10-20) — a claim of a token nobody validated is labelled as one. */
+export function tsaClaimLabel(label: string, basis: string | null | undefined): string {
+  return basis === "CLAIMED_BY_UNVALIDATED_TOKEN" ? `${label} (claimed by the token; not validated)` : label;
+}

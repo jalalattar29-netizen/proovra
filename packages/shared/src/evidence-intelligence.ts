@@ -23,7 +23,8 @@ export type EvidenceVerificationProof = {
   hashMatch: "MATCH" | "MISMATCH" | "NOT_CHECKED" | "UNKNOWN";
   sha256Recorded: boolean;
   signatureStatus: "APPLIED" | "MISSING" | "UNKNOWN";
-  tsaStatus: "RECORDED" | "PENDING" | "FAILED" | "UNKNOWN";
+  /** (2026-10-20, AUD-14) NOT_OBTAINED: requested, no token (an outage is not a failure). */
+  tsaStatus: "RECORDED" | "PENDING" | "FAILED" | "NOT_OBTAINED" | "UNKNOWN";
   /** The canonical OpenTimestamps state (ots-anchoring.ts); clients never re-derive it. */
   otsState: OtsState;
 };

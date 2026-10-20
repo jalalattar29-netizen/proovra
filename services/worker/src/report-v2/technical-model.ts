@@ -2,7 +2,7 @@ import type {
   CanonicalEvidenceMaterials,
   CanonicalTimestampStateMaterial,
 } from "@proovra/shared";
-import { OTS_FAILURE_LABELS, isOrganizationVerifiedAtCapture, presentOtsAnchoring } from "@proovra/shared";
+import { OTS_FAILURE_LABELS, TSA_UNVALIDATED_CLAIM_QUALIFIER, isOrganizationVerifiedAtCapture, presentOtsAnchoring } from "@proovra/shared";
 import {
   ReportEvidence,
   ReportAnchorSummary,
@@ -246,11 +246,19 @@ export function buildTimestampRows(
     tsaInputKind: evidence.tsaInputKind,
   });
 
+  // AUD-17 (2026-10-20): a token's own serial and generation time are facts
+  // only when the token was validated; otherwise they are its claims, and the
+  // row says so.
+  const validatedToken = timestampStateOf(trustDecision) === "PASSED";
+  const claimed = (label: string, value: unknown) =>
+    validatedToken || value == null || value === "" ? label : `${label} (${TSA_UNVALIDATED_CLAIM_QUALIFIER})`;
+  const ev = evidence as ReportEvidence;
+
   return [
-    { label: "Timestamp Provider", value: safe((evidence as ReportEvidence).tsaProvider) },
-    { label: "Timestamp URL", value: safe((evidence as ReportEvidence).tsaUrl) },
-    { label: "Serial Number", value: safe((evidence as ReportEvidence).tsaSerialNumber) },
-    { label: "Generation Time (UTC)", value: formatTimestampForReportUtc((evidence as ReportEvidence).tsaGenTimeUtc) },
+    { label: "Timestamp Provider", value: safe(ev.tsaProvider) },
+    { label: "Timestamp URL", value: safe(ev.tsaUrl) },
+    { label: claimed("Serial Number", ev.tsaSerialNumber), value: safe(ev.tsaSerialNumber) },
+    { label: claimed("Generation Time (UTC)", ev.tsaGenTimeUtc), value: formatTimestampForReportUtc(ev.tsaGenTimeUtc) },
     { label: "Hash Algorithm", value: safe((evidence as ReportEvidence).tsaHashAlgorithm) },
     {
       label: "Timestamp Status",

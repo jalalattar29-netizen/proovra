@@ -55,7 +55,7 @@ import BasicVerificationView, {
   type VerifyLinkInfo,
 } from "./BasicVerificationView";
 import type { BasicVerification } from "@proovra/shared";
-import { selectRecordTabFields } from "./_verify-record-tab";
+import { selectRecordTabFields, tsaClaimLabel } from "./_verify-record-tab";
 import { VerifyCaptureManifestSection, readPublicCaptureManifest } from "./VerifyCaptureManifestSection";
 import { VerifyLocationStateSection, readVerifyLocationState } from "./VerifyLocationStateSection";
 import { useLocale } from "../../providers";
@@ -813,6 +813,7 @@ function buildTsaDetails(data: VerifyResponse) {
           ? data.technicalMaterials.legacyMode
           : null,
     serialNumber: firstNonEmpty(tsa?.serialNumber, data.tsaSerialNumber),
+    claimsBasis: firstNonEmpty((tsa as VerifyTsa | null)?.tokenClaimsBasis),
     hashAlgorithm: firstNonEmpty(tsa?.hashAlgorithm, data.tsaHashAlgorithm),
     failureReason: firstNonEmpty(tsa?.failureReason, data.tsaFailureReason),
     timestampedDigestLabel: firstNonEmpty((tsa as VerifyTsa | null)?.timestampedDigestLabel),
@@ -1171,8 +1172,9 @@ export default function VerifyPage() {
 
   const technicalFacts = [
     { label: "Timestamp provider", value: tsaDetails?.provider ?? null },
-    { label: "Timestamp time", value: tsaDetails?.genTimeUtc ? formatDateTime(tsaDetails.genTimeUtc) : null },
-    { label: "Timestamp serial", value: tsaDetails?.serialNumber ?? null },
+    // AUD-17: an unvalidated token's own time and serial are its claims, labelled so.
+    { label: tsaClaimLabel("Timestamp time", tsaDetails?.claimsBasis), value: tsaDetails?.genTimeUtc ? formatDateTime(tsaDetails.genTimeUtc) : null },
+    { label: tsaClaimLabel("Timestamp serial", tsaDetails?.claimsBasis), value: tsaDetails?.serialNumber ?? null },
     { label: "Timestamp hash algorithm", value: tsaDetails?.hashAlgorithm ?? null },
     { label: "Signing key", value: signingKeyId },
     { label: "Signing key version", value: signingKeyVersion != null ? String(signingKeyVersion) : null },

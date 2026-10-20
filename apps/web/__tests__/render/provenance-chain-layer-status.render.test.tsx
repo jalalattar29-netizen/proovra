@@ -84,6 +84,15 @@ describe("provenance time layers (UC-TRUST-002)", () => {
     );
     expect(text).toMatch(/^Recorded, not validated/);
     expect(text).not.toMatch(/Applied/);
+    // AUD-17: its time is the token's claim, qualified.
+    expect(text).toContain("token time");
+    expect(text).toContain("claimed by the token; not validated");
+  });
+
+  it("AUD-14: a provider outage reads Not obtained, never Timestamp failed", () => {
+    const text = rfc3161LayerText(chain({ rfc3161: { applied: false, status: "NOT_OBTAINED", appliedAtUtc: null }, ots: {} }), fmt);
+    expect(text).toBe("Not obtained");
+    expect(rfc3161LayerText(chain({ rfc3161: { applied: false, status: "FAILED", appliedAtUtc: null }, ots: {} }), fmt)).toBe("Validation failed");
   });
 });
 

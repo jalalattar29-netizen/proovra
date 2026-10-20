@@ -12,7 +12,7 @@
  * content-credential acronyms are intentionally excluded.
  */
 
-import { OTS_ANCHORING_COPY, otsBoundaryFor, readOtsAnchoringView } from "@proovra/shared";
+import { OTS_ANCHORING_COPY, otsBoundaryFor, parseTsaProofStatus, readOtsAnchoringView, TSA_PROOF_STATUS_LABELS } from "@proovra/shared";
 import type { AppendixRow, TechnicalMetadataInternal } from "./types";
 
 const NON_MEANINGFUL = new Set([
@@ -359,8 +359,15 @@ export function buildUploadSessionRows(input: {
 // Section 9 — Security & Integrity
 // =============================================================================
 
-/** Timestamp status → reviewer label (mirrors the PDF report). */
-export function timestampStatusLabel(status: string | null | undefined): string {
+/**
+ * Timestamp status → reviewer label (mirrors the PDF report). AUD-14
+ * (2026-10-20): the server's canonical proof status decides when it is sent —
+ * the shared words; a raw FAILED alone cannot say whether a token was refused,
+ * kept or never obtained, so it says only that nothing validated.
+ */
+export function timestampStatusLabel(status: string | null | undefined, proofStatus?: string | null): string {
+  const proof = parseTsaProofStatus(proofStatus ?? null);
+  if (proof) return TSA_PROOF_STATUS_LABELS[proof];
   switch ((status ?? "").toUpperCase()) {
     case "STAMPED":
     case "GRANTED":
@@ -375,7 +382,7 @@ export function timestampStatusLabel(status: string | null | undefined): string 
     case "UNAVAILABLE":
       return "Trusted timestamp unavailable";
     case "FAILED":
-      return "Trusted timestamp attempt failed";
+      return "Trusted timestamp not validated";
     default:
       return "Trusted timestamp not configured";
   }
@@ -394,7 +401,7 @@ export function anchoringStatusLabel(ots: unknown): string {
 export type PreservationInput = {
   recordedIntegrityVerifiedAtUtc: string | null;
   signature: { recorded: boolean; valid: boolean; keyId: string | null; keyVersion: number | null };
-  tsa: { status: string | null; provider: string | null; timestampedDigestLabel: string };
+  tsa: { status: string | null; provider: string | null; timestampedDigestLabel: string; proofStatus?: string | null };
   /** The server's OtsAnchoringView, as sent; read through readOtsAnchoringView. */
   ots: unknown;
   storage: { objectLockMode?: string | null; retainUntilUtc?: string | null; immutableLabel?: string | null };
@@ -449,7 +456,7 @@ export function buildIntegrityRows(input: {
           : null,
       mono: true,
     },
-    { label: "Trusted timestamp", value: timestampStatusLabel(p.tsa.status) },
+    { label: "Trusted timestamp", value: timestampStatusLabel(p.tsa.status, p.tsa.proofStatus) },
     { label: "Timestamp provider", value: p.tsa.provider },
     { label: "Timestamp serial", value: e.tsaSerialNumber, mono: true },
     { label: ots.title, value: ots.secondaryStatus ? `${ots.label} — ${ots.secondaryStatus}` : ots.label },

@@ -54,6 +54,7 @@ import {
 import { EvidenceProvenanceChainSection } from "./EvidenceProvenanceChainSection";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { describeStorageProtection, storedBytesVerificationRow } from "@proovra/shared";
+import { parseTsaProofStatus, TSA_PROOF_STATUS_LABELS, type TsaProofStatus } from "@proovra/shared";
 import { storageProtectionClassOf } from "../../lib/evidence-library-types";
 import {
   displayAcquisition,
@@ -79,6 +80,16 @@ type IntegrityState =
   | "unavailable"
   | "failed"
   | "not-applicable";
+
+/** The canonical TSA proof status as this card's state (AUD-14). */
+const TSA_INTEGRITY_STATE: Readonly<Record<TsaProofStatus, IntegrityState>> = {
+  VALIDATED: "verified",
+  RECORDED_NOT_VALIDATED: "recorded",
+  PENDING: "pending",
+  NOT_OBTAINED: "unavailable",
+  NOT_REQUESTED: "unavailable",
+  FAILED: "failed",
+};
 
 /**
  * RECORDED, AVAILABLE and VERIFIED are three different claims, and this card
@@ -319,13 +330,15 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
       ? "verified"
       : "recorded";
 
-  const tsaState: IntegrityState = preservation.tsa.timestampAvailable
-    ? "recorded"
-    : preservation.tsa.status === "FAILED"
-      ? "failed"
-      : preservation.tsa.status
-        ? "pending"
-        : "unavailable";
+  // AUD-14 (2026-10-20): the canonical proof status, one state per status.
+  // A provider outage is "unavailable", never "failed"; a kept token never
+  // validated is "recorded", never an amber "pending".
+  const tsaProof = parseTsaProofStatus(preservation.tsa.proofStatus);
+  const tsaState: IntegrityState = tsaProof
+    ? TSA_INTEGRITY_STATE[tsaProof]
+    : preservation.tsa.timestampAvailable
+      ? "recorded"
+      : "unavailable";
 
   // (2026-10-15) Bitcoin anchoring: the server's verification key in the one
   // vocabulary. Only an independent Bitcoin main-chain check is a success
@@ -589,10 +602,10 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
               // Phase 5 — "Timestamp proof (TSA)" is plainer than the
               // prior "TSA timestamp" + matches the Home pass.
               label: "Timestamp proof (TSA)",
-              value: preservation.tsa.timestampAvailable
-                ? "Timestamp recorded"
-                : preservation.tsa.status
-                  ? `Status: ${preservation.tsa.status}`
+              value: tsaProof
+                ? TSA_PROOF_STATUS_LABELS[tsaProof]
+                : preservation.tsa.timestampAvailable
+                  ? "Timestamp recorded"
                   : "Timestamp unavailable",
               state: tsaState,
             },

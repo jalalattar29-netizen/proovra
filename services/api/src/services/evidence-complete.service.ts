@@ -1264,6 +1264,20 @@ const fingerprint = buildFingerprint({
           ? nextStoredBytes - existingStoredBytes
           : 0n;
 
+      // AUD-42 (2026-10-20) — the signature and the RFC 3161 round-trip are
+      // obtained BEFORE the workspace capacity lock. That lock is a
+      // transaction-scoped advisory lock held until commit, and the timestamp
+      // authority is a network call: taken first, every other finalize in the
+      // workspace waited behind this record's authority. The record's own
+      // advisory lock (above) still holds, so this record cannot finalize
+      // twice; the digest is final here. A record then refused for storage
+      // discards its token with the rest of the transaction.
+      const signResult = await signer.signFingerprintHex(fingerprintHash);
+
+      const tsaResult = await createEvidenceTimestamp({
+        digestHex: fileSha256,
+      });
+
       // ET-SEC-28 — under the workspace capacity lock (see
       // lockEvidenceCapacitySubject): a concurrent finalize in this workspace
       // waits here until this one commits, then sees its bytes.
@@ -1271,12 +1285,6 @@ const fingerprint = buildFingerprint({
       await assertWorkspaceAllowsStorageGrowth({
         scope,
         incomingBytes: incomingGrowth,
-      });
-
-      const signResult = await signer.signFingerprintHex(fingerprintHash);
-
-      const tsaResult = await createEvidenceTimestamp({
-        digestHex: fileSha256,
       });
       const tsaInputKind =
         multipartItemCount > 1 ? "CANONICAL_PACKAGE_SHA256" : "FILE_SHA256";

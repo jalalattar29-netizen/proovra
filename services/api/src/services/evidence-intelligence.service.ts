@@ -72,6 +72,9 @@ type EvidenceIntelligenceInput = {
     tsaStatus: string | null;
     /** ET-TSA-01 / UC-TRUST-007 — a STAMPED token is "recorded" only once validated. */
     tsaValidatedAtUtc?: Date | string | null;
+    /** (2026-10-20, AUD-14) the one TSA authority's inputs: the kept token and its cause. */
+    tsaTokenBase64?: string | null;
+    tsaFailureCode?: string | null;
     otsStatus: string | null;
     /**
      * (2026-10-13) The OTS record the one resolver reads
@@ -565,7 +568,12 @@ function buildEvidenceReviewDecision(params: {
 export function buildVerificationProof(params: EvidenceIntelligenceInput["evidence"]): EvidenceIntelligence["verificationProof"] {
   const hasHash = Boolean(params.fileSha256 || params.fingerprintHash);
   const signaturePresent = Boolean(params.signatureBase64 && params.signingKeyId && params.signingKeyVersion);
-  const tsa = resolveTsaProofStatus({ tsaStatus: params.tsaStatus, tsaValidatedAtUtc: params.tsaValidatedAtUtc ?? null });
+  const tsa = resolveTsaProofStatus({
+    tsaStatus: params.tsaStatus,
+    tsaValidatedAtUtc: params.tsaValidatedAtUtc ?? null,
+    tsaTokenBase64: params.tsaTokenBase64 ?? null,
+    tsaFailureCode: params.tsaFailureCode ?? null,
+  });
   const otsState = otsStateFor(params);
   const rejected = String(params.status) === "FAILED_HASH_MISMATCH";
   const explicitlyVerified =
@@ -581,6 +589,8 @@ export function buildVerificationProof(params: EvidenceIntelligenceInput["eviden
         ? "RECORDED"
         : tsa === "FAILED"
           ? "FAILED"
+          : tsa === "NOT_OBTAINED"
+            ? "NOT_OBTAINED"
           : tsa === "PENDING"
             ? "PENDING"
             : "UNKNOWN",

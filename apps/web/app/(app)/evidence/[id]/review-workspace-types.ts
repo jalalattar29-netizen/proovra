@@ -225,6 +225,8 @@ export type PreservationMatrix = {
     status: string | null;
     provider: string | null;
     timestampAvailable: boolean;
+    /** (2026-10-20, AUD-14) the canonical TSA proof status (shared TsaProofStatus). */
+    proofStatus?: string | null;
     digestMatchesTimestampInput: boolean | null;
     digestCheckConclusive: boolean;
     genTimeUtc: string | null;

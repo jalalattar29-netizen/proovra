@@ -299,6 +299,11 @@ test("anchoring label is the server's Bitcoin anchoring verification (2026-10-15
 
   assert.equal(timestampStatusLabel("STAMPED"), "Trusted timestamp recorded");
   assert.equal(timestampStatusLabel("PENDING"), "Trusted timestamp pending");
+  // AUD-14 (2026-10-20): the canonical proof status decides when sent; a raw FAILED never says "failed".
+  assert.equal(timestampStatusLabel("FAILED", "NOT_OBTAINED"), "Not obtained");
+  assert.equal(timestampStatusLabel("FAILED", "RECORDED_NOT_VALIDATED"), "Recorded, not validated");
+  assert.equal(timestampStatusLabel("STAMPED", "VALIDATED"), "RFC 3161 timestamp validated");
+  assert.equal(timestampStatusLabel("FAILED"), "Trusted timestamp not validated");
 });
 
 test("integrity rows: CHAIN_VERIFIED states the chain facts and the chain-verified boundary; CHAIN_FAILED says failed", () => {

@@ -15,6 +15,9 @@
  */
 import {
   getReviewerEvidenceTypeLabel,
+  parseTsaProofStatus,
+  TSA_PROOF_STATUS_LABELS,
+  TSA_PROOF_STATUS_TONE,
   maskPublicEmailsInText,
   parseVerificationMatrix,
   readStoredTrustDecision,
@@ -467,12 +470,19 @@ export function verifyStatusPillLabel(status?: string | null): string {
  * shared resolver reads it as "recorded, not validated". No raw word is ever a
  * success tone here; only the server's matrix can say VERIFIED.
  */
-export function verifyTimestampTone(status?: string | null): { label: string; tone: VerifyWebTone } {
+export function verifyTimestampTone(status?: string | null, proofStatus?: string | null): { label: string; tone: VerifyWebTone } {
+  // AUD-14 (2026-10-20): the server's canonical proof status, in the shared
+  // words and tones, whenever the reply carries it.
+  const proof = parseTsaProofStatus(proofStatus ?? null);
+  if (proof) return { label: TSA_PROOF_STATUS_LABELS[proof], tone: TSA_PROOF_STATUS_TONE[proof] };
   const s = (status ?? "").toUpperCase();
+  // A token kept without validation is neutral, never amber; a raw FAILED
+  // cannot say whether a token was refused, kept or never obtained, so it says
+  // only that nothing validated.
   if (s === "STAMPED" || s === "GRANTED" || s === "VERIFIED" || s === "SUCCEEDED" || s === "RECORDED_NOT_VALIDATED")
-    return { label: "Recorded, not validated", tone: "warning" };
+    return { label: "Recorded, not validated", tone: "neutral" };
   if (s === "PENDING") return { label: "Pending", tone: "warning" };
-  if (s === "FAILED") return { label: "Failed", tone: "warning" };
+  if (s === "FAILED") return { label: "Not validated", tone: "neutral" };
   if (s) return { label: s.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()), tone: "warning" };
   return { label: "Unavailable", tone: "neutral" };
 }
@@ -510,6 +520,8 @@ export interface VerifyIntegritySignals {
   custodyChainMode: string | null;
   custodyChainFailureReason: string | null;
   tsaStatus: string | null;
+  /** (2026-10-20, AUD-14) the server's canonical TSA proof status. */
+  tsaProofStatus: string | null;
   storage: { immutable: boolean | null; verified: boolean | null; mode: string | null };
 }
 
@@ -528,6 +540,7 @@ export function parseVerifyIntegritySignals(payload: unknown): VerifyIntegritySi
     custodyChainMode: str(proof["custodyChainMode"]),
     custodyChainFailureReason: str(proof["custodyChainFailureReason"]),
     tsaStatus: upper(tsa["status"]),
+    tsaProofStatus: upper(tsa["proofStatus"]),
     storage: { immutable: bool(storage["immutable"]), verified: bool(storage["verified"]), mode: str(storage["mode"]) },
   };
 }
@@ -1643,7 +1656,7 @@ export function verifyIntegrityTab(
   const tsaRow = verifyMatrixRow(matrix, "tsa_token");
   const ts: { label: string; tone: VerifyWebTone } = tsaRow
     ? { label: verifyMatrixStatusWords(tsaRow), tone: tsaRow.tone }
-    : verifyTimestampTone(s.tsaStatus);
+    : verifyTimestampTone(s.tsaStatus, s.tsaProofStatus);
   const tsaQualifiers = tsaRow ? verifyMatrixQualifierWords(tsaRow) : [];
   const tsaValidatedAt =
     tsaRow && tsaRow.status === "VERIFIED" && tsaRow.qualifiers?.includes("VALIDATED_FROM_RETAINED_TOKEN") && tsaRow.measuredAtUtc

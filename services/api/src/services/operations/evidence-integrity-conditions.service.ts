@@ -334,7 +334,9 @@ export const INTEGRITY_RECOVERY_SELECT = {
 export function hasRecovered(row: IntegrityRecoveryRow, integrityClass: IntegrityClass): boolean {
   if (integrityClass === "tsa_failure") {
     return tsaProofStatusIsValidated(
-      resolveTsaProofStatus({ tsaStatus: row.tsaStatus, tsaValidatedAtUtc: row.tsaValidatedAtUtc }),
+      // Only VALIDATED resolves the condition; the token's presence cannot make
+      // a status validated, so it is not read here.
+      resolveTsaProofStatus({ tsaStatus: row.tsaStatus, tsaValidatedAtUtc: row.tsaValidatedAtUtc, tsaTokenPresent: null }),
     );
   }
   // (2026-10-13) An OTS condition auto-resolves when the record resolves

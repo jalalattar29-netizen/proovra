@@ -124,7 +124,12 @@ export function buildTimestampValidationRecord(input: {
     return Number.isFinite(d.getTime()) ? d.toISOString() : null;
   };
   const presented = presentedTsaStatus({ tsaStatus: input.tsaStatus, tsaValidatedAtUtc: input.tsaValidatedAtUtc ?? null });
-  const status = resolveTsaProofStatus({ tsaStatus: input.tsaStatus, tsaValidatedAtUtc: input.tsaValidatedAtUtc ?? null });
+  const status = resolveTsaProofStatus({
+    tsaStatus: input.tsaStatus,
+    tsaValidatedAtUtc: input.tsaValidatedAtUtc ?? null,
+    tsaTokenPresent: input.tokenPresent,
+    tsaFailureCode: input.tsaFailureCode ?? null,
+  });
   const trust = resolveTsaTrustState({
     presentedStatus: presented,
     tokenPresent: input.tokenPresent,

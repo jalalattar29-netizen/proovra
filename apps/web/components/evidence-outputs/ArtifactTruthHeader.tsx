@@ -20,6 +20,7 @@ import {
   readOtsAnchoringView,
   reportFreshnessChangeCopy,
   resolveTsaTrustState,
+  tsaFailureCodeImpliesToken,
   toVerificationStatus,
   VERIFICATION_STATUS_LABELS,
   type OtsState,
@@ -59,8 +60,9 @@ export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): TruthFact 
   const s = resolveTsaTrustState({
     presentedStatus: presented,
     // With a recorded code the canonical resolver decides: a validation code
-    // means a token was received, a provider code means none was.
-    tokenPresent: t.failureCode ? true : null,
+    // means a token was received, a provider code means none was, and an
+    // unknown code says nothing (2026-10-20: one shared reading).
+    tokenPresent: tsaFailureCodeImpliesToken(t.failureCode),
     failureCode: t.failureCode,
     validatedAtUtc: t.validatedAtUtc,
   });

@@ -121,6 +121,9 @@ export type ProvenanceTimeInput = {
     status: string | null | undefined;
     validatedAtUtc?: Date | string | null;
     genTimeUtc?: Date | string | null;
+    /** (2026-10-20, AUD-14) Whether a token was kept: a stored FAILED is otherwise three facts. */
+    tokenPresent: boolean | null;
+    failureCode?: string | null;
   } | null;
   /** The OpenTimestamps record (ots-anchoring.ts). */
   ots?: OtsAnchoringInput | null;
@@ -175,6 +178,8 @@ export function buildProvenanceTimeline(input: ProvenanceTimeInput): ProvenanceT
     const tsaStatus = resolveTsaProofStatus({
       tsaStatus: input.tsa.status,
       tsaValidatedAtUtc: input.tsa.validatedAtUtc ?? null,
+      tsaTokenPresent: input.tsa.tokenPresent,
+      tsaFailureCode: input.tsa.failureCode ?? null,
     });
     if (tsaStatus === "VALIDATED" || tsaStatus === "RECORDED_NOT_VALIDATED") {
       push(

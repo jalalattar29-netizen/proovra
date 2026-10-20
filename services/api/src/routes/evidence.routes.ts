@@ -134,9 +134,11 @@ import {
   // RGA-02 — the change vocabulary of a stale confirmation.
   outputOfferChangeCopy,
   type OutputOfferChangeCode,
-  resolveTsaTrustState,
   isForensicIntegrityCustodyEventType,
   multipartRecordKindLabel,
+  TSA_CUSTODY_EVENT_HEADLINE,
+  resolveTsaProofStatus,
+  tsaProofStatusOfCustodyPayload,
   parseVerificationDisclosurePolicy,
   WITHHELD_BY_DISCLOSURE_POLICY,
   type PublicVerifyIdentifierKind,
@@ -2527,24 +2529,14 @@ function summarizePublicPayload(
         .join(" • ");
     }
 
-    case prismaPkg.CustodyEventType.TIMESTAMP_APPLIED: {
-      const tsaStatus = normalizePublicPayloadValue(obj.tsaStatus);
-      const tsaProvider = normalizePublicPayloadValue(obj.tsaProvider);
-      return [
-        "Timestamp applied",
-        tsaStatus ? `Status: ${tsaStatus}` : null,
-        tsaProvider ? `TSA: ${tsaProvider}` : null,
-      ]
-        .filter(Boolean)
-        .join(" • ");
-    }
-
+    // AUD-14 / AUD-15 (2026-10-20): one reading of a TSA event (shared
+    // tsaProofStatusOfCustodyPayload) — never the raw stored status word, and
+    // a provider outage is never "Timestamp failed".
+    case prismaPkg.CustodyEventType.TIMESTAMP_APPLIED:
     case prismaPkg.CustodyEventType.TIMESTAMP_FAILED: {
-      const tsaStatus = normalizePublicPayloadValue(obj.tsaStatus);
       const tsaProvider = normalizePublicPayloadValue(obj.tsaProvider);
       return [
-        "Timestamp failed",
-        tsaStatus ? `Status: ${tsaStatus}` : null,
+        TSA_CUSTODY_EVENT_HEADLINE[tsaProofStatusOfCustodyPayload(obj as Record<string, unknown>, String(eventType))],
         tsaProvider ? `TSA: ${tsaProvider}` : null,
       ]
         .filter(Boolean)
@@ -10485,6 +10477,9 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               },
               tsa: {
                 status: presentedTsa ?? null,
+                // (2026-10-20, AUD-14) THE canonical proof status: the owner
+                // tab states it, never the raw stored word.
+                proofStatus: resolveTsaProofStatus(evidence),
                 provider: evidence.tsaProvider ?? null,
                 timestampAvailable: timestampStatusIsPositive,
                 digestMatchesTimestampInput: timestampDigestMatches,
@@ -15112,16 +15107,12 @@ defaultPreviewItemId: defaultPreviewItem?.id ?? null,
       // ONE TSA AUTHORITY: a kept token whose validation was never performed
       // (no trust anchor) is "recorded, not validated" here exactly as the
       // matrix and the signal state it — never "failed".
-      proofStatus: ((): string => {
-        const proof = publicVerifyTrustShared.resolveTsaProofStatus(evidence);
-        if (proof !== "FAILED") return proof;
-        const trust = resolveTsaTrustState({
-          presentedStatus: presentedTsa ?? null,
-          tokenPresent: Boolean(evidence.tsaTokenBase64),
-          failureCode: evidence.tsaFailureCode ?? null,
-        });
-        return trust.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED" ? "RECORDED_NOT_VALIDATED" : proof;
-      })(),
+      // (2026-10-20, AUD-14) the canonical proof status IS the trust
+      // authority's reading now — no local patch over it.
+      proofStatus: publicVerifyTrustShared.resolveTsaProofStatus(evidence),
+      // AUD-17: the token's own serial and time are facts only when it was
+      // validated; otherwise its claims, and the page says so.
+      tokenClaimsBasis: publicVerifyTrustShared.tsaTokenClaimsBasis(publicVerifyTrustShared.resolveTsaProofStatus(evidence)),
       provider: evidence.tsaProvider,
       url: evidence.tsaUrl,
       serialNumber: evidence.tsaSerialNumber,
@@ -15169,7 +15160,13 @@ timestampedDigestNote:
     recordCreatedAtUtc: evidence.createdAt,
     finalizedAtUtc: evidence.signedAtUtc,
     deviceTimeIso: evidence.deviceTimeIso ?? null,
-    tsa: { status: evidence.tsaStatus, validatedAtUtc: evidence.tsaValidatedAtUtc, genTimeUtc: evidence.tsaGenTimeUtc },
+    tsa: {
+      status: evidence.tsaStatus,
+      validatedAtUtc: evidence.tsaValidatedAtUtc,
+      genTimeUtc: evidence.tsaGenTimeUtc,
+      tokenPresent: Boolean(evidence.tsaTokenBase64),
+      failureCode: evidence.tsaFailureCode ?? null,
+    },
     ots: otsInput,
   }),
   technicalMaterials,

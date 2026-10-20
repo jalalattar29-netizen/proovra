@@ -321,12 +321,19 @@ export function resolveTsaTrustState(input: TsaTrustStateInput): TsaTrustState {
     if (input.tokenPresent && TSA_VALIDATION_FAILED_CODES.has(code)) {
       return { state: "FAILED", label: "Timestamp token obtained; validation failed", measuredAtUtc: null };
     }
-    if (input.tokenPresent && (TSA_VALIDATION_NOT_PERFORMED_CODES.has(code) || !code)) {
+    if (input.tokenPresent && TSA_VALIDATION_NOT_PERFORMED_CODES.has(code)) {
       return {
         state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
         label: "Timestamp token obtained; not validated (no trust anchor was available)",
         measuredAtUtc: null,
       };
+    }
+    // 2026-10-20 (AUD-16): a kept token whose failure cause was NOT recorded
+    // (or is not one PROOVRA knows) is obtained and not validated — and no
+    // cause is stated. Saying "no trust anchor was available" invented one,
+    // and could stand in front of a token that failed for its digest.
+    if (input.tokenPresent) {
+      return { state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED", label: "Timestamp token obtained; not validated", measuredAtUtc: null };
     }
     return { state: "UNAVAILABLE", label: "Trusted timestamp not obtained", measuredAtUtc: null };
   }
@@ -444,4 +451,18 @@ export function resolveOtsCustodyFacts(
     if (e.eventType === "OTS_APPLIED") return { submittedAtUtc: isoOrNull(e.atUtc ?? null) };
   }
   return { submittedAtUtc: null };
+}
+
+/**
+ * (2026-10-20, AUD-14/16) What a recorded TSA failure code says about the
+ * token, for a surface that does not have the token itself: a validation code
+ * means one was received (true), a provider code means none came back
+ * (false), and an unknown or absent code says nothing (null) — never guessed.
+ */
+export function tsaFailureCodeImpliesToken(code: string | null | undefined): boolean | null {
+  const c = String(code ?? "").trim().toLowerCase();
+  if (!c) return null;
+  if (TSA_VALIDATION_FAILED_CODES.has(c) || TSA_VALIDATION_NOT_PERFORMED_CODES.has(c)) return true;
+  if (/^tsa_provider_|^tsa_unknown_error$|^tsa_token_missing$/.test(c)) return false;
+  return null;
 }

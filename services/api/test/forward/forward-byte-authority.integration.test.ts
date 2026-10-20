@@ -161,4 +161,38 @@ describe("PHASE 6 — original byte authority and download policy (live PostgreS
       }
     }
   });
+
+  /*
+   * AUD-14 (2026-10-20) — the owner review workspace sends THE canonical TSA
+   * proof status (the web and mobile Integrity rows state it): a provider
+   * outage is NOT_OBTAINED, a kept token with no recorded cause is
+   * RECORDED_NOT_VALIDATED, and neither reads as a failure.
+   */
+  it("AUD-14: the review workspace states the canonical TSA proof status for each stored FAILED", async () => {
+    const proofOf = async (data: Record<string, unknown>) => {
+      const ev = await sealedSingleFile();
+      await prisma.evidence.update({ where: { id: ev.id }, data: data as never });
+      const res = await harness.app.inject({
+        method: "GET",
+        url: `/v1/evidence/${ev.id}/review-workspace`,
+        headers: { authorization: `Bearer ${harness.fixtures.teamA.ownerToken}` },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      const find = (v: unknown): unknown => {
+        if (v && typeof v === "object") {
+          const o = v as Record<string, unknown>;
+          if (o.tsa && typeof o.tsa === "object" && "proofStatus" in (o.tsa as object)) return (o.tsa as Record<string, unknown>).proofStatus;
+          for (const x of Object.values(o)) {
+            const r = find(x);
+            if (r !== undefined) return r;
+          }
+        }
+        return undefined;
+      };
+      return find(res.json());
+    };
+    expect(await proofOf({ tsaStatus: "FAILED", tsaTokenBase64: null, tsaFailureCode: "tsa_provider_unreachable" })).toBe("NOT_OBTAINED");
+    expect(await proofOf({ tsaStatus: "FAILED", tsaTokenBase64: "dG9rZW4=", tsaFailureCode: null })).toBe("RECORDED_NOT_VALIDATED");
+    expect(await proofOf({ tsaStatus: "FAILED", tsaTokenBase64: "dG9rZW4=", tsaFailureCode: "tsa_message_imprint_mismatch" })).toBe("FAILED");
+  });
 });

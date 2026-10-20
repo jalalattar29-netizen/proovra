@@ -106,6 +106,9 @@ import {
   custodyLabelHints,
   readStoredTrustDecision,
   parseVerificationDisclosurePolicy,
+  TSA_PROOF_STATUS_LABELS,
+  TSA_CUSTODY_EVENT_HEADLINE,
+  tsaProofStatusOfCustodyPayload,
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
 import { custodyThroughIssuance } from "./custody-issuance-cutoff.js";
@@ -854,7 +857,8 @@ const fingerprintHash = normalizePayloadPrimitive(obj.fingerprintHash);
         signingKeyId ? `Key: ${signingKeyId}` : null,
         signingKeyVersion ? `Version: ${signingKeyVersion}` : null,
         fingerprintHash ? `Fingerprint: ${fingerprintHash}` : null,
-        tsaStatus ? `Timestamp: ${tsaStatus === "STAMPED" ? "validated" : tsaStatus === "PENDING" ? "pending" : "not validated"}` : null,
+        // AUD-15: the event's own validation fact decides, never "STAMPED".
+        tsaStatus ? `Timestamp: ${TSA_PROOF_STATUS_LABELS[tsaProofStatusOfCustodyPayload(obj, "SIGNATURE_APPLIED")]}` : null,
         tsaProvider ? `TSA: ${tsaProvider}` : null,
       ]
         .filter(Boolean)
@@ -862,12 +866,11 @@ const fingerprintHash = normalizePayloadPrimitive(obj.fingerprintHash);
     }
 
     case "TIMESTAMP_APPLIED": {
-      const tsaStatus = normalizePayloadPrimitive(obj.tsaStatus);
       const tsaProvider = normalizePayloadPrimitive(obj.tsaProvider);
       const serial = normalizePayloadPrimitive(obj.tsaSerialNumber);
       return [
-        "Trusted timestamp applied",
-        tsaStatus === "STAMPED" ? "Token validated" : tsaStatus ? "Token recorded" : null,
+        // AUD-15: a legacy STAMPED event that was never validated is not "validated".
+        TSA_CUSTODY_EVENT_HEADLINE[tsaProofStatusOfCustodyPayload(obj, "TIMESTAMP_APPLIED")],
         tsaProvider ? `TSA: ${tsaProvider}` : null,
         serial ? `Serial: ${serial}` : null,
       ]

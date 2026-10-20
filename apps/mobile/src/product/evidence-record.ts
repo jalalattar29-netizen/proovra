@@ -19,6 +19,9 @@ import {
   parseVerificationDisclosureMode,
   VERIFICATION_DISCLOSURE_MODE_LABELS,
   type VerificationDisclosureMode,
+  parseTsaProofStatus,
+  TSA_PROOF_STATUS_LABELS,
+  type TsaProofStatus,
 } from "@proovra/shared";
 import { projectLocationState } from "./evidence-detail";
 import { isOtsSummaryFact, otsCard, otsStatusLine, readOts, type OtsState, type OtsVerificationKey } from "./ots-anchoring";
@@ -820,6 +823,16 @@ export function outputPanelShowsAction(state: OutputState | null): boolean {
 
 export type IntegrityState = "verified" | "recorded" | "available" | "pending" | "unavailable" | "failed" | "not-applicable";
 
+/** The canonical TSA proof status as an integrity state (AUD-14; = web EvidenceIntegrityTab). */
+const TSA_INTEGRITY_STATE: Readonly<Record<TsaProofStatus, IntegrityState>> = {
+  VALIDATED: "verified",
+  RECORDED_NOT_VALIDATED: "recorded",
+  PENDING: "pending",
+  NOT_OBTAINED: "unavailable",
+  NOT_REQUESTED: "unavailable",
+  FAILED: "failed",
+};
+
 /** EvidenceIntegrityTab.tsx:88 STATE_PRESENTATION, with native tones. */
 export const INTEGRITY_STATE_PRESENTATION: Readonly<
   Record<IntegrityState, { label: string; tone: "verified" | "info" | "governance" | "pending" | "neutral" | "risk" }>
@@ -908,8 +921,9 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
   const sigRecorded = sig["recorded"] === true;
   const signatureState: IntegrityState = !sigRecorded ? "unavailable" : sig["valid"] === true ? "verified" : "recorded";
   const tsaAvailable = tsa["timestampAvailable"] === true;
-  const tsaStatus = s(tsa["status"]);
-  const tsaState: IntegrityState = tsaAvailable ? "recorded" : tsaStatus === "FAILED" ? "failed" : tsaStatus ? "pending" : "unavailable";
+  // AUD-14 (2026-10-20): the canonical proof status, as the web tab states it.
+  const tsaProof = parseTsaProofStatus(s(tsa["proofStatus"]));
+  const tsaState: IntegrityState = tsaProof ? TSA_INTEGRITY_STATE[tsaProof] : tsaAvailable ? "recorded" : "unavailable";
   const otsView = otsCard(ots, locale, fmt);
   const otsState: IntegrityState = OTS_INTEGRITY_STATE[otsView.verification];
   const otsDesc = {
@@ -1002,7 +1016,11 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
       state: fingerprintState,
     },
     { label: "Signature", value: sigRecorded ? (sig["valid"] === true ? "Recorded and validated" : "Recorded") : "Not recorded", state: signatureState },
-    { label: "Timestamp proof (TSA)", value: tsaAvailable ? "Timestamp recorded" : tsaStatus ? `Status: ${tsaStatus}` : "Timestamp unavailable", state: tsaState },
+    {
+      label: "Timestamp proof (TSA)",
+      value: tsaProof ? TSA_PROOF_STATUS_LABELS[tsaProof] : tsaAvailable ? "Timestamp recorded" : "Timestamp unavailable",
+      state: tsaState,
+    },
     { label: otsView.title, value: otsDesc.label, state: otsState },
     ...otsFacts,
     { label: "Bitcoin anchoring last updated", value: dateOr(otsUpdated, "Not recorded"), state: otsUpdated ? "recorded" : "unavailable" },

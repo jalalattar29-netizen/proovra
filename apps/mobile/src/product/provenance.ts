@@ -14,6 +14,9 @@ import {
   otsAnchoringCopy,
   parseOtsState,
   readCaptureManifestFacts,
+  parseTsaProofStatus,
+  TSA_PROOF_STATUS_LABELS,
+  TSA_UNVALIDATED_CLAIM_QUALIFIER,
   type OtsState,
 } from "@proovra/shared";
 import { otsCardForVerification, otsStatusLine, otsVerificationOf, type OtsVerificationKey } from "./ots-anchoring";
@@ -134,23 +137,24 @@ export function provenanceCaptureRows(p: ProvenanceView, fmt: (iso: string) => s
   return rows;
 }
 
-/** UC-TRUST-002 — the canonical status labels (same words as web). */
-const TSA_LABELS: Record<string, string> = {
-  NOT_REQUESTED: "Not requested",
-  PENDING: "Pending",
-  VALIDATED: "RFC 3161 timestamp validated",
-  RECORDED_NOT_VALIDATED: "Recorded, not validated",
-  FAILED: "Timestamp failed",
-};
+/**
+ * UC-TRUST-002 / AUD-14 (2026-10-20) — THE shared labels (TSA_PROOF_STATUS_LABELS),
+ * not a copy: a provider outage is "Not obtained", never "Timestamp failed".
+ * AUD-17: an unvalidated token's own time is its claim, and says so.
+ */
 function rfc3161Text(p: ProvenanceView, fmt: (iso: string) => string): string {
-  const at = p.rfc3161AppliedAtUtc ? ` · ${fmt(p.rfc3161AppliedAtUtc)}` : "";
-  if (p.rfc3161Status && TSA_LABELS[p.rfc3161Status]) {
-    return p.rfc3161Status === "VALIDATED" || p.rfc3161Status === "RECORDED_NOT_VALIDATED"
-      ? `${TSA_LABELS[p.rfc3161Status]}${at}`
-      : TSA_LABELS[p.rfc3161Status]!;
+  const status = parseTsaProofStatus(p.rfc3161Status);
+  if (status) {
+    if (status === "VALIDATED") return `${TSA_PROOF_STATUS_LABELS.VALIDATED}${p.rfc3161AppliedAtUtc ? ` · ${fmt(p.rfc3161AppliedAtUtc)}` : ""}`;
+    if (status === "RECORDED_NOT_VALIDATED") {
+      return `${TSA_PROOF_STATUS_LABELS.RECORDED_NOT_VALIDATED}${
+        p.rfc3161AppliedAtUtc ? ` · token time ${fmt(p.rfc3161AppliedAtUtc)} (${TSA_UNVALIDATED_CLAIM_QUALIFIER})` : ""
+      }`;
+    }
+    return TSA_PROOF_STATUS_LABELS[status];
   }
   // An older server: "applied" only ever claimed a recorded token.
-  return p.rfc3161Applied ? `Recorded${at}` : "Not applied";
+  return p.rfc3161Applied ? `Recorded${p.rfc3161AppliedAtUtc ? ` · ${fmt(p.rfc3161AppliedAtUtc)}` : ""}` : "Not applied";
 }
 export function provenancePreservationRows(
   p: ProvenanceView,

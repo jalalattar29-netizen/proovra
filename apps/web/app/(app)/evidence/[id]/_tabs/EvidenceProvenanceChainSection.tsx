@@ -35,6 +35,7 @@ import { Link2, ShieldCheck } from "lucide-react";
 
 import {
   TSA_PROOF_STATUS_LABELS,
+  TSA_UNVALIDATED_CLAIM_QUALIFIER,
   captureCompletenessNote,
   captureCompletenessRows,
   parseTsaProofStatus,
@@ -75,7 +76,13 @@ export function rfc3161LayerText(chain: ProvenanceChainView, fmt: (iso: string) 
   const at = chain.time.rfc3161.appliedAtUtc ? ` · ${fmt(chain.time.rfc3161.appliedAtUtc)}` : "";
   if (status === null) return chain.time.rfc3161.applied ? `Recorded${at}` : "Not applied";
   if (status === "VALIDATED") return `${TSA_PROOF_STATUS_LABELS.VALIDATED}${at}`;
-  if (status === "RECORDED_NOT_VALIDATED") return `${TSA_PROOF_STATUS_LABELS.RECORDED_NOT_VALIDATED}${at}`;
+  // AUD-17 (2026-10-20): an unvalidated token's own time is its claim, and says so.
+  if (status === "RECORDED_NOT_VALIDATED") {
+    const claimed = chain.time.rfc3161.appliedAtUtc
+      ? ` · token time ${fmt(chain.time.rfc3161.appliedAtUtc)} (${TSA_UNVALIDATED_CLAIM_QUALIFIER})`
+      : "";
+    return `${TSA_PROOF_STATUS_LABELS.RECORDED_NOT_VALIDATED}${claimed}`;
+  }
   return TSA_PROOF_STATUS_LABELS[status];
 }
 

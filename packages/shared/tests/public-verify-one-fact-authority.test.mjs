@@ -56,11 +56,15 @@ test("RFC 3161: a kept token never validated (no trust anchor) is not_checked in
   assert.equal(row.status, "NOT_CHECKED");
 });
 
-test("RFC 3161: a request that obtained no token stays failed (\"none was obtained\"; matrix: Unavailable, not obtained)", () => {
-  assert.equal(basic({ tsaTokenPresent: false, tsaFailureCode: null }).timestamp.state, "failed");
+test("RFC 3161: a request that obtained no token is not issued in Basic Verify, Unavailable in the matrix — never \"failed\" (AUD-14)", () => {
+  // 2026-10-20: Basic Verify said "failed" for a provider outage while the
+  // matrix said "Unavailable" for the same record. One authority now.
+  assert.equal(basic({ tsaTokenPresent: false, tsaFailureCode: null }).timestamp.state, "not_issued");
   assert.equal(matrixTsa({ tsaStatus: "FAILED", tsaTokenPresent: false }).status, "UNAVAILABLE");
-  // An older caller without the authority's inputs keeps the status-only reading.
-  assert.equal(basic({}).timestamp.state, "failed");
+  assert.equal(basic({}).timestamp.state, "not_issued");
+  // Only a validation that RAN and refused the token is failed, on both.
+  assert.equal(basic({ tsaTokenPresent: true, tsaFailureCode: "tsa_message_imprint_mismatch" }).timestamp.state, "failed");
+  assert.equal(matrixTsa({ tsaStatus: "FAILED", tsaTokenPresent: true, tsaFailureCode: "tsa_message_imprint_mismatch" }).status, "FAILED");
 });
 
 test("Disclosure: the canonical page states its disclosure policy and never claims an owner publication step", () => {

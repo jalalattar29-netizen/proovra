@@ -17,7 +17,7 @@
  * not_issued | not_checked. "verified" means the check named in `basis` was
  * performed and passed — never "a record of it exists".
  */
-import { resolveTsaTrustState } from "./trust-signal-state.js";
+import { resolveTsaProofStatus, tsaProofComponentState } from "./tsa-status.js";
 import {
   resolveOtsAnchoring,
   toOtsAnchoringView,
@@ -283,27 +283,18 @@ export function buildBasicVerification(input: {
   // `tsaStatus` is the PRESENTED status (presentedTsaStatus): STAMPED means
   // the token was validated; RECORDED_NOT_VALIDATED is a kept legacy token.
   const tsa = String(input.tsaStatus ?? "").toUpperCase();
-  const tsaPositive = tsa === "STAMPED" || tsa === "GRANTED" || tsa === "VERIFIED" || tsa === "SUCCEEDED";
-  const tsaTrust =
-    tsa === "FAILED" && input.tsaTokenPresent !== undefined
-      ? resolveTsaTrustState({ presentedStatus: tsa, tokenPresent: input.tsaTokenPresent ?? null, failureCode: input.tsaFailureCode ?? null })
-      : null;
-  const timestampState: ComponentVerificationState =
-    tsa === "FAILED"
-      ? tsaTrust?.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED"
-        ? "not_checked"
-        : "failed"
-      : tsaPositive
-        ? input.tsaImprintMatches === false
-          ? "failed"
-          : tsa === "STAMPED" && input.tsaImprintMatches === true
-            ? "verified"
-            : "not_checked"
-        : tsa === "RECORDED_NOT_VALIDATED"
-          ? "not_checked"
-          : tsa === "PENDING"
-            ? "pending"
-            : "not_issued";
+  // ONE TSA AUTHORITY (2026-10-20, AUD-14): the state is the canonical proof
+  // status read through resolveTsaTrustState. A provider outage (no token) is
+  // "not issued", never "failed"; only a token whose validation was refused,
+  // or whose imprint does not match, is.
+  const tsaProof = resolveTsaProofStatus({
+    tsaStatus: tsa || null,
+    // The PRESENTED status is passed: STAMPED here already means validated.
+    tsaValidatedAtUtc: tsa === "STAMPED" ? "validated" : null,
+    tsaTokenPresent: input.tsaTokenPresent ?? null,
+    tsaFailureCode: input.tsaFailureCode ?? null,
+  });
+  const timestampState: ComponentVerificationState = tsaProofComponentState(tsaProof, input.tsaImprintMatches);
   const timestampBasis: BasicVerification["timestamp"]["basis"] =
     timestampState === "verified"
       ? "TOKEN_VALIDATED"

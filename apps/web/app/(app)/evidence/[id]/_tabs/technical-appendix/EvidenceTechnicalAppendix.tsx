@@ -312,6 +312,8 @@ export function EvidenceTechnicalAppendix({
             },
             tsa: {
               status: pm?.tsa?.status ?? null,
+              // AUD-14: the canonical proof status the label states.
+              proofStatus: pm?.tsa?.proofStatus ?? null,
               provider: pm?.tsa?.provider ?? null,
               timestampedDigestLabel: pm?.tsa?.timestampedDigestLabel ?? "",
             },

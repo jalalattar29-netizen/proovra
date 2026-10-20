@@ -284,6 +284,9 @@ export async function loadProvenanceChain(
       tsaValidatedAtUtc: true,
       tsaGenTimeUtc: true,
       tsaUrl: true,
+      // (2026-10-20, AUD-14) the one TSA authority needs the token and its cause.
+      tsaTokenBase64: true,
+      tsaFailureCode: true,
       ...OTS_ANCHORING_RECORD_SELECT,
     },
   });
@@ -455,6 +458,8 @@ export async function loadProvenanceChain(
   const tsaStatus = resolveTsaProofStatus({
     tsaStatus: evidence?.tsaStatus ?? null,
     tsaValidatedAtUtc: evidence?.tsaValidatedAtUtc ?? null,
+    tsaTokenBase64: evidence?.tsaTokenBase64 ?? null,
+    tsaFailureCode: evidence?.tsaFailureCode ?? null,
   });
   // THE ONE OTS AUTHORITY: resolved from the stored proof bytes and the
   // independent chain fact bound to them.

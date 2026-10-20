@@ -218,7 +218,9 @@ describe("the report's TSA status words — the canonical signal, agreeing with 
     ["validated", VALIDATED, "RFC 3161 timestamp validated", "success"],
     ["retained token", RETAINED, TSA_RETAINED_TOKEN_STATUS_LABEL, "success"],
     ["kept, no anchor", KEPT_NO_ANCHOR, "Timestamp token obtained; not validated (no trust anchor was available)", "warning"],
-    ["kept, no code", KEPT_NO_CODE, "Timestamp token obtained; not validated (no trust anchor was available)", "warning"],
+    // AUD-16 (2026-10-20): no recorded cause → no stated cause (was "no trust
+    // anchor was available", which invented one).
+    ["kept, no code", KEPT_NO_CODE, "Timestamp token obtained; not validated", "warning"],
     ["recorded legacy word", { tsaStatus: "GRANTED", tsaTokenBase64: "dG9rZW4=" }, "Timestamp token recorded; not validated", "warning"],
     ["validation failed", VALIDATION_FAILED, "Timestamp token obtained; validation failed", "danger"],
     ["not obtained", NOT_OBTAINED, "Trusted timestamp not obtained", "neutral"],
@@ -297,5 +299,32 @@ describe("the package README timestamp line — one statement per TSA state", ()
     expect(SRC).toContain('timestampSignal: packageTrustDecision.signals.find((s) => s.key === "trusted_timestamp") ?? null');
     expect(SRC).not.toContain("PROOVRA did not validate it");
     expect(SRC).not.toMatch(/timestampStatus === "FAILED"/);
+  });
+});
+
+/*
+ * AUD-17 (2026-10-20) — A TOKEN'S OWN SERIAL AND TIME ARE CLAIMS UNLESS IT WAS
+ * VALIDATED. Characterization (before): the appendix printed "Serial Number"
+ * and "Generation Time (UTC)" as plain facts for a kept, never-validated token.
+ */
+describe("the appendix's token facts (AUD-17)", () => {
+  const rowsFor = async (extra: Partial<ReportEvidence>) => {
+    const vm = await buildReportViewModel(
+      reportInputFixture({ evidence: evidenceWith({ tsaSerialNumber: "0x4f1a", tsaGenTimeUtc: "2026-10-01T09:15:04.000Z", ...extra }) }),
+    );
+    return vm.technicalAppendix.timestampRows.map((r) => r.label);
+  };
+
+  it("a kept, never-validated token: serial and time are labelled as its claims", async () => {
+    const labels = await rowsFor(KEPT_NO_CODE);
+    expect(labels).toContain("Serial Number (claimed by the token; not validated)");
+    expect(labels).toContain("Generation Time (UTC) (claimed by the token; not validated)");
+    expect(labels).not.toContain("Serial Number");
+  });
+
+  it("a validated token: plain facts", async () => {
+    const labels = await rowsFor(VALIDATED);
+    expect(labels).toContain("Serial Number");
+    expect(labels).toContain("Generation Time (UTC)");
   });
 });
