@@ -317,6 +317,37 @@ export async function evaluateArtifactDownload(input: {
     );
   }
 
+  // 2026-10-20 (AUD-06) — the FULL_FORENSIC package embeds the originals, so
+  // the workspace's ORIGINAL-download policy decides it too (the role check
+  // above is not the policy): a workspace that disallows original downloads
+  // gets the EXTERNAL_DISCLOSURE package, which carries none.
+  if (kind === "package" && teamId) {
+    const originalsPolicy = await enforceSensitiveAction("download_original", {
+      teamId,
+      role: membership?.status === "ACTIVE" ? membership.role : undefined,
+      evidence: {
+        id: evidenceForGate.id,
+        teamId,
+        retentionUntilUtc: evidenceForGate.retentionUntilUtc ?? null,
+      },
+      consultTemplatePolicy: false,
+      personalOwnerVerified: personalOwner,
+    });
+    if (!originalsPolicy.allowed) {
+      return denied(
+        teamId,
+        originalsPolicy.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403,
+        {
+          code: originalsPolicy.code === "GOVERNANCE_CHECK_FAILED" ? originalsPolicy.code : "FULL_PACKAGE_REQUIRES_ORIGINAL_ACCESS",
+          reason: originalsPolicy.reason,
+          message:
+            "The full forensic package contains the original files, which this workspace's policy does not release. The external disclosure package is available instead.",
+        },
+        { action, reason: originalsPolicy.reason },
+      );
+    }
+  }
+
   if ((kind === "package" || kind === "package_external") && teamId) {
     const { gateVerificationAction } = await import(
       "../governance/policy-runtime-gates.service.js"

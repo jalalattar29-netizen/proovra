@@ -4469,6 +4469,15 @@ async function buildPublicEvidenceContent(params: {
           (async () => {
             const bucket = singlePart?.storageBucket ?? params.evidence.storageBucket!;
             const key = singlePart?.storageKey ?? params.evidence.storageKey!;
+            // 2026-10-20 (AUD-08) — the SEALED version, exactly as the multipart
+            // branch: an upload URL stays valid after sealing, so "latest at
+            // the key" may be bytes nobody sealed. The part's own version, or
+            // the record's when the part IS the record's primary object.
+            const sealedVersionId =
+              singlePart?.storageVersionId ??
+              (params.evidence.storageBucket === bucket && params.evidence.storageKey === key
+                ? (params.evidence.storageVersionId ?? null)
+                : null);
             const mimeType = singlePart?.mimeType ?? params.evidence.mimeType;
             const sizeBytesValue =
               singlePart?.sizeBytes ?? params.evidence.sizeBytes;
@@ -4538,6 +4547,7 @@ async function buildPublicEvidenceContent(params: {
                 ? await presignGetObject({
                     bucket,
                     key,
+                    versionId: sealedVersionId,
                     expiresInSeconds: 600,
                   }).then((u) => {
                     originalUrlsIssued += 1;
