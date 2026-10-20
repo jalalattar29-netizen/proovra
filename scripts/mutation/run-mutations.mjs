@@ -54,7 +54,24 @@ function run(t) {
     env: childEnv(t.env),
     maxBuffer: 256 * 1024 * 1024,
   });
+  // The last lines, kept so a red baseline can say WHY (CI logs need a sign-in;
+  // annotations do not).
+  lastOutputTail = `${r.stdout ?? ""}${r.stderr ?? ""}`
+    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, "")
+    .split("\n")
+    .filter((l) => l.trim())
+    .slice(-25)
+    .join("\n");
   return r.status;
+}
+
+let lastOutputTail = "";
+
+/** A GitHub Actions error annotation (no-op elsewhere). */
+function annotate(title, body) {
+  if (!process.env.GITHUB_ACTIONS) return;
+  const esc = (v) => String(v).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+  console.log(`::error title=${esc(title)}::${esc(body).slice(0, 4000)}`);
 }
 
 function build(pkg) {
@@ -86,8 +103,8 @@ function main() {
   const baselines = new Map();
   const baseline = (t) => {
     const key = JSON.stringify([t.cwd, t.cmd, t.args, t.env ?? null]);
-    if (!baselines.has(key)) baselines.set(key, run(t));
-    return baselines.get(key);
+    if (!baselines.has(key)) baselines.set(key, { status: run(t), tail: lastOutputTail });
+    return baselines.get(key).status;
   };
   const results = [];
   for (const m of catalog) {
@@ -119,6 +136,9 @@ function main() {
     if (red) {
       results.push({ id: m.id, name: m.name, outcome: `BASELINE_RED (${red.cwd}: ${red.args.slice(-1)[0]})` });
       console.log(`[mutation ${m.id}] BASELINE_RED — ${m.name}`);
+      const tail = baselines.get(JSON.stringify([red.cwd, red.cmd, red.args, red.env ?? null]))?.tail ?? "";
+      console.log(tail);
+      annotate(`mutation ${m.id} BASELINE_RED (${red.cwd})`, tail);
       continue;
     }
     let killedBy = null;
@@ -145,6 +165,7 @@ function main() {
     const outcome = killedBy === "MUTATION_DID_NOT_BUILD" ? "MUTATION_DID_NOT_BUILD" : killedBy ? "KILLED" : "SURVIVED";
     results.push({ id: m.id, aud: m.aud, name: m.name, outcome, killedBy });
     console.log(`[mutation ${m.id}] ${outcome} — ${m.name}${killedBy ? ` (${killedBy})` : ""}`);
+    if (outcome !== "KILLED") annotate(`mutation ${m.id} ${outcome}`, `${m.name} — ${m.file}`);
   }
   const after = gitStatus();
   console.log(JSON.stringify(results, null, 2));
