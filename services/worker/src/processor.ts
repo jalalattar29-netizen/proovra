@@ -10,7 +10,7 @@ import * as prismaPkg from "@prisma/client";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import type { ReportTrustDecision } from "./report-v2/types.js";
 import type { OtsState, OtsVerificationKey, StorageProtectionVerificationState } from "@proovra/shared";
-import { resolveStorageProtectionVerification, locationRequestOutcomeFromCustody, locationRequirementFromIntakePlan, locationProviderMockFromCustody } from "@proovra/shared";
+import { resolveStorageProtectionVerification, locationRequestOutcomeFromCustody, locationRequirementFromIntakePlan, locationProviderMockFromCustody, recordedIntegrityVerified } from "@proovra/shared";
 import { reconcileOtsAnchoredReportVersion } from "./ots-anchored-version.js";
 import { otsClientIdentity } from "./ots.service.js";
 import {
@@ -1655,7 +1655,7 @@ function buildVerificationMaterialsNote(params: {
   return `Verification materials for this ${params.kind} item include the recorded digest, custody linkage, timestamping state, and any OpenTimestamps/Bitcoin anchoring records associated with the preserved evidence record.`;
 }
 
-function buildReportEvidenceContent(params: {
+export function buildReportEvidenceContent(params: {
   accessPolicy: EvidenceContentAccessPolicy;
   previews?: Map<string, ExtractedPreview>;
   evidence: {
@@ -1720,11 +1720,13 @@ const isPrimary = isPrimaryReviewerArtifactRole(resolvedRole.artifactRole);
         const canPreviewThisItem =
           canExposeContent && isPreviewableEvidenceKind(kind);
 
+        // AUD-51 (2026-10-20) — the label rule Public Verify uses: an issued
+        // report never derives an item's name from its storage key (internal
+        // infrastructure); without an original file name it is "Evidence item N".
         const label = getEvidencePartDisplayLabel({
           partIndex: part.partIndex,
           mimeType: part.mimeType,
           originalFileName: part.originalFileName,
-          storageKey: part.storageKey,
         });
 
         const preview = params.previews?.get(part.id);
@@ -1981,7 +1983,7 @@ async function resolveAnchorStatusForReport(
   };
 }
 
-async function resolveEvidenceStorageSnapshot(params: {
+export async function resolveEvidenceStorageSnapshot(params: {
   storageBucket: string | null;
   storageKey: string | null;
   /** AUD-014 — the sealed version the read describes. */
@@ -2017,8 +2019,11 @@ async function resolveEvidenceStorageSnapshot(params: {
     storageObjectLockMode: snapshotMode,
     storageObjectLockRetainUntilUtc: snapshotRetainUntil,
     storageObjectLockLegalHoldStatus: snapshotLegalHold,
-    storageImmutable:
-      snapshotMode === "COMPLIANCE" && Boolean(snapshotRetainUntil),
+    // AUD-44 (2026-10-20) — ONE rule: immutable means the canonical classifier
+    // CONFIRMED the lock (resolveStorageProtectionVerification), which a
+    // recorded snapshot never does. Report.storageImmutableSnapshot and the
+    // package's storageImmutable read this value.
+    storageImmutable: false,
     storageProtectionSource: "RECORDED",
     storageReadFailed: readFailed,
   });
@@ -2059,7 +2064,13 @@ async function resolveEvidenceStorageSnapshot(params: {
       storageObjectLockMode: mode,
       storageObjectLockRetainUntilUtc: retainUntil,
       storageObjectLockLegalHoldStatus: legalHold,
-      storageImmutable: mode === "COMPLIANCE" && Boolean(retainUntil),
+      storageImmutable: resolveStorageProtectionVerification({
+        mode,
+        retainUntil,
+        legalHold,
+        source: "OBSERVED",
+        readFailed: false,
+      }).verified,
       storageProtectionSource: "OBSERVED",
       storageReadFailed: false,
     };
@@ -3076,11 +3087,8 @@ captureMethod: deriveReportCaptureMethod({
   const reviewGuidance = buildReportReviewGuidance({
     itemCount: contentArtifacts.summary.itemCount,
     previewableItemCount: contentArtifacts.summary.previewableItemCount,
-    overallIntegrity: Boolean(
-      evidence.recordedIntegrityVerifiedAtUtc ||
-        evidence.verificationStatus ===
-          prismaPkg.VerificationStatus.RECORDED_INTEGRITY_VERIFIED
-    ),
+    // AUD-51 (2026-10-20) — THE recorded-integrity rule (shared).
+    overallIntegrity: recordedIntegrityVerified(evidence),
   });
 
   // Evidence Acquisition context (public-safe, no recipient). Resolved here so
@@ -4467,10 +4475,10 @@ async function runReportGeneration(
         const effectiveReviewGuidance = buildReportReviewGuidance({
           itemCount: prepared.contentSummary.itemCount,
           previewableItemCount: prepared.contentSummary.previewableItemCount,
-          overallIntegrity:
-            effectiveVerificationStatus ===
-              prismaPkg.VerificationStatus.RECORDED_INTEGRITY_VERIFIED ||
-            Boolean(effectiveRecordedIntegrityVerifiedAtUtc),
+          overallIntegrity: recordedIntegrityVerified({
+            verificationStatus: effectiveVerificationStatus,
+            recordedIntegrityVerifiedAtUtc: effectiveRecordedIntegrityVerifiedAtUtc,
+          }),
         });
 
         // Resolved before the custody display context so the finalized

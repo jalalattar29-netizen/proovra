@@ -284,4 +284,31 @@ describe("public package record (live PostgreSQL 16)", () => {
       else process.env.VERIFY_RATE_LIMIT_MAX = before;
     }
   });
+  it("AUD-49 — the record's report version is the REPORT's (null when not recorded), never the package row's number", async () => {
+    const f = await fixture();
+    const legacy = await prisma.verificationPackage.create({
+      data: {
+        id: randomUUID(),
+        evidenceId: f.evidenceId,
+        version: 7,
+        reportVersion: null,
+        state: "PUBLISHED",
+        storageBucket: "b",
+        storageKey: `p/${f.evidenceId}/7-legacy.zip`,
+        generatedAtUtc: new Date(),
+        completedAtUtc: new Date(),
+        packageSha256: hex(`legacy7${f.evidenceId}`),
+      } as never,
+      select: { id: true },
+    });
+    const res = await get(`/public/verification-packages/${legacy.id}`);
+    expect(res.statusCode, res.body).toBe(200);
+    const body = res.json();
+    expect(body.reportVersion).toBeNull();
+    expect(body.packageVersion).toBe(7);
+    const full = (await get(`/public/verification-packages/${f.full1.id}`)).json();
+    expect(full).toMatchObject({ reportVersion: 1, packageVersion: 1 });
+    expect(typeof full.issuedAtUtc).toBe("string");
+    expect(full.issuedAtUtc).not.toBe(new Date(0).toISOString());
+  });
 });

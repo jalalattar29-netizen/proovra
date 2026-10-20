@@ -489,6 +489,13 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
       "The record's owner removed it from active use. It remains preserved under its retention protection.",
     severity: "info",
   },
+  // AUD-48 (2026-10-20) — a real record with no recorded seal yet.
+  VERIFICATION_RECORD_NOT_SEALED: {
+    title: "This record is not sealed",
+    message:
+      "This record has no recorded seal (content digest and signature), so there is nothing PROOVRA can verify on this page yet.",
+    severity: "info",
+  },
   NEW_VERSION_NO_MATERIAL_CHANGE: {
     title: "The report is already current",
     message:

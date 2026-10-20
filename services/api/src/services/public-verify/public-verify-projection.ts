@@ -359,7 +359,9 @@ function projectAllowlisted(
   if ("downloadableItemCount" in out && !d.originalDownload) out.downloadableItemCount = 0;
   if (d.mode === "VERIFICATION_ONLY") {
     for (const k of OVERVIEW_DESCRIPTIVE) if (k in out) out[k] = null;
-    if ("evidenceTitle" in o) out.evidenceTitle = "Digital Evidence Record";
+    // AUD-48 (2026-10-20) — a withheld title is stated as withheld, never as
+    // a placeholder that reads like the record's own title.
+    if ("evidenceTitle" in o) out.evidenceTitle = WITHHELD_BY_DISCLOSURE_POLICY;
   }
   return out;
 }

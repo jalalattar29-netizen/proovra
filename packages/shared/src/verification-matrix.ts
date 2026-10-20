@@ -586,6 +586,19 @@ export const VERIFICATION_STATUS_LABELS: Readonly<Record<VerificationStatus, str
   UNAVAILABLE: "Unavailable",
 };
 
+/**
+ * AUD-47 (2026-10-20) — THE tone of each status, for every surface. Only a
+ * verification is success and only a failure is danger; NOT_CHECKED is
+ * neutral (as the trust-signal presentation says), never amber.
+ */
+export const VERIFICATION_STATUS_TONES: Readonly<Record<VerificationStatus, "success" | "danger" | "neutral">> = {
+  VERIFIED: "success",
+  FAILED: "danger",
+  NOT_CHECKED: "neutral",
+  NOT_APPLICABLE: "neutral",
+  UNAVAILABLE: "neutral",
+};
+
 const STATUS_PREDICATE: Readonly<Record<VerificationStatus, string>> = {
   VERIFIED: "was verified",
   FAILED: "failed",

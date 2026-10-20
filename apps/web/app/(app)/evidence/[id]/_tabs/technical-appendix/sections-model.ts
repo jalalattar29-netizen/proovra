@@ -12,7 +12,7 @@
  * content-credential acronyms are intentionally excluded.
  */
 
-import { OTS_ANCHORING_COPY, otsBoundaryFor, parseTsaProofStatus, readOtsAnchoringView, TSA_PROOF_STATUS_LABELS } from "@proovra/shared";
+import { OTS_ANCHORING_COPY, otsBoundaryFor, parseTsaProofStatus, readOtsAnchoringView, TSA_PROOF_STATUS_LABELS, objectLockModeLabel } from "@proovra/shared";
 import type { AppendixRow, TechnicalMetadataInternal } from "./types";
 
 const NON_MEANINGFUL = new Set([
@@ -499,16 +499,8 @@ export function buildIntegrityRows(input: {
   ]);
 }
 
-function mapObjectLockLabel(mode: string | null | undefined): string | null {
-  switch ((mode ?? "").toUpperCase()) {
-    case "COMPLIANCE":
-      return "Compliance retention lock";
-    case "GOVERNANCE":
-      return "Governance retention lock";
-    default:
-      return null;
-  }
-}
+// AUD-47 (2026-10-20) — THE shared Object Lock vocabulary.
+const mapObjectLockLabel = (mode: string | null | undefined): string | null => objectLockModeLabel(mode);
 
 // =============================================================================
 // Section 10 — Chain of Custody Summary

@@ -17,7 +17,7 @@ import { CopyButton, copyToClipboard } from "../../../src/ui/copy-button";
 import { projectTrustDecision, type TrustDecision } from "../../../src/product/trust-decision";
 import { Alert, Linking, Pressable, Share, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { evidenceLocationCopy, NEW_VERSION_ACTION, otsAnchoringCopy, TRASH_KEEPS_PLAN_CAPACITY_COPY, TRASH_LIFECYCLE_COPY, reportFreshnessChangeCopy, type EvidenceOutputState } from "@proovra/shared";
+import { evidenceLocationCopy, NEW_VERSION_ACTION, otsAnchoringCopy, TRASH_KEEPS_PLAN_CAPACITY_COPY, TRASH_LIFECYCLE_COPY, reportFreshnessChangeCopy, type EvidenceOutputState, formatCaptureLocationCoordinate, formatCaptureLocationAccuracy } from "@proovra/shared";
 import { apiFetch } from "../../../src/api";
 import { EvidenceInternalMaterials } from "../../../src/ui/evidence-internal-materials";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
@@ -130,6 +130,7 @@ import {
   technicalPartFor,
   type TechnicalPart,
   type PreservationView,
+  tsaStatusLine,
   type RelationshipView,
   type ProvenanceView,
   type TechnicalView,
@@ -1500,15 +1501,16 @@ export default function EvidenceDetailScreen() {
             {/* The web Location facts (LocationContextCard.tsx:76), and its boundary always. */}
             <ProovraText variant="label" color={theme.color.ink.secondary} selectable testID="capture-location-facts">
               {[
-                `Latitude ${captureLocation.lat.toFixed(6)}`,
-                `Longitude ${captureLocation.lng.toFixed(6)}`,
-                captureLocation.accuracyMeters != null ? `± ${Math.round(captureLocation.accuracyMeters)} m` : null,
+                // AUD-47 (2026-10-20) — THE shared coordinate / accuracy format (the web's).
+                `Latitude ${formatCaptureLocationCoordinate(captureLocation.lat)}`,
+                `Longitude ${formatCaptureLocationCoordinate(captureLocation.lng)}`,
+                captureLocation.accuracyMeters != null ? formatCaptureLocationAccuracy(captureLocation.accuracyMeters) : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
             </ProovraText>
             {/* LocationContextCard.tsx:47-50, :90 — "lat, lng" to six places. */}
-            <CopyButton value={`${captureLocation.lat.toFixed(6)}, ${captureLocation.lng.toFixed(6)}`} label="Copy coordinates" />
+            <CopyButton value={`${formatCaptureLocationCoordinate(captureLocation.lat)}, ${formatCaptureLocationCoordinate(captureLocation.lng)}`} label="Copy coordinates" />
             {captureLocation.externalMapUrl ? (
               <ProovraButton
                 label="Open map"
@@ -1559,7 +1561,7 @@ export default function EvidenceDetailScreen() {
             {preservation ? (
               <>
                 {preservation.signature.recorded ? <Row k="Signature" v={preservation.signature.valid === false ? "Recorded (invalid)" : "Recorded"} /> : null}
-                <Row k="Trusted timestamp (TSA)" v={preservation.tsa.status ? `${humanizeEnum(preservation.tsa.status)}${preservation.tsa.provider ? ` · ${preservation.tsa.provider}` : ""}` : "Not timestamped"} />
+                <Row k="Trusted timestamp (TSA)" v={tsaStatusLine(preservation.tsa)} />
                 {preservation.ots.bitcoinTxid ? <Row k={otsAnchoringCopy(locale).facts.txid} v={preservation.ots.bitcoinTxid} mono /> : null}
               </>
             ) : null}

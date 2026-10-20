@@ -92,7 +92,8 @@ export type MatchedArtifactPackage = {
   /** The issuance (report-generation request) that issued it, when recorded. */
   issuanceId: string | null;
   version: number;
-  generatedAtUtc: string;
+  /** null when not recorded (a reserved or failed row) — never the epoch (AUD-49). */
+  generatedAtUtc: string | null;
   sizeBytes: string | null;
   sha256: string | null;
   /** The report digest this package certifies (the full package embeds those bytes). */
@@ -196,7 +197,7 @@ export async function listMatchedArtifactVersions(
     disclosureProfile: packageProfileLabel(p.disclosureProfile),
     issuanceId: p.issuanceId ?? null,
     version: p.version,
-    generatedAtUtc: (p.generatedAtUtc ?? new Date(0)).toISOString(),
+    generatedAtUtc: p.generatedAtUtc ? p.generatedAtUtc.toISOString() : null,
     sizeBytes: p.sizeBytes?.toString() ?? null,
     sha256: p.packageSha256 ?? null,
     embeddedReportSha256: p.reportSha256 ?? null,

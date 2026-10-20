@@ -207,7 +207,8 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
         pending: ["Pending", "OpenTimestamps proof pending", "Submitted to OpenTimestamps calendars; no Bitcoin attestation yet."],
         anchored: ["Attestation recorded", "Bitcoin attestation recorded", "The proof names Bitcoin block 860000; PROOVRA has not checked it against the Bitcoin main chain."],
         budget_failed: ["Failed", "Bitcoin anchoring failed", "Bitcoin anchoring did not complete for this record."],
-        unavailable: ["Unavailable", "Bitcoin anchoring unavailable", "The OpenTimestamps proof material cannot currently be read."],
+        // AUD-48 (2026-10-20) — the PDF is a snapshot: stated as of issue, never "currently".
+        unavailable: ["Unavailable", "Bitcoin anchoring proof could not be read when this report was issued", "The OpenTimestamps proof material could not be read when this report was issued."],
       } as const;
       for (const [ots, [status, title, sentence]] of Object.entries(cards)) {
         const { input } = layoutVariant({ name: ots, ots: ots as keyof typeof cards });

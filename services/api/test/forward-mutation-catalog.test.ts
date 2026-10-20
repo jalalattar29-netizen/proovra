@@ -37,7 +37,9 @@ describe("AUD-33 forward mutation catalog", () => {
     const ids = new Set(catalog.map((m) => m.id));
     for (const id of ["P12-D", "P12-F", "P12-G"]) expect(ids.has(id), id).toBe(true);
     const phases = new Set(catalog.map((m) => m.phase));
-    for (let p = 1; p <= 12; p += 1) expect(phases.has(`P${p}`), `P${p}`).toBe(true);
+    for (let p = 1; p <= 13; p += 1) expect(phases.has(`P${p}`), `P${p}`).toBe(true);
+    // Phase 13 (2026-10-20): AUD-37/52 and the open findings carry their mutants.
+    for (const id of ["P13-37A", "P13-52A", "P13-29A", "P13-43A", "P13-44A", "P13-48A", "P13-49A", "P13-51A"]) expect(ids.has(id), id).toBe(true);
     expect(new Set(catalog.map((m) => m.id)).size).toBe(catalog.length);
   });
 

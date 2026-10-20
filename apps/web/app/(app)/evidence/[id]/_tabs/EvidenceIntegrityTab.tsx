@@ -38,7 +38,7 @@ import { Camera, FileSignature, History, MapPin, ShieldCheck, type LucideIcon } 
 import { EvidenceCertificationsPanel } from "../components/EvidenceCertificationsPanel";
 import CaptureLocationMapPanel from "../../../../../components/capture-location/CaptureLocationMapPanel";
 import LocationStateNote, { readLocationState } from "../../../../../components/capture-location/LocationStateNote";
-import { evidenceLocationCopy } from "@proovra/shared";
+import { evidenceLocationCopy, objectLockModeLabel } from "@proovra/shared";
 import { useOptionalLocale } from "../../../../providers";
 import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import {
@@ -702,9 +702,10 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             },
             {
               label: "Object Lock retention mode",
-              value: workspace.evidence?.storageObjectLockMode
-                ? String(workspace.evidence.storageObjectLockMode)
-                : "Not asserted (storage immutability not confirmed for this record)",
+              // AUD-47 — the mode in words, never the raw enum.
+              value:
+                objectLockModeLabel(workspace.evidence?.storageObjectLockMode ?? null) ??
+                "Not asserted (storage immutability not confirmed for this record)",
               state: workspace.evidence?.storageObjectLockMode
                 ? "recorded"
                 : "unavailable",

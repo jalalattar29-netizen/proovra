@@ -54,8 +54,7 @@ import {
   outputTerminalReasonCopy,
   type DeliverableStatus,
   type DeliverableStatusReason,
-  type OutputKind,
-} from "@proovra/shared";
+  type OutputKind, evidenceVerificationStatusTone } from "@proovra/shared";
 import { fillReportsCopy, reportsCopyFor, type ReportsCopy } from "@proovra/shared/i18n";
 import {
   readGenerationOutcome,
@@ -1110,11 +1109,8 @@ function outputVerbsFor(row: ArtifactRow): Array<{ kind: OutputKind; action: "GE
 
 /** Verified is the only positive integrity outcome; it alone reads green. */
 function integrityTone(status: string): string {
-  const raw = String(status ?? "").trim().toUpperCase();
-  if (raw === "RECORDED_INTEGRITY_VERIFIED") return "green";
-  if (raw === "FAILED") return "red";
-  if (raw === "REVIEW_REQUIRED") return "amber";
-  return "slate";
+  // AUD-47 (2026-10-20) — THE shared tone, drawn in this page's colours.
+  return { success: "green", danger: "red", warning: "amber", neutral: "slate" }[evidenceVerificationStatusTone(status)];
 }
 
 function ArtifactRowView({

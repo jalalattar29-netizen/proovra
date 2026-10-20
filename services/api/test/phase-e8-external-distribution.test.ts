@@ -196,13 +196,14 @@ describe("E8 Test 2 — external surface inventory", () => {
     expect(row!.notes).toMatch(/DEF-029/);
   });
 
-  it("public-verify row reports ID-shape + per-IP rate limit + no token", () => {
+  it("public-verify row reports the token shape (pvr_ reference or share link), the per-client limit and no publication gate (AUD-48)", () => {
     const row = getExternalSurfaceRecord("public-verify");
     expect(row).toBeTruthy();
-    expect(row!.accessShape).toBe("ID");
-    expect(row!.tokenStorage).toBe("NONE");
+    expect(row!.accessShape).toBe("TOKEN");
+    expect(row!.tokenStorage).toBe("SHA-256");
     expect(row!.rateLimited).toBe(true);
     expect(row!.notes).toMatch(/preview_only/);
+    for (const stale of ["60/60", "PUBLISHED", "UUID), no token"]) expect(row!.notes).not.toContain(stale);
   });
 
   it("share-link row is the STUB placeholder", () => {

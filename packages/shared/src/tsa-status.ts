@@ -166,3 +166,24 @@ export const TSA_CUSTODY_EVENT_HEADLINE: Readonly<Record<TsaProofStatus, string>
   PENDING: "Timestamp pending",
   NOT_REQUESTED: "Timestamp not requested",
 };
+
+/**
+ * AUD-51 (2026-10-20) — THE retained-token repair marker and its ONE reader.
+ * The repair that validates a token the intake had recorded FAILED writes
+ * TIMESTAMP_APPLIED with repair_source = TSA_RETAINED_TOKEN_REPAIR_SOURCE; the
+ * API and the worker both read it here (they each kept a copy).
+ */
+export const TSA_RETAINED_TOKEN_REPAIR_SOURCE = "tsa_kept_token_validated" as const;
+
+export function tsaValidatedFromRetainedToken(
+  custody: ReadonlyArray<{ eventType?: string | null; payload?: unknown }>,
+): boolean {
+  return custody.some(
+    (e) =>
+      e.eventType === "TIMESTAMP_APPLIED" &&
+      Boolean(e.payload) &&
+      typeof e.payload === "object" &&
+      !Array.isArray(e.payload) &&
+      (e.payload as Record<string, unknown>).repair_source === TSA_RETAINED_TOKEN_REPAIR_SOURCE,
+  );
+}

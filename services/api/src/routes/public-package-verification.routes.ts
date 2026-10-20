@@ -39,7 +39,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { PROOVRA_SPAN_NAMES, withProovraSpan } from "../observability/otel.js";
-import { admitPublicVerifyClient, admitPublicVerifyTarget } from "../services/public-verify/public-verify-gate.js";
+import { admitPublicVerifyClient, admitPublicVerifyMiss } from "../services/public-verify/public-verify-gate.js";
 import {
   findPublishedPackageById,
   findPublishedPackageBySha256,
@@ -64,9 +64,12 @@ export async function publicPackageVerificationRoutes(app: FastifyInstance) {
     const parsed = z.string().regex(/^[a-fA-F0-9]{64}$/).safeParse((req.params as { sha256?: string }).sha256);
     if (!parsed.success) return reply.code(404).send(NOT_FOUND);
     const sha = parsed.data.toLowerCase();
-    if (!(await admitPublicVerifyTarget(req, reply, { kind: "package", id: sha }))) return reply;
     const row = await findPublishedPackageBySha256(sha);
-    if (!row) return reply.code(404).send(NOT_FOUND);
+    if (!row) {
+      // AUD-29 — only a miss counts toward the per-identifier bound.
+      if (!(await admitPublicVerifyMiss(req, reply, { kind: "package", id: sha }))) return reply;
+      return reply.code(404).send(NOT_FOUND);
+    }
     return reply.code(200).send(await projectPublicPackageRecord(row));
   });
 
@@ -74,9 +77,11 @@ export async function publicPackageVerificationRoutes(app: FastifyInstance) {
     if (!(await begin(req, reply))) return reply;
     const parsed = z.string().uuid().safeParse((req.params as { packageId?: string }).packageId);
     if (!parsed.success) return reply.code(404).send(NOT_FOUND);
-    if (!(await admitPublicVerifyTarget(req, reply, { kind: "package", id: parsed.data }))) return reply;
     const row = await findPublishedPackageById(parsed.data);
-    if (!row) return reply.code(404).send(NOT_FOUND);
+    if (!row) {
+      if (!(await admitPublicVerifyMiss(req, reply, { kind: "package", id: parsed.data }))) return reply;
+      return reply.code(404).send(NOT_FOUND);
+    }
     return reply.code(200).send(await projectPublicPackageRecord(row));
   });
 }

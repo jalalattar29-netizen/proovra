@@ -324,6 +324,8 @@ test("deriveCanonicalOutputContext encodes snapshot vs live correctly", () => {
   assert.equal(live.liveObservedAtUtc, "2026-02-01T00:00:00.000Z");
   assert.ok(live.liveDeltaMaterials.includes("custodyChain"));
   assert.ok(live.liveDeltaMaterials.includes("otsAnchoring"));
+  // AUD-48 (2026-10-20) — a kept RFC 3161 token can be validated later.
+  assert.ok(live.liveDeltaMaterials.includes("timestampValidation"));
 
   const snap = deriveCanonicalOutputContext(m, "REPORT_SNAPSHOT", {
     snapshotGeneratedAtUtc: "2026-01-02T00:00:00.000Z",

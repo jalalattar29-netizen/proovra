@@ -2930,5 +2930,1145 @@
         ]
       }
     ]
+  },
+  {
+    "id": "P13-29A",
+    "phase": "P13",
+    "name": "a resolved record is refused once many distinct viewers read it",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "    // per-client budget (admitPublicVerifyClient, above).\n",
+    "replace": "    // per-client budget (admitPublicVerifyClient, above).\n    { const rl = await enforceRateLimit({ key: `ratelimit:verify:evidence-clients:${id}`, max: 3, windowSec: 60, bound: \"global\" }); if (!rl.allowed) return reply.code(429).send({}); }\n",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/public-verify-distinct-client-limit.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-29B",
+    "phase": "P13",
+    "name": "a package identifier that resolves to nothing is never bounded",
+    "file": "services/api/src/services/public-verify/public-verify-gate.ts",
+    "find": "  if (r.allowed) return true;\n  refuse(req, reply, target.kind, r.resetAtMs);",
+    "replace": "  return true;\n  refuse(req, reply, target.kind, r.resetAtMs);",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/public-verify-distinct-client-limit.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-37A",
+    "phase": "P13",
+    "name": "a segment stated lost is still expected by the seal",
+    "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+    "find": "  for (const idx of lost) out.delete(idx);",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/uc3-continuous-completeness.integration.test.ts",
+          "-t",
+          "AUD-37"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-37B",
+    "phase": "P13",
+    "name": "an index stated lost may be declared again",
+    "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+    "find": "    throw new DirectCaptureError(\"PART_LOST\");",
+    "replace": "    void 0;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/uc3-continuous-completeness.integration.test.ts",
+          "-t",
+          "AUD-37"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-37C",
+    "phase": "P13",
+    "name": "an index stated lost may be presigned again",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "            if (await isDirectCapturePartLost(tx as never, id, body.partIndex)) {",
+    "replace": "            if ((await isDirectCapturePartLost(tx as never, id, body.partIndex)) && Date.now() < 0) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/uc3-continuous-completeness.integration.test.ts",
+          "-t",
+          "AUD-37"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-37D",
+    "phase": "P13",
+    "name": "a segment whose bytes are stored can be declared lost",
+    "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+    "find": "    if (stored) throw new DirectCaptureError(\"PART_BYTES_PRESENT\");",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/uc3-continuous-completeness.integration.test.ts",
+          "-t",
+          "AUD-37"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-37E",
+    "phase": "P13",
+    "name": "a mocked fix reads as an ordinary recorded location",
+    "file": "packages/shared/src/capture-location.ts",
+    "find": "  const mock = state === \"RECORDED\" && f.providerReportedMock === true;",
+    "replace": "  const mock = false;",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/aud37-mock-location-and-acquisition-source.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-37F",
+    "phase": "P13",
+    "name": "localization drops the mock warning",
+    "file": "packages/shared/src/capture-location.ts",
+    "find": "  const mock = view.state === \"RECORDED\" && view.providerReportedMock === true;",
+    "replace": "  const mock = false;",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/aud37-mock-location-and-acquisition-source.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-37G",
+    "phase": "P13",
+    "name": "the mock flag is not bound into the creation custody event",
+    "file": "services/api/src/services/evidence.service.ts",
+    "find": "              ...(params.gps.providerReportedMock === true ? { providerReportedMock: true } : {}),",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud37-mock-location.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-37H",
+    "phase": "P13",
+    "name": "the report prints a mocked fix as an ordinary location",
+    "file": "services/worker/src/report-v2/build-view-model.ts",
+    "find": "      statusLabel: locationState.providerReportedMock && locationState.detail",
+    "replace": "      statusLabel: false && locationState.detail",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/location-state-report-package.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-37I",
+    "phase": "P13",
+    "name": "mobile stages a manifest without stating its lost segments",
+    "file": "apps/mobile/src/continuous-capture.ts",
+    "find": "    await stateLostSegments(session, reconciliation.missingSequences);",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/aud37-capture-truth.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-37J",
+    "phase": "P13",
+    "name": "mobile sends a mocked fix as an ordinary one",
+    "file": "apps/mobile/app/(stack)/capture.tsx",
+    "find": "        ...(pos.mocked === true ? { providerReportedMock: true } : {})",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/aud37-capture-truth.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-43A",
+    "phase": "P13",
+    "name": "the content digest may be rewritten after the seal",
+    "file": "services/api/prisma/migrations/20281020000000_evidence_sealed_identity_set_once/migration.sql",
+    "find": "  IF (OLD.\"file_sha256\" IS NOT NULL AND",
+    "replace": "  IF (FALSE AND",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud43-sealed-identity.integration.test.ts",
+          "-t",
+          "fileSha256"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-43B",
+    "phase": "P13",
+    "name": "the signature may be rewritten after the seal",
+    "file": "services/api/prisma/migrations/20281020000000_evidence_sealed_identity_set_once/migration.sql",
+    "find": "     OR (OLD.\"signature_base64\" IS NOT NULL AND",
+    "replace": "     OR (FALSE AND",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud43-sealed-identity.integration.test.ts",
+          "-t",
+          "signatureBase64"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-44A",
+    "phase": "P13",
+    "name": "a run that classified nothing reads as storage confirmed",
+    "file": "services/worker/src/report-v2/truth-model.ts",
+    "find": "  return state ?? \"UNAVAILABLE\";",
+    "replace": "  return state ?? \"STORAGE_CONFIRMED\";",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/aud44-storage-truth.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-44B",
+    "phase": "P13",
+    "name": "a recorded lock is a success tone",
+    "file": "services/worker/src/report-v2/truth-model.ts",
+    "find": "    case \"RECORDED\":\n    case \"CONFIGURED\":\n      return \"warning\";",
+    "replace": "    case \"RECORDED\":\n      return \"success\";\n    case \"CONFIGURED\":\n      return \"warning\";",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/aud44-storage-truth.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-44C",
+    "phase": "P13",
+    "name": "a recorded snapshot is immutable again",
+    "file": "services/worker/src/processor.ts",
+    "find": "    storageImmutable: false,\n    storageProtectionSource: \"RECORDED\",",
+    "replace": "    storageImmutable: snapshotMode === \"COMPLIANCE\" && Boolean(snapshotRetainUntil),\n    storageProtectionSource: \"RECORDED\",",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/aud44-storage-immutable-snapshot.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-44D",
+    "phase": "P13",
+    "name": "the court appendix prints Verified again",
+    "file": "services/worker/src/report-v2/build-view-model.ts",
+    "find": "      value: storageVerificationLabelOf(params.evidence.storageProtectionVerification),",
+    "replace": "      value: \"Verified\",",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/aud44-storage-truth.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-47A",
+    "phase": "P13",
+    "name": "an unknown verification status is printed raw",
+    "file": "packages/shared/src/evidence-vocabulary.ts",
+    "find": "  return (EVIDENCE_VERIFICATION_STATUS_LABELS as Record<string, string>)[norm(status)] ?? EVIDENCE_VERIFICATION_STATUS_UNKNOWN;",
+    "replace": "  return (EVIDENCE_VERIFICATION_STATUS_LABELS as Record<string, string>)[norm(status)] ?? String(status ?? \"\");",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/aud47-vocabulary.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-47B",
+    "phase": "P13",
+    "name": "NOT_CHECKED is amber again",
+    "file": "packages/shared/src/verification-matrix.ts",
+    "find": "  NOT_CHECKED: \"neutral\",\n  NOT_APPLICABLE: \"neutral\",\n  UNAVAILABLE: \"neutral\",\n};",
+    "replace": "  NOT_CHECKED: \"warning\" as never,\n  NOT_APPLICABLE: \"neutral\",\n  UNAVAILABLE: \"neutral\",\n};",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/aud47-vocabulary.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-47C",
+    "phase": "P13",
+    "name": "the Object Lock mode is printed raw",
+    "file": "packages/shared/src/evidence-vocabulary.ts",
+    "find": "      return \"Compliance retention lock\";",
+    "replace": "      return \"COMPLIANCE\";",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/aud47-vocabulary.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-47D",
+    "phase": "P13",
+    "name": "a TSA notification carries the provider's raw text",
+    "file": "packages/shared/src/notification-presentation.ts",
+    "find": "        body: f(MSG.tsaBody, { reason: (l === \"en\" ? tsaFailureNote(str(p.code)) : null) ?? MSG.tsaReasonFallback[l] }),",
+    "replace": "        body: f(MSG.tsaBody, { reason: str(p.reason) ?? MSG.tsaReasonFallback[l] }),",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/aud48-live-delta-and-tsa-note.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-47E",
+    "phase": "P13",
+    "name": "mobile reports say a bare 'Verified'",
+    "file": "apps/mobile/src/product/reports.ts",
+    "find": "  return evidenceVerificationStatusLabel(status);",
+    "replace": "  return \"Verified\";",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/reports-rows.render.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-47F",
+    "phase": "P13",
+    "name": "coordinates are printed with trailing zeros again",
+    "file": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/LocationContextCard.tsx",
+    "find": "          value: location.lat != null ? formatCaptureLocationCoordinate(location.lat) : null,",
+    "replace": "          value: location.lat != null ? location.lat.toFixed(6) : null,",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/evidence-location-state.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-48A",
+    "phase": "P13",
+    "name": "TSA validation is not a live-delta category",
+    "file": "packages/shared/src/canonical-evidence-materials.ts",
+    "find": "export const LIVE_DELTA_MATERIALS = Object.freeze([\"custodyChain\", \"otsAnchoring\", \"timestampValidation\"] as const);",
+    "replace": "export const LIVE_DELTA_MATERIALS = Object.freeze([\"custodyChain\", \"otsAnchoring\"] as const);",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/aud48-live-delta-and-tsa-note.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-48B",
+    "phase": "P13",
+    "name": "Public Verify sends the provider's raw TSA text",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "      failureReason: tsaFailureNote(evidence.tsaFailureCode ?? null, Boolean(evidence.tsaFailureReason)),",
+    "replace": "      failureReason: evidence.tsaFailureReason,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud48-public-verify-details.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-48C",
+    "phase": "P13",
+    "name": "a core regression does not name the check",
+    "file": "services/api/src/services/trust-decision-consistency.service.ts",
+    "find": "      label: `Failed since the artifact was issued: ${regressed}`,",
+    "replace": "      label: \"An integrity check failed after the snapshot\",",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/public-verify-authority.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-48D",
+    "phase": "P13",
+    "name": "a check that reads worse is a generic change",
+    "file": "packages/shared/src/snapshot-comparison.ts",
+    "find": "  if (a === b) return \"SAME\";\n  return a > b ? \"ADVANCED\" : \"DECLINED\";",
+    "replace": "  if (a === b) return \"SAME\";\n  return a > b ? \"ADVANCED\" : \"CHANGED\";",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/public-verify-authority.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-48E",
+    "phase": "P13",
+    "name": "the history lists only the latest report",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "    ...issuedReportHistory.map((r) => ({",
+    "replace": "    ...issuedReportHistory.slice(-1).map((r) => ({",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud48-public-verify-details.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-48F",
+    "phase": "P13",
+    "name": "a newer report is never announced to an older link",
+    "file": "services/api/src/services/public-verify-consistency.service.ts",
+    "find": "        ? (params.latestReport?.version ?? 0) > params.linkReportVersion",
+    "replace": "        ? false",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/public-verify-consistency.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-48G",
+    "phase": "P13",
+    "name": "the web history ignores the full history",
+    "file": "apps/web/app/verify/[token]/VerifyRecordSections.tsx",
+    "find": "  if (history.length > 0) {\n",
+    "replace": "  if (false as boolean) {\n",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/public-verify-page-convergence.render.test.tsx",
+          "-t",
+          "AUD-48"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-48H",
+    "phase": "P13",
+    "name": "the TSA note is inferred from times again",
+    "file": "apps/web/app/verify/[token]/VerifyRecordSections.tsx",
+    "find": "              snapshotTimestampState !== \"PASSED\"\n",
+    "replace": "              true\n",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/public-verify-page-convergence.render.test.tsx",
+          "-t",
+          "AUD-48"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-48I",
+    "phase": "P13",
+    "name": "printing shows only the open tab",
+    "file": "apps/web/app/verify/[token]/page.tsx",
+    "find": "  const showTab = (id: TechnicalTabId) => printing || activeTechnicalTab === id;",
+    "replace": "  const showTab = (id: TechnicalTabId) => activeTechnicalTab === id;",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/public-verify-page-convergence.render.test.tsx",
+          "-t",
+          "printing"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-48J",
+    "phase": "P13",
+    "name": "a middleware error fails open again",
+    "file": "apps/web/middleware.ts",
+    "find": "    applyStaticSecurityHeaders(res, req.nextUrl.pathname);\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "node",
+        "args": [
+          "scripts/run-tests.mjs",
+          "verify-capability-noindex"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-48K",
+    "phase": "P13",
+    "name": "an unsealed record answers 'Evidence not signed' again",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "      return reply.code(409).send(PUBLIC_VERIFY_NOT_SEALED_BODY);",
+    "replace": "      return reply.code(404).send({ message: \"Evidence not signed\" });",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud48-public-verify-details.integration.test.ts",
+          "-t",
+          "seal"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-48L",
+    "phase": "P13",
+    "name": "the PDF bakes 'temporarily unavailable' again",
+    "file": "packages/shared/src/ots-anchoring.ts",
+    "find": "  CHAIN_UNAVAILABLE: \"Bitcoin attestation recorded; not independently checked when this report was issued\",\n",
+    "replace": "",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/aud48-report-snapshot-ots-wording.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-48M",
+    "phase": "P13",
+    "name": "a withheld title reads as a placeholder title",
+    "file": "services/api/src/services/public-verify/public-verify-projection.ts",
+    "find": "    if (\"evidenceTitle\" in o) out.evidenceTitle = WITHHELD_BY_DISCLOSURE_POLICY;",
+    "replace": "    if (\"evidenceTitle\" in o) out.evidenceTitle = \"Digital Evidence Record\";",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/public-verify-authority.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-48N",
+    "phase": "P13",
+    "name": "mobile prints live-delta keys",
+    "file": "apps/mobile/src/product/public-verify.ts",
+    "find": "    deltas: liveDeltaMaterialsText(arr(c[\"liveDeltaMaterials\"]).filter((x): x is string => typeof x === \"string\"))",
+    "replace": "    deltas: (arr(c[\"liveDeltaMaterials\"]).filter((x): x is string => typeof x === \"string\")).join(\", \")",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/public-verify-sections.render.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-49A",
+    "phase": "P13",
+    "name": "the package row number reads as a report version",
+    "file": "services/api/src/services/public-verify/public-package-record.service.ts",
+    "find": "    reportVersion: row.reportVersion ?? null,",
+    "replace": "    reportVersion: row.reportVersion ?? row.version,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/public-package-record.integration.test.ts",
+          "-t",
+          "AUD-49"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-49B",
+    "phase": "P13",
+    "name": "checksums sort by the host locale",
+    "file": "services/worker/src/verification-package.ts",
+    "find": "      .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),",
+    "replace": "      .sort((a, b) => a.path.localeCompare(b.path)),",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/aud49-package-vocabulary-determinism.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-49C",
+    "phase": "P13",
+    "name": "the purge custody event forgets the destroyed artifacts",
+    "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+    "find": "        verification: \"ALL_OBJECT_VERSIONS_ABSENT\",\n        destroyedArtifacts,\n",
+    "replace": "        verification: \"ALL_OBJECT_VERSIONS_ABSENT\",\n",
+    "build": [
+      "shared-runtime"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/evidence-destruction-storage.integration.test.ts",
+          "-t",
+          "AUD-49"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-49D",
+    "phase": "P13",
+    "name": "the README stops naming the package format version",
+    "file": "services/worker/src/verification-package.ts",
+    "find": "Package Format Version: ${PACKAGE_FORMAT_VERSION_SEALED} (the layout and seal format of this package)\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/aud49-package-vocabulary-determinism.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-51A",
+    "phase": "P13",
+    "name": "the custody cut-off ignores the recorded sequence",
+    "file": "packages/shared/src/evidence-vocabulary.ts",
+    "find": "  if (typeof recordedThroughSequence === \"number\") return recordedThroughSequence;\n",
+    "replace": "",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/aud51-one-helper-each.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-51B",
+    "phase": "P13",
+    "name": "contradicting stored bytes no longer fail integrity",
+    "file": "packages/shared/src/evidence-vocabulary.ts",
+    "find": "    checks.digestColumnsMatchSignedFingerprint !== false &&\n    !checks.storedBytesContradict\n",
+    "replace": "    checks.digestColumnsMatchSignedFingerprint !== false\n",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/aud51-one-helper-each.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-51C",
+    "phase": "P13",
+    "name": "the report names an item from its storage key",
+    "file": "services/worker/src/processor.ts",
+    "find": "          originalFileName: part.originalFileName,\n        });\n\n        const preview = params.previews?.get(part.id);",
+    "replace": "          originalFileName: part.originalFileName,\n          storageKey: part.storageKey,\n        });\n\n        const preview = params.previews?.get(part.id);",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/aud51-report-item-label.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-52A",
+    "phase": "P13",
+    "name": "a declaration skips the legal check again",
+    "file": "services/api/src/routes/capture-trust.routes.ts",
+    "find": "    \"/v1/capture/direct-sessions/:id/parts/:partIndex/declaration\",\n    { preHandler: requireAuthAndLegal },",
+    "replace": "    \"/v1/capture/direct-sessions/:id/parts/:partIndex/declaration\",\n    { preHandler: requireAuth },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud52-capture-legal-gate.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-52B",
+    "phase": "P13",
+    "name": "a continuous seal skips the legal check again",
+    "file": "services/api/src/routes/capture-trust.routes.ts",
+    "find": "    \"/v1/capture/direct-sessions/:id/continuous-complete\",\n    { preHandler: requireAuthAndLegal },",
+    "replace": "    \"/v1/capture/direct-sessions/:id/continuous-complete\",\n    { preHandler: requireAuth },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud52-capture-legal-gate.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-52C",
+    "phase": "P13",
+    "name": "a viewport capture never reports page mutation",
+    "file": "apps/extension/src/lib/capture.ts",
+    "find": "  const mutated = observed.mutations > 0;",
+    "replace": "  const mutated = false;",
+    "tests": [
+      {
+        "cwd": "apps/extension",
+        "cmd": "node",
+        "args": [
+          "-e",
+          "require('child_process').execSync('node build-test.mjs',{stdio:'inherit'});require('child_process').execSync('node scripts/run-tests.mjs',{stdio:'inherit'})"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-52D",
+    "phase": "P13",
+    "name": "any discard answer is read as nothing saved",
+    "file": "apps/extension/src/lib/preserve-flow.ts",
+    "find": "        if (r?.discarded === true || r?.status === \"DISCARDED\" || r?.status === \"EXPIRED\") {",
+    "replace": "        if (true || r?.discarded === true) {",
+    "tests": [
+      {
+        "cwd": "apps/extension",
+        "cmd": "node",
+        "args": [
+          "-e",
+          "require('child_process').execSync('node build-test.mjs',{stdio:'inherit'});require('child_process').execSync('node scripts/run-tests.mjs',{stdio:'inherit'})"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-52E",
+    "phase": "P13",
+    "name": "a checksum at record creation is silently ignored again",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "    if (body.checksumSha256Base64 !== undefined || body.contentMd5Base64 !== undefined) {",
+    "replace": "    if ((body.checksumSha256Base64 !== undefined || body.contentMd5Base64 !== undefined) && Date.now() < 0) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud52-capture-legal-gate.integration.test.ts",
+          "-t",
+          "checksum"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-52F",
+    "phase": "P13",
+    "name": "the package copies the submitter's label unqualified",
+    "file": "services/worker/src/verification-package.ts",
+    "find": "      sourceLabelBasis: file.sourceLabel ? \"SUBMITTER_TEXT_NOT_VERIFIED\" : null,\n      // Phase D Blocker 2",
+    "replace": "      // Phase D Blocker 2",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/aud52-report-package-truth.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-52G",
+    "phase": "P13",
+    "name": "a backfilled channel reads as recorded at creation",
+    "file": "packages/shared/src/evidence-acquisition.ts",
+    "find": "  return q ? label + \" (\" + q + \")\" : label;",
+    "replace": "  return label;",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/aud52-report-package-truth.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "P13-RC-A",
+    "phase": "P13",
+    "name": "apply runs without the exact confirmation",
+    "file": "services/api/src/scripts/retire-user-evidence.ts",
+    "find": "  if (input.confirmEmail !== input.email) {\n",
+    "replace": "  if (false as boolean) {\n",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/retire-user-evidence.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P13-RC-B",
+    "phase": "P13",
+    "name": "the CLI retires records the user merely owns",
+    "file": "services/api/src/scripts/retire-user-evidence.ts",
+    "find": "    where: { createdByUserId: user.id },",
+    "replace": "    where: { ownerUserId: user.id },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/retire-user-evidence.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
   }
 ]

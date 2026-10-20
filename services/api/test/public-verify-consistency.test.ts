@@ -50,6 +50,22 @@ const report = (anchorSnapshot: unknown) => ({
 });
 
 describe("public verify consistency helpers (2026-10-13)", () => {
+  it("AUD-48: a REPORT link issued for v1 says a newer report exists once v2 is issued (never a dead flag)", () => {
+    const base = {
+      source: "REPORT_SNAPSHOT" as const,
+      trustDecisionSnapshot: buildTrustDecision(),
+      latestVerificationPackage: null,
+      verificationPackageIntegrity: null,
+      currentOts: anchoredNow,
+      otsUpgradedAtUtc: null,
+    };
+    const v2 = { ...report({ otsState: "PENDING" }), version: 2 };
+    expect(buildPublicVerifyConsistencySections({ ...base, latestReport: v2, linkReportVersion: 1 }).liveAnchoring.newerReportAvailable).toBe(true);
+    expect(buildPublicVerifyConsistencySections({ ...base, latestReport: v2, linkReportVersion: 2 }).liveAnchoring.newerReportAvailable).toBe(false);
+    expect(buildPublicVerifyConsistencySections({ ...base, latestReport: v2, linkReportVersion: 1, latestPackageReportVersion: 2 }).liveAnchoring.newerPackageAvailable).toBe(true);
+    expect(buildPublicVerifyConsistencySections({ ...base, latestReport: v2 }).liveAnchoring).not.toHaveProperty("autoRefreshRecommended");
+  });
+
   it("the state a report stated is its anchorSnapshot.otsState; a legacy report reads UNAVAILABLE", () => {
     expect(reportOtsStateOf({ otsState: "PENDING" })).toBe("PENDING");
     expect(reportOtsStateOf({ otsState: "ANCHORED" })).toBe("ANCHORED");
@@ -88,7 +104,6 @@ describe("public verify consistency helpers (2026-10-13)", () => {
       advance: "ATTESTATION_RECORDED_SINCE_ISSUE",
       newerReportAvailable: false,
       newerPackageAvailable: true,
-      autoRefreshRecommended: false,
     });
     // The OTS state lives in storageAndTimestamping.ots, not here.
     for (const key of ["state", "currentOtsStatus", "otsAnchoredAtUtc", "otsProofRecordedAtUtc", "otsBitcoinTxid"]) {

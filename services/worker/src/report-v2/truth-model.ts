@@ -1,4 +1,5 @@
-import { acquisitionRecordedByQualified } from "@proovra/shared";
+import { acquisitionRecordedByQualified, STORAGE_PROTECTION_VERIFICATION_LABELS, VERIFICATION_STATUS_TONES } from "@proovra/shared";
+import type { StorageProtectionVerificationState } from "@proovra/shared";
 import {
   OTS_VERIFICATION_WORDS,
   TSA_RETAINED_TOKEN_STATUS_LABEL,
@@ -55,13 +56,8 @@ export function hasCoreCryptoMaterials(evidence: ReportEvidence): boolean {
  * verification layer in the report: a tone is never read from a raw status
  * word (GRANTED, VERIFIED, SUCCEEDED, FAILED …).
  */
-export const VERIFICATION_STATUS_TONE: Readonly<Record<VerificationStatus, Tone>> = {
-  VERIFIED: "success",
-  FAILED: "danger",
-  NOT_CHECKED: "warning",
-  UNAVAILABLE: "neutral",
-  NOT_APPLICABLE: "neutral",
-};
+// AUD-47 (2026-10-20) — NOT_CHECKED is neutral on every surface (THE shared VERIFICATION_STATUS_TONES): not checked is not a warning.
+export const VERIFICATION_STATUS_TONE: Readonly<Record<VerificationStatus, Tone>> = VERIFICATION_STATUS_TONES;
 
 export function verificationStatusTone(status: VerificationStatus): Tone {
   return VERIFICATION_STATUS_TONE[status];
@@ -113,30 +109,41 @@ export function timestampToneOf(
   return verificationStatusTone(toVerificationStatus(timestampStateOf(decision)));
 }
 
-export function normalizeStorageTone(
-  immutable: boolean | null | undefined,
-  mode: string | null | undefined,
-  retainUntil: string | null | undefined
+/**
+ * AUD-44 (2026-10-20) — THE storage verification state a report states: the
+ * canonical classifier's reading for this run (resolveStorageProtectionVerification,
+ * carried as evidence.storageProtectionVerification). A run that classified
+ * nothing confirmed nothing: UNAVAILABLE. Lock facts on the row are never
+ * re-read here as "verified" — only a successful read of the object is.
+ */
+export function storageVerificationOf(
+  state: StorageProtectionVerificationState | null | undefined,
+): StorageProtectionVerificationState {
+  return state ?? "UNAVAILABLE";
+}
+
+/** AUD-44 — the one wording for that state on every report row. */
+export function storageVerificationLabelOf(
+  state: StorageProtectionVerificationState | null | undefined,
+): string {
+  return STORAGE_PROTECTION_VERIFICATION_LABELS[storageVerificationOf(state)];
+}
+
+/** AUD-44 — the storage tone: success only for a confirmed read. */
+export function storageToneOf(
+  state: StorageProtectionVerificationState | null | undefined,
 ): Tone {
-  const normalizedMode = safe(mode, "").toUpperCase();
-
-  if (
-    immutable &&
-    normalizedMode === "COMPLIANCE" &&
-    safe(retainUntil, "") !== ""
-  ) {
-    return "success";
+  switch (storageVerificationOf(state)) {
+    case "STORAGE_CONFIRMED":
+      return "success";
+    case "RECORDED":
+    case "CONFIGURED":
+      return "warning";
+    case "FAILED":
+      return "danger";
+    default:
+      return "neutral";
   }
-
-  if (immutable || normalizedMode === "GOVERNANCE") {
-    return "warning";
-  }
-
-  if (normalizedMode) {
-    return "danger";
-  }
-
-  return "neutral";
 }
 
 export function buildExecutiveConclusion(decision: ReportTrustDecision): CalloutModel {
@@ -180,31 +187,27 @@ export function buildLegalLimitationShort(): CalloutModel {
 }
 
 export function buildStorageCallout(
-  canonicalMaterials: CanonicalEvidenceMaterials
+  state: StorageProtectionVerificationState | null | undefined
 ): CalloutModel {
-  const tone = normalizeStorageTone(
-    canonicalMaterials.storageState.isProtected,
-    canonicalMaterials.storageState.storageObjectLockMode,
-    canonicalMaterials.storageState.storageObjectLockRetainUntilUtc
-  );
+  const tone = storageToneOf(state);
 
   return {
     title:
       tone === "success"
-        ? "Immutable storage verified"
+        ? STORAGE_PROTECTION_VERIFICATION_LABELS.STORAGE_CONFIRMED
         : tone === "warning"
           ? "Storage protection recorded"
           : tone === "danger"
             ? "Storage protection requires review"
-            : "Storage protection not reported",
+            : "Storage protection not confirmed",
     body:
       tone === "success"
-        ? "This report records immutable-style storage protection consistent with Object Lock COMPLIANCE mode and a recorded retention-until timestamp."
+        ? "The stored object was read when this report was generated and carries Object Lock COMPLIANCE retention in force."
         : tone === "warning"
-          ? "Some storage-protection indicators are recorded, but the report does not fully confirm COMPLIANCE immutable protection."
+          ? "Object Lock COMPLIANCE retention is recorded for the stored object, but this report's read of the object did not confirm it."
           : tone === "danger"
             ? "Storage metadata indicates a protection state that should be reviewed before relying on immutability conclusions."
-            : "No verifiable storage-protection information was included in the report payload.",
+            : "This report could not confirm storage protection for the stored object.",
     tone,
   };
 }
@@ -306,16 +309,12 @@ export function buildReviewSequence(
 }
 
 export function buildIntegrityReadinessSummary(
-  canonicalMaterials: CanonicalEvidenceMaterials
+  canonicalMaterials: CanonicalEvidenceMaterials,
+  storageVerification: StorageProtectionVerificationState | null | undefined
 ): string {
   return [
     timestampStatusLabelOf(canonicalMaterials.trustDecision?.decision),
-    safeBooleanLabel(
-      canonicalMaterials.storageState.isProtected,
-      "Immutable",
-      "Review storage",
-      "Not reported"
-    ),
+    storageVerificationLabelOf(storageVerification),
   ].join(" • ");
 }
 

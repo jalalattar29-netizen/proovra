@@ -34,8 +34,7 @@ import {
   VERIFICATION_STATUS_LABELS,
   type TrustSignal,
   type TrustSignalState,
-  type VerificationStatus,
-} from "@proovra/shared";
+  type VerificationStatus, VERIFICATION_STATUS_TONES } from "@proovra/shared";
 import { appendixAppTone } from "./MetadataRow";
 import { TechnicalDisclosure } from "./TechnicalDisclosure";
 
@@ -58,13 +57,8 @@ const STATE_ICONS: Record<TrustSignalState, LucideIcon> = {
   NOT_APPLICABLE: CircleMinus,
 };
 
-const STATUS_TONE: Record<VerificationStatus, "success" | "danger" | "warning" | "neutral"> = {
-  VERIFIED: "success",
-  FAILED: "danger",
-  NOT_CHECKED: "warning",
-  NOT_APPLICABLE: "neutral",
-  UNAVAILABLE: "neutral",
-};
+// AUD-47 (2026-10-20) — NOT_CHECKED is neutral on every surface (THE shared VERIFICATION_STATUS_TONES): not checked is not a warning.
+const STATUS_TONE: Record<VerificationStatus, "success" | "danger" | "warning" | "neutral"> = VERIFICATION_STATUS_TONES;
 
 function describeSignalStatus(signal: TrustSignal) {
   const status = toVerificationStatus(signal.state);

@@ -458,7 +458,8 @@ test("outputContext renders the signals source, snapshot/live times, deltas and 
   has(r, "Signals source: Live (recomputed at request time)");
   assert.ok(r.texts().some((t) => t.startsWith("Snapshot generated: ")));
   assert.ok(r.texts().some((t) => t.startsWith("Live observed: ")));
-  has(r, "May have advanced since snapshot: custodyChain, otsAnchoring");
+  // AUD-48 (2026-10-20) — labelled, never the keys.
+  has(r, "May have advanced since snapshot: Chain of custody, Bitcoin anchoring");
   has(r, "Public verification reflects the recorded technical state only.");
 });
 
@@ -537,7 +538,9 @@ test("Supporting Technical Signals: status pill, executive badges, reviewer acti
   const r = await render();
   has(r, "Verification Signal Summary");
   has(r, "Supporting Technical Signals");
-  assert.ok(r.byLabel("REPORTED").length === 1, "the web statusTone pill of overview.recordStatus");
+  // AUD-47 (2026-10-20) — the record status in words, never the raw enum.
+  assert.ok(r.byLabel("Reported").length === 1, "the record-status pill of overview.recordStatus");
+  assert.equal(r.byLabel("REPORTED").length, 0);
   assert.ok(r.byLabel("Core Integrity: VERIFIED").length === 1);
   assert.ok(r.byLabel("Bitcoin anchoring: Attestation recorded").length === 1);
   has(r, `Each status is limited to the recorded technical state. ${VERIFICATION_LIMITATION}`);

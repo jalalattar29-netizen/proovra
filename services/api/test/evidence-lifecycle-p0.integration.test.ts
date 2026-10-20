@@ -12,6 +12,7 @@ import type { IntegrationHarness } from "./integration-harness.js";
 // link (the record is published and the link minted on first use).
 import { otsColumnsFor } from "./helpers/ots-proof-bytes.js";
 import { shareLinkFor } from "./helpers/verify-share.js";
+import { tamperSealedEvidence } from "./helpers/sealed-identity-tamper.js";
 
 describe("evidence lifecycle P0 invariants (live PostgreSQL 16)", () => {
   let h: IntegrationHarness;
@@ -232,7 +233,7 @@ describe("evidence lifecycle P0 invariants (live PostgreSQL 16)", () => {
       await prisma.report.create({
         data: { evidenceId: ev.id, version: 1, storageBucket: "fixture-bucket", storageKey: `reports/${ev.id}/v1.pdf`, generatedAtUtc: new Date(), trustDecisionSnapshot: findDecision(before) as never } as never,
       });
-      await prisma.evidence.update({ where: { id: ev.id }, data: { signatureBase64: sign(null, Buffer.from("00".repeat(32), "hex"), privateKey).toString("base64") } as never });
+      await tamperSealedEvidence(prisma, ev.id, { signatureBase64: sign(null, Buffer.from("00".repeat(32), "hex"), privateKey).toString("base64") });
       const res = await h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, ev.id)}` });
       const body = res.body;
       expect(body).toContain('"signatureValid":false');

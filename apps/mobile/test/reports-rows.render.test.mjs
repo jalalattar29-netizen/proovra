@@ -77,7 +77,9 @@ const render = async () => {
 test("each row says its integrity verdict once, its case, and the org's Customer ID", async () => {
   const r = await render();
   // Separate meta items, as the web row renders them (ReportsIndex.tsx:846-895).
-  for (const s of ["Integrity: Verified", "Case: Leaking roof", "Customer: CUST-0042"]) {
+  // AUD-47 (2026-10-20) — the shared words, never a bare "Integrity: Verified".
+  assert.ok(!r.hasText("Integrity: Verified"));
+  for (const s of ["Recorded integrity state verified", "Case: Leaking roof", "Customer: CUST-0042"]) {
     assert.ok(r.hasText(s), `${s} missing: ${r.texts().join(" | ")}`);
   }
   assert.equal(r.byLabel("Customer ID supplied by your organization: CUST-0042").length, 1);

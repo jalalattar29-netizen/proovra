@@ -39,7 +39,8 @@ describe("Phase 2 — public verify response includes canonical outputContext", 
     expect(evidenceRoutesSrc).toContain('outputType: "PUBLIC_VERIFY_LIVE"');
     expect(evidenceRoutesSrc).toContain("isSnapshotOutput: false,");
     expect(evidenceRoutesSrc).toContain("isLiveOutput: true,");
-    expect(evidenceRoutesSrc).toContain('liveDeltaMaterials: ["custodyChain", "otsAnchoring"]');
+    // AUD-48 (2026-10-20) — the shared live-delta list (TSA validation included).
+    expect(evidenceRoutesSrc).toContain("liveDeltaMaterials: [...LIVE_DELTA_MATERIALS],");
   });
 
   it("sources the legal boundary from the shared canonical helper, not a local string", () => {

@@ -23,6 +23,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { bootOps, makeUser, makeWorkspace, seedEvidence, type Ctx } from "./operations-truth-fixtures.js";
+import { tamperSealedEvidence } from "./helpers/sealed-identity-tamper.js";
 
 const HOURS_AGO = (h: number) => new Date(Date.now() - h * 3600_000);
 
@@ -145,7 +146,7 @@ describe("upload-session completion guard (live PostgreSQL 16 + MinIO)", () => {
     expect(await settle(failed.id)).toEqual({ outcome: "REFUSED", reason: "record_not_finalized" });
 
     const noDigest = await finalizedRecord();
-    await c.prisma.evidence.update({ where: { id: noDigest.id }, data: { fileSha256: null } });
+    await tamperSealedEvidence(c.prisma, noDigest.id, { fileSha256: null });
     await session(noDigest.id, "UPLOADING");
     expect(await settle(noDigest.id)).toEqual({ outcome: "REFUSED", reason: "digest_missing" });
 

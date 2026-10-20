@@ -9,7 +9,7 @@ import {
 } from "./evidence-health-cohorts.service.js";
 import { owedOutputNarrowing } from "../billing/owed-output-population.service.js";
 import { liveEvidenceWhere } from "@proovra/shared-runtime";
-import { OTS_ANCHORING_RECORD_SELECT, presentedTsaStatus, resolveRecordOtsAnchoring } from "@proovra/shared";
+import { OTS_ANCHORING_RECORD_SELECT, presentedTsaStatus, resolveRecordOtsAnchoring, resolveTsaProofStatus } from "@proovra/shared";
 
 /**
  * PLATFORM ADMIN — EVIDENCE-HEALTH DRILL-DOWN (ADM-029).
@@ -224,6 +224,9 @@ export async function listAdminEvidenceRecords(
         tsaStatus: true,
         // UC-TRUST-007 — the presented TSA status needs the validation time.
         tsaValidatedAtUtc: true,
+        // AUD-47 (2026-10-20) — THE canonical TSA proof status needs both.
+        tsaTokenBase64: true,
+        tsaFailureCode: true,
         ...OTS_ANCHORING_RECORD_SELECT,
         createdAt: true,
         updatedAt: true,
@@ -310,6 +313,9 @@ export async function listAdminEvidenceRecords(
         // UC-TRUST-007 — an unvalidated legacy token reads
         // RECORDED_NOT_VALIDATED, never a raw "STAMPED".
         tsaStatus: presentedTsaStatus(r) ?? null,
+        // AUD-47 (2026-10-20) — the canonical proof status the table words and
+        // tones (TSA_PROOF_STATUS_LABELS / _TONE), never a raw column word.
+        tsaProofStatus: r.tsaStatus ? resolveTsaProofStatus(r) : null,
         // The resolved verification key — never a raw "ANCHORED" that reads as checked.
         otsStatus: resolveRecordOtsAnchoring(r).verification,
         createdAt: r.createdAt.toISOString(),

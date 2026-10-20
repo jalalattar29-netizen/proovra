@@ -161,6 +161,9 @@ describe("projectPublicVerification — the allowlist", () => {
     expect((body.custodyLifecycle as Record<string, unknown>).accessEvents).toEqual([]);
     expect((body.custodyLifecycle as Record<string, unknown>).accessActivity).toEqual({ count: 2, latestAtUtc: "2026-10-18T00:00:00Z" });
     expect((body.disclosure as Record<string, unknown>).withheldStatement).toBe("Withheld by the record’s disclosure policy");
+    // AUD-48 — a withheld title reads as withheld, never as a placeholder title.
+    expect((body.humanSummary as Record<string, unknown> | null)?.evidenceTitle ?? null).not.toBe("Digital Evidence Record");
+    expect((body.overview as Record<string, unknown>).evidenceTitle).toBe("Withheld by the record’s disclosure policy");
     // No preview is advertised on a page that withholds content.
     expect((body.evidenceContent as { previewPolicy: Record<string, unknown> }).previewPolicy).toMatchObject({ contentVisible: false, previewEnabled: false, downloadableFromVerify: false });
   });
@@ -316,6 +319,46 @@ describe("buildTrustDecisionConsistency — states, never words", () => {
     const r = consistency(issued, now);
     expect(r.reasons.find((x) => x.code === "CORE_INTEGRITY_SIGNALS_CHANGED")?.tone).toBe("danger");
     expect(r.integrityCritical).toBe(true);
+  });
+
+  // AUD-48 (2026-10-20) — a regression since issue is stated AND names the check.
+  const withSignal = (d: TrustDecision, key: string, patch: Record<string, unknown>): TrustDecision => ({
+    ...d,
+    signals: d.signals.map((s) => (s.key === key ? ({ ...s, ...patch } as typeof s) : s)),
+  });
+  it("AUD-48: a core check that fails now is named in the reason", () => {
+    const issued = decision();
+    const now = decision({ signatureVerified: false });
+    const r = consistency(issued, now);
+    const reason = r.reasons.find((x) => x.code === "CORE_INTEGRITY_SIGNALS_CHANGED")!;
+    const label = now.signals.find((x) => x.key === "signature")!.label;
+    expect(reason.label).toContain(label);
+    expect(reason.detail).toContain(label);
+  });
+  it("AUD-48: a check that reads worse without failing is named, never a generic difference", () => {
+    const issued = withSignal(decision(), "custody_chain", { state: "PASSED", status: "passed" });
+    const custody = issued.signals.find((x) => x.key === "custody_chain");
+    expect(custody, "fixture has a custody signal").toBeTruthy();
+    const now = withSignal(issued, "custody_chain", { state: "NOT_CHECKED", status: "not_checked" });
+    const r = consistency(issued, now);
+    expect(r.reasons.map((x) => x.code)).toEqual(["VERIFICATION_REGRESSED"]);
+    expect(r.reasons[0]!.label).toContain(custody!.label);
+    expect(r.tone).toBe("warning");
+  });
+  it("AUD-48: Bitcoin anchoring that reads worse than at issue is stated as a regression", () => {
+    const base = decision();
+    const issued = withSignal(base, "bitcoin_anchoring", { state: "PASSED", status: "passed", otsVerification: "CHAIN_VERIFIED" });
+    const now = withSignal(base, "bitcoin_anchoring", { state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED", status: "not_checked", otsVerification: "ATTESTATION_RECORDED" });
+    const r = consistency(issued, now);
+    const reason = r.reasons.find((x) => x.code === "VERIFICATION_REGRESSED");
+    expect(reason?.label).toContain(base.signals.find((x) => x.key === "bitcoin_anchoring")!.label);
+    expect(r.reasons.map((x) => x.code)).not.toContain("UNKNOWN_DIFFERENCE");
+  });
+  it("AUD-48: a regression is stated even beside another reason", () => {
+    const issued = withSignal(decision(), "custody_chain", { state: "PASSED", status: "passed" });
+    const now = withSignal(issued, "custody_chain", { state: "NOT_CHECKED", status: "not_checked" });
+    const r = consistency(issued, now, { atSnapshot: 5, now: 7 });
+    expect(r.reasons.map((x) => x.code)).toEqual(expect.arrayContaining(["FORENSIC_CUSTODY_CHANGED", "VERIFICATION_REGRESSED"]));
   });
 });
 

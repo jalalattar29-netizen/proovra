@@ -128,7 +128,8 @@ test("the Technical tab states each signal's verification status and the bounded
   }
   assert.ok(!/STRONGLY/.test(text));
   const badge = (key) => [...new Set(r.byTestId(`trust-signal-${key}`)[0].findAll((n) => typeof n.props?.label === "string").map((n) => n.props.label))];
-  assert.deepEqual(badge("core_integrity"), ["VERIFIED"]);
+  // AUD-47 (2026-10-20) — the reader's word, never the code.
+  assert.deepEqual(badge("core_integrity"), ["Verified"]);
   // The shared legacy normalizer reads an old "passed" OpenTimestamps signal as an attestation recorded — never verified.
   assert.deepEqual(badge("bitcoin_anchoring"), ["Attestation recorded"]);
   const summary = r.byTestId("trust-summary")[0].findAll((n) => n.type === "Text").map((n) => [].concat(n.props.children).join(""))[0];

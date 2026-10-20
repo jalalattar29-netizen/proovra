@@ -43,6 +43,10 @@ import {
   hasCaptureLocationMetadata,
   otsAnchoringCopy,
   type OtsState,
+  liveDeltaMaterialsText,
+  VERIFICATION_STATUS_TONES,
+  evidenceVerificationStatusLabel,
+  evidenceRecordStatusLabel,
 } from "@proovra/shared";
 import {
   isOtsSummaryFact,
@@ -456,8 +460,8 @@ export function normalizeEventLabel(value?: string | null): string {
 
 /** verify-v2/_helpers.ts statusTone(...).label. */
 export function verifyStatusPillLabel(status?: string | null): string {
-  const s = (status ?? "").toUpperCase();
-  return s || "AVAILABLE";
+  // AUD-47 (2026-10-20) — THE shared record-status words, never the raw enum.
+  return evidenceRecordStatusLabel(status);
 }
 
 /**
@@ -483,7 +487,9 @@ export function verifyTimestampTone(status?: string | null, proofStatus?: string
     return { label: "Recorded, not validated", tone: "neutral" };
   if (s === "PENDING") return { label: "Pending", tone: "warning" };
   if (s === "FAILED") return { label: "Not validated", tone: "neutral" };
-  if (s) return { label: s.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()), tone: "warning" };
+  // AUD-47 (2026-10-20) — an unrecognized word is never humanized into a
+  // claim, and never amber: nothing is known about it.
+  if (s) return { label: "Timestamp status not recognized", tone: "neutral" };
   return { label: "Unavailable", tone: "neutral" };
 }
 
@@ -582,7 +588,8 @@ function anchoringSignalCard(signal: { state: TrustSignalState; otsVerification?
 
 /** The tone of one verification status. VERIFIED alone is a success. */
 export function verificationStatusTone(status: VerificationStatus): VerifyWebTone {
-  return status === "VERIFIED" ? "success" : status === "FAILED" ? "danger" : status === "NOT_CHECKED" ? "warning" : "neutral";
+  // AUD-47 (2026-10-20) — NOT_CHECKED is neutral on every surface (THE shared VERIFICATION_STATUS_TONES): not checked is not a warning.
+  return VERIFICATION_STATUS_TONES[status] ?? "neutral";
 }
 
 /**
@@ -799,10 +806,14 @@ export function parseVerifyOutputContext(payload: unknown): VerifyOutputContextV
   const outputType = str(c["outputType"]);
   if (!outputType) return null;
   return {
-    sourceLine: `Signals source: ${OUTPUT_SOURCE_LABEL[outputType] ?? outputType}`,
+    // AUD-48 (2026-10-20) — reader words only: an unknown source is named as
+    // such and the live-delta keys are labelled (shared vocabulary).
+    sourceLine: `Signals source: ${OUTPUT_SOURCE_LABEL[outputType] ?? "Unrecognized source"}`,
     snapshotGeneratedAtUtc: str(c["snapshotGeneratedAtUtc"]),
     liveObservedAtUtc: c["isLiveOutput"] === true ? str(c["liveObservedAtUtc"]) : null,
-    deltas: arr(c["liveDeltaMaterials"]).filter((x): x is string => typeof x === "string"),
+    deltas: liveDeltaMaterialsText(arr(c["liveDeltaMaterials"]).filter((x): x is string => typeof x === "string"))
+      .split(", ")
+      .filter(Boolean),
     legalBoundary: str(c["legalBoundary"]),
   };
 }
@@ -1456,19 +1467,9 @@ export const VERIFY_TECHNICAL_COPY = {
 /** The Integrity tab's trust-signal subset (page.tsx:6433). */
 export const VERIFY_INTEGRITY_SIGNAL_KEYS = ["core_integrity", "signature", "trusted_timestamp", "bitcoin_anchoring", "immutable_storage"] as const;
 
+// AUD-47 (2026-10-20) — THE shared label; an unknown code is "not recorded", never humanized raw.
 function verificationStatusDisplayLabel(status?: string | null): string {
-  const code = String(status ?? "").trim().toUpperCase();
-  if (code === "RECORDED_INTEGRITY_VERIFIED") return "Recorded integrity state verified";
-  if (code === "MATERIALS_AVAILABLE") return "Technical materials available";
-  if (code === "REVIEW_REQUIRED") return "Review required";
-  if (code === "FAILED") return "Verification failed";
-  return code
-    ? code
-        .toLowerCase()
-        .split("_")
-        .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-        .join(" ")
-    : "Technical materials available";
+  return evidenceVerificationStatusLabel(status);
 }
 function integrityStatusDisplayLabel(trust: VerifyTrustDecisionView): string {
   const core = trust.signals.find((s) => s.key === "core_integrity");
@@ -1511,11 +1512,17 @@ export function verifyRecordFields(
     ["Evidence Status At Report Generation", str(ov["recordStatus"]) ?? str(hs["recordStatus"])],
     [
       "Verification Status",
-      core?.status === "NOT_CHECKED" ? "Technical materials available" : verificationStatusDisplayLabel(str(ov["verificationStatusCode"]) ?? str(ov["verificationStatus"])),
+      // AUD-47 — a CODE is labelled by the shared table; `verificationStatus` is
+      // already the server's label (from the same table) and is shown as sent.
+      core?.status === "NOT_CHECKED"
+        ? "Technical materials available"
+        : str(ov["verificationStatusCode"])
+          ? verificationStatusDisplayLabel(str(ov["verificationStatusCode"]))
+          : (str(ov["verificationStatus"]) ?? verificationStatusDisplayLabel(null)),
     ],
     ["Integrity Status", trust ? integrityStatusDisplayLabel(trust) : null],
     ["Verification Summary", trust ? trust.summary : null],
-    ["Evidence Title", pick("evidenceTitle") ?? "Digital Evidence Record"],
+    ["Evidence Title", pick("evidenceTitle") ?? "No title recorded"],
     // The permanent reference — never an internal record id ("Evidence ID").
     ["Verification reference", canonicalVerifyReference(d)],
     [

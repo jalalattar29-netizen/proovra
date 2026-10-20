@@ -14,6 +14,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IntegrationHarness } from "../integration-harness.js";
+import { tamperSealedEvidence } from "../helpers/sealed-identity-tamper.js";
 
 /** Failure seams, all off by default. Test doubles, not production switches. */
 const seam = vi.hoisted(() => ({
@@ -581,10 +582,8 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
   /** The record as the signing pipeline writes it: a fingerprint that signs the raw file digest. */
   async function signFingerprintRaw(ev: { evidenceId: string; originalSha: string }) {
     const json = JSON.stringify({ recovery: ev.evidenceId, file: { sha256: ev.originalSha } });
-    await prisma.evidence.update({
-      where: { id: ev.evidenceId },
-      data: { fingerprintCanonicalJson: json, fingerprintHash: createHash("sha256").update(json).digest("hex") } as never,
-    });
+    // AUD-43 — the fixture re-seals outside the application path.
+    await tamperSealedEvidence(prisma, ev.evidenceId, { fingerprintCanonicalJson: json, fingerprintHash: createHash("sha256").update(json).digest("hex") });
   }
   /** The legacy single-part column form: sha256 of the raw hex (what 21 Production records carry). */
   const legacyComposite = (raw: string) => createHash("sha256").update(raw.toLowerCase()).digest("hex");
@@ -618,7 +617,7 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
     await prisma.evidence.update({ where: { id: ev.evidenceId }, data: (await otsPendingFor(ev.evidenceId)) as never });
     expect(await run(await request(ev), 0), "v1 must issue").toBeNull();
     if (opts.digestForm === "LEGACY_COMPOSITE") {
-      await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { fileSha256: legacyComposite(ev.originalSha) } as never });
+      await tamperSealedEvidence(prisma, ev.evidenceId, { fileSha256: legacyComposite(ev.originalSha) });
     }
     const proof = await anchoredProofFor(ev.evidenceId);
     await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { otsProofBase64: proof } as never });
@@ -1180,7 +1179,7 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
     it("AUD-53: the first issuance of a legacy-composite single-part record succeeds", async () => {
       const ev = await signedEvidence();
       await signFingerprintRaw(ev);
-      await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { fileSha256: legacyComposite(ev.originalSha) } as never });
+      await tamperSealedEvidence(prisma, ev.evidenceId, { fileSha256: legacyComposite(ev.originalSha) });
       const id = await request(ev);
       expect(await run(id, 0)).toBeNull();
       expect((await state(ev.evidenceId, id)).req).toMatchObject({ state: "SUCCEEDED" });
@@ -1189,7 +1188,7 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
     it("AUD-53: a digest that is neither the signed raw form nor its legacy composite is still refused as an integrity failure", async () => {
       const ev = await signedEvidence();
       await signFingerprintRaw(ev);
-      await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { fileSha256: "ab".repeat(32) } as never });
+      await tamperSealedEvidence(prisma, ev.evidenceId, { fileSha256: "ab".repeat(32) });
       const id = await request(ev);
       await run(id, 0);
       const after = await state(ev.evidenceId, id);

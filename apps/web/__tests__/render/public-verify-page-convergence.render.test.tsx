@@ -376,7 +376,68 @@ describe("Public Verify page — report v1 issued on a legacy snapshot", () => {
     expect(row.textContent).toContain("Verified — validated from the timestamp token retained at intake");
     expect(row.querySelector("[data-verify-tsa-validated-at]")).toBeTruthy();
     const v1 = document.querySelector("[data-verify-artifact='report-v1']") as HTMLElement;
-    expect(v1.textContent).toMatch(/Report v1, issued before .+, states the trusted timestamp as not validated/);
+    // AUD-48 (2026-10-20) — said only because the report's OWN stored decision
+    // did not state the timestamp as verified (read, never inferred from times).
+    expect(v1.textContent).toMatch(/Report v1 states the trusted timestamp as not validated; it was validated on /);
+  });
+
+  it("AUD-48: no 'stated as not validated' note when the issued report itself stated the timestamp as verified", async () => {
+    const validated = structuredClone(reportV1) as Json & {
+      verificationMatrix: { rows: Array<Record<string, unknown>> };
+      verificationSnapshot: { trustDecisionSnapshot?: { signals?: Array<Record<string, unknown>> } };
+    };
+    validated.verificationMatrix.rows = validated.verificationMatrix.rows.map((row) =>
+      row.key === "tsa_token" ? { ...row, status: "VERIFIED", qualifiers: ["VALIDATED_FROM_RETAINED_TOKEN"], measuredAtUtc: "2026-10-18T15:00:00.000Z" } : row,
+    );
+    const signals = validated.verificationSnapshot.trustDecisionSnapshot?.signals ?? [];
+    validated.verificationSnapshot.trustDecisionSnapshot = {
+      ...(validated.verificationSnapshot.trustDecisionSnapshot ?? {}),
+      signals: [...signals.filter((x) => x.key !== "trusted_timestamp"), { key: "trusted_timestamp", label: "Trusted timestamp", state: "PASSED", status: "passed" }],
+    };
+    answer = () => validated;
+    await mountPage();
+    const v1 = document.querySelector("[data-verify-artifact='report-v1']") as HTMLElement;
+    expect(v1.textContent).not.toMatch(/states the trusted timestamp as not validated/);
+  });
+
+  it("AUD-48: every issued report and package is listed, and a regression since issue is noted beside the snapshot", async () => {
+    const withHistory = structuredClone(reportV1) as Json & { versioning: Record<string, unknown>; trustDecisionConsistency: Record<string, unknown> };
+    withHistory.versioning = {
+      ...withHistory.versioning,
+      history: [
+        { kind: "report", version: 1, reportVersion: 1, issuedAtUtc: "2026-10-18T14:20:00.000Z" },
+        { kind: "package", version: 1, reportVersion: 1, issuedAtUtc: "2026-10-18T14:21:00.000Z" },
+        { kind: "report", version: 2, reportVersion: 2, issuedAtUtc: "2026-10-19T09:00:00.000Z" },
+      ],
+    };
+    withHistory.trustDecisionConsistency = {
+      ...(withHistory.trustDecisionConsistency ?? {}),
+      reasons: [{ code: "VERIFICATION_REGRESSED", label: "Reads worse than when the artifact was issued: Chain of custody", detail: "x", tone: "warning", integrityCritical: false }],
+    };
+    answer = () => withHistory;
+    await mountPage();
+    const history = screen.getByTestId("verify-artifact-history");
+    expect(history.querySelector("[data-verify-artifact='report-v1']")).toBeTruthy();
+    expect(history.querySelector("[data-verify-artifact='package-v1']")).toBeTruthy();
+    expect(history.querySelector("[data-verify-artifact='report-v2']")).toBeTruthy();
+    const v1 = history.querySelector("[data-verify-artifact='report-v1']") as HTMLElement;
+    expect(v1.textContent).toContain("Reads worse than when the artifact was issued: Chain of custody.");
+  });
+
+  it("AUD-48: printing mounts every technical tab, not only the open one", async () => {
+    await mountPage();
+    const panels = () => Array.from(document.querySelectorAll("[role='tabpanel'][id^='verify-tabpanel-']")).map((p) => p.id);
+    expect(panels()).toHaveLength(1);
+    await act(async () => {
+      window.dispatchEvent(new Event("beforeprint"));
+    });
+    expect(panels().sort()).toEqual(
+      ["verify-tabpanel-access", "verify-tabpanel-full-custody", "verify-tabpanel-integrity", "verify-tabpanel-package", "verify-tabpanel-record"].sort(),
+    );
+    await act(async () => {
+      window.dispatchEvent(new Event("afterprint"));
+    });
+    expect(panels()).toHaveLength(1);
   });
 
   it("aggregates access activity: a count and its latest occurrence, no list", async () => {

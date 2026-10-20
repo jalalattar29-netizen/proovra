@@ -26,8 +26,7 @@ import {
   outputNoteShort,
   outputTerminalReasonCopy,
   // RGA-04 — native consumes the SAME shared download-failure authority as web.
-  resolveArtifactDownloadFailure,
-} from "@proovra/shared";
+  resolveArtifactDownloadFailure, evidenceVerificationStatusLabel, evidenceVerificationStatusTone } from "@proovra/shared";
 import type { NewVersionOfferView } from "./evidence-record";
 
 const obj = (v: unknown): Record<string, unknown> =>
@@ -201,11 +200,13 @@ export function readRowOutputs(outputsRaw: unknown): Pick<
   };
 }
 
-/** The web ReportsIndex integrityLabel: the enum said once, without a repeated "Integrity". */
+/**
+ * AUD-47 (2026-10-20) — THE shared verification-status words (the web Reports
+ * page's): RECORDED_INTEGRITY_VERIFIED reads "Recorded integrity state
+ * verified", never a bare "Verified" that claims more than was checked.
+ */
 export function reportIntegrityLabel(status: string): string {
-  const raw = status.trim().toUpperCase();
-  const stripped = raw.replace(/^RECORDED_INTEGRITY_/, "").replace(/^INTEGRITY_/, "");
-  return (stripped || raw).toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return evidenceVerificationStatusLabel(status);
 }
 
 function asAction(v: unknown): ReportOutputAction | null {
@@ -452,10 +453,9 @@ export function lifecycleTone(state: string | null | undefined): ProovraStatusTo
 
 /** Verified is the only positive integrity outcome (web integrityToneAttr). */
 export function integrityTone(status: string): ProovraStatusTone {
-  const raw = status.trim().toUpperCase();
-  if (raw.endsWith("VERIFIED")) return "verified";
-  if (raw.includes("FAIL") || raw.includes("MISMATCH")) return "risk";
-  return "neutral";
+  // AUD-47 (2026-10-20) — by exact value (shared), never endsWith("VERIFIED").
+  const tone = evidenceVerificationStatusTone(status);
+  return tone === "success" ? "verified" : tone === "danger" ? "risk" : tone === "warning" ? "pending" : "neutral";
 }
 
 /** What the row says where a download is not offered (ReportsIndex.tsx:1162-1215). */

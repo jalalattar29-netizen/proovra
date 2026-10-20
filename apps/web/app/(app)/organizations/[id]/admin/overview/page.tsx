@@ -58,6 +58,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
 import { formatUserDate, formatUtcAuditDateTime } from "../../../../../../lib/date";
+import { organizationStatusLabel } from "@proovra/shared";
 import { Card } from "../../../../../../components/ui/Card";
 import { Badge } from "../../../../../../components/ui/Badge";
 import { Button } from "../../../../../../components/ui/Button";
@@ -259,7 +260,7 @@ function Overview() {
           primary={org.kind === "ready" ? org.data.name : loadingOrError(org)}
           secondary={
             org.kind === "ready"
-              ? `${org.data.status} · created ${formatUserDate(org.data.createdAt)}`
+              ? `${organizationStatusLabel(org.data.status)} · created ${formatUserDate(org.data.createdAt)}`
               : null
           }
         />

@@ -319,7 +319,10 @@ describe("Phase IA-TSA-falseFailed — repair-tsa-failed-with-token safety contr
   });
 
   it("custody event payload includes the repair_source forensic marker", () => {
-    expect(SCRIPT).toMatch(/repair_source:\s*"tsa_kept_token_validated"/);
+    // AUD-51 (2026-10-20) — the marker is THE shared constant, whose value is pinned here too.
+    expect(SCRIPT).toMatch(/repair_source:\s*TSA_RETAINED_TOKEN_REPAIR_SOURCE/);
+    const shared = readFileSync(fileURLToPath(new URL("../../../packages/shared/src/tsa-status.ts", import.meta.url)), "utf8");
+    expect(shared).toContain('export const TSA_RETAINED_TOKEN_REPAIR_SOURCE = "tsa_kept_token_validated" as const;');
   });
 
   it("re-issues NO report — the repair is a custody fact, not a new version (Decision C, 2026-09-29)", () => {

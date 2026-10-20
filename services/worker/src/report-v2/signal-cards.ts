@@ -28,6 +28,7 @@ import {
 } from "@proovra/shared";
 
 import type { ReportViewModel } from "./types.js";
+import { REPORT_SNAPSHOT_OTS_LABELS, REPORT_SNAPSHOT_OTS_SENTENCES } from "./ots-presentation.js";
 
 export type SignalCardTone = "success" | "danger" | "warning" | "neutral";
 
@@ -232,13 +233,15 @@ function card(signal: TrustSignal, vm: ReportViewModel): SignalCard {
         label: LABELS[signal.key],
         status: p.status,
         ...toned(p.tone === "success" ? "success" : p.tone === "danger" ? "danger" : "neutral"),
-        title: p.label,
-        sentence: p.sentence,
+        // AUD-48 (2026-10-20) — the PDF is a snapshot: an outage at render
+        // time is stated as of issue (report snapshot wording).
+        title: REPORT_SNAPSHOT_OTS_LABELS[vm.canonicalMaterials.otsState.verification] ?? p.label,
+        sentence: REPORT_SNAPSHOT_OTS_SENTENCES[vm.canonicalMaterials.otsState.verification] ?? p.sentence,
       };
     }
     case "immutable_storage":
       return signal.state === "PASSED"
-        ? verified(signal.key, "Immutable retention verified", "A read of the stored object confirmed Object Lock COMPLIANCE retention with a retain-until date in the future.")
+        ? verified(signal.key, "Immutable retention verified", "A read of the stored object confirmed a compliance retention lock with a retain-until date in the future.")
         : notPassed(signal, word);
     case "custody_chain":
       return signal.state === "PASSED"

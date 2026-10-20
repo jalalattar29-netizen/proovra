@@ -104,9 +104,12 @@ const STATUS_PROGRESS: Readonly<Record<VerificationStatus, number>> = {
  *   ADVANCED   a legitimate improvement (e.g. a kept token validated later,
  *              an attestation independently verified)
  *   REGRESSED  the signal FAILED now and did not then — the only alarm
+ *   DECLINED   AUD-48 (2026-10-20): it reads WORSE than then without failing
+ *              (e.g. a verified check that is no longer checked, an
+ *              independently verified anchor now only recorded)
  *   CHANGED    any other change of state
  */
-export type SignalMovement = "SAME" | "ADVANCED" | "REGRESSED" | "CHANGED";
+export type SignalMovement = "SAME" | "ADVANCED" | "REGRESSED" | "DECLINED" | "CHANGED";
 
 export function signalMovement(
   atIssue: StoredSignalLike | null | undefined,
@@ -120,13 +123,13 @@ export function signalMovement(
   if (before.otsVerification && after.otsVerification) {
     const b = OTS_PROGRESS[before.otsVerification];
     const a = OTS_PROGRESS[after.otsVerification];
-    return a === b ? "SAME" : a > b ? "ADVANCED" : "CHANGED";
+    return a === b ? "SAME" : a > b ? "ADVANCED" : "DECLINED";
   }
   if (before.state === after.state) return "SAME";
   const b = STATUS_PROGRESS[before.status];
   const a = STATUS_PROGRESS[after.status];
   if (a === b) return "SAME";
-  return a > b ? "ADVANCED" : "CHANGED";
+  return a > b ? "ADVANCED" : "DECLINED";
 }
 
 const OTS_STATE_OF_VERIFICATION: Readonly<Record<OtsVerificationKey, OtsState>> = {

@@ -142,16 +142,20 @@ export async function projectPublicPackageRecord(row: Row): Promise<PublicPackag
     disclosureProfile: profile,
     issuanceId: row.issuanceId ?? null,
     issuedWith: siblings.map((s) => ({ packageId: s.id, disclosureProfile: packageProfileLabel(s.disclosureProfile) })),
-    reportVersion: row.reportVersion ?? row.version,
-    issuedAtUtc: (row.generatedAtUtc ?? new Date(0)).toISOString(),
+    // AUD-49 (2026-10-20) — the version of the REPORT this package certifies,
+    // never the package row's own number; and an issue time that was not
+    // recorded is stated as unknown (null), never as 1970-01-01.
+    reportVersion: row.reportVersion ?? null,
+    packageVersion: row.version,
+    issuedAtUtc: row.generatedAtUtc ? row.generatedAtUtc.toISOString() : null,
     packageSha256: row.packageSha256 ?? null,
     packageFormatVersion: row.packageFormatVersion ?? null,
     sealSha256: row.sealSha256 ?? null,
     sealKeyFingerprintSha256: row.sealSigningKeySha256 ?? null,
     sealKey: boundKey ? { ...boundKey, purpose: "PACKAGE_SEAL" } : null,
     keyBinding,
-    supersedes: previous ? { packageId: previous.id, reportVersion: previous.reportVersion ?? previous.version } : null,
-    supersededBy: next ? { packageId: next.id, reportVersion: next.reportVersion ?? next.version } : null,
+    supersedes: previous ? { packageId: previous.id, reportVersion: previous.reportVersion ?? null } : null,
+    supersededBy: next ? { packageId: next.id, reportVersion: next.reportVersion ?? null } : null,
     statement: PUBLIC_PACKAGE_RECORD_STATEMENT,
   };
 }

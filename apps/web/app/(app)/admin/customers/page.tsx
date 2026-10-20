@@ -45,6 +45,9 @@ import { formatUserDate } from "../../../../lib/date";
 // everything. Only the OWNING collection does this: a link from Billing to
 // a customer should return to Billing, not to the customer directory.
 import { detailHrefWithReturn } from "../../../../lib/navigation/adminReturnState";
+import { enterpriseContractStatusLabel, enterpriseContractStatusTone } from "@proovra/shared";
+
+const CONTRACT_BADGE_TONE = { success: "verified", warning: "pending", danger: "risk", neutral: "neutral" } as const;
 
 type OnboardingHealth = "HEALTHY" | "ATTENTION" | "BLOCKED" | "UNKNOWN";
 
@@ -296,8 +299,10 @@ export default function AdminOrganizationsPage() {
         render: (row) =>
           row.contract ? (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <Badge tone={row.contract.status === "ACTIVE" ? "verified" : "risk"}>
-                {row.contract.status}
+              {/* AUD-47 (2026-10-20) — the shared contract words and tones: a
+                  draft is not a risk, and the enum is never printed raw. */}
+              <Badge tone={CONTRACT_BADGE_TONE[enterpriseContractStatusTone(row.contract.status)]}>
+                {enterpriseContractStatusLabel(row.contract.status)}
               </Badge>
               {row.contract.seatCount ? (
                 <Badge tone="neutral" subtle>

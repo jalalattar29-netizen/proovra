@@ -95,6 +95,9 @@ describe("internal-grant rollout — migration state", () => {
       // Verification disclosure policy (2026-10-18) — EXPAND + deterministic in-migration backfill
       // (PUBLISHED -> CONTENT_PREVIEW; hidden OWNER_SHARE links revoked).
       "20281018000000_verification_disclosure_policy",
+      // SEALED IDENTITY SET ONCE (2026-10-20, AUD-43) — one BEFORE UPDATE trigger
+      // refusing to change or clear a sealed evidence column. EXPAND only.
+      "20281020000000_evidence_sealed_identity_set_once",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

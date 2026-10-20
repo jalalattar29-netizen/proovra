@@ -72,7 +72,8 @@ export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): TruthFact 
   const providerCode = /^tsa_provider_|^tsa_unknown_error$|^tsa_token_missing$/.test(String(t.failureCode ?? ""));
   if (s.state === "UNAVAILABLE" && String(presented ?? "").toUpperCase() === "FAILED" && !providerCode) {
     // A token may exist; no validation of it succeeded.
-    return { label: "Not validated", tone: "warn", state: s.state, status: "NOT_CHECKED", measuredAtUtc: null };
+    // AUD-47 (2026-10-20) — NOT_CHECKED is neutral on every surface (THE shared VERIFICATION_STATUS_TONES): not checked is not a warning.
+    return { label: "Not validated", tone: "neutral", state: s.state, status: "NOT_CHECKED", measuredAtUtc: null };
   }
   return {
     label: getTrustLayerStateLabel({ key: "trusted_timestamp", status: TRUST_SIGNAL_STATE_PRESENTATION[s.state].legacyStatus, state: s.state }),

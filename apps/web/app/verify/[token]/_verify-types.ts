@@ -402,7 +402,6 @@ export type VerifyLiveAnchoring = {
   advance?: "NONE" | "PENDING_SINCE_ISSUE" | "ATTESTATION_RECORDED_SINCE_ISSUE" | "CHAIN_VERIFIED_SINCE_ISSUE" | null;
   newerReportAvailable?: boolean | null;
   newerPackageAvailable?: boolean | null;
-  autoRefreshRecommended?: boolean | null;
 } | null;
 
 /** THE record's facts (2026-10-18 contract): the page states them, never derives them. */
@@ -443,6 +442,10 @@ export type VerifyDisclosure = {
 };
 
 export type VerifyVersioning = {
+  /** AUD-48 — every issued report and published package, oldest first. */
+  history?: Array<{ kind?: "report" | "package" | null; version?: number | null; reportVersion?: number | null; issuedAtUtc?: string | null }> | null;
+  /** AUD-48 — the report version the link opening this page was issued for. */
+  linkReportVersion?: number | null;
   latestReportVersion?: number | null;
   latestReportGeneratedAtUtc?: string | null;
   verificationPackageVersion?: number | null;
@@ -605,11 +608,9 @@ export type VerifyResponse = {
   custodyDisplayCounts?: {
     forensicAtReportGeneration?: number | null;
     currentForensicEvents?: number | null;
-    currentForensic?: number | null;
     accessAfterReportGeneration?: number | null;
     currentAccessEvents?: number | null;
     totalDisplayedEvents?: number | null;
-    totalDisplayedNow?: number | null;
     reportGeneratedAtUtc?: string | null;
   } | null;
   overview?: VerifyOverview | null;

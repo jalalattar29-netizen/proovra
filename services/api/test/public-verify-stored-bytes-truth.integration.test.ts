@@ -23,6 +23,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { shareLinkFor } from "./helpers/verify-share.js";
+import { tamperSealedEvidence } from "./helpers/sealed-identity-tamper.js";
 
 type Recheck = typeof import("../../worker/src/integrity-recheck.js");
 type WorkerStorage = typeof import("../../worker/src/storage.js");
@@ -249,7 +250,7 @@ describe("Public Verify — stored-bytes truth against a real object store (live
     const evil = Buffer.from("SUBSTITUTED-CONSISTENTLY");
     await storage.putObjectBuffer({ bucket: BUCKET, key: ev.key, body: evil, contentType: "application/octet-stream" });
     // An insider makes the unsigned column agree with the substituted bytes.
-    await prisma.evidence.update({ where: { id: ev.id }, data: { fileSha256: sha(evil) } });
+    await tamperSealedEvidence(prisma, ev.id, { fileSha256: sha(evil) });
 
     const res = await verify(ev.id, "81.2.70.5");
     expect(res.statusCode, res.body).toBe(200);

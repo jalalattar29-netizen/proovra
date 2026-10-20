@@ -7,6 +7,9 @@ import type { ReactNode } from "react";
  * `X-Robots-Tag` for these paths; this meta tag covers every environment.
  */
 export const metadata: Metadata = {
+  // AUD-48 (2026-10-20) — the tab names what the page is (never the record's
+  // title, which may be withheld), instead of the site default.
+  title: "Verify a PROOVRA record",
   robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false, noarchive: true } },
 };
 

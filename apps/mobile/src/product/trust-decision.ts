@@ -18,8 +18,7 @@ import {
   readStoredTrustDecision,
   toVerificationStatus,
   type TrustSignalState,
-  type VerificationStatus,
-} from "@proovra/shared";
+  type VerificationStatus, VERIFICATION_STATUS_LABELS } from "@proovra/shared";
 import { otsVerificationFromAnchoringBucket, otsVerificationFromTrustSignal, type OtsVerificationKey } from "./ots-anchoring";
 
 type Obj = Record<string, unknown>;
@@ -79,9 +78,10 @@ export function projectTrustDecision(rw: unknown): TrustDecision | null {
 }
 
 /** The status word and its native tone. "VERIFIED" is reserved for a PASSED check. */
-export function verificationStatusBadge(status: VerificationStatus): { label: VerificationStatus; tone: "verified" | "pending" | "risk" | "neutral" } {
-  const tone = status === "VERIFIED" ? "verified" : status === "FAILED" ? "risk" : status === "NOT_CHECKED" ? "pending" : "neutral";
-  return { label: status, tone };
+export function verificationStatusBadge(status: VerificationStatus): { label: string; tone: "verified" | "pending" | "risk" | "neutral" } {
+  // AUD-47 (2026-10-20) — NOT_CHECKED is neutral on every surface (THE shared VERIFICATION_STATUS_TONES): not checked is not a warning. The label is the reader's word, never the code.
+  const tone = status === "VERIFIED" ? "verified" : status === "FAILED" ? "risk" : "neutral";
+  return { label: VERIFICATION_STATUS_LABELS[status] ?? status, tone };
 }
 
 export const TRUST_STATUS_BOUNDARY =

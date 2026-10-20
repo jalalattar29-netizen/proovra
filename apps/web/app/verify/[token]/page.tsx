@@ -27,6 +27,7 @@ import {
   readStoredTrustDecision,
   hasCaptureLocationMetadata,
   isAccessCustodyEventType,
+  liveDeltaMaterialsText,
   maskPublicEmailsInText,
   otsBoundaryFor,
   readOtsAnchoringView,
@@ -87,7 +88,6 @@ import type {
   TechnicalTabId,
   VerifyTsa,
 } from "./_verify-types";
-import { shouldAutoPollPublicVerify } from "./public-verify-consistency";
 import { VERIFY_BRAND, VERIFY_FONT, VERIFY_TYPO } from "./_verify-theme";
 import {
   VerificationMatrixGrid,
@@ -732,15 +732,16 @@ function OutputContextBadge({
     INTERNAL_OPERATIONAL_PROJECTION: "Operational projection",
     OFFLINE_PACKAGE_REVIEW: "Offline package review",
   };
-  const friendlySource =
-    sourceLabel[outputContext.outputType] ?? outputContext.outputType;
+  // AUD-48 (2026-10-20) — reader-facing words only: an unknown source is
+  // named as such, times are formatted, and live-delta keys are labelled.
+  const friendlySource = sourceLabel[outputContext.outputType] ?? "Unrecognized source";
   const snapAt = outputContext.snapshotGeneratedAtUtc
-    ? new Date(outputContext.snapshotGeneratedAtUtc).toISOString()
+    ? formatDateTime(outputContext.snapshotGeneratedAtUtc)
     : null;
   const liveAt = outputContext.liveObservedAtUtc
-    ? new Date(outputContext.liveObservedAtUtc).toISOString()
+    ? formatDateTime(outputContext.liveObservedAtUtc)
     : null;
-  const deltas = outputContext.liveDeltaMaterials ?? [];
+  const deltas = liveDeltaMaterialsText(outputContext.liveDeltaMaterials ?? []);
   return (
     <div
       data-testid="output-context-badge"
@@ -786,7 +787,7 @@ function OutputContextBadge({
       {deltas.length > 0 ? (
         <span style={{ color: VERIFY_BRAND.muted }}>
           <strong>May have advanced since snapshot:</strong>{" "}
-          {deltas.join(", ")}
+          {deltas}
         </span>
       ) : null}
     </div>
@@ -958,6 +959,20 @@ export default function VerifyPage() {
   const [outputContext, setOutputContext] = useState<VerifyResponse["outputContext"]>(null);
   const [refreshingAnchoring, setRefreshingAnchoring] = useState(false);
   const [activeTechnicalTab, setActiveTechnicalTab] = useState<TechnicalTabId>("record");
+  // AUD-48 (2026-10-20) — a printed page carries EVERY technical tab, not only
+  // the one that happened to be open: each panel mounts while printing.
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    const on = () => setPrinting(true);
+    const off = () => setPrinting(false);
+    window.addEventListener("beforeprint", on);
+    window.addEventListener("afterprint", off);
+    return () => {
+      window.removeEventListener("beforeprint", on);
+      window.removeEventListener("afterprint", off);
+    };
+  }, []);
+  const showTab = (id: TechnicalTabId) => printing || activeTechnicalTab === id;
   const [forensicMode, setForensicMode] = useState(false);
 
   const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1038,14 +1053,10 @@ export default function VerifyPage() {
           setError(null);
         }
 
-        if (shouldAutoPollPublicVerify(data as VerifyResponse)) {
-          clearPolling();
-          pollingTimerRef.current = setTimeout(() => {
-            void fetchVerify({ background: true });
-          }, 30000);
-        } else {
-          clearPolling();
-        }
+        // AUD-48 (2026-10-20) — no automatic re-poll: the API never
+        // recommended one (the flag was always false), so the branch could not
+        // run. The reader refreshes explicitly.
+        clearPolling();
 
         if (manual) {
           addToast("Anchoring status refreshed", "info");
@@ -1063,7 +1074,9 @@ export default function VerifyPage() {
               ? "WITHDRAWN"
               : stateCode === "VERIFICATION_RECORD_TEMPORARILY_UNAVAILABLE"
                 ? "TEMPORARILY_UNAVAILABLE"
-                : (err as { statusCode?: number } | null)?.statusCode === 404 &&
+                : stateCode === "VERIFICATION_RECORD_NOT_SEALED"
+                  ? "NOT_SEALED"
+                  : (err as { statusCode?: number } | null)?.statusCode === 404 &&
                     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(params.token))
                   ? // An old record-id link: the API answers the same 404 as for
                     // anything unknown (anti-enumeration); the page says what it is.
@@ -1491,6 +1504,7 @@ export default function VerifyPage() {
                 tsaRow={matrixRow("tsa_token")}
                 canonicalIssuedAtUtc={canonicalIssuedAtUtc}
                 forensicEvents={forensicTimeline}
+                consistencyReasons={data.trustDecisionConsistency?.reasons ?? []}
               />
 
               {hasCaptureLocation && captureContext ? (
@@ -1633,7 +1647,7 @@ export default function VerifyPage() {
 
                 <VerifyTabs tabs={TECHNICAL_TABS} active={activeTechnicalTab} onChange={setActiveTechnicalTab} label="Technical review materials" />
 
-                {activeTechnicalTab === "record" ? (
+                {showTab("record") ? (
                   <VerifyTabPanel id="record">
                     <div style={{ ...BRONZE_RAIL_STYLE, padding: 16, ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
                       Record metadata as returned for this page. It identifies the preserved record and is separate
@@ -1649,7 +1663,7 @@ export default function VerifyPage() {
                   </VerifyTabPanel>
                 ) : null}
 
-                {activeTechnicalTab === "integrity" ? (
+                {showTab("integrity") ? (
                   <VerifyTabPanel id="integrity">
                     {verificationMatrix ? (
                       <VerificationMatrixGrid
@@ -1775,7 +1789,7 @@ export default function VerifyPage() {
                   </VerifyTabPanel>
                 ) : null}
 
-                {activeTechnicalTab === "package" ? (
+                {showTab("package") ? (
                   <VerifyTabPanel id="package">
                     <PackageIntegrityCard integrity={data.verificationPackageIntegrity ?? null} />
                     <div style={{ ...BRONZE_RAIL_STYLE, padding: 16, display: "grid", gap: 8 }}>
@@ -1790,7 +1804,7 @@ export default function VerifyPage() {
                   </VerifyTabPanel>
                 ) : null}
 
-                {activeTechnicalTab === "full-custody" ? (
+                {showTab("full-custody") ? (
                   <VerifyTabPanel id="full-custody">
                     <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
                       {typeof data.custodyLifecycle?.forensicEventCount === "number"
@@ -1824,7 +1838,7 @@ export default function VerifyPage() {
                   </VerifyTabPanel>
                 ) : null}
 
-                {activeTechnicalTab === "access" ? (
+                {showTab("access") ? (
                   <VerifyTabPanel id="access">
                     <AccessActivitySummary activity={data.custodyLifecycle?.accessActivity ?? null} />
                   </VerifyTabPanel>

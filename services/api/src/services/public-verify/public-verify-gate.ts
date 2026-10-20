@@ -11,9 +11,13 @@
  *     on the canonical resolved client, never raw `req.ip` (PHASE 13 §1), and
  *     SHARED by every Public Verify read: a client's record lookups and package
  *     lookups draw on the same budget.
- *   Layer 2 (per target): DISTINCT CLIENTS per window for one record or one
- *     package (ET-PKG-17) — a rotating-IP enumeration of one target is bounded
- *     without letting two clients lock legitimate viewers out.
+ *   Layer 2 (per MISSED target): DISTINCT CLIENTS per window that asked for
+ *     one package identifier that resolves to nothing — a rotating-IP probe of
+ *     one identifier is bounded. AUD-29 (2026-10-20): it never applies to a
+ *     target that RESOLVED. A record or package shared widely is read by many
+ *     distinct viewers at once; counting them let a burst of viewers (or 60
+ *     addresses an attacker controls) lock everyone else out of a real page.
+ *     A resolved read is bounded by each client's own budget only.
  *
  * Both budgets are global across replicas (UC-SEC-006). Logs carry the bucket
  * and timing only — never the client address (the span rule of Public Verify).
@@ -39,7 +43,7 @@ export function getPublicVerifyClientLimit() {
   };
 }
 
-/** Per-target distinct-client limit (VERIFY_RATE_LIMIT_PER_EVIDENCE_*). */
+/** Per-missed-target distinct-client limit (VERIFY_RATE_LIMIT_PER_EVIDENCE_*). */
 export function getPublicVerifyTargetLimit() {
   return {
     max: readPositiveIntEnv("VERIFY_RATE_LIMIT_PER_EVIDENCE_MAX", 60),
@@ -76,27 +80,25 @@ export async function admitPublicVerifyClient(req: FastifyRequest, reply: Fastif
 }
 
 /**
- * Layer 2. Returns false (and has sent the 429) when too many distinct clients
- * asked for this one target in the window. Runs AFTER validation, so
- * unparseable input never consumes a target slot.
+ * Layer 2. Called ONLY when a valid package identifier resolved to nothing.
+ * Returns false (and has sent the 429) when too many distinct clients missed
+ * on this one identifier in the window; the caller otherwise sends its 404.
+ * A resolved package or record never reaches it (AUD-29).
  */
-export async function admitPublicVerifyTarget(
+export async function admitPublicVerifyMiss(
   req: FastifyRequest,
   reply: FastifyReply,
-  target: { kind: "evidence" | "package"; id: string },
+  target: { kind: "package"; id: string },
 ): Promise<boolean> {
   const limit = getPublicVerifyTargetLimit();
   const r = await enforceDistinctClientLimit({
-    key:
-      target.kind === "evidence"
-        ? `ratelimit:verify:evidence-clients:${target.id}`
-        : `ratelimit:verify:package-clients:${target.id}`,
+    key: `ratelimit:verify:package-misses:${target.id}`,
     member: trustedClientIpKey(req),
     max: limit.max,
     windowSec: limit.windowSec,
     bound: "global",
   });
   if (r.allowed) return true;
-  refuse(req, reply, target.kind, r.resetAtMs, target.kind === "evidence" ? { evidenceId: target.id } : {});
+  refuse(req, reply, target.kind, r.resetAtMs);
   return false;
 }

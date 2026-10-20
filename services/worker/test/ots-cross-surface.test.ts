@@ -33,6 +33,7 @@ import { chainColumnsFor, type ChainFixtureColumns } from "./fixtures/ots-chain-
 import {
   otsStatusWordFor,
   otsVerificationLabelFor,
+  REPORT_SNAPSHOT_OTS_LABELS,
   otsVerificationWordFor,
   reportOtsAnchoring,
 } from "../src/report-v2/ots-presentation.js";
@@ -155,7 +156,11 @@ describe("one OpenTimestamps state on every surface", () => {
       expect(report.state).toBe(c.expected);
       expect(report.verification).toBe(c.verification);
       expect(otsVerificationWordFor(report.verification)).toBe(OTS_VERIFICATION_WORDS[c.verification]);
-      expect(otsVerificationLabelFor(report.verification)).toBe(client.label);
+      // AUD-48 (2026-10-20) — the report is a snapshot: the live wording, except
+      // that an outage at render time is stated as of issue, never as
+      // "temporarily unavailable" / "currently" in an immutable PDF.
+      expect(otsVerificationLabelFor(report.verification)).toBe(REPORT_SNAPSHOT_OTS_LABELS[report.verification] ?? client.label);
+      expect(otsVerificationLabelFor(report.verification)).not.toMatch(/temporarily|currently/i);
       // The lifecycle word (state only) is still the shared table's.
       expect(otsStatusWordFor(report.state)).toBe(OTS_STATE_WORDS[c.expected]);
 

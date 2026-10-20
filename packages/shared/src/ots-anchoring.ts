@@ -1062,3 +1062,24 @@ export function readOtsAnchoringView(value: unknown, locale: string | null | und
     chain,
   };
 }
+
+/**
+ * AUD-48 (2026-10-20) — a report or package is an immutable SNAPSHOT: an
+ * operational outage at render time ("temporarily unavailable", "cannot
+ * currently be read") would become permanent text. Issued artifacts state it
+ * as of issue; live surfaces keep the live wording above. The rendered-report
+ * gate reads this table, so the PDF and the gate agree.
+ */
+export const OTS_REPORT_SNAPSHOT_LABELS: Readonly<Partial<Record<OtsVerificationKey, string>>> = Object.freeze({
+  CHAIN_UNAVAILABLE: "Bitcoin attestation recorded; not independently checked when this report was issued",
+  UNAVAILABLE: "Bitcoin anchoring proof could not be read when this report was issued",
+});
+export const OTS_REPORT_SNAPSHOT_SENTENCES: Readonly<Partial<Record<OtsVerificationKey, string>>> = Object.freeze({
+  CHAIN_UNAVAILABLE:
+    "The Bitcoin attestation was recorded; the independent check against the Bitcoin main chain could not be completed when this report was issued.",
+  UNAVAILABLE: "The OpenTimestamps proof material could not be read when this report was issued.",
+});
+/** The label an issued artifact states for a verification key. */
+export function otsReportVerificationLabel(key: OtsVerificationKey): string {
+  return OTS_REPORT_SNAPSHOT_LABELS[key] ?? OTS_VERIFICATION_LABELS[key];
+}

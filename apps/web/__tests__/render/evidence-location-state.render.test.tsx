@@ -120,7 +120,9 @@ describe("technical appendix Location card", () => {
   it("states the canonical label and shows coordinates only when recorded", () => {
     const a = render(<LocationContextCard location={RECORDED_BLOCK as never} locationState={served({ lat: 52.52, lng: 13.405 })} />);
     expect(a.container.textContent).toContain("Location recorded");
-    expect(a.container.textContent).toContain("52.520000");
+    // AUD-47 (2026-10-20) — THE shared coordinate format (six places, trailing zeros trimmed).
+    expect(a.container.textContent).toContain("52.52");
+    expect(a.container.textContent).not.toContain("52.520000");
     a.unmount();
     const b = render(<LocationContextCard location={null} locationState={served({ requestOutcome: "DENIED" })} />);
     expect(b.container.textContent).toContain("Location not shared");

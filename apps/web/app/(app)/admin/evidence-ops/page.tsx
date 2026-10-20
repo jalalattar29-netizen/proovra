@@ -658,7 +658,7 @@ export default function AdminEvidenceOpsPage() {
                 label="TSA failures"
                 value={snapshot.preservation.tsaFailures}
                 sense="problem"
-                note="Evidence with tsaStatus = FAILED."
+                note="Records whose trusted timestamp was not obtained or failed validation."
               />
               <MetricCard
                 label="Bitcoin anchoring failures"

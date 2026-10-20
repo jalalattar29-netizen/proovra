@@ -147,6 +147,14 @@ import {
   OTS_VERIFICATION_WORDS,
   otsChainRecordOf,
   type OtsVerificationKey,
+  LIVE_DELTA_MATERIALS,
+  tsaFailureNote,
+  tsaValidatedFromRetainedToken,
+  evidenceVerificationStatusLabel,
+  overallIntegrityOf,
+  buildCustodyDisplayCounts,
+  custodyCutoffSequence,
+  splitCustodyAtCutoff,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -309,7 +317,8 @@ import {
 import { bump as bumpOpsMetric } from "@proovra/shared-runtime/ops";
 import { verifyJwt } from "../services/jwt.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
-import { admitPublicVerifyClient, admitPublicVerifyTarget } from "../services/public-verify/public-verify-gate.js";
+import { admitPublicVerifyClient } from "../services/public-verify/public-verify-gate.js";
+import { readVerificationViewCounts } from "../services/public-verify/view-counts.service.js";
 // Phase A.1D — explicit retry/regenerate path for report artifacts.
 // The same enqueue function the evidence-complete service already uses
 // on first finalize, surfaced as an audited owner-only mutation.
@@ -901,6 +910,14 @@ type PublicVerifyVersioning = {
   verificationPackageVersion: number | null;
   verificationPackageGeneratedAtUtc: string | null;
   reviewerSummaryVersion: number | null;
+  /**
+   * AUD-48 (2026-10-20) — EVERY issued report and published package, oldest
+   * first (never only the latest): kind, version, the report version a
+   * package certifies, and when it was issued. No identifiers.
+   */
+  history: Array<{ kind: "report" | "package"; version: number; reportVersion: number | null; issuedAtUtc: string | null }>;
+  /** AUD-48 — the report version the link opening this page was issued for. */
+  linkReportVersion: number | null;
 };
 
 type PublicVerificationPackageIntegrity = {
@@ -1633,6 +1650,13 @@ const CANONICAL_STATE_BODIES = {
   },
 } as const satisfies Record<Exclude<CanonicalVerificationStatus, "AVAILABLE">, { code: string; message: string }>;
 
+/** AUD-48 — a resolved record with no recorded digest and signature. */
+const PUBLIC_VERIFY_NOT_SEALED_BODY = {
+  code: "VERIFICATION_RECORD_NOT_SEALED",
+  message:
+    "This record has no recorded seal (content digest and signature), so there is nothing PROOVRA can verify on this page yet.",
+} as const;
+
 const CANONICAL_STATE_HTTP: Readonly<Record<Exclude<CanonicalVerificationStatus, "AVAILABLE">, number>> = {
   PURGED: 410,
   WITHDRAWN: 410,
@@ -1995,18 +2019,8 @@ function mapRecordStatusLabel(status: prismaPkg.EvidenceStatus | string): string
 function mapVerificationStatusLabel(
   status: prismaPkg.VerificationStatus | string | null | undefined
 ): string {
-  switch (String(status ?? "").toUpperCase()) {
-    case "RECORDED_INTEGRITY_VERIFIED":
-      return "Recorded integrity state verified";
-    case "MATERIALS_AVAILABLE":
-      return "Technical materials available";
-    case "REVIEW_REQUIRED":
-      return "Review required";
-    case "FAILED":
-      return "Verification failed";
-    default:
-      return "Verification status not recorded";
-  }
+  // AUD-47 (2026-10-20) — THE shared vocabulary (@proovra/shared evidence-vocabulary).
+  return evidenceVerificationStatusLabel(status);
 }
 
 function mapAuthProviderLabel(
@@ -2258,17 +2272,7 @@ function otsAnchoringInputFor(
  * this marker when it validates a token the intake had recorded FAILED. Read
  * from the chain, never inferred from times or statuses.
  */
-function tsaValidatedFromRetainedToken(
-  custodyEvents: ReadonlyArray<{ eventType: string; payload: unknown }>,
-): boolean {
-  return custodyEvents.some(
-    (e) =>
-      e.eventType === "TIMESTAMP_APPLIED" &&
-      Boolean(e.payload) &&
-      typeof e.payload === "object" &&
-      (e.payload as Record<string, unknown>).repair_source === "tsa_kept_token_validated",
-  );
-}
+// AUD-51 (2026-10-20) — THE shared reader (@proovra/shared tsaValidatedFromRetainedToken).
 
 function liveTrustFactsFor(
   evidence: {
@@ -4758,7 +4762,9 @@ function buildPublicVerifyOverview(params: {
       timestampStatus: params.timestampStatus,
       trustDecision: params.trustDecision ?? null,
     }),
-    evidenceTitle: resolveEvidenceTitle(params.evidence.title),
+    // AUD-48 (2026-10-20) — no title recorded is said so, never as the
+    // "Digital Evidence Record" placeholder presented as the record's title.
+    evidenceTitle: params.evidence.title?.trim() ? resolveEvidenceTitle(params.evidence.title) : "No title recorded",
     contentStructure: params.contentSummary?.structure ?? null,
     contentCompositionSummary: buildContentCompositionSummary(
   params.contentSummary
@@ -9588,9 +9594,7 @@ return {
           latestReport,
           latestVerificationPackage,
           viewerCases,
-          publicVerifyCount,
-          lastPublicVerify,
-          authenticatedVerifyCount,
+          viewCounts,
           reportDownloadCount,
           verificationPackageDownloadCount,
           // Phase DISCUSSION-CAPABILITY-FIX — capability inputs.
@@ -9669,6 +9673,8 @@ return {
               verificationStatusSnapshot: true,
               displayTitleSnapshot: true,
               itemCountSnapshot: true,
+              // AUD-51 — the custody cut-off the report recorded.
+              custodyThroughSequence: true,
             },
           }),
           prisma.verificationPackage.findFirst({
@@ -9690,26 +9696,8 @@ return {
           // the canonical case-access rule), not just the earliest link read
           // without any access check.
           resolveViewerCasesForEvidence(ownerUserId, id),
-          prisma.verificationView.count({
-            where: {
-              evidenceId: id,
-              viewerType: prismaPkg.VerificationViewerType.PUBLIC,
-            },
-          }),
-          prisma.verificationView.findFirst({
-            where: {
-              evidenceId: id,
-              viewerType: prismaPkg.VerificationViewerType.PUBLIC,
-            },
-            orderBy: { createdAt: "desc" },
-            select: { createdAt: true },
-          }),
-          prisma.verificationView.count({
-            where: {
-              evidenceId: id,
-              viewerType: prismaPkg.VerificationViewerType.AUTHENTICATED,
-            },
-          }),
+          // AUD-51 (2026-10-20) — THE view counts, one read.
+          readVerificationViewCounts(id),
           prisma.custodyEvent.count({
             where: {
               evidenceId: id,
@@ -10174,12 +10162,10 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
 
         const reportGeneratedAtUtc =
           latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null;
-        const forensicEventsAtReportGeneration = reportGeneratedAtUtc
-          ? forensicCustodyEvents.filter((ev) => ev.atUtc <= reportGeneratedAtUtc)
-          : forensicCustodyEvents;
-        const accessEventsAfterReportGeneration = reportGeneratedAtUtc
-          ? accessCustodyEvents.filter((ev) => ev.atUtc > reportGeneratedAtUtc)
-          : accessCustodyEvents;
+        // AUD-51 (2026-10-20) — the cut-off is a SEQUENCE (shared), never a time.
+        const custodyCutoff = custodyCutoffSequence(allCustodyEvents, reportGeneratedAtUtc, latestReport?.custodyThroughSequence ?? null);
+        const forensicEventsAtReportGeneration = splitCustodyAtCutoff(forensicCustodyEvents, custodyCutoff).atIssue;
+        const accessEventsAfterReportGeneration = splitCustodyAtCutoff(accessCustodyEvents, custodyCutoff).afterIssue;
 
         const snapshotGeneratedAtUtc =
           trustDecisionConsistencySource === "REPORT_SNAPSHOT"
@@ -10212,15 +10198,14 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           accessEventsAfterSnapshot: accessEventsAfterReportGeneration.length,
         });
 
-        const custodyDisplayCounts = {
+        // AUD-51 (2026-10-20) — THE shared custody display counts.
+        const custodyDisplayCounts = buildCustodyDisplayCounts({
           forensicAtReportGeneration: forensicEventsAtReportGeneration.length,
           currentForensicEvents: forensicCustodyEvents.length,
           accessAfterReportGeneration: accessEventsAfterReportGeneration.length,
           currentAccessEvents: accessCustodyEvents.length,
-          reportGeneratedAtUtc: reportGeneratedAtUtc
-            ? reportGeneratedAtUtc.toISOString()
-            : null,
-        };
+          reportGeneratedAtUtc,
+        });
 
         const sourceContext = buildSourceContext({ evidence, parts });
         const locationState = buildEvidenceLocationState(evidence, allCustodyEvents);
@@ -10273,10 +10258,9 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           legacyLinkExpiresAtUtc: legacyLinkActive
             ? (evidence.legacyVerifyUuidUntilUtc?.toISOString() ?? null)
             : null,
-          publicViewCount: publicVerifyCount,
-          authenticatedViewCount: authenticatedVerifyCount,
-          lastPublicViewAt:
-            lastPublicVerify?.createdAt?.toISOString() ?? null,
+          publicViewCount: viewCounts.publicViewCount,
+          authenticatedViewCount: viewCounts.authenticatedViewCount,
+          lastPublicViewAt: viewCounts.lastPublicViewAt?.toISOString() ?? null,
           reportDownloadCount,
           verificationPackageDownloadCount,
         });
@@ -13440,21 +13424,10 @@ action: "evidence.certification_requested",
       identifierKind = "LEGACY_RECORD_ID";
     }
 
-    // Phase 1 — second bucket, keyed by evidence id. We parse the id
-    // FIRST (above) so the bucket key is only set after validation;
-    // unparseable input is concealed as 404 without consuming a
-    // rate-limit slot.
-    if (!(await admitPublicVerifyTarget(req, reply, { kind: "evidence", id }))) {
-      auditVerificationAction(req, {
-        userId: null,
-        action: "verification.page_opened",
-        outcome: "denied",
-        denialReason: "rate_limited",
-        resourceId: id,
-        metadata: { outcome: "rate_limited", bucket: "evidence" },
-      });
-      return reply;
-    }
+    // AUD-29 (2026-10-20) — no per-record bucket: the identifier RESOLVED to
+    // a record, and a record's public page is read by as many distinct
+    // viewers as it was shared with. Each viewer is bounded by its own
+    // per-client budget (admitPublicVerifyClient, above).
 
     (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
     req.log = req.log.child({ evidenceId: id });
@@ -13823,7 +13796,10 @@ action: "evidence.certification_requested",
       !evidence.signingKeyVersion ||
       !evidence.fileSha256
     ) {
-      return reply.code(404).send({ message: "Evidence not signed" });
+      // AUD-48 (2026-10-20) — the reference resolved to a real record that has
+      // no recorded seal: say THAT (a truthful state), not a "not found" that
+      // reads like a bad link nor the internal word "signed".
+      return reply.code(409).send(PUBLIC_VERIFY_NOT_SEALED_BODY);
     }
 
     const signingKey = await prisma.signingKey.findUnique({
@@ -13961,8 +13937,24 @@ const latestReport = await prisma.report.findFirst({
     // (2026-10-18) Identity as the report stated it (never the email).
     identityLevelSnapshot: true,
     submittedByAuthProviderSnapshot: true,
+    // AUD-51 — the custody cut-off the report recorded.
+    custodyThroughSequence: true,
   },
 });
+
+// AUD-48 (2026-10-20) — the whole issued history, not only the latest.
+const [issuedReportHistory, issuedPackageHistory] = await Promise.all([
+  prisma.report.findMany({
+    where: { evidenceId: id },
+    orderBy: { version: "asc" },
+    select: { version: true, generatedAtUtc: true },
+  }),
+  prisma.verificationPackage.findMany({
+    where: primaryPublishedPackageWhere({ evidenceId: id }),
+    orderBy: { version: "asc" },
+    select: { version: true, reportVersion: true, generatedAtUtc: true },
+  }),
+]);
 
 const latestVerificationPackage = await prisma.verificationPackage.findFirst({
   where: primaryPublishedPackageWhere({ evidenceId: id }),
@@ -13970,6 +13962,7 @@ const latestVerificationPackage = await prisma.verificationPackage.findFirst({
   select: {
     id: true,
     version: true,
+    reportVersion: true,
     generatedAtUtc: true,
     packageType: true,
     storageBucket: true,
@@ -14416,15 +14409,17 @@ const trustDecisionConsistencySource = !liveCoreChecksFailed && snapshotTrustDec
 
 const timestampLayerBlocksIntegrity = timestampDigestMatches === false;
 
-const overallIntegrity =
-  canonicalHashMatches &&
-  signatureValid &&
-  custodyChain.valid &&
-  !timestampLayerBlocksIntegrity &&
-  otsHashMatches !== false &&
-  // UC-TRUST-001 / UC-TRUST-005 — the stored bytes and the digest columns.
-  digestColumnsMatchSignedFingerprint !== false &&
-  !storedBytesContradict;
+// AUD-51 (2026-10-20) — THE live conclusion (shared overallIntegrityOf).
+// UC-TRUST-001 / UC-TRUST-005 — the stored bytes and the digest columns count.
+const overallIntegrity = overallIntegrityOf({
+  canonicalHashMatches,
+  signatureValid,
+  custodyChainValid: custodyChain.valid,
+  timestampDigestMatches: timestampLayerBlocksIntegrity ? false : null,
+  otsHashMatches: otsHashMatches ?? null,
+  digestColumnsMatchSignedFingerprint: digestColumnsMatchSignedFingerprint ?? null,
+  storedBytesContradict,
+});
 
     const responseVerificationStatus = evidence.verificationStatus ?? null;
 
@@ -14630,20 +14625,16 @@ const custodyLifecycle = buildPublicCustodyLifecycle({
 const reportGeneratedAtUtc =
   latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null;
 
-const forensicEventsAtReportGeneration = reportGeneratedAtUtc
-  ? forensicCustodyEvents.filter((ev) => ev.atUtc <= reportGeneratedAtUtc)
-  : forensicCustodyEvents;
+// AUD-51 (2026-10-20) — the cut-off is a SEQUENCE (shared), never a time.
+const custodyCutoff = custodyCutoffSequence(allCustodyEvents, reportGeneratedAtUtc, latestReport?.custodyThroughSequence ?? null);
+const forensicEventsAtReportGeneration = splitCustodyAtCutoff(forensicCustodyEvents, custodyCutoff).atIssue;
 // (2026-10-18) What counts as a forensic change after issue: forensic events
 // that are not administrative (a verification reference issued, the page's
 // access or disclosure changed, is never an integrity change).
 const forensicIntegrityEvents = forensicCustodyEvents.filter((ev) => isForensicIntegrityCustodyEventType(ev.eventType));
-const forensicIntegrityEventsAtSnapshot = reportGeneratedAtUtc
-  ? forensicIntegrityEvents.filter((ev) => ev.atUtc <= reportGeneratedAtUtc)
-  : forensicIntegrityEvents;
+const forensicIntegrityEventsAtSnapshot = splitCustodyAtCutoff(forensicIntegrityEvents, custodyCutoff).atIssue;
 
-const accessEventsAfterReportGeneration = reportGeneratedAtUtc
-  ? accessCustodyEvents.filter((ev) => ev.atUtc > reportGeneratedAtUtc)
-  : accessCustodyEvents;
+const accessEventsAfterReportGeneration = splitCustodyAtCutoff(accessCustodyEvents, custodyCutoff).afterIssue;
 
 const snapshotGeneratedAtUtc =
   trustDecisionConsistencySource === "REPORT_SNAPSHOT"
@@ -14706,22 +14697,18 @@ const { verificationSnapshot, liveAnchoring } =
     otsUpgradedAtUtc: evidence.otsUpgradedAtUtc
       ? evidence.otsUpgradedAtUtc.toISOString()
       : null,
+    linkReportVersion: shareLink?.reportVersion ?? null,
+    latestPackageReportVersion: latestVerificationPackage?.reportVersion ?? null,
   });
 
-const custodyDisplayCounts = {
+// AUD-51 (2026-10-20) — THE shared custody display counts (no redundant pairs).
+const custodyDisplayCounts = buildCustodyDisplayCounts({
   forensicAtReportGeneration: forensicEventsAtReportGeneration.length,
   currentForensicEvents: forensicCustodyEvents.length,
-  currentForensic: forensicCustodyEvents.length,
   accessAfterReportGeneration: accessEventsAfterReportGeneration.length,
   currentAccessEvents: accessCustodyEvents.length,
-  totalDisplayedEvents:
-    forensicCustodyEvents.length + accessCustodyEvents.length,
-  totalDisplayedNow:
-    forensicCustodyEvents.length + accessCustodyEvents.length,
-  reportGeneratedAtUtc: reportGeneratedAtUtc
-    ? reportGeneratedAtUtc.toISOString()
-    : null,
-};
+  reportGeneratedAtUtc,
+});
 
 const technicalMaterials = buildTechnicalMaterials({
   evidence: {
@@ -14761,6 +14748,21 @@ verificationPackageGeneratedAtUtc:
       ? evidence.verificationPackageGeneratedAtUtc.toISOString()
       : null,
         reviewerSummaryVersion: evidence.reviewerSummaryVersion ?? null,
+  history: [
+    ...issuedReportHistory.map((r) => ({
+      kind: "report" as const,
+      version: r.version,
+      reportVersion: r.version,
+      issuedAtUtc: r.generatedAtUtc ? r.generatedAtUtc.toISOString() : null,
+    })),
+    ...issuedPackageHistory.map((p) => ({
+      kind: "package" as const,
+      version: p.version,
+      reportVersion: p.reportVersion ?? null,
+      issuedAtUtc: p.generatedAtUtc ? p.generatedAtUtc.toISOString() : null,
+    })),
+  ],
+  linkReportVersion: shareLink?.reportVersion ?? null,
 };
 const defaultPreviewItem =
   content.items.find((item) => item.previewable && item.viewUrl) ??
@@ -14773,30 +14775,33 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
   itemCount,
 });
 
-const captureContext = hasCaptureLocationMetadata({
-  lat: decimalToNumber(evidence.lat),
-  lng: decimalToNumber(evidence.lng),
-})
-  ? {
-      statusLabel: CAPTURE_LOCATION_STATUS_LABEL,
-      description: CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
-      lat: decimalToNumber(evidence.lat),
-      lng: decimalToNumber(evidence.lng),
-      accuracyMeters: decimalToNumber(evidence.accuracyMeters),
-      capturedAtUtc: evidence.capturedAtUtc
-        ? evidence.capturedAtUtc.toISOString()
-        : evidence.createdAt.toISOString(),
-      deviceTimeIso: evidence.deviceTimeIso ?? null,
-      source: evidenceLocationSourceLabel(evidence.locationSource),
-      externalMapUrl:
-        buildCaptureLocationExternalMapUrl({
-          lat: decimalToNumber(evidence.lat),
-          lng: decimalToNumber(evidence.lng),
-          accuracyMeters: decimalToNumber(evidence.accuracyMeters),
-        }) ?? null,
-      legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
-    }
-  : null;
+// AUD-51 (2026-10-20) — the capture context is drawn from THE canonical
+// location state (the owner surface's): coordinates only for RECORDED, the
+// state's own label (a provider-reported mock says so), never a parallel
+// "has coordinates" rule with a fixed "Location recorded" label.
+const publicLocation = buildEvidenceLocationState(evidence, allCustodyEvents);
+const captureContext =
+  publicLocation.state === "RECORDED" && publicLocation.coordinates
+    ? {
+        statusLabel: publicLocation.detail ? `${publicLocation.label} — ${publicLocation.detail}` : publicLocation.label,
+        description: CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+        lat: publicLocation.coordinates.lat,
+        lng: publicLocation.coordinates.lng,
+        accuracyMeters: publicLocation.coordinates.accuracyMeters,
+        capturedAtUtc: evidence.capturedAtUtc
+          ? evidence.capturedAtUtc.toISOString()
+          : evidence.createdAt.toISOString(),
+        deviceTimeIso: evidence.deviceTimeIso ?? null,
+        source: publicLocation.sourceLabel ?? evidenceLocationSourceLabel(evidence.locationSource),
+        externalMapUrl:
+          buildCaptureLocationExternalMapUrl({
+            lat: publicLocation.coordinates.lat,
+            lng: publicLocation.coordinates.lng,
+            accuracyMeters: publicLocation.coordinates.accuracyMeters,
+          }) ?? null,
+        legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
+      }
+    : null;
 
 // Phase 31.12 — bounded public-safe media intelligence advisory.
 // Returns null when there are no surfaceable signals OR when the
@@ -15083,7 +15088,8 @@ outputContext: ((): CanonicalOutputContext => {
     isLiveOutput: true,
     snapshotGeneratedAtUtc: snapshotGen,
     liveObservedAtUtc: new Date().toISOString(),
-    liveDeltaMaterials: ["custodyChain", "otsAnchoring"],
+    // AUD-48 (2026-10-20) — THE live-delta categories (shared), TSA included.
+    liveDeltaMaterials: [...LIVE_DELTA_MATERIALS],
     legalBoundary: buildCanonicalLegalBoundaryMaterial()
       .publicVerifyBoundary,
   };
@@ -15103,7 +15109,7 @@ outputContext: ((): CanonicalOutputContext => {
   certifications: publicCertifications,
   display,
   captureContext,
-  locationState: publicLocationState(buildEvidenceLocationState(evidence, allCustodyEvents)),
+  locationState: publicLocationState(publicLocation),
   overview,
   humanSummary,
   evidenceContent: {
@@ -15145,7 +15151,9 @@ messageImprint: evidence.tsaMessageImprint,
       inputDigestHex: evidence.tsaInputDigestHex ?? evidence.fileSha256,
       inputKind: evidence.tsaInputKind ?? null,
       legacyMode: !evidence.tsaInputDigestHex,
-      failureReason: evidence.tsaFailureReason,
+      // AUD-48 (2026-10-20) — the canonical note for the recorded failure
+      // code; the provider's raw response text never leaves the server.
+      failureReason: tsaFailureNote(evidence.tsaFailureCode ?? null, Boolean(evidence.tsaFailureReason)),
 digestMatchesTimestampInput: timestampDigestMatches,
 digestMatchesFileHash:
   timestampStatusIsPositive && evidence.fileSha256 && evidence.tsaMessageImprint

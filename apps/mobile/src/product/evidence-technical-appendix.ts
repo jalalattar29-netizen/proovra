@@ -13,6 +13,7 @@
  * times.
  */
 import { otsCard, otsStatusLine } from "./ots-anchoring";
+import { objectLockModeLabel } from "@proovra/shared";
 
 type Obj = Record<string, unknown>;
 const o = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
@@ -297,15 +298,9 @@ export function timestampStatusLabel(status: string | null): string {
   }
 }
 
+// AUD-47 (2026-10-20) — THE shared Object Lock vocabulary.
 function objectLockLabel(mode: string | null): string | null {
-  switch ((mode ?? "").toUpperCase()) {
-    case "COMPLIANCE":
-      return "Compliance retention lock";
-    case "GOVERNANCE":
-      return "Governance retention lock";
-    default:
-      return null;
-  }
+  return objectLockModeLabel(mode);
 }
 
 /* --------------------------------------------------- the disclosure blocks */

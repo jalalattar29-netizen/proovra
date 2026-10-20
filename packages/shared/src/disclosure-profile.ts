@@ -29,6 +29,8 @@
  * (issued before disclosure profiles)" — never re-labelled.
  */
 
+const byCodePoint = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
 export const DISCLOSURE_PROFILES = ["FULL_FORENSIC", "EXTERNAL_DISCLOSURE"] as const;
 export type DisclosureProfile = (typeof DISCLOSURE_PROFILES)[number];
 
@@ -267,7 +269,8 @@ export function buildDisclosureManifest(input: {
     else seen.set(key, { ...r, path: generic, occurrences: 1 });
   }
   const fields = [...seen.values()].sort((a, b) =>
-    a.file === b.file ? a.path.localeCompare(b.path) : a.file.localeCompare(b.file),
+    // AUD-49 (2026-10-20) — code-point order, never the host locale.
+    a.file === b.file ? byCodePoint(a.path, b.path) : byCodePoint(a.file, b.file),
   );
   return {
     schema: "PROOVRA_DISCLOSURE_MANIFEST",
@@ -282,7 +285,7 @@ export function buildDisclosureManifest(input: {
     statement:
       input.profile === "EXTERNAL_DISCLOSURE"
         ? "This is NOT the complete forensic package. Personal identifiers and internal infrastructure were removed and the original files and the report were withheld. Every cryptographic commitment is preserved: the digests in package-checksums.json, fingerprint.json and its signature, the timestamp and anchoring proofs, and the custody hash chain. Custody payloads that were redacted can no longer be re-hashed to their eventHash; their chain links (prevEventHash → eventHash) remain checkable."
-        : "This is the complete forensic package for the report version it certifies.",
+        : "This is the complete forensic package for the report version it certifies. It carries internal PROOVRA account, workspace and organization identifiers and internal storage details (bucket, object key, version id, region) by design: it is for authorized custodians and investigators only. For anyone else, issue the External disclosure package, which removes them.",
     withheldFiles: input.withheldFiles.map((f) => ({ ...f, reasonText: DISCLOSURE_REASON_TEXT[f.reason] })),
     fields: fields.map((f) => ({
       file: f.file,

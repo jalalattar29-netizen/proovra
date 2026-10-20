@@ -24,6 +24,9 @@ const SHARED_COPY_URL =
     `export * from ${JSON.stringify(builtModuleUrl("output-action-copy.js"))};
 ` +
       `export * from ${JSON.stringify(builtModuleUrl("download-failure.js"))};
+` +
+      // AUD-47 — THE shared verification-status vocabulary (imports nothing).
+      `export * from ${JSON.stringify(builtModuleUrl("evidence-vocabulary.js"))};
 `,
   );
 const src = readFileSync(resolve(HERE, "../src/product/reports.ts"), "utf8")

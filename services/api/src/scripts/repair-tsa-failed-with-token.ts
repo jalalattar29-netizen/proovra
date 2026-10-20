@@ -43,6 +43,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import { appendCustodyEventTx } from "../services/custody-events.service.js";
 import { evaluateKeptTsaToken } from "../services/timestamp/kept-token-validation.js";
+import { TSA_RETAINED_TOKEN_REPAIR_SOURCE } from "@proovra/shared";
 
 type Args = {
   apply: boolean;
@@ -253,7 +254,7 @@ async function main(): Promise<void> {
               tsaValidation: decision.validationEvidence,
               // Repair-script forensic marker: distinguishes this from a
               // finalize-time TIMESTAMP_APPLIED.
-              repair_source: "tsa_kept_token_validated",
+              repair_source: TSA_RETAINED_TOKEN_REPAIR_SOURCE,
             },
           });
         }

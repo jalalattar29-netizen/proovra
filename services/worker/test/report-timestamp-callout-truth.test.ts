@@ -49,7 +49,8 @@ describe("report timestamp callout", () => {
     expect(c.body).toMatch(/has not been validated/);
     expect(c.body).toMatch(/No timestamp trust anchor was configured/);
     expect(`${c.title} ${c.body}`).not.toMatch(/could not be obtained/i);
-    expect(c.tone).toBe("warning");
+    // AUD-47 (2026-10-20) — not validated (NOT_CHECKED) is neutral on every surface: a caution in words, never amber.
+    expect(c.tone).toBe("neutral");
   });
 
   it("a failure with no reply kept still says it could not be obtained", () => {

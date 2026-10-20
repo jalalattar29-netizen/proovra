@@ -100,7 +100,34 @@ export const DESTRUCTION_CLAIM_LEASE_MS = 30 * 60 * 1000;
  * inventory of V2 certificates that may be inaccurate.
  */
 export const DESTRUCTION_CERTIFICATE_VERSION =
-  "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V3" as const;
+  "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V4" as const;
+
+/**
+ * AUD-49 (2026-10-20) — V4 adds destroyedArtifacts: the identity of every
+ * report and verification package that had been issued for the record. Their
+ * rows are deleted with the content (they address nothing any more), so the
+ * certificate and the EVIDENCE_PURGED custody event are the tombstone that
+ * still proves which issued artifacts existed and were destroyed — by digest,
+ * never by storage key. V3 and V4 both carry verified version deletion.
+ */
+export const DESTRUCTION_CERTIFICATE_VERSIONS_WITH_VERIFIED_DELETION = Object.freeze([
+  "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V3",
+  "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V4",
+] as const);
+
+/** One destroyed issued artifact, by identity and digest (AUD-49). */
+export type DestroyedIssuedArtifacts = {
+  reports: Array<{ version: number; pdfSha256: string | null }>;
+  packages: Array<{
+    packageId: string;
+    version: number;
+    reportVersion: number | null;
+    disclosureProfile: string | null;
+    state: string;
+    packageSha256: string | null;
+    sealSha256: string | null;
+  }>;
+};
 
 /**
  * The storage operations the executor needs, and nothing else.
@@ -217,6 +244,8 @@ export interface DestructionCertificateBody {
   retentionPolicyVersionId: string | null;
   appRetentionUntilUtc: string | null;
   objectLockRetainUntilUtc: string | null;
+  /** AUD-49 — the issued reports and packages destroyed with the record. */
+  destroyedArtifacts: DestroyedIssuedArtifacts;
 }
 
 export type ExecuteEvidenceDestructionResult =
@@ -697,6 +726,31 @@ export async function executeEvidenceDestruction(
   }
 
   // 8. TOMBSTONE + CERTIFICATE. Only reachable from a verified deletion.
+  // AUD-49 — the identity of every issued artifact, read before its row goes.
+  const [issuedReports, issuedPackages] = await Promise.all([
+    prisma.report.findMany({
+      where: { evidenceId: evidence.id },
+      select: { version: true, pdfSha256: true },
+      orderBy: { version: "asc" },
+    }),
+    prisma.verificationPackage.findMany({
+      where: { evidenceId: evidence.id },
+      select: { id: true, version: true, reportVersion: true, disclosureProfile: true, state: true, packageSha256: true, sealSha256: true },
+      orderBy: [{ version: "asc" }, { id: "asc" }],
+    }),
+  ]);
+  const destroyedArtifacts: DestroyedIssuedArtifacts = {
+    reports: issuedReports.map((r) => ({ version: r.version, pdfSha256: r.pdfSha256 ?? null })),
+    packages: issuedPackages.map((p) => ({
+      packageId: p.id,
+      version: p.version,
+      reportVersion: p.reportVersion ?? null,
+      disclosureProfile: p.disclosureProfile ? String(p.disclosureProfile) : null,
+      state: String(p.state),
+      packageSha256: p.packageSha256 ?? null,
+      sealSha256: p.sealSha256 ?? null,
+    })),
+  };
   const certificate: DestructionCertificateBody = {
     certificateVersion: DESTRUCTION_CERTIFICATE_VERSION,
     evidenceId: evidence.id,
@@ -721,6 +775,7 @@ export async function executeEvidenceDestruction(
     appRetentionUntilUtc: evidence.retentionUntilUtc?.toISOString() ?? null,
     objectLockRetainUntilUtc:
       evidence.storageObjectLockRetainUntilUtc?.toISOString() ?? null,
+    destroyedArtifacts,
   };
   const certificateHash = sha256Hex(canonicalJsonValue(certificate));
 
@@ -742,6 +797,7 @@ export async function executeEvidenceDestruction(
         storageDeletionVerified: true,
         destroyedVersionCount,
         verification: "ALL_OBJECT_VERSIONS_ABSENT",
+        destroyedArtifacts,
       },
     });
 

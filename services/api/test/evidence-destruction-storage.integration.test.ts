@@ -30,6 +30,7 @@
  * test is the production executor and only its outermost adapter is swapped.
  * Nothing here can reach a real bucket: the port is passed by value.
  */
+import { randomUUID } from "node:crypto";
 import { versionedDestructionPort } from "./helpers/versioned-destruction-port.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -484,6 +485,70 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
     expect(again.ok).toBe(true);
     if (again.ok) expect(again.outcome).toBe("ALREADY_DESTROYED");
     expect(await certificateCount(rec.id)).toBe(1);
+  });
+
+  it("AUD-49 — the tombstone names every destroyed issued report and package by digest, never by storage key", async () => {
+    const store = new DisposableStore();
+    const rec = await seed(
+      store,
+      trashedAndExpired({
+        retentionUntilUtc: new Date(Date.now() - 10 * DAY),
+        storageObjectLockMode: "COMPLIANCE",
+        storageObjectLockRetainUntilUtc: new Date(Date.now() - 10 * DAY),
+      }),
+    );
+    const now = new Date(Date.now() - 20 * DAY);
+    const reportKey = `${rec.key}.report.pdf`;
+    const report = await prisma.report.create({
+      data: { evidenceId: rec.id, version: 1, storageBucket: rec.bucket, storageKey: reportKey, generatedAtUtc: now, pdfSha256: "a1".repeat(32) } as never,
+      select: { id: true },
+    });
+    store.put(rec.bucket, reportKey);
+    const packageKey = `${rec.key}.package.zip`;
+    const pkg = await prisma.verificationPackage.create({
+      data: {
+        id: randomUUID(),
+        evidenceId: rec.id,
+        version: 1,
+        reportVersion: 1,
+        reportId: report.id,
+        disclosureProfile: "FULL_FORENSIC",
+        state: "PUBLISHED",
+        issuanceId: randomUUID(),
+        storageBucket: rec.bucket,
+        storageKey: packageKey,
+        generatedAtUtc: now,
+        completedAtUtc: now,
+        packageSha256: "b2".repeat(32),
+        packageFormatVersion: 5,
+        sealSha256: "c3".repeat(32),
+      } as never,
+      select: { id: true },
+    });
+    store.put(rec.bucket, packageKey);
+
+    const result = await executeEvidenceDestruction(
+      prisma,
+      { evidenceId: rec.id, trigger: "destruction_review", actorUserId: harness.fixtures.teamA.ownerUserId, legalHold: false, destructionApprovalRequired: true, destructionApproved: true },
+      store.port,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.outcome !== "DESTROYED") throw new Error("not destroyed");
+
+    const expected = {
+      reports: [{ version: 1, pdfSha256: "a1".repeat(32) }],
+      packages: [{ packageId: pkg.id, version: 1, reportVersion: 1, disclosureProfile: "FULL_FORENSIC", state: "PUBLISHED", packageSha256: "b2".repeat(32), sealSha256: "c3".repeat(32) }],
+    };
+    expect(result.certificate.certificateVersion).toBe("PROOVRA_EVIDENCE_DESTRUCTION_CERT_V4");
+    expect(result.certificate.destroyedArtifacts).toEqual(expected);
+    const purge = await prisma.custodyEvent.findFirstOrThrow({ where: { evidenceId: rec.id, eventType: "EVIDENCE_PURGED" }, select: { payload: true } });
+    expect((purge.payload as { destroyedArtifacts?: unknown }).destroyedArtifacts).toEqual(expected);
+    // The rows themselves are gone (they address nothing); no storage key is
+    // carried into the tombstone.
+    expect(await prisma.report.count({ where: { evidenceId: rec.id } })).toBe(0);
+    expect(await prisma.verificationPackage.count({ where: { evidenceId: rec.id } })).toBe(0);
+    expect(JSON.stringify(result.certificate)).not.toContain(packageKey);
+    expect(JSON.stringify(purge.payload)).not.toContain(reportKey);
   });
 
   it("H2 (2026-09-29): objects no row points at, under the record's prefixes, and its cases' SIU bundles are destroyed too", async () => {

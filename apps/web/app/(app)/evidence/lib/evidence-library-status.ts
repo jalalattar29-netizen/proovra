@@ -1,8 +1,7 @@
 import {
   evidenceRecordStatusLabel,
   evidenceRecordStatusTone,
-  getReviewerEvidenceTypeLabel,
-} from "@proovra/shared";
+  getReviewerEvidenceTypeLabel, evidenceVerificationStatusLabel } from "@proovra/shared";
 import type { AppTone } from "../../../../components/app-primitives";
 import type {
   DetailWorkspaceState,
@@ -176,18 +175,8 @@ export function getRecordStatusLabel(status: string | null | undefined): string 
 }
 
 export function getVerificationStatusLabel(status: string | null | undefined): string {
-  switch (String(status ?? "").trim().toUpperCase()) {
-    case "RECORDED_INTEGRITY_VERIFIED":
-      return "Recorded integrity state verified";
-    case "MATERIALS_AVAILABLE":
-      return "Technical materials available";
-    case "REVIEW_REQUIRED":
-      return "Review required";
-    case "FAILED":
-      return "Verification failed";
-    default:
-      return "Verification status not recorded";
-  }
+  // AUD-47 (2026-10-20) — THE shared vocabulary (@proovra/shared evidence-vocabulary).
+  return evidenceVerificationStatusLabel(status);
 }
 
 export function getEvidenceTypeLabel(

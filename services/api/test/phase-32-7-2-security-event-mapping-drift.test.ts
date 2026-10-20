@@ -1436,6 +1436,9 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // in-migration backfill (PUBLISHED -> CONTENT_PREVIEW) and the revocation of
       // OWNER_SHARE links that answered 404. EXPAND + BACKFILL.
       "20281018000000_verification_disclosure_policy",
+      // SEALED IDENTITY SET ONCE (2026-10-20, AUD-43) — one BEFORE UPDATE trigger
+      // refusing to change or clear a sealed evidence column. EXPAND only.
+      "20281020000000_evidence_sealed_identity_set_once",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

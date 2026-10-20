@@ -55,6 +55,7 @@ import {
   type HomeOperationsRowSubject,
   type HomeOperationsSourceId,
 } from "./operations-condition-map";
+import { notificationItemText } from "@proovra/shared";
 
 export type HomePlan = "FREE" | "PAYG" | "PRO" | "TEAM" | null;
 
@@ -1538,8 +1539,10 @@ function buildNeedsFixing(args: {
         id: it.id,
         category: it.category,
         categoryLabel: FAILURE_CATEGORY_LABELS[it.category] ?? statusLabel(it.category),
-        title: it.title,
-        detail: it.body ?? "",
+        // AUD-47 (2026-10-20) — THE notification text (the reader's words for
+        // the item's message), never the server's raw body.
+        title: notificationItemText("en", { title: it.title, body: it.body ?? "", message: (it as { message?: unknown }).message }).title,
+        detail: notificationItemText("en", { title: it.title, body: it.body ?? "", message: (it as { message?: unknown }).message }).body,
         critical,
         occurredAt: it.occurredAt,
         href: it.href,

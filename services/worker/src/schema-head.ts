@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281018000000_verification_disclosure_policy";
+export const EXPECTED_MIGRATION_HEAD = "20281020000000_evidence_sealed_identity_set_once";
 
 export type MigrationRow = {
   migration_name: string;

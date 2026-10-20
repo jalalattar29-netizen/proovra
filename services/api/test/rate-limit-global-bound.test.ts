@@ -333,8 +333,7 @@ describe("UC-SEC-006 — the anonymous verify surface and the capture/presign li
     const GLOBAL_KEYS: Array<[string, string]> = [
       // THE Public Verify gate (record page and package record share it).
       ["services/public-verify/public-verify-gate.ts", "ratelimit:verify:ip:"],
-      ["services/public-verify/public-verify-gate.ts", "ratelimit:verify:evidence-clients:"],
-      ["services/public-verify/public-verify-gate.ts", "ratelimit:verify:package-clients:"],
+      ["services/public-verify/public-verify-gate.ts", "ratelimit:verify:package-misses:"],
       ["routes/evidence.routes.ts", "ratelimit:evidence-part-presign:user:"],
       ["routes/capture-trust.routes.ts", "ratelimit:capture:direct-session:open:"],
     ];

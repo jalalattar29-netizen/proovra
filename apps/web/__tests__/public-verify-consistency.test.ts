@@ -3,10 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import {
-  hasAdvancedLiveAnchoring,
-  shouldAutoPollPublicVerify,
-} from "../app/verify/[token]/public-verify-consistency";
+import { hasAdvancedLiveAnchoring } from "../app/verify/[token]/public-verify-consistency";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -16,34 +13,9 @@ const VERIFY_PAGE_SOURCE = readFileSync(
   "utf8",
 );
 
-test("OTS pending alone does not start automatic polling", () => {
-  assert.equal(
-    shouldAutoPollPublicVerify({
-      liveAnchoring: {
-        autoRefreshRecommended: false,
-      },
-    }),
-    false,
-  );
-
-  assert.equal(
-    shouldAutoPollPublicVerify({
-      liveAnchoring: {
-      },
-    }),
-    false,
-  );
-});
-
-test("polling only resumes when an explicit auto-refresh recommendation is present", () => {
-  assert.equal(
-    shouldAutoPollPublicVerify({
-      liveAnchoring: {
-        autoRefreshRecommended: true,
-      },
-    }),
-    true,
-  );
+test("AUD-48 (2026-10-20): the page never auto-polls (the recommendation was always false and is retired)", () => {
+  assert.equal(VERIFY_PAGE_SOURCE.includes("shouldAutoPollPublicVerify"), false);
+  assert.equal(VERIFY_PAGE_SOURCE.includes("autoRefreshRecommended"), false);
 });
 
 test("live anchored plus snapshot pending is marked as advanced", () => {

@@ -93,6 +93,7 @@ import {
   PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
 } from "@proovra/shared-evidence-presentation";
 import type { ReportTrustDecision } from "./report-v2/types.js";
+import { otsVerificationLabelFor } from "./report-v2/ots-presentation.js";
 import { renderCaptureLocationMapPreviewPng } from "./capture-location-map.js";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import { publicKeySpkiSha256 } from "@proovra/shared-runtime";
@@ -395,7 +396,7 @@ type CustodyEventRecord = {
   eventHash?: string | null;
 };
 
-type PackageEntry =
+export type PackageEntry =
   | { name: string; buffer: Buffer; contentType?: string }
   // A STREAMED entry (an ORIGINAL evidence part) whose bytes were streamed from
   // storage into the archive, never buffered. Its digest/size are the canonical
@@ -1242,7 +1243,7 @@ export type PackageSealResult = {
 
 export { PackageSealKeyRegistrationError } from "./signing/package-seal-key.js";
 
-function buildPackageChecksums(entries: PackageEntry[]) {
+export function buildPackageChecksums(entries: PackageEntry[]) {
   return {
     schema: "PROOVRA_PACKAGE_CHECKSUMS",
     version: 1,
@@ -1258,7 +1259,9 @@ function buildPackageChecksums(entries: PackageEntry[]) {
         sha256: "buffer" in entry ? sha256Hex(entry.buffer) : entry.sha256,
         contentType: entry.contentType ?? null,
       }))
-      .sort((a, b) => a.path.localeCompare(b.path)),
+      // AUD-49 (2026-10-20) — code-point order, never the host's locale: the
+      // same package lists its files in the same order on every machine.
+      .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),
   };
 }
 
@@ -2406,6 +2409,8 @@ These are four separate questions. A "yes" to one is not a "yes" to the next.
    timestamp is presented. This package does not state it.
 `;
 
+  // AUD-49 (2026-10-20) — the FULL package states what it carries and who it
+  // is for: internal identifiers and storage details are retained by policy.
   const disclosureSection = external
     ? `DISCLOSURE
 
@@ -2418,7 +2423,14 @@ their eventHash; the chain links (each prevEventHash equals the previous
 eventHash) remain checkable. A file received separately through an authorized
 channel can be checked against its digest here.
 `
-    : "";
+    : `HANDLING
+
+This FULL FORENSIC package carries internal PROOVRA account, workspace and
+organization identifiers and internal storage details (bucket, object key,
+version id, region) by design. It is for authorized custodians and
+investigators only. For anyone else, issue the External disclosure package,
+which removes them and keeps every cryptographic commitment.
+`;
 
   const anchorReadmeLine = params.anchorIncluded
     ? `anchor.json
@@ -2439,6 +2451,7 @@ Report Version: ${
       ? String(params.reportVersion)
       : "Not included"
   }
+Package Format Version: ${PACKAGE_FORMAT_VERSION_SEALED} (the layout and seal format of this package)
 Signing Key ID: ${safeText(params.signingKeyId, "Not included")}
 Signing Key Version: ${
     typeof params.signingKeyVersion === "number"
@@ -2448,6 +2461,8 @@ Signing Key Version: ${
 Reviewer Evidence Type: ${safeText(reviewerEvidence.reviewerEvidenceType, "Not included")}
 Raw Evidence Type Enum: ${safeText(reviewerEvidence.rawEvidenceType, "Not included")}
 Evidence Structure: ${safeText(reviewerEvidence.evidenceStructure, multipart ? "Multipart evidence package" : "Single evidence item")}
+
+Version labels: "Report Version" is the version of the issued report this package certifies; "Package Format Version" is the format of this package (package-seal.json packageFormatVersion); "Signing Key Version" is the registry version of the key that signed the record. The "version" field inside each JSON file is that file's own schema version and is none of these.
 
 Verification Profile: FORENSIC_INTEGRITY
 Verification Status Note: Integrity materials may be present even when the record still requires legal or reviewer assessment.
@@ -3333,7 +3348,9 @@ export async function createVerificationPackage(data: {
     });
     const anchorMode: AnchorMode = anchorSemantics.anchorMode;
     const anchorIncluded = Boolean(data.anchor);
-    const anchorStatusLabel = anchorSemantics.anchoringLabel;
+    // AUD-48 (2026-10-20) — the package is a snapshot too: an outage when it is
+    // assembled is stated as of issue, never "temporarily unavailable".
+    const anchorStatusLabel = otsVerificationLabelFor(anchorSemantics.otsVerification);
     const hasTimestampToken = Boolean(data.timestampToken);
     const certificationSummary = buildCertificationSummary({
       custodian: data.certifications?.custodian ?? null,

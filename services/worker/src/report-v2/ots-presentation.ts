@@ -22,6 +22,9 @@ import {
   OTS_STATE_LABELS,
   OTS_STATE_WORDS,
   OTS_VERIFICATION_LABELS,
+  OTS_REPORT_SNAPSHOT_LABELS,
+  OTS_REPORT_SNAPSHOT_SENTENCES,
+  otsVerificationSentence,
   OTS_VERIFICATION_WORDS,
   formatTimestampForReportUtc,
   otsBoundaryFor,
@@ -78,9 +81,27 @@ export function otsVerificationWordFor(key: OtsVerificationKey): string {
   return OTS_VERIFICATION_WORDS[key];
 }
 
+/**
+ * AUD-48 (2026-10-20) — a report is a SNAPSHOT: an operational outage at
+ * render time ("temporarily unavailable", "cannot currently be read") would
+ * become permanent text in an immutable PDF. The report states what was true
+ * when it was issued instead; live surfaces keep the shared live wording.
+ */
+export const REPORT_SNAPSHOT_OTS_LABELS = OTS_REPORT_SNAPSHOT_LABELS;
+export const REPORT_SNAPSHOT_OTS_SENTENCES = OTS_REPORT_SNAPSHOT_SENTENCES;
+
 /** The standalone verification label ("Bitcoin attestation recorded", "Independently verified against the Bitcoin main chain", …). */
 export function otsVerificationLabelFor(key: OtsVerificationKey): string {
-  return OTS_VERIFICATION_LABELS[key];
+  return REPORT_SNAPSHOT_OTS_LABELS[key] ?? OTS_VERIFICATION_LABELS[key];
+}
+
+/** The verification sentence as of issue (snapshot wording for an outage at render time). */
+export function otsReportVerificationSentence(
+  a: Parameters<typeof otsVerificationSentence>[0],
+  formatTime: (iso: string) => string,
+): string {
+  const key = a.verification as OtsVerificationKey;
+  return REPORT_SNAPSHOT_OTS_SENTENCES[key] ?? otsVerificationSentence(a, "en", formatTime);
 }
 
 /** The status word beside "Bitcoin anchoring" (cover, index, cards). */
@@ -132,7 +153,7 @@ export function buildOtsAnchoringRows(
   }
   if (a.state === "ANCHORED") {
     // The independent Bitcoin-chain check: its outcome, and its facts when it named a block.
-    rows.push({ label: facts.chainStatus, value: OTS_VERIFICATION_LABELS[a.verification] });
+    rows.push({ label: facts.chainStatus, value: otsVerificationLabelFor(a.verification) });
     const c = a.chain;
     if (c && (c.status === "VERIFIED" || c.status === "INSUFFICIENT_CONFIRMATIONS")) {
       if (c.blockHash) rows.push({ label: facts.blockHash, value: c.blockHash });

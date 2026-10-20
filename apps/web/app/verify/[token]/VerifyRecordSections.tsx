@@ -20,6 +20,7 @@ import {
   parseOtsState,
   parseOtsVerificationKey,
   parseVerificationQualifiers,
+  readStoredTrustDecision,
   VERIFICATION_DISCLOSURE_MODE_LABELS,
   VERIFICATION_QUALIFIER_LABELS,
   VERIFICATION_STATUS_LABELS,
@@ -60,8 +61,7 @@ export function statusColor(status: VerificationStatus): string {
       return VERIFY_BRAND.success;
     case "FAILED":
       return VERIFY_BRAND.danger;
-    case "NOT_CHECKED":
-      return VERIFY_BRAND.warning;
+    // AUD-47 (2026-10-20) — NOT_CHECKED is neutral on every surface (THE shared VERIFICATION_STATUS_TONES): not checked is not a warning.
     default:
       return VERIFY_BRAND.accent;
   }
@@ -724,6 +724,7 @@ export function ArtifactHistory({
   tsaRow,
   canonicalIssuedAtUtc,
   forensicEvents,
+  consistencyReasons = [],
 }: {
   versioning: VerifyVersioning | null;
   snapshot: VerifySnapshotSection;
@@ -731,12 +732,22 @@ export function ArtifactHistory({
   tsaRow: VerificationMatrixRow | null;
   canonicalIssuedAtUtc: string | null;
   forensicEvents: HistoryEvent[];
+  /** AUD-48 — the record's consistency reasons; regressions are noted beside the artifact they contradict. */
+  consistencyReasons?: ReadonlyArray<VerifyConsistencyReason>;
 }) {
   const artifacts: Array<{ kind: "report" | "package"; version: number; issuedAtUtc: string | null }> = [];
-  if (typeof versioning?.latestReportVersion === "number") {
+  // AUD-48 (2026-10-20) — EVERY issued report and package, when the API sends
+  // the history; the latest-only pair is the fallback for an older response.
+  const history = (versioning?.history ?? []).filter(
+    (h): h is { kind: "report" | "package"; version: number; issuedAtUtc?: string | null } =>
+      (h?.kind === "report" || h?.kind === "package") && typeof h?.version === "number",
+  );
+  if (history.length > 0) {
+    for (const h of history) artifacts.push({ kind: h.kind, version: h.version, issuedAtUtc: h.issuedAtUtc ?? null });
+  } else if (typeof versioning?.latestReportVersion === "number") {
     artifacts.push({ kind: "report", version: versioning.latestReportVersion, issuedAtUtc: versioning.latestReportGeneratedAtUtc ?? null });
   }
-  if (typeof versioning?.verificationPackageVersion === "number") {
+  if (history.length === 0 && typeof versioning?.verificationPackageVersion === "number") {
     artifacts.push({
       kind: "package",
       version: versioning.verificationPackageVersion,
@@ -748,6 +759,14 @@ export function ArtifactHistory({
     tsaRow && parseVerificationQualifiers((tsaRow as { qualifiers?: unknown }).qualifiers).includes("VALIDATED_FROM_RETAINED_TOKEN")
       ? tsaRow.measuredAtUtc ?? null
       : null;
+  // AUD-48 (2026-10-20) — what the SNAPSHOT artifact itself stated about the
+  // timestamp (its stored trust decision), never inferred from times. Other
+  // artifacts' contents are not on this page, so nothing is said about them.
+  const snapshotTimestampState =
+    readStoredTrustDecision(snapshot?.trustDecisionSnapshot)?.signals.find((s) => s.key === "trusted_timestamp")?.state ?? null;
+  const regressions = consistencyReasons.filter(
+    (r) => r?.code === "VERIFICATION_REGRESSED" || (r?.code === "CORE_INTEGRITY_SIGNALS_CHANGED" && (r.tone === "danger" || r.tone === "warning")),
+  );
   const referenceIssues = [
     ...(canonicalIssuedAtUtc ? [canonicalIssuedAtUtc] : []),
     ...forensicEvents.filter((e) => String(e.eventType ?? "").toUpperCase() === "VERIFICATION_REFERENCE_ISSUED").map((e) => e.atUtc ?? null),
@@ -775,10 +794,20 @@ export function ArtifactHistory({
             if (isSnapshot && advance === "ATTESTATION_RECORDED_SINCE_ISSUE") {
               notes.push("A Bitcoin attestation was recorded after this artifact was issued.");
             }
-            if (tsaValidatedLater && (!a.issuedAtUtc || after(tsaValidatedLater, a.issuedAtUtc))) {
+            if (
+              isSnapshot &&
+              tsaValidatedLater &&
+              snapshotTimestampState !== null &&
+              snapshotTimestampState !== "PASSED"
+            ) {
               notes.push(
-                `${name}, issued before ${formatDateTime(tsaValidatedLater)}, states the trusted timestamp as not validated; it was validated on ${formatDateTime(tsaValidatedLater)} from the timestamp token retained at intake.`,
+                `${name} states the trusted timestamp as not validated; it was validated on ${formatDateTime(tsaValidatedLater)} from the timestamp token retained at intake.`,
               );
+            }
+            if (isSnapshot) {
+              for (const r of regressions) {
+                if (r.label) notes.push(`${r.label}.`);
+              }
             }
             if (referenceIssues.some((t) => after(t, a.issuedAtUtc))) {
               notes.push("The verification reference was issued after this artifact. That is an administrative event; it does not change what the artifact states.");

@@ -41,6 +41,7 @@ import { apiFetch } from "../../../lib/api";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { usePlatformContext } from "../../../lib/platform-context";
 import { formatUserDate } from "../../../lib/date";
+import { organizationStatusLabel } from "@proovra/shared";
 
 type OrgRole =
   | "ORG_OWNER"
@@ -478,8 +479,9 @@ function OrganizationsListPageInner() {
                   <Pill tone={ROLE_TONE[org.role]} data-pill="role">
                     {ROLE_LABELS[org.role]}
                   </Pill>
+                  {/* AUD-47 (2026-10-20) — the shared organization-status words. */}
                   <Pill tone={STATUS_TONE[org.status]} data-pill="status">
-                    {org.status}
+                    {organizationStatusLabel(org.status)}
                   </Pill>
                   {org.pendingInviteCount > 0 && (
                     <Pill

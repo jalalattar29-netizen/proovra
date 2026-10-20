@@ -21,8 +21,7 @@ import {
   type VerificationDisclosureMode,
   parseTsaProofStatus,
   TSA_PROOF_STATUS_LABELS,
-  type TsaProofStatus,
-} from "@proovra/shared";
+  type TsaProofStatus, objectLockModeLabel } from "@proovra/shared";
 import { projectLocationState } from "./evidence-detail";
 import { isOtsSummaryFact, otsCard, otsStatusLine, readOts, type OtsState, type OtsVerificationKey } from "./ots-anchoring";
 type Obj = Record<string, unknown>;
@@ -1049,7 +1048,8 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
     },
     {
       label: "Object Lock retention mode",
-      value: olMode ?? "Not asserted (storage immutability not confirmed for this record)",
+      // AUD-47 — the mode in words, never the raw enum.
+      value: objectLockModeLabel(olMode) ?? "Not asserted (storage immutability not confirmed for this record)",
       state: olMode ? "recorded" : "unavailable",
     },
     { label: "Object Lock retention until", value: olUntil ? fmt(olUntil) : "Not asserted", state: olUntil ? "recorded" : "unavailable" },

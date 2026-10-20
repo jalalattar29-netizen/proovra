@@ -19,6 +19,7 @@ import { resolveAcquisitionIdentitySnapshot, type AcquisitionIdentitySnapshot } 
 import {
   OTS_STATE_SENTENCES,
   OTS_VERIFICATION_LABELS,
+  otsReportVerificationLabel,
   otsBoundaryFor,
   otsChainRecordOf,
   otsVerificationKeyOfState,
@@ -317,7 +318,8 @@ export function checkRenderedReportText(
   // record may state the chain-verified label.
   const verifiedLabel = OTS_VERIFICATION_LABELS.CHAIN_VERIFIED;
   if (facts.otsState === "ANCHORED") {
-    const label = OTS_VERIFICATION_LABELS[facts.otsVerification];
+    // AUD-48 — an issued report states an outage at render time as of issue.
+    const label = otsReportVerificationLabel(facts.otsVerification);
     if (!text.includes("Bitcoin anchoring") || !text.includes(label)) {
       out.push({ check: "OTS_ANCHORED", detail: `does not state "Bitcoin anchoring" with "${label}"` });
     }

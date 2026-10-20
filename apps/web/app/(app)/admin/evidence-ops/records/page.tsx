@@ -47,7 +47,15 @@ import {
   formatUserDateTime,
 } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
-import { identifierLabel, type OtsStateTone } from "@proovra/shared";
+import {
+  evidenceVerificationStatusLabel,
+  evidenceVerificationStatusTone,
+  identifierLabel,
+  parseTsaProofStatus,
+  TSA_PROOF_STATUS_LABELS,
+  TSA_PROOF_STATUS_TONE,
+  type OtsStateTone,
+} from "@proovra/shared";
 import { otsRawStatusPresentation } from "../../../../../lib/ots-presentation";
 import { resolveRunbookSlug } from "../../../../../lib/runbooks/slugs.generated";
 import { useUrlFilterSync } from "../../../../../lib/use-url-filter-sync";
@@ -59,6 +67,8 @@ type RecordRow = {
   status: string;
   verificationStatus: string | null;
   tsaStatus: string | null;
+  /** AUD-47 — the canonical TSA proof status (TsaProofStatus). */
+  tsaProofStatus?: string | null;
   otsStatus: string | null;
   createdAt: string;
   workspace: {
@@ -136,10 +146,12 @@ const OTS_BADGE_TONE: Record<OtsStateTone, BadgeTone> = {
   neutral: "neutral",
 };
 
-const STATUS_TONE: Record<string, BadgeTone> = {
-  FAILED: "risk",
-  CONFIRMED: "verified",
-  PENDING: "pending",
+/** AUD-47 (2026-10-20) — the shared tones, mapped once onto this table's badges. */
+const VOCABULARY_BADGE_TONE: Record<"success" | "warning" | "danger" | "neutral", BadgeTone> = {
+  success: "verified",
+  warning: "pending",
+  danger: "risk",
+  neutral: "neutral",
 };
 
 export default function AdminEvidenceRecordsPage() {
@@ -273,8 +285,9 @@ export default function AdminEvidenceRecordsPage() {
         render: (r) => (
           <div style={{ display: "flex", gap: 6, flexWrap: "nowrap" }}>
             {r.tsaStatus ? (
-              <Badge tone={STATUS_TONE[r.tsaStatus] ?? "neutral"} subtle>
-                TSA {r.tsaStatus}
+              // AUD-47 — the canonical proof status in the shared words.
+              <Badge tone={VOCABULARY_BADGE_TONE[TSA_PROOF_STATUS_TONE[parseTsaProofStatus(r.tsaProofStatus) ?? "NOT_REQUESTED"]]} subtle>
+                Timestamp: {TSA_PROOF_STATUS_LABELS[parseTsaProofStatus(r.tsaProofStatus) ?? "NOT_REQUESTED"]}
               </Badge>
             ) : null}
             {r.otsStatus ? (
@@ -290,8 +303,8 @@ export default function AdminEvidenceRecordsPage() {
               </Badge>
             ) : null}
             {r.verificationStatus ? (
-              <Badge tone={STATUS_TONE[r.verificationStatus] ?? "neutral"} subtle>
-                Verify {r.verificationStatus}
+              <Badge tone={VOCABULARY_BADGE_TONE[evidenceVerificationStatusTone(r.verificationStatus)]} subtle>
+                {evidenceVerificationStatusLabel(r.verificationStatus)}
               </Badge>
             ) : null}
           </div>

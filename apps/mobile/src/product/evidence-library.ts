@@ -15,8 +15,7 @@ import {
   otsAnchoringCopy,
   parseVerificationDisclosureMode,
   VERIFICATION_DISCLOSURE_MODE_LABELS,
-  type OtsState,
-} from "@proovra/shared";
+  type OtsState, evidenceVerificationStatusLabel } from "@proovra/shared";
 
 /** Server sort values (EvidenceListSortSchema). */
 export const LIBRARY_SORTS = ["newest", "oldest", "priority"] as const;
@@ -413,18 +412,8 @@ export function recordStatusLabel(status: string | null | undefined): string {
 
 /** getVerificationStatusLabel (evidence-library-status.ts:185). */
 export function verificationStatusLabel(status: string | null | undefined): string {
-  switch (String(status ?? "").trim().toUpperCase()) {
-    case "RECORDED_INTEGRITY_VERIFIED":
-      return "Recorded integrity state verified";
-    case "MATERIALS_AVAILABLE":
-      return "Technical materials available";
-    case "REVIEW_REQUIRED":
-      return "Review required";
-    case "FAILED":
-      return "Verification failed";
-    default:
-      return "Verification status not recorded";
-  }
+  // AUD-47 (2026-10-20) — THE shared vocabulary (@proovra/shared evidence-vocabulary).
+  return evidenceVerificationStatusLabel(status);
 }
 
 /**

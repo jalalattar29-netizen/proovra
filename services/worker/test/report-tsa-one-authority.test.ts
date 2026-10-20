@@ -60,7 +60,8 @@ describe("the tone authority — the matrix status, never a raw word", () => {
   it("maps the five verification statuses", () => {
     expect(verificationStatusTone("VERIFIED")).toBe("success");
     expect(verificationStatusTone("FAILED")).toBe("danger");
-    expect(verificationStatusTone("NOT_CHECKED")).toBe("warning");
+    // AUD-47 (2026-10-20) — NOT_CHECKED is neutral on every surface (shared VERIFICATION_STATUS_TONES).
+    expect(verificationStatusTone("NOT_CHECKED")).toBe("neutral");
     expect(verificationStatusTone("UNAVAILABLE")).toBe("neutral");
     expect(verificationStatusTone("NOT_APPLICABLE")).toBe("neutral");
   });
@@ -71,7 +72,7 @@ describe("the tone authority — the matrix status, never a raw word", () => {
       expect(timestampToneOf(decisionFor(extra)), word).not.toBe("success");
       const vm = await buildReportViewModel(reportInputFixture({ evidence: evidenceWith(extra) }));
       expect(vm.technicalAppendix.timestampStatusTone, word).not.toBe("success");
-      expect(vm.technicalAppendix.timestampStatusTone, word).toBe("warning");
+      expect(vm.technicalAppendix.timestampStatusTone, word).toBe("neutral");
       const callout = vm.storageCallouts.find((c) => /timestamp/i.test(c.title))!;
       expect(callout.tone, word).not.toBe("success");
       expect(vm.verificationMatrix.rows.find((r) => r.key === "tsa_token")!.status, word).toBe("NOT_CHECKED");
@@ -81,7 +82,7 @@ describe("the tone authority — the matrix status, never a raw word", () => {
   it("a validated token (STAMPED with its validation time) is the only success", () => {
     expect(timestampToneOf(decisionFor(VALIDATED))).toBe("success");
     // STAMPED without a validation time was never validated (ET-TSA-01).
-    expect(timestampToneOf(decisionFor({ tsaStatus: "STAMPED", tsaTokenBase64: "dG9rZW4=" }))).toBe("warning");
+    expect(timestampToneOf(decisionFor({ tsaStatus: "STAMPED", tsaTokenBase64: "dG9rZW4=" }))).toBe("neutral");
   });
 });
 
@@ -89,7 +90,7 @@ describe("FAILED with a kept token", () => {
   it("no code: NOT_CHECKED — not danger, and not a mismatch", async () => {
     const signal = tsaSignal(KEPT_NO_CODE);
     expect(signal.state).toBe("PRESENT_NOT_INDEPENDENTLY_VERIFIED");
-    expect(timestampToneOf(decisionFor(KEPT_NO_CODE))).toBe("warning");
+    expect(timestampToneOf(decisionFor(KEPT_NO_CODE))).toBe("neutral");
 
     const mismatch = buildMismatchNarrative({
       trustDecision: decisionFor(KEPT_NO_CODE),
@@ -100,7 +101,7 @@ describe("FAILED with a kept token", () => {
     expect(mismatch.body).not.toMatch(/Trusted timestamp/);
 
     const vm = await buildReportViewModel(reportInputFixture({ evidence: evidenceWith(KEPT_NO_CODE) }));
-    expect(vm.technicalAppendix.timestampStatusTone).toBe("warning");
+    expect(vm.technicalAppendix.timestampStatusTone).toBe("neutral");
     expect(vm.mismatchSummary.tone).not.toBe("danger");
     expect(vm.mismatchSummary.body).not.toMatch(/Trusted timestamp/);
     expect(vm.verificationMatrix.rows.find((r) => r.key === "tsa_token")!.status).toBe("NOT_CHECKED");
@@ -217,11 +218,11 @@ describe("the report's TSA status words — the canonical signal, agreeing with 
   const CASES: Array<[string, Partial<ReportEvidence>, string, string]> = [
     ["validated", VALIDATED, "RFC 3161 timestamp validated", "success"],
     ["retained token", RETAINED, TSA_RETAINED_TOKEN_STATUS_LABEL, "success"],
-    ["kept, no anchor", KEPT_NO_ANCHOR, "Timestamp token obtained; not validated (no trust anchor was available)", "warning"],
+    ["kept, no anchor", KEPT_NO_ANCHOR, "Timestamp token obtained; not validated (no trust anchor was available)", "neutral"],
     // AUD-16 (2026-10-20): no recorded cause → no stated cause (was "no trust
     // anchor was available", which invented one).
-    ["kept, no code", KEPT_NO_CODE, "Timestamp token obtained; not validated", "warning"],
-    ["recorded legacy word", { tsaStatus: "GRANTED", tsaTokenBase64: "dG9rZW4=" }, "Timestamp token recorded; not validated", "warning"],
+    ["kept, no code", KEPT_NO_CODE, "Timestamp token obtained; not validated", "neutral"],
+    ["recorded legacy word", { tsaStatus: "GRANTED", tsaTokenBase64: "dG9rZW4=" }, "Timestamp token recorded; not validated", "neutral"],
     ["validation failed", VALIDATION_FAILED, "Timestamp token obtained; validation failed", "danger"],
     ["not obtained", NOT_OBTAINED, "Trusted timestamp not obtained", "neutral"],
   ];

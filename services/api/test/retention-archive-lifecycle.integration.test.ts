@@ -30,6 +30,7 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { tamperSealedEvidence } from "./helpers/sealed-identity-tamper.js";
 
 // The Object-Lock bucket (created with ObjectLockEnabledForBucket). Set before
 // anything reads the environment: the storage modules read it per call.
@@ -317,7 +318,7 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     // The recorded signed version no longer resolves in storage.
     const loc = await originalLocation(id);
     if (loc.partId) await prisma.evidencePart.update({ where: { id: loc.partId }, data: { storageVersionId: "missing-version-id" } });
-    else await prisma.evidence.update({ where: { id }, data: { storageVersionId: "missing-version-id" } });
+    else await tamperSealedEvidence(prisma, id, { storageVersionId: "missing-version-id" });
     expect((await call("POST", `/v1/evidence/${id}/archive-restore`, A().ownerToken, {})).statusCode).toBe(202);
     const outcomes = await restoreSweep.processArchiveRestoreRequests({});
     const mine = outcomes.find((o) => o.evidenceId === id);

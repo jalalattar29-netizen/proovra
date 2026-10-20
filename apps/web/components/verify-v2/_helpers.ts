@@ -50,86 +50,13 @@ export function isOtsTerminalStatus(status?: string | null): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Tone helpers — return colour / tone config for status badges
+// Tone helpers — AUD-47 (2026-10-20): statusTone / timestampTone were deleted.
+// Nothing called them, and they broke the tone rules (a raw STAMPED read as
+// success, an unvalidated token amber). Statuses take THE shared tables
+// (VERIFICATION_STATUS_TONES, TSA_PROOF_STATUS_TONE).
 // ---------------------------------------------------------------------------
 
-export function statusTone(
-  status?: string | null,
-): { label: string; bg: string; color: string; border: string } {
-  const s = (status ?? "").toUpperCase();
 
-  if (
-    s === "GRANTED" ||
-    s === "STAMPED" ||
-    s === "VERIFIED" ||
-    s === "SUCCEEDED" ||
-    s === "SIGNED" ||
-    s === "REPORTED" ||
-    s === "ANCHORED" ||
-    s === "RECORDED_INTEGRITY_VERIFIED"
-  ) {
-    return {
-      label: s || "VERIFIED",
-      bg: "#ECFDF3",
-      color: "#067647",
-      border: "#ABEFC6",
-    };
-  }
-
-  if (s === "PENDING" || s === "MATERIALS_AVAILABLE") {
-    return {
-      label: s || "AVAILABLE",
-      bg: "#FFFAEB",
-      color: "#B54708",
-      border: "#FAD7A0",
-    };
-  }
-
-  if (s) {
-    return {
-      label: s,
-      bg: "#FEF3F2",
-      color: "#B42318",
-      border: "#FECDCA",
-    };
-  }
-
-  return {
-    label: "AVAILABLE",
-    bg: "#F8F9FC",
-    color: "#344054",
-    border: "#D0D5DD",
-  };
-}
-
-export function timestampTone(
-  status?: string | null,
-): { label: string; tone: "success" | "warning" | "neutral" } {
-  const s = (status ?? "").toUpperCase();
-
-  if (s === "STAMPED" || s === "GRANTED" || s === "VERIFIED" || s === "SUCCEEDED") {
-    return { label: s, tone: "success" };
-  }
-
-  if (s === "PENDING") {
-    return { label: "PENDING", tone: "warning" };
-  }
-
-  // ET-TSA-01: a kept token that was never validated.
-  if (s === "RECORDED_NOT_VALIDATED") {
-    return { label: "RECORDED, NOT VALIDATED", tone: "warning" };
-  }
-
-  if (s === "FAILED") {
-    return { label: "FAILED", tone: "warning" };
-  }
-
-  if (s) {
-    return { label: s, tone: "warning" };
-  }
-
-  return { label: "Unavailable", tone: "neutral" };
-}
 
 /**
  * The Bitcoin anchoring badge (2026-10-15): the state and verification the

@@ -19,12 +19,11 @@ import {
   hasCaptureLocationMetadata,
   resolveEvidenceLocation,
   formatTimestampForReportUtc,
-  otsVerificationSentence,
   absoluteInternalUrl,
   buildVerificationMatrix,
 } from "@proovra/shared";
 import type { CanonicalEvidenceMaterials } from "@proovra/shared";
-import { buildOtsAnchoringRows, otsVerificationLabelFor } from "./ots-presentation.js";
+import { buildOtsAnchoringRows, otsReportVerificationSentence, otsVerificationLabelFor } from "./ots-presentation.js";
 import type {
   CalloutModel,
   CustodyHashRow,
@@ -97,7 +96,8 @@ import {
   buildReportCanonicalMaterials,
   hasCoreCryptoMaterials,
   isIntegrityVerified,
-  normalizeStorageTone,
+  storageToneOf,
+  storageVerificationLabelOf,
   timestampToneOf,
   timestampStatusLabelOf,
 } from "./truth-model.js";
@@ -635,12 +635,7 @@ function buildReviewReadinessRows(
 },
     {
       label: "Immutable Storage",
-      value: safeBooleanLabel(
-        canonicalMaterials.storageState.isProtected,
-        "Verified",
-        "Recorded with limitations",
-        "Not reported"
-      ),
+      value: storageVerificationLabelOf(evidence.storageProtectionVerification),
     },
     {
       label: "Chain of Custody Present",
@@ -842,12 +837,7 @@ function buildStorageRows(
     },
     {
       label: "Immutable Storage",
-      value: safeBooleanLabel(
-        canonicalMaterials.storageState.isProtected,
-        "Verified",
-        "Recorded with limitations",
-        "Not reported"
-      ),
+      value: storageVerificationLabelOf(evidence.storageProtectionVerification),
     },
     { label: "RFC 3161 Provider", value: safe(evidence.tsaProvider) },
     {
@@ -1224,7 +1214,7 @@ function buildTechnicalAppendixCourtRows(params: {
 {
   // The Bitcoin anchoring card's sentence (canonical materials).
   label: "Bitcoin anchoring",
-  value: otsVerificationSentence(params.canonicalMaterials.otsState, "en", formatTimestampForReportUtc).replace(/\.$/, ""),
+  value: otsReportVerificationSentence(params.canonicalMaterials.otsState, formatTimestampForReportUtc).replace(/\.$/, ""),
 },
     {
       label: "Forensic Custody Events",
@@ -1237,12 +1227,7 @@ function buildTechnicalAppendixCourtRows(params: {
 },
     {
       label: "Immutable Storage",
-      value: safeBooleanLabel(
-        params.canonicalMaterials.storageState.isProtected,
-        "Verified",
-        "Recorded with limitations",
-        "Not reported"
-      ),
+      value: storageVerificationLabelOf(params.evidence.storageProtectionVerification),
     },
   ];
 }
@@ -1419,11 +1404,8 @@ const primaryContentItem = resolvePrimaryContentItem(
 
   // THE canonical TSA reading (the trust decision's signal), never a raw word.
   const timestampTone = timestampToneOf(trustDecision);
-  const storageTone = normalizeStorageTone(
-    canonicalMaterials.storageState.isProtected,
-    canonicalMaterials.storageState.storageObjectLockMode,
-    canonicalMaterials.storageState.storageObjectLockRetainUntilUtc
-  );
+  // AUD-44 — the canonical storage verification state, never the row's facts.
+  const storageTone = storageToneOf(input.evidence.storageProtectionVerification);
   const storageAndTimestampTone =
     timestampTone === "danger" || storageTone === "danger"
       ? "danger"
@@ -1469,7 +1451,7 @@ const primaryContentItem = resolvePrimaryContentItem(
     },
     {
       label: "Storage & Timestamp",
-      value: buildIntegrityReadinessSummary(canonicalMaterials),
+      value: buildIntegrityReadinessSummary(canonicalMaterials, input.evidence.storageProtectionVerification),
       tone: storageAndTimestampTone,
     },
     {
@@ -1815,7 +1797,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
 
     storageRows: buildStorageRows(canonicalMaterials, anchorSummary, input.evidence, input.recordLegalHold),
     storageCallouts: [
-      buildStorageCallout(canonicalMaterials),
+      buildStorageCallout(input.evidence.storageProtectionVerification),
       buildTimestampCallout(canonicalMaterials, input.evidence.tsaFailureReason),
       buildOtsCallout(canonicalMaterials),
     ],

@@ -1,4 +1,4 @@
-import { custodyEventLabel } from "@proovra/shared";
+import { custodyEventLabel, evidenceVerificationStatusLabel, objectLockModeLabel } from "@proovra/shared";
 import {
   acquisitionAccountLabel,
   acquisitionIdentityBasisLabel,
@@ -165,18 +165,8 @@ export function mapRecordStatusLabel(status: string | null | undefined): string 
 export function mapVerificationStatusLabel(
   status: string | null | undefined
 ): string {
-  switch (safe(status, "").toUpperCase()) {
-    case "MATERIALS_AVAILABLE":
-      return "Technical materials available";
-    case "RECORDED_INTEGRITY_VERIFIED":
-      return "Recorded integrity state verified";
-    case "REVIEW_REQUIRED":
-      return "Review required";
-    case "FAILED":
-      return "Verification failed";
-    default:
-      return "Verification status not recorded";
-  }
+  // AUD-47 (2026-10-20) — THE shared vocabulary (@proovra/shared evidence-vocabulary).
+  return evidenceVerificationStatusLabel(status);
 }
 
 export function mapCertificationStatusLabel(
@@ -309,14 +299,8 @@ export function mapCustodyEventLabel(eventType: string | null | undefined, paylo
 export function mapObjectLockModePublicLabel(
   mode: string | null | undefined
 ): string {
-  switch (safe(mode, "").toUpperCase()) {
-    case "COMPLIANCE":
-      return "Compliance retention lock";
-    case "GOVERNANCE":
-      return "Governance retention lock";
-    default:
-      return "Not recorded";
-  }
+  // AUD-47 (2026-10-20) — THE shared vocabulary (@proovra/shared evidence-vocabulary).
+  return objectLockModeLabel(mode) ?? "Not recorded";
 }
 
 export function mapEvidenceAssetKindLabel(

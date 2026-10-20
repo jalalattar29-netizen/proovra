@@ -134,8 +134,9 @@ export default function PackageRecordPage() {
               badge={DISCLOSURE_PROFILE_LABELS[record.disclosureProfile]}
               detail={
                 <>
-                  Package ID <code dir="ltr" data-testid="package-record-id">{record.packageId}</code>, certifying report
-                  version {record.reportVersion}, issued {fmt(record.issuedAtUtc)}.
+                  Package ID <code dir="ltr" data-testid="package-record-id">{record.packageId}</code>, certifying{" "}
+                  {record.reportVersion != null ? `report version ${record.reportVersion}` : "a report whose version was not recorded"}, issued{" "}
+                  {record.issuedAtUtc ? fmt(record.issuedAtUtc) : "at a time that was not recorded"}.
                   {record.packageIdRecordedInPackage ? "" : " This package was issued before package IDs were sealed inside packages."}
                 </>
               }
@@ -257,7 +258,7 @@ export default function PackageRecordPage() {
               label="Supersedes"
               state={record.supersedes ? "not_checked" : "not_issued"}
               tone={record.supersedes ? "neutral" : undefined}
-              badge={record.supersedes ? `Report v${record.supersedes.reportVersion}` : "None"}
+              badge={record.supersedes ? (record.supersedes.reportVersion != null ? `Report v${record.supersedes.reportVersion}` : "Earlier package") : "None"}
               detail={
                 record.supersedes ? (
                   <a href={recordHref(record.supersedes.packageId)}>
@@ -272,7 +273,7 @@ export default function PackageRecordPage() {
               testId="package-record-superseded-by"
               label="Superseded by"
               state={record.supersededBy ? "pending" : "not_issued"}
-              badge={record.supersededBy ? `Report v${record.supersededBy.reportVersion}` : "Current"}
+              badge={record.supersededBy ? (record.supersededBy.reportVersion != null ? `Report v${record.supersededBy.reportVersion}` : "Later package") : "Current"}
               detail={
                 record.supersededBy ? (
                   <>

@@ -152,16 +152,19 @@ export const EXTERNAL_SURFACE_INVENTORY: ReadonlyArray<ExternalSurfaceRecord> = 
   {
     id: "public-verify",
     title: "Public verify page",
-    publicSurface: "/verify/:id (web) → /public/verify/:id (api)",
-    apiSurface: "GET /public/verify/:id",
-    accessShape: "ID",
+    publicSurface: "/verify/:token (web) → /public/verify/:token (api)",
+    apiSurface: "GET /public/verify/:token",
+    // AUD-48 (2026-10-20) — the record's permanent pvr_ reference or a share
+    // link (stored as its SHA-256 only) opens the page; a record UUID is not a
+    // capability and answers the uniform 404.
+    accessShape: "TOKEN",
     featureFlag: null,
     rateLimited: true,
     emitsAuditEvents: true,
-    tokenStorage: "NONE",
+    tokenStorage: "SHA-256",
     eagerRevocationCheck: true,
     notes:
-      "ID-based (UUID), no token. Per-IP rate limit 60/60s. Publication gate (404 if not PUBLISHED — no state disclosure). Finalization gate (409 if not SIGNED/REPORTED). Content access policy via PUBLIC_VERIFY_CONTENT_MODE env var; default 'preview_only'. No raw S3 URL exposure. Custody chain NOT polluted by views (analytics-only writes).",
+      "Opened by the record's canonical pvr_ reference or a share link (REPORT / PACKAGE / OWNER_SHARE / reviewer); a record UUID is not a capability (uniform 404). Per-client rate limit (VERIFY_RATE_LIMIT_MAX, default 30 per 60 s, shared with the public package record); a resolved record is never refused for its number of distinct viewers. What the page shows is the record's disclosure policy (VERIFICATION_ONLY or CONTENT_PREVIEW, owner-set) and its verification access state (AVAILABLE / WITHDRAWN / SUSPENDED); the retired publication state is not read. No raw storage URL is exposed except a presigned preview under CONTENT_PREVIEW (default content mode 'preview_only'). Custody chain NOT polluted by views (analytics-only writes).",
   },
   {
     id: "share-link",

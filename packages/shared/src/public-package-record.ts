@@ -77,8 +77,12 @@ export type PublicPackageRecord = {
   issuanceId: string | null;
   /** The other packages issued with it (one per profile). */
   issuedWith: Array<{ packageId: string; disclosureProfile: PublicPackageProfile }>;
-  reportVersion: number;
-  issuedAtUtc: string;
+  /** The version of the report this package certifies; null when the row did not record it (AUD-49). */
+  reportVersion: number | null;
+  /** The package row's own sequence number for this record (not a report version). */
+  packageVersion: number;
+  /** When the package was issued; null when not recorded — never the epoch (AUD-49). */
+  issuedAtUtc: string | null;
   packageSha256: string | null;
   packageFormatVersion: number | null;
   sealSha256: string | null;
@@ -86,8 +90,8 @@ export type PublicPackageRecord = {
   sealKey: PublicPackageSealKey | null;
   keyBinding: PublicPackageKeyBinding;
   /** The previous / next published package of the SAME profile for this record. */
-  supersedes: { packageId: string; reportVersion: number } | null;
-  supersededBy: { packageId: string; reportVersion: number } | null;
+  supersedes: { packageId: string; reportVersion: number | null } | null;
+  supersededBy: { packageId: string; reportVersion: number | null } | null;
   statement: string;
 };
 

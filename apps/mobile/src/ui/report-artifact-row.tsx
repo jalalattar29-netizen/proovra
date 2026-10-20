@@ -115,7 +115,7 @@ export function ReportArtifactRow({
         </ProovraText>
         {row.verificationStatus ? (
           <ProovraText variant="label" weight="semibold" color={statusFg(integrityTone(row.verificationStatus))}>
-            {`Integrity: ${reportIntegrityLabel(row.verificationStatus)}`}
+            {reportIntegrityLabel(row.verificationStatus)}
           </ProovraText>
         ) : null}
       </View>

@@ -227,6 +227,8 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   VERIFICATION_RECORD_WITHDRAWN: { disposition: "customer", where: "global" },
   VERIFICATION_RECORD_TEMPORARILY_UNAVAILABLE: { disposition: "customer", where: "global" },
   VERIFICATION_RECORD_RETAINED: { disposition: "customer", where: "global" },
+  // AUD-48 (2026-10-20) — a resolved reference to a record with no recorded seal.
+  VERIFICATION_RECORD_NOT_SEALED: { disposition: "customer", where: "global" },
   // AUD-52 / AUD-37 (2026-10-20) — capture-client protocol answers: a checksum
   // sent at record creation, and a declaration for a segment already stated lost.
   CHECKSUM_BELONGS_TO_PART: {

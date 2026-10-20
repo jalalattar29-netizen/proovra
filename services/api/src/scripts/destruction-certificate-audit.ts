@@ -111,7 +111,8 @@ async function main() {
         legal += r.legal;
         if (r.latest !== null) latest = Math.max(latest ?? 0, r.latest);
       }
-      const v2 = certificateVersion !== "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V3";
+      // V3 and later verified that no object version remained (AUD-49: V4).
+      const v2 = !(["PROOVRA_EVIDENCE_DESTRUCTION_CERT_V3", "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V4"] as Array<string | null>).includes(certificateVersion);
       findings.push({
         evidence: ev.id.slice(0, 8),
         certificateVersion,

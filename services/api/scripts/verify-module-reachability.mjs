@@ -132,6 +132,10 @@ const ENTRYPOINTS = Object.freeze({
     // dry-run-first deploy-window reconciliation
     // (pnpm --filter proovra-api ops:verification-disclosure-fleet).
     "services/api/src/scripts/verification-disclosure-fleet.ts",
+    // RETIRE ONE USER'S EVIDENCE (2026-10-20) — the dry-run-first operator CLI
+    // that moves the records a user CREATED to Trash through the one lifecycle
+    // authority (pnpm --filter proovra-api ops:retire-user-evidence).
+    "services/api/src/scripts/retire-user-evidence.ts",
     "services/api/src/seed-signing-key.ts",
     "services/api/prisma/scripts/org-security-policy-readiness.ts",
     // OTS INTEGRITY DECOUPLING (2026-09-09) — the bounded reconciliation for

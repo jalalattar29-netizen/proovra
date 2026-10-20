@@ -119,11 +119,16 @@ test("no signal tally is rendered — each signal states its own status", () => 
 });
 
 test("each status keeps its own semantic tone — nothing unchecked is painted green", () => {
-  assert.match(DECISION, /VERIFIED: "success"/);
-  assert.match(DECISION, /FAILED: "danger"/);
-  assert.match(DECISION, /NOT_CHECKED: "warning"/);
-  assert.match(DECISION, /NOT_APPLICABLE: "neutral"/);
-  assert.match(DECISION, /UNAVAILABLE: "neutral"/);
+  // AUD-47 (2026-10-20) — the tab reads THE shared tone table, where NOT_CHECKED
+  // is neutral (never amber, never green).
+  assert.match(DECISION, /= VERIFICATION_STATUS_TONES;/);
+  const shared = readFileSync(resolve(REPO_ROOT, "packages/shared/src/verification-matrix.ts"), "utf8");
+  const table = shared.slice(shared.indexOf("export const VERIFICATION_STATUS_TONES"));
+  assert.match(table, /VERIFIED: "success"/);
+  assert.match(table, /FAILED: "danger"/);
+  assert.match(table, /NOT_CHECKED: "neutral"/);
+  assert.match(table, /NOT_APPLICABLE: "neutral"/);
+  assert.match(table, /UNAVAILABLE: "neutral"/);
 });
 
 test("the full canonical signal-state vocabulary is supported and never colour-only", () => {

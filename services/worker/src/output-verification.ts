@@ -23,7 +23,7 @@
  */
 import { extractPdfTextWithPdfjs } from "./pdf/pdfjs-runtime.js";
 import { createHash as createDigestHash } from "node:crypto";
-import { resolveCanonicalRecordDigest, signedDigestsFromFingerprint } from "@proovra/shared";
+import { resolveCanonicalRecordDigest, signedDigestsFromFingerprint, TSA_RETAINED_TOKEN_REPAIR_SOURCE, tsaValidatedFromRetainedToken } from "@proovra/shared";
 
 const sha256TextHex = (text: string): string => createDigestHash("sha256").update(text, "utf8").digest("hex");
 import { createHash, createPublicKey, verify as verifySignature } from "node:crypto";
@@ -220,20 +220,8 @@ export async function loadCanonicalFacts(evidenceId: string): Promise<CanonicalA
  * "tsa_kept_token_validated" records that the token kept at intake was
  * validated later. Read from the chain, never inferred from times or statuses.
  */
-export const TSA_RETAINED_TOKEN_REPAIR_SOURCE = "tsa_kept_token_validated";
-
-export function tsaValidatedFromRetainedToken(
-  custody: ReadonlyArray<{ eventType?: string | null; payload?: unknown }>,
-): boolean {
-  return custody.some(
-    (e) =>
-      e.eventType === "TIMESTAMP_APPLIED" &&
-      Boolean(e.payload) &&
-      typeof e.payload === "object" &&
-      !Array.isArray(e.payload) &&
-      (e.payload as Record<string, unknown>).repair_source === TSA_RETAINED_TOKEN_REPAIR_SOURCE,
-  );
-}
+// AUD-51 (2026-10-20) — THE shared marker and reader (@proovra/shared tsa-status).
+export { TSA_RETAINED_TOKEN_REPAIR_SOURCE, tsaValidatedFromRetainedToken };
 
 /**
  * THE report payload's timestamp/anchoring fields from one lifecycle row and

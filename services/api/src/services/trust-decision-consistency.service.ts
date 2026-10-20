@@ -22,6 +22,8 @@ export type TrustDecisionConsistencyReasonCode =
   | "CORE_INTEGRITY_SIGNALS_CHANGED"
   /** A legitimate improvement since issue (never an alarm). */
   | "VERIFICATION_ADVANCED"
+  /** AUD-48 — a non-integrity check reads WORSE than at issue; the reason names it. */
+  | "VERIFICATION_REGRESSED"
   | "UNKNOWN_DIFFERENCE";
 
 export type TrustDecisionConsistencyTone = "neutral" | "info" | "warning" | "danger";
@@ -92,6 +94,17 @@ function movementOf(snapshot: TrustDecision | null, live: TrustDecision, key: st
   );
 }
 
+/** AUD-48 — the reader-facing names of the signals that moved this way. */
+function namesOf(live: TrustDecision, snapshot: TrustDecision | null, keys: ReadonlyArray<string>): string {
+  const names = keys.map(
+    (key) =>
+      live.signals.find((signal) => signal.key === key)?.label ??
+      snapshot?.signals.find((signal) => signal.key === key)?.label ??
+      key,
+  );
+  return names.length <= 1 ? (names[0] ?? "") : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+}
+
 function pushReason(
   reasons: TrustDecisionConsistencyReason[],
   reason: TrustDecisionConsistencyReason
@@ -152,6 +165,8 @@ export function buildTrustDecisionConsistency(
       tone: "info",
       integrityCritical: false,
     });
+  } else if (anchoringMovement === "REGRESSED" || anchoringMovement === "DECLINED") {
+    // AUD-48 (2026-10-20) — stated (and named) with every other regression below.
   } else if (anchoringMovement !== "SAME") {
     pushReason(reasons, {
       code: "PUBLICATION_STATUS_CHANGED",
@@ -213,17 +228,38 @@ export function buildTrustDecisionConsistency(
     });
   }
 
-  const coreMovements = Array.from(INTEGRITY_CRITICAL_SIGNAL_KEYS).map((key) =>
+  const coreKeys = Array.from(INTEGRITY_CRITICAL_SIGNAL_KEYS);
+  const coreMovements = coreKeys.map((key) =>
     movementOf(input.snapshotTrustDecision, input.liveTrustDecision, key),
   );
   if (coreMovements.includes("REGRESSED")) {
+    // AUD-48 (2026-10-20) — the reason names the check(s) that regressed.
+    const regressed = namesOf(
+      input.liveTrustDecision,
+      input.snapshotTrustDecision,
+      coreKeys.filter((_, i) => coreMovements[i] === "REGRESSED"),
+    );
     pushReason(reasons, {
       code: "CORE_INTEGRITY_SIGNALS_CHANGED",
-      label: "An integrity, signature, timestamp, or storage check failed after the snapshot",
+      label: `Failed since the artifact was issued: ${regressed}`,
       detail:
-        "A check that did not fail when the artifact was issued fails now. Review the current verification result before relying on the issued artifact.",
+        `${regressed} did not fail when the artifact was issued and fails now. Review the current verification result before relying on the issued artifact.`,
       tone: "danger",
       integrityCritical: true,
+    });
+  } else if (coreMovements.includes("DECLINED")) {
+    // AUD-48 — worse than at issue without failing: named, never generic.
+    const declined = namesOf(
+      input.liveTrustDecision,
+      input.snapshotTrustDecision,
+      coreKeys.filter((_, i) => coreMovements[i] === "DECLINED"),
+    );
+    pushReason(reasons, {
+      code: "CORE_INTEGRITY_SIGNALS_CHANGED",
+      label: `Reads worse than when the artifact was issued: ${declined}`,
+      detail: `${declined} stated a better result in the issued artifact than the record has now, without failing. Read the current verification result together with the issued artifact.`,
+      tone: "warning",
+      integrityCritical: false,
     });
   } else if (coreMovements.includes("CHANGED")) {
     pushReason(reasons, {
@@ -246,12 +282,27 @@ export function buildTrustDecisionConsistency(
   }
 
   // Any other signal whose canonical state moved (never its words).
-  const otherMoved = input.liveTrustDecision.signals.some(
-    (signal) =>
-      signal.key !== "bitcoin_anchoring" &&
-      !INTEGRITY_CRITICAL_SIGNAL_KEYS.has(signal.key) &&
-      movementOf(input.snapshotTrustDecision, input.liveTrustDecision, signal.key) !== "SAME",
-  );
+  const otherKeys = input.liveTrustDecision.signals
+    .map((signal) => signal.key as string)
+    .filter((key) => key !== "bitcoin_anchoring" && !INTEGRITY_CRITICAL_SIGNAL_KEYS.has(key));
+  const otherMovements = otherKeys.map((key) => movementOf(input.snapshotTrustDecision, input.liveTrustDecision, key));
+  const otherMoved = otherMovements.some((movement) => movement !== "SAME");
+  // AUD-48 (2026-10-20) — a regression of any other check is stated and named,
+  // whatever else changed; it is never folded into a generic difference.
+  const otherRegressed = [
+    ...(anchoringMovement === "REGRESSED" || anchoringMovement === "DECLINED" ? ["bitcoin_anchoring"] : []),
+    ...otherKeys.filter((_, i) => otherMovements[i] === "REGRESSED" || otherMovements[i] === "DECLINED"),
+  ];
+  if (otherRegressed.length > 0) {
+    const names = namesOf(input.liveTrustDecision, input.snapshotTrustDecision, otherRegressed);
+    pushReason(reasons, {
+      code: "VERIFICATION_REGRESSED",
+      label: `Reads worse than when the artifact was issued: ${names}`,
+      detail: `${names} stated a better result in the issued artifact than the record has now. The issued artifact keeps what was true when it was issued; review the current result.`,
+      tone: "warning",
+      integrityCritical: false,
+    });
+  }
 
   if (otherMoved && reasons.length === 0) {
     pushReason(reasons, {

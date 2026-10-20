@@ -1,5 +1,5 @@
 /**
- * ET-PKG-17 — two clients cannot lock a record's public Verify page.
+ * ET-PKG-17 / AUD-29 — no set of clients can lock a record's public Verify page.
  * Live Redis (the integration runner's disposable er-redis), the real route.
  *
  * On a40ca76f the per-evidence bucket counted REQUESTS shared by every viewer
@@ -7,10 +7,11 @@
  * every legitimate viewer got 429 for the window. The bucket now counts
  * DISTINCT clients; request volume per client is the per-IP bucket's job.
  *
- * (2026-10-18) The per-record bucket runs once the identifier has resolved to
- * a record (a canonical pvr_ reference here); an id that is not a capability
- * is the uniform 404 before it, behind the per-client bucket only. The page
- * behind the reference need not be servable: the limiter decides first.
+ * AUD-29 (2026-10-20): a distinct-client bucket on a RESOLVED record still let
+ * a burst of real viewers (or addresses an attacker controls) lock everyone
+ * else out of a widely shared page. A resolved read is now bounded by each
+ * client's own budget only; the distinct-client bound applies to a package
+ * identifier that resolves to nothing (a rotating-address probe).
  */
 import { randomUUID } from "node:crypto";
 
@@ -56,24 +57,26 @@ describe("public Verify per-record limit counts distinct clients (live Redis)", 
     await h?.cleanup();
   });
 
-  it("two clients hammering a record never lock out a third; the cap is reached only by distinct clients", async () => {
+  it("AUD-29 — a resolved record is never refused for being read by many distinct viewers", async () => {
     const id = await referencedRecord();
     const tag = randomUUID().slice(0, 4);
     const a = `198.51.100.${10 + (parseInt(tag, 16) % 50)}`;
-    const b = `198.51.100.${70 + (parseInt(tag, 16) % 50)}`;
-    for (let i = 0; i < 20; i += 1) {
-      expect((await open(id, a)).statusCode).not.toBe(429);
-      expect((await open(id, b)).statusCode).not.toBe(429);
+    for (let i = 0; i < 10; i += 1) expect((await open(id, a)).statusCode).not.toBe(429);
+    // Ten distinct viewers with a per-identifier cap of 3: every one is admitted.
+    for (let n = 1; n <= 10; n += 1) {
+      const res = await open(id, `203.0.113.${n}`);
+      expect(res.statusCode, `viewer ${n}`).not.toBe(429);
     }
-    // A third distinct viewer is admitted (3 = the cap).
-    expect((await open(id, "203.0.113.5")).statusCode).not.toBe(429);
-    // A fourth distinct client in the same window is refused …
-    const fourth = await open(id, "203.0.113.6");
+  });
+
+  it("AUD-29 — a package identifier that resolves to nothing is bounded by distinct missing clients", async () => {
+    const sha = randomUUID().replace(/-/g, "").padEnd(64, "a");
+    const miss = (ip: string) => h.app.inject({ method: "GET", url: `/public/verification-packages/by-sha256/${sha}`, remoteAddress: ip });
+    for (let n = 1; n <= 3; n += 1) expect((await miss(`192.0.2.${n}`)).statusCode).toBe(404);
+    const fourth = await miss("192.0.2.4");
     expect(fourth.statusCode).toBe(429);
     expect(fourth.headers["retry-after"]).toBeDefined();
-    // … while an admitted client keeps its access.
-    expect((await open(id, a)).statusCode).not.toBe(429);
-    // Another record's window is unaffected.
-    expect((await open(await referencedRecord(), "203.0.113.6")).statusCode).not.toBe(429);
+    // An admitted client keeps its (404) answer.
+    expect((await miss("192.0.2.1")).statusCode).toBe(404);
   });
 });

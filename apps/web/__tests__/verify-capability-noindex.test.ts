@@ -41,3 +41,20 @@ test("ET-PKG-13: the Verify page never hands the token to Sentry", () => {
     assert.doesNotMatch(m[0], /token/, m[0]);
   }
 });
+
+test("AUD-48 (2026-10-20): security headers are not production-only, the failure path never fails open, and the preview frame is allowed only for storage", () => {
+  const src = read("middleware.ts");
+  assert.ok(!src.includes("if (isProd) applySecurityHeaders("));
+  const failurePath = src.slice(src.lastIndexOf("} catch {"));
+  assert.ok(failurePath.includes("applyStaticSecurityHeaders(res, req.nextUrl.pathname);"), "the failure path applies the static headers");
+  assert.ok(src.includes('"Strict-Transport-Security", "max-age=63072000; includeSubDomains"'));
+  assert.ok(src.includes("frame-src 'self' https://accounts.google.com https://appleid.apple.com ${R2_HOST}"));
+  const preview = read("app/verify/[token]/VerifyContentReview.tsx");
+  assert.match(preview, /<iframe\s+src=\{item\.viewUrl\}\s+title=\{item\.label\}\s+referrerPolicy="no-referrer"/);
+});
+
+test("AUD-47 (2026-10-20): the rule-breaking verify-v2 tone helpers stay deleted", () => {
+  const helpers = read("components/verify-v2/_helpers.ts");
+  assert.ok(!helpers.includes("export function statusTone("));
+  assert.ok(!helpers.includes("export function timestampTone("));
+});

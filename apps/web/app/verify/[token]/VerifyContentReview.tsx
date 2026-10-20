@@ -287,9 +287,15 @@ function renderVerifyEvidenceMedia(
           </div>
         ) : null}
         <div style={wrapperStyle}>
+          {/* AUD-48 (2026-10-20) — the presigned URL never leaks as a Referer,
+              and the frame is reachable only because CSP frame-src names the
+              storage origin. No sandbox attribute: browsers refuse to render a
+              PDF inside a sandboxed frame, and the frame is cross-origin
+              (storage), so it cannot reach this page either way. */}
           <iframe
             src={item.viewUrl}
             title={item.label}
+            referrerPolicy="no-referrer"
             style={{ width: "100%", height: 720, border: 0 }}
           />
         </div>

@@ -167,7 +167,9 @@ function buildCsp(nonce: string, isProd: boolean, relaxed: boolean, allowEval: b
       : `connect-src 'self' https: http: ws: wss: ${API_BASE} ${R2_HOST}${STORAGE_ORIGIN ? ` ${STORAGE_ORIGIN}` : ""} https://accounts.google.com https://appleid.apple.com https://appleid.cdn-apple.com`,
 
     // OAuth
-    "frame-src 'self' https://accounts.google.com https://appleid.apple.com",
+    // AUD-48 (2026-10-20) — the content preview frames a presigned object URL:
+    // the storage origins are named, nothing broader.
+    `frame-src 'self' https://accounts.google.com https://appleid.apple.com ${R2_HOST}${STORAGE_ORIGIN ? ` ${STORAGE_ORIGIN}` : ""}`,
     "form-action 'self' https://appleid.apple.com",
 
     // styles (نخليه مرن لأن Next غالباً يحتاج inline styles)
@@ -199,21 +201,35 @@ export function isPublicVerifyCapabilityPath(pathname: string): boolean {
   return pathname.startsWith("/verify/");
 }
 
-function applySecurityHeaders(response: NextResponse, csp: string, pathname: string) {
+/**
+ * AUD-48 (2026-10-20) — the static security headers are applied in EVERY
+ * environment (they were production-only), and on the failure path too. The
+ * nonce CSP is enforced in production builds (staging included); `next dev`
+ * keeps its relaxed policy on the request only, because dev tooling needs eval.
+ */
+function applyStaticSecurityHeaders(response: NextResponse, pathname: string) {
   if (isPublicVerifyCapabilityPath(pathname)) {
     response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
   }
-  // The policy is BUILT ONCE per request and passed in, so the header the
-  // browser enforces and the header the render read are the same string with
-  // the same nonce. Building it twice was safe only by coincidence.
-  response.headers.set("Content-Security-Policy", csp);
-
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "same-origin");
-
-  // إذا بدك تشدد أكثر لاحقاً: خليه ( ) بدل (self)
   response.headers.set("Permissions-Policy", "geolocation=(self)");
+  if (process.env.NODE_ENV === "production") {
+    response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains");
+  }
+}
+
+/** What the failure path can still enforce without a nonce (no script policy). */
+export const FAIL_SAFE_CSP = "default-src 'self' https: data: blob: 'unsafe-inline'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
+
+function applySecurityHeaders(response: NextResponse, csp: string, pathname: string) {
+  applyStaticSecurityHeaders(response, pathname);
+  // The policy is BUILT ONCE per request and passed in, so the header the
+  // browser enforces and the header the render read are the same string with
+  // the same nonce. Building it twice was safe only by coincidence.
+  if (process.env.NODE_ENV === "production") response.headers.set("Content-Security-Policy", csp);
+
 
   // ✅ لا ترسل nonce كـ response header (غير ضروري)
   // response.headers.set("x-nonce", nonce);
@@ -345,7 +361,7 @@ export async function middleware(req: NextRequest) {
     // dev / vercel preview: no host switching
     if (!host || isLocalOrPreviewHost(host)) {
       const res = nextWithNonce(req, nonce, csp);
-      if (isProd) applySecurityHeaders(res, csp, pathname);
+      applySecurityHeaders(res, csp, pathname);
       return res;
     }
 
@@ -354,7 +370,7 @@ export async function middleware(req: NextRequest) {
 
     if (!appBaseUrl && !webBaseUrl) {
       const res = nextWithNonce(req, nonce, csp);
-      if (isProd) applySecurityHeaders(res, csp, pathname);
+      applySecurityHeaders(res, csp, pathname);
       return res;
     }
 
@@ -386,13 +402,13 @@ export async function middleware(req: NextRequest) {
           const target = req.nextUrl.clone();
           target.pathname = `/settings/legal/${internalSlug}`;
           const res = NextResponse.redirect(target, 308);
-          if (isProd) applySecurityHeaders(res, csp, pathname);
+          applySecurityHeaders(res, csp, pathname);
           return res;
         }
       }
 
       const res = nextWithNonce(req, nonce, csp);
-      if (isProd) applySecurityHeaders(res, csp, pathname);
+      applySecurityHeaders(res, csp, pathname);
       return res;
     }
 
@@ -401,7 +417,7 @@ export async function middleware(req: NextRequest) {
       const target = new URL(req.url);
       target.pathname = "/home";
       const res = NextResponse.redirect(target);
-      if (isProd) applySecurityHeaders(res, csp, pathname);
+      applySecurityHeaders(res, csp, pathname);
       return res;
     }
 
@@ -411,7 +427,7 @@ export async function middleware(req: NextRequest) {
       target.pathname = pathname;
       req.nextUrl.searchParams.forEach((v, k) => target.searchParams.set(k, v));
       const res = NextResponse.redirect(target);
-      if (isProd) applySecurityHeaders(res, csp, pathname);
+      applySecurityHeaders(res, csp, pathname);
       return res;
     }
 
@@ -487,7 +503,7 @@ export async function middleware(req: NextRequest) {
       const target = new URL(appBaseUrl);
       target.pathname = pathname;
       const res = NextResponse.redirect(target);
-      if (isProd) applySecurityHeaders(res, csp, pathname);
+      applySecurityHeaders(res, csp, pathname);
       return res;
     }
 
@@ -499,16 +515,22 @@ export async function middleware(req: NextRequest) {
     if (isAppHost) {
       const tierGated = applySurfaceTierGate(req, pathname);
       if (tierGated) {
-        if (isProd) applySecurityHeaders(tierGated, csp, pathname);
+        applySecurityHeaders(tierGated, csp, pathname);
         return tierGated;
       }
     }
 
     const res = nextWithNonce(req, nonce, csp);
-    if (isProd) applySecurityHeaders(res, csp, pathname);
+    applySecurityHeaders(res, csp, pathname);
     return res;
   } catch {
-    return NextResponse.next();
+    // AUD-48 (2026-10-20) — never fail OPEN: a middleware error still answers
+    // with the static headers (robots on a capability path, framing, sniffing)
+    // and a nonce-free policy that keeps framing and plugins out.
+    const res = NextResponse.next();
+    applyStaticSecurityHeaders(res, req.nextUrl.pathname);
+    if (process.env.NODE_ENV === "production") res.headers.set("Content-Security-Policy", FAIL_SAFE_CSP);
+    return res;
   }
 }
 

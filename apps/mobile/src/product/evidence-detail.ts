@@ -12,7 +12,7 @@
  * NOT projected (they need a teamId / enterprise surface). `reviewerAudit` is
  * sent on every review-workspace reply and IS projected (projectReviewerAudit).
  */
-import { localizeEvidenceLocation, readOtsAnchoringView, resolveEvidenceLocation, type EvidenceLocationTone, type OtsVerificationKey } from "@proovra/shared";
+import { localizeEvidenceLocation, parseTsaProofStatus, readOtsAnchoringView, resolveEvidenceLocation, TSA_PROOF_STATUS_LABELS, type EvidenceLocationTone, type OtsVerificationKey } from "@proovra/shared";
 
 export interface CustodyEvent {
   sequence: number;
@@ -25,7 +25,7 @@ export interface CustodyEvent {
 export interface PreservationView {
   verificationStatus: string | null;
   verificationStatusLabel: string;
-  tsa: { status: string | null; provider: string | null; genTimeUtc: string | null; failureReason: string | null };
+  tsa: { status: string | null; proofStatus: string | null; provider: string | null; genTimeUtc: string | null; failureReason: string | null };
   /**
    * `preservationMatrix.ots` — an OtsAnchoringView (2026-10-13). `state` is the
    * server's canonical OTS state as sent (render it through
@@ -101,6 +101,17 @@ export function projectCustodyEvents(rw: unknown): { forensic: CustodyEvent[]; a
   return { forensic, access };
 }
 
+/**
+ * AUD-47 (2026-10-20) — the trusted-timestamp line in THE shared words of the
+ * canonical proof status; a raw column word is never humanized into a claim
+ * (a reply without the proof status says only that nothing was validated).
+ */
+export function tsaStatusLine(t: PreservationView["tsa"]): string {
+  const proof = parseTsaProofStatus(t.proofStatus);
+  const base = proof ? TSA_PROOF_STATUS_LABELS[proof] : t.status ? "Not validated" : "Not timestamped";
+  return (proof || t.status) && t.provider ? `${base} · ${t.provider}` : base;
+}
+
 export function projectPreservation(rw: unknown): PreservationView {
   const pm = o(o(rw)["preservationMatrix"]);
   const tsa = o(pm["tsa"]);
@@ -110,7 +121,7 @@ export function projectPreservation(rw: unknown): PreservationView {
   return {
     verificationStatus: s(pm["verificationStatus"]),
     verificationStatusLabel: s(pm["verificationStatusLabel"]) ?? "",
-    tsa: { status: s(tsa["status"]), provider: s(tsa["provider"]), genTimeUtc: s(tsa["genTimeUtc"]), failureReason: s(tsa["failureReason"]) },
+    tsa: { status: s(tsa["status"]), proofStatus: s(tsa["proofStatus"]), provider: s(tsa["provider"]), genTimeUtc: s(tsa["genTimeUtc"]), failureReason: s(tsa["failureReason"]) },
     ots: (() => {
       const state = s(ots["state"]);
       const anchored = state === "ANCHORED";

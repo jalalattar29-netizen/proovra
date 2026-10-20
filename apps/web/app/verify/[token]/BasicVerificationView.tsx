@@ -20,8 +20,7 @@ import {
   type BasicVerification,
   type ComponentVerificationState,
   type VerificationMatrix,
-  type VerificationStatus,
-} from "@proovra/shared";
+  type VerificationStatus, objectLockModeLabel } from "@proovra/shared";
 
 import { Row, fmt } from "../_shared/verify-ui";
 import { otsMatrixRowPresentation } from "./VerifyMatrixPanels";
@@ -149,6 +148,7 @@ export type CanonicalVerificationState =
   | "WITHDRAWN"
   | "TEMPORARILY_UNAVAILABLE"
   | "RETAINED"
+  | "NOT_SEALED"
   | "LEGACY_LINK_RETIRED";
 
 const CANONICAL_STATE_COPY: Record<CanonicalVerificationState, { title: string; body: string }> = {
@@ -167,6 +167,10 @@ const CANONICAL_STATE_COPY: Record<CanonicalVerificationState, { title: string; 
   RETAINED: {
     title: "Record retained",
     body: "The record's owner has removed it from active use. It remains preserved under its retention protection and is no longer shown as an active record.",
+  },
+  NOT_SEALED: {
+    title: "Record not sealed",
+    body: "This record has no recorded seal (content digest and signature), so there is nothing PROOVRA can verify on this page yet.",
   },
   LEGACY_LINK_RETIRED: {
     title: "This link format has been retired",
@@ -218,7 +222,7 @@ function CanonicalFactsSection({ canonical }: { canonical: CanonicalVerification
         <div data-verify-canonical-preservation>
           Storage protection:{" "}
           {canonical.preservation.objectLockMode
-            ? `Object Lock (${canonical.preservation.objectLockMode.toLowerCase()})${canonical.preservation.retainUntilUtc ? ` until ${fmt(canonical.preservation.retainUntilUtc)}` : ""}`
+            ? `${objectLockModeLabel(canonical.preservation.objectLockMode) ?? "Object Lock retention"}${canonical.preservation.retainUntilUtc ? ` until ${fmt(canonical.preservation.retainUntilUtc)}` : ""}`
             : "Not recorded for this record"}
         </div>
       </div>

@@ -46,9 +46,14 @@ export type PublicVerifyLiveAnchoringSection = {
    * not "advance" since).
    */
   advance: OtsAdvanceSinceIssue | null;
+  /**
+   * AUD-48 (2026-10-20) — a report / package NEWER than the one this page was
+   * opened for: the report version the link was issued for (a REPORT or
+   * PACKAGE link), or the snapshot the page states. (autoRefreshRecommended
+   * was always false and fed a poller that could never run; it is retired.)
+   */
   newerReportAvailable: boolean;
   newerPackageAvailable: boolean;
-  autoRefreshRecommended: boolean;
 };
 
 /**
@@ -95,6 +100,10 @@ export function buildPublicVerifyConsistencySections(params: {
   } | null;
   /** The record's live anchoring, resolved once by the caller (resolveRecordOtsAnchoring). */
   currentOts: OtsAnchoring;
+  /** AUD-48 — the report version a REPORT / PACKAGE link was issued for; null otherwise. */
+  linkReportVersion?: number | null;
+  /** AUD-48 — the report version the latest published package certifies. */
+  latestPackageReportVersion?: number | null;
   otsUpgradedAtUtc: string | null;
 }): {
   verificationSnapshot: PublicVerifySnapshotSection;
@@ -149,15 +158,14 @@ export function buildPublicVerifyConsistencySections(params: {
     hasAdvancedSinceSnapshot:
       params.latestReport != null && otsAdvanceSinceIssue(atIssue.otsVerification, current.verification) !== "NONE",
     advance: params.latestReport ? otsAdvanceSinceIssue(atIssue.otsVerification, current.verification) : null,
-    newerReportAvailable: isLaterThan(
-      params.latestReport?.generatedAtUtc ?? null,
-      generatedAtUtc,
-    ),
-    newerPackageAvailable: isLaterThan(
-      params.latestVerificationPackage?.generatedAtUtc ?? null,
-      generatedAtUtc,
-    ),
-    autoRefreshRecommended: false,
+    newerReportAvailable:
+      params.linkReportVersion != null
+        ? (params.latestReport?.version ?? 0) > params.linkReportVersion
+        : isLaterThan(params.latestReport?.generatedAtUtc ?? null, generatedAtUtc),
+    newerPackageAvailable:
+      params.linkReportVersion != null
+        ? (params.latestPackageReportVersion ?? 0) > params.linkReportVersion
+        : isLaterThan(params.latestVerificationPackage?.generatedAtUtc ?? null, generatedAtUtc),
   };
 
   return {

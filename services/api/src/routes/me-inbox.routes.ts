@@ -116,8 +116,7 @@ import {
   parseOtsChainFailureCode,
   formatTimestampForReportUtc,
   OTS_FAILURE_LABELS,
-  type OtsFailureCode,
-} from "@proovra/shared";
+  type OtsFailureCode, tsaFailureNote } from "@proovra/shared";
 import { evidenceScopeForMany } from "@proovra/shared-runtime";
 import { conditionMessageFor, conditionTextFor } from "../services/operations/condition-presentation.service.js";
 import type { Prisma } from "@prisma/client";
@@ -2757,6 +2756,8 @@ export async function buildInboxAggregation(
                     title: true,
                     originalFileName: true,
                     tsaFailureReason: true,
+                    // AUD-47 (2026-10-20) — the bounded code is what the item states.
+                    tsaFailureCode: true,
                     updatedAt: true,
                   },
                   orderBy: { updatedAt: "desc" },
@@ -3486,13 +3487,16 @@ export async function buildInboxAggregation(
           : "workspace";
         const evidenceLabel =
           ev.title ?? ev.originalFileName ?? ev.id.slice(0, 8);
-        const reason = (ev.tsaFailureReason ?? "Timestamping failed.").slice(0, 240);
+        // AUD-47 (2026-10-20) — the canonical note for the recorded code; the
+        // provider's raw response text (tsa_failure_reason) never reaches a
+        // notification.
+        const reason = tsaFailureNote(ev.tsaFailureCode ?? null, Boolean(ev.tsaFailureReason)) ?? "Timestamping failed.";
         items.push({
           id: `tsa_failure:${ev.id}`,
           category: "tsa_failure",
           tone: "high",
           title: `Trusted timestamp failed — ${evidenceLabel}`,
-          message: { key: "tsa_failure", params: { evidence: evidenceLabel, reason: ev.tsaFailureReason ? ev.tsaFailureReason.slice(0, 240) : null } },
+          message: { key: "tsa_failure", params: { evidence: evidenceLabel, code: ev.tsaFailureCode ?? null } },
           body: `${reason} Open the evidence Integrity tab for the timestamping status and retry posture.`,
           href: `/evidence/${encodeURIComponent(ev.id)}?tab=integrity`,
           occurredAt: ev.updatedAt.toISOString(),

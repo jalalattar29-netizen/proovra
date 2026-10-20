@@ -1077,8 +1077,8 @@ export async function declareDirectCapturePartLost(input: {
     return await db.$transaction(
       async (tx) => {
         // Parameterised (not a tagged template): the same lock and wait the declaration takes.
-        await tx.$executeRawUnsafe("SELECT set_config('lock_timeout', $1, true)", DECLARATION_LOCK_WAIT_MS + "ms");
-        await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))", "capture-session:" + session.id);
+        await tx.$executeRaw`SELECT set_config('lock_timeout', ${`${DECLARATION_LOCK_WAIT_MS}ms`}, true)`;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${session.id}`}))`;
         const locked = await loadOwnedDirectCaptureSession(tx as unknown as PrismaClient, session.id, input.ownerUserId);
         if (isLiveSealClaim(locked, now)) throw new DirectCaptureError("SESSION_BUSY");
         const fresh = await requireActive(db, locked, now);

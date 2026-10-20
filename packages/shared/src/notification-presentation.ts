@@ -33,6 +33,7 @@ import {
   renderConditionMessage,
   reviewEscalationReasonPhrase,
 } from "./operations-condition-messages.js";
+import { tsaFailureNote } from "./tsa-failure-copy.js";
 
 export type NotificationLocale = "en" | "de" | "ar";
 
@@ -781,8 +782,10 @@ export function renderNotificationMessage(
     case "tsa_failure":
       return {
         title: f(MSG.tsaTitle, { evidence: str(p.evidence) ?? "" }),
-        // The pipeline's stored failure text verbatim when it recorded one.
-        body: f(MSG.tsaBody, { reason: str(p.reason) ?? MSG.tsaReasonFallback[l] }),
+        // AUD-47 (2026-10-20) — the canonical note for the bounded code (in
+        // English; other locales say the localized fallback). A provider's raw
+        // text — carried by older messages as `reason` — is never shown.
+        body: f(MSG.tsaBody, { reason: (l === "en" ? tsaFailureNote(str(p.code)) : null) ?? MSG.tsaReasonFallback[l] }),
       };
     case "case_assignment": {
       const role = word(CASE_ROLES, l, p.role, CASE_ROLE_FALLBACK);

@@ -216,7 +216,8 @@ describe("OpenTimestamps: one canonical state on every card", () => {
     ["anchored", "Attestation recorded", "The proof names Bitcoin block 860000; PROOVRA has not checked it against the Bitcoin main chain."],
     ["anchored_no_txid", "Attestation recorded", "The proof names Bitcoin block 860000; PROOVRA has not checked it against the Bitcoin main chain."],
     ["budget_failed", "Failed", "Bitcoin anchoring did not complete for this record."],
-    ["unavailable", "Unavailable", "The OpenTimestamps proof material cannot currently be read."],
+    // AUD-48 (2026-10-20) — snapshot wording: never "currently" in a PDF.
+    ["unavailable", "Unavailable", "The OpenTimestamps proof material could not be read when this report was issued."],
     ["none", "Not requested", "No OpenTimestamps anchoring was requested for this record."],
   ] as const;
   for (const [ots, status, sentence] of cases) {

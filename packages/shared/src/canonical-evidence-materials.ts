@@ -510,7 +510,31 @@ function semanticForMaterial(
   }
   if (material === "custodySnapshot") return "live-append-only";
   if (material === "otsState") return "live-updating-after-snapshot";
+  // AUD-48 (2026-10-20) — a kept RFC 3161 token can be validated after a
+  // snapshot was sealed: the timestamp reading may advance too.
+  if (material === "timestampState") return "live-updating-after-snapshot";
   return "live";
+}
+
+/**
+ * AUD-48 (2026-10-20) — THE categories a live output may show advanced since
+ * a sealed snapshot, and their reader-facing names. A surface prints the
+ * label, never the key.
+ */
+export const LIVE_DELTA_MATERIALS = Object.freeze(["custodyChain", "otsAnchoring", "timestampValidation"] as const);
+export type LiveDeltaMaterial = (typeof LIVE_DELTA_MATERIALS)[number];
+export const LIVE_DELTA_MATERIAL_LABELS: Readonly<Record<LiveDeltaMaterial, string>> = Object.freeze({
+  custodyChain: "Chain of custody",
+  otsAnchoring: "Bitcoin anchoring",
+  timestampValidation: "Trusted timestamp validation",
+});
+
+/** The reader-facing list ("Chain of custody, Bitcoin anchoring"); unknown keys are dropped. */
+export function liveDeltaMaterialsText(keys: ReadonlyArray<string> | null | undefined): string {
+  return (keys ?? [])
+    .filter((k): k is LiveDeltaMaterial => (LIVE_DELTA_MATERIALS as readonly string[]).includes(k))
+    .map((k) => LIVE_DELTA_MATERIAL_LABELS[k])
+    .join(", ");
 }
 
 // -----------------------------------------------------------------------------
@@ -952,6 +976,9 @@ export function deriveCanonicalOutputContext(
           : null,
         materials.otsState.snapshotSemantics === "live-updating-after-snapshot"
           ? "otsAnchoring"
+          : null,
+        materials.timestampState.snapshotSemantics === "live-updating-after-snapshot"
+          ? "timestampValidation"
           : null,
       ].filter((x): x is string => x !== null);
 

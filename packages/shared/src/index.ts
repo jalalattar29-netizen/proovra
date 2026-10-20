@@ -576,6 +576,9 @@ export {
   OTS_VERIFICATION_KEYS,
   OTS_VERIFICATION_WORDS,
   OTS_VERIFICATION_LABELS,
+  OTS_REPORT_SNAPSHOT_LABELS,
+  OTS_REPORT_SNAPSHOT_SENTENCES,
+  otsReportVerificationLabel,
   OTS_VERIFICATION_TONES,
   OTS_CHAIN_VERIFIED_BOUNDARY,
   parseOtsVerificationKey,
@@ -2608,7 +2611,12 @@ export {
   deriveCanonicalMaterialAvailability,
   deriveCanonicalArtifactAvailability,
   deriveCanonicalOutputContext,
+  LIVE_DELTA_MATERIALS,
+  LIVE_DELTA_MATERIAL_LABELS,
+  liveDeltaMaterialsText,
 } from "./canonical-evidence-materials.js";
+export type { LiveDeltaMaterial } from "./canonical-evidence-materials.js";
+export { TSA_FAILURE_NOTES, tsaFailureNote } from "./tsa-failure-copy.js";
 export type {
   CanonicalSnapshotLiveSemantics,
   CanonicalWorkspaceScope,
@@ -2769,3 +2777,5 @@ export {
 
 // AUD-32 (2026-10-20) — the API ↔ client presentation contract version.
 export * from "./release-contract.js";
+// AUD-47 / AUD-51 (2026-10-20) — the shared evidence vocabulary and helpers.
+export * from "./evidence-vocabulary.js";

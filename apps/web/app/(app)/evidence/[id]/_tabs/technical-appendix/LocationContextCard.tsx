@@ -24,6 +24,7 @@ import LocationStateNote, {
   readLocationState,
   type LocationStateView,
 } from "../../../../../../components/capture-location/LocationStateNote";
+import { formatCaptureLocationCoordinate } from "@proovra/shared";
 
 export type SourceCaptureLocation = {
   statusLabel: string;
@@ -55,19 +56,20 @@ export function LocationContextCard({
     location != null && location.lat != null && location.lng != null;
 
   const coordString = hasCoords
-    ? `${location!.lat!.toFixed(6)}, ${location!.lng!.toFixed(6)}`
+    ? // AUD-47 (2026-10-20) — THE shared coordinate format (six places, trailing zeros trimmed).
+      `${formatCaptureLocationCoordinate(location!.lat)}, ${formatCaptureLocationCoordinate(location!.lng)}`
     : null;
 
   const bodyRows = location
     ? rows([
         {
           label: "Latitude",
-          value: location.lat != null ? location.lat.toFixed(6) : null,
+          value: location.lat != null ? formatCaptureLocationCoordinate(location.lat) : null,
           mono: true,
         },
         {
           label: "Longitude",
-          value: location.lng != null ? location.lng.toFixed(6) : null,
+          value: location.lng != null ? formatCaptureLocationCoordinate(location.lng) : null,
           mono: true,
         },
         {
