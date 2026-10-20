@@ -53,6 +53,7 @@
 import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { ENTITLED_FOR_TEST, entitleFixtureWorkspace } from "./helpers/output-entitlement.js";
 
 import {
   CANONICAL_PAYLOAD_KEYS,
@@ -119,6 +120,7 @@ describe("PHASE 12 POINT 5 — ReportGenerationRequest (live PostgreSQL 16)", ()
     // writer resolves the same connection the assertions read from.
     const { registerPrisma } = await import("@proovra/shared-runtime");
     registerPrisma(prisma as never);
+    await entitleFixtureWorkspace(prisma, harness.fixtures.teamA.teamId);
 
     writer = await import("@proovra/shared-runtime/reports");
     authority = await import(
@@ -171,6 +173,7 @@ describe("PHASE 12 POINT 5 — ReportGenerationRequest (live PostgreSQL 16)", ()
     // authorized after the fact, so it must not exist at all.
     const before = await prisma.reportGenerationRequest.count();
     const result = await writer.createReportGenerationRequest(prisma as never, {
+      entitlement: ENTITLED_FOR_TEST,
       evidenceId: harness.fixtures.teamA.evidenceId,
       purpose: "operator_regenerate",
     });
@@ -182,6 +185,7 @@ describe("PHASE 12 POINT 5 — ReportGenerationRequest (live PostgreSQL 16)", ()
   it("1b. a request for non-existent evidence is refused (tenant underivable)", async () => {
     const before = await prisma.reportGenerationRequest.count();
     const result = await writer.createReportGenerationRequest(prisma as never, {
+      entitlement: ENTITLED_FOR_TEST,
       evidenceId: randomUUID(),
       purpose: "operator_regenerate",
       requestedByUserId: harness.fixtures.teamA.ownerUserId,
@@ -198,6 +202,7 @@ describe("PHASE 12 POINT 5 — ReportGenerationRequest (live PostgreSQL 16)", ()
   it("2. the request row is committed, with the workspace DERIVED from evidence", async () => {
     const teamA = harness.fixtures.teamA;
     const created = await writer.createReportGenerationRequest(prisma as never, {
+      entitlement: ENTITLED_FOR_TEST,
       evidenceId: teamA.evidenceId,
       purpose: "evidence_completed",
       requestedByUserId: teamA.ownerUserId,
@@ -542,11 +547,13 @@ describe("PHASE 12 POINT 5 — ReportGenerationRequest (live PostgreSQL 16)", ()
   it("17. duplicate intent collapses to ONE row via the idempotency key", async () => {
     const teamB = harness.fixtures.teamB;
     const a = await writer.createReportGenerationRequest(prisma as never, {
+      entitlement: ENTITLED_FOR_TEST,
       evidenceId: teamB.evidenceId,
       purpose: "evidence_completed",
       requestedByMachineId: "point5-integration",
     });
     const b = await writer.createReportGenerationRequest(prisma as never, {
+      entitlement: ENTITLED_FOR_TEST,
       evidenceId: teamB.evidenceId,
       purpose: "evidence_completed",
       requestedByMachineId: "point5-integration",
@@ -884,6 +891,14 @@ describe("PHASE 12 POINT 5 — ReportGenerationRequest (live PostgreSQL 16)", ()
 
   it("L2. a fresh legacy mint is attributed to the drain machine and is NOT a force", async () => {
     const personal = harness.fixtures.personal;
+    // 2026-10-20 (AUD-02) — the legacy drain goes through the output-producer
+    // guard like every producer: a FREE personal record is refused (no row).
+    const refused = await authority.mintRequestForLegacyJob({ evidenceId: personal.evidenceId, jobId: "legacy-free" });
+    expect(refused.requestId).toBeNull();
+    // An entitled personal record is minted, attributed to the drain, never forced.
+    const ent = await prisma.entitlement.findFirst({ where: { userId: personal.userId }, select: { id: true } });
+    if (ent) await prisma.entitlement.update({ where: { id: ent.id }, data: { plan: "PRO" } });
+    else await prisma.entitlement.create({ data: { userId: personal.userId, plan: "PRO" } });
     const minted = await authority.mintRequestForLegacyJob({
       evidenceId: personal.evidenceId,
       jobId: "legacy-fresh",
@@ -906,6 +921,7 @@ describe("PHASE 12 POINT 5 — ReportGenerationRequest (live PostgreSQL 16)", ()
         evidenceId: teamA.evidenceId,
         purpose: "evidence_completed",
         requestedByUserId: teamA.ownerUserId,
+        entitlement: ENTITLED_FOR_TEST,
       },
     );
     expect(canonical.created).toBe(true);

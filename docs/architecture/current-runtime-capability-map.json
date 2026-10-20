@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1359,
-    "ReachableSensitiveMutations": 1340,
-    "ClassifiedSensitiveMutations": 1340,
+    "TerminalWriters": 1360,
+    "ReachableSensitiveMutations": 1341,
+    "ClassifiedSensitiveMutations": 1341,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 19,
@@ -83,7 +83,7 @@
       "BILLING_SUBSCRIPTION_SEAT": 88,
       "SSO_OIDC_SCIM_PROVISIONING": 45,
       "AUTOMATION_QUEUE_WEBHOOK": 115,
-      "REPORT_EXPORT_REDACTION": 55,
+      "REPORT_EXPORT_REDACTION": 56,
       "API_KEY_SECRET_OPERATIONAL_ADMIN": 124
     },
     "byNonRequestDisposition": {
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1193,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1194,
       "JOB_ATTRIBUTED_REACHABLE": 137,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 10246,
-      "UNRESOLVED_IDENTIFIER": 1431
+      "METHOD_ON_VALUE": 10247,
+      "UNRESOLVED_IDENTIFIER": 1432
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -14552,8 +14552,8 @@
   "mutationQueueTopology": {
     "producedWork": {
       "GENERATE_REPORT": [
-        "services/api/src/services/reports/report-generation-authority.service.ts:405",
-        "services/api/src/services/reports/report-generation-authority.service.ts:476"
+        "services/api/src/services/reports/report-generation-authority.service.ts:368",
+        "services/api/src/services/reports/report-generation-authority.service.ts:446"
       ],
       "UPGRADE_OTS": [
         "services/api/src/services/integrity/ots-anchoring-authority.service.ts:85"
@@ -25430,8 +25430,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/reports/report-generation-request.ts#reportGenerationRequest.create@533",
-      "terminalLocation": "packages/shared-runtime/src/reports/report-generation-request.ts:533",
+      "writerId": "packages/shared-runtime/src/reports/report-generation-request.ts#reportGenerationRequest.create@583",
+      "terminalLocation": "packages/shared-runtime/src/reports/report-generation-request.ts:583",
       "file": "packages/shared-runtime/src/reports/report-generation-request.ts",
       "enclosingDeclaration": "createReportGenerationRequest",
       "kind": "DATABASE",
@@ -25470,6 +25470,50 @@
       ],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/reports/report-request-settlement.ts#reportGenerationRequest.updateMany@27",
+      "terminalLocation": "packages/shared-runtime/src/reports/report-request-settlement.ts:27",
+      "file": "packages/shared-runtime/src/reports/report-request-settlement.ts",
+      "enclosingDeclaration": "settleReportRequestNotApplicable",
+      "kind": "DATABASE",
+      "target": "reportGenerationRequest",
+      "mutationKind": "updateMany",
+      "primaryFamily": "REPORT_EXPORT_REDACTION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/admin/incidents/:id/remediate",
+        "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/ops/incidents/:id/remediate"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/lifecycle-recovery.ts#runLifecycleRecovery",
+        "SWEEP services/worker/src/processor.ts#processGenerateReport",
+        "SWEEP services/worker/src/report-generation-authority.ts#reconcileStrandedReportRequests"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-security.routes.ts",
+        "MODULE services/api/src/routes/evidence.routes.ts",
+        "MODULE services/api/src/routes/ops.routes.ts"
+      ],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:832#runLifecycleRecovery",
+        "SCHEDULE services/worker/src/index.ts:846#startLifecycleRecoveryScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -81595,8 +81639,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reports/report-generation-authority.service.ts#GENERATE_REPORT.enqueueCanonicalWork@405",
-      "terminalLocation": "services/api/src/services/reports/report-generation-authority.service.ts:405",
+      "writerId": "services/api/src/services/reports/report-generation-authority.service.ts#GENERATE_REPORT.enqueueCanonicalWork@368",
+      "terminalLocation": "services/api/src/services/reports/report-generation-authority.service.ts:368",
       "file": "services/api/src/services/reports/report-generation-authority.service.ts",
       "enclosingDeclaration": "requestReportGeneration",
       "kind": "QUEUE",
@@ -81640,8 +81684,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reports/report-generation-authority.service.ts#GENERATE_REPORT.enqueueCanonicalWork@476",
-      "terminalLocation": "services/api/src/services/reports/report-generation-authority.service.ts:476",
+      "writerId": "services/api/src/services/reports/report-generation-authority.service.ts#GENERATE_REPORT.enqueueCanonicalWork@446",
+      "terminalLocation": "services/api/src/services/reports/report-generation-authority.service.ts:446",
       "file": "services/api/src/services/reports/report-generation-authority.service.ts",
       "enclosingDeclaration": "reenqueueReportGenerationRequest",
       "kind": "QUEUE",
@@ -91837,8 +91881,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/package-issuance.ts#evidence.updateMany@263",
-      "terminalLocation": "services/worker/src/package-issuance.ts:263",
+      "writerId": "services/worker/src/package-issuance.ts#evidence.updateMany@276",
+      "terminalLocation": "services/worker/src/package-issuance.ts:276",
       "file": "services/worker/src/package-issuance.ts",
       "enclosingDeclaration": "commitIssuance",
       "kind": "DATABASE",
@@ -91868,8 +91912,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/package-issuance.ts#report.updateMany@282",
-      "terminalLocation": "services/worker/src/package-issuance.ts:282",
+      "writerId": "services/worker/src/package-issuance.ts#report.updateMany@295",
+      "terminalLocation": "services/worker/src/package-issuance.ts:295",
       "file": "services/worker/src/package-issuance.ts",
       "enclosingDeclaration": "commitIssuance",
       "kind": "DATABASE",
@@ -91899,8 +91943,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/package-issuance.ts#reportGenerationRequest.updateMany@307",
-      "terminalLocation": "services/worker/src/package-issuance.ts:307",
+      "writerId": "services/worker/src/package-issuance.ts#reportGenerationRequest.updateMany@320",
+      "terminalLocation": "services/worker/src/package-issuance.ts:320",
       "file": "services/worker/src/package-issuance.ts",
       "enclosingDeclaration": "commitIssuance",
       "kind": "DATABASE",
@@ -91930,8 +91974,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/package-issuance.ts#reportGenerationRequest.updateMany@97",
-      "terminalLocation": "services/worker/src/package-issuance.ts:97",
+      "writerId": "services/worker/src/package-issuance.ts#reportGenerationRequest.updateMany@99",
+      "terminalLocation": "services/worker/src/package-issuance.ts:99",
       "file": "services/worker/src/package-issuance.ts",
       "enclosingDeclaration": "reserveIssuanceForRun",
       "kind": "DATABASE",
@@ -91961,8 +92005,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@5507",
-      "terminalLocation": "services/worker/src/processor.ts:5507",
+      "writerId": "services/worker/src/processor.ts#evidence.update@5563",
+      "terminalLocation": "services/worker/src/processor.ts:5563",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -91992,8 +92036,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.updateMany@4689",
-      "terminalLocation": "services/worker/src/processor.ts:4689",
+      "writerId": "services/worker/src/processor.ts#evidence.updateMany@4745",
+      "terminalLocation": "services/worker/src/processor.ts:4745",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -92023,8 +92067,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#report.create@4734",
-      "terminalLocation": "services/worker/src/processor.ts:4734",
+      "writerId": "services/worker/src/processor.ts#report.create@4790",
+      "terminalLocation": "services/worker/src/processor.ts:4790",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -92054,8 +92098,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4242",
-      "terminalLocation": "services/worker/src/processor.ts:4242",
+      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4294",
+      "terminalLocation": "services/worker/src/processor.ts:4294",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -92085,8 +92129,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4898",
-      "terminalLocation": "services/worker/src/processor.ts:4898",
+      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4954",
+      "terminalLocation": "services/worker/src/processor.ts:4954",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -92366,8 +92410,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@296",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:296",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@320",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:320",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "resolveAndClaimReportRequest",
       "kind": "DATABASE",
@@ -92397,8 +92441,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@359",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:359",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@383",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:383",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "markRequestTerminal",
       "kind": "DATABASE",
@@ -92433,8 +92477,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@482",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:482",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@506",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:506",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "markRequestRetryable",
       "kind": "DATABASE",
@@ -92464,8 +92508,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@527",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:527",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@551",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:551",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "recordRequestProgress",
       "kind": "DATABASE",
@@ -92495,8 +92539,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@663",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:663",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@689",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:689",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "reconcileStrandedReportRequests",
       "kind": "DATABASE",
@@ -151433,10 +151477,6 @@
         "evidenceLegalHold",
         "evidencePart",
         "evidencePartDerivedAsset",
-        "evidenceRequest",
-        "evidenceRequestDeliverable",
-        "evidenceRequestEvent",
-        "evidenceRequestResponse",
         "evidenceReviewWorkflow",
         "evidenceWorkflowInstanceEvidence",
         "fileSecurityScan",
@@ -151464,9 +151504,6 @@
         "evidenceCreditLedgerEntry",
         "evidenceIntegrityCheck",
         "evidencePart",
-        "evidenceRequest",
-        "evidenceRequestDeliverable",
-        "evidenceRequestResponse",
         "evidenceSearchDocument",
         "fileSecurityScan",
         "integrationWebhookDelivery",

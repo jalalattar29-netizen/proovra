@@ -1024,11 +1024,22 @@ describe("P3-6 — the Copilot names a real permission", () => {
 
 describe("P3-7 — the precheck asks about every artifact the request produces", () => {
   it("WIRING: a REPORT request checks the PAIR, and does not assume the flags are equal", () => {
+    /*
+     * 2026-10-20 (forward remediation AUD-01/02) — the pair rule moved into the
+     * ONE output-producer decision (`decideOutputProduction`, @proovra/shared),
+     * which the writer applies for EVERY producer. Its behaviour is pinned by
+     * packages/shared/tests/output-producer-decision.test.mjs and the forward
+     * pipeline suite; this wiring check follows it to its home, and checks the
+     * API authority hands its entitlement reading to that writer.
+     */
+    const decision = strip(
+      readFileSync(fileURLToPath(new URL("../../../packages/shared/src/evidence-output-lifecycle.ts", import.meta.url)), "utf8"),
+    );
+    expect(decision).toMatch(/e\.reportsIncluded && e\.verificationPackageIncluded/);
     const src = strip(
       api("services/reports/report-generation-authority.service.ts"),
     );
-    expect(src).toMatch(/verificationPackageIncluded/);
-    expect(src).toMatch(/requiredEntitlements/);
+    expect(src).toMatch(/entitlement:\s*async\s*\(\)\s*=>\s*eligibilityIssuance/);
     // Still ONE action: no second generation path was introduced.
     expect(src).not.toMatch(/requestVerificationPackageGeneration/);
   });

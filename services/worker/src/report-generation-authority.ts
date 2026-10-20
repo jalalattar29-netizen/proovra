@@ -35,6 +35,8 @@
  */
 
 import { bump } from "@proovra/shared-runtime/ops";
+import { workerOutputEntitlement } from "./output-issuance.js";
+import { decideOutputProduction } from "@proovra/shared";
 import {
   createReportGenerationRequest,
   type ReportGenerationPurpose,
@@ -47,6 +49,7 @@ import {
 } from "@proovra/shared";
 
 import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
+import { lifecycleRefusalForRequest, settleReportRequestNotApplicable } from "@proovra/shared-runtime/reports";
 import { versionPackagesComplete } from "@proovra/shared-runtime/reports";
 
 import { prisma } from "./db.js";
@@ -182,8 +185,8 @@ export async function resolveAndClaimReportRequest(input: {
 
   // ---- Tenancy: derived from the evidence row, not from the request --------
   const evidence = await prisma.evidence.findFirst({
-    where: { id: request.evidenceId, deletedAt: null },
-    select: { id: true, teamId: true, ownerUserId: true, status: true },
+    where: { id: request.evidenceId },
+    select: { id: true, teamId: true, ownerUserId: true, status: true, lifecycleState: true, deletedAt: true },
   });
   if (!evidence) {
     await markRequestTerminal({
@@ -192,6 +195,27 @@ export async function resolveAndClaimReportRequest(input: {
       terminalReasonCode: "evidence_not_found",
     });
     return { outcome: "noop", reason: "evidence_not_found" };
+  }
+
+  // ---- THE OUTPUT-PRODUCER GUARD, AT CLAIM (AUD-01/02) ---------------------
+  // The record may have been archived, trashed, destroyed or deleted — or its
+  // plan may have stopped including the output — after the request was
+  // written. The SAME shared decision the writer used decides again; a refusal
+  // settles the request as an expected business outcome before any work. An
+  // unreadable entitlement is not a refusal: the run's own gate retries it.
+  const claimDecision = decideOutputProduction({
+    subject: evidence as never,
+    artifactType: request.artifactType === "VERIFICATION_PACKAGE" ? "VERIFICATION_PACKAGE" : "REPORT",
+    entitlement: await workerOutputEntitlement({
+      id: evidence.id,
+      ownerUserId: evidence.ownerUserId,
+      teamId: evidence.teamId ?? null,
+    }),
+  });
+  if (!claimDecision.produce && claimDecision.refusal) {
+    const { settleRequestAsNotApplicable } = await import("./output-production-refusal.js");
+    await settleRequestAsNotApplicable({ requestId, refusal: claimDecision.refusal });
+    return { outcome: "noop", reason: claimDecision.refusal };
   }
   // The record's workspace — its team, or its owner's personal workspace for
   // a Personal record stored with team_id NULL (2026-09-29): the same
@@ -562,6 +586,7 @@ export async function mintRequestForLegacyJob(input: {
     // exists to remove from the wire.
     forceRegenerate: false,
     requestedByMachineId: "queue-legacy-drain",
+    entitlement: workerOutputEntitlement,
   });
   return persisted.created
     ? { requestId: persisted.requestId }
@@ -596,6 +621,7 @@ export async function requestReportGenerationFromWorker(input: {
     intent: packageOnly ? "RECOVER" : "GENERATE",
     forceRegenerate: false,
     requestedByMachineId: input.machineId,
+    entitlement: workerOutputEntitlement,
   });
   if (!persisted.created) {
     return { enqueued: false, reason: persisted.reason };
@@ -807,6 +833,13 @@ export async function reconcileStrandedReportRequests(input: {
 
   for (const row of stranded) {
     try {
+      // THE OUTPUT-PRODUCER GUARD (AUD-01/02): a record that left the
+      // producible states while its request waited is settled, never re-enqueued.
+      const refusal = await lifecycleRefusalForRequest(prisma as never, row.id);
+      if (refusal) {
+        await settleReportRequestNotApplicable(prisma as never, { requestId: row.id, refusal });
+        continue;
+      }
       const outcome = await input.enqueue(row.id);
       if (outcome.enqueued) {
         summary.reenqueued += 1;

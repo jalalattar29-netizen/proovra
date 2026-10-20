@@ -41,6 +41,11 @@ import {
   MAX_OPERATOR_SUPERSESSIONS_PER_WINDOW,
   OPERATOR_SUPERSESSION_WINDOW_MS,
   OPERATOR_SUPERSESSION_INTENT,
+  // 2026-10-20 — THE output-producer decision (AUD-01/02/35).
+  decideOutputProduction,
+  outputLifecycleRefusal,
+  type OutputProductionEntitlement,
+  type OutputProductionRefusal,
 } from "@proovra/shared";
 import { resolveEvidenceWorkspaceId } from "../workspace-scope.js";
 
@@ -144,6 +149,17 @@ export type CreateReportGenerationRequestInput = {
    * `supersedeTechnicalTerminal`; never set by a customer or automatic path.
    */
   operatorSupersession?: { actorUserId: string; reason: string; requestKey: string } | null;
+  /**
+   * THE OUTPUT-PRODUCER GUARD (2026-10-20, AUD-01/02/35). REQUIRED of every
+   * producer: the host's own entitlement reading for this record (the api's
+   * eligibility service, the worker's `resolveEvidenceOutputIssuance`). The
+   * writer applies `decideOutputProduction` — lifecycle, entitlement and the
+   * first-issuance rule — before any row exists, so no producer can create a
+   * request for an archived, trashed, destroyed, deleted or not-entitled record.
+   * Return null when the reading failed: nothing is created and the caller is
+   * told the entitlement is unresolved.
+   */
+  entitlement: (subject: { id: string; ownerUserId: string; teamId: string | null }) => Promise<OutputProductionEntitlement | null>;
 };
 
 export type CreateReportGenerationRequestResult =
@@ -179,6 +195,11 @@ export type CreateReportGenerationRequestResult =
   | {
       created: false;
       reason: string;
+      /**
+       * Set when the producer guard refused the record: the bounded business
+       * outcome (`NOT_APPLICABLE_*`). An expected answer, never a failure.
+       */
+      refusal?: OutputProductionRefusal;
       /**
        * Set when the refusal is "a terminal row already stands here". Carries
        * whether that terminal names a condition that COULD end, so the caller
@@ -282,10 +303,39 @@ export async function createReportGenerationRequest(
 
   // ---- Tenancy comes from the evidence row, both now and again at run time --
   const evidence = await prisma.evidence.findFirst({
-    where: { id: evidenceId, deletedAt: null },
-    select: { id: true, teamId: true, ownerUserId: true },
+    where: { id: evidenceId },
+    select: { id: true, teamId: true, ownerUserId: true, status: true, lifecycleState: true, deletedAt: true },
   });
   if (!evidence) return { created: false, reason: "evidence_not_found" };
+
+  // ---- THE OUTPUT-PRODUCER GUARD (AUD-01/02/35) ----------------------------
+  // Lifecycle first (no host input needed), then the host's entitlement
+  // reading. A refused record gets NO row — an expected business answer.
+  const lifecycleRefusal = outputLifecycleRefusal(evidence as never);
+  if (lifecycleRefusal) return { created: false, reason: lifecycleRefusal, refusal: lifecycleRefusal };
+  let entitlement: OutputProductionEntitlement | null = null;
+  try {
+    entitlement = await input.entitlement({ id: evidence.id, ownerUserId: evidence.ownerUserId, teamId: evidence.teamId ?? null });
+  } catch {
+    entitlement = null;
+  }
+  const hasReport =
+    (await prisma.report.findFirst({ where: { evidenceId }, select: { id: true } })) !== null;
+  const production = decideOutputProduction({
+    subject: evidence as never,
+    artifactType,
+    entitlement,
+    historicalFirstIssuance:
+      artifactType === "REPORT" &&
+      !hasReport &&
+      input.purpose !== "evidence_completed" &&
+      input.purpose !== "lifecycle_recovery",
+  });
+  if (!production.produce) {
+    return production.refusal
+      ? { created: false, reason: production.refusal, refusal: production.refusal }
+      : { created: false, reason: "entitlement_unresolved" };
+  }
   // THE RECORD'S WORKSPACE (2026-09-29): its team, or — for a Personal
   // record stored with team_id NULL — its owner's personal workspace, the same
   // one every read already scopes it to. Such a record could never be issued
@@ -711,3 +761,4 @@ async function blockerStillActive(
     return true;
   }
 }
+

@@ -2,9 +2,7 @@
 
 The finding registry is the Production-backed evidence-output audit of 2026-10-19 / 2026-10-20, run against origin/main `99c87eea1`.
 
-**Scope: forward-only.** Historical test evidence is not repaired, regenerated or reconciled. No historical report or package is re-issued. That population will be retired separately through the canonical lifecycle authority.
-
-## Statuses
+**Scope: forward-only.** Historical test evidence is not repaired, regenerated or reconciled. No historical report or package is re-issued. That population will be retired separately through the canonical lifecycle FIXED IN PHASE FIXED IN PHASE FIXED IN PHASE FIXED IN PHASE 1 (archived throw site); full sweep Phase 4 | `processor.ts` canonical-reference refusal now raises the coded business refusal (lifecycle) or `CANONICAL_REFERENCE_REFUSED`; never a plain Error || Phase 1: one decision `decideOutputProduction` (@proovra/shared) inside the ONE writer (entitlement resolver REQUIRED of every producer) + worker claim + report commit + package commit + both re-enqueue paths. Proof: forward-output-pipeline Phase 1 block (12 real-stack cases), shared output-producer-decision tests; mutants P1-A..F killed; package commit re-reads lifecycle under the advisory lock || Phase 1: one decision `decideOutputProduction` (@proovra/shared) inside the ONE writer (entitlement resolver REQUIRED of every producer) + worker claim + report commit + package commit + both re-enqueue paths. Proof: forward-output-pipeline Phase 1 block (12 real-stack cases), shared output-producer-decision tests; mutants P1-A..F killed || Phase 1: one decision `decideOutputProduction` (@proovra/shared) inside the ONE writer (entitlement resolver REQUIRED of every producer) + worker claim + report commit + package commit + both re-enqueue paths. Proof: forward-output-pipeline Phase 1 block (12 real-stack cases), shared output-producer-decision tests; mutants P1-A..F killed |Statuses
 
 | Status | Meaning |
 |---|---|

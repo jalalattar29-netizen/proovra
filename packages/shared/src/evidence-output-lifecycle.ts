@@ -1196,6 +1196,122 @@ export function outputBlockingRestriction(r: OutputRestrictions): OutputActionUn
   return blockingRestriction(r);
 }
 
+// ===========================================================================
+// THE OUTPUT-PRODUCER DECISION (2026-10-20, forward remediation AUD-01/02/35)
+// ===========================================================================
+
+/**
+ * Why an output is NOT produced for a record. Every one is an expected,
+ * non-failure business outcome: nothing is broken, nothing is retried, no
+ * incident or alert follows. They are persisted as the terminal reason of a
+ * `NOT_APPLICABLE` request when a request already exists, and returned as the
+ * refusal reason when none is created.
+ */
+export const OUTPUT_PRODUCTION_REFUSALS = [
+  /** The plan / funding does not include this artifact. */
+  "NOT_APPLICABLE_NOT_ENTITLED",
+  /** A record's FIRST output needs a confirmed paid subscription (ET-COM-06). */
+  "NOT_APPLICABLE_FIRST_ISSUANCE_AWAITS_CONFIRMED_PAYMENT",
+  /** The package would exceed the workspace's storage allowance. */
+  "NOT_APPLICABLE_STORAGE_LIMIT",
+  "NOT_APPLICABLE_ARCHIVED",
+  "NOT_APPLICABLE_RETENTION_ARCHIVED",
+  "NOT_APPLICABLE_TRASHED",
+  "NOT_APPLICABLE_PENDING_DESTRUCTION",
+  "NOT_APPLICABLE_DESTROYED",
+  "NOT_APPLICABLE_DELETED",
+] as const;
+export type OutputProductionRefusal = (typeof OUTPUT_PRODUCTION_REFUSALS)[number];
+
+export function isOutputProductionRefusal(code: string | null | undefined): code is OutputProductionRefusal {
+  return !!code && (OUTPUT_PRODUCTION_REFUSALS as readonly string[]).includes(code);
+}
+
+/**
+ * Lifecycle states in which a record is a live product record and may receive
+ * outputs. A hold or an immutable-retention lock preserves the record; it does
+ * not retire it (the legal-hold rule for REGENERATION stays in the claim).
+ */
+const OUTPUT_PRODUCING_LIFECYCLE_STATES: ReadonlySet<string> = new Set([
+  "ACTIVE",
+  "UNDER_REVIEW",
+  "ON_HOLD",
+  "RETENTION_LOCKED",
+]);
+
+const LIFECYCLE_REFUSAL: Readonly<Record<string, OutputProductionRefusal>> = {
+  ARCHIVED: "NOT_APPLICABLE_ARCHIVED",
+  RETENTION_ARCHIVED: "NOT_APPLICABLE_RETENTION_ARCHIVED",
+  TRASHED: "NOT_APPLICABLE_TRASHED",
+  PENDING_DESTRUCTION: "NOT_APPLICABLE_PENDING_DESTRUCTION",
+  DESTROYED: "NOT_APPLICABLE_DESTROYED",
+};
+
+/** The lifecycle refusal for a record, or null when it may receive outputs. */
+export function outputLifecycleRefusal(subject: {
+  status: string | null | undefined;
+  lifecycleState: string | null | undefined;
+  deletedAt: Date | string | null | undefined;
+}): OutputProductionRefusal | null {
+  const lifecycle = (subject.lifecycleState ?? "ACTIVE").toUpperCase();
+  const named = LIFECYCLE_REFUSAL[lifecycle];
+  if (named) return named;
+  if (subject.deletedAt) return "NOT_APPLICABLE_DELETED";
+  // An unknown lifecycle value is refused, never guessed to be live.
+  if (!OUTPUT_PRODUCING_LIFECYCLE_STATES.has(lifecycle)) return "NOT_APPLICABLE_ARCHIVED";
+  // The seal status is NOT decided here: a not-yet-sealed or integrity-rejected
+  // record is the worker integrity gates' business (a technical / integrity
+  // refusal, never a business outcome).
+  return null;
+}
+
+/** The entitlement reading every host supplies (structurally the shared-billing type). */
+export type OutputProductionEntitlement = {
+  decision: "ENTITLED" | "NOT_ENTITLED" | "UNRESOLVED" | string;
+  reportsIncluded: boolean;
+  verificationPackageIncluded: boolean;
+  mayIssueHistoricalFirstOutputs: boolean;
+};
+
+export type OutputProductionDecision =
+  | { produce: true }
+  | { produce: false; refusal: OutputProductionRefusal }
+  /** The entitlement could not be read: produce nothing NOW, decide again later. */
+  | { produce: false; refusal: null; unresolved: true };
+
+/**
+ * THE ONE DECISION every output producer, the worker claim and both commit
+ * gates ask before a report or package request is created, run or committed.
+ *
+ *   * lifecycle first — an archived, trashed, destroyed or deleted record is
+ *     never given a new output, whoever asks and whatever it is entitled to;
+ *   * then entitlement — a REPORT request produces the report AND its package,
+ *     so both must be included; a package-only request needs the package;
+ *   * then the historical first-issuance rule (ET-COM-06) for a record's first
+ *     output when the request is not the completion of the record itself.
+ */
+export function decideOutputProduction(input: {
+  subject: { status: string | null | undefined; lifecycleState: string | null | undefined; deletedAt: Date | string | null | undefined };
+  artifactType: "REPORT" | "VERIFICATION_PACKAGE";
+  entitlement: OutputProductionEntitlement | null;
+  /** The record has no report yet and the request is not its own completion. */
+  historicalFirstIssuance?: boolean;
+}): OutputProductionDecision {
+  const lifecycle = outputLifecycleRefusal(input.subject);
+  if (lifecycle) return { produce: false, refusal: lifecycle };
+  const e = input.entitlement;
+  if (!e || e.decision === "UNRESOLVED") return { produce: false, refusal: null, unresolved: true };
+  const included =
+    input.artifactType === "VERIFICATION_PACKAGE"
+      ? e.verificationPackageIncluded
+      : e.reportsIncluded && e.verificationPackageIncluded;
+  if (e.decision !== "ENTITLED" || !included) return { produce: false, refusal: "NOT_APPLICABLE_NOT_ENTITLED" };
+  if (input.historicalFirstIssuance && !e.mayIssueHistoricalFirstOutputs) {
+    return { produce: false, refusal: "NOT_APPLICABLE_FIRST_ISSUANCE_AWAITS_CONFIRMED_PAYMENT" };
+  }
+  return { produce: true };
+}
+
 function blockingRestriction(
   r: OutputRestrictions,
 ): OutputActionUnavailableReason | null {

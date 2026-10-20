@@ -559,10 +559,16 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
         data: { lifecycleState: "TRASHED", deletedAt: new Date() } as never,
       });
     };
-    expect(await run(id, 0)).toBeTruthy();
+    // 2026-10-20 (forward remediation AUD-01/35) — the record left the
+    // producible states: an expected business outcome, settled without a
+    // throw (no Sentry event, no alert, no incident), never FAILED_TERMINAL.
+    expect(await run(id, 0)).toBeNull();
     const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { status: true } });
     expect(ev.status).toBe("SIGNED");
-    expect((await state(evidenceId, id)).reports).toEqual([]);
+    const after = await state(evidenceId, id);
+    expect(after.reports).toEqual([]);
+    expect(after.req!.terminalReasonCode).toBe("NOT_APPLICABLE_TRASHED");
+    expect(after.req!.state).not.toBe("FAILED_TERMINAL");
   });
 
   it("AUDIT-A: the retry after a package failure builds the package for the SAME report version", async () => {

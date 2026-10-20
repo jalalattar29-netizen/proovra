@@ -832,6 +832,9 @@ export const COUNTER_NAMES = [
    * should not, and that is worth seeing without any incident being opened.
    */
   "report_generation_not_included_total",
+  // 2026-10-20 — the output-producer guard refused a non-live record (archived,
+  // trashed, destroyed, deleted, not sealed): an expected answer, not a failure.
+  "report_generation_not_applicable_total",
   /*
    * EVIDENCE OUTPUT LIFECYCLE (2026-09-29) — a request refused because the
    * subscription state could not be read. Rising = billing reads are failing.

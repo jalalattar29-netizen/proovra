@@ -1,5 +1,11 @@
 import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
+import {
+  OutputProductionRefusedError,
+  isOutputProductionRefusedError,
+  settleRequestAsNotApplicable,
+} from "./output-production-refusal.js";
+import { outputLifecycleRefusal, type OutputProductionRefusal } from "@proovra/shared";
 import * as prismaPkg from "@prisma/client";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import type { ReportTrustDecision } from "./report-v2/types.js";
@@ -2990,7 +2996,19 @@ await recordIntegrityObservation({
     }),
   );
   if (!ensured.ref) {
-    throw new Error(`canonical verification refused for report rendering: ${ensured.refused}`);
+    // AUD-54 — this was a plain Error, persisted as the reason code "Error"
+    // (8 Production rows, all on ARCHIVED records). A lifecycle refusal is the
+    // output-producer guard's business outcome; anything else is a coded,
+    // non-retriable refusal of the canonical reference.
+    const lifecycleRefusal = outputLifecycleRefusal({
+      status: evidence.status,
+      lifecycleState: String(ensured.refused ?? ""),
+      deletedAt: null,
+    });
+    if (lifecycleRefusal) {
+      throw new OutputProductionRefusedError(lifecycleRefusal);
+    }
+    throw createWorkerError("CANONICAL_REFERENCE_REFUSED", false);
   }
   const verificationRef = ensured.ref;
   const verifyUrl = buildVerifyUrl(verificationRef);
@@ -3482,6 +3500,30 @@ export async function processGenerateReport(job: Job<unknown>) {
   try {
     run = await runReportGeneration(job, command, requestId);
   } catch (error) {
+    // THE OUTPUT-PRODUCER GUARD (AUD-01/35) — the record left the producible
+    // states while this run was in flight. An expected business outcome: the
+    // reserved package rows are released, the request is settled as not
+    // applicable, nothing is published, nothing is retried, nothing alerts.
+    if (isOutputProductionRefusedError(error)) {
+      await failIssuance({ requestId: command.requestId, reason: error.refusal });
+      await settleRequestAsNotApplicable({
+        requestId: command.requestId,
+        refusal: error.refusal,
+        fence: { claimedAtUtc: command.claimedAtUtc },
+      });
+      logger.info(
+        {
+          requestId,
+          jobId: job.id ?? null,
+          evidenceId: command.evidenceId,
+          reportRequestId: command.requestId,
+          refusal: error.refusal,
+          status: "not_applicable",
+        },
+        "GenerateReportJob settled as not applicable: the record may no longer receive this output",
+      );
+      return;
+    }
     // Terminal vs retryable is decided by the SAME predicate the queue uses, so
     // the durable row and the queue cannot disagree about whether the intent is
     // still alive.
@@ -3849,18 +3891,26 @@ async function loadCommittedReportForPackage(params: {
 const REPORTABLE_AT_COMMIT_WHERE: Prisma.EvidenceWhereInput = {
   status: { in: [EvidenceStatus.SIGNED, EvidenceStatus.REPORTED] },
   deletedAt: null,
-  lifecycleState: { notIn: ["DESTROYED", "PENDING_DESTRUCTION", "TRASHED"] },
+  // 2026-10-20 (AUD-01) — ARCHIVED and RETENTION_ARCHIVED were missing: an
+  // archived record was given a new report. The list is the output-producer
+  // guard's lifecycle refusals.
+  lifecycleState: { notIn: ["DESTROYED", "PENDING_DESTRUCTION", "TRASHED", "ARCHIVED", "RETENTION_ARCHIVED"] },
 };
 
-function isReportableAtCommit(e: { status: string; deletedAt: Date | null; lifecycleState: string | null }): boolean {
-  return (
-    (e.status === EvidenceStatus.SIGNED || e.status === EvidenceStatus.REPORTED) &&
-    e.deletedAt === null &&
-    e.lifecycleState !== "DESTROYED" &&
-    e.lifecycleState !== "PENDING_DESTRUCTION" &&
-    e.lifecycleState !== "TRASHED"
-  );
+/**
+ * The record's state at commit: reportable, a business refusal (lifecycle /
+ * deletion — the output-producer guard), or a changed seal status (an
+ * integrity rejection, which stays a technical refusal: refusal null).
+ */
+function reportableAtCommit(e: { status: string; deletedAt: Date | null; lifecycleState: string | null }):
+  | { ok: true }
+  | { ok: false; refusal: OutputProductionRefusal | null } {
+  const refusal = outputLifecycleRefusal(e);
+  if (refusal) return { ok: false, refusal };
+  if (e.status !== EvidenceStatus.SIGNED && e.status !== EvidenceStatus.REPORTED) return { ok: false, refusal: null };
+  return { ok: true };
 }
+
 
 export type ReportRunResult =
   | { outcome: "generated"; reportVersion: number }
@@ -4625,7 +4675,11 @@ async function runReportGeneration(
               where: { id: prepared.evidenceId },
               select: { status: true, deletedAt: true, lifecycleState: true },
             });
-            if (!live || !isReportableAtCommit(live)) {
+            const atCommit = live
+              ? reportableAtCommit(live)
+              : { ok: false as const, refusal: "NOT_APPLICABLE_DELETED" as const };
+            if (!atCommit.ok) {
+              if (atCommit.refusal) throw new OutputProductionRefusedError(atCommit.refusal);
               throw createWorkerError("REPORT_EVIDENCE_STATE_CHANGED", false);
             }
 

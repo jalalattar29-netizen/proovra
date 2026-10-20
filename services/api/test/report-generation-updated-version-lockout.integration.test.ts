@@ -26,6 +26,7 @@
 import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { ENTITLED_FOR_TEST } from "./helpers/output-entitlement.js";
 
 import { MAX_TERMINAL_SUPERSESSIONS } from "@proovra/shared";
 
@@ -186,6 +187,7 @@ describe("updated-report terminal lockout (RGA-07, live PostgreSQL 16)", () => {
     });
     // Exactly the call the customer path USED to make (no supersession signal):
     const collapsed = await writer.createReportGenerationRequest(prisma as never, {
+      entitlement: ENTITLED_FOR_TEST,
       evidenceId: ev,
       purpose: "updated_report",
       artifactType: "REPORT",

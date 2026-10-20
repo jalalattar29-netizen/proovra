@@ -38,6 +38,8 @@
 
 import {
   createReportGenerationRequest,
+  lifecycleRefusalForRequest,
+  settleReportRequestNotApplicable,
   type ReportArtifactType,
   type ReportGenerationPurpose,
 } from "@proovra/shared-runtime/reports";
@@ -52,6 +54,7 @@ import {
   resolveForceRegenerate,
   type GenerationIntent,
   type GenerationRequestOutcome,
+  type OutputProductionEntitlement,
 } from "@proovra/shared";
 
 import { prisma } from "../../db.js";
@@ -191,6 +194,17 @@ export async function requestReportGeneration(
       outcome: "ENTITLEMENT_UNAVAILABLE",
     };
   }
+  /*
+   * THE OUTPUT-PRODUCER GUARD (2026-10-20, AUD-01/02/35). The pair rule
+   * (a REPORT request produces the report AND its package), the historical
+   * first-issuance rule (ET-COM-06) and the LIFECYCLE rule (archived, trashed,
+   * destroyed or deleted records get no new output) are no longer decided
+   * here: they are `decideOutputProduction` inside the ONE writer, which every
+   * producer — this route, the worker's OTS / recovery / legacy paths — goes
+   * through. This authority only supplies its entitlement reading and maps the
+   * writer's bounded refusal onto its customer outcomes.
+   */
+  let eligibilityIssuance: OutputProductionEntitlement | null = null;
   if (evidenceSubject?.ownerUserId) {
     const eligibility = await resolveEvidenceOutputEligibility({
       evidenceId: input.evidenceId,
@@ -205,80 +219,7 @@ export async function requestReportGeneration(
         outcome: "ENTITLEMENT_UNAVAILABLE",
       };
     }
-    /*
-     * P3-7 CLOSURE (2026-09-10) — THE PAIR, NOT JUST THE REPORT.
-     *
-     * This asked `!eligibility.reportsIncluded` and nothing else, whatever the
-     * request's `artifactType` was. Today the two flags are equal on every
-     * catalog row and for a credit-funded record, so the check happened to be
-     * right — which is the whole problem with it: it was right by coincidence,
-     * and the coincidence is a commercial decision somebody could change in
-     * `PLAN_CAPABILITIES` without ever looking at this file.
-     *
-     * ONE REQUEST STILL PRODUCES ONE PAIR. This does not split the action into
-     * two — the worker builds the package inside the report job precisely so
-     * the customer has one control for one pipeline, and that stays. What
-     * changes is that the precheck asks about EVERY artifact the request will
-     * produce, so a plan that included one and not the other could not slip a
-     * half-producible request past this gate.
-     */
-    const requiredEntitlements: Array<{ label: string; included: boolean }> =
-      eligibility
-        ? input.artifactType === "VERIFICATION_PACKAGE"
-          ? [
-              {
-                label: "verification_package",
-                included: eligibility.verificationPackageIncluded,
-              },
-            ]
-          : // A REPORT request produces the pair, so BOTH must be entitled.
-            [
-              { label: "report", included: eligibility.reportsIncluded },
-              {
-                label: "verification_package",
-                included: eligibility.verificationPackageIncluded,
-              },
-            ]
-        : [];
-    if (requiredEntitlements.some((entitlement) => !entitlement.included)) {
-      bump("report_generation_not_included_total");
-      return {
-        requested: false,
-        reason: "not_included_in_plan",
-        outcome: "NOT_INCLUDED",
-      };
-    }
-
-    /*
-     * ET-COM-06 — THE HISTORICAL FIRST-ISSUANCE RULE, on the manual path too.
-     *
-     * The worker issues the FIRST report of a record only when the entitlement
-     * says `mayIssueHistoricalFirstOutputs` (a confirmed paid subscription, or
-     * a credit-funded record) — a trial or a payment grace is not confirmed
-     * payment. A customer's Generate click needed only ENTITLED (grace and
-     * trial included), so it issued what the automatic path withholds. A
-     * person's request for a record's first report now takes the same rule.
-     * Completion-time issuance (`evidence_completed`) is not historical: the
-     * record was finalized under this entitlement.
-     */
-    if (
-      input.purpose !== "evidence_completed" &&
-      eligibility &&
-      !eligibility.issuance.mayIssueHistoricalFirstOutputs
-    ) {
-      const firstReport = await prisma.report
-        .findFirst({ where: { evidenceId: input.evidenceId }, select: { id: true } })
-        .then((r) => r === null)
-        .catch(() => false);
-      if (firstReport) {
-        bump("report_generation_not_included_total");
-        return {
-          requested: false,
-          reason: "first_issuance_awaits_confirmed_payment",
-          outcome: "NOT_INCLUDED",
-        };
-      }
-    }
+    eligibilityIssuance = eligibility.issuance;
   }
 
   /*
@@ -320,7 +261,29 @@ export async function requestReportGeneration(
   const persisted = await createReportGenerationRequest(prisma, {
     ...input,
     forceRegenerate,
+    entitlement: async () => eligibilityIssuance,
   });
+  if (!persisted.created && persisted.refusal) {
+    // An expected business answer: nothing is created, nothing is enqueued.
+    const commercial =
+      persisted.refusal === "NOT_APPLICABLE_NOT_ENTITLED" ||
+      persisted.refusal === "NOT_APPLICABLE_FIRST_ISSUANCE_AWAITS_CONFIRMED_PAYMENT";
+    bump(commercial ? "report_generation_not_included_total" : "report_generation_not_applicable_total");
+    return {
+      requested: false,
+      reason:
+        persisted.refusal === "NOT_APPLICABLE_NOT_ENTITLED"
+          ? "not_included_in_plan"
+          : persisted.refusal === "NOT_APPLICABLE_FIRST_ISSUANCE_AWAITS_CONFIRMED_PAYMENT"
+            ? "first_issuance_awaits_confirmed_payment"
+            : persisted.refusal.toLowerCase(),
+      outcome: commercial ? "NOT_INCLUDED" : "NOT_RECOVERABLE",
+    };
+  }
+  if (!persisted.created && persisted.reason === "entitlement_unresolved") {
+    bump("report_generation_entitlement_unresolved_total");
+    return { requested: false, reason: "entitlement_unresolved", outcome: "ENTITLEMENT_UNAVAILABLE" };
+  }
   if (!persisted.created) {
     return {
       requested: false,
@@ -472,6 +435,13 @@ export async function reenqueueReportGenerationRequest(
   if (!row) return { enqueued: false, outcome: "REQUEST_PERSIST_FAILED" };
   if (isTerminalJobExecutionState(row.state)) {
     return { enqueued: false, outcome: "TERMINAL" };
+  }
+  // THE OUTPUT-PRODUCER GUARD (AUD-01/02): a record that left the producible
+  // states while its request waited is settled, never put back on the queue.
+  const refusal = await lifecycleRefusalForRequest(prisma as never, requestId);
+  if (refusal) {
+    await settleReportRequestNotApplicable(prisma as never, { requestId, refusal });
+    return { enqueued: false, outcome: "NOT_RECOVERABLE" };
   }
   const outcome = await enqueueCanonicalWork({
     workName: JOB_NAMES.GENERATE_REPORT,

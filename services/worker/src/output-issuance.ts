@@ -88,3 +88,21 @@ export async function resolveEvidenceOutputIssuance(record: {
 
 /** Thrown when the decision is UNRESOLVED: retry later, issue nothing now. */
 export const OUTPUT_ENTITLEMENT_UNRESOLVED = "OUTPUT_ENTITLEMENT_UNRESOLVED";
+
+/**
+ * THE WORKER'S ENTITLEMENT READING FOR THE OUTPUT-PRODUCER GUARD (2026-10-20).
+ * Every worker producer hands this to `createReportGenerationRequest`, which
+ * applies the shared `decideOutputProduction`. A failed read is null: the
+ * writer creates nothing and answers `entitlement_unresolved`.
+ */
+export async function workerOutputEntitlement(subject: {
+  id: string;
+  ownerUserId: string;
+  teamId: string | null;
+}): Promise<OutputIssuanceEntitlement | null> {
+  try {
+    return await resolveEvidenceOutputIssuance(subject);
+  } catch {
+    return null;
+  }
+}

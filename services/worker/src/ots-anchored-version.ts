@@ -28,6 +28,7 @@
  *                                   (exactly 80 characters: client_request_key is VARCHAR(80))
  */
 import { createReportGenerationRequest } from "@proovra/shared-runtime/reports";
+import { workerOutputEntitlement } from "./output-issuance.js";
 import {
   OTS_ANCHORING_RECORD_SELECT,
   isTerminalJobExecutionState,
@@ -130,6 +131,7 @@ export async function ensureOtsAnchoredReportVersion(input: {
     regenerateReason: "ots_chain_verified",
     clientRequestKey: key,
     requestedByMachineId: OTS_ANCHORED_MACHINE_ID,
+    entitlement: workerOutputEntitlement,
   });
   if (!persisted.created) return { outcome: "refused", reason: persisted.reason };
   if (persisted.replayed) return { outcome: "already_requested", requestId: persisted.requestId };

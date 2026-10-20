@@ -14,7 +14,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IntegrationHarness } from "../integration-harness.js";
-import { readZipEntries } from "../point5/_zip-entries.js";
 
 /** Failure seams, all off by default. Test doubles, not production switches. */
 const seam = vi.hoisted(() => ({
@@ -488,24 +487,8 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
     return { reports, packages, packageRows, req };
   }
 
-  const stored = (bucket: string, key: string) => storage.objects.get(storage.at(bucket, key))?.body ?? null;
 
   /** The report PDF inside a package, and the package's own manifest claims. */
-  function packageReportBytes(pkg: { storageBucket: string; storageKey: string }, version: number): Buffer {
-    const zip = stored(pkg.storageBucket, pkg.storageKey);
-    expect(zip, "package object must be durable in storage").toBeTruthy();
-    const entries = readZipEntries(zip!);
-    const name = [...entries.keys()].find((k) => k.endsWith(`proovra-verification-report-v${version}.pdf`));
-    expect(name, `package must carry the report v${version} PDF; entries: ${[...entries.keys()].join(", ")}`).toBeTruthy();
-    return entries.get(name!)!;
-  }
-
-  async function tsaColumns(evidenceId: string) {
-    return prisma.evidence.findUniqueOrThrow({
-      where: { id: evidenceId },
-      select: { tsaStatus: true, tsaGenTimeUtc: true, tsaMessageImprint: true, tsaTokenBase64: true },
-    });
-  }
 
   // -------------------------------------------------------------------------
   /** A pending OTS proof over THIS record's fingerprint digest (its otsHash is that digest). */
@@ -529,10 +512,6 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       where: { evidenceId, purpose: "ots_upgrade_completed" },
       select: { id: true, state: true, forceRegenerate: true, clientRequestKey: true, requestedByMachineId: true },
     });
-  const anchorSnapshotOf = async (evidenceId: string, version: number) =>
-    ((await prisma.report.findUniqueOrThrow({ where: { evidenceId_version: { evidenceId, version } }, select: { anchorSnapshot: true } }))
-      .anchorSnapshot ?? {}) as { otsState?: string; otsProofSha256?: string };
-
   /**
    * The independent Bitcoin main-chain check, as the worker's chain transition
    * persists it: VERIFIED, bound to THIS proof (verifier proof prefix) and to
@@ -719,6 +698,33 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       await run(id, 0);
       const after = await state(ev.evidenceId, id);
       expect(after.packageRows.filter((p) => p.state === "PUBLISHED")).toEqual([]);
+    }, 300_000);
+
+    it("AUD-01: the stranded-request sweep settles an ARCHIVED record's waiting request instead of re-enqueueing it", async () => {
+      const ev = await signedEvidence();
+      const id = await request(ev);
+      await setLifecycle(ev.evidenceId, "ARCHIVED");
+      const enqueued: string[] = [];
+      await authority.reconcileStrandedReportRequests({
+        enqueue: async (requestId: string) => {
+          enqueued.push(requestId);
+          return { enqueued: true };
+        },
+      });
+      expect(enqueued).not.toContain(id);
+      const after = await state(ev.evidenceId, id);
+      expect(after.req).toMatchObject({ terminalReasonCode: "NOT_APPLICABLE_ARCHIVED" });
+      expect(after.req!.state).not.toBe("FAILED_TERMINAL");
+    }, 300_000);
+
+    it("AUD-01: the API re-enqueue refuses an ARCHIVED record's waiting request", async () => {
+      const api = await import("../../src/services/reports/report-generation-authority.service.js");
+      const ev = await signedEvidence();
+      const id = await request(ev);
+      await setLifecycle(ev.evidenceId, "RETENTION_ARCHIVED");
+      const out = await api.reenqueueReportGenerationRequest(id);
+      expect(out).toEqual({ enqueued: false, outcome: "NOT_RECOVERABLE" });
+      expect((await state(ev.evidenceId, id)).req).toMatchObject({ terminalReasonCode: "NOT_APPLICABLE_RETENTION_ARCHIVED" });
     }, 300_000);
 
     it("ACTIVE + entitled: exactly one chain-verified request, and duplicate deliveries collapse onto it", async () => {

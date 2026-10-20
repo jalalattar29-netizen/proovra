@@ -34,6 +34,7 @@
 import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { ENTITLED_FOR_TEST, entitleFixtureWorkspace } from "./helpers/output-entitlement.js";
 
 import {
   isRecoverableBlockedTerminalReason,
@@ -55,6 +56,7 @@ describe("blocked supersession + stranded recovery (live PostgreSQL 16)", () => 
     ({ prisma } = await import("../src/db.js"));
     const { registerPrisma } = await import("@proovra/shared-runtime");
     registerPrisma(prisma as never);
+    await entitleFixtureWorkspace(prisma, harness.fixtures.teamA.teamId);
     writer = await import("@proovra/shared-runtime/reports");
     authority = await import("../../worker/src/report-generation-authority.js");
   });
@@ -106,6 +108,7 @@ describe("blocked supersession + stranded recovery (live PostgreSQL 16)", () => 
 
   function request(evidenceId: string) {
     return writer.createReportGenerationRequest(prisma as never, {
+      entitlement: ENTITLED_FOR_TEST,
       evidenceId,
       purpose: "evidence_completed",
       requestedByMachineId: "supersession-integration",

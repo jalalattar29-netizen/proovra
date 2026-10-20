@@ -22,6 +22,8 @@
  *      bounded reason); the next attempt re-reserves the same ids.
  */
 import * as prismaPkg from "@prisma/client";
+import { outputLifecycleRefusal } from "@proovra/shared";
+import { OutputProductionRefusedError } from "./output-production-refusal.js";
 import type { Prisma } from "@prisma/client";
 import {
   commitPublishedPackage,
@@ -206,6 +208,17 @@ export type IssuanceCommitInput = {
 export async function commitIssuance(input: IssuanceCommitInput): Promise<void> {
   await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.evidenceId}))`;
+    // THE OUTPUT-PRODUCER GUARD, AT PACKAGE COMMIT (AUD-35). The record may
+    // have been archived, trashed or destroyed while the package built: no
+    // package is published for it. Re-read under the record's lock.
+    const live = await tx.evidence.findUnique({
+      where: { id: input.evidenceId },
+      select: { status: true, deletedAt: true, lifecycleState: true },
+    });
+    const refusal = live ? outputLifecycleRefusal(live) : ("NOT_APPLICABLE_DELETED" as const);
+    if (refusal) {
+      throw new OutputProductionRefusedError(refusal);
+    }
     const baseline = await tx.report.findUnique({
       where: { evidenceId_version: { evidenceId: input.evidenceId, version: input.version } },
       select: { id: true, pdfSha256: true },

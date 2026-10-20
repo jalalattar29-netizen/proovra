@@ -346,6 +346,11 @@ export {
   OUTPUT_OPERATIONS,
   resolveEvidenceOutputActions,
   outputBlockingRestriction,
+  // 2026-10-20 — THE output-producer decision (forward remediation AUD-01/02/35).
+  OUTPUT_PRODUCTION_REFUSALS,
+  isOutputProductionRefusal,
+  outputLifecycleRefusal,
+  decideOutputProduction,
   // TERMINAL-LOCKOUT CLOSURE (RGA-07) — the shared technical-terminal predicate
   // and the bounded supersession ceiling, consulted by both the offer and the
   // request writer so a dead TECHNICAL terminal cannot permanently lock a
@@ -459,6 +464,9 @@ export type {
   NewVersionAction,
   OutputOperation,
   OutputRestrictions,
+  OutputProductionRefusal,
+  OutputProductionEntitlement,
+  OutputProductionDecision,
   OutputRequestFact,
   EvidenceOutputFacts,
   OutputActionDecision,
