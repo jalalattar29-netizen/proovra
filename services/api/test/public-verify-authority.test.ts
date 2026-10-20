@@ -95,7 +95,13 @@ function facts(): Record<string, unknown> {
     },
     captureContext: { lat: 48.137154, lng: 11.576124 },
     locationState: { state: "RECORDED" },
-    technicalMetadata: { gpsPresent: true, camera: "X" },
+    // The shape projectVerifyTechnicalMetadata returns (2026-10-20: was flat).
+    technicalMetadata: {
+      media: { filesAnalyzed: 2, filesTotal: 2, metadataStatus: "Complete", primaryMediaType: "Document", resolutionSummary: null },
+      exif: { applicable: true, exifPresent: true, camera: "X", gpsPresent: true, metadataStatus: "Complete", internalExifBlob: "do not leak" },
+      captureEnvironment: { browserName: "Firefox", osName: "Linux", timezone: "Europe/Berlin", ipAddressMasked: "203.0.x.x" },
+      network: { country: "Germany", region: "Bavaria", maskedIp: "203.0.x.x" },
+    },
     captureManifest: { domain: "example.test" },
     redaction: { applied: true },
     mediaIntelligenceAdvisory: { signals: 1 },
@@ -178,6 +184,69 @@ describe("projectPublicVerification — the allowlist", () => {
     expect(body.captureContext).toEqual({ lat: 48.137154, lng: 11.576124 });
     expect(body.locationState).toEqual({ state: "RECORDED" });
     expect(JSON.stringify(body)).toContain("gpsPresent");
+  });
+
+  /*
+   * AUD-46 (2026-10-20) — technical metadata is an allowlist. Characterization
+   * (before): with content shown and the location withheld, the network
+   * country and the capture timezone left — each places the record.
+   */
+  it("AUD-46: CONTENT_PREVIEW without location sends no network country, timezone or GPS flag; with location, those only", () => {
+    const hidden = project(disclosure("CANONICAL_REFERENCE", CP));
+    const tm = hidden.technicalMetadata as Record<string, Record<string, unknown> | null>;
+    expect(tm.network).toBeNull();
+    expect(tm.captureEnvironment).toEqual({ browserName: "Firefox", osName: "Linux" });
+    expect(tm.exif).toMatchObject({ camera: "X" });
+    expect(JSON.stringify(hidden)).not.toMatch(/Germany|Bavaria|Europe\/Berlin|gpsPresent|203\.0\.x\.x|internalExifBlob/);
+    const shown = project(disclosure("CANONICAL_REFERENCE", CPL));
+    const tl = shown.technicalMetadata as Record<string, Record<string, unknown> | null>;
+    expect(tl.network).toEqual({ country: "Germany" });
+    expect(tl.captureEnvironment).toMatchObject({ timezone: "Europe/Berlin" });
+    expect(JSON.stringify(shown)).not.toMatch(/Bavaria|203\.0\.x\.x|internalExifBlob/);
+  });
+
+  /*
+   * AUD-45 (2026-10-20) — the overview, the human summary and the record facts
+   * are allowlists. Characterization (before): the view-time LABELS left while
+   * their raw values were dropped; the content size left a VERIFICATION_ONLY
+   * page; identity labels left beside "withheld".
+   */
+  it("AUD-45: no view chronology label, no content size without content, no identity label while identity is withheld", () => {
+    const f = facts();
+    Object.assign(f.overview as Record<string, unknown>, {
+      lastPublicVerifyViewAtUtcLabel: "18 Oct 2026, 00:00 UTC",
+      currentPublicVerifyViewAtUtcLabel: "now",
+      totalContentSizeBytes: "123456",
+      totalContentSizeDisplay: "121 KB",
+      identityLevel: "Verified email account",
+      identitySnapshot: { identityLevel: "VERIFIED_EMAIL" },
+      submittedByAuthProvider: "Google",
+      itemCount: 2,
+    });
+    Object.assign(f.humanSummary as Record<string, unknown>, { identityLevel: "Verified email account", authProvider: "Google", totalContentSizeDisplay: "121 KB", lastPublicVerifyViewAtUtc: "x" });
+    (f.recordFacts as { identity: Record<string, unknown> }).identity = {
+      disclosure: "WITHHELD",
+      statement: "Withheld by the record’s disclosure policy",
+      captureTime: { identityLevel: "VERIFIED_EMAIL", authProvider: "Google" },
+      atReportTime: { reportVersion: 1, identityLevel: "VERIFIED_EMAIL", authProvider: "Google" },
+    };
+    const vo = projectPublicVerification(f, disclosure("CANONICAL_REFERENCE"), { attributionExposed: false });
+    const text = JSON.stringify(vo);
+    expect(text).not.toMatch(/18 Oct 2026, 00:00 UTC|"now"|123456|121 KB|Verified email account|VERIFIED_EMAIL|Google/);
+    expect((vo.overview as Record<string, unknown>).itemCount).toBe(2);
+    expect((vo.recordFacts as { identity: Record<string, unknown> }).identity).toEqual({
+      disclosure: "WITHHELD",
+      statement: "Withheld by the record’s disclosure policy",
+      captureTime: null,
+      atReportTime: null,
+    });
+    const basic = projectBasicPublicVerification(f, disclosure("CANONICAL_REFERENCE"));
+    expect(JSON.stringify(basic)).not.toMatch(/VERIFIED_EMAIL|Google/);
+    // Content shown: the size leaves; attribution exposed: the identity labels leave.
+    const cp = projectPublicVerification(f, disclosure("CANONICAL_REFERENCE", CP), { attributionExposed: true });
+    expect((cp.overview as Record<string, unknown>).totalContentSizeDisplay).toBe("121 KB");
+    expect((cp.overview as Record<string, unknown>).identityLevel).toBe("Verified email account");
+    expect(JSON.stringify(cp)).not.toMatch(/18 Oct 2026, 00:00 UTC|"now"/);
   });
 
   it("only a reviewer link's explicit grant hands out the original URL", () => {

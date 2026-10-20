@@ -31,12 +31,18 @@ export function redactIdentifier(
   return `${t.slice(0, visible)}[redacted-middle]${t.slice(-visible)}`;
 }
 
-export function buildPublicEvidenceReference(
-  evidenceId: string | null | undefined
+/**
+ * THE REFERENCE A REPORT PRINTS (2026-10-20, AUD-18): the record's permanent
+ * verification reference (`pvr_…`) — the identifier Public Verify answers to.
+ * The internal evidence UUID is never printed: it is not a public name, and a
+ * UUID link opened Public Verify during the legacy grace window. Anything that
+ * is not a verification reference reads "Not recorded".
+ */
+export function buildPublicVerificationReference(
+  verificationRef: string | null | undefined
 ): string {
-  const t = safe(evidenceId, "");
-  if (!t) return "Not recorded";
-  return t;
+  const t = safe(verificationRef, "");
+  return /^pvr_[A-Za-z0-9_-]{8,}$/.test(t) ? t : "Not recorded";
 }
 
 export function buildPublicSigningKeyReference(

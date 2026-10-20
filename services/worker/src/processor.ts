@@ -105,6 +105,7 @@ import {
   type AcquisitionIdentitySnapshot,
   custodyLabelHints,
   readStoredTrustDecision,
+  parseVerificationDisclosurePolicy,
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
 import { custodyThroughIssuance } from "./custody-issuance-cutoff.js";
@@ -3670,6 +3671,19 @@ function toBoundedReasonCode(error: unknown): string {
   return "UNCLASSIFIED_ERROR";
 }
 
+/**
+ * AUD-19 (2026-10-20) — the record's location disclosure when the report is
+ * issued: the report prints the recorded location only when the owner chose to
+ * show it (CONTENT_PREVIEW + showRecordedLocation). Fails closed.
+ */
+async function recordedLocationDisclosedAtIssue(evidenceId: string): Promise<boolean> {
+  const row = await prisma.evidence.findUnique({
+    where: { id: evidenceId },
+    select: { verificationDisclosureMode: true, showRecordedLocation: true },
+  });
+  return parseVerificationDisclosurePolicy(row).showRecordedLocation;
+}
+
 /** Test seam (AUD-54): the bounded reason a terminal request records for an error. */
 export const boundedReasonCodeForTest = toBoundedReasonCode;
 
@@ -4563,6 +4577,8 @@ async function runReportGeneration(
           generatedAtUtc: prepared.now.toISOString(),
           buildInfo: env.WORKER_BUILD_INFO ?? null,
           verifyUrl: prepared.verifyUrl,
+          verificationRef: prepared.verificationRef,
+          recordedLocationDisclosed: await recordedLocationDisclosedAtIssue(prepared.evidenceId),
           downloadUrl: prepared.downloadUrl,
           externalMode: false,
           mediaIntelligence: finalizedReportMediaIntelligence,

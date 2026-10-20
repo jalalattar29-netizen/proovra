@@ -234,24 +234,127 @@ function projectCustody(custody: unknown, d: PublicVerifyDisclosureFacts): Obj |
   };
 }
 
-const OVERVIEW_DROP = [
-  "evidenceId",
-  "submittedByEmail",
+/*
+ * THE OVERVIEW AND THE HUMAN SUMMARY ARE ALLOWLISTS (2026-10-20, AUD-45). They
+ * were denylists: a field added to the builder left by default — the view-time
+ * LABELS left although their raw values were dropped, the content size left a
+ * VERIFICATION_ONLY page, and the identity labels left while identity was
+ * withheld. Now a field leaves only when it is named here, under the decision
+ * that allows it:
+ *
+ *   ALWAYS       the verification facts every disclosure states
+ *   CONTENT      what describes the record's content (CONTENT_PREVIEW only)
+ *   ATTRIBUTION  who submitted it and in which workspace (attribution exposed)
+ *
+ * Never: the internal record id, any email, the page's own view chronology.
+ */
+const OVERVIEW_ALWAYS = [
+  "recordStatus",
+  "recordLifecycleStatus",
+  "verificationStatus",
+  "verificationStatusCode",
+  "integrityHeadline",
+  "evidenceTitle",
+  "evidenceType",
+  "evidenceStructure",
+  "itemCount",
+  "previewableItemCount",
+  "downloadableItemCount",
+  "captureMethod",
+  "captureMethodCode",
+  "acquisitionMode",
+  "createdAt",
+  "capturedAtUtc",
+  "capturedAtUtcLabel",
+  "capturedAtUtcProvenance",
+  "uploadedAtUtc",
+  "uploadedAtUtcLabel",
+  "uploadedAtUtcProvenance",
+  "signedAtUtc",
+  "signedAtUtcLabel",
+  "signedAtUtcProvenance",
+  "recordedIntegrityVerifiedAtUtc",
+  "lastVerifiedAtUtc",
+  "lastVerifiedSource",
+  "lastVerifiedSourceCode",
+  "lastVerifiedAtUtcLabel",
+  "reviewReadyAtUtc",
+  "verificationPackageGeneratedAtUtc",
+  "verificationPackageVersion",
+  "reviewerSummaryVersion",
+  "reportVersion",
+  "reportGeneratedAtUtc",
+  "timestampStatus",
+  "otsStatus",
+  "storageProtection",
+  "chainOfCustodyPresent",
+] as const;
+const OVERVIEW_CONTENT = [
+  "contentStructure",
+  "contentCompositionSummary",
+  "primaryContentKind",
+  "totalContentSizeBytes",
+  "totalContentSizeDisplay",
+  "mimeType",
+  "title",
+  "displayTitle",
+  "description",
+  "deviceTimeIso",
+] as const;
+const OVERVIEW_ATTRIBUTION = [
+  "submittedByAuthProvider",
+  "identityLevel",
+  "identityLevelCode",
+  "identitySnapshot",
   "workspaceName",
   "organizationName",
-  // Access chronology: when the page was last viewed is not verification truth.
-  "lastPublicVerifyViewAtUtc",
-  "currentPublicVerifyViewAtUtc",
+  "organizationVerified",
 ] as const;
+
+const SUMMARY_ALWAYS = [
+  "integrityStatus",
+  "recordStatus",
+  "verificationStatus",
+  "previewableItemCount",
+  "downloadableItemCount",
+  "summary",
+  "whatIsVerified",
+  "evidenceTitle",
+  "evidenceType",
+  "evidenceStructure",
+  "captureMethod",
+  "createdAt",
+  "capturedAtUtc",
+  "uploadedAtUtc",
+  "signedAtUtc",
+  "recordedIntegrityVerifiedAtUtc",
+  "lastVerifiedAtUtc",
+  "lastVerifiedSource",
+  "chainOfCustodyPresent",
+  "reportVersion",
+  "reportGeneratedAtUtc",
+  "verificationPackageVersion",
+  "verificationPackageGeneratedAtUtc",
+  "reviewerSummaryVersion",
+  "timestampStatus",
+  "otsStatus",
+  "storageProtection",
+] as const;
+const SUMMARY_CONTENT = ["contentStructure", "totalContentSizeDisplay", "fileType"] as const;
+const SUMMARY_ATTRIBUTION = ["authProvider", "identityLevel", "organization", "workspace", "organizationVerified"] as const;
+
 const OVERVIEW_DESCRIPTIVE = ["evidenceTitle", "title", "displayTitle", "description", "deviceTimeIso"] as const;
 
-function projectOverview(o: unknown, d: PublicVerifyDisclosureFacts, attribution: boolean): Obj | null {
+function projectAllowlisted(
+  o: unknown,
+  d: PublicVerifyDisclosureFacts,
+  attribution: boolean,
+  lists: { always: readonly string[]; content: readonly string[]; attribution: readonly string[] },
+): Obj | null {
   if (!isObj(o)) return null;
-  const out: Obj = { ...o };
-  for (const k of OVERVIEW_DROP) {
-    if ((k === "workspaceName" || k === "organizationName") && attribution) continue;
-    delete out[k];
-  }
+  const out: Obj = pick(o, lists.always);
+  if (d.mode === "CONTENT_PREVIEW") Object.assign(out, pick(o, lists.content));
+  if (attribution) Object.assign(out, pick(o, lists.attribution));
   if ("previewableItemCount" in out && d.mode === "VERIFICATION_ONLY") out.previewableItemCount = 0;
   if ("downloadableItemCount" in out && !d.originalDownload) out.downloadableItemCount = 0;
   if (d.mode === "VERIFICATION_ONLY") {
@@ -259,6 +362,24 @@ function projectOverview(o: unknown, d: PublicVerifyDisclosureFacts, attribution
     if ("evidenceTitle" in o) out.evidenceTitle = "Digital Evidence Record";
   }
   return out;
+}
+
+function projectOverview(o: unknown, d: PublicVerifyDisclosureFacts, attribution: boolean): Obj | null {
+  return projectAllowlisted(o, d, attribution, { always: OVERVIEW_ALWAYS, content: OVERVIEW_CONTENT, attribution: OVERVIEW_ATTRIBUTION });
+}
+
+function projectHumanSummary(o: unknown, d: PublicVerifyDisclosureFacts, attribution: boolean): Obj | null {
+  return projectAllowlisted(o, d, attribution, { always: SUMMARY_ALWAYS, content: SUMMARY_CONTENT, attribution: SUMMARY_ATTRIBUTION });
+}
+
+/**
+ * (2026-10-20, AUD-45) Identity that is WITHHELD is stated as withheld and
+ * nothing else: the categorical labels (identity level, provider) of the
+ * capture-time and report-time snapshots do not leave beside that statement.
+ */
+function projectRecordFacts(r: unknown): unknown {
+  if (!isObj(r) || !isObj(r.identity) || r.identity.disclosure !== "WITHHELD") return r;
+  return { ...r, identity: { ...r.identity, captureTime: null, atReportTime: null } };
 }
 
 function projectBasic(b: unknown, d: PublicVerifyDisclosureFacts): unknown {
@@ -295,13 +416,65 @@ function projectStorageAndTimestamping(s: unknown): unknown {
   return { ...s, storage };
 }
 
+/*
+ * (2026-10-20, AUD-46) An ALLOWLIST. The country of the uploading network and
+ * the capture timezone left a CONTENT_PREVIEW page while the recorded location
+ * was withheld — each places the record. A field leaves only when named here;
+ * the location-revealing ones (network country, timezone, EXIF GPS presence)
+ * only with the owner's location decision.
+ */
+const TECH_MEDIA = ["filesAnalyzed", "filesTotal", "metadataStatus", "primaryMediaType", "resolutionSummary"] as const;
+const TECH_EXIF = [
+  "applicable",
+  "exifPresent",
+  "camera",
+  "lensModel",
+  "originalCaptureTime",
+  "iso",
+  "aperture",
+  "exposureTime",
+  "shutterSpeed",
+  "whiteBalance",
+  "orientation",
+  "resolution",
+  "softwareTag",
+  "metadataStatus",
+] as const;
+const TECH_ENVIRONMENT = [
+  "uploadSource",
+  "captureMethod",
+  "browserName",
+  "browserVersion",
+  "osName",
+  "osVersion",
+  "deviceClass",
+  "engine",
+  "platform",
+] as const;
+const TECH_ACQUISITION = [
+  "method",
+  "deliveryChannel",
+  "submissionType",
+  "submissionStatus",
+  "identityVerification",
+  "consentAccepted",
+  "consentVersion",
+  "submittedAtUtc",
+] as const;
+
 function projectTechnicalMetadata(t: unknown, d: PublicVerifyDisclosureFacts): unknown {
   if (!isObj(t)) return t ?? null;
-  if (d.recordedLocation) return t;
-  // No field may reveal whether coordinates exist while location is withheld.
-  return JSON.parse(
-    JSON.stringify(t, (key, value) => (/^(gps|location|latitude|longitude|lat|lng|coordinates)/i.test(key) ? undefined : value)),
-  );
+  const sub = (v: unknown, keys: readonly string[], extra: readonly string[] = []) =>
+    isObj(v) ? pick(v, [...keys, ...extra]) : (v ?? null);
+  const located = d.recordedLocation;
+  const out: Obj = {
+    media: sub(t.media, TECH_MEDIA),
+    exif: sub(t.exif, TECH_EXIF, located ? ["gpsPresent"] : []),
+    captureEnvironment: sub(t.captureEnvironment, TECH_ENVIRONMENT, located ? ["timezone"] : []),
+    network: located && isObj(t.network) ? pick(t.network, ["country"]) : null,
+  };
+  if ("acquisition" in t) out.acquisition = sub(t.acquisition, TECH_ACQUISITION);
+  return out;
 }
 
 /**
@@ -323,7 +496,8 @@ export function projectPublicVerification(
   if (out.canonicalVerification === undefined) delete out.canonicalVerification;
   out.certifications = projectCertifications(full.certifications, d);
   out.overview = projectOverview(full.overview, d, options.attributionExposed);
-  out.humanSummary = projectOverview(full.humanSummary, d, options.attributionExposed);
+  out.humanSummary = projectHumanSummary(full.humanSummary, d, options.attributionExposed);
+  out.recordFacts = projectRecordFacts(full.recordFacts);
   out.display =
     d.mode === "VERIFICATION_ONLY" && isObj(full.display)
       ? { ...full.display, displayTitle: "Digital Evidence Record" }
@@ -359,7 +533,8 @@ export function projectPublicVerification(
  * disclosure decision.
  */
 export function projectBasicPublicVerification(full: Obj, disclosure: PublicVerifyDisclosureFacts): Obj {
-  const out: Obj = pick(full, ["tier", "link", "verificationMatrix", "recordFacts"]);
+  const out: Obj = pick(full, ["tier", "link", "verificationMatrix"]);
+  out.recordFacts = projectRecordFacts(full.recordFacts);
   out.basicVerification = projectBasic(full.basicVerification, disclosure);
   out.disclosure = disclosure;
   if (isObj(full.canonicalVerification)) out.canonicalVerification = { ...full.canonicalVerification, disclosure };

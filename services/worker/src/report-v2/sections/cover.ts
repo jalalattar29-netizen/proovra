@@ -292,7 +292,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
 
           <div class="cover-meta-grid">
             <div class="cover-meta-card">
-              <div class="cover-meta-label">Evidence Reference</div>
+              <div class="cover-meta-label">Verification Reference</div>
               <div class="cover-meta-value">${escapeHtml(vm.evidenceReference)}</div>
             </div>
 

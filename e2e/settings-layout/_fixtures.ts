@@ -260,7 +260,7 @@ export async function installSettingsApi(
         json({
           user: {
             id: "user-1",
-            email: "reem.ammar@example.invalid",
+            email: "fixture.owner@example.invalid",
             displayName: "Reem Ammar",
             firstName: "Reem",
             lastName: "Ammar",
@@ -278,7 +278,7 @@ export async function installSettingsApi(
         json({
           user: {
             id: "user-1",
-            email: "reem.ammar@example.invalid",
+            email: "fixture.owner@example.invalid",
             displayName: "Reem Ammar",
             firstName: "Reem",
             lastName: "Ammar",

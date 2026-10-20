@@ -45,10 +45,8 @@ function fullReportId(value: string | null | undefined): string {
   const raw = typeof value === "string" ? value.trim() : "";
   if (!raw) return "N/A";
 
-  const uuidMatch = raw.match(
-    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
-  );
-  if (uuidMatch?.[0]) return uuidMatch[0];
+  // Only a verification reference is a footer reference (AUD-18).
+  if (!/^pvr_[A-Za-z0-9_-]{8,}$/.test(raw)) return "N/A";
 
   return raw;
 }
@@ -153,7 +151,7 @@ function buildFooterTemplate(params: {
         <span class="proovra-footer-brand">PROOVRA</span>
         <span>&nbsp;Verification Report</span>
         <span class="proovra-footer-sep">|</span>
-        <span>ID: ${reportId}</span>
+        <span>Ref: ${reportId}</span>
         <span class="proovra-footer-sep">|</span>
         <span>v${version}</span>
         <span class="proovra-footer-sep">|</span>
@@ -296,17 +294,11 @@ await page.evaluate(
           return null;
         };
 
-        const bodyMatch =
-          document.body && document.body.textContent
-            ? document.body.textContent.match(
-                /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
-              )
-            : null;
-
+        // 2026-10-20 (AUD-18): the footer states the verification reference
+        // the cover states; it never scrapes a UUID out of the body text.
         const evidenceReference =
-          findValueByLabel("Evidence Reference") ||
+          findValueByLabel("Verification Reference") ||
           text("[data-evidence-reference]") ||
-          (bodyMatch ? bodyMatch[0] : null) ||
           null;
 
         const root = document.querySelector(".report-root");

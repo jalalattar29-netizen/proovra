@@ -111,15 +111,19 @@ describe("capture-location map: no third-party request by default", () => {
     expect(logged.filter(leaksLocation)).toEqual([]);
   });
 
-  it("only an explicitly configured internal endpoint is ever asked, and its URL is never logged", async () => {
+  it("AUD-19: even an explicitly configured internal endpoint is never asked — an issued artifact renders its map locally", async () => {
+    // 2026-10-20: before, a configured endpoint WAS fetched at render time, so
+    // an immutable report's map depended on a network answer and the evidence
+    // location's tile coordinates left the worker.
     process.env.CAPTURE_LOCATION_MAP_MODE = "static";
     process.env.CAPTURE_LOCATION_TILE_URL = "https://tiles.internal.example/{z}/{x}/{y}.png";
     const png = await renderCaptureLocationMapPreviewPng({ ...GPS });
-    // The endpoint refused (trapped), so the map fell back to the local render.
     expect(png).toBeInstanceOf(Buffer);
-    expect(outbound.length).toBeGreaterThan(0);
-    expect(outbound.every((o) => o.startsWith("fetch:https://tiles.internal.example/"))).toBe(true);
+    expect(outbound).toEqual([]);
     expect(logged.filter(leaksLocation)).toEqual([]);
     expect(logged.some((l) => l.includes("tiles.internal.example"))).toBe(false);
+    // "off" still omits the map.
+    process.env.CAPTURE_LOCATION_MAP_MODE = "off";
+    expect(await renderCaptureLocationMapPreviewPng({ ...GPS })).toBeNull();
   });
 });

@@ -110,6 +110,8 @@ function withCoords(
 ): ReportV2Input {
   return {
     ...input,
+    // AUD-19: the location is printed under the owner's disclosure.
+    recordedLocationDisclosed: true,
     evidence: {
       ...input.evidence,
       gps: {

@@ -188,22 +188,22 @@ with them (§1), so a code rollback needs no database change.
 
 ```bash
 export ADMIN_ID=<your platform-admin user id from `admins`>
-export GRANT_KEY="owner-test:reem.ammar@hotmail.com:team:2026-10"
+export GRANT_KEY="owner-test:<customer-email>:team:2026-10"
 export EXEC="$COMPOSE exec -T proovra-api node"
 
-$EXEC dist/scripts/internal-plan-grant.js status --email=reem.ammar@hotmail.com          # must list NO active grant
-$EXEC dist/scripts/internal-grant-rollout.js snapshot --email=reem.ammar@hotmail.com --out=/tmp/reem-before.json
+$EXEC dist/scripts/internal-plan-grant.js status --email=<customer-email>          # must list NO active grant
+$EXEC dist/scripts/internal-grant-rollout.js snapshot --email=<customer-email> --out=/tmp/customer-before.json
 #   → exactly one user resolved (otherwise SUBJECT_NOT_FOUND / SUBJECT_AMBIGUOUS — stop);
 #     record userId, personalTeamId, providerPlan, effective, activeGrant (must be null).
 
 export EXPIRES="$(date -u -d '+90 days' +%Y-%m-%dT%H:%M:%SZ)"
-$EXEC dist/scripts/internal-plan-grant.js apply --email=reem.ammar@hotmail.com \
+$EXEC dist/scripts/internal-plan-grant.js apply --email=<customer-email> \
   --actor-user-id="$ADMIN_ID" --reason="Owner-authorized PROOVRA end-to-end Product testing" \
   --idempotency-key="$GRANT_KEY" --expires-at="$EXPIRES" --confirm
 #   → "created": true, grant.plan TEAM, grant.source INTERNAL_TEST, grant.expiresAtUtc = $EXPIRES
 
-$EXEC dist/scripts/internal-grant-rollout.js snapshot --email=reem.ammar@hotmail.com --out=/tmp/reem-after.json
-$EXEC dist/scripts/internal-grant-rollout.js compare --before=/tmp/reem-before.json --after=/tmp/reem-after.json \
+$EXEC dist/scripts/internal-grant-rollout.js snapshot --email=<customer-email> --out=/tmp/customer-after.json
+$EXEC dist/scripts/internal-grant-rollout.js compare --before=/tmp/customer-before.json --after=/tmp/customer-after.json \
   --expect=grant-applied --idempotency-key="$GRANT_KEY" --expiry-days=90
 ```
 
@@ -231,19 +231,19 @@ without a live Platform Admin actor.
 Then the idempotent replay — it must change **nothing**:
 
 ```bash
-$EXEC dist/scripts/internal-plan-grant.js apply --email=reem.ammar@hotmail.com \
+$EXEC dist/scripts/internal-plan-grant.js apply --email=<customer-email> \
   --actor-user-id="$ADMIN_ID" --reason="Owner-authorized PROOVRA end-to-end Product testing" \
   --idempotency-key="$GRANT_KEY" --expires-at="$EXPIRES" --confirm                     # "created": false, same grant id
-$EXEC dist/scripts/internal-grant-rollout.js snapshot --email=reem.ammar@hotmail.com --out=/tmp/reem-replay.json
-$EXEC dist/scripts/internal-grant-rollout.js compare --before=/tmp/reem-after.json --after=/tmp/reem-replay.json --expect=none
-for f in before after replay; do $COMPOSE cp proovra-api:/tmp/reem-$f.json .deploy-state/; done
+$EXEC dist/scripts/internal-grant-rollout.js snapshot --email=<customer-email> --out=/tmp/customer-replay.json
+$EXEC dist/scripts/internal-grant-rollout.js compare --before=/tmp/customer-after.json --after=/tmp/customer-replay.json --expect=none
+for f in before after replay; do $COMPOSE cp proovra-api:/tmp/customer-$f.json .deploy-state/; done
 ```
 
 In the product: the account signs in with its own credentials (never requested), its Personal
 workspace shows TEAM capabilities, and Billing shows **granted** access with no TEAM purchase
 offer; a TEAM checkout answers `409 INTERNAL_GRANT_ACTIVE` before any provider call.
 
-**Rollback (grant):** `$EXEC dist/scripts/internal-plan-grant.js revoke --email=reem.ammar@hotmail.com
+**Rollback (grant):** `$EXEC dist/scripts/internal-plan-grant.js revoke --email=<customer-email>
 --actor-user-id="$ADMIN_ID" --reason="<why>" --confirm` — the account falls back to its provider
 plan on the next read (rehearsed: TEAM/INTERNAL_GRANT → FREE/PERSONAL_ENTITLEMENT). Do not revoke
 the live grant to "test" this; the integration suite and the rehearsal prove it.

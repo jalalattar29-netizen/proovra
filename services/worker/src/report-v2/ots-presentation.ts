@@ -115,7 +115,8 @@ export function buildOtsAnchoringRows(
     rows.push({ label: facts.proofSha256, value: a.proofSha256 });
     rows.push({
       label: "Proof Reference",
-      value: `${ev.id ? `record ${ev.id}, ` : ""}opentimestamps-proof.ots (sha256:${a.proofSha256.slice(0, 16)})`,
+      // 2026-10-20 (AUD-18): the proof file, never the internal evidence id.
+      value: `opentimestamps-proof.ots (sha256:${a.proofSha256.slice(0, 16)})`,
     });
   }
   if (a.attestationType) {

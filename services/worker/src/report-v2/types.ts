@@ -429,6 +429,21 @@ export type ReportV2Input = {
   buildInfo?: string | null;
   verifyUrl?: string | null;
   /**
+   * (2026-10-20, AUD-18) The record's permanent verification reference
+   * (`pvr_…`), printed on the cover, the summaries and every page footer.
+   * Absent = "Not recorded"; the internal evidence id is never printed.
+   */
+  verificationRef?: string | null;
+  /**
+   * (2026-10-20, AUD-19) Did the record's disclosure policy show its recorded
+   * location when this report was issued (CONTENT_PREVIEW + showRecordedLocation,
+   * parseVerificationDisclosurePolicy)? Only then does the report print the
+   * coordinates, the accuracy and the map. Fails closed: absent = withheld, and
+   * a withheld location is stated nowhere — not "not recorded", not a flag
+   * that one exists.
+   */
+  recordedLocationDisclosed?: boolean;
+  /**
    * UC-OUT-001 — was the record PUBLISHED for public verification when this
    * report was issued? A link to Public Verify answers only for a published
    * record; for a private one the report prints no link or QR code and says

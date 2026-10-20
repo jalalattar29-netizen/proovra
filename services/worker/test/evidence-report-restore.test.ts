@@ -9,7 +9,7 @@
  * model and the PENDING sentence never accompanies an upgraded proof.
  *
  * Fixture: `regressionRecordInput` — shaped like evidence
- * ce465a9e-43c2-4702-87e5-32fcb2dc52fc's report v2.
+ * a production record's report v2 (identifier withheld, AUD-07).
  */
 import { describe, expect, it, vi } from "vitest";
 

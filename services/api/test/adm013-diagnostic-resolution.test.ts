@@ -249,10 +249,15 @@ describe("the runbook matches what was proven", () => {
     expect(md).toMatch(/only output that should leave the host/i);
   });
 
-  it("names the account under investigation in the runnable trace", () => {
+  it("the runnable trace cannot run without the account under investigation", () => {
     // A generic `--trace-account=<email>` cannot answer the question this run
     // exists to answer, and an operator handed a placeholder will omit it.
-    expect(RUNNABLE).toMatch(/--trace-account=rodrigoduarte44@gmail\.com/);
+    // 2026-10-20 (AUD-07): the account is supplied at run time, never written
+    // into the runbook — the shell refuses to run while TRACE_ACCOUNT is unset.
+    const traces = [...RUNNABLE.matchAll(/--trace-account=("[^"]*"|\S+)/g)].map((m) => m[1]);
+    expect(traces.length).toBeGreaterThan(0);
+    for (const t of traces) expect(t).toMatch(/^"\$\{TRACE_ACCOUNT:\?[^}]+\}"$/);
+    expect(RUNNABLE).not.toMatch(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
   });
 
   it("discovers the container instead of telling the operator to guess", () => {

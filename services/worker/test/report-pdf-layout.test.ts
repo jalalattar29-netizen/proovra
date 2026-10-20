@@ -519,3 +519,94 @@ describe.skipIf(!BROWSER)("the corrected rows and the removed sections, rendered
     RENDER_TIMEOUT,
   );
 });
+
+/*
+ * AUD-18 (2026-10-20) — THE REPORT PRINTS THE VERIFICATION REFERENCE, NEVER THE
+ * INTERNAL EVIDENCE UUID. Characterization (rendered, before): the cover card
+ * "Evidence Reference" and every page footer "ID: 4f8d2c1a-…" printed the
+ * record's internal id — and the footer scraped any UUID out of the body when
+ * the card was absent. Now every page states `Ref: pvr_…`, and with no
+ * reference recorded the report says so; the UUID is in no page's text.
+ */
+describe.skipIf(!BROWSER)("the report names the record by its verification reference (AUD-18)", () => {
+  const REF = "pvr_Q2hQd3c4bHhFdGVzdFJlZmVyZW5jZQ";
+  const pageTexts = async (input: ReportV2Input) =>
+    (await readReportGeometry(await renderPdf(await htmlOf(input)))).map((p) => p.items.map((i) => i.str).join(" ").replace(/\s+/g, " "));
+
+  it(
+    "every page footer and the cover state pvr_; the internal UUID appears nowhere",
+    async () => {
+      const base = regressionRecordInput("absent");
+      const uuid = base.evidence.id;
+      expect(uuid).toMatch(/^[0-9a-f]{8}-/);
+      // As the worker passes them: the reference and the verify URL built from it.
+      const texts = await pageTexts({ ...base, verificationRef: REF, verifyUrl: `https://app.proovra.example/verify/${REF}` });
+      expect(texts.length).toBeGreaterThan(3);
+      texts.forEach((t, i) => {
+        expect(t, `page ${i + 1} footer`).toContain(`Ref: ${REF}`);
+        expect(t, `page ${i + 1} prints the internal id`).not.toContain(uuid);
+        expect(t).not.toMatch(/\bID: [0-9a-f]{8}-/);
+      });
+      // The cover card (the stylesheet sets the label in capitals).
+      expect(texts[0]).toMatch(new RegExp(`Verification Reference ${REF}`, "i"));
+      expect(texts.join(" ")).not.toMatch(/Evidence Reference/i);
+    },
+    RENDER_TIMEOUT,
+  );
+
+  it(
+    "with no reference recorded the report says so, and still never prints the UUID",
+    async () => {
+      const base = regressionRecordInput("absent");
+      const texts = await pageTexts({ ...base, verificationRef: null, verifyUrl: null });
+      texts.forEach((t, i) => {
+        expect(t, `page ${i + 1}`).not.toContain(base.evidence.id);
+        expect(t).toContain("Ref: N/A");
+      });
+      expect(texts[0]).toMatch(/Verification Reference\s*Not recorded/i);
+    },
+    RENDER_TIMEOUT,
+  );
+});
+
+/*
+ * AUD-19 (2026-10-20) — THE REPORT'S RECORDED LOCATION FOLLOWS THE RECORD'S
+ * DISCLOSURE. Characterization (before): a record holding coordinates printed
+ * them, the accuracy and the map whatever its owner decided. Now a withheld
+ * location (no decision, or a decision not to show it) is stated nowhere: no
+ * coordinate, no map, no heading — and no "not recorded" either, which would
+ * be false. Disclosed, it prints as before.
+ */
+describe.skipIf(!BROWSER)("the report's recorded location follows the record's disclosure (AUD-19)", () => {
+  const pdfText = async (input: ReportV2Input) =>
+    (await readReportGeometry(await renderPdf(await htmlOf(input)))).map((p) => p.items.map((i) => i.str).join(" ")).join(" ").replace(/\s+/g, " ");
+
+  it(
+    "withheld (undecided or not shown): no coordinate, no map, no location heading, no 'not recorded'",
+    async () => {
+      const recorded = regressionRecordInput("recorded");
+      for (const decision of [undefined, false] as const) {
+        const input = { ...recorded, recordedLocationDisclosed: decision } as ReportV2Input;
+        const html = await htmlOf(input);
+        expect(html).not.toContain(`<img class="capture-context-map"`);
+        expect(html).not.toContain('data-capture-location="recorded"');
+        const text = await pdfText(input);
+        expect(text).not.toMatch(/52\.521|13\.405/);
+        expect(text).not.toMatch(/Latitude|Longitude|Accuracy radius|Capture location/i);
+        expect(text).not.toMatch(/Location (metadata )?(was )?not recorded/i);
+      }
+    },
+    RENDER_TIMEOUT * 2,
+  );
+
+  it(
+    "disclosed: the coordinates and the map print",
+    async () => {
+      const input = regressionRecordInput("recorded");
+      expect(input.recordedLocationDisclosed).toBe(true);
+      expect(await htmlOf(input)).toContain(`<img class="capture-context-map"`);
+      expect(await pdfText(input)).toMatch(/52\.521/);
+    },
+    RENDER_TIMEOUT,
+  );
+});

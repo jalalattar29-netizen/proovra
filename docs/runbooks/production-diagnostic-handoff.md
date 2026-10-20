@@ -200,10 +200,13 @@ docker exec "$API" node /tmp/proovra-diagnostic.cjs --require-base=/app/services
 ### The account under investigation
 
 This run has a specific question behind it, so the trace argument is not
-optional:
+optional: set `TRACE_ACCOUNT` to the exact email or user id of the account
+under investigation before running it. The value is never written into this
+runbook — a customer identifier does not belong in source control — and the
+command refuses to run while it is unset:
 
 ```bash
-docker exec "$API" node /tmp/proovra-diagnostic.cjs --expect-database="$DB" --trace-account=rodrigoduarte44@gmail.com > diag.json
+docker exec "$API" node /tmp/proovra-diagnostic.cjs --expect-database="$DB" --trace-account="${TRACE_ACCOUNT:?set TRACE_ACCOUNT to the exact email or user id under investigation}" > diag.json
 ```
 
 Only an exact email or an exact user id resolves — a display name never does,
@@ -360,7 +363,7 @@ docker cp /tmp/proovra-diagnostic.cjs "$API":/tmp/proovra-diagnostic.cjs && dock
 ```
 
 ```bash
-umask 077 && docker exec "$API" node /tmp/proovra-diagnostic.cjs --expect-database="$DB" --trace-account=rodrigoduarte44@gmail.com > diag.json ; echo "diagnostic exit: $?"
+umask 077 && docker exec "$API" node /tmp/proovra-diagnostic.cjs --expect-database="$DB" --trace-account="${TRACE_ACCOUNT:?set TRACE_ACCOUNT to the exact email or user id under investigation}" > diag.json ; echo "diagnostic exit: $?"
 ```
 
 ```bash

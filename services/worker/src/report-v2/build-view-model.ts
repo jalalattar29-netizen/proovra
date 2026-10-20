@@ -49,7 +49,7 @@ import type {
   ReportRecordLegalHold,
 } from "./types.js";
 import {
-  buildPublicEvidenceReference,
+  buildPublicVerificationReference,
   buildPublicSigningKeyReference,
   formatBytesHuman,
   maskEmail,
@@ -297,7 +297,8 @@ function buildExecutiveRows(
   contentSummary: ReportEvidenceContentSummary,
   primaryContentItem: ReportEvidenceAsset | null,
   externalMode: boolean,
-  acquisition: ReportAcquisitionInput | null
+  acquisition: ReportAcquisitionInput | null,
+  verificationReference: string
 ): KeyValueRow[] {
   const explicitPrimaryItems =
     evidence.contentItems?.filter(
@@ -310,7 +311,7 @@ function buildExecutiveRows(
     rows.push({ label, value: String(value) });
   };
 
-  add("Evidence Reference", buildPublicEvidenceReference(evidence.id));
+  add("Verification Reference", verificationReference);
   add("Evidence Type", mapPublicEvidenceTypeLabel(evidence, contentSummary));
   add(
     "Verification Status",
@@ -499,7 +500,8 @@ function buildVerificationSummaryRows(
   structureLabel: string,
   contentSummary: ReportEvidenceContentSummary,
   primaryContentItem: ReportEvidenceAsset | null,
-  externalMode: boolean
+  externalMode: boolean,
+  verificationReference: string
 ): KeyValueRow[] {
   const explicitPrimaryItems =
     evidence.contentItems?.filter(
@@ -512,7 +514,7 @@ function buildVerificationSummaryRows(
     rows.push({ label, value: String(value) });
   };
 
-  add("Evidence Reference", buildPublicEvidenceReference(evidence.id));
+  add("Verification Reference", verificationReference);
   add(
     "Integrity State",
     mapVerificationStatusLabel(
@@ -1067,8 +1069,8 @@ function buildForensicIntegrityStatementModel(
       "Use this section as a review workflow for validating the report against the preserved evidence package and the verification endpoint.",
     includedBulletItems: [
       multipleExplicitPrimary
-        ? "Confirm the evidence reference, package structure, and the explicit primary evidence set."
-        : "Confirm the evidence reference, package structure, and lead review item.",
+        ? "Confirm the verification reference, package structure, and the explicit primary evidence set."
+        : "Confirm the verification reference, package structure, and lead review item.",
       multipleExplicitPrimary
         ? "Validate the representative primary-item SHA-256, the canonical package digest, and the canonical fingerprint hash against the preserved materials."
         : "Validate the lead item SHA-256, original file or canonical package digest, and canonical fingerprint hash against the preserved materials.",
@@ -1122,6 +1124,7 @@ function buildTechnicalAppendixCourtRows(params: {
   primaryContentItem: ReportEvidenceAsset | null;
   custody: ReturnType<typeof splitCustodyEvents>;
   reportVersion: number;
+  verificationReference: string;
 }): KeyValueRow[] {
   const explicitPrimaryItems =
     params.evidence.contentItems?.filter(
@@ -1131,8 +1134,8 @@ function buildTechnicalAppendixCourtRows(params: {
 
   return [
     {
-      label: "Evidence Record",
-      value: buildPublicEvidenceReference(params.evidence.id),
+      label: "Verification Reference",
+      value: params.verificationReference,
     },
     {
       label: "Package Structure",
@@ -1307,6 +1310,7 @@ export async function buildReportViewModel(
 ): Promise<ReportViewModel> {
   const mode: ReportArtifactMode = input.externalMode ? "external" : "internal";
   const verifyUrl = buildVerifyUrl(input.verifyUrl);
+  const verificationReference = buildPublicVerificationReference(input.verificationRef);
   const technicalUrl = verifyUrl.includes("?")
     ? `${verifyUrl}&tab=technical`
     : `${verifyUrl}?tab=technical`;
@@ -1556,8 +1560,11 @@ const verificationPackageIntegrity = {
     input.evidence
   );
 
-const captureLat = input.evidence.gps.lat;
-const captureLng = input.evidence.gps.lng;
+// AUD-19 — the recorded location is printed only under the record's own
+// disclosure decision; otherwise the report holds no coordinate at all.
+const recordedLocationDisclosed = input.recordedLocationDisclosed === true;
+const captureLat = recordedLocationDisclosed ? input.evidence.gps.lat : null;
+const captureLng = recordedLocationDisclosed ? input.evidence.gps.lng : null;
 
 const hasCaptureContext = hasCaptureLocationMetadata({
   lat: captureLat,
@@ -1687,7 +1694,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
     title: display.displayTitle,
     subtitle: display.displayDescription,
 
-    evidenceReference: buildPublicEvidenceReference(input.evidence.id),
+    evidenceReference: verificationReference,
     recordStatusLabel: mapRecordStatusLabel(input.evidence.status),
     verificationStatusLabel: mapVerificationStatusLabel(
       canonicalMaterials.evidenceRecord.verificationStatus
@@ -1716,7 +1723,8 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
       contentSummary,
       primaryContentItem,
       externalMode,
-      input.acquisition ?? null
+      input.acquisition ?? null,
+      verificationReference
     ),
     verificationSummaryRows: buildVerificationSummaryRows(
       canonicalMaterials,
@@ -1725,7 +1733,8 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
       structureLabel,
       contentSummary,
       primaryContentItem,
-      externalMode
+      externalMode,
+      verificationReference
     ),
     reviewReadinessRows: buildReviewReadinessRows(
       canonicalMaterials,
@@ -1920,6 +1929,7 @@ courtAppendixRows: buildTechnicalAppendixCourtRows({
   primaryContentItem,
   custody,
   reportVersion: input.version,
+  verificationReference,
 }),
       signingKeyLabel: buildPublicSigningKeyReference(
         input.evidence.signingKeyId,

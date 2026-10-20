@@ -17,6 +17,8 @@ import type { IntegrationHarness } from "../integration-harness.js";
 
 /** Failure seams, all off by default. Test doubles, not production switches. */
 const seam = vi.hoisted(() => ({
+  /** Phase 7: the report input the processor handed the renderer, last run. */
+  lastRenderInput: null as null | { verificationRef?: string | null; recordedLocationDisclosed?: boolean; evidence: { id: string } },
   packageBuildFailures: 0,
   packageBuildCalls: 0,
   /** Fail the HEAD that follows the report PUT inside the report transaction. */
@@ -118,7 +120,10 @@ vi.mock("../../../worker/src/report-v2/build-report-pdf.js", () => {
     return Buffer.from(`%PDF-1.7 recovery fixture render #${seam.renderCount} ${randomUUID()}\n`);
   };
   return {
-    buildReportPdfV2: async () => render(),
+    buildReportPdfV2: async (input: unknown) => {
+      seam.lastRenderInput = input as typeof seam.lastRenderInput;
+      return render();
+    },
     buildReportPdfV2WithSignatureOutcome: async () => ({
       status: "UNSIGNED_OPT_OUT" as const,
       pdf: render(),
@@ -1134,6 +1139,48 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       expect(after.reports).toEqual([]);
       expect(after.req!.state).toBe("FAILED_TERMINAL");
       expect(after.req!.terminalReasonCode).not.toBe("Error");
+    }, 300_000);
+  });
+
+  describe("PHASE 7 — privacy of the issued report", () => {
+    /*
+     * The renderer is a fixture in this suite; what the processor hands it is
+     * real. The rendering of that input — every page footer's pvr_, no UUID,
+     * no coordinate while withheld — is proven on real Chromium PDFs in
+     * services/worker/test/report-pdf-layout.test.ts (AUD-18 / AUD-19 blocks).
+     */
+    // Read through a function: the reset below would otherwise narrow it to null.
+    const renderInput = () => seam.lastRenderInput;
+
+    async function issueWithLocation(disclosure: { verificationDisclosureMode?: string; showRecordedLocation?: boolean }) {
+      const ev = await signedEvidence();
+      await signFingerprintRaw(ev);
+      await prisma.evidence.update({
+        where: { id: ev.evidenceId },
+        data: { lat: 52.521, lng: 13.405, accuracyMeters: 12, ...disclosure } as never,
+      });
+      seam.lastRenderInput = null;
+      const id = await request(ev);
+      expect(await run(id, 0)).toBeNull();
+      expect((await state(ev.evidenceId, id)).req).toMatchObject({ state: "SUCCEEDED" });
+      const ref = (await prisma.evidence.findUniqueOrThrow({ where: { id: ev.evidenceId }, select: { verificationRef: true } })).verificationRef;
+      const input = renderInput();
+      expect(input, "the processor rendered a report").toBeTruthy();
+      expect(input!.evidence.id).toBe(ev.evidenceId);
+      return { ...ev, input: input!, ref };
+    }
+
+    it("AUD-18 + AUD-19: a record whose owner did not disclose its location is rendered with its pvr_ and the location withheld", async () => {
+      const r = await issueWithLocation({});
+      expect(r.ref).toMatch(/^pvr_/);
+      expect(r.input.verificationRef).toBe(r.ref);
+      expect(r.input.recordedLocationDisclosed).toBe(false);
+    }, 300_000);
+
+    it("AUD-19: CONTENT_PREVIEW with the recorded location shown is rendered with the location disclosed", async () => {
+      const r = await issueWithLocation({ verificationDisclosureMode: "CONTENT_PREVIEW", showRecordedLocation: true });
+      expect(r.input.recordedLocationDisclosed).toBe(true);
+      expect(r.input.verificationRef).toBe(r.ref);
     }, 300_000);
   });
 });

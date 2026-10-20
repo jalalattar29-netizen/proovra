@@ -396,7 +396,7 @@ export const LAYOUT_VARIANTS: ReadonlyArray<VariantOptions> = [
 
 /**
  * THE REGRESSION RECORD (2026-10-13): shaped like evidence
- * ce465a9e-43c2-4702-87e5-32fcb2dc52fc's report v2 — a five-part web upload
+ * a production record's report v2 (identifier withheld, AUD-07) — a five-part web upload
  * from a personal email account, 23 forensic custody events, a validated
  * timestamp, COMPLIANCE retention, a verified signature and custody chain, and
  * an upgraded OpenTimestamps proof that executes to a Bitcoin block-header
@@ -422,6 +422,9 @@ export function regressionRecordInput(
         : { lat: null, lng: null, accuracyMeters: null, locationSource: null };
   return {
     ...input,
+    // AUD-19 (2026-10-20): a record with a location in this fixture is one
+    // whose owner chose to show it; a withheld location is tested separately.
+    recordedLocationDisclosed: location !== "absent",
     evidence: {
       ...input.evidence,
       verificationStatus: "RECORDED_INTEGRITY_VERIFIED",

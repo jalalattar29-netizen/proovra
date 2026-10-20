@@ -25,7 +25,8 @@ const text = (html: string) =>
 
 function withGps(gps: Partial<ReportV2Input["evidence"]["gps"]>): ReportV2Input {
   const input = regressionRecordInput("absent");
-  return { ...input, evidence: { ...input.evidence, gps: { ...input.evidence.gps, ...gps } } } as ReportV2Input;
+  // AUD-19: the location state is stated under the owner's disclosure.
+  return { ...input, recordedLocationDisclosed: true, evidence: { ...input.evidence, gps: { ...input.evidence.gps, ...gps } } } as ReportV2Input;
 }
 
 async function render(input: ReportV2Input) {

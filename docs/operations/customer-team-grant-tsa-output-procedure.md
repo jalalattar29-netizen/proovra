@@ -1,4 +1,4 @@
-# Owner procedure — TSA trust, Reem's TEAM grant, output recovery
+# Owner procedure — TSA trust, the customer's TEAM grant, output recovery
 
 Run on the Production host as the deploy user, in order, in ONE shell (the
 variables carry between steps). Every command is read-only unless marked
@@ -115,21 +115,21 @@ $EXEC dist/scripts/internal-grant-rollout.js admins
 export ADMIN_ID=<the id from that list that is YOUR account>
 ```
 
-## 9. Reem — before
+## 9. Customer — before
 
 ```bash
-export REEM_ID=54b5d495-e16f-4253-b22d-ef68056b7315
-export GRANT_KEY="owner-test:reem.ammar@hotmail.com:team:2026-10"
-$EXEC dist/scripts/internal-plan-grant.js status --user-id=$REEM_ID                        # expect []
-$EXEC dist/scripts/internal-grant-rollout.js snapshot --user-id=$REEM_ID --out=/tmp/reem-before.json
-#   expect personalTeamId "6488cb98-a338-4c4f-913d-6d66345f60e6", activeGrant null
+export CUSTOMER_ID=<customer-user-id>
+export GRANT_KEY="owner-test:<customer-email>:team:2026-10"
+$EXEC dist/scripts/internal-plan-grant.js status --user-id=$CUSTOMER_ID                        # expect []
+$EXEC dist/scripts/internal-grant-rollout.js snapshot --user-id=$CUSTOMER_ID --out=/tmp/customer-before.json
+#   expect personalTeamId "<customer-personal-team-id>", activeGrant null
 ```
 
 ## 10. Grant — **WRITES** one `plan_grants` row + one audit event
 
 ```bash
-export EXPIRES="$(date -u -d '+90 days' +%Y-%m-%dT%H:%M:%SZ)"; echo "$EXPIRES" | tee .deploy-state/reem-grant-expires.txt
-$EXEC dist/scripts/internal-plan-grant.js apply --user-id=$REEM_ID --actor-user-id=$ADMIN_ID \
+export EXPIRES="$(date -u -d '+90 days' +%Y-%m-%dT%H:%M:%SZ)"; echo "$EXPIRES" | tee .deploy-state/customer-grant-expires.txt
+$EXEC dist/scripts/internal-plan-grant.js apply --user-id=$CUSTOMER_ID --actor-user-id=$ADMIN_ID \
   --reason="Owner-authorized PROOVRA end-to-end product testing" \
   --idempotency-key="$GRANT_KEY" --expires-at="$EXPIRES" --confirm               # "created": true
 ```
@@ -137,24 +137,24 @@ $EXEC dist/scripts/internal-plan-grant.js apply --user-id=$REEM_ID --actor-user-
 ## 11. Idempotent replay — writes nothing
 
 ```bash
-$EXEC dist/scripts/internal-plan-grant.js apply --user-id=$REEM_ID --actor-user-id=$ADMIN_ID \
+$EXEC dist/scripts/internal-plan-grant.js apply --user-id=$CUSTOMER_ID --actor-user-id=$ADMIN_ID \
   --reason="Owner-authorized PROOVRA end-to-end product testing" \
   --idempotency-key="$GRANT_KEY" --expires-at="$EXPIRES" --confirm               # "created": false, same grant id
 ```
 
-## 12. Reem — after
+## 12. Customer — after
 
 ```bash
-$EXEC dist/scripts/internal-grant-rollout.js snapshot --user-id=$REEM_ID --out=/tmp/reem-after.json
-$EXEC dist/scripts/internal-grant-rollout.js compare --before=/tmp/reem-before.json --after=/tmp/reem-after.json \
+$EXEC dist/scripts/internal-grant-rollout.js snapshot --user-id=$CUSTOMER_ID --out=/tmp/customer-after.json
+$EXEC dist/scripts/internal-grant-rollout.js compare --before=/tmp/customer-before.json --after=/tmp/customer-after.json \
   --expect=grant-applied --idempotency-key="$GRANT_KEY" --expiry-days=90      # "verdict": "PASS"
-$EXEC dist/scripts/internal-plan-grant.js status --user-id=$REEM_ID           # exactly ONE grant, TEAM, INTERNAL_TEST
+$EXEC dist/scripts/internal-plan-grant.js status --user-id=$CUSTOMER_ID           # exactly ONE grant, TEAM, INTERNAL_TEST
 ```
 
 ## 13. Existing timestamp — validate the KEPT reply (never restamps)
 
 ```bash
-export EVIDENCE_ID=c30b0572-96d8-44fb-80d0-94f4520b8980
+export EVIDENCE_ID=<evidence-id>
 $EXEC dist/scripts/repair-tsa-failed-with-token.js --evidence-id $EVIDENCE_ID            # DRY RUN
 #   VALIDATED …            → run the --apply line below
 #   NOT-VALIDATED … code=X → stop here for the timestamp (it stays truthfully FAILED); send X back; continue at 14
@@ -165,26 +165,26 @@ $EXEC dist/scripts/repair-tsa-failed-with-token.js --evidence-id $EVIDENCE_ID   
 ## 14. Report + verification package recovery
 
 ```bash
-$EXEC dist/scripts/recover-evidence-outputs.js recover --user-id=$REEM_ID                # DRY RUN: assessment FIRST_ISSUANCE_REQUIRED, action request_first_issuance
-$EXEC dist/scripts/recover-evidence-outputs.js recover --user-id=$REEM_ID --apply        # WRITES one request per record (queued)
-$EXEC dist/scripts/recover-evidence-outputs.js recover --user-id=$REEM_ID --apply        # replay: ACTIVE_REQUEST (in flight) or COMPLETE — nothing new
+$EXEC dist/scripts/recover-evidence-outputs.js recover --user-id=$CUSTOMER_ID                # DRY RUN: assessment FIRST_ISSUANCE_REQUIRED, action request_first_issuance
+$EXEC dist/scripts/recover-evidence-outputs.js recover --user-id=$CUSTOMER_ID --apply        # WRITES one request per record (queued)
+$EXEC dist/scripts/recover-evidence-outputs.js recover --user-id=$CUSTOMER_ID --apply        # replay: ACTIVE_REQUEST (in flight) or COMPLETE — nothing new
 for i in $(seq 1 30); do
-  $EXEC dist/scripts/recover-evidence-outputs.js status --evidence-id $EVIDENCE_ID --expect-complete >/tmp/reem-outputs.json && break
+  $EXEC dist/scripts/recover-evidence-outputs.js status --evidence-id $EVIDENCE_ID --expect-complete >/tmp/customer-outputs.json && break
   sleep 10
-done; cat /tmp/reem-outputs.json
+done; cat /tmp/customer-outputs.json
 ```
 
 ## 15. Proof
 
 ```bash
-$EXEC dist/scripts/internal-grant-rollout.js snapshot --user-id=$REEM_ID | grep -A3 '"effective"'      # TEAM / INTERNAL_GRANT
-$EXEC dist/scripts/internal-plan-grant.js status --user-id=$REEM_ID | grep -c '"idempotencyKey"'      # 1
+$EXEC dist/scripts/internal-grant-rollout.js snapshot --user-id=$CUSTOMER_ID | grep -A3 '"effective"'      # TEAM / INTERNAL_GRANT
+$EXEC dist/scripts/internal-plan-grant.js status --user-id=$CUSTOMER_ID | grep -c '"idempotencyKey"'      # 1
 $EXEC dist/scripts/recover-evidence-outputs.js status --evidence-id $EVIDENCE_ID --expect-complete; echo "exit $?"
 #   exit 0; "status": "REPORTED"; reports[0].objectExists true; packages[0] reportVersion = reports[0].version, objectExists true
 curl -sS -w '  HTTP %{http_code}\n' http://127.0.0.1:8080/readyz
 ```
 
-Downloads: signed in as Reem (her own credentials), open the record →
+Downloads: signed in as the customer (their own credentials), open the record →
 **Report PDF** and **Verification Package** both download (the stored objects
 are proven present by the `status` line above).
 
@@ -192,7 +192,7 @@ are proven present by the `status` line above).
 
 ```bash
 # Grant:
-$EXEC dist/scripts/internal-plan-grant.js revoke --user-id=$REEM_ID --actor-user-id=$ADMIN_ID \
+$EXEC dist/scripts/internal-plan-grant.js revoke --user-id=$CUSTOMER_ID --actor-user-id=$ADMIN_ID \
   --reason="Rollback of owner test grant" --confirm
 # Application images (the release recorded in step 6, or the one recorded in step 0):
 GHCR_OWNER="$GHCR_OWNER" ./scripts/deploy-prod-pull.sh --rollback

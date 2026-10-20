@@ -1,7 +1,7 @@
 # Evidence-output incident — 2026-10-05
 
-Record `c30b0572-96d8-44fb-80d0-94f4520b8980` · account `reem.ammar@hotmail.com` ·
-workspace "Reem Ammar's Personal Space". Status **SIGNED**, no Report PDF, no
+Record `<evidence-id>` · account `<customer-email>` ·
+workspace "<customer>'s Personal Space". Status **SIGNED**, no Report PDF, no
 Verification Package, notification "Trusted timestamp failed … no timestamp trust anchor is
 configured", attention items *Storage protection incomplete*, *Public verification not
 configured*, *Imported upload*, *No case assigned*.
@@ -136,12 +136,12 @@ it. The record is simply private (every record finalizes `NOT_PUBLISHED`). Fixed
 
 ## 5. Owner procedure
 
-The exact, ordered copy-paste commands: [reem-team-grant-tsa-output-procedure.md](reem-team-grant-tsa-output-procedure.md)
+The exact, ordered copy-paste commands: [customer-team-grant-tsa-output-procedure.md](customer-team-grant-tsa-output-procedure.md)
 (trust bundle → compose render → schema → deploy with `/readyz == 200` → grant with
 before/after snapshots and replay → kept-timestamp validation → output recovery → proof →
 rollback). Nothing in it deletes evidence, reports or packages.
 
-## 6. 2026-10-09 — every report failed PDF verification (evidence `ce465a9e-43c2-4702-87e5-32fcb2dc52fc`)
+## 6. 2026-10-09 — every report failed PDF verification (evidence `<evidence-id-2>`)
 
 **Symptom.** Regenerate reached the API, the queue and the worker; the worker
 rendered the PDF and then failed reading it back in `assertRenderedReport` →
