@@ -2,7 +2,9 @@
 
 The finding registry is the Production-backed evidence-output audit of 2026-10-19 / 2026-10-20, run against origin/main `99c87eea1`.
 
-**Scope: forward-only.** Historical test evidence is not repaired, regenerated or reconciled. No historical report or package is re-issued. That population will be retired separately through the canonical lifecycle FIXED IN PHASE FIXED IN PHASE FIXED IN PHASE FIXED IN PHASE 1 (archived throw site); full sweep Phase 4 | `processor.ts` canonical-reference refusal now raises the coded business refusal (lifecycle) or `CANONICAL_REFERENCE_REFUSED`; never a plain Error || Phase 1: one decision `decideOutputProduction` (@proovra/shared) inside the ONE writer (entitlement resolver REQUIRED of every producer) + worker claim + report commit + package commit + both re-enqueue paths. Proof: forward-output-pipeline Phase 1 block (12 real-stack cases), shared output-producer-decision tests; mutants P1-A..F killed; package commit re-reads lifecycle under the advisory lock || Phase 1: one decision `decideOutputProduction` (@proovra/shared) inside the ONE writer (entitlement resolver REQUIRED of every producer) + worker claim + report commit + package commit + both re-enqueue paths. Proof: forward-output-pipeline Phase 1 block (12 real-stack cases), shared output-producer-decision tests; mutants P1-A..F killed || Phase 1: one decision `decideOutputProduction` (@proovra/shared) inside the ONE writer (entitlement resolver REQUIRED of every producer) + worker claim + report commit + package commit + both re-enqueue paths. Proof: forward-output-pipeline Phase 1 block (12 real-stack cases), shared output-producer-decision tests; mutants P1-A..F killed |Statuses
+**Scope: forward-only.** Historical test evidence is not repaired, regenerated or reconciled. No historical report or package is re-issued. That population will be retired separately through the canonical lifecycle authority.
+
+## Statuses
 
 | Status | Meaning |
 |---|---|
@@ -19,8 +21,8 @@ Every row names its proof. A finding never leaves this table.
 
 | AUD | Severity | Title | Status | Proof / notes |
 |---|---|---|---|---|
-| AUD-01 | P1 | ARCHIVED / RETENTION_ARCHIVED evidence receives new outputs via worker paths | OPEN | Characterized: `services/api/test/forward/forward-output-pipeline.integration.test.ts` (Phase 1 block) |
-| AUD-02 | P1 | Worker producers enqueue without entitlement / lifecycle checks | OPEN | same suite |
+| AUD-01 | P1 | ARCHIVED / RETENTION_ARCHIVED evidence receives new outputs via worker paths | FIXED IN PHASE 1 | One decision `decideOutputProduction` (@proovra/shared) inside the ONE writer (entitlement REQUIRED of every producer), re-asked at worker claim, report commit and package commit; both re-enqueue paths settle instead of re-queueing. forward-output-pipeline Phase 1 block (real stack) + shared output-producer-decision tests; mutants P1-A..F killed. |
+| AUD-02 | P1 | Worker producers enqueue without entitlement / lifecycle checks | FIXED IN PHASE 1 | Every producer (API authority, OTS chain-verified version, first issuance / recovery, legacy drain) passes its entitlement reading to the writer; claim re-checks. Same proof as AUD-01. |
 | AUD-03 | P1 | Plan refusal → FAILED_TERMINAL + Sentry + critical alert | OPEN | |
 | AUD-04 | P1 | Commercial terminal after READY → NEEDS_ATTENTION | OPEN | |
 | AUD-05 | P1 | Seal check memoizes PUBLISHED across key revocation | OPEN | |
@@ -53,7 +55,7 @@ Every row names its proof. A finding never leaves this table.
 | AUD-32 | P2 | Deploy safety: worker schema check, contract migrations, revision skew | OPEN | |
 | AUD-33 | P2 | Test gaps; surviving mutants D / F / G | OPEN | |
 | AUD-34 | P2 | Package trust gaps (shipped PEM, wording, offline claims) | OPEN | |
-| AUD-35 | P2 | Package commit does not re-check lifecycle | OPEN | Characterized (Phase 1 block) |
+| AUD-35 | P2 | Package commit does not re-check lifecycle | FIXED IN PHASE 1 | Package commit re-reads lifecycle under the record advisory lock; 'trashed WHILE its package builds' case + mutant P1-E killed. |
 | AUD-36 | P2 | Intake / portal entitlement gaps | OPEN | |
 | AUD-37 | P2 | Mobile capture gaps | OPEN | |
 | AUD-38 | P2 | Derivative / extraction truth gaps | OPEN | |
@@ -72,7 +74,7 @@ Every row names its proof. A finding never leaves this table.
 | AUD-51 | P3 | Duplicated helpers | OPEN | |
 | AUD-52 | P3 | Ingress hygiene | OPEN | |
 | AUD-53 | P1 | Legacy single-part composite digest fails the render gate | OPEN | Characterized (Phase 4 block). 16 historical failures and 21 exposed records are HISTORICAL-DATA-ONLY (no re-request). |
-| AUD-54 | P2 | Uncoded `Error` terminals | OPEN | Throw site identified: `processor.ts:2993` raises a plain `Error("canonical verification refused for report rendering: <STATE>")` for a non-ACTIVE record. That explains the 8 Production rows on ARCHIVED records. |
+| AUD-54 | P2 | Uncoded `Error` terminals | OPEN (archived throw site fixed in Phase 1; full sweep Phase 4) | `processor.ts` canonical-reference refusal raises the coded business refusal (lifecycle) or `CANONICAL_REFERENCE_REFUSED`, never a plain Error. |
 | AUD-55 | P2 | Production TSA validation coverage | HISTORICAL-DATA-ONLY | Forward TSA truth is covered by Phase 8. No historical validation backfill. |
 | AUD-56 | P2 | 18 records without recorded Object Lock | REQUIRES POST-DEPLOY OPERATOR PROOF | Forward: every new record must record a lock or STORAGE_PROTECTION_UNAVAILABLE. Historical: storage HEAD by the operator. |
 | AUD-57 | P2 | Coordinates without location source | OPEN | Forward writer invariant (Phase 10). No historical backfill. |
