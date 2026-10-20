@@ -99,6 +99,8 @@ type NativeModuleType = {
   startCapture(options: { maxFrames: number }): Promise<ScreenCaptureStarted>;
   captureFrame(): Promise<{ frameIndex: number; frameCount: number }>;
   stopCapture(): Promise<ScreenCaptureResult>;
+  getRecoveredScreenCapture?(): ScreenCaptureResult | null;
+  clearScreenCaptureLedger?(): Promise<void>;
 };
 
 let cachedModule: NativeModuleType | undefined;
@@ -155,6 +157,30 @@ export async function captureScreenFrame(): Promise<{ frameIndex: number; frameC
 export async function stopScreenCapture(): Promise<ScreenCaptureResult> {
   if (Platform.OS !== "android") throw new Error("Android only.");
   return nativeModule().stopCapture();
+}
+
+/**
+ * AUD-37 (2026-10-20) — a capture a process death interrupted: INTERRUPTED,
+ * with every frame written before the death. Null when there is none (or on a
+ * native build without the ledger).
+ */
+export function getRecoveredScreenCapture(): ScreenCaptureResult | null {
+  if (Platform.OS !== "android") return null;
+  try {
+    const mod = nativeModule();
+    if (typeof mod.getRecoveredScreenCapture !== "function") return null;
+    const r = mod.getRecoveredScreenCapture();
+    return r && typeof r === "object" && Array.isArray(r.frames) && r.frames.length > 0 ? r : null;
+  } catch {
+    return null;
+  }
+}
+
+/** AUD-37 — the recovered capture was staged or discarded: the native ledger goes. */
+export async function clearScreenCaptureLedger(): Promise<void> {
+  if (Platform.OS !== "android") return;
+  const mod = nativeModule();
+  if (typeof mod.clearScreenCaptureLedger === "function") await mod.clearScreenCaptureLedger();
 }
 
 export function addScreenFrameListener(cb: NativeEvents["onScreenFrame"]): Subscription {

@@ -177,7 +177,7 @@ export const apiClient = {
    * Idempotent server-side, and it refuses a BOUND session, so it can never
    * remove sealed evidence.
    */
-  async discardSession(token: string, sessionId: string): Promise<{ result: { discarded: boolean } }> {
+  async discardSession(token: string, sessionId: string): Promise<{ result: { discarded: boolean; status?: string } }> {
     return apiFetch(token, "POST", `/v1/capture/direct-sessions/${sessionId}/discard`, {});
   },
 

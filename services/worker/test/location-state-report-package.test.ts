@@ -121,3 +121,32 @@ describe("verification package — the canonical location state", () => {
     expect(buildCaptureContext(meta({ lat: null, lng: null, requestOutcome: "UNAVAILABLE" }), "ev")).toBeNull();
   });
 });
+
+// AUD-37 (2026-10-20) — a fix the device provider reported as MOCKED.
+describe("report and package — a mocked location fix", () => {
+  const MOCKED = { lat: "52.521", lng: "13.405", accuracyMeters: "20", locationSource: "CLIENT_APP_DEVICE_LOCATION", providerReportedMock: true };
+
+  it("the report states the mock beside the recorded coordinates", async () => {
+    const { vm, html } = await render(withGps(MOCKED as never));
+    expect(vm.meta.locationState?.providerReportedMock).toBe(true);
+    expect(vm.meta.locationState?.tone).toBe("warning");
+    expect(vm.meta.captureContext?.statusLabel).toMatch(/^Location recorded · The device marked these coordinates as coming from a mock/);
+    expect(text(html)).toContain("mock (simulated) location provider");
+  });
+
+  it("an ordinary fix reads exactly as before", async () => {
+    const { vm } = await render(withGps({ lat: "52.521", lng: "13.405", accuracyMeters: "20", locationSource: "CLIENT_APP_DEVICE_LOCATION" }));
+    expect(vm.meta.captureContext?.statusLabel).toBe("Location recorded");
+    expect(vm.meta.locationState?.providerReportedMock).toBe(false);
+  });
+
+  it("the package states it in its capture context and case metadata", () => {
+    const metadata = { captureLocation: { lat: 52.521, lng: 13.405, accuracyMeters: 20, providerReportedMock: true } } as never;
+    const cc = buildCaptureContext(metadata) as { statusLabel?: string } | null;
+    expect(cc?.statusLabel ?? "").toMatch(/mock/);
+    const cm = buildCaseMetadata(metadata) as unknown as { locationState?: { providerReportedMock?: boolean } };
+    const ls = cm.locationState ?? (JSON.parse(JSON.stringify(cm)).captureContext?.locationState as { providerReportedMock?: boolean } | undefined);
+    expect(JSON.stringify(cm)).toContain("\"providerReportedMock\":true");
+    void ls;
+  });
+});

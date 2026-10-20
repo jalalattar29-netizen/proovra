@@ -172,6 +172,7 @@ async function domArtifact(
   tabId: number,
   limitations: WebCaptureLimitationCode[],
   notes: string[],
+  observed?: { mutations: number },
 ): Promise<CapturedArtifact | null> {
   let dom: DomReply;
   try {
@@ -179,6 +180,7 @@ async function domArtifact(
   } catch {
     return null;
   }
+  if (observed) observed.mutations = dom?.mutationsObserved ?? 0;
   // Facts about the LIVE page are recorded even when serialisation failed.
   if ((dom?.crossOriginFrames ?? 0) > 0) pushOnce(limitations, "CROSS_ORIGIN_IFRAME_NOT_CAPTURED");
   // cloneNode omits shadow trees, so an open shadow root means the DOM snapshot
@@ -218,15 +220,22 @@ export async function captureViewport(tabId: number, windowId: number, signal?: 
   throwIfCancelled(signal);
   const artifacts: CapturedArtifact[] = [shot];
   await assertSamePage(tabId, windowId, info.url);
-  const dom = await domArtifact(tabId, limitations, notes);
+  // AUD-52 (2026-10-20) — the observer runs from GET_PAGE_INFO (before the
+  // shot) to the DOM snapshot. A page that changed in between was captured in
+  // two different states (screenshot vs DOM): that is stated, never hard-coded
+  // false.
+  const observed = { mutations: 0 };
+  const dom = await domArtifact(tabId, limitations, notes, observed);
   // A DOM step that failed because the page left is a navigation, not a
   // missing snapshot.
   await assertSamePage(tabId, windowId, info.url);
   if (dom) artifacts.push(dom);
+  const mutated = observed.mutations > 0;
+  if (mutated) pushOnce(limitations, "PAGE_MUTATED_DURING_CAPTURE");
   return {
     artifacts,
     pageInfo: info,
-    pageMutatedDuringCapture: false,
+    pageMutatedDuringCapture: mutated,
     limitations,
     domSnapshotMissing: dom === null,
     notes,

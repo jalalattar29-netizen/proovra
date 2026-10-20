@@ -82,6 +82,8 @@ class ProovraScreenCaptureModule : Module() {
       // AUD-004 — the durable ledger is readable from the first call, so a
       // relaunched process sees the recording its predecessor left behind.
       appContext.reactContext?.applicationContext?.let { ContinuousScreenCaptureService.attachLedger(it) }
+      // AUD-37 — likewise the single-frame ledger.
+      appContext.reactContext?.applicationContext?.let { ScreenCaptureService.attachLedger(it) }
     }
 
     // AUD-029 — a reload orphans whatever this instance was awaiting (a
@@ -102,6 +104,15 @@ class ProovraScreenCaptureModule : Module() {
       )
     }
     Function("getContinuousSegments") { ContinuousScreenCaptureService.segmentsSnapshot() }
+    // AUD-37 — a single-frame capture a dead process left behind (INTERRUPTED,
+    // with its frames), or null.
+    Function("getRecoveredScreenCapture") { ScreenCaptureService.recoveredOutcome()?.toJsMap() }
+    AsyncFunction("clearScreenCaptureLedger") { promise: Promise ->
+      if (!ScreenCaptureService.clearLedger()) {
+        promise.reject(CodedException("BUSY", "Stop the capture before clearing it.", null)); return@AsyncFunction
+      }
+      promise.resolve(null)
+    }
     // AUD-004 — the durable ledger (recovered: INTERRUPTED after a process
     // death), or null when there is no recording to recover.
     Function("getContinuousLedger") { ContinuousScreenCaptureService.ledgerForJs() }
@@ -152,6 +163,10 @@ class ProovraScreenCaptureModule : Module() {
       val activity = requireActivity(promise) ?: return@AsyncFunction
       if (startPromise != null || ScreenCaptureService.isActive() || ContinuousScreenCaptureService.isActive()) {
         promise.reject(CodedException("BUSY", "A capture is already in progress.", null)); return@AsyncFunction
+      }
+      // AUD-37 — a new capture never overwrites recovered frames.
+      if (ScreenCaptureService.recoveredOutcome() != null) {
+        promise.reject(CodedException("RECOVERY_PENDING", "Review or discard the recovered capture first.", null)); return@AsyncFunction
       }
       val pending = Pending(promise)
       startPromise = pending

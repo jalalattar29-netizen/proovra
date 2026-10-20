@@ -87,7 +87,30 @@ class ScreenCaptureService : Service() {
 
     fun isActive(): Boolean = active
     fun frameCount(): Int = frames.size
-    fun lastOutcome(): ScreenCaptureOutcome? = last
+
+    /**
+     * AUD-37 (2026-10-20) — the last capture's outcome: the in-memory one, or —
+     * after a process death wiped it — the one the durable frame ledger proves
+     * (INTERRUPTED, with every frame written before the death).
+     */
+    fun lastOutcome(): ScreenCaptureOutcome? = last ?: recoveredOutcome()
+
+    /** The durable frame ledger lives in filesDir (cacheDir may be evicted). */
+    fun frameDir(context: Context): File = File(context.filesDir, "proovra-frames")
+
+    fun attachLedger(context: Context) {
+      FrameLedgerKeeper.attach(frameDir(context))
+    }
+
+    /** A capture a dead process left behind, with frames to offer; null otherwise. */
+    fun recoveredOutcome(): ScreenCaptureOutcome? = recoverableFrameOutcome(FrameLedgerKeeper.get(), active)
+
+    /** JS committed (staged) or discarded the capture: the ledger goes. Never while recording. */
+    fun clearLedger(): Boolean {
+      if (active) return false
+      FrameLedgerKeeper.clear()
+      return true
+    }
 
     fun start(
       context: Context, code: Int, data: Intent, max: Int,
@@ -227,6 +250,22 @@ class ScreenCaptureService : Service() {
     frameDpi = densityDpi
     timeline.start()
     startedAtUtc = timeline.startUtc()
+    // AUD-37 — the durable ledger exists before the first frame can be taken.
+    FrameLedgerKeeper.attach(frameDir(this))
+    FrameLedgerKeeper.replace(
+      FrameLedger(
+        recordingId = "${timeline.startWallMs}",
+        startedAtUtc = startedAtUtc,
+        startedAtWallMs = timeline.startWallMs,
+        osVersion = Build.VERSION.RELEASE ?: "unknown",
+        model = ((Build.MANUFACTURER ?: "") + " " + (Build.MODEL ?: "")).trim().ifEmpty { "Android device" },
+        appVersion = appVersionName(),
+        screenW = widthPx,
+        screenH = heightPx,
+        densityDpi = densityDpi,
+        orientation = if (widthPx >= heightPx) "landscape" else "portrait",
+      ),
+    )
 
     // The OS revoking the projection (e.g. the user ends casting) fails closed.
     mp.registerCallback(object : MediaProjection.Callback() {
@@ -332,7 +371,10 @@ class ScreenCaptureService : Service() {
       val cropped = Bitmap.createBitmap(bitmap, 0, 0, w, h)
       bitmap.recycle()
 
-      val file = File(cacheDir, "proovra-screen-${timeline.startWallMs}-$index.png")
+      // AUD-37 — in filesDir with the ledger (cacheDir may be evicted before
+      // a recovered capture is staged).
+      val dir = frameDir(this).also { if (!it.exists()) it.mkdirs() }
+      val file = File(dir, "proovra-screen-${timeline.startWallMs}-$index.png")
       FileOutputStream(file).use { out -> cropped.compress(Bitmap.CompressFormat.PNG, 100, out) }
       cropped.recycle()
 
@@ -345,6 +387,8 @@ class ScreenCaptureService : Service() {
           capturedAtOffsetMs = timeline.offsetMs(),
         ),
       )
+      // AUD-37 — durable before JS is told.
+      FrameLedgerKeeper.update { frameLedgerWithFrame(it, frames.last(), limitations.toList()) }
       onFrame?.invoke(index, frames.size)
     } catch (t: Throwable) {
       // UC-AND-011 — a frame we could not read or write (image read, PNG write,
@@ -388,6 +432,8 @@ class ScreenCaptureService : Service() {
       limitations = limitations.toList(),
     )
     last = outcome
+    // AUD-37 — the service's own finish, recorded (a clean stop stays clean).
+    FrameLedgerKeeper.update { frameLedgerFinished(it, outcome, timeline.offsetMs()) }
     onStopped?.invoke(outcome)
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE)

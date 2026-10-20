@@ -225,3 +225,25 @@ test("AUD-026: a failed message on an unchanged page keeps its own error", async
   const { captureFullPage } = await import("./dist/capture.js");
   await assert.rejects(captureFullPage(1, 1), /content script crashed/);
 });
+
+// AUD-52 (2026-10-20) — a viewport capture states a page that changed between
+// the shot and the DOM snapshot; pageMutatedDuringCapture was always false.
+test("AUD-52: a viewport capture of a page that changed while captured says so", async () => {
+  installChrome({
+    pageHeight: 800,
+    viewport: 800,
+    domReply: { ok: true, html: "<html></html>", counts: null, crossOriginFrames: 0, shadowRoots: 0, protectedMedia: 0, mutationsObserved: 3 },
+  });
+  const { captureViewport } = await import("./dist/capture.js");
+  const r = await captureViewport(1, 1);
+  assert.equal(r.pageMutatedDuringCapture, true);
+  assert.ok(r.limitations.includes("PAGE_MUTATED_DURING_CAPTURE"));
+});
+
+test("AUD-52: a viewport capture of a still page is not marked as changed", async () => {
+  installChrome({ pageHeight: 800, viewport: 800 });
+  const { captureViewport } = await import("./dist/capture.js");
+  const r = await captureViewport(1, 1);
+  assert.equal(r.pageMutatedDuringCapture, false);
+  assert.equal(r.limitations.includes("PAGE_MUTATED_DURING_CAPTURE"), false);
+});

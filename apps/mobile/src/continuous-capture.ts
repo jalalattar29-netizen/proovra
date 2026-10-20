@@ -30,6 +30,7 @@ import { SCREEN_CONTINUOUS_STREAM_BOUNDS } from "@proovra/shared";
 import {
   openDirectCaptureSession,
   reserveDirectCaptureEvidence,
+  stateDirectCapturePartLost,
   uploadDirectCaptureItem,
   type DirectCaptureSession,
 } from "./direct-capture";
@@ -351,7 +352,12 @@ export async function stageContinuousCapture(
     manifestPartIndex = options.existing.manifestPartIndex;
   } else {
     if (declared.length === 0) throw new Error("No screen segments were captured.");
-    manifestPartIndex = reconcileContinuousUploads(result, declared, extraLimitations).manifestPartIndex;
+    const reconciliation = reconcileContinuousUploads(result, declared, extraLimitations);
+    // AUD-37 — every recorded segment PROOVRA does not hold is STATED lost
+    // before the manifest is fixed: a declared segment whose bytes never
+    // arrived otherwise leaves the whole session unsealable.
+    await stateLostSegments(session, reconciliation.missingSequences);
+    manifestPartIndex = reconciliation.manifestPartIndex;
     manifestJson = JSON.stringify(buildContinuousManifest(session.captureSessionId, result, declared, extraLimitations));
     await options.onManifestFixed?.({ manifestJson, manifestPartIndex });
   }
@@ -388,6 +394,32 @@ export async function stageContinuousCapture(
     recordedSegmentCount: manifest.recordedSegmentCount,
     sessionCompleteness: manifest.sessionCompleteness,
   };
+}
+
+/**
+ * AUD-37 (2026-10-20) — STATE THE SEGMENTS THAT NEVER REACHED PROOVRA.
+ *
+ * A segment is declared (its digest) before its bytes are uploaded; when the
+ * upload failed for good the declaration stayed, and the server expected those
+ * bytes forever. For every recorded sequence this client could not upload, the
+ * loss is stated (POST /parts/:n/loss, appended to the session trust chain);
+ * the session then seals as an INTERRUPTED recording with the loss. A segment
+ * that was never declared answers PART_NOT_DECLARED: the same truth, nothing
+ * to state. Any other refusal (e.g. the bytes ARE stored) is thrown: that
+ * segment is not lost and must not be sealed over.
+ */
+export async function stateLostSegments(
+  session: DirectCaptureSession,
+  sequences: ReadonlyArray<number>,
+): Promise<void> {
+  for (const sequence of sequences) {
+    try {
+      await stateDirectCapturePartLost(session, sequence);
+    } catch (err) {
+      if ((err as { code?: string } | null)?.code === "PART_NOT_DECLARED") continue;
+      throw err;
+    }
+  }
 }
 
 /**

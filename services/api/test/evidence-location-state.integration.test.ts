@@ -201,7 +201,7 @@ describe("canonical evidence location state (Postgres + Redis + MinIO, real work
       expect(body.locationState).toMatchObject({ state: "NOT_RECORDED", label: "Location not recorded", tone: "neutral", detail: null });
       expect(body.sourceCaptureLocation).toBeNull();
       const pub = await verifyLocation(id);
-      expect(pub.locationState).toEqual({ state: "NOT_RECORDED", label: "Location not recorded", tone: "neutral", detail: null });
+      expect(pub.locationState).toEqual({ state: "NOT_RECORDED", label: "Location not recorded", tone: "neutral", detail: null, providerReportedMock: false });
       expect(pub.captureContext).toBeNull();
     });
 

@@ -131,7 +131,9 @@ export function reconcileContinuousUploads(
     missingSequences: missing,
     sessionCompleteness: completeness,
     limitations: [...limitations],
-    manifestPartIndex: maxPart + 1,
+    // AUD-37 — after every RECORDED index, not only the declared ones: a lost
+    // last segment keeps its (stated-lost) index, which the manifest may not take.
+    manifestPartIndex: Math.max(maxPart + 1, recorded),
   };
 }
 

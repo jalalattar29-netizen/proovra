@@ -261,6 +261,8 @@ export {
   resolveInteractiveMapTileSource,
   type InteractiveMapTileSource,
   locationRequestOutcomeFromCustody,
+  locationProviderMockFromCustody,
+  MOCK_LOCATION_DETAIL,
   locationRequirementFromIntakePlan,
   parseLocationRequestOutcome,
   resolveEvidenceLocation,

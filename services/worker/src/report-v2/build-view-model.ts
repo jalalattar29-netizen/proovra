@@ -1,4 +1,4 @@
-import { INTAKE_SUBMITTED_BY_LABEL } from "@proovra/shared";
+import { INTAKE_SUBMITTED_BY_LABEL, acquisitionRecordedByQualified } from "@proovra/shared";
 import QRCode from "qrcode";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import { buildProvenanceTimeline, CAPTURE_TIME_NOT_AVAILABLE } from "@proovra/shared";
@@ -659,7 +659,7 @@ function buildReviewReadinessRows(
     {
       label: "Submitted By",
       value: isIntake
-        ? "Remote Contributor via Secure Intake Link"
+        ? INTAKE_SUBMITTED_BY_LABEL
         : externalMode
           ? maskEmail(evidence.submittedByEmail)
           : safe(evidence.submittedByEmail),
@@ -671,9 +671,15 @@ function buildReviewReadinessRows(
     ...(isIntake ? [] : reportIdentityRows(evidence)),
     {
       label: "Capture Method",
-      value: captureMethodDisplayLabel({
-        acquisitionMode: evidence.acquisitionMode ?? null,
-      }),
+      // AUD-52 (2026-10-20) — how the channel came to be recorded is part of
+      // the fact: a value derived later from a proven link is stated as such,
+      // never presented as recorded at creation.
+      value: acquisitionRecordedByQualified(
+        captureMethodDisplayLabel({
+          acquisitionMode: evidence.acquisitionMode ?? null,
+        }),
+        evidence.acquisitionModeSource ?? null,
+      ),
     },
     {
       label: "Organization / Workspace",
@@ -1606,6 +1612,7 @@ const locationState = resolveEvidenceLocation({
   locationSource: reportedLocationSource,
   requestOutcome: input.evidence.gps.requestOutcome ?? null,
   requirement: input.evidence.gps.requirement ?? null,
+  providerReportedMock: input.evidence.gps.providerReportedMock === true,
 });
 const isIntakeLinkLocation =
   reportedLocationSource === "INTAKE_LINK_GEOLOCATION";
@@ -1613,7 +1620,11 @@ const isIntakeLinkLocation =
 const captureContext = hasCaptureContext && captureLat !== null && captureLng !== null
   ? {
       title: isIntakeLinkLocation ? "Upload session location" : "Capture location",
-      statusLabel: locationState.label,
+      // AUD-37 — a fix the device provider reported as MOCKED is stated with
+      // its warning; the label alone would read as an ordinary recorded location.
+      statusLabel: locationState.providerReportedMock && locationState.detail
+        ? `${locationState.label} · ${locationState.detail}`
+        : locationState.label,
       description: isIntakeLinkLocation
         ? "Location was provided by the contributor's browser during upload. Captured after an explicit Share click — not silently. Coordinates are evidence of what the browser reported at the moment of upload, not independent proof of physical presence."
         : CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
@@ -1879,6 +1890,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
         tone: locationState.tone,
         detail: locationState.detail,
         requirement: locationState.requirement,
+        providerReportedMock: locationState.providerReportedMock,
       },
       previewPolicy,
       anchorSummary,

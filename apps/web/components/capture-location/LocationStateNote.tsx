@@ -21,6 +21,8 @@ export type LocationStateView = {
   tone: EvidenceLocationTone;
   detail: string | null;
   requirement?: { level: string; label: string; unmet: boolean } | null;
+  /** AUD-37 — the device provider marked the fix as mocked (warning detail kept in every language). */
+  providerReportedMock?: boolean | null;
 };
 
 const TONE: Record<EvidenceLocationTone, AppTone> = {

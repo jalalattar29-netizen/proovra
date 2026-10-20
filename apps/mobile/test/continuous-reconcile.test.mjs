@@ -44,13 +44,16 @@ const result = (over = {}) => ({
 const seg = (i) => ({ partIndex: i, sequence: i, sha256Hex: "a".repeat(64), sizeBytes: 10, startedAtOffsetMs: i * 6000, durationMs: 6000, widthPx: 1080, heightPx: 2400, orientation: "portrait" });
 const range = (n, skip = []) => Array.from({ length: n }, (_, i) => i).filter((i) => !skip.includes(i)).map(seg);
 
-test("UC-STR-002: a lost TAIL is INTERRUPTED + SEGMENT_UPLOAD_LOST, recorded count kept, manifest after the last declared part", () => {
+// AUD-37 (2026-10-20): the manifest goes after the last RECORDED index. A lost
+// tail segment may have been DECLARED before its upload failed; it is then
+// stated lost and keeps its index, which the manifest may not reuse.
+test("UC-STR-002: a lost TAIL is INTERRUPTED + SEGMENT_UPLOAD_LOST, recorded count kept, manifest after the last recorded part", () => {
   const r = C.reconcileContinuousUploads(result(), range(8));
   assert.equal(r.sessionCompleteness, "INTERRUPTED_SESSION");
   assert.deepEqual(r.missingSequences, [8, 9]);
   assert.ok(r.limitations.includes("SEGMENT_UPLOAD_LOST"));
   assert.equal(r.recordedSegmentCount, 10);
-  assert.equal(r.manifestPartIndex, 8);
+  assert.equal(r.manifestPartIndex, 10);
   const m = C.buildContinuousManifest("s-1", result(), range(8));
   assert.equal(m.sessionCompleteness, "INTERRUPTED_SESSION");
   assert.equal(m.recordedSegmentCount, 10);

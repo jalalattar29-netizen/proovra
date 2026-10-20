@@ -920,6 +920,15 @@ export const EVIDENCE_LOCATION_STATE_PRESENTATION: Readonly<
   },
 };
 
+/**
+ * AUD-37 (2026-10-20) — the device's location provider marked the fix as MOCK
+ * (Android `Location.isMock` / expo-location `mocked`): a developer or app
+ * supplied the coordinates. The state stays RECORDED (they ARE what the device
+ * recorded) but no surface presents them as an ordinary fix.
+ */
+export const MOCK_LOCATION_DETAIL =
+  "The device marked these coordinates as coming from a mock (simulated) location provider. They are not an independent observation of where the capture happened.";
+
 /** Outcomes of a location request that a capture path recorded. */
 export const LOCATION_REQUEST_OUTCOMES = ["NOT_REQUESTED", "GRANTED", "DENIED", "UNAVAILABLE"] as const;
 export type LocationRequestOutcome = (typeof LOCATION_REQUEST_OUTCOMES)[number];
@@ -948,6 +957,8 @@ export type EvidenceLocationFacts = {
   requestOutcome?: string | null;
   /** The collection plan's requirement (intakePlanJson.locationRequirement). */
   requirement?: string | null;
+  /** AUD-37 — the provider reported the fix as mocked (locationProviderMockFromCustody). */
+  providerReportedMock?: boolean | null;
 };
 
 export type EvidenceLocationPresentation = {
@@ -960,6 +971,11 @@ export type EvidenceLocationPresentation = {
   coordinates: { lat: number; lng: number; accuracyMeters: number | null } | null;
   /** Where the coordinates came from, present only for RECORDED. */
   sourceLabel: string | null;
+  /**
+   * AUD-37 — true only for RECORDED coordinates the device's provider marked as
+   * mocked. Every surface states it (warning tone + MOCK_LOCATION_DETAIL).
+   */
+  providerReportedMock: boolean;
   /**
    * The workflow requirement, stated apart from what was recorded. `unmet` is
    * true only when the plan REQUIRED location and none is recorded.
@@ -1014,13 +1030,15 @@ export function resolveEvidenceLocation(
           : "NOT_RECORDED";
   }
   const p = EVIDENCE_LOCATION_STATE_PRESENTATION[state];
+  const mock = state === "RECORDED" && f.providerReportedMock === true;
   return {
     state,
     label: p.label,
-    tone: p.tone,
-    detail: p.detail,
+    tone: mock ? "warning" : p.tone,
+    detail: mock ? MOCK_LOCATION_DETAIL : p.detail,
     coordinates,
     sourceLabel: state === "RECORDED" ? evidenceLocationSourceLabel(f.locationSource ?? null) : null,
+    providerReportedMock: mock,
     requirement: requirementLevel
       ? {
           level: requirementLevel,
@@ -1066,6 +1084,23 @@ export function locationRequestOutcomeFromCustody(
   return outcome;
 }
 
+/**
+ * AUD-37 — whether the creating capture client reported its location fix as
+ * MOCKED, read from the EVIDENCE_CREATED custody event (bound at creation).
+ * False when nothing says so (legacy records, browsers, uploads).
+ */
+export function locationProviderMockFromCustody(
+  events: ReadonlyArray<{ eventType?: string | null; payload?: unknown }> | null | undefined,
+): boolean {
+  for (const e of events ?? []) {
+    if (e.eventType !== "EVIDENCE_CREATED") continue;
+    const payload = e.payload && typeof e.payload === "object" ? (e.payload as Record<string, unknown>) : null;
+    const gps = payload?.gps && typeof payload.gps === "object" ? (payload.gps as Record<string, unknown>) : null;
+    if (gps?.providerReportedMock === true) return true;
+  }
+  return false;
+}
+
 // =============================================================================
 // The location state in the reader's words (en / de / ar)
 // =============================================================================
@@ -1089,6 +1124,8 @@ export type EvidenceLocationCopy = {
   requirement: Readonly<Record<LocationRequirementLevel, string>>;
   /** The collection-plan summary row: what the PLAN asked for, never what was recorded. */
   requirementRow: { label: string; values: Readonly<Record<LocationRequirementLevel, string>>; none: string };
+  /** AUD-37 — the detail a mocked fix carries. */
+  mockDetail: string;
 };
 
 const P = EVIDENCE_LOCATION_STATE_PRESENTATION;
@@ -1110,6 +1147,7 @@ const LOCATION_COPY_EN: EvidenceLocationCopy = {
     values: { required: "Required", recommended: "Recommended", optional: "Optional" },
     none: "Not specified by the plan",
   },
+  mockDetail: MOCK_LOCATION_DETAIL,
 };
 
 const LOCATION_COPY_DE: EvidenceLocationCopy = {
@@ -1142,6 +1180,8 @@ const LOCATION_COPY_DE: EvidenceLocationCopy = {
     values: { required: "Erforderlich", recommended: "Empfohlen", optional: "Optional" },
     none: "Vom Plan nicht festgelegt",
   },
+  mockDetail:
+    "Das Gerät hat diese Koordinaten als von einem simulierten (Mock-)Standortanbieter stammend gekennzeichnet. Sie sind keine unabhängige Beobachtung des Aufnahmeorts.",
 };
 
 const LOCATION_COPY_AR: EvidenceLocationCopy = {
@@ -1174,6 +1214,8 @@ const LOCATION_COPY_AR: EvidenceLocationCopy = {
     values: { required: "مطلوب", recommended: "موصى به", optional: "اختياري" },
     none: "لم تحدده الخطة",
   },
+  mockDetail:
+    "وسم الجهاز هذه الإحداثيات بأنها صادرة عن مزوّد موقع وهمي (محاكى). وهي ليست ملاحظة مستقلة لمكان الالتقاط.",
 };
 
 export const EVIDENCE_LOCATION_COPY: Readonly<Record<EvidenceLocationCopyLocale, EvidenceLocationCopy>> = {
@@ -1199,6 +1241,7 @@ export function localizeEvidenceLocation<
     label: string;
     detail: string | null;
     requirement?: { level: string; label: string; unmet: boolean } | null;
+    providerReportedMock?: boolean | null;
   },
 >(view: T, locale: string | null | undefined): T {
   const copy = evidenceLocationCopy(locale);
@@ -1210,9 +1253,12 @@ export function localizeEvidenceLocation<
     req && (LOCATION_REQUIREMENT_LEVELS as readonly string[]).includes(req.level)
       ? (req.level as LocationRequirementLevel)
       : null;
+  // AUD-37 — a mocked fix keeps its warning in every language (the state's
+  // own detail for RECORDED is empty and would erase it).
+  const mock = view.state === "RECORDED" && view.providerReportedMock === true;
   return {
     ...view,
-    ...(s ? { label: s.label, detail: s.detail } : {}),
+    ...(s ? { label: s.label, detail: mock ? copy.mockDetail : s.detail } : {}),
     ...(req && level ? { requirement: { ...req, label: copy.requirement[level] } } : {}),
   };
 }

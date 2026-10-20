@@ -1,3 +1,4 @@
+import { acquisitionRecordedByQualified } from "@proovra/shared";
 import type {
   CanonicalEvidenceMaterials,
   CanonicalTimestampStateMaterial,
@@ -171,7 +172,8 @@ export function buildTechnicalIdentityRows(
         value: redactIdentifier(evidence.createdByUserId),
       },
       ...lastAccessedRows,
-      { label: "Capture Method", value: "Secure Intake Link" },
+      // AUD-52 — a channel recorded later (backfill) says so.
+      { label: "Capture Method", value: acquisitionRecordedByQualified("Secure Intake Link", evidence.acquisitionModeSource ?? null) },
       {
         label: "Requester Identity",
         value: reportIdentityLevelLabel(evidence),
@@ -219,10 +221,14 @@ export function buildTechnicalIdentityRows(
       label: "Capture Method",
       // UC-0 — the report's acquisition snapshot, the same label every other
       // report and package surface shows.
-      value: captureMethodDisplayLabel({
-        acquisitionMode: evidence.acquisitionMode ?? null,
-        isIntake,
-      }),
+      // AUD-52 — a channel recorded later (backfill) says so.
+      value: acquisitionRecordedByQualified(
+        captureMethodDisplayLabel({
+          acquisitionMode: evidence.acquisitionMode ?? null,
+          isIntake,
+        }),
+        evidence.acquisitionModeSource ?? null,
+      ),
     },
     {
       label: "Identity Level",

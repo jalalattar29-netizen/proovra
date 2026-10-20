@@ -831,7 +831,10 @@ hasActiveDraft: isSessionActive || isRecording,
       return {
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,
-        accuracyMeters: pos.coords.accuracy ?? undefined
+        accuracyMeters: pos.coords.accuracy ?? undefined,
+        // AUD-37 — Android reports a fix from a mock provider; it is stated,
+        // never presented as an ordinary recorded location.
+        ...(pos.mocked === true ? { providerReportedMock: true } : {})
       };
     } catch {
       locationOutcomeRef.current = "UNAVAILABLE";

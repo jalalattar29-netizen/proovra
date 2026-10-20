@@ -457,3 +457,31 @@ test("AUD-52: the reserved record is named by the page host, never its title", a
   assert.equal(reserved.originalFileName, "web-capture-mail.example.com");
   assert.doesNotMatch(reserved.originalFileName, /jane|Inbox/);
 });
+
+// AUD-52 (2026-10-20) — the discard's ANSWER settles the outcome; a 200 that
+// released nothing (the session is still live) is not "nothing saved".
+test("AUD-52: a discard that answers 200 without releasing the session leaves the outcome UNKNOWN", async () => {
+  const h = harness({
+    webComplete: async () => {
+      throw new NetworkError("timeout");
+    },
+    discardSession: async () => ({ result: { discarded: false, status: "ACTIVE" } }),
+  });
+  const r = await runPreserveFlow(h.deps, REQ, new AbortController().signal);
+  assert.equal(r.status, "FAILED");
+  assert.equal(r.outcome, "UNKNOWN");
+  assert.match(r.detail, /discard did not settle the session \(ACTIVE\)/);
+});
+
+test("AUD-52: a discard of a session already DISCARDED or EXPIRED is NOTHING_SAVED", async () => {
+  for (const status of ["DISCARDED", "EXPIRED"]) {
+    const h = harness({
+      webComplete: async () => {
+        throw new NetworkError("timeout");
+      },
+      discardSession: async () => ({ result: { discarded: false, status } }),
+    });
+    const r = await runPreserveFlow(h.deps, REQ, new AbortController().signal);
+    assert.equal(r.outcome, "NOTHING_SAVED", status);
+  }
+});

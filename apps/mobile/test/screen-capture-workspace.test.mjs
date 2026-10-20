@@ -32,6 +32,8 @@ const dataUrl = (code) => "data:text/javascript," + encodeURIComponent(code);
 globalThis.__opened = [];
 
 const DIRECT_CAPTURE_STUB = dataUrl(`
+  // AUD-37 — stating a lost segment (not exercised by this workspace test).
+  export const stateDirectCapturePartLost = async () => undefined;
   export const openDirectCaptureSession = async (mode, options) => {
     globalThis.__opened.push([mode, options ?? null]);
     return { captureSessionId: "cs-1", nonce: "n", expiresAtUtc: null, deviceBound: false };

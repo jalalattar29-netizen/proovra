@@ -350,6 +350,8 @@ type VerificationPackageMetadata = {
     requestOutcome?: string | null;
     /** The collection plan's location requirement. */
     requirement?: string | null;
+    /** AUD-37 — the device's provider marked the fix as mocked. */
+    providerReportedMock?: boolean | null;
   } | null;
 };
 
@@ -373,7 +375,14 @@ function packageCaptureLocationBlock(metadata: VerificationPackageMetadata) {
           legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
         }
       : null,
-    locationState: { state: location.state, label: location.label, detail: location.detail },
+    // AUD-37 — providerReportedMock: the device provider marked the fix as mocked.
+    locationState: {
+      state: location.state,
+      label: location.label,
+      detail: location.detail,
+      // Only when true: an ordinary package keeps its exact shape.
+      ...(location.providerReportedMock ? { providerReportedMock: true } : {}),
+    },
   };
 }
 
@@ -1649,7 +1658,11 @@ export function buildCaptureContext(
       metadata.captureLocation?.locationSource === "INTAKE_LINK_GEOLOCATION"
         ? "Upload Session Location"
         : "Capture Context",
-    statusLabel: packageLocationState(metadata).label,
+    // AUD-37 — a mocked fix is stated, never an ordinary recorded location.
+    statusLabel: (() => {
+      const l = packageLocationState(metadata);
+      return l.providerReportedMock && l.detail ? `${l.label} · ${l.detail}` : l.label;
+    })(),
     locationState: "RECORDED",
     subtitle:
       metadata.captureLocation?.locationSource === "INTAKE_LINK_GEOLOCATION"
@@ -1796,6 +1809,10 @@ function buildEvidenceManifest(
       checklistStepId: file.checklistStepId ?? null,
       checklistStepLabel: file.checklistStepLabel ?? null,
       sourceLabel: file.sourceLabel ?? null,
+      // AUD-52 (2026-10-20) — free text typed by the submitter, copied as
+      // written; never a PROOVRA observation. Stated with it, not left to be
+      // read as a recorded fact.
+      sourceLabelBasis: file.sourceLabel ? "SUBMITTER_TEXT_NOT_VERIFIED" : null,
       // UC-0 — original vs capture record. Derivatives are never listed here.
       artifactClass: normalizePartArtifactClass(file.artifactClass),
       sizeBytes: file.sizeBytes ?? file.buffer?.length ?? 0,
@@ -1936,6 +1953,10 @@ export function buildOriginalLinkage(
       checklistStepId: file.checklistStepId ?? null,
       checklistStepLabel: file.checklistStepLabel ?? null,
       sourceLabel: file.sourceLabel ?? null,
+      // AUD-52 (2026-10-20) — free text typed by the submitter, copied as
+      // written; never a PROOVRA observation. Stated with it, not left to be
+      // read as a recorded fact.
+      sourceLabelBasis: file.sourceLabel ? "SUBMITTER_TEXT_NOT_VERIFIED" : null,
       // Phase D Blocker 2 — strip path components before exposing.
       originalFileName: stripPathForPackageExposure(file.originalFileName),
       mimeType: file.mimeType ?? null,

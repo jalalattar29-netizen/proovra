@@ -56,6 +56,7 @@ import {
   deriveCanonicalArtifactAvailability,
   hasCaptureLocationMetadata,
   locationRequestOutcomeFromCustody,
+  locationProviderMockFromCustody,
   locationRequirementFromIntakePlan,
   resolveEvidenceLocation,
   type EvidenceLocationPresentation,
@@ -549,6 +550,8 @@ const CreateEvidenceBody = z.object({
       lat: z.number().finite().min(-90).max(90),
       lng: z.number().finite().min(-180).max(180),
       accuracyMeters: z.number().finite().min(0).max(1_000_000).optional(),
+      // AUD-37 — the device's provider marked this fix as mocked (simulated).
+      providerReportedMock: z.boolean().optional(),
     })
     .optional(),
   // The outcome of a location request that produced no coordinates; recorded
@@ -1879,6 +1882,7 @@ function buildEvidenceLocationState(
     locationSource: evidence.locationSource ?? null,
     requestOutcome: locationRequestOutcomeFromCustody(custodyEvents),
     requirement: locationRequirementFromIntakePlan(evidence.intakePlanJson),
+    providerReportedMock: locationProviderMockFromCustody(custodyEvents),
   });
 }
 
@@ -1891,7 +1895,7 @@ function rawCoordinate(v: unknown): number | string | null {
 
 /** What Public Verify states about location: the state, never the workflow plan. */
 function publicLocationState(p: EvidenceLocationPresentation) {
-  return { state: p.state, label: p.label, tone: p.tone, detail: p.detail };
+  return { state: p.state, label: p.label, tone: p.tone, detail: p.detail, providerReportedMock: p.providerReportedMock };
 }
 
 function decimalToNumber(v: unknown): number | null {
@@ -5912,6 +5916,16 @@ export async function evidenceRoutes(app: FastifyInstance) {
       body.contentMd5Base64
     );
 
+    // AUD-52 (2026-10-20) — a record holds no bytes at creation (UC-ARCH-008):
+    // they arrive as parts, and THE PART PRESIGN enforces a checksum. One sent
+    // here was accepted and silently ignored, so a client believed its bytes
+    // were checksum-protected when nothing checked them.
+    if (body.checksumSha256Base64 !== undefined || body.contentMd5Base64 !== undefined) {
+      return reply.code(400).send({
+        code: "CHECKSUM_BELONGS_TO_PART",
+        message: "Send checksums with each part (POST /v1/evidence/:id/parts); a record holds no bytes at creation.",
+      });
+    }
     if (body.checksumSha256Base64 && !normalizedChecksum) {
       return reply.code(400).send({ message: "Invalid checksumSha256Base64" });
     }
@@ -5989,8 +6003,6 @@ const result = await createEvidence({
   deviceTimeIso: body.deviceTimeIso,
   gps: body.gps,
   locationRequestOutcome: body.locationRequestOutcome,
-  checksumSha256Base64: normalizedChecksum,
-  contentMd5Base64: normalizedContentMd5,
 intakePlanJson:
   body.intakePlanJson === null || body.intakePlanJson === undefined
     ? undefined
@@ -6592,6 +6604,15 @@ message:
             kind: "OWNER",
             userId: ownerUserId,
           });
+
+          // AUD-37 (2026-10-20) — a direct-capture segment stated LOST is never
+          // re-opened: its bytes would be a part no declaration covers.
+          {
+            const { isDirectCapturePartLost } = await import("../services/capture-trust/direct-capture-ingest.service.js");
+            if (await isDirectCapturePartLost(tx as never, id, body.partIndex)) {
+              throw Object.assign(new Error("PART_LOST"), { statusCode: 409, code: "PART_LOST" });
+            }
+          }
 
           const existing = await tx.evidencePart.findFirst({
             where: { evidenceId: id, partIndex: body.partIndex },

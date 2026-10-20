@@ -10,7 +10,7 @@ import * as prismaPkg from "@prisma/client";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import type { ReportTrustDecision } from "./report-v2/types.js";
 import type { OtsState, OtsVerificationKey, StorageProtectionVerificationState } from "@proovra/shared";
-import { resolveStorageProtectionVerification, locationRequestOutcomeFromCustody, locationRequirementFromIntakePlan } from "@proovra/shared";
+import { resolveStorageProtectionVerification, locationRequestOutcomeFromCustody, locationRequirementFromIntakePlan, locationProviderMockFromCustody } from "@proovra/shared";
 import { reconcileOtsAnchoredReportVersion } from "./ots-anchored-version.js";
 import { otsClientIdentity } from "./ots.service.js";
 import {
@@ -2209,6 +2209,7 @@ async function prepareReportArtifacts(
       organizationId: true,
       captureMethod: true,
       acquisitionMode: true,
+      acquisitionModeSource: true,
       submittedByEmail: true,
       submittedByAuthProvider: true,
       submittedByUserId: true,
@@ -3160,6 +3161,11 @@ createdAtUtc: evidence.createdAt.toISOString(),
     acquisitionMode: resolveEvidenceAcquisition({
       acquisitionMode: evidence.acquisitionMode ?? null,
     }).mode,
+    // AUD-52 — how the mode came to be recorded, for the report to state.
+    acquisitionModeSource: resolveEvidenceAcquisition({
+      acquisitionMode: evidence.acquisitionMode ?? null,
+      acquisitionModeSource: evidence.acquisitionModeSource ?? null,
+    }).recordedBy,
     identityLevelSnapshot: identitySnapshot.identityLevelSnapshot,
     acquisitionIdentity: identitySnapshot.acquisitionIdentity,
     submittedByEmail: identitySnapshot.submittedByEmail,
@@ -3239,6 +3245,8 @@ verificationPackageMetadata:
       // outcome a capture path recorded in custody, and the plan's requirement.
       requestOutcome: locationRequestOutcomeFromCustody(custodyEvents),
       requirement: locationRequirementFromIntakePlan(evidence.intakePlanJson),
+      // AUD-37 — a mocked fix is stated on the report and in the package.
+      providerReportedMock: locationProviderMockFromCustody(custodyEvents),
     },
 
 evidenceStructure:
@@ -5448,6 +5456,8 @@ submittedByAuthProvider:
                         .locationSource ?? null,
                     requestOutcome:
                       finalized.finalizedReportEvidencePayload.gps.requestOutcome ?? null,
+                    providerReportedMock:
+                      finalized.finalizedReportEvidencePayload.gps.providerReportedMock === true,
                     requirement:
                       finalized.finalizedReportEvidencePayload.gps.requirement ?? null,
                   }

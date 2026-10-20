@@ -793,3 +793,25 @@ test("materials are read where the review workspace puts them: evidence.contentI
   assert.equal(items.length, 1, "the nested files were not read");
   assert.equal(items[0].label, "roof.jpg");
 });
+
+// AUD-37 (2026-10-20) — a served location the device provider reported as
+// MOCKED keeps its warning through the reader's language, never reads as an
+// ordinary recorded location.
+test("AUD-37: a served mocked location keeps its warning in every locale", () => {
+  const served = {
+    locationState: {
+      state: "RECORDED",
+      label: "Location recorded",
+      tone: "warning",
+      detail: "The device marked these coordinates as coming from a mock (simulated) location provider.",
+      providerReportedMock: true,
+    },
+  };
+  const en = mod.projectLocationState(served, "en");
+  assert.equal(en.tone, "warning");
+  assert.match(en.detail, /mock \(simulated\) location provider/);
+  assert.match(mod.projectLocationState(served, "de").detail, /Mock/);
+  assert.ok((mod.projectLocationState(served, "ar").detail ?? "").length > 10);
+  const ordinary = mod.projectLocationState({ locationState: { state: "RECORDED", label: "Location recorded", tone: "info", detail: null } }, "de");
+  assert.equal(ordinary.detail, null);
+});

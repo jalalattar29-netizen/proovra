@@ -42,6 +42,8 @@ import {
   addScreenFrameListener,
   addScreenStoppedListener,
   captureScreenFrame,
+  clearScreenCaptureLedger,
+  getRecoveredScreenCapture,
   getScreenCaptureState,
   isScreenCaptureSupported,
   startScreenCapture,
@@ -103,9 +105,19 @@ export default function ScreenCaptureScreen() {
       // AUD-005 — a staging the app was closed during is offered again.
       if (!userId) return undefined;
       void loadPendingScreenStaging().then((pending) => {
-        if (cancelled || !pending) return;
-        pendingRef.current = pending;
-        dispatch({ type: "RESUME_PENDING", frameCount: pending.result.frames.length, message: PENDING_COPY.resumed });
+        if (cancelled) return;
+        if (pending) {
+          pendingRef.current = pending;
+          dispatch({ type: "RESUME_PENDING", frameCount: pending.result.frames.length, message: PENDING_COPY.resumed });
+          return;
+        }
+        // AUD-37 — frames a process death interrupted are offered for review
+        // (stopReason INTERRUPTED, CAPTURE_INTERRUPTED), never lost.
+        const recovered = getRecoveredScreenCapture();
+        if (recovered) {
+          lastResultRef.current = recovered;
+          dispatch({ type: "STOPPED", frameCount: recovered.frames.length, stopReason: recovered.stopReason });
+        }
       });
       return () => {
         cancelled = true;
@@ -231,6 +243,7 @@ export default function ScreenCaptureScreen() {
       // screenshots go (UC-AND-010), and the staging record with them.
       await discardScreenCaptureFiles(result);
       await clearPendingScreenStaging();
+      await clearScreenCaptureLedger().catch(() => undefined);
       pendingRef.current = null;
       lastResultRef.current = null;
 
@@ -254,6 +267,7 @@ export default function ScreenCaptureScreen() {
       pendingRef.current = null;
       lastResultRef.current = null;
       await clearPendingScreenStaging();
+      await clearScreenCaptureLedger().catch(() => undefined);
       dispatch({ type: "FAIL", message: toSafeUserError(err, { message: "Could not stage the capture." }).message });
     }
   }, [toast, teamId, router]);
@@ -272,6 +286,7 @@ export default function ScreenCaptureScreen() {
       if (pending.session) void discardDirectCaptureSession(pending.session).catch(() => undefined);
     }
     void clearPendingScreenStaging();
+    void clearScreenCaptureLedger().catch(() => undefined);
     setNotificationDenied(false);
     dispatch({ type: "RESET" });
   }, []);

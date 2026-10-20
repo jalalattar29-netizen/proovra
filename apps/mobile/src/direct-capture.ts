@@ -96,7 +96,7 @@ export async function reserveDirectCaptureEvidence(
     type: "PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT";
     mimeType: string;
     deviceTimeIso: string;
-    gps?: { lat: number; lng: number; accuracyMeters?: number };
+    gps?: { lat: number; lng: number; accuracyMeters?: number; providerReportedMock?: boolean };
     /**
      * The outcome of a location request that produced no coordinates (device
      * permission denied, or no position). Recorded with the record so its
@@ -371,4 +371,18 @@ export async function discardDirectCaptureSession(
     releasedEvidenceId: result?.releasedEvidenceId ?? null,
     discarded: Boolean(result?.discarded),
   };
+}
+
+
+/**
+ * AUD-37 (2026-10-20) — state that a DECLARED part never reached PROOVRA
+ * (continuous sessions only). Idempotent; the server refuses a part whose
+ * bytes are stored (PART_BYTES_PRESENT) or that was never declared
+ * (PART_NOT_DECLARED).
+ */
+export async function stateDirectCapturePartLost(session: DirectCaptureSession, partIndex: number): Promise<void> {
+  await apiFetch(`/v1/capture/direct-sessions/${session.captureSessionId}/parts/${partIndex}/loss`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
 }

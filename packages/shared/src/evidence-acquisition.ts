@@ -563,6 +563,21 @@ export function resolveEvidenceAcquisition(input: {
  */
 export const INTAKE_SUBMITTED_BY_LABEL = "Remote Contributor via Secure Intake Link";
 
+/**
+ * AUD-52 (2026-10-20) — a channel label with HOW it came to be recorded. A
+ * value recorded at creation reads as the label alone; one derived later (a
+ * backfill from a proven relationship) says so, so it can never pass for a
+ * contemporaneous record on the report.
+ */
+export const ACQUISITION_RECORDED_LATER_QUALIFIER: Readonly<Record<string, string>> = {
+  BACKFILL_INTAKE_SESSION_LINK: "recorded later, from the secure-intake session link",
+};
+
+export function acquisitionRecordedByQualified(label: string, acquisitionModeSource: string | null | undefined): string {
+  const q = acquisitionModeSource ? ACQUISITION_RECORDED_LATER_QUALIFIER[acquisitionModeSource] : undefined;
+  return q ? label + " (" + q + ")" : label;
+}
+
 /** Every mode (incl. not-recorded) belonging to a filter category. */
 export function acquisitionModesForCategory(
   category: EvidenceAcquisitionCategory,

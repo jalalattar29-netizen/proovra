@@ -81,6 +81,7 @@ import {
   DirectCaptureError,
   completeGenericDirectCapture,
   declareDirectCapturePart,
+  declareDirectCapturePartLost,
   loadOwnedDirectCaptureSession,
   openDirectCaptureSession,
   reserveDirectCaptureEvidence,
@@ -196,6 +197,8 @@ const ReserveDirectEvidenceBody = z
         lat: z.number().finite().min(-90).max(90),
         lng: z.number().finite().min(-180).max(180),
         accuracyMeters: z.number().finite().min(0).max(1_000_000).optional(),
+        // AUD-37 — the device's provider marked this fix as mocked (simulated).
+        providerReportedMock: z.boolean().optional(),
       })
       .optional(),
     // The outcome of a location request that produced no coordinates; recorded
@@ -493,9 +496,32 @@ export async function captureTrustRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   // POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // POST /v1/capture/direct-sessions/:id/parts/:partIndex/loss  (AUD-37)
+  //
+  // A continuous recorder states that a segment it DECLARED never reached
+  // PROOVRA. Appended to the trust chain; the seal then expects the remainder
+  // and the record can only be an INTERRUPTED session with the loss.
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/capture/direct-sessions/:id/parts/:partIndex/loss",
+    { preHandler: requireAuthAndLegal },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      const { id, partIndex } = PartParams.parse(req.params);
+      if (!(await authorizeOwnedSession(req, reply, id, userId))) return reply;
+      try {
+        const out = await declareDirectCapturePartLost({ sessionId: id, ownerUserId: userId, partIndex });
+        return reply.code(out.created ? 201 : 200).send({ loss: out });
+      } catch (err) {
+        return sendDirectCaptureError(reply, err);
+      }
+    },
+  );
+
   app.post(
     "/v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const userId = getAuthUserId(req);
       const { id, partIndex } = PartParams.parse(req.params);
@@ -537,7 +563,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   app.post(
     "/v1/capture/direct-sessions/:id/attestation",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const userId = getAuthUserId(req);
       const { id } = SessionParams.parse(req.params);
@@ -561,7 +587,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   app.post(
     "/v1/capture/direct-sessions/:id/complete",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const userId = getAuthUserId(req);
       const { id } = SessionParams.parse(req.params);
@@ -617,7 +643,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   app.post(
     "/v1/capture/direct-sessions/:id/web-complete",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const userId = getAuthUserId(req);
       const { id } = SessionParams.parse(req.params);
@@ -649,7 +675,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   app.post(
     "/v1/capture/direct-sessions/:id/screen-complete",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const userId = getAuthUserId(req);
       const { id } = SessionParams.parse(req.params);
@@ -682,7 +708,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   app.post(
     "/v1/capture/direct-sessions/:id/continuous-complete",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const userId = getAuthUserId(req);
       const { id } = SessionParams.parse(req.params);
@@ -760,6 +786,14 @@ export async function captureTrustRoutes(app: FastifyInstance) {
 // Helpers
 // =============================================================================
 
+/**
+ * AUD-52 (2026-10-20) — every capture step that ADDS or COMMITS content (open,
+ * reserve, declare, attest, every seal) requires the current legal acceptance;
+ * declarations and seals used to skip it. DISCARD deliberately does not:
+ * withdrawing one's own unsealed draft must stay possible while terms are
+ * pending re-acceptance (as the evidence lifecycle routes allow), and it adds
+ * nothing. Pinned by test/forward/aud52-capture-legal-gate.
+ */
 async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
   await requireAuth(req, reply);
   if (reply.sent) return;

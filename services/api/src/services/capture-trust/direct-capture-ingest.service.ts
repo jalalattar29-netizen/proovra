@@ -56,6 +56,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { createEvidence } from "../evidence.service.js";
 import { completeEvidence } from "../evidence-complete.service.js";
 import { emitCaptureTrustEvent } from "./trust-event.service.js";
+import { headObject } from "../../storage.js";
 import { releaseEvidenceReservationTx } from "@proovra/shared-runtime";
 import { verifyCaptureSignature } from "./signature-verifier.service.js";
 import { verifyDeviceAttestation } from "./attestation-verifier.service.js";
@@ -219,6 +220,12 @@ export const DIRECT_CAPTURE_DENIALS = {
   // (fewer recorded segments than this one's position), or one sent with a
   // part that is not a screen segment.
   INVALID_RECORDED_THROUGH: 400,
+  // AUD-37 (2026-10-20) — stating a declared segment lost.
+  LOSS_NOT_SUPPORTED_FOR_MODE: 422,
+  PART_NOT_DECLARED: 409,
+  PART_NOT_A_SEGMENT: 409,
+  PART_BYTES_PRESENT: 409,
+  PART_LOST: 409,
 } as const;
 export type DirectCaptureDenial = keyof typeof DIRECT_CAPTURE_DENIALS;
 
@@ -607,7 +614,7 @@ export type ReserveDirectCaptureEvidenceInput = {
   mimeType?: string;
   originalFileName?: string | null;
   deviceTimeIso?: string;
-  gps?: { lat: number; lng: number; accuracyMeters?: number };
+  gps?: { lat: number; lng: number; accuracyMeters?: number; providerReportedMock?: boolean };
   locationRequestOutcome?: "DENIED" | "UNAVAILABLE";
   now?: Date;
 };
@@ -844,6 +851,10 @@ async function declareUnderSessionLock(
   signatureVerdict: string,
   now: Date,
 ): Promise<{ declaration: PartDeclaration; created: boolean; sessionExpiresAtUtc: string | null }> {
+  // AUD-37 — an index stated lost stays lost: it is never declared again.
+  if ((await readLostPartIndexes(tx, session)).has(input.partIndex)) {
+    throw new DirectCaptureError("PART_LOST");
+  }
   const existing = (await readPartDeclarations(tx, session)).get(input.partIndex);
   if (existing) {
     // The same index with a different digest is a second, conflicting claim.
@@ -926,15 +937,21 @@ export async function readPartDeclarations(
     where: {
       teamId: session.teamId!,
       captureSessionId: session.id,
-      code: { in: ["CAPTURE_ARTIFACT_SIGNED_AT_SOURCE", "CAPTURE_ARTIFACT_RECEIVED"] },
+      code: { in: ["CAPTURE_ARTIFACT_SIGNED_AT_SOURCE", "CAPTURE_ARTIFACT_RECEIVED", "CAPTURE_ARTIFACT_LOST"] },
     },
     orderBy: { sequence: "asc" },
-    select: { payload: true },
-    take: MAX_PARTS * 2,
+    select: { payload: true, code: true },
+    take: MAX_PARTS * 3,
   });
   const out = new Map<number, PartDeclaration>();
+  // AUD-37 — a segment stated LOST is not part of the set the seal expects.
+  const lost = new Set<number>();
   for (const r of rows) {
     const p = (r.payload ?? {}) as Record<string, unknown>;
+    if (r.code === "CAPTURE_ARTIFACT_LOST") {
+      if (p["stage"] === "part_lost" && typeof p["partIndex"] === "number") lost.add(p["partIndex"]);
+      continue;
+    }
     if (p["stage"] !== "part_declared") continue;
     const idx = p["partIndex"];
     const digest = p["declaredSha256"];
@@ -955,7 +972,151 @@ export async function readPartDeclarations(
       });
     }
   }
+  for (const idx of lost) out.delete(idx);
   return out;
+}
+
+/** AUD-37 — the part indexes this session's recorder stated LOST. */
+export async function readLostPartIndexes(
+  db: PrismaClient,
+  session: Pick<SessionRow, "id" | "teamId">,
+): Promise<Set<number>> {
+  const rows = await db.captureTrustEventRecord.findMany({
+    where: { teamId: session.teamId!, captureSessionId: session.id, code: "CAPTURE_ARTIFACT_LOST" },
+    select: { payload: true },
+    take: MAX_PARTS,
+  });
+  const out = new Set<number>();
+  for (const r of rows) {
+    const p = (r.payload ?? {}) as Record<string, unknown>;
+    if (p["stage"] === "part_lost" && typeof p["partIndex"] === "number") out.add(p["partIndex"]);
+  }
+  return out;
+}
+
+/**
+ * AUD-37 — is this part of a direct-capture record stated LOST? The canonical
+ * part presign refuses to re-open a lost index (its bytes would be a part no
+ * declaration covers).
+ */
+export async function isDirectCapturePartLost(db: PrismaClient, evidenceId: string, partIndex: number): Promise<boolean> {
+  const session = await db.captureSession.findFirst({
+    where: { finalizedEvidenceId: evidenceId },
+    select: { id: true, teamId: true },
+  });
+  if (!session || !session.teamId) return false;
+  return (await readLostPartIndexes(db, session)).has(partIndex);
+}
+
+/** Modes whose segments stream WHILE recording, so a declared one can be lost. */
+const LOSS_CAPABLE_MODES: ReadonlySet<string> = new Set([
+  "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS",
+  "DIRECT_SCREEN_CAPTURE_IOS",
+]);
+
+/**
+ * AUD-37 (2026-10-20) — STATE A DECLARED SEGMENT LOST.
+ *
+ * A continuous recorder declares a segment's digest, then uploads its bytes.
+ * When the upload failed for good, the declaration stayed: the seal expects
+ * every declared part (1:1 with the manifest) and every part's stored bytes,
+ * so the WHOLE session became unsealable — the recorded remainder could never
+ * become evidence, where the honest outcome is an INTERRUPTED session with
+ * SEGMENT_UPLOAD_LOST.
+ *
+ * The declaration is never withdrawn (the trust chain is append-only). A
+ * CAPTURE_ARTIFACT_LOST event is appended; the seal then expects every
+ * declaration EXCEPT the lost ones, a COMPLETE manifest cannot be satisfied
+ * (its sequence is no longer contiguous), and the lost index can be neither
+ * declared again nor re-presigned. A loss is refused when the bytes ARE stored
+ * (that segment is not lost; seal it). The bytes-less part row of the
+ * still-unsealed record is withdrawn so the seal does not read an absent object.
+ * Idempotent.
+ */
+export async function declareDirectCapturePartLost(input: {
+  prisma?: PrismaClient;
+  sessionId: string;
+  ownerUserId: string;
+  partIndex: number;
+  now?: Date;
+}): Promise<{ partIndex: number; created: boolean }> {
+  const db = input.prisma ?? defaultPrisma;
+  const now = input.now ?? new Date();
+  if (!Number.isInteger(input.partIndex) || input.partIndex < 0 || input.partIndex >= MAX_PARTS) {
+    throw new DirectCaptureError("INVALID_PART_INDEX");
+  }
+  const session = await requireActive(db, await loadOwnedDirectCaptureSession(db, input.sessionId, input.ownerUserId), now);
+  if (!LOSS_CAPABLE_MODES.has(session.acquisitionMode ?? "")) throw new DirectCaptureError("LOSS_NOT_SUPPORTED_FOR_MODE");
+  const evidenceId = session.finalizedEvidenceId;
+  if (!evidenceId) throw new DirectCaptureError("SESSION_NOT_RESERVED");
+  const evidence = await db.evidence.findUnique({ where: { id: evidenceId }, select: { status: true, deletedAt: true } });
+  if (
+    !evidence ||
+    evidence.deletedAt ||
+    (evidence.status !== prismaPkg.EvidenceStatus.CREATED && evidence.status !== prismaPkg.EvidenceStatus.UPLOADING)
+  ) {
+    throw new DirectCaptureError("EVIDENCE_NOT_OPEN");
+  }
+
+  // Storage is read OUTSIDE the session lock (network never extends a transaction).
+  const part = await db.evidencePart.findFirst({
+    where: { evidenceId, partIndex: input.partIndex },
+    select: { storageBucket: true, storageKey: true },
+  });
+  if (part?.storageBucket && part.storageKey) {
+    let stored = false;
+    try {
+      stored = ((await headObject({ bucket: part.storageBucket, key: part.storageKey })).sizeBytes ?? 0) > 0;
+    } catch {
+      stored = false; // absent — which is what a loss is
+    }
+    if (stored) throw new DirectCaptureError("PART_BYTES_PRESENT");
+  }
+
+  try {
+    return await db.$transaction(
+      async (tx) => {
+        // Parameterised (not a tagged template): the same lock and wait the declaration takes.
+        await tx.$executeRawUnsafe("SELECT set_config('lock_timeout', $1, true)", DECLARATION_LOCK_WAIT_MS + "ms");
+        await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))", "capture-session:" + session.id);
+        const locked = await loadOwnedDirectCaptureSession(tx as unknown as PrismaClient, session.id, input.ownerUserId);
+        if (isLiveSealClaim(locked, now)) throw new DirectCaptureError("SESSION_BUSY");
+        const fresh = await requireActive(db, locked, now);
+        const txc = tx as unknown as PrismaClient;
+        if ((await readLostPartIndexes(txc, fresh)).has(input.partIndex)) {
+          return { partIndex: input.partIndex, created: false };
+        }
+        const declaration = (await readPartDeclarations(txc, fresh)).get(input.partIndex);
+        if (!declaration) throw new DirectCaptureError("PART_NOT_DECLARED");
+        if (declaration.clientReportedSource !== null && declaration.clientReportedSource !== "SCREEN_SEGMENT") {
+          throw new DirectCaptureError("PART_NOT_A_SEGMENT");
+        }
+        // The unsealed record's bytes-less part row is withdrawn (nothing is
+        // signed yet; no object is touched).
+        await txc.evidencePart.deleteMany({ where: { evidenceId, partIndex: input.partIndex } });
+        await emitCaptureTrustEvent({
+          prisma: db,
+          teamId: fresh.teamId!,
+          captureSessionId: fresh.id,
+          evidenceId: null,
+          deviceId: fresh.deviceId,
+          code: "CAPTURE_ARTIFACT_LOST",
+          payload: {
+            stage: "part_lost",
+            partIndex: input.partIndex,
+            declaredSha256: declaration.sha256,
+            ...(declaration.recordedThrough != null ? { clientReportedRecordedThrough: declaration.recordedThrough } : {}),
+            statedBy: "CAPTURE_CLIENT",
+          },
+        });
+        return { partIndex: input.partIndex, created: true };
+      },
+      { timeout: 30_000, maxWait: 10_000 },
+    );
+  } catch (err) {
+    if (isLockWaitCancelled(err)) throw new DirectCaptureError("SESSION_BUSY");
+    throw err;
+  }
 }
 
 // -----------------------------------------------------------------------------

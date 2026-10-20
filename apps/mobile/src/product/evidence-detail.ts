@@ -176,6 +176,8 @@ export function projectLocationState(rw: unknown, locale?: string | null): Locat
         label,
         detail: s(served["detail"]),
         requirement: reqLabel ? { level: s(req["level"]) ?? "", label: reqLabel, unmet: req["unmet"] === true } : null,
+        // AUD-37 — a mocked fix keeps its warning through localization.
+        providerReportedMock: served["providerReportedMock"] === true,
       },
       locale,
     );

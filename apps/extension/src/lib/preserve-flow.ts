@@ -380,8 +380,22 @@ export async function runPreserveFlow(
     if (reason !== "SIGNED_OUT") {
       try {
         deps.progress("discarding");
-        await deps.api.discardSession(token, sessionId);
-        return { status: "FAILED", outcome: "NOTHING_SAVED", reason, denial, evidenceId, detail };
+        const discard = await deps.api.discardSession(token, sessionId);
+        // AUD-52 (2026-10-20) — the answer is read, not assumed: "nothing was
+        // saved" only when the server released the session now, or reports it
+        // already DISCARDED / EXPIRED. Anything else settles nothing.
+        const r = (discard as { result?: { discarded?: boolean; status?: string } } | null)?.result;
+        if (r?.discarded === true || r?.status === "DISCARDED" || r?.status === "EXPIRED") {
+          return { status: "FAILED", outcome: "NOTHING_SAVED", reason, denial, evidenceId, detail };
+        }
+        return {
+          status: "FAILED",
+          outcome: "UNKNOWN",
+          reason,
+          denial,
+          evidenceId,
+          detail: `${detail}; discard did not settle the session (${r?.status ?? "no answer"})`,
+        };
       } catch (discardErr) {
         if (discardErr instanceof ApiError && discardErr.denial && SEALED_DENIALS.has(discardErr.denial) && evidenceId) {
           // The server says the session is already SEALED: the record exists.

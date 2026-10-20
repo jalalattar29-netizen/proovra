@@ -876,4 +876,96 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
     const part = await prisma.evidencePart.findFirstOrThrow({ where: { evidenceId, partIndex: 1 }, select: { artifactClass: true } });
     expect(part.artifactClass).toBe("CAPTURE_MANIFEST");
   });
+
+  // ---------------------------------------------------------------- AUD-37
+  // A segment DECLARED whose bytes never arrived made the whole session
+  // unsealable (the seal expected every declared part and its bytes). It is
+  // now stated LOST (append-only) and the session seals INTERRUPTED.
+  describe("AUD-37 — a declared-then-lost segment", () => {
+    const loss = (token: string, sessionId: string, partIndex: number) =>
+      call("POST", `/v1/capture/direct-sessions/${sessionId}/parts/${partIndex}/loss`, token, {});
+
+    /** Segments 0 and 2 stored; segment 1 declared and presigned, its bytes never stored. */
+    async function stageWithLostMiddle() {
+      const { token, sessionId, evidenceId, segs } = await stageSegments(3, [0, 2]);
+      const presign = await call("POST", `/v1/evidence/${evidenceId}/parts`, token, {
+        partIndex: 1,
+        mimeType: "application/octet-stream",
+        originalFileName: "part-1.bin",
+      });
+      expect(presign.statusCode, presign.body).toBe(201);
+      const d = await declare(token, sessionId, 1, sha256(`never-uploaded-${randomBytes(4).toString("hex")}`), "SCREEN_SEGMENT", 2);
+      expect(d.statusCode, d.body).toBe(201);
+      return { token, sessionId, evidenceId, segs };
+    }
+
+    it("is stated LOST (idempotent) and the session seals INTERRUPTED with the loss", async () => {
+      const { token, sessionId, evidenceId, segs } = await stageWithLostMiddle();
+      // Without the loss the declared segment has no bytes and nothing seals.
+      const blocked = continuousManifest(sessionId, segs, { recorded: 3, completeness: "INTERRUPTED_SESSION", termination: "INTERRUPTED", limitations: ["SEGMENT_UPLOAD_LOST"] });
+      await stageManifest(token, sessionId, evidenceId, blocked, 3);
+      expect((await seal(token, sessionId, blocked)).statusCode).not.toBe(200);
+      expect(await statusOf(evidenceId)).not.toBe("SIGNED");
+
+      const first = await loss(token, sessionId, 1);
+      expect(first.statusCode, first.body).toBe(201);
+      expect((await loss(token, sessionId, 1)).statusCode).toBe(200);
+
+      const sealed = await seal(token, sessionId, blocked);
+      expect(sealed.statusCode, sealed.body).toBe(200);
+      expect(await statusOf(evidenceId)).toBe("SIGNED");
+      const parts = await prisma.evidencePart.findMany({ where: { evidenceId }, select: { partIndex: true }, orderBy: { partIndex: "asc" } });
+      expect(parts.map((p) => p.partIndex)).toEqual([0, 2, 3]);
+      const session = await prisma.captureSession.findUniqueOrThrow({ where: { id: sessionId }, select: { endReason: true } });
+      expect(session.endReason).toBe("CONTINUOUS_INTERRUPTED_SESSION");
+      const lostEvent = await prisma.captureTrustEventRecord.findFirst({ where: { captureSessionId: sessionId, code: "CAPTURE_ARTIFACT_LOST" } });
+      expect(lostEvent?.payload).toMatchObject({ stage: "part_lost", partIndex: 1 });
+      // The declaration itself was never withdrawn (append-only chain).
+      const declared = await prisma.captureTrustEventRecord.count({ where: { captureSessionId: sessionId, code: "CAPTURE_ARTIFACT_RECEIVED" } });
+      expect(declared).toBeGreaterThanOrEqual(4);
+    });
+
+    it("a lost segment can never be sealed over as COMPLETE", async () => {
+      const { token, sessionId, evidenceId, segs } = await stageWithLostMiddle();
+      expect((await loss(token, sessionId, 1)).statusCode).toBe(201);
+      const complete = continuousManifest(sessionId, segs, { recorded: 2, completeness: "COMPLETE_SESSION" });
+      await stageManifest(token, sessionId, evidenceId, complete, 3);
+      const res = await seal(token, sessionId, complete);
+      expect(res.statusCode).toBe(422);
+      expect(await statusOf(evidenceId)).not.toBe("SIGNED");
+    });
+
+    it("an index stated lost is never declared again nor re-presigned", async () => {
+      const { token, sessionId, evidenceId } = await stageWithLostMiddle();
+      expect((await loss(token, sessionId, 1)).statusCode).toBe(201);
+      const again = await declare(token, sessionId, 1, sha256("a different digest"), "SCREEN_SEGMENT", 2);
+      expect(again.statusCode).toBe(409);
+      expect(again.json().denial ?? again.json().error?.code ?? again.body).toMatch(/PART_LOST/);
+      const presign = await call("POST", `/v1/evidence/${evidenceId}/parts`, token, { partIndex: 1, mimeType: "application/octet-stream" });
+      expect(presign.statusCode).toBe(409);
+      expect(presign.body).toMatch(/PART_LOST/);
+    });
+
+    it("a segment whose bytes ARE stored is not lost", async () => {
+      const { token, sessionId } = await stageSegments(2, [0, 1]);
+      const res = await loss(token, sessionId, 0);
+      expect(res.statusCode).toBe(409);
+      expect(res.body).toMatch(/PART_BYTES_PRESENT/);
+    });
+
+    it("a never-declared index cannot be stated lost", async () => {
+      const { token, sessionId } = await stageSegments(1, [0]);
+      const res = await loss(token, sessionId, 5);
+      expect(res.statusCode).toBe(409);
+      expect(res.body).toMatch(/PART_NOT_DECLARED/);
+    });
+
+    it("only a continuous session may state a loss", async () => {
+      const { sessionId } = await openAndReserve("DIRECT_SCREEN_CAPTURE_ANDROID");
+      const res = await loss(owner().ownerToken, sessionId, 0);
+      expect(res.statusCode).toBe(422);
+      expect(res.body).toMatch(/LOSS_NOT_SUPPORTED_FOR_MODE/);
+    });
+  });
+
 });

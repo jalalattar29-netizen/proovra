@@ -179,6 +179,8 @@ export type ReportEvidence = {
    * (incl. LEGACY_NOT_RECORDED). The only input to acquisition labels.
    */
   acquisitionMode?: string | null;
+  /** AUD-52 — how the acquisition mode came to be recorded (RECORDED_AT_CREATION | BACKFILL_*). */
+  acquisitionModeSource?: string | null;
   identityLevelSnapshot?: string | null;
   submittedByEmail?: string | null;
   submittedByAuthProvider?: string | null;
@@ -254,6 +256,8 @@ export type ReportEvidence = {
     requestOutcome?: string | null;
     /** The collection plan's location requirement (intakePlanJson). */
     requirement?: string | null;
+    /** AUD-37 — the device's provider marked the fix as mocked. */
+    providerReportedMock?: boolean | null;
   };
   evidenceStructure?: string | null;
   itemCount?: number | null;
@@ -900,6 +904,8 @@ export type ReportViewModel = {
       tone: EvidenceLocationTone;
       detail: string | null;
       requirement: { level: string; label: string; unmet: boolean } | null;
+      /** AUD-37 — the device provider marked the fix as mocked. */
+      providerReportedMock?: boolean;
     } | null;
     captureContext: {
       /** The panel heading: "Upload session location" for intake, else "Capture location". */

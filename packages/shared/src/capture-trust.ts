@@ -337,6 +337,11 @@ export const CAPTURE_TRUST_EVENT_CODES = [
   // An attestation the server could not verify cryptographically. Distinct
   // from ATTESTATION_VERIFIED, which is only emitted for a verified verdict.
   "ATTESTATION_UNVERIFIED",
+  // AUD-37 (2026-10-20) — appended. A DECLARED continuous segment whose bytes
+  // never reached PROOVRA, stated lost by its recorder. Append-only: the
+  // declaration stays in the chain; the seal excludes the segment and the
+  // record can only be an INTERRUPTED session with SEGMENT_UPLOAD_LOST.
+  "CAPTURE_ARTIFACT_LOST",
 ] as const;
 export type CaptureTrustEventCode = (typeof CAPTURE_TRUST_EVENT_CODES)[number];
 

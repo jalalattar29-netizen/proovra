@@ -244,7 +244,8 @@ export async function createEvidence(params: {
   originalFileName?: string | null;
   captureFileName?: string | null;
   deviceTimeIso?: string;
-  gps?: { lat: number; lng: number; accuracyMeters?: number };
+  /** AUD-37 — providerReportedMock: the device's provider marked the fix as mocked. */
+  gps?: { lat: number; lng: number; accuracyMeters?: number; providerReportedMock?: boolean };
   /**
    * The outcome of a location request the capture client made and that
    * produced NO coordinates (the browser/device denied or could not provide
@@ -252,8 +253,6 @@ export async function createEvidence(params: {
    * fact; ignored when coordinates arrived. Absent = no request outcome.
    */
   locationRequestOutcome?: "DENIED" | "UNAVAILABLE";
-  checksumSha256Base64?: string | null;
-  contentMd5Base64?: string | null;
 intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
   /**
    * UC-0 — HOW this Evidence enters PROOVRA. REQUIRED, and always a constant
@@ -627,6 +626,9 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
               lat: params.gps.lat,
               lng: params.gps.lng,
               accuracyMeters: params.gps.accuracyMeters ?? null,
+              // AUD-37 — bound into the creation custody event; read by the
+              // canonical location state (locationProviderMockFromCustody).
+              ...(params.gps.providerReportedMock === true ? { providerReportedMock: true } : {}),
             }
           : null,
         // The canonical location state (capture-location.ts) reads this to

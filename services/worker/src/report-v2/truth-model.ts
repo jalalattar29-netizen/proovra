@@ -1,3 +1,4 @@
+import { acquisitionRecordedByQualified } from "@proovra/shared";
 import {
   OTS_VERIFICATION_WORDS,
   TSA_RETAINED_TOKEN_STATUS_LABEL,
@@ -377,10 +378,14 @@ export function buildReportCanonicalMaterials(params: {
       verificationStatus: ev.verificationStatus ?? null,
       // UC-0 — the acquisition label from the record's acquisition snapshot
       // (never the `captureMethod` structure enum).
-      captureMethod: captureMethodDisplayLabel({
-        acquisitionMode: ev.acquisitionMode ?? null,
-        isIntake: params.isIntake === true,
-      }),
+      // AUD-52 — a channel recorded later (backfill) says so.
+      captureMethod: acquisitionRecordedByQualified(
+        captureMethodDisplayLabel({
+          acquisitionMode: ev.acquisitionMode ?? null,
+          isIntake: params.isIntake === true,
+        }),
+        ev.acquisitionModeSource ?? null,
+      ),
       uploadedAtUtc: ev.uploadedAtUtc ?? null,
       signedAtUtc: ev.signedAtUtc ?? null,
       recordedIntegrityVerifiedAtUtc:
