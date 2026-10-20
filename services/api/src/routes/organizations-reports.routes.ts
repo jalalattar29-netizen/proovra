@@ -68,20 +68,39 @@ const UuidParam = z.string().uuid();
 const AUDIT_ROW_CAP = 5000;
 
 /**
- * Resolve org access at `minRole`, returning the caller role on success or
- * the one org-denial rendering (PV-ORG-001): 404 not_found for a missing org
- * or a non-member, 403 forbidden for a member without the role. Mirrors
- * `requireOrgAdmin` in organizations-governance.routes.ts.
+ * AUD-31 (2026-10-20) — EXPLICIT ROLE SETS, NEVER RANK.
+ *
+ * ORG_SECURITY_ADMIN and ORG_BILLING_ADMIN share rank 3, so a minimum-rank
+ * gate admitted the wrong specialist: a security admin downloaded the seats
+ * (billing) export, a billing admin the audit / governance / access exports.
+ */
+/** Seat and plan figures: the billing side only. */
+const SEATS_EXPORT_ROLES: ReadonlyArray<OrgRole> = ["ORG_OWNER", "ORG_ADMIN", "ORG_BILLING_ADMIN"];
+/** Audit, governance, external access and download audit: security oversight. */
+const OVERSIGHT_EXPORT_ROLES: ReadonlyArray<OrgRole> = ["ORG_OWNER", "ORG_ADMIN", "ORG_SECURITY_ADMIN", "ORG_AUDITOR"];
+/** The member directory: every role that reads the members surface. */
+const MEMBERS_EXPORT_ROLES: ReadonlyArray<OrgRole> = [
+  "ORG_OWNER",
+  "ORG_ADMIN",
+  "ORG_SECURITY_ADMIN",
+  "ORG_BILLING_ADMIN",
+  "ORG_AUDITOR",
+];
+
+/**
+ * Resolve org access for an explicit role set, returning the caller role on
+ * success or the one org-denial rendering (PV-ORG-001): 404 not_found for a
+ * missing org or a non-member, 403 forbidden for a member without the role.
  */
 async function requireOrgRole(
   orgId: string,
   userId: string,
-  minRole: OrgRole,
+  roles: ReadonlyArray<OrgRole>,
 ): Promise<
   | { ok: true; role: OrgRole }
   | { ok: false; denial: ReturnType<typeof orgAccessDenial> }
 > {
-  const result = await checkOrgAccess(prisma, { orgId, userId, minRole });
+  const result = await checkOrgAccess(prisma, { orgId, userId, roles });
   if (result.kind !== "ok") return { ok: false, denial: orgAccessDenial(result) };
   return { ok: true, role: result.role };
 }
@@ -148,7 +167,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
     const orgId = UuidParam.parse((req.params as { id: string }).id);
     const userId = getAuthUserId(req);
 
-    const access = await requireOrgRole(orgId, userId, "ORG_AUDITOR");
+    const access = await requireOrgRole(orgId, userId, MEMBERS_EXPORT_ROLES);
     if (!access.ok) return reply.code(access.denial.status).send(access.denial.body);
     if (!(await reportRateLimit(userId, "members"))) {
       return reply.code(429).send(RATE_LIMITED);
@@ -214,7 +233,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
     const orgId = UuidParam.parse((req.params as { id: string }).id);
     const userId = getAuthUserId(req);
 
-    const access = await requireOrgRole(orgId, userId, "ORG_BILLING_ADMIN");
+    const access = await requireOrgRole(orgId, userId, SEATS_EXPORT_ROLES);
     if (!access.ok) return reply.code(access.denial.status).send(access.denial.body);
     if (!(await reportRateLimit(userId, "seats"))) {
       return reply.code(429).send(RATE_LIMITED);
@@ -276,7 +295,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
           .filter((s) => s.length > 0)
       : null;
 
-    const access = await requireOrgRole(orgId, userId, "ORG_AUDITOR");
+    const access = await requireOrgRole(orgId, userId, OVERSIGHT_EXPORT_ROLES);
     if (!access.ok) return reply.code(access.denial.status).send(access.denial.body);
     if (!(await reportRateLimit(userId, "audit"))) {
       return reply.code(429).send(RATE_LIMITED);
@@ -368,7 +387,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
     const orgId = UuidParam.parse((req.params as { id: string }).id);
     const userId = getAuthUserId(req);
 
-    const access = await requireOrgRole(orgId, userId, "ORG_AUDITOR");
+    const access = await requireOrgRole(orgId, userId, OVERSIGHT_EXPORT_ROLES);
     if (!access.ok) return reply.code(access.denial.status).send(access.denial.body);
     if (!(await reportRateLimit(userId, "governance"))) {
       return reply.code(429).send(RATE_LIMITED);
@@ -444,7 +463,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
       const orgId = UuidParam.parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
-      const access = await requireOrgRole(orgId, userId, "ORG_AUDITOR");
+      const access = await requireOrgRole(orgId, userId, OVERSIGHT_EXPORT_ROLES);
       if (!access.ok) return reply.code(access.denial.status).send(access.denial.body);
       if (!(await reportRateLimit(userId, "external-access"))) {
         return reply.code(429).send(RATE_LIMITED);
@@ -585,7 +604,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
       const orgId = UuidParam.parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
-      const access = await requireOrgRole(orgId, userId, "ORG_AUDITOR");
+      const access = await requireOrgRole(orgId, userId, OVERSIGHT_EXPORT_ROLES);
       if (!access.ok) return reply.code(access.denial.status).send(access.denial.body);
       if (!(await reportRateLimit(userId, "download-audit"))) {
         return reply.code(429).send(RATE_LIMITED);

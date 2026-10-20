@@ -25,6 +25,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Loaded once at collection (vi.mock above is hoisted, so the mocks apply).
+// It was imported inside mountPage, so the FIRST test paid the cold transform
+// of the whole Verify page and, under a full parallel run, timed out (5.19 s
+// against the 5 s test budget) while passing alone (2026-10-20).
+import VerifyPage from "../../app/verify/[token]/page";
+import { ToastProvider } from "../../components/ui";
+
 type Json = Record<string, unknown>;
 const load = (name: string) => JSON.parse(readFileSync(join(__dirname, "fixtures", name), "utf8")) as Json;
 
@@ -52,8 +59,6 @@ vi.mock("../../lib/api", () => ({
 vi.mock("../../lib/sentry", () => ({ captureException: vi.fn() }));
 
 async function mountPage() {
-  const { default: VerifyPage } = await import("../../app/verify/[token]/page");
-  const { ToastProvider } = await import("../../components/ui");
   const utils = render(
     <ToastProvider>
       <VerifyPage />

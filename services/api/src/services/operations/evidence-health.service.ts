@@ -23,6 +23,7 @@
  */
 
 import { prisma } from "../../db.js";
+import { owedOutputNarrowing } from "../billing/owed-output-population.service.js";
 import {
   getQueueInventory,
   type QueueInventoryItem,
@@ -233,6 +234,9 @@ export async function buildEvidenceHealthSnapshot(
     inventoryOk = false;
   }
   const queues = inventoryOk ? summariseQueues(inventory) : null;
+  // AUD-30 (2026-10-20): the backlog counts name records an output is OWED
+  // for; the drill-down (EVIDENCE_HEALTH_SIGNALS) narrows identically.
+  const owed = await owedOutputNarrowing();
 
   const [
     uploadsInProgress,
@@ -276,7 +280,7 @@ export async function buildEvidenceHealthSnapshot(
     // column only; never the report bytes.
     measured(() =>
       prisma.evidence.count({
-        where: { deletedAt: null, status: "SIGNED", latestReportVersion: null },
+        where: { deletedAt: null, status: "SIGNED", latestReportVersion: null, AND: [owed] },
       }),
     ),
     measured(() =>
@@ -291,6 +295,7 @@ export async function buildEvidenceHealthSnapshot(
           deletedAt: null,
           status: "REPORTED",
           verificationPackageVersion: null,
+          AND: [owed],
         },
       }),
     ),

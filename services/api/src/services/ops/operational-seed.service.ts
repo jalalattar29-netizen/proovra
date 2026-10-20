@@ -111,6 +111,11 @@ export type SeedCleanupResult = {
     incidents: number;
     workloadSnapshots: number;
   };
+  /**
+   * AUD-39 (2026-10-20) — seeded workflows a PERSON acted on after the seed.
+   * They are no longer seed-only, so cleanup leaves them and their events.
+   */
+  kept: { workflows: number };
   notFound: boolean;
 };
 
@@ -148,11 +153,32 @@ export type OperationalSeedErrorCode =
   | "SEEDING_SECRET_INVALID"
   | "INSUFFICIENT_EVIDENCE"
   | "NO_TEAM_REVIEWER"
-  | "UNKNOWN_SCENARIO";
+  | "UNKNOWN_SCENARIO"
+  // AUD-39 (2026-10-20) — a real run into a workspace not designated for seeding.
+  | "SEEDING_TEAM_NOT_DESIGNATED";
 
 // -----------------------------------------------------------------------------
 // Env gates
 // -----------------------------------------------------------------------------
+
+/**
+ * AUD-39 (2026-10-20) — WRITES GO ONLY INTO A DESIGNATED SEED WORKSPACE.
+ *
+ * The seed attaches review workflows to EXISTING evidence (there is no
+ * synthetic evidence to seed onto). Run against a real workspace it wrote
+ * backdated SLA state onto customers' records. A non-dry run is now refused
+ * unless the workspace is named in OPERATIONAL_SEEDING_TEAM_IDS (comma
+ * separated); a dry run reads only and stays available everywhere.
+ */
+export function assertSeedTeamDesignated(teamId: string): void {
+  const designated = (process.env.OPERATIONAL_SEEDING_TEAM_IDS ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.length > 0);
+  if (!designated.includes(teamId.toLowerCase())) {
+    throw new OperationalSeedError("SEEDING_TEAM_NOT_DESIGNATED", { teamId });
+  }
+}
 
 export function assertSeedingEnabled(): void {
   const enabled =
@@ -271,7 +297,7 @@ async function auditSeedCleanup(
 async function loadSeedRunAuditRow(
   seedRunId: string,
   client: PrismaClient,
-): Promise<{ createdResourceIds: SeedCreatedResources; teamId: string | null } | null> {
+): Promise<{ createdResourceIds: SeedCreatedResources; teamId: string | null; seededAt: Date } | null> {
   // Find the most-recent run row for this seedRunId. We look up by
   // resourceId to leverage the existing index on AdminAuditLog.
   const row = await client.adminAuditLog.findFirst({
@@ -306,6 +332,8 @@ async function loadSeedRunAuditRow(
           : 0,
     },
     teamId: row.workspaceId ?? (typeof meta.teamId === "string" ? meta.teamId : null),
+    // The run row is written when the seed finished: anything later is not the seed's.
+    seededAt: row.createdAt,
   };
 }
 
@@ -329,6 +357,7 @@ export async function cleanupSeedRun(input: {
         incidents: 0,
         workloadSnapshots: 0,
       },
+      kept: { workflows: 0 },
       notFound: true,
     };
     await auditSeedCleanup(notFoundResult, input.actorUserId, input.requestId ?? null, null);
@@ -354,17 +383,34 @@ export async function cleanupSeedRun(input: {
       })
     : { count: 0 };
 
+  // AUD-39 (2026-10-20): a seeded workflow a PERSON acted on after the seed
+  // finished is real review history now. Deleting it (and every event on it,
+  // as this did) erased that history, so it is kept, events and all.
+  const touched = ids.workflowIds.length
+    ? await client.evidenceReviewWorkflowEvent.findMany({
+        where: {
+          workflowId: { in: ids.workflowIds },
+          actorUserId: { not: null },
+          createdAt: { gt: audit.seededAt },
+        },
+        select: { workflowId: true },
+        distinct: ["workflowId"],
+      })
+    : [];
+  const keptIds = new Set(touched.map((t) => t.workflowId));
+  const removable = ids.workflowIds.filter((id) => !keptIds.has(id));
+
   // Workflow events cascade-delete with the workflow but we count them
   // separately for the operator's visibility.
-  const workflowEvents = ids.workflowIds.length
+  const workflowEvents = removable.length
     ? await client.evidenceReviewWorkflowEvent.deleteMany({
-        where: { workflowId: { in: ids.workflowIds } },
+        where: { workflowId: { in: removable } },
       })
     : { count: 0 };
 
-  const workflows = ids.workflowIds.length
+  const workflows = removable.length
     ? await client.evidenceReviewWorkflow.deleteMany({
-        where: { id: { in: ids.workflowIds } },
+        where: { id: { in: removable } },
       })
     : { count: 0 };
 
@@ -393,6 +439,7 @@ export async function cleanupSeedRun(input: {
       // can see the noise window.
       workloadSnapshots: ids.workloadSnapshotsCreated,
     },
+    kept: { workflows: keptIds.size },
     notFound: false,
   };
   await auditSeedCleanup(result, input.actorUserId, input.requestId ?? null, audit.teamId);
@@ -527,6 +574,8 @@ export async function runOperationalSeed(
     await auditSeedRun(dryResult, input.actorUserId, input.requestId ?? null);
     return dryResult;
   }
+
+  assertSeedTeamDesignated(input.teamId);
 
   // 1) Ensure a workflow exists for each seed-target evidence row.
   for (const ev of seedable) {

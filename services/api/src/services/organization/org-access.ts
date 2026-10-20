@@ -299,9 +299,12 @@ export const ORG_ADMIN_SURFACE_ACCESS: ReadonlyArray<{
   { id: "retention", roles: SECURITY_TIER },
   // Member provisioning — ORG_ADMIN+ enforced server-side.
   { id: "bulk-invite", roles: FULL_ORG_ADMINS },
-  // Auditor-tier read; the seats export additionally needs billing-admin,
-  // gated per-endpoint.
-  { id: "reports", roles: BILLING_TIER },
+  // AUD-31 (2026-10-20): every role holding at least one export; each export
+  // is gated by its own explicit role set (organizations-reports.routes.ts).
+  {
+    id: "reports",
+    roles: ["ORG_OWNER", "ORG_ADMIN", "ORG_SECURITY_ADMIN", "ORG_BILLING_ADMIN", "ORG_AUDITOR"],
+  },
   { id: "readiness", roles: SECURITY_TIER },
   // Org audit timeline + Trust Center summary — any org member.
   { id: "audit", roles: EVERY_ORG_ROLE },

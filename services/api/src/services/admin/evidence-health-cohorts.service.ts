@@ -47,6 +47,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import type { PrismaClient } from "@prisma/client";
 import { entryForIncident } from "../operations/remediation-registry.js";
+import { owedOutputNarrowing } from "../billing/owed-output-population.service.js";
 
 // ---------------------------------------------------------------------------
 // Predicates. Every cohort is a Prisma `where`, and the SAME `where` backs both
@@ -90,30 +91,51 @@ const TSA_NOT_FAILED: Prisma.EvidenceWhereInput = {
   OR: [{ tsaStatus: null }, { tsaStatus: { not: "FAILED" } }],
 };
 
+/**
+ * AUD-30 (2026-10-20) — "signed without a report" counts only records a report
+ * is OWED for: an archived or trashed record, or one whose plan does not
+ * include reports, is refused by the producer on purpose and is not a gap.
+ * Every cohort uses the SAME owed arm, so the partition arithmetic holds.
+ */
+function cohortWheres(owed: Prisma.EvidenceWhereInput) {
+  const SIGNED_NO_REPORT_OWED: Prisma.EvidenceWhereInput = { AND: [SIGNED_NO_REPORT, owed] };
+  return {
+    TSA_FAILED_ONLY: { ...LIVE, ...TSA_FAILED, NOT: SIGNED_NO_REPORT_OWED },
+    SIGNED_NO_REPORT_ONLY: { ...LIVE, ...TSA_NOT_FAILED, AND: [SIGNED_NO_REPORT_OWED] },
+    BOTH: { ...LIVE, ...TSA_FAILED, AND: [SIGNED_NO_REPORT_OWED] },
+    ALL_AFFECTED: { ...LIVE, OR: [TSA_FAILED, SIGNED_NO_REPORT_OWED] },
+    RETRYABLE: { ...LIVE, ...TSA_NOT_FAILED, AND: [SIGNED_NO_REPORT_OWED] },
+    MANUAL_REVIEW: { ...LIVE, ...TSA_FAILED },
+  } satisfies Record<EvidenceHealthCohort, Prisma.EvidenceWhereInput>;
+}
+
+/** The cohort predicates, with the owed-output narrowing read now. */
+export async function evidenceHealthCohortWheres(
+  client: PrismaClient = defaultPrisma,
+): Promise<Record<EvidenceHealthCohort, Prisma.EvidenceWhereInput>> {
+  return cohortWheres(await owedOutputNarrowing(client));
+}
+
 export const EVIDENCE_HEALTH_COHORTS = {
   TSA_FAILED_ONLY: {
     label: "Timestamp failed only",
     description:
       "The RFC3161 timestamp could not be obtained. A report exists.",
-    where: { ...LIVE, ...TSA_FAILED, NOT: SIGNED_NO_REPORT },
   },
   SIGNED_NO_REPORT_ONLY: {
     label: "Signed without a report only",
     description:
       "The record is signed and no report has been generated. The timestamp is fine.",
-    where: { ...LIVE, ...SIGNED_NO_REPORT, ...TSA_NOT_FAILED },
   },
   BOTH: {
     label: "Both conditions",
     description:
       "The timestamp failed AND no report exists. ONE record, counted once.",
-    where: { ...LIVE, ...TSA_FAILED, ...SIGNED_NO_REPORT },
   },
   ALL_AFFECTED: {
     label: "All affected",
     description:
       "The union, measured with OR. Never the sum of the two totals — that double-counts the intersection.",
-    where: { ...LIVE, OR: [TSA_FAILED, SIGNED_NO_REPORT] },
   },
   RETRYABLE: {
     label: "Retryable",
@@ -126,18 +148,13 @@ export const EVIDENCE_HEALTH_COHORTS = {
     // Same NULL-safe complement as `SIGNED_NO_REPORT_ONLY`: a record whose
     // timestamp was never attempted still has a report to regenerate, and
     // `RETRYABLE` and `MANUAL_REVIEW` must partition the union as well.
-    where: { ...LIVE, ...SIGNED_NO_REPORT, ...TSA_NOT_FAILED },
   },
   MANUAL_REVIEW: {
     label: "Manual review",
     description:
       "No safe remediation authority exists. A human decides what happens next.",
-    where: { ...LIVE, ...TSA_FAILED },
   },
-} as const satisfies Record<
-  string,
-  { label: string; description: string; where: Prisma.EvidenceWhereInput }
->;
+} as const satisfies Record<string, { label: string; description: string }>;
 
 export type EvidenceHealthCohort = keyof typeof EVIDENCE_HEALTH_COHORTS;
 
@@ -276,12 +293,13 @@ export async function buildEvidenceHealthCohorts(
   client: PrismaClient = defaultPrisma,
 ): Promise<EvidenceHealthCohortProjection> {
   const keys = Object.keys(EVIDENCE_HEALTH_COHORTS) as EvidenceHealthCohort[];
+  const wheres = await evidenceHealthCohortWheres(client);
 
   const counted = await Promise.all(
     keys.map(async (cohort) => {
       try {
         const count = await client.evidence.count({
-          where: EVIDENCE_HEALTH_COHORTS[cohort].where,
+          where: wheres[cohort],
         });
         return { cohort, count };
       } catch {

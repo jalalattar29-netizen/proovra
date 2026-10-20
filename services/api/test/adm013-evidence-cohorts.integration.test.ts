@@ -120,6 +120,13 @@ describe("EVIDENCE HEALTH COHORTS (live PostgreSQL 16)", () => {
     organizationId = team!.organizationId;
     ownerUserId = team!.ownerUserId;
 
+    // AUD-30 (2026-10-20): the cohorts count records an output is OWED for.
+    // This suite measures that arithmetic, so its workspace is on a plan whose
+    // outputs include the report (the owed narrowing itself is proven in
+    // test/forward/aud30-owed-backlog).
+    const { entitleFixtureWorkspace } = await import("./helpers/output-entitlement.js");
+    await entitleFixtureWorkspace(prisma, teamId);
+
     /*
      * THE BASELINE IS RECORDED, NOT IMPOSED.
      *

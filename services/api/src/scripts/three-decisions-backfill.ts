@@ -527,7 +527,12 @@ export async function reconcileEvidenceLifecycle(options: {
         const deletedAt = [row.deletedAt, row.deletedAtUtc]
           .filter((d): d is Date => d !== null)
           .sort((a, b) => a.getTime() - b.getTime())[0]!;
-        const trashGraceUntil = new Date(deletedAt.getTime() + TRASH_GRACE_DAYS * 24 * 60 * 60 * 1000);
+        // AUD-40 (2026-10-20): the grace period runs from THIS reconciliation,
+        // not from the legacy deletion instant. A record deleted long ago under
+        // the old marker was never in a visible Trash; backdating its grace
+        // made it an immediate destruction candidate the owner never saw.
+        // The recorded deletion instant itself is kept as it was.
+        const trashGraceUntil = new Date(now.getTime() + TRASH_GRACE_DAYS * 24 * 60 * 60 * 1000);
         const moved = await prisma.$transaction(async (tx) => {
           await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${row.id}))`;
           // Conditional on the row still being exactly what was classified.

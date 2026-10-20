@@ -3,9 +3,11 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import {
   EVIDENCE_HEALTH_COHORTS,
+  evidenceHealthCohortWheres,
   retryabilityContract,
   type EvidenceHealthCohort,
 } from "./evidence-health-cohorts.service.js";
+import { owedOutputNarrowing } from "../billing/owed-output-population.service.js";
 import { liveEvidenceWhere } from "@proovra/shared-runtime";
 import { OTS_ANCHORING_RECORD_SELECT, presentedTsaStatus, resolveRecordOtsAnchoring } from "@proovra/shared";
 
@@ -65,17 +67,21 @@ export const EVIDENCE_HEALTH_SIGNALS = {
     label: "Verification failed",
     where: { verificationStatus: "FAILED" },
   },
+  // AUD-30 (2026-10-20): backlog signals — narrowed at query time to records
+  // an output is OWED for (owedOutputNarrowing), exactly as the tile counts.
   SIGNED_NO_REPORT: {
     label: "Signed, no report",
     where: { status: "SIGNED", latestReportVersion: null },
+    owedOnly: true,
   },
   REPORTED_NO_PACKAGE: {
     label: "Reported, no verification package",
     where: { status: "REPORTED", verificationPackageVersion: null },
+    owedOnly: true,
   },
 } as const satisfies Record<
   string,
-  { label: string; where: Prisma.EvidenceWhereInput }
+  { label: string; where: Prisma.EvidenceWhereInput; owedOnly?: boolean }
 >;
 
 export type EvidenceHealthSignal = keyof typeof EVIDENCE_HEALTH_SIGNALS;
@@ -179,14 +185,21 @@ export async function listAdminEvidenceRecords(
   const signal = input.signal ? EVIDENCE_HEALTH_SIGNALS[input.signal] : null;
 
   const cohort = input.cohort ? EVIDENCE_HEALTH_COHORTS[input.cohort] : null;
+  const cohortWhere = input.cohort ? (await evidenceHealthCohortWheres(client))[input.cohort] : null;
+  const owedWhere = signal && "owedOnly" in signal && signal.owedOnly ? await owedOutputNarrowing(client) : null;
 
+  // Composed under AND: spreading predicates that share a key (OR, AND, NOT)
+  // silently dropped one of them.
   const where: Prisma.EvidenceWhereInput = {
-    ...liveEvidenceWhere(),
-    ...((signal?.where as Prisma.EvidenceWhereInput | undefined) ?? {}),
-    ...((cohort?.where as Prisma.EvidenceWhereInput | undefined) ?? {}),
-    ...(input.evidenceId ? { id: input.evidenceId } : {}),
-    ...(input.teamId ? { teamId: input.teamId } : {}),
-    ...(input.organizationId ? { organizationId: input.organizationId } : {}),
+    AND: [
+      liveEvidenceWhere() as Prisma.EvidenceWhereInput,
+      ...(signal ? [signal.where as Prisma.EvidenceWhereInput] : []),
+      ...(owedWhere ? [owedWhere] : []),
+      ...(cohortWhere ? [cohortWhere] : []),
+      ...(input.evidenceId ? [{ id: input.evidenceId }] : []),
+      ...(input.teamId ? [{ teamId: input.teamId }] : []),
+      ...(input.organizationId ? [{ organizationId: input.organizationId }] : []),
+    ],
   };
 
   const [total, rows] = await Promise.all([

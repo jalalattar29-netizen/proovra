@@ -140,7 +140,9 @@ export async function opsSeedRoutes(app: FastifyInstance) {
           teamId: body.teamId,
           scenario: body.scenario,
           count: body.count ?? 0,
-          dryRun: body.dryRun === true,
+          // AUD-39 (2026-10-20): a dry run unless the caller explicitly
+          // asks for writes (dryRun: false).
+          dryRun: body.dryRun !== false,
           actorUserId: actor.userId,
           requestId: req.id,
         });

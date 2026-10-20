@@ -17,6 +17,8 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { listCaseEvidenceIds } from "./case-risk-engine.service.js";
+import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
+import { OUTPUT_PRODUCING_LIFECYCLE_WHERE } from "../billing/owed-output-population.service.js";
 
 /**
  * Canonical RFC-4122 UUID shape (8-4-4-4-12 hex). Used to decide whether
@@ -342,6 +344,9 @@ export async function buildMatterQueue(input: {
 
   // Per-case counters in parallel batches. Each failure degrades that row.
   const items: MatterQueueItem[] = [];
+  // AUD-30 (2026-10-20): a gap is a record an output is OWED for — read once
+  // for the workspace from the canonical narrowing (null = the plan funds all).
+  const owedInWorkspace = outputEntitledEvidenceWhere({ teamId: input.teamId });
   for (const c of cases) {
     try {
       const evidenceIds = await listCaseEvidenceIds({
@@ -428,12 +433,15 @@ export async function buildMatterQueue(input: {
         evidenceIds.length === 0
           ? Promise.resolve(0)
           : (async () => {
+              const owed = await owedInWorkspace;
+              const owedArms = [OUTPUT_PRODUCING_LIFECYCLE_WHERE, ...(owed ? [owed] : [])];
               const [reportGap, packageGap] = await Promise.all([
                 prisma.evidence.count({
                   where: {
                     id: { in: evidenceIds },
                     status: "SIGNED",
                     latestReportVersion: null,
+                    AND: owedArms,
                   },
                 }),
                 prisma.evidence.count({
@@ -441,6 +449,7 @@ export async function buildMatterQueue(input: {
                     id: { in: evidenceIds },
                     status: "REPORTED",
                     verificationPackageVersion: null,
+                    AND: owedArms,
                   },
                 }),
               ]);

@@ -1250,12 +1250,13 @@ export function isOutputProductionRefusal(code: string | null | undefined): code
  * outputs. A hold or an immutable-retention lock preserves the record; it does
  * not retire it (the legal-hold rule for REGENERATION stays in the claim).
  */
-const OUTPUT_PRODUCING_LIFECYCLE_STATES: ReadonlySet<string> = new Set([
+export const OUTPUT_PRODUCING_LIFECYCLE_STATE_LIST = [
   "ACTIVE",
   "UNDER_REVIEW",
   "ON_HOLD",
   "RETENTION_LOCKED",
-]);
+] as const;
+const OUTPUT_PRODUCING_LIFECYCLE_STATES: ReadonlySet<string> = new Set(OUTPUT_PRODUCING_LIFECYCLE_STATE_LIST);
 
 const LIFECYCLE_REFUSAL: Readonly<Record<string, OutputProductionRefusal>> = {
   ARCHIVED: "NOT_APPLICABLE_ARCHIVED",

@@ -351,6 +351,7 @@ export {
   isOutputProductionRefusal,
   COMMERCIAL_TERMINAL_REASON_CODES,
   outputLifecycleRefusal,
+  OUTPUT_PRODUCING_LIFECYCLE_STATE_LIST,
   decideOutputProduction,
   // TERMINAL-LOCKOUT CLOSURE (RGA-07) — the shared technical-terminal predicate
   // and the bounded supersession ceiling, consulted by both the offer and the

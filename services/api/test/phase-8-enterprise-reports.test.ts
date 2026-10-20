@@ -143,35 +143,22 @@ describe("Phase 8 reports — reuse the shared CSV helper (no duplicated escape 
 });
 
 describe("Phase 8 reports — role gates mirror the backing endpoints", () => {
-  it("members.csv is ORG_AUDITOR+", () => {
-    expect(sliceEndpoint("members.csv")).toContain(
-      'requireOrgRole(orgId, userId, "ORG_AUDITOR")',
-    );
+  // AUD-31 (2026-10-20): explicit role sets, never a rank (the behaviour is
+  // proven on the real routes in test/forward/aud31-org-report-roles).
+  it("members.csv: the members-surface roles", () => {
+    expect(sliceEndpoint("members.csv")).toContain("requireOrgRole(orgId, userId, MEMBERS_EXPORT_ROLES)");
   });
-  it("seats.csv is ORG_BILLING_ADMIN+", () => {
-    expect(sliceEndpoint("seats.csv")).toContain(
-      'requireOrgRole(orgId, userId, "ORG_BILLING_ADMIN")',
-    );
+  it("seats.csv: the billing side only", () => {
+    expect(sliceEndpoint("seats.csv")).toContain("requireOrgRole(orgId, userId, SEATS_EXPORT_ROLES)");
   });
-  it("audit.csv is ORG_AUDITOR+", () => {
-    expect(sliceEndpoint("audit.csv")).toContain(
-      'requireOrgRole(orgId, userId, "ORG_AUDITOR")',
-    );
-  });
-  it("governance.csv is ORG_AUDITOR+", () => {
-    expect(sliceEndpoint("governance.csv")).toContain(
-      'requireOrgRole(orgId, userId, "ORG_AUDITOR")',
-    );
-  });
-  it("external-access.csv is ORG_AUDITOR+", () => {
-    expect(sliceEndpoint("external-access.csv")).toContain(
-      'requireOrgRole(orgId, userId, "ORG_AUDITOR")',
-    );
-  });
-  it("download-audit.csv is ORG_AUDITOR+", () => {
-    expect(sliceEndpoint("download-audit.csv")).toContain(
-      'requireOrgRole(orgId, userId, "ORG_AUDITOR")',
-    );
+  for (const file of ["audit.csv", "governance.csv", "external-access.csv", "download-audit.csv"]) {
+    it(`${file}: security oversight only`, () => {
+      expect(sliceEndpoint(file)).toContain("requireOrgRole(orgId, userId, OVERSIGHT_EXPORT_ROLES)");
+    });
+  }
+  it("no export is gated by a minimum rank", () => {
+    expect(ROUTES).not.toMatch(/requireOrgRole\(orgId, userId, "ORG_/);
+    expect(ROUTES).not.toMatch(/minRole/);
   });
 
   it("every non-OK access renders through the one org-denial convention (PV-ORG-001)", () => {
