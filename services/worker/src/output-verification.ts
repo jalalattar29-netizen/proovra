@@ -22,6 +22,10 @@
  * agrees".
  */
 import { extractPdfTextWithPdfjs } from "./pdf/pdfjs-runtime.js";
+import { createHash as createDigestHash } from "node:crypto";
+import { resolveCanonicalRecordDigest, signedDigestsFromFingerprint } from "@proovra/shared";
+
+const sha256TextHex = (text: string): string => createDigestHash("sha256").update(text, "utf8").digest("hex");
 import { createHash, createPublicKey, verify as verifySignature } from "node:crypto";
 import { open } from "node:fs/promises";
 import { createReadStream } from "node:fs";
@@ -100,6 +104,7 @@ const LIFECYCLE_SELECT = {
 const FACTS_SELECT = {
   ...LIFECYCLE_SELECT,
   fileSha256: true,
+  fingerprintCanonicalJson: true,
   acquisitionMode: true,
   identityLevelSnapshot: true,
   submittedByAuthProvider: true,
@@ -166,7 +171,7 @@ export type RecordSnapshot = {
 };
 
 export async function loadRecordSnapshot(evidenceId: string): Promise<RecordSnapshot> {
-  const [row, custody] = await prisma.$transaction(
+  const [row, custody, parts] = await prisma.$transaction(
     [
       prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: FACTS_SELECT }),
       prisma.custodyEvent.findMany({
@@ -174,12 +179,26 @@ export async function loadRecordSnapshot(evidenceId: string): Promise<RecordSnap
         orderBy: { sequence: "asc" },
         select: { sequence: true, atUtc: true, eventType: true, payload: true, prevEventHash: true, eventHash: true },
       }),
+      prisma.evidencePart.findMany({ where: { evidenceId }, orderBy: { partIndex: "asc" }, select: { sha256: true } }),
     ],
     { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
+  // 2026-10-20 (AUD-53) — the ONE canonical digest form: a legacy single-part
+  // composite column is read as the file's raw SHA-256, the form the payload
+  // (and every output) carries; it is never rewritten on the record.
+  const signed = signedDigestsFromFingerprint(row.fingerprintCanonicalJson ?? null);
+  const digest = resolveCanonicalRecordDigest(
+    {
+      storedDigest: row.fileSha256,
+      partDigests: parts.map((p) => p.sha256),
+      signedSingleDigest: signed?.kind === "single" ? signed.sha256 : null,
+    },
+    sha256TextHex,
   );
   const facts = deriveCanonicalArtifactFacts(
     {
       ...row,
+      fileSha256: digest.canonical,
       tsaTokenPresent: Boolean(row.tsaTokenBase64),
       identityLevelSnapshot: row.identityLevelSnapshot as string | null,
       submittedByAuthProvider: row.submittedByAuthProvider as string | null,

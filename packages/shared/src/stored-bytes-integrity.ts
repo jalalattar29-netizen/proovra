@@ -496,3 +496,52 @@ export function applyStoredBytesToTrustDecision<
   }
   return decision;
 }
+
+// ---------------------------------------------------------------------------
+// THE CANONICAL RECORD DIGEST (2026-10-20, forward remediation AUD-53)
+// ---------------------------------------------------------------------------
+
+/**
+ * How a record's stored `file_sha256` relates to its content:
+ *
+ *   RAW                           single file: the stored digest IS the file's SHA-256
+ *   LEGACY_SINGLE_PART_COMPOSITE  single file: the stored digest is sha256 of the file
+ *                                 digest's hex (an older writer's form; read-compatible
+ *                                 only, never written now)
+ *   MULTIPART_COMPOSITE           more than one part: the composite over part digests
+ *   UNKNOWN                       nothing to compare against (no part digest, no signed
+ *                                 single digest), or the stored digest is absent
+ */
+export type RecordDigestForm = "RAW" | "LEGACY_SINGLE_PART_COMPOSITE" | "MULTIPART_COMPOSITE" | "UNKNOWN";
+
+/**
+ * THE canonical digest every OUTPUT states and compares — the record facts the
+ * render gate, the issuance check, the package and the output verification read.
+ *
+ * A single-file record's canonical digest is the file's own SHA-256. The legacy
+ * composite form is accepted ONLY as a read-compatible historical input: it is
+ * recognised and mapped to the raw digest, so an output never carries two forms
+ * of one record's digest (Production: 16 chain-verified versions refused at the
+ * render gate, payload raw vs record column composite). A stored digest that is
+ * neither form is returned as stored — the integrity gate decides, not this.
+ */
+export function resolveCanonicalRecordDigest(
+  input: {
+    storedDigest: string | null | undefined;
+    /** The record's part digests in part order (EvidencePart.sha256). */
+    partDigests: ReadonlyArray<string | null | undefined>;
+    /** The single-file digest the SIGNED fingerprint carries, when it carries one. */
+    signedSingleDigest?: string | null;
+  },
+  sha256Hex: (text: string) => string,
+): { canonical: string | null; form: RecordDigestForm } {
+  const stored = (input.storedDigest ?? "").trim().toLowerCase();
+  if (!stored) return { canonical: null, form: "UNKNOWN" };
+  const parts = input.partDigests.map((d) => (d ?? "").trim().toLowerCase());
+  if (parts.length > 1) return { canonical: stored, form: "MULTIPART_COMPOSITE" };
+  const raw = parts.length === 1 && parts[0] ? parts[0] : (input.signedSingleDigest ?? "").trim().toLowerCase();
+  if (!raw) return { canonical: stored, form: "UNKNOWN" };
+  if (stored === raw) return { canonical: raw, form: "RAW" };
+  if (stored === sha256Hex(raw)) return { canonical: raw, form: "LEGACY_SINGLE_PART_COMPOSITE" };
+  return { canonical: stored, form: "UNKNOWN" };
+}

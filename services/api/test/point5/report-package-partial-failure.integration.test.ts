@@ -475,7 +475,11 @@ describe("partial Report/Package failure (live PostgreSQL 16)", () => {
     //    in. FAILED_RETRYABLE is what keeps the pair convergent: the record is
     //    still owed a package and the reconciler will drive it again.
     expect(after.state).toBe("FAILED_RETRYABLE");
-    expect(after.terminalReasonCode).toMatch(/^VERIFICATION_PACKAGE_INCOMPLETE_/);
+    // 2026-10-20 (AUD-54): the request records the ROOT cause the package path
+    // wrapped (rootReasonCode). Before, a plain Error's root was its bare class
+    // name "Error", which is not a code, so only the wrapper's phase code
+    // surfaced; the injected failure's own code is now what is recorded.
+    expect(after.terminalReasonCode).toBe("ACC_PACKAGE_BUILD_FAILED");
 
     // 7. THE REPORT IS DURABLE AND UNTOUCHED. A package failure is a statement
     //    about the PACKAGE; the artifact that did commit stays committed, at

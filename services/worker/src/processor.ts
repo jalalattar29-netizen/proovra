@@ -3658,9 +3658,20 @@ function toBoundedReasonCode(error: unknown): string {
     const code = (error as { code?: unknown }).code;
     if (typeof code === "string" && code) return code.slice(0, 64);
   }
-  if (error instanceof Error) return error.name.slice(0, 64);
-  return "unknown_error";
+  // 2026-10-20 (AUD-54) — a plain Error used to persist as the reason "Error"
+  // (8 Production rows): its class name, which says nothing. A message that IS
+  // a code ("ZIP_EOCD_NOT_FOUND", "PACKAGE_SEAL_REQUIRES_REPORT: …") is the
+  // code; anything else is recorded as UNCLASSIFIED_<class>, never bare.
+  if (error instanceof Error) {
+    const m = /^([A-Z][A-Z0-9_]{2,63})(?:$|[:\s])/.exec(error.message.trim());
+    if (m) return m[1]!;
+    return `UNCLASSIFIED_${(error.name || "ERROR").replace(/[^A-Za-z0-9]/g, "_").toUpperCase()}`.slice(0, 64);
+  }
+  return "UNCLASSIFIED_ERROR";
 }
+
+/** Test seam (AUD-54): the bounded reason a terminal request records for an error. */
+export const boundedReasonCodeForTest = toBoundedReasonCode;
 
 /**
  * The stored bytes of a committed report, VERIFIED, or an explicit refusal.
@@ -5068,7 +5079,10 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
   anchorMode: normalizeAnchorMode(process.env.ANCHOR_MODE),
   evidenceId: prepared.evidenceId,
   reportVersion: prepared.version,
-  fileSha256: evidence.fileSha256!,
+  // 2026-10-20 (AUD-53) — the run's canonical record digest (the form the
+  // report payload and the record snapshot state), never the stored column's
+  // legacy single-part composite form.
+  fileSha256: prepared.reportEvidencePayload.fileSha256!,
   fingerprintHash: evidence.fingerprintHash!,
   lastEventHash: finalizedLastEventHash,
   generatedAtUtc: prepared.now.toISOString(),
@@ -5212,7 +5226,8 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
             assembly: finalized.reportCreated ? "WITH_REPORT_ISSUE" : "AFTER_REPORT_ISSUE",
             custodyThroughSequence: finalized.custodyThroughSequence,
             proofMaterialsObservedAtUtc: prepared.now.toISOString(),
-            fileSha256: evidence.fileSha256 ?? null,
+            // 2026-10-20 (AUD-53) — the canonical record digest (see above).
+            fileSha256: prepared.reportEvidencePayload.fileSha256 ?? null,
             fingerprintHash: evidence.fingerprintHash ?? null,
           },
           fingerprint: prepared.fingerprintCanonicalJson,
