@@ -65,6 +65,9 @@ describe("external intake — finalization governance (live PostgreSQL 16)", () 
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    // AUD-36 (2026-10-20): a submission is now checked against the plan at
+    // redemption, so the receiving workspace is one that includes secure intake.
+    await prisma.team.update({ where: { id: h.fixtures.teamA.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never });
   }, 180_000);
 
   afterAll(async () => {
@@ -221,5 +224,31 @@ describe("external intake — finalization governance (live PostgreSQL 16)", () 
       expect(ev.verificationDisclosureVersion).toBe(0);
       expect((await publicVerify(s.evidenceId)).statusCode).toBe(404);
     });
+  });
+
+  /*
+   * AUD-36 (2026-10-20) — A LINK MINTED UNDER A PLAN THAT INCLUDED INTAKE TAKES
+   * NO SUBMISSION AFTER A DOWNGRADE. Characterization (before): the plan was
+   * checked only at mint; the link kept accepting and finalizing.
+   */
+  it("AUD-36: after a downgrade off secure intake the submission is refused at redemption, nothing reserved or signed", async () => {
+    const { submitExternalIntake, ExternalIntakeOrchestrationError } = await import(
+      "../src/services/external-intake-orchestration.service.js"
+    );
+    const teamId = h.fixtures.teamA.teamId;
+    const s = await submission();
+    await prisma.team.update({ where: { id: teamId }, data: { billingPlan: "FREE", billingStatus: "ACTIVE" } as never });
+    try {
+      const err = await submitExternalIntake({ link: s.link, session: s.session }).then(() => null, (e: unknown) => e);
+      expect(err).toBeInstanceOf(ExternalIntakeOrchestrationError);
+      expect((err as { code: string }).code).toBe("intake_not_included_at_redemption");
+      const link = await prisma.workflowIntakeLink.findUniqueOrThrow({ where: { id: s.linkId }, select: { usedCount: true } });
+      expect(link.usedCount).toBe(0);
+      const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: s.evidenceId }, select: { status: true, signedAtUtc: true } });
+      expect(ev.status).not.toBe("SIGNED");
+      expect(ev.signedAtUtc).toBeNull();
+    } finally {
+      await prisma.team.update({ where: { id: teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never });
+    }
   });
 });

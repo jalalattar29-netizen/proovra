@@ -183,7 +183,9 @@ describe("UC-5 iOS system broadcast — live PostgreSQL 16", () => {
       "POST",
       `/v1/capture/direct-sessions/${sessionId}/parts/${partIndex}/declaration`,
       token,
-      { sha256: digest, clientReportedSource, signed: null },
+      // AUD-24 (2026-10-20): the current apps declare each segment with the
+      // recorder's running count; COMPLETE requires it.
+      { sha256: digest, clientReportedSource, signed: null, ...(clientReportedSource === "SCREEN_SEGMENT" ? { recordedThrough: partIndex + 1 } : {}) },
     );
     expect(decl.statusCode, decl.body).toBe(201);
     return { partIndex, sha256: digest, sizeBytes: bytes.length };

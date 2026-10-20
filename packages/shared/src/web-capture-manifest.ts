@@ -19,6 +19,22 @@
  */
 import { captureWindowProblem } from "./capture-window.js";
 
+/** AUD-52 — only http(s) addresses are web pages. */
+export function isWebPageUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/** AUD-52 — an address without its fragment. */
+export function withoutUrlFragment(raw: string): string {
+  const i = raw.indexOf("#");
+  return i >= 0 ? raw.slice(0, i) : raw;
+}
+
 export const WEB_CAPTURE_MANIFEST_SCHEMA_VERSION = "PROOVRA_WEB_CAPTURE_MANIFEST_V1" as const;
 
 export const WEB_CAPTURE_MODES = ["VIEWPORT", "FULL_PAGE"] as const;
@@ -188,6 +204,11 @@ export function validateWebCaptureManifest(
   }
   if (!isBoundedString(page.sourceUrlPrivate, B.maxUrlLen)) {
     return { ok: false, error: "invalid page.sourceUrlPrivate" };
+  }
+  // AUD-52 (2026-10-20): a web capture is of a WEB page. file:, chrome:,
+  // about:, data: and the like were accepted server-side.
+  if (!isWebPageUrl(page.sourceUrlPrivate)) {
+    return { ok: false, error: "page.sourceUrlPrivate is not an http(s) page address" };
   }
   if (page.title !== null && !isBoundedString(page.title, B.maxTitleLen)) {
     return { ok: false, error: "invalid page.title" };
@@ -413,7 +434,9 @@ export function webCaptureManifestFacts(
     },
     web: {
       domain: publicDomainFromUrl(m.page.sourceUrlPrivate) ?? m.page.domain.toLowerCase(),
-      sourceUrlPrivate: m.page.sourceUrlPrivate,
+      // AUD-52 (2026-10-20): the fragment is never recorded (it can carry
+      // tokens and is not part of what the server served).
+      sourceUrlPrivate: withoutUrlFragment(m.page.sourceUrlPrivate),
       titlePrivate: m.page.title,
       captureMode: m.captureMode,
       pageMutatedDuringCapture: m.pageMutatedDuringCapture,

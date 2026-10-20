@@ -164,6 +164,20 @@ export async function completeContinuousCaptureSession(
         throw new DirectCaptureError("CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH");
       }
     }
+    // 3b. AUD-24 (2026-10-20) — A COMPLETE SESSION MUST HAVE BEEN COUNTED. A
+    //     tail the client dropped and never declared is invisible to the
+    //     server; the only fact that bounds it is the recorder's running count
+    //     (recordedThrough) declared WITH each segment. A client that sent none
+    //     sealed COMPLETE over whatever it chose to upload. COMPLETE now
+    //     requires every segment to carry that count (the current apps send
+    //     it); a session without it may still seal as an honest
+    //     INTERRUPTED_SESSION with its loss.
+    if (manifest.sessionCompleteness === "COMPLETE_SESSION") {
+      for (const d of declarations.values()) {
+        if (d.partIndex === manifestPartIndex) continue;
+        if (d.recordedThrough === null) throw new DirectCaptureError("CONTINUOUS_COMPLETENESS_UNDECLARED");
+      }
+    }
 
     // 4. ET-DC-09 — each segment's stated size is the size of what was stored.
     //    Storage reads run after the claim, outside the session lock.

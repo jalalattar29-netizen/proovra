@@ -145,7 +145,8 @@ describe("Operations truth closure — report failure truth (live PG16, MinIO, w
     expect(row).not.toBeNull();
     expect(row!.teamId).toBe(space);
     expect(row!.scope).toBe("WORKSPACE");
-    expect(row!.fingerprint).toBe(`REPORT:${ev.id}:v1:UNCLASSIFIED`);
+    // AUD-54 (Phase 4): an uncoded error keeps a bounded class named by its type.
+    expect(row!.fingerprint).toBe(`REPORT:${ev.id}:v1:UNCLASSIFIED_ERROR`);
     const events = await c.prisma.operationalIncidentEvent.findMany({ where: { incidentId: row!.id } });
     for (const field of [row!.fingerprint, row!.title, row!.safeSummary, JSON.stringify(events)]) {
       expect(field).not.toContain("arn:aws");

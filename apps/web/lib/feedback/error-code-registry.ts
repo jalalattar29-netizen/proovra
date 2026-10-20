@@ -325,6 +325,15 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     where: PUBLIC_INTAKE,
   },
   /*
+   * AUD-36 (2026-10-20) — every remaining use of the link is held by a
+   * submission in progress. The contributor is told to try later or contact
+   * the sender; nothing about the other submissions is disclosed.
+   */
+  LINK_IN_USE: {
+    disposition: "customer",
+    where: PUBLIC_INTAKE,
+  },
+  /*
    * UC-ARCH-005 — an OWNER byte write or finalize aimed at a record that
    * receives files only through its intake submission. No product control
    * offers that action on an intake record, so only a stale or crafted client

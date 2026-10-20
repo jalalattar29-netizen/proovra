@@ -237,9 +237,13 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
     });
   }
 
-  async function uploadAndDeclare(token: string, evidenceId: string, sessionId: string, partIndex: number, bytes: Buffer, source: string, recordedThrough?: number) {
+  // AUD-24 (2026-10-20): a segment is declared with the recorder's running
+  // count, as the current apps send it (own count by default); `null` is a
+  // legacy client that sends none.
+  async function uploadAndDeclare(token: string, evidenceId: string, sessionId: string, partIndex: number, bytes: Buffer, source: string, recordedThrough?: number | null) {
     await put(token, evidenceId, partIndex, bytes);
-    const d = await declare(token, sessionId, partIndex, sha256(bytes), source, recordedThrough);
+    const through = recordedThrough === null ? undefined : (recordedThrough ?? (source === "SCREEN_SEGMENT" ? partIndex + 1 : undefined));
+    const d = await declare(token, sessionId, partIndex, sha256(bytes), source, through);
     expect(d.statusCode, d.body).toBe(201);
     return { partIndex, sha256: sha256(bytes), sizeBytes: bytes.length };
   }
@@ -302,7 +306,7 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
    * `recordedThrough(i)` is the running recorder count a current client sends
    * with segment i (omitted: a legacy client).
    */
-  async function stageSegments(recorded: number, declaredIdx: number[], recordedThrough?: (i: number) => number) {
+  async function stageSegments(recorded: number, declaredIdx: number[], recordedThrough?: (i: number) => number | null) {
     const token = owner().ownerToken;
     const { sessionId, evidenceId } = await openAndReserve("DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS");
     const segs: Seg[] = [];
@@ -336,7 +340,16 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
 
     // A COMPLETE manifest that hides the loss by under-stating the recorded count
     // is refused too when the server holds a declaration it does not list.
-    const s2 = await stageSegments(4, [0, 1, 2, 3]);
+    // With the running counts the current apps declare, the server refuses it
+    // at the manifest check (recorded below the declared count) …
+    const s2c = await stageSegments(4, [0, 1, 2, 3]);
+    const hidesCounted = continuousManifest(s2c.sessionId, s2c.segs.slice(0, 3), { recorded: 3 });
+    await stageManifest(s2c.token, s2c.sessionId, s2c.evidenceId, hidesCounted, 4);
+    const r2c = await seal(s2c.token, s2c.sessionId, hidesCounted);
+    expect(r2c.statusCode, r2c.body).toBe(422);
+    expect(r2c.json().denial).toBe("CONTINUOUS_MANIFEST_INVALID");
+    // … and without them (a legacy client), at the 1:1 declaration check.
+    const s2 = await stageSegments(4, [0, 1, 2, 3], () => null);
     const hides = continuousManifest(s2.sessionId, s2.segs.slice(0, 3), { recorded: 3 });
     await stageManifest(s2.token, s2.sessionId, s2.evidenceId, hides, 4);
     const r2 = await seal(s2.token, s2.sessionId, hides);
@@ -474,20 +487,32 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
       { manifestSha256: sha256(manifestJson) },
     );
 
-  it("AUD-017 a legacy client hiding its tail (recorded 5, uploaded 2, claims 2 COMPLETE) seals only as CLIENT-REPORTED completeness", async () => {
-    // No recordedThrough: the server has no boundary of its own to check against.
-    const { token, sessionId, evidenceId, segs } = await stageSegments(5, [0, 1]);
-    const m = continuousManifest(sessionId, segs, { recorded: 2 });
-    await stageManifest(token, sessionId, evidenceId, m, 2);
-    const r = await seal(token, sessionId, m);
-    expect(r.statusCode, r.body).toBe(200);
-    const facts = await sealedFacts(sessionId, m);
+  it("AUD-24 a legacy client that declares no running count cannot seal COMPLETE over a hidden tail; its honest loss still seals", async () => {
+    // 2026-10-20 (AUD-24). Characterization (before): with no recordedThrough
+    // the server had no boundary of its own, and "recorded 5, uploaded 2,
+    // claims 2 COMPLETE" SEALED (only labelled client-reported). COMPLETE now
+    // requires every segment to carry the recorder's running count.
+    const legacy = await stageSegments(5, [0, 1], () => null);
+    const m = continuousManifest(legacy.sessionId, legacy.segs, { recorded: 2 });
+    await stageManifest(legacy.token, legacy.sessionId, legacy.evidenceId, m, 2);
+    const refused = await seal(legacy.token, legacy.sessionId, m);
+    expect(refused.statusCode, refused.body).toBe(422);
+    expect(refused.json().denial).toBe("CONTINUOUS_COMPLETENESS_UNDECLARED");
+    expect(await statusOf(legacy.evidenceId)).not.toBe("SIGNED");
+
+    // The same legacy client stating its loss honestly is sealed, client-reported.
+    const honest = await stageSegments(5, [0, 1], () => null);
+    const im = continuousManifest(honest.sessionId, honest.segs, {
+      recorded: 5,
+      completeness: "INTERRUPTED_SESSION",
+      limitations: ["SEGMENT_UPLOAD_LOST"],
+    });
+    await stageManifest(honest.token, honest.sessionId, honest.evidenceId, im, 2);
+    const ok = await seal(honest.token, honest.sessionId, im);
+    expect(ok.statusCode, ok.body).toBe(200);
+    const facts = await sealedFacts(honest.sessionId, im);
     expect(facts!.reportedBy).toBe("CAPTURE_CLIENT");
-    expect(facts!.screen).toMatchObject({ artifactCount: 2, recordedSegmentCount: 2, declaredRecordedThroughMax: null });
-    expect(captureCompletenessRows(facts!)).toEqual([
-      { label: "Completeness (client-reported)", value: "Reported complete by the capture client" },
-      { label: "Segments (client-reported)", value: "Segments delivered 2 of 2 recorded (client-reported)" },
-    ]);
+    expect(facts!.screen).toMatchObject({ artifactCount: 2, recordedSegmentCount: 5, declaredRecordedThroughMax: null });
     expect(captureCompletenessNote(facts!)).toMatch(/cannot verify segments the client never declared/);
   });
 
@@ -781,8 +806,9 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
       schemaVersion: WEB_CAPTURE_MANIFEST_SCHEMA_VERSION,
       captureMode: "VIEWPORT",
       captureSessionId: sessionId,
-      captureStartedAtUtc: "2026-09-17T10:00:00.000Z",
-      captureEndedAtUtc: "2026-09-17T10:00:02.000Z",
+      // AUD-22 (2026-10-20): a believable window (a month-old one is refused).
+      captureStartedAtUtc: new Date(Date.now() - 4000).toISOString(),
+      captureEndedAtUtc: new Date(Date.now() - 2000).toISOString(),
       page: { domain: "news.example.org", sourceUrlPrivate: "https://news.example.org/story?session=private-token", title: "Private headline" },
       browser: { name: "Chrome", versionBucket: "140", os: "Windows", viewportW: 1280, viewportH: 800, devicePixelRatio: 1 },
       extensionVersion: "2.1.0",
@@ -831,8 +857,9 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
     const manifestJson = JSON.stringify({
       schemaVersion: SCREEN_CAPTURE_MANIFEST_SCHEMA_VERSION,
       captureSessionId: sessionId,
-      captureStartedAtUtc: "2026-09-17T10:00:00.000Z",
-      captureEndedAtUtc: "2026-09-17T10:00:02.000Z",
+      // AUD-22 (2026-10-20): a believable window (a month-old one is refused).
+      captureStartedAtUtc: new Date(Date.now() - 4000).toISOString(),
+      captureEndedAtUtc: new Date(Date.now() - 2000).toISOString(),
       device: { platform: "android", osVersion: "14", model: "Pixel 7", appVersion: "1.0.0", screenW: 1080, screenH: 2400, densityDpi: 420, orientation: "portrait" },
       osConsentGranted: true,
       artifacts: [{ role: "screen_frame", partIndex: 0, frameIndex: 0, expectedSha256: frame.sha256, sizeBytes: frame.sizeBytes, mediaType: "image/png", widthPx: 1080, heightPx: 2400, capturedAtOffsetMs: 0, completeness: "CAPTURED" }],

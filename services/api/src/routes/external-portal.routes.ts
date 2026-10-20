@@ -609,6 +609,12 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       });
       if (!ctx) return reply;
       if (!isAdministrativeTier(ctx, ctx.workspaceId)) return denyNoPermission(reply);
+      // AUD-36 (2026-10-20) — the same commercial gate as the single-issue path:
+      // bulk issuance skipped it, so a workspace without External Review could
+      // still grant outside reviewers access in bulk.
+      if (!(await workspaceIncludesExternalReview(ctx.workspaceId))) {
+        return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "EXTERNAL_REVIEW" });
+      }
       // STEP-UP: bulk issuance grants multiple outside reviewers access
       // to sensitive evidence — require a fresh step-up AFTER the RBAC
       // capability gate, BEFORE the mutation.

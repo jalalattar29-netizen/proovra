@@ -103,6 +103,8 @@ function SupportReference({ id }: { id: string }) {
  */
 const PUBLIC_DENIAL_CODES = new Set([
   "INTAKE_NOT_ACCEPTING_EVIDENCE",
+  // AUD-36 — every remaining use is held by a submission in progress.
+  "LINK_IN_USE",
   "MAX_FILES_REACHED",
   // ET-INT-06 — the link's network allowlist / per-submission byte cap.
   "LINK_NOT_AVAILABLE_FROM_THIS_NETWORK",
@@ -216,6 +218,10 @@ function friendlyIntakeError(err: {
      */
     INTAKE_NOT_ACCEPTING_EVIDENCE:
       "This intake can't accept evidence right now. Nothing is wrong with your file — please contact the sender.",
+    // AUD-36 (2026-10-20) — the link's remaining uses are all held by
+    // submissions in progress; trying later can work, so it says so.
+    LINK_IN_USE:
+      "This upload link is being used for a submission in progress. Please try again later or contact the sender.",
     // The consent payload was rejected — a contributor CAN fix this by
     // re-accepting, so it should not fall to the unmapped line.
     CONSENT_INVALID:

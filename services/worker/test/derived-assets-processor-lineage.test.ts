@@ -154,6 +154,9 @@ describe("derived-assets processor — lineage (DER-005 / DER-014)", () => {
     expect(sourceRead.wholeSource).toBe(false);
     expect(sourceRead.bytesRead).toBe(50 * 1024 * 1024);
     expect(sourceRead.digestMatchesRecorded).toBeNull();
+    // AUD-38 (2026-10-20): an unverified (prefix) read never stamps the
+    // ORIGINAL digest on the derivative as if it had been checked.
+    expect(done.sourceSha256AtGeneration).toBeNull();
   });
 
   it("bytes that do not match the recorded ORIGINAL digest are refused (FAILED, nothing stored)", async () => {

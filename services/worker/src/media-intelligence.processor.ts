@@ -559,6 +559,9 @@ type ExtractExifInput = {
   attemptsAllowed: number;
 };
 
+/** Test seam (AUD-38): the technical-metadata pass, without the run settlement. */
+export const extractTechnicalMetadataForTest = processExtractTechnicalMetadataJob;
+
 async function processExtractExifJob(
   input: ExtractExifInput,
 ): Promise<{ ok: true; signalsEmitted: number; deferred?: boolean }> {
@@ -842,12 +845,14 @@ async function processExtractTechnicalMetadataJob(
     id: string;
     storage_bucket: string | null;
     storage_key: string | null;
+    /** (2026-10-20, AUD-38) the sealed version the parse reads. */
+    storage_version_id: string | null;
     mime_type: string | null;
     size_bytes: bigint | number | null;
   }> = [];
   try {
     parts = (await prisma.$queryRawUnsafe(
-      `SELECT p."id", p."storage_bucket", p."storage_key",
+      `SELECT p."id", p."storage_bucket", p."storage_key", p."storage_version_id",
               p."mime_type", p."size_bytes"
          FROM "evidence_parts" p
          JOIN "evidence" e ON e."id" = p."evidence_id"
@@ -899,6 +904,8 @@ async function processExtractTechnicalMetadataJob(
         bucket: part.storage_bucket,
         key: part.storage_key,
         range: `bytes=0-${Math.max(0, upper)}`,
+        // AUD-38: the sealed version, never whatever is latest at the key.
+        versionId: part.storage_version_id ?? null,
       });
     } catch (err) {
       logger.warn(
@@ -913,11 +920,17 @@ async function processExtractTechnicalMetadataJob(
 
     try {
       await prisma.$executeRawUnsafe(
+        // AUD-38 (2026-10-20): WRITE-ONCE. A re-run (a newer parser, a
+        // retried job) never overwrites metadata the part already carries:
+        // reports and reviewers may have relied on it, and the record keeps
+        // no history of earlier parses. The first parse, with its parser and
+        // time, stands.
         `UPDATE "evidence_parts"
             SET "technical_metadata" = $1::jsonb,
                 "technical_meta_parsed_at" = NOW(),
                 "technical_meta_parser" = $2
-          WHERE "id" = $3`,
+          WHERE "id" = $3
+            AND "technical_metadata" IS NULL`,
         JSON.stringify(metadata),
         `${metadata.parserName}@${metadata.parserVersion}`.slice(0, 64),
         part.id,
@@ -931,7 +944,8 @@ async function processExtractTechnicalMetadataJob(
           await prisma.$executeRawUnsafe(
             `UPDATE "evidence"
                 SET "technical_metadata" = $1::jsonb
-              WHERE "id" = $2`,
+              WHERE "id" = $2
+                AND "technical_metadata" IS NULL`,
             JSON.stringify(metadata),
             evidenceId,
           );
@@ -1844,3 +1858,4 @@ async function processExtractTranscriptDeepgramJob(
   );
   return { ok: true, signalsEmitted: 0 };
 }
+

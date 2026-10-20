@@ -35,7 +35,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../db.js";
-import { createWorkflowIntakeLink } from "./workflow-intake-link.service.js";
+import { createWorkflowIntakeLink, MAX_INTAKE_LINK_TTL_MS } from "./workflow-intake-link.service.js";
 import { workflowIntakeFeatureDisabledReason } from "./workflow-intake-token.service.js";
 import { safeSendEmailNotification } from "./notifications/index.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
@@ -97,7 +97,9 @@ export type EvidenceRequestErrorCode =
   | "intake_blocked_by_policy"
   // ET-SEC-33 — a caller-supplied id names nothing in this workspace.
   | "case_not_in_workspace"
-  | "evidence_not_in_workspace";
+  | "evidence_not_in_workspace"
+  // AUD-09 (2026-10-20) — the named reviewer is not an ACTIVE member here.
+  | "assignee_not_workspace_member";
 
 /** ET-INT-07 — the canonical mint gate's refusal, in this service's vocabulary. */
 async function assertIntakeLinkMintAllowed(
@@ -115,13 +117,36 @@ async function assertIntakeLinkMintAllowed(
 }
 
 export class EvidenceRequestError extends Error {
+  /** A caller-input refusal callers outside the internal routes can map (integrations API). */
+  public readonly statusCode?: number;
   constructor(
     public readonly code: EvidenceRequestErrorCode,
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
     this.name = "EvidenceRequestError";
+    if (code === "assignee_not_workspace_member") this.statusCode = 400;
   }
+}
+
+/**
+ * AUD-09 (2026-10-20) — THE assignee rule, in the service. The internal routes
+ * checked membership before calling; the integrations API called the service
+ * directly and stored any user id, so a request — and the email sent for it —
+ * could name another tenant's user. A suspended or revoked member is refused
+ * too (D36).
+ */
+async function assertAssigneeIsActiveMember(
+  client: Pick<PrismaClient, "teamMember">,
+  teamId: string,
+  assignedReviewerUserId: string | null | undefined,
+): Promise<void> {
+  if (!assignedReviewerUserId) return;
+  const member = await client.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId: assignedReviewerUserId } },
+    select: { status: true },
+  });
+  if (member?.status !== "ACTIVE") throw new EvidenceRequestError("assignee_not_workspace_member");
 }
 
 // -----------------------------------------------------------------------------
@@ -154,10 +179,13 @@ function buildIntakeExpiryFromDueAt(
   dueAtUtc: Date | null | undefined,
   fallbackHours = 14 * 24,
 ): Date {
+  // AUD-36 (2026-10-20): a request due further out than an intake link may
+  // live gets the longest link allowed (the request keeps its own due date).
+  const cap = Date.now() + MAX_INTAKE_LINK_TTL_MS - 60_000;
   if (dueAtUtc && dueAtUtc.getTime() > Date.now()) {
-    return dueAtUtc;
+    return new Date(Math.min(dueAtUtc.getTime(), cap));
   }
-  return new Date(Date.now() + fallbackHours * 3600 * 1000);
+  return new Date(Math.min(Date.now() + fallbackHours * 3600 * 1000, cap));
 }
 
 function mapRecipientModeToIntakeMode(
@@ -214,6 +242,7 @@ export async function createEvidenceRequest(
     });
     if (!owned) throw new EvidenceRequestError("evidence_not_in_workspace");
   }
+  await assertAssigneeIsActiveMember(client, parsed.teamId, parsed.assignedReviewerUserId);
 
   return client.$transaction(async (tx) => {
     const created = await tx.evidenceRequest.create({
@@ -410,6 +439,7 @@ export async function editDraftEvidenceRequest(
     if (p.workflowTemplateSlug !== undefined)
       data.workflowTemplateSlug = p.workflowTemplateSlug;
     if (p.assignedReviewerUserId !== undefined) {
+      await assertAssigneeIsActiveMember(tx, existing.teamId, p.assignedReviewerUserId);
       data.assignedReviewer = p.assignedReviewerUserId
         ? { connect: { id: p.assignedReviewerUserId } }
         : { disconnect: true };

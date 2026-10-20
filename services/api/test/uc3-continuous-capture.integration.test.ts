@@ -127,6 +127,9 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
     });
   }
 
+  /** A legacy client declares segments without the running count. */
+  let legacyDeclarations = false;
+
   async function uploadAndDeclare(
     token: string,
     evidenceId: string,
@@ -148,7 +151,9 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
       "POST",
       `/v1/capture/direct-sessions/${sessionId}/parts/${partIndex}/declaration`,
       token,
-      { sha256: digest, clientReportedSource, signed: null },
+      // AUD-24 (2026-10-20): the current apps declare each segment with the
+      // recorder's running count; COMPLETE requires it.
+      { sha256: digest, clientReportedSource, signed: null, ...(clientReportedSource === "SCREEN_SEGMENT" && !legacyDeclarations ? { recordedThrough: partIndex + 1 } : {}) },
     );
     expect(decl.statusCode, decl.body).toBe(201);
     return { partIndex, sha256: digest, sizeBytes: bytes.length };
@@ -397,10 +402,21 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
   });
 
   it("refuses a manifest that omits a declared segment", async () => {
-    const { token, sessionId, manifestJson } = await stageContinuous({ segments: 3, omitLastSegment: true });
-    const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, { manifestJson });
-    expect(done.statusCode).toBe(422);
-    expect(done.json().denial).toBe("CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH");
+    // With running counts (current apps) the manifest check refuses it first.
+    const counted = await stageContinuous({ segments: 3, omitLastSegment: true });
+    const c1 = await call("POST", `/v1/capture/direct-sessions/${counted.sessionId}/continuous-complete`, counted.token, { manifestJson: counted.manifestJson });
+    expect(c1.statusCode).toBe(422);
+    expect(c1.json().denial).toBe("CONTINUOUS_MANIFEST_INVALID");
+    // A legacy client (no counts) reaches the 1:1 declaration check.
+    legacyDeclarations = true;
+    try {
+      const { token, sessionId, manifestJson } = await stageContinuous({ segments: 3, omitLastSegment: true });
+      const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, { manifestJson });
+      expect(done.statusCode).toBe(422);
+      expect(done.json().denial).toBe("CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH");
+    } finally {
+      legacyDeclarations = false;
+    }
   });
 
   it("refuses a NON-CONTIGUOUS segment sequence (a missing segment is not continuous)", async () => {

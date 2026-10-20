@@ -395,6 +395,35 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
       expect(await prisma.externalReviewerRoleAssignment.count({ where: { inviteEmail: email } })).toBe(0);
     });
 
+    // AUD-36 (2026-10-20): bulk issuance skipped the External Review commercial
+    // gate the single-issue path enforces.
+    it("POST /v1/external-review/invitations/bulk — a workspace without External Review is refused, nothing issued", async () => {
+      const b = h.fixtures.teamB;
+      const before = await prisma.team.findUniqueOrThrow({ where: { id: b.teamId }, select: { billingPlan: true, billingStatus: true } });
+      await prisma.team.update({ where: { id: b.teamId }, data: { billingPlan: "FREE", billingStatus: "ACTIVE" } as never });
+      try {
+        const email = `aud36-bulk-${tag()}@outside.test`;
+        const res = await call({
+          method: "POST",
+          url: "/v1/external-review/invitations/bulk",
+          token: b.adminToken,
+          payload: {
+            expiresAtUtc: inTwoDays(),
+            defaultRole: "EXTERNAL_REVIEWER",
+            defaultWatermarkPolicy: "ALWAYS",
+            defaultMfaRequired: false,
+            defaultScope: { kind: "EVIDENCE", evidenceId: b.evidenceId },
+            rows: [{ inviteEmail: email }],
+          },
+        });
+        expect(res.statusCode, res.body).toBe(403);
+        expect(res.json()).toEqual({ denial: "ENTITLEMENT_REQUIRED", entitlement: "EXTERNAL_REVIEW" });
+        expect(await grantRows(b.teamId, email)).toHaveLength(0);
+      } finally {
+        await prisma.team.update({ where: { id: b.teamId }, data: before as never });
+      }
+    });
+
     it("POST /v1/external-review/invitations/bulk — an ADMIN bulk-issues under step-up (emails recorded, tenant audit); a MEMBER is refused", async () => {
       const a = h.fixtures.teamA;
       const e1 = `k5-bulk-1-${tag()}@outside.test`;

@@ -21,6 +21,30 @@ export type IntakeLinkMintRefusal =
   | { kind: "plan"; code: "INTAKE_NOT_INCLUDED" | "COMMERCIAL_LIFECYCLE_RESTRICTED"; message: string }
   | { kind: "policy"; reason: string };
 
+/**
+ * AUD-36 (2026-10-20) — THE PLAN PART ALONE, for a redemption. A link minted
+ * while the workspace included secure intake kept accepting submissions after
+ * a downgrade: the plan was checked only at mint. A submission now asks again,
+ * on the authority of the link's creator (the contributor has no role).
+ */
+export async function intakePlanRefusal(input: { teamId: string; requesterUserId: string }): Promise<IntakeLinkMintRefusal | null> {
+  const { scope } = await resolveCommercialContext({
+    type: "WORKSPACE",
+    teamId: input.teamId,
+    requesterUserId: input.requesterUserId,
+  });
+  try {
+    await assertWorkspaceAllowsIntake(scope);
+    return null;
+  } catch (err) {
+    const e = err as { code?: string; message?: string };
+    if (e?.code === "INTAKE_NOT_INCLUDED" || e?.code === "COMMERCIAL_LIFECYCLE_RESTRICTED") {
+      return { kind: "plan", code: e.code, message: e.message ?? e.code };
+    }
+    throw err;
+  }
+}
+
 export async function intakeLinkMintRefusal(
   input: { teamId: string; actorUserId: string; intakeMode: string },
   client: PrismaClient = defaultPrisma,

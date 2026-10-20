@@ -85,10 +85,6 @@ function sendIntegrationDomainError(reply: FastifyReply, err: unknown, fallbackC
   throw err;
 }
 import {
-  canCreateIntakeLink,
-  loadWorkspaceGovernancePolicy,
-} from "../services/governance.service.js";
-import {
   EvidenceRequestInputSchema,
 } from "@proovra/shared";
 import {
@@ -250,36 +246,33 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
           })
           .parse(req.body ?? {});
 
-        // Phase 10.5 — fail-closed governance gate. The integration API
-        // must not be able to mint an intake link the workspace policy
-        // would otherwise block. Service-account scope was already
-        // validated above; here we run the policy half of the decision
-        // against an ADMIN-equivalent role since the scope grants that
-        // capability by design.
-        let policy;
-        try {
-          policy = await loadWorkspaceGovernancePolicy(cred.teamId);
-        } catch {
-          return reply.code(503).send({
-            error: { code: "GOVERNANCE_CHECK_FAILED", message: "policy_lookup_failed" },
-          });
-        }
-        const decision = canCreateIntakeLink({
-          role: "ADMIN",
-          intakeMode: body.intakeMode,
-          policy,
-        });
-        if (!decision.allowed) {
-          return reply.code(403).send({
-            error: {
-              code: "INTAKE_LINK_BLOCKED_BY_POLICY",
-              reason: decision.reason,
-            },
-          });
-        }
-
+        // Phase 10.5 — fail-closed governance gate; AUD-36 (2026-10-20) — decided
+        // by the canonical mint gate below, on the creator's real role.
         const actor = await integrationActorAndIntakeGate(reply, cred);
         if (!actor) return reply;
+        // AUD-36 (2026-10-20) — the policy decides on the role the credential's
+        // creator ACTUALLY holds (the canonical mint gate), not a hard-coded
+        // ADMIN: a key minted by a member a policy does not let mint links can
+        // no longer mint them.
+        {
+          const { intakeLinkMintRefusal } = await import("../services/intake/intake-link-mint-gate.js");
+          let refusal: Awaited<ReturnType<typeof intakeLinkMintRefusal>>;
+          try {
+            refusal = await intakeLinkMintRefusal({ teamId: cred.teamId, actorUserId: actor.actorUserId, intakeMode: body.intakeMode });
+          } catch {
+            // The policy could not be read: the platform does not know the
+            // answer, so it refuses without guessing (as before).
+            return reply.code(503).send({
+              error: { code: "GOVERNANCE_CHECK_FAILED", message: "policy_lookup_failed" },
+            });
+          }
+          if (refusal?.kind === "policy") {
+            return reply.code(403).send({ error: { code: "INTAKE_LINK_BLOCKED_BY_POLICY", reason: refusal.reason } });
+          }
+          if (refusal?.kind === "plan") {
+            return reply.code(409).send({ error: { code: refusal.code, message: refusal.message } });
+          }
+        }
         try {
           const { link, rawToken } = await createWorkflowIntakeLink(
             {

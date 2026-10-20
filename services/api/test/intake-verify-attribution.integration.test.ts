@@ -106,7 +106,14 @@ describe("ET-INT-12 — intake attribution on public Verify (live PostgreSQL 16)
       if (k in seen) seen[k]!.push(v);
       return v;
     });
-    expect(seen.submittedByAuthProvider!.length).toBeGreaterThan(0);
+    // AUD-45 (2026-10-20): identity is WITHHELD by default
+    // (PUBLIC_VERIFY_EXPOSE_ATTRIBUTION unset), and a withheld identity
+    // carries no categorical label beside its statement — the overview no
+    // longer sends submittedByAuthProvider at all (it used to send the
+    // contributor label here). Whatever does carry the field is never the
+    // creator's provider, and the record says the identity is withheld.
+    expect(res.json().overview?.submittedByAuthProvider).toBeUndefined();
+    expect(res.json().recordFacts?.identity?.disclosure).toBe("WITHHELD");
     for (const v of seen.submittedByAuthProvider!) expect(v).toBe(INTAKE_SUBMITTED_BY_LABEL);
     for (const v of seen.identityLevel!) expect(v).toBeNull();
     for (const v of seen.identityLevelCode!) expect(v).toBeNull();

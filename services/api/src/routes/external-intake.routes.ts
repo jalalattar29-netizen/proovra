@@ -346,6 +346,9 @@ function orchestrationErrorToReply(
       });
       return;
     case "finalization_blocked_by_policy":
+    case "intake_not_included_at_redemption":
+      // AUD-36 (2026-10-20): intake_not_included_at_redemption — the
+      // workspace's plan no longer includes secure intake.
       // The receiving workspace's policy — the sender's to resolve, never
       // disclosed to the contributor (2026-09-29, D3).
       reply.code(409).send({
@@ -383,6 +386,10 @@ function orchestrationErrorToReply(
  */
 function friendlyPublicIntakeMessage(code: string): string {
   switch (code) {
+    case "LINK_IN_USE":
+      // AUD-36 (2026-10-20): every remaining use is held by a submission in
+      // progress. Nothing about those submissions is disclosed.
+      return "This upload link is being used for a submission in progress. Please try again later or contact the sender.";
     case "INTAKE_NOT_ACCEPTING_EVIDENCE":
       /*
        * The workspace RECEIVING this submission refused to record another
@@ -509,6 +516,16 @@ function intakeErrorToReply(
         error: {
           code: "LINK_NO_LONGER_AVAILABLE",
           message: friendly("LINK_NO_LONGER_AVAILABLE"),
+        },
+      });
+      return;
+    case "link_in_use":
+      // AUD-36 (2026-10-20): the link's remaining uses are all held by
+      // submissions in progress. Nothing about them is disclosed.
+      reply.code(409).send({
+        error: {
+          code: "LINK_IN_USE",
+          message: friendly("LINK_IN_USE"),
         },
       });
       return;

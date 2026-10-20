@@ -63,6 +63,8 @@ import { runProviderOperation } from "../services/intelligence/media-intelligenc
 import { runExtractionInline } from "../services/intelligence/extraction.service.js";
 import { getAdapter } from "../services/intelligence/providers/provider-adapter.js";
 import { getObjectRange } from "../storage.js";
+import { createHash } from "node:crypto";
+import { outputLifecycleRefusal } from "@proovra/shared";
 
 // 50 MB cap mirrors the worker's OCR_EXTRACTION_MAX_BYTES /
 // TRANSCRIPT_EXTRACTION_MAX_BYTES. Anything larger collapses to a
@@ -87,6 +89,9 @@ type Part = {
   id: string;
   storage_bucket: string | null;
   storage_key: string | null;
+  /** (2026-10-20, AUD-38) the sealed version and digest the bytes must be. */
+  storage_version_id: string | null;
+  sha256: string | null;
   mime_type: string | null;
   size_bytes: bigint | number | null;
 };
@@ -196,7 +201,7 @@ export async function internalMediaIntelligenceExtractRoutes(
       // Workspace anchoring — the row must exist in the supplied team.
       const evidence = await prisma.evidence.findUnique({
         where: { id: evidenceId },
-        select: { id: true, teamId: true },
+        select: { id: true, teamId: true, status: true, lifecycleState: true, deletedAt: true },
       });
       if (!evidence || evidence.teamId !== teamId) {
         return reply.code(200).send({
@@ -208,10 +213,24 @@ export async function internalMediaIntelligenceExtractRoutes(
         });
       }
 
+      // AUD-38 (2026-10-20): a record that is archived, trashed, bound for
+      // destruction or destroyed is not read for a provider (the one output
+      // lifecycle rule).
+      if (outputLifecycleRefusal(evidence)) {
+        return reply.code(200).send({
+          success: false,
+          partsProcessed: 0,
+          recordsCreated: 0,
+          extractedTextChars: 0,
+          error: "evidence_not_active",
+        });
+      }
+
       let parts: Part[] = [];
       try {
         parts = (await prisma.$queryRawUnsafe(
           `SELECT p."id", p."storage_bucket", p."storage_key",
+                  p."storage_version_id", p."sha256",
                   p."mime_type", p."size_bytes"
              FROM "evidence_parts" p
              JOIN "evidence" e ON e."id" = p."evidence_id"
@@ -262,12 +281,22 @@ export async function internalMediaIntelligenceExtractRoutes(
             bucket: part.storage_bucket,
             key: part.storage_key,
             range: `bytes=0-${EXTRACTION_MAX_BYTES - 1}`,
+            // AUD-38: the sealed version, never whatever is latest at the key.
+            versionId: part.storage_version_id ?? null,
           });
         } catch (err) {
           firstFailureReason ??= boundedError(err, "fetch_failed");
           continue;
         }
         if (!bytes || bytes.byteLength === 0) continue;
+        // AUD-38: the whole part was read — it must BE the recorded original.
+        if (part.sha256 && sizeBytes > 0 && bytes.byteLength >= sizeBytes) {
+          const readDigest = createHash("sha256").update(bytes).digest("hex");
+          if (readDigest !== part.sha256.toLowerCase()) {
+            firstFailureReason ??= "source_digest_mismatch";
+            continue;
+          }
+        }
 
         partsProcessed += 1;
 

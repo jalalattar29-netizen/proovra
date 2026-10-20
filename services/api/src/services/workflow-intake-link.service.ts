@@ -104,6 +104,9 @@ export type CreatedWorkflowIntakeLinkResult = {
   rawToken: string;
 };
 
+/** AUD-36 (2026-10-20) — the longest an intake link may live. */
+export const MAX_INTAKE_LINK_TTL_MS = 90 * 24 * 3600 * 1000;
+
 export class WorkflowIntakeLinkError extends Error {
   constructor(
     public readonly code:
@@ -112,6 +115,8 @@ export class WorkflowIntakeLinkError extends Error {
       | "intake_mode_not_external"
       | "intake_mode_not_supported_by_template"
       | "expiry_in_past"
+      // AUD-36 (2026-10-20) — beyond MAX_INTAKE_LINK_TTL_MS.
+      | "expiry_too_far"
       | "max_uses_invalid"
       | "invalid_sender_display_name"
       // ET-SEC-33 — the caseId names no case in this workspace.
@@ -207,6 +212,11 @@ export async function createWorkflowIntakeLink(
   // Expiry must be in the future.
   if (input.expiresAtUtc.getTime() <= Date.now()) {
     throw new WorkflowIntakeLinkError("expiry_in_past");
+  }
+  // AUD-36 (2026-10-20) — and bounded: an unauthenticated capability into a
+  // workspace does not live for years.
+  if (input.expiresAtUtc.getTime() > Date.now() + MAX_INTAKE_LINK_TTL_MS) {
+    throw new WorkflowIntakeLinkError("expiry_too_far");
   }
 
   const maxUses = input.maxUses ?? 1;

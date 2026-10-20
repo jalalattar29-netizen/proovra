@@ -199,6 +199,8 @@ export const DIRECT_CAPTURE_DENIALS = {
   CONTINUOUS_MANIFEST_INVALID: 422,
   CONTINUOUS_MANIFEST_DIGEST_UNDECLARED: 422,
   CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH: 422,
+  // AUD-24 (2026-10-20) — COMPLETE claimed without the recorder's running count.
+  CONTINUOUS_COMPLETENESS_UNDECLARED: 422,
   // A manifest-sealed mode completed through the generic route (2026-09-29).
   MANIFEST_SEAL_ROUTE_REQUIRED: 409,
   // Workspace policy refuses finalization (2026-09-29, audit D3).

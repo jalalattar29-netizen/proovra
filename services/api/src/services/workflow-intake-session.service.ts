@@ -71,6 +71,9 @@ export type WorkflowIntakeSessionErrorCode =
   | "link_already_submitted"
   // ET-INT-06 — the link's IP allowlist does not include this client.
   | "link_client_not_allowed"
+  // AUD-36 (2026-10-20) — every remaining use is held by a submission still in
+  // progress; a new session cannot open another record on this link now.
+  | "link_in_use"
   | "session_not_found"
   | "session_link_mismatch"
   | "session_expired"

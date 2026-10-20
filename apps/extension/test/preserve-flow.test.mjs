@@ -135,6 +135,37 @@ test("a seal with no answer that the discard releases is NOTHING_SAVED", async (
   assert.equal(r.outcome, "NOTHING_SAVED");
 });
 
+// AUD-23 (2026-10-20): a seal another request is still completing answers
+// SESSION_BUSY. It is not a refusal, and a busy discard settles nothing: the
+// record may yet be sealed, so the outcome is UNKNOWN, never NOTHING_SAVED.
+test("AUD-23: a SESSION_BUSY seal whose discard is also busy is UNKNOWN, not NOTHING_SAVED", async () => {
+  const h = harness({
+    webComplete: async () => {
+      throw new ApiError(409, "SESSION_BUSY", "POST web-complete -> 409");
+    },
+    discardSession: async () => {
+      throw new ApiError(409, "SESSION_BUSY", "POST discard -> 409");
+    },
+  });
+  const r = await runPreserveFlow(h.deps, REQ, new AbortController().signal);
+  assert.equal(r.status, "FAILED");
+  assert.equal(r.outcome, "UNKNOWN");
+  assert.equal(r.evidenceId, "ev-1");
+});
+
+test("AUD-23: a timed-out seal whose discard is busy is UNKNOWN", async () => {
+  const h = harness({
+    webComplete: async () => {
+      throw new NetworkError("POST /web-complete failed: TimeoutError");
+    },
+    discardSession: async () => {
+      throw new ApiError(409, "SESSION_BUSY", "POST discard -> 409");
+    },
+  });
+  const r = await runPreserveFlow(h.deps, REQ, new AbortController().signal);
+  assert.equal(r.outcome, "UNKNOWN");
+});
+
 test("UC-EXT-008: a 401 mid-capture is SIGNED_OUT and clears the token", async () => {
   const h = harness({
     reserveEvidence: async () => {
@@ -405,4 +436,24 @@ test("AUD-026: the attempt id is sent on every open", async () => {
   const h = harness();
   await runPreserveFlow(h.deps, REQ, new AbortController().signal);
   assert.deepEqual(h.calls.find((c) => c[0] === "open")?.[3], "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+});
+
+// AUD-52 (2026-10-20): the reserved record's file name is the page HOST, never
+// its title (a title can name a person, an inbox or a document).
+test("AUD-52: the reserved record is named by the page host, never its title", async () => {
+  let reserved = null;
+  const h = harness({
+    reserveEvidence: async (_t, _s, input) => {
+      reserved = input;
+      return { evidence: { evidenceId: "ev-1" } };
+    },
+  });
+  h.deps.capture = async () => ({
+    ...capture(),
+    pageInfo: { url: "https://mail.example.com/inbox?u=1#t", title: "Inbox (3) - jane.doe@example.com", viewportW: 1, viewportH: 1, devicePixelRatio: 1 },
+  });
+  const r = await runPreserveFlow(h.deps, REQ, new AbortController().signal);
+  assert.equal(r.status, "SUCCEEDED");
+  assert.equal(reserved.originalFileName, "web-capture-mail.example.com");
+  assert.doesNotMatch(reserved.originalFileName, /jane|Inbox/);
 });

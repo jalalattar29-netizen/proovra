@@ -50,6 +50,10 @@ describe("integrations API actor, plan gate and organization lifecycle (live Pos
     process.env.INTEGRATIONS_ENABLED = "true";
     process.env.API_KEY_SECRET = process.env.API_KEY_SECRET ?? "ab".repeat(32);
     process.env.EVIDENCE_REQUESTS_ENABLED = "true";
+    // AUD-36: the API intake-link mint is exercised for real.
+    process.env.WORKFLOW_INTAKE_LINKS_ENABLED = "true";
+    process.env.WORKFLOW_INTAKE_TOKEN_SECRET =
+      process.env.WORKFLOW_INTAKE_TOKEN_SECRET ?? "remediation-throwaway-intake-hmac-0123456789abcdef";
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
@@ -98,6 +102,48 @@ describe("integrations API actor, plan gate and organization lifecycle (live Pos
       await prisma.organization.update({ where: { id: orgA }, data: { status: "ACTIVE" } });
     }
     expect(await prisma.evidenceRequest.count({ where: { teamId: A.teamId } })).toBe(before);
+  });
+
+  // AUD-09 (2026-10-20): the API path stored any assignedReviewerUserId; the
+  // request (and the email sent for it) could name another tenant's user.
+  it("AUD-09: an API-created request may only name an ACTIVE member of its workspace as reviewer", async () => {
+    const A = h.fixtures.teamA;
+    const B = h.fixtures.teamB;
+    const before = await prisma.evidenceRequest.count({ where: { teamId: A.teamId } });
+    const foreign = await post("/v1/integrations/api/evidence-requests", keyA, { ...requestBody("foreign reviewer"), assignedReviewerUserId: B.ownerUserId });
+    expect(foreign.statusCode, foreign.body).toBe(400);
+    expect(JSON.parse(foreign.body).error.code).toBe("assignee_not_workspace_member");
+    expect(await prisma.evidenceRequest.count({ where: { teamId: A.teamId } })).toBe(before);
+    const own = await post("/v1/integrations/api/evidence-requests", keyA, { ...requestBody("own reviewer"), assignedReviewerUserId: A.ownerUserId });
+    expect(own.statusCode, own.body).toBe(201);
+  });
+
+  // AUD-36 (2026-10-20): the API mint decided its policy as a hard-coded
+  // ADMIN, and a link could live for any length of time.
+  const linkBody = (days: number) => ({
+    workflowTemplateSlug: "general-evidence-record",
+    intakeMode: "EXTERNAL_REUSABLE",
+    recipientLabel: "API",
+    maxUses: 3,
+    expiresAtUtc: new Date(Date.now() + days * 24 * 3600 * 1000).toISOString(),
+  });
+
+  it("AUD-36: an API intake link lives at most 90 days", async () => {
+    const tooFar = await post("/v1/integrations/api/intake-links", keyA, linkBody(120));
+    expect(tooFar.statusCode, tooFar.body).toBe(400);
+    expect(JSON.parse(tooFar.body).error.code).toBe("expiry_too_far");
+    const ok = await post("/v1/integrations/api/intake-links", keyA, linkBody(30));
+    expect(ok.statusCode, ok.body).toBe(201);
+  });
+
+  it("AUD-36: a key created by a member who may not mint intake links cannot mint them through the API", async () => {
+    const A = h.fixtures.teamA;
+    const { createApiCredential } = await import("../src/services/integrations/api-keys.service.js");
+    const viewerKey = (await createApiCredential({ teamId: A.teamId, name: "aud-36 viewer", scopes: SCOPES, actorUserId: A.viewerUserId })).rawKey;
+    const before = await prisma.workflowIntakeLink.count({ where: { teamId: A.teamId } });
+    const res = await post("/v1/integrations/api/intake-links", viewerKey, linkBody(7));
+    expect(res.statusCode, res.body).toBe(403);
+    expect(await prisma.workflowIntakeLink.count({ where: { teamId: A.teamId } })).toBe(before);
   });
 
   it("ET-INT-10: neither integration route passes the credential id as a user", () => {

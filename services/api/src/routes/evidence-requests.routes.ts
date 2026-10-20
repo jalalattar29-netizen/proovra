@@ -116,6 +116,9 @@ function errorToReply(err: EvidenceRequestError, reply: FastifyReply): void {
     case "request_team_mismatch":
       reply.code(403).send({ error: { code: err.code } });
       return;
+    case "assignee_not_workspace_member":
+      sendAssigneeNotMember(reply);
+      return;
     // ET-INT-07 — the intake-link mint gate refused.
     case "intake_not_included":
       reply.code(409).send({ error: { code: err.code } });

@@ -244,6 +244,8 @@ export async function getObjectRange(params: {
   bucket: string;
   key: string;
   range: string;
+  /** (2026-10-20, AUD-38) read this version (the sealed one), not the latest. */
+  versionId?: string | null;
 }): Promise<Buffer> {
   const bucket = mustClean(params.bucket, "bucket");
   const key = mustClean(params.key, "key");
@@ -255,6 +257,7 @@ export async function getObjectRange(params: {
       Bucket: bucket,
       Key: key,
       Range: params.range,
+      ...(params.versionId ? { VersionId: params.versionId } : {}),
     })
   );
   if (!res.Body) throw new Error("S3 returned empty body");

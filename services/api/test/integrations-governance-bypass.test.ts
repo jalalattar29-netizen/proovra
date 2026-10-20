@@ -293,9 +293,18 @@ describe("integration API workspace scoping", () => {
       ),
       "utf8",
     );
-    expect(src).toMatch(/canCreateIntakeLink\(/);
+    // AUD-36 (2026-10-20): the route asks the canonical mint gate, which runs
+    // canCreateIntakeLink with the credential creator's REAL role (it was a
+    // hard-coded "ADMIN" here).
+    expect(src).toMatch(/intakeLinkMintRefusal\(/);
+    expect(src).not.toMatch(/role:\s*"ADMIN"/);
+    const gate = await readFile(
+      fileURLToPath(new URL("../src/services/intake/intake-link-mint-gate.ts", import.meta.url)),
+      "utf8",
+    );
+    expect(gate).toMatch(/canCreateIntakeLink\(\{ role, intakeMode: input\.intakeMode, policy \}\)/);
     // And the gate appears BEFORE createWorkflowIntakeLink is invoked.
-    const gateIdx = src.indexOf("canCreateIntakeLink(");
+    const gateIdx = src.indexOf("intakeLinkMintRefusal(");
     const callIdx = src.indexOf("createWorkflowIntakeLink(");
     expect(gateIdx).toBeGreaterThan(-1);
     expect(callIdx).toBeGreaterThan(-1);

@@ -174,7 +174,10 @@ describe("evidence lifecycle P0 invariants (live PostgreSQL 16)", () => {
   });
 
   describe("Verify states — a failed timestamp and a pending anchor are never presented as proven", () => {
-    it("TSA FAILED reads failed and OTS PENDING reads pending on the anonymous answer", async () => {
+    // AUD-14..17 (Phase 8, 2026-10-20): a request that never obtained a token
+    // is "not issued", never "failed" (no token was validated and refused);
+    // "failed" is reserved for a token that failed validation (the case below).
+    it("a TSA request that obtained no token reads not_issued and OTS PENDING reads pending on the anonymous answer", async () => {
       const A = h.fixtures.teamA;
       const ev = await signedTeamRecord(A.ownerUserId, {
         tsaStatus: "FAILED",
@@ -187,12 +190,30 @@ describe("evidence lifecycle P0 invariants (live PostgreSQL 16)", () => {
       const res = await h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, ev.id)}` });
       expect(res.statusCode).toBe(200);
       const body = res.json() as { basicVerification?: { timestamp?: { state?: string }; anchoring?: { state?: string } } };
-      expect(body.basicVerification?.timestamp?.state).toBe("failed");
+      expect(body.basicVerification?.timestamp?.state).toBe("not_issued");
       expect(body.basicVerification?.anchoring?.state).toBe("pending");
       expect(res.body).not.toContain('"tsaStatus":"STAMPED"');
       expect(res.body).not.toContain('"otsStatus":"ANCHORED"');
       expect(res.body).not.toMatch(/fully anchored/i);
       expect(res.body).not.toMatch(/"Core Integrity Verified"/);
+    });
+  });
+
+  describe("Verify states — a token that failed validation", () => {
+    it("TSA FAILED with a retained token reads failed, never proven", async () => {
+      const A = h.fixtures.teamA;
+      const ev = await signedTeamRecord(A.ownerUserId, {
+        tsaStatus: "FAILED",
+        tsaFailureReason: "token signature did not verify",
+        // The bounded validation-failure code: the token was checked and refused.
+        tsaFailureCode: "tsa_token_signature_invalid",
+        tsaTokenBase64: Buffer.from("not a valid timestamp token").toString("base64"),
+      });
+      const res = await h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, ev.id)}` });
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as { basicVerification?: { timestamp?: { state?: string } } };
+      expect(body.basicVerification?.timestamp?.state).toBe("failed");
+      expect(res.body).not.toContain('"tsaStatus":"STAMPED"');
     });
   });
 

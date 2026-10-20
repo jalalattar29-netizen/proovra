@@ -201,6 +201,35 @@ describe("PHASE 6 — original byte authority and download policy (live PostgreS
    * intake before it is recorded (and later signed into the fingerprint):
    * unparseable or far-future values are not recorded.
    */
+  /*
+   * AUD-57 (2026-10-20) — the current web-upload writer never stores
+   * coordinates without their source. (Production holds one PROOVRA_WEB_UPLOAD
+   * row with coordinates and a null source; the writer below cannot produce
+   * it — its creation date is a post-deploy read-only check.)
+   */
+  it("AUD-57: a web upload with coordinates records their source", async () => {
+    const teamId = harness.fixtures.teamA.teamId;
+    const before = await prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { billingPlan: true, billingStatus: true } });
+    await prisma.team.update({ where: { id: teamId }, data: { billingPlan: "ENTERPRISE", billingStatus: "ACTIVE" } as never });
+    try {
+      const res = await harness.app.inject({
+        method: "POST",
+        url: "/v1/evidence",
+        headers: { authorization: `Bearer ${harness.fixtures.teamA.ownerToken}`, "content-type": "application/json" },
+        payload: JSON.stringify({ type: "PHOTO", mimeType: "image/jpeg", teamId, gps: { lat: 52.52, lng: 13.405, accuracyMeters: 10 } }),
+      });
+      expect(res.statusCode, res.body).toBeLessThan(300);
+      const id = res.json().id as string;
+      created.push(id);
+      const row = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { lat: true, locationSource: true, acquisitionMode: true } });
+      expect(row.acquisitionMode).toBe("PROOVRA_WEB_UPLOAD");
+      expect(row.lat).not.toBeNull();
+      expect(row.locationSource).toBe("CAPTURE_BROWSER_GEOLOCATION");
+    } finally {
+      await prisma.team.update({ where: { id: teamId }, data: before as never });
+    }
+  });
+
   it("AUD-21: createEvidence records a sanitised device time, and nothing for an impossible one", async () => {
     const create = async (deviceTimeIso: string) => {
       const res = await harness.app.inject({

@@ -108,6 +108,18 @@ type SourceRead = {
  * whole object. A whole read that does not match the recorded digest is not
  * the ORIGINAL the row names; the caller refuses it.
  */
+/**
+ * AUD-38 (2026-10-20) — the source digest a derivative may state: only when
+ * the WHOLE source was read and matched it. A partial (bounded) read verified
+ * nothing. One rule for the image and the ffmpeg paths.
+ */
+function verifiedSourceDigest(
+  sourceRead: { digestMatchesRecorded: boolean | null },
+  recordedSha256: string | null,
+): string | null {
+  return sourceRead.digestMatchesRecorded === true ? recordedSha256 : null;
+}
+
 async function readSourceForDerivation(
   part: {
     storage_bucket: string;
@@ -485,7 +497,7 @@ export async function processDerivedAssetJob(
     contentType: derivedContentType,
     widthPx: derivedWidth,
     heightPx: derivedHeight,
-    sourceSha256AtGeneration: part.sha256,
+    sourceSha256AtGeneration: verifiedSourceDigest(sourceRead, part.sha256),
     storageBucket: part.storage_bucket,
     storageKey: derivedKey,
     storageVersionId: derivedVersionId,
@@ -687,7 +699,7 @@ async function handleFfmpegAssetKind(params: {
       contentType: result.contentType,
       widthPx: result.widthPx,
       heightPx: result.heightPx,
-      sourceSha256AtGeneration: part.sha256,
+      sourceSha256AtGeneration: verifiedSourceDigest(sourceRead, part.sha256),
       storageBucket: part.storage_bucket,
       storageKey: derivedKey,
       storageVersionId: derivedVersionId,

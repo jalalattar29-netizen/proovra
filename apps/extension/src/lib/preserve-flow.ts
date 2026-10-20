@@ -116,6 +116,15 @@ const SOURCE_BY_ROLE: Record<CapturedArtifact["role"], string> = {
 /** Denials that mean the discard found the session already SEALED. */
 const SEALED_DENIALS = new Set(["SESSION_NOT_ACTIVE", "EVIDENCE_ALREADY_FINALIZED"]);
 
+/** AUD-52 — a page's host, or "page" when the address has none. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname || "page";
+  } catch {
+    return "page";
+  }
+}
+
 function describe(err: unknown): string {
   if (err instanceof ApiError) return `${err.message}${err.denial ? ` (${err.denial})` : ""}`;
   if (err instanceof Error) return `${err.name}: ${err.message}`;
@@ -126,9 +135,17 @@ function isAuthFailure(err: unknown): boolean {
   return err instanceof ApiError && err.status === 401;
 }
 
-/** A definite HTTP refusal (not a timeout, not a 5xx) — the server did NOT act. */
+/**
+ * AUD-23 (2026-10-20) — SESSION_BUSY is not an answer. The server says it while
+ * ANOTHER seal of this session holds the claim (a slow seal, a retried one):
+ * that seal may well complete. It is never a definite refusal, and a discard
+ * that meets it settles nothing.
+ */
+const BUSY_DENIAL = "SESSION_BUSY";
+
+/** A definite HTTP refusal (not a timeout, not a 5xx, not busy) — the server did NOT act. */
 function isDefiniteRefusal(err: unknown): boolean {
-  return err instanceof ApiError && err.status >= 400 && err.status < 500;
+  return err instanceof ApiError && err.status >= 400 && err.status < 500 && err.denial !== BUSY_DENIAL;
 }
 
 export async function runPreserveFlow(
@@ -228,7 +245,10 @@ export async function runPreserveFlow(
           deps.api.reserveEvidence(token, openSessionId, {
             type: req.evidenceType,
             mimeType: capture.artifacts[0]?.mediaType ?? "image/png",
-            originalFileName: `web-capture-${capture.pageInfo.title ?? "page"}`.slice(0, 120),
+            // AUD-52 (2026-10-20): never the page title — it can name a person,
+            // an inbox or a document — and it was shown as the record's file
+            // name. The host alone, which the manifest records anyway.
+            originalFileName: `web-capture-${hostOf(capture.pageInfo.url)}`.slice(0, 120),
           }),
         );
         evidenceId = reserve.evidence.evidenceId;
@@ -367,7 +387,8 @@ export async function runPreserveFlow(
           // The server says the session is already SEALED: the record exists.
           return { status: "SUCCEEDED", evidenceId, limitations: [], completeness: "UNREPORTED" };
         }
-        if (!sealMayHaveHappened) {
+        const discardBusy = discardErr instanceof ApiError && discardErr.denial === BUSY_DENIAL;
+        if (!sealMayHaveHappened && !discardBusy) {
           return { status: "FAILED", outcome: "NOTHING_SAVED", reason, denial, evidenceId, detail };
         }
         return {

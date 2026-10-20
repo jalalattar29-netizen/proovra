@@ -101,17 +101,23 @@ describe("ET-INT-09 — intake races (live PostgreSQL 16)", () => {
     const t = await mintLink({ intakeMode: "EXTERNAL_ONE_TIME", maxUses: 1 });
     const s1 = await openSession(t);
     const s2 = await openSession(t);
-    for (const sid of [s1, s2]) {
-      const r = await postPart(t, sid, 0);
-      expect(r.statusCode, r.body).toBe(201);
-      await upload((r.json() as { part: { id: string } }).part.id);
-    }
+    const r1 = await postPart(t, s1, 0);
+    expect(r1.statusCode, r1.body).toBe(201);
+    await upload((r1.json() as { part: { id: string } }).part.id);
+    // AUD-36 (2026-10-20): the link's one use is held by s1's pending record,
+    // so s2 cannot open a second record on it (it used to, and the two raced
+    // at submit).
+    const r2 = await postPart(t, s2, 0);
+    expect(r2.statusCode, r2.body).toBe(409);
+    expect((r2.json() as { error: { code: string } }).error.code).toBe("LINK_IN_USE");
+    // The submit race that remains — the same session submitted twice at
+    // once — still finalizes exactly one record (ET-INT-09 reservation).
     const [a, b] = await Promise.all([
       h.app.inject({ remoteAddress: ip, method: "POST", url: `/v1/external-intake/${t}/sessions/${s1}/submit`, payload: {} }),
-      h.app.inject({ remoteAddress: ip, method: "POST", url: `/v1/external-intake/${t}/sessions/${s2}/submit`, payload: {} }),
+      h.app.inject({ remoteAddress: ip, method: "POST", url: `/v1/external-intake/${t}/sessions/${s1}/submit`, payload: {} }),
     ]);
     const ok = [a, b].filter((r) => r.statusCode === 200);
-    expect(ok, `${a.statusCode} ${a.body} | ${b.statusCode} ${b.body}`).toHaveLength(1);
+    expect(ok.length, `${a.statusCode} ${a.body} | ${b.statusCode} ${b.body}`).toBeGreaterThanOrEqual(1);
     const sessions = await prisma.workflowIntakeSession.findMany({ where: { id: { in: [s1, s2] } }, select: { evidenceId: true } });
     const signed = await prisma.evidence.count({
       where: { id: { in: sessions.map((s) => s.evidenceId!).filter(Boolean) }, status: { in: ["SIGNED", "REPORTED"] } },

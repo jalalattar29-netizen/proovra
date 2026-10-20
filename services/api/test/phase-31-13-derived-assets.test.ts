@@ -298,7 +298,10 @@ describe("Phase 31.13 — worker derived-assets processor", () => {
   });
 
   it("captures source SHA-256 AT generation time (downstream integrity check)", () => {
-    expect(src).toMatch(/sourceSha256AtGeneration:\s*part\.sha256/);
+    // AUD-38 (2026-10-20): stated only when the whole source was read and
+    // matched it — through the one helper, on both the image and ffmpeg paths.
+    expect(src.match(/sourceSha256AtGeneration:\s*verifiedSourceDigest\(sourceRead, part\.sha256\)/g)?.length).toBe(2);
+    expect(src).toMatch(/return sourceRead\.digestMatchesRecorded === true \? recordedSha256 : null;/);
   });
 
   it("never throws on structural problems (missing part / non-image / no storage ref)", () => {

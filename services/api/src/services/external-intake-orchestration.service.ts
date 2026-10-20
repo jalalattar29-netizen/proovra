@@ -117,6 +117,8 @@ export type ExternalIntakeOrchestrationErrorCode =
   | "location_required"
   // The receiving workspace's policy refuses finalization (2026-09-29, D3).
   | "finalization_blocked_by_policy"
+  // AUD-36 (2026-10-20) — the workspace no longer includes secure intake.
+  | "intake_not_included_at_redemption"
   // ET-INT-09 — the link's per-submission file cap (checked under the record lock).
   | "max_files_reached"
   // ET-INT-06 — the stored parts exceed the link's maxBytesPerSession.
@@ -312,6 +314,32 @@ export async function createOrLoadExternalEvidence(
     });
     if (existing && !existing.deletedAt) return existing;
     // Evidence was deleted out from under us — fall through and re-create.
+  }
+
+  // AUD-36 (2026-10-20) — A RECORD IS CREATED ONLY FOR A USE THE LINK CAN
+  // STILL GIVE. Every anonymous visitor who added one file opened a session
+  // that created (and held for its 24 h) a record in the workspace, however
+  // many uses the link had left. A new session now creates its record only
+  // while the link's other pending (unsubmitted, unexpired) records do not
+  // already cover every remaining use.
+  {
+    const linkNow = await client.workflowIntakeLink.findUnique({
+      where: { id: pair.link.id },
+      select: { maxUses: true, usedCount: true },
+    });
+    const remaining = linkNow ? linkNow.maxUses - linkNow.usedCount : 0;
+    const pending = await client.workflowIntakeSession.count({
+      where: {
+        intakeLinkId: pair.link.id,
+        id: { not: pair.session.id },
+        evidenceId: { not: null },
+        status: { in: ["CREATED", "OPENED", "UPLOAD_STARTED", "UPLOAD_COMPLETED"] },
+        expiresAtUtc: { gt: new Date() },
+      },
+    });
+    if (pending >= remaining) {
+      throw new WorkflowIntakeSessionError(remaining > 0 ? "link_in_use" : pair.link.maxUses === 1 ? "link_already_submitted" : "link_exhausted");
+    }
   }
 
   // The Evidence is owned by the workspace admin who created the intake
@@ -1012,6 +1040,15 @@ export async function submitExternalIntake(
   });
   if (!gate.allowed) {
     throw new ExternalIntakeOrchestrationError("finalization_blocked_by_policy");
+  }
+  // AUD-36 (2026-10-20) — the plan is asked again at redemption: a workspace
+  // downgraded off secure intake after the link was minted takes no more
+  // submissions through it (nothing is reserved, nothing is finalized).
+  {
+    const { intakePlanRefusal } = await import("./intake/intake-link-mint-gate.js");
+    if (await intakePlanRefusal({ teamId: input.link.teamId, requesterUserId: input.link.createdByUserId })) {
+      throw new ExternalIntakeOrchestrationError("intake_not_included_at_redemption");
+    }
   }
 
   // ET-INT-09 — RESERVE this submission's use of the link before finalizing:

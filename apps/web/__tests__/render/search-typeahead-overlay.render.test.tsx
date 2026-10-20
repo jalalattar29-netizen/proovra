@@ -73,8 +73,10 @@ const overlay = () =>
 
 describe("Search typeahead — the menu escapes its ancestry", () => {
   beforeEach(() => {
+    // cleanup() unmounts every root. Resetting document.body.innerHTML as
+    // well removed nodes React still owned and intermittently broke other
+    // render files in the same run (2026-10-20).
     cleanup();
-    document.body.innerHTML = "";
   });
 
   it("does not render inside the panel that would clip and trap it", () => {
