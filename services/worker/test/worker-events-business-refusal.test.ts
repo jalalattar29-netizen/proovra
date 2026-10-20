@@ -56,6 +56,16 @@ describe("the worker event binding (real handlers)", () => {
     expect(alertsFrom(error)).toBe(0);
   });
 
+  it("a refusal on the LAST attempt, discarded by the processor, is still never captured or alerted (AUD-41 keeps AUD-03)", () => {
+    const error = vi.spyOn(logger, "error");
+    const emitter = new EventEmitter();
+    bindWorkerEvents(emitter as never, "report");
+    emitter.emit("failed", { ...job(5), discarded: true }, new OutputProductionRefusedError("NOT_APPLICABLE_NOT_ENTITLED"));
+    emitter.emit("failed", { ...job(1), discarded: true }, new OutputProductionRefusedError("NOT_APPLICABLE_ARCHIVED"));
+    expect(sentry.captured).toEqual([]);
+    expect(alertsFrom(error)).toBe(0);
+  });
+
   it("a genuine technical failure is still captured and alerted", () => {
     const error = vi.spyOn(logger, "error");
     const emitter = new EventEmitter();
@@ -79,6 +89,16 @@ describe("PHASE 3 — a transient database error in the OTS job (P2028 / AUD-41)
     }
     expect(sentry.captured).toEqual([]);
     expect(alertsFrom(error)).toBe(0);
+  });
+
+  it("before the last attempt it is the OTS pending retry (an expected wait), never a generic attempt failure", () => {
+    const warn = vi.spyOn(logger, "warn");
+    const emitter = new EventEmitter();
+    bindWorkerEvents(emitter as never, "ots-upgrade");
+    emitter.emit("failed", { ...job(3), opts: { attempts: 20 } }, p2028());
+    const events = warn.mock.calls.map((c) => c[1]);
+    expect(events).toContain("ots-upgrade.job.pending_retry");
+    expect(events).not.toContain("ots-upgrade.job.attempt_failed_will_retry");
   });
 
   it("escalates exactly once, on retry exhaustion", () => {
