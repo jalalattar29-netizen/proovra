@@ -1651,6 +1651,9 @@ const CANONICAL_STATE_BODIES = {
 } as const satisfies Record<Exclude<CanonicalVerificationStatus, "AVAILABLE">, { code: string; message: string }>;
 
 /** AUD-48 — a resolved record with no recorded digest and signature. */
+/** AUD-52 — names a checksum sent at record creation as unused (it belongs to each part). */
+const CHECKSUM_AT_CREATION_HEADER = "x-proovra-checksum-at-creation";
+
 const PUBLIC_VERIFY_NOT_SEALED_BODY = {
   code: "VERIFICATION_RECORD_NOT_SEALED",
   message:
@@ -5924,13 +5927,13 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
     // AUD-52 (2026-10-20) — a record holds no bytes at creation (UC-ARCH-008):
     // they arrive as parts, and THE PART PRESIGN enforces a checksum. One sent
-    // here was accepted and silently ignored, so a client believed its bytes
-    // were checksum-protected when nothing checked them.
+    // here is NOT used and is said to be unused (a response header and a log
+    // line), never silently dropped as if it protected anything. It is not
+    // refused: deployed clients still send it, and refusing would break their
+    // captures. PROOVRA's own clients no longer send it.
     if (body.checksumSha256Base64 !== undefined || body.contentMd5Base64 !== undefined) {
-      return reply.code(400).send({
-        code: "CHECKSUM_BELONGS_TO_PART",
-        message: "Send checksums with each part (POST /v1/evidence/:id/parts); a record holds no bytes at creation.",
-      });
+      reply.header(CHECKSUM_AT_CREATION_HEADER, "not-used; send checksums with each part");
+      req.log.info({ evidenceCreate: "checksum_at_creation_not_used" }, "evidence.create.checksum_not_used");
     }
     if (body.checksumSha256Base64 && !normalizedChecksum) {
       return reply.code(400).send({ message: "Invalid checksumSha256Base64" });

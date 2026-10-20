@@ -704,7 +704,6 @@ export function useCaptureSessionOrchestration({
       }
 
       const primaryMimeType = normalizeClientMimeType(primaryFile.type);
-      const primaryIntegrity = await computeIntegrityFromBlob(primaryFile);
 
       const intakePlanJson = selectedCollectionPlan
         ? {
@@ -776,8 +775,8 @@ export function useCaptureSessionOrchestration({
           // PROOVRA records when it received the bytes itself.
           gps,
           locationRequestOutcome: gps ? undefined : locationRequestOutcome,
-          checksumSha256Base64: primaryIntegrity.checksumSha256Base64,
-          contentMd5Base64: primaryIntegrity.contentMd5Base64,
+          // AUD-52 (2026-10-20): no checksum at creation — the record holds no
+          // bytes yet; each part carries its own checksum (see the part upload).
           intakePlanJson,
           captureSessionId: captureSessionId ?? undefined,
           // Enterprise Capture Environment — silent client tz/locale hints

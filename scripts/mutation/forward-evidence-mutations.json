@@ -3967,8 +3967,8 @@
     "phase": "P13",
     "name": "a checksum at record creation is silently ignored again",
     "file": "services/api/src/routes/evidence.routes.ts",
-    "find": "    if (body.checksumSha256Base64 !== undefined || body.contentMd5Base64 !== undefined) {",
-    "replace": "    if ((body.checksumSha256Base64 !== undefined || body.contentMd5Base64 !== undefined) && Date.now() < 0) {",
+    "find": "      reply.header(CHECKSUM_AT_CREATION_HEADER, \"not-used; send checksums with each part\");\n",
+    "replace": "",
     "tests": [
       {
         "cwd": "services/api",

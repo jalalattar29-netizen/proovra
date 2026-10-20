@@ -97,13 +97,16 @@ describe("AUD-52 capture legal gate (live PostgreSQL 16)", () => {
     expect(res.statusCode, res.body).toBe(201);
   });
 
-  it("a checksum sent at record creation is refused, never silently ignored", async () => {
+  it("a checksum sent at record creation is said to be unused — never silently ignored, and never a refusal that breaks deployed clients", async () => {
     const res = await call("POST", "/v1/evidence", {
       type: "PHOTO",
       mimeType: "image/png",
       checksumSha256Base64: Buffer.alloc(32, 1).toString("base64"),
     });
-    expect(res.statusCode, res.body).toBe(400);
-    expect(res.json().code).toBe("CHECKSUM_BELONGS_TO_PART");
+    expect(res.statusCode, res.body).toBe(201);
+    expect(res.headers["x-proovra-checksum-at-creation"]).toMatch(/^not-used/);
+    const plain = await call("POST", "/v1/evidence", { type: "PHOTO", mimeType: "image/png" });
+    expect(plain.statusCode, plain.body).toBe(201);
+    expect(plain.headers["x-proovra-checksum-at-creation"]).toBeUndefined();
   });
 });
