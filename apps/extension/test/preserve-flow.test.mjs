@@ -166,6 +166,33 @@ test("AUD-23: a timed-out seal whose discard is busy is UNKNOWN", async () => {
   assert.equal(r.outcome, "UNKNOWN");
 });
 
+// AUD-23 / AUD-52 (2026-10-20): the two halves of the rule, each on its own.
+test("AUD-23: a SESSION_BUSY seal is not a refusal — a discard that fails otherwise leaves it UNKNOWN", async () => {
+  const h = harness({
+    webComplete: async () => {
+      throw new ApiError(409, "SESSION_BUSY", "POST web-complete -> 409");
+    },
+    discardSession: async () => {
+      throw new ApiError(503, null, "POST discard -> 503");
+    },
+  });
+  const r = await runPreserveFlow(h.deps, REQ, new AbortController().signal);
+  assert.equal(r.outcome, "UNKNOWN");
+});
+
+test("AUD-23: a busy discard settles nothing even after a definite seal refusal", async () => {
+  const h = harness({
+    webComplete: async () => {
+      throw new ApiError(422, "MANIFEST_INVALID", "POST web-complete -> 422");
+    },
+    discardSession: async () => {
+      throw new ApiError(409, "SESSION_BUSY", "POST discard -> 409");
+    },
+  });
+  const r = await runPreserveFlow(h.deps, REQ, new AbortController().signal);
+  assert.equal(r.outcome, "UNKNOWN");
+});
+
 test("UC-EXT-008: a 401 mid-capture is SIGNED_OUT and clears the token", async () => {
   const h = harness({
     reserveEvidence: async () => {

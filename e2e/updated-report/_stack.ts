@@ -231,6 +231,28 @@ export function validateKeptTsaToken(evidenceId: string): string {
  * so the record is ANCHORED — PROOVRA operates no Bitcoin node and claims no
  * independent canonical-chain verification (OTS_ANCHORED_BOUNDARY).
  */
+/**
+ * Wait for the worker's upgrade to COMMIT: the row's own status is ANCHORED and
+ * its OTS_APPLIED custody event is recorded. The derived anchoring reading can
+ * already say ANCHORED from the stored proof alone, before the commit — a
+ * version requested in that window would be issued BEFORE the upgrade's custody
+ * event, which then reads as a forensic change after issue.
+ */
+export async function waitForOtsCommitted(evidenceId: string, timeoutMs = 180_000): Promise<void> {
+  await expect
+    .poll(
+      () => {
+        const [row] = sql<{ ots_status: string | null; applied: number }>(
+          `SELECT ots_status, (SELECT count(*)::int FROM custody_events WHERE evidence_id = $1 AND event_type = 'OTS_APPLIED') AS applied FROM evidence WHERE id = $1`,
+          [evidenceId],
+        );
+        return `${row?.ots_status}:${(row?.applied ?? 0) > 0}`;
+      },
+      { timeout: timeoutMs, intervals: [1000, 2000] },
+    )
+    .toBe("ANCHORED:true");
+}
+
 export function anchorOtsThroughUpgrade(evidenceId: string): void {
   // The anchor commits to the CANONICAL FINGERPRINT HASH (what completion
   // stamps), not the file digest — a proof over any other digest is reported

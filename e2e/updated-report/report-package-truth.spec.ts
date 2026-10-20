@@ -60,6 +60,7 @@ import {
   status,
   validateKeptTsaToken,
   waitForPair,
+  waitForOtsCommitted,
 } from "./_stack";
 import {
   consistencyFindings,
@@ -337,6 +338,7 @@ test("J2 v2 — TSA validated + attested OTS proof: Bitcoin attestation recorded
   await expect
     .poll(async () => (await status(owner.api, evidenceId)).outputs.trust.ots.state, { timeout: 180_000 })
     .toBe("ANCHORED");
+  await waitForOtsCommitted(evidenceId);
   // Live Bitcoin verification is disabled in this stack: an attestation RECORDED.
   expect((await status(owner.api, evidenceId)).outputs.trust.ots.verification).toBe("ATTESTATION_RECORDED");
 
@@ -471,7 +473,10 @@ test("J4 Public Verify, the review workspace and the package carry the same cano
   expect(pv.body.trustDecision).not.toHaveProperty("verdict");
   const overview = JSON.stringify(pv.body);
   expect(overview).toContain("Authenticated email account");
-  expect(overview).toContain("Personal workspace");
+  // AUD-45 (2026-10-20): a reviewer link whose identity is WITHHELD states it as
+  // withheld — the workspace kind is part of that identity and is not sent.
+  expect((pv.body.recordFacts as { identity?: { disclosure?: string } }).identity?.disclosure).toBe("WITHHELD");
+  expect(overview).not.toContain("Personal workspace");
   expect(overview).not.toMatch(/OAuth-backed|"Organization account"/);
   const rw = await owner.api.get(`/v1/evidence/${evidenceId}/review-workspace`);
   expect(rw.ok()).toBe(true);

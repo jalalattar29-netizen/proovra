@@ -46,6 +46,7 @@ import {
   status,
   validateKeptTsaToken,
   waitForPair,
+  waitForOtsCommitted,
 } from "./_stack";
 
 test.describe.configure({ mode: "serial" });
@@ -192,6 +193,7 @@ test.describe("updated report — the real stack, end to end", () => {
     await expect
       .poll(async () => (await status(owner.api, evidenceId)).outputs.trust.ots.state, { timeout: 180_000, intervals: [2000] })
       .toBe("ANCHORED");
+    await waitForOtsCommitted(evidenceId);
     const s = await status(owner.api, evidenceId);
     // The server's OtsAnchoringView: the executed proof names a Bitcoin block;
     // live verification is disabled in this stack, so it is RECORDED, not

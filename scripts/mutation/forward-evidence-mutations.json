@@ -1971,8 +1971,7 @@
         "cwd": "apps/extension",
         "cmd": "node",
         "args": [
-          "-e",
-          "require('child_process').execSync('node build-test.mjs',{stdio:'inherit'});require('child_process').execSync('node scripts/run-tests.mjs',{stdio:'inherit'})"
+          "scripts/build-and-test.mjs"
         ]
       }
     ]
@@ -1989,8 +1988,7 @@
         "cwd": "apps/extension",
         "cmd": "node",
         "args": [
-          "-e",
-          "require('child_process').execSync('node build-test.mjs',{stdio:'inherit'});require('child_process').execSync('node scripts/run-tests.mjs',{stdio:'inherit'})"
+          "scripts/build-and-test.mjs"
         ]
       }
     ]
@@ -2305,8 +2303,7 @@
         "cwd": "apps/extension",
         "cmd": "node",
         "args": [
-          "-e",
-          "require('child_process').execSync('node build-test.mjs',{stdio:'inherit'});require('child_process').execSync('node scripts/run-tests.mjs',{stdio:'inherit'})"
+          "scripts/build-and-test.mjs"
         ]
       }
     ]
@@ -3824,10 +3821,10 @@
   {
     "id": "P13-51A",
     "phase": "P13",
-    "name": "the custody cut-off ignores the recorded sequence",
+    "name": "the custody cut-off picks the lowest sequence (a time filter's gap)",
     "file": "packages/shared/src/evidence-vocabulary.ts",
-    "find": "  if (typeof recordedThroughSequence === \"number\") return recordedThroughSequence;\n",
-    "replace": "",
+    "find": "    if (e.atUtc.getTime() <= issuedAtUtc.getTime() && (max === null || e.sequence > max)) max = e.sequence;",
+    "replace": "    if (e.atUtc.getTime() <= issuedAtUtc.getTime() && (max === null || e.sequence < max)) max = e.sequence;",
     "build": [
       "shared"
     ],
@@ -3938,8 +3935,7 @@
         "cwd": "apps/extension",
         "cmd": "node",
         "args": [
-          "-e",
-          "require('child_process').execSync('node build-test.mjs',{stdio:'inherit'});require('child_process').execSync('node scripts/run-tests.mjs',{stdio:'inherit'})"
+          "scripts/build-and-test.mjs"
         ]
       }
     ]
@@ -3956,8 +3952,7 @@
         "cwd": "apps/extension",
         "cmd": "node",
         "args": [
-          "-e",
-          "require('child_process').execSync('node build-test.mjs',{stdio:'inherit'});require('child_process').execSync('node scripts/run-tests.mjs',{stdio:'inherit'})"
+          "scripts/build-and-test.mjs"
         ]
       }
     ]

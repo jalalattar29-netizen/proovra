@@ -24,7 +24,7 @@ import { createHash } from "node:crypto";
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 
 import { API_BASE, clearTestRateLimits, createGuestSession, type GuestSession } from "../helpers/api-client";
-import { personalTeamId, signedRequest, sql, stackExec, validateKeptTsaToken, anchorOtsThroughUpgrade, waitForPair, status } from "./_stack";
+import { personalTeamId, signedRequest, sql, stackExec, validateKeptTsaToken, anchorOtsThroughUpgrade, waitForPair, status, waitForOtsCommitted } from "./_stack";
 
 test.describe.configure({ mode: "serial" });
 
@@ -190,6 +190,7 @@ test("A0 LIFECYCLE: multipart record → TSA kept-but-FAILED → v1 → repair �
   validateKeptTsaToken(rec.id);
   anchorOtsThroughUpgrade(rec.id);
   await expect.poll(async () => (await status(owner.api, rec.id)).outputs.trust.ots.state, { timeout: 180_000 }).toBe("ANCHORED");
+  await waitForOtsCommitted(rec.id);
   await newVersion(owner.api, rec.id, "Timestamp validated and proof attested");
   await waitForPair(owner.api, rec.id, 2, 300_000);
   // The reference issued AFTER both reports (the production backfill shape).

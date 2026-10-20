@@ -653,6 +653,38 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       300_000,
     );
 
+    // Each layer of the guard on its own: higher-level producers refuse first,
+    // so the request writer and the claim are exercised directly here.
+    it("AUD-01: the request writer refuses a lifecycle-ineligible record BEFORE asking the host for entitlement, and writes no row", async () => {
+      const ev = await signedEvidence();
+      await setLifecycle(ev.evidenceId, "ARCHIVED");
+      const { createReportGenerationRequest } = await import("@proovra/shared-runtime/reports");
+      let entitlementAsked = 0;
+      const res = await createReportGenerationRequest(prisma as never, {
+        evidenceId: ev.evidenceId,
+        purpose: "lifecycle_recovery",
+        artifactType: "REPORT",
+        forceRegenerate: false,
+        requestedByMachineId: "forward-test",
+        entitlement: async () => {
+          entitlementAsked += 1;
+          return null;
+        },
+      } as never);
+      expect(res).toMatchObject({ created: false, refusal: "NOT_APPLICABLE_ARCHIVED" });
+      expect(entitlementAsked, "lifecycle first: no host input for a refused record").toBe(0);
+      expect(await requestsOf(ev.evidenceId)).toEqual([]);
+    }, 300_000);
+
+    it("AUD-01: a request written while ACTIVE whose record is archived before the claim is settled AT CLAIM, never run", async () => {
+      const ev = await signedEvidence();
+      const id = await request(ev);
+      await setLifecycle(ev.evidenceId, "ARCHIVED");
+      const resolution = await authority.resolveAndClaimReportRequest({ requestId: id, requestIdForLog: id });
+      expect(resolution).toMatchObject({ outcome: "noop", reason: "NOT_APPLICABLE_ARCHIVED" });
+      expect((await state(ev.evidenceId, id)).req).toMatchObject({ state: "NOT_APPLICABLE", terminalReasonCode: "NOT_APPLICABLE_ARCHIVED" });
+    }, 300_000);
+
     it("AUD-02: a record whose plan includes no reports gets no chain-verified version request", async () => {
       const ev = await chainVerifiedWithV1();
       const before = await requestsOf(ev.evidenceId);
@@ -837,7 +869,14 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
         verificationPackageIncluded: false,
         mayIssueHistoricalFirstOutputs: false,
       };
+      // The run-time gate raises THE refusal itself — never the legacy
+      // REPORT_NOT_INCLUDED_IN_PLAN worker error that the plan-denial branch
+      // has to translate.
+      const { logger: workerLogger } = await import("../../../worker/src/logger.js");
+      const warn = vi.spyOn(workerLogger, "warn");
       expect(await run(id, 0)).toBeNull();
+      expect(warn.mock.calls.map((c) => c[1])).not.toContain("GenerateReportJob refused: this record's plan does not include the output");
+      warn.mockRestore();
       expect((await state(ev.evidenceId, id)).req).toMatchObject({
         state: "NOT_APPLICABLE",
         terminalReasonCode: "NOT_APPLICABLE_NOT_ENTITLED",

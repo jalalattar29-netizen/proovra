@@ -9676,8 +9676,6 @@ return {
               verificationStatusSnapshot: true,
               displayTitleSnapshot: true,
               itemCountSnapshot: true,
-              // AUD-51 — the custody cut-off the report recorded.
-              custodyThroughSequence: true,
             },
           }),
           prisma.verificationPackage.findFirst({
@@ -10166,7 +10164,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
         const reportGeneratedAtUtc =
           latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null;
         // AUD-51 (2026-10-20) — the cut-off is a SEQUENCE (shared), never a time.
-        const custodyCutoff = custodyCutoffSequence(allCustodyEvents, reportGeneratedAtUtc, latestReport?.custodyThroughSequence ?? null);
+        const custodyCutoff = custodyCutoffSequence(allCustodyEvents, reportGeneratedAtUtc);
         const forensicEventsAtReportGeneration = splitCustodyAtCutoff(forensicCustodyEvents, custodyCutoff).atIssue;
         const accessEventsAfterReportGeneration = splitCustodyAtCutoff(accessCustodyEvents, custodyCutoff).afterIssue;
 
@@ -13940,8 +13938,6 @@ const latestReport = await prisma.report.findFirst({
     // (2026-10-18) Identity as the report stated it (never the email).
     identityLevelSnapshot: true,
     submittedByAuthProviderSnapshot: true,
-    // AUD-51 — the custody cut-off the report recorded.
-    custodyThroughSequence: true,
   },
 });
 
@@ -14629,7 +14625,7 @@ const reportGeneratedAtUtc =
   latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null;
 
 // AUD-51 (2026-10-20) — the cut-off is a SEQUENCE (shared), never a time.
-const custodyCutoff = custodyCutoffSequence(allCustodyEvents, reportGeneratedAtUtc, latestReport?.custodyThroughSequence ?? null);
+const custodyCutoff = custodyCutoffSequence(allCustodyEvents, reportGeneratedAtUtc);
 const forensicEventsAtReportGeneration = splitCustodyAtCutoff(forensicCustodyEvents, custodyCutoff).atIssue;
 // (2026-10-18) What counts as a forensic change after issue: forensic events
 // that are not administrative (a verification reference issued, the page's

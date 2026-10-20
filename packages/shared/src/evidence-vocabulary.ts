@@ -172,17 +172,18 @@ export function buildCustodyDisplayCounts(input: {
 
 /**
  * AUD-51 (2026-10-20) — THE custody cut-off of an issued artifact is a
- * SEQUENCE, never a time (worker custodyThroughIssuance, ET-CUS-06): an event's
- * atUtc is its own time and is not monotonic in sequence. The artifact's
- * recorded custodyThroughSequence wins; a legacy artifact without one uses the
- * highest sequence recorded at or before its issue time.
+ * SEQUENCE, never a time (the worker's custodyThroughIssuance, ET-CUS-06): an
+ * event's atUtc is its own time and is not monotonic in sequence, so the chain
+ * at issue is the CONTIGUOUS prefix up to the highest sequence recorded at or
+ * before the issue instant — a later-sequence event is never skipped, an
+ * earlier one never cut out. (A report's recorded custodyThroughSequence is
+ * the chain it DESCRIBES, taken before its own issuance events are appended;
+ * using it here would read the issuance itself as a change after issue.)
  */
 export function custodyCutoffSequence(
   events: ReadonlyArray<{ sequence: number; atUtc: Date }>,
   issuedAtUtc: Date | null | undefined,
-  recordedThroughSequence?: number | null,
 ): number | null {
-  if (typeof recordedThroughSequence === "number") return recordedThroughSequence;
   if (!issuedAtUtc) return null;
   let max: number | null = null;
   for (const e of events) {

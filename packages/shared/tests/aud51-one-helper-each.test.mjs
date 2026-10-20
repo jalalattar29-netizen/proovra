@@ -18,22 +18,23 @@ import {
 
 const at = (iso) => new Date(iso);
 
-test("the custody cut-off is a sequence: a later-sequence event with an earlier time is NOT at issue", () => {
+test("the custody cut-off is a sequence prefix: no gap, whatever the event times say", () => {
   const events = [
     { sequence: 1, atUtc: at("2026-10-01T10:00:00Z") },
-    { sequence: 2, atUtc: at("2026-10-01T10:05:00Z") },
-    // A timestamp event recorded later in the chain carrying its own (earlier) genTime.
-    { sequence: 3, atUtc: at("2026-10-01T09:59:00Z") },
+    // Recorded later in the chain with its own LATER time.
+    { sequence: 2, atUtc: at("2026-10-01T10:10:00Z") },
+    // A timestamp event carrying its own (earlier) genTime.
+    { sequence: 3, atUtc: at("2026-10-01T10:05:00Z") },
+    { sequence: 4, atUtc: at("2026-10-01T10:20:00Z") },
   ];
-  // Issued at 10:06 with the recorded cut-off 2: sequence 3 is after issue.
-  const recorded = custodyCutoffSequence(events, at("2026-10-01T10:06:00Z"), 2);
-  assert.equal(recorded, 2);
-  assert.deepEqual(splitCustodyAtCutoff(events, recorded).afterIssue.map((e) => e.sequence), [3]);
-  // A legacy report with no recorded cut-off: the highest sequence at or before the time.
-  assert.equal(custodyCutoffSequence(events.slice(0, 2), at("2026-10-01T10:01:00Z"), null), 1);
+  const cut = custodyCutoffSequence(events, at("2026-10-01T10:06:00Z"));
+  assert.equal(cut, 3);
+  // A time filter would keep {1, 3} and leave a gap at 2; the prefix keeps 1-3.
+  assert.deepEqual(splitCustodyAtCutoff(events, cut).atIssue.map((e) => e.sequence), [1, 2, 3]);
+  assert.deepEqual(splitCustodyAtCutoff(events, cut).afterIssue.map((e) => e.sequence), [4]);
   // No issue time: nothing is cut.
-  assert.equal(custodyCutoffSequence(events, null, null), null);
-  assert.equal(splitCustodyAtCutoff(events, null).atIssue.length, 3);
+  assert.equal(custodyCutoffSequence(events, null), null);
+  assert.equal(splitCustodyAtCutoff(events, null).atIssue.length, 4);
 });
 
 test("the integrity conclusions", () => {
