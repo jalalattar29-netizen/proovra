@@ -84,7 +84,13 @@ class FrameLedgerTest {
   @Test
   fun aCleanFinishKeepsItsOwnStopReasonAndLimitations() {
     captureFrames(2, listOf("ORIENTATION_CHANGED_DURING_CAPTURE"))
-    val o = frameLedgerOutcome(FrameLedgerKeeper.get()!!).copy(stopReason = "USER_STOPPED", endedAtUtc = isoUtc(startWall + 5000L))
+    // The service builds its own outcome (ScreenCaptureService.finish), never
+    // from the recovery reading of a still-RECORDING ledger.
+    val o = frameLedgerOutcome(FrameLedgerKeeper.get()!!).copy(
+      stopReason = "USER_STOPPED",
+      endedAtUtc = isoUtc(startWall + 5000L),
+      limitations = listOf("ORIENTATION_CHANGED_DURING_CAPTURE"),
+    )
     FrameLedgerKeeper.update { frameLedgerFinished(it, o, 5000L) }
     FrameLedgerKeeper.forgetInMemory()
     val l = FrameLedgerKeeper.get()!!
