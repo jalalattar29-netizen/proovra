@@ -27,9 +27,9 @@ export async function settleReportRequestNotApplicable(
   const updated = await prisma.reportGenerationRequest.updateMany({
     where: input.fence
       ? { id: input.requestId, state: "PROCESSING", claimedAtUtc: input.fence.claimedAtUtc }
-      : { id: input.requestId, state: { notIn: ["SUCCEEDED", "FAILED_TERMINAL", "BLOCKED_STALE", "BLOCKED_POLICY"] } },
+      : { id: input.requestId, state: { notIn: ["SUCCEEDED", "FAILED_TERMINAL", "BLOCKED_STALE", "BLOCKED_POLICY", "NOT_APPLICABLE"] } },
     data: {
-      state: "BLOCKED_POLICY",
+      state: "NOT_APPLICABLE",
       terminalReasonCode: input.refusal.slice(0, 64),
       completedAtUtc: new Date(),
     },

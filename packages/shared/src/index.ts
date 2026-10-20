@@ -349,6 +349,7 @@ export {
   // 2026-10-20 — THE output-producer decision (forward remediation AUD-01/02/35).
   OUTPUT_PRODUCTION_REFUSALS,
   isOutputProductionRefusal,
+  COMMERCIAL_TERMINAL_REASON_CODES,
   outputLifecycleRefusal,
   decideOutputProduction,
   // TERMINAL-LOCKOUT CLOSURE (RGA-07) — the shared technical-terminal predicate

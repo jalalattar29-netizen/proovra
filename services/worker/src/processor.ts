@@ -2483,7 +2483,9 @@ async function prepareReportArtifacts(
     throw createWorkerError(OUTPUT_ENTITLEMENT_UNRESOLVED, true);
   }
   if (issuance.decision !== "ENTITLED" || !issuance.reportsIncluded) {
-    throw createWorkerError("REPORT_NOT_INCLUDED_IN_PLAN", false);
+    // 2026-10-20 (AUD-03) — an expected business outcome, settled as not
+    // applicable: no FAILED_TERMINAL, no Sentry event, no alert, no incident.
+    throw new OutputProductionRefusedError("NOT_APPLICABLE_NOT_ENTITLED");
   }
   const evidenceOutputs = {
     reportsIncluded: issuance.reportsIncluded,
@@ -5992,7 +5994,12 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
       // Not an incident: the workspace's plan or storage refused it. The
       // request records the bounded commercial code; an upgrade or more
       // storage makes it supersedable (see COMMERCIAL_TERMINAL_REASONS).
-      throw createWorkerError(packageAllowanceRefusal.code, false);
+      // 2026-10-20 (AUD-12) — settled as a business outcome, not a failure.
+      throw new OutputProductionRefusedError(
+        packageAllowanceRefusal.code === "STORAGE_LIMIT_REACHED"
+          ? "NOT_APPLICABLE_STORAGE_LIMIT"
+          : "NOT_APPLICABLE_NOT_ENTITLED",
+      );
     }
     if (packageTechnicalFailure && verificationPackageEntitled) {
       await recordPackageGenerationIncident({
@@ -6036,6 +6043,13 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
       ? { outcome: "package_built", reportVersion: packageTargetVersion! }
       : { outcome: "generated", reportVersion: prepared.version };
   } catch (error) {
+    // 2026-10-20 (AUD-03/12) — a business refusal passes straight to
+    // processGenerateReport, which settles it as NOT_APPLICABLE: it is not an
+    // attempt error, so it is never captured, dead-lettered or escalated here.
+    if (isOutputProductionRefusedError(error)) {
+      await job.discard();
+      throw error;
+    }
     /*
      * `REPORT_ALREADY_GENERATED` IS NO LONGER SWALLOWED AS SUCCESS.
      *
@@ -6090,7 +6104,10 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
         "GenerateReportJob refused: this record's plan does not include the output",
       );
       await job.discard();
-      throw error;
+      // A legacy-coded commercial denial is the same business outcome.
+      throw new OutputProductionRefusedError(
+        commercialDenialCode(error) === "STORAGE_LIMIT_REACHED" ? "NOT_APPLICABLE_STORAGE_LIMIT" : "NOT_APPLICABLE_NOT_ENTITLED",
+      );
     }
 
     captureException(error, { requestId, evidenceId, jobId: job.id ?? null });

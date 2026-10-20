@@ -35,7 +35,10 @@ describe("worker job-event context (ET-Q-09)", () => {
 describe("the worker's event handlers use these rules (ET-Q-09)", () => {
   it("index.ts classifies and logs through job-event-context, not payload.evidenceId", async () => {
     const { readFileSync } = await import("node:fs");
-    const src = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
+    // 2026-10-20 — the binding moved, verbatim, to worker-events.ts; index.ts binds every worker through it.
+    const index = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
+    expect(index).toContain('import { bindWorkerEvents, emitOperationalAlert } from "./worker-events.js";');
+    const src = readFileSync(new URL("../src/worker-events.ts", import.meta.url), "utf8");
     expect(src).toMatch(/import \{[^}]*\bisExpectedOtsPendingError\b[^}]*\bjobCommandId\b[^}]*\} from "\.\/job-event-context\.js";/);
     expect(src).toContain("isExpectedOtsPendingError(jobKind, err, job)");
     expect(src).not.toMatch(/evidenceId: \(job\.data as JobData \| undefined\)\?\.evidenceId/);
@@ -58,7 +61,7 @@ describe("dead-letter records (ET-Q-08)", () => {
     const adds = proc.match(/reportDlqQueue\.add\(/g) ?? [];
     expect(adds.length, "only the non-retriable (terminal) branch writes the report DLQ").toBe(1);
     expect(proc).not.toMatch(/errorStack:/);
-    const index = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
+    const index = readFileSync(new URL("../src/worker-events.ts", import.meta.url), "utf8");
     expect(index).toMatch(/mediaIntelligenceDlqQueue\s*\.add\(\s*"MediaIntelligenceDLQ"/);
   });
 });

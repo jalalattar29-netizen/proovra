@@ -471,13 +471,18 @@ describe("Phase Y — Route wiring", () => {
 
 describe("Phase Y — Worker wiring", () => {
   const indexSrc = readSource("../../worker/src/index.ts");
+  // 2026-10-20 — the job-event binding moved, verbatim, to worker-events.ts
+  // (index.ts starts workers on import, so it could not be exercised by a
+  // behaviour test). index.ts binds every worker through it.
+  const eventsSrc = readSource("../../worker/src/worker-events.ts");
   const obsSrc = readSource("../../worker/src/observability.ts");
 
   it("worker index imports the observability helpers", () => {
     expect(indexSrc).toContain('from "./observability.js"');
     expect(indexSrc).toContain("heartbeat");
-    expect(indexSrc).toContain("instrumentJobOutcome");
+    expect(eventsSrc).toContain("instrumentJobOutcome");
     expect(indexSrc).toContain("snapshotQueueHealth");
+    expect(indexSrc).toContain('import { bindWorkerEvents, emitOperationalAlert } from "./worker-events.js";');
   });
 
   it("worker starts the heartbeat + queue health schedulers on startup", () => {
@@ -498,10 +503,10 @@ describe("Phase Y — Worker wiring", () => {
   it("job outcome instrumentation fires on both completed and failed paths", () => {
     // The bindWorkerEvents block must call instrumentJobOutcome from
     // both branches.
-    const completedMatch = indexSrc.match(
+    const completedMatch = eventsSrc.match(
       /workerInstance\.on\("completed"[\s\S]*?\}\);/,
     );
-    const failedMatch = indexSrc.match(
+    const failedMatch = eventsSrc.match(
       /workerInstance\.on\("failed"[\s\S]*?\}\);/,
     );
     expect(completedMatch?.[0]).toContain("instrumentJobOutcome");

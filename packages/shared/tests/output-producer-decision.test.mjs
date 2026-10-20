@@ -92,3 +92,40 @@ test("every refusal is in the bounded vocabulary and fits the 64-char terminal r
   assert.equal(isOutputProductionRefusal("REPORT_NOT_INCLUDED_IN_PLAN"), false);
   assert.equal(isOutputProductionRefusal(null), false);
 });
+
+// ---------------------------------------------------------------------------
+// PHASE 2 — a business refusal is not a failure on any read path (AUD-04)
+// ---------------------------------------------------------------------------
+import {
+  projectReportRequestState,
+  isCurrentReportUpdateFailure,
+  SETTLED_REPORT_REQUEST_STATES,
+  IN_FLIGHT_REPORT_REQUEST_STATES,
+  isCommerciallyObsoleteTerminalReason,
+} from "../dist/index.js";
+
+test("NOT_APPLICABLE is settled, not in flight, and projects to NOT_REQUESTED (never a failure)", () => {
+  assert.ok(SETTLED_REPORT_REQUEST_STATES.includes("NOT_APPLICABLE"));
+  assert.ok(!IN_FLIGHT_REPORT_REQUEST_STATES.includes("NOT_APPLICABLE"));
+  assert.equal(projectReportRequestState("NOT_APPLICABLE"), "NOT_REQUESTED");
+});
+
+test("a refusal after a READY report is never a current update failure; a technical terminal still is", () => {
+  const base = { reportState: "READY", requestCreatedAt: "2026-10-02T00:00:00Z", latestReportGeneratedAt: "2026-10-01T00:00:00Z" };
+  for (const [state, code] of [
+    ["NOT_APPLICABLE", "NOT_APPLICABLE_NOT_ENTITLED"],
+    ["FAILED_TERMINAL", "REPORT_NOT_INCLUDED_IN_PLAN"],
+    ["FAILED_TERMINAL", "STORAGE_LIMIT_REACHED"],
+    ["FAILED_TERMINAL", "NOT_APPLICABLE_ARCHIVED"],
+  ]) {
+    assert.equal(isCurrentReportUpdateFailure({ ...base, reportRequestState: state, reportRequestReasonCode: code }), false, `${state}/${code}`);
+  }
+  assert.equal(
+    isCurrentReportUpdateFailure({ ...base, reportRequestState: "FAILED_TERMINAL", reportRequestReasonCode: "REPORT_PDF_VERIFICATION_FAILED" }),
+    true,
+  );
+});
+
+test("STORAGE_LIMIT_REACHED is commercial (AUD-12)", () => {
+  assert.equal(isCommerciallyObsoleteTerminalReason("STORAGE_LIMIT_REACHED"), true);
+});

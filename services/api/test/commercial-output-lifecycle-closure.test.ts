@@ -509,7 +509,10 @@ describe("operations population", () => {
     expect(captureAt).toBeGreaterThan(denialAt);
     const denialBranch = code.slice(denialAt, captureAt);
     expect(denialBranch).toMatch(/job\.discard\(\)/);
-    expect(denialBranch).toMatch(/throw error/);
+    // 2026-10-20 (AUD-03) — the branch hands the outcome to the settlement as
+    // a coded business refusal (behaviour: worker-events-business-refusal and
+    // the forward pipeline suite), never the raw error to BullMQ.
+    expect(denialBranch).toMatch(/throw new OutputProductionRefusedError\(/);
     expect(denialBranch).not.toMatch(/recordReportFailureIncident/);
     expect(denialBranch).not.toMatch(/reportDlqQueue/);
   });
@@ -602,6 +605,7 @@ describe("in-flight and settled request states partition the persisted union", (
     "FAILED_TERMINAL",
     "BLOCKED_STALE",
     "BLOCKED_POLICY",
+    "NOT_APPLICABLE",
   ];
 
   it("the two exported lists are disjoint and cover every persisted state", () => {
@@ -620,6 +624,8 @@ describe("in-flight and settled request states partition the persisted union", (
         "PROCESSING",
         "QUEUED",
         "SUCCEEDED",
+        // 2026-10-20 (AUD-03/04) — the expected business refusal.
+        "NOT_APPLICABLE",
       ].sort(),
     );
     // And every member really is projectable — a state the lifecycle module

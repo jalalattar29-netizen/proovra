@@ -50,6 +50,7 @@ import {
 } from "./platform-conditions.service.js";
 import {
   IN_FLIGHT_REPORT_REQUEST_STATES,
+  COMMERCIAL_TERMINAL_REASON_CODES,
   OTS_ANCHORING_RECORD_SELECT,
   parseOtsBudgetExhaustedFingerprint,
   REVIEW_ESCALATION_TERMINAL,
@@ -829,7 +830,12 @@ async function observeEvidenceArtifact(
       where: {
         evidenceId,
         artifactType: "REPORT",
-        OR: [{ stage: null }, { stage: { not: "REPORT_COMMITTED" } }],
+        AND: [
+          { OR: [{ stage: null }, { stage: { not: "REPORT_COMMITTED" } }] },
+          // 2026-10-20 (AUD-04) — a commercial refusal is a business answer,
+          // never an active report condition.
+          { OR: [{ terminalReasonCode: null }, { terminalReasonCode: { notIn: [...COMMERCIAL_TERMINAL_REASON_CODES] } }] },
+        ],
         state: { in: [...IN_FLIGHT_REPORT_REQUEST_STATES, "FAILED_TERMINAL"] },
         createdAtUtc: { gt: latestReport.generatedAtUtc },
       },

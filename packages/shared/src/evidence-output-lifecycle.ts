@@ -131,7 +131,14 @@ export type PersistedReportRequestState =
   | "FAILED_RETRYABLE"
   | "FAILED_TERMINAL"
   | "BLOCKED_STALE"
-  | "BLOCKED_POLICY";
+  | "BLOCKED_POLICY"
+  /**
+   * 2026-10-20 (AUD-03/04) — an EXPECTED business outcome: the output-producer
+   * guard refused the record (not entitled, archived, trashed, destroyed,
+   * deleted, storage allowance). Settled, never a failure, never retried, never
+   * an incident or a Sentry event; the terminal reason is `NOT_APPLICABLE_*`.
+   */
+  | "NOT_APPLICABLE";
 
 /**
  * THE REQUEST STATES THAT MEAN "THE SYSTEM STILL OWES AN ANSWER".
@@ -174,6 +181,7 @@ export const SETTLED_REPORT_REQUEST_STATES = [
   "FAILED_TERMINAL",
   "BLOCKED_STALE",
   "BLOCKED_POLICY",
+  "NOT_APPLICABLE",
 ] as const satisfies ReadonlyArray<PersistedReportRequestState>;
 
 /**
@@ -200,6 +208,9 @@ export function projectReportRequestState(
     case "BLOCKED_STALE":
     case "BLOCKED_POLICY":
       return "BLOCKED";
+    // A business refusal is not an operation in progress or a failure: the
+    // record's current eligibility and lifecycle describe the output.
+    case "NOT_APPLICABLE":
     case "SUCCEEDED":
       return "NOT_REQUESTED";
   }
@@ -244,7 +255,14 @@ const COMMERCIAL_TERMINAL_REASONS: ReadonlySet<string> = new Set([
   "REPORT_NOT_INCLUDED_IN_PLAN",
   "VERIFICATION_PACKAGE_NOT_INCLUDED",
   "REPORT_NOT_INCLUDED",
+  // 2026-10-20 (AUD-12) — a package refused by the workspace's storage
+  // allowance is a commercial answer (more storage resolves it), never a
+  // technical failure. Kept here so historical rows read as commercial.
+  "STORAGE_LIMIT_REACHED",
 ]);
+
+/** The commercial terminal codes, for persistence predicates that cannot call a function. */
+export const COMMERCIAL_TERMINAL_REASON_CODES: ReadonlyArray<string> = [...COMMERCIAL_TERMINAL_REASONS];
 
 /**
  * Is this terminal reason one that a change of commercial entitlement makes
@@ -1700,10 +1718,22 @@ export function deliverableStatusFor(input: {
 export function isCurrentReportUpdateFailure(input: {
   reportState: EvidenceOutputState;
   reportRequestState: string | null | undefined;
+  /**
+   * 2026-10-20 (AUD-04) — the request's terminal reason. A commercial refusal
+   * (historical FAILED_TERMINAL rows) or a business refusal is an expected
+   * outcome, never "update failed" beside a READY report.
+   */
+  reportRequestReasonCode?: string | null | undefined;
   requestCreatedAt: Date | string | null | undefined;
   latestReportGeneratedAt: Date | string | null | undefined;
 }): boolean {
   if (input.reportState !== "READY") return false;
+  if (
+    isCommerciallyObsoleteTerminalReason(input.reportRequestReasonCode) ||
+    isOutputProductionRefusal(input.reportRequestReasonCode)
+  ) {
+    return false;
+  }
   const generation = input.reportRequestState
     ? projectReportRequestState(input.reportRequestState as PersistedReportRequestState)
     : "NOT_REQUESTED";

@@ -12,7 +12,7 @@ import { Worker } from "bullmq";
 // PHASE 12 CORRECTIVE PASS §4 (SEC-004) — the ONE secrets authority, shared
 // with the API. See the call site near the bottom of this file.
 import { initSecretsAuthority } from "@proovra/shared-runtime";
-import { logger, withJobContext } from "./logger.js";
+import { logger } from "./logger.js";
 import {
   derivedAssetsQueue,
   derivedAssetsQueueName,
@@ -98,9 +98,8 @@ import { runAutomationDispatchSweepTick } from "./automation-dispatch.js";
 // P5 — Webhook dispatcher + Evidence Exchange package builder schedulers.
 import { runWebhookDispatcherTick } from "./webhook-dispatcher.js";
 import { pollExchangePackageBuilds } from "./exchange-package-builder.js";
-import { recordQueueReplayResultIfRequested } from "./queue-replay-correlation.js";
 import { validatePackageSignerAtStartup } from "./signing/package-signer.js";
-import { boundedErrorCode, isExpectedOtsPendingError, isFinalAttempt, jobCommandId } from "./job-event-context.js";
+import { bindWorkerEvents, emitOperationalAlert } from "./worker-events.js";
 // Hotfix — API readiness probe so startup-triggered fetches don't
 // race the api process and trigger spurious operational alerts.
 import {
@@ -110,7 +109,6 @@ import {
 // Phase Y — Observability heartbeat + job-outcome instrumentation.
 import {
   heartbeat,
-  instrumentJobOutcome,
   snapshotQueueHealth,
 } from "./observability.js";
 
@@ -156,187 +154,6 @@ function envBoolean(name: string, fallback: boolean): boolean {
   return raw.toLowerCase() === "true";
 }
 
-function emitOperationalAlert(params: {
-  requestId: string;
-  reason: string;
-  err?: unknown;
-  context?: Record<string, unknown>;
-}) {
-  logger.error(
-    {
-      alert: true,
-      severity: "critical",
-      requestId: params.requestId,
-      reason: params.reason,
-      ...(params.context ?? {}),
-      ...(params.err ? { err: params.err } : {}),
-    },
-    "operational.alert"
-  );
-}
-
-function getErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
-  return "";
-}
-
-
-function bindWorkerEvents(
-  workerInstance: Worker,
-  jobKind: WorkerKind
-) {
-  workerInstance.on("completed", (job) => {
-    const requestId = randomUUID();
-    const durationMs =
-      job.finishedOn && job.processedOn
-        ? job.finishedOn - job.processedOn
-        : null;
-
-    logger.info(
-      {
-        ...withJobContext({
-          requestId,
-          jobId: job.id,
-          attempt: job.attemptsMade + 1,
-          durationMs: durationMs ?? undefined,
-          status: "completed",
-        }),
-        commandId: jobCommandId(job) ?? null,
-      },
-      `${jobKind}.job.completed`
-    );
-    // Phase Y — structured outcome line for log-based metrics.
-    instrumentJobOutcome({
-      queueName: jobKind,
-      jobId: job.id ?? null,
-      attempt: job.attemptsMade + 1,
-      durationMs,
-      outcome: "completed",
-      correlationId: requestId,
-    });
-
-    // PHASE 5 §4 — if an operator replayed this job, the Admin audit is still
-    // holding a `queued` row with no result. Close it. Only replayed jobs
-    // qualify (see the module header for why this is not "audit every job"),
-    // and the call never throws.
-    void recordQueueReplayResultIfRequested({
-      queueName: jobKind,
-      jobId: job.id ?? null,
-      attemptsMade: job.attemptsMade,
-      outcome: "completed",
-      workspaceId: null,
-    });
-  });
-
-  workerInstance.on("failed", (job, err) => {
-    if (!job) return;
-
-    const requestId = randomUUID();
-    const durationMs =
-      job.finishedOn && job.processedOn
-        ? job.finishedOn - job.processedOn
-        : job.processedOn
-          ? Date.now() - job.processedOn
-          : null;
-
-    const context = {
-      ...withJobContext({
-        requestId,
-        jobId: job.id,
-        attempt: job.attemptsMade + 1,
-        durationMs: durationMs ?? undefined,
-        status: "failed",
-      }),
-      commandId: jobCommandId(job) ?? null,
-    };
-
-    if (isExpectedOtsPendingError(jobKind, err, job)) {
-      logger.warn(
-        {
-          ...context,
-          err,
-        },
-        `${jobKind}.job.pending_retry`
-      );
-      // Phase Y — pending retry is NOT a failure, but track it as a
-      // distinct outcome for the dashboard.
-      instrumentJobOutcome({
-        queueName: jobKind,
-        jobId: job.id ?? null,
-        attempt: job.attemptsMade + 1,
-        durationMs,
-        outcome: "stalled",
-        correlationId: requestId,
-        errorMessage: getErrorMessage(err),
-      });
-      return;
-    }
-
-    logger.error({ ...context, err }, `${jobKind}.job.failed`);
-    // ET-Q-08 — the media-intelligence DLQ was declared, shown to operators and
-    // never written: exhausted jobs sat in the failed set while it read 0. A
-    // job that has spent its LAST attempt is recorded there (bounded code only;
-    // its run row is already FAILED by the processor or the reconciler).
-    if (jobKind === "media-intelligence" && isFinalAttempt(job)) {
-      void mediaIntelligenceDlqQueue
-        .add(
-          "MediaIntelligenceDLQ",
-          { commandId: jobCommandId(job) ?? null, jobId: job.id ?? null, errorCode: boundedErrorCode(err) },
-          { removeOnComplete: true, removeOnFail: false },
-        )
-        .catch((dlqErr) => logger.warn({ err: dlqErr, jobId: job.id }, "media_intelligence.dlq_write_failed"));
-    }
-    captureException(err, {
-      requestId,
-      commandId: jobCommandId(job) ?? null,
-      jobId: job.id ?? null,
-      jobKind,
-    });
-
-    emitOperationalAlert({
-      requestId,
-      reason: `${jobKind}_job_failed`,
-      err,
-      context,
-    });
-    // Phase Y — structured outcome line for log-based metrics.
-    instrumentJobOutcome({
-      queueName: jobKind,
-      jobId: job.id ?? null,
-      attempt: job.attemptsMade + 1,
-      durationMs,
-      outcome: "failed",
-      correlationId: requestId,
-      errorMessage: getErrorMessage(err),
-    });
-
-    // PHASE 5 §4 — the other half of a replay, when it went the other way.
-    // The reason is a bounded CODE, never the raw error message: an operator
-    // needs to know the replay failed, and an audit row is not the place to
-    // put whatever text an exception happened to carry.
-    void recordQueueReplayResultIfRequested({
-      queueName: jobKind,
-      jobId: job.id ?? null,
-      attemptsMade: job.attemptsMade,
-      outcome: "error",
-      failureReason: "REPLAY_FAILED",
-      workspaceId: null,
-    });
-  });
-
-  workerInstance.on("error", (err) => {
-    const requestId = randomUUID();
-    logger.error({ requestId, err, jobKind }, `${jobKind}.worker.error`);
-    captureException(err, { requestId, jobKind });
-
-    emitOperationalAlert({
-      requestId,
-      reason: `${jobKind}_worker_runtime_error`,
-      err,
-    });
-  });
-}
 
 const internalApiBase =
   envString("INTERNAL_API_BASE_URL") ??

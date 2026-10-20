@@ -511,6 +511,15 @@ export async function createReportGenerationRequest(
     head?.state === "FAILED_TERMINAL" &&
     isCommerciallyObsoleteTerminalReason(head.terminalReasonCode);
 
+  /*
+   * 2026-10-20 (AUD-03/04) — a NOT_APPLICABLE head is an expected business
+   * refusal whose condition has ended: the producer guard above just decided
+   * this record may receive the output now (it was unarchived, or the plan now
+   * includes it). A new row supersedes it; it is not a failure, so it draws on
+   * no supersession budget.
+   */
+  const notApplicableObsolete = head?.state === "NOT_APPLICABLE";
+
   const blockedButRecoverable =
     (head?.state === "BLOCKED_STALE" || head?.state === "BLOCKED_POLICY") &&
     isRecoverableBlockedTerminalReason(head.terminalReasonCode);
@@ -572,8 +581,8 @@ export async function createReportGenerationRequest(
   }
 
   if (
-    (commerciallyObsolete || blockerCleared || technicalTerminalSuperseded) &&
-    withinBudget
+    notApplicableObsolete ||
+    ((commerciallyObsolete || blockerCleared || technicalTerminalSuperseded) && withinBudget)
   ) {
     idempotencyKey = `${baseKey}:s${headOrdinal + 1}`.slice(0, 160);
     superseded = true;

@@ -81,8 +81,12 @@ describe("worker report plan-gate — Sentry classifier", () => {
     const captureAt = PROCESSOR_SRC.indexOf("captureException(error", denialAt);
     expect(denialAt).toBeGreaterThan(-1);
     expect(captureAt).toBeGreaterThan(denialAt);
-    // The branch returns control before the failure path begins.
-    expect(PROCESSOR_SRC.slice(denialAt, captureAt)).toMatch(/throw error/);
+    // The branch returns control before the failure path begins, as a coded
+    // business refusal. 2026-10-20 (AUD-03): this pin alone was blind to the
+    // BullMQ `failed` binding that DID reach Sentry; the outcome is now proven by
+    // services/worker/test/worker-events-business-refusal.test.ts (real binding,
+    // real BullMQ on Redis) and the forward pipeline suite (no capture, no incident).
+    expect(PROCESSOR_SRC.slice(denialAt, captureAt)).toMatch(/throw new OutputProductionRefusedError\(/);
   });
 
   it("source: plan-denial branch logs at WARN, not error", () => {

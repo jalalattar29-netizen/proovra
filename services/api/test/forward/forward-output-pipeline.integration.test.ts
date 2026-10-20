@@ -55,7 +55,45 @@ const seam = vi.hoisted(() => ({
    * (2026-10-09): the PDF could not be read back (PDF.js API/worker mismatch).
    */
   renderedReportUnreadable: 0,
+  /** Every exception the WORKER reported to Sentry during a case. */
+  sentryCaptures: [] as unknown[],
+  /**
+   * When set, the worker RUN (resolveEvidenceOutputIssuance) reads this
+   * entitlement while the CLAIM (workerOutputEntitlement) still reads the real
+   * one: the plan lapsing in the window between claim and prepare.
+   */
+  runIssuanceOverride: null as null | Record<string, unknown>,
+  /** When set, the package allowance gate refuses with this code (once). */
+  packageAllowanceRefusal: null as null | "STORAGE_LIMIT_REACHED" | "VERIFICATION_PACKAGE_NOT_INCLUDED",
 }));
+
+vi.mock("../../../worker/src/workspace-billing.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, (...a: unknown[]) => unknown>;
+  return {
+    ...actual,
+    assertWorkspaceAllowsVerificationPackageArtifact: async (...a: unknown[]) => {
+      const code = seam.packageAllowanceRefusal;
+      if (code) {
+        seam.packageAllowanceRefusal = null;
+        throw Object.assign(new Error(code), { code });
+      }
+      return actual.assertWorkspaceAllowsVerificationPackageArtifact(...a);
+    },
+  };
+});
+
+vi.mock("../../../worker/src/output-issuance.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, (...a: unknown[]) => unknown>;
+  return {
+    ...actual,
+    resolveEvidenceOutputIssuance: async (...a: unknown[]) => seam.runIssuanceOverride ?? actual.resolveEvidenceOutputIssuance(...a),
+  };
+});
+
+vi.mock("../../../worker/src/sentry.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return { ...actual, captureException: (err: unknown) => void seam.sentryCaptures.push(err) };
+});
 
 vi.mock("../../../worker/src/verification-package.js", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown> & {
@@ -361,6 +399,9 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
     seam.afterRenderSnapshot = null;
     seam.renderInputFailures = 0;
     seam.renderedReportUnreadable = 0;
+    seam.sentryCaptures.length = 0;
+    seam.runIssuanceOverride = null;
+    seam.packageAllowanceRefusal = null;
   });
 
   /** A fresh SIGNED record in workspace A with its original in storage. */
@@ -733,6 +774,137 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("requested");
       expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("already_requested");
       expect(await autoRequests(ev.evidenceId)).toHaveLength(1);
+    }, 300_000);
+  });
+
+  // -------------------------------------------------------------------------
+  // PHASE 2 — A BUSINESS REFUSAL IS NOT A FAILURE (AUD-03, AUD-04, AUD-12)
+  // -------------------------------------------------------------------------
+  describe("PHASE 2 — business refusal is not failure", () => {
+    const incidentsFor = (evidenceId: string) =>
+      prisma.operationalIncident.count({ where: { relatedEvidenceId: evidenceId } });
+
+    it("AUD-03: a plan that lapsed after the request was written settles NOT_APPLICABLE — no throw, no Sentry, no incident", async () => {
+      const ev = await signedEvidence();
+      const id = await request(ev);
+      const result = await withNotEntitledWorkspace(() => run(id, 0));
+      expect(result, "the job must not throw (BullMQ `failed` would fire)").toBeNull();
+      const after = await state(ev.evidenceId, id);
+      expect(after.req).toMatchObject({ state: "NOT_APPLICABLE", terminalReasonCode: "NOT_APPLICABLE_NOT_ENTITLED" });
+      expect(after.reports).toEqual([]);
+      expect(seam.sentryCaptures).toEqual([]);
+      expect(await incidentsFor(ev.evidenceId)).toBe(0);
+    }, 300_000);
+
+    it("AUD-03: a plan that lapses between the claim and the run settles NOT_APPLICABLE at run time — no throw, no Sentry, no incident", async () => {
+      const ev = await signedEvidence();
+      const id = await request(ev);
+      seam.runIssuanceOverride = {
+        decision: "NOT_ENTITLED",
+        basis: "PLAN",
+        reportsIncluded: false,
+        verificationPackageIncluded: false,
+        mayIssueHistoricalFirstOutputs: false,
+      };
+      expect(await run(id, 0)).toBeNull();
+      expect((await state(ev.evidenceId, id)).req).toMatchObject({
+        state: "NOT_APPLICABLE",
+        terminalReasonCode: "NOT_APPLICABLE_NOT_ENTITLED",
+      });
+      expect(seam.sentryCaptures).toEqual([]);
+      expect(await incidentsFor(ev.evidenceId)).toBe(0);
+    }, 300_000);
+
+    it("AUD-03: a record archived while its report renders settles NOT_APPLICABLE — no Sentry, no incident", async () => {
+      const ev = await signedEvidence();
+      const id = await request(ev);
+      seam.afterRenderSnapshot = async () => setLifecycle(ev.evidenceId, "ARCHIVED");
+      expect(await run(id, 0)).toBeNull();
+      expect((await state(ev.evidenceId, id)).req).toMatchObject({
+        state: "NOT_APPLICABLE",
+        terminalReasonCode: "NOT_APPLICABLE_ARCHIVED",
+      });
+      expect(seam.sentryCaptures).toEqual([]);
+      expect(await incidentsFor(ev.evidenceId)).toBe(0);
+    }, 300_000);
+
+    it("AUD-12: a package refused by the storage allowance settles NOT_APPLICABLE_STORAGE_LIMIT — the report stays, no Sentry, no incident", async () => {
+      const ev = await signedEvidence();
+      const id = await request(ev);
+      seam.packageAllowanceRefusal = "STORAGE_LIMIT_REACHED";
+      expect(await run(id, 0)).toBeNull();
+      const after = await state(ev.evidenceId, id);
+      expect(after.req).toMatchObject({ state: "NOT_APPLICABLE", terminalReasonCode: "NOT_APPLICABLE_STORAGE_LIMIT" });
+      expect(after.reports.map((r) => r.version), "the report already committed stays issued").toEqual([1]);
+      expect(after.packageRows.filter((p) => p.state === "PUBLISHED")).toEqual([]);
+      expect(seam.sentryCaptures).toEqual([]);
+      expect(await incidentsFor(ev.evidenceId)).toBe(0);
+    }, 300_000);
+
+    it("a genuine technical failure still fails terminally, is captured and opens an incident", async () => {
+      const ev = await signedEvidence();
+      const id = await request(ev);
+      seam.renderedReportUnreadable = 1;
+      expect(await run(id, 0)).toBeTruthy();
+      expect((await state(ev.evidenceId, id)).req).toMatchObject({
+        state: "FAILED_TERMINAL",
+        terminalReasonCode: "REPORT_PDF_VERIFICATION_FAILED",
+      });
+      expect(seam.sentryCaptures.length).toBeGreaterThan(0);
+      expect(await incidentsFor(ev.evidenceId)).toBeGreaterThan(0);
+    }, 300_000);
+
+    it("AUD-04: a refusal after a READY report leaves the record READY — never NEEDS_ATTENTION / REPORT_UPDATE_FAILED", async () => {
+      const ev = await chainVerifiedWithV1();
+      const { reconcileOtsAnchoredReportVersion } = await import("../../../worker/src/ots-anchored-version.js");
+      expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("requested");
+      const [auto] = await autoRequests(ev.evidenceId);
+      await withNotEntitledWorkspace(() => run(auto!.id, 0));
+      const row = await prisma.reportGenerationRequest.findUniqueOrThrow({
+        where: { id: auto!.id },
+        select: { state: true, terminalReasonCode: true, createdAtUtc: true },
+      });
+      expect(row).toMatchObject({ state: "NOT_APPLICABLE", terminalReasonCode: "NOT_APPLICABLE_NOT_ENTITLED" });
+      const v1 = await prisma.report.findFirstOrThrow({ where: { evidenceId: ev.evidenceId }, orderBy: { version: "desc" }, select: { generatedAtUtc: true } });
+      const shared = await import("@proovra/shared");
+      const reportUpdateFailed = shared.isCurrentReportUpdateFailure({
+        reportState: "READY",
+        reportRequestState: row.state,
+        reportRequestReasonCode: row.terminalReasonCode,
+        requestCreatedAt: row.createdAtUtc,
+        latestReportGeneratedAt: v1.generatedAtUtc,
+      });
+      expect(reportUpdateFailed).toBe(false);
+      expect(shared.deliverableStatusFor({ report: "READY", verificationPackage: "READY", reportUpdateFailed })).toEqual({
+        status: "READY",
+        reason: "COMPLETE",
+      });
+      expect((await state(ev.evidenceId)).reports.map((r) => r.version), "v1 stays downloadable").toEqual([1]);
+    }, 300_000);
+
+    it("AUD-03: once the refusal's condition ends, the next request supersedes the NOT_APPLICABLE row", async () => {
+      const ev = await signedEvidence();
+      const api = await import("../../src/services/reports/report-generation-authority.service.js");
+      // The first request through the SAME authority (and so the same
+      // idempotency chain) the second one uses.
+      const first = await api.requestReportGeneration({
+        evidenceId: ev.evidenceId,
+        purpose: "evidence_completed",
+        requestedByMachineId: "forward-test",
+      } as never);
+      expect(first).toMatchObject({ requested: true });
+      const id = (first as { requestId: string }).requestId;
+      await setLifecycle(ev.evidenceId, "ARCHIVED");
+      expect(await run(id, 0)).toBeNull();
+      expect((await state(ev.evidenceId, id)).req).toMatchObject({ state: "NOT_APPLICABLE" });
+      await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { lifecycleState: "ACTIVE", archivedAt: null } as never });
+      const again = await api.requestReportGeneration({
+        evidenceId: ev.evidenceId,
+        purpose: "evidence_completed",
+        requestedByMachineId: "forward-test",
+      } as never);
+      expect(again).toMatchObject({ requested: true });
+      expect((again as { requestId?: string }).requestId).not.toBe(id);
     }, 300_000);
   });
 

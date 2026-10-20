@@ -369,7 +369,7 @@ export async function resolveAndClaimReportRequest(input: {
  */
 export async function markRequestTerminal(input: {
   requestId: string;
-  state: "SUCCEEDED" | "FAILED_TERMINAL" | "BLOCKED_STALE" | "BLOCKED_POLICY";
+  state: "SUCCEEDED" | "FAILED_TERMINAL" | "BLOCKED_STALE" | "BLOCKED_POLICY" | "NOT_APPLICABLE";
   terminalReasonCode: string;
   resultReportId?: string | null;
   resultChecksum?: string | null;
@@ -386,7 +386,7 @@ export async function markRequestTerminal(input: {
       : {
           id: input.requestId,
           state: {
-            notIn: ["SUCCEEDED", "FAILED_TERMINAL", "BLOCKED_STALE", "BLOCKED_POLICY"],
+            notIn: ["SUCCEEDED", "FAILED_TERMINAL", "BLOCKED_STALE", "BLOCKED_POLICY", "NOT_APPLICABLE"],
           },
         },
     data: {

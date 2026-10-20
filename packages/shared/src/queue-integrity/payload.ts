@@ -179,6 +179,8 @@ export const JOB_EXECUTION_STATES = [
   "FAILED_TERMINAL",
   "BLOCKED_STALE",
   "BLOCKED_POLICY",
+  /** 2026-10-20 — an expected business refusal (see PersistedReportRequestState). */
+  "NOT_APPLICABLE",
   /**
    * The external effect was attempted and its outcome is genuinely unknown — a
    * timeout, a dropped connection, a provider 5xx after the request was
@@ -196,6 +198,7 @@ export const TERMINAL_JOB_EXECUTION_STATES: ReadonlyArray<JobExecutionState> = [
   "FAILED_TERMINAL",
   "BLOCKED_STALE",
   "BLOCKED_POLICY",
+  "NOT_APPLICABLE",
 ];
 
 export function isTerminalJobExecutionState(

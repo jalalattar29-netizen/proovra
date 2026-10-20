@@ -23,8 +23,8 @@ Every row names its proof. A finding never leaves this table.
 |---|---|---|---|---|
 | AUD-01 | P1 | ARCHIVED / RETENTION_ARCHIVED evidence receives new outputs via worker paths | FIXED IN PHASE 1 | One decision `decideOutputProduction` (@proovra/shared) inside the ONE writer (entitlement REQUIRED of every producer), re-asked at worker claim, report commit and package commit; both re-enqueue paths settle instead of re-queueing. forward-output-pipeline Phase 1 block (real stack) + shared output-producer-decision tests; mutants P1-A..F killed. |
 | AUD-02 | P1 | Worker producers enqueue without entitlement / lifecycle checks | FIXED IN PHASE 1 | Every producer (API authority, OTS chain-verified version, first issuance / recovery, legacy drain) passes its entitlement reading to the writer; claim re-checks. Same proof as AUD-01. |
-| AUD-03 | P1 | Plan refusal → FAILED_TERMINAL + Sentry + critical alert | OPEN | |
-| AUD-04 | P1 | Commercial terminal after READY → NEEDS_ATTENTION | OPEN | |
+| AUD-03 | P1 | Plan refusal → FAILED_TERMINAL + Sentry + critical alert | FIXED IN PHASE 2 | New non-failure terminal request state NOT_APPLICABLE (reason NOT_APPLICABLE_*). Refusals at claim, run, report commit and package commit settle without throwing. The inner attempt catch never captures a refusal. bindWorkerEvents exempts a refusal (backstop). Proof: worker-events-business-refusal.test.ts (real extracted binding + real BullMQ on Redis: refusal -> 0 captures / 0 alerts, technical -> 1 / 1) and the forward Phase 2 block (no Sentry, no incident; technical failure still escalates). Mutants P2-A/B/C/D killed; P2-E equivalent (a legacy commercial code is converted to the same refusal by the inner catch). |
+| AUD-04 | P1 | Commercial terminal after READY → NEEDS_ATTENTION | FIXED IN PHASE 2 | isCurrentReportUpdateFailure excludes commercial and NOT_APPLICABLE reasons (both Reports aggregator sites pass the reason). The ops probe excludes commercial terminals. NOT_APPLICABLE projects to NOT_REQUESTED. Proof: shared tests + forward 'refusal after a READY report' case (READY / COMPLETE). Mutant P2-F killed. |
 | AUD-05 | P1 | Seal check memoizes PUBLISHED across key revocation | OPEN | |
 | AUD-06 | P1 | FULL_FORENSIC package ignores `allowOriginalDownload=false` | OPEN | |
 | AUD-07 | P1 | Customer PII in tracked docs and the generated runbook catalog | OPEN | Git-history rewrite is a separate owner decision |
@@ -32,7 +32,7 @@ Every row names its proof. A finding never leaves this table.
 | AUD-09 | P2 | Integrations API reviewer assignee not workspace-checked | OPEN | |
 | AUD-10 | P2 | Chain catch-up re-enqueues final-VERIFIED rows every tick | OPEN | |
 | AUD-11 | P2 | Forward OTS progress treated as a contradiction | OPEN | |
-| AUD-12 | P2 | STORAGE_LIMIT_REACHED treated as a technical CRITICAL | OPEN | |
+| AUD-12 | P2 | STORAGE_LIMIT_REACHED treated as a technical CRITICAL | FIXED IN PHASE 2 | A package storage-allowance refusal settles NOT_APPLICABLE_STORAGE_LIMIT. STORAGE_LIMIT_REACHED is in the commercial set for historical rows. Proof: forward storage-allowance case (report stays issued, no package, no Sentry, no incident). Mutants P2-H/P2-I killed. |
 | AUD-13 | P2 | Reviewer share discloses the permanent `pvr_` | OPEN | |
 | AUD-14 | P2 | TSA wording / tone drift across surfaces | OPEN | |
 | AUD-15 | P2 | Custody lines say "validated" for raw STAMPED | OPEN | |
@@ -61,7 +61,7 @@ Every row names its proof. A finding never leaves this table.
 | AUD-38 | P2 | Derivative / extraction truth gaps | OPEN | |
 | AUD-39 | P2 | Ops seed writes onto real evidence | OPEN | |
 | AUD-40 | P2 | Legacy trash backfill backdates grace | OPEN | Forward rule only; no historical rerun |
-| AUD-41 | P2 | Monitoring noise and gaps | OPEN | |
+| AUD-41 | P2 | Monitoring noise and gaps | OPEN (expected-refusal escalation fixed in Phase 2; OTS P2028 Phase 3; ECONNREFUSED filter and per-attempt Sentry Phase 12) | Phase 2: no Sentry event or critical alert for business refusals (real binding test). |
 | AUD-42 | P2 | TSA call inside the finalize transaction | OPEN | |
 | AUD-43 | P3 | No DB guard on sealed truth columns | OPEN | |
 | AUD-44 | P3 | Latent "Immutable Storage: Verified" rule | OPEN | |

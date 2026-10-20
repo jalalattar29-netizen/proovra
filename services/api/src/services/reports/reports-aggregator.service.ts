@@ -1043,6 +1043,7 @@ export async function listWorkspaceArtifacts(input: {
         const reportUpdateFailed = isCurrentReportUpdateFailure({
           reportState: reportCanonicalState,
           reportRequestState: reportRequestRow?.state ?? null,
+          reportRequestReasonCode: reportRequestRow?.terminalReasonCode ?? null,
           requestCreatedAt: reportRequestRow?.createdAtUtc ?? null,
           latestReportGeneratedAt: report?.generatedAtUtc ?? null,
         });
@@ -1364,7 +1365,7 @@ export async function classifyWorkspaceOutputs(input: {
           where: { evidenceId: { in: ids }, artifactType: "REPORT" },
           orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
           distinct: ["evidenceId"],
-          select: { evidenceId: true, state: true, createdAtUtc: true },
+          select: { evidenceId: true, state: true, createdAtUtc: true, terminalReasonCode: true },
         }),
         prisma.reportGenerationRequest.findMany({
           where: { evidenceId: { in: ids } },
@@ -1427,6 +1428,7 @@ export async function classifyWorkspaceOutputs(input: {
       const reportUpdateFailed = isCurrentReportUpdateFailure({
         reportState,
         reportRequestState: reportRequest?.state ?? null,
+        reportRequestReasonCode: reportRequest?.terminalReasonCode ?? null,
         requestCreatedAt: reportRequest?.createdAtUtc ?? null,
         latestReportGeneratedAt: latestReportAtById.get(row.id) ?? null,
       });
