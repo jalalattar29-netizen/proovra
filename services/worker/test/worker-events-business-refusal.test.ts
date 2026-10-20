@@ -67,6 +67,38 @@ describe("the worker event binding (real handlers)", () => {
   });
 });
 
+describe("PHASE 3 — a transient database error in the OTS job (P2028 / AUD-41)", () => {
+  const p2028 = () => Object.assign(new Error("Transaction API error: Unable to start a transaction in the given time."), { code: "P2028" });
+
+  it("is retried quietly before the last attempt: no Sentry event, no critical alert", () => {
+    const error = vi.spyOn(logger, "error");
+    const emitter = new EventEmitter();
+    bindWorkerEvents(emitter as never, "ots-upgrade");
+    for (let attemptsMade = 1; attemptsMade < 20; attemptsMade += 1) {
+      emitter.emit("failed", { ...job(attemptsMade), opts: { attempts: 20 } }, p2028());
+    }
+    expect(sentry.captured).toEqual([]);
+    expect(alertsFrom(error)).toBe(0);
+  });
+
+  it("escalates exactly once, on retry exhaustion", () => {
+    const error = vi.spyOn(logger, "error");
+    const emitter = new EventEmitter();
+    bindWorkerEvents(emitter as never, "ots-upgrade");
+    emitter.emit("failed", { ...job(20), opts: { attempts: 20 } }, p2028());
+    expect(sentry.captured).toHaveLength(1);
+    expect(alertsFrom(error)).toBe(1);
+  });
+
+  it("the OTS retry policy is bounded exponential WITH jitter", async () => {
+    const { RETRY_POLICIES } = await import("@proovra/shared");
+    const policy = RETRY_POLICIES.TIMESTAMP_AUTHORITY as { attempts: number; backoff: string; backoffJitter?: number };
+    expect(policy.backoff).toBe("exponential");
+    expect(policy.attempts).toBeLessThanOrEqual(20);
+    expect(policy.backoffJitter ?? 0).toBeGreaterThan(0);
+  });
+});
+
 const REDIS_URL = process.env.P7_TEST_REDIS_URL;
 
 describe.runIf(Boolean(REDIS_URL))("the worker event binding (real BullMQ on Redis)", () => {

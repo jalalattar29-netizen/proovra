@@ -909,6 +909,187 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
   });
 
   // -------------------------------------------------------------------------
+  // PHASE 3 — OTS / BITCOIN FORWARD PATH (AUD-10, AUD-11, OTS parts of AUD-41/50)
+  // -------------------------------------------------------------------------
+  describe("PHASE 3 — OTS / Bitcoin forward path", () => {
+    /** An anchored record carrying a recorded chain fact, without a report run. */
+    async function anchoredWithChain(chain: {
+      status: string;
+      confirmations: number | null;
+      checkedAtUtc: Date;
+      verifiedAtUtc: Date | null;
+      failureCode?: string | null;
+      anchoredAtUtc?: Date;
+    }) {
+      const ev = await signedEvidence();
+      await signFingerprintRaw(ev);
+      const proof = await anchoredProofFor(ev.evidenceId);
+      const base = chainVerifiedColumnsFor(proof);
+      await prisma.evidence.update({
+        where: { id: ev.evidenceId },
+        data: {
+          otsStatus: "ANCHORED",
+          otsHash: (await prisma.evidence.findUniqueOrThrow({ where: { id: ev.evidenceId }, select: { fingerprintHash: true } })).fingerprintHash,
+          otsProofBase64: proof,
+          otsAnchoredAtUtc: chain.anchoredAtUtc ?? new Date(),
+          ...base,
+          otsChainVerificationStatus: chain.status,
+          otsChainConfirmations: chain.confirmations,
+          otsChainCheckedAtUtc: chain.checkedAtUtc,
+          otsChainVerifiedAtUtc: chain.verifiedAtUtc,
+          otsChainFailureCode: chain.failureCode ?? null,
+        } as never,
+      });
+      return ev;
+    }
+
+    async function withChainVerifierEnabled<T>(fn: () => Promise<T>): Promise<T> {
+      const saved = { ...process.env };
+      process.env.OTS_BITCOIN_VERIFY_ENABLED = "true";
+      // Loopback, never contacted by the reconciler (it only enqueues).
+      process.env.OTS_BITCOIN_RPC_URL = "http://127.0.0.1:18443";
+      process.env.OTS_BITCOIN_RPC_USERNAME = "forward-test";
+      process.env.OTS_BITCOIN_EXPECTED_CHAIN = "regtest";
+      try {
+        return await fn();
+      } finally {
+        for (const k of ["OTS_BITCOIN_VERIFY_ENABLED", "OTS_BITCOIN_RPC_URL", "OTS_BITCOIN_RPC_USERNAME", "OTS_BITCOIN_EXPECTED_CHAIN"]) {
+          if (saved[k] === undefined) delete process.env[k];
+          else process.env[k] = saved[k];
+        }
+      }
+    }
+
+    async function clearOtsJobs(ids: string[]) {
+      const q = await import("../../../worker/src/queue.js");
+      for (const id of ids) {
+        const job = await q.otsUpgradeQueue.getJob(`ots-upgrade-${id}`);
+        await job?.remove().catch(() => undefined);
+      }
+    }
+
+    it("AUD-10: final (≥144 confirmations) VERIFIED records are never re-enqueued by the chain catch-up; a still-confirming one is", async () => {
+      const hour = 60 * 60 * 1000;
+      const finals = [] as string[];
+      for (let i = 0; i < 3; i += 1) {
+        const ev = await anchoredWithChain({
+          status: "VERIFIED",
+          confirmations: 200 + i,
+          checkedAtUtc: new Date(Date.now() - 7 * hour),
+          verifiedAtUtc: new Date(Date.now() - 24 * hour),
+        });
+        finals.push(ev.evidenceId);
+      }
+      const confirming = await anchoredWithChain({
+        status: "VERIFIED",
+        confirmations: 20,
+        checkedAtUtc: new Date(Date.now() - 7 * hour),
+        verifiedAtUtc: new Date(Date.now() - 24 * hour),
+      });
+      const q = await import("../../../worker/src/queue.js");
+      await clearOtsJobs([...finals, confirming.evidenceId]);
+      try {
+        const reconciler = await import("../../../worker/src/ots-initialization-reconciler.js");
+        await withChainVerifierEnabled(() => reconciler.runOtsInitializationReconciler({ trigger: "test" as never, batchSize: 1000 }));
+        for (const id of finals) expect(await q.isOtsUpgradeScheduled(id), `final ${id}`).toBe(false);
+        expect(await q.isOtsUpgradeScheduled(confirming.evidenceId)).toBe(true);
+        // A second pass changes nothing for the final rows.
+        await withChainVerifierEnabled(() => reconciler.runOtsInitializationReconciler({ trigger: "test" as never, batchSize: 1000 }));
+        for (const id of finals) expect(await q.isOtsUpgradeScheduled(id)).toBe(false);
+      } finally {
+        await clearOtsJobs([...finals, confirming.evidenceId]);
+      }
+    }, 300_000);
+
+    it("AUD-10: the chain sweep serves the longest-unchecked record first (no starvation behind old anchors)", async () => {
+      const hour = 60 * 60 * 1000;
+      // Anchored LAST, checked FIRST: an anchored-date order would serve it last.
+      const starved = await anchoredWithChain({
+        status: "UNAVAILABLE",
+        confirmations: null,
+        checkedAtUtc: new Date("2020-01-01T00:00:00Z"),
+        verifiedAtUtc: null,
+        failureCode: "BTC_RPC_UNAVAILABLE",
+        anchoredAtUtc: new Date(),
+      });
+      const q = await import("../../../worker/src/queue.js");
+      await clearOtsJobs([starved.evidenceId]);
+      try {
+        const reconciler = await import("../../../worker/src/ots-initialization-reconciler.js");
+        await withChainVerifierEnabled(() => reconciler.runOtsInitializationReconciler({ trigger: "test" as never, batchSize: 1 }));
+        expect(await q.isOtsUpgradeScheduled(starved.evidenceId)).toBe(true);
+      } finally {
+        await clearOtsJobs([starved.evidenceId]);
+      }
+      void hour;
+    }, 300_000);
+
+    it("AUD-11: the proof is independently verified on the Bitcoin chain WHILE the report renders — the run commits and the package states the issuance snapshot", async () => {
+      const ev = await signedEvidence();
+      await signFingerprintRaw(ev);
+      const proof = await anchoredProofFor(ev.evidenceId);
+      await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { otsProofBase64: proof } as never });
+      const reconcile = await import("../../../worker/src/scripts/reconcile-ots-state.js");
+      await reconcile.main(["--apply", "--evidence-id", ev.evidenceId]);
+      const id = await request(ev);
+      seam.afterRenderSnapshot = async () => {
+        await prisma.evidence.update({ where: { id: ev.evidenceId }, data: chainVerifiedColumnsFor(proof) as never });
+      };
+      expect(await run(id, 0)).toBeNull();
+      const after = await state(ev.evidenceId, id);
+      expect(after.req).toMatchObject({ state: "SUCCEEDED" });
+      expect(after.reports.map((r) => r.version)).toEqual([1]);
+      expect(after.packages.map((p) => p.version)).toEqual([1]);
+      const v1 = await prisma.report.findUniqueOrThrow({
+        where: { evidenceId_version: { evidenceId: ev.evidenceId, version: 1 } },
+        select: { anchorSnapshot: true },
+      });
+      expect((v1.anchorSnapshot as { otsVerification?: string }).otsVerification, "v1 states what it knew at issuance").toBe("ATTESTATION_RECORDED");
+    }, 300_000);
+
+    it("AUD-11: a chain verification that REGRESSES while the report renders is still refused", async () => {
+      const ev = await signedEvidence();
+      await signFingerprintRaw(ev);
+      const proof = await anchoredProofFor(ev.evidenceId);
+      await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { otsProofBase64: proof } as never });
+      const reconcile = await import("../../../worker/src/scripts/reconcile-ots-state.js");
+      await reconcile.main(["--apply", "--evidence-id", ev.evidenceId]);
+      await prisma.evidence.update({ where: { id: ev.evidenceId }, data: chainVerifiedColumnsFor(proof) as never });
+      const id = await request(ev);
+      seam.afterRenderSnapshot = async () => {
+        await prisma.evidence.update({
+          where: { id: ev.evidenceId },
+          data: { otsChainVerificationStatus: null, otsChainVerifiedAtUtc: null, otsChainCheckedAtUtc: null, otsChainBlockHash: null, otsChainBlockHeight: null, otsChainConfirmations: null, otsChainVerifier: null } as never,
+        });
+      };
+      await run(id, 0);
+      const after = await state(ev.evidenceId, id);
+      expect(after.packages).toEqual([]);
+      expect(after.req).toMatchObject({ state: "FAILED_TERMINAL", terminalReasonCode: "REPORT_RENDER_INPUT_INCONSISTENT" });
+    }, 300_000);
+
+    it("AUD-11: an anchored proof whose bytes change while the report renders is still refused", async () => {
+      const ev = await signedEvidence();
+      await signFingerprintRaw(ev);
+      const proof = await anchoredProofFor(ev.evidenceId);
+      await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { otsProofBase64: proof } as never });
+      const reconcile = await import("../../../worker/src/scripts/reconcile-ots-state.js");
+      await reconcile.main(["--apply", "--evidence-id", ev.evidenceId]);
+      const id = await request(ev);
+      const digest = (await prisma.evidence.findUniqueOrThrow({ where: { id: ev.evidenceId }, select: { fingerprintHash: true } })).fingerprintHash!;
+      const other = otsProofForDigest(digest, { bitcoinHeight: 860_123 });
+      expect(other).not.toBe(proof);
+      seam.afterRenderSnapshot = async () => {
+        await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { otsProofBase64: other } as never });
+      };
+      await run(id, 0);
+      const after = await state(ev.evidenceId, id);
+      expect(after.packages).toEqual([]);
+      expect(after.req).toMatchObject({ state: "FAILED_TERMINAL", terminalReasonCode: "REPORT_RENDER_INPUT_INCONSISTENT" });
+    }, 300_000);
+  });
+
+  // -------------------------------------------------------------------------
   // PHASE 4 — CANONICAL DIGEST FORM (AUD-53, AUD-54)
   // -------------------------------------------------------------------------
   describe("PHASE 4 — canonical digest form", () => {
