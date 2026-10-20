@@ -179,6 +179,7 @@ describe("legacy evidence lifecycle — one population, Home counts 2 not 6, bou
     expect(page.scanned).toBe(3);
     expect(page.nextCursor).not.toBeNull();
 
+    const applyStartedAt = Date.now();
     const applied = await backfill.reconcileEvidenceLifecycle({ apply: true, teamId: W.teamId, batchSize: 3 });
     expect(applied).toMatchObject({ mode: "APPLY", movedToTrash: 2, releasedReservations: 1 });
     expect(applied.counts).toMatchObject({ wouldChange: 0, changed: 3, skippedRowMoved: 0, refused: 2 });
@@ -192,7 +193,11 @@ describe("legacy evidence lifecycle — one population, Home counts 2 not 6, bou
     expect(legacy.lifecycleState).toBe("TRASHED");
     expect(legacy.deletedAt?.toISOString()).toBe(legacyBefore.deletedAt?.toISOString());
     expect(legacy.deletedAtUtc?.toISOString()).toBe(legacyBefore.deletedAt?.toISOString());
-    expect(legacy.deleteScheduledForUtc!.getTime()).toBe(legacyBefore.deletedAt!.getTime() + 90 * DAY);
+    // AUD-40 (2026-10-20): the grace runs from THIS reconciliation, never from
+    // the legacy deletion instant (which stays recorded as it was) — a record
+    // deleted long ago is not made an immediate destruction candidate.
+    expect(legacy.deleteScheduledForUtc!.getTime()).toBeGreaterThanOrEqual(applyStartedAt + 90 * DAY);
+    expect(legacy.deleteScheduledForUtc!.getTime()).toBeLessThanOrEqual(Date.now() + 90 * DAY);
     // Content facts untouched.
     expect(legacy.fileSha256).toBe(legacyBefore.fileSha256);
     expect(legacy.signedAtUtc?.toISOString()).toBe(legacyBefore.signedAtUtc?.toISOString());
