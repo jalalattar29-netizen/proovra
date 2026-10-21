@@ -308,6 +308,8 @@ type IdentitySnapshot = {
   /** From the capture-time snapshot; null when none was recorded. */
   identityLevelSnapshot: prismaPkg.IdentityLevel | null;
   submittedByEmail: string | null;
+  /** Intake only: the link issuer's email, by role (never a submitter). */
+  linkIssuerEmail: string | null;
   submittedByAuthProvider: prismaPkg.AuthProvider | null;
   submittedByUserId: string | null;
   createdByUserId: string | null;
@@ -3051,11 +3053,12 @@ captureMethod: deriveReportCaptureMethod({
   existingCaptureMethod: evidence.captureMethod ?? null,
 }),
     identityLevelSnapshot: (acquisitionIdentity.identityLevel as prismaPkg.IdentityLevel | null) ?? null,
-    // Intake: the account fields downstream are the LINK ISSUER's, labelled by
-    // role (report technical rows, package linkCreatorEmail); the issuer's
-    // email is carried by role (closure re-audit R-1), never the contributor's.
-    submittedByEmail:
-      acquisitionIdentity.actorKind === "INTAKE_CONTRIBUTOR" ? acquisitionIdentity.linkIssuerEmail : acquisitionIdentity.submittedByEmail,
+    // F-03: the SUBMITTER's email — null for an intake record (the contributor
+    // has no account and their address stays off custody and report rows).
+    submittedByEmail: acquisitionIdentity.submittedByEmail,
+    // R-1 / R-2 (closure re-audits): the link ISSUER's email, by role only.
+    // Read by the package's linkCreatorEmail and nothing that names a submitter.
+    linkIssuerEmail: acquisitionIdentity.linkIssuerEmail,
     submittedByAuthProvider: (acquisitionIdentity.authProvider as prismaPkg.AuthProvider | null) ?? null,
     submittedByUserId: acquisitionIdentity.submittedByUserId ?? evidence.submittedByUserId ?? evidence.ownerUserId,
     createdByUserId: evidence.createdByUserId ?? evidence.ownerUserId,
@@ -3095,6 +3098,7 @@ captureMethod: deriveReportCaptureMethod({
   const reportAcquisition = await buildReportAcquisitionContext({
     teamId: evidence.teamId ?? null,
     evidenceId,
+    acquisitionMode: evidence.acquisitionMode ?? null,
   });
 
   const custodyDisplayContext = {
@@ -3909,6 +3913,7 @@ async function loadCommittedReportForPackage(params: {
     const acquisition = await buildReportAcquisitionContext({
       teamId: params.teamId,
       evidenceId,
+      acquisitionMode: finalizedReportEvidencePayload.acquisitionMode ?? null,
     });
     const displayContext = {
       itemCount: prepared.contentSummary.itemCount,
@@ -4523,6 +4528,7 @@ async function runReportGeneration(
         const finalizedReportAcquisition = await buildReportAcquisitionContext({
           teamId: evidence.teamId ?? null,
           evidenceId: prepared.evidenceId,
+          acquisitionMode: evidence.acquisitionMode ?? null,
         });
 
         const finalizedCustodyDisplayContext = {
@@ -5220,6 +5226,7 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
         const packageAcquisition = await buildReportAcquisitionContext({
           teamId: evidence.teamId ?? null,
           evidenceId: prepared.evidenceId,
+          acquisitionMode: evidence.acquisitionMode ?? null,
         });
 
         // F-11 / F-34 (independent forward audit) — ONE reading of the record's
@@ -5508,6 +5515,9 @@ identityLevelSnapshot: String(
   finalized.finalizedReportEvidencePayload.identityLevelSnapshot,
 ),
 submittedByEmail: finalized.finalizedReportEvidencePayload.submittedByEmail,
+// R-1 / R-2 (closure re-audits): the link issuer, by role — the package
+// states it as linkCreatorEmail; it is never a submitter.
+linkIssuerEmail: prepared.identitySnapshot.linkIssuerEmail,
 submittedByAuthProvider:
   finalized.finalizedReportEvidencePayload.submittedByAuthProvider
     ? String(finalized.finalizedReportEvidencePayload.submittedByAuthProvider)

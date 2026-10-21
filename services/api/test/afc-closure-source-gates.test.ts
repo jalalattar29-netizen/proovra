@@ -52,12 +52,22 @@ describe("Wave A minor (closure) — an intake submit claims a persisted locatio
   });
 });
 
-describe("R-1 (closure re-audit) — the report pipeline's intake identity is the link issuer, by role", () => {
-  it("the processor reads linkIssuerEmail for an intake record (package linkCreatorEmail)", () => {
+describe("R-1 / R-2 (closure re-audits) — the link issuer is carried by role, never as a submitter", () => {
+  it("the report pipeline's submitter email is the submitter's (null for intake); the issuer is its own field", () => {
     const src = read("../worker/src/processor.ts");
-    expect(src).toMatch(/acquisitionIdentity\.actorKind === "INTAKE_CONTRIBUTOR" \? acquisitionIdentity\.linkIssuerEmail : acquisitionIdentity\.submittedByEmail/);
+    expect(src).toContain("\n    submittedByEmail: acquisitionIdentity.submittedByEmail,\n");
+    expect(src).toContain("\n    linkIssuerEmail: acquisitionIdentity.linkIssuerEmail,\n");
+    expect(src).toContain("linkIssuerEmail: prepared.identitySnapshot.linkIssuerEmail,");
+    expect(src).not.toContain('INTAKE_CONTRIBUTOR" ? acquisitionIdentity.linkIssuerEmail');
     const pkg = read("../worker/src/verification-package.ts");
-    expect(pkg).toMatch(/const linkCreatorEmail = metadata\.submittedByEmail \?\? null;/);
+    expect(pkg).toContain("const linkCreatorEmail = metadata.linkIssuerEmail ?? null;");
+  });
+
+  it("an intake record whose acquisition context cannot be read fails the run, never renders as non-intake", () => {
+    const bridge = read("../worker/src/report-technical-summary-bridge.ts");
+    expect(bridge).toMatch(/if \(input\.acquisitionMode === "SECURE_INTAKE_LINK"\) \{\s*throw Object\.assign\(new Error\("REPORT_INTAKE_ACQUISITION_UNREADABLE"\)/);
+    const src = read("../worker/src/processor.ts");
+    expect((src.match(/await buildReportAcquisitionContext\(\{[^}]*acquisitionMode:/g) ?? []).length).toBe(4);
   });
 });
 

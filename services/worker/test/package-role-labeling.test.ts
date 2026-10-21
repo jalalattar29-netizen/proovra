@@ -38,7 +38,10 @@ function metadata(isIntake: boolean, acquisitionMode?: string | null) {
     verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
     captureMethod: "MULTIPART_PACKAGE",
     identityLevelSnapshot: "VERIFIED_EMAIL",
-    submittedByEmail: isIntake ? OWNER : "owner@acme-legal.example",
+    // Intake (closure re-audits R-1 / R-2): no submitter email; the link issuer
+    // travels in its own role-named field.
+    submittedByEmail: isIntake ? null : "owner@acme-legal.example",
+    ...(isIntake ? { linkIssuerEmail: OWNER } : {}),
     submittedByAuthProvider: "google",
     isIntake,
   } as never;
@@ -121,5 +124,13 @@ describe("verification package — intake role-safe submitter + capture method",
     expect(s).not.toMatch(/twilio/i);
     expect(s).not.toMatch(/\bSM[0-9a-f]{20,}/i); // Twilio SID
     expect(s).not.toMatch(/\bwamid/i); // WhatsApp message ID
+  });
+
+  it("R-2: an intake package never states a submitter email as the link creator (only the role-named field)", () => {
+    const m = { ...(metadata(true) as Record<string, unknown>), submittedByEmail: "someone@example.test", linkIssuerEmail: null };
+    const out = buildCaseMetadata(m as never, "ev-1") as { submitter: Record<string, unknown> };
+    expect(out.submitter.submittedByEmail).toBeNull();
+    expect(out.submitter).not.toHaveProperty("linkCreatorEmail");
+    expect(JSON.stringify(out)).not.toContain("someone@example.test");
   });
 });

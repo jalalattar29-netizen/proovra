@@ -248,6 +248,13 @@ export async function buildReportTechnicalSummary(input: {
 export async function buildReportAcquisitionContext(input: {
   teamId: string | null;
   evidenceId: string;
+  /**
+   * The record's immutable acquisition mode (closure re-audit R-2). An intake
+   * record whose context cannot be read FAILS the run (retryably) instead of
+   * rendering as a non-intake record — which printed the link issuer's
+   * account fields as the submitter.
+   */
+  acquisitionMode?: string | null;
 }): Promise<PublicAcquisition | null> {
   try {
     const rows = (await prisma.$queryRawUnsafe(
@@ -328,6 +335,12 @@ export async function buildReportAcquisitionContext(input: {
       },
       "report.acquisition.build_failed",
     );
+    if (input.acquisitionMode === "SECURE_INTAKE_LINK") {
+      throw Object.assign(new Error("REPORT_INTAKE_ACQUISITION_UNREADABLE"), {
+        code: "REPORT_INTAKE_ACQUISITION_UNREADABLE",
+        retriable: true,
+      });
+    }
     return null;
   }
 }

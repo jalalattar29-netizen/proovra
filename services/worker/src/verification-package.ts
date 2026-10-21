@@ -298,6 +298,8 @@ type VerificationPackageMetadata = {
   captureMethod?: string | null;
   identityLevelSnapshot?: string | null;
   submittedByEmail?: string | null;
+  /** Intake only: the link issuer's email, by role (closure re-audits R-1 / R-2). */
+  linkIssuerEmail?: string | null;
   submittedByAuthProvider?: string | null;
   /**
    * THE acquisition identity snapshot's facts (creation-time custody event):
@@ -1326,7 +1328,9 @@ function buildPackageSubmitterFields(metadata: VerificationPackageMetadata): {
   captureMethod: string | null;
 } {
   if (metadata.isIntake) {
-    const linkCreatorEmail = metadata.submittedByEmail ?? null;
+    // The link ISSUER, read from its own role-named field (closure re-audits
+    // R-1 / R-2); never from submittedByEmail, which names a submitter.
+    const linkCreatorEmail = metadata.linkIssuerEmail ?? null;
     return {
       submittedByEmail: null,
       submittedByAuthProvider: null,

@@ -6533,10 +6533,10 @@
     "id": "AFC-RR1-B",
     "phase": "AFC",
     "aud": "F-03",
-    "name": "report pipeline reads the (null) submitter email for an intake record",
+    "name": "report pipeline names the link issuer as the submitter of an intake record (custody, report row)",
     "file": "services/worker/src/processor.ts",
-    "find": "      acquisitionIdentity.actorKind === \"INTAKE_CONTRIBUTOR\" ? acquisitionIdentity.linkIssuerEmail : acquisitionIdentity.submittedByEmail,",
-    "replace": "      acquisitionIdentity.submittedByEmail,",
+    "find": "    submittedByEmail: acquisitionIdentity.submittedByEmail,\n    // R-1 / R-2",
+    "replace": "    submittedByEmail: acquisitionIdentity.actorKind === \"INTAKE_CONTRIBUTOR\" ? acquisitionIdentity.linkIssuerEmail : acquisitionIdentity.submittedByEmail,\n    // R-1 / R-2",
     "tests": [
       {
         "cwd": "services/api",
@@ -6547,7 +6547,8 @@
           "test/afc-closure-source-gates.test.ts"
         ]
       }
-    ]
+    ],
+    "note": "Re-anchored 2026-10-22 (closure re-audit R-2)."
   },
   {
     "id": "AFC-O1",
@@ -6577,6 +6578,46 @@
     "file": "services/api/src/services/dashboard/command-center.service.ts",
     "find": "      where: { AND: [pop.activeEvidence], submittedByUserId: { not: null }, OR: [{ acquisitionMode: null }, { acquisitionMode: { not: \"SECURE_INTAKE_LINK\" } }] },",
     "replace": "      where: { AND: [pop.activeEvidence], submittedByUserId: { not: null } },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-closure-source-gates.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-R2-B",
+    "phase": "AFC",
+    "aud": "F-03",
+    "name": "package reads the submitter email as the link creator",
+    "file": "services/worker/src/verification-package.ts",
+    "find": "    const linkCreatorEmail = metadata.linkIssuerEmail ?? null;",
+    "replace": "    const linkCreatorEmail = metadata.submittedByEmail ?? null;",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/package-role-labeling.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-R2-C",
+    "phase": "AFC",
+    "aud": "F-03",
+    "name": "an unreadable intake acquisition context renders the record as non-intake",
+    "file": "services/worker/src/report-technical-summary-bridge.ts",
+    "find": "    if (input.acquisitionMode === \"SECURE_INTAKE_LINK\") {\n      throw Object.assign(",
+    "replace": "    if (input.acquisitionMode === \"NEVER\") {\n      throw Object.assign(",
     "tests": [
       {
         "cwd": "services/api",
