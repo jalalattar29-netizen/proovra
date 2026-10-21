@@ -1683,7 +1683,7 @@ export default function EvidenceDetailScreen() {
                   <ProovraBadge tone="neutral" label={rel.relationshipType.replace(/_/g, " ")} />
                 </View>
                 <ProovraText variant="label" color={theme.color.ink.secondary}>
-                  {`${relationshipDirectionLabel(rel.direction)} • ${rel.linkedStatus.replace(/_/g, " ")}`}
+                  {`${relationshipDirectionLabel(rel.direction)} • ${evidenceStatusDisplay(rel.linkedStatus).label}`}
                 </ProovraText>
                 {rel.note ? <ProovraText variant="label" color={theme.color.ink.muted}>{rel.note}</ProovraText> : null}
                 <View style={styles.inline}>

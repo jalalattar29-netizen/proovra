@@ -178,6 +178,29 @@ const CANONICAL_STATE_COPY: Record<CanonicalVerificationState, { title: string; 
   },
 };
 
+/**
+ * THE mapping from the API's canonical-state body / error code to the state
+ * this view states (the record page and the package page read it alike; F-19
+ * closure / R-1: the package page treated a RETAINED 200 body as a package
+ * record and crashed).
+ */
+export function canonicalVerificationStateFromCode(code: unknown): Exclude<CanonicalVerificationState, "LEGACY_LINK_RETIRED"> | null {
+  switch (code) {
+    case "VERIFICATION_RECORD_PURGED":
+      return "PURGED";
+    case "VERIFICATION_RECORD_WITHDRAWN":
+      return "WITHDRAWN";
+    case "VERIFICATION_RECORD_TEMPORARILY_UNAVAILABLE":
+      return "TEMPORARILY_UNAVAILABLE";
+    case "VERIFICATION_RECORD_RETAINED":
+      return "RETAINED";
+    case "VERIFICATION_RECORD_NOT_SEALED":
+      return "NOT_SEALED";
+    default:
+      return null;
+  }
+}
+
 export function CanonicalVerificationStateView({ state }: { state: CanonicalVerificationState }) {
   const copy = CANONICAL_STATE_COPY[state];
   return (

@@ -22,7 +22,7 @@
  *
  * Hard rules (three-layer defense, identical to auth-test-bypass):
  *
- *   1. `NODE_ENV === "production"`   → endpoint responds 404 always.
+ *   1. not an explicit development / test environment (developmentSurfacesAllowed) → 404 always.
  *      Production never has a path to reach the reset, even if the
  *      env var and header somehow appear in prod.
  *
@@ -34,7 +34,7 @@
  *
  *   The same `shouldBypassAuthRateLimit` helper that gates the
  *   guest-auth bypass also gates this endpoint. The defense
- *   surface is unified — one secret, one header, one NODE_ENV
+ *   surface is unified — one secret, one header, one environment gate
  *   guard. Operators rotating the secret get coverage on both
  *   surfaces simultaneously.
  *

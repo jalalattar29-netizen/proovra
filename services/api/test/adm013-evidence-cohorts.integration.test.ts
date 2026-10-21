@@ -502,6 +502,12 @@ describe("EVIDENCE HEALTH COHORTS (live PostgreSQL 16)", () => {
       expect(delta("SIGNED_NO_REPORT_ONLY")).toBe(2);
       expect(delta("ALL_AFFECTED")).toBe(2);
       expect(after.arithmetic.agrees).toBe(true);
+      // …and each such row NAMES that cohort in the drill-down (its own
+      // cohortOf uses the same predicate; the raw word labelled them BOTH).
+      const list = await listAdminEvidenceRecords({ cohort: "ALL_AFFECTED", page: 1, limit: 200 });
+      for (const id of mine) {
+        expect(list.items.find((r: { id: string }) => r.id === id)?.cohort, id).toBe("SIGNED_NO_REPORT_ONLY");
+      }
     } finally {
       await prisma.evidence.deleteMany({ where: { id: { in: mine } } });
       seeded.splice(0, seeded.length, ...seeded.filter((id) => !mine.includes(id)));

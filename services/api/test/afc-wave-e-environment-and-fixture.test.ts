@@ -256,3 +256,47 @@ describe("the operator safety report prints only booleans and enums", () => {
     });
   });
 });
+
+describe("closure — F-08 undeclared environments, F-41 sibling gates, R-3", () => {
+  it("F-08: an undeclared environment is a deployment the report calls UNSAFE (never NOT_A_DEPLOYMENT)", () => {
+    const r = buildDeploymentSafetyReport({ API_TRUST_PROXY_MODE: "off" });
+    expect(r.environment).toMatchObject({ kind: null, basis: "UNKNOWN", deployedInfrastructureRequired: true });
+    expect(r.verdict).toBe("UNSAFE");
+    expect(r.unsafeReasons).toContain("ENVIRONMENT_NOT_DECLARED");
+  });
+
+  it("R-3: an inline committed-fixture private key is reported (by its public fingerprint, nothing printed)", () => {
+    const r = buildDeploymentSafetyReport({ PROOVRA_ENV: "production", SIGNING_PRIVATE_KEY_PEM: readFileSync(FIXTURE_PRIVATE, "utf8") });
+    expect(r.signing.evidenceInlinePrivateKey).toBe("COMMITTED_FIXTURE");
+    expect(r.unsafeReasons).toContain("SIGNING_KEY_IS_COMMITTED_FIXTURE");
+    expect(JSON.stringify(r)).not.toMatch(/PRIVATE KEY|BEGIN/);
+  });
+
+  it("F-41: the cron, MFA, signed-delivery and loopback-CORS fallbacks are refused in staging", async () => {
+    const { isTrustedWebOrigin } = await import("../src/http/cors-origin-policy.js");
+    expect(isTrustedWebOrigin("http://localhost:3000", { PROOVRA_ENV: "staging" })).toBe(false);
+    expect(isTrustedWebOrigin("http://localhost:3000", { NODE_ENV: "development" })).toBe(true);
+    // Signed delivery: no secret configured → refused in staging (a public
+    // constant signed it), allowed in development.
+    const delivery = await import("../src/services/exchange/signed-delivery.service.js");
+    const sign = () => delivery.signPackageManifest({ packageId: "p", payloadHash: "a".repeat(64), ttlSeconds: 60 } as never);
+    withEnv({ PROOVRA_ENV: "staging" });
+    delete process.env.WEBHOOK_SIGNING_SECRET;
+    await expect(sign()).rejects.toBeInstanceOf(delivery.ExchangeSigningSecretMissingError);
+    withEnv({ PROOVRA_ENV: "development" });
+    await expect(sign()).resolves.toBeTruthy();
+    // MFA secret sealing: no KEK → refused in staging (a public constant derived it).
+    const mfa = await import("../src/services/security/mfa-secret-storage.js");
+    withEnv({ PROOVRA_ENV: "staging" });
+    delete process.env.MFA_SECRET_KEK_BASE64;
+    expect(() => mfa.sealSecret(Buffer.from("totp-seed"))).toThrow(/MFA_SECRET_KEK_BASE64 is required outside development \/ test/);
+    // Cron routes: no secret configured → 503, never the workspace-admin fallback.
+    const cron = await import("../src/middleware/cron-secret.js");
+    for (const k of Object.keys(process.env)) if (/CRON|SECRET/.test(k) && !/E2E/.test(k)) delete process.env[k];
+    const reply = { statusCode: 0, body: null as unknown, code(n: number) { this.statusCode = n; return this; }, send(b: unknown) { this.body = b; return this; } };
+    const allowed = await cron.requireNotificationCronSecret({ headers: {} } as never, reply as never);
+    expect(allowed).toBe(false);
+    expect(reply.statusCode).toBe(503);
+    expect(reply.body).toMatchObject({ error: { code: "CONFIGURATION_ERROR" } });
+  });
+});

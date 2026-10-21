@@ -2523,7 +2523,7 @@ export async function billingRoutes(app: FastifyInstance) {
   // checkout in production goes through /v1/billing/checkout/*). It stays in this
   // file because it shares the assertPersonalCheckoutAllowed / assertOwnedTeamForCheckout
   // governance guards, but its REGISTRATION is now gated behind devAuthEnabled()
-  // (NODE_ENV !== production AND DEV_AUTH_ENABLED === "true"), so production route
+  // (an explicit development / test environment AND DEV_AUTH_ENABLED === "true"), so production route
   // registration = 0 rather than a permanent-403 product surface.
   if (devAuthEnabled()) {
     app.post(

@@ -13,7 +13,7 @@
  * times.
  */
 import { otsCard, otsStatusLine } from "./ots-anchoring";
-import { objectLockModeLabel } from "@proovra/shared";
+import { objectLockModeLabel, recordSignaturePresentation } from "@proovra/shared";
 
 type Obj = Record<string, unknown>;
 const o = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
@@ -231,7 +231,11 @@ export function buildTechnicalAppendix(technicalPayload: unknown, rw: unknown, l
     { label: "Canonical fingerprint hash", value: s(ev["fingerprintHash"]), mono: true, copyable: true },
     {
       label: "Digital signature",
-      value: sig["recorded"] === true ? (sig["valid"] === true ? "Digital signature recorded" : "Digital signature recorded (verify separately)") : null,
+      // F-12 (independent forward audit, closure) — THE presentation of the validity state.
+      value:
+        sig["recorded"] === true
+          ? recordSignaturePresentation({ validityState: sig["validityState"] ?? null, revokedAtUtc: s(sig["signingKeyRevokedAtUtc"]) }).label
+          : null,
     },
     { label: "Signing key reference", value: keyId ? `${keyId}${keyVersion != null ? ` v${keyVersion}` : ""}` : null, mono: true },
     { label: "Trusted timestamp", value: timestampStatusLabel(s(tsa["status"])) },

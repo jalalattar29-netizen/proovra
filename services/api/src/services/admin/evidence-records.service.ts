@@ -6,6 +6,7 @@ import {
   evidenceHealthCohortWheres,
   retryabilityContract,
   TSA_VALIDATION_FAILED_WHERE,
+  isTsaValidationFailure,
   type EvidenceHealthCohort,
 } from "./evidence-health-cohorts.service.js";
 import { owedOutputNarrowing } from "../billing/owed-output-population.service.js";
@@ -284,10 +285,13 @@ export async function listAdminEvidenceRecords(
    */
   const cohortOf = (r: {
     tsaStatus: string | null;
+    tsaTokenBase64: string | null;
+    tsaFailureCode: string | null;
     status: string;
     latestReportVersion: number | null;
   }): EvidenceHealthCohort | null => {
-    const tsaFailed = r.tsaStatus === "FAILED";
+    // F-27 (independent forward audit, closure) — THE cohort predicate, not the raw word.
+    const tsaFailed = isTsaValidationFailure(r);
     const noReport = r.status === "SIGNED" && r.latestReportVersion === null;
     if (tsaFailed && noReport) return "BOTH";
     if (tsaFailed) return "TSA_FAILED_ONLY";

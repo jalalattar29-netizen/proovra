@@ -12,7 +12,7 @@
  * content-credential acronyms are intentionally excluded.
  */
 
-import { OTS_ANCHORING_COPY, otsBoundaryFor, parseTsaProofStatus, readOtsAnchoringView, TSA_PROOF_STATUS_LABELS, objectLockModeLabel } from "@proovra/shared";
+import { OTS_ANCHORING_COPY, otsBoundaryFor, parseTsaProofStatus, readOtsAnchoringView, recordSignaturePresentation, TSA_PROOF_STATUS_LABELS, objectLockModeLabel } from "@proovra/shared";
 import type { AppendixRow, TechnicalMetadataInternal } from "./types";
 
 const NON_MEANINGFUL = new Set([
@@ -400,7 +400,15 @@ export function anchoringStatusLabel(ots: unknown): string {
 
 export type PreservationInput = {
   recordedIntegrityVerifiedAtUtc: string | null;
-  signature: { recorded: boolean; valid: boolean; keyId: string | null; keyVersion: number | null };
+  /** F-12 — validityState / signingKeyRevokedAtUtc: what the row states (recordSignaturePresentation). */
+  signature: {
+    recorded: boolean;
+    valid: boolean;
+    keyId: string | null;
+    keyVersion: number | null;
+    validityState?: string | null;
+    signingKeyRevokedAtUtc?: string | null;
+  };
   tsa: { status: string | null; provider: string | null; timestampedDigestLabel: string; proofStatus?: string | null };
   /** The server's OtsAnchoringView, as sent; read through readOtsAnchoringView. */
   ots: unknown;
@@ -442,10 +450,14 @@ export function buildIntegrityRows(input: {
     },
     {
       label: "Digital signature",
+      // F-12 (independent forward audit, closure) — THE presentation of the
+      // validity state, as the Integrity tab states it: a revoked, mismatched
+      // or invalid signature is never "recorded (verify separately)".
       value: p.signature.recorded
-        ? p.signature.valid
-          ? "Digital signature recorded"
-          : "Digital signature recorded (verify separately)"
+        ? recordSignaturePresentation({
+            validityState: p.signature.validityState ?? null,
+            revokedAtUtc: p.signature.signingKeyRevokedAtUtc ?? null,
+          }).label
         : null,
     },
     {

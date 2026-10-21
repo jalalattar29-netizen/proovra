@@ -42,6 +42,7 @@ import {
   type OtsStateTone,
   type OtsVerificationKey,
   custodyEventLabel,
+  pdfSignatureStatusLabel,
 } from "@proovra/shared";
 import type { EvidenceOutputState } from "@proovra/shared";
 import { useOptionalLocale } from "../../../../providers";
@@ -547,20 +548,9 @@ export function describeReportPdfSignature(
     return artifactStatus.report.pending ? "Pending" : "Unknown";
   }
 
-  switch (artifactStatus.report.pdfSignature.status) {
-    case "SIGNED":
-      return "Signed";
-    case "UNSIGNED_OPT_OUT":
-      return "Unsigned";
-    case "SIGNING_UNAVAILABLE":
-      return "Signing unavailable";
-    case "SIGNING_FAILED":
-      return "Signing failed";
-    case "NOT_APPLICABLE":
-      return "Not applicable";
-    default:
-      return "Unknown";
-  }
+  // F-28 (independent forward audit, closure) — THE PDF signature vocabulary
+  // (pdfSignatureStatusLabel), the one mobile states.
+  return pdfSignatureStatusLabel(artifactStatus.report.pdfSignature.status);
 }
 
 export function describeVerificationPackageStatus(

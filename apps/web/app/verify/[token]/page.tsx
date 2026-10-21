@@ -33,6 +33,7 @@ import {
   readOtsAnchoringView,
   type VerificationMatrix,
   type OtsAnchoringView,
+  custodyChainVerdictLabel,
 } from "@proovra/shared";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
@@ -49,6 +50,7 @@ import {
 import CaptureLocationMapPanel from "../../../components/capture-location/CaptureLocationMapPanel";
 import BasicVerificationView, {
   CanonicalVerificationStateView,
+  canonicalVerificationStateFromCode,
   StoredBytesNotice,
   VerifyLinkNotice,
   type CanonicalVerificationFacts,
@@ -1068,20 +1070,13 @@ export default function VerifyPage() {
         // active record answers with its truthful state, not an error.
         const stateCode = (err as { code?: string } | null)?.code;
         const truthful: CanonicalVerificationState | null =
-          stateCode === "VERIFICATION_RECORD_PURGED"
-            ? "PURGED"
-            : stateCode === "VERIFICATION_RECORD_WITHDRAWN"
-              ? "WITHDRAWN"
-              : stateCode === "VERIFICATION_RECORD_TEMPORARILY_UNAVAILABLE"
-                ? "TEMPORARILY_UNAVAILABLE"
-                : stateCode === "VERIFICATION_RECORD_NOT_SEALED"
-                  ? "NOT_SEALED"
-                  : (err as { statusCode?: number } | null)?.statusCode === 404 &&
+          canonicalVerificationStateFromCode(stateCode) ??
+          ((err as { statusCode?: number } | null)?.statusCode === 404 &&
                     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(params.token))
                   ? // An old record-id link: the API answers the same 404 as for
                     // anything unknown (anti-enumeration); the page says what it is.
                     "LEGACY_LINK_RETIRED"
-                  : null;
+                  : null);
         if (truthful) {
           setCanonicalState(truthful);
           setError(null);
@@ -1817,7 +1812,7 @@ export default function VerifyPage() {
                     </div>
                     {custodyChainFailureReason ? (
                       <div style={{ ...glassPanelStyle, borderLeft: `5px solid ${VERIFY_BRAND.danger}`, padding: 16, ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
-                        <span aria-hidden="true">✕ </span>Custody chain check reported: {custodyChainFailureReason}
+                        <span aria-hidden="true">✕ </span>Custody chain check: {custodyChainVerdictLabel({ valid: false, reason: custodyChainFailureReason })}
                       </div>
                     ) : null}
                     {forensicTimeline.length === 0 ? (

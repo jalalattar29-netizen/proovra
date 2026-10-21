@@ -138,3 +138,14 @@ test("F-28: custody verdicts, event types and PDF signature statuses are named b
 test("F-32: a never-inspected package manifest signature has its own status", () => {
   assert.deepEqual([...VERIFICATION_PACKAGE_SIGNATURE_STATUSES], ["SIGNED", "UNSIGNED", "NOT_INSPECTED", "NOT_APPLICABLE"]);
 });
+
+test("F-16 (closure): an unreadable eligibility is UNRESOLVED, and never hides an issued output", async () => {
+  const { eligibilityOrUnresolved, deriveEvidenceOutputState } = await import("../dist/index.js");
+  assert.equal(eligibilityOrUnresolved(null), "UNRESOLVED");
+  assert.equal(eligibilityOrUnresolved(undefined), "UNRESOLVED");
+  assert.equal(eligibilityOrUnresolved("NOT_INCLUDED"), "NOT_INCLUDED");
+  assert.equal(eligibilityOrUnresolved("ELIGIBLE"), "ELIGIBLE");
+  const axes = { generation: "NOT_REQUESTED", record: "FINALIZED" };
+  assert.equal(deriveEvidenceOutputState({ ...axes, eligibility: eligibilityOrUnresolved(null), availability: "NO_ARTIFACT" }), "ENTITLEMENT_UNAVAILABLE");
+  assert.equal(deriveEvidenceOutputState({ ...axes, eligibility: eligibilityOrUnresolved(null), availability: "READY" }), "READY");
+});

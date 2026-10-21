@@ -52,22 +52,45 @@ export function artifactHistoryStatusLabel(item: Pick<AnnotatedArtifactHistoryIt
 /**
  * F-36 (independent forward audit) — THE response headers of a presigned
  * ORIGINAL handed to a reviewer share. The URL is served by the storage
- * origin; without an override an HTML / SVG / XML / script original rendered
- * there as an active page. Active or unknown content is always a download
- * (application/octet-stream, attachment); every other type is viewable inline
- * AS ITS DECLARED TYPE (the stored Content-Type was set by whoever uploaded the
- * bytes, so it is never trusted). The filename never repeats the
- * contributor's original file name.
+ * origin, which cannot be told "nosniff" through a presigned URL; without an
+ * override an HTML / SVG / XML / script original rendered there as an active
+ * page. (Closure, 2026-10-21) The decision is an ALLOWLIST of media types a
+ * browser only ever renders as inert media or a PDF: everything else — any
+ * text/*, any XML or script type, an unknown or invented type (the type is
+ * whatever the uploader declared, never trusted) — is a download as
+ * application/octet-stream. The filename never repeats the contributor's
+ * original file name.
  */
-const ACTIVE_CONTENT = /^(text\/html|application\/xhtml\+xml|image\/svg\+xml|text\/xml|application\/xml|text\/javascript|application\/javascript|application\/x-javascript|application\/ecmascript|text\/ecmascript|multipart\/)/i;
+const INLINE_SAFE_TYPES: ReadonlySet<string> = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/avif",
+  "image/heic",
+  "image/heif",
+  "image/bmp",
+  "image/tiff",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/aac",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/webm",
+  "audio/ogg",
+  "application/pdf",
+]);
 
 export function presignedOriginalResponseHeaders(
   mimeType: string | null | undefined,
   itemNumber: number,
 ): { contentDisposition: string; contentType: string } {
-  const mime = (mimeType ?? "").trim().toLowerCase();
+  const mime = (mimeType ?? "").split(";")[0]!.trim().toLowerCase();
   const name = `proovra-item-${Math.max(1, Math.floor(itemNumber))}`;
-  if (!mime || ACTIVE_CONTENT.test(mime)) {
+  if (!INLINE_SAFE_TYPES.has(mime)) {
     return { contentDisposition: `attachment; filename="${name}"`, contentType: "application/octet-stream" };
   }
   return { contentDisposition: `inline; filename="${name}"`, contentType: mime };

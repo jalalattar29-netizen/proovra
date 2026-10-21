@@ -29,6 +29,11 @@ import {
 } from "@proovra/shared";
 
 import { apiFetch } from "../../../../lib/api";
+import {
+  CanonicalVerificationStateView,
+  canonicalVerificationStateFromCode,
+  type CanonicalVerificationState,
+} from "../../[token]/BasicVerificationView";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { Row, VerifyCard, VerifyMain, fmt } from "../../_shared/verify-ui";
 
@@ -65,7 +70,8 @@ export default function PackageRecordPage() {
   const params = useParams<{ packageId: string }>();
   const packageId = params?.packageId ?? "";
   const [record, setRecord] = useState<PublicPackageRecord | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "not_found" | "error">("loading");
+  const [state, setState] = useState<"loading" | "ready" | "not_found" | "error" | "canonical">("loading");
+  const [canonicalState, setCanonicalState] = useState<CanonicalVerificationState | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fileCheck, setFileCheck] = useState<{ name: string; sha256: string } | null>(null);
   const [hashing, setHashing] = useState(false);
@@ -82,11 +88,26 @@ export default function PackageRecordPage() {
     apiFetch(`/public/verification-packages/${encodeURIComponent(packageId)}`)
       .then((data) => {
         if (cancelled) return;
+        // A record that is retained answers 200 with its canonical state, not a
+        // package record (R-1, independent forward audit closure).
+        const stateOfBody = canonicalVerificationStateFromCode((data as { code?: unknown } | null)?.code);
+        if (stateOfBody || !Array.isArray((data as { issuedWith?: unknown } | null)?.issuedWith)) {
+          setCanonicalState(stateOfBody);
+          setState(stateOfBody ? "canonical" : "error");
+          if (!stateOfBody) setErrorMessage("The package record could not be loaded.");
+          return;
+        }
         setRecord(data as PublicPackageRecord);
         setState("ready");
       })
       .catch((err: unknown) => {
         if (cancelled) return;
+        const stateOfError = canonicalVerificationStateFromCode((err as { code?: unknown } | null)?.code);
+        if (stateOfError) {
+          setCanonicalState(stateOfError);
+          setState("canonical");
+          return;
+        }
         if ((err as { statusCode?: number } | null)?.statusCode === 404) {
           setState("not_found");
           return;
@@ -100,6 +121,10 @@ export default function PackageRecordPage() {
   }, [packageId]);
 
   const match = fileCheck && record?.packageSha256 ? fileCheck.sha256 === record.packageSha256.toLowerCase() : null;
+
+  // A record this page cannot show as an active package states its canonical
+  // state, exactly as the record page does.
+  if (state === "canonical" && canonicalState) return <CanonicalVerificationStateView state={canonicalState} />;
 
   return (
     <VerifyMain testId="package-record-root" tier="package">

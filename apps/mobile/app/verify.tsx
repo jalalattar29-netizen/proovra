@@ -57,6 +57,7 @@ import {
   type VerifyTrustSignalView,
 } from "../src/product/public-verify";
 import { webOrigin } from "../src/product/intake-create";
+import { custodyChainVerdictLabel } from "@proovra/shared";
 import {
   VERIFY_BOUNDARIES,
   VERIFY_FINAL_CTA,
@@ -556,7 +557,7 @@ export default function VerifyScreen() {
             {signals.custodyChainFailureReason ? (
               <View style={styles.inset}>
                 <Kicker color={theme.color.status.risk.fg}>{VERIFY_TRUST_COPY.verificationWarningKicker}</Kicker>
-                <ProovraText variant="label">{`Custody chain check reported: ${signals.custodyChainFailureReason}`}</ProovraText>
+                <ProovraText variant="label">{`Custody chain check: ${custodyChainVerdictLabel({ valid: false, reason: signals.custodyChainFailureReason })}`}</ProovraText>
               </View>
             ) : null}
           </ProovraCard>

@@ -56,6 +56,7 @@ import { CANONICAL_STATE_BODIES, CANONICAL_STATE_HTTP } from "./_canonical-verif
  */
 async function answerPackageRecord(reply: FastifyReply, row: NonNullable<Awaited<ReturnType<typeof findPublishedPackageById>>>) {
   const status = await packageRecordAccessStatus(row);
+  if (status === "NOT_FOUND") return reply.code(404).send(NOT_FOUND);
   if (status !== "AVAILABLE") {
     return reply.code(CANONICAL_STATE_HTTP[status]).send({ ...CANONICAL_STATE_BODIES[status] });
   }

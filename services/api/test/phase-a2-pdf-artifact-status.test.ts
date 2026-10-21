@@ -220,20 +220,24 @@ describe("Phase A2 — PDF artifact status (source contract)", () => {
     // by a truthy check or a label-string heuristic. The canonical helper
     // switches on the literal and names every other outcome explicitly, so
     // an unsigned/failed/unavailable artifact can never read as "Signed".
+    // F-28 (independent forward audit, closure): the web helper delegates to
+    // THE shared vocabulary (pdfSignatureStatusLabel, the one mobile reads),
+    // which is where the literal switch now lives.
     const detailLib = readSource(
       "../../../apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx",
     );
-    expect(detailLib).toMatch(
-      /switch\s*\(\s*artifactStatus\.report\.pdfSignature\.status\s*\)/,
-    );
-    expect(detailLib).toMatch(/case\s*"SIGNED":\s*\n\s*return\s*"Signed";/);
+    expect(detailLib).toContain("return pdfSignatureStatusLabel(artifactStatus.report.pdfSignature.status);");
+    const sharedLabels = readSource("../../../packages/shared/src/report-artifact.ts");
+    const fn = sharedLabels.slice(sharedLabels.indexOf("export function pdfSignatureStatusLabel"));
+    expect(fn).toMatch(/switch\s*\(/);
+    expect(fn).toMatch(/case\s*"SIGNED":\s*\n\s*return\s*"Signed";/);
     for (const other of [
       "UNSIGNED_OPT_OUT",
       "SIGNING_UNAVAILABLE",
       "SIGNING_FAILED",
       "NOT_APPLICABLE",
     ]) {
-      expect(detailLib).toContain(`case "${other}":`);
+      expect(fn).toContain(`case "${other}":`);
     }
     // …and it is actually rendered on the Integrity tab.
     const integrityTab = readSource(

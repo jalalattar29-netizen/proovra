@@ -673,6 +673,35 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
     expect(bound.endReason).toBe("CONTINUOUS_COMPLETE_SESSION");
   });
 
+  // F-23 (independent forward audit, closure) — the same sealed-but-unbound,
+  // expired session, reached by a LATE CLIENT CALL (a part declaration) rather
+  // than the reaper. requireActive interrupted it: CAPTURE_SESSION_INTERRUPTED
+  // was appended to the sealed record's custody and the bind retry was refused
+  // (SESSION_NOT_ACTIVE) forever. The late call is refused; nothing is appended
+  // after the seal; the retry binds.
+  it("F-23: a late call on an expired session whose record is sealed is refused without interrupting it; the retry binds", async () => {
+    const { token, sessionId, evidenceId, segs } = await stageSegments(2, [0, 1]);
+    const manifest = continuousManifest(sessionId, segs, { recorded: 2, completeness: "COMPLETE_SESSION" });
+    await stageManifest(token, sessionId, evidenceId, manifest, 2);
+    const sealedOnce = await seal(token, sessionId, manifest);
+    expect(sealedOnce.statusCode, sealedOnce.body).toBe(200);
+    await prisma.captureSession.update({
+      where: { id: sessionId },
+      data: { status: "ACTIVE", endReason: null, finalizedAtUtc: null, endedAtUtc: null, expiresAtUtc: new Date(Date.now() - 60_000) },
+    });
+    const custodyBefore = await prisma.custodyEvent.count({ where: { evidenceId } });
+    const late = await declare(token, sessionId, 3, "e".repeat(64), "SCREEN_SEGMENT");
+    expect(late.statusCode, late.body).toBeGreaterThanOrEqual(400);
+    expect(late.body).toMatch(/SESSION_EXPIRED/);
+    const still = await prisma.captureSession.findUniqueOrThrow({ where: { id: sessionId }, select: { status: true } });
+    expect(still.status).toBe("ACTIVE");
+    expect(await prisma.custodyEvent.count({ where: { evidenceId } })).toBe(custodyBefore);
+    const retried = await seal(token, sessionId, manifest);
+    expect(retried.statusCode, retried.body).toBe(200);
+    const bound = await prisma.captureSession.findUniqueOrThrow({ where: { id: sessionId }, select: { status: true } });
+    expect(bound.status).toBe("BOUND");
+  });
+
   // ---------------------------------------------------------------- UC-STR-006
 
   it("UC-STR-006 the completeness is written by the bind itself: a failure after the bind cannot leave it reading as complete", async () => {

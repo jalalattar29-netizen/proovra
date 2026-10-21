@@ -13,7 +13,7 @@
  *
  * HARD SAFETY (mirrors dev-login.ts):
  *   1. The plugin is only REGISTERED when `devAuthEnabled()` is true
- *      (NODE_ENV !== "production" AND DEV_AUTH_ENABLED === "true"), see server.ts.
+ *      (an explicit development / test environment AND DEV_AUTH_ENABLED === "true"), see server.ts.
  *   2. The handler re-checks `devAuthEnabled()` and 404s otherwise, so even a
  *      mis-registration in production is inert.
  *   3. It lives under `src/dev/` (NOT `src/routes/`), so the route-inventory /

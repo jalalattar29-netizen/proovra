@@ -134,8 +134,10 @@ describe("R8.1 Part 3 — recovery code contract", () => {
 describe("R8.1 Part 4 — secret storage contract", () => {
   it("requires MFA_SECRET_KEK_BASE64 in production (no silent fallback)", () => {
     expect(SECRET_SRC).toMatch(/MFA_SECRET_KEK_BASE64/);
-    expect(SECRET_SRC).toMatch(/NODE_ENV === "production"/);
-    expect(SECRET_SRC).toMatch(/required in production/i);
+    // F-41 (independent forward audit, closure) — fails closed outside an
+    // EXPLICIT development / test environment, not only on NODE_ENV=production.
+    expect(SECRET_SRC).toMatch(/if \(!developmentSurfacesAllowed\(\)\) \{/);
+    expect(SECRET_SRC).toMatch(/required outside development \/ test/i);
   });
 
   it("never logs the KEK / plaintext / ciphertext", () => {

@@ -14,8 +14,10 @@
  *
  * SAFE TO PRINT, BY CONSTRUCTION: every field is a boolean, a count or a closed
  * enum. No variable value, path, CIDR, key, fingerprint or secret is ever
- * returned. PRIVATE key material is never read: the fixture is recognised by
- * the configured private-key LOCATION and by the PUBLIC key's fingerprint.
+ * returned. A private key FILE is never opened: the fixture is recognised by
+ * the configured private-key LOCATION and by the PUBLIC key's fingerprint (an
+ * inline private key already in the environment is reduced to its public
+ * fingerprint in-process, as the signing guard does).
  */
 import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
@@ -67,6 +69,8 @@ export type DeploymentSafetyReport = {
   signing: {
     provider: "local-pem" | "aws-kms" | "other";
     evidencePrivateKeyAtFixtureLocation: boolean;
+    /** An inline SIGNING_PRIVATE_KEY_PEM: its PUBLIC half compared in-process (nothing printed). */
+    evidenceInlinePrivateKey: KeyMaterialFinding;
     evidencePublicKey: KeyMaterialFinding;
     packagePrivateKeyAtFixtureLocation: boolean;
     packagePublicKey: KeyMaterialFinding;
@@ -100,6 +104,20 @@ function publicKeyFinding(env: Env, pemVar: string | null, pathVars: string[], p
       return "UNREADABLE";
     }
   }
+  const fp = publicFingerprintOfPem(pem);
+  if (!fp) return "UNREADABLE";
+  return isCommittedFixtureFingerprint(fp) ? "COMMITTED_FIXTURE" : "OTHER_KEY";
+}
+
+/**
+ * R-3 (closure audit) — an inline private key (SIGNING_PRIVATE_KEY_PEM) is
+ * already in this process's environment; its PUBLIC half's fingerprint is
+ * compared to the fixture's, exactly as the signing guard does. Only the
+ * enum is returned.
+ */
+function inlinePrivateKeyFinding(pem: string | undefined, provider: string): KeyMaterialFinding {
+  if (provider !== "local-pem") return "NOT_APPLICABLE";
+  if (!pem?.trim()) return "NOT_CONFIGURED";
   const fp = publicFingerprintOfPem(pem);
   if (!fp) return "UNREADABLE";
   return isCommittedFixtureFingerprint(fp) ? "COMMITTED_FIXTURE" : "OTHER_KEY";
@@ -143,6 +161,7 @@ export function buildDeploymentSafetyReport(
     signing: {
       provider,
       evidencePrivateKeyAtFixtureLocation: localPem && isFixturePrivateKeyLocation(env.SIGNING_PRIVATE_KEY_PATH),
+      evidenceInlinePrivateKey: inlinePrivateKeyFinding(env.SIGNING_PRIVATE_KEY_PEM, provider),
       evidencePublicKey: publicKeyFinding(env, "SIGNING_PUBLIC_KEY_PEM", ["SIGNING_PUBLIC_KEY_PATH"], provider),
       packagePrivateKeyAtFixtureLocation:
         localPem && isFixturePrivateKeyLocation(env.PACKAGE_SIGNING_PRIVATE_KEY_PATH?.trim() || env.SIGNING_PRIVATE_KEY_PATH),
@@ -170,6 +189,7 @@ export function buildDeploymentSafetyReport(
     s.evidencePrivateKeyAtFixtureLocation ||
     s.packagePrivateKeyAtFixtureLocation ||
     s.evidencePublicKey === "COMMITTED_FIXTURE" ||
+    s.evidenceInlinePrivateKey === "COMMITTED_FIXTURE" ||
     s.packagePublicKey === "COMMITTED_FIXTURE"
   ) {
     reasons.add("SIGNING_KEY_IS_COMMITTED_FIXTURE");

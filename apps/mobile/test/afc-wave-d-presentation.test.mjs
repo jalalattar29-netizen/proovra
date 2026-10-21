@@ -23,7 +23,11 @@ let ER;
 let ED;
 let DD;
 let R;
+let TA;
+let PV;
 before(async () => {
+  TA = await loadModule("src/product/evidence-technical-appendix.ts");
+  PV = await loadModule("src/product/public-verify.ts");
   ER = await loadModule("src/product/evidence-record.ts");
   ED = await loadModule("src/product/evidence-detail.ts");
   DD = await loadModule("src/product/domain-display.ts");
@@ -121,4 +125,53 @@ test("F-26: the capture screen waits only while a report can still arrive", () =
     assert.equal(step.message, "The report status is unavailable right now.");
   }
   assert.equal(ER.REPORT_STATUS_UNREADABLE_MESSAGE, "The report status could not be checked just now. Open the record to see it.");
+});
+
+// ---------------------------------------------------------------------------
+// Closure audit (Wave F)
+// ---------------------------------------------------------------------------
+import { readFileSync as readSrc } from "node:fs";
+import { dirname as dirnameOf, resolve as resolveFrom } from "node:path";
+import { fileURLToPath as toPath } from "node:url";
+const APP = resolveFrom(dirnameOf(toPath(import.meta.url)), "..");
+
+test("F-12 (closure): the technical appendix signature row states the validity state", () => {
+  const sig = (signature) =>
+    TA.buildTechnicalAppendix(null, { preservationMatrix: { signature: { recorded: true, valid: true, keyId: "k", ...signature } } }, "en").integrity.find(
+      (r) => r.label === "Digital signature",
+    )?.value;
+  assert.match(String(sig({ validityState: "REVOKED_KEY", signingKeyRevokedAtUtc: "2026-10-01T00:00:00.000Z" })), /^Signing key revoked at /);
+  assert.equal(sig({ validityState: "INVALID" }), "Signature did not verify");
+  assert.equal(sig({ validityState: "VALID" }), "Signature verified");
+  assert.equal(sig({}), "Signature validity not stated");
+});
+
+test("F-28 (closure): public Verify states the custody verdict in the shared words, never the verifier code", () => {
+  const find = (node, out = []) => {
+    if (Array.isArray(node)) node.forEach((n) => find(n, out));
+    else if (node && typeof node === "object") {
+      if (node.label === "Custody Chain") out.push(node);
+      Object.values(node).forEach((n) => find(n, out));
+    }
+    return out;
+  };
+  // Parsed by the screen's own parser from what the server sends (a CODE).
+  const payload = (proof) => ({ integrityProof: { custodyChainValid: false, custodyChainMode: "hashed", custodyChainFailureReason: "prev_hash_mismatch", ...proof } });
+  const signals = (proof) => PV.parseVerifyIntegritySignals(payload(proof));
+  const tab = PV.verifyIntegrityTab(payload({}), signals({}), (i) => i, false, "en");
+  const row = find(tab)[0];
+  assert.ok(row, "the Custody Chain row exists");
+  assert.equal(row.value, "Review required — an event does not link to the one before it");
+  const legacyProof = { custodyChainValid: true, custodyChainMode: "legacy", custodyChainFailureReason: null };
+  const legacy = find(PV.verifyIntegrityTab(payload(legacyProof), signals(legacyProof), (i) => i, false, "en"))[0];
+  assert.equal(legacy.value, "Continuous (recorded before events were hash-linked)");
+});
+
+test("F-13 / F-26 / F-15 (closure): the screens read the shared authorities", () => {
+  const detail = readSrc(resolveFrom(APP, "app/(stack)/evidence/[id].tsx"), "utf8");
+  assert.ok(detail.includes("evidenceStatusDisplay(rel.linkedStatus).label"));
+  assert.ok(!detail.includes("linkedStatus.replace("));
+  const capture = readSrc(resolveFrom(APP, "app/(stack)/capture.tsx"), "utf8");
+  assert.ok(capture.includes("const step = captureReportWaitStep(st?.outputs?.report?.state);"));
+  assert.ok(!capture.includes("Report still generating..."));
 });

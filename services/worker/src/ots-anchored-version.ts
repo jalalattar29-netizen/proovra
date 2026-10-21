@@ -34,6 +34,8 @@ import { createReportGenerationRequest } from "@proovra/shared-runtime/reports";
 import { workerOutputEntitlement } from "./output-issuance.js";
 import {
   OTS_ANCHORING_RECORD_SELECT,
+  classifyTerminalReason,
+  isRecoverableBlockedTerminalReason,
   isTerminalJobExecutionState,
   parseOtsVerificationKey,
   resolveRecordOtsAnchoring,
@@ -85,6 +87,19 @@ export function otsChainVerifiedRetryKey(proofSha256: string, blockHash: string,
   return `ots-cv-r${attempt}:${proof}:${block}`;
 }
 
+/**
+ * F-10 (independent forward audit, closure) — may an owed version whose latest
+ * request ended be asked again? A TECHNICAL terminal failure, yes (bounded);
+ * a policy block whose blocker COULD end (a legal hold, a suspension) also —
+ * the request writer itself decides whether the blocker has cleared. A
+ * business, integrity or commercial terminal is a stable answer: never.
+ */
+export function owedVersionRetryable(prior: { state: string; terminalReasonCode: string | null }): boolean {
+  if (prior.state === "FAILED_TERMINAL") return classifyTerminalReason(prior.terminalReasonCode) === "TECHNICAL";
+  if (prior.state === "BLOCKED_POLICY" || prior.state === "BLOCKED_STALE") return isRecoverableBlockedTerminalReason(prior.terminalReasonCode);
+  return false;
+}
+
 export function reportStatedChainVerification(
   anchorSnapshot: unknown,
   verification: { proofSha256: string; blockHash: string },
@@ -132,13 +147,13 @@ export async function ensureOtsAnchoredReportVersion(input: {
   const keys = [key, ...Array.from({ length: OTS_OWED_VERSION_MAX_RETRIES }, (_, i) => otsChainVerifiedRetryKey(anchoring.proofSha256!, blockHash, i + 1))];
   const priors = await prisma.reportGenerationRequest.findMany({
     where: { evidenceId, clientRequestKey: { in: keys } },
-    select: { id: true, state: true, clientRequestKey: true },
+    select: { id: true, state: true, clientRequestKey: true, terminalReasonCode: true },
   });
   const latestPrior = priors.sort((a, b) => keys.indexOf(a.clientRequestKey!) - keys.indexOf(b.clientRequestKey!)).at(-1) ?? null;
   let requestKey = key;
   if (latestPrior) {
     const attempt = keys.indexOf(latestPrior.clientRequestKey!);
-    if (latestPrior.state !== "FAILED_TERMINAL" || attempt >= OTS_OWED_VERSION_MAX_RETRIES) {
+    if (!owedVersionRetryable(latestPrior) || attempt >= OTS_OWED_VERSION_MAX_RETRIES) {
       return { outcome: "already_requested", requestId: latestPrior.id };
     }
     requestKey = keys[attempt + 1]!;
@@ -167,11 +182,16 @@ export async function ensureOtsAnchoredReportVersion(input: {
     // F-10 — a retry of an owed version whose request failed TECHNICALLY
     // supersedes that terminal (bounded twice: OTS_OWED_VERSION_MAX_RETRIES
     // here and the writer's own supersession budget). Never a business refusal.
-    ...(requestKey !== key ? { supersedeTechnicalTerminal: true } : {}),
+    ...(requestKey !== key && latestPrior?.state === "FAILED_TERMINAL" ? { supersedeTechnicalTerminal: true } : {}),
     entitlement: workerOutputEntitlement,
   });
   if (!persisted.created) return { outcome: "refused", reason: persisted.reason };
   if (persisted.replayed) return { outcome: "already_requested", requestId: persisted.requestId };
+  // F-10 (closure) — the writer COLLAPSED onto an existing row (the blocker has
+  // not cleared, or the supersession budget is spent): nothing new was asked.
+  if (priors.some((p) => p.id === persisted.requestId)) {
+    return { outcome: "already_requested", requestId: persisted.requestId };
+  }
   if (!isTerminalJobExecutionState(persisted.state)) {
     await enqueueReportGenerationRequest(persisted.requestId);
   }

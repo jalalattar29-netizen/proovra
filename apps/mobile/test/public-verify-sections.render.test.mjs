@@ -497,7 +497,7 @@ test("a failed signature is never presented as verified: Review Required boundar
         verdict: "REVIEW_REQUIRED", verdictLabel: "Insufficient verification", presentationState: "REVIEW_REQUIRED", presentationTone: "danger", tone: "danger", confidenceLabel: "Low",
         signals: trustDecision().signals.map((s) => (s.key === "signature" ? { ...s, status: "failed", tone: "danger", summary: "Signature invalid" } : s)),
       }),
-      integrityProof: { overallIntegrity: false, canonicalHashMatches: true, signatureValid: false, custodyChainValid: false, custodyChainMode: "v2", custodyChainFailureReason: "Event 2 prevEventHash does not match event 1", timestampDigestMatches: true },
+      integrityProof: { overallIntegrity: false, canonicalHashMatches: true, signatureValid: false, custodyChainValid: false, custodyChainMode: "hashed", custodyChainFailureReason: "prev_hash_mismatch", timestampDigestMatches: true },
       verificationMatrix: serverMatrix({
         signature: { state: "FAILED", summary: "Signature invalid" },
         custody_chain: { state: "FAILED", summary: "Event 2 prevEventHash does not match event 1" },
@@ -511,7 +511,10 @@ test("a failed signature is never presented as verified: Review Required boundar
   const issueBadges = badges(r, "verify-integrity-issues");
   assert.ok(issueBadges.includes("Record signature") && issueBadges.includes("PROOVRA custody chain"), issueBadges.join(","));
   has(r, "Verification Warning");
-  has(r, "Custody chain check reported: Event 2 prevEventHash does not match event 1");
+  // F-28 (independent forward audit, closure) — the server sends the verifier's
+  // CODE; the app states it in THE shared words, never the code.
+  has(r, "Custody chain check: Review required — an event does not link to the one before it");
+  lacks(r, "prev_hash_mismatch");
   lacks(r, "No signal is marked Failed in the verification matrix.");
   // The failure is stated per signal, never as a verdict or a confidence.
   assert.deepEqual(badges(r, "verify-matrix-record_signature"), ["Failed"]);

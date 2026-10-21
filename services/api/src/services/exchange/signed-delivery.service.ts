@@ -21,6 +21,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { developmentSurfacesAllowed } from "@proovra/shared-runtime";
 
 // ---------------------------------------------------------------------------
 // PHASE 13 §4 (2026-08-17) — the forward-declared webhook emitter was REMOVED
@@ -70,7 +71,8 @@ function resolveSecret(secret?: string): string {
   const env = process.env.WEBHOOK_SIGNING_SECRET?.trim() ? process.env.WEBHOOK_SIGNING_SECRET : undefined;
   const configured = explicit ?? env;
   if (!configured) {
-    if (process.env.NODE_ENV === "production") throw new ExchangeSigningSecretMissingError();
+    // F-41 (independent forward audit, closure) — the development fallback needs an EXPLICIT development or test environment (developmentSurfacesAllowed); a staging or undeclared deployment fails closed like production.
+    if (!developmentSurfacesAllowed()) throw new ExchangeSigningSecretMissingError();
     return DEV_FALLBACK_SECRET;
   }
   // Bounded length to keep the HMAC input deterministic.

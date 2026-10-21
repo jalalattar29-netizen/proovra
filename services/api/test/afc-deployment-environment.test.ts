@@ -42,12 +42,16 @@ describe("F-41 — the deployment environment classification", () => {
     expect(developmentSurfacesAllowed({ NODE_ENV: "production" })).toBe(false);
   });
 
-  it("declared infrastructure for production, staging and anything ambiguous", () => {
+  it("declared infrastructure for production, staging, anything ambiguous — and anything UNDECLARED", () => {
     expect(deployedInfrastructureRequired({ NODE_ENV: "production" })).toBe(true);
     expect(deployedInfrastructureRequired({ PROOVRA_ENV: "staging", NODE_ENV: "development" })).toBe(true);
     expect(deployedInfrastructureRequired({ PROOVRA_ENV: "staging", APP_ENV: "production" })).toBe(true);
     expect(deployedInfrastructureRequired({ NODE_ENV: "test" })).toBe(false);
-    expect(deployedInfrastructureRequired({})).toBe(false);
+    // Closure: an undeclared process (NODE_ENV unset, nothing declared) is
+    // treated as deployed — production containers often run that way.
+    expect(deployedInfrastructureRequired({})).toBe(true);
+    expect(deployedInfrastructureRequired({ NODE_ENV: "staging" })).toBe(true);
+    expect(deployedInfrastructureRequired({ PROOVRA_ENV: "development" })).toBe(false);
   });
 });
 

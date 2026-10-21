@@ -40,6 +40,7 @@ import {
   PDF_UNSIGNED_OPT_OUT_WARNING_COPY,
   classifyTerminalReason,
   deriveEvidenceOutputState,
+  eligibilityOrUnresolved,
   outputNotApplicableReason,
   projectReportRequestState,
   type EvidenceOutputActions,
@@ -419,15 +420,13 @@ export async function buildEvidenceArtifactStatus(params: {
   const recordApplicability: OutputRecordApplicability = facts.record;
 
   /*
-   * Display eligibility. An unresolvable commercial answer offers no ACTION
-   * (the decision already treats it as not included) but keeps the previous
-   * display behaviour: hiding a report a customer is entitled to is the worse
-   * error on a read surface.
+   * Display eligibility. F-16 (independent forward audit, closure): an
+   * unresolvable commercial answer is UNRESOLVED, never assumed ELIGIBLE. An
+   * issued report is still shown (READY is decided before eligibility); what
+   * is no longer said is "eligible, not generated" on a guess.
    */
-  const reportEligibility: OutputCommercialEligibility =
-    loaded.eligibility?.reportEligibility ?? "ELIGIBLE";
-  const packageEligibility: OutputCommercialEligibility =
-    loaded.eligibility?.packageEligibility ?? "ELIGIBLE";
+  const reportEligibility: OutputCommercialEligibility = eligibilityOrUnresolved(loaded.eligibility?.reportEligibility);
+  const packageEligibility: OutputCommercialEligibility = eligibilityOrUnresolved(loaded.eligibility?.packageEligibility);
   const ineligibilityReason: OutputIneligibilityReason | null =
     loaded.eligibility?.ineligibilityReason ?? null;
 

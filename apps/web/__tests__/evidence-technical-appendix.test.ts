@@ -202,6 +202,29 @@ test("client advanced rows carry masked IP + UA hash (never raw)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// F-12 (independent forward audit, closure) — a revoked or mismatched
+// signature is never "recorded (verify separately)" in the appendix.
+test("F-12: the appendix signature row states the validity state", () => {
+  const sig = (signature: Record<string, unknown>) =>
+    Object.fromEntries(
+      buildIntegrityRows({
+        multipart: false,
+        preservation: {
+          recordedIntegrityVerifiedAtUtc: null,
+          signature: { recorded: true, valid: true, keyId: "k", keyVersion: 1, ...signature },
+          tsa: { status: null, provider: null, timestampedDigestLabel: "" },
+          ots: { state: "NOT_REQUESTED" },
+          storage: {},
+        } as never,
+        evidence: { evidenceRef: "e", fileSha256: null, fingerprintHash: null, tsaSerialNumber: null } as never,
+      }).map((r) => [r.label, r.value]),
+    )["Digital signature"];
+  assert.match(String(sig({ validityState: "REVOKED_KEY", signingKeyRevokedAtUtc: "2026-10-01T00:00:00.000Z" })), /^Signing key revoked at /);
+  assert.equal(sig({ validityState: "INVALID" }), "Signature did not verify");
+  assert.equal(sig({}), "Signature validity not stated");
+  assert.doesNotMatch(String(sig({ validityState: "KEY_MISMATCH" })), /recorded/i);
+});
+
 // UNIT — Section 9 Security & Integrity
 // ---------------------------------------------------------------------------
 
@@ -210,7 +233,7 @@ test("integrity rows: canonical digest, fingerprint, signature, anchoring status
     multipart: true,
     preservation: {
       recordedIntegrityVerifiedAtUtc: "2026-06-01T09:10:00Z",
-      signature: { recorded: true, valid: true, keyId: "key-1", keyVersion: 2 },
+      signature: { recorded: true, valid: true, keyId: "key-1", keyVersion: 2, validityState: "VALID" },
       tsa: { status: "STAMPED", provider: "Apple", timestampedDigestLabel: "" },
       ots: { state: "PENDING", proofSha256: "a".repeat(64) },
       storage: {},
@@ -228,7 +251,8 @@ test("integrity rows: canonical digest, fingerprint, signature, anchoring status
   assert.equal(byLabel["Canonical package digest (SHA-256)"], "c".repeat(64));
   assert.equal(byLabel["Canonical fingerprint hash"], "d".repeat(64));
   assert.equal(byLabel["Recorded integrity"], "Recorded integrity verified");
-  assert.equal(byLabel["Digital signature"], "Digital signature recorded");
+  // F-12 — THE validity presentation (recordSignaturePresentation).
+  assert.equal(byLabel["Digital signature"], "Signature verified");
   assert.equal(byLabel["Trusted timestamp"], "Trusted timestamp recorded");
   assert.equal(byLabel["Bitcoin anchoring"], "OpenTimestamps proof pending");
   assert.equal(byLabel["Bitcoin anchoring detail"], "Submitted to OpenTimestamps calendars; no Bitcoin attestation yet.");

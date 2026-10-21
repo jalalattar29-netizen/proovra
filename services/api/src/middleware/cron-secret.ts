@@ -27,6 +27,7 @@ import { getAuthUserId } from "../auth.js";
 // OPS-006 — header names come from the ONE shared definition the worker
 // callers import too. Re-exported so existing API importers keep working.
 import { INTEGRATION_CRON_HEADER, NOTIFICATION_CRON_HEADER, REVIEWER_OPS_CRON_HEADER } from "@proovra/shared";
+import { developmentSurfacesAllowed } from "@proovra/shared-runtime";
 export { INTEGRATION_CRON_HEADER, NOTIFICATION_CRON_HEADER, REVIEWER_OPS_CRON_HEADER };
 // Search-reindex production-safe internal endpoint
 // (`POST /v1/internal/search/reindex`). Header + env-var pair follows
@@ -77,8 +78,9 @@ export function cronSecretMatches(
   return constantTimeEqual(expected, got);
 }
 
+/** F-41 (independent forward audit, closure) — the development fallback needs an EXPLICIT development or test environment (developmentSurfacesAllowed); a staging or undeclared deployment fails closed like production. */
 function isProduction(): boolean {
-  return process.env.NODE_ENV === "production";
+  return !developmentSurfacesAllowed();
 }
 
 function constantTimeEqual(a: string, b: string): boolean {

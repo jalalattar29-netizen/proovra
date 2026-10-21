@@ -28,6 +28,7 @@ import {
   // P2-4 — the ONE output state machine. Cases renders its answer; it does not
   // get a vocabulary of its own and it does not re-derive anything.
   deriveEvidenceOutputState,
+  eligibilityOrUnresolved,
   projectReportRequestState,
   type EvidenceOutputState,
   type OutputGenerationState,
@@ -791,18 +792,14 @@ async function runEvidenceBoard(
           teamId: e.teamId ?? null,
         })),
       ).catch(() => new Map()),
-      (async () => {
-        try {
-          return await prisma.reportGenerationRequest.findMany({
-            where: { evidenceId: { in: boardEvidenceIds } },
-            orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
-            distinct: ["evidenceId"],
-            select: { evidenceId: true, state: true },
-          });
-        } catch {
-          return [] as Array<{ evidenceId: string; state: string }>;
-        }
-      })(),
+      // F-16 (independent forward audit, closure) — an unreadable request is
+      // not "nothing requested": the board read fails rather than guessing.
+      prisma.reportGenerationRequest.findMany({
+        where: { evidenceId: { in: boardEvidenceIds } },
+        orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
+        distinct: ["evidenceId"],
+        select: { evidenceId: true, state: true },
+      }),
     ]);
     const requestByEvidence = new Map(
       latestRequests.map((r) => [r.evidenceId, r.state]),
@@ -830,7 +827,7 @@ async function runEvidenceBoard(
       return {
         report: {
           state: deriveEvidenceOutputState({
-            eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
+            eligibility: eligibilityOrUnresolved(eligibility?.reportEligibility),
             generation,
             availability: e._count.reports > 0 ? "READY" : "NO_ARTIFACT",
             record,
@@ -838,7 +835,7 @@ async function runEvidenceBoard(
         },
         verificationPackage: {
           state: deriveEvidenceOutputState({
-            eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
+            eligibility: eligibilityOrUnresolved(eligibility?.packageEligibility),
             generation,
             availability: (
               pairing.get(e.id)?.packagePaired ?? e._count.verificationPackages > 0

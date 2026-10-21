@@ -4830,7 +4830,12 @@ async function runReportGeneration(
                 ...REPORTABLE_AT_COMMIT_WHERE,
                 // F-24 (independent forward audit) — the record's report pointer
                 // only ADVANCES: a lower version never overwrites a higher one.
-                OR: [{ latestReportVersion: null }, { latestReportVersion: { lt: prepared.version } }],
+                // R-2 (closure) — "higher" is an ISSUED report row, not the
+                // pointer's own value: a pointer that drifted above every
+                // report row made every later commit refuse forever (the old
+                // overwrite self-healed it). This report's row is created after
+                // this update, so any row at or above this version is another.
+                reports: { none: { version: { gte: prepared.version } } },
               },
               data: {
                 status: EvidenceStatus.REPORTED,
@@ -4854,15 +4859,13 @@ async function runReportGeneration(
               },
             });
             if (committed.count !== 1) {
-              // The lifecycle was re-read above under this lock, so the pointer
-              // is what moved: a higher version committed first. This version
-              // is no longer the latest; the transaction rolls back and the
-              // retry reserves above it.
-              const pointer = await tx.evidence.findUnique({
-                where: { id: prepared.evidenceId },
-                select: { latestReportVersion: true },
+              // The lifecycle was re-read above under this lock, so a higher
+              // version committed first. This version is no longer the latest;
+              // the transaction rolls back and the retry reserves above it.
+              const higher = await tx.report.count({
+                where: { evidenceId: prepared.evidenceId, version: { gte: prepared.version } },
               });
-              if ((pointer?.latestReportVersion ?? 0) >= prepared.version) {
+              if (higher > 0) {
                 throw createWorkerError("REPORT_POINTER_ADVANCED_RETRY", true);
               }
               throw createWorkerError("REPORT_EVIDENCE_STATE_CHANGED", false);

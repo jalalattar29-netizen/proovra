@@ -114,4 +114,32 @@ describe("public package record page: recorded is not verified", () => {
     );
     expect(screen.getByTestId("package-record-binding-text").textContent).toBe(PUBLIC_PACKAGE_KEY_BINDING_TEXT.BOUND_KEY_REVOKED);
   });
+
+  // R-1 (closure audit) — a RETAINED record answers 200 with its canonical
+  // state, not a package record: the page treated any 2xx as a record and
+  // crashed on record.issuedWith. Withdrawn (410) and suspended (503) were a
+  // generic "could not be loaded".
+  it("R-1: a retained record states its canonical state (200 body), never crashes", async () => {
+    answer = () => ({ code: "VERIFICATION_RECORD_RETAINED", message: "retained" });
+    const { default: Page } = await import("../../app/verify/package/[packageId]/page");
+    render(<Page />);
+    expect(await screen.findByRole("heading", { name: "Record retained" })).toBeTruthy();
+    expect(screen.queryByTestId("package-record-id")).toBeNull();
+  });
+
+  it("R-1: withdrawn (410) and suspended (503) state their canonical state", async () => {
+    for (const [code, statusCode, title] of [
+      ["VERIFICATION_RECORD_WITHDRAWN", 410, "Verification page withdrawn"],
+      ["VERIFICATION_RECORD_TEMPORARILY_UNAVAILABLE", 503, "Temporarily unavailable"],
+    ] as const) {
+      answer = () => {
+        throw Object.assign(new Error(code), { code, statusCode });
+      };
+      vi.resetModules();
+      const { default: Page } = await import("../../app/verify/package/[packageId]/page");
+      const view = render(<Page />);
+      expect(await screen.findByRole("heading", { name: title })).toBeTruthy();
+      view.unmount();
+    }
+  });
 });

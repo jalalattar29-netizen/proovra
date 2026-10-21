@@ -23,6 +23,7 @@
  * session; previews and CI name their web origin in CORS_ORIGINS instead.
  */
 import { isAllowedExtensionOrigin } from "../services/auth/extension-oauth.service.js";
+import { developmentSurfacesAllowed } from "@proovra/shared-runtime";
 
 export type CorsEnv = Readonly<Record<string, string | undefined>>;
 
@@ -76,7 +77,8 @@ export function isTrustedWebOrigin(origin: string, env: CorsEnv = process.env): 
   }
   if ((PROOVRA_WEB_ORIGINS as readonly string[]).includes(normalized)) return true;
   if (configuredCorsOrigins(env).includes(normalized)) return true;
-  if (env.NODE_ENV !== "production" && isLoopbackDevOrigin(normalized)) return true;
+  // F-41 (independent forward audit, closure) — the development fallback needs an EXPLICIT development or test environment (developmentSurfacesAllowed); a staging or undeclared deployment fails closed like production.
+  if (developmentSurfacesAllowed(env) && isLoopbackDevOrigin(normalized)) return true;
   return false;
 }
 

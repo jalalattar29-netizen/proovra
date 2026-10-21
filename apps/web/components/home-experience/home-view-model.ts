@@ -1572,7 +1572,9 @@ function buildRecentEvidence(args: {
   return reports.slice(0, 5).map((r) => ({
     id: r.evidenceId,
     title: r.title || r.evidenceId,
-    status: r.status ?? "SIGNED",
+    // F-13 (independent forward audit, closure) — an absent status is unknown,
+    // never assumed SIGNED.
+    status: r.status ?? "",
     verificationStatus: null,
     needsAttention: args.flagged.has(r.evidenceId),
     createdAt: r.createdAt ?? r.report?.generatedAtUtc ?? new Date(0).toISOString(),

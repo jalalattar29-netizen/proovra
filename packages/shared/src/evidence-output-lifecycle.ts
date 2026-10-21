@@ -588,6 +588,19 @@ export function outputNotApplicableReason(
  *   6. Then the failure and blocked states.
  *   7. Then eligible-but-ungenerated, which is the one that carries an action.
  */
+/**
+ * F-16 (independent forward audit, closure) — THE display eligibility when
+ * the commercial answer could not be read: UNRESOLVED, never assumed
+ * ELIGIBLE. It never hides an issued output (an available artifact is READY
+ * before eligibility is consulted); it only stops a surface from claiming
+ * "eligible, not generated" — and offering Generate — on a guess.
+ */
+export function eligibilityOrUnresolved(
+  eligibility: OutputCommercialEligibility | null | undefined,
+): OutputCommercialEligibility {
+  return eligibility ?? "UNRESOLVED";
+}
+
 export function deriveEvidenceOutputState(
   axes: EvidenceOutputAxes,
 ): EvidenceOutputState {

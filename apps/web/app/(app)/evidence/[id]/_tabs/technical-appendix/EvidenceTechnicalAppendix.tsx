@@ -309,6 +309,8 @@ export function EvidenceTechnicalAppendix({
               valid: Boolean(pm?.signature?.valid),
               keyId: pm?.signature?.keyId ?? null,
               keyVersion: pm?.signature?.keyVersion ?? null,
+              validityState: pm?.signature?.validityState ?? null,
+              signingKeyRevokedAtUtc: pm?.signature?.signingKeyRevokedAtUtc ?? null,
             },
             tsa: {
               status: pm?.tsa?.status ?? null,

@@ -49,6 +49,7 @@ import {
   evidenceRecordStatusLabel,
   artifactHistoryStatusLabel,
   pdfSignatureStatusLabel,
+  custodyChainVerdictLabel,
 } from "@proovra/shared";
 import {
   isOtsSummaryFact,
@@ -1694,9 +1695,12 @@ export function verifyIntegrityTab(
     { label: "Fingerprint Status", ...tri(s.canonicalHashMatches, "Valid", "Invalid", "Pending") },
     {
       label: "Custody Chain",
-      ...(s.custodyChainValid === true && s.custodyChainMode === "legacy"
-        ? { value: "Valid (Legacy)", tone: "info" as VerifyWebTone }
-        : tri(s.custodyChainValid, "Valid", "Invalid", "Pending", "success")),
+      // F-28 (independent forward audit, closure) — the verdict in THE shared
+      // words; the tone stays this surface's.
+      value: custodyChainVerdictLabel({ valid: s.custodyChainValid, mode: s.custodyChainMode, reason: s.custodyChainFailureReason }),
+      tone: (s.custodyChainValid === true && s.custodyChainMode === "legacy"
+        ? "info"
+        : tri(s.custodyChainValid, "Valid", "Invalid", "Pending", "success").tone) as VerifyWebTone,
     },
     { label: otsC.title, value: otsStatusLine(otsC), tone: otsC.tone },
     { label: "Storage Protection", value: storage.label, tone: storage.tone },

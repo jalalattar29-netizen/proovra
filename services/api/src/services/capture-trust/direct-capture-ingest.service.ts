@@ -570,10 +570,23 @@ async function requireActive(
     throw new DirectCaptureError("SESSION_NOT_ACTIVE");
   }
   if (session.expiresAtUtc && session.expiresAtUtc.getTime() <= now.getTime()) {
-    await interruptSession(db, session, "EXPIRED", now);
+    // F-23 (independent forward audit, closure) — a session whose record is
+    // ALREADY SEALED is not interrupted by a late call: interrupting it would
+    // append CAPTURE_SESSION_INTERRUPTED to a sealed record's custody and leave
+    // the bind retry (the seal committed, the bind did not) refused forever.
+    // The late call is refused; the session stays ACTIVE for its bind.
+    if (!(await reservedRecordSealed(db, session))) {
+      await interruptSession(db, session, "EXPIRED", now);
+    }
     throw new DirectCaptureError("SESSION_EXPIRED");
   }
   return session;
+}
+
+async function reservedRecordSealed(db: PrismaClient, session: SessionRow): Promise<boolean> {
+  if (!session.finalizedEvidenceId) return false;
+  const record = await db.evidence.findUnique({ where: { id: session.finalizedEvidenceId }, select: { status: true } });
+  return record?.status === prismaPkg.EvidenceStatus.SIGNED || record?.status === prismaPkg.EvidenceStatus.REPORTED;
 }
 
 async function interruptSession(

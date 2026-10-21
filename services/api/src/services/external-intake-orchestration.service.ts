@@ -1046,6 +1046,11 @@ export async function submitExternalIntake(
   // attempt signed it and then failed a post-commit step) neither reserves a
   // second use nor finalizes again: it only completes what is missing.
   const alreadyFinalized = evidence.status === "SIGNED" || evidence.status === "REPORTED";
+  // Closure (independent forward audit) — whether THIS submission sealed the
+  // record is decided by completeEvidence under the record lock; the read
+  // above was taken without it, so a racing submit that lost still claimed
+  // its location was persisted.
+  let sealedByThisSubmission = false;
   if (!alreadyFinalized) {
   const gate = await evaluateFinalizationGovernance({
     evidenceId: evidence.id,
@@ -1075,7 +1080,7 @@ export async function submitExternalIntake(
     );
   }
   try {
-    await completeEvidence({
+    const completed = await completeEvidence({
       evidenceId: evidence.id,
       ownerUserId: evidence.ownerUserId,
       // UC-ARCH-005 — the ONE door an intake record is sealed through.
@@ -1091,6 +1096,7 @@ export async function submitExternalIntake(
         captureContext,
       },
     });
+    sealedByThisSubmission = completed?.alreadyFinalized !== true;
   } catch (err) {
     await releaseIntakeLinkUse(input.link.id, client);
     // ET-INT-02 — a part whose object was never written is the contributor's
@@ -1114,7 +1120,7 @@ export async function submitExternalIntake(
   // via the location panel; the audit log is for compliance/forensic
   // traceability of WHAT happened, not WHERE.
   // F-01 — a submit that reached an already-sealed record persisted nothing.
-  const locationPersisted = shouldPersistLocation && !alreadyFinalized;
+  const locationPersisted = shouldPersistLocation && sealedByThisSubmission;
   if (policy !== "NONE") {
     try {
       await emitTenantAudit({

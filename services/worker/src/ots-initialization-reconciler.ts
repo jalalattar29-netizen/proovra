@@ -70,7 +70,12 @@ import { getOtsOperationsWarningMs } from "@proovra/shared-runtime";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
 import { enqueueOtsUpgradeJob, isOtsUpgradeScheduled } from "./queue.js";
-import { OTS_ANCHORED_MACHINE_ID, reconcileOtsAnchoredReportVersion } from "./ots-anchored-version.js";
+import {
+  OTS_ANCHORED_MACHINE_ID,
+  OTS_OWED_VERSION_MAX_RETRIES,
+  owedVersionRetryable,
+  reconcileOtsAnchoredReportVersion,
+} from "./ots-anchored-version.js";
 import { resolveOtsBitcoinVerifierConfig } from "./ots-bitcoin-config.js";
 import { OTS_CHAIN_FINAL_CONFIRMATIONS, OTS_NOT_IN_ACTIVE_CHAIN_GIVE_UP_MS } from "./ots-state.js";
 
@@ -115,6 +120,8 @@ export interface OtsInitializationReconcilerResult {
 
 /** F-10 — how long a technically failed owed version waits before it is asked again. */
 const OTS_OWED_RETRY_BACKOFF_MS = 60 * 60 * 1000;
+/** F-10 closure — candidate pages read per tick (each of batchSize rows). */
+const OTS_OWED_SWEEP_MAX_PAGES = 10;
 
 const DEFAULT_MIN_AGE_MS = 30 * 60 * 1000;
 const DEFAULT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -329,19 +336,44 @@ export async function runOtsInitializationReconciler(
   // request, once terminal, was lost. Re-ask the (idempotent, retry-capped)
   // decision for records whose latest owed request failed terminally at least
   // OTS_OWED_RETRY_BACKOFF_MS ago.
+  //
+  // (Closure, 2026-10-21) Only each record's LATEST owed request counts — an
+  // earlier failure already superseded (or answered) is not re-read every tick
+  // — the backoff runs from that latest attempt, the exhausted retry key is
+  // excluded, and a policy block whose blocker can clear is re-asked too. The
+  // scan pages through the candidates (bounded) and filters to the retryable
+  // ones, so rows that are not retryable can never starve the ones that are.
   try {
-    const failedOwed = await prisma.reportGenerationRequest.findMany({
-      where: {
-        purpose: "ots_upgrade_completed",
-        requestedByMachineId: OTS_ANCHORED_MACHINE_ID,
-        state: "FAILED_TERMINAL",
-        completedAtUtc: { lte: new Date(now - OTS_OWED_RETRY_BACKOFF_MS) },
-      },
-      orderBy: { completedAtUtc: "asc" },
-      take: batchSize,
-      select: { evidenceId: true },
-    });
-    for (const evidenceId of new Set(failedOwed.map((r) => r.evidenceId))) {
+    const cutoff = new Date(now - OTS_OWED_RETRY_BACKOFF_MS);
+    const exhaustedKeyPrefix = `ots-cv-r${OTS_OWED_VERSION_MAX_RETRIES}:%`;
+    const retryable: string[] = [];
+    let after: { completedAtUtc: Date; id: string } | null = null;
+    for (let page = 0; page < OTS_OWED_SWEEP_MAX_PAGES && retryable.length < batchSize; page += 1) {
+      const rows: Array<{ id: string; evidence_id: string; state: string; terminal_reason_code: string | null; completed_at_utc: Date }> =
+        await prisma.$queryRaw`
+          SELECT latest.id, latest.evidence_id, latest.state, latest.terminal_reason_code, latest.completed_at_utc
+          FROM (
+            SELECT DISTINCT ON (evidence_id) id, evidence_id, state, terminal_reason_code, completed_at_utc, client_request_key
+            FROM report_generation_requests
+            WHERE purpose = 'ots_upgrade_completed' AND requested_by_machine_id = ${OTS_ANCHORED_MACHINE_ID}
+            ORDER BY evidence_id, created_at_utc DESC, id DESC
+          ) latest
+          WHERE latest.state IN ('FAILED_TERMINAL', 'BLOCKED_POLICY', 'BLOCKED_STALE')
+            AND latest.completed_at_utc <= ${cutoff}
+            AND (latest.client_request_key IS NULL OR latest.client_request_key NOT LIKE ${exhaustedKeyPrefix})
+            AND (${after?.completedAtUtc ?? null}::timestamptz IS NULL
+                 OR (latest.completed_at_utc, latest.id) > (${after?.completedAtUtc ?? null}::timestamptz, ${after?.id ?? null}::uuid))
+          ORDER BY latest.completed_at_utc ASC, latest.id ASC
+          LIMIT ${batchSize}`;
+      if (rows.length === 0) break;
+      for (const r of rows) {
+        if (owedVersionRetryable({ state: r.state, terminalReasonCode: r.terminal_reason_code })) retryable.push(r.evidence_id);
+        if (retryable.length >= batchSize) break;
+      }
+      const last = rows[rows.length - 1]!;
+      after = { completedAtUtc: last.completed_at_utc, id: last.id };
+    }
+    for (const evidenceId of retryable) {
       try {
         const decided = await reconcileOtsAnchoredReportVersion(evidenceId);
         if (decided.outcome === "requested") result.owedVersionsRetried = (result.owedVersionsRetried ?? 0) + 1;

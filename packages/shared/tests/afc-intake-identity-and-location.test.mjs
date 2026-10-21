@@ -115,9 +115,11 @@ test("F-33: each issued artifact says whether it is current and what superseded 
 
 test("F-36: a presigned original is a download for active or unknown content, and served as its declared type otherwise", async () => {
   const { presignedOriginalResponseHeaders } = await import("../dist/index.js");
-  for (const mime of ["text/html", "TEXT/HTML; charset=utf-8", "image/svg+xml", "application/xhtml+xml", "text/xml", "application/javascript", "", null]) {
+  // Closure: an allowlist — RSS / XSL / invented types and plain text download too.
+  for (const mime of ["text/html", "TEXT/HTML; charset=utf-8", "image/svg+xml", "application/xhtml+xml", "text/xml", "application/javascript", "application/rss+xml", "text/xsl", "unknown/unknown", "text/plain", "", null]) {
     assert.deepEqual(presignedOriginalResponseHeaders(mime, 2), { contentDisposition: 'attachment; filename="proovra-item-2"', contentType: "application/octet-stream" }, String(mime));
   }
   assert.deepEqual(presignedOriginalResponseHeaders("image/jpeg", 1), { contentDisposition: 'inline; filename="proovra-item-1"', contentType: "image/jpeg" });
   assert.deepEqual(presignedOriginalResponseHeaders("application/pdf", 3), { contentDisposition: 'inline; filename="proovra-item-3"', contentType: "application/pdf" });
+  assert.deepEqual(presignedOriginalResponseHeaders("Video/MP4; codecs=avc1", 4), { contentDisposition: 'inline; filename="proovra-item-4"', contentType: "video/mp4" });
 });

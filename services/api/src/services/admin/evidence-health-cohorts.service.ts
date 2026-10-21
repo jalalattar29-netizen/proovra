@@ -74,6 +74,16 @@ export const TSA_VALIDATION_FAILED_WHERE = {
   tsaFailureCode: { in: [...TSA_VALIDATION_FAILED_CODE_LIST] },
 } satisfies Prisma.EvidenceWhereInput;
 const TSA_FAILED: Prisma.EvidenceWhereInput = TSA_VALIDATION_FAILED_WHERE;
+
+/** The same predicate on a loaded row (a drill-down row's own cohort). */
+export function isTsaValidationFailure(r: { tsaStatus: string | null; tsaTokenBase64: string | null; tsaFailureCode: string | null }): boolean {
+  return (
+    r.tsaStatus === "FAILED" &&
+    r.tsaTokenBase64 !== null &&
+    r.tsaFailureCode !== null &&
+    (TSA_VALIDATION_FAILED_CODE_LIST as readonly string[]).includes(r.tsaFailureCode)
+  );
+}
 const SIGNED_NO_REPORT: Prisma.EvidenceWhereInput = {
   status: "SIGNED",
   latestReportVersion: null,

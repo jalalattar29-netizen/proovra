@@ -48,6 +48,7 @@ import { prisma } from "../db.js";
 // aggregator cannot describe the same record differently.
 import {
   deriveEvidenceOutputState,
+  eligibilityOrUnresolved,
   classifyTerminalReason,
   type OutputAction,
   type OutputActionUnavailableReason,
@@ -379,8 +380,10 @@ export default async function registerReportsRoutes(
               state: true,
               terminalReasonCode: true,
             },
-          })
-          .catch(() => []),
+          }),
+        // F-16 (independent forward audit, closure) — no .catch: an unreadable
+        // request is not "nothing requested". The page fails (and says so)
+        // rather than presenting every row as never asked for.
         /*
          * P2-2 CLOSURE (2026-09-10) — PER-RECORD COMMERCIAL SUBJECT.
          *
@@ -443,13 +446,13 @@ export default async function registerReportsRoutes(
         // UNRESOLVED (as on the workspace aggregator), never assumed ELIGIBLE.
         const packageGateBlocked = readPackageBlocked(r.verificationPackageMetadata).blocked;
         const reportLifecycle = deriveEvidenceOutputState({
-          eligibility: eligibility?.reportEligibility ?? "UNRESOLVED",
+          eligibility: eligibilityOrUnresolved(eligibility?.reportEligibility),
           generation,
           availability: report !== null ? "READY" : "NO_ARTIFACT",
           record,
         });
         const packageLifecycle = deriveEvidenceOutputState({
-          eligibility: eligibility?.packageEligibility ?? "UNRESOLVED",
+          eligibility: eligibilityOrUnresolved(eligibility?.packageEligibility),
           generation: packageGateBlocked
             ? "BLOCKED"
             : loaded?.packageRequest

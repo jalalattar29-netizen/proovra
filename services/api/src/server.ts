@@ -1216,7 +1216,7 @@ allowedHeaders: [
   }
   // Phase IA-home-acceptance — dev/staging-only impersonation login for
   // the Playwright Home acceptance suite. NEVER mounted in production
-  // (devAuthEnabled() returns false when NODE_ENV==="production").
+  // (devAuthEnabled() is false outside an explicit development / test environment — developmentSurfacesAllowed).
   if (devAuthEnabled()) {
     await app.register(devLoginRoutes);
     // Dev-only no-payment credit grant (POST /v1/billing/credits). Not a

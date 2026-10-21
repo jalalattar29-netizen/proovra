@@ -27,9 +27,9 @@
  *
  * Defense in depth (any single failure disables the bypass):
  *
- *   1. `NODE_ENV === "production"`        → bypass DISABLED, always.
+ *   1. not an explicit development / test environment (developmentSurfacesAllowed) → bypass DISABLED, always.
  *      Even if the env var and header both somehow appear in prod,
- *      the production NODE_ENV check blocks the bypass.
+ *      the environment gate blocks the bypass.
  *
  *   2. `E2E_AUTH_BYPASS_SECRET` unset OR
  *      shorter than 32 chars              → bypass DISABLED.
@@ -87,7 +87,7 @@ function constantTimeEquals(a: string, b: string): boolean {
 
 /**
  * Returns true ONLY when:
- *   - NODE_ENV is not "production"
+ *   - the environment is an explicit development or test one (developmentSurfacesAllowed)
  *   - E2E_AUTH_BYPASS_SECRET is set and at least 32 chars
  *   - the `X-E2E-Auth-Bypass` header on the request matches
  *     the env value via constant-time comparison

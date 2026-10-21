@@ -81,14 +81,30 @@ export async function findPublishedPackageBySha256(sha256: string): Promise<Row 
  * (legal / privacy / security), suspended or retained records' packages
  * answered 200 with their issuance facts.
  */
-export async function packageRecordAccessStatus(row: Pick<Row, "evidenceId">): Promise<CanonicalVerificationStatus> {
+/**
+ * The access answer for a package record. F-19 (independent forward audit,
+ * closure): Public Verify answers 404 — indistinguishable from "no such
+ * record" — for an integrity-rejected record (FAILED_HASH_MISMATCH) and for a
+ * legacy soft-deleted one outside the trash lifecycle; the package record
+ * answered 200 with seal facts for the same record. It answers NOT_FOUND for
+ * both now; every other record answers its canonical access state.
+ */
+export async function packageRecordAccessStatus(
+  row: Pick<Row, "evidenceId">,
+): Promise<CanonicalVerificationStatus | "NOT_FOUND"> {
   const record = await prisma.evidence.findUnique({
     where: { id: row.evidenceId },
-    select: { lifecycleState: true, destroyedAtUtc: true, verificationAccessState: true },
+    select: { lifecycleState: true, destroyedAtUtc: true, verificationAccessState: true, status: true, deletedAt: true },
   });
   if (!record) return "PURGED";
+  if (record.status === "FAILED_HASH_MISMATCH") return "NOT_FOUND";
+  const lifecycle = String(record.lifecycleState ?? "ACTIVE").toUpperCase();
+  if (record.deletedAt && !LIFECYCLE_STATES_WITH_TRASH_TIMESTAMP.has(lifecycle)) return "NOT_FOUND";
   return resolveCanonicalVerificationStatus(record as never);
 }
+
+/** Lifecycle states that carry deleted_at as part of their own lifecycle (not a legacy soft delete). */
+const LIFECYCLE_STATES_WITH_TRASH_TIMESTAMP: ReadonlySet<string> = new Set(["TRASHED", "PENDING_DESTRUCTION", "DESTROYED", "RETENTION_ARCHIVED"]);
 
 export async function projectPublicPackageRecord(row: Row): Promise<PublicPackageRecord> {
   const profile: PublicPackageProfile = packageProfileLabel(row.disclosureProfile);

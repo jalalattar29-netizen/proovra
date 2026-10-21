@@ -1,5 +1,6 @@
 "use client";
 
+import { evidenceRecordStatusLabel } from "@proovra/shared";
 import { Unlink } from "lucide-react";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 
@@ -212,7 +213,8 @@ export function EvidenceRelationshipsSection({
                     ? "Links from this record"
                     : "Links to this record"}{" "}
                   •{" "}
-                  {item.linkedEvidence.status.replace(/_/g, " ")}
+                  {/* F-13 — THE record-status label, never the raw enum. */}
+                  {evidenceRecordStatusLabel(item.linkedEvidence.status)}
                 </p>
                 {item.note ? (
                   <p className="evidence-detail-linked-card__meta">{item.note}</p>

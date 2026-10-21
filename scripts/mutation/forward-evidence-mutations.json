@@ -4560,7 +4560,7 @@
     "aud": "F-10",
     "name": "ots: a technically failed owed version is never asked again",
     "file": "services/worker/src/ots-anchored-version.ts",
-    "find": "    if (latestPrior.state !== \"FAILED_TERMINAL\" || attempt >= OTS_OWED_VERSION_MAX_RETRIES) {",
+    "find": "    if (!owedVersionRetryable(latestPrior) || attempt >= OTS_OWED_VERSION_MAX_RETRIES) {",
     "replace": "    if (true) {",
     "tests": [
       {
@@ -4577,7 +4577,8 @@
         ],
         "integration": true
       }
-    ]
+    ],
+    "note": "Re-anchored 2026-10-21 (closure): the retryability is owedVersionRetryable."
   },
   {
     "phase": "AFC",
@@ -4610,7 +4611,7 @@
     "aud": "F-24",
     "name": "report commit: the pointer may move backwards",
     "file": "services/worker/src/processor.ts",
-    "find": "                OR: [{ latestReportVersion: null }, { latestReportVersion: { lt: prepared.version } }],\n",
+    "find": "                reports: { none: { version: { gte: prepared.version } } },\n",
     "replace": "",
     "tests": [
       {
@@ -4627,7 +4628,8 @@
         ],
         "integration": true
       }
-    ]
+    ],
+    "note": "Re-anchored 2026-10-21 (closure, R-2): the guard is an issued higher report row."
   },
   {
     "phase": "AFC",
@@ -5806,8 +5808,8 @@
     "aud": "F-39",
     "name": "operator report: a committed-fixture public key reads as another key",
     "file": "services/api/src/ops/deployment-safety.ts",
-    "find": "  return isCommittedFixtureFingerprint(fp) ? \"COMMITTED_FIXTURE\" : \"OTHER_KEY\";",
-    "replace": "  return \"OTHER_KEY\";",
+    "find": "  return isCommittedFixtureFingerprint(fp) ? \"COMMITTED_FIXTURE\" : \"OTHER_KEY\";\n}\n\n/**\n * R-3",
+    "replace": "  return \"OTHER_KEY\";\n}\n\n/**\n * R-3",
     "tests": [
       {
         "cwd": "services/api",
@@ -5818,7 +5820,8 @@
           "test/afc-wave-e-environment-and-fixture.test.ts"
         ]
       }
-    ]
+    ],
+    "note": "Re-anchored 2026-10-21 (closure): the public-key finding, beside the new inline-key finding."
   },
   {
     "id": "AFC-OPS-B",
@@ -5836,6 +5839,514 @@
           "vitest",
           "run",
           "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-R1",
+    "phase": "AFC",
+    "aud": "R-1",
+    "name": "web package page: a canonical-state 200 body is read as a package record",
+    "file": "apps/web/app/verify/package/[packageId]/page.tsx",
+    "find": "        if (stateOfBody || !Array.isArray((data as { issuedWith?: unknown } | null)?.issuedWith)) {",
+    "replace": "        if (false) {",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/public-package-record-truth.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F19-C",
+    "phase": "AFC",
+    "aud": "F-19",
+    "name": "package record: an integrity-rejected record answers its seal facts",
+    "file": "services/api/src/services/public-verify/public-package-record.service.ts",
+    "find": "  if (record.status === \"FAILED_HASH_MISMATCH\") return \"NOT_FOUND\";\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/public-package-record.integration.test.ts",
+          "-t",
+          "F-19"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F19-D",
+    "phase": "AFC",
+    "aud": "F-19",
+    "name": "package record: a legacy soft-deleted record answers its seal facts",
+    "file": "services/api/src/services/public-verify/public-package-record.service.ts",
+    "find": "  if (record.deletedAt && !LIFECYCLE_STATES_WITH_TRASH_TIMESTAMP.has(lifecycle)) return \"NOT_FOUND\";\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/public-package-record.integration.test.ts",
+          "-t",
+          "F-19"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F12-D",
+    "phase": "AFC",
+    "aud": "F-12",
+    "name": "web appendix: the signature row says 'recorded' whatever its validity",
+    "file": "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts",
+    "find": "        ? recordSignaturePresentation({\n            validityState: p.signature.validityState ?? null,",
+    "replace": "        ? (p.signature.valid ? \"Digital signature recorded\" : \"Digital signature recorded (verify separately)\") || recordSignaturePresentation({\n            validityState: p.signature.validityState ?? null,",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "node",
+        "args": [
+          "scripts/run-tests.mjs",
+          "evidence-technical-appendix"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F12-E",
+    "phase": "AFC",
+    "aud": "F-12",
+    "name": "mobile appendix: the signature row says 'recorded' whatever its validity",
+    "file": "apps/mobile/src/product/evidence-technical-appendix.ts",
+    "find": "          ? recordSignaturePresentation({ validityState: sig[\"validityState\"] ?? null, revokedAtUtc: s(sig[\"signingKeyRevokedAtUtc\"]) }).label",
+    "replace": "          ? \"Digital signature recorded\"",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/afc-wave-d-presentation.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F13-C",
+    "phase": "AFC",
+    "aud": "F-13",
+    "name": "web relationships: the linked record's raw status enum",
+    "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx",
+    "find": "                  {evidenceRecordStatusLabel(item.linkedEvidence.status)}",
+    "replace": "                  {item.linkedEvidence.status.replace(/_/g, \" \")}",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "node",
+        "args": [
+          "scripts/run-tests.mjs",
+          "afc-wave-d-web-pins"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F16-D",
+    "phase": "AFC",
+    "aud": "F-16",
+    "name": "shared: an unreadable eligibility is assumed ELIGIBLE",
+    "file": "packages/shared/src/evidence-output-lifecycle.ts",
+    "find": "  return eligibility ?? \"UNRESOLVED\";",
+    "replace": "  return eligibility ?? \"ELIGIBLE\";",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/afc-presentation-authorities.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F16-E",
+    "phase": "AFC",
+    "aud": "F-16",
+    "name": "Evidence Detail assumes ELIGIBLE again",
+    "file": "services/api/src/services/evidence-artifact-status.service.ts",
+    "find": "  const reportEligibility: OutputCommercialEligibility = eligibilityOrUnresolved(loaded.eligibility?.reportEligibility);",
+    "replace": "  const reportEligibility: OutputCommercialEligibility = loaded.eligibility?.reportEligibility ?? \"ELIGIBLE\";",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-closure-source-gates.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F23-C",
+    "phase": "AFC",
+    "aud": "F-23",
+    "name": "a late call interrupts an expired session whose record is sealed",
+    "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+    "find": "    if (!(await reservedRecordSealed(db, session))) {\n      await interruptSession(db, session, \"EXPIRED\", now);\n    }",
+    "replace": "    await interruptSession(db, session, \"EXPIRED\", now);",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/uc3-continuous-completeness.integration.test.ts",
+          "-t",
+          "F-23"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F27-D",
+    "phase": "AFC",
+    "aud": "F-27",
+    "name": "drill-down rows label their cohort from the raw FAILED word",
+    "file": "services/api/src/services/admin/evidence-records.service.ts",
+    "find": "    const tsaFailed = isTsaValidationFailure(r);",
+    "replace": "    const tsaFailed = r.tsaStatus === \"FAILED\";",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/adm013-evidence-cohorts.integration.test.ts",
+          "-t",
+          "F-27"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F28-D",
+    "phase": "AFC",
+    "aud": "F-28",
+    "name": "mobile Verify: the custody verdict as the verifier code",
+    "file": "apps/mobile/src/product/public-verify.ts",
+    "find": "      value: custodyChainVerdictLabel({ valid: s.custodyChainValid, mode: s.custodyChainMode, reason: s.custodyChainFailureReason }),",
+    "replace": "      value: s.custodyChainFailureReason ?? \"Valid\",",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/afc-wave-d-presentation.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F28-E",
+    "phase": "AFC",
+    "aud": "F-28",
+    "name": "web Verify: the custody failure printed as the verifier code",
+    "file": "apps/web/app/verify/[token]/page.tsx",
+    "find": "custodyChainVerdictLabel({ valid: false, reason: custodyChainFailureReason })",
+    "replace": "custodyChainFailureReason",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "node",
+        "args": [
+          "scripts/run-tests.mjs",
+          "afc-wave-d-web-pins"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F36-B",
+    "phase": "AFC",
+    "aud": "F-36",
+    "name": "presigned originals: a blocklist (invented / RSS / XSL types render inline)",
+    "file": "packages/shared/src/artifact-history.ts",
+    "find": "  if (!INLINE_SAFE_TYPES.has(mime)) {",
+    "replace": "  if (!mime || /html|svg|javascript/.test(mime)) {",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/afc-intake-identity-and-location.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F41-E",
+    "phase": "AFC",
+    "aud": "F-41",
+    "name": "loopback CORS gated on the NODE_ENV string",
+    "file": "services/api/src/http/cors-origin-policy.ts",
+    "find": "  if (developmentSurfacesAllowed(env) && isLoopbackDevOrigin(normalized)) return true;",
+    "replace": "  if (env.NODE_ENV !== \"production\" && isLoopbackDevOrigin(normalized)) return true;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F41-F",
+    "phase": "AFC",
+    "aud": "F-41",
+    "name": "signed delivery falls back to the public constant outside NODE_ENV=production",
+    "file": "services/api/src/services/exchange/signed-delivery.service.ts",
+    "find": "    if (!developmentSurfacesAllowed()) throw new ExchangeSigningSecretMissingError();",
+    "replace": "    if (process.env.NODE_ENV === \"production\") throw new ExchangeSigningSecretMissingError();",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F41-G",
+    "phase": "AFC",
+    "aud": "F-41",
+    "name": "MFA secrets sealed with the public dev KEK outside NODE_ENV=production",
+    "file": "services/api/src/services/security/mfa-secret-storage.ts",
+    "find": "  if (!developmentSurfacesAllowed()) {\n    throw new Error(\n      \"MFA_SECRET_KEK_BASE64 is required outside",
+    "replace": "  if (process.env.NODE_ENV === \"production\") {\n    throw new Error(\n      \"MFA_SECRET_KEK_BASE64 is required outside",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F41-H",
+    "phase": "AFC",
+    "aud": "F-41",
+    "name": "cron routes fall back to the workspace-admin check outside NODE_ENV=production",
+    "file": "services/api/src/middleware/cron-secret.ts",
+    "find": "  return !developmentSurfacesAllowed();",
+    "replace": "  return process.env.NODE_ENV === \"production\";",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F08-B",
+    "phase": "AFC",
+    "aud": "F-08",
+    "name": "an undeclared environment is not deployed (proxy trust defaults to off)",
+    "file": "packages/shared-runtime/src/config/deployment-environment.ts",
+    "find": "  return !developmentSurfacesAllowed(env);\n}",
+    "replace": "  const d = resolveDeploymentEnvironment(env);\n  return d.ambiguous || d.kind === \"production\" || d.kind === \"staging\";\n}",
+    "build": [
+      "shared-runtime"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-deployment-environment.test.ts"
+        ]
+      },
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F10-B",
+    "phase": "AFC",
+    "aud": "F-10",
+    "name": "owed-version sweep: one page (non-retryable rows starve the retryable)",
+    "file": "services/worker/src/ots-initialization-reconciler.ts",
+    "find": "    for (let page = 0; page < OTS_OWED_SWEEP_MAX_PAGES && retryable.length < batchSize; page += 1) {",
+    "replace": "    for (let page = 0; page < 1 && retryable.length < batchSize; page += 1) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-10"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F10-C",
+    "phase": "AFC",
+    "aud": "F-10",
+    "name": "owed version: a cleared policy block is never re-asked",
+    "file": "services/worker/src/ots-anchored-version.ts",
+    "find": "  if (prior.state === \"BLOCKED_POLICY\" || prior.state === \"BLOCKED_STALE\") return isRecoverableBlockedTerminalReason(prior.terminalReasonCode);\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-10"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-R2",
+    "phase": "AFC",
+    "aud": "R-2",
+    "name": "report commit: a drifted pointer blocks every later report",
+    "file": "services/worker/src/processor.ts",
+    "find": "                reports: { none: { version: { gte: prepared.version } } },",
+    "replace": "                OR: [{ latestReportVersion: null }, { latestReportVersion: { lt: prepared.version } }],",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "R-2"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-R3",
+    "phase": "AFC",
+    "aud": "R-3",
+    "name": "operator report: an inline fixture private key is not inspected",
+    "file": "services/api/src/ops/deployment-safety.ts",
+    "find": "      evidenceInlinePrivateKey: inlinePrivateKeyFinding(env.SIGNING_PRIVATE_KEY_PEM, provider),",
+    "replace": "      evidenceInlinePrivateKey: \"NOT_CONFIGURED\" as KeyMaterialFinding,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-WA-MINOR",
+    "phase": "AFC",
+    "aud": "F-01",
+    "name": "intake submit claims a persisted location though it did not seal the record",
+    "file": "services/api/src/services/external-intake-orchestration.service.ts",
+    "find": "    sealedByThisSubmission = completed?.alreadyFinalized !== true;",
+    "replace": "    sealedByThisSubmission = true;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-closure-source-gates.test.ts"
         ]
       }
     ]

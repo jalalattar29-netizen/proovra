@@ -35,6 +35,7 @@ import {
   randomBytes,
   scryptSync,
 } from "node:crypto";
+import { developmentSurfacesAllowed } from "@proovra/shared-runtime";
 
 /**
  * Sealed ciphertext bundle. All three components are required to
@@ -74,9 +75,10 @@ function resolveKek(): { key: Buffer; kekId: string } {
     }
     return { key: decoded, kekId: PROD_DEFAULT_KEK_ID };
   }
-  if (process.env.NODE_ENV === "production") {
+  // F-41 (independent forward audit, closure) — the development fallback needs an EXPLICIT development or test environment (developmentSurfacesAllowed); a staging or undeclared deployment fails closed like production.
+  if (!developmentSurfacesAllowed()) {
     throw new Error(
-      "MFA_SECRET_KEK_BASE64 is required in production. The MFA service refuses to encrypt without an explicit KEK.",
+      "MFA_SECRET_KEK_BASE64 is required outside development / test. The MFA service refuses to encrypt without an explicit KEK.",
     );
   }
   // Dev / test fallback — stable per process so test runs are

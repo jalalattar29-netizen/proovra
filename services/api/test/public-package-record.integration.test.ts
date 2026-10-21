@@ -187,6 +187,28 @@ describe("public package record (live PostgreSQL 16)", () => {
     expect((await byId()).statusCode).toBe(200);
   });
 
+  // F-19 (closure audit) — Public Verify answers 404 (anti-enumeration) for an
+  // integrity-rejected record and for a legacy soft-deleted one; the package
+  // record answered 200 with seal facts and keyBinding BOUND for the same record.
+  it("F-19: an integrity-rejected or legacy soft-deleted record's package record is a 404, like Public Verify", async () => {
+    const f = await fixture();
+    const byId = () => get(`/public/verification-packages/${f.full1.id}`);
+    const bySha = () => get(`/public/verification-packages/by-sha256/${f.full1.packageSha256}`);
+    expect((await byId()).statusCode).toBe(200);
+    const expect404 = async () => {
+      for (const res of [await byId(), await bySha()]) {
+        expect(res.statusCode, res.body).toBe(404);
+        expect(res.json()).toEqual({ code: "PACKAGE_NOT_FOUND", message: "No PROOVRA package record matches." });
+      }
+    };
+    await prisma.evidence.update({ where: { id: f.evidenceId }, data: { status: "FAILED_HASH_MISMATCH" } as never });
+    await expect404();
+    await prisma.evidence.update({ where: { id: f.evidenceId }, data: { status: "REPORTED", deletedAt: new Date() } as never });
+    await expect404();
+    await prisma.evidence.update({ where: { id: f.evidenceId }, data: { deletedAt: null } as never });
+    expect((await byId()).statusCode).toBe(200);
+  });
+
   it("a key registered for the EVIDENCE signature never binds a package, even under the same id and version", async () => {
     const f = await fixture();
     const keyId = `pkgrec-evidence-${randomUUID().slice(0, 8)}`;

@@ -326,6 +326,7 @@ export {
   classifyTerminalReason,
   isCommerciallyObsoleteTerminalReason,
   deriveEvidenceOutputState,
+  eligibilityOrUnresolved,
   outputActionFor,
   // RELIABILITY CLOSURE (2026-09-09) — the blocked-recoverability classifier,
   // the generation-intent vocabulary and the typed request outcome. All three

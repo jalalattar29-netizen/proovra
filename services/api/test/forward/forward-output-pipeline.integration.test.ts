@@ -1431,12 +1431,31 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       const ev = await signedEvidence();
       await signFingerprintRaw(ev);
       seam.reportPublishedHook = async () => {
-        // A higher version committed first (simulated: the pointer moved past this run's version).
+        // A higher version committed first: its report ROW exists and the pointer names it.
+        await prisma.report.create({
+          data: { evidenceId: ev.evidenceId, version: 7, storageBucket: "b", storageKey: `reports/${ev.evidenceId}/v7.pdf`, generatedAtUtc: new Date(), sizeBytes: 1_000n } as never,
+        });
         await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { latestReportVersion: 7 } as never });
       };
       const id = await request(ev);
       await run(id, 0);
       expect((await latestPointer(ev.evidenceId)).latestReportVersion).toBe(7);
+      expect((await state(ev.evidenceId)).reports.map((r) => r.version)).not.toContain(1);
+    }, 300_000);
+
+    // R-2 (closure audit) — a pointer that DRIFTED above every report row (no
+    // row at it) must not refuse every later commit forever: the commit
+    // refuses only an issued higher row, so the drift heals.
+    it("R-2: a drifted report pointer (no row at or above it) does not block the next report", async () => {
+      const ev = await signedEvidence();
+      await signFingerprintRaw(ev);
+      seam.reportPublishedHook = async () => {
+        await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { latestReportVersion: 7 } as never });
+      };
+      const id = await request(ev);
+      expect(await run(id, 0)).toBeNull();
+      expect((await state(ev.evidenceId)).reports.map((r) => r.version)).toEqual([1]);
+      expect((await latestPointer(ev.evidenceId)).latestReportVersion).toBe(1);
     }, 300_000);
 
     // ---- F-05 / F-11 / F-34: a package built later for an issued report
@@ -1522,6 +1541,49 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       expect(await autoRequests(ev.evidenceId)).toHaveLength(2);
     }, 300_000);
 
+    // ---- F-10 (closure): the sweep re-asks each record's LATEST owed request,
+    // pages past rows that are not retryable, and re-asks a cleared policy block.
+    it("F-10: the owed-version sweep is not starved by older non-retryable rows, and never re-asks a business answer", async () => {
+      const { reconcileOtsAnchoredReportVersion, OTS_ANCHORED_MACHINE_ID } = await import("../../../worker/src/ots-anchored-version.js");
+      const { runOtsInitializationReconciler } = await import("../../../worker/src/ots-initialization-reconciler.js");
+      const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000);
+      // Three records whose latest owed request ended with an INTEGRITY terminal
+      // (not retryable), OLDER than the one retryable record below.
+      const stuck: string[] = [];
+      for (let i = 0; i < 3; i += 1) {
+        const ev = await chainVerifiedWithV1();
+        const r = await reconcileOtsAnchoredReportVersion(ev.evidenceId);
+        expect(r.outcome).toBe("requested");
+        await prisma.reportGenerationRequest.update({
+          where: { id: r.requestId! },
+          data: { state: "FAILED_TERMINAL", terminalReasonCode: "EVIDENCE_INTEGRITY_FAILED", completedAtUtc: hoursAgo(5 + i) } as never,
+        });
+        stuck.push(ev.evidenceId);
+      }
+      // The retryable one: a technical terminal, newer than all of them.
+      const target = await chainVerifiedWithV1();
+      const first = await reconcileOtsAnchoredReportVersion(target.evidenceId);
+      await prisma.reportGenerationRequest.update({
+        where: { id: first.requestId! },
+        data: { state: "FAILED_TERMINAL", terminalReasonCode: "STORAGE_UNAVAILABLE", completedAtUtc: hoursAgo(2) } as never,
+      });
+      // One record per tick: the old code read the OLDEST failed row and stopped.
+      await runOtsInitializationReconciler({ trigger: "f-10-closure", batchSize: 1 } as never);
+      expect(await autoRequests(target.evidenceId)).toHaveLength(2);
+      for (const id of stuck) expect(await autoRequests(id), "an integrity terminal is never re-asked").toHaveLength(1);
+      // A policy block whose blocker COULD clear (a legal hold, now released) is re-asked.
+      const held = await chainVerifiedWithV1();
+      const blocked = await reconcileOtsAnchoredReportVersion(held.evidenceId);
+      await prisma.reportGenerationRequest.update({
+        where: { id: blocked.requestId! },
+        data: { state: "BLOCKED_POLICY", terminalReasonCode: "LEGAL_HOLD_ACTIVE", completedAtUtc: hoursAgo(2) } as never,
+      });
+      const again = await reconcileOtsAnchoredReportVersion(held.evidenceId);
+      expect(again.outcome).toBe("requested");
+      expect(await autoRequests(held.evidenceId)).toHaveLength(2);
+      expect(OTS_ANCHORED_MACHINE_ID).toBeTruthy();
+    }, 600_000);
+
     // ---- F-38: stale or competing writers are fenced
     it("F-38: a stale run cannot fail the reservations a live claimant holds", async () => {
       const issuance = await import("../../../worker/src/package-issuance.js");
@@ -1529,14 +1591,14 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       const id = await request(ev);
       const live = new Date();
       await prisma.reportGenerationRequest.update({ where: { id }, data: { state: "PROCESSING", claimedAtUtc: live } as never });
+      // Closure: the reservation MUST exist — a setup that silently failed made
+      // this test assert nothing.
       const row = await prisma.verificationPackage.create({
         data: { evidenceId: ev.evidenceId, version: 1, state: "RESERVED", disclosureProfile: "FULL_FORENSIC", issuanceId: id } as never,
         select: { id: true },
-      }).catch(() => null);
+      });
       await issuance.failIssuance({ requestId: id, reason: "STALE", fence: { claimedAtUtc: new Date(live.getTime() - 60_000) } });
-      if (row) {
-        expect((await prisma.verificationPackage.findUniqueOrThrow({ where: { id: row.id }, select: { state: true } })).state).toBe("RESERVED");
-      }
+      expect((await prisma.verificationPackage.findUniqueOrThrow({ where: { id: row.id }, select: { state: true } })).state).toBe("RESERVED");
     }, 300_000);
 
     it("F-38: the reconciler does not adopt another request's report for an explicit NEW_VERSION request", async () => {

@@ -16,7 +16,7 @@
  * operational-seeding + e2e-auth-bypass surfaces):
  *
  *   1. The plugin is only REGISTERED when `DEV_AUTH_ENABLED === "true"`
- *      AND `NODE_ENV !== "production"` (see server.ts). In production
+ *      AND an explicit development / test environment (developmentSurfacesAllowed; see server.ts). In production
  *      the surface does not exist at all.
  *   2. The handler itself re-checks both conditions and 404s otherwise,
  *      so even a mis-registration in production is inert.

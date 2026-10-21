@@ -22,8 +22,11 @@
  * Gates:
  *   - developmentSurfacesAllowed: only an unambiguous development or test
  *     classification — never unknown, never ambiguous.
- *   - deployedInfrastructureRequired: production, staging, or ambiguous — the
- *     environments whose infrastructure (proxy trust, signing keys) must be
+ *   - deployedInfrastructureRequired: everything that is NOT an unambiguous
+ *     development or test environment — production, staging, ambiguous, AND
+ *     UNKNOWN (closure, 2026-10-21: production containers often run with
+ *     NODE_ENV unset; an undeclared process was classified "not deployed" and
+ *     its proxy trust silently defaulted to off). Infrastructure must be
  *     declared, never defaulted.
  */
 
@@ -93,8 +96,7 @@ export function developmentSurfacesAllowed(env: Env = process.env): boolean {
   return !d.ambiguous && (d.kind === "development" || d.kind === "test");
 }
 
-/** Infrastructure that must be DECLARED, never defaulted: production, staging, or an ambiguous classification. */
+/** Infrastructure that must be DECLARED, never defaulted: anything that is not an unambiguous development or test environment. */
 export function deployedInfrastructureRequired(env: Env = process.env): boolean {
-  const d = resolveDeploymentEnvironment(env);
-  return d.ambiguous || d.kind === "production" || d.kind === "staging";
+  return !developmentSurfacesAllowed(env);
 }

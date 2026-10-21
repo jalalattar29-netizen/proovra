@@ -34,6 +34,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { FileText } from "lucide-react";
+import { custodyChainVerdictLabel } from "@proovra/shared";
 import { type EvidenceDetailCtx } from "./_lib";
 import { EvidenceTechnicalAppendix } from "./technical-appendix/EvidenceTechnicalAppendix";
 import { TechnicalDisclosure } from "./technical-appendix/TechnicalDisclosure";
@@ -226,9 +227,8 @@ export function EvidenceTechnicalAppendixTab({
             rows={[
               {
                 label: "Custody chain validity",
-                value: preservation.custodyChain.valid
-                  ? `Continuous (${preservation.custodyChain.mode})`
-                  : `Review required (${preservation.custodyChain.reason ?? "unknown"})`,
+                // F-28 (independent forward audit, closure) — the verdict in words.
+                value: custodyChainVerdictLabel(preservation.custodyChain),
               },
             ]}
             empty="No custody chain state was recorded for this record."

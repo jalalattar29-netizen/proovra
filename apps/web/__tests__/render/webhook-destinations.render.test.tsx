@@ -116,6 +116,13 @@ describe("automation webhook destinations", () => {
     Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
     mount();
     const add = await screen.findByRole("button", { name: "Add destination" });
+    // The button is DISABLED until the destination list has loaded ("Load the
+    // destination list first."); on a loaded runner the click landed before
+    // the list did and was ignored, so the form never opened (CI, 2026-10-21).
+    await waitFor(
+      () => expect(add.hasAttribute("disabled") || add.getAttribute("aria-disabled") === "true").toBe(false),
+      { timeout: 5000 },
+    );
     fireEvent.click(add);
     /*
      * WAIT FOR THE DISCLOSURE, DO NOT ASSUME THE CLICK ALREADY FLUSHED IT.
@@ -158,7 +165,10 @@ describe("automation webhook destinations", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("whsec_created_once");
     fireEvent.click(within(secret).getByRole("button", { name: /I have stored it/ }));
     expect(screen.queryByText("whsec_created_once")).toBeNull();
-  });
+    // Six awaited round trips, each given up to 5 s on a loaded runner: the
+    // default 5 s TEST timeout (vitest) was the remaining race — the steps
+    // were given time, the test as a whole was not.
+  }, 30_000);
 
   it("shows a server URL rejection beside the URL field", async () => {
     mocks.fetch.mockImplementation(async (path: string, init?: RequestInit) => {
