@@ -1,5 +1,5 @@
 import { prisma } from "../db.js";
-import { readMaxEvidenceSizeBytes } from "@proovra/shared";
+import { intakeLinkLocationSourceFor, readMaxEvidenceSizeBytes } from "@proovra/shared";
 import {
   compositeSha256,
   ensureVerificationRefTx,
@@ -39,7 +39,6 @@ import { requestEvidenceOtsAnchoring } from "./integrity/ots-anchoring-authority
 import { runEvidenceFinalizationFanout } from "./evidence-finalization-fanout.service.js";
 import { Readable } from "stream";
 import {
-  appendCustodyEvent,
   appendCustodyEventTx,
 } from "./custody-events.service.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
@@ -71,6 +70,83 @@ export type CaptureSessionCompletion = {
   sessionId: string;
   expectedSha256ByPartIndex: ReadonlyMap<number, string>;
 };
+
+/**
+ * F-01 / F-04 / F-21 (independent forward audit) — what the intake submit
+ * contributes to the seal. The contributor's location and device clock arrive
+ * with the submit; they are fingerprint-bound facts, so they are written HERE,
+ * under the record lock, only while the record is unsealed, and are part of the
+ * fingerprint signed in the same transaction. A submit that reaches a sealed
+ * record changes nothing. The intake history events (link used, consent,
+ * submitted) are guaranteed in the same transaction: a best-effort append that
+ * failed when the session's record was created is completed at the seal.
+ */
+export type IntakeSubmissionCompletion = {
+  sessionId: string;
+  linkId?: string;
+  intakeMode?: string | null;
+  workflowTemplateSlug?: string | null;
+  workflowTemplateVersion?: string | number | null;
+  consentPolicyVersion?: string | null;
+  consentAccepted?: boolean;
+  locationConsentState?: string | null;
+  captureContext?: {
+    location?: {
+      lat: number;
+      lng: number;
+      accuracyMeters: number | null;
+      /** Who measured the fix: the contributor's browser or a device app. */
+      source: "BROWSER_GEOLOCATION" | "DEVICE_GEOLOCATION";
+      /** The device's location provider reported the fix as mocked. */
+      providerReportedMock: boolean;
+    } | null;
+    deviceTimeIso?: string | null;
+  };
+};
+
+/**
+ * F-18 — record a record's storage-protection outcome exactly once, deciding
+ * under the record lock (the same lock the seal takes). EVIDENCE_LOCKED is
+ * appended if no lock outcome exists; STORAGE_PROTECTION_UNAVAILABLE only if
+ * no outcome of either kind exists.
+ */
+export async function recordStorageProtectionOutcome(
+  evidenceId: string,
+  type: prismaPkg.CustodyEventType,
+  payload: Record<string, unknown>,
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${evidenceId}))`;
+    const existing = new Set(
+      (
+        await tx.custodyEvent.findMany({
+          where: {
+            evidenceId,
+            eventType: {
+              in: [
+                prismaPkg.CustodyEventType.EVIDENCE_LOCKED,
+                prismaPkg.CustodyEventType.STORAGE_PROTECTION_UNAVAILABLE,
+              ],
+            },
+          },
+          select: { eventType: true },
+        })
+      ).map((e) => e.eventType),
+    );
+    const recorded =
+      type === prismaPkg.CustodyEventType.EVIDENCE_LOCKED
+        ? existing.has(prismaPkg.CustodyEventType.EVIDENCE_LOCKED)
+        : existing.size > 0;
+    if (recorded) return false;
+    await appendCustodyEventTx(tx, {
+      evidenceId,
+      eventType: type,
+      atUtc: new Date(),
+      payload: payload as prismaPkg.Prisma.InputJsonValue,
+    });
+    return true;
+  });
+}
 
 function captureCompletionError(code: string, statusCode = 409): HttpError {
   return Object.assign(new Error(code), { statusCode, code });
@@ -674,7 +750,7 @@ export async function completeEvidence(params: {
    * creator) cannot seal a contributor's in-flight submission through the
    * authenticated /v1/evidence/:id/complete door.
    */
-  intakeSubmission?: { sessionId: string };
+  intakeSubmission?: IntakeSubmissionCompletion;
   /**
    * UC-ARCH-003 — who asked and from where, for the ONE completion custody
    * event and tenant audit this authority now writes for every channel.
@@ -915,6 +991,64 @@ export async function completeEvidence(params: {
           select: { id: true },
         });
         if (!boundIntake) throw captureCompletionError("INTAKE_SESSION_NOT_BOUND_TO_EVIDENCE");
+
+        // F-21 — the intake history a sealed intake record always carries.
+        // Appended at session creation best-effort; whatever is missing is
+        // appended here, under the record lock, before the seal.
+        const intake = params.intakeSubmission;
+        if (intake.linkId) {
+          const present = new Set(
+            (
+              await tx.custodyEvent.findMany({
+                where: {
+                  evidenceId: evidence.id,
+                  eventType: {
+                    in: [
+                      prismaPkg.CustodyEventType.EXTERNAL_INTAKE_LINK_USED,
+                      prismaPkg.CustodyEventType.EXTERNAL_INTAKE_CONSENT_ACCEPTED,
+                    ],
+                  },
+                },
+                select: { eventType: true },
+              })
+            ).map((e) => e.eventType),
+          );
+          if (!present.has(prismaPkg.CustodyEventType.EXTERNAL_INTAKE_LINK_USED)) {
+            await appendCustodyEventTx(tx, {
+              evidenceId: evidence.id,
+              eventType: prismaPkg.CustodyEventType.EXTERNAL_INTAKE_LINK_USED,
+              payload: { intakeLinkId: intake.linkId, intakeSessionId: intake.sessionId, intakeMode: intake.intakeMode ?? null, recordedAtSeal: true },
+            });
+          }
+          if (intake.consentAccepted && !present.has(prismaPkg.CustodyEventType.EXTERNAL_INTAKE_CONSENT_ACCEPTED)) {
+            await appendCustodyEventTx(tx, {
+              evidenceId: evidence.id,
+              eventType: prismaPkg.CustodyEventType.EXTERNAL_INTAKE_CONSENT_ACCEPTED,
+              payload: { intakeLinkId: intake.linkId, intakeSessionId: intake.sessionId, consentPolicyVersion: intake.consentPolicyVersion ?? null, recordedAtSeal: true },
+            });
+          }
+        }
+
+        // F-01 — the submit's capture context, bound into THIS seal. The
+        // record is unsealed here (SIGNED / REPORTED returned above, under the
+        // lock), so these are the values the fingerprint below commits to.
+        const ctx = params.intakeSubmission.captureContext;
+        const captureFacts: Record<string, unknown> = {};
+        if (ctx?.location) {
+          captureFacts.lat = ctx.location.lat;
+          captureFacts.lng = ctx.location.lng;
+          captureFacts.accuracyMeters = ctx.location.accuracyMeters;
+          captureFacts.locationSource = intakeLinkLocationSourceFor(ctx.location.source);
+        }
+        if (ctx?.deviceTimeIso) captureFacts.deviceTimeIso = ctx.deviceTimeIso;
+        if (Object.keys(captureFacts).length > 0) {
+          const written = await tx.evidence.update({
+            where: { id: evidence.id },
+            data: captureFacts as prismaPkg.Prisma.EvidenceUpdateInput,
+            select: { lat: true, lng: true, accuracyMeters: true, locationSource: true, deviceTimeIso: true },
+          });
+          Object.assign(evidence, written);
+        }
       } else if (params.intakeSubmission) {
         throw captureCompletionError("INTAKE_SESSION_NOT_BOUND_TO_EVIDENCE");
       }
@@ -1511,6 +1645,38 @@ const captureMethod =
         userAgent: params.requestContext?.userAgent ?? null,
       });
 
+      // F-21 — the contributor's submission, in the seal transaction (it was
+      // appended after the seal, best-effort, so a crash left a sealed intake
+      // record without it). F-04 — the location's measuring source and the
+      // provider's mock flag are bound here, with the fix the fingerprint signs.
+      if (params.intakeSubmission?.linkId) {
+        const intake = params.intakeSubmission;
+        const loc = intake.captureContext?.location ?? null;
+        await appendCustodyEventTx(tx, {
+          evidenceId: evidence.id,
+          eventType: prismaPkg.CustodyEventType.EXTERNAL_INTAKE_SUBMITTED,
+          atUtc: now,
+          payload: {
+            intakeLinkId: intake.linkId,
+            intakeSessionId: intake.sessionId,
+            intakeMode: intake.intakeMode ?? null,
+            workflowTemplateSlug: intake.workflowTemplateSlug ?? null,
+            workflowTemplateVersion: intake.workflowTemplateVersion ?? null,
+            partCount: parts.length,
+            locationProvided: Boolean(loc),
+            locationConsentState: intake.locationConsentState ?? null,
+            ...(loc
+              ? {
+                  gps: {
+                    source: loc.source,
+                    ...(loc.providerReportedMock ? { providerReportedMock: true } : {}),
+                  },
+                }
+              : {}),
+          } as prismaPkg.Prisma.InputJsonValue,
+        });
+      }
+
       // UC-WEB-001 — a web capture DRAFT bound to this record is FINALIZED
       // here, when the record is sealed — not when it was reserved. A draft
       // whose finalize failed mid-upload therefore stays resumable.
@@ -1726,16 +1892,6 @@ const captureMethod =
           }
         }
 
-        // A repeat complete that repaired retention appends nothing if the
-        // record already carries its lock outcome (2026-09-29, audit D11).
-        const recordedOutcome = async (
-          type: prismaPkg.CustodyEventType,
-        ): Promise<boolean> =>
-          final.alreadyFinalized === true &&
-          (await prisma.custodyEvent.count({
-            where: { evidenceId: final.result.id, eventType: type },
-          })) > 0;
-
         // Decide truthfully whether to append EVIDENCE_LOCKED.
         //
         // We require ALL of the following to be true:
@@ -1764,54 +1920,42 @@ const captureMethod =
           (lockMode === "COMPLIANCE" || lockMode === "GOVERNANCE") &&
           retentionInForce;
 
-        if (lockTrulyApplied && !(await recordedOutcome(prismaPkg.CustodyEventType.EVIDENCE_LOCKED))) {
-          await appendCustodyEvent({
-            evidenceId: final.result.id,
-            eventType: prismaPkg.CustodyEventType.EVIDENCE_LOCKED,
-            atUtc: new Date(),
-            payload: {
+        // F-18 (independent forward audit) — ONE storage-protection outcome per
+        // record. The decision and the append run under the record lock, so
+        // concurrent duplicate completions cannot both append (the existence
+        // check used to run unlocked, after the first complete committed and
+        // before its post-commit append). Truthful progression only: a lock
+        // observed after an "unavailable" outcome is recorded; "unavailable"
+        // is never recorded once any outcome exists.
+        const outcomeType = lockTrulyApplied
+          ? prismaPkg.CustodyEventType.EVIDENCE_LOCKED
+          : prismaPkg.CustodyEventType.STORAGE_PROTECTION_UNAVAILABLE;
+        const outcomePayload = lockTrulyApplied
+          ? {
               storageRegion: process.env.S3_REGION?.trim() || null,
               storageObjectLockMode: lockMode,
-              storageObjectLockRetainUntilUtc:
-                retainUntil?.toISOString() ?? null,
-              storageObjectLockLegalHoldStatus:
-                lockedMeta.objectLockLegalHoldStatus
-                  ? String(lockedMeta.objectLockLegalHoldStatus)
-                  : null,
+              storageObjectLockRetainUntilUtc: retainUntil?.toISOString() ?? null,
+              storageObjectLockLegalHoldStatus: lockedMeta.objectLockLegalHoldStatus
+                ? String(lockedMeta.objectLockLegalHoldStatus)
+                : null,
               itemCount: final.retentionTargets.length,
               retentionApplied: true,
-            } as prismaPkg.Prisma.InputJsonValue,
-          });
-        } else if (
-          !lockTrulyApplied &&
-          !(await recordedOutcome(prismaPkg.CustodyEventType.STORAGE_PROTECTION_UNAVAILABLE)) &&
-          !(await recordedOutcome(prismaPkg.CustodyEventType.EVIDENCE_LOCKED))
-        ) {
-          await appendCustodyEvent({
-            evidenceId: final.result.id,
-            eventType:
-              prismaPkg.CustodyEventType.STORAGE_PROTECTION_UNAVAILABLE,
-            atUtc: new Date(),
-            payload: {
+            }
+          : {
               phase: "storage_protection_unavailable",
               storageRegion: process.env.S3_REGION?.trim() || null,
               storageObjectLockMode: lockMode,
-              storageObjectLockRetainUntilUtc:
-                retainUntil?.toISOString() ?? null,
-              storageObjectLockLegalHoldStatus:
-                lockedMeta.objectLockLegalHoldStatus
-                  ? String(lockedMeta.objectLockLegalHoldStatus)
-                  : null,
+              storageObjectLockRetainUntilUtc: retainUntil?.toISOString() ?? null,
+              storageObjectLockLegalHoldStatus: lockedMeta.objectLockLegalHoldStatus
+                ? String(lockedMeta.objectLockLegalHoldStatus)
+                : null,
               itemCount: final.retentionTargets.length,
               retentionApplied: false,
               reason:
                 retentionResult.reason ??
-                (retentionResult.anyApplied
-                  ? "object_metadata_does_not_confirm_lock"
-                  : "object_lock_disabled"),
-            } as prismaPkg.Prisma.InputJsonValue,
-          });
-        }
+                (retentionResult.anyApplied ? "object_metadata_does_not_confirm_lock" : "object_lock_disabled"),
+            };
+        await recordStorageProtectionOutcome(final.result.id, outcomeType, outcomePayload);
       } catch (error) {
         const reason =
           error instanceof Error ? error.message : "OBJECT_LOCK_SNAPSHOT_FAILED";

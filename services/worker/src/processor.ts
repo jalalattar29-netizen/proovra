@@ -98,8 +98,7 @@ import {
   otsCustodyEventLines,
   REPORTABLE_CUSTODY_EVENT_TYPES,
   parseTsaValidationEvidence,
-  acquisitionIdentitySummary,
-  acquisitionActorLabel,
+  acquisitionIdentityCustodyParts,
   resolveAcquisitionIdentitySnapshot,
   resolveTsaTrustState,
   type AcquisitionIdentitySnapshot,
@@ -1024,17 +1023,10 @@ case "TIMESTAMP_FAILED": {
       const snapshot = resolveAcquisitionIdentitySnapshot({
         custodyEvents: [{ eventType: "IDENTITY_SNAPSHOT_RECORDED", atUtc: null, payload: obj }],
       });
+      // F-03 — THE shared wording: an intake record's account fields are the
+      // link issuer's, stated as such, never the contributor's.
       const submittedByEmail = normalizePayloadPrimitive(obj.submittedByEmail);
-      return [
-        "Identity snapshot recorded",
-        snapshot.actorKind === "INTAKE_CONTRIBUTOR" || snapshot.actorKind === "GUEST_SESSION"
-          ? acquisitionActorLabel(snapshot)
-          : null,
-        acquisitionIdentitySummary(snapshot).replace(/\.$/, ""),
-        submittedByEmail ? `Email: ${submittedByEmail}` : null,
-      ]
-        .filter(Boolean)
-        .join(" • ");
+      return ["Identity snapshot recorded", ...acquisitionIdentityCustodyParts(snapshot, submittedByEmail)].join(" • ");
     }
 
     case "EVIDENCE_COMPLETED": {
@@ -2094,15 +2086,12 @@ function deriveReportCaptureMethod(params: {
   mimeType: string | null;
   existingCaptureMethod: prismaPkg.CaptureMethod | null;
 }): prismaPkg.CaptureMethod {
+  // F-25 — the value sealed at finalization is THE capture structure; a report
+  // states it and never re-derives a different one.
+  if (params.existingCaptureMethod) return params.existingCaptureMethod;
+
   if (params.itemCount > 1) {
     return prismaPkg.CaptureMethod.MULTIPART_PACKAGE;
-  }
-
-  if (
-    params.existingCaptureMethod &&
-    params.existingCaptureMethod !== prismaPkg.CaptureMethod.MULTIPART_PACKAGE
-  ) {
-    return params.existingCaptureMethod;
   }
 
   const mime = String(params.mimeType ?? "").toLowerCase();
@@ -4797,13 +4786,11 @@ async function runReportGeneration(
                   effectiveRecordedIntegrityVerifiedAtUtc != null
                     ? new Date(effectiveRecordedIntegrityVerifiedAtUtc)
                     : null,
-                captureMethod: effectiveIdentitySnapshot.captureMethod,
-                // The capture-time identity columns (level, email, provider,
-                // workspace, organization) are NOT rewritten by a report run:
-                // they belong to the acquisition, not to the report.
-                submittedByUserId: effectiveIdentitySnapshot.submittedByUserId,
-                createdByUserId: effectiveIdentitySnapshot.createdByUserId,
-                uploadedByUserId: effectiveIdentitySnapshot.uploadedByUserId,
+                // F-25 (independent forward audit) — a report run rewrites no
+                // acquisition fact. capture_method (sealed with the fingerprint)
+                // and the capture-time attribution columns (submitter, creator,
+                // uploader, level, email, provider, workspace, organization)
+                // belong to the acquisition, not to the report.
                 latestReportVersion: prepared.version,
                 reportGeneratedAtUtc: prepared.now,
                 lastVerifiedAtUtc: prepared.now,

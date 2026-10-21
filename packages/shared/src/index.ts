@@ -1000,6 +1000,9 @@ export {
   evidenceLocationSourceForAcquisition,
   evidenceLocationSourceLabel,
   isEvidenceLocationSource,
+  intakeLinkLocationProvenanceSentence,
+  intakeLinkLocationSourceFor,
+  isIntakeLinkLocationSource,
   isIntakeLinkLocationPolicy,
   isIntakeLocationConsentState,
 } from "./intake-link-location.js";

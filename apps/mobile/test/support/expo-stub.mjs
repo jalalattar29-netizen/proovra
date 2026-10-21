@@ -126,7 +126,7 @@ export const randomUUID = () => `00000000-0000-4000-8000-${String(++uuidSeq).pad
 
 /* ------------------------------------------------------------ expo-location */
 export const Accuracy = { Balanced: 3 };
-// globalThis.__LOCATION__ = { granted?: false, fail?: true, coords?, timestamp? } scripts the device.
+// globalThis.__LOCATION__ = { granted?: false, fail?: true, coords?, timestamp?, mocked? } scripts the device.
 export const requestForegroundPermissionsAsync = async () => {
   const granted = globalThis.__LOCATION__?.granted !== false;
   return { status: granted ? "granted" : "denied", granted, canAskAgain: true };
@@ -134,7 +134,7 @@ export const requestForegroundPermissionsAsync = async () => {
 export const getCurrentPositionAsync = async () => {
   const l = globalThis.__LOCATION__ ?? {};
   if (l.fail) throw new Error("Location unavailable");
-  return { coords: l.coords ?? { latitude: 0, longitude: 0, accuracy: 1 }, timestamp: l.timestamp ?? 0 };
+  return { coords: l.coords ?? { latitude: 0, longitude: 0, accuracy: 1 }, timestamp: l.timestamp ?? 0, ...(l.mocked === true ? { mocked: true } : {}) };
 };
 
 /* ------------------------------------------------------- expo-document-picker */

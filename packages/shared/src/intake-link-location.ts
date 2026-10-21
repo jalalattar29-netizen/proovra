@@ -105,6 +105,9 @@ export const EVIDENCE_LOCATION_SOURCES = [
   // location services (mobile app submissions and app screen captures). The
   // column is text (no CHECK), so the value needs no migration.
   "CLIENT_APP_DEVICE_LOCATION",
+  // F-04 (independent forward audit) — an intake contributor who submitted
+  // through an APP, which read the fix from its device. Never browser GPS.
+  "INTAKE_LINK_DEVICE_GEOLOCATION",
 ] as const;
 export type EvidenceLocationSource = (typeof EVIDENCE_LOCATION_SOURCES)[number];
 
@@ -134,7 +137,33 @@ export const EVIDENCE_LOCATION_SOURCE_LABEL: Record<
   EXIF_GPS: "EXIF metadata in the source file",
   MANUAL_ENTRY: "Manually entered by operator",
   CLIENT_APP_DEVICE_LOCATION: "Reported by the submitting app from its device",
+  INTAKE_LINK_DEVICE_GEOLOCATION: "Reported by the contributor's app from its device",
 };
+
+/**
+ * F-04 — how a report or package says who measured an intake fix. One
+ * sentence for every artifact; an app fix is never "the contributor's browser".
+ */
+export function intakeLinkLocationProvenanceSentence(source: string | null | undefined): string {
+  return source === "INTAKE_LINK_DEVICE_GEOLOCATION"
+    ? "Location was reported by the contributor's app from its device during upload."
+    : "Location was provided by the contributor's browser during upload.";
+}
+
+/** Coordinates a secure-intake contributor submitted (browser or app). */
+export function isIntakeLinkLocationSource(source: string | null | undefined): boolean {
+  return source === "INTAKE_LINK_GEOLOCATION" || source === "INTAKE_LINK_DEVICE_GEOLOCATION";
+}
+
+/**
+ * F-04 — the location source an intake submit records, by who measured the
+ * fix: the public page's browser, or an app reading its device.
+ */
+export function intakeLinkLocationSourceFor(
+  measuredBy: "BROWSER_GEOLOCATION" | "DEVICE_GEOLOCATION",
+): EvidenceLocationSource {
+  return measuredBy === "DEVICE_GEOLOCATION" ? "INTAKE_LINK_DEVICE_GEOLOCATION" : "INTAKE_LINK_GEOLOCATION";
+}
 
 /** The label for coordinates whose source was never recorded. */
 export const EVIDENCE_LOCATION_SOURCE_NOT_RECORDED_LABEL = "Location source not recorded";

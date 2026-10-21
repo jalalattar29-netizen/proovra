@@ -58,6 +58,7 @@ import {
   completeDirectCapture,
   DirectCaptureError,
   loadOwnedDirectCaptureSession,
+  readLostRecordedThroughMin,
   sha256HexOf,
   type CompleteDirectCaptureResult,
   type DirectCaptureSealPlanner,
@@ -111,6 +112,15 @@ export async function completeContinuousCaptureSession(
         declaredRecordedThroughMax = d.recordedThrough;
       }
     }
+    // F-02 (independent forward audit) — the declarations above exclude the
+    // segments stated LOST, so a lost TAIL lowered the bound and a manifest
+    // could hide it (recordedSegmentCount = the surviving count) and seal
+    // COMPLETE. A loss proves its segment was recorded: the bound includes it,
+    // and a session with any loss is never complete.
+    const lostThrough = await readLostRecordedThroughMin(client, locked);
+    if (lostThrough !== null) {
+      declaredRecordedThroughMax = Math.max(declaredRecordedThroughMax ?? 0, lostThrough);
+    }
 
     // 1. ET-DC-09 — the manifest is checked against the server's facts too.
     const validation = validateScreenContinuousManifest(parsed, {
@@ -123,6 +133,9 @@ export async function completeContinuousCaptureSession(
     });
     if (!validation.ok) throw new DirectCaptureError("CONTINUOUS_MANIFEST_INVALID");
     const manifest: ScreenContinuousManifest = validation.manifest;
+    if (lostThrough !== null && manifest.sessionCompleteness === "COMPLETE_SESSION") {
+      throw new DirectCaptureError("CONTINUOUS_MANIFEST_INVALID");
+    }
 
     // 2. The manifest bytes must have been uploaded and declared.
     let manifestPartIndex = -1;

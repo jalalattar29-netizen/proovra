@@ -117,7 +117,10 @@ const SubmitLocationBody = z
     longitude: z.number().gte(-180).lte(180).optional(),
     accuracyMeters: z.number().gte(0).lte(100_000).optional(),
     capturedAtUtc: z.string().max(64).optional(),
-    source: z.enum(["BROWSER_GEOLOCATION"]).optional(),
+    // F-04 — an app submits its own fix (DEVICE_GEOLOCATION) and the
+    // provider mock flag; a browser cannot report one.
+    source: z.enum(["BROWSER_GEOLOCATION", "DEVICE_GEOLOCATION"]).optional(),
+    providerReportedMock: z.boolean().optional(),
   })
   .strict()
   .optional();
@@ -1357,6 +1360,7 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
               accuracyMeters: parsedBody.location.accuracyMeters ?? null,
               capturedAtUtc: parsedBody.location.capturedAtUtc ?? null,
               source: parsedBody.location.source ?? null,
+              providerReportedMock: parsedBody.location.providerReportedMock === true,
             }
           : null;
         // Device-time context — the contributor's browser clock at

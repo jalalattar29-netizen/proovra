@@ -23,6 +23,7 @@ import { resolve } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { tamperSealedEvidence } from "./helpers/sealed-identity-tamper.js";
 
 const REF_SHAPE = /^pvr_[A-Za-z0-9_-]{27}$/;
 const PLANS = ["FREE", "PAYG", "PRO", "TEAM", "ENTERPRISE"] as const;
@@ -332,7 +333,9 @@ describe("canonical verification for the pre-canonical fleet", () => {
     // Historically published (backfilled CONTENT_PREVIEW): the established
     // page with a content preview — but never the owner, the workspace,
     // storage, original bytes or (location off) the recorded location.
-    await prisma.evidence.update({ where: { id }, data: { lat: 52.520008, lng: 13.404954, accuracyMeters: 12 } as never });
+    // A legacy fixture's capture facts, written outside the application path
+    // (F-01: they are set once with the fingerprint).
+    await tamperSealedEvidence(prisma, id, { lat: 52.520008, lng: 13.404954, accuracyMeters: 12 });
     const ok = await publicVerify(ref);
     expect(ok.statusCode).toBe(200);
     expect(ok.json().disclosure).toMatchObject({ mode: "CONTENT_PREVIEW", recordedLocation: false, source: "RECORD_POLICY", originalDownload: false });

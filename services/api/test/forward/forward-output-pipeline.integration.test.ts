@@ -1250,10 +1250,12 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
     async function issueWithLocation(disclosure: { verificationDisclosureMode?: string; showRecordedLocation?: boolean }) {
       const ev = await signedEvidence();
       await signFingerprintRaw(ev);
-      await prisma.evidence.update({
-        where: { id: ev.evidenceId },
-        data: { lat: 52.521, lng: 13.405, accuracyMeters: 12, ...disclosure } as never,
-      });
+      // The fixture's capture facts are written outside the application path
+      // (F-01: they are set once with the fingerprint).
+      await tamperSealedEvidence(prisma, ev.evidenceId, { lat: 52.521, lng: 13.405, accuracyMeters: 12 });
+      if (Object.keys(disclosure).length > 0) {
+        await prisma.evidence.update({ where: { id: ev.evidenceId }, data: disclosure as never });
+      }
       seam.lastRenderInput = null;
       const id = await request(ev);
       expect(await run(id, 0)).toBeNull();
@@ -1276,6 +1278,31 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       const r = await issueWithLocation({ verificationDisclosureMode: "CONTENT_PREVIEW", showRecordedLocation: true });
       expect(r.input.recordedLocationDisclosed).toBe(true);
       expect(r.input.verificationRef).toBe(r.ref);
+    }, 300_000);
+  });
+
+  // =========================================================================
+  // INDEPENDENT FORWARD AUDIT CLOSURE (2026-10-21)
+  // =========================================================================
+  describe("AFC — independent forward audit closure", () => {
+    it("F-25: a report run rewrites no acquisition fact (capture_method, submitter / creator / uploader)", async () => {
+      const ev = await signedEvidence();
+      await signFingerprintRaw(ev);
+      // A secure-intake record: the contributor has no user row (submitter null);
+      // its structure was sealed as a package.
+      await tamperSealedEvidence(prisma, ev.evidenceId, { captureMethod: "MULTIPART_PACKAGE" });
+      await prisma.evidence.update({
+        where: { id: ev.evidenceId },
+        data: { submittedByUserId: null, createdByUserId: null, uploadedByUserId: null } as never,
+      });
+      const id = await request(ev);
+      expect(await run(id, 0)).toBeNull();
+      expect((await state(ev.evidenceId, id)).req).toMatchObject({ state: "SUCCEEDED" });
+      const row = await prisma.evidence.findUniqueOrThrow({
+        where: { id: ev.evidenceId },
+        select: { captureMethod: true, submittedByUserId: true, createdByUserId: true, uploadedByUserId: true, status: true },
+      });
+      expect(row).toEqual({ captureMethod: "MULTIPART_PACKAGE", submittedByUserId: null, createdByUserId: null, uploadedByUserId: null, status: "REPORTED" });
     }, 300_000);
   });
 });

@@ -1,4 +1,4 @@
-import { INTAKE_SUBMITTED_BY_LABEL, acquisitionRecordedByQualified } from "@proovra/shared";
+import { INTAKE_SUBMITTED_BY_LABEL, acquisitionRecordedByQualified, intakeLinkLocationProvenanceSentence, isIntakeLinkLocationSource } from "@proovra/shared";
 import QRCode from "qrcode";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import { buildProvenanceTimeline, CAPTURE_TIME_NOT_AVAILABLE } from "@proovra/shared";
@@ -1596,8 +1596,7 @@ const locationState = resolveEvidenceLocation({
   requirement: input.evidence.gps.requirement ?? null,
   providerReportedMock: input.evidence.gps.providerReportedMock === true,
 });
-const isIntakeLinkLocation =
-  reportedLocationSource === "INTAKE_LINK_GEOLOCATION";
+const isIntakeLinkLocation = isIntakeLinkLocationSource(reportedLocationSource);
 
 const captureContext = hasCaptureContext && captureLat !== null && captureLng !== null
   ? {
@@ -1608,7 +1607,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
         ? `${locationState.label} · ${locationState.detail}`
         : locationState.label,
       description: isIntakeLinkLocation
-        ? "Location was provided by the contributor's browser during upload. Captured after an explicit Share click — not silently. Coordinates are evidence of what the browser reported at the moment of upload, not independent proof of physical presence."
+        ? `${intakeLinkLocationProvenanceSentence(reportedLocationSource)} Captured after an explicit Share click — not silently. Coordinates are evidence of what the contributor's device reported at the moment of upload, not independent proof of physical presence.`
         : CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
       lat:
         captureLocationModel?.latLabel ??

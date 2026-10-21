@@ -1093,7 +1093,9 @@ export function locationProviderMockFromCustody(
   events: ReadonlyArray<{ eventType?: string | null; payload?: unknown }> | null | undefined,
 ): boolean {
   for (const e of events ?? []) {
-    if (e.eventType !== "EVIDENCE_CREATED") continue;
+    // F-04 — an intake contributor's fix is bound at the seal, with the
+    // submission event (its location arrives at submit, not at creation).
+    if (e.eventType !== "EVIDENCE_CREATED" && e.eventType !== "EXTERNAL_INTAKE_SUBMITTED") continue;
     const payload = e.payload && typeof e.payload === "object" ? (e.payload as Record<string, unknown>) : null;
     const gps = payload?.gps && typeof payload.gps === "object" ? (payload.gps as Record<string, unknown>) : null;
     if (gps?.providerReportedMock === true) return true;

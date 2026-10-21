@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281020000000_evidence_sealed_identity_set_once";
+export const EXPECTED_MIGRATION_HEAD = "20281021000000_evidence_sealed_capture_facts_set_once";
 
 export type MigrationRow = {
   migration_name: string;

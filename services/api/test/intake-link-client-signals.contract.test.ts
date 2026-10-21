@@ -280,15 +280,18 @@ describe("Intake-link routes + orchestration wire the new signals", () => {
     assert.match(src, /buildIntakeClientSignals\(\{/);
     assert.match(src, /clientSignals: clientSignals as Prisma\.InputJsonValue/);
   });
-  it("submitExternalIntake sanitises deviceTime + writes Evidence.deviceTimeIso ONLY on success", () => {
+  it("submitExternalIntake sanitises deviceTime and hands it to the seal (never writes it itself)", () => {
     const src = read("services/api/src/services/external-intake-orchestration.service.ts");
     assert.match(src, /sanitizeClientDeviceTimeIso\(/);
     assert.match(src, /sanitizeClientTimezone\(/);
     assert.match(src, /sanitizeClientTimezoneOffsetMinutes\(/);
-    // Conditional write only if sanitiser accepts the value.
-    assert.match(
-      src,
-      /if \(cleanDeviceTimeIso\)[\s\S]{0,200}data: \{ deviceTimeIso: cleanDeviceTimeIso \}/,
+    // F-01 (independent forward audit): the sanitised value travels to the
+    // canonical completion authority, which writes it under the record lock
+    // while unsealed (behaviour: test/forward/afc-intake-sealed-truth).
+    assert.match(src, /deviceTimeIso: cleanDeviceTimeIso,/);
+    assert.ok(
+      !/data: \{ deviceTimeIso: cleanDeviceTimeIso \}/.test(src),
+      "the orchestration must not write deviceTimeIso outside the seal",
     );
   });
 });

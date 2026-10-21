@@ -767,8 +767,13 @@ export type ExternalIntakeLocationInput = {
   longitude?: number | null;
   accuracyMeters?: number | null;
   capturedAtUtc?: string | null;
-  /** Stable provenance tag; only BROWSER_GEOLOCATION is wired today. */
+  /**
+   * Who measured the fix: BROWSER_GEOLOCATION (the public web page) or
+   * DEVICE_GEOLOCATION (an app, F-04). Anything else reads as browser.
+   */
   source?: string | null;
+  /** F-04 — the device location provider reported this fix as mocked. */
+  providerReportedMock?: boolean | null;
 };
 
 /**
@@ -978,17 +983,6 @@ export async function submitExternalIntake(
   // failure: the gate above already accepted the submit. This aligns intake
   // with web/mobile capture, which already persist location at Evidence-
   // creation time (before completion).
-  if (shouldPersistLocation && coords) {
-    await client.evidence.update({
-      where: { id: evidence.id },
-      data: {
-        lat: coords.lat,
-        lng: coords.lng,
-        accuracyMeters: coords.accuracyMeters,
-        locationSource: "INTAKE_LINK_GEOLOCATION",
-      },
-    });
-  }
 
   // Device-time context — persisted BEFORE completeEvidence for the SAME
   // reason as location above. The canonical fingerprint is built INSIDE
@@ -1014,12 +1008,31 @@ export async function submitExternalIntake(
   const cleanOffset = sanitizeClientTimezoneOffsetMinutes(
     input.deviceTime?.timezoneOffsetMinutes ?? null,
   );
-  if (cleanDeviceTimeIso) {
-    await client.evidence.update({
-      where: { id: evidence.id },
-      data: { deviceTimeIso: cleanDeviceTimeIso },
-    });
-  }
+  // F-01 (independent forward audit) — the location above and this device
+  // clock are fingerprint-bound capture facts. They are no longer written here:
+  // a write before the seal, outside the record lock, let a retried or racing
+  // submit rewrite an already-sealed record. They are handed to the canonical
+  // completion authority, which writes them under the record lock only while
+  // the record is unsealed, in the transaction that signs them (so the
+  // ordering argument above still holds: the report and package jobs are
+  // enqueued after that commit).
+  const captureContext = {
+    location:
+      shouldPersistLocation && coords
+        ? {
+            lat: coords.lat,
+            lng: coords.lng,
+            accuracyMeters: coords.accuracyMeters,
+            // F-04 — who measured the fix, and the provider's own mock flag.
+            source:
+              input.location?.source === "DEVICE_GEOLOCATION"
+                ? ("DEVICE_GEOLOCATION" as const)
+                : ("BROWSER_GEOLOCATION" as const),
+            providerReportedMock: input.location?.providerReportedMock === true,
+          }
+        : null,
+    deviceTimeIso: cleanDeviceTimeIso,
+  };
 
   // Hand off to the canonical completion authority. From this point forward
   // the evidence is treated identically to every other channel: headObject
@@ -1066,7 +1079,17 @@ export async function submitExternalIntake(
       evidenceId: evidence.id,
       ownerUserId: evidence.ownerUserId,
       // UC-ARCH-005 — the ONE door an intake record is sealed through.
-      intakeSubmission: { sessionId: input.session.id },
+      intakeSubmission: {
+        sessionId: input.session.id,
+        linkId: input.link.id,
+        intakeMode: input.link.intakeMode,
+        workflowTemplateSlug: input.link.workflowTemplateSlug,
+        workflowTemplateVersion: input.link.workflowTemplateVersion,
+        consentPolicyVersion: input.link.consentPolicyVersion,
+        consentAccepted: Boolean(input.session.consentAcceptedAtUtc),
+        locationConsentState: policy !== "NONE" ? consentState : null,
+        captureContext,
+      },
     });
   } catch (err) {
     await releaseIntakeLinkUse(input.link.id, client);
@@ -1090,11 +1113,13 @@ export async function submitExternalIntake(
   // raw lat/lng live on Evidence (workspace-protected) and surface
   // via the location panel; the audit log is for compliance/forensic
   // traceability of WHAT happened, not WHERE.
+  // F-01 — a submit that reached an already-sealed record persisted nothing.
+  const locationPersisted = shouldPersistLocation && !alreadyFinalized;
   if (policy !== "NONE") {
     try {
       await emitTenantAudit({
         actorUserId: null,
-        action: shouldPersistLocation
+        action: locationPersisted
           ? "external_intake.location.attached"
           : `external_intake.location.${consentState.toLowerCase()}`,
         outcome: "success",
@@ -1109,7 +1134,7 @@ export async function submitExternalIntake(
           consentState,
           accuracyBand: accuracyBand(coords?.accuracyMeters ?? null),
           source: input.location?.source ?? null,
-          locationPersisted: shouldPersistLocation,
+          locationPersisted,
         },
       });
     } catch {
@@ -1117,40 +1142,10 @@ export async function submitExternalIntake(
     }
   }
 
-  // Emit external-specific custody event AFTER completion so it sits at the
-  // end of the chain (the chain hashes events in order).
   // ET-INT-13 — FROM HERE THE RECORD IS FINALIZED: nothing below may turn the
-  // contributor's answer into "failed, try again". Each step is idempotent
-  // (the custody event once per session; the transition only if still open)
-  // and a failure is recorded for operators, not returned to the contributor.
-  const submittedAlready = await client.custodyEvent.findFirst({
-    where: {
-      evidenceId: evidence.id,
-      eventType: prismaPkg.CustodyEventType.EXTERNAL_INTAKE_SUBMITTED,
-      payload: { path: ["intakeSessionId"], equals: input.session.id },
-    },
-    select: { id: true },
-  });
-  if (!submittedAlready) await appendCustodyEvent({
-    evidenceId: evidence.id,
-    eventType: prismaPkg.CustodyEventType.EXTERNAL_INTAKE_SUBMITTED,
-    payload: {
-      intakeLinkId: input.link.id,
-      intakeSessionId: input.session.id,
-      intakeMode: input.link.intakeMode,
-      workflowTemplateSlug: input.link.workflowTemplateSlug,
-      workflowTemplateVersion: input.link.workflowTemplateVersion,
-      partCount: parts.length,
-      locationProvided: shouldPersistLocation,
-      locationConsentState: policy !== "NONE" ? consentState : null,
-    },
-  }).catch((err: unknown) =>
-    swallowCustodyAppendError(err, {
-      surface: "externalIntake.submit",
-      evidenceId: evidence.id,
-      custodyEventType: "EXTERNAL_INTAKE_SUBMITTED",
-    }),
-  );
+  // contributor's answer into "failed, try again". Each step is idempotent and
+  // a failure is recorded for operators, not returned to the contributor.
+  // (F-21 — EXTERNAL_INTAKE_SUBMITTED is written by the seal transaction now.)
 
   // Transition the session. (ET-INT-09 — the link's use was reserved before
   // finalization; the transition no longer counts it again.)

@@ -154,43 +154,25 @@ describe("Intake Links — location collection contract", () => {
       "code must exist in the error union",
     );
     assert.match(orch, /policy === "REQUIRED" && !shouldPersistLocation/);
-    assert.match(
-      orch,
-      /locationSource:\s*"INTAKE_LINK_GEOLOCATION"/,
-      "Evidence write must stamp INTAKE_LINK_GEOLOCATION",
-    );
-    assert.match(
-      orch,
-      /client\.evidence\.update\(/,
-      "location update must occur",
-    );
-    // Ordering pin (the geolocation fix): the location write MUST happen
-    // BEFORE completeEvidence(). completeEvidence enqueues the report-v2 +
-    // verification-package jobs, and the worker reads lat/lng FRESH from the
-    // Evidence row at generation time. Writing the location AFTER the enqueue
-    // raced against generation and produced artifacts with no location even
-    // though it was durably stored. This aligns intake with web/mobile
-    // capture (which persist location before completion).
-    const locationWriteIdx = orch.indexOf(
-      'locationSource: "INTAKE_LINK_GEOLOCATION"',
-    );
-    const completeIdx = orch.indexOf("await completeEvidence(");
-    assert.ok(locationWriteIdx > 0, "location write must be present");
-    assert.ok(completeIdx > 0, "completeEvidence call must be present");
-    assert.ok(
-      locationWriteIdx < completeIdx,
-      "intake location must be persisted BEFORE completeEvidence enqueues the report/package jobs",
-    );
-    // deviceTimeIso has the SAME ordering requirement: the canonical
-    // fingerprint (built inside completeEvidence) reads evidence.deviceTimeIso,
-    // so writing it after completion left fingerprint.json deviceTimeIso:null
-    // while the metadata files carried the value. It must be written first.
-    const deviceTimeWriteIdx = orch.indexOf("data: { deviceTimeIso: cleanDeviceTimeIso }");
-    assert.ok(deviceTimeWriteIdx > 0, "deviceTimeIso write must be present");
-    assert.ok(
-      deviceTimeWriteIdx < completeIdx,
-      "intake deviceTimeIso must be persisted BEFORE completeEvidence so the signed fingerprint captures it (consistent with capture-context/case-metadata/original-linkage)",
-    );
+    // F-01 (independent forward audit): the orchestration never writes the
+    // location or device clock itself — a pre-seal write outside the record
+    // lock let a retried submit rewrite a sealed record. It hands them to
+    // completeEvidence, which writes them under the lock, while unsealed,
+    // BEFORE the fingerprint is built — so the signed fingerprint carries them
+    // and the report / package jobs (enqueued after that commit) read them.
+    // Behaviour: test/forward/afc-intake-sealed-truth.integration.test.ts.
+    // (createOrLoadExternalEvidence records the contributor's self-declared
+    // email on the unsealed row; the SUBMIT writes nothing to it.)
+    const submit = orch.slice(orch.indexOf("export async function submitExternalIntake("));
+    assert.ok(!/client\.evidence\.update\(/.test(submit), "the submit must not write the evidence row");
+    assert.match(orch, /captureContext,/, "the capture context is handed to completeEvidence");
+    const complete = read("services/api/src/services/evidence-complete.service.ts");
+    const sealStart = complete.indexOf("export async function completeEvidence(");
+    const writeIdx = complete.indexOf("captureFacts.locationSource = intakeLinkLocationSourceFor(", sealStart);
+    const deviceIdx = complete.indexOf("captureFacts.deviceTimeIso = ctx.deviceTimeIso", sealStart);
+    const fingerprintIdx = complete.indexOf("buildFingerprint({", sealStart);
+    assert.ok(writeIdx > 0 && deviceIdx > 0, "the seal writes the intake location and device clock");
+    assert.ok(fingerprintIdx > writeIdx && fingerprintIdx > deviceIdx, "they are written before the fingerprint is built");
     assert.match(
       orch,
       /external_intake\.location\.attached/,
@@ -303,17 +285,20 @@ describe("Intake Links — location collection contract", () => {
     );
     assert.match(
       vm,
-      /reportedLocationSource === "INTAKE_LINK_GEOLOCATION"/,
-      "intake-link branch must read the canonical enum value",
+      /isIntakeLinkLocationSource\(reportedLocationSource\)/,
+      "intake-link branch must read the canonical source predicate (a browser or an app fix)",
     );
     assert.match(
       vm,
       /Upload session location/,
       "intake-link branch must use the contributor-attributed title",
     );
+    // F-04 (independent forward audit): who measured the fix is stated by ONE
+    // shared sentence — an app fix is never "the contributor's browser".
+    assert.match(vm, /intakeLinkLocationProvenanceSentence\(reportedLocationSource\)/);
     assert.match(
-      vm,
-      /provided by the contributor['’]s browser during upload/,
+      read("packages/shared/src/intake-link-location.ts"),
+      /provided by the contributor\\?['’]s browser during upload/,
       "legally-careful body copy required for intake-link branch",
     );
     assert.ok(

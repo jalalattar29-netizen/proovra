@@ -1439,6 +1439,9 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // SEALED IDENTITY SET ONCE (2026-10-20, AUD-43) — one BEFORE UPDATE trigger
       // refusing to change or clear a sealed evidence column. EXPAND only.
       "20281020000000_evidence_sealed_identity_set_once",
+      // INDEPENDENT FORWARD AUDIT CLOSURE (2026-10-21) — the capture facts a signed
+      // fingerprint commits to are set once (F-01 / F-25). EXPAND only.
+      "20281021000000_evidence_sealed_capture_facts_set_once",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

@@ -542,6 +542,8 @@ export function buildIntakeSubmitBody(input: {
     longitude?: number | null;
     accuracyMeters?: number | null;
     capturedAtUtc?: string | null;
+    source?: "DEVICE_GEOLOCATION";
+    providerReportedMock?: boolean;
   } | null;
   /** The contributor's clock at submit (web page.tsx:873-892); every field optional. */
   deviceTime?: { deviceTimeIso: string; timezone?: string | null; timezoneOffsetMinutes?: number | null } | null;
@@ -565,6 +567,9 @@ export function buildIntakeSubmitBody(input: {
       loc.accuracyMeters = input.location.accuracyMeters;
     }
     if (typeof input.location.capturedAtUtc === "string") loc.capturedAtUtc = input.location.capturedAtUtc;
+    // F-04 — who measured the fix, and the provider's mock flag (only when set).
+    if (input.location.source) loc.source = input.location.source;
+    if (input.location.providerReportedMock === true) loc.providerReportedMock = true;
   }
   return { ...body, location: loc };
 }
@@ -583,14 +588,25 @@ export function intakeDeviceTime(now: Date = new Date()): { deviceTimeIso: strin
 export type IntakeLocationState =
   | { phase: "idle" }
   | { phase: "requesting" }
-  | { phase: "granted"; lat: number; lng: number; accuracyMeters: number | null; capturedAt: string }
+  | { phase: "granted"; lat: number; lng: number; accuracyMeters: number | null; capturedAt: string; providerReportedMock?: boolean }
   | { phase: "denied" }
   | { phase: "unavailable"; reason: string };
 
 /** The submit body's location for a policy + state (web page.tsx:848-867). */
 export function intakeLocationBody(policy: "REQUIRED" | "OPTIONAL" | "NONE", s: IntakeLocationState) {
   if (policy === "NONE") return null;
-  if (s.phase === "granted") return { consentState: "GRANTED" as const, latitude: s.lat, longitude: s.lng, accuracyMeters: s.accuracyMeters, capturedAtUtc: s.capturedAt };
+  // F-04 (independent forward audit) — the app measured this fix from its
+  // device (never "browser GPS"), and the provider's mock flag travels with it.
+  if (s.phase === "granted")
+    return {
+      consentState: "GRANTED" as const,
+      latitude: s.lat,
+      longitude: s.lng,
+      accuracyMeters: s.accuracyMeters,
+      capturedAtUtc: s.capturedAt,
+      source: "DEVICE_GEOLOCATION" as const,
+      ...(s.providerReportedMock === true ? { providerReportedMock: true as const } : {}),
+    };
   if (s.phase === "denied") return { consentState: "DENIED" as const };
   if (s.phase === "unavailable") return { consentState: "UNAVAILABLE" as const };
   return { consentState: "NOT_REQUESTED" as const };

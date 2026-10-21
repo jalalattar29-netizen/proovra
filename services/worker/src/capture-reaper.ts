@@ -322,6 +322,15 @@ export async function releaseExpiredReservations(
     try {
       await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${s.id}`}))`;
+        // F-23 (independent forward audit) — a session whose record is already
+        // SEALED is never expired: its seal committed (a seal that outlived its
+        // claim lease), only the bind is missing, and the retry binds it.
+        // Expiring it made the sealed record permanently unbindable.
+        const reserved = await tx.captureSession.findUnique({ where: { id: s.id }, select: { finalizedEvidenceId: true } });
+        if (reserved?.finalizedEvidenceId) {
+          const record = await tx.evidence.findUnique({ where: { id: reserved.finalizedEvidenceId }, select: { status: true } });
+          if (record?.status === prismaPkg.EvidenceStatus.SIGNED || record?.status === prismaPkg.EvidenceStatus.REPORTED) return;
+        }
         const claim = await tx.captureSession.updateMany({
           where: {
             id: s.id,

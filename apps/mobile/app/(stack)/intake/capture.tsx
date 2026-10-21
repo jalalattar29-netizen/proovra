@@ -111,6 +111,8 @@ export default function IntakeCaptureScreen() {
         lng: pos.coords.longitude,
         accuracyMeters: typeof pos.coords.accuracy === "number" ? pos.coords.accuracy : null,
         capturedAt: new Date(pos.timestamp || Date.now()).toISOString(),
+        // F-04 — Android reports a mock-provider fix (pos.mocked); it is stated, never hidden.
+        providerReportedMock: pos.mocked === true,
       });
     } catch {
       setLocation({ phase: "unavailable", reason: LOC.unavailable });

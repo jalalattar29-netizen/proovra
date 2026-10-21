@@ -146,7 +146,7 @@ function assertSubmitBodyAccepted(body) {
     if ("timezoneOffsetMinutes" in body.deviceTime) assert.ok(Number.isInteger(body.deviceTime.timezoneOffsetMinutes));
   }
   if (body.location !== undefined) {
-    for (const k of Object.keys(body.location)) assert.ok(["consentState", "latitude", "longitude", "accuracyMeters", "capturedAtUtc", "source"].includes(k), `location has no key "${k}"`);
+    for (const k of Object.keys(body.location)) assert.ok(["consentState", "latitude", "longitude", "accuracyMeters", "capturedAtUtc", "source", "providerReportedMock"].includes(k), `location has no key "${k}"`);
     assert.ok(["GRANTED", "DENIED", "UNAVAILABLE", "NOT_REQUESTED"].includes(body.location.consentState));
   }
 }
@@ -473,7 +473,23 @@ test("a REQUIRED link blocks Send until location is shared, then submits GRANTED
   const sub = submitPosts();
   assert.equal(sub.length, 1);
   assertSubmitBodyAccepted(sub[0].body);
-  assert.deepEqual(sub[0].body.location, { consentState: "GRANTED", latitude: 51.5, longitude: -0.12, accuracyMeters: 9, capturedAtUtc: "2026-09-25T10:00:00.000Z" });
+  // F-04 — the app measured the fix from its device: never sent as browser GPS.
+  assert.deepEqual(sub[0].body.location, { consentState: "GRANTED", latitude: 51.5, longitude: -0.12, accuracyMeters: 9, capturedAtUtc: "2026-09-25T10:00:00.000Z", source: "DEVICE_GEOLOCATION" });
+  delete globalThis.__LOCATION__;
+});
+
+test("F-04: a fix the device provider reports as mocked is submitted with providerReportedMock", async () => {
+  globalThis.__EXPO_PARAMS__ = { token: TOKEN, sid: SID, loc: "REQUIRED" };
+  globalThis.__LOCATION__ = { coords: { latitude: 51.5, longitude: -0.12, accuracy: 9 }, timestamp: Date.parse("2026-09-25T10:00:00Z"), mocked: true };
+  const r = await staged();
+  await r.press("Share location");
+  await settle();
+  await send(r);
+  const sub = submitPosts();
+  assert.equal(sub.length, 1);
+  assertSubmitBodyAccepted(sub[0].body);
+  assert.equal(sub[0].body.location.source, "DEVICE_GEOLOCATION");
+  assert.equal(sub[0].body.location.providerReportedMock, true);
   delete globalThis.__LOCATION__;
 });
 

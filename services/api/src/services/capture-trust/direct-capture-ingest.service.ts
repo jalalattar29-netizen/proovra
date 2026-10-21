@@ -995,6 +995,36 @@ export async function readLostPartIndexes(
 }
 
 /**
+ * F-02 (independent forward audit) — the lowest recorder count a session's
+ * LOSSES prove: a segment stated lost at index i was recorded, so at least
+ * i + 1 segments were (and at least the running count declared with it).
+ * Null when nothing was stated lost. The continuous seal binds the manifest to
+ * it, so a lost TAIL cannot be hidden by lowering the recorder count.
+ */
+export async function readLostRecordedThroughMin(
+  db: PrismaClient,
+  session: Pick<SessionRow, "id" | "teamId">,
+): Promise<number | null> {
+  const rows = await db.captureTrustEventRecord.findMany({
+    where: { teamId: session.teamId!, captureSessionId: session.id, code: "CAPTURE_ARTIFACT_LOST" },
+    select: { payload: true },
+    take: MAX_PARTS,
+  });
+  let bound: number | null = null;
+  for (const r of rows) {
+    const p = (r.payload ?? {}) as Record<string, unknown>;
+    if (p["stage"] !== "part_lost" || typeof p["partIndex"] !== "number") continue;
+    const through = p["clientReportedRecordedThrough"];
+    const proven = Math.max(
+      p["partIndex"] + 1,
+      typeof through === "number" && Number.isInteger(through) && through > 0 ? through : 0,
+    );
+    bound = bound === null ? proven : Math.max(bound, proven);
+  }
+  return bound;
+}
+
+/**
  * AUD-37 — is this part of a direct-capture record stated LOST? The canonical
  * part presign refuses to re-open a lost index (its bytes would be a part no
  * declaration covers).
@@ -1058,20 +1088,21 @@ export async function declareDirectCapturePartLost(input: {
     throw new DirectCaptureError("EVIDENCE_NOT_OPEN");
   }
 
-  // Storage is read OUTSIDE the session lock (network never extends a transaction).
-  const part = await db.evidencePart.findFirst({
-    where: { evidenceId, partIndex: input.partIndex },
-    select: { storageBucket: true, storageKey: true },
-  });
-  if (part?.storageBucket && part.storageKey) {
-    let stored = false;
+  // F-17 (independent forward audit) — whether the bytes are stored is read
+  // UNDER the session lock (below), so a loss is never declared over bytes that
+  // landed between an unlocked read and the withdrawal. One HEAD, bounded.
+  const storedBytesPresent = async (txc: PrismaClient): Promise<boolean> => {
+    const part = await txc.evidencePart.findFirst({
+      where: { evidenceId, partIndex: input.partIndex },
+      select: { storageBucket: true, storageKey: true },
+    });
+    if (!part?.storageBucket || !part.storageKey) return false;
     try {
-      stored = ((await headObject({ bucket: part.storageBucket, key: part.storageKey })).sizeBytes ?? 0) > 0;
+      return ((await headObject({ bucket: part.storageBucket, key: part.storageKey })).sizeBytes ?? 0) > 0;
     } catch {
-      stored = false; // absent — which is what a loss is
+      return false; // absent — which is what a loss is
     }
-    if (stored) throw new DirectCaptureError("PART_BYTES_PRESENT");
-  }
+  };
 
   try {
     return await db.$transaction(
@@ -1086,6 +1117,7 @@ export async function declareDirectCapturePartLost(input: {
         if ((await readLostPartIndexes(txc, fresh)).has(input.partIndex)) {
           return { partIndex: input.partIndex, created: false };
         }
+        if (await storedBytesPresent(txc)) throw new DirectCaptureError("PART_BYTES_PRESENT");
         const declaration = (await readPartDeclarations(txc, fresh)).get(input.partIndex);
         if (!declaration) throw new DirectCaptureError("PART_NOT_DECLARED");
         if (declaration.clientReportedSource !== null && declaration.clientReportedSource !== "SCREEN_SEGMENT") {
@@ -1094,8 +1126,10 @@ export async function declareDirectCapturePartLost(input: {
         // The unsealed record's bytes-less part row is withdrawn (nothing is
         // signed yet; no object is touched).
         await txc.evidencePart.deleteMany({ where: { evidenceId, partIndex: input.partIndex } });
+        // F-17 — the loss is stated in THIS transaction: it commits with the
+        // part withdrawal above or not at all (it used to commit on its own).
         await emitCaptureTrustEvent({
-          prisma: db,
+          tx,
           teamId: fresh.teamId!,
           captureSessionId: fresh.id,
           evidenceId: null,
@@ -1348,7 +1382,20 @@ export async function completeDirectCapture(input: {
     if (isLiveSealClaim(loaded, now)) throw new DirectCaptureError("SESSION_BUSY");
 
     // (A stale claim — a crashed seal — is simply reclaimed below.)
-    const session = await requireActive(db, loaded, now);
+    // F-23 (independent forward audit) — a session whose record is ALREADY
+    // SEALED (its seal committed, the bind did not) is completed by binding it,
+    // even past its expiry: the record exists, signed; only its session
+    // binding and completeness are missing. Expiry is for unsealed sessions.
+    const reservedRecord = loaded.finalizedEvidenceId
+      ? await tx.evidence.findUnique({ where: { id: loaded.finalizedEvidenceId }, select: { status: true } })
+      : null;
+    const recordSealed =
+      reservedRecord?.status === prismaPkg.EvidenceStatus.SIGNED ||
+      reservedRecord?.status === prismaPkg.EvidenceStatus.REPORTED;
+    const session =
+      recordSealed && loaded.status === prismaPkg.CaptureSessionStatus.ACTIVE
+        ? loaded
+        : await requireActive(db, loaded, now);
     if (!session.finalizedEvidenceId) throw new DirectCaptureError("SESSION_NOT_RESERVED");
     const plan: DirectCaptureSealPlan = input.plan
       ? await input.plan({ db, session, declarations, now })

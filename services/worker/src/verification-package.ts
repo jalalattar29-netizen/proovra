@@ -65,6 +65,8 @@ import {
   deriveCanonicalWorkspaceScope,
   describeCanonicalWorkspaceScope,
   evidenceLocationSourceLabel,
+  intakeLinkLocationProvenanceSentence,
+  isIntakeLinkLocationSource,
   getReviewerArtifactRoleLabel,
   getReviewerEvidenceCategories,
   getReviewerEvidenceTypeLabel,
@@ -1658,7 +1660,7 @@ export function buildCaptureContext(
       metadata.captureLocation?.locationSource ?? null,
     ),
     title:
-      metadata.captureLocation?.locationSource === "INTAKE_LINK_GEOLOCATION"
+      isIntakeLinkLocationSource(metadata.captureLocation?.locationSource)
         ? "Upload Session Location"
         : "Capture Context",
     // AUD-37 — a mocked fix is stated, never an ordinary recorded location.
@@ -1667,10 +1669,9 @@ export function buildCaptureContext(
       return l.providerReportedMock && l.detail ? `${l.label} · ${l.detail}` : l.label;
     })(),
     locationState: "RECORDED",
-    subtitle:
-      metadata.captureLocation?.locationSource === "INTAKE_LINK_GEOLOCATION"
-        ? "Location was provided by the contributor's browser during upload."
-        : CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+    subtitle: isIntakeLinkLocationSource(metadata.captureLocation?.locationSource)
+      ? intakeLinkLocationProvenanceSentence(metadata.captureLocation?.locationSource)
+      : CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
     integrityContext:
       "Device/browser-reported capture-location metadata was included in the signed integrity state for this evidence record.",
     custodyReference: {

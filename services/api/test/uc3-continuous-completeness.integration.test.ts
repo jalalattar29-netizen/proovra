@@ -39,6 +39,8 @@ import type { IntegrationHarness } from "./integration-harness.js";
 const objects = new Map<string, Buffer>();
 /** Set to a trust-event code to make its emission throw once (failure injection). */
 const failEmit: { code: string | null } = { code: null };
+/** F-17 — set to a code: that emission SUCCEEDS, then the caller fails right after it. */
+const failAfterEmit: { code: string | null } = { code: null };
 /** When set, the next storage READ (the seal's hash) fails once — a transient hash failure. */
 const failRead = { once: false };
 
@@ -110,7 +112,12 @@ vi.mock("../src/services/capture-trust/trust-event.service.js", async (importOri
         failEmit.code = null;
         throw new Error("injected trust-event failure");
       }
-      return actual.emitCaptureTrustEvent(input);
+      const out = await actual.emitCaptureTrustEvent(input);
+      if (failAfterEmit.code && input.code === failAfterEmit.code) {
+        failAfterEmit.code = null;
+        throw new Error("injected failure after the trust event was appended");
+      }
+      return out;
     },
   };
 });
@@ -636,6 +643,36 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
     await prisma.captureSession.update({ where: { id: live.sessionId }, data: { endReason: null } });
   });
 
+  // F-23 (independent forward audit) — a seal that outlived its claim's lease
+  // and committed the record SIGNED after the session's expiry. The reaper used
+  // to expire that session (the reservation release refuses a sealed record,
+  // the expiry did not), so the retry's bind was refused (SESSION_NOT_ACTIVE)
+  // and the sealed record never got its session binding or completeness.
+  it("F-23: the reaper never expires a session whose record is already sealed; the retry binds it", async () => {
+    const reaper = await import("../../worker/src/capture-reaper.js");
+    const { token, sessionId, evidenceId, segs } = await stageSegments(2, [0, 1]);
+    const manifest = continuousManifest(sessionId, segs, { recorded: 2, completeness: "COMPLETE_SESSION" });
+    await stageManifest(token, sessionId, evidenceId, manifest, 2);
+    // The state a seal leaves when it outlived its claim lease: the record was
+    // committed SIGNED, the reaper released the stale claim (endReason null),
+    // the bind never ran, and the session passed its expiry.
+    const sealedOnce = await seal(token, sessionId, manifest);
+    expect(sealedOnce.statusCode, sealedOnce.body).toBe(200);
+    await prisma.captureSession.update({
+      where: { id: sessionId },
+      data: { status: "ACTIVE", endReason: null, finalizedAtUtc: null, endedAtUtc: null, expiresAtUtc: new Date(Date.now() - 60_000) },
+    });
+    expect(await statusOf(evidenceId)).toBe("SIGNED");
+    await reaper.releaseExpiredReservations({ trigger: "f-23-test" });
+    const after = await prisma.captureSession.findUniqueOrThrow({ where: { id: sessionId }, select: { status: true } });
+    expect(after.status).not.toBe("EXPIRED");
+    const retried = await seal(token, sessionId, manifest);
+    expect(retried.statusCode, retried.body).toBe(200);
+    const bound = await prisma.captureSession.findUniqueOrThrow({ where: { id: sessionId }, select: { status: true, endReason: true } });
+    expect(bound.status).toBe("BOUND");
+    expect(bound.endReason).toBe("CONTINUOUS_COMPLETE_SESSION");
+  });
+
   // ---------------------------------------------------------------- UC-STR-006
 
   it("UC-STR-006 the completeness is written by the bind itself: a failure after the bind cannot leave it reading as complete", async () => {
@@ -933,6 +970,67 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
       const res = await seal(token, sessionId, complete);
       expect(res.statusCode).toBe(422);
       expect(await statusOf(evidenceId)).not.toBe("SIGNED");
+    });
+
+    // F-02 (independent forward audit) — the LAST segment lost. The middle-loss
+    // case above is refused by the manifest's sequence-hole check; a lost TAIL
+    // left no hole once the recorder count was lowered, and the planner read
+    // the running count only from the surviving declarations.
+    async function stageWithLostTail() {
+      const { token, sessionId, evidenceId, segs } = await stageSegments(3, [0, 1]);
+      const presign = await call("POST", `/v1/evidence/${evidenceId}/parts`, token, {
+        partIndex: 2,
+        mimeType: "application/octet-stream",
+        originalFileName: "part-2.bin",
+      });
+      expect(presign.statusCode, presign.body).toBe(201);
+      const d = await declare(token, sessionId, 2, sha256(`never-uploaded-${randomBytes(4).toString("hex")}`), "SCREEN_SEGMENT", 3);
+      expect(d.statusCode, d.body).toBe(201);
+      expect((await loss(token, sessionId, 2)).statusCode).toBe(201);
+      return { token, sessionId, evidenceId, segs };
+    }
+
+    it("F-02: a lost LAST segment can never be sealed over as COMPLETE (recorder count lowered to hide it)", async () => {
+      const { token, sessionId, evidenceId, segs } = await stageWithLostTail();
+      const complete = continuousManifest(sessionId, segs, { recorded: 2, completeness: "COMPLETE_SESSION" });
+      await stageManifest(token, sessionId, evidenceId, complete, 3);
+      const res = await seal(token, sessionId, complete);
+      expect(res.statusCode, res.body).toBe(422);
+      expect(await statusOf(evidenceId)).not.toBe("SIGNED");
+      const session = await prisma.captureSession.findUniqueOrThrow({ where: { id: sessionId }, select: { endReason: true } });
+      expect(session.endReason).not.toBe("CONTINUOUS_COMPLETE_SESSION");
+    });
+
+    it("F-02: a lost LAST segment cannot be hidden from an INTERRUPTED seal either; the honest loss seals", async () => {
+      const { token, sessionId, evidenceId, segs } = await stageWithLostTail();
+      // Recorder count lowered to 2: the loss of segment 2 would be invisible.
+      const hidden = continuousManifest(sessionId, segs, { recorded: 2, completeness: "INTERRUPTED_SESSION", termination: "INTERRUPTED" });
+      await stageManifest(token, sessionId, evidenceId, hidden, 3);
+      expect((await seal(token, sessionId, hidden)).statusCode).toBe(422);
+      expect(await statusOf(evidenceId)).not.toBe("SIGNED");
+    });
+
+    it("F-02: the honest manifest for a lost tail seals INTERRUPTED with the loss", async () => {
+      const { token, sessionId, evidenceId, segs } = await stageWithLostTail();
+      const honest = continuousManifest(sessionId, segs, { recorded: 3, completeness: "INTERRUPTED_SESSION", termination: "INTERRUPTED", limitations: ["SEGMENT_UPLOAD_LOST"] });
+      await stageManifest(token, sessionId, evidenceId, honest, 3);
+      const sealed = await seal(token, sessionId, honest);
+      expect(sealed.statusCode, sealed.body).toBe(200);
+      const session = await prisma.captureSession.findUniqueOrThrow({ where: { id: sessionId }, select: { endReason: true } });
+      expect(session.endReason).toBe("CONTINUOUS_INTERRUPTED_SESSION");
+    });
+
+    it("F-17: a loss that fails after its event was appended leaves neither the event nor the withdrawal; the retry states it once", async () => {
+      const { token, sessionId, evidenceId } = await stageWithLostMiddle();
+      failAfterEmit.code = "CAPTURE_ARTIFACT_LOST";
+      const failed = await loss(token, sessionId, 1);
+      expect(failed.statusCode).toBeGreaterThanOrEqual(500);
+      expect(await prisma.captureTrustEventRecord.count({ where: { captureSessionId: sessionId, code: "CAPTURE_ARTIFACT_LOST" } })).toBe(0);
+      expect(await prisma.evidencePart.count({ where: { evidenceId, partIndex: 1 } })).toBe(1);
+      const retried = await loss(token, sessionId, 1);
+      expect(retried.statusCode, retried.body).toBe(201);
+      expect(await prisma.captureTrustEventRecord.count({ where: { captureSessionId: sessionId, code: "CAPTURE_ARTIFACT_LOST" } })).toBe(1);
+      expect(await prisma.evidencePart.count({ where: { evidenceId, partIndex: 1 } })).toBe(0);
     });
 
     it("an index stated lost is never declared again nor re-presigned", async () => {

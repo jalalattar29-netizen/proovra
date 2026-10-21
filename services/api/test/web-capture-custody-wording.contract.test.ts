@@ -39,7 +39,7 @@ describe("Web Capture custody wording — initial browser upload location", () =
 
   it("POST /v1/evidence (Web Capture) declares PROOVRA_WEB_UPLOAD", () => {
     const route = read("services/api/src/routes/evidence.routes.ts");
-    const block = enclosingSource(route, "const result = await createEvidence({", "statement", {
+    const block = enclosingSource(route, "const created = await createEvidence({", "statement", {
       unique: true,
       fileName: "evidence.routes.ts",
     });

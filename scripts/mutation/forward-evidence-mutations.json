@@ -3049,7 +3049,7 @@
     "phase": "P13",
     "name": "a segment whose bytes are stored can be declared lost",
     "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
-    "find": "    if (stored) throw new DirectCaptureError(\"PART_BYTES_PRESENT\");",
+    "find": "        if (await storedBytesPresent(txc)) throw new DirectCaptureError(\"PART_BYTES_PRESENT\");",
     "replace": "",
     "tests": [
       {
@@ -4069,6 +4069,309 @@
           "--config",
           "vitest.integration.config.ts",
           "test/forward/retire-user-evidence.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F01-A",
+    "phase": "AFC",
+    "aud": "F-01",
+    "name": "seal: the intake capture context is not written in the seal transaction",
+    "file": "services/api/src/services/evidence-complete.service.ts",
+    "find": "        if (Object.keys(captureFacts).length > 0) {",
+    "replace": "        if (false && Object.keys(captureFacts).length > 0) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/afc-intake-sealed-truth.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F02",
+    "phase": "AFC",
+    "aud": "F-02",
+    "name": "continuous seal: a lost segment does not bound the recorder count",
+    "file": "services/api/src/services/capture-trust/continuous-capture.service.ts",
+    "find": "      declaredRecordedThroughMax = Math.max(declaredRecordedThroughMax ?? 0, lostThrough);",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/uc3-continuous-completeness.integration.test.ts",
+          "-t",
+          "F-02"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F17",
+    "phase": "AFC",
+    "aud": "F-17",
+    "name": "loss: the LOST event commits outside the withdrawing transaction",
+    "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+    "find": "          tx,\n          teamId: fresh.teamId!,",
+    "replace": "          prisma: db,\n          teamId: fresh.teamId!,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/uc3-continuous-completeness.integration.test.ts",
+          "-t",
+          "F-17"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F18",
+    "phase": "AFC",
+    "aud": "F-18",
+    "name": "completion: the storage outcome is appended even when one exists",
+    "file": "services/api/src/services/evidence-complete.service.ts",
+    "find": "    if (recorded) return false;",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/afc-completion-storage-outcome.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F20",
+    "phase": "AFC",
+    "aud": "F-20",
+    "name": "create: the draft is not bound in the creation transaction",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "prisma.$transaction((tx) => createWithDraftBinding(tx),",
+    "replace": "prisma.$transaction((tx) => createWithDraftBinding(undefined && tx),",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/afc-draft-binding-atomic.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F21",
+    "phase": "AFC",
+    "aud": "F-21",
+    "name": "seal: a missing intake link-used event is not completed",
+    "file": "services/api/src/services/evidence-complete.service.ts",
+    "find": "          if (!present.has(prismaPkg.CustodyEventType.EXTERNAL_INTAKE_LINK_USED)) {",
+    "replace": "          if (false) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/afc-intake-sealed-truth.integration.test.ts",
+          "-t",
+          "F-21"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F23-A",
+    "phase": "AFC",
+    "aud": "F-23",
+    "name": "reaper: a session whose record is sealed is expired",
+    "file": "services/worker/src/capture-reaper.ts",
+    "find": "          if (record?.status === prismaPkg.EvidenceStatus.SIGNED || record?.status === prismaPkg.EvidenceStatus.REPORTED) return;",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/uc3-continuous-completeness.integration.test.ts",
+          "-t",
+          "F-23"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F23-B",
+    "phase": "AFC",
+    "aud": "F-23",
+    "name": "seal: an expired session whose record is sealed cannot be bound",
+    "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+    "find": "      recordSealed && loaded.status === prismaPkg.CaptureSessionStatus.ACTIVE",
+    "replace": "      false && recordSealed && loaded.status === prismaPkg.CaptureSessionStatus.ACTIVE",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/uc3-continuous-completeness.integration.test.ts",
+          "-t",
+          "F-23"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F25",
+    "phase": "AFC",
+    "aud": "F-25",
+    "name": "report commit: the submitter column is rewritten from the identity snapshot",
+    "file": "services/worker/src/processor.ts",
+    "find": "                // F-25 (independent forward audit) — a report run rewrites no\n",
+    "replace": "                submittedByUserId: effectiveIdentitySnapshot.submittedByUserId,\n                // F-25 (independent forward audit) — a report run rewrites no\n",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-25"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F03",
+    "phase": "AFC",
+    "aud": "F-03",
+    "name": "custody line: an intake snapshot's issuer account reads as the submitter, with its email",
+    "file": "packages/shared/src/acquisition-identity.ts",
+    "find": "  if (s.accountRole === \"INTAKE_LINK_ISSUER\" || s.actorKind === \"INTAKE_CONTRIBUTOR\") {",
+    "replace": "  if (false) {",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/afc-intake-identity-and-location.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F04-A",
+    "phase": "AFC",
+    "aud": "F-04",
+    "name": "location: the intake submission's mock flag is not read",
+    "file": "packages/shared/src/capture-location.ts",
+    "find": " && e.eventType !== \"EXTERNAL_INTAKE_SUBMITTED\") continue;",
+    "replace": ") continue;",
+    "build": [
+      "shared",
+      "shared-runtime"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/afc-intake-identity-and-location.test.mjs"
+        ]
+      },
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/afc-intake-sealed-truth.integration.test.ts",
+          "-t",
+          "F-04"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F04-B",
+    "phase": "AFC",
+    "aud": "F-04",
+    "name": "intake submit: an app fix is refused (browser GPS only)",
+    "file": "services/api/src/routes/external-intake.routes.ts",
+    "find": "    source: z.enum([\"BROWSER_GEOLOCATION\", \"DEVICE_GEOLOCATION\"]).optional(),",
+    "replace": "    source: z.enum([\"BROWSER_GEOLOCATION\"]).optional(),",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/afc-intake-sealed-truth.integration.test.ts",
+          "-t",
+          "F-04"
         ],
         "integration": true
       }

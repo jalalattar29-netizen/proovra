@@ -5998,7 +5998,13 @@ export async function evidenceRoutes(app: FastifyInstance) {
         if (resumable) return reply.code(200).send(resumable);
       }
 
-const result = await createEvidence({
+// F-20 (independent forward audit) — a web capture DRAFT is bound to the
+// record it reserves IN the creation transaction: the binding is what makes the
+// server template govern the seal (capture-checklist-gate), and it used to be a
+// best-effort write after the record committed, its failure swallowed, so a
+// record could seal under the client's own plan instead.
+const createWithDraftBinding = async (tx?: Prisma.TransactionClient) => {
+  const created = await createEvidence({
   ownerUserId,
   // Phase HOME-DATA-OWNERSHIP — pass the client's active workspace id
   // through. createEvidence stamps a REAL team id on every row
@@ -6024,7 +6030,40 @@ intakePlanJson:
   // UC-ARCH-003 — the evidence.create audit is written by createEvidence.
   requestContext: { ip: req.ip, userAgent: readUserAgent(req), correlationId: req.id ?? null },
   auditMetadata: { captureSessionId: body.captureSessionId ?? null },
+  ...(tx ? { transaction: tx } : {}),
+  });
+  if (tx && body.captureSessionId) {
+    const bound = await tx.captureSession.updateMany({
+      where: {
+        id: body.captureSessionId,
+        ownerUserId,
+        status: prismaPkg.CaptureSessionStatus.DRAFT,
+        acquisitionMode: null,
+        OR: [{ finalizedEvidenceId: null }, { finalizedEvidenceId: { not: created.id } }],
+      },
+      data: { finalizedEvidenceId: created.id },
+    });
+    if (bound.count === 1) {
+      await tx.captureSessionEvent.create({
+        data: {
+          sessionId: body.captureSessionId,
+          actorUserId: ownerUserId,
+          eventType: prismaPkg.CaptureSessionEventType.UPDATED,
+          payload: { evidenceId: created.id, reason: "record_reserved" } as prismaPkg.Prisma.InputJsonValue,
+        },
       });
+    }
+  }
+  return created;
+};
+const result = body.captureSessionId
+  ? await (async () => {
+      const created = await prisma.$transaction((tx) => createWithDraftBinding(tx), { timeout: 30_000, maxWait: 10_000 });
+      const { afterCommit, ...record } = created;
+      await afterCommit?.();
+      return record;
+    })()
+  : await createWithDraftBinding();
 
       // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — THE DUPLICATE QUOTA
       // AUTHORITY WAS DELETED HERE.
@@ -6149,39 +6188,7 @@ intakePlanJson:
         }
       }
 
-      // UC-WEB-001 — BIND the draft to the record it reserved. The draft stays
-      // DRAFT (still listed as an unfinished session, still resumable): the
-      // canonical finalization authority moves it to FINALIZED when the record
-      // is sealed. Binding is conditional, so two racing creates bind one.
-      if (body.captureSessionId) {
-        try {
-          const bound = await prisma.captureSession.updateMany({
-            where: {
-              id: body.captureSessionId,
-              ownerUserId,
-              status: prismaPkg.CaptureSessionStatus.DRAFT,
-              acquisitionMode: null,
-              OR: [{ finalizedEvidenceId: null }, { finalizedEvidenceId: { not: result.id } }],
-            },
-            data: { finalizedEvidenceId: result.id },
-          });
-          if (bound.count === 1) {
-            await prisma.captureSessionEvent.create({
-              data: {
-                sessionId: body.captureSessionId,
-                actorUserId: ownerUserId,
-                eventType: prismaPkg.CaptureSessionEventType.UPDATED,
-                payload: { evidenceId: result.id, reason: "record_reserved" } as prismaPkg.Prisma.InputJsonValue,
-              },
-            });
-          }
-        } catch (sessionErr) {
-          req.log?.warn?.(
-            { err: sessionErr, captureSessionId: body.captureSessionId, evidenceId: result.id },
-            "capture_session_bind_failed"
-          );
-        }
-      }
+      // (UC-WEB-001 — the draft was bound in the creation transaction, F-20.)
 
       return reply.code(201).send(result);
     } catch (err) {

@@ -41,6 +41,13 @@ import { warn as logWarn } from "../../utils/logger.js";
 
 export type EmitCaptureTrustEventInput = {
   prisma?: PrismaClient;
+  /**
+   * F-17 (independent forward audit) — append INSIDE the caller's interactive
+   * transaction, so the event commits or rolls back with the caller's own
+   * writes. Only for pre-finalise events (evidenceId null): the custody-chain
+   * mirror of a finalised event has its own transaction.
+   */
+  tx?: Prisma.TransactionClient;
   teamId: string;
   code: CaptureTrustEventCode;
   /**
@@ -75,7 +82,10 @@ export async function emitCaptureTrustEvent(
     throw new Error(`capture-trust: unknown event code "${input.code}"`);
   }
 
-  const prisma = input.prisma ?? defaultPrisma;
+  if (input.tx && input.evidenceId !== null) {
+    throw new Error("capture-trust: an in-transaction emit is only for pre-finalise events");
+  }
+  const prisma = (input.tx as unknown as PrismaClient | undefined) ?? input.prisma ?? defaultPrisma;
   const now = new Date();
   const payload = input.payload ?? {};
 
@@ -109,7 +119,7 @@ export async function emitCaptureTrustEvent(
   ]
     .filter((k): k is string => k !== null)
     .sort();
-  const { record, nextSequence, eventHash } = await prisma.$transaction(async (tx) => {
+  const appendWithin = async (tx: Prisma.TransactionClient) => {
     for (const k of chainKeys) {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${k}))`;
     }
@@ -177,7 +187,10 @@ export async function emitCaptureTrustEvent(
       select: { id: true },
     });
     return { record, nextSequence, eventHash };
-  });
+  };
+  const { record, nextSequence, eventHash } = input.tx
+    ? await appendWithin(input.tx)
+    : await prisma.$transaction(appendWithin);
 
   // Mirror to the canonical custody chain when the evidence row is
   // finalised. Pre-finalise events live ONLY in capture_trust_events.

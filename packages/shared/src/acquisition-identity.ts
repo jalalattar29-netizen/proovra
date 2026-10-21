@@ -360,6 +360,31 @@ export function acquisitionAccountRoleLabel(role: AcquisitionAccountRole): strin
 }
 
 /**
+ * F-03 (independent forward audit) — THE custody-timeline wording of an
+ * IDENTITY_SNAPSHOT_RECORDED event, for every artifact. For a secure-intake
+ * record the snapshot's account fields describe the workspace account that
+ * ISSUED the link: they are stated as that, and the issuer's email is never
+ * printed beside the contributor (the contributor has no account; whether
+ * they gave an email is stated, never the address).
+ */
+export function acquisitionIdentityCustodyParts(
+  s: AcquisitionIdentitySnapshot,
+  recordedEmail: string | null,
+): string[] {
+  const parts: string[] = [];
+  if (s.actorKind === "INTAKE_CONTRIBUTOR" || s.actorKind === "GUEST_SESSION") {
+    parts.push(acquisitionActorLabel(s));
+  }
+  if (s.accountRole === "INTAKE_LINK_ISSUER" || s.actorKind === "INTAKE_CONTRIBUTOR") {
+    parts.push(`${acquisitionAccountRoleLabel("INTAKE_LINK_ISSUER")}: ${acquisitionIdentitySummary(s).replace(/\.$/, "")}`);
+    return parts;
+  }
+  parts.push(acquisitionIdentitySummary(s).replace(/\.$/, ""));
+  if (recordedEmail) parts.push(`Email: ${recordedEmail}`);
+  return parts;
+}
+
+/**
  * The acquisition snapshot's FACTS as a verification package records them
  * (case-metadata.json → submitter.acquisitionIdentity): who acted, on what
  * footing, recorded when. No email, user id or name.
