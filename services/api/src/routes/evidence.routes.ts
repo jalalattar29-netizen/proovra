@@ -139,6 +139,7 @@ import {
   multipartRecordKindLabel,
   TSA_CUSTODY_EVENT_HEADLINE,
   resolveTsaProofStatus,
+  tsaProofStatusIsValidated,
   tsaProofStatusOfCustodyPayload,
   parseVerificationDisclosurePolicy,
   WITHHELD_BY_DISCLOSURE_POLICY,
@@ -156,6 +157,7 @@ import {
   custodyCutoffSequence,
   splitCustodyAtCutoff,
   annotateArtifactHistory,
+  evidenceRecordStatusLabel,
   presignedOriginalResponseHeaders,
   type AnnotatedArtifactHistoryItem,
 } from "@proovra/shared";
@@ -1974,20 +1976,13 @@ function normalizePublicPayloadValue(value: unknown): string | null {
   return null;
 }
 
+/**
+ * F-13 (independent forward audit) — THE record-status label (shared
+ * evidenceRecordStatusLabel). This file kept its own switch, with no
+ * FAILED_HASH_MISMATCH case: an integrity failure was labelled "Created".
+ */
 function mapRecordStatusLabel(status: prismaPkg.EvidenceStatus | string): string {
-  switch (String(status).toUpperCase()) {
-    case "REPORTED":
-      return "Reported";
-    case "SIGNED":
-      return "Signed";
-    case "UPLOADED":
-      return "Uploaded";
-    case "UPLOADING":
-      return "Uploading";
-    case "CREATED":
-    default:
-      return "Created";
-  }
+  return evidenceRecordStatusLabel(String(status));
 }
 
 function mapVerificationStatusLabel(
@@ -10027,11 +10022,18 @@ return {
         const normalizedTsaStatus = String(presentedTsa ?? "")
           .trim()
           .toUpperCase();
-        const timestampStatusIsPositive =
-          normalizedTsaStatus === "STAMPED" ||
-          normalizedTsaStatus === "GRANTED" ||
-          normalizedTsaStatus === "VERIFIED" ||
-          normalizedTsaStatus === "SUCCEEDED";
+        // F-29 (independent forward audit) — "a trusted timestamp is available"
+        // is THE canonical proof status VALIDATED, never a list of raw words
+        // (GRANTED / VERIFIED / SUCCEEDED are "recorded, not validated").
+        const timestampStatusIsPositive = tsaProofStatusIsValidated(
+          resolveTsaProofStatus({
+            tsaStatus: evidence.tsaStatus,
+            tsaValidatedAtUtc: evidence.tsaValidatedAtUtc,
+            tsaFailureCode: evidence.tsaFailureCode,
+            tsaTokenBase64: evidence.tsaTokenBase64,
+          }),
+        );
+        void normalizedTsaStatus;
 // The ONE comparison (2026-09-29): a missing imprint is unknown, not a mismatch.
 const timestampDigestMatches: boolean | null = compareTimestampDigest({
   tsaStatus: presentedTsa,
@@ -13284,8 +13286,12 @@ action: "evidence.certification_requested",
      *                   after the row is loaded). For every other record an id
      *                   is not a capability at all.
      *
-     * A token is necessary, not sufficient: the record must still be PUBLISHED
-     * by its owner and pass every gate below.
+     * A token is necessary, not sufficient: the record must pass every gate
+     * below — its canonical access state (AVAILABLE / WITHDRAWN / SUSPENDED /
+     * RETAINED / PURGED) answers for every identifier. Owner publication is NOT
+     * one of them since 2026-10-14 (F-40, independent forward audit: this
+     * comment still said it was): a reference, a legacy token and a reviewer
+     * share open without it, each with the projection decided below.
      */
     const presented = String((req.params as ParamsId).id ?? "");
     let shareLink: VerificationShareRow | null = null;
@@ -14251,11 +14257,17 @@ const normalizedTsaStatus = String(presentedTsa ?? "")
   .trim()
   .toUpperCase();
 
-const timestampStatusIsPositive =
-  normalizedTsaStatus === "STAMPED" ||
-  normalizedTsaStatus === "GRANTED" ||
-  normalizedTsaStatus === "VERIFIED" ||
-  normalizedTsaStatus === "SUCCEEDED";
+// F-29 (independent forward audit) — THE canonical proof status VALIDATED, never
+// a list of raw words (GRANTED / VERIFIED / SUCCEEDED are "recorded, not validated").
+const timestampStatusIsPositive = tsaProofStatusIsValidated(
+  resolveTsaProofStatus({
+    tsaStatus: evidence.tsaStatus,
+    tsaValidatedAtUtc: evidence.tsaValidatedAtUtc,
+    tsaFailureCode: evidence.tsaFailureCode,
+    tsaTokenBase64: evidence.tsaTokenBase64,
+  }),
+);
+void normalizedTsaStatus;
 
 // The ONE comparison (2026-09-29): a missing imprint is unknown, not a
 // mismatch, so it no longer fails overallIntegrity or reads as tampering.
@@ -14273,11 +14285,20 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
       submittedAtUtc: otsInput.submittedAtUtc,
     });
     const otsAnchoringView = toOtsAnchoringView(otsAnchoring);
-    const otsHashMatches =
-      evidence.otsHash && evidence.fingerprintHash
-        ? evidence.otsHash.toLowerCase() ===
-          evidence.fingerprintHash.toLowerCase()
-        : null;
+    // F-29 (independent forward audit) — whether the proof commits to this
+    // record's digest is THE OTS resolver's finding (PROOF_HASH_MISMATCH),
+    // not a separate comparison of two stored columns.
+    // false when the proof commits to another digest, or when the digest the
+    // record says it submitted contradicts its fingerprint (fail closed);
+    // true only when the resolver READ the proof and bound its committed
+    // digest to the record; anything else is not stated (null).
+    const otsHashMatches: boolean | null =
+      (otsAnchoring.state === "FAILED" && otsAnchoring.failureCode === "PROOF_HASH_MISMATCH") ||
+      (evidence.otsHash && evidence.fingerprintHash && evidence.otsHash.toLowerCase() !== evidence.fingerprintHash.toLowerCase())
+        ? false
+        : otsAnchoring.committedDigestHex
+          ? true
+          : null;
 
     /*
      * THE WHOLE CHAIN, NOT ITS FIRST 500 LINKS (audit M6; ET-CUS-13).
@@ -15142,8 +15163,11 @@ messageImprint: evidence.tsaMessageImprint,
       // code; the provider's raw response text never leaves the server.
       failureReason: tsaFailureNote(evidence.tsaFailureCode ?? null, Boolean(evidence.tsaFailureReason)),
 digestMatchesTimestampInput: timestampDigestMatches,
+// F-29 — the token certifies the FILE digest only when it was asked to
+// (tsaInputKind FILE_SHA256); a package-digest token is compared by
+// digestMatchesTimestampInput and is never a spurious "does not match the file".
 digestMatchesFileHash:
-  timestampStatusIsPositive && evidence.fileSha256 && evidence.tsaMessageImprint
+  timestampStatusIsPositive && evidence.fileSha256 && evidence.tsaMessageImprint && (evidence.tsaInputKind ?? "FILE_SHA256") === "FILE_SHA256"
     ? evidence.tsaMessageImprint.toLowerCase() === evidence.fileSha256.toLowerCase()
     : null,
 digestCheckConclusive: timestampDigestMatches !== null,

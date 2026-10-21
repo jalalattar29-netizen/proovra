@@ -196,7 +196,7 @@ test("the empty state knows what was asked", async () => {
   r.unmount();
 });
 
-test("a workspace the caller is not a member of falls back to the user-scoped list", async () => {
+test("a workspace the caller is not a member of falls back to the user-scoped list — of THAT workspace only (F-16)", async () => {
   routes["/v1/reports/artifacts"] = () => ({ __status: 404, message: "not_found" });
   routes["/v1/reports"] = () => ({
     items: [{
@@ -207,7 +207,10 @@ test("a workspace the caller is not a member of falls back to the user-scoped li
     nextCursor: null,
   });
   const r = await render();
-  assert.ok(gets().includes("/v1/reports"));
+  // F-16 (independent forward audit) — the fallback is asked for the ACTIVE
+  // workspace; an unscoped /v1/reports answers every readable workspace.
+  assert.ok(gets().includes("/v1/reports?teamId=team-1"), gets().join("\n"));
+  assert.ok(!gets().includes("/v1/reports"), "never the unscoped list");
   assert.ok(r.hasText("scan.pdf"));
   assert.ok(r.hasText("Report ready · v1"));
   assert.ok(r.hasText("Package pending"));
@@ -220,7 +223,7 @@ test("a filtered empty result never triggers the unfiltered fallback", async () 
   const r = await render();
   await r.press("Lifecycle: Report failed");
   await settle();
-  assert.equal(gets().filter((p) => p === "/v1/reports").length, 0);
+  assert.equal(gets().filter((p) => p === "/v1/reports" || p.startsWith("/v1/reports?")).length, 0);
   r.unmount();
 });
 

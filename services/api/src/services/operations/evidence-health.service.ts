@@ -23,6 +23,7 @@
  */
 
 import { prisma } from "../../db.js";
+import { EVIDENCE_HEALTH_SIGNALS } from "../admin/evidence-records.service.js";
 import { owedOutputNarrowing } from "../billing/owed-output-population.service.js";
 import {
   getQueueInventory,
@@ -302,7 +303,8 @@ export async function buildEvidenceHealthSnapshot(
     // Real preservation-failure signals from Evidence status columns.
     measured(() =>
       prisma.evidence.count({
-        where: { deletedAt: null, tsaStatus: "FAILED" },
+        // F-27 — the drill-down's own predicate: the tile and its list cannot disagree.
+        where: { deletedAt: null, ...EVIDENCE_HEALTH_SIGNALS.TSA_FAILED.where },
       }),
     ),
     measured(() =>

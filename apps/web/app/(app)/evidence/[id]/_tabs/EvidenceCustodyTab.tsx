@@ -20,7 +20,7 @@
 
 "use client";
 
-import { custodyEventLabel } from "@proovra/shared";
+import { custodyEventLabel, custodyLocalDayInstant, custodyLocalDayKey } from "@proovra/shared";
 import { useMemo } from "react";
 import { Eye, History, type LucideIcon } from "lucide-react";
 import type { EvidenceDetailCtx } from "./_lib";
@@ -44,9 +44,9 @@ function groupByDay(events: TimelineEvent[]): DayGroup[] {
   const buckets = new Map<string, Map<string, { count: number; lastAtUtc: string }>>();
 
   for (const ev of events) {
-    // Day key derived from atUtc; falls back to "Undated" if the event has no
-    // timestamp. The ISO date prefix (YYYY-MM-DD) is stable and sortable.
-    const day = ev.atUtc?.slice(0, 10) || "Undated";
+    // F-28 (independent forward audit) — the VIEWER's local day (YYYY-MM-DD,
+    // sortable), the day the event's shown time falls on; "Undated" without one.
+    const day = custodyLocalDayKey(ev.atUtc);
     const byType = buckets.get(day) ?? new Map();
     const prev = byType.get(ev.eventType);
     byType.set(ev.eventType, {
@@ -75,7 +75,8 @@ function groupByDay(events: TimelineEvent[]): DayGroup[] {
 
 function formatDayTitle(day: string): string {
   if (day === "Undated") return "Undated";
-  return formatUserDateTime(`${day}T00:00:00Z`)?.split(",")[0] ?? day;
+  const instant = custodyLocalDayInstant(day);
+  return (instant ? formatUserDateTime(instant)?.split(",")[0] : null) ?? day;
 }
 
 /** Time + timezone only — the day already heads the group. */
@@ -188,7 +189,8 @@ function EventTimelineCard({
               >
                 <div className="evidence-detail-raw-row__head">
                   <span className="evidence-detail-raw-row__label">
-                    {event.eventType.replace(/_/g, " ")}
+                    {/* F-28 — the event label, never the raw code. */}
+                    {custodyEventLabel(event.eventType)}
                   </span>
                   <span className="evidence-detail-raw-row__time">
                     {formatUserDateTime(event.atUtc) ?? "Time not recorded"}

@@ -38,7 +38,7 @@ import { Camera, FileSignature, History, MapPin, ShieldCheck, type LucideIcon } 
 import { EvidenceCertificationsPanel } from "../components/EvidenceCertificationsPanel";
 import CaptureLocationMapPanel from "../../../../../components/capture-location/CaptureLocationMapPanel";
 import LocationStateNote, { readLocationState } from "../../../../../components/capture-location/LocationStateNote";
-import { evidenceLocationCopy, objectLockModeLabel } from "@proovra/shared";
+import { custodyChainVerdictLabel, evidenceLocationCopy, evidenceRecordStatusLabel, objectLockModeLabel, recordSignaturePresentation } from "@proovra/shared";
 import { useOptionalLocale } from "../../../../providers";
 import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import {
@@ -335,11 +335,16 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           ? "unavailable"
           : "pending";
 
-  const signatureState: IntegrityState = !preservation.signature.recorded
-    ? "unavailable"
-    : preservation.signature.valid
-      ? "verified"
-      : "recorded";
+  // F-12 (independent forward audit) — THE signature presentation from its
+  // validity state: an invalid, mismatched, revoked or unregistered-key
+  // signature is a failure to verify, never a neutral "Recorded".
+  const signaturePresentation = preservation.signature.recorded
+    ? recordSignaturePresentation({
+        validityState: preservation.signature.validityState ?? null,
+        revokedAtUtc: preservation.signature.signingKeyRevokedAtUtc ?? null,
+      })
+    : { state: "unavailable" as const, label: "Not recorded" };
+  const signatureState: IntegrityState = signaturePresentation.state;
 
   // AUD-14 (2026-10-20): the canonical proof status, one state per status.
   // A provider outage is "unavailable", never "failed"; a kept token never
@@ -602,11 +607,7 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             },
             {
               label: "Signature",
-              value: preservation.signature.recorded
-                ? preservation.signature.valid
-                  ? "Recorded and validated"
-                  : "Recorded"
-                : "Not recorded",
+              value: signaturePresentation.label,
               state: signatureState,
             },
             {
@@ -790,13 +791,13 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             },
             {
               label: "Current status",
-              value: workspace.snapshot.currentStatus.replace(/_/g, " "),
+              // F-13 — THE record-status label, never the raw enum.
+              value: evidenceRecordStatusLabel(workspace.snapshot.currentStatus),
             },
             {
               label: "Custody chain",
-              value: preservation.custodyChain.valid
-                ? `Continuous (${preservation.custodyChain.mode})`
-                : `Review required (${preservation.custodyChain.reason ?? "unknown"})`,
+              // F-28 (independent forward audit) — the verdict in words, never the verifier's codes.
+              value: custodyChainVerdictLabel(preservation.custodyChain),
             },
           ]}
         />

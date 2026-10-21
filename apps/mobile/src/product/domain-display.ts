@@ -21,6 +21,7 @@
  * mapped and no tone escapes the 6-value ProovraStatusTone contract.
  */
 import type { ProovraStatusTone } from "@proovra/ui";
+import { evidenceRecordStatusLabel, evidenceRecordStatusTone, type EvidenceRecordStatusTone } from "@proovra/shared";
 import type {
   EvidenceType,
   EvidenceStatus,
@@ -51,13 +52,28 @@ const EVIDENCE_TYPE_LABEL: Record<EvidenceType, string> = {
 export { EVIDENCE_STATUSES } from "./domain-enums.generated";
 export type { EvidenceStatus } from "./domain-enums.generated";
 
+// F-13 (independent forward audit) — the record status is THE shared
+// presentation (evidenceRecordStatusLabel / Tone): this copy said "Integrity
+// failed" and "Uploaded" while the server, web and library said otherwise.
+// Only the native tone vocabulary is mapped here.
+const RECORD_STATUS_TONE: Record<EvidenceRecordStatusTone, ProovraStatusTone> = {
+  neutral: "neutral",
+  processing: "pending",
+  success: "verified",
+  warning: "pending",
+  danger: "risk",
+};
+const recordStatusDisplay = (status: EvidenceStatus): DomainDisplay => ({
+  label: evidenceRecordStatusLabel(status),
+  tone: RECORD_STATUS_TONE[evidenceRecordStatusTone(status)],
+});
 const EVIDENCE_STATUS_DISPLAY: Record<EvidenceStatus, DomainDisplay> = {
-  CREATED: { label: "Created", tone: "neutral" },
-  UPLOADING: { label: "Uploading", tone: "pending" },
-  UPLOADED: { label: "Uploaded", tone: "info" },
-  SIGNED: { label: "Signed", tone: "verified" },
-  REPORTED: { label: "Reported", tone: "verified" },
-  FAILED_HASH_MISMATCH: { label: "Integrity failed", tone: "risk" },
+  CREATED: recordStatusDisplay("CREATED"),
+  UPLOADING: recordStatusDisplay("UPLOADING"),
+  UPLOADED: recordStatusDisplay("UPLOADED"),
+  SIGNED: recordStatusDisplay("SIGNED"),
+  REPORTED: recordStatusDisplay("REPORTED"),
+  FAILED_HASH_MISMATCH: recordStatusDisplay("FAILED_HASH_MISMATCH"),
 };
 
 /* ------------------------------------------------------ Verification status */

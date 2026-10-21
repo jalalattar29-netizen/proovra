@@ -690,6 +690,7 @@ export {
   PDF_UNSIGNED_OPT_OUT_WARNING_COPY,
   PDF_SIGNING_UNAVAILABLE_COPY,
   FORBIDDEN_ARTIFACT_PHRASES,
+  pdfSignatureStatusLabel,
 } from "./report-artifact.js";
 export type {
   ArtifactType,
@@ -2784,3 +2785,4 @@ export * from "./release-contract.js";
 // AUD-47 / AUD-51 (2026-10-20) — the shared evidence vocabulary and helpers.
 export * from "./evidence-vocabulary.js";
 export * from "./artifact-history.js";
+export * from "./output-row-lifecycle.js";

@@ -127,9 +127,12 @@ describe("Phase A2 — PDF artifact status (source contract)", () => {
       "SIGNING_FAILED",
       "NOT_APPLICABLE",
     ]);
+    // F-32 (independent forward audit) — NOT_INSPECTED: a package whose
+    // inspected manifest-signature fact is not on record is never SIGNED.
     expect(VERIFICATION_PACKAGE_SIGNATURE_STATUSES).toEqual([
       "SIGNED",
       "UNSIGNED",
+      "NOT_INSPECTED",
       "NOT_APPLICABLE",
     ]);
     expect(ARTIFACT_LABELS.REPORT_PDF).toBe("Report PDF");

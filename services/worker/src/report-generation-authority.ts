@@ -687,9 +687,14 @@ export async function mintRequestForLegacyJob(input: {
  * reconciliation (lifecycle-recovery.ts): the FIRST report (with its package)
  * for a finalized record that is owed one, and the MISSING PACKAGE for a report
  * version that exists without one. It never forces a new report version: an
- * updated report is an explicit, authorized user action, and the OTS path that
- * used to force one no longer does. Both go through the SAME durable-row-then-
- * enqueue path the api uses, so there is one request model rather than two.
+ * updated report is an explicit, authorized user action. The one automatic new
+ * version is OWED, not forced, and is not requested here: when a proof is
+ * independently verified against the Bitcoin chain, ots-anchored-version.ts
+ * requests exactly one (idempotent per proof and block, retried a bounded
+ * number of times when its request fails technically). (F-40, independent
+ * forward audit: this comment used to say the OTS path no longer requested
+ * one.) Both go through the SAME durable-row-then-enqueue path the api uses,
+ * so there is one request model rather than two.
  */
 export async function requestReportGenerationFromWorker(input: {
   evidenceId: string;

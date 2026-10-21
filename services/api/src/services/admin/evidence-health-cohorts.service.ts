@@ -45,6 +45,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { TSA_VALIDATION_FAILED_CODE_LIST } from "@proovra/shared";
 import type { PrismaClient } from "@prisma/client";
 import { entryForIncident } from "../operations/remediation-registry.js";
 import { owedOutputNarrowing } from "../billing/owed-output-population.service.js";
@@ -58,7 +59,21 @@ import { owedOutputNarrowing } from "../billing/owed-output-population.service.j
 /** Live evidence only. A soft-deleted record is not an operational problem. */
 const LIVE: Prisma.EvidenceWhereInput = { deletedAt: null };
 
-const TSA_FAILED: Prisma.EvidenceWhereInput = { tsaStatus: "FAILED" };
+/**
+ * F-27 (independent forward audit) — THE canonical FAILED timestamp state
+ * (resolveTsaTrustState): a kept token whose validation failed. Raw
+ * tsa_status = FAILED counted tokens never obtained (canonically "not
+ * obtained") and kept tokens never validated ("recorded, not validated") as
+ * failures. Defined here (the leaf module) and read by the health tile
+ * (EVIDENCE_HEALTH_SIGNALS.TSA_FAILED) so the tile, its drill-down and the
+ * cohorts are one predicate.
+ */
+export const TSA_VALIDATION_FAILED_WHERE = {
+  tsaStatus: "FAILED",
+  tsaTokenBase64: { not: null },
+  tsaFailureCode: { in: [...TSA_VALIDATION_FAILED_CODE_LIST] },
+} satisfies Prisma.EvidenceWhereInput;
+const TSA_FAILED: Prisma.EvidenceWhereInput = TSA_VALIDATION_FAILED_WHERE;
 const SIGNED_NO_REPORT: Prisma.EvidenceWhereInput = {
   status: "SIGNED",
   latestReportVersion: null,
@@ -87,8 +102,16 @@ const SIGNED_NO_REPORT: Prisma.EvidenceWhereInput = {
  * so it also belongs in `RETRYABLE`. The `IS NULL` arm is written explicitly
  * rather than relying on a field-level `not` to decide how it treats NULL.
  */
+// F-27 — the exact complement of TSA_FAILED: every arm that makes the
+// conjunction false, NULLs written explicitly.
 const TSA_NOT_FAILED: Prisma.EvidenceWhereInput = {
-  OR: [{ tsaStatus: null }, { tsaStatus: { not: "FAILED" } }],
+  OR: [
+    { tsaStatus: null },
+    { tsaStatus: { not: "FAILED" } },
+    { tsaTokenBase64: null },
+    { tsaFailureCode: null },
+    { tsaFailureCode: { notIn: [...TSA_VALIDATION_FAILED_CODE_LIST] } },
+  ],
 };
 
 /**

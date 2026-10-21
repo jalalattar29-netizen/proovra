@@ -91,7 +91,7 @@ import { AppListbox } from "../app-primitives/AppListbox";
 // Phase G3.2 — every Report PDF / Verification Package ZIP download MUST route
 // through the governance pre-flight wrapper (`/v1/governance/export-eligibility`).
 import { GovernedExportAction } from "../governance/GovernedExportAction";
-import type { EvidenceOutputState } from "@proovra/shared";
+import { outputRowLifecycle, type EvidenceOutputState } from "@proovra/shared";
 import type {
   ArtifactRow,
   PackageLifecycle,
@@ -238,53 +238,11 @@ type UserReportRow = {
 };
 type UserReportsEnvelope = { items: UserReportRow[]; nextCursor: string | null };
 
-/**
- * The canonical output state, mapped onto this page's row vocabulary — the
- * same mapping the workspace aggregator applies server-side. Total over
- * `EvidenceOutputState`: a new state is a compile error, not a silent default.
- */
-function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
-  switch (state) {
-    case "READY":
-      return "ready";
-    case "QUEUED":
-    case "GENERATING":
-      return "pending";
-    case "RETRYABLE_FAILURE":
-    case "TERMINAL_FAILURE":
-    case "ARTIFACT_MISSING":
-      return "failed";
-    case "NOT_INCLUDED":
-    case "ENTITLEMENT_UNAVAILABLE":
-      return "unavailable";
-    case "NOT_APPLICABLE":
-    case "ELIGIBLE_NOT_GENERATED":
-      return "not_requested";
-    case "BLOCKED":
-      return "blocked";
-  }
-}
-
-function toPackageLifecycle(state: EvidenceOutputState): PackageLifecycle {
-  switch (state) {
-    case "READY":
-      return "ready";
-    case "QUEUED":
-    case "GENERATING":
-      return "pending";
-    case "RETRYABLE_FAILURE":
-    case "TERMINAL_FAILURE":
-    case "ARTIFACT_MISSING":
-      return "failed";
-    case "NOT_INCLUDED":
-    case "ENTITLEMENT_UNAVAILABLE":
-      return "unavailable";
-    case "NOT_APPLICABLE":
-    case "ELIGIBLE_NOT_GENERATED":
-    case "BLOCKED":
-      return "not_requested";
-  }
-}
+// F-16 (independent forward audit) — THE row mapping (@proovra/shared
+// outputRowLifecycle), the one the server applies: this page kept its own copy,
+// which read a BLOCKED package as "not requested".
+const toReportLifecycle = (state: EvidenceOutputState): ReportLifecycle => outputRowLifecycle(state);
+const toPackageLifecycle = (state: EvidenceOutputState): PackageLifecycle => outputRowLifecycle(state);
 
 /**
  * Phase IA-self-serve-regression-fix — the user-scoped list, adapted into the

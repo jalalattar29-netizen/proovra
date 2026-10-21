@@ -48,6 +48,7 @@ import {
   evidenceVerificationStatusLabel,
   evidenceRecordStatusLabel,
   artifactHistoryStatusLabel,
+  pdfSignatureStatusLabel,
 } from "@proovra/shared";
 import {
   isOtsSummaryFact,
@@ -909,20 +910,9 @@ function describeSnapshotSource(source?: string | null): string {
       return "Snapshot source not recorded";
   }
 }
+// F-28 (independent forward audit) — THE PDF signature wording (pdfSignatureStatusLabel).
 function formatSignatureStatus(status?: string | null): string {
-  const n = typeof status === "string" ? status.trim().toUpperCase() : "";
-  switch (n) {
-    case "SIGNED":
-      return "Signed";
-    case "SIGNING_UNAVAILABLE":
-      return "Signing unavailable";
-    case "FAILED":
-      return "Signing failed";
-    case "PENDING":
-      return "Signing pending";
-    default:
-      return n ? n.replace(/_/g, " ") : "Not recorded";
-  }
+  return pdfSignatureStatusLabel(status);
 }
 
 export interface VerifyAnchoringView {

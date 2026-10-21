@@ -618,10 +618,19 @@ export async function buildEvidenceArtifactStatus(params: {
   // rows with today's key — reintroducing the exact false claim — or ship a
   // column that is null for every existing package. Either belongs to a change
   // that can migrate and backfill honestly, not to this one.
+  //
+  // F-32 (independent forward audit) — and the STATUS is no longer assumed
+  // either. It is the inspected fact the worker recorded for the package it
+  // issued (verificationPackageMetadata.signedManifestPresent), read only when
+  // that metadata belongs to the package described here (the record's newest
+  // package); otherwise NOT_INSPECTED. It is never SIGNED by default.
   const manifestSignature: VerificationPackageSignatureProjection | null =
     latestPackage
       ? {
-          status: "SIGNED" as VerificationPackageSignatureStatus,
+          status: manifestSignatureStatusOf(
+            params.evidenceVerificationPackageMetadata,
+            latestPackage.version === (loaded.latestPackage?.version ?? null),
+          ),
           signerKeyId: null,
         }
       : null;
@@ -779,4 +788,20 @@ async function resolvePackageAccess(
     resolveEvidenceRecordAccess({ userId: callerUserId, evidenceId, permission: "evidence.download_original" }),
   ]);
   return { fullForensic: pkg.allowed && originals.allowed, externalDisclosure: pkg.allowed };
+}
+
+/**
+ * F-32 — the package manifest-signature status from the inspected issuance
+ * metadata. Only a recorded boolean answers; anything else is NOT_INSPECTED.
+ */
+export function manifestSignatureStatusOf(
+  metadata: prismaPkg.Prisma.JsonValue | null | undefined,
+  metadataDescribesThisPackage: boolean,
+): VerificationPackageSignatureStatus {
+  if (!metadataDescribesThisPackage) return "NOT_INSPECTED";
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return "NOT_INSPECTED";
+  const present = (metadata as Record<string, unknown>).signedManifestPresent;
+  if (present === true) return "SIGNED";
+  if (present === false) return "UNSIGNED";
+  return "NOT_INSPECTED";
 }

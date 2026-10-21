@@ -655,10 +655,10 @@ export default function AdminEvidenceOpsPage() {
           >
             <div style={GRID}>
               <MetricCard
-                label="TSA failures"
+                label="TSA validation failures"
                 value={snapshot.preservation.tsaFailures}
                 sense="problem"
-                note="Records whose trusted timestamp was not obtained or failed validation."
+                note="Records whose timestamp token was obtained and failed validation. A token never obtained, or kept and not yet validated, is not a validation failure."
               />
               <MetricCard
                 label="Bitcoin anchoring failures"

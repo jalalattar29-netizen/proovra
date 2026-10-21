@@ -430,7 +430,8 @@ export default function EvidenceDetailScreen() {
       // verdict" — so it is read, and an absent one withholds.
       setLifecycle(parseEvidenceLifecycle(ev) ?? parseEvidenceLifecycle(data));
       setCore({
-        status: (ev.status as string) ?? "SIGNED",
+        // F-13 — an absent status is not a verified "SIGNED": it is not recorded.
+        status: (ev.status as string) ?? "",
         statusLabel: (ev.statusLabel as string) ?? null,
         verificationStatus: (ev.verificationStatus as string) ?? null,
         verificationStatusLabel: (ev.verificationStatusLabel as string) ?? null,
@@ -1494,6 +1495,11 @@ export default function EvidenceDetailScreen() {
         {captureLocation ? (
           <ProovraSection title={CAPTURE_LOCATION_COPY.title}>
             {locationState ? <ProovraBadge tone={locationBadgeTone(locationState.tone)} label={locationState.label} /> : null}
+            {/* F-15 (independent forward audit) — a mocked fix is stated here too
+                (MOCK_LOCATION_DETAIL): this branch rendered only the label. */}
+            {locationState?.detail ? (
+              <ProovraText variant="label" color={theme.color.ink.muted} testID="location-state-detail">{locationState.detail}</ProovraText>
+            ) : null}
             <ProovraText variant="label" color={theme.color.ink.secondary}>
               {CAPTURE_LOCATION_COPY.description}
             </ProovraText>
@@ -1560,7 +1566,7 @@ export default function EvidenceDetailScreen() {
             <Row k="Ed25519 fingerprint" v={c.fingerprintHash ?? "—"} mono />
             {preservation ? (
               <>
-                {preservation.signature.recorded ? <Row k="Signature" v={preservation.signature.valid === false ? "Recorded (invalid)" : "Recorded"} /> : null}
+                {preservation.signature.recorded ? <Row k="Signature" v={preservation.signature.label} /> : null}
                 <Row k="Trusted timestamp (TSA)" v={tsaStatusLine(preservation.tsa)} />
                 {preservation.ots.bitcoinTxid ? <Row k={otsAnchoringCopy(locale).facts.txid} v={preservation.ots.bitcoinTxid} mono /> : null}
               </>

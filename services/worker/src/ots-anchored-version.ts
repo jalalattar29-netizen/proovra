@@ -25,7 +25,10 @@
  *                                   lose it
  *   otherwise                       one request, key
  *                                   `ots-chain-verified:<proof sha head 30>:<block hash tail 30>`
- *                                   (exactly 80 characters: client_request_key is VARCHAR(80))
+ *                                   (exactly 80 characters: client_request_key is VARCHAR(80));
+ *                                   a technical terminal failure of that request is
+ *                                   retried under `ots-cv-r<n>:...` up to
+ *                                   OTS_OWED_VERSION_MAX_RETRIES times (F-10)
  */
 import { createReportGenerationRequest } from "@proovra/shared-runtime/reports";
 import { workerOutputEntitlement } from "./output-issuance.js";

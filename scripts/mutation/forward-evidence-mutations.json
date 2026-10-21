@@ -89,10 +89,10 @@
   {
     "id": "P1-D",
     "phase": "P1",
-    "name": "report commit: the lifecycle refusal is not applied",
-    "file": "services/worker/src/processor.ts",
-    "find": "  const refusal = outputLifecycleRefusal(e);\n  if (refusal) return { ok: false, refusal };",
-    "replace": "  const refusal = outputLifecycleRefusal(e);\n  if (refusal && Date.now() < 0) return { ok: false, refusal };",
+    "name": "report commit: the lifecycle refusal of the one commit-time admission is not applied",
+    "file": "services/worker/src/report-generation-authority.ts",
+    "find": "  if (admission.kind === \"REFUSED\") throw new OutputProductionRefusedError(admission.refusal);",
+    "replace": "  if (admission.kind === \"REFUSED\" && admission.refusal === \"NOT_APPLICABLE_NOT_ENTITLED\") throw new OutputProductionRefusedError(admission.refusal);",
     "tests": [
       {
         "cwd": "services/api",
@@ -108,15 +108,16 @@
         ],
         "integration": true
       }
-    ]
+    ],
+    "note": "Re-anchored 2026-10-21 (independent forward audit closure): the separate lifecycle checks at the report and package commits duplicated the first step of assertRunAdmittedAtCommit and were removed; both commit paths now refuse through it."
   },
   {
     "id": "P1-E",
     "phase": "P1",
-    "name": "package commit: the lifecycle guard is removed",
-    "file": "services/worker/src/package-issuance.ts",
-    "find": "    if (refusal) {\n      throw new OutputProductionRefusedError(refusal);\n    }",
-    "replace": "",
+    "name": "package commit: the lifecycle refusal of the one commit-time admission is not applied",
+    "file": "services/worker/src/report-generation-authority.ts",
+    "find": "  if (admission.kind === \"REFUSED\") throw new OutputProductionRefusedError(admission.refusal);",
+    "replace": "  if (admission.kind === \"REFUSED\" && admission.refusal === \"NOT_APPLICABLE_NOT_ENTITLED\") throw new OutputProductionRefusedError(admission.refusal);",
     "tests": [
       {
         "cwd": "services/api",
@@ -132,7 +133,8 @@
         ],
         "integration": true
       }
-    ]
+    ],
+    "note": "Re-anchored 2026-10-21 (independent forward audit closure): the separate lifecycle checks at the report and package commits duplicated the first step of assertRunAdmittedAtCommit and were removed; both commit paths now refuse through it."
   },
   {
     "id": "P1-F",
@@ -4997,6 +4999,583 @@
           "S2"
         ],
         "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F12-A",
+    "phase": "AFC",
+    "aud": "F-12",
+    "name": "shared: an invalid / revoked signature presented as unavailable, not failed",
+    "file": "packages/shared/src/record-signature-validity.ts",
+    "find": "  if (state === \"NOT_SIGNED\") return { state: \"unavailable\", label };\n  return { state: \"failed\", label };",
+    "replace": "  if (state === \"NOT_SIGNED\") return { state: \"unavailable\", label };\n  return { state: \"unavailable\", label };",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/afc-presentation-authorities.test.mjs"
+        ]
+      },
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/afc-wave-d-presentation.test.mjs"
+        ]
+      },
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/afc-integrity-tab-wave-d.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F12-B",
+    "phase": "AFC",
+    "aud": "F-12",
+    "name": "web Integrity tab: signature state from the raw valid flag",
+    "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+    "find": "  const signatureState: IntegrityState = signaturePresentation.state;",
+    "replace": "  const signatureState: IntegrityState = preservation.signature.valid ? \"verified\" : \"recorded\";",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/afc-integrity-tab-wave-d.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F12-C",
+    "phase": "AFC",
+    "aud": "F-12",
+    "name": "mobile matrix: signature state from the raw valid flag",
+    "file": "apps/mobile/src/product/evidence-record.ts",
+    "find": "  const signatureState: IntegrityState = signaturePresentation.state;",
+    "replace": "  const signatureState: IntegrityState = sigRecorded ? (sig[\"valid\"] === true ? \"verified\" : \"recorded\") : \"unavailable\";",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/afc-wave-d-presentation.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F13-A",
+    "phase": "AFC",
+    "aud": "F-13",
+    "name": "mobile status badge: its own label for a hash mismatch",
+    "file": "apps/mobile/src/product/domain-display.ts",
+    "find": "  FAILED_HASH_MISMATCH: recordStatusDisplay(\"FAILED_HASH_MISMATCH\"),",
+    "replace": "  FAILED_HASH_MISMATCH: { label: \"Integrity failed\", tone: \"risk\" },",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/afc-wave-d-presentation.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F13-B",
+    "phase": "AFC",
+    "aud": "F-13",
+    "name": "web Integrity tab: current status as the raw enum",
+    "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+    "find": "              value: evidenceRecordStatusLabel(workspace.snapshot.currentStatus),",
+    "replace": "              value: workspace.snapshot.currentStatus.replace(/_/g, \" \"),",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/afc-integrity-tab-wave-d.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F15",
+    "phase": "AFC",
+    "aud": "F-15",
+    "name": "mobile storage protection read from the provenance flag",
+    "file": "apps/mobile/src/product/evidence-record.ts",
+    "find": "      value: describeStorageProtection(storageFacts, storageClass, fmt),",
+    "replace": "      value: storage[\"verified\"] === true ? \"Verified\" : \"Not exposed in current API response\",",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/afc-wave-d-presentation.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F16-A",
+    "phase": "AFC",
+    "aud": "F-16",
+    "name": "shared: an unknown wire state maps to not_requested",
+    "file": "packages/shared/src/output-row-lifecycle.ts",
+    "find": "    ? outputRowLifecycle(value as EvidenceOutputState)\n    : \"unavailable\";",
+    "replace": "    ? outputRowLifecycle(value as EvidenceOutputState)\n    : \"not_requested\";",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/afc-presentation-authorities.test.mjs"
+        ]
+      },
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/afc-wave-d-presentation.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F16-B",
+    "phase": "AFC",
+    "aud": "F-16",
+    "name": "/v1/reports: the package gate block is ignored",
+    "file": "services/api/src/routes/reports.routes.ts",
+    "find": "          generation: packageGateBlocked\n            ? \"BLOCKED\"",
+    "replace": "          generation: packageGateBlocked && false\n            ? \"BLOCKED\"",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/afc-reports-row-lifecycle.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F16-C",
+    "phase": "AFC",
+    "aud": "F-16",
+    "name": "mobile Reports fallback asks for every workspace",
+    "file": "apps/mobile/src/product/reports.ts",
+    "find": "  const base = `${USER_REPORTS_PATH}?teamId=${encodeURIComponent(workspaceId)}`;",
+    "replace": "  const base = `${USER_REPORTS_PATH}?`; void workspaceId;",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/afc-wave-d-presentation.test.mjs"
+        ]
+      },
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/reports-parity.render.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F26",
+    "phase": "AFC",
+    "aud": "F-26",
+    "name": "capture keeps waiting (still generating) whatever the state",
+    "file": "apps/mobile/src/product/evidence-record.ts",
+    "find": "  return { message: outputStateReason(known, \"report\"), keepWaiting: REPORT_STILL_COMING.has(known) };",
+    "replace": "  return { message: outputStateReason(known, \"report\"), keepWaiting: true };",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/afc-wave-d-presentation.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F27-A",
+    "phase": "AFC",
+    "aud": "F-27",
+    "name": "admin TSA failures: the raw FAILED word (no kept token required)",
+    "file": "services/api/src/services/admin/evidence-health-cohorts.service.ts",
+    "find": "  tsaStatus: \"FAILED\",\n  tsaTokenBase64: { not: null },\n  tsaFailureCode: { in: [...TSA_VALIDATION_FAILED_CODE_LIST] },\n} satisfies",
+    "replace": "  tsaStatus: \"FAILED\",\n} satisfies",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/admin-drilldown-and-search.integration.test.ts"
+        ],
+        "integration": true
+      },
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/adm013-evidence-cohorts.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F27-B",
+    "phase": "AFC",
+    "aud": "F-27",
+    "name": "cohorts: the complement drops the not-obtained arm (partition breaks)",
+    "file": "services/api/src/services/admin/evidence-health-cohorts.service.ts",
+    "find": "    { tsaTokenBase64: null },\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/adm013-evidence-cohorts.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F28-A",
+    "phase": "AFC",
+    "aud": "F-28",
+    "name": "shared: the custody day key is the UTC day",
+    "file": "packages/shared/src/custody-labels.ts",
+    "find": "  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;",
+    "replace": "  void pad; return d.toISOString().slice(0, 10);",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/afc-presentation-authorities.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F28-B",
+    "phase": "AFC",
+    "aud": "F-28",
+    "name": "web custody tab: its own UTC day key",
+    "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx",
+    "find": "    const day = custodyLocalDayKey(ev.atUtc);",
+    "replace": "    const day = ev.atUtc?.slice(0, 10) || \"Undated\";",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "node",
+        "args": [
+          "scripts/run-tests.mjs",
+          "evidence-custody-redesign"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F28-C",
+    "phase": "AFC",
+    "aud": "F-28",
+    "name": "web Integrity tab: the custody verdict as the verifier's code",
+    "file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+    "find": "              value: custodyChainVerdictLabel(preservation.custodyChain),",
+    "replace": "              value: preservation.custodyChain.valid ? \"Continuous\" : `Review required (${preservation.custodyChain.reason ?? \"unknown\"})`,",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/afc-integrity-tab-wave-d.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F29-A",
+    "phase": "AFC",
+    "aud": "F-29",
+    "name": "public Verify: a raw STAMPED word is a trusted timestamp",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "const timestampStatusIsPositive = tsaProofStatusIsValidated(\n  resolveTsaProofStatus({",
+    "replace": "const timestampStatusIsPositive = normalizedTsaStatus === \"STAMPED\" || normalizedTsaStatus === \"GRANTED\" || tsaProofStatusIsValidated(\n  resolveTsaProofStatus({",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/afc-verify-canonical-proof-facts.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F29-B",
+    "phase": "AFC",
+    "aud": "F-29",
+    "name": "owner matrix: a raw STAMPED word is a trusted timestamp",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "        const timestampStatusIsPositive = tsaProofStatusIsValidated(\n          resolveTsaProofStatus({",
+    "replace": "        const timestampStatusIsPositive = normalizedTsaStatus === \"STAMPED\" || normalizedTsaStatus === \"GRANTED\" || tsaProofStatusIsValidated(\n          resolveTsaProofStatus({",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/afc-verify-canonical-proof-facts.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F29-C",
+    "phase": "AFC",
+    "aud": "F-29",
+    "name": "public Verify: a package-digest token compared to the file digest",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": " && (evidence.tsaInputKind ?? \"FILE_SHA256\") === \"FILE_SHA256\"\n",
+    "replace": "\n",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/afc-verify-canonical-proof-facts.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F29-D",
+    "phase": "AFC",
+    "aud": "F-29",
+    "name": "public Verify: the OTS resolver's PROOF_HASH_MISMATCH ignored",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "      (otsAnchoring.state === \"FAILED\" && otsAnchoring.failureCode === \"PROOF_HASH_MISMATCH\") ||\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/afc-verify-canonical-proof-facts.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F29-E",
+    "phase": "AFC",
+    "aud": "F-29",
+    "name": "public Verify: a submitted OTS digest with no readable proof claims a match",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "        : otsAnchoring.committedDigestHex\n          ? true\n          : null;",
+    "replace": "        : evidence.otsHash\n          ? true\n          : null;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/afc-verify-canonical-proof-facts.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F31-A",
+    "phase": "AFC",
+    "aud": "F-31",
+    "name": "signer health: a different registered key is healthy",
+    "file": "services/api/src/services/operations/signer-health.service.ts",
+    "find": "  if (registeredFingerprint !== derivedFingerprint) {",
+    "replace": "  if (registeredFingerprint === null) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-signer-health-and-manifest-status.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F31-B",
+    "phase": "AFC",
+    "aud": "F-31",
+    "name": "signer health: a revoked key is healthy",
+    "file": "services/api/src/services/operations/signer-health.service.ts",
+    "find": "  if (registered.revokedAt) {",
+    "replace": "  if (registered.revokedAt && false) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-signer-health-and-manifest-status.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F31-C",
+    "phase": "AFC",
+    "aud": "F-31",
+    "name": "signer health: a public key that is not the private key's half is healthy",
+    "file": "services/api/src/services/operations/signer-health.service.ts",
+    "find": "  if (derivedFingerprint !== configuredFingerprint) {",
+    "replace": "  if (derivedFingerprint === \"\") {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-signer-health-and-manifest-status.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F31-D",
+    "phase": "AFC",
+    "aud": "F-31",
+    "name": "signer health: the reference is the host path again",
+    "file": "services/api/src/services/operations/signer-health.service.ts",
+    "find": "  const ref = `sha256:${derivedFingerprint}`;",
+    "replace": "  const ref = input.pubPath;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-signer-health-and-manifest-status.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F32",
+    "phase": "AFC",
+    "aud": "F-32",
+    "name": "artifact status: manifest signature SIGNED by default",
+    "file": "services/api/src/services/evidence-artifact-status.service.ts",
+    "find": "  if (!metadata || typeof metadata !== \"object\" || Array.isArray(metadata)) return \"NOT_INSPECTED\";",
+    "replace": "  if (!metadata || typeof metadata !== \"object\" || Array.isArray(metadata)) return \"SIGNED\";",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-signer-health-and-manifest-status.test.ts"
+        ]
       }
     ]
   }

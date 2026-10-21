@@ -12,7 +12,7 @@
  * NOT projected (they need a teamId / enterprise surface). `reviewerAudit` is
  * sent on every review-workspace reply and IS projected (projectReviewerAudit).
  */
-import { localizeEvidenceLocation, parseTsaProofStatus, readOtsAnchoringView, resolveEvidenceLocation, TSA_PROOF_STATUS_LABELS, type EvidenceLocationTone, type OtsVerificationKey } from "@proovra/shared";
+import { localizeEvidenceLocation, parseTsaProofStatus, recordSignaturePresentation, readOtsAnchoringView, resolveEvidenceLocation, TSA_PROOF_STATUS_LABELS, type EvidenceLocationTone, type OtsVerificationKey } from "@proovra/shared";
 
 export interface CustodyEvent {
   sequence: number;
@@ -42,7 +42,8 @@ export interface PreservationView {
     bitcoinTxid: string | null;
     failureCode: string | null;
   };
-  signature: { recorded: boolean; valid: boolean | null; keyId: string | null };
+  /** F-12 — `label` / `state`: THE shared presentation of the validity state. */
+  signature: { recorded: boolean; valid: boolean | null; keyId: string | null; label: string; state: "verified" | "failed" | "unavailable" };
   custodyChain: { valid: boolean | null; mode: string | null; reason: string | null };
 }
 
@@ -134,7 +135,13 @@ export function projectPreservation(rw: unknown): PreservationView {
         failureCode: state === "FAILED" || state === "UNAVAILABLE" ? s(ots["failureCode"]) : null,
       };
     })(),
-    signature: { recorded: b(sig["recorded"]), valid: bn(sig["valid"]), keyId: s(sig["keyId"]) },
+    signature: (() => {
+      const recorded = b(sig["recorded"]);
+      const shown = recorded
+        ? recordSignaturePresentation({ validityState: sig["validityState"] ?? null, revokedAtUtc: s(sig["signingKeyRevokedAtUtc"]) })
+        : { state: "unavailable" as const, label: "Not recorded" };
+      return { recorded, valid: bn(sig["valid"]), keyId: s(sig["keyId"]), label: shown.label, state: shown.state };
+    })(),
     custodyChain: { valid: bn(chain["valid"]), mode: s(chain["mode"]), reason: s(chain["reason"]) },
   };
 }

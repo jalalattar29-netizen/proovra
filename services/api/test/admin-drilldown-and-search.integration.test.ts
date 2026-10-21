@@ -40,6 +40,7 @@ describe("PLATFORM ADMIN — drill-down and search (live PostgreSQL 16)", () => 
   let workspaceId: string;
   let customerOrgId: string;
   let tsaFailedEvidenceId: string;
+  let tsaNotObtainedEvidenceId: string;
   let healthyEvidenceId: string;
   let incidentId: string;
 
@@ -133,8 +134,24 @@ describe("PLATFORM ADMIN — drill-down and search (live PostgreSQL 16)", () => 
         data: {
           ...evidenceBase,
           status: "SIGNED",
+          // F-27 — THE canonical FAILED state: a kept token whose validation failed.
           tsaStatus: "FAILED",
+          tsaTokenBase64: Buffer.from("dd-token").toString("base64"),
+          tsaFailureCode: "tsa_token_signature_invalid",
           title: `dd-tsa-failed-${randomUUID().slice(0, 8)}`,
+        },
+        select: { id: true },
+      })
+    ).id;
+    // F-27 — the same raw word with no token is "not obtained", not a failure.
+    tsaNotObtainedEvidenceId = (
+      await prisma.evidence.create({
+        data: {
+          ...evidenceBase,
+          status: "SIGNED",
+          tsaStatus: "FAILED",
+          tsaFailureCode: "tsa_request_failed",
+          title: `dd-tsa-not-obtained-${randomUUID().slice(0, 8)}`,
         },
         select: { id: true },
       })
@@ -331,6 +348,7 @@ describe("PLATFORM ADMIN — drill-down and search (live PostgreSQL 16)", () => 
       const ids = res.json().items.map((i: { id: string }) => i.id);
       expect(ids).toContain(tsaFailedEvidenceId);
       expect(ids).not.toContain(healthyEvidenceId);
+      expect(ids, "F-27: a token never obtained is not a validation failure").not.toContain(tsaNotObtainedEvidenceId);
 
       const row = res
         .json()

@@ -4,34 +4,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve } from "node:path";
 import ts from "typescript";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-/**
- * The shared verb table, inlined — a data URL cannot resolve "@proovra/shared".
- * The REAL built module, so the words asserted are the ones the product ships.
- */
-const builtModuleUrl = (file) =>
-  "data:text/javascript," +
-  encodeURIComponent(readFileSync(resolve(HERE, `../../../packages/shared/dist/${file}`), "utf8"));
-// Both REAL built modules the projection imports: the verb table and (RGA-04)
-// the shared download-failure authority. Neither imports anything else.
-const SHARED_COPY_URL =
-  "data:text/javascript," +
-  encodeURIComponent(
-    `export * from ${JSON.stringify(builtModuleUrl("output-action-copy.js"))};
-` +
-      `export * from ${JSON.stringify(builtModuleUrl("download-failure.js"))};
-` +
-      // AUD-47 — THE shared verification-status vocabulary (imports nothing).
-      `export * from ${JSON.stringify(builtModuleUrl("evidence-vocabulary.js"))};
-`,
-  );
+// The shared package by its BUILT entry (file URL): a data URL cannot resolve
+// "@proovra/shared", and the real modules are what the product ships. (F-16 —
+// reports.ts also reads THE row mapping, outputRowLifecycleOf, whose module
+// imports its siblings, so single inlined modules no longer suffice.)
 const src = readFileSync(resolve(HERE, "../src/product/reports.ts"), "utf8")
   .replace(/^import type .*$/m, "")
-  .replace('"@proovra/shared"', JSON.stringify(SHARED_COPY_URL));
+  .replace('"@proovra/shared"', JSON.stringify(pathToFileURL(resolve(HERE, "../../../packages/shared/dist/index.js")).href));
 const js = ts.transpileModule(src, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;

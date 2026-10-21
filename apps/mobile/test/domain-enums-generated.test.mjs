@@ -16,7 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve } from "node:path";
 import ts from "typescript";
 
@@ -39,6 +39,8 @@ const schema = readFileSync(SCHEMA, "utf8");
 async function loadDisplay() {
   const src = readFileSync(resolve(HERE, "../src/product/domain-display.ts"), "utf8")
     .replace(/import type \{ ProovraStatusTone \} from "@proovra\/ui";/, "")
+    // F-13 — the record status is the shared presentation: bind the built package.
+    .replace(/from "@proovra\/shared"/g, `from "${pathToFileURL(resolve(HERE, "../../../packages/shared/dist/index.js")).href}"`)
     .replace(/from "\.\/domain-enums\.generated"/g, `from "${
       "data:text/javascript," +
       encodeURIComponent(

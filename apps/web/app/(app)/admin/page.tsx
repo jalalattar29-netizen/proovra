@@ -284,7 +284,7 @@ function attentionRows(ov: PlatformOverview): AttentionRow[] {
       tone: "attention",
     },
     {
-      label: "TSA failures",
+      label: "TSA validation failures",
       metric: evidenceFigure(
         ov.evidenceOps?.preservation?.tsaFailures,
         "TSA_FAILED",
@@ -891,7 +891,7 @@ export default function AdminOverviewPage() {
               <AdminStat label="Evidence created (7d)" metric={ov.evidenceVolume.last7d} />
               <AdminStat label="Evidence created (30d)" metric={ov.evidenceVolume.last30d} />
               <AdminStat
-                label="TSA failures"
+                label="TSA validation failures"
                 figure={evidenceFigure(ov.evidenceOps?.preservation?.tsaFailures, "TSA_FAILED")}
                 emphasis="critical"
               />

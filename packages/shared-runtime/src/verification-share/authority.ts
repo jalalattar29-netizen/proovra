@@ -21,8 +21,10 @@
  * This module is the one place that mints, hashes, resolves, revokes and
  * rotates them, for the API (owner controls, Public Verify) and the worker
  * (the link a report or package carries). A token is NECESSARY, not
- * sufficient: the record must also be PUBLISHED by its owner, which is the
- * publication authority's decision and is checked by the route.
+ * sufficient: the record's canonical access state (WITHDRAWN / SUSPENDED /
+ * RETAINED / PURGED) answers for every identifier, and the route decides what
+ * the link may disclose. Owner publication is not a condition (owner decision
+ * 2026-10-14; F-40, independent forward audit: this header still said it was).
  *
  * LEGACY RECORD-ID LINKS. Records published before this existed are reachable
  * by their id for a bounded grace period (`legacyVerifyUuidUntilUtc`, set once

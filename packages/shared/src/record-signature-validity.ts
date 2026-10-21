@@ -102,3 +102,32 @@ export function recordSignatureValiditySummary(v: Pick<RecordSignatureValidity, 
       return "Signature missing";
   }
 }
+
+/**
+ * F-12 (independent forward audit) — THE presentation of a record signature on
+ * every owner surface, from its validity state. Owner pages read only the
+ * `valid` boolean and showed every not-presently-trusted signature (INVALID,
+ * KEY_MISMATCH, REVOKED_KEY, KEY_NOT_REGISTERED) as a neutral "Recorded" while
+ * Public Verify said "Invalid". Only VALID / VALID_SUPERSEDED_KEY are
+ * verified; every other recorded state is a failure to verify; an absent or
+ * unknown state is never positive.
+ */
+export type RecordSignaturePresentationState = "verified" | "failed" | "unavailable";
+
+export function parseRecordSignatureValidityState(value: unknown): RecordSignatureValidityState | null {
+  return typeof value === "string" && (RECORD_SIGNATURE_VALIDITY_STATES as readonly string[]).includes(value)
+    ? (value as RecordSignatureValidityState)
+    : null;
+}
+
+export function recordSignaturePresentation(input: {
+  validityState: unknown;
+  revokedAtUtc?: string | null;
+}): { state: RecordSignaturePresentationState; label: string } {
+  const state = parseRecordSignatureValidityState(input.validityState);
+  if (state === null) return { state: "unavailable", label: "Signature validity not stated" };
+  const label = recordSignatureValiditySummary({ state, revokedAtUtc: input.revokedAtUtc ?? null });
+  if (state === "VALID" || state === "VALID_SUPERSEDED_KEY") return { state: "verified", label };
+  if (state === "NOT_SIGNED") return { state: "unavailable", label };
+  return { state: "failed", label };
+}

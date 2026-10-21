@@ -41,6 +41,7 @@ import {
   type OtsState,
   type OtsStateTone,
   type OtsVerificationKey,
+  custodyEventLabel,
 } from "@proovra/shared";
 import type { EvidenceOutputState } from "@proovra/shared";
 import { useOptionalLocale } from "../../../../providers";
@@ -514,7 +515,7 @@ export const OUTPUT_STATE_COPY: Record<
       `The stored file of the issued ${noun} is unavailable. It is never re-issued in place; a new verified version can be issued.`,
   },
   BLOCKED: {
-    reason: (noun) => `${noun} generation is blocked by a policy decision.`,
+    reason: (noun) => `${noun.charAt(0).toUpperCase()}${noun.slice(1)} generation is blocked by a policy decision.`,
   },
 };
 
@@ -1241,7 +1242,7 @@ export function EventTimeline({
               <div className="evidence-detail-timeline-dot" aria-hidden="true" />
               <div>
                 <div className="evidence-detail-item-row">
-                  <strong>{event.eventType.replace(/_/g, " ")}</strong>
+                  <strong>{custodyEventLabel(event.eventType)}</strong>
                   <span>{formatUserDateTime(event.atUtc)}</span>
                 </div>
                 <p>{event.payloadSummary || "No event summary recorded."}</p>

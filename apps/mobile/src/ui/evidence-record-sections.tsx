@@ -13,7 +13,7 @@ import { Image, Linking, Pressable, StyleSheet, View } from "react-native";
 
 import { formatUserDateTime } from "../lib/date";
 import type { RiskSignal } from "../product/evidence-detail";
-import { outputNoteCopy } from "@proovra/shared";
+import { custodyEventLabel, custodyLocalDayInstant, outputNoteCopy } from "@proovra/shared";
 import {
   ARCHIVE_AS_ALTERNATIVE_COPY,
   CUSTODY_TIMELINE_COPY,
@@ -395,7 +395,9 @@ export function SnapshotTimingSection({ timing }: { timing: SnapshotTiming }) {
 
 function dayTitle(day: string): string {
   if (day === "Undated") return "Undated";
-  return formatUserDateTime(`${day}T00:00:00Z`)?.split(",")[0] ?? day;
+  // F-28 — the viewer's local day (groupCustodyByDay keys by it).
+  const instant = custodyLocalDayInstant(day);
+  return (instant ? formatUserDateTime(instant)?.split(",")[0] : null) ?? day;
 }
 function eventTime(atUtc: string | null): string {
   const full = atUtc ? formatUserDateTime(atUtc) : null;
@@ -426,7 +428,7 @@ export function CustodyTimelineCard({ kind, events }: { kind: "forensic" | "acce
               </View>
               {g.rows.map((row) => (
                 <View key={row.type} style={styles.railField}>
-                  <ProovraText variant="label" style={{ flex: 1 }}>{`${row.type.replace(/_/g, " ")} × ${row.count}`}</ProovraText>
+                  <ProovraText variant="label" style={{ flex: 1 }}>{`${custodyEventLabel(row.type)} × ${row.count}`}</ProovraText>
                   <ProovraText variant="label" color={theme.color.ink.muted}>{eventTime(row.lastAtUtc || null)}</ProovraText>
                 </View>
               ))}
@@ -443,7 +445,7 @@ export function CustodyTimelineCard({ kind, events }: { kind: "forensic" | "acce
             ? events.map((ev) => (
                 <View key={`${ev.sequence}-${ev.eventType}`} style={styles.matrixRow}>
                   <View style={styles.railField}>
-                    <ProovraText variant="label" weight="semibold" style={{ flex: 1 }}>{ev.eventType.replace(/_/g, " ")}</ProovraText>
+                    <ProovraText variant="label" weight="semibold" style={{ flex: 1 }}>{custodyEventLabel(ev.eventType)}</ProovraText>
                     <ProovraText variant="label" color={theme.color.ink.muted}>{(ev.atUtc && formatUserDateTime(ev.atUtc)) || "Time not recorded"}</ProovraText>
                   </View>
                   <ProovraText variant="label" color={theme.color.ink.secondary}>{ev.payloadSummary || "No event summary recorded."}</ProovraText>

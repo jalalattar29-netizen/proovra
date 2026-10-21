@@ -791,6 +791,9 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       expect(after.reports).toEqual([]);
       expect(after.packageRows.filter((p) => p.state === "PUBLISHED")).toEqual([]);
       expect(after.req!.state).not.toBe("FAILED_TERMINAL");
+      // The refusal is the BUSINESS one the commit-time admission states, not a
+      // technical "state changed" that only happens to publish nothing.
+      expect(after.req).toMatchObject({ terminalReasonCode: "NOT_APPLICABLE_ARCHIVED" });
     }, 300_000);
 
     it("AUD-35: a record trashed WHILE its package builds gets no published package", async () => {
@@ -802,6 +805,8 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       await run(id, 0);
       const after = await state(ev.evidenceId, id);
       expect(after.packageRows.filter((p) => p.state === "PUBLISHED")).toEqual([]);
+      // The business refusal of the commit-time admission, stated as such.
+      expect(after.req).toMatchObject({ terminalReasonCode: "NOT_APPLICABLE_TRASHED" });
     }, 300_000);
 
     it("AUD-01: the stranded-request sweep settles an ARCHIVED record's waiting request instead of re-enqueueing it", async () => {

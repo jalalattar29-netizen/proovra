@@ -35,6 +35,7 @@ import {
 // lifecycle from the SAME shared state machine the per-record projection uses.
 import {
   deriveEvidenceOutputState,
+  outputRowLifecycle,
   // RELIABILITY CLOSURE (2026-09-09) — the canonical action and terminal class,
   // projected by the server so the Reports page derives neither.
   classifyTerminalReason,
@@ -405,86 +406,12 @@ export const REPORTS_SORTS: readonly ReportsSort[] = ["newest", "oldest"];
  * `deriveEvidenceOutputState`, so a row in the list and the same record's
  * detail page cannot disagree.
  */
-function toReportLifecycle(state: EvidenceOutputState): ReportLifecycle {
-  switch (state) {
-    case "READY":
-      return "ready";
-    case "QUEUED":
-    case "GENERATING":
-      return "pending";
-    // AUD-011 — ARTIFACT_MISSING: an issued file proven gone is a failure to
-    // hold the output (list views never probe, so they do not produce it today).
-    case "RETRYABLE_FAILURE":
-    case "TERMINAL_FAILURE":
-    case "ARTIFACT_MISSING":
-      return "failed";
-    case "NOT_INCLUDED":
-    case "ENTITLEMENT_UNAVAILABLE":
-      return "unavailable";
-    case "NOT_APPLICABLE":
-      /*
-       * P1-3 (2026-09-10) — the legacy five-value vocabulary has no member for
-       * "this record cannot carry the output yet". `unavailable` is the
-       * COMMERCIAL member and must not absorb a record condition, so this
-       * reads `not_requested`: nothing has been asked for, which is equally
-       * true of an unfinalized record and of an integrity-failed one.
-       * Consumers that need the distinction read `outputs.*.state`.
-       */
-      return "not_requested";
-    case "ELIGIBLE_NOT_GENERATED":
-      return "not_requested";
-    case "BLOCKED":
-      // ET-RPT-02: a blocked request is blocked, not "not requested".
-      return "blocked";
-  }
-}
+// F-16 (independent forward audit) — THE row mapping lives in @proovra/shared
+// (outputRowLifecycle): the web and mobile fallbacks read the same one.
+const toReportLifecycle = (state: EvidenceOutputState): ReportLifecycle => outputRowLifecycle(state);
+const toPackageLifecycle = (state: EvidenceOutputState): PackageLifecycle => outputRowLifecycle(state);
 
-function toPackageLifecycle(state: EvidenceOutputState): PackageLifecycle {
-  /*
-   * A gate-blocked package reads "blocked" only when the CANONICAL state says
-   * BLOCKED. It used to override every non-READY state, so a record whose
-   * plan does not include packages (NOT_INCLUDED — which the canonical
-   * derivation deliberately ranks above a gate block) read "blocked" in its
-   * row while the classifier, the `package_blocked` filter and its tile
-   * counted it as not included. NOT_INCLUDED, BLOCKED and FAILED are three
-   * different statements; the row now makes the same one as the tile.
-   */
-  // ET-RPT-02: canonical BLOCKED — a gate block OR a blocked request (stale
-  // policy, policy block) — is "blocked"; it used to need the gate metadata
-  // too, so a request-blocked row read "Package not requested" while the
-  // "Packages blocked" tile counted it.
-  if (state === "BLOCKED") return "blocked";
-  switch (state) {
-    case "READY":
-      return "ready";
-    case "QUEUED":
-    case "GENERATING":
-      return "pending";
-    // AUD-011 — ARTIFACT_MISSING: an issued file proven gone is a failure to
-    // hold the output (list views never probe, so they do not produce it today).
-    case "RETRYABLE_FAILURE":
-    case "TERMINAL_FAILURE":
-    case "ARTIFACT_MISSING":
-      return "failed";
-    case "NOT_INCLUDED":
-    case "ENTITLEMENT_UNAVAILABLE":
-      return "unavailable";
-    case "NOT_APPLICABLE":
-      /*
-       * P1-3 (2026-09-10) — the legacy five-value vocabulary has no member for
-       * "this record cannot carry the output yet". `unavailable` is the
-       * COMMERCIAL member and must not absorb a record condition, so this
-       * reads `not_requested`: nothing has been asked for, which is equally
-       * true of an unfinalized record and of an integrity-failed one.
-       * Consumers that need the distinction read `outputs.*.state`.
-       */
-      return "not_requested";
-    case "ELIGIBLE_NOT_GENERATED":
-      return "not_requested";
-  }
-}
-
-function readPackageBlocked(metadata: unknown): {
+export function readPackageBlocked(metadata: unknown): {
   blocked: boolean;
   reason: string | null;
 } {

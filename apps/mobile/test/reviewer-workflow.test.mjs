@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve } from "node:path";
 import { createRequire } from "node:module";
 
@@ -33,10 +33,10 @@ const ENVELOPE_URL = url("../src/product/envelope.ts");
 const DISPLAY_URL =
   "data:text/javascript," +
   encodeURIComponent(
-    compile("../src/product/domain-display.ts").replace(
-      /from ["']\.\/domain-enums\.generated["']/g,
-      `from "${ENUMS_URL}"`,
-    ),
+    compile("../src/product/domain-display.ts")
+      .replace(/from ["']\.\/domain-enums\.generated["']/g, `from "${ENUMS_URL}"`)
+      // F-13 — domain-display reads the shared record-status presentation (built package, by file URL).
+      .replaceAll('"@proovra/shared"', JSON.stringify(pathToFileURL(resolve(HERE, "../../../packages/shared/dist/index.js")).href)),
   );
 
 const src = readFileSync(resolve(HERE, "../src/product/reviewer-workflow.ts"), "utf8")

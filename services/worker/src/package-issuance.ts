@@ -22,7 +22,6 @@
  *      bounded reason); the next attempt re-reserves the same ids.
  */
 import * as prismaPkg from "@prisma/client";
-import { outputLifecycleRefusal } from "@proovra/shared";
 import { OutputProductionRefusedError } from "./output-production-refusal.js";
 import type { Prisma } from "@prisma/client";
 import {
@@ -225,13 +224,12 @@ export async function commitIssuance(input: IssuanceCommitInput): Promise<void> 
       where: { id: input.evidenceId },
       select: { id: true, teamId: true, ownerUserId: true, status: true, deletedAt: true, lifecycleState: true },
     });
-    const refusal = live ? outputLifecycleRefusal(live) : ("NOT_APPLICABLE_DELETED" as const);
-    if (refusal) {
-      throw new OutputProductionRefusedError(refusal);
-    }
+    if (!live) throw new OutputProductionRefusedError("NOT_APPLICABLE_DELETED");
     // F-07 (independent forward audit) — THE run admission, again, under this
-    // lock: entitlement, workspace, organization and (for a regeneration)
-    // legal hold, as they are NOW. The request row names what was asked.
+    // lock: lifecycle (archived, trashed, destroyed), entitlement, workspace,
+    // organization and (for a regeneration) legal hold, as they are NOW. It is
+    // the one commit-time authority; the separate lifecycle check that stood
+    // here duplicated its first step. The request row names what was asked.
     const asked = await tx.reportGenerationRequest.findUnique({
       where: { id: input.command.requestId },
       select: { teamId: true, artifactType: true, forceRegenerate: true },

@@ -108,7 +108,7 @@ type Response = {
 
 const SIGNALS = [
   { value: "", label: "— none (filter by cohort instead) —" },
-  { value: "TSA_FAILED", label: "Timestamp (TSA) failures" },
+  { value: "TSA_FAILED", label: "Timestamp (TSA) validation failures" },
   { value: "OTS_FAILED", label: "OpenTimestamps anchoring failures" },
   { value: "HASH_MISMATCH", label: "Hash mismatch" },
   { value: "VERIFICATION_FAILED", label: "Verification failed" },

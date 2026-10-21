@@ -268,13 +268,20 @@ const TSA_VALIDATION_NOT_PERFORMED_CODES = new Set([
 ]);
 
 /** Validation ran and refused the token. */
-const TSA_VALIDATION_FAILED_CODES = new Set([
+/**
+ * The bounded failure codes that mean a KEPT token was validated and the
+ * validation FAILED. Exported (F-27, independent forward audit) so an operator
+ * count of "timestamp validation failures" is the canonical FAILED state, not
+ * every raw tsa_status = FAILED (most of which were never obtained).
+ */
+export const TSA_VALIDATION_FAILED_CODE_LIST = [
   "tsa_token_untrusted",
   "tsa_token_signature_invalid",
   "tsa_nonce_mismatch",
   "tsa_message_imprint_mismatch",
   "tsa_policy_not_accepted",
-]);
+] as const;
+const TSA_VALIDATION_FAILED_CODES: ReadonlySet<string> = new Set(TSA_VALIDATION_FAILED_CODE_LIST);
 
 export type TsaTrustStateInput = {
   /** The PRESENTED status (`presentedTsaStatus`), not the raw column. */

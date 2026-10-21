@@ -114,6 +114,7 @@ import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
 import { setCaptureActive } from "../../src/capture/active-capture";
 import { elapsedSinceMs, monotonicNowMs } from "../../src/capture/monotonic-clock";
 import type { ScreenAcquisitionMode } from "../../src/capture/screen-acquisition";
+import { captureReportWaitStep, REPORT_STATUS_UNREADABLE_MESSAGE } from "../../src/product/evidence-record";
 import {
   saveCaptureSession,
   loadCaptureSession,
@@ -780,18 +781,21 @@ hasActiveDraft: isSessionActive || isRecording,
    *
    * The URL is minted where a person asks for the file, and nowhere else.
    */
+  // F-26 (independent forward audit) — THE canonical output state decides what
+  // is said: "still generating" only while a report can still arrive (queued,
+  // generating, about to be requested, or retrying). A plan that does not
+  // include reports, a refusal, a block or a stopped generation is stated as
+  // such at once; a failed status read is not "generating" either.
   const pollReport = useCallback(async (evidenceId: string) => {
     const delays = [2000, 3000, 5000, 8000, 12000, 15000, 15000];
     for (let i = 0; i < delays.length; i += 1) {
       try {
         const st = await apiFetch(`/v1/evidence/${evidenceId}/artifacts/status`);
-        if (st?.outputs?.report?.state === "READY") {
-          setInfo(null);
-          return;
-        }
-        setInfo("Report still generating...");
+        const step = captureReportWaitStep(st?.outputs?.report?.state);
+        setInfo(step.message);
+        if (!step.keepWaiting) return;
       } catch {
-        setInfo("Report still generating...");
+        setInfo(REPORT_STATUS_UNREADABLE_MESSAGE);
       }
       await sleep(delays[i]);
     }

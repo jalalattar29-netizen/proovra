@@ -26,7 +26,7 @@ import {
   outputNoteShort,
   outputTerminalReasonCopy,
   // RGA-04 — native consumes the SAME shared download-failure authority as web.
-  resolveArtifactDownloadFailure, evidenceVerificationStatusLabel, evidenceVerificationStatusTone } from "@proovra/shared";
+  resolveArtifactDownloadFailure, evidenceVerificationStatusLabel, evidenceVerificationStatusTone, outputRowLifecycleOf } from "@proovra/shared";
 import type { NewVersionOfferView } from "./evidence-record";
 
 const obj = (v: unknown): Record<string, unknown> =>
@@ -562,24 +562,23 @@ export function parseGeneratedAt(payload: unknown): string | null {
  */
 export const USER_REPORTS_PATH = "/v1/reports";
 
+/**
+ * F-16 (independent forward audit) — the fallback is asked FOR THE ACTIVE
+ * WORKSPACE (as the web asks it): without a teamId the route answers every
+ * readable workspace, and this screen listed them under the active one's
+ * heading.
+ */
+export function buildUserReportsPath(workspaceId: string, cursor?: string | null): string {
+  const base = `${USER_REPORTS_PATH}?teamId=${encodeURIComponent(workspaceId)}`;
+  return cursor ? `${base}&cursor=${encodeURIComponent(cursor)}` : base;
+}
+
+// F-16 (independent forward audit) — THE row mapping (@proovra/shared
+// outputRowLifecycleOf), the server's and the web's: this copy read
+// ARTIFACT_MISSING and ENTITLEMENT_UNAVAILABLE as "not requested". A state this
+// build does not know is "unavailable", never "not requested".
 function toLifecycle(state: unknown): string {
-  switch (state) {
-    case "READY":
-      return "ready";
-    case "QUEUED":
-    case "GENERATING":
-      return "pending";
-    case "RETRYABLE_FAILURE":
-    case "TERMINAL_FAILURE":
-      return "failed";
-    case "NOT_INCLUDED":
-      return "unavailable";
-    case "BLOCKED":
-      // ET-RPT-02 — a blocked request is blocked, as on the server and the web.
-      return "blocked";
-    default:
-      return "not_requested";
-  }
+  return outputRowLifecycleOf(state);
 }
 
 export function parseUserScopedReports(payload: unknown): ArtifactPage {

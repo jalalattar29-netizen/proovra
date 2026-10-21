@@ -3976,15 +3976,15 @@ const REPORTABLE_AT_COMMIT_WHERE: Prisma.EvidenceWhereInput = {
 };
 
 /**
- * The record's state at commit: reportable, a business refusal (lifecycle /
- * deletion — the output-producer guard), or a changed seal status (an
- * integrity rejection, which stays a technical refusal: refusal null).
+ * The record's SEAL status at commit: reportable, or changed (an integrity
+ * rejection, which stays a technical refusal: refusal null). The business
+ * refusals (lifecycle / deletion / entitlement) are THE run admission's
+ * (assertRunAdmittedAtCommit, right after this) — one authority at commit,
+ * not a second lifecycle check beside it.
  */
-function reportableAtCommit(e: { status: string; deletedAt: Date | null; lifecycleState: string | null }):
+function reportableAtCommit(e: { status: string }):
   | { ok: true }
   | { ok: false; refusal: OutputProductionRefusal | null } {
-  const refusal = outputLifecycleRefusal(e);
-  if (refusal) return { ok: false, refusal };
   if (e.status !== EvidenceStatus.SIGNED && e.status !== EvidenceStatus.REPORTED) return { ok: false, refusal: null };
   return { ok: true };
 }

@@ -81,7 +81,10 @@ describe("Phase P1 — evidence-health service honesty", () => {
   });
 
   it("TSA/OTS failures come from REAL evidence status columns", () => {
-    expect(SERVICE).toMatch(/tsaStatus:\s*"FAILED"/);
+    // F-27 (independent forward audit) — the TSA tile counts THE canonical
+    // FAILED state, the drill-down's own predicate, never the raw word.
+    expect(SERVICE).toMatch(/\.\.\.EVIDENCE_HEALTH_SIGNALS\.TSA_FAILED\.where/);
+    expect(SERVICE).not.toMatch(/tsaStatus:\s*"FAILED"/);
     expect(SERVICE).toMatch(/otsStatus:\s*"FAILED"/);
   });
 

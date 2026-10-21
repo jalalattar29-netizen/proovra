@@ -39,7 +39,9 @@ const DISPLAY_URL =
   "data:text/javascript," +
   encodeURIComponent(
     compile("../src/product/domain-display.ts")
-      .replace(/from ["']\.\/domain-enums\.generated["']/g, `from "${ENUMS_URL}"`),
+      .replace(/from ["']\.\/domain-enums\.generated["']/g, `from "${ENUMS_URL}"`)
+      // F-13 — domain-display reads the shared record-status presentation.
+      .replaceAll('"@proovra/shared"', JSON.stringify(SHARED_COPY_URL)),
   );
 
 const ENVELOPE_URL =

@@ -75,7 +75,11 @@ describe("EVIDENCE HEALTH COHORTS (live PostgreSQL 16)", () => {
    * above; it exists for the regression case at the end of this file, which
    * seeds and removes its own rows so the numbers here stay the numbers here.
    */
-  async function seed(kind: "tsa" | "report" | "both" | "never"): Promise<string> {
+  async function seed(kind: "tsa" | "report" | "both" | "never" | "not_obtained" | "code_without_token"): Promise<string> {
+    // F-27 (independent forward audit) — a TSA failure is THE canonical FAILED
+    // state: a kept token whose validation failed. A FAILED word with no token
+    // ("not obtained") is not one, and is seeded as its own kind.
+    const failed = kind === "tsa" || kind === "both";
     const id = randomUUID();
     await prisma.evidence.create({
       data: {
@@ -91,6 +95,8 @@ describe("EVIDENCE HEALTH COHORTS (live PostgreSQL 16)", () => {
         // non-null is what makes a SIGNED record NOT "signed without a report".
         tsaStatus:
           kind === "report" ? "SUCCESS" : kind === "never" ? null : "FAILED",
+        tsaTokenBase64: failed ? Buffer.from("cohort-token").toString("base64") : null,
+        tsaFailureCode: failed ? "tsa_token_signature_invalid" : kind === "not_obtained" ? "tsa_request_failed" : kind === "code_without_token" ? "tsa_message_imprint_mismatch" : null,
         latestReportVersion: kind === "tsa" ? 1 : null,
       },
     });
@@ -473,6 +479,32 @@ describe("EVIDENCE HEALTH COHORTS (live PostgreSQL 16)", () => {
       "fingerprintCanonicalJson",
     ]) {
       expect(serialised, `the roster leaks ${forbidden}`).not.toContain(forbidden);
+    }
+  });
+
+  // F-27 (independent forward audit) — a timestamp that was never OBTAINED
+  // (tsa_status FAILED, no token) is not a "TSA validation failure": it is
+  // counted with the records that are only missing a report, and the three
+  // disjoint parts still sum to the union.
+  it("F-27: a FAILED word with no token is not a TSA validation failure, and the partition still adds up", async () => {
+    const before = await buildEvidenceHealthCohorts();
+    const mine: string[] = [];
+    try {
+      // A validation-failure CODE with no kept token is not a validation failure either:
+      // only the token-null arm of the complement keeps it in a cohort.
+      mine.push(await seed("not_obtained"), await seed("code_without_token"));
+      const after = await buildEvidenceHealthCohorts();
+      const delta = (k: string) =>
+        (after.cohorts.find((c: { cohort: string }) => c.cohort === k)?.count ?? 0) -
+        (before.cohorts.find((c: { cohort: string }) => c.cohort === k)?.count ?? 0);
+      expect(delta("TSA_FAILED_ONLY")).toBe(0);
+      expect(delta("BOTH")).toBe(0);
+      expect(delta("SIGNED_NO_REPORT_ONLY")).toBe(2);
+      expect(delta("ALL_AFFECTED")).toBe(2);
+      expect(after.arithmetic.agrees).toBe(true);
+    } finally {
+      await prisma.evidence.deleteMany({ where: { id: { in: mine } } });
+      seeded.splice(0, seeded.length, ...seeded.filter((id) => !mine.includes(id)));
     }
   });
 });

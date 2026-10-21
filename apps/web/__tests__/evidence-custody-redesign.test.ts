@@ -89,9 +89,12 @@ test("the access timeline is visually distinguishable from the forensic one", ()
 // ---------------------------------------------------------------------------
 
 test("events are bucketed by calendar day from their own timestamp", () => {
-  // The ISO date prefix is the day key; an event with no timestamp is
-  // "Undated" rather than being silently dropped or dated to today.
-  assert.match(CUSTODY, /const day = ev\.atUtc\?\.slice\(0, 10\) \|\| "Undated"/);
+  // F-28 (independent forward audit) — the day key is THE shared LOCAL
+  // calendar day (custodyLocalDayKey): the ISO prefix was the UTC day, so an
+  // evening event sat under the next day beside a local time. An event with
+  // no timestamp is still "Undated" (pinned by the shared helper's test).
+  assert.match(CUSTODY, /const day = custodyLocalDayKey\(ev\.atUtc\)/);
+  assert.doesNotMatch(CUSTODY, /atUtc\?\.slice\(0, 10\)/);
   assert.match(CUSTODY, /function groupByDay\(events: TimelineEvent\[\]\): DayGroup\[\]/);
   assert.match(CUSTODY, /data-chrono-day=\{group\.day\}/);
 });
@@ -135,7 +138,10 @@ test("the disclosure stays native <details>/<summary> — keyboard behaviour is 
 test("the raw list still carries the full technical payload per event", () => {
   // Grouping is a readability default, not a redaction: the raw rows keep
   // the event type, the full timestamp and the payload summary.
-  assert.match(CUSTODY, /\{event\.eventType\.replace\(\/_\/g, " "\)\}/);
+  // F-28 — the event type is named by THE custody vocabulary, never a raw
+  // code with its underscores replaced.
+  assert.match(CUSTODY, /\{custodyEventLabel\(event\.eventType\)\}/);
+  assert.doesNotMatch(CUSTODY, /eventType\.replace\(/);
   assert.match(CUSTODY, /\{formatUserDateTime\(event\.atUtc\) \?\? "Time not recorded"\}/);
   assert.match(CUSTODY, /\{event\.payloadSummary \|\| "No event summary recorded\."\}/);
 });

@@ -164,7 +164,8 @@ export function getCurrentActiveSigners(): ReadonlyArray<SignerRecord> {
     provider === "aws_kms"
       ? "kms://GetPublicKey"
       : provider === "local_pem"
-        ? envValue("SIGNING_PUBLIC_KEY_PATH") ?? "local-pem"
+        ? // F-31 — a label, never the host's filesystem path.
+          "local-pem"
         : null;
 
   const base = {

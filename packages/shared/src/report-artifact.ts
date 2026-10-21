@@ -74,6 +74,12 @@ export const VERIFICATION_PACKAGE_SIGNATURE_STATUSES = [
    * manifest. Reserved.
    */
   "UNSIGNED",
+  /**
+   * F-32 (independent forward audit) — no inspection of THIS package's
+   * contents is on record (its issuance metadata is absent or describes
+   * another package version). Never read as SIGNED.
+   */
+  "NOT_INSPECTED",
   /** Reserved for non-package artifacts. */
   "NOT_APPLICABLE",
 ] as const;
@@ -194,4 +200,27 @@ export function findForbiddenArtifactPhrases(text: string): string[] {
     const escaped = p.replace(/[- ]/g, "[- ]");
     return new RegExp(`(^|[^a-z])${escaped}([^a-z]|$)`).test(t);
   });
+}
+
+/**
+ * F-28 (independent forward audit) — the PDF signature status in words, for
+ * every surface. The mobile Public Verify had no case for UNSIGNED_OPT_OUT,
+ * SIGNING_FAILED or NOT_APPLICABLE and printed the raw code (the opt-out MUST be
+ * labelled explicitly, above). An unknown value is "not recorded", never a code.
+ */
+export function pdfSignatureStatusLabel(status: string | null | undefined): string {
+  switch (String(status ?? "").trim().toUpperCase()) {
+    case "SIGNED":
+      return "Signed";
+    case "UNSIGNED_OPT_OUT":
+      return "Unsigned Report PDF artifact";
+    case "SIGNING_UNAVAILABLE":
+      return "Signing unavailable (not a production signing environment)";
+    case "SIGNING_FAILED":
+      return "Signing failed";
+    case "NOT_APPLICABLE":
+      return "Not applicable";
+    default:
+      return "Signature status not recorded";
+  }
 }

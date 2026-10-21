@@ -60,6 +60,7 @@ import { resolveEvidenceOutputEligibilityByRecord } from "../services/billing/ev
 import { resolveOutputRecordApplicability } from "../services/evidence-artifact-status.service.js";
 
 import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
+import { readPackageBlocked } from "../services/reports/reports-aggregator.service.js";
 const ListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   cursor: z.string().min(1).max(512).optional(),
@@ -283,6 +284,8 @@ export default async function registerReportsRoutes(
          */
         ownerUserId: string;
         teamId: string | null;
+        /** F-16 — the package gate block (readPackageBlocked). */
+        verificationPackageMetadata: unknown;
         title: string | null;
         displayFileName: string | null;
         originalFileName: string | null;
@@ -313,6 +316,9 @@ export default async function registerReportsRoutes(
           type: true,
           status: true,
           verificationRef: true,
+          // F-16 — the package gate block travels with the row (as on the
+          // workspace aggregator).
+          verificationPackageMetadata: true,
           caseLinks: {
             orderBy: { linkedAtUtc: "asc" },
             select: { caseId: true },
@@ -433,19 +439,24 @@ export default async function registerReportsRoutes(
               request.state as PersistedReportRequestState,
             )
           : "NOT_REQUESTED";
+        // F-16 (independent forward audit) — an unreadable eligibility is
+        // UNRESOLVED (as on the workspace aggregator), never assumed ELIGIBLE.
+        const packageGateBlocked = readPackageBlocked(r.verificationPackageMetadata).blocked;
         const reportLifecycle = deriveEvidenceOutputState({
-          eligibility: eligibility?.reportEligibility ?? "ELIGIBLE",
+          eligibility: eligibility?.reportEligibility ?? "UNRESOLVED",
           generation,
           availability: report !== null ? "READY" : "NO_ARTIFACT",
           record,
         });
         const packageLifecycle = deriveEvidenceOutputState({
-          eligibility: eligibility?.packageEligibility ?? "ELIGIBLE",
-          generation: loaded?.packageRequest
-            ? projectReportRequestState(
-                loaded.packageRequest.state as PersistedReportRequestState,
-              )
-            : generation,
+          eligibility: eligibility?.packageEligibility ?? "UNRESOLVED",
+          generation: packageGateBlocked
+            ? "BLOCKED"
+            : loaded?.packageRequest
+              ? projectReportRequestState(
+                  loaded.packageRequest.state as PersistedReportRequestState,
+                )
+              : generation,
           availability: pkg !== null ? "READY" : "NO_ARTIFACT",
           record,
         });
@@ -480,7 +491,9 @@ export default async function registerReportsRoutes(
                 ? loaded.actions.report.action === "NONE"
                   ? loaded.actions.report.reason
                   : null
-                : "PERMISSION_DENIED",
+                // F-16 — no facts for this row (the read failed or returned
+                // none): the verb is UNKNOWN, not denied.
+                : "ACTIONS_UNAVAILABLE",
               operation: loaded?.actions.report.operation ?? null,
               terminalReasonClass,
               terminalReasonCode,
@@ -493,7 +506,9 @@ export default async function registerReportsRoutes(
                 ? loaded.actions.verificationPackage.action === "NONE"
                   ? loaded.actions.verificationPackage.reason
                   : null
-                : "PERMISSION_DENIED",
+                // F-16 — no facts for this row (the read failed or returned
+                // none): the verb is UNKNOWN, not denied.
+                : "ACTIONS_UNAVAILABLE",
               operation: loaded?.actions.verificationPackage.operation ?? null,
               terminalReasonClass,
               terminalReasonCode,

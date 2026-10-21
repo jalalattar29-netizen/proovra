@@ -44,7 +44,7 @@ import {
   REPORTS_METRICS,
   REPORTS_SUMMARY_UNAVAILABLE,
   REPORTS_TITLE,
-  USER_REPORTS_PATH,
+  buildUserReportsPath,
   buildReportsPath,
   buildReportsSummaryPath,
   formatRelativeTime,
@@ -135,7 +135,9 @@ export default function ReportsScreen() {
       const unfilteredFirstPage = filter === "all" && !search && !nextCursor;
       const fallback = async (): Promise<boolean> => {
         try {
-          const recovered = parseUserScopedReports(await apiFetch(USER_REPORTS_PATH));
+          // F-16 — the active workspace's records only (never every workspace).
+          if (!teamId) return false;
+          const recovered = parseUserScopedReports(await apiFetch(buildUserReportsPath(teamId)));
           if (mine !== generation.current) return true;
           fromFallback.current = true;
           apply(recovered, null);
@@ -149,7 +151,7 @@ export default function ReportsScreen() {
         // cursor and a /v1/reports cursor are not interchangeable.
         if (nextCursor && fromFallback.current) {
           const more = parseUserScopedReports(
-            await apiFetch(`${USER_REPORTS_PATH}?cursor=${encodeURIComponent(nextCursor)}`),
+            await apiFetch(buildUserReportsPath(teamId ?? "", nextCursor)),
           );
           if (mine !== generation.current) return;
           apply(more, existing);

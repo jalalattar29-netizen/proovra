@@ -27,7 +27,7 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { multipartRecordKindLabel } from "@proovra/shared";
+import { evidenceRecordStatusLabel, multipartRecordKindLabel } from "@proovra/shared";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -1184,7 +1184,8 @@ function EvidenceDetailPageInner() {
                 data-tone={getRecordStatusBadgeTone(evidence.status)}
                 data-size="md"
               >
-                {evidence.status.replace(/_/g, " ")}
+                {/* F-13 (independent forward audit) — THE record-status label, never the raw enum. */}
+                {evidenceRecordStatusLabel(evidence.status)}
               </span>
               <span className="evidence-detail-meta-item">
                 <Package size={14} strokeWidth={1.9} aria-hidden="true" />

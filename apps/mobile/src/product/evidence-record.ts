@@ -21,7 +21,8 @@ import {
   type VerificationDisclosureMode,
   parseTsaProofStatus,
   TSA_PROOF_STATUS_LABELS,
-  type TsaProofStatus, objectLockModeLabel } from "@proovra/shared";
+  type TsaProofStatus, objectLockModeLabel, recordSignaturePresentation,
+  classifyStorageProtection, custodyChainVerdictLabel, custodyLocalDayKey, describeStorageProtection, STORAGE_PROTECTION_CLASSES, type StorageProtectionClass } from "@proovra/shared";
 import { projectLocationState } from "./evidence-detail";
 import { isOtsSummaryFact, otsCard, otsStatusLine, readOts, type OtsState, type OtsVerificationKey } from "./ots-anchoring";
 type Obj = Record<string, unknown>;
@@ -617,12 +618,38 @@ export function outputStateReason(state: OutputState | null, noun: string): stri
     case "TERMINAL_FAILURE":
       return `The ${noun} could not be produced for this record.`;
     case "BLOCKED":
-      return `${noun} generation is blocked by a policy decision.`;
+      return `${noun.charAt(0).toUpperCase()}${noun.slice(1)} generation is blocked by a policy decision.`;
     case "ARTIFACT_MISSING":
       return `The stored file of the issued ${noun} is unavailable. It is never re-issued in place; a new verified version can be issued.`;
     default:
       return `The ${noun} status is unavailable right now.`;
   }
+}
+
+/**
+ * F-26 (independent forward audit) — what the capture screen says while it
+ * waits for a just-sealed record's report, read from THE canonical output
+ * state. It keeps waiting only while a report can still arrive (queued,
+ * generating, about to be requested, retrying, or a subscription read that
+ * will update); every other state is stated at once and the wait ends. An
+ * unreadable state is never "still generating".
+ */
+const REPORT_STILL_COMING: ReadonlySet<OutputState> = new Set<OutputState>([
+  "QUEUED",
+  "GENERATING",
+  "ELIGIBLE_NOT_GENERATED",
+  "RETRYABLE_FAILURE",
+  "ENTITLEMENT_UNAVAILABLE",
+]);
+
+export const REPORT_STATUS_UNREADABLE_MESSAGE =
+  "The report status could not be checked just now. Open the record to see it.";
+
+export function captureReportWaitStep(state: unknown): { message: string | null; keepWaiting: boolean } {
+  const known = typeof state === "string" && (OUTPUT_STATES as readonly string[]).includes(state) ? (state as OutputState) : null;
+  if (known === "READY") return { message: null, keepWaiting: false };
+  if (known === null) return { message: outputStateReason(null, "report"), keepWaiting: false };
+  return { message: outputStateReason(known, "report"), keepWaiting: REPORT_STILL_COMING.has(known) };
 }
 
 /** `_lib.tsx:476` OUTPUT_STATE_LABEL. */
@@ -911,6 +938,16 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
   const tsa = o(pm["tsa"]);
   const ots = o(pm["ots"]);
   const storage = o(pm["storage"]);
+  const storageFacts = {
+    mode: s(storage["mode"]),
+    retainUntil: s(storage["retainUntil"]),
+    legalHold: s(storage["legalHold"]),
+    readFailed: storage["readFailed"] === true,
+    source: storage["source"] === "RECORDED" || storage["source"] === "OBSERVED" ? (storage["source"] as "RECORDED" | "OBSERVED") : null,
+  };
+  const storageClass: StorageProtectionClass = (STORAGE_PROTECTION_CLASSES as readonly unknown[]).includes(storage["protection"])
+    ? (storage["protection"] as StorageProtectionClass)
+    : classifyStorageProtection(storageFacts);
   const vs = s(pm["verificationStatus"]);
 
   const verificationState: IntegrityState =
@@ -919,7 +956,12 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
   const fpMatch = pm["fingerprintCanonicalHashMatches"];
   const fingerprintState: IntegrityState = !fpRecorded ? "unavailable" : fpMatch === true ? "verified" : fpMatch === false ? "failed" : "recorded";
   const sigRecorded = sig["recorded"] === true;
-  const signatureState: IntegrityState = !sigRecorded ? "unavailable" : sig["valid"] === true ? "verified" : "recorded";
+  // F-12 (independent forward audit) — THE signature presentation from its
+  // validity state, as the web tab states it: never a neutral "Recorded".
+  const signaturePresentation = sigRecorded
+    ? recordSignaturePresentation({ validityState: sig["validityState"] ?? null, revokedAtUtc: s(sig["signingKeyRevokedAtUtc"]) })
+    : { state: "unavailable" as const, label: "Not recorded" };
+  const signatureState: IntegrityState = signaturePresentation.state;
   const tsaAvailable = tsa["timestampAvailable"] === true;
   // AUD-14 (2026-10-20): the canonical proof status, as the web tab states it.
   const tsaProof = parseTsaProofStatus(s(tsa["proofStatus"]));
@@ -1015,7 +1057,7 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
         : "Not recorded",
       state: fingerprintState,
     },
-    { label: "Signature", value: sigRecorded ? (sig["valid"] === true ? "Recorded and validated" : "Recorded") : "Not recorded", state: signatureState },
+    { label: "Signature", value: signaturePresentation.label, state: signatureState },
     {
       label: "Timestamp proof (TSA)",
       value: tsaProof ? TSA_PROOF_STATUS_LABELS[tsaProof] : tsaAvailable ? "Timestamp recorded" : "Timestamp unavailable",
@@ -1025,9 +1067,14 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
     ...otsFacts,
     { label: "Bitcoin anchoring last updated", value: dateOr(otsUpdated, "Not recorded"), state: otsUpdated ? "recorded" : "unavailable" },
     {
+      // F-15 (independent forward audit) — THE storage classification, as the
+      // web tab states it: the server's `protection` (classifyStorageProtection
+      // of the same facts when absent) and describeStorageProtection. `verified`
+      // is provenance (observed just now), never protection: a COMPLIANCE lock
+      // recorded at sealing read "Not exposed in current API response" here.
       label: "Storage protection",
-      value: storage["verified"] === true ? "Recorded" : "Not exposed in current API response",
-      state: storage["verified"] === true ? "recorded" : "unavailable",
+      value: describeStorageProtection(storageFacts, storageClass, fmt),
+      state: storageClass === "PROTECTED" ? "recorded" : "unavailable",
     },
     {
       label: "Report artifact",
@@ -1199,7 +1246,12 @@ export function buildSnapshotTiming(rw: unknown, fmt: (iso: string) => string): 
 
 /** "Continuous (mode)" / "Review required (reason)" — EvidenceIntegrityTab.tsx:677. */
 export function custodyChainLabel(chain: Obj): string {
-  return chain["valid"] === true ? `Continuous (${s(chain["mode"]) ?? "unknown"})` : `Review required (${s(chain["reason"]) ?? "unknown"})`;
+  // F-28 (independent forward audit) — THE verdict in words (custodyChainVerdictLabel).
+  return custodyChainVerdictLabel({
+    valid: chain["valid"] === true ? true : chain["valid"] === false ? false : null,
+    mode: s(chain["mode"]),
+    reason: s(chain["reason"]),
+  });
 }
 
 /* ------------------------------------------------------ custody grouping */
@@ -1242,7 +1294,8 @@ export interface CustodyDayGroup {
 export function groupCustodyByDay(events: CustodyTimelineEvent[]): CustodyDayGroup[] {
   const buckets = new Map<string, Map<string, { count: number; lastAtUtc: string }>>();
   for (const ev of events) {
-    const day = ev.atUtc?.slice(0, 10) || "Undated";
+    // F-28 — the viewer's local day, as the web groups it.
+    const day = custodyLocalDayKey(ev.atUtc);
     const byType = buckets.get(day) ?? new Map<string, { count: number; lastAtUtc: string }>();
     const prev = byType.get(ev.eventType);
     byType.set(ev.eventType, {

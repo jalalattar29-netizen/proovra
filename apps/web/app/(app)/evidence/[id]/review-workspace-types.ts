@@ -218,6 +218,9 @@ export type PreservationMatrix = {
   signature: {
     recorded: boolean;
     valid: boolean;
+    /** AUD-013 — THE validity state (RecordSignatureValidityState); F-12: what the row states. */
+    validityState?: string | null;
+    signingKeyRevokedAtUtc?: string | null;
     keyId: string | null;
     keyVersion: number | null;
   };

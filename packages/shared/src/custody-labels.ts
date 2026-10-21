@@ -162,3 +162,55 @@ export function custodyEventLabel(
   const words = type.toLowerCase().split("_").filter(Boolean).join(" ");
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
+
+/**
+ * F-28 (independent forward audit) — THE custody-chain verdict in words.
+ * Owner surfaces printed the verifier's raw codes ("Continuous (hashed)",
+ * "Review required (prev_hash_mismatch)") while Public Verify said "Valid
+ * (Legacy)". One sentence per verdict, for every surface.
+ */
+export function custodyChainVerdictLabel(chain: {
+  valid: boolean | null | undefined;
+  mode?: string | null;
+  reason?: string | null;
+}): string {
+  if (chain.valid === true) {
+    if (chain.mode === "legacy") return "Continuous (recorded before events were hash-linked)";
+    if (chain.mode === "empty") return "No custody events recorded";
+    return "Continuous — every event is hash-linked to the one before it";
+  }
+  if (chain.valid !== false) return "Not checked";
+  switch (chain.reason) {
+    case "sequence_gap":
+      return "Review required — an event is missing from the sequence";
+    case "prev_hash_mismatch":
+      return "Review required — an event does not link to the one before it";
+    case "event_hash_mismatch":
+      return "Review required — an event's contents do not match its recorded hash";
+    case "hash_missing":
+      return "Review required — an event has no recorded hash";
+    default:
+      return "Review required";
+  }
+}
+
+/**
+ * F-28 (independent forward audit) — the custody timeline groups events by the
+ * VIEWER's local day. It grouped by the UTC date prefix and then formatted
+ * "<day>T00:00:00Z" in the viewer's zone, so west of UTC every header named
+ * the day before its events' (local) times.
+ */
+export function custodyLocalDayKey(atUtc: string | null | undefined): string {
+  if (!atUtc) return "Undated";
+  const d = new Date(atUtc);
+  if (!Number.isFinite(d.getTime())) return "Undated";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** An ISO instant inside that local day (local noon), for a date-only formatter. */
+export function custodyLocalDayInstant(dayKey: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayKey);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0).toISOString();
+}

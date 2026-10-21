@@ -5,6 +5,7 @@ import {
   EVIDENCE_HEALTH_COHORTS,
   evidenceHealthCohortWheres,
   retryabilityContract,
+  TSA_VALIDATION_FAILED_WHERE,
   type EvidenceHealthCohort,
 } from "./evidence-health-cohorts.service.js";
 import { owedOutputNarrowing } from "../billing/owed-output-population.service.js";
@@ -51,8 +52,13 @@ import { OTS_ANCHORING_RECORD_SELECT, presentedTsaStatus, resolveRecordOtsAnchor
  */
 export const EVIDENCE_HEALTH_SIGNALS = {
   TSA_FAILED: {
-    label: "Timestamp (TSA) failures",
-    where: { tsaStatus: "FAILED" },
+    // F-27 (independent forward audit) — THE canonical FAILED timestamp state
+    // (resolveTsaTrustState): a kept token whose validation failed. Raw
+    // tsa_status = FAILED counted tokens never obtained (canonically "not
+    // obtained") and kept tokens never validated ("recorded, not validated")
+    // as failures, under rows that said otherwise.
+    label: "Timestamp (TSA) validation failures",
+    where: TSA_VALIDATION_FAILED_WHERE,
   },
   OTS_FAILED: {
     label: "OpenTimestamps anchoring failures",
