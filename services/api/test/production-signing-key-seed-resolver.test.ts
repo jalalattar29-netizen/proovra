@@ -98,15 +98,20 @@ describe("signing-key seed — 5-step public-key resolver", () => {
     expect(SEED_SRC).toMatch(/keys\/signing-public\.pem/);
   });
 
-  it("(A5) Step 4 — TEST_ONLY constant fallback is non-production-gated", () => {
+  // F-39 (independent forward audit) — the fixture (step 3) and the TEST_ONLY
+  // constant (step 4) are gated on an EXPLICIT development / test environment
+  // (committedFixtureKeyAllowed), not on "not production": the fixture step
+  // had no gate at all and a staging / undeclared deployment registered it.
+  it("(A5) Steps 3 and 4 — fixture and TEST_ONLY constant only in an explicit development / test environment", () => {
     expect(SEED_SRC).toMatch(/TEST_ONLY_FALLBACK_PUBLIC_KEY_PEM/);
-    expect(SEED_SRC).toMatch(/isProductionEnv/);
-    // The fallback must be guarded by !isProductionEnv().
-    expect(SEED_SRC).toMatch(/if\s*\(\s*!isProductionEnv\(\)\s*\)/);
+    expect(SEED_SRC).toMatch(/return committedFixtureKeyAllowed\(process\.env\)/);
+    expect(SEED_SRC).toMatch(/if\s*\(\s*fixtureMaterialAllowed\(\)\s*\)/);
+    expect(SEED_SRC).toMatch(/for \(const candidate of fixtureMaterialAllowed\(\) \? FIXTURE_PUBLIC_KEY_PATHS : \[\]\)/);
+    expect(SEED_SRC).not.toMatch(/isProductionEnv/);
   });
 
-  it("(A6) Step 5 — production hard-fails with a loud error", () => {
-    expect(SEED_SRC).toMatch(/Could not resolve a signing public key in production/);
+  it("(A6) Step 5 — anything else hard-fails with a loud error", () => {
+    expect(SEED_SRC).toMatch(/Could not resolve a signing public key outside an explicit development or test environment/);
     expect(SEED_SRC).toMatch(/Refusing to fall back to TEST_ONLY material/);
   });
 

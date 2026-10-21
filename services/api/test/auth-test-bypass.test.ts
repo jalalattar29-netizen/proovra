@@ -109,10 +109,35 @@ describe("shouldBypassAuthRateLimit", () => {
     expect(shouldBypassAuthRateLimit(req)).toBe(true);
   });
 
-  it("honors the bypass when NODE_ENV is unset", () => {
+  // F-41 (independent forward audit) — an UNDECLARED environment is not a
+  // development machine: the bypass is refused (it was honoured).
+  it("refuses the bypass when no environment is declared (NODE_ENV unset)", () => {
     process.env.E2E_AUTH_BYPASS_SECRET = VALID_SECRET;
     const req = makeReq({ "x-e2e-auth-bypass": VALID_SECRET });
-    expect(shouldBypassAuthRateLimit(req)).toBe(true);
+    expect(shouldBypassAuthRateLimit(req)).toBe(false);
+  });
+
+  it("F-41: refuses the bypass in a staging deployment, whatever its NODE_ENV", () => {
+    process.env.NODE_ENV = "development";
+    process.env.PROOVRA_ENV = "staging";
+    process.env.E2E_AUTH_BYPASS_SECRET = VALID_SECRET;
+    const req = makeReq({ "x-e2e-auth-bypass": VALID_SECRET });
+    try {
+      expect(shouldBypassAuthRateLimit(req)).toBe(false);
+    } finally {
+      delete process.env.PROOVRA_ENV;
+    }
+  });
+
+  it("F-41: honours the bypass in an explicitly declared development environment", () => {
+    process.env.PROOVRA_ENV = "development";
+    process.env.E2E_AUTH_BYPASS_SECRET = VALID_SECRET;
+    const req = makeReq({ "x-e2e-auth-bypass": VALID_SECRET });
+    try {
+      expect(shouldBypassAuthRateLimit(req)).toBe(true);
+    } finally {
+      delete process.env.PROOVRA_ENV;
+    }
   });
 
   it("trims surrounding whitespace on the header value", () => {

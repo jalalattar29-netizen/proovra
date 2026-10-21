@@ -64,6 +64,7 @@
  */
 
 import type { FastifyRequest } from "fastify";
+import { developmentSurfacesAllowed } from "@proovra/shared-runtime";
 
 const HEADER_NAME = "x-e2e-auth-bypass";
 const MIN_SECRET_LENGTH = 32;
@@ -97,9 +98,11 @@ function constantTimeEquals(a: string, b: string): boolean {
  * the boolean only.
  */
 export function shouldBypassAuthRateLimit(req: FastifyRequest): boolean {
-  // Layer 1 — production is sacred. Never bypass, regardless of
-  // env or header. This survives accidental env-var leakage.
-  if (process.env.NODE_ENV === "production") return false;
+  // Layer 1 — only an EXPLICIT development or test environment may bypass,
+  // regardless of env or header. F-41 (independent forward audit): this was
+  // NODE_ENV === "production" only, so a staging or undeclared deployment
+  // honoured the bypass (and the rate-limit reset route behind it).
+  if (!developmentSurfacesAllowed()) return false;
 
   // Layer 2 — env var must be set and meet a minimum entropy bar.
   const expected = (process.env.E2E_AUTH_BYPASS_SECRET ?? "").trim();

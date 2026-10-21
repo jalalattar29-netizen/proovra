@@ -28,6 +28,8 @@ import { createHash, createPrivateKey, createPublicKey } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 
+import { developmentSurfacesAllowed } from "../config/deployment-environment.js";
+
 /**
  * SHA-256 over the DER SPKI encoding of the PUBLIC half of every key known to
  * be committed to this repository.
@@ -55,7 +57,7 @@ export class FixtureSigningKeyRefused extends Error {
 
   constructor(reason: string) {
     super(
-      `Refusing to sign in production with the repository's committed signing ` +
+      `Refusing to sign outside an explicit development or test environment with the repository's committed signing ` +
         `fixture: ${reason}. Configure a real signing key via ` +
         `SIGNER_PROVIDER=aws-kms (KMS_KEY_ID) or a mounted ` +
         `SIGNING_PRIVATE_KEY_PATH that is not the checked-in fixture.`,
@@ -64,9 +66,26 @@ export class FixtureSigningKeyRefused extends Error {
   }
 }
 
-/** True when this process is running as Production. */
+/** True when this process is running as Production (NODE_ENV only — kept for its callers; the fixture gate below does NOT use it). */
 export function isProductionRuntime(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.NODE_ENV ?? "").trim().toLowerCase() === "production";
+}
+
+/**
+ * F-39 / F-41 (independent forward audit, 2026-10-21) — WHERE the committed
+ * fixture may be used at all: an EXPLICIT, unambiguous development or test
+ * environment (developmentSurfacesAllowed), never "anything whose NODE_ENV is
+ * not the string production". A staging deployment, a mislabelled one, or one
+ * that declares nothing is refused the fixture, for signing and for
+ * registration alike.
+ */
+export function committedFixtureKeyAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  return developmentSurfacesAllowed(env);
+}
+
+/** Is this SPKI fingerprint one of the keys committed to the repository? */
+export function isCommittedFixtureFingerprint(fingerprint: string | null | undefined): boolean {
+  return !!fingerprint && COMMITTED_FIXTURE_PUBLIC_FINGERPRINTS.has(fingerprint.toLowerCase());
 }
 
 /** SHA-256 of the DER SPKI public half of a private or public PEM. */
@@ -112,7 +131,7 @@ export function assertNotCommittedFixture(input: {
   env?: NodeJS.ProcessEnv;
 }): void {
   const env = input.env ?? process.env;
-  if (!isProductionRuntime(env)) return;
+  if (committedFixtureKeyAllowed(env)) return;
 
   const { privateKeyPath, privateKeyPem } = input;
 

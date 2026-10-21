@@ -16,6 +16,7 @@
  */
 
 import { decideObjectLockBootstrap } from "@proovra/shared";
+import { resolveDeploymentEnvironment } from "@proovra/shared-runtime";
 
 import {
   verifyObjectLockConfiguration,
@@ -28,7 +29,7 @@ export interface ObjectLockBootstrapLogger {
   error: (obj: unknown, msg?: string) => void;
 }
 
-function isProductionShapedEnv(): boolean {
+export function isProductionShapedEnv(): boolean {
   // We deliberately do NOT rely on NODE_ENV alone. NODE_ENV can be undefined
   // in production containers; falling back to it would silently skip safety
   // in real deployments. We accept multiple conventional signals so this
@@ -46,7 +47,9 @@ function isProductionShapedEnv(): boolean {
     const value = raw.trim().toLowerCase();
     if (value === "production" || value === "prod") return true;
   }
-  return false;
+  // F-41 (independent forward audit) — an AMBIGUOUS classification (conflicting
+  // or unrecognised declarations) is production-shaped: it fails closed.
+  return resolveDeploymentEnvironment().ambiguous;
 }
 
 /**

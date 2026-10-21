@@ -5578,5 +5578,266 @@
         ]
       }
     ]
+  },
+  {
+    "id": "AFC-F41-A",
+    "phase": "AFC",
+    "aud": "F-41",
+    "name": "dev login gated on the NODE_ENV string again",
+    "file": "services/api/src/dev/dev-login.ts",
+    "find": "  return developmentSurfacesAllowed() && process.env.DEV_AUTH_ENABLED === \"true\";",
+    "replace": "  return process.env.NODE_ENV !== \"production\" && process.env.DEV_AUTH_ENABLED === \"true\";",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F41-B",
+    "phase": "AFC",
+    "aud": "F-41",
+    "name": "E2E bypass / rate-limit reset gated on the NODE_ENV string again",
+    "file": "services/api/src/services/auth-test-bypass.ts",
+    "find": "  if (!developmentSurfacesAllowed()) return false;",
+    "replace": "  if (process.env.NODE_ENV === \"production\") return false;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F41-C",
+    "phase": "AFC",
+    "aud": "F-41",
+    "name": "worker Object Lock bootstrap: an ambiguous classification is not production-shaped",
+    "file": "services/worker/src/object-lock-bootstrap.ts",
+    "find": "  return resolveDeploymentEnvironment().ambiguous;\n}",
+    "replace": "  return false;\n}",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F41-D",
+    "phase": "AFC",
+    "aud": "F-41",
+    "name": "API Object Lock bootstrap: an ambiguous classification is not production-shaped",
+    "file": "services/api/src/bootstrap/object-lock-verification.ts",
+    "find": "  return resolveDeploymentEnvironment().ambiguous;\n}",
+    "replace": "  return false;\n}",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F39-A",
+    "phase": "AFC",
+    "aud": "F-39",
+    "name": "signing guard: the fixture refused only on NODE_ENV=production",
+    "file": "packages/shared-runtime/src/signing/fixture-key-guard.ts",
+    "find": "  if (committedFixtureKeyAllowed(env)) return;",
+    "replace": "  if (!isProductionRuntime(env)) return;",
+    "build": [
+      "shared-runtime"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F39-B",
+    "phase": "AFC",
+    "aud": "F-39",
+    "name": "registry: the fixture may be registered anywhere",
+    "file": "packages/shared-runtime/src/signing/key-registry.ts",
+    "find": "  const fingerprint = publicKeySpkiSha256(input.publicKeyPem);\n  assertNotCommittedFixtureKey(fingerprint);",
+    "replace": "  const fingerprint = publicKeySpkiSha256(input.publicKeyPem);",
+    "build": [
+      "shared-runtime"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      },
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/afc-registry-committed-fixture.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F39-C",
+    "phase": "AFC",
+    "aud": "F-39",
+    "name": "registry: a fixture row registered earlier may still sign",
+    "file": "packages/shared-runtime/src/signing/key-registry.ts",
+    "find": "  assertNotCommittedFixtureKey(publicKeySpkiSha256(row.publicKeyPem));\n",
+    "replace": "",
+    "build": [
+      "shared-runtime"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F39-D",
+    "phase": "AFC",
+    "aud": "F-39",
+    "name": "seed: the checked-in fixture is used in any environment",
+    "file": "services/api/src/seed-signing-key.ts",
+    "find": "  for (const candidate of fixtureMaterialAllowed() ? FIXTURE_PUBLIC_KEY_PATHS : []) {",
+    "replace": "  for (const candidate of FIXTURE_PUBLIC_KEY_PATHS) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F39-E",
+    "phase": "AFC",
+    "aud": "F-39",
+    "name": "seed: the TEST_ONLY constant is used in any environment",
+    "file": "services/api/src/seed-signing-key.ts",
+    "find": "  if (fixtureMaterialAllowed()) {",
+    "replace": "  if (true) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F39-F",
+    "phase": "AFC",
+    "aud": "F-39",
+    "name": "API startup: the evidence signer configuration is not checked",
+    "file": "services/api/src/signing/signer.ts",
+    "find": "  if (raw === \"aws-kms\") return;\n  assertNotCommittedFixture({",
+    "replace": "  if (raw === \"aws-kms\" || true) return;\n  assertNotCommittedFixture({",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-OPS-A",
+    "phase": "AFC",
+    "aud": "F-39",
+    "name": "operator report: a committed-fixture public key reads as another key",
+    "file": "services/api/src/ops/deployment-safety.ts",
+    "find": "  return isCommittedFixtureFingerprint(fp) ? \"COMMITTED_FIXTURE\" : \"OTHER_KEY\";",
+    "replace": "  return \"OTHER_KEY\";",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-OPS-B",
+    "phase": "AFC",
+    "aud": "F-39",
+    "name": "operator report: an active registered fixture is not unsafe",
+    "file": "services/api/src/ops/deployment-safety.ts",
+    "find": "  if (registry?.committedFixtureActive) reasons.add(\"COMMITTED_FIXTURE_REGISTERED_ACTIVE\");\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
   }
 ]

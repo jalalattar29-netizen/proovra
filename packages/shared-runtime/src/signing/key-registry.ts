@@ -24,6 +24,8 @@ import { createHash, createPublicKey, verify } from "node:crypto";
 
 import type { PrismaClient } from "@prisma/client";
 
+import { committedFixtureKeyAllowed, isCommittedFixtureFingerprint } from "./fixture-key-guard.js";
+
 /**
  * AUD-013 — THE record-signature validity resolver. A pure function (the web
  * Verify page and the trust decision need it too), defined in @proovra/shared
@@ -51,7 +53,8 @@ export class SigningKeyRegistryError extends Error {
       | "SIGNING_KEY_IDENTITY_CONFLICT"
       | "SIGNING_KEY_NOT_REGISTERED"
       | "SIGNING_KEY_REVOKED"
-      | "SIGNING_SELF_VERIFICATION_FAILED",
+      | "SIGNING_SELF_VERIFICATION_FAILED"
+      | "SIGNING_KEY_COMMITTED_FIXTURE",
     message?: string,
   ) {
     super(message ?? code);
@@ -63,6 +66,23 @@ export class SigningKeyRegistryError extends Error {
 export function publicKeySpkiSha256(publicKeyPem: string): string {
   const der = createPublicKey(publicKeyPem.trim()).export({ type: "spki", format: "der" });
   return createHash("sha256").update(der).digest("hex");
+}
+
+/**
+ * F-39 (independent forward audit, 2026-10-21) — THE REGISTRY CHECK. The
+ * repository's committed key is public, so a signature by it proves nothing:
+ * outside an explicit development or test environment it is never
+ * registered, and a row holding it (registered before this check existed) is
+ * never used to sign. Only the fingerprint is compared; nothing is printed.
+ */
+export function assertNotCommittedFixtureKey(fingerprint: string, env: NodeJS.ProcessEnv = process.env): void {
+  if (isCommittedFixtureFingerprint(fingerprint) && !committedFixtureKeyAllowed(env)) {
+    throw new SigningKeyRegistryError(
+      "SIGNING_KEY_COMMITTED_FIXTURE",
+      "Refusing the repository's committed signing fixture outside an explicit development or test environment " +
+        "(PROOVRA_ENV=development|test). Register a real key (aws-kms, or a mounted local-pem key) under a new SIGNING_KEY_VERSION.",
+    );
+  }
 }
 
 /** The public key (SPKI PEM) of a PEM private key. */
@@ -87,6 +107,7 @@ export async function registerSigningKey(
   input: { keyId: string; version: number; publicKeyPem: string; purpose: SigningKeyPurpose },
 ): Promise<{ outcome: "created" | "unchanged"; publicKeySha256: string; revokedAt: Date | null }> {
   const fingerprint = publicKeySpkiSha256(input.publicKeyPem);
+  assertNotCommittedFixtureKey(fingerprint);
   const existing = await client.signingKey.findUnique({
     where: identityWhere(input.keyId, input.version, input.purpose),
     select: { publicKeyPem: true, revokedAt: true },
@@ -173,6 +194,7 @@ export async function assertSignatureVerifiesWithRegisteredKey(
     });
     if (!row) throw new SigningKeyRegistryError("SIGNING_KEY_NOT_REGISTERED");
   }
+  assertNotCommittedFixtureKey(publicKeySpkiSha256(row.publicKeyPem));
   if (row.revokedAt) {
     throw new SigningKeyRegistryError(
       "SIGNING_KEY_REVOKED",

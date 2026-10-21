@@ -39,6 +39,26 @@ function getSignerProvider(): "local-pem" | "aws-kms" {
   return "local-pem";
 }
 
+/**
+ * F-39 (independent forward audit, 2026-10-21) — THE STARTUP REFUSAL. The
+ * API refused the committed fixture only at the moment of signing, so a
+ * deployment configured with it started, served, and failed every capture.
+ * Outside an explicit development or test environment a local-pem API now
+ * refuses to start when its evidence key is the committed fixture (by path or
+ * by public fingerprint) or when no key is configured at all. Nothing about
+ * the key is printed. (The worker refuses at its own startup through
+ * validatePackageSignerAtStartup.)
+ */
+export function assertEvidenceSignerConfigurationAtStartup(env: NodeJS.ProcessEnv = process.env): void {
+  const raw = (env.SIGNER_PROVIDER ?? "local-pem").trim().toLowerCase();
+  if (raw === "aws-kms") return;
+  assertNotCommittedFixture({
+    privateKeyPath: env.SIGNING_PRIVATE_KEY_PATH,
+    privateKeyPem: env.SIGNING_PRIVATE_KEY_PEM,
+    env,
+  });
+}
+
 export type SignFingerprintResult = {
   signatureBase64: string;
   keyId: string;

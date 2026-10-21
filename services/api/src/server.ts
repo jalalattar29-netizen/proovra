@@ -67,6 +67,7 @@ import {
   assertProxyTrustPolicyValidOrThrow,
   fastifyTrustProxy,
 } from "./middleware/client-ip.js";
+import { assertEvidenceSignerConfigurationAtStartup } from "./signing/signer.js";
 // Phase 2.7X Stage 3 — Organization runtime endpoints (read-only dual-read).
 import { organizationsRoutes } from "./routes/organizations.routes.js";
 // Phase B0 — Organization governance write surfaces (retention
@@ -544,6 +545,9 @@ export async function buildServer(options: BuildServerOptions = {}) {
   // process from starting rather than run with wrong trust; the assertion
   // throws there and warns-and-falls-closed elsewhere.
   assertProxyTrustPolicyValidOrThrow();
+  // F-39 (independent forward audit) — the committed signing fixture is refused
+  // at STARTUP outside an explicit development or test environment.
+  assertEvidenceSignerConfigurationAtStartup();
 
   const app = Fastify({
     // PHASE 13 §1.5 — the `/v1/workspaces` → `/v1/teams` alias.

@@ -132,6 +132,10 @@ const ENTRYPOINTS = Object.freeze({
     // dry-run-first deploy-window reconciliation
     // (pnpm --filter proovra-api ops:verification-disclosure-fleet).
     "services/api/src/scripts/verification-disclosure-fleet.ts",
+    // DEPLOYMENT SAFETY (2026-10-21, independent forward audit F-08 / F-39 /
+    // F-41) — the READ-ONLY operator check that prints only booleans and enums
+    // (pnpm --filter proovra-api ops:deployment-safety-check [--registry]).
+    "services/api/src/scripts/deployment-safety-check.ts",
     // RETIRE ONE USER'S EVIDENCE (2026-10-20) — the dry-run-first operator CLI
     // that moves the records a user CREATED to Trash through the one lifecycle
     // authority (pnpm --filter proovra-api ops:retire-user-evidence).

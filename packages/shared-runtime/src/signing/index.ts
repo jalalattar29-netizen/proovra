@@ -9,6 +9,8 @@ export {
   assertNotCommittedFixture,
   publicFingerprintOfPem,
   isProductionRuntime,
+  committedFixtureKeyAllowed,
+  isCommittedFixtureFingerprint,
   FixtureSigningKeyRefused,
   COMMITTED_FIXTURE_PUBLIC_FINGERPRINTS,
 } from "./fixture-key-guard.js";
@@ -19,6 +21,7 @@ export {
   publicKeyPemFromPrivateKeyPem,
   publicKeySpkiSha256,
   registerSigningKey,
+  assertNotCommittedFixtureKey,
   findRegisteredSigningKey,
   describePublicSigningKey,
   loadRecordSigningKeyFacts,

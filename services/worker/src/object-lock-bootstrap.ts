@@ -6,6 +6,7 @@
  * evidence storage meets the retention contract.
  */
 import { decideObjectLockBootstrap } from "@proovra/shared";
+import { resolveDeploymentEnvironment } from "@proovra/shared-runtime";
 
 import { logger } from "./logger.js";
 import { verifyObjectLockConfiguration } from "./storage.js";
@@ -25,7 +26,9 @@ export function isProductionShapedEnv(): boolean {
   }
   const renderFlag = (process.env.RENDER ?? "").trim().toLowerCase();
   if (renderFlag === "true" || renderFlag === "1") return true;
-  return false;
+  // F-41 (independent forward audit) — an AMBIGUOUS classification (conflicting
+  // or unrecognised declarations) is production-shaped: it fails closed.
+  return resolveDeploymentEnvironment().ambiguous;
 }
 
 /**

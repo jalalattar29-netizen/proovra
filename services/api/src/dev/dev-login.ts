@@ -29,16 +29,22 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
+import { developmentSurfacesAllowed } from "@proovra/shared-runtime";
+
 import { getSecret } from "../config/runtime-secrets.js";
 import { signJwt } from "../services/jwt.js";
 import { HOME_PERSONAS, isHomePersonaKey } from "./home-personas.js";
 
-/** True only outside production AND when explicitly opted in. */
+/**
+ * True only in an EXPLICIT development or test environment AND when opted in.
+ * F-41 (independent forward audit, 2026-10-21): the gate was
+ * NODE_ENV !== "production", so a staging (or mislabelled) deployment with
+ * DEV_AUTH_ENABLED=true exposed persona impersonation. It is the deployment
+ * classification now (developmentSurfacesAllowed): never staging, never an
+ * undeclared or ambiguous environment.
+ */
 export function devAuthEnabled(): boolean {
-  return (
-    process.env.NODE_ENV !== "production" &&
-    process.env.DEV_AUTH_ENABLED === "true"
-  );
+  return developmentSurfacesAllowed() && process.env.DEV_AUTH_ENABLED === "true";
 }
 
 export async function devLoginRoutes(app: FastifyInstance): Promise<void> {

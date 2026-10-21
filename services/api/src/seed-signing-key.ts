@@ -80,6 +80,7 @@ import { KMSClient, GetPublicKeyCommand } from "@aws-sdk/client-kms";
 
 import { prisma } from "./db.js";
 import { registerSigningKey, type SigningKeyPurpose } from "./signing/key-registry.js";
+import { committedFixtureKeyAllowed } from "@proovra/shared-runtime";
 
 type Provider = "aws-kms" | "local-pem";
 
@@ -107,10 +108,17 @@ function readProvider(): Provider {
   return raw === "aws-kms" ? "aws-kms" : "local-pem";
 }
 
-function isProductionEnv(): boolean {
-  const node = (process.env.NODE_ENV ?? "").trim().toLowerCase();
-  const proovra = (process.env.PROOVRA_ENV ?? "").trim().toLowerCase();
-  return node === "production" || proovra === "production";
+/**
+ * F-39 (independent forward audit, 2026-10-21) — the committed fixture and the
+ * TEST_ONLY constant are used ONLY in an explicit development or test
+ * environment (committedFixtureKeyAllowed: PROOVRA_ENV / NODE_ENV declaring
+ * development or test, unambiguously). It used to be "not production" — and
+ * the fixture step had no gate at all: a deployment with no key path
+ * registered the committed fixture, whose private half is public, as its
+ * signing key.
+ */
+function fixtureMaterialAllowed(): boolean {
+  return committedFixtureKeyAllowed(process.env);
 }
 
 function must(name: string): string {
@@ -321,9 +329,9 @@ export function resolvePublicKeyPemFromLocalPem(): ResolvedPublicKey {
     };
   }
 
-  // ── Step 3: no path configured — the checked-in fixture ──────────────
+  // ── Step 3: no path configured — the checked-in fixture (dev / test only) ──
   const attempts: string[] = [];
-  for (const candidate of FIXTURE_PUBLIC_KEY_PATHS) {
+  for (const candidate of fixtureMaterialAllowed() ? FIXTURE_PUBLIC_KEY_PATHS : []) {
     const found = tryReadFixturePem(candidate);
     if (found) {
       return {
@@ -335,8 +343,8 @@ export function resolvePublicKeyPemFromLocalPem(): ResolvedPublicKey {
     attempts.push(resolve(candidate));
   }
 
-  // ── Step 4: CI / non-production TEST_ONLY constant fallback ─────────
-  if (!isProductionEnv()) {
+  // ── Step 4: CI / development TEST_ONLY constant fallback ─────────────
+  if (fixtureMaterialAllowed()) {
     const canonical = validateAndCanonicalisePem(
       TEST_ONLY_FALLBACK_PUBLIC_KEY_PEM,
       "TEST_ONLY built-in fallback",
@@ -350,11 +358,11 @@ export function resolvePublicKeyPemFromLocalPem(): ResolvedPublicKey {
 
   // ── Step 5: production hard failure ─────────────────────────────────
   throw new SigningKeyConfigurationError(
-    "Could not resolve a signing public key in production. Tried (in order):\n" +
+    "Could not resolve a signing public key outside an explicit development or test environment. Tried (in order):\n" +
       "  1. env SIGNING_PUBLIC_KEY_PEM — not set\n" +
       "  2. env SIGNING_PUBLIC_KEY_PATH — not set\n" +
-      `  3. Checked-in fixture (keys/signing-public.pem) — not found\n` +
-      "Refusing to fall back to TEST_ONLY material because NODE_ENV=production. " +
+      `  3. Checked-in fixture (keys/signing-public.pem) — never used outside development / test\n` +
+      "Refusing to fall back to TEST_ONLY material because this is not an explicit development or test environment (PROOVRA_ENV / NODE_ENV). " +
       "Set SIGNING_PUBLIC_KEY_PEM (inline PEM) or SIGNING_PUBLIC_KEY_PATH (mounted file) " +
       "to a real Ed25519 public-key PEM, or set SIGNER_PROVIDER=aws-kms with KMS_KEY_ID. " +
       `Paths tried: [${attempts.join(", ")}]`,
@@ -406,7 +414,7 @@ async function main() {
       console.warn(
         "[seed-signing-key] WARNING: using TEST_ONLY built-in fallback " +
           "public key. This is acceptable for CI / dev but MUST NOT be used " +
-          "in production. Verify NODE_ENV is not set to 'production'.",
+          "outside development or test.",
       );
     }
   }
