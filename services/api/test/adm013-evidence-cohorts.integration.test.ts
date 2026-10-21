@@ -109,16 +109,44 @@ describe("EVIDENCE HEALTH COHORTS (live PostgreSQL 16)", () => {
       "../src/services/admin/evidence-records.service.js"
     ));
 
-    // `Team.organizationId` is non-nullable in the schema, so there is nothing
-    // to filter for — every workspace already carries the organization that
-    // Evidence must connect to.
-    const team = await prisma.team.findFirst({
-      select: { id: true, organizationId: true, ownerUserId: true },
+    // THE SUITE OWNS ITS WORKSPACE. It used to borrow `prisma.team.findFirst()`
+    // — whichever row the shared database returned first, in heap order that
+    // moves as earlier suites update teams. The owed narrowing (AUD-30) reads
+    // that workspace's plan AND lifecycle, so a borrowed workspace another
+    // suite had left suspended or past grace counted the seeded backlog as not
+    // owed: clean-db-boot on cbdc3d5c6 saw SIGNED_NO_REPORT_ONLY +0, not +4.
+    // A fresh owner, organization container and OWNED workspace make the
+    // population this suite measures the population it seeded.
+    const tag = randomUUID().slice(0, 8);
+    const owner = await prisma.user.create({
+      data: {
+        email: `adm013-${tag}@example.test`,
+        displayName: "ADM-013 cohort owner",
+        provider: "EMAIL",
+        providerUserId: `adm013-${tag}@example.test`,
+      },
+      select: { id: true },
     });
-    expect(team, "the harness seeded no workspace to attach evidence to").toBeTruthy();
-    teamId = team!.id;
-    organizationId = team!.organizationId;
-    ownerUserId = team!.ownerUserId;
+    const org = await prisma.organization.create({
+      data: { name: `adm013 container ${tag}`, billingOwnerUserId: owner.id, status: "ACTIVE", kind: "SYSTEM" } as never,
+      select: { id: true },
+    });
+    const team = await prisma.team.create({
+      data: {
+        name: `adm013 workspace ${tag}`,
+        ownerUserId: owner.id,
+        isPersonal: false,
+        organizationId: org.id,
+        workspaceKind: "OWNED",
+      } as never,
+      select: { id: true },
+    });
+    await prisma.teamMember.create({
+      data: { teamId: team.id, userId: owner.id, role: "OWNER", status: "ACTIVE" } as never,
+    });
+    teamId = team.id;
+    organizationId = org.id;
+    ownerUserId = owner.id;
 
     // AUD-30 (2026-10-20): the cohorts count records an output is OWED for.
     // This suite measures that arithmetic, so its workspace is on a plan whose
