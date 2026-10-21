@@ -713,7 +713,11 @@ export async function createReportGenerationRequest(
  * leaves the product exactly as it was; superseding wrongly starts work that
  * governance had refused.
  */
-async function blockerStillActive(
+/**
+ * Exported (F-10 closure, independent forward audit) so the owed OTS-version
+ * sweep asks THE same question before it spends a retry on a blocked request.
+ */
+export async function blockerStillActive(
   prisma: PrismaClient,
   input: {
     evidenceId: string;

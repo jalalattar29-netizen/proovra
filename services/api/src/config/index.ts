@@ -33,8 +33,19 @@ import {
   objectLockPostureViolations,
   type ObjectLockPostureViolation,
 } from "@proovra/shared";
+import { developmentSurfacesAllowed } from "@proovra/shared-runtime";
 
 const PROD = (): boolean => process.env.NODE_ENV === "production";
+/**
+ * Closure (independent forward audit, F-41 class) — SECRET MATERIAL is
+ * required, never defaulted, outside an EXPLICIT development or test
+ * environment. PROD() (the NODE_ENV string) let a staging or undeclared
+ * deployment run with the deterministic, publicly derivable hash-secret
+ * fallback and without the JWT-strength check. Production-only deployment
+ * contracts (Object Lock posture, SAML/S3 URL safety, PDF signing) stay on
+ * PROD().
+ */
+const SECRETS_REQUIRED = (): boolean => !developmentSurfacesAllowed();
 
 export type HashSecretName =
   | "COMMUNICATIONS_RECIPIENT_HASH_SECRET"
@@ -66,9 +77,9 @@ class ProductionConfigError extends Error {
 export function resolveSecret(envName: HashSecretName | string): string {
   const raw = (process.env[envName] ?? "").trim();
   if (raw.length > 0) return raw;
-  if (PROD()) {
+  if (SECRETS_REQUIRED()) {
     throw new ProductionConfigError(
-      `Required secret "${envName}" is not set. Refusing to use a fallback in production.`,
+      `Required secret "${envName}" is not set. Refusing to use a fallback outside development / test.`,
     );
   }
   // Deterministic non-prod fallback. Bound per-name so two callers do
@@ -342,10 +353,10 @@ export function collectStartupViolations(): StartupConfigViolation[] {
       out.push({ envName: OBJECT_LOCK_VIOLATION_ENV[violation], reason: violation });
     }
   }
-  // AUTH_JWT_SECRET strength — production only (dev/test use deterministic
-  // fixture values). Presence is checked above; a present-but-weak secret is
-  // its own violation so the operator is told exactly what is wrong.
-  if (PROD()) {
+  // AUTH_JWT_SECRET strength — outside development / test (dev/test use
+  // deterministic fixture values). Presence is checked above; a present-but-weak
+  // secret is its own violation so the operator is told exactly what is wrong.
+  if (SECRETS_REQUIRED()) {
     const jwtSecret = (process.env.AUTH_JWT_SECRET ?? "").trim();
     if (jwtSecret.length > 0) {
       const weakness = assessJwtSecretStrength(jwtSecret);
@@ -390,7 +401,7 @@ export function collectStartupViolations(): StartupConfigViolation[] {
    * it to be required.
    */
   if (
-    PROD() &&
+    SECRETS_REQUIRED() &&
     (process.env.IDENTITY_SECURITY_HASH_SECRET ?? "").trim().length === 0
   ) {
     out.push({
@@ -601,7 +612,9 @@ export function runStartupConfigValidation(log: {
 
   const violations = collectStartupViolations();
   if (violations.length === 0) return;
-  if (PROD()) {
+  // Every deployment refuses to start on a violation (production, staging,
+  // or an undeclared / ambiguous environment); development and test warn.
+  if (SECRETS_REQUIRED()) {
     log.error(
       { violations },
       "phase20.startup.config_violations_in_production",

@@ -300,3 +300,27 @@ describe("closure — F-08 undeclared environments, F-41 sibling gates, R-3", ()
     expect(reply.body).toMatchObject({ error: { code: "CONFIGURATION_ERROR" } });
   });
 });
+
+describe("closure re-audit — secret material and undeclared deployments", () => {
+  it("a staging or undeclared deployment never uses the deterministic hash-secret fallback", async () => {
+    const config = await import("../src/config/index.js");
+    for (const env of [{ PROOVRA_ENV: "staging" }, {}]) {
+      withEnv(env as Record<string, string>);
+      delete process.env.IDENTITY_SECURITY_HASH_SECRET;
+      expect(() => config.resolveSecret("IDENTITY_SECURITY_HASH_SECRET"), JSON.stringify(env)).toThrow(/outside development \/ test/);
+      expect(config.collectStartupViolations().map((v) => v.envName)).toContain("IDENTITY_SECURITY_HASH_SECRET");
+    }
+    withEnv({ PROOVRA_ENV: "development" });
+    delete process.env.IDENTITY_SECURITY_HASH_SECRET;
+    expect(typeof config.resolveSecret("IDENTITY_SECURITY_HASH_SECRET")).toBe("string");
+  });
+
+  it("an undeclared environment is production-shaped for both Object Lock bootstraps", () => {
+    for (const check of [isProductionShapedEnv, apiIsProductionShapedEnv]) {
+      withEnv({});
+      expect(check()).toBe(true);
+      withEnv({ PROOVRA_ENV: "staging" });
+      expect(check()).toBe(false);
+    }
+  });
+});

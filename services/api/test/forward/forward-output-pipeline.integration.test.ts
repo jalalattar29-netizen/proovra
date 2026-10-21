@@ -1560,6 +1560,23 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
         });
         stuck.push(ev.evidenceId);
       }
+      // (Re-audit) Records whose owed request is BLOCKED by a hold STILL in
+      // force — the oldest of all. They would collapse onto themselves, so they
+      // must take no slot and never be re-asked while the hold stands.
+      const heldIds: string[] = [];
+      for (let i = 0; i < 3; i += 1) {
+        const ev = await chainVerifiedWithV1();
+        const r = await reconcileOtsAnchoredReportVersion(ev.evidenceId);
+        const owner = await prisma.team.findUniqueOrThrow({ where: { id: ev.teamId }, select: { ownerUserId: true } });
+        await prisma.evidenceLegalHold.create({
+          data: { teamId: ev.teamId, evidenceId: ev.evidenceId, scope: "EVIDENCE", title: "f-10-held", placedByUserId: owner.ownerUserId } as never,
+        });
+        await prisma.reportGenerationRequest.update({
+          where: { id: r.requestId! },
+          data: { state: "BLOCKED_POLICY", terminalReasonCode: "legal_hold_active", completedAtUtc: hoursAgo(10 + i) } as never,
+        });
+        heldIds.push(ev.evidenceId);
+      }
       // The retryable one: a technical terminal, newer than all of them.
       const target = await chainVerifiedWithV1();
       const first = await reconcileOtsAnchoredReportVersion(target.evidenceId);
@@ -1568,9 +1585,19 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
         data: { state: "FAILED_TERMINAL", terminalReasonCode: "STORAGE_UNAVAILABLE", completedAtUtc: hoursAgo(2) } as never,
       });
       // One record per tick: the old code read the OLDEST failed row and stopped.
-      await runOtsInitializationReconciler({ trigger: "f-10-closure", batchSize: 1 } as never);
+      // The sweep visits candidates in md5(evidence_id || salt) order. Pick the
+      // salt under which EVERY held record is visited before the target: the
+      // old age-ordered (or blocker-blind) sweep spent its one slot on a held
+      // record and never reached the target in this tick.
+      const rank = (id: string, salt: string) => createHash("md5").update(id + salt).digest("hex");
+      const salt = Array.from({ length: 5000 }, (_, i) => `s${i}`).find((c) =>
+        heldIds.every((h) => rank(h, c) < rank(target.evidenceId, c)),
+      )!;
+      expect(salt, "a salt that orders the held records first").toBeTruthy();
+      await runOtsInitializationReconciler({ trigger: "f-10-closure", batchSize: 1, owedSweepSalt: salt } as never);
       expect(await autoRequests(target.evidenceId)).toHaveLength(2);
       for (const id of stuck) expect(await autoRequests(id), "an integrity terminal is never re-asked").toHaveLength(1);
+      for (const id of heldIds) expect(await autoRequests(id), "a hold still in force is never re-asked").toHaveLength(1);
       // A policy block whose blocker COULD clear (a legal hold, now released) is re-asked.
       const held = await chainVerifiedWithV1();
       const blocked = await reconcileOtsAnchoredReportVersion(held.evidenceId);

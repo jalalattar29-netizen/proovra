@@ -303,7 +303,13 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
    * is then the account that ISSUED the link). Recorded in the creation-time
    * identity snapshot; never a value from a request body.
    */
-  acquisitionActor?: { kind: "INTAKE_CONTRIBUTOR"; contributorEmailProvided: boolean } | null;
+  /**
+   * F-03 (independent forward audit, closure) — `contributorEmail`: the address
+   * the contributor declared (unverified), recorded IN the creation transaction
+   * as the submitter of an intake record. It used to be written afterwards, in
+   * a separate update with no custody event, over the link issuer's email.
+   */
+  acquisitionActor?: { kind: "INTAKE_CONTRIBUTOR"; contributorEmailProvided: boolean; contributorEmail?: string | null } | null;
 })
 {
   // Fail closed on a caller that bypasses the type system: an unrecorded or
@@ -573,7 +579,8 @@ data: {
   acquisitionMode: params.acquisitionMode,
   acquisitionModeSource: "RECORDED_AT_CREATION",
   identityLevelSnapshot,
-  submittedByEmail: owner.email ?? null,
+  submittedByEmail:
+    params.acquisitionActor?.kind === "INTAKE_CONTRIBUTOR" ? (params.acquisitionActor.contributorEmail ?? null) : (owner.email ?? null),
   submittedByAuthProvider: owner.provider,
   submittedByUserId: params.ownerUserId,
   createdByUserId: params.ownerUserId,
@@ -662,7 +669,13 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
       atUtc: capturedAt,
       payload: {
         identityLevelSnapshot,
-        submittedByEmail: owner.email ?? null,
+        // F-03 (closure) — for an intake record the account that issued the
+        // link is named by its ROLE (linkIssuerEmail), never as the submitter
+        // or uploader. The contributor's own address is never written into
+        // this hash-chained, unerasable record (it lives on the record's
+        // column only); submittedByEmail is therefore null here.
+        submittedByEmail: params.acquisitionActor?.kind === "INTAKE_CONTRIBUTOR" ? null : (owner.email ?? null),
+        ...(params.acquisitionActor?.kind === "INTAKE_CONTRIBUTOR" ? { linkIssuerEmail: owner.email ?? null } : {}),
         submittedByAuthProvider: owner.provider,
         // THE acquisition identity snapshot (resolveAcquisitionIdentitySnapshot)
         // reads these two as observed at creation; older events lack them and
@@ -682,9 +695,10 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
           params.acquisitionActor?.kind === "INTAKE_CONTRIBUTOR"
             ? params.acquisitionActor.contributorEmailProvided
             : null,
-        submittedByUserId: params.ownerUserId,
+        // The contributor has no user account: no submitter / uploader user.
+        submittedByUserId: params.acquisitionActor?.kind === "INTAKE_CONTRIBUTOR" ? null : params.ownerUserId,
         createdByUserId: params.ownerUserId,
-        uploadedByUserId: params.ownerUserId,
+        uploadedByUserId: params.acquisitionActor?.kind === "INTAKE_CONTRIBUTOR" ? null : params.ownerUserId,
         workspaceNameSnapshot,
         organizationNameSnapshot,
         organizationVerifiedSnapshot,

@@ -26,9 +26,13 @@ export function isProductionShapedEnv(): boolean {
   }
   const renderFlag = (process.env.RENDER ?? "").trim().toLowerCase();
   if (renderFlag === "true" || renderFlag === "1") return true;
-  // F-41 (independent forward audit) — an AMBIGUOUS classification (conflicting
-  // or unrecognised declarations) is production-shaped: it fails closed.
-  return resolveDeploymentEnvironment().ambiguous;
+  // F-41 (independent forward audit) — an environment with no usable
+  // classification is production-shaped: it fails closed. That covers both the
+  // UNDECLARED container (closure re-audit: not assumed to be a laptop) and the
+  // AMBIGUOUS one (conflicting or unrecognised declarations carry no kind; the
+  // only ambiguous case that does — a development/test claim on a
+  // NODE_ENV=production build — is already production-shaped above).
+  return resolveDeploymentEnvironment().kind === null;
 }
 
 /**

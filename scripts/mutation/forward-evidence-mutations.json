@@ -5625,10 +5625,10 @@
     "id": "AFC-F41-C",
     "phase": "AFC",
     "aud": "F-41",
-    "name": "worker Object Lock bootstrap: an ambiguous classification is not production-shaped",
+    "name": "worker Object Lock bootstrap: an ambiguous or undeclared classification is not production-shaped",
     "file": "services/worker/src/object-lock-bootstrap.ts",
-    "find": "  return resolveDeploymentEnvironment().ambiguous;\n}",
-    "replace": "  return false;\n}",
+    "find": "  return resolveDeploymentEnvironment().kind === null;",
+    "replace": "  return false;",
     "tests": [
       {
         "cwd": "services/api",
@@ -5639,16 +5639,17 @@
           "test/afc-wave-e-environment-and-fixture.test.ts"
         ]
       }
-    ]
+    ],
+    "note": "Re-anchored 2026-10-21 (closure re-audit): one condition covers ambiguous and undeclared."
   },
   {
     "id": "AFC-F41-D",
     "phase": "AFC",
     "aud": "F-41",
-    "name": "API Object Lock bootstrap: an ambiguous classification is not production-shaped",
+    "name": "API Object Lock bootstrap: an ambiguous or undeclared classification is not production-shaped",
     "file": "services/api/src/bootstrap/object-lock-verification.ts",
-    "find": "  return resolveDeploymentEnvironment().ambiguous;\n}",
-    "replace": "  return false;\n}",
+    "find": "  return resolveDeploymentEnvironment().kind === null;",
+    "replace": "  return false;",
     "tests": [
       {
         "cwd": "services/api",
@@ -5659,7 +5660,8 @@
           "test/afc-wave-e-environment-and-fixture.test.ts"
         ]
       }
-    ]
+    ],
+    "note": "Re-anchored 2026-10-21 (closure re-audit): one condition covers ambiguous and undeclared."
   },
   {
     "id": "AFC-F39-A",
@@ -6347,6 +6349,146 @@
           "vitest",
           "run",
           "test/afc-closure-source-gates.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F10-D",
+    "phase": "AFC",
+    "aud": "F-10",
+    "name": "owed-version sweep: a hold still in force takes the slot (blocker not asked)",
+    "file": "services/worker/src/ots-initialization-reconciler.ts",
+    "find": "          (!r.team_id ||\n            (await blockerStillActive(prisma, { evidenceId: r.evidence_id, teamId: r.team_id, terminalReasonCode: r.terminal_reason_code })))",
+    "replace": "          false",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-10"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F03-A",
+    "phase": "AFC",
+    "aud": "F-03",
+    "name": "intake identity snapshot names the link issuer's email as the submitter",
+    "file": "services/api/src/services/evidence.service.ts",
+    "find": "        submittedByEmail: params.acquisitionActor?.kind === \"INTAKE_CONTRIBUTOR\" ? null : (owner.email ?? null),",
+    "replace": "        submittedByEmail: owner.email ?? null,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/acquisition-identity-channels.integration.test.ts",
+          "-t",
+          "secure intake"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F03-B",
+    "phase": "AFC",
+    "aud": "F-03",
+    "name": "intake record column holds the issuer's email (contributor's written later)",
+    "file": "services/api/src/services/evidence.service.ts",
+    "find": "    params.acquisitionActor?.kind === \"INTAKE_CONTRIBUTOR\" ? (params.acquisitionActor.contributorEmail ?? null) : (owner.email ?? null),",
+    "replace": "    owner.email ?? null,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/acquisition-identity-channels.integration.test.ts",
+          "-t",
+          "secure intake"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F03-C",
+    "phase": "AFC",
+    "aud": "F-03",
+    "name": "intake identity snapshot names the link issuer as uploader",
+    "file": "services/api/src/services/evidence.service.ts",
+    "find": "        uploadedByUserId: params.acquisitionActor?.kind === \"INTAKE_CONTRIBUTOR\" ? null : params.ownerUserId,",
+    "replace": "        uploadedByUserId: params.ownerUserId,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/acquisition-identity-channels.integration.test.ts",
+          "-t",
+          "secure intake"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-CFG-A",
+    "phase": "AFC",
+    "aud": "F-41",
+    "name": "hash-secret fallback used outside NODE_ENV=production",
+    "file": "services/api/src/config/index.ts",
+    "find": "  if (SECRETS_REQUIRED()) {\n    throw new ProductionConfigError(\n      `Required secret",
+    "replace": "  if (PROD()) {\n    throw new ProductionConfigError(\n      `Required secret",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-CFG-B",
+    "phase": "AFC",
+    "aud": "F-41",
+    "name": "identity hash secret not required outside NODE_ENV=production",
+    "file": "services/api/src/config/index.ts",
+    "find": "    SECRETS_REQUIRED() &&\n    (process.env.IDENTITY_SECURITY_HASH_SECRET",
+    "replace": "    PROD() &&\n    (process.env.IDENTITY_SECURITY_HASH_SECRET",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-wave-e-environment-and-fixture.test.ts"
         ]
       }
     ]

@@ -1576,7 +1576,11 @@ const captureMethod =
           mimeType: primaryMimeType,
           fileSha256,
           captureMethod,
-          uploadedByUserId: params.ownerUserId,
+          // F-03 (closure) — an intake record was uploaded by its contributor,
+          // who has no user account; the link issuer is never named as uploader.
+          ...(params.intakeSubmission
+            ? { uploadedByUserId: null, uploadedBy: "INTAKE_CONTRIBUTOR" }
+            : { uploadedByUserId: params.ownerUserId }),
         } as prismaPkg.Prisma.InputJsonValue,
       });
 

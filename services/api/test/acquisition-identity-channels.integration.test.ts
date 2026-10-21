@@ -156,7 +156,7 @@ describe("acquisition identity snapshot — every channel, real creation path (l
     authProvider: string;
     workspaceName: string | null;
     organizationVerified: boolean;
-    submittedByUserId: string;
+    submittedByUserId: string | null;
     submittedByEmail: string | null;
   };
 
@@ -424,9 +424,12 @@ describe("acquisition identity snapshot — every channel, real creation path (l
         authProvider: "EMAIL",
         workspaceName: await teamNameOf(A.teamId),
         organizationVerified: false,
-        // The account fields describe the link's ISSUER, never the contributor.
-        submittedByUserId: A.ownerUserId,
-        submittedByEmail: await emailOf(A.ownerUserId),
+        // F-03 (independent forward audit, closure) — the link's ISSUER is never
+        // recorded as the submitter or uploader of an intake record (this test
+        // asserted the issuer's email as the submitter — the defect). The
+        // contributor has no user account and their address stays off custody.
+        submittedByUserId: null,
+        submittedByEmail: null,
       });
       const { payload, row } = await readBack(id);
       if (contributorEmail) {
@@ -438,8 +441,12 @@ describe("acquisition identity snapshot — every channel, real creation path (l
         // address (documented in external-intake-orchestration.service.ts),
         // yet neither the creation event nor the resolver carries it.
         expect(row.submittedByEmail).toBe(contributorEmail);
-        expect(before.submittedByEmail).toBe(await emailOf(A.ownerUserId));
+        expect(before.submittedByEmail).toBeNull();
       }
+      // The issuer is named by its role only, and never as the uploader.
+      expect((payload as Record<string, unknown>).linkIssuerEmail).toBe(await emailOf(A.ownerUserId));
+      expect((payload as Record<string, unknown>).uploadedByUserId).toBeNull();
+      expect((payload as Record<string, unknown>).createdByUserId).toBe(A.ownerUserId);
       await assertNeverStrengthened(id, { ownerUserId: A.ownerUserId, teamId: A.teamId }, before);
     });
   }

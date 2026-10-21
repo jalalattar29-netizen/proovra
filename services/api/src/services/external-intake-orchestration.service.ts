@@ -380,6 +380,7 @@ export async function createOrLoadExternalEvidence(
     acquisitionActor: {
       kind: "INTAKE_CONTRIBUTOR",
       contributorEmailProvided: Boolean(pair.session.submitterEmail),
+      contributorEmail: pair.session.submitterEmail ?? null,
     },
     templateIdentity: trio?.templateSlug
       ? { templateSlug: trio.templateSlug, templateVersion: trio.templateVersion, templateDbId: trio.templateDbId }
@@ -428,12 +429,12 @@ export async function createOrLoadExternalEvidence(
   // Completion always overwrote it with a structure value, so it never carried
   // intake origin past submission; the acquisition authority
   // (`acquisitionMode`, written by createEvidence above) now does.
-  const externalSubmitterEmail = pair.session.submitterEmail ?? null;
+  // F-03 (independent forward audit, closure) — the contributor's declared
+  // email is recorded by createEvidence, in the creation transaction and in
+  // its identity snapshot; it is no longer overwritten here.
   const updatedEvidence = await client.evidence.update({
     where: { id: evidence.id },
     data: {
-      submittedByEmail: externalSubmitterEmail,
-      // submittedByUserId stays null — the contributor has no User row.
       //
       // SNAPSHOT, taken once, here. The link is authoritative; this copy
       // records which customer the organization associated the submission

@@ -66,6 +66,8 @@
 import type { Prisma } from "@prisma/client";
 import { bump, setGauge } from "@proovra/shared-runtime/ops";
 import { getOtsOperationsWarningMs } from "@proovra/shared-runtime";
+import { blockerStillActive } from "@proovra/shared-runtime/reports";
+import { randomUUID } from "node:crypto";
 
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
@@ -97,6 +99,8 @@ export interface RunOtsInitializationReconcilerOptions {
   maxAgeMs?: number;
   /** Max records enqueued per tick. Default 200, hard cap 1000. */
   batchSize?: number;
+  /** F-10 closure — the owed-version sweep's per-tick ordering salt (tests pin it; random otherwise). */
+  owedSweepSalt?: string;
 }
 
 export interface OtsInitializationReconcilerResult {
@@ -340,20 +344,26 @@ export async function runOtsInitializationReconciler(
   // (Closure, 2026-10-21) Only each record's LATEST owed request counts — an
   // earlier failure already superseded (or answered) is not re-read every tick
   // — the backoff runs from that latest attempt, the exhausted retry key is
-  // excluded, and a policy block whose blocker can clear is re-asked too. The
-  // scan pages through the candidates (bounded) and filters to the retryable
-  // ones, so rows that are not retryable can never starve the ones that are.
+  // excluded, and a policy block whose blocker has CLEARED is re-asked too
+  // (blockerStillActive, the request writer's own question).
+  //
+  // (Re-audit, 2026-10-21) NO FIXED HEAD OF THE LINE. Ordered by age, rows that
+  // can never progress (a hold still in force, an integrity terminal, a spent
+  // supersession budget) were always first and filled every tick. The
+  // candidates are visited in a fresh pseudo-random order each tick (a
+  // per-tick salt), paged, and filtered: every retryable row is reached in
+  // expectation however many stuck rows exist, and none can hold the head.
   try {
     const cutoff = new Date(now - OTS_OWED_RETRY_BACKOFF_MS);
     const exhaustedKeyPrefix = `ots-cv-r${OTS_OWED_VERSION_MAX_RETRIES}:%`;
+    const salt = options.owedSweepSalt ?? randomUUID();
     const retryable: string[] = [];
-    let after: { completedAtUtc: Date; id: string } | null = null;
     for (let page = 0; page < OTS_OWED_SWEEP_MAX_PAGES && retryable.length < batchSize; page += 1) {
-      const rows: Array<{ id: string; evidence_id: string; state: string; terminal_reason_code: string | null; completed_at_utc: Date }> =
+      const rows: Array<{ id: string; evidence_id: string; team_id: string | null; state: string; terminal_reason_code: string | null }> =
         await prisma.$queryRaw`
-          SELECT latest.id, latest.evidence_id, latest.state, latest.terminal_reason_code, latest.completed_at_utc
+          SELECT latest.id, latest.evidence_id, latest.team_id, latest.state, latest.terminal_reason_code
           FROM (
-            SELECT DISTINCT ON (evidence_id) id, evidence_id, state, terminal_reason_code, completed_at_utc, client_request_key
+            SELECT DISTINCT ON (evidence_id) id, evidence_id, team_id, state, terminal_reason_code, completed_at_utc, client_request_key
             FROM report_generation_requests
             WHERE purpose = 'ots_upgrade_completed' AND requested_by_machine_id = ${OTS_ANCHORED_MACHINE_ID}
             ORDER BY evidence_id, created_at_utc DESC, id DESC
@@ -361,17 +371,24 @@ export async function runOtsInitializationReconciler(
           WHERE latest.state IN ('FAILED_TERMINAL', 'BLOCKED_POLICY', 'BLOCKED_STALE')
             AND latest.completed_at_utc <= ${cutoff}
             AND (latest.client_request_key IS NULL OR latest.client_request_key NOT LIKE ${exhaustedKeyPrefix})
-            AND (${after?.completedAtUtc ?? null}::timestamptz IS NULL
-                 OR (latest.completed_at_utc, latest.id) > (${after?.completedAtUtc ?? null}::timestamptz, ${after?.id ?? null}::uuid))
-          ORDER BY latest.completed_at_utc ASC, latest.id ASC
+          ORDER BY md5(latest.evidence_id::text || ${salt}), latest.id
+          OFFSET ${page * batchSize}
           LIMIT ${batchSize}`;
       if (rows.length === 0) break;
       for (const r of rows) {
-        if (owedVersionRetryable({ state: r.state, terminalReasonCode: r.terminal_reason_code })) retryable.push(r.evidence_id);
+        if (!owedVersionRetryable({ state: r.state, terminalReasonCode: r.terminal_reason_code })) continue;
+        // A block whose blocker is still in force would only collapse onto
+        // itself: it takes no slot from a request that can progress.
+        if (
+          r.state !== "FAILED_TERMINAL" &&
+          (!r.team_id ||
+            (await blockerStillActive(prisma, { evidenceId: r.evidence_id, teamId: r.team_id, terminalReasonCode: r.terminal_reason_code })))
+        ) {
+          continue;
+        }
+        retryable.push(r.evidence_id);
         if (retryable.length >= batchSize) break;
       }
-      const last = rows[rows.length - 1]!;
-      after = { completedAtUtc: last.completed_at_utc, id: last.id };
     }
     for (const evidenceId of retryable) {
       try {
