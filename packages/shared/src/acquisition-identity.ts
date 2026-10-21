@@ -149,8 +149,13 @@ export function resolveAcquisitionIdentitySnapshot(params: {
       workspaceName: str(p.workspaceNameSnapshot),
       organizationName: str(p.organizationNameSnapshot),
       organizationVerified: bool(p.organizationVerifiedSnapshot),
-      submittedByEmail: str(p.submittedByEmail),
-      submittedByUserId: str(p.submittedByUserId),
+      // F-03 (closure re-audit, wave I) — an intake record never yields a
+      // SUBMITTER email: snapshots written before the fix recorded the link
+      // ISSUER's email here (role INTAKE_LINK_ISSUER); it is read only as
+      // linkIssuerEmail below, so no submitter-named sink (custody, report row,
+      // API snapshot) can carry it for an existing record either.
+      submittedByEmail: actorKind === "INTAKE_CONTRIBUTOR" ? null : str(p.submittedByEmail),
+      submittedByUserId: actorKind === "INTAKE_CONTRIBUTOR" ? null : str(p.submittedByUserId),
       linkIssuerEmail:
         actorKind === "INTAKE_CONTRIBUTOR"
           ? (str(p.linkIssuerEmail) ??

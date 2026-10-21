@@ -66,6 +66,9 @@ describe("R-1 / R-2 (closure re-audits) — the link issuer is carried by role, 
   it("an intake record whose acquisition context cannot be read fails the run, never renders as non-intake", () => {
     const bridge = read("../worker/src/report-technical-summary-bridge.ts");
     expect(bridge).toMatch(/if \(input\.acquisitionMode === "SECURE_INTAKE_LINK"\) \{\s*throw Object\.assign\(new Error\("REPORT_INTAKE_ACQUISITION_UNREADABLE"\)/);
+    // Read error, no row, and no context: all three fail closed for a known intake record.
+    expect(bridge.split('throw Object.assign(new Error("REPORT_INTAKE_ACQUISITION_UNREADABLE")').length - 1).toBe(3);
+    expect(bridge.split('if (input.acquisitionMode === "SECURE_INTAKE_LINK") {').length - 1).toBe(3);
     const src = read("../worker/src/processor.ts");
     expect((src.match(/await buildReportAcquisitionContext\(\{[^}]*acquisitionMode:/g) ?? []).length).toBe(4);
   });

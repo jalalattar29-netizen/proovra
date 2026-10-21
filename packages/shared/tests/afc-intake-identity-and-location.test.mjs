@@ -130,8 +130,13 @@ test("R-1 (closure re-audit): the link issuer's email is carried by its role, fr
   const now = intake({ submittedByEmail: null, linkIssuerEmail: "issuer@example.test", contributorEmailProvided: true });
   assert.equal(now.linkIssuerEmail, "issuer@example.test");
   assert.equal(now.submittedByEmail, null);
-  // Older snapshots recorded the issuer under submittedByEmail with the issuer role.
-  assert.equal(intake({ submittedByEmail: "issuer@example.test" }).linkIssuerEmail, "issuer@example.test");
+  // Older snapshots recorded the issuer under submittedByEmail with the issuer role:
+  // read as the issuer, by role — and NEVER as a submitter (closure re-audit:
+  // existing intake records would otherwise carry it into new custody events).
+  const older = intake({ submittedByEmail: "issuer@example.test", submittedByUserId: "issuer-user" });
+  assert.equal(older.linkIssuerEmail, "issuer@example.test");
+  assert.equal(older.submittedByEmail, null);
+  assert.equal(older.submittedByUserId, null);
   // Never for an ordinary account record.
   assert.equal(
     snapshotOf({ actorKind: "ACCOUNT_USER", accountRole: "SUBMITTER", submittedByEmail: "owner@example.test" }).linkIssuerEmail,

@@ -293,7 +293,16 @@ export async function buildReportAcquisitionContext(input: {
     )) as Array<Record<string, unknown>>;
 
     const r = rows[0];
-    if (!r) return null;
+    if (!r) {
+      // (Closure re-audit) No row for a known intake record: fail closed.
+      if (input.acquisitionMode === "SECURE_INTAKE_LINK") {
+        throw Object.assign(new Error("REPORT_INTAKE_ACQUISITION_UNREADABLE"), {
+          code: "REPORT_INTAKE_ACQUISITION_UNREADABLE",
+          retriable: true,
+        });
+      }
+      return null;
+    }
     const iso = (v: unknown): string | null => {
       if (v == null) return null;
       try {
@@ -325,7 +334,17 @@ export async function buildReportAcquisitionContext(input: {
     // Return the context for ALL recognizable flows (web/mobile/API/intake)
     // so the Capture Context timestamp label can read the source. The
     // Evidence Acquisition table itself renders only when ctx.isIntake.
-    if (!ctx) return null;
+    if (!ctx) {
+      // (Closure re-audit) A known intake record with no readable context is
+      // the same fail-closed case as a read error below.
+      if (input.acquisitionMode === "SECURE_INTAKE_LINK") {
+        throw Object.assign(new Error("REPORT_INTAKE_ACQUISITION_UNREADABLE"), {
+          code: "REPORT_INTAKE_ACQUISITION_UNREADABLE",
+          retriable: true,
+        });
+      }
+      return null;
+    }
     return toPublicAcquisition(ctx);
   } catch (err) {
     logger.warn(

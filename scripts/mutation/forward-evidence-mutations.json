@@ -6629,5 +6629,27 @@
         ]
       }
     ]
+  },
+  {
+    "id": "AFC-R2-D",
+    "phase": "AFC",
+    "aud": "F-03",
+    "name": "an older intake snapshot yields the link issuer as the submitter",
+    "file": "packages/shared/src/acquisition-identity.ts",
+    "find": "      submittedByEmail: actorKind === \"INTAKE_CONTRIBUTOR\" ? null : str(p.submittedByEmail),",
+    "replace": "      submittedByEmail: str(p.submittedByEmail),",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/afc-intake-identity-and-location.test.mjs"
+        ]
+      }
+    ]
   }
 ]
