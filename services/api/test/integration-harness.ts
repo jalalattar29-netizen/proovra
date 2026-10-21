@@ -46,6 +46,7 @@
 
 import { spawnSync } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { FastifyInstance } from "fastify";
 
@@ -232,10 +233,10 @@ export async function acquireIntegrationDatabase(): Promise<IntegrationDatabase>
   // Apply migrations against the ephemeral DB. `prisma migrate deploy` is the
   // canonical, non-destructive path; it is safe because the container is new.
   const migrateResult = spawnSync("pnpm", ["exec", "prisma", "migrate", "deploy"], {
-    cwd: path.resolve(
-      path.dirname(new URL(import.meta.url).pathname.replace(/^\//, "")),
-      "..",
-    ),
+    // fileURLToPath, never `pathname.replace(/^\//, "")`: that stripped the
+    // root of a POSIX path ("/home/…" became the relative "home/…"), so on
+    // Linux the spawn failed before Prisma ran (stdout/stderr null).
+    cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
     env: { ...process.env, DATABASE_URL: url },
     stdio: "pipe",
     encoding: "utf8",
