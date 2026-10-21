@@ -338,6 +338,13 @@ export async function presignGetObject(params: {
    * bytes — not whatever a later write left "latest at key".
    */
   versionId?: string | null;
+  /**
+   * F-36 (independent forward audit) — response header overrides the URL is
+   * signed with (presignedOriginalResponseHeaders): active content is served
+   * as a download, never rendered on the storage origin.
+   */
+  responseContentDisposition?: string | null;
+  responseContentType?: string | null;
 }) {
   const bucket = clean(params.bucket);
   const key = clean(params.key);
@@ -351,6 +358,8 @@ export async function presignGetObject(params: {
     Bucket: bucket,
     Key: key,
     ...(versionId ? { VersionId: versionId } : {}),
+    ...(params.responseContentDisposition ? { ResponseContentDisposition: params.responseContentDisposition } : {}),
+    ...(params.responseContentType ? { ResponseContentType: params.responseContentType } : {}),
   });
 
   return getSignedUrl(s3, cmd, {

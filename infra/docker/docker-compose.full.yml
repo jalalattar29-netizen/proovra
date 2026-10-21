@@ -154,6 +154,13 @@ services:
       IDENTITY_SECURITY_HASH_SECRET: ${IDENTITY_SECURITY_HASH_SECRET}
       PDF_SIGNING_ENABLED: ${PDF_SIGNING_ENABLED:-}
       PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK: ${PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK:-}
+      # F-08 (independent forward audit) — a deployed API must DECLARE its proxy
+      # topology (off | hop + API_TRUSTED_PROXY_HOPS | cidr +
+      # API_TRUSTED_PROXY_CIDRS); undeclared, it refuses to start. Passed
+      # through, never defaulted.
+      API_TRUST_PROXY_MODE: ${API_TRUST_PROXY_MODE:-}
+      API_TRUSTED_PROXY_HOPS: ${API_TRUSTED_PROXY_HOPS:-}
+      API_TRUSTED_PROXY_CIDRS: ${API_TRUSTED_PROXY_CIDRS:-}
       # Phase Y — Observability config (api side).
       METRICS_SCRAPE_TOKEN: ${METRICS_SCRAPE_TOKEN:-}
       SENTRY_DSN: ${SENTRY_DSN:-}

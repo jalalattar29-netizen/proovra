@@ -43,8 +43,24 @@ import { admitPublicVerifyClient, admitPublicVerifyMiss } from "../services/publ
 import {
   findPublishedPackageById,
   findPublishedPackageBySha256,
+  packageRecordAccessStatus,
   projectPublicPackageRecord,
 } from "../services/public-verify/public-package-record.service.js";
+import { CANONICAL_STATE_BODIES, CANONICAL_STATE_HTTP } from "./_canonical-verification-state.js";
+
+/**
+ * F-19 (independent forward audit) — ONE access decision for every public
+ * surface of a record: a package record of a withdrawn, suspended, retained or
+ * purged record answers that state (the canonical page's body and status),
+ * never the package's issuance facts.
+ */
+async function answerPackageRecord(reply: FastifyReply, row: NonNullable<Awaited<ReturnType<typeof findPublishedPackageById>>>) {
+  const status = await packageRecordAccessStatus(row);
+  if (status !== "AVAILABLE") {
+    return reply.code(CANONICAL_STATE_HTTP[status]).send({ ...CANONICAL_STATE_BODIES[status] });
+  }
+  return reply.code(200).send(await projectPublicPackageRecord(row));
+}
 
 const NOT_FOUND = { code: "PACKAGE_NOT_FOUND", message: "No PROOVRA package record matches." } as const;
 
@@ -70,7 +86,7 @@ export async function publicPackageVerificationRoutes(app: FastifyInstance) {
       if (!(await admitPublicVerifyMiss(req, reply, { kind: "package", id: sha }))) return reply;
       return reply.code(404).send(NOT_FOUND);
     }
-    return reply.code(200).send(await projectPublicPackageRecord(row));
+    return answerPackageRecord(reply, row);
   });
 
   app.get("/public/verification-packages/:packageId", async (req, reply) => {
@@ -82,6 +98,6 @@ export async function publicPackageVerificationRoutes(app: FastifyInstance) {
       if (!(await admitPublicVerifyMiss(req, reply, { kind: "package", id: parsed.data }))) return reply;
       return reply.code(404).send(NOT_FOUND);
     }
-    return reply.code(200).send(await projectPublicPackageRecord(row));
+    return answerPackageRecord(reply, row);
   });
 }

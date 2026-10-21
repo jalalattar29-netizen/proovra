@@ -11,6 +11,7 @@
  */
 import {
   PUBLIC_PACKAGE_RECORD_STATEMENT,
+  resolveSealKeyBinding,
   type PublicPackageKeyBinding,
   type PublicPackageProfile,
   type PublicPackageRecord,
@@ -22,6 +23,7 @@ import {
 } from "@proovra/shared-runtime/reports";
 
 import { prisma } from "../../db.js";
+import { resolveCanonicalVerificationStatus, type CanonicalVerificationStatus } from "@proovra/shared-runtime";
 import { describePublicSigningKey } from "../../signing/key-registry.js";
 
 const SELECT = {
@@ -72,6 +74,22 @@ export async function findPublishedPackageBySha256(sha256: string): Promise<Row 
   });
 }
 
+/**
+ * F-19 (independent forward audit) — the RECORD's canonical verification
+ * status, THE decision the canonical verification page applies: a package
+ * record answers only for a record whose page is AVAILABLE. Withdrawn
+ * (legal / privacy / security), suspended or retained records' packages
+ * answered 200 with their issuance facts.
+ */
+export async function packageRecordAccessStatus(row: Pick<Row, "evidenceId">): Promise<CanonicalVerificationStatus> {
+  const record = await prisma.evidence.findUnique({
+    where: { id: row.evidenceId },
+    select: { lifecycleState: true, destroyedAtUtc: true, verificationAccessState: true },
+  });
+  if (!record) return "PURGED";
+  return resolveCanonicalVerificationStatus(record as never);
+}
+
 export async function projectPublicPackageRecord(row: Row): Promise<PublicPackageRecord> {
   const profile: PublicPackageProfile = packageProfileLabel(row.disclosureProfile);
   const sameProfile = (where: Record<string, unknown>) =>
@@ -111,28 +129,23 @@ export async function projectPublicPackageRecord(row: Row): Promise<PublicPackag
       : Promise.resolve(null),
   ]);
 
-  // A recorded seal fingerprint that disagrees with the registered key is not
-  // a binding.
-  const boundKey =
-    sealKey && row.sealSigningKeySha256 && sealKey.fingerprintSha256 === row.sealSigningKeySha256.toLowerCase()
-      ? sealKey
-      : null;
-  const sealed = (row.packageFormatVersion ?? 0) >= 5;
+  // F-30 (independent forward audit) — THE binding decision the Public
+  // Verify seal check also reads (a recorded fingerprint that disagrees with
+  // the registered key is KEY_MISMATCH on both, never "not published").
+  const binding = resolveSealKeyBinding({
+    sealed: (row.packageFormatVersion ?? 0) >= 5,
+    recordedFingerprintSha256: row.sealSigningKeySha256 ?? null,
+    registered: sealKey ? { fingerprintSha256: sealKey.fingerprintSha256, revokedAt: sealKey.status === "REVOKED" ? sealKey.revokedAtUtc ?? "revoked" : null } : null,
+  });
+  const boundKey = binding === "BOUND" || binding === "KEY_REVOKED" ? sealKey : null;
   // 2026-10-20 (AUD-34): "revoked after this package was issued" only when the
   // revocation is in fact later than the issue.
   const revokedAfterIssue =
     boundKey?.revokedAtUtc && row.generatedAtUtc
       ? new Date(boundKey.revokedAtUtc).getTime() > row.generatedAtUtc.getTime()
       : false;
-  const keyBinding: PublicPackageKeyBinding = !sealed
-    ? "NOT_SEALED"
-    : !boundKey
-      ? "KEY_NOT_PUBLISHED"
-      : boundKey.status === "REVOKED"
-        ? revokedAfterIssue
-          ? "BOUND_KEY_REVOKED"
-          : "KEY_REVOKED_BEFORE_ISSUE"
-        : "BOUND";
+  const keyBinding: PublicPackageKeyBinding =
+    binding === "KEY_REVOKED" ? (revokedAfterIssue ? "BOUND_KEY_REVOKED" : "KEY_REVOKED_BEFORE_ISSUE") : binding;
 
   return {
     schema: "PROOVRA_PUBLIC_PACKAGE_RECORD",

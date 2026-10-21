@@ -81,6 +81,13 @@ describe("AUD-48 Public Verify details (live PostgreSQL 16, real HTTP)", () => {
       liveAnchoring?: Record<string, unknown>;
     };
     expect(body.versioning?.history?.filter((h) => h.kind === "report").map((h) => h.version)).toEqual([1, 2]);
+    // F-33 (independent forward audit) — the server says which is current and
+    // what superseded the other; clients render it.
+    const reports = (body.versioning?.history ?? []).filter((h) => h.kind === "report") as Array<{ version: number; current?: boolean; supersededByVersion?: number | null }>;
+    expect(reports.map((h) => [h.version, h.current, h.supersededByVersion])).toEqual([
+      [1, false, 2],
+      [2, true, null],
+    ]);
     expect(body.outputContext?.liveDeltaMaterials).toContain("timestampValidation");
     expect(body.liveAnchoring ?? {}).not.toHaveProperty("autoRefreshRecommended");
     expect(res.body).not.toContain("Kontingent");

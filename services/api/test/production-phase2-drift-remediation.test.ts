@@ -1210,7 +1210,12 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // access surface (status, withdraw, reinstate) are owner surfaces with their
 // own permissions (evidence.archive.*, evidence.verification.withdraw); a file
 // of their own keeps them out of the 15k-line evidence plugin.
-const ROUTE_COUNT_PHASE_2_BASELINE = 135;
+// 2026-10-21 (independent forward audit F-19): 135 -> 136 — _canonical-verification-state.ts
+// is not a route: it holds the canonical verification page's state bodies, now
+// shared by the canonical page AND the public package record (one access
+// decision for every public surface of a record), in the routes directory so
+// the web error-code coverage gate still reads the codes they emit.
+const ROUTE_COUNT_PHASE_2_BASELINE = 136;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

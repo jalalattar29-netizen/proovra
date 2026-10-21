@@ -11,6 +11,7 @@ import {
   buildTimestampValidationRecord,
   parseTsaValidationEvidence,
   projectJsonForDisclosure,
+  EXTERNAL_LOCATION_FILES,
   projectTextForDisclosure,
   serializePackageSeal,
   verifySealedPackageEntries,
@@ -25,7 +26,7 @@ test("FULL_FORENSIC is the identity projection", () => {
   assert.equal(r.records.length, 0);
 });
 
-test("EXTERNAL_DISCLOSURE removes identifiers and infrastructure, coarsens coordinates, keeps commitments", () => {
+test("EXTERNAL_DISCLOSURE removes identifiers and infrastructure, coarsens a DISCLOSED location, keeps commitments", () => {
   const doc = {
     evidenceId: "e1",
     submitter: { submittedByEmail: "a@b.test", ownerUserId: "u1", teamId: "t1" },
@@ -38,7 +39,8 @@ test("EXTERNAL_DISCLOSURE removes identifiers and infrastructure, coarsens coord
     signals: [{ key: "core_integrity", state: "PASSED" }],
     fileSha256: "a".repeat(64),
   };
-  const { value, records } = projectJsonForDisclosure("EXTERNAL_DISCLOSURE", "x.json", doc);
+  // The owner disclosed the recorded location (CONTENT_PREVIEW + showRecordedLocation).
+  const { value, records } = projectJsonForDisclosure("EXTERNAL_DISCLOSURE", "x.json", doc, { recordedLocationDisclosed: true });
   const text = JSON.stringify(value);
   for (const leak of ["a@b.test", "u1", "t1", "prod-bucket", "evidence/e1/parts/0", "v9", "arn:aws", "123456789012", "10.0.0.1", "UA", "52.123456"]) {
     assert.ok(!text.includes(leak), leak);
@@ -250,4 +252,43 @@ test("TSA record: every failure names its check and leaves the others unevaluate
   const noEvidence = make({ tsaStatus: "STAMPED", tsaValidatedAtUtc: "2026-10-07T00:00:02Z" });
   assert.equal(noEvidence.checks.nonce, "NOT_RECORDED");
   assert.equal(noEvidence.trustAnchor.sha256, null);
+});
+
+// F-14 (independent forward audit) — the external package follows the record's
+// location disclosure and never names an attestor.
+test("F-14: EXTERNAL_DISCLOSURE withholds an UNDISCLOSED location entirely (not coarsened), by default", () => {
+  const doc = {
+    gps: { lat: 52.123456, lng: -1.987654, accuracyMeters: 5 },
+    captureLocation: { latitude: 52.1, longitude: -1.9, locationSource: "CLIENT_APP_DEVICE_LOCATION" },
+    locationState: { state: "RECORDED", label: "Location recorded" },
+    accuracyMeters: 7,
+    fileSha256: "a".repeat(64),
+  };
+  for (const opts of [undefined, {}, { recordedLocationDisclosed: false }]) {
+    const { value, records } = projectJsonForDisclosure("EXTERNAL_DISCLOSURE", "case-metadata.json", doc, opts);
+    assert.equal(value.gps, "[withheld]");
+    assert.equal(value.captureLocation, "[withheld]");
+    assert.equal(value.locationState, "[withheld]");
+    assert.equal(value.accuracyMeters, "[withheld]");
+    assert.equal(value.fileSha256, doc.fileSha256);
+    const text = JSON.stringify(value);
+    for (const leak of ["52.1", "-1.9", "RECORDED", "CLIENT_APP_DEVICE_LOCATION"]) assert.ok(!text.includes(leak), leak);
+    assert.ok(records.every((r) => r.action === "WITHHELD"));
+    assert.ok(records.some((r) => r.reason === "PRECISE_LOCATION"));
+  }
+  // The external location files are named for the builder to withhold.
+  assert.ok(EXTERNAL_LOCATION_FILES.has("capture-context.json"));
+  assert.ok(EXTERNAL_LOCATION_FILES.has("map-preview.png"));
+});
+
+test("F-14: EXTERNAL_DISCLOSURE withholds the attestor's identity, keeping the attestation itself", () => {
+  const cert = { certificationId: "c1", attestorName: "Dana Reviewer", attestorTitle: "Senior Analyst", attestorOrganization: "Acme LLP", signatureText: "/s/ Dana Reviewer", attestedAtUtc: "2028-10-21T10:00:00.000Z", statementSha256: "b".repeat(64) };
+  const { value, records } = projectJsonForDisclosure("EXTERNAL_DISCLOSURE", "certifications/c1-record.json", cert, { recordedLocationDisclosed: true });
+  for (const k of ["attestorName", "attestorTitle", "attestorOrganization", "signatureText"]) assert.equal(value[k], "[withheld]", k);
+  assert.equal(value.attestedAtUtc, cert.attestedAtUtc);
+  assert.equal(value.statementSha256, cert.statementSha256);
+  assert.ok(!JSON.stringify(value).includes("Dana"));
+  assert.ok(records.filter((r) => r.reason === "DIRECT_IDENTIFIER").length >= 4);
+  // FULL_FORENSIC is the custodians' package: unchanged.
+  assert.deepEqual(projectJsonForDisclosure("FULL_FORENSIC", "certifications/c1-record.json", cert).value, cert);
 });

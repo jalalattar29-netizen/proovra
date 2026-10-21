@@ -41,6 +41,7 @@ import { createHash, createPublicKey, verify as verifySignature } from "node:cry
 import { inflateRawSync } from "node:zlib";
 
 import {
+  resolveSealKeyBinding,
   verifySealedPackageEntries,
   type PackageSealFact,
   type SealEntryDigest,
@@ -85,8 +86,9 @@ export async function resolvePackageSealCheck(pkg: SealCheckPackageRow | null): 
   try {
     return await decide(pkg);
   } catch {
-    // The registry unreachable: not checked now, checked again next time.
-    return { fact: { kind: "LEGACY_UNBOUND" }, completenessVerified: null };
+    // F-30 — the registry unreachable: not checked NOW, checked again next
+    // time. Never a "legacy seal" (that is a statement about the package).
+    return { fact: { kind: "NOT_CHECKED_NOW" }, completenessVerified: null };
   }
 }
 
@@ -117,13 +119,31 @@ async function decide(pkg: SealCheckPackageRow): Promise<PackageSealCheck> {
       version: pkg.sealSigningKeyVersion,
       purpose: "PACKAGE_SEAL",
     });
-    if (!key) return { fact: { kind: "LEGACY_UNBOUND" }, completenessVerified: null };
-    if (key.fingerprintSha256.toLowerCase() !== recordedFp) return { fact: { kind: "FAILED" }, completenessVerified: null };
-    if (key.revokedAt) return revokedFact(pkg, key.revokedAt);
-    return {
-      fact: { kind: "PUBLISHED", sealKeyId: pkg.sealSigningKeyId, sealKeyVersion: pkg.sealSigningKeyVersion },
-      completenessVerified: true,
-    };
+    // F-30 — THE binding decision the public package record also reads.
+    const binding = resolveSealKeyBinding({
+      sealed: true,
+      recordedFingerprintSha256: recordedFp,
+      registered: key ? { fingerprintSha256: key.fingerprintSha256, revokedAt: key.revokedAt ?? null } : null,
+    });
+    if (binding === "KEY_NOT_PUBLISHED") return { fact: { kind: "KEY_NOT_PUBLISHED" }, completenessVerified: null };
+    if (binding === "KEY_MISMATCH") return { fact: { kind: "FAILED" }, completenessVerified: null };
+    if (binding === "KEY_REVOKED") return revokedFact(pkg, key!.revokedAt!);
+    // F-30 — VERIFIED from the stored package, not from the row: the bytes are
+    // read back and the seal checked against the registered key (remembered
+    // per seal identity, as for a legacy seal).
+    const bytes = await checkSealBytesOnce(pkg, recordedFp);
+    switch (bytes.kind) {
+      case "VERIFIED":
+        return {
+          fact: { kind: "PUBLISHED", sealKeyId: pkg.sealSigningKeyId, sealKeyVersion: pkg.sealSigningKeyVersion, completenessVerified: bytes.complete },
+          completenessVerified: bytes.complete,
+        };
+      case "FAILED":
+      case "UNBOUND":
+        return { fact: { kind: "FAILED" }, completenessVerified: null };
+      default:
+        return { fact: { kind: "NOT_CHECKED_NOW" }, completenessVerified: null };
+    }
   }
   return verifyLegacySeal(pkg, recordedFp);
 }
@@ -153,14 +173,7 @@ async function verifyLegacySeal(pkg: SealCheckPackageRow, recordedFp: string): P
   if (key.revokedAt) return revokedFact(pkg, key.revokedAt);
   if (!pkg.storageBucket || !pkg.storageKey) return { fact: { kind: "LEGACY_UNBOUND" }, completenessVerified: null };
 
-  const memoKey = [pkg.id, pkg.sealSha256, recordedFp, pkg.storageBucket, pkg.storageKey, pkg.s3VersionId ?? ""].join("|");
-  let pending = byteCheckMemo.get(memoKey);
-  if (!pending) {
-    pending = checkLegacySealBytes(pkg, recordedFp).catch((): ByteCheck => ({ kind: "TRANSIENT" }));
-    byteCheckMemo.set(memoKey, pending);
-  }
-  const bytes = await pending;
-  if (bytes.kind === "TRANSIENT") byteCheckMemo.delete(memoKey);
+  const bytes = await checkSealBytesOnce(pkg, recordedFp);
   switch (bytes.kind) {
     case "FAILED":
       return { fact: { kind: "FAILED" }, completenessVerified: null };
@@ -169,9 +182,29 @@ async function verifyLegacySeal(pkg: SealCheckPackageRow, recordedFp: string): P
         fact: { kind: "LEGACY_VERIFIED", sealKeyId: key.keyId, sealKeyVersion: key.version, completenessVerified: bytes.complete },
         completenessVerified: bytes.complete,
       };
+    case "TRANSIENT":
+      // F-30 — storage unreadable NOW: not checked, never "legacy".
+      return { fact: { kind: "NOT_CHECKED_NOW" }, completenessVerified: null };
     default:
       return { fact: { kind: "LEGACY_UNBOUND" }, completenessVerified: null };
   }
+}
+
+/**
+ * The stored package's seal bytes, verified once per seal identity (the bytes
+ * are immutable); a transient read failure is forgotten and retried.
+ */
+async function checkSealBytesOnce(pkg: SealCheckPackageRow, recordedFp: string): Promise<ByteCheck> {
+  if (!pkg.storageBucket || !pkg.storageKey) return { kind: "TRANSIENT" };
+  const memoKey = [pkg.id, pkg.sealSha256, recordedFp, pkg.storageBucket, pkg.storageKey, pkg.s3VersionId ?? ""].join("|");
+  let pending = byteCheckMemo.get(memoKey);
+  if (!pending) {
+    pending = checkLegacySealBytes(pkg, recordedFp).catch((): ByteCheck => ({ kind: "TRANSIENT" }));
+    byteCheckMemo.set(memoKey, pending);
+  }
+  const bytes = await pending;
+  if (bytes.kind === "TRANSIENT") byteCheckMemo.delete(memoKey);
+  return bytes;
 }
 
 /** The immutable part: the stored package's seal bytes, verified. Never reads the registry. */

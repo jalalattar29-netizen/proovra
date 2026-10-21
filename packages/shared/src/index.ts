@@ -2783,3 +2783,4 @@ export {
 export * from "./release-contract.js";
 // AUD-47 / AUD-51 (2026-10-20) — the shared evidence vocabulary and helpers.
 export * from "./evidence-vocabulary.js";
+export * from "./artifact-history.js";

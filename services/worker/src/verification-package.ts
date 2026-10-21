@@ -7,6 +7,7 @@ import {
   captureCompletenessNote,
   captureCompletenessRows,
   projectJsonForDisclosure,
+  EXTERNAL_LOCATION_FILES,
   projectTextForDisclosure,
   validatePackageConsistency,
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
@@ -3051,6 +3052,14 @@ export async function createVerificationPackage(data: {
   disclosureProfile?: DisclosureProfile;
   /** The previous report version's package, which this one supersedes. */
   supersedesPackage?: { packageId: string; reportVersion: number } | null;
+  /**
+   * F-14 (independent forward audit) — the record's location disclosure
+   * (CONTENT_PREVIEW + showRecordedLocation), read when the package is
+   * assembled. An EXTERNAL_DISCLOSURE package withholds the recorded location
+   * unless it is true. FULL_FORENSIC (authorized custodians: its signed
+   * fingerprint.json commits to the fix) is unaffected. Absent = withheld.
+   */
+  recordedLocationDisclosed?: boolean;
   /** EXTERNAL_DISCLOSURE: the FULL_FORENSIC package built in the same run. */
   sourceFullPackageId?: string | null;
   /** The Public Verify page that publishes this package's identity and seal key. */
@@ -3263,12 +3272,17 @@ export async function createVerificationPackage(data: {
           withheldFiles.push({ file: name, sha256: sha256Hex(buffer), reason: "SIGNED_CONTAINS_INFRASTRUCTURE" });
           return;
         }
-        if (name === "map-preview.png") {
+        // F-14 (independent forward audit) — the map is always the precise
+        // location; capture-context.json IS the recorded location, withheld
+        // unless the owner disclosed it (the report's and Public Verify's rule).
+        if (name === "map-preview.png" || (EXTERNAL_LOCATION_FILES.has(name) && data.recordedLocationDisclosed !== true)) {
           withheldFiles.push({ file: name, sha256: sha256Hex(buffer), reason: "PRECISE_LOCATION" });
           return;
         }
         if (contentType === "application/json" && !NEVER_PROJECTED.has(name)) {
-          const projected = projectJsonForDisclosure(profile, name, JSON.parse(buffer.toString("utf8")));
+          const projected = projectJsonForDisclosure(profile, name, JSON.parse(buffer.toString("utf8")), {
+            recordedLocationDisclosed: data.recordedLocationDisclosed === true,
+          });
           disclosureRecords.push(...projected.records);
           appendPackageEntry(archive, packageEntries, name, jsonBuffer(projected.value), contentType);
           return;

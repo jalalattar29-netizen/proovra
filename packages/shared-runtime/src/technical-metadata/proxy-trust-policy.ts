@@ -192,6 +192,21 @@ export function parseProxyTrustPolicy(
 
   // Legacy adapter. Deprecated: prefer API_TRUST_PROXY_MODE.
   if (!truthy(env.API_TRUST_PROXY)) {
+    // F-08 (independent forward audit) — a deployed process (production,
+    // staging, or an ambiguous classification) must DECLARE its topology. An
+    // undeclared one used to resolve to "off" silently: behind the reverse
+    // proxy every visitor then had the proxy's address, so one client could
+    // exhaust the public-verify rate limit for everyone. Declaring
+    // API_TRUST_PROXY_MODE=off (no proxy in front) stays possible.
+    if (opts.isProduction) {
+      errors.push(
+        "API_TRUST_PROXY_MODE is not declared. A deployed API must state its proxy topology: " +
+          "API_TRUST_PROXY_MODE=hop with API_TRUSTED_PROXY_HOPS=1 for a single reverse proxy, " +
+          "API_TRUST_PROXY_MODE=cidr with API_TRUSTED_PROXY_CIDRS, or API_TRUST_PROXY_MODE=off " +
+          "when no proxy is in front.",
+      );
+      return { policy: { mode: "off", source: "undeclared-refused-when-deployed" }, errors };
+    }
     return { policy: { mode: "off", source: "legacy API_TRUST_PROXY unset/false" }, errors };
   }
 

@@ -40,6 +40,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import type { IntegrationHarness } from "../integration-harness.js";
 import { readZipEntries } from "./_zip-entries.js";
+import { tamperSealedEvidence } from "../helpers/sealed-identity-tamper.js";
 
 /** Failure seams, all off by default. Test doubles, not production switches. */
 const seam = vi.hoisted(() => ({
@@ -2266,4 +2267,40 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect(await creditEntries(ev.evidenceId), "no credit moved").toBe(credits);
   });
 
+
+  // F-14 (independent forward audit) — the EXTERNAL_DISCLOSURE package (the
+  // one given to outside reviewers) follows the record's location disclosure,
+  // the rule the report and Public Verify apply.
+  async function externalPackageEntries(disclosure: Record<string, unknown>) {
+    const ev = await signedEvidence();
+    await tamperSealedEvidence(prisma, ev.evidenceId, { lat: 52.520008, lng: 13.404954, accuracyMeters: 11, locationSource: "CLIENT_APP_DEVICE_LOCATION" });
+    if (Object.keys(disclosure).length > 0) await prisma.evidence.update({ where: { id: ev.evidenceId }, data: disclosure as never });
+    const id = await request({ evidenceId: ev.evidenceId, teamId: ev.teamId });
+    expect(await run(id, 0)).toBeNull();
+    const after = await state(ev.evidenceId, id);
+    const external = after.packageRows.find((p) => p.state === "PUBLISHED" && p.disclosureProfile === "EXTERNAL_DISCLOSURE");
+    expect(external, "an external package was published").toBeTruthy();
+    return readZipEntries(stored(external!.storageBucket, external!.storageKey)!);
+  }
+
+  it("F-14: an UNDISCLOSED location never leaves in the external package (no coordinates, no accuracy, no capture-context)", async () => {
+    const entries = await externalPackageEntries({});
+    expect([...entries.keys()].some((k) => k.endsWith("capture-context.json"))).toBe(false);
+    const text = [...entries.entries()]
+      .filter(([k]) => k.endsWith(".json") || k.endsWith(".txt") || k.endsWith(".md"))
+      .map(([, v]) => v.toString("utf8"))
+      .join(" ");
+    for (const leak of ["52.52", "13.40", "52.5", "13.4", "CLIENT_APP_DEVICE_LOCATION"]) expect(text.includes(leak), leak).toBe(false);
+    const manifest = JSON.parse(entries.get([...entries.keys()].find((k) => k === "disclosure-manifest.json" || k.endsWith("/disclosure-manifest.json"))!)!.toString("utf8"));
+    expect(JSON.stringify(manifest)).toMatch(/capture-context.json/);
+  });
+
+  it("F-14: a DISCLOSED location is carried by the external package, coarsened", async () => {
+    const entries = await externalPackageEntries({ verificationDisclosureMode: "CONTENT_PREVIEW", showRecordedLocation: true });
+    const ctxName = [...entries.keys()].find((k) => k.endsWith("capture-context.json"));
+    expect(ctxName, "capture-context.json is shipped when disclosed").toBeTruthy();
+    const ctx = entries.get(ctxName!)!.toString("utf8");
+    expect(ctx).not.toMatch(/52.520008/);
+    expect(ctx).toMatch(/52.52/);
+  });
 });

@@ -155,6 +155,9 @@ import {
   buildCustodyDisplayCounts,
   custodyCutoffSequence,
   splitCustodyAtCutoff,
+  annotateArtifactHistory,
+  presignedOriginalResponseHeaders,
+  type AnnotatedArtifactHistoryItem,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -274,6 +277,7 @@ import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 // Phase G4.5 — extracted saved-view CRUD module.
 import { evidenceSavedViewsRoutes } from "./evidence.saved-views.routes.js";
+import { CANONICAL_STATE_BODIES, CANONICAL_STATE_HTTP } from "./_canonical-verification-state.js";
 import { assertInteractiveEvidenceCreateAllowed, createEvidence } from "../services/evidence.service.js";
 import {
   resolveEnforcementScopeForRequester,
@@ -915,7 +919,7 @@ type PublicVerifyVersioning = {
    * first (never only the latest): kind, version, the report version a
    * package certifies, and when it was issued. No identifiers.
    */
-  history: Array<{ kind: "report" | "package"; version: number; reportVersion: number | null; issuedAtUtc: string | null }>;
+  history: AnnotatedArtifactHistoryItem[];
   /** AUD-48 — the report version the link opening this page was issued for. */
   linkReportVersion: number | null;
 };
@@ -1620,35 +1624,7 @@ function verificationLinkGoneBody(state: Exclude<VerificationShareState, "ACTIVE
   return VERIFICATION_LINK_GONE_BODIES[state];
 }
 
-/**
- * CANONICAL VERIFICATION PAGE STATES (owner decision 2026-10-14). A canonical
- * reference may be printed in a report years old, so a page that cannot show
- * the record says WHY, truthfully — never a misleading "not found" while a safe
- * tombstone exists. Only someone holding a real reference reaches these
- * answers (an unknown reference is the ordinary 404), so they enumerate
- * nothing, and each carries only the reference and the state.
- */
-const CANONICAL_STATE_BODIES = {
-  PURGED: {
-    code: "VERIFICATION_RECORD_PURGED",
-    message:
-      "This record has been permanently deleted after its retention ended. Its verification page remains as a minimal record that it existed; the evidence and its artifacts are no longer held.",
-  },
-  WITHDRAWN: {
-    code: "VERIFICATION_RECORD_WITHDRAWN",
-    message:
-      "This verification page has been withdrawn following a legal, privacy or security action. The reference is preserved and will never point to another record.",
-  },
-  TEMPORARILY_UNAVAILABLE: {
-    code: "VERIFICATION_RECORD_TEMPORARILY_UNAVAILABLE",
-    message: "This verification page is temporarily unavailable. Try again later.",
-  },
-  RETAINED: {
-    code: "VERIFICATION_RECORD_RETAINED",
-    message:
-      "The record's owner has removed it from active use. It remains preserved under its retention protection, so it is not shown as an active record.",
-  },
-} as const satisfies Record<Exclude<CanonicalVerificationStatus, "AVAILABLE">, { code: string; message: string }>;
+
 
 /** AUD-48 — a resolved record with no recorded digest and signature. */
 /** AUD-52 — names a checksum sent at record creation as unused (it belongs to each part). */
@@ -1660,12 +1636,7 @@ const PUBLIC_VERIFY_NOT_SEALED_BODY = {
     "This record has no recorded seal (content digest and signature), so there is nothing PROOVRA can verify on this page yet.",
 } as const;
 
-const CANONICAL_STATE_HTTP: Readonly<Record<Exclude<CanonicalVerificationStatus, "AVAILABLE">, number>> = {
-  PURGED: 410,
-  WITHDRAWN: 410,
-  TEMPORARILY_UNAVAILABLE: 503,
-  RETAINED: 200,
-};
+
 
 function getPublicVerifyIdentityExposure(): {
   exposeAttribution: boolean;
@@ -4396,12 +4367,17 @@ async function buildPublicEvidenceContent(params: {
             params.evidence.storageKey === part.storageKey
               ? (params.evidence.storageVersionId ?? null)
               : null);
+          // F-36 (independent forward audit) — active content never renders
+          // on the storage origin; the type served is the declared one.
+          const responseHeaders = presignedOriginalResponseHeaders(part.mimeType, part.partIndex + 1);
           const viewUrl = canExposeDirectUrl
             ? await presignGetObject({
                 bucket: part.storageBucket,
                 key: part.storageKey,
                 versionId: sealedVersionId,
                 expiresInSeconds: 600,
+                responseContentDisposition: responseHeaders.contentDisposition,
+                responseContentType: responseHeaders.contentType,
               })
             : null;
           if (viewUrl) originalUrlsIssued += 1;
@@ -4552,6 +4528,9 @@ async function buildPublicEvidenceContent(params: {
                     key,
                     versionId: sealedVersionId,
                     expiresInSeconds: 600,
+                    // F-36 — see presignedOriginalResponseHeaders.
+                    responseContentDisposition: presignedOriginalResponseHeaders(mimeType, 1).contentDisposition,
+                    responseContentType: presignedOriginalResponseHeaders(mimeType, 1).contentType,
                   }).then((u) => {
                     originalUrlsIssued += 1;
                     return u;
@@ -14754,7 +14733,9 @@ verificationPackageGeneratedAtUtc:
       ? evidence.verificationPackageGeneratedAtUtc.toISOString()
       : null,
         reviewerSummaryVersion: evidence.reviewerSummaryVersion ?? null,
-  history: [
+  // F-33 (independent forward audit) — each entry says whether it is the
+  // current version of its kind and what superseded it (one annotation).
+  history: annotateArtifactHistory([
     ...issuedReportHistory.map((r) => ({
       kind: "report" as const,
       version: r.version,
@@ -14767,7 +14748,7 @@ verificationPackageGeneratedAtUtc:
       reportVersion: p.reportVersion ?? null,
       issuedAtUtc: p.generatedAtUtc ? p.generatedAtUtc.toISOString() : null,
     })),
-  ],
+  ]),
   linkReportVersion: shareLink?.reportVersion ?? null,
 };
 const defaultPreviewItem =

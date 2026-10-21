@@ -62,7 +62,11 @@ const SAFE_ERROR_SRC = [
  */
 function emittedErrorCodes(): Set<string> {
   const codes = new Set<string>();
-  for (const file of readdirSync(ROUTES_DIR).filter((n) => n.endsWith(".routes.ts"))) {
+  // Route files, and the route layer's own shared modules (_*.ts): the
+  // canonical verification state bodies live in _canonical-verification-state.ts
+  // so the canonical page and the public package record emit the SAME bodies
+  // (independent forward audit F-19).
+  for (const file of readdirSync(ROUTES_DIR).filter((n) => n.endsWith(".routes.ts") || (n.startsWith("_") && n.endsWith(".ts")))) {
     const src = readFileSync(resolve(ROUTES_DIR, file), "utf8");
     for (const match of src.matchAll(/code:\s*"([A-Z][A-Z0-9_]{2,})"/g)) {
       codes.add(match[1]);

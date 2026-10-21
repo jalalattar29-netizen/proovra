@@ -665,8 +665,8 @@
     "phase": "P5",
     "name": "a keyed seal's revocation is ignored (PUBLISHED stays)",
     "file": "services/api/src/services/public-verify/package-seal-check.service.ts",
-    "find": "    if (key.revokedAt) return revokedFact(pkg, key.revokedAt);\n    return {\n      fact: { kind: \"PUBLISHED\"",
-    "replace": "    if (key.revokedAt && Date.now() < 0) return revokedFact(pkg, key.revokedAt);\n    return {\n      fact: { kind: \"PUBLISHED\"",
+    "find": "    if (binding === \"KEY_REVOKED\") return revokedFact(pkg, key!.revokedAt!);",
+    "replace": "    if (false && binding === \"KEY_REVOKED\") return revokedFact(pkg, key!.revokedAt!);",
     "tests": [
       {
         "cwd": "services/api",
@@ -4728,6 +4728,273 @@
           "test/evidence-destruction-storage.integration.test.ts",
           "-t",
           "F-09"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F08",
+    "phase": "AFC",
+    "aud": "F-08",
+    "name": "proxy trust: a deployed API may start with an undeclared topology",
+    "file": "packages/shared-runtime/src/technical-metadata/proxy-trust-policy.ts",
+    "find": "    if (opts.isProduction) {\n      errors.push(\n        \"API_TRUST_PROXY_MODE is not declared.",
+    "replace": "    if (false) {\n      errors.push(\n        \"API_TRUST_PROXY_MODE is not declared.",
+    "build": [
+      "shared-runtime"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-deployment-environment.test.ts"
+        ]
+      },
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/phase13-proxy-trust-policy.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F14-A",
+    "phase": "AFC",
+    "aud": "F-14",
+    "name": "external package: an undisclosed location is only coarsened",
+    "file": "packages/shared/src/disclosure-profile.ts",
+    "find": "    ...(options.recordedLocationDisclosed === true ? [] : [LOCATION_WITHHELD_RULE]),\n",
+    "replace": "",
+    "build": [
+      "shared",
+      "shared-runtime"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/disclosure-and-tsa-record.test.mjs"
+        ]
+      },
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/point5/report-package-recovery.integration.test.ts",
+          "-t",
+          "F-14"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F14-B",
+    "phase": "AFC",
+    "aud": "F-14",
+    "name": "external package: capture-context.json ships whatever the policy",
+    "file": "services/worker/src/verification-package.ts",
+    "find": "(EXTERNAL_LOCATION_FILES.has(name) && data.recordedLocationDisclosed !== true)",
+    "replace": "(false && EXTERNAL_LOCATION_FILES.has(name))",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/point5/report-package-recovery.integration.test.ts",
+          "-t",
+          "F-14"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F14-C",
+    "phase": "AFC",
+    "aud": "F-14",
+    "name": "external package: the attestor is named",
+    "file": "packages/shared/src/disclosure-profile.ts",
+    "find": "    ATTESTOR_IDENTITY_RULE,\n",
+    "replace": "",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/disclosure-and-tsa-record.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F19",
+    "phase": "AFC",
+    "aud": "F-19",
+    "name": "package record: answers for a withdrawn / suspended / retained record",
+    "file": "services/api/src/routes/public-package-verification.routes.ts",
+    "find": "  if (status !== \"AVAILABLE\") {",
+    "replace": "  if (false && status !== \"AVAILABLE\") {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/public-package-record.integration.test.ts",
+          "-t",
+          "F-19"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F30-A",
+    "phase": "AFC",
+    "aud": "F-30",
+    "name": "seal check: a fingerprint mismatch is not FAILED",
+    "file": "services/api/src/services/public-verify/package-seal-check.service.ts",
+    "find": "    if (binding === \"KEY_MISMATCH\") return { fact: { kind: \"FAILED\" }, completenessVerified: null };\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/public-package-record.integration.test.ts",
+          "-t",
+          "F-30"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F30-B",
+    "phase": "AFC",
+    "aud": "F-30",
+    "name": "seal check: a modern seal reads VERIFIED from the row (no byte check)",
+    "file": "services/api/src/services/public-verify/package-seal-check.service.ts",
+    "find": "    const bytes = await checkSealBytesOnce(pkg, recordedFp);\n    switch (bytes.kind) {\n      case \"VERIFIED\":\n        return {\n          fact: { kind: \"PUBLISHED\"",
+    "replace": "    const bytes = { kind: \"VERIFIED\" as const, complete: true };\n    switch (bytes.kind) {\n      case \"VERIFIED\":\n        return {\n          fact: { kind: \"PUBLISHED\"",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/public-package-record.integration.test.ts",
+          "-t",
+          "F-30"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F30-C",
+    "phase": "AFC",
+    "aud": "F-30",
+    "name": "package record: a fingerprint mismatch reads 'not published'",
+    "file": "packages/shared/src/public-package-record.ts",
+    "find": "  if (input.registered.fingerprintSha256.toLowerCase() !== input.recordedFingerprintSha256.toLowerCase()) return \"KEY_MISMATCH\";",
+    "replace": "  if (input.registered.fingerprintSha256.toLowerCase() !== input.recordedFingerprintSha256.toLowerCase()) return \"KEY_NOT_PUBLISHED\";",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/public-package-record.integration.test.ts",
+          "-t",
+          "F-30"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F33",
+    "phase": "AFC",
+    "aud": "F-33",
+    "name": "verify: the history does not say which artifact is current",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "  history: annotateArtifactHistory([",
+    "replace": "  history: ([",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/aud48-public-verify-details.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F36",
+    "phase": "AFC",
+    "aud": "F-36",
+    "name": "presign: no response disposition (active content renders on the storage origin)",
+    "file": "services/api/src/storage.ts",
+    "find": "    ...(params.responseContentDisposition ? { ResponseContentDisposition: params.responseContentDisposition } : {}),\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/public-verify-disclosure.integration.test.ts",
+          "-t",
+          "S2"
         ],
         "integration": true
       }

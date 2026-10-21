@@ -26,6 +26,7 @@ import {
   VERIFICATION_STATUS_LABELS,
   type VerificationMatrixRow,
   type VerificationStatus,
+  artifactHistoryStatusLabel,
 } from "@proovra/shared";
 
 import { formatDateTime } from "../../../components/verify-v2/_helpers";
@@ -735,15 +736,31 @@ export function ArtifactHistory({
   /** AUD-48 — the record's consistency reasons; regressions are noted beside the artifact they contradict. */
   consistencyReasons?: ReadonlyArray<VerifyConsistencyReason>;
 }) {
-  const artifacts: Array<{ kind: "report" | "package"; version: number; issuedAtUtc: string | null }> = [];
+  // F-33 (independent forward audit) — whether each artifact is current, and
+  // what superseded it, is the SERVER's annotation (annotateArtifactHistory);
+  // the page renders it and never re-derives it.
+  const artifacts: Array<{
+    kind: "report" | "package";
+    version: number;
+    issuedAtUtc: string | null;
+    current?: boolean;
+    supersededByVersion?: number | null;
+  }> = [];
   // AUD-48 (2026-10-20) — EVERY issued report and package, when the API sends
   // the history; the latest-only pair is the fallback for an older response.
   const history = (versioning?.history ?? []).filter(
-    (h): h is { kind: "report" | "package"; version: number; issuedAtUtc?: string | null } =>
+    (h): h is { kind: "report" | "package"; version: number; issuedAtUtc?: string | null; current?: boolean; supersededByVersion?: number | null } =>
       (h?.kind === "report" || h?.kind === "package") && typeof h?.version === "number",
   );
   if (history.length > 0) {
-    for (const h of history) artifacts.push({ kind: h.kind, version: h.version, issuedAtUtc: h.issuedAtUtc ?? null });
+    for (const h of history) {
+      artifacts.push({
+        kind: h.kind,
+        version: h.version,
+        issuedAtUtc: h.issuedAtUtc ?? null,
+        ...(typeof h.current === "boolean" ? { current: h.current, supersededByVersion: h.supersededByVersion ?? null } : {}),
+      });
+    }
   } else if (typeof versioning?.latestReportVersion === "number") {
     artifacts.push({ kind: "report", version: versioning.latestReportVersion, issuedAtUtc: versioning.latestReportGeneratedAtUtc ?? null });
   }
@@ -822,6 +839,11 @@ export function ArtifactHistory({
                 <div style={{ ...VERIFY_TYPO.value, fontSize: 14 }}>
                   {name} — issued {a.issuedAtUtc ? formatDateTime(a.issuedAtUtc) : "(time not recorded)"}
                 </div>
+                {typeof a.current === "boolean" ? (
+                  <div data-verify-artifact-currency={a.current ? "current" : "superseded"} style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
+                    {artifactHistoryStatusLabel({ kind: a.kind, current: a.current, supersededByVersion: a.supersededByVersion ?? null })}
+                  </div>
+                ) : null}
                 {atIssue ? (
                   <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
                     Stated at issue — Bitcoin anchoring: {atIssue}.

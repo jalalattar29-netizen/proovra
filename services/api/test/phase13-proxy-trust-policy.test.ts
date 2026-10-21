@@ -23,10 +23,26 @@ const parse = (env: Record<string, string | undefined>, isProduction: boolean) =
   parseProxyTrustPolicy(env, { isProduction });
 
 describe("proxy-trust policy parsing", () => {
-  it("unset → off", () => {
+  it("unset → off, OUTSIDE a deployed environment", () => {
     const { policy, errors } = parse({}, false);
     expect(policy.mode).toBe("off");
     expect(errors).toEqual([]);
+  });
+
+  // F-08 (independent forward audit) — a deployed process must DECLARE its
+  // topology; an undeclared one used to resolve to "off" with no error, so
+  // behind the reverse proxy every visitor shared one rate-limit bucket.
+  it("F-08: unset in a DEPLOYED environment is refused with a declaration error", () => {
+    for (const env of [{}, { API_TRUST_PROXY: "false" }, { API_TRUST_PROXY: "" }]) {
+      const { policy, errors } = parse(env, true);
+      expect(policy.mode).toBe("off");
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatch(/API_TRUST_PROXY_MODE is not declared/);
+    }
+  });
+
+  it("F-08: a DECLARED off in a deployed environment is accepted (no proxy in front)", () => {
+    expect(parse({ API_TRUST_PROXY_MODE: "off" }, true).errors).toEqual([]);
   });
 
   it("explicit off → off", () => {

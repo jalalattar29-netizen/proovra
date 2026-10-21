@@ -40,6 +40,7 @@ const BINDING_STATE: Record<PublicPackageKeyBinding, ComponentVerificationState>
   BOUND_KEY_REVOKED: "failed",
   KEY_REVOKED_BEFORE_ISSUE: "failed",
   KEY_NOT_PUBLISHED: "not_checked",
+  KEY_MISMATCH: "failed",
   NOT_SEALED: "not_issued",
 };
 const BINDING_BADGE: Record<PublicPackageKeyBinding, string> = {
@@ -47,6 +48,7 @@ const BINDING_BADGE: Record<PublicPackageKeyBinding, string> = {
   BOUND_KEY_REVOKED: "Key revoked",
   KEY_REVOKED_BEFORE_ISSUE: "Key revoked",
   KEY_NOT_PUBLISHED: "Key not registered",
+  KEY_MISMATCH: "Key mismatch",
   NOT_SEALED: "Not sealed",
 };
 

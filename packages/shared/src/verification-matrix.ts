@@ -145,7 +145,17 @@ export const VERIFICATION_LIMITATION =
  */
 export type PackageSealFact =
   | { kind: "SELF" }
-  | { kind: "PUBLISHED"; sealKeyId: string; sealKeyVersion: number }
+  /**
+   * F-30 (independent forward audit) — a package PROOVRA published whose
+   * STORED bytes were verified now against the registered key it names
+   * (`completenessVerified`: every stored file matched the sealed manifest;
+   * false when a file was too large to re-read).
+   */
+  | { kind: "PUBLISHED"; sealKeyId: string; sealKeyVersion: number; completenessVerified?: boolean }
+  /** F-30 — the registry or the stored package could not be read NOW: not checked, checked again next time. */
+  | { kind: "NOT_CHECKED_NOW" }
+  /** F-30 — the seal names a key PROOVRA's registry does not hold for package sealing. */
+  | { kind: "KEY_NOT_PUBLISHED" }
   /**
    * (2026-10-18) A seal issued before seals were bound to a key id, verified
    * READ-ONLY now: its signature checks against a PACKAGE_SEAL key PROOVRA
@@ -487,13 +497,25 @@ function packageRows(seal: PackageSealFact): VerificationMatrixRow[] {
         row(
           "package_signature",
           "VERIFIED",
-          `Sealed with PROOVRA package-seal key ${seal.sealKeyId} version ${seal.sealKeyVersion}; PROOVRA verified the seal against that registered key before publishing the package.`,
+          `Sealed with PROOVRA package-seal key ${seal.sealKeyId} version ${seal.sealKeyVersion}; PROOVRA verified the stored package's seal against that registered key.`,
         ),
-        row(
-          "package_completeness",
-          "VERIFIED",
-          "PROOVRA verified that the sealed manifest covers every file in the package before publishing it.",
-        ),
+        seal.completenessVerified === false
+          ? row("package_completeness", "NOT_CHECKED", "The verified seal covers the package's checksum index; not every stored file was re-read here. Check the files with the package's README.")
+          : row(
+              "package_completeness",
+              "VERIFIED",
+              "PROOVRA verified that the stored package's files match its sealed manifest.",
+            ),
+      ];
+    case "NOT_CHECKED_NOW":
+      return [
+        row("package_signature", "NOT_CHECKED", "PROOVRA could not check this package's seal right now; it is checked again on the next visit. Check the seal with the commands in the package's README."),
+        row("package_completeness", "NOT_CHECKED", "Check the package's files against its sealed manifest with the package's README."),
+      ];
+    case "KEY_NOT_PUBLISHED":
+      return [
+        row("package_signature", "NOT_CHECKED", "This package's seal names a key that PROOVRA has not registered for package sealing, so it is not bound to PROOVRA. Check the seal against the key the package ships with its README."),
+        row("package_completeness", "NOT_CHECKED", "Check the package's files against its sealed manifest with the package's README."),
       ];
     case "LEGACY_VERIFIED":
       return [

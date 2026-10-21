@@ -159,6 +159,34 @@ describe("public package record (live PostgreSQL 16)", () => {
     }
   });
 
+  // F-19 (independent forward audit) — one access decision for every public
+  // surface of a record: its packages' records follow the canonical page.
+  it("F-19: a withdrawn, suspended or retained record's package record answers that state, never the package facts", async () => {
+    const f = await fixture();
+    const byId = () => get(`/public/verification-packages/${f.full1.id}`);
+    const bySha = () => get(`/public/verification-packages/by-sha256/${f.full1.packageSha256}`);
+    expect((await byId()).statusCode).toBe(200);
+
+    const expectState = async (status: number, code: string) => {
+      for (const res of [await byId(), await bySha()]) {
+        expect(res.statusCode, res.body).toBe(status);
+        const body = res.json() as Record<string, unknown>;
+        expect(body.code).toBe(code);
+        // No package facts: no id, digest, issuance or key binding.
+        for (const key of ["packageId", "packageSha256", "issuedAtUtc", "keyBinding", "evidenceId"]) expect(body).not.toHaveProperty(key);
+        expect(res.body).not.toContain(f.full1.id);
+      }
+    };
+    await prisma.evidence.update({ where: { id: f.evidenceId }, data: { verificationAccessState: "WITHDRAWN" } as never });
+    await expectState(410, "VERIFICATION_RECORD_WITHDRAWN");
+    await prisma.evidence.update({ where: { id: f.evidenceId }, data: { verificationAccessState: "SUSPENDED" } as never });
+    await expectState(503, "VERIFICATION_RECORD_TEMPORARILY_UNAVAILABLE");
+    await prisma.evidence.update({ where: { id: f.evidenceId }, data: { verificationAccessState: "AVAILABLE", lifecycleState: "TRASHED", deletedAt: new Date() } as never });
+    await expectState(200, "VERIFICATION_RECORD_RETAINED");
+    await prisma.evidence.update({ where: { id: f.evidenceId }, data: { lifecycleState: "ACTIVE", deletedAt: null } as never });
+    expect((await byId()).statusCode).toBe(200);
+  });
+
   it("a key registered for the EVIDENCE signature never binds a package, even under the same id and version", async () => {
     const f = await fixture();
     const keyId = `pkgrec-evidence-${randomUUID().slice(0, 8)}`;
@@ -183,10 +211,34 @@ describe("public package record (live PostgreSQL 16)", () => {
     expect(body.sealKey).toBeNull();
   });
 
-  it("a recorded seal fingerprint that disagrees with the registered key is not a binding", async () => {
+  it("F-30: a recorded seal fingerprint that disagrees with the registered key is a KEY_MISMATCH, and the seal check says FAILED", async () => {
     const f = await fixture();
     await prisma.verificationPackage.update({ where: { id: f.full2.id }, data: { sealSigningKeySha256: "f".repeat(64) } as never });
+    expect((await get(`/public/verification-packages/${f.full2.id}`)).json().keyBinding).toBe("KEY_MISMATCH");
+    // THE same decision on the Public Verify seal check: a contradiction, never "not published".
+    const { resolvePackageSealCheck } = await import("../src/services/public-verify/package-seal-check.service.js");
+    const row = await prisma.verificationPackage.findUniqueOrThrow({ where: { id: f.full2.id } });
+    expect((await resolvePackageSealCheck(row as never)).fact.kind).toBe("FAILED");
+  });
+
+  it("F-30: a seal naming a key absent from the registry is KEY_NOT_PUBLISHED on both surfaces, never 'legacy'", async () => {
+    const f = await fixture();
+    await prisma.verificationPackage.update({ where: { id: f.full2.id }, data: { sealSigningKeyId: "no-such-key", sealSigningKeyVersion: 9 } as never });
     expect((await get(`/public/verification-packages/${f.full2.id}`)).json().keyBinding).toBe("KEY_NOT_PUBLISHED");
+    const { resolvePackageSealCheck } = await import("../src/services/public-verify/package-seal-check.service.js");
+    const row = await prisma.verificationPackage.findUniqueOrThrow({ where: { id: f.full2.id } });
+    expect((await resolvePackageSealCheck(row as never)).fact.kind).toBe("KEY_NOT_PUBLISHED");
+  });
+
+  it("F-30: a bound modern seal is VERIFIED only from its stored bytes; an unreadable package is NOT_CHECKED_NOW, never VERIFIED", async () => {
+    const f = await fixture();
+    // The fixture's rows point at objects that do not exist in storage.
+    const { resolvePackageSealCheck, clearPackageSealCheckMemo } = await import("../src/services/public-verify/package-seal-check.service.js");
+    clearPackageSealCheckMemo();
+    const row = await prisma.verificationPackage.findUniqueOrThrow({ where: { id: f.full2.id } });
+    const check = await resolvePackageSealCheck(row as never);
+    expect(check.fact.kind).toBe("NOT_CHECKED_NOW");
+    expect(check.completenessVerified).toBeNull();
   });
 
   /*
@@ -235,7 +287,11 @@ describe("public package record (live PostgreSQL 16)", () => {
         (r) => r.key === "package_signature",
       )!;
 
-    expect((await resolvePackageSealCheck(await sealRow())).fact.kind).toBe("PUBLISHED");
+    // F-30 (independent forward audit): a bound seal is VERIFIED only from its
+    // stored bytes; this fixture's package objects do not exist, so before the
+    // revocation the check is NOT_CHECKED_NOW (it used to read PUBLISHED from
+    // the row alone). The binding itself is BOUND.
+    expect((await resolvePackageSealCheck(await sealRow())).fact.kind).toBe("NOT_CHECKED_NOW");
     expect((await get(`/public/verification-packages/${f.full1.id}`)).json().keyBinding).toBe("BOUND");
 
     await prisma.signingKey.updateMany({ where: { keyId, version: 1, purpose: "PACKAGE_SEAL" }, data: { revokedAt: new Date() } });

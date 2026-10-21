@@ -94,3 +94,30 @@ test("F-04: an intake fix's mock flag is read from the submission event bound at
   // Any other event type never carries the flag.
   assert.equal(locationProviderMockFromCustody([{ eventType: "UPLOAD_COMPLETED", payload: { gps: { providerReportedMock: true } } }]), false);
 });
+
+test("F-33: each issued artifact says whether it is current and what superseded it, per kind", async () => {
+  const { annotateArtifactHistory, artifactHistoryStatusLabel } = await import("../dist/index.js");
+  const out = annotateArtifactHistory([
+    { kind: "report", version: 1, reportVersion: 1, issuedAtUtc: null },
+    { kind: "package", version: 1, reportVersion: 1, issuedAtUtc: null },
+    { kind: "report", version: 2, reportVersion: 2, issuedAtUtc: null },
+    { kind: "report", version: 4, reportVersion: 4, issuedAtUtc: null },
+  ]);
+  assert.deepEqual(out.map((h) => [h.kind, h.version, h.current, h.supersededByVersion]), [
+    ["report", 1, false, 2],
+    ["package", 1, true, null],
+    ["report", 2, false, 4],
+    ["report", 4, true, null],
+  ]);
+  assert.equal(artifactHistoryStatusLabel(out[0]), "Superseded by report v2");
+  assert.equal(artifactHistoryStatusLabel(out[1]), "Current");
+});
+
+test("F-36: a presigned original is a download for active or unknown content, and served as its declared type otherwise", async () => {
+  const { presignedOriginalResponseHeaders } = await import("../dist/index.js");
+  for (const mime of ["text/html", "TEXT/HTML; charset=utf-8", "image/svg+xml", "application/xhtml+xml", "text/xml", "application/javascript", "", null]) {
+    assert.deepEqual(presignedOriginalResponseHeaders(mime, 2), { contentDisposition: 'attachment; filename="proovra-item-2"', contentType: "application/octet-stream" }, String(mime));
+  }
+  assert.deepEqual(presignedOriginalResponseHeaders("image/jpeg", 1), { contentDisposition: 'inline; filename="proovra-item-1"', contentType: "image/jpeg" });
+  assert.deepEqual(presignedOriginalResponseHeaders("application/pdf", 3), { contentDisposition: 'inline; filename="proovra-item-3"', contentType: "application/pdf" });
+});

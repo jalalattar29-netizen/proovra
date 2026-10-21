@@ -145,6 +145,35 @@ const EXTERNAL_KEY_RULES: ReadonlyArray<KeyRule> = [
 ];
 
 /**
+ * F-14 (independent forward audit) — WHO ATTESTED is a person: a
+ * certification's attestor name, title, organization and typed signature
+ * leave an external package withheld (Public Verify strips the same fields
+ * under VERIFICATION_ONLY).
+ */
+const ATTESTOR_IDENTITY_RULE: KeyRule = {
+  test: (k) => /^(attestorname|attestortitle|attestororganization|attestororg|attestor|signaturetext|signedname)$/.test(lower(k)),
+  action: "WITHHELD",
+  reason: "DIRECT_IDENTIFIER",
+};
+
+/**
+ * F-14 — THE RECORDED LOCATION, WHEN THE OWNER DID NOT DISCLOSE IT. The report
+ * and Public Verify state the recorded location only under CONTENT_PREVIEW
+ * with showRecordedLocation; an external package used to coarsen the
+ * coordinates (about 1 km) and pass the accuracy, state and source through
+ * whatever the owner chose. Withheld, not coarsened, unless disclosed.
+ */
+const LOCATION_WITHHELD_RULE: KeyRule = {
+  test: (k) =>
+    /^(lat|lng|lon|latitude|longitude|accuracy|accuracymeters|accuracyradius|gps|geolocation|capturelocation|location|locationstate|locationsource|locationlabel|locationstatus|locationrequestoutcome|providerreportedmock)$/.test(lower(k)),
+  action: "WITHHELD",
+  reason: "PRECISE_LOCATION",
+};
+
+/** The external profile's files that ARE the recorded location. */
+export const EXTERNAL_LOCATION_FILES: ReadonlySet<string> = new Set(["capture-context.json", "map-preview.png"]);
+
+/**
  * Values withheld whatever their key: a presigned URL, an AWS ARN, a bare
  * network address. Matched on the value so a renamed or nested field cannot
  * carry them out.
@@ -217,9 +246,20 @@ export function projectJsonForDisclosure(
   profile: DisclosureProfile,
   file: string,
   value: unknown,
+  /**
+   * F-14 — THE record's location disclosure (parseVerificationDisclosurePolicy
+   * .showRecordedLocation), the same decision the report and Public Verify
+   * apply. Absent = not disclosed (fail closed).
+   */
+  options: { recordedLocationDisclosed?: boolean } = {},
 ): { value: unknown; records: DisclosureRecord[] } {
   if (profile === "FULL_FORENSIC") return { value, records: [] };
   const records: DisclosureRecord[] = [];
+  const rules: ReadonlyArray<KeyRule> = [
+    ATTESTOR_IDENTITY_RULE,
+    ...(options.recordedLocationDisclosed === true ? [] : [LOCATION_WITHHELD_RULE]),
+    ...EXTERNAL_KEY_RULES,
+  ];
   const walk = (node: unknown, path: string): unknown => {
     if (Array.isArray(node)) return node.map((v, i) => walk(v, `${path}[${i}]`));
     // An email address, presigned URL, ARN or network address inside any
@@ -233,7 +273,7 @@ export function projectJsonForDisclosure(
     if (!node || typeof node !== "object") return node;
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
-      const rule = EXTERNAL_KEY_RULES.find((r) => r.test(k, v));
+      const rule = rules.find((r) => r.test(k, v));
       const childPath = `${path}.${k}`;
       if (rule && v !== null && v !== undefined && v !== "") {
         if (rule.action === "WITHHELD") {

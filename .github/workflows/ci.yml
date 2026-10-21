@@ -58,6 +58,8 @@ jobs:
       PDF_SIGNING_ENABLED: "true"
       PDF_SIGNING_P12_PATH: /run/signing/pdf-signing.p12
       PDF_SIGNING_P12_PASSWORD: ci-only-ephemeral
+      # F-08 — the CI stack has no reverse proxy in front of the API.
+      API_TRUST_PROXY_MODE: "off"
     steps:
       - uses: actions/checkout@v4
         with:

@@ -67,6 +67,7 @@ export * from "./billing/internal-plan-grant.js";
 // readiness contract.
 export * from "./config/secrets-authority.js";
 export * from "./config/secrets-recording-provider.js";
+export * from "./config/deployment-environment.js";
 
 // THE evidence analysis revision — the one server-owned answer to
 // "has anything that can affect this Copilot operation changed since the

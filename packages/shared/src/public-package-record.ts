@@ -28,6 +28,9 @@ export type PublicPackageKeyStatus = "ACTIVE" | "SUPERSEDED" | "REVOKED";
  *   KEY_NOT_PUBLISHED   the package's seal key is not in the registry for
  *                       package sealing (packages issued before seal keys were
  *                       registered). Not a binding.
+ *   KEY_MISMATCH        (F-30) the registry HAS the key the record names, and
+ *                       its fingerprint is not the one recorded with the seal:
+ *                       a contradiction, never "not published".
  *   NOT_SEALED          a package issued before sealing existed.
  */
 export type PublicPackageKeyBinding =
@@ -35,7 +38,29 @@ export type PublicPackageKeyBinding =
   | "BOUND_KEY_REVOKED"
   | "KEY_REVOKED_BEFORE_ISSUE"
   | "KEY_NOT_PUBLISHED"
+  | "KEY_MISMATCH"
   | "NOT_SEALED";
+
+/**
+ * F-30 (independent forward audit) — THE seal-key binding decision, read by
+ * the public package record AND the Public Verify seal check. They decided
+ * separately and disagreed: a recorded fingerprint that differed from the
+ * registered key read FAILED on one and "key not published" on the other.
+ */
+export type SealKeyBinding = "NOT_SEALED" | "KEY_NOT_PUBLISHED" | "KEY_MISMATCH" | "KEY_REVOKED" | "BOUND";
+
+export function resolveSealKeyBinding(input: {
+  sealed: boolean;
+  recordedFingerprintSha256: string | null;
+  /** The registered PACKAGE_SEAL key the record names; null when the registry has none. */
+  registered: { fingerprintSha256: string; revokedAt: Date | string | null } | null;
+}): SealKeyBinding {
+  if (!input.sealed || !input.recordedFingerprintSha256) return "NOT_SEALED";
+  if (!input.registered) return "KEY_NOT_PUBLISHED";
+  if (input.registered.fingerprintSha256.toLowerCase() !== input.recordedFingerprintSha256.toLowerCase()) return "KEY_MISMATCH";
+  if (input.registered.revokedAt) return "KEY_REVOKED";
+  return "BOUND";
+}
 
 /**
  * THE ONE REVOKED-KEY SENTENCE (2026-10-20, AUD-34), stated by the package
@@ -103,5 +128,6 @@ export const PUBLIC_PACKAGE_KEY_BINDING_TEXT: Readonly<Record<PublicPackageKeyBi
   BOUND_KEY_REVOKED: packageSealKeyRevokedStatement(true),
   KEY_REVOKED_BEFORE_ISSUE: packageSealKeyRevokedStatement(false),
   KEY_NOT_PUBLISHED: "This package's seal key is not registered by PROOVRA for package sealing. Its seal can still be checked against the key the package ships, but that key is not bound to PROOVRA.",
+  KEY_MISMATCH: "The seal key fingerprint recorded with this package does not match the key PROOVRA registered under that name. Do not rely on this package until this is reviewed.",
   NOT_SEALED: "This package was issued before packages were sealed. Its manifest signature does not cover every file.",
 };

@@ -29,9 +29,15 @@ import {
   validateProxyTrustPolicy,
   type ProxyTrustPolicy,
 } from "@proovra/shared-runtime/technical-metadata";
+import { deployedInfrastructureRequired } from "@proovra/shared-runtime";
 
+/**
+ * F-08 / F-41 (independent forward audit) — "deployed" is THE deployment
+ * classification (production, staging, or ambiguous), not the NODE_ENV string:
+ * a staging process with another NODE_ENV must declare its proxy too.
+ */
 function isProduction(): boolean {
-  return process.env.NODE_ENV === "production";
+  return deployedInfrastructureRequired(process.env);
 }
 
 // The policy is resolved once per process. It is derived from the environment,

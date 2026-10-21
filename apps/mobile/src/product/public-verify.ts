@@ -47,6 +47,7 @@ import {
   VERIFICATION_STATUS_TONES,
   evidenceVerificationStatusLabel,
   evidenceRecordStatusLabel,
+  artifactHistoryStatusLabel,
 } from "@proovra/shared";
 import {
   isOtsSummaryFact,
@@ -983,6 +984,18 @@ export function parseVerifyAnchoring(
   const advance = advanceCode && advanceCode !== "NONE" ? OTS_ADVANCE_COPY[advanceCode] ?? null : null;
   const reportVersion = num(snap["reportVersion"]);
   const packageVersion = num(snap["packageVersion"]);
+  // F-33 (independent forward audit) — whether the artifact this page states
+  // is current, and what superseded it: the SERVER's annotation of its history
+  // (annotateArtifactHistory), rendered, never re-derived.
+  const history = Array.isArray(obj(d["versioning"])["history"]) ? (obj(d["versioning"])["history"] as unknown[]) : [];
+  const currencyOf = (kind: "report" | "package", version: number | null): string | null => {
+    if (version === null) return null;
+    const entry = history.map(obj).find((h) => h["kind"] === kind && num(h["version"]) === version);
+    if (!entry || typeof entry["current"] !== "boolean") return null;
+    return artifactHistoryStatusLabel({ kind, current: entry["current"] as boolean, supersededByVersion: num(entry["supersededByVersion"]) });
+  };
+  const reportCurrency = currencyOf("report", reportVersion);
+  const packageCurrency = currencyOf("package", packageVersion);
   const pkgSig = obj(snap["verificationPackageSignature"]);
   const snapGen = str(snap["generatedAtUtc"]);
   const liveUpdated = str(live["lastUpdatedAtUtc"]);
@@ -991,7 +1004,9 @@ export function parseVerifyAnchoring(
       { label: "Snapshot Source", value: describeSnapshotSource(str(snap["source"])) },
       { label: "Generated At", value: snapGen ? fmt(snapGen) : "Not recorded" },
       { label: "Report Version", value: reportVersion !== null ? `v${reportVersion}` : "Not recorded" },
+      ...(reportCurrency ? [{ label: "Report Status", value: reportCurrency }] : []),
       { label: "Package Version", value: packageVersion !== null ? `v${packageVersion}` : "Not recorded" },
+      ...(packageCurrency ? [{ label: "Package Status", value: packageCurrency }] : []),
       { label: `${copy.title} (when issued)`, value: atIssueStatus },
       { label: "Report Signature", value: formatSignatureStatus(str(obj(snap["reportSignature"])["status"])) },
       {

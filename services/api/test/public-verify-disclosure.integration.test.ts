@@ -529,6 +529,14 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
       expect(res.json().disclosure.originalDownload).toBe(true);
       const urls = (res.json().evidenceContent.items as Array<{ viewUrl: string | null }>).filter((i) => typeof i.viewUrl === "string");
       expect(urls.length).toBeGreaterThan(0);
+      // F-36 (independent forward audit) — every original URL is signed with a
+      // response disposition and type: active content never renders on the
+      // storage origin, and the contributor's file name is not repeated.
+      for (const { viewUrl } of urls) {
+        const q = new URL(viewUrl!).searchParams;
+        expect(q.get("response-content-disposition"), viewUrl!).toMatch(/^(inline|attachment); filename="proovra-item-\d+"$/);
+        expect(q.get("response-content-type"), viewUrl!).toBeTruthy();
+      }
       await new Promise((r) => setTimeout(r, 300));
       const releases = await prisma.custodyEvent.findMany({
         where: { evidenceId: record.id, sequence: { gt: before } },

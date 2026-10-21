@@ -5324,6 +5324,9 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
         });
         const otsClient = await otsClientIdentity();
         const packageBuildInput: Parameters<typeof createVerificationPackage>[0] = {
+          // F-14 — the external profile withholds the recorded location unless
+          // the owner disclosed it, read now (fail closed).
+          recordedLocationDisclosed: await recordedLocationDisclosedAtIssue(prepared.evidenceId),
           supersedesPackage: null,
           timestampValidation,
           teamId: evidence.teamId ?? undefined,

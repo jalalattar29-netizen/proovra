@@ -176,8 +176,12 @@ describe("resolvePackageSealCheck — one seal authority", () => {
   it("a keyed seal bound to the registered PACKAGE_SEAL key is VERIFIED; a different registered fingerprint is FAILED", async () => {
     registry.keyed = { publicKeyPem: good.pem, revokedAt: null, createdAt: new Date(), fingerprintSha256: good.fingerprint };
     const bound = await mod.resolvePackageSealCheck(row(good, { sealSigningKeyId: "pkg-seal", sealSigningKeyVersion: 1 }));
-    expect(bound.fact).toEqual({ kind: "PUBLISHED", sealKeyId: "pkg-seal", sealKeyVersion: 1 });
+    // F-30 (independent forward audit): VERIFIED from the STORED bytes, read
+    // back and checked against the registered key — never from the row alone.
+    expect(bound.fact).toEqual({ kind: "PUBLISHED", sealKeyId: "pkg-seal", sealKeyVersion: 1, completenessVerified: true });
+    expect(store.reads).toBeGreaterThan(0);
     expect(matrixRows(bound.fact).signature.status).toBe("VERIFIED");
+    expect(matrixRows(bound.fact).completeness.status).toBe("VERIFIED");
     registry.keyed = { publicKeyPem: good.pem, revokedAt: null, createdAt: new Date(), fingerprintSha256: "0".repeat(64) };
     const mismatch = await mod.resolvePackageSealCheck(row(good, { sealSigningKeyId: "pkg-seal", sealSigningKeyVersion: 1 }));
     expect(mismatch.fact).toEqual({ kind: "FAILED" });
@@ -267,11 +271,29 @@ describe("resolvePackageSealCheck — one seal authority", () => {
     expect(store.reads).toBe(reads);
   });
 
-  it("storage unavailable: not checked now, and checked again next time — never FAILED", async () => {
+  it("F-30: a keyed seal whose stored package does not verify is FAILED — never VERIFIED from its row", async () => {
+    const forged = await buildPackage({ tamperSignature: true });
+    store.object = forged.zip;
+    registry.keyed = { publicKeyPem: forged.pem, revokedAt: null, createdAt: new Date(), fingerprintSha256: forged.fingerprint };
+    const check = await mod.resolvePackageSealCheck(row(forged, { sealSigningKeyId: "pkg-seal", sealSigningKeyVersion: 1 }));
+    expect(check.fact).toEqual({ kind: "FAILED" });
+    expect(matrixRows(check.fact).signature.status).toBe("FAILED");
+  });
+
+  it("F-30: a keyed seal naming a key the registry does not hold is KEY_NOT_PUBLISHED — never 'legacy'", async () => {
+    registry.keyed = null;
+    const check = await mod.resolvePackageSealCheck(row(good, { sealSigningKeyId: "pkg-seal", sealSigningKeyVersion: 1 }));
+    expect(check.fact).toEqual({ kind: "KEY_NOT_PUBLISHED" });
+    const rows = matrixRows(check.fact);
+    expect(rows.signature.status).toBe("NOT_CHECKED");
+    expect(rows.signature.qualifiers ?? []).not.toContain("LEGACY_SEAL");
+  });
+
+  it("storage unavailable: not checked now, and checked again next time — never FAILED, never 'legacy' (F-30)", async () => {
     registry.byFingerprint = { keyId: "pkg-seal", version: 1, publicKeyPem: good.pem };
     store.fail = true;
     const r = { ...row(good), id: "flaky" };
-    expect((await mod.resolvePackageSealCheck(r)).fact).toEqual({ kind: "LEGACY_UNBOUND" });
+    expect((await mod.resolvePackageSealCheck(r)).fact).toEqual({ kind: "NOT_CHECKED_NOW" });
     store.fail = false;
     expect((await mod.resolvePackageSealCheck(r)).fact.kind).toBe("LEGACY_VERIFIED");
   });
