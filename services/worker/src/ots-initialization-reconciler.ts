@@ -70,6 +70,7 @@ import { getOtsOperationsWarningMs } from "@proovra/shared-runtime";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
 import { enqueueOtsUpgradeJob, isOtsUpgradeScheduled } from "./queue.js";
+import { OTS_ANCHORED_MACHINE_ID, reconcileOtsAnchoredReportVersion } from "./ots-anchored-version.js";
 import { resolveOtsBitcoinVerifierConfig } from "./ots-bitcoin-config.js";
 import { OTS_CHAIN_FINAL_CONFIRMATIONS, OTS_NOT_IN_ACTIVE_CHAIN_GIVE_UP_MS } from "./ots-state.js";
 
@@ -108,7 +109,12 @@ export interface OtsInitializationReconcilerResult {
   /** ANCHORED proofs whose chain check was due. */
   chainScanned: number;
   chainRescheduled: number;
+  /** F-10 — owed chain-verified versions re-requested after a technical failure. */
+  owedVersionsRetried?: number;
 }
+
+/** F-10 — how long a technically failed owed version waits before it is asked again. */
+const OTS_OWED_RETRY_BACKOFF_MS = 60 * 60 * 1000;
 
 const DEFAULT_MIN_AGE_MS = 30 * 60 * 1000;
 const DEFAULT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -315,6 +321,37 @@ export async function runOtsInitializationReconciler(
         logger.error({ err, evidenceId: row.id, trigger }, "ots.chain.reschedule_failed");
       }
     }
+  }
+
+  // F-10 (independent forward audit) — AN OWED VERSION WHOSE REQUEST FAILED
+  // TECHNICALLY IS ASKED AGAIN. A final VERIFIED record is never due for a
+  // chain check, so nothing else revisits it; its owed chain-verified version
+  // request, once terminal, was lost. Re-ask the (idempotent, retry-capped)
+  // decision for records whose latest owed request failed terminally at least
+  // OTS_OWED_RETRY_BACKOFF_MS ago.
+  try {
+    const failedOwed = await prisma.reportGenerationRequest.findMany({
+      where: {
+        purpose: "ots_upgrade_completed",
+        requestedByMachineId: OTS_ANCHORED_MACHINE_ID,
+        state: "FAILED_TERMINAL",
+        completedAtUtc: { lte: new Date(now - OTS_OWED_RETRY_BACKOFF_MS) },
+      },
+      orderBy: { completedAtUtc: "asc" },
+      take: batchSize,
+      select: { evidenceId: true },
+    });
+    for (const evidenceId of new Set(failedOwed.map((r) => r.evidenceId))) {
+      try {
+        const decided = await reconcileOtsAnchoredReportVersion(evidenceId);
+        if (decided.outcome === "requested") result.owedVersionsRetried = (result.owedVersionsRetried ?? 0) + 1;
+      } catch (err) {
+        result.failed += 1;
+        logger.error({ err, evidenceId, trigger }, "ots.owed_version.retry_failed");
+      }
+    }
+  } catch (err) {
+    logger.error({ err, trigger }, "ots.owed_version.scan_failed");
   }
 
   // (2026-10-13) Operations gauges: the PENDING backlog and the part of it

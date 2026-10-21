@@ -742,6 +742,38 @@ export function withShippedAnchoring(
   return { ...decision, ...deriveTrustPresentation(signals), signals };
 }
 
+/**
+ * F-11 / F-34 (independent forward audit) — THE TRUSTED TIMESTAMP A PACKAGE
+ * SHIPS, stated by its matrix exactly as its timestamp-validation.json states
+ * it: both from ONE reading of the record's TSA facts at assembly. A package
+ * built after its report (package-only recovery) used to carry the report's
+ * issue-time timestamp signal beside a validation record read from the live
+ * row; a token validated after issuance made them disagree, and the
+ * consistency gate refused the version's package forever. Like the anchoring
+ * (withShippedAnchoring), the package states what it ships, and its seal
+ * records when those proof materials were observed. Nothing is promoted: an
+ * unvalidated token stays RECORDED_NOT_VALIDATED.
+ */
+export function withShippedTimestamp(
+  decision: TrustDecision,
+  tsa: Pick<
+    TrustDecisionEvidenceInput,
+    "tsaStatus" | "tsaFailureCode" | "tsaTokenPresent" | "tsaValidatedAtUtc" | "tsaValidatedFromRetainedToken"
+  >,
+): TrustDecision {
+  const timestamp = buildTimestampSignal({
+    tsaStatus: tsa.tsaStatus ?? null,
+    tsaFailureCode: tsa.tsaFailureCode ?? null,
+    tsaTokenPresent: tsa.tsaTokenPresent ?? null,
+    tsaValidatedAtUtc: tsa.tsaValidatedAtUtc ?? null,
+    tsaValidatedFromRetainedToken: tsa.tsaValidatedFromRetainedToken ?? null,
+  } as TrustDecisionEvidenceInput);
+  const signals = decision.signals.some((s) => s.key === timestamp.key)
+    ? decision.signals.map((s) => (s.key === timestamp.key ? timestamp : s))
+    : [...decision.signals, timestamp];
+  return { ...decision, ...deriveTrustPresentation(signals), signals };
+}
+
 function buildStorageSignal(
   evidence: TrustDecisionEvidenceInput
 ): TrustSignal {

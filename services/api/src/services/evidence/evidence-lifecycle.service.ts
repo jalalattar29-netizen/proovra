@@ -169,6 +169,8 @@ const BLOCK_MESSAGE: Record<EvidenceLifecycleBlockReason, string> = {
     "Storage retention for this record could not be confirmed, so it is kept. Nothing has been deleted.",
   ARCHIVE_RESTORE_IN_PROGRESS:
     "A restore of this record from the retention archive is in progress.",
+  OUTPUT_ISSUANCE_IN_FLIGHT:
+    "A report or verification package for this record is being produced. Destruction waits until it settles.",
 };
 
 function addDays(from: Date, days: number): Date {

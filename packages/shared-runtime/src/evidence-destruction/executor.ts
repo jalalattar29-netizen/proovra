@@ -79,6 +79,7 @@ import {
 import { canonicalJsonValue } from "@proovra/shared/custody-hash";
 import { appendCustodyEventTx } from "../custody/custody-chain.js";
 import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
+import { reportClaimLiveWhere } from "../reports/report-claim-lease.js";
 import { createHash } from "node:crypto";
 
 /**
@@ -577,6 +578,18 @@ export async function executeEvidenceDestruction(
       // RETENTION ARCHIVE — restore and purge must never both succeed: an
       // open archive-restore request blocks the purge (and the restore
       // workflow refuses a record under a destruction claim).
+      // F-09 (independent forward audit) — an output in flight publishes its
+      // objects outside any lock and is refused only at its commit, so an
+      // object it publishes after this decision's inventory would survive a
+      // certificate that says every version is gone. Destruction waits for a
+      // LIVE report / package claim (the same lease definition the worker
+      // renews) to settle; the commit then refuses the destroyed record.
+      const inFlight = await tx.reportGenerationRequest.count({
+        where: { evidenceId: row.id, ...reportClaimLiveWhere(now) },
+      });
+      if (inFlight > 0) {
+        throw new DecisionRefused({ ok: false, outcome: "BLOCKED", reason: "OUTPUT_ISSUANCE_IN_FLIGHT" });
+      }
       const openRestores = await tx.evidenceArchiveRestoreRequest.count({
         where: { evidenceId: row.id, status: { in: ["REQUESTED", "RUNNING"] } },
       });
@@ -714,6 +727,27 @@ export async function executeEvidenceDestruction(
       if (remaining.some((v) => !v.isDeleteMarker)) survivors.push(target.key);
     } catch {
       survivors.push(target.key);
+    }
+  }
+  // F-09 (independent forward audit) — the record's OWN PREFIXES are listed
+  // AGAIN: an object written under them after the inventory (a publication
+  // racing the claim) is a survivor too, never an object the certificate
+  // silently omits. The claim is released and the next attempt deletes it.
+  if (storage.listKeysUnderPrefix) {
+    const known = new Set(targets.map((t) => `${t.bucket} ${t.key}`));
+    const buckets = new Set(targets.map((t) => t.bucket));
+    try {
+      for (const bucket of buckets) {
+        for (const prefix of evidenceOwnedStoragePrefixes(evidence.id)) {
+          for (const key of await storage.listKeysUnderPrefix({ bucket, prefix })) {
+            if (known.has(`${bucket} ${key}`)) continue;
+            const versions = await storage.listObjectVersions({ bucket, key });
+            if (versions.some((v) => !v.isDeleteMarker)) survivors.push(key);
+          }
+        }
+      }
+    } catch {
+      survivors.push("(owned prefix listing failed)");
     }
   }
   if (survivors.length > 0) {

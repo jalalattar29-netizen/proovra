@@ -42,30 +42,37 @@ import {
   type ReportGenerationPurpose,
 } from "@proovra/shared-runtime/reports";
 import {
-  JOB_NAMES,
   isTerminalJobExecutionState,
-  getWorkEntryOrThrow,
+  type OutputProductionRefusal,
   type OutputProgressStage,
 } from "@proovra/shared";
 
 import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
 import { lifecycleRefusalForRequest, settleReportRequestNotApplicable } from "@proovra/shared-runtime/reports";
 import { versionPackagesComplete } from "@proovra/shared-runtime/reports";
+import {
+  REPORT_CLAIM_HEARTBEAT_MS,
+  REPORT_CLAIM_LEASE_MS as SHARED_REPORT_CLAIM_LEASE_MS,
+  isReportClaimLive,
+  reportClaimExpiredWhere,
+} from "@proovra/shared-runtime/reports";
 
 import { prisma } from "./db.js";
+import { OutputPolicyBlockedError, OutputProductionRefusedError } from "./output-production-refusal.js";
 import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { logger } from "./logger.js";
 import { resolveEvidenceOutputIssuance } from "./output-issuance.js";
 
-const ENTRY = getWorkEntryOrThrow(JOB_NAMES.GENERATE_REPORT);
 
 /**
  * How long a PROCESSING claim is believed before a competing worker may take
  * it. Sourced from the registry so the lease, the retry policy and the
  * reconciler's recovery window cannot drift apart.
  */
-export const REPORT_CLAIM_LEASE_MS = ENTRY.claim?.leaseMs ?? 15 * 60 * 1000;
+// F-06 — renewed by the run that holds it; THE live / expired definition is
+// shared with the destruction executor (shared-runtime/reports/report-claim-lease).
+export const REPORT_CLAIM_LEASE_MS = SHARED_REPORT_CLAIM_LEASE_MS;
 
 /** States from which a request may be claimed for execution. */
 const CLAIMABLE_STATES = ["QUEUED", "FAILED_RETRYABLE"] as const;
@@ -120,9 +127,103 @@ export type ReportCommandResolution =
   /** Bounded refusal. The row is terminal or was left for another worker. */
   | { outcome: "noop"; reason: string };
 
+/**
+ * F-07 (independent forward audit) — the run admission asked inside a commit
+ * transaction (the caller holds the record's advisory lock). A refusal throws
+ * the business refusal (NOT_APPLICABLE), a block the policy block
+ * (BLOCKED_POLICY); an entitlement that cannot be read now is a retryable
+ * failure — never assumed entitled.
+ */
+export async function assertRunAdmittedAtCommit(
+  command: Pick<ResolvedReportCommand, "teamId" | "artifactType" | "forceRegenerate">,
+  live: { id: string; teamId: string | null; ownerUserId: string; status: unknown; lifecycleState: unknown; deletedAt: Date | null },
+): Promise<void> {
+  const admission = await decideRunAdmission({
+    evidence: live,
+    requestTeamId: command.teamId,
+    artifactType: command.artifactType,
+    forceRegenerate: command.forceRegenerate,
+  });
+  if (admission.kind === "REFUSED") throw new OutputProductionRefusedError(admission.refusal);
+  if (admission.kind === "BLOCKED") throw new OutputPolicyBlockedError(admission.reasonCode);
+  if (!admission.entitlementResolved) {
+    throw Object.assign(new Error("OUTPUT_ENTITLEMENT_UNRESOLVED_AT_COMMIT"), {
+      code: "OUTPUT_ENTITLEMENT_UNRESOLVED_AT_COMMIT",
+      retriable: true,
+    });
+  }
+}
+
+
 // ===========================================================================
 // Resolve + claim
 // ===========================================================================
+
+export type RunAdmission =
+  | { kind: "ADMITTED"; workspaceId: string; entitlementResolved: boolean }
+  /** An expected business outcome: settle NOT_APPLICABLE, publish nothing. */
+  | { kind: "REFUSED"; refusal: OutputProductionRefusal }
+  /** A policy block: BLOCKED_POLICY with this bounded reason, publish nothing. */
+  | { kind: "BLOCKED"; reasonCode: "workspace_mismatch" | "workspace_not_found" | "organization_not_active" | "legal_hold_active" };
+
+/**
+ * F-07 (independent forward audit) — THE RUN ADMISSION: may this request's run
+ * produce its output for this record NOW? One decision, asked at claim AND
+ * inside the report and package commit transactions (under the record's
+ * advisory lock — the lock legal-hold placement and trash also take), so a
+ * hold, a plan lapse, a suspension or a workspace move that lands while the
+ * report renders or the package builds refuses the commit instead of being
+ * noticed only by the next request.
+ *
+ *   1. the output-producer decision (lifecycle + entitlement) — a refusal;
+ *   2. the record's workspace must still be the request's;
+ *   3. its organization must be ACTIVE;
+ *   4. a REGENERATION is refused under any effective legal hold (an
+ *      unreadable hold is a hold).
+ */
+export async function decideRunAdmission(input: {
+  evidence: { id: string; teamId: string | null; ownerUserId: string; status: unknown; lifecycleState: unknown; deletedAt: Date | null };
+  requestTeamId: string;
+  artifactType: string;
+  forceRegenerate: boolean;
+}): Promise<RunAdmission> {
+  const { evidence } = input;
+  const decision = decideOutputProduction({
+    subject: evidence as never,
+    artifactType: input.artifactType === "VERIFICATION_PACKAGE" ? "VERIFICATION_PACKAGE" : "REPORT",
+    entitlement: await workerOutputEntitlement({
+      id: evidence.id,
+      ownerUserId: evidence.ownerUserId,
+      teamId: evidence.teamId ?? null,
+    }),
+  });
+  if (!decision.produce && decision.refusal) return { kind: "REFUSED", refusal: decision.refusal };
+  // The record's workspace — its team, or its owner's personal workspace for
+  // a Personal record stored with team_id NULL (2026-09-29): the same
+  // resolution the writer used, re-derived here at run time.
+  const workspaceId = await resolveEvidenceWorkspaceId(evidence as never, prisma);
+  if (!workspaceId || workspaceId !== input.requestTeamId) return { kind: "BLOCKED", reasonCode: "workspace_mismatch" };
+  // Lifecycle lives on the Organization (a Team has no status of its own), so
+  // "is this workspace still allowed to do work" resolves through the org,
+  // which is also where suspension is applied.
+  const workspace = await prisma.team.findUnique({ where: { id: workspaceId }, select: { organizationId: true } });
+  if (!workspace) return { kind: "BLOCKED", reasonCode: "workspace_not_found" };
+  const organization = await prisma.organization.findUnique({
+    where: { id: workspace.organizationId },
+    select: { status: true },
+  });
+  if (!organization || organization.status !== "ACTIVE") return { kind: "BLOCKED", reasonCode: "organization_not_active" };
+  // Regeneration REPLACES a finalised artifact: under an effective hold
+  // (record, linked case or workspace) it is refused; a first generation is
+  // not, because there is nothing yet to preserve.
+  if (input.forceRegenerate) {
+    const held = (
+      await evaluateEffectiveLegalHold(prisma, { teamId: workspaceId, evidenceId: evidence.id }).catch(() => ({ held: true }))
+    ).held;
+    if (held) return { kind: "BLOCKED", reasonCode: "legal_hold_active" };
+  }
+  return { kind: "ADMITTED", workspaceId, entitlementResolved: decision.produce };
+}
 
 /**
  * Turn a request id into a runnable command, or into a reason not to run.
@@ -197,73 +298,35 @@ export async function resolveAndClaimReportRequest(input: {
     return { outcome: "noop", reason: "evidence_not_found" };
   }
 
-  // ---- THE OUTPUT-PRODUCER GUARD, AT CLAIM (AUD-01/02) ---------------------
+  // ---- THE RUN ADMISSION, AT CLAIM (AUD-01/02, F-07) ------------------------
   // The record may have been archived, trashed, destroyed or deleted — or its
-  // plan may have stopped including the output — after the request was
-  // written. The SAME shared decision the writer used decides again; a refusal
-  // settles the request as an expected business outcome before any work. An
-  // unreadable entitlement is not a refusal: the run's own gate retries it.
-  const claimDecision = decideOutputProduction({
-    subject: evidence as never,
-    artifactType: request.artifactType === "VERIFICATION_PACKAGE" ? "VERIFICATION_PACKAGE" : "REPORT",
-    entitlement: await workerOutputEntitlement({
-      id: evidence.id,
-      ownerUserId: evidence.ownerUserId,
-      teamId: evidence.teamId ?? null,
-    }),
+  // plan may have stopped including the output, its workspace moved, its
+  // organization been suspended, or (for a regeneration) a legal hold been
+  // placed — after the request was written. THE one admission decision
+  // (decideRunAdmission) decides here, and again inside the commit
+  // transactions (F-07). An unreadable entitlement is not a refusal at claim:
+  // the run's own gate retries it.
+  const admission = await decideRunAdmission({
+    evidence,
+    requestTeamId: request.teamId,
+    artifactType: request.artifactType,
+    forceRegenerate: request.forceRegenerate,
   });
-  if (!claimDecision.produce && claimDecision.refusal) {
+  if (admission.kind === "REFUSED") {
     const { settleRequestAsNotApplicable } = await import("./output-production-refusal.js");
-    await settleRequestAsNotApplicable({ requestId, refusal: claimDecision.refusal });
-    return { outcome: "noop", reason: claimDecision.refusal };
+    await settleRequestAsNotApplicable({ requestId, refusal: admission.refusal });
+    return { outcome: "noop", reason: admission.refusal };
   }
-  // The record's workspace — its team, or its owner's personal workspace for
-  // a Personal record stored with team_id NULL (2026-09-29): the same
-  // resolution the writer used, re-derived here at run time.
-  const workspaceId = await resolveEvidenceWorkspaceId(evidence, prisma);
-  if (!workspaceId || workspaceId !== request.teamId) {
-    // The evidence moved workspace, or the request was written against one it
-    // never belonged to. Either way the run is refused before it can read a
-    // single byte of the other tenant's material.
-    bump("queue_workspace_mismatch_total");
+  if (admission.kind === "BLOCKED") {
+    if (admission.reasonCode === "workspace_mismatch") bump("queue_workspace_mismatch_total");
     await markRequestTerminal({
       requestId,
       state: "BLOCKED_POLICY",
-      terminalReasonCode: "workspace_mismatch",
+      terminalReasonCode: admission.reasonCode,
     });
-    return { outcome: "noop", reason: "workspace_mismatch" };
+    return { outcome: "noop", reason: admission.reasonCode };
   }
-
-  // ---- Organization lifecycle, reloaded ------------------------------------
-  //
-  // Lifecycle lives on the Organization, not on the workspace: a Team has no
-  // status column of its own, and every Team belongs to exactly one
-  // Organization. So "is this workspace still allowed to do work" resolves
-  // through the org, which is also where suspension is applied.
-  const workspace = await prisma.team.findUnique({
-    where: { id: workspaceId },
-    select: { id: true, organizationId: true },
-  });
-  if (!workspace) {
-    await markRequestTerminal({
-      requestId,
-      state: "BLOCKED_POLICY",
-      terminalReasonCode: "workspace_not_found",
-    });
-    return { outcome: "noop", reason: "workspace_not_found" };
-  }
-  const organization = await prisma.organization.findUnique({
-    where: { id: workspace.organizationId },
-    select: { id: true, status: true },
-  });
-  if (!organization || organization.status !== "ACTIVE") {
-    await markRequestTerminal({
-      requestId,
-      state: "BLOCKED_POLICY",
-      terminalReasonCode: "organization_not_active",
-    });
-    return { outcome: "noop", reason: "organization_not_active" };
-  }
+  const workspaceId = admission.workspaceId;
 
   // ---- Policy version, reloaded and compared -------------------------------
   const policy = await prisma.workspaceGovernancePolicy.findFirst({
@@ -284,50 +347,25 @@ export async function resolveAndClaimReportRequest(input: {
     return { outcome: "noop", reason: "policy_version_changed" };
   }
 
-  // ---- Legal hold: a held record is not regenerated over ------------------
-  // Regeneration REPLACES a finalised artifact. Under an active hold that is a
-  // mutation of preserved material, so it is refused; first generation is not,
-  // because there is nothing yet to preserve.
-  if (request.forceRegenerate) {
-    /*
-     * THE EFFECTIVE HOLD, not only one placed directly on the record. A hold
-     * on a linked case or on the whole workspace preserves this record just
-     * the same, and the API's projection already withholds "create a new
-     * version" for all three — the claim path now agrees with it.
-     */
-    const hold = (
-      await evaluateEffectiveLegalHold(prisma, {
-        teamId: workspaceId,
-        evidenceId: evidence.id,
-      }).catch(() => ({ held: true }))
-    ).held;
-    if (hold) {
-      await markRequestTerminal({
-        requestId,
-        state: "BLOCKED_POLICY",
-        terminalReasonCode: "legal_hold_active",
-      });
-      return { outcome: "noop", reason: "legal_hold_active" };
-    }
-  }
-
   // ---- Atomic claim --------------------------------------------------------
   // The predicate accepts a claimable state OR an expired lease. Expressing
   // recovery IN the claim rather than in a separate sweep means a worker that
   // died mid-run cannot hold a request forever, and it costs one statement.
-  const leaseFloor = new Date(Date.now() - REPORT_CLAIM_LEASE_MS);
   const claimedAtUtc = new Date();
   const claimed = await prisma.reportGenerationRequest.updateMany({
     where: {
       id: requestId,
       OR: [
         { state: { in: [...CLAIMABLE_STATES] } },
-        { state: "PROCESSING", claimedAtUtc: { lt: leaseFloor } },
+        // F-06 — only an EXPIRED claim is taken over: neither its claim nor
+        // its last renewal within the lease.
+        reportClaimExpiredWhere(claimedAtUtc),
       ],
     },
     data: {
       state: "PROCESSING",
       claimedAtUtc,
+      leaseRenewedAtUtc: null,
       attemptCount: { increment: 1 },
     },
   });
@@ -379,11 +417,19 @@ export async function markRequestTerminal(input: {
    * repair) the non-terminal predicate alone applies.
    */
   fence?: { claimedAtUtc: Date };
+  /**
+   * F-38 (independent forward audit) — a SWEEP that decided from a row it read
+   * passes what it read: the write lands only if the row is still exactly
+   * that (no claim taken, no state moved, between its read and its write).
+   */
+  observed?: { state: string; claimedAtUtc: Date | null };
 }): Promise<boolean> {
   const updated = await prisma.reportGenerationRequest.updateMany({
     where: input.fence
       ? { id: input.requestId, state: "PROCESSING", claimedAtUtc: input.fence.claimedAtUtc }
-      : {
+      : input.observed
+        ? { id: input.requestId, state: input.observed.state as never, claimedAtUtc: input.observed.claimedAtUtc }
+        : {
           id: input.requestId,
           state: {
             notIn: ["SUCCEEDED", "FAILED_TERMINAL", "BLOCKED_STALE", "BLOCKED_POLICY", "NOT_APPLICABLE"],
@@ -525,6 +571,47 @@ export class ReportClaimLost extends Error {
     super(`REPORT_CLAIM_LOST:${requestId}`);
     this.name = "ReportClaimLost";
   }
+}
+
+/**
+ * F-06 — RENEW this run's claim lease (fenced: a run whose claim was taken over
+ * renews nothing). Returns whether the claim is still this run's.
+ */
+export async function renewReportClaimLease(
+  command: Pick<ResolvedReportCommand, "requestId" | "claimedAtUtc">,
+): Promise<boolean> {
+  if (!command.requestId) return false;
+  const renewed = await prisma.reportGenerationRequest.updateMany({
+    where: claimFenceWhere(command),
+    data: { leaseRenewedAtUtc: new Date() },
+  });
+  return renewed.count === 1;
+}
+
+let heartbeatIntervalOverrideMs: number | null = null;
+/** Test seam: a short heartbeat cadence (null restores the production one). */
+export function setReportClaimHeartbeatIntervalForTests(ms: number | null): void {
+  heartbeatIntervalOverrideMs = ms;
+}
+
+/**
+ * F-06 — the heartbeat a claimed run keeps while it works. Best-effort: a
+ * failed beat is retried on the next tick; the lease allows several to be
+ * missed. Returns the stop function the run calls when it finishes.
+ */
+export function startReportClaimHeartbeat(
+  command: Pick<ResolvedReportCommand, "requestId" | "claimedAtUtc">,
+): () => void {
+  const timer = setInterval(() => {
+    renewReportClaimLease(command).catch((err: unknown) =>
+      logger.warn(
+        { requestId: command.requestId, err: err instanceof Error ? err.message : String(err) },
+        "report_request.lease_renewal_failed",
+      ),
+    );
+  }, heartbeatIntervalOverrideMs ?? REPORT_CLAIM_HEARTBEAT_MS);
+  timer.unref?.();
+  return () => clearInterval(timer);
 }
 
 /** The WHERE of every write made by a claimed run. */
@@ -685,10 +772,10 @@ export async function reconcileStrandedReportRequests(input: {
   // ---- 1. Expired PROCESSING leases → back to FAILED_RETRYABLE ------------
   // Done first so a request whose worker died becomes eligible for the
   // re-enqueue pass in the SAME tick rather than the next one.
-  const leaseFloor = new Date(now.getTime() - REPORT_CLAIM_LEASE_MS);
+  // F-06 — an EXPIRED claim only: a run that renewed its lease is working.
   const released = await prisma.reportGenerationRequest.updateMany({
-    where: { state: "PROCESSING", claimedAtUtc: { lt: leaseFloor } },
-    data: { state: "FAILED_RETRYABLE", claimedAtUtc: null },
+    where: reportClaimExpiredWhere(now),
+    data: { state: "FAILED_RETRYABLE", claimedAtUtc: null, leaseRenewedAtUtc: null },
   });
   summary.leasesReleased = released.count;
 
@@ -720,6 +807,9 @@ export async function reconcileStrandedReportRequests(input: {
       artifactType: true,
       reportVersion: true,
       claimedAtUtc: true,
+      leaseRenewedAtUtc: true,
+      forceRegenerate: true,
+      intent: true,
       state: true,
     },
     orderBy: { createdAtUtc: "asc" },
@@ -727,16 +817,13 @@ export async function reconcileStrandedReportRequests(input: {
   });
   for (const candidate of possiblyDone) {
     // A live claim is a worker mid-run; its own terminal write decides.
-    if (
-      candidate.state === "PROCESSING" &&
-      candidate.claimedAtUtc &&
-      candidate.claimedAtUtc >= leaseFloor
-    ) {
-      continue;
-    }
+    if (isReportClaimLive(candidate, now)) continue;
     let targetVersion = candidate.reportVersion;
     if (targetVersion == null) {
       if (candidate.artifactType === "VERIFICATION_PACKAGE") continue;
+      // F-38 — an explicit NEW version that has not reserved one yet owns no
+      // report: another request's newer report is not its output.
+      if (candidate.forceRegenerate || candidate.intent === "NEW_VERSION" || candidate.intent === "OPERATOR_SUPERSEDE") continue;
       const newerReport = await prisma.report.findFirst({
         where: {
           evidenceId: candidate.evidenceId,
@@ -767,6 +854,7 @@ export async function reconcileStrandedReportRequests(input: {
       state: "SUCCEEDED",
       terminalReasonCode: "reconciled_artifact_present",
       resultReportId: report.id,
+      observed: { state: candidate.state, claimedAtUtc: candidate.claimedAtUtc },
     });
     if (repaired) summary.terminalRepaired += 1;
   }
@@ -789,7 +877,7 @@ export async function reconcileStrandedReportRequests(input: {
       state: "FAILED_RETRYABLE",
       attemptCount: { gte: REPORT_RECONCILE_MAX_ATTEMPTS },
     },
-    select: { id: true, attemptCount: true, terminalReasonCode: true },
+    select: { id: true, attemptCount: true, terminalReasonCode: true, claimedAtUtc: true },
     orderBy: { createdAtUtc: "asc" },
     take: batchSize,
   });
@@ -800,6 +888,7 @@ export async function reconcileStrandedReportRequests(input: {
       requestId: row.id,
       state: "FAILED_TERMINAL",
       terminalReasonCode: row.terminalReasonCode?.trim() || "retry_budget_exhausted",
+      observed: { state: "FAILED_RETRYABLE", claimedAtUtc: row.claimedAtUtc },
     });
     if (retired) {
       summary.terminalRepaired += 1;

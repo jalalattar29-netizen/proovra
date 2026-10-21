@@ -69,6 +69,19 @@ export function otsChainVerifiedRequestKey(proofSha256: string, blockHash: strin
 }
 
 /** Did this report already state THIS chain verification (same proof, same block)? */
+/** F-10 — how many times a technically failed owed version is asked again. */
+export const OTS_OWED_VERSION_MAX_RETRIES = 3;
+
+/**
+ * F-10 — the key of the n-th retry of an owed chain-verified version. Shorter
+ * parts than the first key so the whole stays within the 80-character column.
+ */
+export function otsChainVerifiedRetryKey(proofSha256: string, blockHash: string, attempt: number): string {
+  const proof = proofSha256.trim().toLowerCase().slice(0, 30);
+  const block = blockHash.trim().toLowerCase().slice(-30);
+  return `ots-cv-r${attempt}:${proof}:${block}`;
+}
+
 export function reportStatedChainVerification(
   anchorSnapshot: unknown,
   verification: { proofSha256: string; blockHash: string },
@@ -105,11 +118,28 @@ export async function ensureOtsAnchoredReportVersion(input: {
   }
 
   const key = otsChainVerifiedRequestKey(anchoring.proofSha256, blockHash);
-  const prior = await prisma.reportGenerationRequest.findFirst({
-    where: { evidenceId, clientRequestKey: key },
-    select: { id: true },
+  // F-10 (independent forward audit) — THE OWED VERSION IS OWED UNTIL IT IS
+  // ISSUED OR REFUSED. An earlier request for this proof and block used to
+  // close the question whatever became of it, so one that failed TERMINALLY
+  // for a technical reason (storage, a package gate) left the version owed
+  // forever. A technical terminal failure is re-asked under the next retry key
+  // (deterministic, so a repeat delivery collapses onto it), at most
+  // OTS_OWED_VERSION_MAX_RETRIES times. A business refusal (NOT_APPLICABLE,
+  // BLOCKED_*) is a stable answer and is never re-asked.
+  const keys = [key, ...Array.from({ length: OTS_OWED_VERSION_MAX_RETRIES }, (_, i) => otsChainVerifiedRetryKey(anchoring.proofSha256!, blockHash, i + 1))];
+  const priors = await prisma.reportGenerationRequest.findMany({
+    where: { evidenceId, clientRequestKey: { in: keys } },
+    select: { id: true, state: true, clientRequestKey: true },
   });
-  if (prior) return { outcome: "already_requested", requestId: prior.id };
+  const latestPrior = priors.sort((a, b) => keys.indexOf(a.clientRequestKey!) - keys.indexOf(b.clientRequestKey!)).at(-1) ?? null;
+  let requestKey = key;
+  if (latestPrior) {
+    const attempt = keys.indexOf(latestPrior.clientRequestKey!);
+    if (latestPrior.state !== "FAILED_TERMINAL" || attempt >= OTS_OWED_VERSION_MAX_RETRIES) {
+      return { outcome: "already_requested", requestId: latestPrior.id };
+    }
+    requestKey = keys[attempt + 1]!;
+  }
 
   // A report generation already running renders the current (verified) state;
   // its commit re-runs this decision. If it fails terminally, the next chain
@@ -129,8 +159,12 @@ export async function ensureOtsAnchoredReportVersion(input: {
     intent: "NEW_VERSION",
     forceRegenerate: true,
     regenerateReason: "ots_chain_verified",
-    clientRequestKey: key,
+    clientRequestKey: requestKey,
     requestedByMachineId: OTS_ANCHORED_MACHINE_ID,
+    // F-10 — a retry of an owed version whose request failed TECHNICALLY
+    // supersedes that terminal (bounded twice: OTS_OWED_VERSION_MAX_RETRIES
+    // here and the writer's own supersession budget). Never a business refusal.
+    ...(requestKey !== key ? { supersedeTechnicalTerminal: true } : {}),
     entitlement: workerOutputEntitlement,
   });
   if (!persisted.created) return { outcome: "refused", reason: persisted.reason };

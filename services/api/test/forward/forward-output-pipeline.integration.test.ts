@@ -1304,5 +1304,244 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       });
       expect(row).toEqual({ captureMethod: "MULTIPART_PACKAGE", submittedByUserId: null, createdByUserId: null, uploadedByUserId: null, status: "REPORTED" });
     }, 300_000);
+
+    // ---- F-07: lifecycle / legal hold / entitlement / organization re-decided at commit
+    async function issuedV1() {
+      const ev = await signedEvidence();
+      await signFingerprintRaw(ev);
+      const id = await request(ev);
+      expect(await run(id, 0), "v1 must issue").toBeNull();
+      return ev;
+    }
+    async function latestPointer(evidenceId: string) {
+      return (await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { latestReportVersion: true, verificationPackageVersion: true } }));
+    }
+
+    it("F-07: a legal hold placed while a regeneration renders refuses the commit; no v2, no pointer advance", async () => {
+      const ev = await issuedV1();
+      const before = await latestPointer(ev.evidenceId);
+      const owner = await prisma.team.findUniqueOrThrow({ where: { id: ev.teamId }, select: { ownerUserId: true } });
+      seam.afterRenderSnapshot = async () => {
+        await prisma.evidenceLegalHold.create({
+          data: { teamId: ev.teamId, evidenceId: ev.evidenceId, scope: "EVIDENCE", title: "f-07", placedByUserId: owner.ownerUserId } as never,
+        });
+      };
+      const id = await request({ ...ev, forceRegenerate: true });
+      const err = await run(id, 0);
+      expect(err).toBeNull();
+      const s = await state(ev.evidenceId, id);
+      expect(s.reports.map((r) => r.version)).toEqual([1]);
+      expect(s.req).toMatchObject({ state: "BLOCKED_POLICY", terminalReasonCode: "legal_hold_active" });
+      expect(await latestPointer(ev.evidenceId)).toEqual(before);
+      expect(seam.sentryCaptures).toEqual([]);
+    }, 300_000);
+
+    it("F-07: an organization suspended while the report renders refuses the commit", async () => {
+      const ev = await signedEvidence();
+      await signFingerprintRaw(ev);
+      const team = await prisma.team.findUniqueOrThrow({ where: { id: ev.teamId }, select: { organizationId: true } });
+      seam.afterRenderSnapshot = async () => {
+        await prisma.organization.update({ where: { id: team.organizationId }, data: { status: "SUSPENDED" } as never });
+      };
+      try {
+        const id = await request(ev);
+        expect(await run(id, 0)).toBeNull();
+        const s = await state(ev.evidenceId, id);
+        expect(s.reports).toEqual([]);
+        expect(s.req).toMatchObject({ state: "BLOCKED_POLICY", terminalReasonCode: "organization_not_active" });
+        expect((await latestPointer(ev.evidenceId)).latestReportVersion ?? null).toBeNull();
+      } finally {
+        await prisma.organization.update({ where: { id: team.organizationId }, data: { status: "ACTIVE" } as never });
+      }
+    }, 300_000);
+
+    it("F-07: a plan that lapses (in the database) while the report renders settles NOT_APPLICABLE at commit", async () => {
+      const ev = await signedEvidence();
+      await signFingerprintRaw(ev);
+      const owner = await prisma.team.findUniqueOrThrow({ where: { id: ev.teamId }, select: { ownerUserId: true } });
+      const ent = await prisma.entitlement.findFirst({ where: { userId: owner.ownerUserId }, select: { id: true, plan: true } });
+      seam.afterRenderSnapshot = async () => {
+        await prisma.team.update({ where: { id: ev.teamId }, data: { billingPlan: "FREE" } });
+        if (ent) await prisma.entitlement.update({ where: { id: ent.id }, data: { plan: "FREE" } });
+      };
+      try {
+        const id = await request(ev);
+        expect(await run(id, 0)).toBeNull();
+        const s = await state(ev.evidenceId, id);
+        expect(s.reports).toEqual([]);
+        expect(s.req?.state).toBe("NOT_APPLICABLE");
+        expect(seam.sentryCaptures).toEqual([]);
+      } finally {
+        await prisma.team.update({ where: { id: ev.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
+        if (ent) await prisma.entitlement.update({ where: { id: ent.id }, data: { plan: ent.plan } });
+      }
+    }, 300_000);
+
+    // ---- F-06: a long run renews a fenced lease; the reconciler and the claim leave it alone
+    it("F-06: a running report renews its claim's lease (fenced heartbeat)", async () => {
+      const authority = await import("../../../worker/src/report-generation-authority.js");
+      authority.setReportClaimHeartbeatIntervalForTests(200);
+      try {
+        const ev = await signedEvidence();
+        await signFingerprintRaw(ev);
+        const id = await request(ev);
+        let seen: { claimedAtUtc: Date | null; leaseRenewedAtUtc: Date | null } | null = null;
+        seam.afterRenderSnapshot = async () => {
+          await new Promise((r) => setTimeout(r, 700));
+          seen = (await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id }, select: { claimedAtUtc: true, leaseRenewedAtUtc: true } as never })) as never;
+        };
+        expect(await run(id, 0)).toBeNull();
+        expect(seen).not.toBeNull();
+        expect(seen!.leaseRenewedAtUtc, "the run renewed its lease").toBeInstanceOf(Date);
+        expect(seen!.leaseRenewedAtUtc!.getTime()).toBeGreaterThan(seen!.claimedAtUtc!.getTime());
+      } finally {
+        authority.setReportClaimHeartbeatIntervalForTests(null);
+      }
+    }, 300_000);
+
+    it("F-06: the stranded-request reconciler and a competing claim never take a claim whose lease was renewed", async () => {
+      const authority = await import("../../../worker/src/report-generation-authority.js");
+      const ev = await signedEvidence();
+      const id = await request(ev);
+      const longAgo = new Date(Date.now() - 60 * 60 * 1000);
+      await prisma.reportGenerationRequest.update({
+        where: { id },
+        data: { state: "PROCESSING", claimedAtUtc: longAgo, leaseRenewedAtUtc: new Date() } as never,
+      });
+      await authority.reconcileStrandedReportRequests({ enqueue: async () => ({ enqueued: false }) });
+      const after = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id }, select: { state: true, claimedAtUtc: true } });
+      expect(after).toEqual({ state: "PROCESSING", claimedAtUtc: longAgo });
+      // A second worker's claim is refused while the lease is live.
+      expect(await run(id, 0)).toBeNull();
+      const again = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id }, select: { state: true, claimedAtUtc: true } });
+      expect(again).toEqual({ state: "PROCESSING", claimedAtUtc: longAgo });
+      // An expired lease (no renewal within the lease) IS released.
+      await prisma.reportGenerationRequest.update({ where: { id }, data: { leaseRenewedAtUtc: longAgo } as never });
+      await authority.reconcileStrandedReportRequests({ enqueue: async () => ({ enqueued: false }) });
+      expect((await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id }, select: { state: true } })).state).toBe("FAILED_RETRYABLE");
+    }, 300_000);
+
+    // ---- F-24: the record's report pointer only advances
+    it("F-24: a commit never moves latestReportVersion backwards", async () => {
+      const ev = await signedEvidence();
+      await signFingerprintRaw(ev);
+      seam.reportPublishedHook = async () => {
+        // A higher version committed first (simulated: the pointer moved past this run's version).
+        await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { latestReportVersion: 7 } as never });
+      };
+      const id = await request(ev);
+      await run(id, 0);
+      expect((await latestPointer(ev.evidenceId)).latestReportVersion).toBe(7);
+    }, 300_000);
+
+    // ---- F-05 / F-11 / F-34: a package built later for an issued report
+    /** v1 issued with its report only (the package refused by the storage allowance). */
+    async function reportOnlyV1(extra: Record<string, unknown> = {}) {
+      const ev = await signedEvidence();
+      await signFingerprintRaw(ev);
+      if (Object.keys(extra).length) await tamperSealedEvidence(prisma, ev.evidenceId, extra);
+      seam.packageAllowanceRefusal = "STORAGE_LIMIT_REACHED";
+      const id = await request(ev);
+      expect(await run(id, 0)).toBeNull();
+      seam.packageAllowanceRefusal = null;
+      const s = await state(ev.evidenceId);
+      expect(s.reports.map((r) => r.version)).toEqual([1]);
+      expect(s.packages).toEqual([]);
+      return ev;
+    }
+    const packageOnly = async (ev: { evidenceId: string; teamId: string }, version: number) => {
+      const id = await request({ ...ev, artifactType: "VERIFICATION_PACKAGE", reportVersion: version, purpose: "package_recovery" });
+      return { id, err: await run(id, 0) };
+    };
+
+    it("F-05: a package built later carries exactly the chain its report issued, cut by sequence (a later event dated before issuance is excluded)", async () => {
+      const ev = await reportOnlyV1();
+      const v1 = await prisma.report.findUniqueOrThrow({ where: { evidenceId_version: { evidenceId: ev.evidenceId, version: 1 } }, select: { generatedAtUtc: true } });
+      const issuedThrough = (await prisma.custodyEvent.aggregate({ where: { evidenceId: ev.evidenceId }, _max: { sequence: true } }))._max.sequence!;
+      // An event recorded AFTER issuance whose own time precedes it (a timestamp's genTime, a reconciled hold).
+      const { appendCustodyEvent } = await import("../../src/services/custody-events.service.js");
+      await appendCustodyEvent({ evidenceId: ev.evidenceId, eventType: "TECHNICAL_VERIFICATION_CHECKED" as never, atUtc: new Date(v1.generatedAtUtc.getTime() - 86_400_000), payload: { source: "f-05" } });
+      const { id, err } = await packageOnly(ev, 1);
+      expect(err).toBeNull();
+      expect((await state(ev.evidenceId, id)).req?.state).toBe("SUCCEEDED");
+      const pkg = await prisma.verificationPackage.findFirstOrThrow({ where: { evidenceId: ev.evidenceId, version: 1, state: "PUBLISHED", disclosureProfile: "FULL_FORENSIC" }, select: { custodyThroughSequence: true } as never }) as unknown as { custodyThroughSequence: number | null };
+      expect(pkg.custodyThroughSequence).toBe(issuedThrough);
+    }, 300_000);
+
+    it("F-11: a token validated after issuance does not make the version's package permanently unbuildable", async () => {
+      const token = Buffer.from(`f-11-token-${randomUUID()}`).toString("base64");
+      const ev = await reportOnlyV1({ tsaStatus: "STAMPED", tsaTokenBase64: token, tsaValidatedAtUtc: null });
+      // The operator path that validates a retained token after issuance.
+      await tamperSealedEvidence(prisma, ev.evidenceId, { tsaValidatedAtUtc: new Date() });
+      const { id, err } = await packageOnly(ev, 1);
+      expect(err).toBeNull();
+      const s = await state(ev.evidenceId, id);
+      expect(s.req).toMatchObject({ state: "SUCCEEDED" });
+      expect(s.packages.map((p) => p.version)).toEqual([1]);
+    }, 300_000);
+
+    it("F-07: an organization suspended while a package builds refuses the package commit (BLOCKED_POLICY, no package)", async () => {
+      const ev = await reportOnlyV1();
+      const team = await prisma.team.findUniqueOrThrow({ where: { id: ev.teamId }, select: { organizationId: true } });
+      seam.packageVerifyHook = async () => {
+        await prisma.organization.update({ where: { id: team.organizationId }, data: { status: "SUSPENDED" } as never });
+      };
+      try {
+        const { id, err } = await packageOnly(ev, 1);
+        expect(err).toBeNull();
+        const s1 = await state(ev.evidenceId, id);
+        expect(s1.req).toMatchObject({ state: "BLOCKED_POLICY", terminalReasonCode: "organization_not_active" });
+        expect(s1.packages).toEqual([]);
+        expect((await latestPointer(ev.evidenceId)).verificationPackageVersion ?? null).toBeNull();
+      } finally {
+        await prisma.organization.update({ where: { id: team.organizationId }, data: { status: "ACTIVE" } as never });
+      }
+    }, 300_000);
+
+    // ---- F-10: an owed chain-verified version whose request failed terminally is owed again
+    it("F-10: a technically failed owed OTS version is re-requested once, idempotently; a business refusal is not", async () => {
+      const ev = await chainVerifiedWithV1();
+      const { reconcileOtsAnchoredReportVersion } = await import("../../../worker/src/ots-anchored-version.js");
+      const first = await reconcileOtsAnchoredReportVersion(ev.evidenceId);
+      expect(first.outcome).toBe("requested");
+      // The owed request failed terminally (a technical failure, e.g. storage).
+      await prisma.reportGenerationRequest.update({ where: { id: first.requestId! }, data: { state: "FAILED_TERMINAL", terminalReasonCode: "STORAGE_UNAVAILABLE", completedAtUtc: new Date() } as never });
+      const retry = await reconcileOtsAnchoredReportVersion(ev.evidenceId);
+      expect(retry.outcome).toBe("requested");
+      expect(retry.requestId).not.toBe(first.requestId);
+      expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("already_requested");
+      expect(await autoRequests(ev.evidenceId)).toHaveLength(2);
+      // A business refusal (NOT_APPLICABLE) is a stable outcome, never re-asked.
+      await prisma.reportGenerationRequest.update({ where: { id: retry.requestId! }, data: { state: "NOT_APPLICABLE", terminalReasonCode: "NOT_APPLICABLE_NOT_ENTITLED", completedAtUtc: new Date() } as never });
+      expect((await reconcileOtsAnchoredReportVersion(ev.evidenceId)).outcome).toBe("already_requested");
+      expect(await autoRequests(ev.evidenceId)).toHaveLength(2);
+    }, 300_000);
+
+    // ---- F-38: stale or competing writers are fenced
+    it("F-38: a stale run cannot fail the reservations a live claimant holds", async () => {
+      const issuance = await import("../../../worker/src/package-issuance.js");
+      const ev = await signedEvidence();
+      const id = await request(ev);
+      const live = new Date();
+      await prisma.reportGenerationRequest.update({ where: { id }, data: { state: "PROCESSING", claimedAtUtc: live } as never });
+      const row = await prisma.verificationPackage.create({
+        data: { evidenceId: ev.evidenceId, version: 1, state: "RESERVED", disclosureProfile: "FULL_FORENSIC", issuanceId: id } as never,
+        select: { id: true },
+      }).catch(() => null);
+      await issuance.failIssuance({ requestId: id, reason: "STALE", fence: { claimedAtUtc: new Date(live.getTime() - 60_000) } });
+      if (row) {
+        expect((await prisma.verificationPackage.findUniqueOrThrow({ where: { id: row.id }, select: { state: true } })).state).toBe("RESERVED");
+      }
+    }, 300_000);
+
+    it("F-38: the reconciler does not adopt another request's report for an explicit NEW_VERSION request", async () => {
+      const authority = await import("../../../worker/src/report-generation-authority.js");
+      const ev = await issuedV1();
+      const id = await request({ ...ev, forceRegenerate: true });
+      await prisma.reportGenerationRequest.update({ where: { id }, data: { state: "FAILED_RETRYABLE", createdAtUtc: new Date(Date.now() - 3_600_000) } as never });
+      await authority.reconcileStrandedReportRequests({ enqueue: async () => ({ enqueued: false }) });
+      const after = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id }, select: { state: true } });
+      expect(after.state).not.toBe("SUCCEEDED");
+    }, 300_000);
   });
 });

@@ -48,6 +48,7 @@ import {
 import { cleanupStagedTemp, type StagedPackage } from "./verification-package-staging.js";
 import type { PackageSealResult } from "./verification-package.js";
 import {
+  assertRunAdmittedAtCommit,
   claimFenceWhere,
   ReportClaimLost,
   type ResolvedReportCommand,
@@ -70,6 +71,15 @@ type Fence = Pick<ResolvedReportCommand, "requestId" | "claimedAtUtc">;
  * owed profile with its package id; only RESERVED ones are to be built.
  * Throws PackageAlreadyCommittedError when every owed profile is published.
  */
+/**
+ * F-37 (independent forward audit) — the issuance transactions are bounded
+ * explicitly (as the report reserve and commit are), not by Prisma's 5 s
+ * default that included the wait for the record's advisory lock: a commit
+ * queued behind a finalize or a trash under the same lock timed out (P2028)
+ * and burned an attempt for nothing.
+ */
+export const PACKAGE_ISSUANCE_TRANSACTION = { timeout: 30_000, maxWait: 10_000 } as const;
+
 export async function reserveIssuanceForRun(input: {
   command: Fence;
   evidenceId: string;
@@ -104,7 +114,7 @@ export async function reserveIssuanceForRun(input: {
     const toBuild = reserved.filter((r) => r.state === "RESERVED");
     if (toBuild.length === 0) throw new PackageAlreadyCommittedError(input.version);
     return { reportId: report.id, reserved, toBuild };
-  });
+  }, PACKAGE_ISSUANCE_TRANSACTION);
 }
 
 /** The previous PUBLISHED package of the same profile (what this one supersedes). */
@@ -213,12 +223,21 @@ export async function commitIssuance(input: IssuanceCommitInput): Promise<void> 
     // package is published for it. Re-read under the record's lock.
     const live = await tx.evidence.findUnique({
       where: { id: input.evidenceId },
-      select: { status: true, deletedAt: true, lifecycleState: true },
+      select: { id: true, teamId: true, ownerUserId: true, status: true, deletedAt: true, lifecycleState: true },
     });
     const refusal = live ? outputLifecycleRefusal(live) : ("NOT_APPLICABLE_DELETED" as const);
     if (refusal) {
       throw new OutputProductionRefusedError(refusal);
     }
+    // F-07 (independent forward audit) — THE run admission, again, under this
+    // lock: entitlement, workspace, organization and (for a regeneration)
+    // legal hold, as they are NOW. The request row names what was asked.
+    const asked = await tx.reportGenerationRequest.findUnique({
+      where: { id: input.command.requestId },
+      select: { teamId: true, artifactType: true, forceRegenerate: true },
+    });
+    if (!asked) throw new ReportClaimLost(input.command.requestId);
+    await assertRunAdmittedAtCommit(asked, live!);
     const baseline = await tx.report.findUnique({
       where: { evidenceId_version: { evidenceId: input.evidenceId, version: input.version } },
       select: { id: true, pdfSha256: true },
@@ -322,17 +341,34 @@ export async function commitIssuance(input: IssuanceCommitInput): Promise<void> 
       data: { reportVersion: input.version, stage: "PACKAGE_PUBLISHED" },
     });
     if (fencedPublish.count !== 1) throw new ReportClaimLost(input.command.requestId);
-  });
+  }, PACKAGE_ISSUANCE_TRANSACTION);
 }
 
-/** FAIL: this issuance's still-reserved rows record the failure. Best-effort. */
-export async function failIssuance(input: { requestId: string; reason: string }): Promise<void> {
+/**
+ * FAIL: this issuance's still-reserved rows record the failure. Best-effort.
+ *
+ * F-38 (independent forward audit) — FENCED by the failing run's claim: a stale
+ * run (a stalled BullMQ redelivery) whose claim was taken over must not fail
+ * the reservations the live claimant now holds. The request row is locked
+ * (FOR UPDATE), so a competing claim cannot land between the check and the
+ * write.
+ */
+export async function failIssuance(input: { requestId: string; reason: string; fence?: { claimedAtUtc: Date } }): Promise<void> {
   try {
-    await markPackageIssuanceFailed(prisma, {
-      issuanceId: input.requestId,
-      reason: input.reason,
-      now: new Date(),
-    });
+    await prisma.$transaction(async (tx) => {
+      if (input.fence) {
+        const held = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "report_generation_requests"
+          WHERE "id" = ${input.requestId}::uuid AND "state" = 'PROCESSING' AND "claimed_at_utc" = ${input.fence.claimedAtUtc}
+          FOR UPDATE`;
+        if (held.length !== 1) return;
+      }
+      await markPackageIssuanceFailed(tx as never, {
+        issuanceId: input.requestId,
+        reason: input.reason,
+        now: new Date(),
+      });
+    }, PACKAGE_ISSUANCE_TRANSACTION);
   } catch {
     /* the reservation stays RESERVED; the next attempt re-reserves it */
   }

@@ -104,7 +104,11 @@ export type EvidenceLifecycleBlockReason =
   // consistently, so nothing may be purged (fail closed).
   | "RETENTION_METADATA_UNVERIFIED"
   // RETENTION ARCHIVE — an archive restore is in progress for this record.
-  | "ARCHIVE_RESTORE_IN_PROGRESS";
+  | "ARCHIVE_RESTORE_IN_PROGRESS"
+  // F-09 (independent forward audit) — a report or package run holds a LIVE
+  // claim on this record: destruction waits until it settles, so no object it
+  // publishes can survive a destruction certificate.
+  | "OUTPUT_ISSUANCE_IN_FLIGHT";
 
 /**
  * The subset of persisted Evidence columns + resolved verdicts the authority

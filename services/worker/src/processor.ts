@@ -2,6 +2,7 @@ import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
 import {
   OutputProductionRefusedError,
+  isOutputPolicyBlockedError,
   isOutputProductionRefusedError,
   settleRequestAsNotApplicable,
 } from "./output-production-refusal.js";
@@ -98,6 +99,8 @@ import {
   otsCustodyEventLines,
   REPORTABLE_CUSTODY_EVENT_TYPES,
   parseTsaValidationEvidence,
+  withShippedTimestamp,
+  tsaValidatedFromRetainedToken,
   acquisitionIdentityCustodyParts,
   resolveAcquisitionIdentitySnapshot,
   resolveTsaTrustState,
@@ -110,7 +113,7 @@ import {
   tsaProofStatusOfCustodyPayload,
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
-import { custodyThroughIssuance } from "./custody-issuance-cutoff.js";
+import { custodyThroughIssuance, custodyThroughRecordedSequence } from "./custody-issuance-cutoff.js";
 import {
   EVIDENCE_TOO_LARGE_FOR_PROCESSING,
   exceedsProcessingCeiling,
@@ -209,6 +212,8 @@ import {
   ReportClaimLost,
   mintRequestForLegacyJob,
   resolveAndClaimReportRequest,
+  assertRunAdmittedAtCommit,
+  startReportClaimHeartbeat,
   type ResolvedReportCommand,
 } from "./report-generation-authority.js";
 
@@ -3507,16 +3512,21 @@ export async function processGenerateReport(job: Job<unknown>) {
   }
 
   const command = resolution.command;
+  // F-06 (independent forward audit) — the claim lease is renewed while the run
+  // works (fenced), so a long render or package build is never released under
+  // it by the reconciler or taken over by a competing claim.
+  const stopLeaseHeartbeat = startReportClaimHeartbeat(command);
   let run: ReportRunResult;
   try {
     run = await runReportGeneration(job, command, requestId);
   } catch (error) {
+    stopLeaseHeartbeat();
     // THE OUTPUT-PRODUCER GUARD (AUD-01/35) — the record left the producible
     // states while this run was in flight. An expected business outcome: the
     // reserved package rows are released, the request is settled as not
     // applicable, nothing is published, nothing is retried, nothing alerts.
     if (isOutputProductionRefusedError(error)) {
-      await failIssuance({ requestId: command.requestId, reason: error.refusal });
+      await failIssuance({ requestId: command.requestId, reason: error.refusal, fence: { claimedAtUtc: command.claimedAtUtc } });
       await settleRequestAsNotApplicable({
         requestId: command.requestId,
         refusal: error.refusal,
@@ -3535,6 +3545,30 @@ export async function processGenerateReport(job: Job<unknown>) {
       );
       return;
     }
+    // F-07 (independent forward audit) — the run admission refused at a commit
+    // (a hold, a suspension or a workspace move landed while the run worked):
+    // a policy block, settled BLOCKED_POLICY, never captured or retried.
+    if (isOutputPolicyBlockedError(error)) {
+      await failIssuance({ requestId: command.requestId, reason: error.reasonCode, fence: { claimedAtUtc: command.claimedAtUtc } });
+      await markRequestTerminal({
+        requestId: command.requestId,
+        state: "BLOCKED_POLICY",
+        terminalReasonCode: error.reasonCode,
+        fence: { claimedAtUtc: command.claimedAtUtc },
+      });
+      logger.info(
+        {
+          requestId,
+          jobId: job.id ?? null,
+          evidenceId: command.evidenceId,
+          reportRequestId: command.requestId,
+          reasonCode: error.reasonCode,
+          status: "blocked_policy",
+        },
+        "GenerateReportJob blocked by policy at commit: nothing was published",
+      );
+      return;
+    }
     // Terminal vs retryable is decided by the SAME predicate the queue uses, so
     // the durable row and the queue cannot disagree about whether the intent is
     // still alive.
@@ -3544,7 +3578,7 @@ export async function processGenerateReport(job: Job<unknown>) {
     const reason = rootReasonCode(error);
     // This issuance's still-reserved package rows record the failure; the next
     // attempt re-reserves the same rows and ids.
-    await failIssuance({ requestId: command.requestId, reason: toBoundedReasonCode(error) });
+    await failIssuance({ requestId: command.requestId, reason: toBoundedReasonCode(error), fence: { claimedAtUtc: command.claimedAtUtc } });
     /*
      * THE LAST ATTEMPT IS TERMINAL (2026-10-13). When BullMQ's final attempt of
      * a retryable failure was spent, the request used to stay FAILED_RETRYABLE
@@ -3595,6 +3629,8 @@ export async function processGenerateReport(job: Job<unknown>) {
     );
     throw error;
   }
+
+  stopLeaseHeartbeat();
 
   // The artifact the run actually produced or targeted (ET-RPT-07), recorded
   // on the request so a replay returns it instead of generating a second one.
@@ -3796,6 +3832,7 @@ async function loadCommittedReportForPackage(params: {
       reviewerSummaryVersion: true,
       trustDecisionSnapshot: true,
       s3VersionId: true,
+      issuanceCustodyThroughSequence: true,
     },
   });
   if (!report) throw createWorkerError("REPORT_VERSION_NOT_FOUND", false);
@@ -3835,7 +3872,13 @@ async function loadCommittedReportForPackage(params: {
    * was assembled after the report.
    */
   // ET-CUS-06: a contiguous prefix by SEQUENCE (custody-issuance-cutoff).
-  const custodyEvents = await custodyThroughIssuance(prisma, evidenceId, report.generatedAtUtc);
+  // F-05 (independent forward audit) — the cut-off the issuance RECORDED, by
+  // sequence; the time-based reading remains only for reports issued before
+  // the cut-off was recorded.
+  const custodyEvents =
+    report.issuanceCustodyThroughSequence != null
+      ? await custodyThroughRecordedSequence(prisma, evidenceId, report.issuanceCustodyThroughSequence)
+      : await custodyThroughIssuance(prisma, evidenceId, report.generatedAtUtc);
 
   const effectiveVerificationStatus =
     current.verificationStatus ?? prepared.identitySnapshot.verificationStatus;
@@ -4710,7 +4753,7 @@ async function runReportGeneration(
             // reportable. The published object stays an unreferenced orphan.
             const live = await tx.evidence.findUnique({
               where: { id: prepared.evidenceId },
-              select: { status: true, deletedAt: true, lifecycleState: true },
+              select: { id: true, teamId: true, ownerUserId: true, status: true, deletedAt: true, lifecycleState: true },
             });
             const atCommit = live
               ? reportableAtCommit(live)
@@ -4719,6 +4762,10 @@ async function runReportGeneration(
               if (atCommit.refusal) throw new OutputProductionRefusedError(atCommit.refusal);
               throw createWorkerError("REPORT_EVIDENCE_STATE_CHANGED", false);
             }
+            // F-07 (independent forward audit) — THE run admission, again, under
+            // this lock: entitlement, workspace, organization and (for a
+            // regeneration) legal hold, as they are NOW.
+            await assertRunAdmittedAtCommit(command, live!);
 
             // Phase C #5 — distinct event type for the worker-time identity
             // re-snapshot (REPORT_IDENTITY_CONTEXT_RECORDED, not the intake-time
@@ -4778,7 +4825,13 @@ async function runReportGeneration(
             });
 
             const committed = await tx.evidence.updateMany({
-              where: { id: prepared.evidenceId, ...REPORTABLE_AT_COMMIT_WHERE },
+              where: {
+                id: prepared.evidenceId,
+                ...REPORTABLE_AT_COMMIT_WHERE,
+                // F-24 (independent forward audit) — the record's report pointer
+                // only ADVANCES: a lower version never overwrites a higher one.
+                OR: [{ latestReportVersion: null }, { latestReportVersion: { lt: prepared.version } }],
+              },
               data: {
                 status: EvidenceStatus.REPORTED,
                 verificationStatus: effectiveVerificationStatus,
@@ -4801,6 +4854,17 @@ async function runReportGeneration(
               },
             });
             if (committed.count !== 1) {
+              // The lifecycle was re-read above under this lock, so the pointer
+              // is what moved: a higher version committed first. This version
+              // is no longer the latest; the transaction rolls back and the
+              // retry reserves above it.
+              const pointer = await tx.evidence.findUnique({
+                where: { id: prepared.evidenceId },
+                select: { latestReportVersion: true },
+              });
+              if ((pointer?.latestReportVersion ?? 0) >= prepared.version) {
+                throw createWorkerError("REPORT_POINTER_ADVANCED_RETRY", true);
+              }
               throw createWorkerError("REPORT_EVIDENCE_STATE_CHANGED", false);
             }
 
@@ -4820,6 +4884,35 @@ async function runReportGeneration(
             // REPORT tokens printed by earlier versions keep resolving to the
             // same record through the public route.
 
+            // Phase A2 — a distinct custody event for the PDF signing decision.
+            const pdfCustodyEventType =
+              prepared.pdfSigningOutcome.status === "SIGNED"
+                ? prismaPkg.CustodyEventType.REPORT_PDF_SIGNED
+                : prismaPkg.CustodyEventType.REPORT_PDF_UNSIGNED_OPT_OUT;
+            await appendCustodyEventTx(tx, {
+              evidenceId: prepared.evidenceId,
+              eventType: pdfCustodyEventType,
+              atUtc: prepared.now,
+              payload: {
+                reportVersion: prepared.version,
+                pdfSignatureStatus: prepared.pdfSigningOutcome.status,
+                pdfSignerKeyId:
+                  prepared.pdfSigningOutcome.status === "SIGNED"
+                    ? prepared.pdfSigningOutcome.signerKeyId
+                    : null,
+                pdfSignedAtUtc:
+                  prepared.pdfSigningOutcome.status === "SIGNED"
+                    ? prepared.pdfSigningOutcome.signedAtUtc.toISOString()
+                    : null,
+              },
+            });
+
+            // F-05 (independent forward audit) — every event of this issuance is
+            // appended above: its cut-off, by SEQUENCE, is recorded WITH the
+            // report (the row is append-only; it is written once, here). A
+            // package built later for this version carries exactly this chain.
+            const issuanceCustodyThroughSequence =
+              (await tx.custodyEvent.aggregate({ where: { evidenceId: prepared.evidenceId }, _max: { sequence: true } }))._max.sequence ?? null;
             await tx.report.create({
               data: {
                 evidenceId: prepared.evidenceId,
@@ -4951,29 +5044,7 @@ async function runReportGeneration(
                   prepared.pdfSigningOutcome.status === "SIGNED"
                     ? null
                     : prepared.pdfSigningOutcome.warning,
-              },
-            });
-
-            // Phase A2 — a distinct custody event for the PDF signing decision.
-            const pdfCustodyEventType =
-              prepared.pdfSigningOutcome.status === "SIGNED"
-                ? prismaPkg.CustodyEventType.REPORT_PDF_SIGNED
-                : prismaPkg.CustodyEventType.REPORT_PDF_UNSIGNED_OPT_OUT;
-            await appendCustodyEventTx(tx, {
-              evidenceId: prepared.evidenceId,
-              eventType: pdfCustodyEventType,
-              atUtc: prepared.now,
-              payload: {
-                reportVersion: prepared.version,
-                pdfSignatureStatus: prepared.pdfSigningOutcome.status,
-                pdfSignerKeyId:
-                  prepared.pdfSigningOutcome.status === "SIGNED"
-                    ? prepared.pdfSigningOutcome.signerKeyId
-                    : null,
-                pdfSignedAtUtc:
-                  prepared.pdfSigningOutcome.status === "SIGNED"
-                    ? prepared.pdfSigningOutcome.signedAtUtc.toISOString()
-                    : null,
+                issuanceCustodyThroughSequence,
               },
             });
 
@@ -5144,6 +5215,42 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
           evidenceId: prepared.evidenceId,
         });
 
+        // F-11 / F-34 (independent forward audit) — ONE reading of the record's
+        // TSA facts at assembly: timestamp-validation.json, timestamp.tsr AND
+        // the package matrix (withShippedTimestamp below) all state it. They
+        // were split between the run-start row and the report's issue-time
+        // signal, so a token validated in between made the package contradict
+        // itself and the consistency gate refused that version for good.
+        const tsaAtAssembly = await prisma.evidence.findUniqueOrThrow({
+          where: { id: prepared.evidenceId },
+          select: {
+            tsaStatus: true,
+            tsaValidatedAtUtc: true,
+            tsaFailureCode: true,
+            tsaTokenBase64: true,
+            tsaHashAlgorithm: true,
+            tsaMessageImprint: true,
+            tsaInputDigestHex: true,
+            tsaSerialNumber: true,
+            tsaGenTimeUtc: true,
+            tsaPolicyOid: true,
+            tsaSignerCertSha256: true,
+            fileSha256: true,
+          },
+        });
+        const tsaCustodyAtAssembly = await prisma.custodyEvent.findMany({
+          where: { evidenceId: prepared.evidenceId, eventType: { in: [prismaPkg.CustodyEventType.TIMESTAMP_APPLIED, prismaPkg.CustodyEventType.TIMESTAMP_FAILED] } },
+          orderBy: { sequence: "asc" },
+          select: { eventType: true, payload: true },
+        });
+        const shippedTimestampFacts = {
+          tsaStatus: tsaAtAssembly.tsaStatus ?? null,
+          tsaFailureCode: tsaAtAssembly.tsaFailureCode ?? null,
+          tsaTokenPresent: Boolean(tsaAtAssembly.tsaTokenBase64),
+          tsaValidatedAtUtc: tsaAtAssembly.tsaValidatedAtUtc?.toISOString() ?? null,
+          tsaValidatedFromRetainedToken: tsaValidatedFromRetainedToken(tsaCustodyAtAssembly as never),
+        };
+        const shippedTrustDecision = withShippedTimestamp(finalized.finalizedTrustDecision, shippedTimestampFacts);
         const packageCanonicalMaterials = buildReportCanonicalMaterials({
           evidence: finalized.finalizedReportEvidencePayload,
           custodyEvents: finalized.finalizedCustodyEvents.map((e) => ({
@@ -5154,7 +5261,7 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
             prevEventHash: e.prevEventHash ?? null,
             eventHash: e.eventHash ?? null,
           })),
-          trustDecision: finalized.finalizedTrustDecision,
+          trustDecision: shippedTrustDecision,
           isIntake: packageAcquisition?.isIntake === true,
           snapshotGeneratedAtUtc:
             finalized.finalizedReportEvidencePayload.reportGeneratedAtUtc ??
@@ -5182,7 +5289,7 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
         // What each profile supersedes is resolved per profile at build time.
         // timestamp-validation.json — from the record's TSA facts and the
         // validation evidence recorded with the validation (custody).
-        const tsaValidationEvent = evidence.tsaValidatedAtUtc
+        const tsaValidationEvent = tsaAtAssembly.tsaValidatedAtUtc
           ? await prisma.custodyEvent.findFirst({
               where: {
                 evidenceId: prepared.evidenceId,
@@ -5193,24 +5300,24 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
             })
           : null;
         const includedTimestampToken =
-          presentedTsaStatus(evidence) === "STAMPED" ? evidence.tsaTokenBase64 ?? null : null;
+          presentedTsaStatus(tsaAtAssembly) === "STAMPED" ? tsaAtAssembly.tsaTokenBase64 ?? null : null;
         const timestampValidation = buildTimestampValidationRecord({
-          tsaStatus: evidence.tsaStatus,
-          tsaValidatedAtUtc: evidence.tsaValidatedAtUtc,
-          tsaFailureCode: evidence.tsaFailureCode,
+          tsaStatus: tsaAtAssembly.tsaStatus,
+          tsaValidatedAtUtc: tsaAtAssembly.tsaValidatedAtUtc,
+          tsaFailureCode: tsaAtAssembly.tsaFailureCode,
           tokenIncluded: Boolean(includedTimestampToken),
           tokenSha256: includedTimestampToken
             ? createHash("sha256").update(Buffer.from(includedTimestampToken, "base64")).digest("hex")
             : null,
-          tsaHashAlgorithm: evidence.tsaHashAlgorithm,
-          tsaMessageImprint: evidence.tsaMessageImprint,
-          tsaInputDigestHex: evidence.tsaInputDigestHex,
-          evidenceDigestHex: evidence.fileSha256,
-          tsaSerialNumber: evidence.tsaSerialNumber,
-          tsaGenTimeUtc: evidence.tsaGenTimeUtc,
-          tsaPolicyOid: evidence.tsaPolicyOid,
-          tsaSignerCertSha256: evidence.tsaSignerCertSha256,
-          tokenPresent: Boolean(evidence.tsaTokenBase64),
+          tsaHashAlgorithm: tsaAtAssembly.tsaHashAlgorithm,
+          tsaMessageImprint: tsaAtAssembly.tsaMessageImprint,
+          tsaInputDigestHex: tsaAtAssembly.tsaInputDigestHex,
+          evidenceDigestHex: tsaAtAssembly.fileSha256,
+          tsaSerialNumber: tsaAtAssembly.tsaSerialNumber,
+          tsaGenTimeUtc: tsaAtAssembly.tsaGenTimeUtc,
+          tsaPolicyOid: tsaAtAssembly.tsaPolicyOid,
+          tsaSignerCertSha256: tsaAtAssembly.tsaSignerCertSha256,
+          tokenPresent: Boolean(tsaAtAssembly.tsaTokenBase64),
           evidence: parseTsaValidationEvidence(
             (tsaValidationEvent?.payload as { tsaValidation?: unknown } | null)?.tsaValidation ?? null,
           ),
@@ -5257,7 +5364,7 @@ signature: evidence.signatureBase64!,
           // ET-TSA-04: only a VALIDATED token ships as timestamp.tsr; a failed
           // or unvalidated reply is described in the README, never included.
           timestampToken:
-            presentedTsaStatus(evidence) === "STAMPED" ? evidence.tsaTokenBase64 ?? null : null,
+            presentedTsaStatus(tsaAtAssembly) === "STAMPED" ? tsaAtAssembly.tsaTokenBase64 ?? null : null,
 publicKey: finalized.finalizedReportEvidencePayload.publicKeyPem as string,
           // custody.json / forensic-custody.json (ET-PKG-01): each payload
           // exactly as hashed, so the chain recomputes from the package; the
@@ -5271,7 +5378,7 @@ publicKey: finalized.finalizedReportEvidencePayload.publicKeyPem as string,
           ),
           evidenceId: prepared.evidenceId,
           reportVersion: prepared.version,
-          trustDecision: finalized.finalizedTrustDecision,
+          trustDecision: shippedTrustDecision,
 signingKeyId: evidence.signingKeyId ?? undefined,
 signingKeyVersion: evidence.signingKeyVersion ?? undefined,
           anchor: finalizedAnchorPayload,
@@ -5591,7 +5698,7 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
             "Every verification package of this report version is already published",
           );
         } else if (verificationError instanceof PackageGateDeniedError) {
-          await failIssuance({ requestId: command.requestId, reason: `PACKAGE_GATE_DENIED:${verificationError.reason}` });
+          await failIssuance({ requestId: command.requestId, reason: `PACKAGE_GATE_DENIED:${verificationError.reason}`, fence: { claimedAtUtc: command.claimedAtUtc } });
           try {
             const { bump } = await import("@proovra/shared-runtime/ops");
             bump("package_generation_blocked_total");
@@ -5829,6 +5936,14 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
         // If-None-Match); it is left as an immutable orphan and listed by the
         // orphan inventory, and the retry publishes under a fresh key.
         for (const b of built) await cleanupStagedTemp(b.staged).catch(() => {});
+
+        // F-07 (independent forward audit) — the package commit re-decided the
+        // run admission (or the lifecycle) and refused: a business answer, not
+        // a package failure. It goes to processGenerateReport, which settles it
+        // (NOT_APPLICABLE / BLOCKED_POLICY) with nothing captured or retried.
+        if (isOutputProductionRefusedError(verificationError) || isOutputPolicyBlockedError(verificationError)) {
+          throw verificationError;
+        }
 
         // A reservation lost to a concurrent issuance that PUBLISHED every
         // profile is the same answer as "already committed": the pair exists,
@@ -6085,7 +6200,7 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
     // 2026-10-20 (AUD-03/12) — a business refusal passes straight to
     // processGenerateReport, which settles it as NOT_APPLICABLE: it is not an
     // attempt error, so it is never captured, dead-lettered or escalated here.
-    if (isOutputProductionRefusedError(error)) {
+    if (isOutputProductionRefusedError(error) || isOutputPolicyBlockedError(error)) {
       await job.discard();
       throw error;
     }

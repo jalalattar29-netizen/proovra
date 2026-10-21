@@ -136,6 +136,12 @@ export type CreateReportGenerationRequestInput = {
    * Operations remediation path, after it has checked the operator's
    * capability and recorded their reason. Never supersedes an INTEGRITY,
    * POLICY or COMMERCIAL terminal, and never a live request.
+   *
+   * F-10 (independent forward audit) — also set by the worker's owed
+   * chain-verified version (ots-anchored-version.ts) when it re-asks a
+   * version whose earlier request failed TECHNICALLY: an owed output, retried
+   * at most OTS_OWED_VERSION_MAX_RETRIES times and within this writer's
+   * supersession budget.
    */
   supersedeTechnicalTerminal?: boolean;
   /**

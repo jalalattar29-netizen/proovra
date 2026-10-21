@@ -34,6 +34,12 @@ vi.mock("../src/db.js", () => ({
             (where.artifactType === undefined || r.artifactType === where.artifactType) &&
             (where.state === undefined || (where.state as { in: string[] }).in.includes(r.state)),
         ) ?? null,
+      // F-10 — the owed-version decision reads every request under the proof's
+      // key and its retry keys.
+      findMany: async ({ where }: { where: { evidenceId: string; clientRequestKey: { in: string[] } } }) =>
+        h.requests
+          .filter((r) => r.evidenceId === where.evidenceId && r.clientRequestKey !== null && where.clientRequestKey.in.includes(r.clientRequestKey))
+          .map((r) => ({ id: r.id, state: r.state, clientRequestKey: r.clientRequestKey })),
     },
     evidence: { findUnique: async () => (h.row ? { ...h.row } : null) },
   },
@@ -167,6 +173,35 @@ describe("the automatic version decision", () => {
     expect(viaReconcile.outcome).toBe("already_requested");
     expect(h.requests).toHaveLength(1);
     expect(h.enqueued).toHaveLength(1);
+  });
+
+  it("F-10: a TECHNICALLY failed owed request is re-asked under the next retry key, collapsing on repeat, capped", async () => {
+    h.reports.push({ version: 1, anchorSnapshot: { otsState: "PENDING" } });
+    h.row = VERIFIED_ROW;
+    await ensureOtsAnchoredReportVersion({ evidenceId: "ev-1", anchoring: VERIFIED });
+    h.requests[0]!.state = "FAILED_TERMINAL";
+    const retry = await ensureOtsAnchoredReportVersion({ evidenceId: "ev-1", anchoring: VERIFIED });
+    expect(retry.outcome).toBe("requested");
+    expect(h.requests).toHaveLength(2);
+    expect(h.requests[1]!.clientRequestKey).toMatch(/^ots-cv-r1:/);
+    expect((await ensureOtsAnchoredReportVersion({ evidenceId: "ev-1", anchoring: VERIFIED })).outcome).toBe("already_requested");
+    // Three retries, then the owed version is an operator matter.
+    for (let i = 0; i < 5; i += 1) {
+      h.requests.at(-1)!.state = "FAILED_TERMINAL";
+      await ensureOtsAnchoredReportVersion({ evidenceId: "ev-1", anchoring: VERIFIED });
+    }
+    expect(h.requests).toHaveLength(4);
+  });
+
+  it("F-10: a business refusal of the owed request is a stable answer, never re-asked", async () => {
+    h.reports.push({ version: 1, anchorSnapshot: { otsState: "PENDING" } });
+    h.row = VERIFIED_ROW;
+    await ensureOtsAnchoredReportVersion({ evidenceId: "ev-1", anchoring: VERIFIED });
+    for (const state of ["NOT_APPLICABLE", "BLOCKED_POLICY", "BLOCKED_STALE", "SUCCEEDED"]) {
+      h.requests[0]!.state = state;
+      expect((await ensureOtsAnchoredReportVersion({ evidenceId: "ev-1", anchoring: VERIFIED })).outcome, state).toBe("already_requested");
+    }
+    expect(h.requests).toHaveLength(1);
   });
 
   it("once v2 stated this chain verification nothing more is requested (previous versions untouched)", async () => {

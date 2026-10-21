@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1360,
-    "ReachableSensitiveMutations": 1341,
-    "ClassifiedSensitiveMutations": 1341,
+    "TerminalWriters": 1362,
+    "ReachableSensitiveMutations": 1343,
+    "ClassifiedSensitiveMutations": 1343,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 19,
@@ -83,7 +83,7 @@
       "BILLING_SUBSCRIPTION_SEAT": 88,
       "SSO_OIDC_SCIM_PROVISIONING": 45,
       "AUTOMATION_QUEUE_WEBHOOK": 115,
-      "REPORT_EXPORT_REDACTION": 56,
+      "REPORT_EXPORT_REDACTION": 58,
       "API_KEY_SECRET_OPERATIONAL_ADMIN": 124
     },
     "byNonRequestDisposition": {
@@ -101,7 +101,7 @@
     "MutationConservationHolds": true,
     "byWriterBucket": {
       "ROUTE_ATTRIBUTED_REACHABLE": 1194,
-      "JOB_ATTRIBUTED_REACHABLE": 137,
+      "JOB_ATTRIBUTED_REACHABLE": 139,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
       "STARTUP_OR_SCHEDULED": 21,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 10311,
-      "UNRESOLVED_IDENTIFIER": 1452
+      "METHOD_ON_VALUE": 10320,
+      "UNRESOLVED_IDENTIFIER": 1454
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -15971,8 +15971,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#caseSiuExport.updateMany@816",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:816",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#caseSiuExport.updateMany@850",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:850",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16012,8 +16012,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.updateMany@529",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:529",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.updateMany@530",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:530",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16053,8 +16053,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.updateMany@626",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:626",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.updateMany@639",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:639",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "releaseClaim",
       "kind": "DATABASE",
@@ -16094,8 +16094,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.updateMany@854",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:854",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidence.updateMany@888",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:888",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16135,8 +16135,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceExtractedText.deleteMany@839",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:839",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceExtractedText.deleteMany@873",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:873",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16176,8 +16176,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceLifecycleEvent.create@879",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:879",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceLifecycleEvent.create@913",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:913",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16217,8 +16217,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceOcrText.deleteMany@835",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:835",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceOcrText.deleteMany@869",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:869",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16258,8 +16258,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidencePart.deleteMany@811",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:811",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidencePart.deleteMany@845",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:845",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16299,8 +16299,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidencePartDerivedAsset.deleteMany@832",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:832",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidencePartDerivedAsset.deleteMany@866",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:866",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16340,8 +16340,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceSearchDocument.deleteMany@845",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:845",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceSearchDocument.deleteMany@879",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:879",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16381,8 +16381,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceSemanticChunk.deleteMany@842",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:842",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceSemanticChunk.deleteMany@876",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:876",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16422,8 +16422,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceTranscriptSegment.deleteMany@836",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:836",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#evidenceTranscriptSegment.deleteMany@870",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:870",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16463,8 +16463,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#report.deleteMany@810",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:810",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#report.deleteMany@844",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:844",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16504,8 +16504,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#verificationPackage.deleteMany@807",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:807",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#verificationPackage.deleteMany@841",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:841",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -16545,8 +16545,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#verificationView.deleteMany@806",
-      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:806",
+      "writerId": "packages/shared-runtime/src/evidence-destruction/executor.ts#verificationView.deleteMany@840",
+      "terminalLocation": "packages/shared-runtime/src/evidence-destruction/executor.ts:840",
       "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
       "enclosingDeclaration": "executeEvidenceDestruction",
       "kind": "DATABASE",
@@ -25459,8 +25459,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/reports/report-generation-request.ts#reportGenerationRequest.create@592",
-      "terminalLocation": "packages/shared-runtime/src/reports/report-generation-request.ts:592",
+      "writerId": "packages/shared-runtime/src/reports/report-generation-request.ts#reportGenerationRequest.create@598",
+      "terminalLocation": "packages/shared-runtime/src/reports/report-generation-request.ts:598",
       "file": "packages/shared-runtime/src/reports/report-generation-request.ts",
       "enclosingDeclaration": "createReportGenerationRequest",
       "kind": "DATABASE",
@@ -25483,6 +25483,7 @@
         "SWEEP services/worker/src/first-issuance-reconciliation.ts#runFirstIssuanceReconciliation",
         "SWEEP services/worker/src/lifecycle-recovery.ts#runLifecycleRecovery",
         "SWEEP services/worker/src/ots-anchored-version.ts#reconcileOtsAnchoredReportVersion",
+        "SWEEP services/worker/src/ots-initialization-reconciler.ts#runOtsInitializationReconciler",
         "SWEEP services/worker/src/ots-upgrade.processor.ts#processOtsUpgrade",
         "SWEEP services/worker/src/processor.ts#processGenerateReport"
       ],
@@ -49407,8 +49408,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence/evidence-lifecycle.service.ts#evidence.updateMany@438",
-      "terminalLocation": "services/api/src/services/evidence/evidence-lifecycle.service.ts:438",
+      "writerId": "services/api/src/services/evidence/evidence-lifecycle.service.ts#evidence.updateMany@440",
+      "terminalLocation": "services/api/src/services/evidence/evidence-lifecycle.service.ts:440",
       "file": "services/api/src/services/evidence/evidence-lifecycle.service.ts",
       "enclosingDeclaration": "applyEvidenceLifecycleAction",
       "kind": "DATABASE",
@@ -91978,8 +91979,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/package-issuance.ts#evidence.updateMany@276",
-      "terminalLocation": "services/worker/src/package-issuance.ts:276",
+      "writerId": "services/worker/src/package-issuance.ts#evidence.updateMany@295",
+      "terminalLocation": "services/worker/src/package-issuance.ts:295",
       "file": "services/worker/src/package-issuance.ts",
       "enclosingDeclaration": "commitIssuance",
       "kind": "DATABASE",
@@ -92009,8 +92010,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/package-issuance.ts#report.updateMany@295",
-      "terminalLocation": "services/worker/src/package-issuance.ts:295",
+      "writerId": "services/worker/src/package-issuance.ts#report.updateMany@314",
+      "terminalLocation": "services/worker/src/package-issuance.ts:314",
       "file": "services/worker/src/package-issuance.ts",
       "enclosingDeclaration": "commitIssuance",
       "kind": "DATABASE",
@@ -92040,39 +92041,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/package-issuance.ts#reportGenerationRequest.updateMany@320",
-      "terminalLocation": "services/worker/src/package-issuance.ts:320",
-      "file": "services/worker/src/package-issuance.ts",
-      "enclosingDeclaration": "commitIssuance",
-      "kind": "DATABASE",
-      "target": "reportGenerationRequest",
-      "mutationKind": "updateMany",
-      "primaryFamily": "REPORT_EXPORT_REDACTION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processGenerateReport"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/package-issuance.ts#reportGenerationRequest.updateMany@99",
-      "terminalLocation": "services/worker/src/package-issuance.ts:99",
+      "writerId": "services/worker/src/package-issuance.ts#reportGenerationRequest.updateMany@109",
+      "terminalLocation": "services/worker/src/package-issuance.ts:109",
       "file": "services/worker/src/package-issuance.ts",
       "enclosingDeclaration": "reserveIssuanceForRun",
       "kind": "DATABASE",
@@ -92102,8 +92072,39 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@5602",
-      "terminalLocation": "services/worker/src/processor.ts:5602",
+      "writerId": "services/worker/src/package-issuance.ts#reportGenerationRequest.updateMany@339",
+      "terminalLocation": "services/worker/src/package-issuance.ts:339",
+      "file": "services/worker/src/package-issuance.ts",
+      "enclosingDeclaration": "commitIssuance",
+      "kind": "DATABASE",
+      "target": "reportGenerationRequest",
+      "mutationKind": "updateMany",
+      "primaryFamily": "REPORT_EXPORT_REDACTION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/processor.ts#evidence.update@5709",
+      "terminalLocation": "services/worker/src/processor.ts:5709",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -92133,8 +92134,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.updateMany@4780",
-      "terminalLocation": "services/worker/src/processor.ts:4780",
+      "writerId": "services/worker/src/processor.ts#evidence.updateMany@4827",
+      "terminalLocation": "services/worker/src/processor.ts:4827",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -92164,8 +92165,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#report.create@4823",
-      "terminalLocation": "services/worker/src/processor.ts:4823",
+      "writerId": "services/worker/src/processor.ts#report.create@4887",
+      "terminalLocation": "services/worker/src/processor.ts:4887",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -92195,8 +92196,39 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4327",
-      "terminalLocation": "services/worker/src/processor.ts:4327",
+      "writerId": "services/worker/src/processor.ts#report.update@5074",
+      "terminalLocation": "services/worker/src/processor.ts:5074",
+      "file": "services/worker/src/processor.ts",
+      "enclosingDeclaration": "runReportGeneration",
+      "kind": "DATABASE",
+      "target": "report",
+      "mutationKind": "update",
+      "primaryFamily": "REPORT_EXPORT_REDACTION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4370",
+      "terminalLocation": "services/worker/src/processor.ts:4370",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -92226,8 +92258,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4987",
-      "terminalLocation": "services/worker/src/processor.ts:4987",
+      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@5051",
+      "terminalLocation": "services/worker/src/processor.ts:5051",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -92277,6 +92309,7 @@
         "SWEEP services/worker/src/lifecycle-recovery.ts#runLifecycleRecovery",
         "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
         "SWEEP services/worker/src/ots-anchored-version.ts#reconcileOtsAnchoredReportVersion",
+        "SWEEP services/worker/src/ots-initialization-reconciler.ts#runOtsInitializationReconciler",
         "SWEEP services/worker/src/ots-upgrade.processor.ts#processOtsUpgrade",
         "SWEEP services/worker/src/processor.ts#processGenerateReport",
         "SWEEP services/worker/src/processor.ts#processPurgeDeletedEvidence",
@@ -92507,8 +92540,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@320",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:320",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@355",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:355",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "resolveAndClaimReportRequest",
       "kind": "DATABASE",
@@ -92538,8 +92571,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@383",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:383",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@427",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:427",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "markRequestTerminal",
       "kind": "DATABASE",
@@ -92574,8 +92607,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@506",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:506",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@552",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:552",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "markRequestRetryable",
       "kind": "DATABASE",
@@ -92605,8 +92638,39 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@551",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:551",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@584",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:584",
+      "file": "services/worker/src/report-generation-authority.ts",
+      "enclosingDeclaration": "renewReportClaimLease",
+      "kind": "DATABASE",
+      "target": "reportGenerationRequest",
+      "mutationKind": "updateMany",
+      "primaryFamily": "REPORT_EXPORT_REDACTION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@638",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:638",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "recordRequestProgress",
       "kind": "DATABASE",
@@ -92636,8 +92700,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@689",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:689",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@776",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:776",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "reconcileStrandedReportRequests",
       "kind": "DATABASE",
@@ -153907,6 +153971,7 @@
         "planGrant",
         "redactionDerivative",
         "report",
+        "reportGenerationRequest",
         "revokedSession",
         "riskSignal",
         "stepUpChallenge",
@@ -161177,6 +161242,7 @@
         "evidencePartDerivedAsset",
         "redactionDerivative",
         "report",
+        "reportGenerationRequest",
         "revokedSession",
         "supportAccessGrant",
         "team",

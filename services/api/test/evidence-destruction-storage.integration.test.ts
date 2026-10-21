@@ -53,6 +53,8 @@ class DisposableStore {
   refuse = new Set<string>();
   survive = new Set<string>();
   deleteCalls: string[] = [];
+  /** F-09 — runs once at the first delete: a publication racing the inventory. */
+  onFirstDelete: (() => void) | null = null;
 
   put(bucket: string, key: string, body = "fictional-evidence-bytes") {
     this.objects.set(`${bucket}/${key}`, Buffer.from(body));
@@ -71,7 +73,12 @@ class DisposableStore {
       refuse: (id) => this.refuse.has(id),
       survive: (id) => this.survive.has(id),
       retainUntil: (id) => this.retained.get(id) ?? null,
-      onDelete: (id) => this.deleteCalls.push(id),
+      onDelete: (id) => {
+        this.deleteCalls.push(id);
+        const hook = this.onFirstDelete;
+        this.onFirstDelete = null;
+        hook?.();
+      },
       ids: () => [...this.objects.keys()],
     });
   }
@@ -606,6 +613,52 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
     expect(store.has(rec.bucket, neighbour), "another record is untouched").toBe(true);
     const siuAfter = await prisma.caseSiuExport.findUniqueOrThrow({ where: { id: siu.id }, select: { artifactStorageKey: true, exportStatus: true } });
     expect(siuAfter).toEqual({ artifactStorageKey: null, exportStatus: "destroyed" });
+  });
+
+  // F-09 (independent forward audit) — destruction versus output publication.
+  it("F-09: an object published under the record's prefixes after the inventory refuses the certificate", async () => {
+    const store = new DisposableStore();
+    const rec = await seed(store, trashedAndExpired());
+    const late = `reports/${rec.id}/v2/late-publication.pdf`;
+    store.onFirstDelete = () => store.put(rec.bucket, late);
+    const result = await executeEvidenceDestruction(
+      prisma,
+      { evidenceId: rec.id, trigger: "manual", legalHold: false },
+      store.port,
+    );
+    expect(result.ok, JSON.stringify(result)).toBe(false);
+    if (!result.ok && result.outcome === "STORAGE_VERIFY_FAILED") expect(result.failedKeys).toContain(late);
+    else throw new Error(`expected STORAGE_VERIFY_FAILED, got ${JSON.stringify(result)}`);
+    expect(await certificateCount(rec.id)).toBe(0);
+    expect((await state(rec.id)).lifecycleState).toBe("TRASHED");
+    // The next attempt inventories the late object and destroys it too.
+    const again = await executeEvidenceDestruction(prisma, { evidenceId: rec.id, trigger: "manual", legalHold: false }, store.port);
+    expect(again.ok, JSON.stringify(again)).toBe(true);
+    expect(store.has(rec.bucket, late)).toBe(false);
+    expect(await certificateCount(rec.id)).toBe(1);
+  });
+
+  it("F-09: destruction waits while a report / package run holds a live claim on the record", async () => {
+    const store = new DisposableStore();
+    const rec = await seed(store, trashedAndExpired());
+    await prisma.reportGenerationRequest.create({
+      data: {
+        teamId: harness.fixtures.teamA.teamId,
+        evidenceId: rec.id,
+        artifactType: "REPORT",
+        purpose: "evidence_completed",
+        requestedByMachineId: "f-09-test",
+        expectedPolicyVersion: 0,
+        idempotencyKey: `F09:${randomUUID()}`,
+        state: "PROCESSING",
+        claimedAtUtc: new Date(),
+      } as never,
+    });
+    const result = await executeEvidenceDestruction(prisma, { evidenceId: rec.id, trigger: "manual", legalHold: false }, store.port);
+    expect(result).toMatchObject({ ok: false, outcome: "BLOCKED", reason: "OUTPUT_ISSUANCE_IN_FLIGHT" });
+    expect(store.deleteCalls).toEqual([]);
+    expect((await state(rec.id)).lifecycleState).toBe("TRASHED");
+    expect(await certificateCount(rec.id)).toBe(0);
   });
 
   it("two concurrent executors produce exactly one destruction", async () => {

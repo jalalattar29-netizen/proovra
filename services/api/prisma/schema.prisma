@@ -917,6 +917,11 @@ model Report {
   /// Last custody sequence the rendered PDF describes. Events after it
   /// happened after this report was issued.
   custodyThroughSequence Int?  @map("custody_through_sequence")
+  /// F-05 (independent forward audit) — the last custody sequence of this
+  /// report's ISSUANCE: the commit transaction's own events included. A
+  /// package built later for this version carries exactly the chain through
+  /// it (a cut by sequence, never by time). Null on rows issued before it.
+  issuanceCustodyThroughSequence Int? @map("issuance_custody_through_sequence")
 
   evidence Evidence @relation(fields: [evidenceId], references: [id])
 
@@ -14870,6 +14875,11 @@ model ReportGenerationRequest {
   /// it failed at. Written under the claim fence; never read for decisions.
   progressStage    String?   @map("progress_stage") @db.VarChar(32)
   progressAtUtc    DateTime? @map("progress_at_utc") @db.Timestamptz(6)
+  /// F-06 (independent forward audit) — the claim's lease, RENEWED by the run
+  /// that holds it (a fenced heartbeat). A claim is live while claimedAtUtc
+  /// OR this is within the lease; only an expired claim is released or
+  /// re-claimed. claimedAtUtc stays the fence.
+  leaseRenewedAtUtc DateTime? @map("lease_renewed_at_utc") @db.Timestamptz(6)
   /// What was asked for: GENERATE, RECOVER, RETRY, NEW_VERSION, OPERATOR_SUPERSEDE.
   intent           String? @db.VarChar(24)
   /// Caller idempotency key for an explicit new version (lost-response replay).

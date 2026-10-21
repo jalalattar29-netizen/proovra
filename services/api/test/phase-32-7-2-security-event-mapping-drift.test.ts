@@ -1442,6 +1442,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // INDEPENDENT FORWARD AUDIT CLOSURE (2026-10-21) — the capture facts a signed
       // fingerprint commits to are set once (F-01 / F-25). EXPAND only.
       "20281021000000_evidence_sealed_capture_facts_set_once",
+      // F-05 / F-06 — the issuance custody cut-off and the renewed claim lease. EXPAND only.
+      "20281021000100_output_lease_renewal_and_issued_custody_cutoff",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

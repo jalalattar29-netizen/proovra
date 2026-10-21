@@ -52,3 +52,30 @@ export async function settleRequestAsNotApplicable(input: {
 }): Promise<boolean> {
   return settleReportRequestNotApplicable(prisma as never, input);
 }
+
+/**
+ * F-07 (independent forward audit) — the run admission refused at a COMMIT:
+ * the record's workspace moved, its organization was suspended, or a legal
+ * hold now preserves what a regeneration would replace. A policy block, not a
+ * failure: the reserved package rows are released, the request is settled
+ * BLOCKED_POLICY with this bounded reason, nothing is published, retried or
+ * alerted, and no artifact pointer advances (the commit rolls back).
+ */
+export class OutputPolicyBlockedError extends Error {
+  readonly retriable = false as const;
+  readonly businessBlock = true as const;
+  constructor(readonly reasonCode: string) {
+    super(`OUTPUT_POLICY_BLOCKED:${reasonCode}`);
+    this.name = "OutputPolicyBlockedError";
+  }
+}
+
+export function isOutputPolicyBlockedError(err: unknown): err is OutputPolicyBlockedError {
+  return (
+    err instanceof OutputPolicyBlockedError ||
+    (typeof err === "object" &&
+      err !== null &&
+      (err as { businessBlock?: unknown }).businessBlock === true &&
+      typeof (err as { reasonCode?: unknown }).reasonCode === "string")
+  );
+}

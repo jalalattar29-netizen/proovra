@@ -538,6 +538,7 @@ export {
   deriveTrustPresentation,
   readStoredTrustDecision,
   withShippedAnchoring,
+  withShippedTimestamp,
 } from "./trust-decision.js";
 
 export * from "./verification-matrix.js";

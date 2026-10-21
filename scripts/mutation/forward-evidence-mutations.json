@@ -67,8 +67,8 @@
     "phase": "P1",
     "name": "claim: the producer decision is skipped",
     "file": "services/worker/src/report-generation-authority.ts",
-    "find": "  if (!claimDecision.produce && claimDecision.refusal) {",
-    "replace": "  if (false && !claimDecision.produce && claimDecision.refusal) {",
+    "find": "  if (admission.kind === \"REFUSED\") {\n    const { settleRequestAsNotApplicable }",
+    "replace": "  if (false && admission.kind === \"REFUSED\") {\n    const { settleRequestAsNotApplicable }",
     "tests": [
       {
         "cwd": "services/api",
@@ -214,8 +214,8 @@
     "phase": "P2",
     "name": "the inner attempt catch captures a refusal like a failure",
     "file": "services/worker/src/processor.ts",
-    "find": "    if (isOutputProductionRefusedError(error)) {\n      await job.discard();\n      throw error;\n    }",
-    "replace": "    if (isOutputProductionRefusedError(error) && Date.now() < 0) {\n      await job.discard();\n      throw error;\n    }",
+    "find": "    if (isOutputProductionRefusedError(error) || isOutputPolicyBlockedError(error)) {\n      await job.discard();\n      throw error;\n    }",
+    "replace": "    if ((isOutputProductionRefusedError(error) || isOutputPolicyBlockedError(error)) && Date.now() < 0) {\n      await job.discard();\n      throw error;\n    }",
     "tests": [
       {
         "cwd": "services/api",
@@ -4372,6 +4372,362 @@
           "test/forward/afc-intake-sealed-truth.integration.test.ts",
           "-t",
           "F-04"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "phase": "AFC",
+    "id": "AFC-F06-A",
+    "aud": "F-06",
+    "name": "claim: a live (renewed) claim is taken over",
+    "file": "services/worker/src/report-generation-authority.ts",
+    "find": "        reportClaimExpiredWhere(claimedAtUtc),",
+    "replace": "        { state: \"PROCESSING\" as const },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-06"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "phase": "AFC",
+    "id": "AFC-F06-B",
+    "aud": "F-06",
+    "name": "reconciler: a renewed claim is released",
+    "file": "services/worker/src/report-generation-authority.ts",
+    "find": "    where: reportClaimExpiredWhere(now),",
+    "replace": "    where: { state: \"PROCESSING\" as const, claimedAtUtc: { lt: new Date(now.getTime() - REPORT_CLAIM_LEASE_MS) } },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-06"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "phase": "AFC",
+    "id": "AFC-F06-C",
+    "aud": "F-06",
+    "name": "run: no lease heartbeat",
+    "file": "services/worker/src/processor.ts",
+    "find": "  const stopLeaseHeartbeat = startReportClaimHeartbeat(command);",
+    "replace": "  const stopLeaseHeartbeat = () => undefined; void startReportClaimHeartbeat;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-06"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "phase": "AFC",
+    "id": "AFC-F07-A",
+    "aud": "F-07",
+    "name": "report commit: the run admission is not re-decided",
+    "file": "services/worker/src/processor.ts",
+    "find": "            await assertRunAdmittedAtCommit(command, live!);",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-07"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "phase": "AFC",
+    "id": "AFC-F07-B",
+    "aud": "F-07",
+    "name": "package commit: the run admission is not re-decided",
+    "file": "services/worker/src/package-issuance.ts",
+    "find": "    await assertRunAdmittedAtCommit(asked, live!);",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-07"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "phase": "AFC",
+    "id": "AFC-F07-C",
+    "aud": "F-07",
+    "name": "admission: a regeneration under a legal hold is admitted",
+    "file": "services/worker/src/report-generation-authority.ts",
+    "find": "    if (held) return { kind: \"BLOCKED\", reasonCode: \"legal_hold_active\" };",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-07"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "phase": "AFC",
+    "id": "AFC-F05",
+    "aud": "F-05",
+    "name": "recovery: the custody cut-off is chosen by time",
+    "file": "services/worker/src/processor.ts",
+    "find": "    report.issuanceCustodyThroughSequence != null",
+    "replace": "    false",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-05"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "phase": "AFC",
+    "id": "AFC-F10",
+    "aud": "F-10",
+    "name": "ots: a technically failed owed version is never asked again",
+    "file": "services/worker/src/ots-anchored-version.ts",
+    "find": "    if (latestPrior.state !== \"FAILED_TERMINAL\" || attempt >= OTS_OWED_VERSION_MAX_RETRIES) {",
+    "replace": "    if (true) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-10"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "phase": "AFC",
+    "id": "AFC-F11",
+    "aud": "F-11",
+    "name": "package: the matrix states the report's issue-time timestamp",
+    "file": "services/worker/src/processor.ts",
+    "find": "const shippedTrustDecision = withShippedTimestamp(finalized.finalizedTrustDecision, shippedTimestampFacts);",
+    "replace": "const shippedTrustDecision = finalized.finalizedTrustDecision; void withShippedTimestamp; void shippedTimestampFacts;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-11"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "phase": "AFC",
+    "id": "AFC-F24",
+    "aud": "F-24",
+    "name": "report commit: the pointer may move backwards",
+    "file": "services/worker/src/processor.ts",
+    "find": "                OR: [{ latestReportVersion: null }, { latestReportVersion: { lt: prepared.version } }],\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-24"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "phase": "AFC",
+    "id": "AFC-F38-A",
+    "aud": "F-38",
+    "name": "failIssuance: a stale run fails the live claimant's reservations",
+    "file": "services/worker/src/package-issuance.ts",
+    "find": "        if (held.length !== 1) return;",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-38"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "phase": "AFC",
+    "id": "AFC-F38-B",
+    "aud": "F-38",
+    "name": "reconciler: an explicit new version adopts another request's report",
+    "file": "services/worker/src/report-generation-authority.ts",
+    "find": "      if (candidate.forceRegenerate || candidate.intent === \"NEW_VERSION\" || candidate.intent === \"OPERATOR_SUPERSEDE\") continue;",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/forward/forward-output-pipeline.integration.test.ts",
+          "-t",
+          "F-38"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "phase": "AFC",
+    "id": "AFC-F09-A",
+    "aud": "F-09",
+    "name": "destruction: proceeds while an output claim is live",
+    "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+    "find": "      if (inFlight > 0) {",
+    "replace": "      if (false && inFlight > 0) {",
+    "build": [
+      "shared-runtime"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/evidence-destruction-storage.integration.test.ts",
+          "-t",
+          "F-09"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "phase": "AFC",
+    "id": "AFC-F09-B",
+    "aud": "F-09",
+    "name": "destruction: verify does not re-list the owned prefixes",
+    "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+    "find": "            if (known.has(`${bucket} ${key}`)) continue;",
+    "replace": "            continue;",
+    "build": [
+      "shared-runtime"
+    ],
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/evidence-destruction-storage.integration.test.ts",
+          "-t",
+          "F-09"
         ],
         "integration": true
       }

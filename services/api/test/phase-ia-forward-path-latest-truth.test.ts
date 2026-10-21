@@ -189,7 +189,10 @@ describe("Phase IA-forward-path — a CHAIN-VERIFIED proof gets exactly one auto
   });
 
   it("the decision is idempotent per proof and goes through the existing request authority", () => {
-    expect(VERSION).toMatch(/clientRequestKey: key/);
+    // F-10 (independent forward audit): the first request uses the proof key;
+    // a technically failed one is re-asked under the next retry key.
+    expect(VERSION).toMatch(/clientRequestKey: requestKey/);
+    expect(VERSION).toMatch(/otsChainVerifiedRetryKey(/);
     expect(VERSION).toMatch(/ots-chain-verified:\$\{proof\}:\$\{block\}/);
     expect(VERSION).toMatch(/createReportGenerationRequest\(prisma, \{/);
     expect(VERSION).toMatch(/purpose: "ots_upgrade_completed"/);
