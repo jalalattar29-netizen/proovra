@@ -62,6 +62,13 @@ export type AcquisitionIdentitySnapshot = {
   organizationVerified: boolean | null;
   submittedByEmail: string | null;
   submittedByUserId: string | null;
+  /**
+   * Intake only: the email of the workspace account that ISSUED the link, as
+   * recorded at creation (closure re-audit R-1: carried by role, never as the
+   * submitter). Older snapshots recorded it as submittedByEmail with the
+   * INTAKE_LINK_ISSUER role; it is read from there. Null otherwise.
+   */
+  linkIssuerEmail: string | null;
   actorKind: AcquisitionActorKind;
   accountRole: AcquisitionAccountRole;
   /** Intake only: whether the contributor gave an email (never the address). */
@@ -144,6 +151,11 @@ export function resolveAcquisitionIdentitySnapshot(params: {
       organizationVerified: bool(p.organizationVerifiedSnapshot),
       submittedByEmail: str(p.submittedByEmail),
       submittedByUserId: str(p.submittedByUserId),
+      linkIssuerEmail:
+        actorKind === "INTAKE_CONTRIBUTOR"
+          ? (str(p.linkIssuerEmail) ??
+            ((accountRoleOf(p.accountRole) ?? legacy.accountRole) === "INTAKE_LINK_ISSUER" ? str(p.submittedByEmail) : null))
+          : null,
     };
   }
   const row = params.row ?? null;
@@ -166,6 +178,7 @@ export function resolveAcquisitionIdentitySnapshot(params: {
       organizationVerified: null,
       submittedByEmail: null,
       submittedByUserId: null,
+      linkIssuerEmail: null,
     };
   }
   return {
@@ -190,6 +203,7 @@ export function resolveAcquisitionIdentitySnapshot(params: {
     // never presented as the account's email.
     submittedByEmail: params.acquisitionMode === "SECURE_INTAKE_LINK" ? null : str(row.submittedByEmail),
     submittedByUserId: str(row.submittedByUserId),
+    linkIssuerEmail: null,
   };
 }
 

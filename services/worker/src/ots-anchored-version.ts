@@ -189,7 +189,13 @@ export async function ensureOtsAnchoredReportVersion(input: {
   if (persisted.replayed) return { outcome: "already_requested", requestId: persisted.requestId };
   // F-10 (closure) — the writer COLLAPSED onto an existing row (the blocker has
   // not cleared, or the supersession budget is spent): nothing new was asked.
-  if (priors.some((p) => p.id === persisted.requestId)) {
+  // (Closure re-audit O-1) …or onto ANY other terminal head (a customer's
+  // request under the same baseline): deduplicated onto a terminal row is not a
+  // new request, and is never counted as one.
+  if (
+    priors.some((p) => p.id === persisted.requestId) ||
+    ((persisted as { deduplicated?: boolean }).deduplicated === true && isTerminalJobExecutionState(persisted.state))
+  ) {
     return { outcome: "already_requested", requestId: persisted.requestId };
   }
   if (!isTerminalJobExecutionState(persisted.state)) {

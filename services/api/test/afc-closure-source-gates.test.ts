@@ -51,3 +51,21 @@ describe("Wave A minor (closure) — an intake submit claims a persisted locatio
     expect(src).toMatch(/const locationPersisted = shouldPersistLocation && sealedByThisSubmission;/);
   });
 });
+
+describe("R-1 (closure re-audit) — the report pipeline's intake identity is the link issuer, by role", () => {
+  it("the processor reads linkIssuerEmail for an intake record (package linkCreatorEmail)", () => {
+    const src = read("../worker/src/processor.ts");
+    expect(src).toMatch(/acquisitionIdentity\.actorKind === "INTAKE_CONTRIBUTOR" \? acquisitionIdentity\.linkIssuerEmail : acquisitionIdentity\.submittedByEmail/);
+    const pkg = read("../worker/src/verification-package.ts");
+    expect(pkg).toMatch(/const linkCreatorEmail = metadata\.submittedByEmail \?\? null;/);
+  });
+});
+
+describe("O-2 (closure re-audit) — intake records are not a submitter cluster of the link issuer", () => {
+  it("the repeat-submitter clusters exclude intake records and keep legacy records with no mode", () => {
+    const src = read("src/services/dashboard/command-center.service.ts");
+    expect(src).toMatch(
+      /submittedByUserId: \{ not: null \}, OR: \[\{ acquisitionMode: null \}, \{ acquisitionMode: \{ not: "SECURE_INTAKE_LINK" \} \}\] \}/,
+    );
+  });
+});

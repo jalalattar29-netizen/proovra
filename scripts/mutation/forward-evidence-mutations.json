@@ -6492,5 +6492,101 @@
         ]
       }
     ]
+  },
+  {
+    "id": "AFC-RR1-A",
+    "phase": "AFC",
+    "aud": "F-03",
+    "name": "resolver drops the link issuer's role-named email (package linkCreatorEmail lost)",
+    "file": "packages/shared/src/acquisition-identity.ts",
+    "find": "          ? (str(p.linkIssuerEmail) ??",
+    "replace": "          ? (str(p.linkIssuerEmailNotRecorded) ??",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/afc-intake-identity-and-location.test.mjs"
+        ]
+      },
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/acquisition-identity-channels.integration.test.ts",
+          "-t",
+          "secure intake"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-RR1-B",
+    "phase": "AFC",
+    "aud": "F-03",
+    "name": "report pipeline reads the (null) submitter email for an intake record",
+    "file": "services/worker/src/processor.ts",
+    "find": "      acquisitionIdentity.actorKind === \"INTAKE_CONTRIBUTOR\" ? acquisitionIdentity.linkIssuerEmail : acquisitionIdentity.submittedByEmail,",
+    "replace": "      acquisitionIdentity.submittedByEmail,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-closure-source-gates.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-O1",
+    "phase": "AFC",
+    "aud": "F-10",
+    "name": "a retry collapsed onto another terminal head counts as requested",
+    "file": "services/worker/src/ots-anchored-version.ts",
+    "find": "    priors.some((p) => p.id === persisted.requestId) ||\n    ((persisted as { deduplicated?: boolean }).deduplicated === true && isTerminalJobExecutionState(persisted.state))",
+    "replace": "    priors.some((p) => p.id === persisted.requestId)",
+    "tests": [
+      {
+        "cwd": "services/worker",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/ots-anchored-version.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-O2",
+    "phase": "AFC",
+    "aud": "F-03",
+    "name": "intake records counted as the link issuer's submitter cluster",
+    "file": "services/api/src/services/dashboard/command-center.service.ts",
+    "find": "      where: { AND: [pop.activeEvidence], submittedByUserId: { not: null }, OR: [{ acquisitionMode: null }, { acquisitionMode: { not: \"SECURE_INTAKE_LINK\" } }] },",
+    "replace": "      where: { AND: [pop.activeEvidence], submittedByUserId: { not: null } },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-closure-source-gates.test.ts"
+        ]
+      }
+    ]
   }
 ]

@@ -443,6 +443,9 @@ describe("acquisition identity snapshot — every channel, real creation path (l
         expect(row.submittedByEmail).toBe(contributorEmail);
         expect(before.submittedByEmail).toBeNull();
       }
+      // R-1 (closure re-audit) — the resolver carries the issuer by role, so the
+      // package's linkCreatorEmail and the report's role-labelled rows keep it.
+      expect(before.linkIssuerEmail).toBe(await emailOf(A.ownerUserId));
       // The issuer is named by its role only, and never as the uploader.
       expect((payload as Record<string, unknown>).linkIssuerEmail).toBe(await emailOf(A.ownerUserId));
       expect((payload as Record<string, unknown>).uploadedByUserId).toBeNull();
@@ -685,6 +688,7 @@ describe("acquisition identity snapshot — every channel, real creation path (l
       organizationVerified: null,
       submittedByEmail: null,
       submittedByUserId: null,
+      linkIssuerEmail: null,
     });
     await assertNeverStrengthened(id, { ownerUserId: A.ownerUserId, teamId: A.teamId }, resolved, { rewriteRecordColumns: false });
   });

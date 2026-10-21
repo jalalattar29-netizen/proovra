@@ -123,3 +123,18 @@ test("F-36: a presigned original is a download for active or unknown content, an
   assert.deepEqual(presignedOriginalResponseHeaders("application/pdf", 3), { contentDisposition: 'inline; filename="proovra-item-3"', contentType: "application/pdf" });
   assert.deepEqual(presignedOriginalResponseHeaders("Video/MP4; codecs=avc1", 4), { contentDisposition: 'inline; filename="proovra-item-4"', contentType: "video/mp4" });
 });
+
+test("R-1 (closure re-audit): the link issuer's email is carried by its role, from new and older snapshots", () => {
+  const intake = (payload) => snapshotOf({ actorKind: "INTAKE_CONTRIBUTOR", accountRole: "INTAKE_LINK_ISSUER", ...payload });
+  // New snapshots: the issuer is named only as linkIssuerEmail; no submitter email.
+  const now = intake({ submittedByEmail: null, linkIssuerEmail: "issuer@example.test", contributorEmailProvided: true });
+  assert.equal(now.linkIssuerEmail, "issuer@example.test");
+  assert.equal(now.submittedByEmail, null);
+  // Older snapshots recorded the issuer under submittedByEmail with the issuer role.
+  assert.equal(intake({ submittedByEmail: "issuer@example.test" }).linkIssuerEmail, "issuer@example.test");
+  // Never for an ordinary account record.
+  assert.equal(
+    snapshotOf({ actorKind: "ACCOUNT_USER", accountRole: "SUBMITTER", submittedByEmail: "owner@example.test" }).linkIssuerEmail,
+    null,
+  );
+});

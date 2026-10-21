@@ -4760,7 +4760,11 @@ async function runRelationshipIntelligence(
   try {
     const submitterGroups = await prisma.evidence.groupBy({
       by: ["submittedByUserId"],
-      where: { AND: [pop.activeEvidence], submittedByUserId: { not: null } },
+      // F-03 (closure re-audit O-2) — an intake record's submittedByUserId is the
+      // LINK ISSUER's account (the contributor has none): it is not a submitter
+      // cluster of that account, so intake records are not counted here. (The
+      // NULL arm is explicit: a legacy record with no recorded mode is kept.)
+      where: { AND: [pop.activeEvidence], submittedByUserId: { not: null }, OR: [{ acquisitionMode: null }, { acquisitionMode: { not: "SECURE_INTAKE_LINK" } }] },
       _count: { _all: true },
       having: { submittedByUserId: { _count: { gte: 3 } } },
       orderBy: { _count: { submittedByUserId: "desc" } },
@@ -4769,7 +4773,7 @@ async function runRelationshipIntelligence(
     for (const g of submitterGroups) {
       if (!g.submittedByUserId) continue;
       const sample = await prisma.evidence.findMany({
-        where: { AND: [pop.evidence], submittedByUserId: g.submittedByUserId },
+        where: { AND: [pop.evidence], submittedByUserId: g.submittedByUserId, OR: [{ acquisitionMode: null }, { acquisitionMode: { not: "SECURE_INTAKE_LINK" } }] },
         take: 5,
         select: { id: true, caseLinks: { select: { caseId: true } } },
       });

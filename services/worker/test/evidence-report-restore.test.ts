@@ -451,6 +451,7 @@ const VERIFIED_EMAIL_PERSONAL: Snapshot = {
   organizationVerified: null,
   submittedByEmail: "submitter@example.test",
   submittedByUserId: "user-1",
+  linkIssuerEmail: null,
   actorKind: "ACCOUNT_USER",
   accountRole: "SUBMITTER",
   contributorEmailProvided: null,

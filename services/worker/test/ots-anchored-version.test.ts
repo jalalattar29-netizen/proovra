@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   requests: [] as Array<{ id: string; evidenceId: string; clientRequestKey: string | null; artifactType: string; state: string; purpose?: string; forceRegenerate?: boolean; intent?: string; requestedByMachineId?: string }>,
   enqueued: [] as string[],
   row: null as Record<string, unknown> | null,
+  /** O-1 — the writer collapses the next create onto this (terminal) head. */
+  collapseTo: null as { id: string; state: string } | null,
 }));
 
 vi.mock("../src/db.js", () => ({
@@ -47,6 +49,7 @@ vi.mock("../src/db.js", () => ({
 
 vi.mock("@proovra/shared-runtime/reports", () => ({
   createReportGenerationRequest: async (_p: unknown, input: Record<string, unknown>) => {
+    if (h.collapseTo) return { created: true, requestId: h.collapseTo.id, state: h.collapseTo.state, teamId: "t", deduplicated: true, superseded: false };
     const prior = h.requests.find((r) => r.evidenceId === input.evidenceId && r.clientRequestKey === input.clientRequestKey);
     if (prior) return { created: true, requestId: prior.id, state: prior.state, teamId: "t", deduplicated: true, superseded: false, replayed: true };
     const id = `req-${h.requests.length + 1}`;
@@ -191,6 +194,23 @@ describe("the automatic version decision", () => {
       await ensureOtsAnchoredReportVersion({ evidenceId: "ev-1", anchoring: VERIFIED });
     }
     expect(h.requests).toHaveLength(4);
+  });
+
+  it("O-1 (closure re-audit): a retry the writer collapses onto another terminal head is not a new request", async () => {
+    h.reports = [{ version: 1, anchorSnapshot: { otsVerification: "PENDING" } }];
+    h.row = { ...VERIFIED_ROW };
+    const first = await reconcileOtsAnchoredReportVersion("e1");
+    expect(first.outcome).toBe("requested");
+    h.requests.find((q) => q.id === first.requestId)!.state = "FAILED_TERMINAL";
+    const enqueuedBefore = h.enqueued.length;
+    h.collapseTo = { id: "customer-head", state: "FAILED_TERMINAL" };
+    try {
+      const retry = await reconcileOtsAnchoredReportVersion("e1");
+      expect(retry).toEqual({ outcome: "already_requested", requestId: "customer-head" });
+      expect(h.enqueued.length).toBe(enqueuedBefore);
+    } finally {
+      h.collapseTo = null;
+    }
   });
 
   it("F-10: a business refusal of the owed request is a stable answer, never re-asked", async () => {

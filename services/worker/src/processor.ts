@@ -3051,7 +3051,11 @@ captureMethod: deriveReportCaptureMethod({
   existingCaptureMethod: evidence.captureMethod ?? null,
 }),
     identityLevelSnapshot: (acquisitionIdentity.identityLevel as prismaPkg.IdentityLevel | null) ?? null,
-    submittedByEmail: acquisitionIdentity.submittedByEmail,
+    // Intake: the account fields downstream are the LINK ISSUER's, labelled by
+    // role (report technical rows, package linkCreatorEmail); the issuer's
+    // email is carried by role (closure re-audit R-1), never the contributor's.
+    submittedByEmail:
+      acquisitionIdentity.actorKind === "INTAKE_CONTRIBUTOR" ? acquisitionIdentity.linkIssuerEmail : acquisitionIdentity.submittedByEmail,
     submittedByAuthProvider: (acquisitionIdentity.authProvider as prismaPkg.AuthProvider | null) ?? null,
     submittedByUserId: acquisitionIdentity.submittedByUserId ?? evidence.submittedByUserId ?? evidence.ownerUserId,
     createdByUserId: evidence.createdByUserId ?? evidence.ownerUserId,
