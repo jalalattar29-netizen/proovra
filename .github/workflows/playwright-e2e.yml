@@ -30,6 +30,25 @@ jobs:
     # build, migrate and browser download is minutes; 60 leaves generous
     # room and still fails FAST enough to be diagnosed on the same day.
     timeout-minutes: 60
+    # TWO SHARDS, each on its own stack — the limit above is NOT raised.
+    #
+    # The suite is serial (workers: 1, one shared stack), and it grew to 290
+    # tests in 39 files. Its Playwright step measured 31–46 min on main through
+    # 2026-10-19 and 49–50 min on 2026-10-21, so runner variance alone carried
+    # one main run past the 60-minute limit with no test failing (b422ea99e,
+    # attempt 2: "exceeded the maximum execution time of 1h0m0s"). Split by
+    # file (fullyParallel: false), `--list` gives 149 / 141 tests: each shard
+    # runs about half the suite, every shard re-seeds its own database, and the
+    # workflow is green only when both shards are.
+    name: e2e (shard ${{ matrix.shard }}/2)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 1
+            min: 120
+          - shard: 2
+            min: 120
 
     services:
       postgres:
@@ -339,13 +358,26 @@ jobs:
         # flows listed at the top of this file. The layout projects are not
         # skipped by naming it; they were never runnable here, and each is run
         # by its own opt-in command against its own production build.
-        run: pnpm test:e2e:playwright --project=chromium
+        #
+        # A shard that discovers too few tests (a parse error reports zero and
+        # exits 0) fails here rather than passing empty.
+        run: |
+          set -euo pipefail
+          total=$(pnpm exec playwright test --project=chromium --shard=${{ matrix.shard }}/2 --list 2>&1 \
+            | sed -E 's/\x1b\[[0-9;]*m//g' \
+            | grep -oE 'Total: [0-9]+ tests' | grep -oE '[0-9]+' || echo 0)
+          echo "shard ${{ matrix.shard }}/2 discovered: ${total}"
+          if [ "${total}" -lt ${{ matrix.min }} ]; then
+            echo "::error::e2e shard ${{ matrix.shard }}/2 discovered ${total} tests; expected at least ${{ matrix.min }}."
+            exit 1
+          fi
+          pnpm test:e2e:playwright --project=chromium --shard=${{ matrix.shard }}/2
 
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: playwright-report/
           if-no-files-found: ignore
 
@@ -353,7 +385,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: api-e2e-log
+          name: api-e2e-log-${{ matrix.shard }}
           path: /tmp/api-e2e.log
           if-no-files-found: ignore
 
@@ -361,7 +393,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: worker-e2e-log
+          name: worker-e2e-log-${{ matrix.shard }}
           path: /tmp/worker-e2e.log
           retention-days: 7
 
@@ -369,7 +401,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: web-e2e-log
+          name: web-e2e-log-${{ matrix.shard }}
           path: /tmp/web-e2e.log
           if-no-files-found: ignore
 
