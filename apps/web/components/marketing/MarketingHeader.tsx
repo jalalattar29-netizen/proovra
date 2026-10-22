@@ -274,7 +274,7 @@ className="h-auto w-[210px] object-contain drop-shadow-[0_2px_12px_rgba(15,23,42
               >
                 <button
                   type="button"
-                  className={`flex items-center gap-1 whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium transition-colors ${navTextClass} ${
+                  className={`flex items-center gap-1 whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] xl:max-2xl:px-2.5 font-medium transition-colors ${navTextClass} ${
                     openDropdown === group.label
                       ? "after:scale-x-100"
                       : ""
@@ -344,7 +344,7 @@ className="h-auto w-[210px] object-contain drop-shadow-[0_2px_12px_rgba(15,23,42
               <Link
                 key={group.label}
                 href={group.href ?? "#"}
-className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium transition-colors ${navTextClass}`}
+className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] xl:max-2xl:px-2.5 font-medium transition-colors ${navTextClass}`}
               >
                 {group.label}
               </Link>
@@ -358,7 +358,7 @@ className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium
           <MarketingLanguageSwitcher variant="desktop" />
           <Link
             href={switchAuthHref}
-            className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium transition-colors ${navTextClass}`}
+            className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] xl:max-2xl:px-2.5 font-medium transition-colors ${navTextClass}`}
           >
             {switchAuthLabel}
           </Link>

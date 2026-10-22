@@ -1,5 +1,5 @@
 import { MarketingHeader } from "../components/marketing/MarketingHeader";
-import { HeroSection } from "../components/marketing/HeroSection";
+import { HeroV2 } from "../components/marketing/hero-v2/HeroV2";
 import { TrustedStandards } from "../components/marketing/TrustedStandards";
 import { VerifyInstantly } from "../components/marketing/VerifyInstantly";
 import { EvidenceLifecycle } from "../components/marketing/EvidenceLifecycle";
@@ -21,7 +21,7 @@ export default function HomePage() {
       style={{ fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif" }}
     >
       <MarketingHeader />
-      <HeroSection />
+      <HeroV2 />
       <RevealSection direction="up"><TrustedStandards /></RevealSection>
       <RevealSection direction="right"><VerifyInstantly /></RevealSection>
       <RevealSection direction="left"><EvidenceLifecycle /></RevealSection>
