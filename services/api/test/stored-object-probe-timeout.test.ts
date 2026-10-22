@@ -45,8 +45,17 @@ async function loadStorageAgainstSilentStore() {
 }
 
 describe("probeStoredObject against a store that never answers", () => {
+  // Loading `storage` cold (the AWS SDK graph) takes ~2 s on its own. It is
+  // setup, not the behaviour under test — the probe's bound is what is timed
+  // below — so it runs in a hook, outside the 5 s per-test budget it used to
+  // eat into under a loaded runner.
+  let storage: Awaited<ReturnType<typeof loadStorageAgainstSilentStore>>;
+  beforeAll(async () => {
+    storage = await loadStorageAgainstSilentStore();
+  });
+
   it("answers TRANSIENT within its bound instead of hanging", async () => {
-    const { probeStoredObject } = await loadStorageAgainstSilentStore();
+    const { probeStoredObject } = storage;
     const started = Date.now();
     const probe = await probeStoredObject({ bucket: "b", key: "k", versionId: "v1", timeoutMs: 400 });
     const elapsed = Date.now() - started;
@@ -55,7 +64,7 @@ describe("probeStoredObject against a store that never answers", () => {
   });
 
   it("the default bound is finite and short enough for an interactive read", async () => {
-    const { STORED_OBJECT_PROBE_TIMEOUT_MS } = await loadStorageAgainstSilentStore();
+    const { STORED_OBJECT_PROBE_TIMEOUT_MS } = storage;
     expect(STORED_OBJECT_PROBE_TIMEOUT_MS).toBeGreaterThan(0);
     expect(STORED_OBJECT_PROBE_TIMEOUT_MS).toBeLessThanOrEqual(10_000);
   });

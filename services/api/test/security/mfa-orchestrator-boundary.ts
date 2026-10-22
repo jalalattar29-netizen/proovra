@@ -168,8 +168,27 @@ const HTTP_METHODS: ReadonlySet<string> = new Set([
 // AST helpers
 // ===========================================================================
 
+/*
+ * PARSING IS MEMOISED BY (path, text).
+ *
+ * The REFUSES suite calls the gate ten times, each time on the whole of `src/`
+ * with ONE file mutated. Re-parsing ~800 unchanged files on every call cost
+ * ~1.8 s per test on an idle machine — past the 5 s test timeout on a loaded
+ * CI runner (NEW-058's three timeouts after b7040ac). A SourceFile is a pure
+ * function of its path and text and the gate only reads it, so reusing it
+ * changes no verdict: an edited file has different text and is parsed afresh.
+ */
+const parsed = new Map<string, Map<string, ts.SourceFile>>();
+
 function parse(path: string, text: string): ts.SourceFile {
-  return ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  let byText = parsed.get(path);
+  if (!byText) parsed.set(path, (byText = new Map()));
+  let sf = byText.get(text);
+  if (!sf) {
+    sf = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    byText.set(text, sf);
+  }
+  return sf;
 }
 
 function walk(node: ts.Node, visit: (n: ts.Node) => void): void {
@@ -221,8 +240,23 @@ type RouteRegistration = {
   node: ts.CallExpression;
 };
 
+/**
+ * Memoise a read-only AST query on the node it reads. Every query below is a
+ * pure function of an (immutable, memoised) SourceFile or one of its nodes, and
+ * every caller only reads the result, so a cached answer is the same answer.
+ */
+function memoOn<K extends object, V>(compute: (key: K) => V): (key: K) => V {
+  const cache = new WeakMap<K, V>();
+  return (key) => {
+    if (!cache.has(key)) cache.set(key, compute(key));
+    return cache.get(key) as V;
+  };
+}
+
 /** Every `app.<method>("<literal path>", …)` in a source file. */
-function routeRegistrations(sf: ts.SourceFile): RouteRegistration[] {
+const routeRegistrations = memoOn(scanRouteRegistrations);
+
+function scanRouteRegistrations(sf: ts.SourceFile): RouteRegistration[] {
   const out: RouteRegistration[] = [];
   walk(sf, (n) => {
     if (!ts.isCallExpression(n)) return;
@@ -243,7 +277,9 @@ function routeRegistrations(sf: ts.SourceFile): RouteRegistration[] {
 }
 
 /** `const Name = z.object({...}).strict()` declarations, by local name. */
-function zodSchemaDeclarations(
+const zodSchemaDeclarations = memoOn(scanZodSchemaDeclarations);
+
+function scanZodSchemaDeclarations(
   sf: ts.SourceFile,
 ): Map<string, ts.ObjectLiteralExpression> {
   const out = new Map<string, ts.ObjectLiteralExpression>();
@@ -294,8 +330,21 @@ function importedFrom(sf: ts.SourceFile, suffix: string): Set<string> {
   return out;
 }
 
+/** Per-SourceFile results of `modelWrites`, keyed by model (same reasoning as `parsed`). */
+const writesBySourceFile = new WeakMap<ts.SourceFile, Map<string, string[]>>();
+
 /** Prisma-model write calls: `<anything>.<model>.<writeMethod>(…)`. */
 function modelWrites(sf: ts.SourceFile, model: string): string[] {
+  let byModel = writesBySourceFile.get(sf);
+  if (!byModel) writesBySourceFile.set(sf, (byModel = new Map()));
+  const cached = byModel.get(model);
+  if (cached) return cached;
+  const out = scanModelWrites(sf, model);
+  byModel.set(model, out);
+  return out;
+}
+
+function scanModelWrites(sf: ts.SourceFile, model: string): string[] {
   const out: string[] = [];
   walk(sf, (n) => {
     if (!ts.isCallExpression(n)) return;
@@ -311,7 +360,9 @@ function modelWrites(sf: ts.SourceFile, model: string): string[] {
 }
 
 /** Identifiers called as functions anywhere under `node`. */
-function calledNames(node: ts.Node): Set<string> {
+const calledNames = memoOn(scanCalledNames);
+
+function scanCalledNames(node: ts.Node): Set<string> {
   const out = new Set<string>();
   walk(node, (n) => {
     if (!ts.isCallExpression(n)) return;

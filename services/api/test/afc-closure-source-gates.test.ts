@@ -11,7 +11,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 const read = (p: string) => readFileSync(resolve(__dirname, "..", p), "utf8");
 
@@ -36,8 +36,15 @@ describe("F-16 — no assumed eligibility, no swallowed request read", () => {
 });
 
 describe("F-37 — bounded package issuance transactions", () => {
-  it("reserve and commit run with explicit timeout and lock-wait bounds", async () => {
-    const issuance = await import("../../worker/src/package-issuance.js");
+  // The worker module graph (Prisma and friends) takes ~2 s to load cold. That
+  // is setup, not the assertion, so it loads in a hook rather than inside the
+  // 5 s per-test budget it used to exhaust on a loaded runner.
+  let issuance: typeof import("../../worker/src/package-issuance.js");
+  beforeAll(async () => {
+    issuance = await import("../../worker/src/package-issuance.js");
+  });
+
+  it("reserve and commit run with explicit timeout and lock-wait bounds", () => {
     expect(issuance.PACKAGE_ISSUANCE_TRANSACTION).toEqual({ timeout: 30_000, maxWait: 10_000 });
     const src = read("../worker/src/package-issuance.ts");
     expect(src.match(/\}, PACKAGE_ISSUANCE_TRANSACTION\);/g)?.length).toBeGreaterThanOrEqual(2);
