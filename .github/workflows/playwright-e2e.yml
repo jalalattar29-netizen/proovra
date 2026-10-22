@@ -327,19 +327,61 @@ jobs:
           echo "=== Worker boot summary ==="
           grep -E "worker.started|error|Error" /tmp/worker-e2e.log | head -10
 
+      # THE WEB IS A PRODUCTION BUILD, NOT `next dev`.
+      #
+      # This step used to run `pnpm dev`. `next dev` forks its server with a
+      # heap limit of half the runner's memory (8 GB on a 16 GB runner) and,
+      # after any request that leaves the heap above 80% of it, calls
+      # `process.exit()` and respawns ("Server is approaching the used memory
+      # threshold, restarting..."). Every route this suite compiles and every
+      # page it renders grows that heap, so the restart lands at a near-fixed
+      # point in shard 1 — inside `phase-ia-surface-tier-visibility.spec.ts`,
+      # the file with the most navigations (26 sign-ins, ~80 page loads).
+      # Measured locally with the runner's 8 GB heap: 1.4 GB → 10.9 GB RSS
+      # over that file, then the restart, mid-request.
+      #
+      # The exit kills whatever request is in flight (`page.goto("/login")`:
+      # net::ERR_ABORTED) and the respawned server compiles middleware,
+      # /login, /home and the target route again from cold, which on the
+      # runner outlasts `waitForURL(/\/home/)` and the 60s test budget. That
+      # is the "ENTERPRISE: GET /intelligence" / "/security-center" failure
+      # that main reported as flaky on every green run: the case was only
+      # standing where the restart happened to fall.
+      #
+      # A production server compiles nothing on demand and never restarts
+      # itself, which is why the admin control-plane job (ADM-P2-004) and the
+      # updated-report journey already serve `next build` + `next start`.
+      #
+      # NODE_ENV is production for the WEB only; the API keeps the job's
+      # `development` (its test-only rate-limit bypass refuses production).
+      # The storage origin is named because the production CSP drops the dev
+      # policy's blanket `http:` from connect-src/img-src, and MinIO is HTTP.
+      - name: Build Web (production)
+        working-directory: apps/web
+        env:
+          NODE_ENV: production
+          NEXT_TELEMETRY_DISABLED: "1"
+          NEXT_PUBLIC_STORAGE_ORIGIN: http://localhost:9000
+        run: |
+          pnpm exec next build
+          # The bundle must point at this job's API, never at Production.
+          grep -rq "localhost:8081" .next/static || { echo "::error::web bundle is not pinned to the e2e API"; exit 1; }
+
       - name: Start Web (background)
         working-directory: apps/web
         env:
-          PORT: "3000"
-          HOST: "127.0.0.1"
+          NODE_ENV: production
+          NEXT_TELEMETRY_DISABLED: "1"
+          NEXT_PUBLIC_STORAGE_ORIGIN: http://localhost:9000
         run: |
-          nohup pnpm dev > /tmp/web-e2e.log 2>&1 &
+          nohup pnpm exec next start -p 3000 > /tmp/web-e2e.log 2>&1 &
           for _ in {1..60}; do
-            curl -sSf -m 2 http://localhost:3000/pricing > /dev/null 2>&1 && break
+            curl -sSf -m 2 http://localhost:3000/login > /dev/null 2>&1 && break
             sleep 1
           done
           echo "=== Web boot summary ==="
           grep -E "Ready|Local:|Error" /tmp/web-e2e.log | head -10
+          curl -sSf -m 5 -o /dev/null http://localhost:3000/login || { echo "::error::next start did not serve /login"; exit 1; }
 
       - name: Run Playwright critical-flow suite
         env:
