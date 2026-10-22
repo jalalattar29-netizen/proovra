@@ -22,6 +22,7 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 
 import { SESSION_PASSWORD, clearTestRateLimits, createGuestSession, type GuestSession } from "./helpers/api-client";
+import { answerCookieBanner } from "./helpers/consent";
 
 test.describe.configure({ mode: "serial" });
 
@@ -61,6 +62,7 @@ function runTrashGraceSweep(teamId: string, now: Date) {
 
 async function signIn(page: Page, email: string) {
   await clearTestRateLimits();
+  await answerCookieBanner(page);
   await page.goto("/login");
   await page.locator('input[placeholder="Email"]:visible').first().fill(email);
   await page.locator('input[placeholder="Password"]:visible').first().fill(SESSION_PASSWORD);

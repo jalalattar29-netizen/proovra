@@ -37,6 +37,7 @@ import {
   SESSION_PASSWORD,
   type GuestSession,
 } from "./helpers/api-client";
+import { answerCookieBanner } from "./helpers/consent";
 
 /**
  * WHAT EACH OF THESE PATHS ACTUALLY DOES, MEASURED.
@@ -192,6 +193,7 @@ async function loginAsPersonalUser(page: Page): Promise<GuestSession> {
   // spec owns it), so the bucket is reset first, using the same test-only
   // endpoint the rest of the suite resets it with.
   await clearTestRateLimits();
+  await answerCookieBanner(page);
   await page.goto("/login");
   // THE VISIBLE FORM, BECAUSE THERE ARE BRIEFLY TWO.
   //

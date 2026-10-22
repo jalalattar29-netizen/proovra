@@ -42,6 +42,7 @@ import {
   provisionEnterpriseOrg,
   type GuestSession,
 } from "./helpers/api-client";
+import { answerCookieBanner } from "./helpers/consent";
 
 test.describe.configure({ mode: "serial" });
 
@@ -66,14 +67,13 @@ function sql(query: string, params: unknown[] = []): Array<Record<string, unknow
 
 async function signIn(page: Page, email: string) {
   await clearTestRateLimits();
+  await answerCookieBanner(page);
   await page.goto("/login");
   await page.locator('input[placeholder="Email"]:visible').first().fill(email);
   await page.locator('input[placeholder="Password"]:visible').first().fill(SESSION_PASSWORD);
   await page.locator("input.auth-legal-checkbox:visible").first().check();
   await page.locator('[data-auth-email-cta="SIGN_IN"]:visible').first().click();
   await page.waitForURL(/\/home/, { timeout: 30_000 });
-  const reject = page.getByRole("button", { name: "Reject all" });
-  if (await reject.isVisible().catch(() => false)) await reject.click();
 }
 
 function personalSpaceOf(userId: string): string {

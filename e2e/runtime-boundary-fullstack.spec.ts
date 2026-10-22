@@ -31,6 +31,7 @@ import {
   makeApi,
   type GuestSession,
 } from "./helpers/api-client";
+import { answerCookieBanner } from "./helpers/consent";
 
 const PHASE = process.env.RUNTIME_OUTAGE_PHASE ?? "";
 const STATE_FILE = process.env.RUNTIME_E2E_STATE ?? "test-results/runtime-boundary-state.json";
@@ -42,6 +43,7 @@ test.describe.configure({ mode: "serial" });
 
 async function signIn(page: Page, email: string) {
   await clearTestRateLimits();
+  await answerCookieBanner(page);
   await page.goto("/login");
   // The login page renders its form once per layout; drive the visible one.
   await page.locator('input[placeholder="Email"]:visible').first().fill(email);
