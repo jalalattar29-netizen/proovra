@@ -245,7 +245,7 @@ className="absolute top-0 left-0 right-0 z-50 w-full"style={{
   background: "transparent",
 }}
 >
-    <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-4 px-5 py-1.5 md:px-7 lg:gap-5 lg:px-10 2xl:px-12">
+    <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-4 px-5 py-1.5 md:px-7 lg:gap-5 lg:px-10 xl:max-2xl:gap-3 2xl:px-12">
 <Link
   href="/"
 className="flex shrink-0 items-center"
@@ -274,7 +274,7 @@ className="h-auto w-[210px] object-contain drop-shadow-[0_2px_12px_rgba(15,23,42
               >
                 <button
                   type="button"
-                  className={`flex items-center gap-1 whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] xl:max-2xl:px-2.5 font-medium transition-colors ${navTextClass} ${
+                  className={`flex items-center gap-1 whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] xl:max-2xl:px-2 font-medium transition-colors ${navTextClass} ${
                     openDropdown === group.label
                       ? "after:scale-x-100"
                       : ""
@@ -344,7 +344,7 @@ className="h-auto w-[210px] object-contain drop-shadow-[0_2px_12px_rgba(15,23,42
               <Link
                 key={group.label}
                 href={group.href ?? "#"}
-className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] xl:max-2xl:px-2.5 font-medium transition-colors ${navTextClass}`}
+className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] xl:max-2xl:px-2 font-medium transition-colors ${navTextClass}`}
               >
                 {group.label}
               </Link>
@@ -358,7 +358,7 @@ className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] xl:max-2xl:
           <MarketingLanguageSwitcher variant="desktop" />
           <Link
             href={switchAuthHref}
-            className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] xl:max-2xl:px-2.5 font-medium transition-colors ${navTextClass}`}
+            className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] xl:max-2xl:px-2 font-medium transition-colors ${navTextClass}`}
           >
             {switchAuthLabel}
           </Link>

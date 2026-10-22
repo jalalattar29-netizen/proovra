@@ -33,7 +33,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { MARKETING_ASSETS, MARKETING_LINKS } from "../tokens";
-import s from "./heroV2.module.css";
+import { HERO_V2_CSS } from "./heroV2.styles";
 
 /*
  * One icon system for the whole hero: Lucide, one stroke weight. Icons are
@@ -153,7 +153,7 @@ const OUTPUT = {
   verification: { top: 12, height: 158, leave: 128 },
   reports: { top: 178, height: 110, leave: 236 },
   sharing: { top: 298, height: 112, leave: 336 },
-  team: { top: 420, height: 115, leave: 430 },
+  workspace: { top: 420, height: 115, leave: 430 },
 } as const;
 
 const WORKFLOW = ["Capture", "Preserve", "Verify", "Manage", "Share"];
@@ -248,7 +248,7 @@ function outputPath(leave: number, top: number, height: number, dy = 0) {
 function FlowLines() {
   const outputs = Object.values(OUTPUT);
   return (
-    <svg className={s.flow} viewBox="0 0 1020 610" aria-hidden="true" focusable="false">
+    <svg className="hv2-flow" viewBox="0 0 1020 610" aria-hidden="true" focusable="false">
       <defs>
         <linearGradient id="hv2-in" gradientUnits="userSpaceOnUse" x1="213" y1="0" x2="340" y2="0">
           <stop offset="0" stopColor="#38bdf8" />
@@ -323,7 +323,7 @@ function FlowLines() {
       </g>
 
       {/* Evidence moving along each connection. */}
-      <g className={s.pulses} fill="#e0f2fe" filter="url(#hv2-glow)">
+      <g className="hv2-pulses" fill="#e0f2fe" filter="url(#hv2-glow)">
         {SOURCES.map((src, i) => (
           <circle key={src.key} r="2.2">
             <animateMotion dur="3.6s" begin={`${i * 0.7}s`} repeatCount="indefinite">
@@ -347,7 +347,7 @@ function FlowLines() {
 
 function Tick() {
   return (
-    <span className={s.pillMark}>
+    <span className="hv2-pillMark">
       <Check strokeWidth={TICK_STROKE} aria-hidden="true" />
     </span>
   );
@@ -355,7 +355,7 @@ function Tick() {
 
 function StatusPill({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <span className={`${s.pill} ${className ?? ""}`}>
+    <span className={`hv2-pill ${className ?? ""}`}>
       <Tick />
       {children}
     </span>
@@ -372,16 +372,16 @@ function StatusPill({ children, className }: { children: ReactNode; className?: 
 function SourceCard({ source, style }: { source: Source; style?: CSSProperties }) {
   const { Icon } = source;
   return (
-    <div className={s.source} style={style}>
-      <div className={s.sourceMedia}>
+    <div className="hv2-source" style={style}>
+      <div className="hv2-sourceMedia">
         <Image src={source.image} alt="" fill sizes="220px" style={{ objectPosition: source.focus }} />
       </div>
-      <div className={s.sourceFormats}>
+      <div className="hv2-sourceFormats">
         {source.formats.map((f) => (
           <span key={f}>{f}</span>
         ))}
       </div>
-      <span className={s.sourceLabel}>
+      <span className="hv2-sourceLabel">
         <Icon strokeWidth={STROKE} aria-hidden="true" />
         {source.label}
       </span>
@@ -401,13 +401,13 @@ function RecordRow({
   trail?: ReactNode;
 }) {
   return (
-    <li className={s.recordRow}>
-      <span className={s.recordRowIcon}>
+    <li className="hv2-recordRow">
+      <span className="hv2-recordRowIcon">
         <Icon strokeWidth={STROKE} aria-hidden="true" />
       </span>
-      <span className={s.recordRowText}>
-        <span className={s.recordRowTitle}>{title}</span>
-        <span className={s.recordRowValue}>{value}</span>
+      <span className="hv2-recordRowText">
+        <span className="hv2-recordRowTitle">{title}</span>
+        <span className="hv2-recordRowValue">{value}</span>
       </span>
       {trail}
     </li>
@@ -416,11 +416,11 @@ function RecordRow({
 
 function EvidenceRecord({ style, priority }: { style?: CSSProperties; priority?: boolean }) {
   return (
-    <div className={s.record} style={style}>
-      <div className={s.recordFrame} />
-      <div className={s.recordCard}>
-        <div className={s.recordHead}>
-          <span className={s.recordBrand}>
+    <div className="hv2-record" style={style}>
+      <div className="hv2-recordFrame" />
+      <div className="hv2-recordCard">
+        <div className="hv2-recordHead">
+          <span className="hv2-recordBrand">
             <img src={MARKETING_ASSETS.brand.mark} alt="" />
             PROOVRA
           </span>
@@ -428,24 +428,24 @@ function EvidenceRecord({ style, priority }: { style?: CSSProperties; priority?:
           <StatusPill>Integrity verified</StatusPill>
         </div>
 
-        <div className={s.recordMedia}>
+        <div className="hv2-recordMedia">
           <Image src={IMG.scene} alt="" fill sizes="(min-width: 1024px) 260px, 320px" priority={priority} />
-          <div className={s.recordMediaShade} />
-          <span className={s.play}>
+          <div className="hv2-recordMediaShade" />
+          <span className="hv2-play">
             <Play strokeWidth={STROKE} fill="currentColor" aria-hidden="true" />
           </span>
         </div>
 
-        <p className={s.recordName}>IMG_7421.MP4</p>
-        <p className={s.recordMeta}>24.6 MB&nbsp;&nbsp;•&nbsp;&nbsp;3840 × 2160&nbsp;&nbsp;•&nbsp;&nbsp;00:28</p>
+        <p className="hv2-recordName">IMG_7421.MP4</p>
+        <p className="hv2-recordMeta">24.6 MB&nbsp;&nbsp;•&nbsp;&nbsp;3840 × 2160&nbsp;&nbsp;•&nbsp;&nbsp;00:28</p>
 
-        <ul className={s.recordRows}>
+        <ul className="hv2-recordRows">
           <RecordRow
             Icon={Fingerprint}
             title="Cryptographic Hash"
             value="SHA-256 · 3f2a8e0c4f9…9d4c1b82"
             trail={
-              <span className={s.recordRowTrail}>
+              <span className="hv2-recordRowTrail">
                 <Copy strokeWidth={STROKE} aria-hidden="true" />
               </span>
             }
@@ -455,7 +455,7 @@ function EvidenceRecord({ style, priority }: { style?: CSSProperties; priority?:
             title="Timestamp (TSA)"
             value="Apr 14, 2025 10:24:17 UTC"
             trail={
-              <span className={`${s.recordRowTrail} ${s.trailOk}`}>
+              <span className={`hv2-recordRowTrail hv2-trailOk`}>
                 <Check strokeWidth={2.25} aria-hidden="true" />
               </span>
             }
@@ -465,7 +465,7 @@ function EvidenceRecord({ style, priority }: { style?: CSSProperties; priority?:
             title="Chain of Custody"
             value="3 events"
             trail={
-              <span className={`${s.recordRowTrail} ${s.trailAction}`}>
+              <span className={`hv2-recordRowTrail hv2-trailAction`}>
                 <ChevronRight strokeWidth={STROKE} aria-hidden="true" />
               </span>
             }
@@ -479,7 +479,7 @@ function EvidenceRecord({ style, priority }: { style?: CSSProperties; priority?:
             }
             value="Essen, Germany"
             trail={
-              <span className={s.miniMap}>
+              <span className="hv2-miniMap">
                 <MapPin strokeWidth={STROKE} aria-hidden="true" />
               </span>
             }
@@ -489,14 +489,14 @@ function EvidenceRecord({ style, priority }: { style?: CSSProperties; priority?:
             title="Verification Package"
             value="PDF report + QR code"
             trail={
-              <span className={`${s.recordRowTrail} ${s.trailAction}`}>
+              <span className={`hv2-recordRowTrail hv2-trailAction`}>
                 <ChevronRight strokeWidth={STROKE} aria-hidden="true" />
               </span>
             }
           />
         </ul>
 
-        <span className={s.recordButton}>
+        <span className="hv2-recordButton">
           View Verification Page
           <ArrowRight strokeWidth={STROKE} aria-hidden="true" />
         </span>
@@ -523,15 +523,15 @@ function OutputCard({
   style?: CSSProperties;
 }) {
   return (
-    <div className={`${s.output} ${s.glassCard}`} style={style}>
+    <div className={`hv2-output hv2-glassCard`} style={style}>
       {aside}
-      <div className={s.outputHead}>
-        <span className={s.badgeIcon}>
+      <div className="hv2-outputHead">
+        <span className="hv2-badgeIcon">
           <Icon strokeWidth={STROKE} aria-hidden="true" />
         </span>
         <div>
-          <p className={s.outputTitle}>{title}</p>
-          <p className={`${s.outputBody} ${bodyClassName ?? ""}`}>{body}</p>
+          <p className="hv2-outputTitle">{title}</p>
+          <p className={`hv2-outputBody ${bodyClassName ?? ""}`}>{body}</p>
         </div>
       </div>
       {children}
@@ -553,11 +553,11 @@ function VerificationOutput({ style }: { style?: CSSProperties }) {
         </>
       }
     >
-      <div className={s.verifyRow}>
-        <div className={s.verifyThumb}>
+      <div className="hv2-verifyRow">
+        <div className="hv2-verifyThumb">
           <Image src={IMG.scene} alt="" fill sizes="200px" />
         </div>
-        <div className={s.qr}>
+        <div className="hv2-qr">
           <QRCodeSVG value={SAMPLE_LINK} level="M" bgColor="#ffffff" fgColor="#0b1433" />
         </div>
       </div>
@@ -571,7 +571,7 @@ function ReportsOutput({ style }: { style?: CSSProperties }) {
       style={style}
       Icon={FileCheck2}
       title="Professional Reports"
-      bodyClassName={s.reportsBody}
+      bodyClassName="hv2-reportsBody"
       body={
         <>
           Generate detailed reports
@@ -580,9 +580,9 @@ function ReportsOutput({ style }: { style?: CSSProperties }) {
         </>
       }
       aside={
-        <div className={s.reportShot}>
+        <div className="hv2-reportShot">
           <Image src={IMG.report} alt="" fill sizes="140px" />
-          <span className={s.pdfTag}>
+          <span className="hv2-pdfTag">
             <FileText strokeWidth={STROKE} aria-hidden="true" />
             PDF
           </span>
@@ -606,20 +606,20 @@ function SharingOutput({ style }: { style?: CSSProperties }) {
         </>
       }
     >
-      <div className={s.shareField}>
+      <div className="hv2-shareField">
         <span>{SAMPLE_LINK}</span>
-        <span className={s.shareCopy}>Copy</span>
+        <span className="hv2-shareCopy">Copy</span>
       </div>
     </OutputCard>
   );
 }
 
-function TeamOutput({ style }: { style?: CSSProperties }) {
+function WorkspaceOutput({ style }: { style?: CSSProperties }) {
   return (
     <OutputCard
       style={style}
       Icon={Users}
-      title="Team Collaboration"
+      title="Workspace Collaboration"
       body={
         <>
           Workspaces, permissions
@@ -628,13 +628,13 @@ function TeamOutput({ style }: { style?: CSSProperties }) {
         </>
       }
     >
-      <div className={s.avatars}>
+      <div className="hv2-avatars">
         {AVATARS.map((src) => (
-          <span key={src} className={s.avatar}>
+          <span key={src} className="hv2-avatar">
             <Image src={src} alt="" fill sizes="40px" />
           </span>
         ))}
-        <span className={s.avatarMore}>+8</span>
+        <span className="hv2-avatarMore">+8</span>
       </div>
     </OutputCard>
   );
@@ -645,7 +645,7 @@ function WorkflowLabels() {
     <>
       {WORKFLOW.map((step, i) => (
         <span key={step} style={{ display: "contents" }}>
-          {i > 0 && <span className={s.pedestalDot} />}
+          {i > 0 && <span className="hv2-pedestalDot" />}
           {step.toUpperCase()}
         </span>
       ))}
@@ -683,7 +683,7 @@ const FACE_PATH = [
 
 function PedestalLabels() {
   return (
-    <svg className={s.flow} viewBox="0 0 1020 610" aria-hidden="true" focusable="false">
+    <svg className="hv2-flow" viewBox="0 0 1020 610" aria-hidden="true" focusable="false">
       <defs>
         <linearGradient id="hv2-face" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#24346b" />
@@ -691,12 +691,12 @@ function PedestalLabels() {
         </linearGradient>
         <path id="hv2-label-arc" d={`M ${LABEL_ARC.cx - LABEL_ARC.rx} ${LABEL_ARC.cy} ${lowerArc(LABEL_ARC)}`} />
       </defs>
-      <path className={s.pedestalFace} d={FACE_PATH} fill="url(#hv2-face)" />
-      <text className={s.pedestalText} dominantBaseline="central">
+      <path className="hv2-pedestalFace" d={FACE_PATH} fill="url(#hv2-face)" />
+      <text className="hv2-pedestalText" dominantBaseline="central">
         <textPath href="#hv2-label-arc" startOffset="50%" textAnchor="middle">
           {WORKFLOW.map((step, i) => (
             <tspan key={step}>
-              {i > 0 && <tspan className={s.pedestalTextDot}>{"  •  "}</tspan>}
+              {i > 0 && <tspan className="hv2-pedestalTextDot">{"  •  "}</tspan>}
               {step.toUpperCase()}
             </tspan>
           ))}
@@ -709,10 +709,10 @@ function PedestalLabels() {
 /* Desktop composition, drawn in the reference's 1020 × 610 coordinates. */
 function Stage() {
   return (
-    <div className={s.stageWrap} aria-hidden="true">
-      <div className={s.stage}>
-        <Image className={`${s.at} ${s.pedestal}`} src={IMG.pedestal} alt="" width={1774} height={887} style={place(PEDESTAL.x, PEDESTAL.y, PEDESTAL.w, PEDESTAL.h)} sizes="620px" />
-        <Image className={`${s.at} ${s.glow}`} src={IMG.glow} alt="" width={1536} height={1024} style={place(114, 104, 760, 506)} sizes="800px" />
+    <div className="hv2-stageWrap" aria-hidden="true">
+      <div className="hv2-stage">
+        <Image className={`hv2-at hv2-pedestal`} src={IMG.pedestal} alt="" width={1774} height={887} style={place(PEDESTAL.x, PEDESTAL.y, PEDESTAL.w, PEDESTAL.h)} sizes="620px" />
+        <Image className={`hv2-at hv2-glow`} src={IMG.glow} alt="" width={1536} height={1024} style={place(114, 104, 760, 506)} sizes="800px" />
         <PedestalLabels />
 
         <FlowLines />
@@ -722,7 +722,7 @@ function Stage() {
         ))}
 
         {SOURCES.map(({ key, node: { x, y, Icon, violet } }) => (
-          <span key={key} className={`${s.at} ${s.node} ${violet ? s.nodeViolet : ""}`} style={place(x, y)}>
+          <span key={key} className={`hv2-at hv2-node ${violet ? "hv2-nodeViolet" : ""}`} style={place(x, y)}>
             <Icon strokeWidth={STROKE} aria-hidden="true" />
           </span>
         ))}
@@ -732,7 +732,7 @@ function Stage() {
         <VerificationOutput style={{ position: "absolute", ...place(OUTPUT_LEFT, OUTPUT.verification.top, undefined, OUTPUT.verification.height) }} />
         <ReportsOutput style={{ position: "absolute", ...place(OUTPUT_LEFT, OUTPUT.reports.top, undefined, OUTPUT.reports.height) }} />
         <SharingOutput style={{ position: "absolute", ...place(OUTPUT_LEFT, OUTPUT.sharing.top, undefined, OUTPUT.sharing.height) }} />
-        <TeamOutput style={{ position: "absolute", ...place(OUTPUT_LEFT, OUTPUT.team.top, undefined, OUTPUT.team.height) }} />
+        <WorkspaceOutput style={{ position: "absolute", ...place(OUTPUT_LEFT, OUTPUT.workspace.top, undefined, OUTPUT.workspace.height) }} />
       </div>
     </div>
   );
@@ -741,34 +741,34 @@ function Stage() {
 /* Same cards, stacked for tablet and phone. */
 function Stack() {
   return (
-    <div className={s.stack} aria-hidden="true">
-      <div className={s.stackRecord}>
+    <div className="hv2-stack" aria-hidden="true">
+      <div className="hv2-stackRecord">
         <EvidenceRecord />
       </div>
-      <div className={s.stackFlow}>
+      <div className="hv2-stackFlow">
         <WorkflowLabels />
       </div>
-      <p className={s.stackHeading}>Evidence sources</p>
-      <div className={s.stackScroller}>
+      <p className="hv2-stackHeading">Evidence sources</p>
+      <div className="hv2-stackScroller">
         {SOURCES.map((src) => (
-          <div key={src.key} className={s.stackSource}>
+          <div key={src.key} className="hv2-stackSource">
             <SourceCard source={src} />
           </div>
         ))}
       </div>
-      <p className={s.stackHeading}>Outputs</p>
-      <div className={s.stackOutputs}>
-        <div className={s.stackOutput}>
+      <p className="hv2-stackHeading">Outputs</p>
+      <div className="hv2-stackOutputs">
+        <div className="hv2-stackOutput">
           <VerificationOutput />
         </div>
-        <div className={s.stackOutput}>
+        <div className="hv2-stackOutput">
           <ReportsOutput />
         </div>
-        <div className={s.stackOutput}>
+        <div className="hv2-stackOutput">
           <SharingOutput />
         </div>
-        <div className={s.stackOutput}>
-          <TeamOutput />
+        <div className="hv2-stackOutput">
+          <WorkspaceOutput />
         </div>
       </div>
     </div>
@@ -777,49 +777,53 @@ function Stack() {
 
 export function HeroV2() {
   return (
-    <section className={s.hero} aria-labelledby="hero-v2-title">
-      <div className={s.backdrop} aria-hidden="true">
-        <Image className={s.city} src={IMG.city} alt="" width={1983} height={793} sizes="100vw" priority />
-        <div className={s.backdropWash} />
+    <section className="hv2-hero" aria-labelledby="hero-v2-title">
+      {/* React hoists this into <head> once, keyed by href (see heroV2.styles.ts). */}
+      <style href="proovra-hero-v2" precedence="default">
+        {HERO_V2_CSS}
+      </style>
+      <div className="hv2-backdrop" aria-hidden="true">
+        <Image className="hv2-city" src={IMG.city} alt="" width={1983} height={793} sizes="100vw" priority />
+        <div className="hv2-backdropWash" />
       </div>
 
-      <div className={s.inner}>
-        <div className={s.top}>
-          <div className={s.copy}>
-            <p className={s.eyebrow}>Digital Evidence Operations Platform</p>
-            {/* Production homepage copy, carried over verbatim from HeroSection. */}
-            <h1 id="hero-v2-title" className={s.headline}>
-              <span className={s.headlineLines}>
+      <div className="hv2-inner">
+        <div className="hv2-top">
+          <div className="hv2-copy">
+            <p className="hv2-eyebrow">Digital Evidence Operations Platform</p>
+            {/* The production homepage copy, carried over verbatim from the hero this replaced. */}
+            <h1 id="hero-v2-title" className="hv2-headline">
+              <span className="hv2-headlineLines">
                 Evidence integrity.
                 <br />
                 Verifiable facts.
                 <br />
                 Operational trust.
               </span>
-              <span className={s.headlineAccent}>Digital evidence infrastructure for high-trust operations.</span>
+              <span className="hv2-headlineAccent">Digital evidence infrastructure for high-trust operations.</span>
             </h1>
-            <p className={s.lede}>
+            <p className="hv2-lede">
               Digital evidence infrastructure for legal, insurance, investigation, compliance, and public-sector teams
               that require trusted records, verification, and audit-ready reporting.
             </p>
-            <div className={s.ctas}>
+            <div className="hv2-ctas">
               <a
                 href={MARKETING_LINKS.sampleReport}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={s.ctaPrimary}
+                className="hv2-ctaPrimary"
               >
                 View sample report
                 <ArrowRight size={18} strokeWidth={STROKE} aria-hidden="true" />
               </a>
-              <Link href={MARKETING_LINKS.requestDemo} className={s.ctaSecondary}>
+              <Link href={MARKETING_LINKS.requestDemo} className="hv2-ctaSecondary">
                 Request a demo
               </Link>
             </div>
-            <ul className={s.assurances}>
+            <ul className="hv2-assurances">
               {ASSURANCES.map((label) => (
-                <li key={label} className={s.assurance}>
-                  <span className={s.assuranceMark}>
+                <li key={label} className="hv2-assurance">
+                  <span className="hv2-assuranceMark">
                     <Check size={13} strokeWidth={TICK_STROKE} aria-hidden="true" />
                   </span>
                   {label}
@@ -832,11 +836,11 @@ export function HeroV2() {
           <Stack />
         </div>
 
-        <ul className={s.industries} aria-label="Industries">
+        <ul className="hv2-industries" aria-label="Industries">
           {INDUSTRIES.map(({ title, body, Icon, image, focus, href }) => (
             <li key={title}>
-              <Link href={href} className={s.industry}>
-                <span className={s.industryMedia}>
+              <Link href={href} className="hv2-industry">
+                <span className="hv2-industryMedia">
                   <Image
                     src={image}
                     alt=""
@@ -845,19 +849,19 @@ export function HeroV2() {
                     style={{ objectPosition: focus }}
                   />
                 </span>
-                <span className={s.industryBody}>
-                  <span className={s.industryIcon}>
+                <span className="hv2-industryBody">
+                  <span className="hv2-industryIcon">
                     <Icon size={24} strokeWidth={STROKE} aria-hidden="true" />
                   </span>
                   <span>
-                    <span className={s.industryTitle} style={{ display: "block" }}>
+                    <span className="hv2-industryTitle" style={{ display: "block" }}>
                       {title}
                     </span>
-                    <span className={s.industryText} style={{ display: "block" }}>
+                    <span className="hv2-industryText" style={{ display: "block" }}>
                       {body}
                     </span>
                   </span>
-                  <span className={s.industryArrow}>
+                  <span className="hv2-industryArrow">
                     <ArrowRight size={12} strokeWidth={STROKE} aria-hidden="true" />
                   </span>
                 </span>
@@ -866,16 +870,16 @@ export function HeroV2() {
           ))}
         </ul>
 
-        <div className={s.audience}>
-          <p className={s.audienceLabel}>Built for professionals in</p>
-          <ul className={s.audienceList}>
+        <div className="hv2-audience">
+          <p className="hv2-audienceLabel">Built for professionals in</p>
+          <ul className="hv2-audienceList">
             {AUDIENCE.map(({ label, Icon }) => (
-              <li key={label} className={s.audienceItem}>
+              <li key={label} className="hv2-audienceItem">
                 <Icon size={21} strokeWidth={STROKE} aria-hidden="true" />
                 {label}
               </li>
             ))}
-            <li className={`${s.audienceItem} ${s.audienceMore}`}>
+            <li className={`hv2-audienceItem hv2-audienceMore`}>
               <Ellipsis size={21} strokeWidth={STROKE} aria-hidden="true" />
               and more…
             </li>

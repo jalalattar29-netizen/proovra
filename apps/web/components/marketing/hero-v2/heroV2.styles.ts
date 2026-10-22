@@ -1,19 +1,37 @@
-/*
+/**
+ * Hero V2 styles, delivered as one hoisted <style> element (see HeroV2.tsx).
+ *
+ * WHY NOT A STYLESHEET FILE. The web app's CSS surfaces are a counted budget
+ * (services/api/test/phase-r10-visual-maturity.test.ts, R10 Group 14: at most
+ * 30 .css files, one per product surface). The marketing site has no
+ * stylesheet of its own: its components style themselves with Tailwind and,
+ * where a component needs real CSS (container queries, 3D transforms,
+ * descendant rules), an inline <style> — as the homepage hero this replaced
+ * did. Hero V2 follows that convention instead of adding a 31st surface.
+ *
+ * SCOPING. Every class is prefixed "hv2-", so nothing here can match markup
+ * outside the hero and nothing outside can match it; that prefix is the whole
+ * isolation contract a CSS module used to provide.
+ *
+ * Comments are stripped once at module load, so they cost nothing on the wire.
+ */
+
+const RAW = `/*
  * PROOVRA Hero V2 — approved reference composition.
  *
  * The visual stage is laid out in the reference's own coordinate system: a
  * 1020 × 610 canvas (the right-hand composition of hero-approved-reference).
- * Every position and size inside it is expressed in `--u`, one reference
+ * Every position and size inside it is expressed in \`--u\`, one reference
  * pixel, which the stage resolves against its own rendered width through
  * container query units. The stage therefore scales as one rigid drawing and
  * the flow lines (an SVG in the same coordinate system) always land exactly
  * on the cards they connect.
  *
  * Below the stage breakpoint the same card components are reused in a
- * stacked layout; each wrapper sets its own `--u` so a card fills it.
+ * stacked layout; each wrapper sets its own \`--u\` so a card fills it.
  */
 
-.hero {
+.hv2-hero {
   position: relative;
   overflow: hidden;
   background: #f7f8fe;
@@ -34,7 +52,7 @@
 
 /* ---------------------------------------------------------------- backdrop */
 
-.backdrop {
+.hv2-backdrop {
   position: absolute;
   inset: 0 0 auto 0;
   height: 100%;
@@ -51,7 +69,7 @@
  * asset's bright left side is not cropped away behind the copy). Only the bottom edge is faded into
  * the page; no full-surface wash sits over the skyline.
  */
-.city {
+.hv2-city {
   position: absolute;
   top: 0;
   right: 0;
@@ -64,7 +82,7 @@
 }
 
 /* Readability for the copy column only; fades out before the stage begins. */
-.backdropWash {
+.hv2-backdropWash {
   position: absolute;
   inset: 0;
   background:
@@ -74,11 +92,11 @@
 }
 
 @media (max-width: 1199px) {
-  .city {
+  .hv2-city {
     height: max(calc(100vw * 793 / 1983), 520px);
     opacity: 0.55;
   }
-  .backdropWash {
+  .hv2-backdropWash {
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.72) 40%, rgba(247, 248, 254, 0.9) 70%, #f7f8fe 100%);
   }
@@ -86,7 +104,7 @@
 
 /* ------------------------------------------------------------------ layout */
 
-.inner {
+.hv2-inner {
   position: relative;
   z-index: 1;
   margin: 0 auto;
@@ -95,7 +113,7 @@
 }
 
 @media (min-width: 768px) {
-  .inner {
+  .hv2-inner {
     --marketing-header-height: 88px;
     padding-left: 32px;
     padding-right: 32px;
@@ -103,22 +121,22 @@
 }
 
 @media (min-width: 1024px) {
-  .inner {
+  .hv2-inner {
     --marketing-header-height: 96px;
   }
 }
 
-.top {
+.hv2-top {
   display: flex;
   flex-direction: column;
   gap: 40px;
 }
 
 @media (min-width: 1200px) {
-  .inner {
+  .hv2-inner {
     padding: 0 0 28px;
   }
-  .top {
+  .hv2-top {
     display: grid;
     grid-template-columns: 37.1% 61%;
     column-gap: 0;
@@ -129,21 +147,21 @@
 
 /* -------------------------------------------------------------- copy column */
 
-.copy {
+.hv2-copy {
   display: flex;
   flex-direction: column;
   max-width: 640px;
 }
 
 @media (min-width: 1200px) {
-  .copy {
+  .hv2-copy {
     padding-left: 14.5%;
     padding-top: 28px;
     max-width: none;
   }
 }
 
-.eyebrow {
+.hv2-eyebrow {
   margin: 0;
   font-size: 12px;
   font-weight: 600;
@@ -152,7 +170,7 @@
   color: var(--blue);
 }
 
-.headline {
+.hv2-headline {
   margin: 22px 0 0;
   font-weight: 800;
   color: #070b1a;
@@ -160,14 +178,14 @@
 
 /* Three short statements, then the gradient positioning line — the same
    two-part headline the production HeroSection used. */
-.headlineLines {
+.hv2-headlineLines {
   display: block;
   font-size: clamp(34px, 9vw, 46px);
   line-height: 1.04;
   letter-spacing: -0.035em;
 }
 
-.headlineAccent {
+.hv2-headlineAccent {
   display: block;
   margin-top: 14px;
   max-width: 560px;
@@ -184,36 +202,36 @@
 }
 
 @media (min-width: 1200px) {
-  .headline {
+  .hv2-headline {
     margin-top: 2vw;
   }
-  .headlineLines {
+  .hv2-headlineLines {
     font-size: clamp(34px, 2.75vw, 50px);
     white-space: nowrap;
   }
-  .headlineAccent {
+  .hv2-headlineAccent {
     margin-top: 0.8vw;
     max-width: 28vw;
     font-size: clamp(20px, 1.72vw, 31px);
   }
-  .eyebrow {
+  .hv2-eyebrow {
     font-size: clamp(11px, 0.8vw, 13.5px);
   }
 }
 
 @media (min-width: 1672px) {
-  .headline {
+  .hv2-headline {
     margin-top: 34px;
   }
-  .headlineAccent {
+  .hv2-headlineAccent {
     max-width: 470px;
   }
-  .lede {
+  .hv2-lede {
     max-width: 468px;
   }
 }
 
-.lede {
+.hv2-lede {
   margin: 18px 0 0;
   max-width: 560px;
   font-size: 16.5px;
@@ -222,14 +240,14 @@
 }
 
 @media (min-width: 1200px) {
-  .lede {
+  .hv2-lede {
     max-width: 28vw;
     font-size: clamp(14px, 0.98vw, 17px);
     margin-top: 1.2vw;
   }
 }
 
-.ctas {
+.hv2-ctas {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
@@ -237,15 +255,15 @@
 }
 
 @media (min-width: 1200px) {
-  .ctas {
+  .hv2-ctas {
     flex-wrap: nowrap;
     margin-top: 1.9vw;
     gap: 0.85vw;
   }
 }
 
-.ctaPrimary,
-.ctaSecondary {
+.hv2-ctaPrimary,
+.hv2-ctaSecondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -260,43 +278,43 @@
 }
 
 @media (min-width: 1200px) {
-  .ctaPrimary,
-  .ctaSecondary {
+  .hv2-ctaPrimary,
+  .hv2-ctaSecondary {
     height: clamp(48px, 3.4vw, 58px);
     padding: 0 clamp(20px, 1.9vw, 32px);
     font-size: clamp(14.5px, 1vw, 17px);
   }
 }
 
-.ctaPrimary:focus-visible,
-.ctaSecondary:focus-visible {
+.hv2-ctaPrimary:focus-visible,
+.hv2-ctaSecondary:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 3px;
 }
 
-.ctaPrimary {
+.hv2-ctaPrimary {
   background: linear-gradient(180deg, #102a74 0%, var(--navy) 100%);
   color: #fff;
   box-shadow: 0 14px 30px rgba(11, 31, 94, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-.ctaPrimary:hover {
+.hv2-ctaPrimary:hover {
   background: linear-gradient(180deg, #13318a 0%, #0d256e 100%);
 }
 
-.ctaSecondary {
+.hv2-ctaSecondary {
   background: rgba(255, 255, 255, 0.86);
   color: var(--ink);
   border: 1px solid rgba(37, 87, 230, 0.32);
   box-shadow: 0 8px 24px rgba(30, 64, 175, 0.08);
 }
 
-.ctaSecondary:hover {
+.hv2-ctaSecondary:hover {
   border-color: rgba(37, 87, 230, 0.55);
   box-shadow: 0 10px 28px rgba(30, 64, 175, 0.14);
 }
 
-.assurances {
+.hv2-assurances {
   display: flex;
   flex-wrap: wrap;
   gap: 10px 22px;
@@ -306,14 +324,14 @@
 }
 
 @media (min-width: 1200px) {
-  .assurances {
+  .hv2-assurances {
     flex-wrap: nowrap;
     margin-top: 2.1vw;
     gap: 10px 1.5vw;
   }
 }
 
-.assurance {
+.hv2-assurance {
   display: inline-flex;
   align-items: center;
   gap: 9px;
@@ -324,13 +342,13 @@
 }
 
 @media (min-width: 1200px) {
-  .assurance {
+  .hv2-assurance {
     gap: 0.5vw;
     font-size: clamp(10.5px, 0.7vw, 12px);
   }
 }
 
-.assuranceMark {
+.hv2-assuranceMark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -344,7 +362,7 @@
 
 /* -------------------------------------------------------------------- stage */
 
-.stageWrap {
+.hv2-stageWrap {
   display: none;
   container-type: inline-size;
   width: 100%;
@@ -353,32 +371,32 @@
 }
 
 @media (min-width: 1024px) {
-  .stageWrap {
+  .hv2-stageWrap {
     display: block;
   }
 }
 
 @media (min-width: 1200px) {
-  .stageWrap {
+  .hv2-stageWrap {
     max-width: none;
     margin: 0;
   }
 }
 
-.stage {
+.hv2-stage {
   --u: calc(100cqw / 1020);
   position: relative;
   width: 100%;
   aspect-ratio: 1020 / 610;
 }
 
-.at {
+.hv2-at {
   position: absolute;
 }
 
 /* Flow lines ------------------------------------------------------------- */
 
-.flow {
+.hv2-flow {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -387,17 +405,17 @@
   pointer-events: none;
 }
 
-.pulses {
+.hv2-pulses {
   opacity: 0.95;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pulses {
+  .hv2-pulses {
     display: none;
   }
 }
 
-.node {
+.hv2-node {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -414,18 +432,18 @@
   color: var(--blue);
 }
 
-.nodeViolet {
+.hv2-nodeViolet {
   color: var(--violet);
 }
 
-.node svg {
+.hv2-node svg {
   width: calc(var(--u) * 18);
   height: calc(var(--u) * 18);
 }
 
 /* Shared card surfaces --------------------------------------------------- */
 
-.glassCard {
+.hv2-glassCard {
   background: linear-gradient(165deg, rgba(255, 255, 255, 0.96) 0%, rgba(246, 248, 255, 0.9) 100%);
   border: calc(var(--u) * 1) solid rgba(255, 255, 255, 0.95);
   border-radius: calc(var(--u) * 14);
@@ -444,7 +462,7 @@
  * Both are dark, translucent glass so they read as part of the photograph
  * rather than as panels laid on top of it.
  */
-.source {
+.hv2-source {
   position: relative;
   width: calc(var(--u) * 198);
   height: calc(var(--u) * 90);
@@ -458,7 +476,7 @@
     0 0 calc(var(--u) * 16) rgba(96, 165, 250, 0.35);
 }
 
-.sourceMedia {
+.hv2-sourceMedia {
   position: absolute;
   inset: calc(var(--u) * 3);
   overflow: hidden;
@@ -466,12 +484,12 @@
   background: #0b1433;
 }
 
-.sourceMedia img {
+.hv2-sourceMedia img {
   object-fit: cover;
 }
 
 /* Specular sweep across the glass over the photo. */
-.sourceMedia::after {
+.hv2-sourceMedia::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -481,7 +499,7 @@
   pointer-events: none;
 }
 
-.sourceFormats {
+.hv2-sourceFormats {
   position: absolute;
   top: calc(var(--u) * 8);
   right: calc(var(--u) * 8);
@@ -489,8 +507,8 @@
   gap: calc(var(--u) * 3);
 }
 
-.sourceFormats span,
-.sourceLabel {
+.hv2-sourceFormats span,
+.hv2-sourceLabel {
   background: rgba(8, 15, 40, 0.52);
   border: calc(var(--u) * 1) solid rgba(255, 255, 255, 0.28);
   backdrop-filter: blur(8px) saturate(1.3);
@@ -498,7 +516,7 @@
   color: #f1f5ff;
 }
 
-.sourceFormats span {
+.hv2-sourceFormats span {
   display: flex;
   align-items: center;
   height: calc(var(--u) * 14);
@@ -509,7 +527,7 @@
   letter-spacing: 0.05em;
 }
 
-.sourceLabel {
+.hv2-sourceLabel {
   position: absolute;
   left: calc(var(--u) * 8);
   bottom: calc(var(--u) * 8);
@@ -525,7 +543,7 @@
   white-space: nowrap;
 }
 
-.sourceLabel svg {
+.hv2-sourceLabel svg {
   flex: none;
   width: calc(var(--u) * 12);
   height: calc(var(--u) * 12);
@@ -551,7 +569,7 @@
  * (where the flow lines start), so the left edge swings toward the viewer.
  * Near edge: 90 × 0.94 × 1.235 ≈ 104 units, inside the 108-unit row pitch.
  */
-.stage .source {
+.hv2-stage .hv2-source {
   transform-origin: 100% 50%;
   transform: perspective(calc(var(--u) * 520)) rotateY(30deg) scale(0.94);
 }
@@ -563,7 +581,7 @@
  * row gaps the cards had before; QR, report preview, avatars and share field
  * stay legible.
  */
-.stage .output {
+.hv2-stage .hv2-output {
   transform-origin: 0% 50%;
   transform: perspective(calc(var(--u) * 720)) rotateY(-30deg) scale(0.86);
 }
@@ -573,13 +591,13 @@
 
 /* Evidence record -------------------------------------------------------- */
 
-.record {
+.hv2-record {
   position: relative;
   width: calc(var(--u) * 308);
   height: calc(var(--u) * 530);
 }
 
-.recordFrame {
+.hv2-recordFrame {
   position: absolute;
   inset: 0;
   border-radius: calc(var(--u) * 24);
@@ -594,7 +612,7 @@
 }
 
 /* Specular edge highlight, as on the prepared glass-frame asset. */
-.recordFrame::before {
+.hv2-recordFrame::before {
   content: "";
   position: absolute;
   inset: calc(var(--u) * -1.5);
@@ -607,7 +625,7 @@
   pointer-events: none;
 }
 
-.recordCard {
+.hv2-recordCard {
   position: absolute;
   left: calc(var(--u) * 14);
   right: calc(var(--u) * 15);
@@ -621,14 +639,14 @@
   box-shadow: 0 calc(var(--u) * 10) calc(var(--u) * 30) rgba(30, 41, 99, 0.18);
 }
 
-.recordHead {
+.hv2-recordHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: calc(var(--u) * 34);
 }
 
-.recordBrand {
+.hv2-recordBrand {
   display: inline-flex;
   align-items: center;
   gap: calc(var(--u) * 7);
@@ -638,13 +656,13 @@
   color: var(--ink);
 }
 
-.recordBrand img {
+.hv2-recordBrand img {
   width: calc(var(--u) * 24);
   height: calc(var(--u) * 24);
   object-fit: contain;
 }
 
-.pill {
+.hv2-pill {
   display: inline-flex;
   align-items: center;
   gap: calc(var(--u) * 5);
@@ -659,7 +677,7 @@
   white-space: nowrap;
 }
 
-.pillMark {
+.hv2-pillMark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -670,12 +688,12 @@
   color: #fff;
 }
 
-.pillMark svg {
+.hv2-pillMark svg {
   width: calc(var(--u) * 10);
   height: calc(var(--u) * 10);
 }
 
-.recordMedia {
+.hv2-recordMedia {
   position: relative;
   margin-top: calc(var(--u) * 12);
   height: calc(var(--u) * 126);
@@ -684,18 +702,18 @@
   background: #0b1433;
 }
 
-.recordMedia img {
+.hv2-recordMedia img {
   object-fit: cover;
   object-position: center 52%;
 }
 
-.recordMediaShade {
+.hv2-recordMediaShade {
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, rgba(8, 15, 40, 0) 55%, rgba(8, 15, 40, 0.45) 100%);
 }
 
-.play {
+.hv2-play {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -712,13 +730,13 @@
   backdrop-filter: blur(4px);
 }
 
-.play svg {
+.hv2-play svg {
   width: calc(var(--u) * 17);
   height: calc(var(--u) * 17);
   margin-left: calc(var(--u) * 2);
 }
 
-.recordName {
+.hv2-recordName {
   margin: calc(var(--u) * 12) 0 0;
   font-size: calc(var(--u) * 14.5);
   font-weight: 700;
@@ -726,14 +744,14 @@
   letter-spacing: -0.005em;
 }
 
-.recordMeta {
+.hv2-recordMeta {
   margin: calc(var(--u) * 2) 0 0;
   font-size: max(calc(var(--u) * 10.5), 8.5px);
   color: var(--muted);
   white-space: nowrap;
 }
 
-.recordRows {
+.hv2-recordRows {
   display: flex;
   flex-direction: column;
   margin: calc(var(--u) * 8) 0 0;
@@ -741,7 +759,7 @@
   list-style: none;
 }
 
-.recordRow {
+.hv2-recordRow {
   display: flex;
   align-items: center;
   gap: calc(var(--u) * 10);
@@ -749,7 +767,7 @@
   border-top: calc(var(--u) * 1) solid #eef1f6;
 }
 
-.recordRowIcon {
+.hv2-recordRowIcon {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -758,12 +776,12 @@
   color: var(--blue);
 }
 
-.recordRowIcon svg {
+.hv2-recordRowIcon svg {
   width: calc(var(--u) * 20);
   height: calc(var(--u) * 20);
 }
 
-.recordRowText {
+.hv2-recordRowText {
   display: flex;
   flex: 1;
   min-width: 0;
@@ -771,19 +789,19 @@
   gap: calc(var(--u) * 1);
 }
 
-.recordRowTitle {
+.hv2-recordRowTitle {
   font-size: max(calc(var(--u) * 11), 9px);
   font-weight: 600;
   color: var(--ink);
   white-space: nowrap;
 }
 
-.recordRowTitle em {
+.hv2-recordRowTitle em {
   font-style: normal;
   color: var(--blue);
 }
 
-.recordRowValue {
+.hv2-recordRowValue {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: max(calc(var(--u) * 10.5), 8px);
@@ -791,26 +809,26 @@
   white-space: nowrap;
 }
 
-.recordRowTrail {
+.hv2-recordRowTrail {
   flex: none;
   display: flex;
   color: #94a3b8;
 }
 
-.recordRowTrail svg {
+.hv2-recordRowTrail svg {
   width: calc(var(--u) * 15);
   height: calc(var(--u) * 15);
 }
 
-.trailOk {
+.hv2-trailOk {
   color: #16a34a;
 }
 
-.trailAction {
+.hv2-trailAction {
   color: var(--blue);
 }
 
-.miniMap {
+.hv2-miniMap {
   position: relative;
   flex: none;
   width: calc(var(--u) * 72);
@@ -828,7 +846,7 @@
   color: var(--blue);
 }
 
-.miniMap svg {
+.hv2-miniMap svg {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -838,7 +856,7 @@
   fill: rgba(37, 87, 230, 0.16);
 }
 
-.recordButton {
+.hv2-recordButton {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -853,31 +871,31 @@
   box-shadow: 0 calc(var(--u) * 6) calc(var(--u) * 14) rgba(11, 31, 94, 0.28);
 }
 
-.recordButton svg {
+.hv2-recordButton svg {
   width: calc(var(--u) * 13);
   height: calc(var(--u) * 13);
 }
 
 /* Pedestal --------------------------------------------------------------- */
 
-.glow {
+.hv2-glow {
   object-fit: fill;
   opacity: 1;
   pointer-events: none;
 }
 
-.pedestal {
+.hv2-pedestal {
   object-fit: fill;
   pointer-events: none;
   filter: saturate(1.05);
 }
 
-.pedestalFace {
+.hv2-pedestalFace {
   mix-blend-mode: multiply;
   opacity: 0.85;
 }
 
-.pedestalText {
+.hv2-pedestalText {
   fill: #e6ecff;
   font-size: 10px;
   font-weight: 600;
@@ -888,11 +906,11 @@
   stroke-width: 0.6px;
 }
 
-.pedestalTextDot {
+.hv2-pedestalTextDot {
   fill: #93c5fd;
 }
 
-.pedestalDot {
+.hv2-pedestalDot {
   width: calc(var(--u) * 3);
   height: calc(var(--u) * 3);
   border-radius: 999px;
@@ -902,20 +920,20 @@
 
 /* Output cards ----------------------------------------------------------- */
 
-.output {
+.hv2-output {
   position: relative;
   width: calc(var(--u) * 300);
   padding: calc(var(--u) * 16) calc(var(--u) * 16) calc(var(--u) * 16) calc(var(--u) * 16);
   border-radius: calc(var(--u) * 14);
 }
 
-.outputHead {
+.hv2-outputHead {
   display: flex;
   align-items: flex-start;
   gap: calc(var(--u) * 12);
 }
 
-.badgeIcon {
+.hv2-badgeIcon {
   display: flex;
   flex: none;
   align-items: center;
@@ -930,12 +948,12 @@
     0 calc(var(--u) * 4) calc(var(--u) * 10) rgba(31, 79, 216, 0.3);
 }
 
-.badgeIcon svg {
+.hv2-badgeIcon svg {
   width: calc(var(--u) * 17);
   height: calc(var(--u) * 17);
 }
 
-.outputTitle {
+.hv2-outputTitle {
   margin: calc(var(--u) * 1) 0 0;
   font-size: calc(var(--u) * 13.5);
   font-weight: 700;
@@ -944,21 +962,21 @@
   white-space: nowrap;
 }
 
-.outputBody {
+.hv2-outputBody {
   margin: calc(var(--u) * 3) 0 0;
   font-size: max(calc(var(--u) * 11), 9px);
   line-height: 1.38;
   color: var(--slate);
 }
 
-.verifyRow {
+.hv2-verifyRow {
   display: flex;
   align-items: flex-end;
   gap: calc(var(--u) * 12);
   margin-top: calc(var(--u) * 10);
 }
 
-.verifyThumb {
+.hv2-verifyThumb {
   position: relative;
   flex: 1;
   height: calc(var(--u) * 66);
@@ -967,12 +985,12 @@
   background: #0b1433;
 }
 
-.verifyThumb img {
+.hv2-verifyThumb img {
   object-fit: cover;
   object-position: center 58%;
 }
 
-.qr {
+.hv2-qr {
   flex: none;
   width: calc(var(--u) * 76);
   height: calc(var(--u) * 76);
@@ -983,13 +1001,13 @@
   box-shadow: 0 0 0 calc(var(--u) * 1) #e2e8f0;
 }
 
-.qr svg {
+.hv2-qr svg {
   display: block;
   width: 100%;
   height: 100%;
 }
 
-.reportShot {
+.hv2-reportShot {
   position: absolute;
   top: calc(var(--u) * 6);
   right: calc(var(--u) * -22);
@@ -998,12 +1016,12 @@
   pointer-events: none;
 }
 
-.reportShot img {
+.hv2-reportShot img {
   object-fit: contain;
   filter: drop-shadow(0 calc(var(--u) * 8) calc(var(--u) * 12) rgba(30, 41, 99, 0.22));
 }
 
-.pdfTag {
+.hv2-pdfTag {
   position: absolute;
   right: calc(var(--u) * 50);
   bottom: calc(var(--u) * 2);
@@ -1021,12 +1039,12 @@
   letter-spacing: 0.04em;
 }
 
-.pdfTag svg {
+.hv2-pdfTag svg {
   width: calc(var(--u) * 10);
   height: calc(var(--u) * 10);
 }
 
-.shareField {
+.hv2-shareField {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1042,7 +1060,7 @@
   white-space: nowrap;
 }
 
-.shareCopy {
+.hv2-shareCopy {
   display: inline-flex;
   align-items: center;
   height: calc(var(--u) * 24);
@@ -1054,13 +1072,13 @@
   font-weight: 600;
 }
 
-.avatars {
+.hv2-avatars {
   display: flex;
   align-items: center;
   margin: calc(var(--u) * 10) 0 0 calc(var(--u) * 46);
 }
 
-.avatar {
+.hv2-avatar {
   position: relative;
   width: calc(var(--u) * 28);
   height: calc(var(--u) * 28);
@@ -1071,13 +1089,13 @@
   box-shadow: 0 0 0 calc(var(--u) * 2) #fff, 0 calc(var(--u) * 2) calc(var(--u) * 6) rgba(15, 23, 42, 0.18);
 }
 
-.avatar img {
+.hv2-avatar img {
   object-fit: cover;
   transform: scale(1.34);
   transform-origin: 50% 46%;
 }
 
-.avatarMore {
+.hv2-avatarMore {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1093,29 +1111,29 @@
 
 /* -------------------------------------------- stacked layout (< 1024px) */
 
-.stack {
+.hv2-stack {
   display: flex;
   flex-direction: column;
   gap: 28px;
 }
 
 @media (min-width: 1024px) {
-  .stack {
+  .hv2-stack {
     display: none;
   }
 }
 
-.stackRecord {
+.hv2-stackRecord {
   container-type: inline-size;
   width: min(100%, 360px);
   margin: 0 auto;
 }
 
-.stackRecord > div {
+.hv2-stackRecord > div {
   --u: calc(100cqw / 308);
 }
 
-.stackFlow {
+.hv2-stackFlow {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -1131,11 +1149,11 @@
   letter-spacing: 0.12em;
 }
 
-.stackFlow .pedestalDot {
+.hv2-stackFlow .hv2-pedestalDot {
   --u: 1px;
 }
 
-.stackScroller {
+.hv2-stackScroller {
   display: flex;
   gap: 12px;
   margin: 0 -20px;
@@ -1145,48 +1163,48 @@
   scrollbar-width: none;
 }
 
-.stackScroller::-webkit-scrollbar {
+.hv2-stackScroller::-webkit-scrollbar {
   display: none;
 }
 
-.stackScroller > * {
+.hv2-stackScroller > * {
   scroll-snap-align: start;
   flex: none;
 }
 
 @media (min-width: 768px) {
-  .stackScroller {
+  .hv2-stackScroller {
     margin: 0 -32px;
     padding-left: 32px;
     padding-right: 32px;
   }
 }
 
-.stackSource {
+.hv2-stackSource {
   --u: 1px;
 }
 
-.stackOutputs {
+.hv2-stackOutputs {
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
 }
 
 @media (min-width: 640px) {
-  .stackOutputs {
+  .hv2-stackOutputs {
     grid-template-columns: 1fr 1fr;
   }
 }
 
-.stackOutput {
+.hv2-stackOutput {
   container-type: inline-size;
 }
 
-.stackOutput > div {
+.hv2-stackOutput > div {
   --u: calc(100cqw / 300);
 }
 
-.stackHeading {
+.hv2-stackHeading {
   margin: 0 0 -14px;
   font-size: 11px;
   font-weight: 700;
@@ -1197,7 +1215,7 @@
 
 /* ------------------------------------------------------- industry cards */
 
-.industries {
+.hv2-industries {
   display: flex;
   gap: 12px;
   margin: 36px -20px 0;
@@ -1208,18 +1226,18 @@
   scrollbar-width: none;
 }
 
-.industries::-webkit-scrollbar {
+.hv2-industries::-webkit-scrollbar {
   display: none;
 }
 
-.industries > li {
+.hv2-industries > li {
   flex: none;
   width: 248px;
   scroll-snap-align: start;
 }
 
 @media (min-width: 768px) {
-  .industries {
+  .hv2-industries {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 16px;
@@ -1227,26 +1245,26 @@
     padding: 0;
     overflow: visible;
   }
-  .industries > li {
+  .hv2-industries > li {
     width: auto;
   }
 }
 
 @media (min-width: 1024px) {
-  .industries {
+  .hv2-industries {
     margin-top: 28px;
   }
 }
 
 @media (min-width: 1200px) {
-  .industries {
+  .hv2-industries {
     grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 1.25%;
     margin: 14px 3.3% 0;
   }
 }
 
-.industry {
+.hv2-industry {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -1258,18 +1276,18 @@
   transition: box-shadow 180ms ease, transform 180ms ease, border-color 180ms ease;
 }
 
-.industry:hover {
+.hv2-industry:hover {
   border-color: #cdd7f3;
   box-shadow: 0 16px 34px rgba(30, 41, 99, 0.14);
   transform: translateY(-2px);
 }
 
-.industry:focus-visible {
+.hv2-industry:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
 
-.industryMedia {
+.hv2-industryMedia {
   position: relative;
   /* 2:1 against the 16:9 assets: full width, only ~11% of the height trimmed. */
   aspect-ratio: 2 / 1;
@@ -1277,11 +1295,11 @@
   background: #0b1433;
 }
 
-.industryMedia img {
+.hv2-industryMedia img {
   object-fit: cover;
 }
 
-.industryBody {
+.hv2-industryBody {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr) 20px;
   column-gap: 12px;
@@ -1289,21 +1307,21 @@
 }
 
 @media (min-width: 1200px) {
-  .industryBody {
+  .hv2-industryBody {
     grid-template-columns: clamp(22px, 1.6vw, 28px) minmax(0, 1fr) 20px;
     column-gap: clamp(6px, 0.6vw, 11px);
     padding: clamp(10px, 0.75vw, 13px) clamp(9px, 0.7vw, 12px) clamp(12px, 0.95vw, 16px);
   }
 }
 
-.industryIcon {
+.hv2-industryIcon {
   display: flex;
   justify-content: center;
   padding-top: 1px;
   color: var(--navy);
 }
 
-.industryTitle {
+.hv2-industryTitle {
   margin: 0;
   font-size: 14px;
   font-weight: 700;
@@ -1311,7 +1329,7 @@
   line-height: 1.3;
 }
 
-.industryText {
+.hv2-industryText {
   margin: 4px 0 0;
   font-size: 12.5px;
   line-height: 1.42;
@@ -1319,15 +1337,15 @@
 }
 
 @media (min-width: 1200px) {
-  .industryTitle {
+  .hv2-industryTitle {
     font-size: clamp(11.5px, 0.8vw, 14px);
   }
-  .industryText {
+  .hv2-industryText {
     font-size: clamp(10px, 0.7vw, 12px);
   }
 }
 
-.industryArrow {
+.hv2-industryArrow {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1340,7 +1358,7 @@
   transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
 }
 
-.industry:hover .industryArrow {
+.hv2-industry:hover .hv2-industryArrow {
   background: var(--navy);
   border-color: var(--navy);
   color: #fff;
@@ -1348,7 +1366,7 @@
 
 /* ------------------------------------------------------- audience strip */
 
-.audience {
+.hv2-audience {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1359,14 +1377,14 @@
 }
 
 @media (min-width: 1200px) {
-  .audience {
+  .hv2-audience {
     flex-wrap: nowrap;
     margin: 1.4% 3.3% 0;
     padding: 1.45% 0 0.4% 1%;
   }
 }
 
-.audienceLabel {
+.hv2-audienceLabel {
   width: 100%;
   margin: 0 0 4px;
   font-size: 11.5px;
@@ -1378,14 +1396,14 @@
 }
 
 @media (min-width: 1200px) {
-  .audienceLabel {
+  .hv2-audienceLabel {
     width: auto;
     margin: 0 2.2% 0 0;
     font-size: clamp(10.5px, 0.78vw, 13px);
   }
 }
 
-.audienceList {
+.hv2-audienceList {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1396,14 +1414,14 @@
 }
 
 @media (min-width: 1200px) {
-  .audienceList {
+  .hv2-audienceList {
     flex: 1;
     flex-wrap: nowrap;
     justify-content: space-between;
   }
 }
 
-.audienceItem {
+.hv2-audienceItem {
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -1416,7 +1434,7 @@
 }
 
 @media (min-width: 1200px) {
-  .audienceItem {
+  .hv2-audienceItem {
     flex: 1 1 auto;
     justify-content: center;
     padding: 0 0.6vw;
@@ -1424,35 +1442,35 @@
   }
 }
 
-.audienceItem svg {
+.hv2-audienceItem svg {
   color: var(--navy);
 }
 
-.audienceMore {
+.hv2-audienceMore {
   color: var(--muted);
 }
 
 /* ------------------------------------------------------- QA refinements */
 
 @media (max-width: 1199px) {
-  .city {
+  .hv2-city {
     -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
     mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
   }
 }
 
 @media (max-width: 639px) {
-  .headlineLines {
+  .hv2-headlineLines {
     font-size: clamp(30px, 8.8vw, 40px);
   }
-  .headlineAccent {
+  .hv2-headlineAccent {
     font-size: clamp(20px, 5.6vw, 26px);
   }
-  .eyebrow {
+  .hv2-eyebrow {
     font-size: 11px;
     letter-spacing: 0.2em;
   }
-  .stackFlow {
+  .hv2-stackFlow {
     gap: 6px 8px;
     padding: 10px 12px;
     font-size: 10px;
@@ -1461,54 +1479,54 @@
 }
 
 /* The report preview overhangs its card; keep the card tall enough. */
-.stackOutput .output {
+.hv2-stackOutput .hv2-output {
   min-height: calc(var(--u) * 112);
 }
 
 @media (min-width: 1200px) and (max-width: 1439px) {
-  .ctas {
+  .hv2-ctas {
     flex-wrap: nowrap;
     gap: 12px;
   }
-  .ctaPrimary,
-  .ctaSecondary {
+  .hv2-ctaPrimary,
+  .hv2-ctaSecondary {
     padding: 0 20px;
     gap: 10px;
   }
 }
 
 @media (min-width: 1200px) and (max-width: 1439px) {
-  .assurances {
+  .hv2-assurances {
     flex-wrap: wrap;
   }
 }
 
 /* Snap to the page gutter, not the scroller's edge. */
-.stackScroller,
-.industries {
+.hv2-stackScroller,
+.hv2-industries {
   scroll-padding-inline: 20px;
 }
 
 @media (min-width: 768px) {
-  .stackScroller {
+  .hv2-stackScroller {
     scroll-padding-inline: 32px;
   }
 }
 
 /* Reports copy keeps clear of the overhanging preview at every scale. */
-.reportsBody {
+.hv2-reportsBody {
   max-width: calc(var(--u) * 148);
 }
 
 @media (max-width: 479px) {
-  .ctaPrimary,
-  .ctaSecondary {
+  .hv2-ctaPrimary,
+  .hv2-ctaSecondary {
     flex: 1 1 100%;
   }
 }
 
 @media (max-width: 399px) {
-  .stackFlow {
+  .hv2-stackFlow {
     gap: 6px 5px;
     padding: 10px 8px;
     font-size: 9.5px;
@@ -1517,27 +1535,30 @@
 }
 
 /* Stacked layout: keep the report preview inside the page gutter. */
-.stackOutput .reportShot {
+.hv2-stackOutput .hv2-reportShot {
   right: calc(var(--u) * -4);
 }
 
-.stackOutput .reportsBody {
+.hv2-stackOutput .hv2-reportsBody {
   max-width: calc(var(--u) * 136);
 }
 
 /* Wide screens: the copy column is capped with the 1672px container, so cap
    the description too — it must clear the inward-turned source cards. */
 @media (min-width: 1672px) {
-  .lede {
+  .hv2-lede {
     max-width: 468px;
   }
 }
 
 @media (max-width: 359px) {
-  .stackFlow {
+  .hv2-stackFlow {
     gap: 6px 4px;
     padding: 9px 6px;
     font-size: 8.5px;
     letter-spacing: 0.03em;
   }
 }
+`;
+
+export const HERO_V2_CSS = RAW.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\n{3,}/g, "\n\n");

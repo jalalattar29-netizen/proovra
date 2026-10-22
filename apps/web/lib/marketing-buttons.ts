@@ -1,7 +1,7 @@
 // Shared marketing CTA button classes — single source of truth for the
 // public marketing surfaces (Solutions, header, request-demo, contact-
-// sales, verify-demo). Tokens are derived from the homepage hero pattern
-// (apps/web/components/marketing/HeroSection.tsx L424-438).
+// sales, verify-demo). Tokens were derived from the original homepage hero
+// CTA pair (replaced by Hero V2, components/marketing/hero-v2).
 //
 // Four semantic variants:
 //   - primaryDark      : deep PROOVRA navy, white text. Used for the
