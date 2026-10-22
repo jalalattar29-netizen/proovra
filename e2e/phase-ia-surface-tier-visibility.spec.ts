@@ -193,16 +193,26 @@ async function loginAsPersonalUser(page: Page): Promise<GuestSession> {
   // endpoint the rest of the suite resets it with.
   await clearTestRateLimits();
   await page.goto("/login");
-  await page.getByPlaceholder("Email").fill(session.email);
-  await page.getByPlaceholder("Password").fill(SESSION_PASSWORD);
+  // THE VISIBLE FORM, BECAUSE THERE ARE BRIEFLY TWO.
+  //
+  // Served from a production build, the sign-in form arrives as a streamed
+  // Suspense segment: React parks it in a `hidden` container and reveals it
+  // in a batch, up to ~300ms after the document's load event. For that window
+  // the page holds the hidden server copy AND the client-rendered one, and
+  // `getByPlaceholder` counts hidden elements — so a strict locator failed in
+  // ~600ms on "resolved to 2 elements" before the reveal landed. A person only
+  // ever sees one form; `:visible` addresses that one and is still strict, so
+  // two VISIBLE forms would fail here as they should.
+  await page.locator('input[placeholder="Email"]:visible').fill(session.email);
+  await page.locator('input[placeholder="Password"]:visible').fill(SESSION_PASSWORD);
   // The form will not submit without this. Sign-in requires agreeing to
   // the Terms, Privacy and Cookie policies, and refuses with
   // "You must accept the Terms of Service, Privacy Policy, and Cookie
   // Policy before continuing." — a refusal that renders in the page
   // rather than as a failed request, so a fixture that skips it simply
   // waits on a navigation that is never coming.
-  await page.locator("input.auth-legal-checkbox").check();
-  await page.locator('[data-auth-email-cta="SIGN_IN"]').click();
+  await page.locator("input.auth-legal-checkbox:visible").check();
+  await page.locator('[data-auth-email-cta="SIGN_IN"]:visible').click();
   // Landing on /home is the proof the session exists. Without this wait a
   // later assertion could read the login page again and call it a pass.
   await page.waitForURL(/\/home/, { timeout: 30_000 });
