@@ -56,6 +56,7 @@
  */
 
 import { bump } from "../ops/metrics.service.js";
+import { resolveTestStackIsolation } from "./test-stack-isolation.js";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -80,6 +81,11 @@ export type SecretsFallbackMode =
   | "env_fallback_after_failure";
 
 export function declaredSecretsMode(): SecretsAuthorityMode {
+  // An isolated test stack never asks AWS for anything: Secrets Manager values
+  // OUTRANK the environment for the migrated secrets (RESEND_API_KEY,
+  // STRIPE_SECRET_KEY, OPENAI_API_KEY, …), so one successful hydration would
+  // hand a test run production credentials. See test-stack-isolation.ts.
+  if (resolveTestStackIsolation().isolated) return "disabled";
   const explicit = (process.env["AWS_SECRETS_MODE"] ?? "").trim().toLowerCase();
   if (
     explicit === "required" ||

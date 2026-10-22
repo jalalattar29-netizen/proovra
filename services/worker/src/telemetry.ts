@@ -23,6 +23,8 @@ import {
   touchWorkerLease,
   type WorkerLeaseIdentity,
 } from "./worker-lease.js";
+import { buildIsolationFacts } from "@proovra/shared-runtime";
+import { getWorkerEnvFileLoad } from "./env-loader.js";
 import { sweepHeartbeatHistory } from "./heartbeat-retention.js";
 import { logger } from "./logger.js";
 import { publishBitcoinVerifierReadiness } from "./ots-bitcoin-telemetry.js";
@@ -187,6 +189,7 @@ export function startTelemetrySampler(opts?: {
       }
     } finally {
       const duration = Date.now() - startedAt;
+      const isolation = buildIsolationFacts({ envFilesLoaded: getWorkerEnvFileLoad().loaded.length });
       // AUD-019 — the local OCR engine as THIS worker actually has it (binary
       // + installed language models), so the API reports the probe, not a
       // constant. Bounded, credential-free; a failed probe is omitted.
@@ -215,6 +218,11 @@ export function startTelemetrySampler(opts?: {
               queueSubscriptions: queues.map((q) => q.name),
               nodeVersion: process.version,
               ...(localOcr ? { localOcr } : {}),
+              // A test-stack worker states its isolation here, every beat, so
+              // the API can put it on /health and an E2E run can refuse a stack
+              // whose worker could reach a live service (2026-10-22 incident).
+              // Names only; absent for every non-test process.
+              ...(isolation ? { isolation } : {}),
             },
           },
         });

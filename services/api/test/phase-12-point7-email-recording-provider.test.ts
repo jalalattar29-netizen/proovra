@@ -54,14 +54,28 @@ describe("POINT 7 — the recording provider is SELECTED, never inferred", () =>
     expect(resolveEmailTransportProvider()).toBe("recording");
   });
 
+  // A DEPLOYED process: these two pins are about deployments, so they now say
+  // so. Before the 2026-10-22 incident they ran in this (test) process and an
+  // unset selection meant "resend" everywhere — which is exactly how a laptop
+  // with a live key in its `.env` emailed real addresses. See
+  // test-stack-isolation.test.ts for the undeployed half of the contract.
   it("an UNSET selection keeps the deployed provider — omission changes nothing", () => {
+    vi.stubEnv("NODE_ENV", "production");
     delete process.env["EMAIL_TRANSPORT"];
     expect(resolveEmailTransportProvider()).toBe("resend");
+    vi.unstubAllEnvs();
   });
 
-  it("an unrecognised value is not silently treated as the recorder", () => {
+  it("an unrecognised value is not silently treated as the recorder by a deployment", () => {
+    vi.stubEnv("NODE_ENV", "production");
     process.env["EMAIL_TRANSPORT"] = "definitely-not-a-provider";
     expect(resolveEmailTransportProvider()).toBe("resend");
+    vi.unstubAllEnvs();
+  });
+
+  it("an UNSET selection on an undeployed (development / test) machine records", () => {
+    delete process.env["EMAIL_TRANSPORT"];
+    expect(resolveEmailTransportProvider()).toBe("recording");
   });
 });
 

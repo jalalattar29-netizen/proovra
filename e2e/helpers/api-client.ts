@@ -27,6 +27,7 @@ import { request as pwRequest, APIRequestContext } from "@playwright/test";
  * canonical authority; this now does the same.
  */
 import { REQUIRED_LEGAL_VERSIONS } from "../../services/api/src/legal/legal-versioning";
+import { assertIsolatedStack } from "./stack-isolation";
 
 export const API_BASE = process.env.API_BASE ?? "http://localhost:8081";
 
@@ -266,6 +267,10 @@ export async function createGuestSession(
   // couple two tests that share nothing else.
   const email = `e2e-${process.pid}-${Date.now()}-${sessionCounter}@example.test`;
   const password = SESSION_PASSWORD;
+
+  // Registration sends a verification email. Prove the stack cannot deliver it
+  // anywhere real before asking it to (stack-isolation.ts, 2026-10-22 incident).
+  await assertIsolatedStack();
 
   const anon = await makeApi();
   const registered = await anon.post("/v1/auth/email/register", {

@@ -50,6 +50,9 @@
  * notification crash-window proofs.
  */
 
+import { deployedInfrastructureRequired } from "../config/deployment-environment.js";
+import { resolveTestStackIsolation } from "../config/test-stack-isolation.js";
+
 // ===========================================================================
 // Outcome
 // ===========================================================================
@@ -156,12 +159,24 @@ const RESEND_SEND_ENDPOINT = "https://api.resend.com/emails";
  */
 export type EmailTransportProvider = "resend" | "recording";
 
+/*
+ * FAIL-CLOSED (2026-10-22 incident, see config/test-stack-isolation.ts).
+ *
+ *   1. An isolated test stack ALWAYS records. Nothing it is handed — not
+ *      `EMAIL_TRANSPORT=resend`, not a real key inherited from a `.env` — can
+ *      make it reach Resend.
+ *   2. An explicit `EMAIL_TRANSPORT` is honoured.
+ *   3. Unset (or unrecognised): deployed environments (production, staging,
+ *      unknown, ambiguous) keep `resend`, so no deployment changes by omission;
+ *      an unambiguous development or test machine records. "Unset means live"
+ *      is exactly how a laptop with a real key in its `.env` emailed strangers.
+ */
 export function resolveEmailTransportProvider(): EmailTransportProvider {
+  if (resolveTestStackIsolation().isolated) return "recording";
   const raw = (process.env["EMAIL_TRANSPORT"] ?? "").trim().toLowerCase();
   if (raw === "recording") return "recording";
   if (raw === "resend") return "resend";
-  // Unset means the historical behaviour, so no deployment changes by omission.
-  return "resend";
+  return deployedInfrastructureRequired() ? "resend" : "recording";
 }
 
 /**

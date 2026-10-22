@@ -1,6 +1,10 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
+import {
+  refuseFileSourcedLiveEmail,
+  resolveTestStackIsolation,
+} from "@proovra/shared-runtime/isolation";
 
 /**
  * PHASE 12 — POINT 7 (2026-08-05): a bootstrapped process loads NO env file.
@@ -17,14 +21,20 @@ import { resolve } from "node:path";
  * `PROOVRA_ENV_BOOTSTRAPPED` is set only by the canonical test bootstrap. When
  * it is present, configuration has ALREADY been established deliberately and
  * this loader must not second-guess it. There is one authority per process.
+ *
+ * An ISOLATED TEST STACK (E2E) loads nothing either — the same rule and the
+ * same 2026-10-22 incident as services/api/src/env.ts: a developer `.env`
+ * holds live credentials, and a test stack must never inherit them. And a
+ * `.env` file never turns live email on for any process (refuseFileSourcedLiveEmail):
+ * started from the repository root, this loader reads the root `.env`, which
+ * carries NODE_ENV=production beside a live Resend key.
  */
-const ALREADY_BOOTSTRAPPED =
-  (process.env.PROOVRA_ENV_BOOTSTRAPPED ?? "").trim() === "1";
+type Env = Record<string, string | undefined>;
 
-function loadEnvFile(path: string) {
-  if (ALREADY_BOOTSTRAPPED) return;
-  if (!existsSync(path)) return;
+function loadEnvFile(path: string, env: Env, filled: Set<string>): boolean {
+  if (!existsSync(path)) return false;
   const content = readFileSync(path, "utf8");
+  let contributed = false;
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith("#")) continue;
@@ -33,16 +43,46 @@ function loadEnvFile(path: string) {
     const key = line.slice(0, idx).trim();
     const value = line.slice(idx + 1).trim();
     if (!key) continue;
-    if (process.env[key] === undefined) {
-      process.env[key] = value;
+    if (env[key] === undefined) {
+      env[key] = value;
+      filled.add(key);
+      contributed = true;
     }
   }
+  return contributed;
 }
 
-const cwdEnv = resolve(process.cwd(), ".env");
-const serviceEnv = resolve(process.cwd(), "services/worker/.env");
+export type WorkerEnvFileLoad = {
+  /** Paths that contributed at least one value, in load order. */
+  loaded: string[];
+  /** Set when a file supplied a variable that could turn live email on (names only). */
+  emailLiveRefused: string | null;
+};
 
-loadEnvFile(cwdEnv);
-if (serviceEnv !== cwdEnv) {
-  loadEnvFile(serviceEnv);
+/** Load the worker's `.env` files into `env`. */
+export function loadWorkerEnvFiles(cwd: string, env: Env = process.env): WorkerEnvFileLoad {
+  if ((env.PROOVRA_ENV_BOOTSTRAPPED ?? "").trim() === "1") return { loaded: [], emailLiveRefused: null };
+  if (resolveTestStackIsolation(env).isolated) return { loaded: [], emailLiveRefused: null };
+  const cwdEnv = resolve(cwd, ".env");
+  const serviceEnv = resolve(cwd, "services/worker/.env");
+  const candidates = serviceEnv !== cwdEnv ? [cwdEnv, serviceEnv] : [cwdEnv];
+  // The transport the REAL environment asked for, before any file could add one.
+  const realEmailTransport = env.EMAIL_TRANSPORT;
+  const filled = new Set<string>();
+  const loaded = candidates.filter((path) => loadEnvFile(path, env, filled));
+  return { loaded, emailLiveRefused: refuseFileSourcedLiveEmail(env, filled, realEmailTransport) };
+}
+
+const workerEnvFileLoad = loadWorkerEnvFiles(process.cwd());
+if (workerEnvFileLoad.emailLiveRefused) {
+  // Said once, at boot, before any logger exists. Names only, never values.
+  process.stderr.write(
+    `[env] live email refused — ${workerEnvFileLoad.emailLiveRefused}; email is recorded. ` +
+      "Set EMAIL_TRANSPORT=resend in the real environment to send.\n",
+  );
+}
+
+/** How many `.env` files this worker read — reported in its isolation facts. */
+export function getWorkerEnvFileLoad(): WorkerEnvFileLoad {
+  return { loaded: [...workerEnvFileLoad.loaded], emailLiveRefused: workerEnvFileLoad.emailLiveRefused };
 }

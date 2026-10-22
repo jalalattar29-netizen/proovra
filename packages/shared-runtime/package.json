@@ -41,6 +41,11 @@
       "types": "./dist/reports/index.d.ts",
       "import": "./dist/reports/index.js",
       "default": "./dist/reports/index.js"
+    },
+    "./isolation": {
+      "types": "./dist/config/test-stack-isolation.d.ts",
+      "import": "./dist/config/test-stack-isolation.js",
+      "default": "./dist/config/test-stack-isolation.js"
     }
   },
   "files": [

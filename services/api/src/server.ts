@@ -270,6 +270,7 @@ import { registerCanonicalNotFoundHandler } from "./http/not-found-handler.js";
 import { evaluateCookieMutation, isCorsOriginAllowed } from "./http/cors-origin-policy.js";
 import { bearerTokenOf, sessionCookieOf } from "./middleware/auth.js";
 import { redactRequestUrl } from "./http/redact-request-url.js";
+import { buildTestStackIsolationReport } from "./ops/test-stack-isolation-report.js";
 
 // UC-SEC-002 / UC-SEC-005 — the CORS origin decision lives in ONE module.
 
@@ -1164,11 +1165,24 @@ allowedHeaders: [
   // /healthz (liveness), /readyz (readiness), and /v1/ops/health
   // (authenticated detail). See routes/ops.routes.ts.
   app.get("/health", async (_req, reply) => {
+    // An isolated test stack also states its isolation, so an E2E run can
+    // refuse to create a single account against a stack that could reach a
+    // live service (2026-10-22 incident). Names only, never values — and a
+    // deployed process reports nothing new.
+    let isolation: Awaited<ReturnType<typeof buildTestStackIsolationReport>> = null;
+    try {
+      isolation = await buildTestStackIsolationReport();
+    } catch {
+      // An isolated stack that cannot read its workers' isolation must not
+      // look clean: it reports no isolation block at all, which the E2E
+      // preflight refuses. A deployed process never reaches this (null above).
+      isolation = null;
+    }
     try {
       await prisma.$queryRaw`SELECT 1`;
-      return reply.code(200).send({ ok: true, db: "up" });
+      return reply.code(200).send({ ok: true, db: "up", ...(isolation ? { isolation } : {}) });
     } catch {
-      return reply.code(503).send({ ok: false, db: "down" });
+      return reply.code(503).send({ ok: false, db: "down", ...(isolation ? { isolation } : {}) });
     }
   });
 

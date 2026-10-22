@@ -207,16 +207,21 @@ describe("PHASE 1 — admin-only integrations diagnostics endpoint", () => {
 describe("PHASE 1 — env.ts loader covers repo-root .env", () => {
   const ENV_LOADER = readApi("src/env.ts");
 
+  // The loader is a function of (cwd, env) since the 2026-10-22 test-stack
+  // isolation fix (an isolated test stack loads no file at all — proven by
+  // behaviour in test-stack-isolation.test.ts). For every other process the
+  // layering below is unchanged: the module still runs it on process.cwd()
+  // against process.env.
   it("loads <cwd>/../../.env in addition to <cwd>/.env and services/api/.env", () => {
-    expect(ENV_LOADER).toMatch(/resolve\(process\.cwd\(\),\s*"\.\.\/\.\.\/\.env"\)/);
+    expect(ENV_LOADER).toMatch(/resolve\(cwd,\s*"\.\.\/\.\.\/\.env"\)/);
+    expect(ENV_LOADER).toMatch(/loadEnvFiles\(process\.cwd\(\)\)/);
+    expect(ENV_LOADER).toMatch(/env:\s*Env\s*=\s*process\.env/);
   });
 
   it("only fills undefined keys — never overwrites the real shell env", () => {
     // The first-writer-wins guard is the load-order invariant the
     // env layering depends on.
-    expect(ENV_LOADER).toMatch(
-      /if\s*\(\s*process\.env\[key\]\s*===\s*undefined\s*\)/,
-    );
+    expect(ENV_LOADER).toMatch(/if\s*\(\s*env\[key\]\s*===\s*undefined\s*\)/);
   });
 
   it("exposes a getEnvSourceHint() helper for safe diagnostics", () => {
