@@ -44,6 +44,12 @@ x-common-env: &common-env
   IDENTITY_SECURITY_HASH_SECRET: rga_e2e_identity_hash_secret_min_32_chars_0001
   LOG_LEVEL: info
   SENTRY_DSN: ""
+  # TEST-STACK ISOLATION (2026-10-22 incident). The job's env does not reach
+  # these containers, so every process here declares it itself: no .env, email
+  # recorded, no AWS Secrets Manager, and the API and worker report it on
+  # /health, which e2e/helpers/stack-isolation.ts checks before registering.
+  PROOVRA_TEST_STACK: "1"
+  EMAIL_TRANSPORT: recording
 
 services:
   postgres:

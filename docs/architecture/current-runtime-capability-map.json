@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 10364,
-      "UNRESOLVED_IDENTIFIER": 1464
+      "METHOD_ON_VALUE": 10379,
+      "UNRESOLVED_IDENTIFIER": 1468
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -93057,8 +93057,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/telemetry.ts#queueTelemetrySnapshot.create@168",
-      "terminalLocation": "services/worker/src/telemetry.ts:168",
+      "writerId": "services/worker/src/telemetry.ts#queueTelemetrySnapshot.create@170",
+      "terminalLocation": "services/worker/src/telemetry.ts:170",
       "file": "services/worker/src/telemetry.ts",
       "enclosingDeclaration": "sampleOnce",
       "kind": "DATABASE",
@@ -93088,8 +93088,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/telemetry.ts#workerTelemetrySnapshot.create@200",
-      "terminalLocation": "services/worker/src/telemetry.ts:200",
+      "writerId": "services/worker/src/telemetry.ts#workerTelemetrySnapshot.create@203",
+      "terminalLocation": "services/worker/src/telemetry.ts:203",
       "file": "services/worker/src/telemetry.ts",
       "enclosingDeclaration": "sampleOnce",
       "kind": "DATABASE",

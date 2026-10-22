@@ -338,6 +338,77 @@ describe("the suite and CI are wired to the contract", () => {
     expect(register).toBeGreaterThan(guard);
   });
 
+  /*
+   * The updated-report journey runs its API and worker IN CONTAINERS, which do
+   * not inherit the workflow's env — so the workflow pin below proved nothing
+   * about them, and the preflight refused the journey (CI updated-report-journey
+   * #154: an unmarked worker, and a local TSA_URL counted as live). This reads
+   * each container's environment from the compose file itself and judges it by
+   * the preflight's own rule.
+   */
+  it("the journey compose stack's API and worker pass the preflight as declared", () => {
+    const compose = readFileSync(join(REPO, "e2e/updated-report/stack/docker-compose.yml"), "utf8").replace(/\r\n/g, "\n");
+    /** Flat `KEY: value` lines directly under the block that starts at `header` (at `indent`). */
+    function envBlock(header: RegExp, indent: number): Record<string, string> {
+      const lines = compose.split("\n");
+      const start = lines.findIndex((l) => header.test(l));
+      expect(start, `${header} in the compose file`).toBeGreaterThan(-1);
+      const out: Record<string, string> = {};
+      for (const line of lines.slice(start + 1)) {
+        if (line.trim() === "" || line.trim().startsWith("#")) continue;
+        const lead = line.length - line.trimStart().length;
+        if (lead < indent) break;
+        const m = /^\s*([A-Z0-9_]+):\s*(.*)$/.exec(line);
+        if (lead === indent && m) out[m[1]!] = m[2]!.replace(/^"(.*)"$/, "$1");
+      }
+      return out;
+    }
+    const common = envBlock(/^x-common-env: &common-env$/, 2);
+    const serviceEnv = (name: string) => {
+      const at = compose.indexOf(`\n  ${name}:\n`);
+      expect(at, `service ${name}`).toBeGreaterThan(-1);
+      const section = compose.slice(at + 1).split(/\n {2}[a-z-]+:\n/)[0]!;
+      expect(section, `${name} merges the common env`).toMatch(/\n {6}<<: \*common-env\n/);
+      const lines = section.split("\n");
+      const envAt = lines.findIndex((l) => l === "    environment:");
+      const env: Record<string, string> = { ...common };
+      for (const line of lines.slice(envAt + 1)) {
+        if (line.trim() === "" || line.trim().startsWith("#")) continue;
+        if (line.length - line.trimStart().length < 6) break;
+        const m = /^ {6}([A-Z0-9_]+):\s*(.*)$/.exec(line);
+        if (m) env[m[1]!] = m[2]!.replace(/^"(.*)"$/, "$1");
+      }
+      return env;
+    };
+
+    const api = serviceEnv("api");
+    const worker = serviceEnv("worker");
+    expect(api.TSA_URL).toMatch(/^http:\/\/tsa:/); // the deliberate local TSA is still configured
+    // The facts read the transport and secrets mode from process.env, so each
+    // container's environment is installed before it is judged.
+    const judge = (env: Record<string, string>) => {
+      clearMarkers();
+      for (const [k, v] of Object.entries(env)) vi.stubEnv(k, v);
+      return buildIsolationFacts({ env, envFilesLoaded: 0 });
+    };
+    const apiFacts = judge(api);
+    const workerFacts = judge(worker);
+    expect(apiFacts).not.toBeNull();
+    expect(workerFacts).not.toBeNull();
+    expect(isolationProblems({ ...apiFacts!, workers: [{ workerId: "worker", isolation: workerFacts }] })).toEqual([]);
+  });
+
+  it("an endpoint is live unless its host cannot be a public service", () => {
+    for (const local of ["http://tsa:8318/", "http://localhost:8318", "http://127.0.0.1:9", "http://[::1]:8318/", "http://minio.localhost:57900", "https://tsa.example.test/"]) {
+      expect(presentLiveCredentialNames({ TSA_URL: local, OPS_ALERT_WEBHOOK_URL: local }), local).toEqual([]);
+    }
+    for (const live of ["https://timestamp.globaltrust.eu/tsa", "http://10.0.0.5:8318", "https://hooks.example.com/x", "not a url", "http://8.8.8.8"]) {
+      expect(presentLiveCredentialNames({ TSA_URL: live }), live).toEqual(["TSA_URL"]);
+    }
+    // Secrets are live whatever they look like — only ENDPOINTS are judged by host.
+    expect(presentLiveCredentialNames({ TSA_PASSWORD: "localhost", SENTRY_DSN: "http://k@localhost/1" })).toEqual(["TSA_PASSWORD", "SENTRY_DSN"]);
+  });
+
   it.each(["playwright-e2e.yml", "updated-report-journey.yml"])("%s declares the isolated test stack", (file) => {
     const yml = readFileSync(join(REPO, ".github/workflows", file), "utf8");
     expect(yml).toMatch(/^\s+PROOVRA_TEST_STACK: "1"$/m);

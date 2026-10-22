@@ -84,9 +84,39 @@ export const LIVE_SERVICE_CREDENTIALS = [
   "APPLE_PRIVATE_KEY",
 ] as const;
 
+/**
+ * Entries above that are ENDPOINTS, not secrets. An endpoint is live only if it
+ * leaves the stack: the updated-report journey runs a local openssl TSA at
+ * `http://tsa:8318/` on purpose, and reporting that as a live credential made
+ * the preflight refuse a stack that could reach nothing.
+ */
+const LIVE_SERVICE_ENDPOINTS: ReadonlySet<string> = new Set(["TSA_URL", "OPS_ALERT_WEBHOOK_URL"]);
+
+/**
+ * True only for a URL whose host cannot be a public service: loopback,
+ * `*.localhost`, the reserved `*.test` TLD, or a single-label name (a container
+ * on the stack's own network — every public service has a dotted name).
+ * Anything unparseable is NOT local: fail closed.
+ */
+export function isStackLocalEndpoint(value: string): boolean {
+  let host: string;
+  try {
+    host = new URL(value.trim()).hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  } catch {
+    return false;
+  }
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".test")) return true;
+  if (host === "::1" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  return /^[a-z0-9-]+$/.test(host) && !/^\d+$/.test(host);
+}
+
 /** Names of live-service credentials present (non-empty) in `env`. Never values. */
 export function presentLiveCredentialNames(env: Env = process.env): string[] {
-  return LIVE_SERVICE_CREDENTIALS.filter((name) => (env[name] ?? "").trim().length > 0);
+  return LIVE_SERVICE_CREDENTIALS.filter((name) => {
+    const value = (env[name] ?? "").trim();
+    if (value.length === 0) return false;
+    return !(LIVE_SERVICE_ENDPOINTS.has(name) && isStackLocalEndpoint(value));
+  });
 }
 
 /**

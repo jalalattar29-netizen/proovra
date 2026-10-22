@@ -38,12 +38,11 @@ jobs:
       API_BASE: http://127.0.0.1:58081
       DATABASE_URL: postgresql://proovra:proovra_password@127.0.0.1:57432/proovra_rga
       E2E_AUTH_BYPASS_SECRET: e2e-bypass-do-not-use-in-prod-7f2c3a91b4d9e8f10c2b3a4d5e6f70819
-      # TEST-STACK ISOLATION, DECLARED (2026-10-22 incident). Every process this
-      # job starts is an isolated test stack: it reads no .env file, can only
-      # RECORD email, never contacts AWS Secrets Manager, and says so on /health,
-      # which e2e/helpers/stack-isolation.ts checks before the first registration.
-      # The bypass secret above already implies this; stating it means the
-      # isolation never rests on the absence of a key.
+      # TEST-STACK ISOLATION, DECLARED (2026-10-22 incident) for the processes
+      # this job runs on the host. The API and worker run in containers, which
+      # do not inherit this env: e2e/updated-report/stack/docker-compose.yml
+      # declares the same markers for them, and their /health report is what
+      # e2e/helpers/stack-isolation.ts checks before the first registration.
       PROOVRA_TEST_STACK: "1"
       EMAIL_TRANSPORT: recording
       RGA_PROOF_DIR: ${{ github.workspace }}/rga-proof
