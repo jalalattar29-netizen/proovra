@@ -22,6 +22,8 @@ export default defineConfig({
   // Tests execute the TypeScript source, never a stale compiled sibling.
   plugins: [preferTsSource()],
   test: {
+    // F-14 closure — never run against a stale build of a shared package.
+    globalSetup: ["../../scripts/shared-dist-freshness.mjs"],
     environment: "node",
     include: ["test/**/*.test.ts"],
   },

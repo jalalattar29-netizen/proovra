@@ -292,3 +292,38 @@ test("F-14: EXTERNAL_DISCLOSURE withholds the attestor's identity, keeping the a
   // FULL_FORENSIC is the custodians' package: unchanged.
   assert.deepEqual(projectJsonForDisclosure("FULL_FORENSIC", "certifications/c1-record.json", cert).value, cert);
 });
+
+test("F-14 closure: an undisclosed recorded coordinate is withheld under ANY key, in arrays, as a string, and coarsened", async () => {
+  const { projectJsonForDisclosure, projectTextForDisclosure } = await import("../dist/index.js");
+  const coords = [52.520008, 13.404954];
+  const doc = {
+    signedAtUtc: "2026-10-22T00:52:52.520Z",
+    position: { y: 52.520008, x: 13.404954 },
+    path: [52.52, 13.4],
+    approx: "52.52",
+    itemCount: 52,
+    ratio: 0.75,
+    unrelated: 41.9,
+  };
+  const out = projectJsonForDisclosure("EXTERNAL_DISCLOSURE", "x.json", doc, { recordedCoordinates: coords }).value;
+  assert.deepEqual(out.position, { y: "[withheld]", x: "[withheld]" });
+  assert.deepEqual(out.path, ["[withheld]", "[withheld]"]);
+  assert.equal(out.approx, "[withheld]");
+  // Never a timestamp, an integer, or an unrelated decimal.
+  assert.equal(out.signedAtUtc, "2026-10-22T00:52:52.520Z");
+  assert.equal(out.itemCount, 52);
+  assert.equal(out.ratio, 0.75);
+  assert.equal(out.unrelated, 41.9);
+  // Disclosed: nothing is matched by value (the location rules coarsen instead).
+  const disclosed = projectJsonForDisclosure("EXTERNAL_DISCLOSURE", "x.json", doc, { recordedLocationDisclosed: true, recordedCoordinates: coords }).value;
+  assert.deepEqual(disclosed.position, { y: 52.520008, x: 13.404954 });
+
+  const text = "Signed 2026-10-22T00:52:52.520Z. Recorded at 52.520008, 13.404954 (about 52.52). Version 13.4.1. 41.9 percent.";
+  const t = projectTextForDisclosure("EXTERNAL_DISCLOSURE", "README.txt", text, { recordedCoordinates: coords });
+  assert.equal(
+    t.value,
+    "Signed 2026-10-22T00:52:52.520Z. Recorded at [withheld], [withheld] (about [withheld]). Version 13.4.1. 41.9 percent.",
+  );
+  assert.ok(t.records.some((r) => r.reason === "PRECISE_LOCATION"));
+  assert.equal(projectTextForDisclosure("EXTERNAL_DISCLOSURE", "README.txt", text, { recordedLocationDisclosed: true, recordedCoordinates: coords }).value.includes("52.520008"), true);
+});

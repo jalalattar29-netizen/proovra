@@ -41,9 +41,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { IntegrationHarness } from "../integration-harness.js";
 import { readZipEntries } from "./_zip-entries.js";
 import { tamperSealedEvidence } from "../helpers/sealed-identity-tamper.js";
+import { scanPackageForLocationLeaks } from "../helpers/location-leak-scan.js";
 
 /** Failure seams, all off by default. Test doubles, not production switches. */
 const seam = vi.hoisted(() => ({
+  /** F-14 closure — every report render's input, so a case can read the disclosure decision it carried. */
+  reportInputs: [] as unknown[],
   packageBuildFailures: 0,
   packageBuildCalls: 0,
   /** Fail the HEAD that follows the report PUT inside the report transaction. */
@@ -107,10 +110,13 @@ vi.mock("../../../worker/src/report-v2/build-report-pdf.js", () => {
     return Buffer.from(`%PDF-1.7 recovery fixture render #${seam.renderCount} ${randomUUID()}\n`);
   };
   return {
-    buildReportPdfV2: async () => render(),
-    buildReportPdfV2WithSignatureOutcome: async () => ({
+    buildReportPdfV2: async (params: unknown) => {
+      seam.reportInputs.push(params);
+      return render();
+    },
+    buildReportPdfV2WithSignatureOutcome: async (params: unknown) => ({
       status: "UNSIGNED_OPT_OUT" as const,
-      pdf: render(),
+      pdf: (seam.reportInputs.push(params), render()),
       warning: "PDF signing is not exercised by this case.",
     }),
   };
@@ -2271,10 +2277,27 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
   // F-14 (independent forward audit) — the EXTERNAL_DISCLOSURE package (the
   // one given to outside reviewers) follows the record's location disclosure,
   // the rule the report and Public Verify apply.
-  async function externalPackageEntries(disclosure: Record<string, unknown>) {
+  //
+  // (F-14 closure, 2026-10-22) The leak check is SEMANTIC
+  // (helpers/location-leak-scan.ts). It used to search the concatenated text of
+  // every entry for "52.52" / "52.5" / "13.4", which also match an ISO
+  // timestamp's seconds.milliseconds ("…:52:52.520Z"): Main's clean-db run
+  // failed that way with no location anywhere in the package. The scan walks
+  // every JSON value and every free-standing decimal against the real
+  // coordinates (and their 1-decimal coarsening), checks location keys, and
+  // byte-searches the full-precision values — every entry, every field.
+  const FIX = { lat: 52.520008, lng: 13.404954, accuracyMeters: 11, locationSource: "CLIENT_APP_DEVICE_LOCATION" } as const;
+  const leakFacts = { coordinates: [FIX.lat, FIX.lng], needles: [FIX.locationSource] };
+
+  async function externalPackageEntries(
+    disclosure: Record<string, unknown>,
+    sealed: Record<string, unknown> = FIX,
+    beforeRun?: (evidenceId: string) => Promise<void>,
+  ) {
     const ev = await signedEvidence();
-    await tamperSealedEvidence(prisma, ev.evidenceId, { lat: 52.520008, lng: 13.404954, accuracyMeters: 11, locationSource: "CLIENT_APP_DEVICE_LOCATION" });
+    if (Object.keys(sealed).length > 0) await tamperSealedEvidence(prisma, ev.evidenceId, sealed);
     if (Object.keys(disclosure).length > 0) await prisma.evidence.update({ where: { id: ev.evidenceId }, data: disclosure as never });
+    if (beforeRun) await beforeRun(ev.evidenceId);
     const id = await request({ evidenceId: ev.evidenceId, teamId: ev.teamId });
     expect(await run(id, 0)).toBeNull();
     const after = await state(ev.evidenceId, id);
@@ -2283,24 +2306,149 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     return readZipEntries(stored(external!.storageBucket, external!.storageKey)!);
   }
 
-  it("F-14: an UNDISCLOSED location never leaves in the external package (no coordinates, no accuracy, no capture-context)", async () => {
-    const entries = await externalPackageEntries({});
-    expect([...entries.keys()].some((k) => k.endsWith("capture-context.json"))).toBe(false);
-    const text = [...entries.entries()]
-      .filter(([k]) => k.endsWith(".json") || k.endsWith(".txt") || k.endsWith(".md"))
-      .map(([, v]) => v.toString("utf8"))
-      .join(" ");
-    for (const leak of ["52.52", "13.40", "52.5", "13.4", "CLIENT_APP_DEVICE_LOCATION"]) expect(text.includes(leak), leak).toBe(false);
+  const expectUndisclosed = (entries: Map<string, Buffer>, facts: { coordinates: number[]; needles?: string[] } = leakFacts) => {
+    expect([...entries.keys()].some((k) => k.endsWith("capture-context.json")), "capture-context.json is withheld").toBe(false);
+    expect([...entries.keys()].some((k) => k.endsWith("map-preview.png")), "no map").toBe(false);
+    expect(scanPackageForLocationLeaks(entries, facts)).toEqual([]);
+    // The withholding is declared, never silent: the disclosure manifest names the withheld file.
     const manifest = JSON.parse(entries.get([...entries.keys()].find((k) => k === "disclosure-manifest.json" || k.endsWith("/disclosure-manifest.json"))!)!.toString("utf8"));
     expect(JSON.stringify(manifest)).toMatch(/capture-context.json/);
+  };
+
+  it("F-14: an UNDISCLOSED location never leaves in the external package (no coordinates, no accuracy, no capture-context)", async () => {
+    expectUndisclosed(await externalPackageEntries({}));
+  });
+
+  it("F-14 closure: the leak check is semantic — a signing instant of 00:52:52.520Z (Main's failure) is not a coordinate", async () => {
+    // The exact condition of the clean-db failure: every timestamp in the
+    // package reads "…:52:52.520Z". The package still carries no location.
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-22T00:52:52.520Z"), shouldAdvanceTime: true });
+    let entries: Map<string, Buffer>;
+    try {
+      entries = await externalPackageEntries({});
+    } finally {
+      vi.useRealTimers();
+    }
+    const text = [...entries.values()].map((v) => v.toString("utf8")).join(" ");
+    expect(text, "the pinned instant is in the package (so this case exercises the collision)").toMatch(/52:52\.52\dZ/);
+    expectUndisclosed(entries);
+  });
+
+  it("F-14 closure: an UNDISCLOSED intake record with a provider-reported mock fix leaks neither the fix nor the mock flag", async () => {
+    const entries = await externalPackageEntries(
+      {},
+      { lat: 48.858370, lng: 2.294481, accuracyMeters: 7, locationSource: "INTAKE_LINK_DEVICE_GEOLOCATION" },
+      async (evidenceId) => {
+        // Imported after the harness: the custody service binds the API client.
+        const { appendCustodyEvent } = await import("../../src/services/custody-events.service.js");
+        await appendCustodyEvent({
+          evidenceId,
+          eventType: "EXTERNAL_INTAKE_SUBMITTED",
+          atUtc: new Date(),
+          // The fix also echoed under keys no location rule names: only the
+          // value match (the record's own coordinates) can withhold these.
+          payload: {
+            gps: { source: "DEVICE_GEOLOCATION", providerReportedMock: true, lat: 48.85837, lng: 2.294481, accuracyMeters: 7 },
+            deviceReport: { y: 48.85837, x: 2.294481, approx: [48.86, 2.29] },
+          },
+        } as never);
+      },
+    );
+    expectUndisclosed(entries, { coordinates: [48.85837, 2.294481], needles: ["INTAKE_LINK_DEVICE_GEOLOCATION", "DEVICE_GEOLOCATION"] });
+    const raw = [...entries.values()].map((v) => v.toString("utf8")).join(" ");
+    expect(raw).not.toMatch(/"providerReportedMock"\s*:\s*true/);
   });
 
   it("F-14: a DISCLOSED location is carried by the external package, coarsened", async () => {
     const entries = await externalPackageEntries({ verificationDisclosureMode: "CONTENT_PREVIEW", showRecordedLocation: true });
     const ctxName = [...entries.keys()].find((k) => k.endsWith("capture-context.json"));
     expect(ctxName, "capture-context.json is shipped when disclosed").toBeTruthy();
-    const ctx = entries.get(ctxName!)!.toString("utf8");
-    expect(ctx).not.toMatch(/52.520008/);
-    expect(ctx).toMatch(/52.52/);
+    const ctx = JSON.parse(entries.get(ctxName!)!.toString("utf8"));
+    const values: number[] = [];
+    const collect = (n: unknown): void => {
+      if (typeof n === "number") values.push(n);
+      else if (n && typeof n === "object") Object.values(n as Record<string, unknown>).forEach(collect);
+    };
+    collect(ctx);
+    // The allowed facts are present and correct: both coordinates, coarsened to the disclosure precision.
+    expect(values).toContain(52.52);
+    expect(values).toContain(13.4);
+    // …and never at full precision, anywhere in the package.
+    for (const [name, bytes] of entries) {
+      expect(bytes.toString("utf8").includes("52.520008"), name).toBe(false);
+      expect(bytes.toString("utf8").includes("13.404954"), name).toBe(false);
+    }
   });
+
+  it("F-14 closure: absent or invalid coordinates fabricate no location and no map, even when disclosed", async () => {
+    const disclosed = { verificationDisclosureMode: "CONTENT_PREVIEW", showRecordedLocation: true };
+    for (const sealed of [{}, { lat: 999, lng: -999, accuracyMeters: 5, locationSource: "CLIENT_APP_DEVICE_LOCATION" }]) {
+      const entries = await externalPackageEntries(disclosed, sealed);
+      expect([...entries.keys()].some((k) => k.endsWith("map-preview.png")), JSON.stringify(sealed)).toBe(false);
+      const ctxName = [...entries.keys()].find((k) => k.endsWith("capture-context.json"));
+      if (ctxName) {
+        const ctx = JSON.parse(entries.get(ctxName)!.toString("utf8"));
+        const numbers: number[] = [];
+        const collect = (n: unknown, key = ""): void => {
+          if (typeof n === "number" && /^(lat|lng|lon|latitude|longitude)$/i.test(key)) numbers.push(n);
+          else if (n && typeof n === "object") Object.entries(n as Record<string, unknown>).forEach(([k, v]) => collect(v, k));
+        };
+        collect(ctx);
+        // No coordinate is fabricated: an absent fix states none; an invalid one is never presented as a place.
+        expect(numbers.filter((n) => n === 999 || n === -999 || Math.abs(n) > 180)).toEqual([]);
+      }
+    }
+  });
+
+  // F-14 closure — ONE decision, read by every surface for the same version,
+  // and re-read for every new version (never a stale package payload).
+  it("F-14 closure: report, package and Public Verify carry the same disclosure decision per version, across policy transitions", async () => {
+    const { buildReportViewModel } = await import("../../../worker/src/report-v2/build-view-model.js");
+    const { shareLinkFor } = await import("../helpers/verify-share.js");
+    const ev = await signedEvidence();
+    await tamperSealedEvidence(prisma, ev.evidenceId, FIX);
+    const asEntries = (label: string, value: unknown) => new Map([[`${label}.json`, Buffer.from(JSON.stringify(value))]]);
+
+    const issue = async (forceRegenerate: boolean) => {
+      seam.reportInputs.length = 0;
+      const id = await request({ evidenceId: ev.evidenceId, teamId: ev.teamId, forceRegenerate, purpose: forceRegenerate ? "operator_regenerate" : "evidence_completed" });
+      expect(await run(id, 0)).toBeNull();
+      const s = await state(ev.evidenceId, id);
+      const version = s.reports.at(-1)!.version;
+      const external = s.packageRows.find((p) => p.state === "PUBLISHED" && p.disclosureProfile === "EXTERNAL_DISCLOSURE" && p.version === version)!;
+      expect(external, `v${version} external package`).toBeTruthy();
+      const input = seam.reportInputs.at(-1) as { recordedLocationDisclosed?: boolean };
+      const vm = await buildReportViewModel(input as never);
+      const res = await harness.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, ev.evidenceId)}`, remoteAddress: `198.51.100.${1 + Math.floor(Math.random() * 250)}` });
+      expect(res.statusCode, res.body).toBe(200);
+      const bytes = stored(external.storageBucket, external.storageKey)!;
+      return { version, external, bytes, entries: readZipEntries(bytes), reportDisclosed: input.recordedLocationDisclosed === true, vm, verify: res.json() as unknown };
+    };
+    const leaks = (m: Map<string, Buffer>) => scanPackageForLocationLeaks(m, { coordinates: [FIX.lat, FIX.lng] });
+    const expectSurfaces = (v: Awaited<ReturnType<typeof issue>>, disclosed: boolean) => {
+      expect(v.reportDisclosed, `v${v.version} report decision`).toBe(disclosed);
+      expect(leaks(asEntries("report-view-model", v.vm)).length > 0, `v${v.version} report shows the location`).toBe(disclosed);
+      expect(leaks(asEntries("public-verify", v.verify)).length > 0, `v${v.version} Public Verify shows the location`).toBe(disclosed);
+      expect(leaks(v.entries).length > 0, `v${v.version} external package carries the location`).toBe(disclosed);
+      expect([...v.entries.keys()].some((k) => k.endsWith("capture-context.json")), `v${v.version} capture-context.json`).toBe(disclosed);
+    };
+
+    // v1 — not disclosed: no surface states the location.
+    const v1 = await issue(false);
+    expectSurfaces(v1, false);
+    const v1Sha = createHash("sha256").update(v1.bytes).digest("hex");
+
+    // The owner discloses it: v2 states it everywhere; v1 is never rewritten.
+    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { verificationDisclosureMode: "CONTENT_PREVIEW", showRecordedLocation: true } as never });
+    const v2 = await issue(true);
+    expect(v2.version).toBe(v1.version + 1);
+    expectSurfaces(v2, true);
+    expect(createHash("sha256").update(stored(v1.external.storageBucket, v1.external.storageKey)!).digest("hex"), "v1 package unchanged").toBe(v1Sha);
+
+    // …and withdraws it again: v3 withholds it everywhere (no reuse of v2's payload).
+    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: { showRecordedLocation: false } as never });
+    const v3 = await issue(true);
+    expect(v3.version).toBe(v2.version + 1);
+    expectSurfaces(v3, false);
+  }, 600_000);
 });

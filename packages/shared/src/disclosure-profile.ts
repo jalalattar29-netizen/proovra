@@ -216,13 +216,57 @@ export function projectTextForDisclosure(
   profile: DisclosureProfile,
   file: string,
   text: string,
+  /** F-14 closure — the same location options as projectJsonForDisclosure. */
+  options: LocationProjectionOptions = {},
 ): { value: string; records: DisclosureRecord[] } {
   if (profile === "FULL_FORENSIC") return { value: text, records: [] };
   const scrubbed = scrubString(text);
-  return {
-    value: scrubbed.value,
-    records: [...new Set(scrubbed.reasons)].map((reason) => ({ file, path: "$text", action: "WITHHELD" as const, reason })),
-  };
+  const records: DisclosureRecord[] = [...new Set(scrubbed.reasons)].map((reason) => ({ file, path: "$text", action: "WITHHELD" as const, reason }));
+  let value = scrubbed.value;
+  if (options.recordedLocationDisclosed !== true) {
+    // A free-standing decimal (never part of a timestamp, version or other
+    // number) that IS a recorded coordinate, at any precision, is withheld.
+    let hit = false;
+    value = value.replace(FREE_DECIMAL, (token) => {
+      if (!matchesRecordedCoordinate(Number(token), options.recordedCoordinates)) return token;
+      hit = true;
+      return WITHHELD_VALUE;
+    });
+    if (hit) records.push({ file, path: "$text", action: "WITHHELD", reason: "PRECISE_LOCATION" });
+  }
+  return { value, records };
+}
+
+/**
+ * F-14 closure (2026-10-22) — THE location options every projection takes:
+ * the record's disclosure decision (parseVerificationDisclosurePolicy
+ * .showRecordedLocation) and, so an undisclosed fix cannot leave under a key
+ * no rule names (or inside prose), the record's OWN recorded coordinates. A
+ * value that matches one of them — at full precision or coarsened — is
+ * withheld wherever it appears. Absent disclosure = withheld (fail closed).
+ */
+export type LocationProjectionOptions = {
+  recordedLocationDisclosed?: boolean;
+  /** The record's recorded latitude / longitude (finite numbers only). */
+  recordedCoordinates?: ReadonlyArray<number>;
+};
+
+/**
+ * Within this distance (degrees) of a recorded coordinate a value IS that
+ * coordinate: half the DISCLOSURE_COORDINATE_DECIMALS step plus a margin, so
+ * the full-precision fix and every coarsening of it (2 decimals and finer) are
+ * all recognised (≈ 560 m).
+ */
+const COORDINATE_MATCH_TOLERANCE = 0.5 * 10 ** -DISCLOSURE_COORDINATE_DECIMALS + 1e-4;
+const WITHHELD_VALUE = "[withheld]";
+/** A decimal number standing alone: not preceded by a digit, ":" or "." (so never a timestamp's seconds or a version part), not followed by a digit or ".". */
+const FREE_DECIMAL = /(?<![\d:.])-?\d{1,3}\.\d{2,}(?![\d.])/g;
+
+export function matchesRecordedCoordinate(value: number, coordinates: ReadonlyArray<number> | undefined): boolean {
+  if (!coordinates || coordinates.length === 0 || !Number.isFinite(value)) return false;
+  // An integer is never a location value here (counts, versions, sizes).
+  if (Number.isInteger(value)) return false;
+  return coordinates.some((c) => Number.isFinite(c) && Math.abs(value - c) < COORDINATE_MATCH_TOLERANCE);
 }
 
 function coarsen(value: unknown): unknown {
@@ -251,9 +295,10 @@ export function projectJsonForDisclosure(
    * .showRecordedLocation), the same decision the report and Public Verify
    * apply. Absent = not disclosed (fail closed).
    */
-  options: { recordedLocationDisclosed?: boolean } = {},
+  options: LocationProjectionOptions = {},
 ): { value: unknown; records: DisclosureRecord[] } {
   if (profile === "FULL_FORENSIC") return { value, records: [] };
+  const locationWithheld = options.recordedLocationDisclosed !== true;
   const records: DisclosureRecord[] = [];
   const rules: ReadonlyArray<KeyRule> = [
     ATTESTOR_IDENTITY_RULE,
@@ -265,6 +310,16 @@ export function projectJsonForDisclosure(
     // An email address, presigned URL, ARN or network address inside any
     // other value (e.g. a personal workspace named "<address>'s personal
     // workspace") is withheld where it appears.
+    // F-14 closure — a recorded coordinate under ANY key (or in an array) is
+    // withheld when the location is not disclosed.
+    if (
+      locationWithheld &&
+      (typeof node === "number" || (typeof node === "string" && /^-?\d+\.\d+$/.test(node.trim()))) &&
+      matchesRecordedCoordinate(Number(node), options.recordedCoordinates)
+    ) {
+      records.push({ file, path, action: "WITHHELD", reason: "PRECISE_LOCATION" });
+      return WITHHELD_VALUE;
+    }
     if (typeof node === "string") {
       const scrubbed = scrubString(node);
       for (const reason of new Set(scrubbed.reasons)) records.push({ file, path, action: "WITHHELD", reason });

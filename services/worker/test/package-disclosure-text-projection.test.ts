@@ -23,7 +23,10 @@ const appendEntry = src.slice(src.indexOf("const appendEntry = (name: string"), 
 describe("the package's one append point projects text for the external profile", () => {
   it("text/plain and text/markdown entries go through projectTextForDisclosure, recorded in the disclosure manifest", () => {
     expect(appendEntry).toMatch(/contentType === "text\/plain" \|\| contentType === "text\/markdown"/);
-    expect(appendEntry).toContain("projectTextForDisclosure(profile, name, buffer.toString(\"utf8\"))");
+    // F-14 closure: text entries take the record's location decision and coordinates too.
+    expect(appendEntry).toContain(
+      'projectTextForDisclosure(profile, name, buffer.toString("utf8"), {\n            recordedLocationDisclosed: data.recordedLocationDisclosed === true,\n            recordedCoordinates: data.recordedCoordinates,',
+    );
     expect(appendEntry).toContain("disclosureRecords.push(...projected.records);");
   });
 

@@ -5341,6 +5341,9 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
           // F-14 — the external profile withholds the recorded location unless
           // the owner disclosed it, read now (fail closed).
           recordedLocationDisclosed: await recordedLocationDisclosedAtIssue(prepared.evidenceId),
+          // F-14 closure — the sealed fix, so an undisclosed coordinate is
+          // recognised under any key or in any text entry.
+          recordedCoordinates: [evidence.lat, evidence.lng].filter((c): c is number => typeof c === "number" && Number.isFinite(c)),
           supersedesPackage: null,
           timestampValidation,
           teamId: evidence.teamId ?? undefined,

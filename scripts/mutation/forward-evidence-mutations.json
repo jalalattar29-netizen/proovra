@@ -6651,5 +6651,155 @@
         ]
       }
     ]
+  },
+  {
+    "id": "AFC-F14-D",
+    "phase": "AFC",
+    "aud": "F-14",
+    "name": "package projection ignores the disclosure decision (the leaking projection: every location ships)",
+    "file": "services/worker/src/verification-package.ts",
+    "find": "          const projected = projectJsonForDisclosure(profile, name, JSON.parse(buffer.toString(\"utf8\")), {\n            recordedLocationDisclosed: data.recordedLocationDisclosed === true,",
+    "replace": "          const projected = projectJsonForDisclosure(profile, name, JSON.parse(buffer.toString(\"utf8\")), {\n            recordedLocationDisclosed: true,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/point5/report-package-recovery.integration.test.ts",
+          "-t",
+          "F-14"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F14-E",
+    "phase": "AFC",
+    "aud": "F-14",
+    "name": "projection: a recorded coordinate under an unnamed key is not withheld",
+    "file": "packages/shared/src/disclosure-profile.ts",
+    "find": "      locationWithheld &&\n      (typeof node === \"number\"",
+    "replace": "      locationWithheld && Number.NaN > 0 &&\n      (typeof node === \"number\"",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/disclosure-and-tsa-record.test.mjs"
+        ]
+      },
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/point5/report-package-recovery.integration.test.ts",
+          "-t",
+          "F-14"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F14-F",
+    "phase": "AFC",
+    "aud": "F-14",
+    "name": "text projection: a recorded coordinate in prose is not withheld",
+    "file": "packages/shared/src/disclosure-profile.ts",
+    "find": "  if (options.recordedLocationDisclosed !== true) {\n    // A free-standing",
+    "replace": "  if (false) {\n    // A free-standing",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/disclosure-and-tsa-record.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-F14-G",
+    "phase": "AFC",
+    "aud": "F-14",
+    "name": "processor: the package builder is not given the record's coordinates",
+    "file": "services/worker/src/processor.ts",
+    "find": "          recordedCoordinates: [evidence.lat, evidence.lng].filter((c): c is number => typeof c === \"number\" && Number.isFinite(c)),",
+    "replace": "          recordedCoordinates: [],",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/point5/report-package-recovery.integration.test.ts",
+          "-t",
+          "F-14"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "AFC-F14-H",
+    "phase": "AFC",
+    "aud": "F-14",
+    "name": "text projection matches inside timestamps (a timestamp fragment is withheld as a coordinate)",
+    "file": "packages/shared/src/disclosure-profile.ts",
+    "find": "const FREE_DECIMAL = /(?<![\\d:.])-?\\d{1,3}\\.\\d{2,}(?![\\d.])/g;",
+    "replace": "const FREE_DECIMAL = /-?\\d{1,3}\\.\\d{2,}/g;",
+    "build": [
+      "shared"
+    ],
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/disclosure-and-tsa-record.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "AFC-STALE-DIST",
+    "phase": "AFC",
+    "aud": "F-14",
+    "name": "stale-shared-build guard accepts a source edited after the build",
+    "file": "scripts/shared-dist-freshness.mjs",
+    "find": "    if (statSync(file).mtimeMs > statSync(out).mtimeMs + SLACK_MS) {",
+    "replace": "    if (false) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/afc-shared-dist-freshness.test.ts"
+        ]
+      }
+    ]
   }
 ]

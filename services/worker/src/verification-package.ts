@@ -3064,6 +3064,13 @@ export async function createVerificationPackage(data: {
    * fingerprint.json commits to the fix) is unaffected. Absent = withheld.
    */
   recordedLocationDisclosed?: boolean;
+  /**
+   * F-14 closure — the record's own sealed latitude / longitude. When the
+   * location is not disclosed, an EXTERNAL_DISCLOSURE package withholds any
+   * value matching them wherever it appears (any key, any text entry), not
+   * only under the location keys the projection names.
+   */
+  recordedCoordinates?: ReadonlyArray<number>;
   /** EXTERNAL_DISCLOSURE: the FULL_FORENSIC package built in the same run. */
   sourceFullPackageId?: string | null;
   /** The Public Verify page that publishes this package's identity and seal key. */
@@ -3286,6 +3293,7 @@ export async function createVerificationPackage(data: {
         if (contentType === "application/json" && !NEVER_PROJECTED.has(name)) {
           const projected = projectJsonForDisclosure(profile, name, JSON.parse(buffer.toString("utf8")), {
             recordedLocationDisclosed: data.recordedLocationDisclosed === true,
+            recordedCoordinates: data.recordedCoordinates,
           });
           disclosureRecords.push(...projected.records);
           appendPackageEntry(archive, packageEntries, name, jsonBuffer(projected.value), contentType);
@@ -3295,7 +3303,10 @@ export async function createVerificationPackage(data: {
         // projected by value with the same policy; signatures and keys are
         // material, never text to redact.
         if ((contentType === "text/plain" || contentType === "text/markdown") && !NEVER_PROJECTED_TEXT.has(name) && !/\.(pem|sig)$/.test(name)) {
-          const projected = projectTextForDisclosure(profile, name, buffer.toString("utf8"));
+          const projected = projectTextForDisclosure(profile, name, buffer.toString("utf8"), {
+            recordedLocationDisclosed: data.recordedLocationDisclosed === true,
+            recordedCoordinates: data.recordedCoordinates,
+          });
           disclosureRecords.push(...projected.records);
           appendPackageEntry(archive, packageEntries, name, Buffer.from(projected.value, "utf8"), contentType);
           return;

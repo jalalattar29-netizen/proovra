@@ -71,6 +71,8 @@ export default defineConfig({
     // every credential-shaped variable, points dotenv at nothing, and installs
     // the outbound socket guard.
     setupFiles: ["./test/setup/safe-environment.ts"],
+    // F-14 closure — never run against a stale build of a shared package.
+    globalSetup: ["../../scripts/shared-dist-freshness.mjs"],
     include: ["test/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/dist/**", "test/**/*.integration.test.ts"],
     // See MAX_TEST_WORKERS above. Applied to both pools so the bound survives a

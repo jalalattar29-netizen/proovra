@@ -109,7 +109,8 @@ describe("Point-5 proof output routing", () => {
 
   it("the integration project registers the tracked-tree guard", () => {
     const config = readFileSync(resolve(API_ROOT, "vitest.integration.config.ts"), "utf8");
-    expect(config).toMatch(/globalSetup: \["\.\/test\/setup\/tracked-tree-guard\.mjs"\]/);
+    // (F-14 closure: the stale-shared-build guard runs beside it.)
+    expect(config).toMatch(/globalSetup: \["\.\/test\/setup\/tracked-tree-guard\.mjs"(, "[^"]+")*\]/);
   });
 
   it("only the explicit regeneration script names the tracked artifact as output", () => {

@@ -90,7 +90,8 @@ export default defineConfig({
     // the outbound socket guard.
     setupFiles: ["./test/setup/safe-environment.ts"],
     // The run leaves the tracked tree exactly as it found it (see the guard).
-    globalSetup: ["./test/setup/tracked-tree-guard.mjs"],
+    // F-14 closure — never run against a stale build of a shared package.
+    globalSetup: ["./test/setup/tracked-tree-guard.mjs", "../../scripts/shared-dist-freshness.mjs"],
     include: ["test/**/*.integration.test.ts"],
     // Container start + `prisma migrate deploy` + Fastify boot.
     hookTimeout: 900_000,
