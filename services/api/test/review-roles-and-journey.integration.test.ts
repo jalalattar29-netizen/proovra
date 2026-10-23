@@ -19,6 +19,8 @@
  * whole.
  */
 
+import { createHash } from "node:crypto";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { bootIntegrationHarness, type IntegrationHarness, type TeamFixture } from "./integration-harness.js";
@@ -184,6 +186,46 @@ describe("role × plan matrix — what the server does equals what the page is o
       expect((await decide(token, ev, "ESCALATE", "x")).status, label).toBe(404);
     }
     expect((await workflowOf(ev)).assignedToUserId).toBeNull();
+    expect(await prisma.reviewEscalation.count({ where: { evidenceId: ev } })).toBe(0);
+  });
+
+  it("an external reviewer — an accepted portal grant on THIS record — gains nothing on the internal review routes", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "external-grant");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    // The external reviewer is a PROOVRA account outside workspace A, invited
+    // to review exactly this record through the external portal.
+    const reviewer = await prisma.user.findUniqueOrThrow({ where: { id: B.memberUserId }, select: { email: true } });
+    const rawPortalToken = "ext-" + ev;
+    await prisma.externalReviewGrant.create({
+      data: {
+        teamId: A.teamId,
+        scopeKind: "EVIDENCE",
+        evidenceId: ev,
+        tokenHash: createHash("sha256").update(rawPortalToken).digest("hex"),
+        reviewerEmail: reviewer.email!,
+        state: "ACTIVE",
+        invitedByUserId: A.adminUserId,
+        expiresAtUtc: new Date(Date.now() + 86_400_000),
+        acceptedAtUtc: new Date(),
+      },
+    });
+    // Signed in as themselves: the internal review routes stay closed.
+    expect((await call(B.memberToken, "GET", `/v1/evidence/${ev}/review-workspace`)).status).toBe(404);
+    expect((await claim(B.memberToken, ev, A.teamId)).status).toBe(404);
+    expect((await decide(B.memberToken, ev, "ESCALATE", "x")).status).toBe(404);
+    expect((await patchWorkflow(B.memberToken, ev, { status: "IN_REVIEW" })).status).toBe(404);
+    // The portal credential is not a session on the internal routes.
+    for (const res of [
+      await call(rawPortalToken, "GET", `/v1/evidence/${ev}/review-workspace`),
+      await claim(rawPortalToken, ev, A.teamId),
+      await decide(rawPortalToken, ev, "ESCALATE", "x"),
+    ]) {
+      expect([401, 404]).toContain(res.status);
+    }
+    const wf = await workflowOf(ev);
+    expect(wf.assignedToUserId).toBeNull();
+    expect(wf.status).toBe("NOT_STARTED");
     expect(await prisma.reviewEscalation.count({ where: { evidenceId: ev } })).toBe(0);
   });
 
@@ -436,5 +478,216 @@ describe("audit findings — second review, reconcile, races, editor Close, Begi
       orderBy: { sequence: "desc" },
     });
     expect(last.payload).toMatchObject({ status: "APPROVED_INTERNAL", actorUserId: A.memberUserId });
+  });
+});
+
+// ===========================================================================
+// Second independent audit (2026-10-23) — five state-machine defects
+// ===========================================================================
+
+describe("second audit — escalation atomicity, settled requests, repeated requests, every escalation, Close stands", () => {
+  const begin = async (token: string, ev: string) => {
+    const wf = await workflowOf(ev);
+    const res = await patchWorkflow(token, ev, { status: "IN_REVIEW", expectedUpdatedAt: wf.updatedAt.toISOString() });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+  };
+  const claimed = async (ev: string) => {
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    expect((await claim(A.memberToken, ev, A.teamId)).status).toBe(200);
+    await begin(A.memberToken, ev);
+  };
+  const openEscalations = (ev: string) =>
+    prisma.reviewEscalation.count({ where: { evidenceId: ev, status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] } } });
+
+  it("#1 — Escalate is one transaction: a failure after the escalation row leaves neither the move nor the escalation", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "audit2-atomic");
+    await claimed(ev);
+    // Fail the LAST write of an Escalate (the workflow's escalation pointer),
+    // after the escalation row and its outbox row were written.
+    await prisma.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION audit2_fail_pointer() RETURNS trigger AS $$
+      BEGIN
+        IF NEW.escalation_reason = 'FAIL-INJECT' AND NEW.active_escalation_id IS DISTINCT FROM OLD.active_escalation_id THEN
+          RAISE EXCEPTION 'injected failure';
+        END IF;
+        RETURN NEW;
+      END $$ LANGUAGE plpgsql`);
+    await prisma.$executeRawUnsafe(
+      `CREATE TRIGGER audit2_fail_pointer BEFORE UPDATE ON evidence_review_workflows FOR EACH ROW EXECUTE FUNCTION audit2_fail_pointer()`,
+    );
+    try {
+      const res = await decide(A.memberToken, ev, "ESCALATE", "FAIL-INJECT");
+      expect(res.status).toBeGreaterThanOrEqual(500);
+    } finally {
+      await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS audit2_fail_pointer ON evidence_review_workflows`);
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS audit2_fail_pointer()`);
+    }
+    const wf = await workflowOf(ev);
+    expect(wf.status).toBe("IN_REVIEW");
+    expect(wf.escalationLevel).toBe(0);
+    expect(await prisma.reviewEscalation.count({ where: { evidenceId: ev } })).toBe(0);
+    // And the review can still be escalated afterwards.
+    expect((await decide(A.memberToken, ev, "ESCALATE", "real reason")).status).toBe(200);
+    expect(await openEscalations(ev)).toBe(1);
+  });
+
+  it("#1 — Escalate racing Close: exactly one wins and the record is consistent either way", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "audit2-race-close");
+    await claimed(ev);
+    const [esc, close] = await Promise.all([
+      decide(A.memberToken, ev, "ESCALATE", "needs counsel"),
+      decide(A.adminToken, ev, "CLOSE", "closing"),
+    ]);
+    expect([esc.status, close.status].filter((s) => s === 200)).toHaveLength(1);
+    const wf = await workflowOf(ev);
+    if (wf.status === "ESCALATED") {
+      expect(await openEscalations(ev)).toBe(1);
+    } else {
+      expect(wf.status).toBe("CLOSED");
+      expect(await openEscalations(ev)).toBe(0);
+    }
+  });
+
+  it("#2 — a request that settled its round stays settled when the review is escalated: the next verdict opens a new round, never a 'disagreement'", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "audit2-settled");
+    await claimed(ev);
+    expect((await decide(A.memberToken, ev, "REQUEST_MORE_INFO", "need the original")).status).toBe(200);
+    expect((await workflowOf(ev)).status).toBe("NEEDS_INFO");
+    expect((await decide(A.memberToken, ev, "ESCALATE", "counsel please")).status).toBe(200);
+    // The page offers the admin a verdict — not adjudication.
+    expect((await offered(A.adminToken, ev)).actions!.APPROVE_INTERNAL.enabled).toBe(true);
+    expect((await decide(A.adminToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
+    let wf = await workflowOf(ev);
+    expect(wf.decisionRound).toBe(1);
+    const rows = await prisma.workflowReviewDecision.findMany({ where: { workflowId: wf.id }, orderBy: { decidedAt: "asc" } });
+    expect(rows.map((r) => [r.round, r.stage, r.decision])).toEqual([
+      [0, "FIRST", "REQUEST_INFO"],
+      [1, "FIRST", "APPROVE"],
+    ]);
+    // An escalated review takes a second review: the admin waits, the member decides.
+    expect(wf.status).toBe("ESCALATED");
+    expect((await offered(A.adminToken, ev)).actions!.APPROVE_INTERNAL.blockedBy).toBe("AWAITING_SECOND_REVIEWER");
+    expect((await offered(A.memberToken, ev)).actions!.APPROVE_INTERNAL.enabled).toBe(true);
+    expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
+    wf = await workflowOf(ev);
+    expect(wf.status).toBe("APPROVED_INTERNAL");
+    expect(await openEscalations(ev)).toBe(0);
+  });
+
+  it("#3 — the same reviewer may request information again after the review resumed; while it still waits, a repeat is a replay", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "audit2-again");
+    await claimed(ev);
+    expect((await decide(A.memberToken, ev, "REQUEST_MORE_INFO", "first ask")).status).toBe(200);
+    const replay = await decide(A.memberToken, ev, "REQUEST_MORE_INFO", "first ask");
+    expect(replay.status).toBe(200);
+    expect((await workflowOf(ev)).decisionRound).toBe(0);
+    await begin(A.memberToken, ev); // resumed
+    expect((await offered(A.memberToken, ev)).actions!.REQUEST_MORE_INFO.enabled).toBe(true);
+    expect((await decide(A.memberToken, ev, "REQUEST_MORE_INFO", "second ask")).status).toBe(200);
+    const wf = await workflowOf(ev);
+    expect(wf.status).toBe("NEEDS_INFO");
+    expect(wf.decisionRound).toBe(1);
+    expect(
+      await prisma.workflowReviewDecision.count({ where: { workflowId: wf.id, decision: "REQUEST_INFO" } }),
+    ).toBe(2);
+  });
+
+  it("#4 — Close resolves EVERY open escalation on the review, not only the newest", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "audit2-every");
+    await claimed(ev);
+    expect((await decide(A.memberToken, ev, "ESCALATE", "first")).status).toBe(200);
+    await begin(A.adminToken, ev); // an admin resumes the review
+    expect((await decide(A.memberToken, ev, "ESCALATE", "again")).status).toBe(200);
+    expect(await openEscalations(ev)).toBe(2);
+    expect((await decide(A.adminToken, ev, "CLOSE", "handled")).status).toBe(200);
+    expect(await openEscalations(ev)).toBe(0);
+  });
+
+  it("#5 — the reconciler never undoes a Close: approved-then-closed and conflict-then-closed stay Closed", async () => {
+    await setPlan(A, "TEAM");
+    const { reconcileWorkflowProjection } = await import("../src/services/reviewer-ops/review-decision.service.js");
+    const ev = await freshEvidence(A, "audit2-close-approved");
+    await claimed(ev);
+    expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
+    expect((await decide(A.adminToken, ev, "CLOSE", "done")).status).toBe(200);
+    expect(await reconcileWorkflowProjection((await workflowOf(ev)).id)).toMatchObject({ repaired: false, reason: "closed_after_decisions" });
+    expect((await workflowOf(ev)).status).toBe("CLOSED");
+
+    const ev2 = await freshEvidence(A, "audit2-close-conflict");
+    await prisma.evidenceLegalHold.create({
+      data: { scope: "EVIDENCE", evidenceId: ev2, teamId: A.teamId, status: "ACTIVE", title: "Hold", placedByUserId: A.ownerUserId } as never,
+    });
+    await claimed(ev2);
+    expect((await decide(A.memberToken, ev2, "APPROVE_INTERNAL")).status).toBe(200);
+    expect((await decide(A.adminToken, ev2, "REJECT_INSUFFICIENT", "no")).status).toBe(200);
+    expect((await workflowOf(ev2)).status).toBe("ESCALATED");
+    // A disagreement: the page offers the owner the deciding verdict (the
+    // authority accepts it as adjudication) and tells the member who decides.
+    expect((await offered(A.ownerToken, ev2)).actions!.APPROVE_INTERNAL.enabled).toBe(true);
+    expect((await offered(A.memberToken, ev2)).actions!.APPROVE_INTERNAL.blockedBy).toBe("ADJUDICATION_REQUIRED");
+    expect((await decide(A.adminToken, ev2, "CLOSE", "settled elsewhere")).status).toBe(200);
+    await reconcileWorkflowProjection((await workflowOf(ev2)).id);
+    expect((await workflowOf(ev2)).status).toBe("CLOSED");
+  });
+});
+
+describe("ET-CUS-12 — custody exactly once, in the decision's own transaction", () => {
+  const custodyCount = (ev: string) =>
+    prisma.custodyEvent.count({ where: { evidenceId: ev, eventType: "REVIEW_DECISION_RECORDED" } });
+  const ready = async (ev: string) => {
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    expect((await claim(A.memberToken, ev, A.teamId)).status).toBe(200);
+    const wf = await workflowOf(ev);
+    expect((await patchWorkflow(A.memberToken, ev, { status: "IN_REVIEW", expectedUpdatedAt: wf.updatedAt.toISOString() })).status).toBe(200);
+  };
+
+  it("a double-clicked verdict is ONE custody entry", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "custody-double");
+    await ready(ev);
+    const before = await custodyCount(ev);
+    const results = await Promise.all([decide(A.memberToken, ev, "APPROVE_INTERNAL"), decide(A.memberToken, ev, "APPROVE_INTERNAL")]);
+    expect(results.every((r) => r.status === 200 || r.status === 409)).toBe(true);
+    expect((await custodyCount(ev)) - before).toBe(1);
+  });
+
+  it("Escalate, Close and Reopen are each one custody entry; a FIRST of two reviews (no status change) is none", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "custody-lifecycle");
+    await ready(ev);
+    let before = await custodyCount(ev);
+    expect((await decide(A.memberToken, ev, "ESCALATE", "counsel")).status).toBe(200);
+    expect((await custodyCount(ev)) - before).toBe(1);
+    before = await custodyCount(ev);
+    // Escalated → a second review is required: the FIRST verdict moves nothing.
+    expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
+    expect((await workflowOf(ev)).status).toBe("ESCALATED");
+    expect((await custodyCount(ev)) - before).toBe(0);
+    expect((await decide(A.adminToken, ev, "CLOSE", "done")).status).toBe(200);
+    expect((await decide(A.adminToken, ev, "REOPEN", "more")).status).toBe(200);
+    expect((await custodyCount(ev)) - before).toBe(2);
+  });
+
+  it("bulk Mark in review, Escalate and Close are on custody too", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "custody-bulk");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    const before = await custodyCount(ev);
+    for (const action of ["MARK_IN_REVIEW", "ESCALATE", "CLOSE"]) {
+      const res = await call(A.adminToken, "POST", "/v1/review-operations/bulk", {
+        teamId: A.teamId,
+        evidenceIds: [ev],
+        action,
+        note: "bulk " + action,
+      });
+      expect(res.status, action + " " + JSON.stringify(res.body)).toBe(200);
+    }
+    expect((await workflowOf(ev)).status).toBe("CLOSED");
+    expect((await custodyCount(ev)) - before).toBe(3);
   });
 });

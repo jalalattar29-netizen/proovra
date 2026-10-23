@@ -681,32 +681,45 @@ export async function findOpenEscalationForWorkflow(
 }
 
 /**
- * Resolve the workflow's open escalation, if any (2026-10-23) — the review it
- * was raised about has been finished (a verdict that ends the review, or
- * Close). Best-effort: the review outcome stands whether or not the
- * escalation could be marked resolved.
+ * Resolve EVERY open escalation on the workflow (2026-10-23) — the review
+ * they were raised about has been finished (a verdict that ends the review,
+ * or Close). A review can carry more than one (an engine escalation and a
+ * reviewer's, or a re-escalation after a resume); resolving only the newest
+ * left the others open for good (audit #4), still demanding a second review
+ * in every later round. Best-effort: the review outcome stands whether or not
+ * an escalation could be marked resolved.
  */
 export async function resolveOpenReviewEscalation(
   input: { workflow: { id: string; teamId: string | null }; actorUserId: string; note: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
   if (!input.workflow.teamId) return;
+  let open: Array<{ id: string }> = [];
   try {
-    const open = await findOpenEscalationForWorkflow(
-      { teamId: input.workflow.teamId, workflowId: input.workflow.id },
-      client,
-    );
-    if (!open) return;
-    await resolveEscalation(
-      {
+    open = await client.reviewEscalation.findMany({
+      where: {
         teamId: input.workflow.teamId,
-        escalationId: open.id,
-        actorUserId: input.actorUserId,
-        resolutionNote: input.note,
+        workflowId: input.workflow.id,
+        status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
       },
-      client,
-    );
+      select: { id: true },
+    });
   } catch {
-    /* the review outcome is recorded either way */
+    return; /* the review outcome is recorded either way */
+  }
+  for (const esc of open) {
+    try {
+      await resolveEscalation(
+        {
+          teamId: input.workflow.teamId,
+          escalationId: esc.id,
+          actorUserId: input.actorUserId,
+          resolutionNote: input.note,
+        },
+        client,
+      );
+    } catch {
+      /* the review outcome is recorded either way */
+    }
   }
 }

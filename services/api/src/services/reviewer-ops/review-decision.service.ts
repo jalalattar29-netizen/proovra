@@ -65,7 +65,8 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { notifyReviewNeedsMoreInfo } from "../review-operations/review-notifications.service.js";
 import { resolveOpenReviewEscalation } from "./escalation-engine.service.js";
-import { requiresSecondReview } from "../evidence-review/second-review.service.js";
+import { requiresSecondReview, secondReviewForRound } from "../evidence-review/second-review.service.js";
+import { recordReviewStatusOnCustodyTx } from "../evidence-review/reviewer-audit.service.js";
 
 // -----------------------------------------------------------------------------
 // Types + error surface
@@ -215,13 +216,14 @@ export async function recordReviewDecision(
       orderBy: { decidedAt: "asc" },
     });
     {
-      // The round is finished only by the SAME rule that resolves it — with
-      // the live second-review requirement. A request for information as the
-      // FIRST of two required reviews leaves the round open for the SECOND
-      // reviewer, who must not be moved into a new round (audit F1).
+      // The round is finished only by the SAME rule that resolved it. A
+      // request for information as the FIRST of two required reviews leaves
+      // the round open for the SECOND reviewer, who must not be moved into a
+      // new round (audit F1); a request that settled the round stays settled
+      // whatever is required later (secondReviewForRound).
       const roundSecond = rows.length > 0
-        ? await requiresSecondReview(
-            { workflowId: input.workflowId, teamId: input.teamId, evidenceId: wf.evidenceId },
+        ? await secondReviewForRound(
+            { workflowId: input.workflowId, teamId: input.teamId, evidenceId: wf.evidenceId, round },
             tx,
           )
         : { required: false };
@@ -232,8 +234,14 @@ export async function recordReviewDecision(
         roundOutcome.state === "resolved" &&
         roundOutcome.projectedStage === "NEEDS_MORE_INFO" &&
         !DECISION_TERMINAL_STAGES.has(stageNow) &&
-        // The same reviewer repeating the same request is a replay, below.
-        !rows.some((r) => r.reviewerUserId === input.actorUserId && r.decision === input.decision)
+        // The same reviewer repeating the same request WHILE the review still
+        // waits for that information is a replay, below. Once the review has
+        // moved on, asking again is a new request (audit 2026-10-23 #3: it
+        // was a silent no-op that reported success).
+        !(
+          stageNow === "NEEDS_MORE_INFO" &&
+          rows.some((r) => r.reviewerUserId === input.actorUserId && r.decision === input.decision)
+        )
       ) {
         // Information was requested; the review continues in a NEW round.
         // Conditional on the round we read, so two concurrent decisions
@@ -259,11 +267,12 @@ export async function recordReviewDecision(
         r.decision === input.decision,
     );
     if (identical) {
-      const requiresSecondNow = await requiresSecondReview(
+      const requiresSecondNow = await secondReviewForRound(
         {
           workflowId: input.workflowId,
           teamId: input.teamId,
           evidenceId: wf.evidenceId,
+          round,
         },
         tx,
       );
@@ -424,6 +433,16 @@ export async function recordReviewDecision(
       where: { id: wf.id },
       data,
     });
+    // ET-CUS-12 — a verdict that moved the review is on custody, in this
+    // transaction: exactly once, never for a replay (2026-10-23).
+    if (data.status !== undefined) {
+      await recordReviewStatusOnCustodyTx(tx, {
+        evidenceId: wf.evidenceId,
+        actorUserId: input.actorUserId,
+        status: String(data.status),
+        decision: String(input.decision),
+      });
+    }
 
     // (vi) Audit — workflow event history + workspace activity feed,
     // atomically with the decision.
@@ -515,6 +534,7 @@ export type ReconcileProjectionResult = {
     | "no_decisions"
     | "reopened_after_decisions"
     | "continued_after_request_info"
+    | "closed_after_decisions"
     | "no_projectable_outcome"
     | "consistent"
     | "repaired";
@@ -555,8 +575,15 @@ export async function reconcileWorkflowProjection(
   if (wf.reopenedAtUtc && wf.reopenedAtUtc.getTime() > latestDecidedAt.getTime()) {
     return { workflowId, repaired: false, reason: "reopened_after_decisions" };
   }
-  const secondReview = await requiresSecondReview(
-    { workflowId, teamId: wf.teamId, evidenceId: wf.evidenceId },
+  // CLOSE IS A PERSON'S ACT (audit 2026-10-23 #5). Close records no decision
+  // row, so a closed review's round still projects its last verdict (or its
+  // conflict); "repairing" it reopened a review someone had closed. Only
+  // Reopen — a new round — moves a closed review.
+  if (mapDbStatusToReviewStage(wf.status as string) === "CLOSED") {
+    return { workflowId, repaired: false, reason: "closed_after_decisions" };
+  }
+  const secondReview = await secondReviewForRound(
+    { workflowId, teamId: wf.teamId, evidenceId: wf.evidenceId, round: wf.decisionRound },
     client,
   );
   const projection = deriveDecisionProjection(rows, secondReview.required);

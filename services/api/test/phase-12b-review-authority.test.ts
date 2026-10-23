@@ -46,6 +46,16 @@ vi.mock(
   }),
 );
 
+// ET-CUS-12 — the authority writes a status change to custody inside its own
+// transaction (2026-10-23); the custody chain has its own real-database
+// coverage, so here only what the authority records is kept.
+const custodyWrites: Array<Record<string, unknown>> = [];
+vi.mock("../src/services/evidence-review/reviewer-audit.service.js", () => ({
+  recordReviewStatusOnCustodyTx: vi.fn(async (_tx: unknown, input: Record<string, unknown>) => {
+    custodyWrites.push(input);
+  }),
+}));
+
 const {
   ReviewDecisionAuthorityError,
   deriveDecisionProjection,
@@ -189,6 +199,7 @@ function makeDb(seed: {
     },
     reviewEscalation: {
       findFirst: async () => (seed.openEscalation ? { id: "esc-1" } : null),
+      findMany: async () => (seed.openEscalation ? [{ id: "esc-1" }] : []),
     },
     evidenceLegalHold: {
       count: async () => seed.legalHolds ?? 0,
@@ -200,6 +211,18 @@ function makeDb(seed: {
       create: async (args: { data: Record<string, unknown> }) => {
         state.events.push(args.data);
         return args.data;
+      },
+      // The latest DECISION_LOGGED event of a round (secondReviewForRound).
+      findFirst: async (args: { where?: { eventType?: string; nextValue?: { path?: string[]; equals?: unknown } } }) => {
+        const round = args.where?.nextValue?.equals;
+        const hit = [...state.events]
+          .reverse()
+          .find(
+            (e) =>
+              e.eventType === (args.where?.eventType ?? e.eventType) &&
+              (e.nextValue as Record<string, unknown> | undefined)?.round === round,
+          );
+        return hit ? { nextValue: hit.nextValue } : null;
       },
     },
     teamActivity: {
@@ -223,6 +246,7 @@ function makeDb(seed: {
 
 beforeEach(() => {
   notifyNeedsMoreInfoMock.mockClear();
+  custodyWrites.length = 0;
 });
 
 // ---------------------------------------------------------------------------
@@ -265,6 +289,9 @@ describe("canonical recordReviewDecision — decision success", () => {
     });
     // ONE transaction wrapped the whole command.
     expect(state.txCalls).toBe(1);
+    // ET-CUS-12: the status change is on custody once, inside that transaction.
+    expect(custodyWrites).toHaveLength(1);
+    expect(custodyWrites[0]).toMatchObject({ status: "APPROVED_INTERNAL" });
   });
 
   // Table-driven outcome mapping for single-stage resolutions.

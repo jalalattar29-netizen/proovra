@@ -136,7 +136,8 @@ export type ReviewWorkflowActionBlock =
   | "ALREADY_YOURS"
   | "CLAIM_FIRST"
   | "AWAITING_SECOND_REVIEWER"
-  | "ADJUDICATION_REQUIRED";
+  | "ADJUDICATION_REQUIRED"
+  | "NO_WORKFLOW";
 
 export const REVIEW_WORKFLOW_BLOCK_COPY: Readonly<Record<ReviewWorkflowActionBlock, string>> = {
   NO_WORKSPACE: "Review runs in a team workspace. This record is not in one.",
@@ -151,7 +152,8 @@ export const REVIEW_WORKFLOW_BLOCK_COPY: Readonly<Record<ReviewWorkflowActionBlo
   AWAITING_SECOND_REVIEWER:
     "This review needs a second, independent verdict. Another reviewer must record it.",
   ADJUDICATION_REQUIRED:
-    "The two reviewers disagreed. A workspace owner or admin adjudicates it in the reviewer console.",
+    "The two reviewers disagreed. A workspace owner or admin records the deciding verdict.",
+  NO_WORKFLOW: "No review has been opened for this record yet.",
 };
 
 /**
@@ -195,6 +197,11 @@ export type ReviewWorkflowActionInput = {
    */
   planIncludesReview?: boolean;
   /**
+   * The viewer is a workspace OWNER or ADMIN — the role the decision
+   * authority accepts as the adjudicator of a disagreement. Absent → not.
+   */
+  viewerMayAdjudicate?: boolean;
+  /**
    * The current decision round's state — `deriveReviewState` over that
    * round's rows with the live second-review requirement — plus who recorded
    * its FIRST decision and whether it was resolved by a request for
@@ -222,7 +229,9 @@ export function projectReviewWorkflowActions(
   return REVIEW_WORKFLOW_ACTIONS.map((action) => {
     const requiresNote = action === "CLAIM" || action === "BEGIN_REVIEW" ? false : decisionRequiresNote(action);
     const block = ((): ReviewWorkflowActionBlock | null => {
-      if (!input.hasWorkspace || input.dbStatus === null) return "NO_WORKSPACE";
+      if (!input.hasWorkspace) return "NO_WORKSPACE";
+      // A team record with no review opened is not "outside a workspace".
+      if (input.dbStatus === null) return "NO_WORKFLOW";
       if (input.planIncludesReview === false) return "NOT_INCLUDED";
       if (!input.viewerMayReview) return "NOT_PERMITTED";
       if (action === "CLAIM") {
@@ -245,7 +254,12 @@ export function projectReviewWorkflowActions(
         if (d.state === "second_required" && d.firstReviewerUserId === input.viewerUserId) {
           return "AWAITING_SECOND_REVIEWER";
         }
-        if (d.state === "conflict_detected" || d.state === "adjudication_required") {
+        // The authority takes an owner's or admin's verdict as the deciding
+        // one; everyone else is told who decides.
+        if (
+          (d.state === "conflict_detected" || d.state === "adjudication_required") &&
+          !input.viewerMayAdjudicate
+        ) {
           return "ADJUDICATION_REQUIRED";
         }
       }

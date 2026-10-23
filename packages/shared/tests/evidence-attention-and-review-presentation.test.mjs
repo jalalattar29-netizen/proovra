@@ -269,6 +269,9 @@ test("legal hold: ACTIVE / NONE / UNAVAILABLE / list-row boolean / missing proje
   assert.equal(failed.state, "unavailable");
   assert.doesNotMatch(failed.value, /^Active|^No active/);
   assert.equal(p({ legalHold: true, legalHoldState: undefined }).state, "recorded");
+  // The boolean alone never claims a hold it cannot tell from a failed check.
+  assert.doesNotMatch(p({ legalHold: true, legalHoldState: undefined }).value, /^Active legal hold/);
+  assert.match(p({ legalHold: true, legalHoldState: undefined }).value, /blocked: a legal hold applies, or the hold check could not complete/);
   assert.equal(presentEvidenceProtection(null, fmt, NOW).legalHold.state, "unavailable");
 });
 
@@ -316,4 +319,19 @@ test("history attribution (audit F8): actor-less sweeper events are PROOVRA; cre
   assert.equal(h[0].note, "Opened for counsel");
   const sys = summarizeReviewWorkflowEvents([{ id: "c", eventType: "CREATED", createdAt: t0, actor: null, note: null }], ME);
   assert.deepEqual([sys[0].origin, sys[0].actorLabel], ["SYSTEM", "PROOVRA"]);
+});
+
+test("a disagreement: owners and admins record the deciding verdict; others are told who decides (second audit P3)", () => {
+  const conflict = { state: "conflict_detected", firstReviewerUserId: OTHER, resolvedByRequestInfo: false };
+  assert.equal(actions({ dbStatus: "ESCALATED", assignedToUserId: ME, decision: conflict }).APPROVE_INTERNAL.blockedBy, "ADJUDICATION_REQUIRED");
+  assert.equal(
+    actions({ dbStatus: "ESCALATED", assignedToUserId: ME, decision: conflict, viewerMayAdjudicate: true }).APPROVE_INTERNAL.enabled,
+    true,
+  );
+});
+
+test("a team record with no review opened says so — never 'not in a workspace' (second audit P3)", () => {
+  const a = actions({ dbStatus: null });
+  assert.equal(a.CLAIM.blockedBy, "NO_WORKFLOW");
+  assert.equal(actions({ hasWorkspace: false }).CLAIM.blockedBy, "NO_WORKSPACE");
 });

@@ -56,11 +56,18 @@ export function presentEvidenceProtection(
     return { legalHold: missing, retention: missing };
   }
 
-  // A row from a list projection carries only the fail-closed boolean.
+  // A row from a list projection carries only the fail-closed boolean: true
+  // means a hold applies OR the hold check could not complete, and the row
+  // says exactly that — never "Active legal hold" (second audit P3).
   const holdState =
-    lifecycle.legalHoldState ?? (lifecycle.legalHold ? "ACTIVE" : "NONE");
+    lifecycle.legalHoldState ?? (lifecycle.legalHold ? "BLOCKED" : "NONE");
   const legalHold: ProtectionRow =
-    holdState === "ACTIVE"
+    holdState === "BLOCKED"
+      ? {
+          value: "Deletion and destruction are blocked: a legal hold applies, or the hold check could not complete.",
+          state: "recorded",
+        }
+      : holdState === "ACTIVE"
       ? { value: "Active legal hold. Deletion and destruction are blocked while it applies.", state: "recorded" }
       : holdState === "NONE"
         ? {

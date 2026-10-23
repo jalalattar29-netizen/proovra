@@ -10,7 +10,7 @@ import {
 import { getSecret } from "../config/runtime-secrets.js";
 import { EXTENSION_CAPTURE_SCOPE, extensionMayPresignPart } from "../services/auth/extension-scope.js";
 import { authorizeOrFail, evaluateAuthorize } from "../middleware/authorize.js";
-import { requiresSecondReview } from "../services/evidence-review/second-review.service.js";
+import { secondReviewForRound } from "../services/evidence-review/second-review.service.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import { evidenceIntakeIdentityArms } from "../services/search/intake-identity-search.js";
 // PHASE 6 §9.3 (2026-07-22) — canonical cross-team attach gate (same
@@ -10371,8 +10371,8 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             where: { workflowId: wfRow.id, round: wfRow.decisionRound },
             select: { stage: true, decision: true, reviewerUserId: true },
           });
-          const second = await requiresSecondReview(
-            { workflowId: wfRow.id, teamId: wfRow.teamId, evidenceId: id },
+          const second = await secondReviewForRound(
+            { workflowId: wfRow.id, teamId: wfRow.teamId, evidenceId: id, round: wfRow.decisionRound },
             prisma,
           );
           const state = deriveReviewState({ decisions: rows, requiresSecond: second.required });
@@ -10383,11 +10383,21 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             resolvedByRequestInfo: state === "resolved" && projection.projectedStage === "NEEDS_MORE_INFO",
           };
         })();
+        // The adjudicator role exactly as the decision route reads it.
+        const viewerRole = evidence.teamId
+          ? (
+              await prisma.teamMember.findUnique({
+                where: { teamId_userId: { teamId: evidence.teamId, userId: ownerUserId } },
+                select: { role: true },
+              })
+            )?.role ?? null
+          : null;
         const reviewWorkflowActions = projectReviewWorkflowActions({
           dbStatus: workflowStatus,
           assignedToUserId: reviewerWorkflowSummary.workflow?.assignedTo?.id ?? null,
           viewerUserId: ownerUserId,
           viewerMayReview,
+          viewerMayAdjudicate: viewerRole === "OWNER" || viewerRole === "ADMIN",
           hasWorkspace: Boolean(evidence.teamId),
           planIncludesReview: reviewIncluded,
           decision: decisionState,

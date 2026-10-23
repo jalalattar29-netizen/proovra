@@ -53,6 +53,7 @@ import {
   createEscalation,
   resolveOpenReviewEscalation,
 } from "../reviewer-ops/escalation-engine.service.js";
+import { recordReviewStatusOnCustodyTx } from "../evidence-review/reviewer-audit.service.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -592,26 +593,20 @@ export async function recordLifecycleTransition(
   // team review queue. A verdict that finishes the review, or Close,
   // resolves it.
   //
-  // Opened BEFORE the status moves, once the move is known to be legal, so
-  // the escalation's own counters are the ones the transition keeps.
-  // ESCALATE OPENS A REAL ESCALATION (2026-10-23). It used to change the
-  // status and email the current assignee — usually the escalator — and
-  // nothing else: no owner, no inbox item, no way to resolve it. It now
-  // opens a ReviewEscalation routed to the workspace's owners and admins
-  // (their inbox shows it), and the review appears under Escalated in the
-  // team review queue. A verdict that finishes the review, or Close,
-  // resolves it.
-  //
-  // The MOVE comes first and is strict: of two concurrent Escalate clicks
-  // exactly one wins, and only the winner opens an escalation (audit F4 — the
-  // loser used to open a second one nobody resolved).
-  const updated = await applyTransition(workflow, toStage, patch, client, { strict: true });
-  let escalationId: string | null = null;
+  // The MOVE is strict: of two concurrent Escalate clicks (or an Escalate
+  // racing a Close) exactly one wins, and only the winner opens an escalation
+  // (audit F4). The move, the escalation, its outbox row and the event are
+  // ONE transaction (audit 2026-10-23 #1): a failure leaves neither an
+  // Escalated review with no escalation nor an escalation on a review that
+  // is not Escalated.
   if (input.decision === "ESCALATE" && workflow.teamId) {
-    try {
+    const teamId = workflow.teamId;
+    const updated = await client.$transaction(async (txc) => {
+      const tx = txc as unknown as PrismaClient;
+      const moved = await applyTransition(workflow, toStage, patch, tx, { strict: true });
       const opened = await createEscalation(
         {
-          teamId: workflow.teamId,
+          teamId,
           workflowId: workflow.id,
           reason: "REVIEWER_ESCALATED",
           safeSummary: (input.escalationReason ?? input.note ?? "").trim(),
@@ -623,51 +618,64 @@ export async function recordLifecycleTransition(
           // The transition above already counted the level and kept the note.
           workflowCountersAlreadySet: true,
         },
-        client,
+        tx,
       );
       if (!opened.ok) throw new ReviewOperationError("workflow_not_found");
-      escalationId = opened.escalation.id;
-    } catch (err) {
-      // No escalation could be opened: put the review back where it was, so
-      // it is never Escalated with nobody to see it.
-      await client.evidenceReviewWorkflow
-        .updateMany({
-          where: { id: workflow.id, status: updated.status },
-          data: {
-            status: workflow.status,
-            escalationLevel: workflow.escalationLevel,
-            escalatedAtUtc: workflow.escalatedAtUtc,
-            escalatedByUserId: workflow.escalatedByUserId,
-            escalationReason: workflow.escalationReason,
-          },
-        })
-        .catch(() => null);
-      throw err;
-    }
+      // Written directly, not through recordEvent: a swallowed failure would
+      // abort this transaction without the caller hearing of it.
+      await tx.evidenceReviewWorkflowEvent.create({
+        data: {
+          workflowId: workflow.id,
+          evidenceId: workflow.evidenceId,
+          actorUserId: input.actorUserId,
+          eventType,
+          previousValue: { stage: fromStage } as Prisma.InputJsonValue,
+          nextValue: { stage: toStage, decision: input.decision, escalationId: opened.escalation.id } as Prisma.InputJsonValue,
+          note: input.note?.slice(0, 1000) ?? null,
+        },
+      });
+      await recordReviewStatusOnCustodyTx(txc, {
+        evidenceId: workflow.evidenceId,
+        actorUserId: input.actorUserId,
+        status: moved.status as string,
+        decision: input.decision,
+      });
+      return moved;
+    });
+    // Operational notification — internal, best-effort, after commit.
+    notifyReviewEscalated({ workflow: updated, actorUserId: input.actorUserId }, client).catch(() => null);
+    return updated;
   }
-  await recordEvent(
-    workflow,
-    eventType,
-    input.actorUserId,
-    input.note,
-    { stage: fromStage },
-    { stage: toStage, decision: input.decision, ...(escalationId ? { escalationId } : {}) },
-    client,
-  );
+
+  // Reopen / Close: the move, its event and its custody entry are one
+  // transaction (ET-CUS-12, 2026-10-23).
+  const updated = await client.$transaction(async (txc) => {
+    const tx = txc as unknown as PrismaClient;
+    const moved = await applyTransition(workflow, toStage, patch, tx, { strict: true });
+    await txc.evidenceReviewWorkflowEvent.create({
+      data: {
+        workflowId: workflow.id,
+        evidenceId: workflow.evidenceId,
+        actorUserId: input.actorUserId,
+        eventType,
+        previousValue: { stage: fromStage } as Prisma.InputJsonValue,
+        nextValue: { stage: toStage, decision: input.decision } as Prisma.InputJsonValue,
+        note: input.note?.slice(0, 1000) ?? null,
+      },
+    });
+    await recordReviewStatusOnCustodyTx(txc, {
+      evidenceId: workflow.evidenceId,
+      actorUserId: input.actorUserId,
+      status: moved.status as string,
+      decision: input.decision,
+    });
+    return moved;
+  });
   if (input.decision === "CLOSE") {
     await resolveOpenReviewEscalation(
       { workflow, actorUserId: input.actorUserId, note: "Review closed." },
       client,
     );
-  }
-
-  // Phase 13.5 — operational notification dispatch. Internal-only;
-  // safe wrappers — failure does not undo the transition.
-  if (input.decision === "ESCALATE") {
-    notifyReviewEscalated(
-      { workflow: updated, actorUserId: input.actorUserId },
-      client,
-    ).catch(() => null);
   }
 
   return updated;
@@ -945,14 +953,23 @@ export async function bulkReviewAction(
           break;
         case "MARK_IN_REVIEW":
           toStage = "IN_REVIEW";
-          await applyTransition(
-            (await client.evidenceReviewWorkflow.findUniqueOrThrow({
-              where: { id: workflow.id },
-            })),
-            "IN_REVIEW",
-            { lastReviewedAt: new Date() },
-            client,
-          );
+          // The move and its custody entry together (ET-CUS-12).
+          await client.$transaction(async (txc) => {
+            const tx = txc as unknown as PrismaClient;
+            const moved = await applyTransition(
+              await tx.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: workflow.id } }),
+              "IN_REVIEW",
+              { lastReviewedAt: new Date() },
+              tx,
+              { strict: true },
+            );
+            await recordReviewStatusOnCustodyTx(txc, {
+              evidenceId,
+              actorUserId: input.actorUserId,
+              status: moved.status as string,
+              decision: "MARK_IN_REVIEW",
+            });
+          });
           await recordEvent(
             (await client.evidenceReviewWorkflow.findUniqueOrThrow({
               where: { id: workflow.id },

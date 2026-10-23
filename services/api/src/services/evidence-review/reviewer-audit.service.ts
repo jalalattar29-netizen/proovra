@@ -9,12 +9,23 @@ import { appendCustodyEventTx } from "@proovra/shared-runtime";
  * REVIEW_DECISION_RECORDED, in the same transaction. Comments, notes,
  * assignments and priorities stay in the reviewer audit log only.
  */
-export async function appendReviewerAuditEvent(params: {
+type ReviewerAuditEventParams = {
   evidenceId: string;
   actorUserId?: string | null;
   eventType: prismaPkg.EvidenceReviewerAuditEventType;
   metadata?: Prisma.InputJsonValue | null;
-}) {
+};
+
+export async function appendReviewerAuditEvent(params: ReviewerAuditEventParams) {
+  return prisma.$transaction((tx) => appendReviewerAuditEventTx(tx, params));
+}
+
+/**
+ * The same write inside the CALLER'S transaction — so a review status change
+ * and its custody entry commit together or not at all, and a replay that
+ * changed nothing records nothing (2026-10-23).
+ */
+export async function appendReviewerAuditEventTx(tx: Prisma.TransactionClient, params: ReviewerAuditEventParams) {
   const status =
     params.eventType === prismaPkg.EvidenceReviewerAuditEventType.WORKFLOW_UPDATED &&
     params.metadata &&
@@ -22,7 +33,7 @@ export async function appendReviewerAuditEvent(params: {
     !Array.isArray(params.metadata)
       ? ((params.metadata as Record<string, unknown>).status ?? null)
       : null;
-  return prisma.$transaction(async (tx) => {
+  {
     const row = await tx.evidenceReviewerAuditEvent.create({
       data: {
         evidenceId: params.evidenceId,
@@ -39,6 +50,19 @@ export async function appendReviewerAuditEvent(params: {
       });
     }
     return row;
+  }
+}
+
+/** ET-CUS-12 — a review STATUS CHANGE, on the custody chain, in `tx`. */
+export function recordReviewStatusOnCustodyTx(
+  tx: Prisma.TransactionClient,
+  input: { evidenceId: string; actorUserId: string | null; status: string; decision: string },
+) {
+  return appendReviewerAuditEventTx(tx, {
+    evidenceId: input.evidenceId,
+    actorUserId: input.actorUserId,
+    eventType: prismaPkg.EvidenceReviewerAuditEventType.WORKFLOW_UPDATED,
+    metadata: { status: input.status, decision: input.decision },
   });
 }
 

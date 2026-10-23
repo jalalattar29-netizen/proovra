@@ -48,3 +48,49 @@ export async function requiresSecondReview(
     return { required: true, reason: "redaction_required" };
   return { required: false, reason: null };
 }
+
+/**
+ * Whether a decision round was SETTLED by a request for information, as it
+ * was when that decision was recorded (audit 2026-10-23 #2). Read from the
+ * DECISION_LOGGED event the decision wrote in its own transaction — its round
+ * and the state it derived — never re-derived with TODAY'S second-review
+ * requirement: an escalation, legal hold or redaction that arrives after the
+ * request must not turn a settled request into the first of two reviews (and
+ * then a "disagreement" with the next verdict).
+ *
+ * null: the round has no recorded decision event (decided before rounds were
+ * recorded) — callers derive it live.
+ */
+export async function roundSettledByRequestInfo(
+  input: { workflowId: string; round: number },
+  client: Db = defaultPrisma,
+): Promise<boolean | null> {
+  const event = await client.evidenceReviewWorkflowEvent.findFirst({
+    where: {
+      workflowId: input.workflowId,
+      eventType: "DECISION_LOGGED",
+      nextValue: { path: ["round"], equals: input.round },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { nextValue: true },
+  });
+  if (!event) return null;
+  const v = (event.nextValue ?? {}) as { stage?: unknown; state?: unknown };
+  return v.stage === "NEEDS_MORE_INFO" && v.state === "resolved";
+}
+
+/**
+ * The second-review requirement that governs a round's EXISTING decisions:
+ * none for a round a request for information settled; otherwise the live
+ * requirement. The one rule the decision authority, the reconciler and the
+ * Evidence page all read.
+ */
+export async function secondReviewForRound(
+  input: { workflowId: string; teamId: string; evidenceId: string; round: number },
+  client: Db = defaultPrisma,
+): Promise<{ required: boolean; reason: string | null }> {
+  if ((await roundSettledByRequestInfo(input, client)) === true) {
+    return { required: false, reason: "round_settled_by_request_info" };
+  }
+  return requiresSecondReview(input, client);
+}

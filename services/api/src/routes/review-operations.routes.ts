@@ -28,9 +28,7 @@ import {
   REVIEW_STAGES,
 } from "@proovra/shared";
 
-import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
-import { appendReviewerAuditEvent } from "../services/evidence-review/reviewer-audit.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { workspaceIncludesReviewerOperations } from "../services/billing-enforcement.service.js";
@@ -130,7 +128,10 @@ function reviewErrorToReply(err: unknown, reply: FastifyReply): void {
   // Track 1C — canonical decision-authority error surface. Conflicts
   // (stale / already-resolved / duplicate / independence violations)
   // are 409; a missing rationale is 422; anti-enumeration not-found is
-  // 404. NEVER 403 (anti-enumeration posture of this route file).
+  // 404. A record outside the caller's workspace, and a plan without review,
+  // is 404 (nothing is disclosed); 403 is only for a MEMBER of the record's
+  // workspace whose role lacks the review permission, who already knows the
+  // record exists.
   if (err instanceof ReviewDecisionAuthorityError) {
     const status =
       err.code === "workflow_not_found"
@@ -268,7 +269,7 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const workflow = await prisma.evidenceReviewWorkflow.findUnique({
         where: { evidenceId },
-        select: { id: true, teamId: true, status: true },
+        select: { id: true, teamId: true },
       });
       if (
         !workflow ||
@@ -371,19 +372,10 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
             escalationReason: body.escalationReason ?? null,
           });
         }
-        // ET-CUS-12 — a review decision that SETS A STATUS is recorded on the
-        // record's custody chain (and the reviewer audit log). Only the
-        // workflow-editor PATCH did this; the canonical decision route — every
-        // verdict, Escalate, Reopen and Close — did not (2026-10-23). An
-        // idempotent replay changed nothing and records nothing.
-        if (updated.status !== workflow.status) {
-          await appendReviewerAuditEvent({
-            evidenceId,
-            actorUserId: ok.userId,
-            eventType: prismaPkg.EvidenceReviewerAuditEventType.WORKFLOW_UPDATED,
-            metadata: { status: updated.status, decision: body.decision },
-          });
-        }
+        // ET-CUS-12 — every status this decision set is already on the
+        // custody chain, written in the decision's own transaction by the
+        // authority (recordReviewDecision / recordLifecycleTransition): once,
+        // never for a replay, and never lost after a commit (2026-10-23).
         return reply
           .code(200)
           .send({ workflow: projectReviewWorkflow(updated) });

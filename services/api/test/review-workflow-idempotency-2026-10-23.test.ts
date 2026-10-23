@@ -26,6 +26,15 @@ vi.mock("../src/services/reviewer-ops/escalation-engine.service.js", () => ({
   suppressEscalation: async () => ({}),
   resolveOpenReviewEscalation: async () => undefined,
 }));
+// The custody chain has its own real-database coverage
+// (review-roles-and-journey.integration.test.ts); here only what the
+// lifecycle service records is kept.
+const custody: Array<Record<string, unknown>> = [];
+vi.mock("../src/services/evidence-review/reviewer-audit.service.js", () => ({
+  recordReviewStatusOnCustodyTx: async (_tx: unknown, input: Record<string, unknown>) => {
+    custody.push(input);
+  },
+}));
 
 import {
   ReviewOperationError,
@@ -76,6 +85,8 @@ function recordingClient(row: Record<string, unknown>) {
       },
     },
   };
+  // A lifecycle decision that opens an escalation runs in one transaction.
+  (client as Record<string, unknown>).$transaction = async (fn: (tx: unknown) => unknown) => fn(client);
   return { client: client as never, writes };
 }
 
@@ -144,6 +155,9 @@ describe("lifecycle decisions into the stage the review is already in", () => {
     expect(update.data.status).toBe("ESCALATED");
     expect(update.data.escalationLevel).toBe(1);
     expect(writes.filter((w) => w.op === "event.create")).toHaveLength(1);
+    // The status change is on custody once, in the same transaction.
+    expect(custody).toHaveLength(1);
+    expect(custody[0]).toMatchObject({ decision: "ESCALATE", actorUserId: ME });
     // A real escalation, routed to the workspace's admins (unassigned), with
     // the reviewer's reason.
     expect(escalations.at(-1)).toMatchObject({
