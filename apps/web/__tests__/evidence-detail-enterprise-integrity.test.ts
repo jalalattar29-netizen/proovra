@@ -65,7 +65,12 @@ test("client signal wording distinguishes missing, false, detected, and unavaila
   assert.match(SRC, /Collected: no signal detected/);
   assert.match(SRC, /Signal detected/);
   assert.match(SRC, /Unavailable for this evidence type/);
-  assert.match(SRC, /Screenshot filename heuristic/);
+  // 2026-10-23 — the screenshot heuristic is an ADVISORY signal classified by
+  // the shared attention authority, no longer worded by the page itself.
+  assert.match(
+    readFileSync(resolve(__dirname, "../../../packages/shared/src/evidence-attention.ts"), "utf8"),
+    /"SCREENSHOT_FILENAME_HEURISTIC",\s*\{ category: "ADVISORY"[\s\S]{0,120}"Screenshot filename heuristic"/,
+  );
 });
 
 test("artifact rendering uses canonical report and package status helpers", () => {

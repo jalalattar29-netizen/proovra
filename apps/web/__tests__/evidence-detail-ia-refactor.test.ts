@@ -236,17 +236,17 @@ test("Phase 2 — Custody renders the grouped-by-day default with raw expander",
 test("Phase 3 — orchestrator renders WhatNeedsAttentionStrip directly below the hero", () => {
   assert.match(PAGE, /<WhatNeedsAttentionStrip/);
   assert.match(STRIP, /data-evidence-attention-strip/);
-  // Strip surfaces concrete actions
-  assert.match(STRIP, /data-evidence-attention-action="assign-case"/);
-  assert.match(STRIP, /data-evidence-attention-action="assign-reviewer"/);
-  assert.match(STRIP, /data-evidence-attention-action="missing-report"/);
-  assert.match(STRIP, /data-evidence-attention-action="missing-package"/);
+  // Each actionable item carries its ONE direct action, named by the
+  // server's classification (2026-10-23).
+  assert.match(STRIP, /data-evidence-attention-action=\{item\.action\}/);
+  for (const action of ["ASSIGN_CASE", "START_REVIEW", "OPEN_ARTIFACTS"]) {
+    assert.match(STRIP, new RegExp(`item\\.action === "${action}"`));
+  }
 });
 
-test("Phase 3 — risk signals from buildRiskSignals feed the attention strip", () => {
-  // The strip slices the same array the sidebar renders, so any
-  // existing alert source is honored.
-  assert.match(STRIP, /reviewSignals\.slice\(0, ?3\)/);
+test("Phase 3 (2026-10-23) — the strip renders the server's attention classification and derives nothing", () => {
+  assert.match(STRIP, /workspace\.attention/);
+  assert.doesNotMatch(STRIP, /reviewSignals|buildRiskSignals|sourceContext/);
 });
 
 // ---------------------------------------------------------------------------

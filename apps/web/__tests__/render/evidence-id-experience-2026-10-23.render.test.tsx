@@ -1,0 +1,399 @@
+/**
+ * Evidence ID — attention, rail and review interactions, driven for real
+ * (2026-10-23).
+ *
+ * Characterises the reported record (/evidence/<id> screenshot: no flagged
+ * issue, imported upload, file timestamp note, no case, review not started)
+ * and pins the repaired behaviour:
+ *
+ *   A. "What needs attention" lists ONLY actionable items from the server's
+ *      classification — "Review ready", "Imported upload" and "File
+ *      timestamp note" are not in it; nothing actionable → one calm line;
+ *   B. the rail: advisory signals as compact rows (no large risk card for a
+ *      healthy record), "Case: None · Optional", no "Due date: Not available";
+ *   C. Review actions: Claim visibly changes ownership (the panel re-reads
+ *      the record and names the reviewer, never an id); a second click
+ *      cannot be sent while one is in flight; Escalate asks for a reason in
+ *      the page and says where the review goes; a refusal is said in words;
+ *   D. history: creation's automatic events read as one entry, no enum.
+ */
+
+import React from "react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, cleanup, fireEvent, act, waitFor } from "@testing-library/react";
+import {
+  classifyEvidenceAttention,
+  projectReviewWorkflowActions,
+  type ReviewWorkflowActionAvailability,
+} from "@proovra/shared";
+
+const requests: Array<{ path: string; method: string; body?: string }> = [];
+let reply: (path: string, method: string) => unknown = () => ({});
+
+vi.mock("../../lib/api", () => ({
+  apiFetch: async (path: string, init?: { method?: string; body?: string }) => {
+    const method = init?.method ?? "GET";
+    requests.push({ path, method, body: init?.body });
+    const r = await reply(path, method);
+    if (r instanceof Error) throw r;
+    return r;
+  },
+  readApiToken: () => null,
+  apiBaseUrl: () => "https://api.test.invalid",
+  ApiError: class ApiError extends Error {},
+}));
+vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
+
+import { WhatNeedsAttentionStrip } from "../../app/(app)/evidence/[id]/_tabs/WhatNeedsAttentionStrip";
+import { EvidenceRecordRail } from "../../app/(app)/evidence/[id]/_tabs/EvidenceRecordRail";
+import { EvidenceReviewActionsPanel } from "../../app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel";
+import { ReviewerWorkflowCard } from "../../app/(app)/evidence/[id]/components/ReviewerWorkflowCard";
+import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
+
+const ME = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
+const OTHER = "54b5d495-2222-4222-8222-bbbbbbbbbbbb";
+
+/** The reported record, classified by the SAME authority the API runs. */
+function reportedAttention(over: { reviewNotStarted?: boolean; viewerCanStart?: boolean } = {}) {
+  return {
+    ...classifyEvidenceAttention({
+      alerts: [
+        {
+          code: "NO_FLAGGED_ISSUES",
+          label: "No flagged issues",
+          detail: "This record has no flagged issues in the current intelligence summary.",
+        },
+      ],
+      source: { importedUpload: true, oldLastModified: true, screenshotLikeDetected: false, genericMime: false },
+      caseAssignment: { assigned: false, policy: "OPTIONAL", viewerCanAssign: true },
+      review: {
+        applicable: true,
+        notStarted: over.reviewNotStarted ?? true,
+        viewerCanStart: over.viewerCanStart ?? true,
+      },
+    }),
+    caseAssignment: { assigned: false, policy: "OPTIONAL" as const, restricted: false },
+  };
+}
+
+function workspaceWith(attention: ReturnType<typeof reportedAttention>, workflow: Record<string, unknown> = {}) {
+  return {
+    attention,
+    relationships: { caseId: null, caseName: null },
+    reviewWorkflow: {
+      available: true,
+      status: "NOT_STARTED",
+      priority: "NORMAL",
+      assignedTo: null,
+      dueAt: null,
+      lastReviewedAt: null,
+      note: null,
+      ...workflow,
+    },
+  } as never;
+}
+
+const q = (sel: string) => document.querySelector(sel);
+const qa = (sel: string) => Array.from(document.querySelectorAll(sel));
+
+beforeEach(() => {
+  cleanup();
+  requests.length = 0;
+  reply = () => ({});
+});
+
+// ===========================================================================
+// A. The strip
+// ===========================================================================
+
+describe("A — What needs attention holds only what needs attention", () => {
+  it("the reported record: ONE recommended item (Review not started · Start review); benign facts absent", () => {
+    const onAssignReviewer = vi.fn();
+    render(
+      <WhatNeedsAttentionStrip
+        ctx={{ workspace: workspaceWith(reportedAttention()) } as never}
+        onAssignCase={() => {}}
+        onAssignReviewer={onAssignReviewer}
+        onGoToArtifacts={() => {}}
+      />,
+    );
+    const strip = q("[data-evidence-attention-strip]") as HTMLElement;
+    expect(strip.getAttribute("data-evidence-attention-strip")).toBe("ACTION_RECOMMENDED");
+    expect(strip.querySelector("h2")?.textContent).toBe("What needs attention");
+    expect(qa("[data-evidence-attention-code]").map((e) => e.getAttribute("data-evidence-attention-code"))).toEqual([
+      "REVIEW_NOT_STARTED",
+    ]);
+    for (const benign of ["Review ready", "No flagged issues", "Imported upload", "File timestamp note", "No case assigned"]) {
+      expect(strip.textContent).not.toContain(benign);
+    }
+    // The category is in words, not only a colour.
+    expect(strip.textContent).toContain("Recommended");
+    fireEvent.click(q('[data-evidence-attention-action="START_REVIEW"]') as HTMLElement);
+    expect(onAssignReviewer).toHaveBeenCalledTimes(1);
+  });
+
+  it("nothing actionable: no heading and no region — one calm line", () => {
+    render(
+      <WhatNeedsAttentionStrip
+        ctx={{ workspace: workspaceWith(reportedAttention({ viewerCanStart: false })) } as never}
+        onAssignCase={() => {}}
+        onAssignReviewer={() => {}}
+        onGoToArtifacts={() => {}}
+      />,
+    );
+    expect(q("h2")).toBeNull();
+    const calm = q('[data-evidence-attention-strip="no-action"]') as HTMLElement;
+    expect(calm.textContent).toBe("No action required");
+    expect(calm.getAttribute("role")).toBe("status");
+  });
+});
+
+// ===========================================================================
+// B. The rail
+// ===========================================================================
+
+describe("B — the rail is compact and states optional values honestly", () => {
+  it("advisory row for the timestamp note; no large risk card; Case is Optional; no 'Due date: Not available'", () => {
+    render(
+      <EvidenceRecordRail
+        workspace={workspaceWith(reportedAttention())}
+        verificationPage={null}
+        shareUrl={null}
+      />,
+    );
+    const risk = q('[data-evidence-side="risk-signals"]') as HTMLElement;
+    expect(qa("[data-evidence-risk-code]").map((e) => e.getAttribute("data-evidence-risk-code"))).toEqual([
+      "FILE_TIMESTAMP_NOTE",
+    ]);
+    expect(risk.querySelector(".evidence-detail-signal-card")).toBeNull();
+    expect(risk.textContent).not.toContain("Review ready");
+    expect(risk.textContent).not.toContain("Imported upload");
+    expect(risk.textContent).toContain("Advisory");
+
+    expect(q("[data-evidence-rail-case]")?.textContent).toBe("None · Optional");
+    expect(document.body.textContent).not.toContain("Not available");
+    expect(document.body.textContent).not.toMatch(/Due date|Review due/);
+    // Workflow state and priority in words, not enums.
+    const workflow = q('[data-evidence-side="operational-summary"]') as HTMLElement;
+    expect(workflow.textContent).toContain("Not started");
+    expect(workflow.textContent).toContain("Normal");
+    expect(workflow.textContent).not.toMatch(/NOT_STARTED|NORMAL/);
+  });
+
+  it("a due date that IS set is stated; a hidden case reads as restricted, never 'unassigned'", () => {
+    const attention = { ...reportedAttention(), caseAssignment: { assigned: true, policy: "OPTIONAL" as const, restricted: true } };
+    render(
+      <EvidenceRecordRail
+        workspace={workspaceWith(attention, { dueAt: "2026-11-01T09:00:00.000Z" })}
+        verificationPage={null}
+        shareUrl={null}
+      />,
+    );
+    expect(document.body.textContent).toContain("Review due");
+    expect(q("[data-evidence-rail-case]")?.textContent).toBe("Linked to a case you cannot open");
+  });
+
+  it("no advisories but a required issue above: the rail points there instead of claiming no risk", () => {
+    const attention = {
+      ...classifyEvidenceAttention({
+        alerts: [{ code: "CUSTODY_CHAIN_ISSUE", label: "Custody chain issue", detail: "…" }],
+        source: { importedUpload: false, oldLastModified: false, screenshotLikeDetected: false, genericMime: false },
+        caseAssignment: { assigned: true, policy: "OPTIONAL", viewerCanAssign: true },
+        review: { applicable: false, notStarted: false, viewerCanStart: false },
+      }),
+      caseAssignment: { assigned: true, policy: "OPTIONAL" as const, restricted: false },
+    };
+    render(<EvidenceRecordRail workspace={workspaceWith(attention)} verificationPage={null} shareUrl={null} />);
+    expect(q("[data-evidence-risk-empty]")?.textContent).toBe(
+      "Issues that need action are listed under What needs attention.",
+    );
+  });
+});
+
+// ===========================================================================
+// C. Review actions
+// ===========================================================================
+
+function actionsFor(over: Partial<Parameters<typeof projectReviewWorkflowActions>[0]>): ReviewWorkflowActionAvailability[] {
+  return projectReviewWorkflowActions({
+    dbStatus: "NOT_STARTED",
+    assignedToUserId: null,
+    viewerUserId: ME,
+    viewerMayReview: true,
+    hasWorkspace: true,
+    verdictRecorded: false,
+    ...over,
+  });
+}
+
+/** A page stand-in: the panel's onChanged re-reads the "server" state. */
+function Harness({ initial }: { initial: { status: string; assignedTo: { id: string; displayName: string | null; email: string | null } | null } }) {
+  const [state, setState] = React.useState(initial);
+  const server = React.useRef(initial);
+  serverRef.current = server;
+  return (
+    <ConfirmActionProvider>
+      <EvidenceReviewActionsPanel
+        evidenceId="ev-1"
+        teamId="team-1"
+        currentStatus={state.status}
+        assignedTo={state.assignedTo}
+        viewerUserId={ME}
+        availableActions={actionsFor({ dbStatus: state.status, assignedToUserId: state.assignedTo?.id ?? null })}
+        onChanged={async () => {
+          setState({ ...server.current });
+        }}
+      />
+    </ConfirmActionProvider>
+  );
+}
+const serverRef: { current: React.MutableRefObject<{ status: string; assignedTo: { id: string; displayName: string | null; email: string | null } | null }> | null } = { current: null };
+
+describe("C — every review click has a visible outcome", () => {
+  it("Claim: busy, then the panel re-reads and names YOU as reviewer; Claim is no longer offered", async () => {
+    let release: () => void = () => {};
+    reply = (path, method) => {
+      if (method === "POST" && path.endsWith("/claim")) {
+        serverRef.current!.current = { status: "ASSIGNED", assignedTo: { id: ME, displayName: "Dana Reviewer", email: null } };
+        return new Promise((r) => {
+          release = () => r({ workflow: {} });
+        });
+      }
+      return {};
+    };
+    render(<Harness initial={{ status: "NOT_STARTED", assignedTo: null }} />);
+    expect(q("[data-evidence-review-assignee]")?.textContent).toBe("Reviewer: Unassigned");
+    const claim = q('[data-evidence-review-action="CLAIM"]') as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(claim);
+    });
+    // In flight: busy and every control disabled, so a second click cannot be sent.
+    expect(claim.getAttribute("aria-busy")).toBe("true");
+    expect(qa("[data-evidence-review-action]").every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+    await act(async () => {
+      fireEvent.click(claim);
+      release();
+    });
+    await waitFor(() => expect(q('[data-evidence-review-outcome="success"]')).not.toBeNull());
+    expect(requests.filter((r) => r.method === "POST")).toHaveLength(1);
+    expect(q("[data-evidence-review-outcome]")?.textContent).toBe("You now own this review.");
+    expect(q("[data-evidence-review-assignee]")?.textContent).toBe("Reviewer: You");
+    expect(q('[data-evidence-review-action="CLAIM"]')).toBeNull();
+    expect(q("[data-evidence-review-stage]")?.textContent).toBe("Assigned");
+  });
+
+  it("another reviewer is named by NAME — never a raw id", () => {
+    render(<Harness initial={{ status: "ASSIGNED", assignedTo: { id: OTHER, displayName: "Sam Okafor", email: null } }} />);
+    expect(q("[data-evidence-review-assignee]")?.textContent).toBe("Reviewer: Sam Okafor");
+    expect(document.body.textContent).not.toMatch(/54b5d495/);
+    // Claim stays visible, disabled, with the reason beside it.
+    const claim = q('[data-evidence-review-action="CLAIM"]') as HTMLButtonElement;
+    expect(claim.disabled).toBe(true);
+    expect(claim.getAttribute("data-disabled-reason")).toBe("Another reviewer owns this review.");
+  });
+
+  it("Escalate asks for a reason in the page, says where the review goes, and sends it once", async () => {
+    reply = (path, method) => {
+      if (method === "POST" && path.endsWith("/decision")) {
+        serverRef.current!.current = { status: "ESCALATED", assignedTo: { id: ME, displayName: "Dana", email: null } };
+        return { workflow: {} };
+      }
+      return {};
+    };
+    render(<Harness initial={{ status: "IN_REVIEW", assignedTo: { id: ME, displayName: "Dana", email: null } }} />);
+    fireEvent.click(q('[data-evidence-review-action="ESCALATE"]') as HTMLElement);
+    const form = q('[data-evidence-review-reason="ESCALATE"]') as HTMLElement;
+    expect(form.textContent).toContain("appears under Escalated in the team review queue");
+    const submit = form.querySelector("[data-evidence-review-reason-submit]") as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+    fireEvent.change(form.querySelector("textarea") as HTMLTextAreaElement, { target: { value: "Needs counsel review" } });
+    await act(async () => {
+      fireEvent.submit(form.querySelector("form") ?? form);
+    });
+    await waitFor(() => expect(q("[data-evidence-review-stage]")?.textContent).toBe("Escalated"));
+    const post = requests.find((r) => r.method === "POST")!;
+    expect(JSON.parse(post.body!)).toMatchObject({ decision: "ESCALATE", note: "Needs counsel review", escalationReason: "Needs counsel review" });
+    // Escalate is not offered again from Escalated.
+    expect(q('[data-evidence-review-action="ESCALATE"]')).toBeNull();
+  });
+
+  it("a server refusal is said in words, and the panel re-reads the record", async () => {
+    reply = (path, method) => {
+      if (method === "POST") {
+        const err = new Error("conflict") as Error & { body: unknown; code: string };
+        err.body = { error: { code: "already_assigned_elsewhere" } };
+        err.code = "already_assigned_elsewhere";
+        serverRef.current!.current = { status: "ASSIGNED", assignedTo: { id: OTHER, displayName: "Sam Okafor", email: null } };
+        return err;
+      }
+      return {};
+    };
+    render(<Harness initial={{ status: "NOT_STARTED", assignedTo: null }} />);
+    await act(async () => {
+      fireEvent.click(q('[data-evidence-review-action="CLAIM"]') as HTMLElement);
+    });
+    await waitFor(() => expect(q('[data-evidence-review-outcome="error"]')).not.toBeNull());
+    expect(q("[data-evidence-review-outcome]")?.textContent).toBe(
+      "Another reviewer claimed this review first. The panel now shows the current owner.",
+    );
+    expect(q("[data-evidence-review-outcome]")?.getAttribute("role")).toBe("alert");
+    expect(q("[data-evidence-review-assignee]")?.textContent).toBe("Reviewer: Sam Okafor");
+  });
+
+  it("a viewer without review permission sees ONE sentence and no dead buttons", () => {
+    render(
+      <ConfirmActionProvider>
+        <EvidenceReviewActionsPanel
+          evidenceId="ev-1"
+          teamId="team-1"
+          currentStatus="NOT_STARTED"
+          assignedTo={null}
+          viewerUserId={ME}
+          availableActions={actionsFor({ viewerMayReview: false })}
+        />
+      </ConfirmActionProvider>,
+    );
+    expect(qa("[data-evidence-review-action]")).toHaveLength(0);
+    expect(q('[data-evidence-review-blocked="NOT_PERMITTED"]')?.textContent).toBe(
+      "Your role cannot make review decisions in this workspace.",
+    );
+  });
+});
+
+// ===========================================================================
+// D. History
+// ===========================================================================
+
+describe("D — the workflow history reads for a person", () => {
+  it("creation's four automatic events are ONE system entry; enums and ids never reach the reader", () => {
+    const t = "2026-10-20T10:00:00.000Z";
+    const owner = { id: OTHER, email: null, displayName: null };
+    render(
+      <ReviewerWorkflowCard
+        workflow={{ available: true, status: "NOT_STARTED", priority: "NORMAL", assignedTo: null, dueAt: null, lastReviewedAt: null, note: null, viewerUserId: ME } as never}
+        events={[
+          { id: "e1", eventType: "CREATED", note: null, previousValue: null, nextValue: null, createdAt: t, actor: owner },
+          { id: "e2", eventType: "UNASSIGNED", note: null, previousValue: null, nextValue: null, createdAt: t, actor: owner },
+          { id: "e3", eventType: "STATUS_CHANGED", note: null, previousValue: null, nextValue: null, createdAt: t, actor: owner },
+          { id: "e4", eventType: "PRIORITY_CHANGED", note: null, previousValue: null, nextValue: null, createdAt: t, actor: owner },
+        ]}
+        eventsLoading={false}
+        actionBusy={false}
+        onRefreshEvents={() => {}}
+        onOpenEditor={() => {}}
+        formatDateTime={(v) => v ?? ""}
+      />,
+    );
+    const entries = qa("[data-evidence-workflow-entry]");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.getAttribute("data-evidence-workflow-entry")).toBe("SYSTEM");
+    expect(entries[0]!.getAttribute("data-evidence-workflow-event-count")).toBe("4");
+    expect(entries[0]!.textContent).toContain("Review workflow created");
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(/PRIORITY CHANGED|STATUS CHANGED|UNASSIGNED|CREATED|NOT_STARTED/);
+    expect(text).not.toMatch(/54b5d495/);
+    // The summary does not repeat absent optional values.
+    expect(text).not.toContain("Not available");
+    expect(text).toContain("Review history is separate from the evidence");
+  });
+});

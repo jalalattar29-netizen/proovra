@@ -215,14 +215,16 @@ test("Case and Due date live under Attributes, NOT under Review Workflow", () =>
     RAIL.indexOf('data-evidence-side="public-verification-shortcut"'),
   );
   assert.match(attributes, />Case</);
-  assert.match(attributes, />Due date</);
+  // 2026-10-23 — the due date is stated only when one is SET.
+  assert.match(attributes, /workspace\.reviewWorkflow\.dueAt \? \(/);
+  assert.match(attributes, />Review due</);
 
   const workflow = RAIL.slice(
     RAIL.indexOf('data-evidence-side="operational-summary"'),
     RAIL.indexOf('data-evidence-side="attributes"'),
   );
   assert.doesNotMatch(workflow, />Case</);
-  assert.doesNotMatch(workflow, />Due date</);
+  assert.doesNotMatch(workflow, />Review due</);
   // Review Workflow keeps its own two facts.
   assert.match(workflow, /Operational summary/);
   assert.match(workflow, />Priority</);

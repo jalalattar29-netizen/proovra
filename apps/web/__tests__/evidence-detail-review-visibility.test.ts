@@ -39,6 +39,10 @@ const PAGE = src("page.tsx");
 // The attention strip lives in its own file; the page renders it.
 const STRIP = src("_tabs/WhatNeedsAttentionStrip.tsx");
 const LIB = src("_tabs/_lib.tsx");
+const ATTENTION = readFileSync(
+  resolve(__dirname, "../../../packages/shared/src/evidence-attention.ts"),
+  "utf8",
+);
 const REVIEW = src("_tabs/EvidenceReviewTab.tsx");
 const CSS = src("evidence-detail.css");
 
@@ -152,14 +156,16 @@ test("Fix 2 — Assign reviewer button is gated on canSeeReviewerOps inside the 
   );
 });
 
-test("Fix 2 — WhatNeedsAttentionStrip only flags needsReviewer when canSeeReviewerOps", () => {
-  // Without the gate, Personal Space records that have no
-  // workflow status would show a yellow "Review not started ·
-  // Start" chip that opens an enterprise modal the user cannot
-  // meaningfully use.
+test("Fix 2 (2026-10-23) — 'Review not started' is the SERVER's call: review applicable AND the viewer can act", () => {
+  // The strip used to derive this itself from a plan flag and a status, so a
+  // viewer who could not start review was still prompted to. The shared
+  // classifier now decides, from the server's review applicability and the
+  // viewer's review permission; the strip only renders the result.
+  assert.doesNotMatch(STRIP, /needsReviewer|canSeeReviewerOps|reviewWorkflow\?\.status/);
+  assert.match(STRIP, /workspace\.attention/);
   assert.match(
-    STRIP,
-    /const needsReviewer\s*=\s*\n?\s*canSeeReviewerOps\s*&&\s*\n?\s*\(!workspace\.reviewWorkflow\?\.status/,
+    ATTENTION,
+    /input\.review\.applicable && input\.review\.notStarted && input\.review\.viewerCanStart/,
   );
 });
 
@@ -180,39 +186,24 @@ test("Fix 2 — enterprise still gets the full workflow: ReviewerWorkflowCard + 
 // Fix 3 — Old-last-modified neutral severity + sort + relabel
 // ---------------------------------------------------------------------------
 
-test("Fix 3 — RiskSignalSeverity exposes a 'neutral' tier", () => {
-  assert.match(
-    LIB,
-    /export type RiskSignalSeverity\s*=\s*"danger"\s*\|\s*"warning"\s*\|\s*"info"\s*\|\s*"neutral"/,
-  );
+test("Fix 3 (2026-10-23) — the page derives NO risk signals of its own", () => {
+  // buildRiskSignals merged server alerts with signals the page derived from
+  // source context; it is gone, and nothing on the route re-derives them.
+  assert.doesNotMatch(LIB, /buildRiskSignals|RiskSignalSeverity|normalizeSeverity/);
+  assert.doesNotMatch(PAGE, /buildRiskSignals|reviewSignals/);
 });
 
-test("Fix 3 — oldLastModified is severity 'neutral' with the new label + copy", () => {
-  // The advisory chip must NOT use "warning" tone (amber) and
-  // must NOT use the old "Old last-modified signal" label, which
-  // sounded forensic.
+test("Fix 3 (2026-10-23) — 'File timestamp note' is an ADVISORY signal in the shared authority, never a failure", () => {
   assert.match(
-    LIB,
-    /clientSignalsSummary\.oldLastModified[\s\S]{0,800}?severity:\s*"neutral"/,
+    ATTENTION,
+    /"FILE_TIMESTAMP_NOTE",\s*\{ category: "ADVISORY", tone: "advisory", placement: "SIGNAL", action: null \},\s*"File timestamp note",\s*"The file was last modified before it was uploaded\. This is common for existing documents and does not indicate manipulation\."/,
   );
-  assert.match(LIB, /title:\s*"File timestamp note"/);
-  assert.match(
-    LIB,
-    /detail:\s*\n?\s*"Client metadata shows the file was modified before upload\. This is common for existing documents and is advisory only\.",?/,
-  );
-  // Old label must be gone as a JSX/object-literal value.
-  assert.doesNotMatch(LIB, /title:\s*"Old last-modified signal"/);
+  assert.doesNotMatch(ATTENTION, /"Old last-modified signal"/);
 });
 
-test("Fix 3 — buildRiskSignals sorts signals by severity (danger → warning → info → neutral)", () => {
-  // Stable severity-first sort guarantees a neutral note never
-  // crowds out a real warning in the sidebar's top-4 slice.
-  assert.match(LIB, /RISK_SEVERITY_ORDER:\s*Record<RiskSignalSeverity,\s*number>/);
-  assert.match(LIB, /danger:\s*0[\s\S]{0,80}warning:\s*1[\s\S]{0,80}info:\s*2[\s\S]{0,80}neutral:\s*3/);
-  assert.match(
-    LIB,
-    /signals\.sort\(\s*\n?\s*\(a,\s*b\)\s*=>\s*RISK_SEVERITY_ORDER\[a\.severity\]\s*-\s*RISK_SEVERITY_ORDER\[b\.severity\]/,
-  );
+test("Fix 3 (2026-10-23) — classification is by CODE and ordered required → recommended → advisory", () => {
+  assert.match(ATTENTION, /CATEGORY_RANK: Record<EvidenceAttentionCategory, number> = \{\s*ACTION_REQUIRED: 0,\s*ACTION_RECOMMENDED: 1,\s*ADVISORY: 2,/);
+  assert.match(ATTENTION, /add\(alert\.code, ALERT_RULES\[alert\.code\], alert\.label, alert\.detail\)/);
 });
 
 test("Fix 3 — CSS carries a neutral signal-card variant with soft-gray surface", () => {
@@ -225,28 +216,10 @@ test("Fix 3 — CSS carries a neutral signal-card variant with soft-gray surface
   );
 });
 
-test("Fix 3 — WhatNeedsAttentionStrip pills route neutral + info to the muted pill class", () => {
-  // The attention strip used to map "info" → "neutral" via a
-  // brittle ternary that left "neutral" as the implicit else
-  // branch (rendered as "danger"). After the fix, both neutral
-  // AND info go to the muted pill explicitly, and an unknown
-  // severity does not default to the red "danger" pill.
-  assert.match(
-    STRIP,
-    /s\.severity === "danger"[\s\S]{0,80}"danger"[\s\S]{0,200}s\.severity === "warning"[\s\S]{0,80}"warning"[\s\S]{0,200}"neutral"/,
-  );
-  // Severity is also surfaced via data-attribute for tests +
-  // analytics.
-  assert.match(STRIP, /data-evidence-attention-risk-severity=\{s\.severity\}/);
-});
-
-test("Fix 3 — backend reviewerAlerts severity is normalized through buildRiskSignals", () => {
-  // Unknown / future severity strings from the backend cannot
-  // accidentally over-alert. "critical" / "high" map to "danger";
-  // anything else falls back to "info" (not "warning").
-  assert.match(LIB, /function normalizeSeverity\(s:\s*string\s*\|\s*null\s*\|\s*undefined\)/);
-  assert.match(LIB, /if\s*\(s === "critical"\s*\|\|\s*s === "high"\)\s*return\s*"danger"/);
-  assert.match(LIB, /return\s*"info"/);
+test("Fix 3 (2026-10-23) — the strip lists only actionable items, with the category in WORDS", () => {
+  assert.match(STRIP, /attention\.items\.filter\(\(i\) => i\.placement === "ATTENTION"\)/);
+  assert.match(STRIP, /item\.category === "ACTION_REQUIRED" \? "Required" : "Recommended"/);
+  assert.match(STRIP, /attention\.headline === "NO_ACTION"[\s\S]{0,400}No action required/);
 });
 
 // ---------------------------------------------------------------------------

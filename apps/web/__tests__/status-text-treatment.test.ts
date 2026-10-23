@@ -578,7 +578,8 @@ test("21. the record rail states its workflow and verification page as text", ()
   assert.doesNotMatch(EV_RAIL, /AppStatusBadge/);
   // "Not started" is still the derived fallback, and the page's state is
   // read from the one projection — neither is re-derived here.
-  assert.match(EV_RAIL, /: "Not started"/);
+  // 2026-10-23 — the shared label, never a raw enum ("Not started" for none).
+  assert.match(EV_RAIL, /reviewStatusLabel\(workspace\.reviewWorkflow\.status\)/);
   assert.match(EV_RAIL, /verificationPage\?\.label \?\? "State unavailable"/);
 });
 

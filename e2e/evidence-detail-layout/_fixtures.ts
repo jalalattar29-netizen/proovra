@@ -19,6 +19,11 @@
 import type { Page } from "@playwright/test";
 
 import {
+  classifyEvidenceAttention,
+  projectReviewWorkflowActions,
+} from "../../packages/shared/dist/index.js";
+
+import {
   AUTHORITY_SCHEMA_VERSION,
   CAPABILITY_SCHEMA_VERSION,
   NAVIGATION_SCHEMA_VERSION,
@@ -72,7 +77,7 @@ export function envelopeFor(context: EvidenceContext): Record<string, unknown> {
   };
 }
 
-function makeWorkspace(): unknown {
+export function makeWorkspace(): unknown {
   const iso = (s: string) => s;
   return {
     evidence: {
@@ -152,7 +157,32 @@ function makeWorkspace(): unknown {
       nextActions: [],
       privateNote: null,
     },
-    reviewerAlerts: [],
+    reviewerAlerts: [
+      {
+        code: "NO_FLAGGED_ISSUES",
+        severity: "info",
+        label: "No flagged issues",
+        detail: "This record has no flagged issues in the current intelligence summary.",
+      },
+    ],
+    // 2026-10-23 — the server's classification, computed by the SAME shared
+    // authority the API runs, for the reported record: no flagged issue, an
+    // imported upload, an old file timestamp, no case, review not started.
+    attention: {
+      ...classifyEvidenceAttention({
+        alerts: [
+          {
+            code: "NO_FLAGGED_ISSUES",
+            label: "No flagged issues",
+            detail: "This record has no flagged issues in the current intelligence summary.",
+          },
+        ],
+        source: { importedUpload: true, oldLastModified: true, screenshotLikeDetected: false, genericMime: false },
+        caseAssignment: { assigned: false, policy: "OPTIONAL", viewerCanAssign: true },
+        review: { applicable: true, notStarted: true, viewerCanStart: true },
+      }),
+      caseAssignment: { assigned: false, policy: "OPTIONAL", restricted: false },
+    },
     custodyLifecycle: {
       forensicEventCount: 2,
       accessEventCount: 1,
@@ -308,6 +338,16 @@ function makeWorkspace(): unknown {
       items: [],
     },
     reviewWorkflow: {
+      available: true,
+      viewerUserId: "user-1",
+      availableActions: projectReviewWorkflowActions({
+        dbStatus: "NOT_STARTED",
+        assignedToUserId: null,
+        viewerUserId: "user-1",
+        viewerMayReview: true,
+        hasWorkspace: true,
+        verdictRecorded: false,
+      }),
       status: null,
       statusLabel: "Not started",
       priority: "NORMAL",

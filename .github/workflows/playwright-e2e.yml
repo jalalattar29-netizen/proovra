@@ -806,9 +806,9 @@ jobs:
             flags: SEARCH_LAYOUT
             min: 380
           - shard: records
-            projects: evidence-detail-layout intake-links-layout
-            flags: EVIDENCE_LAYOUT INTAKE_LAYOUT
-            min: 215
+            projects: evidence-detail-layout intake-links-layout reports-layout
+            flags: EVIDENCE_LAYOUT INTAKE_LAYOUT REPORTS_LAYOUT
+            min: 260
           - shard: account
             projects: attention-layout billing-layout settings-layout
             flags: ATTENTION_LAYOUT BILLING_LAYOUT SETTINGS_LAYOUT

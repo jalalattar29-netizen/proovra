@@ -62,9 +62,12 @@ describe("EvidenceRelationshipsSection — linked cases", () => {
     expect(screen.queryByText(/Restricted/)).toBeNull();
   });
 
-  it("an empty projection reads Unassigned", () => {
+  // 2026-10-23 — case assignment is optional, so an empty projection says
+  // that, never a bare "Unassigned" that reads like missing data.
+  it("an empty projection reads None (optional)", () => {
     render(<EvidenceRelationshipsSection {...base} caseName={null} cases={[]} onRemoveLinkedCase={() => {}} />);
-    expect(screen.getByText("Unassigned")).toBeTruthy();
+    expect(screen.getByText("None (optional)")).toBeTruthy();
+    expect(screen.queryByText("Unassigned")).toBeNull();
     expect(screen.getByText("Assign case")).toBeTruthy();
   });
 
