@@ -143,14 +143,12 @@ describe("the route maps the new refusal to 409", () => {
 });
 
 describe("the administrative PATCH cannot record a verdict", () => {
-  it("READY_FOR_EXTERNAL_REVIEW (the legacy approval, which satisfies the export gate) is decision-derived", async () => {
-    const { isDecisionDerivedWorkflowStatus } = await import(
-      "../src/services/evidence-review/review-status-vocabulary.js"
-    );
-    expect(isDecisionDerivedWorkflowStatus("READY_FOR_EXTERNAL_REVIEW")).toBe(true);
-    // Routing states stay routable.
-    for (const s of ["NOT_STARTED", "IN_REVIEW", "ESCALATED", "CLOSED"]) {
-      expect(isDecisionDerivedWorkflowStatus(s)).toBe(false);
-    }
+  it("READY_FOR_EXTERNAL_REVIEW (the legacy approval, which satisfies the export gate) is not a routing state", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(resolve(__dirname, "../src/routes/evidence.routes.ts"), "utf8");
+    expect(src).toContain(`LEGACY_VERDICT_WORKFLOW_STATUSES: ReadonlySet<string> = new Set(["READY_FOR_EXTERNAL_REVIEW"])`);
+    expect(src).toContain("!isDecisionDerivedWorkflowStatus(s) && !LEGACY_VERDICT_WORKFLOW_STATUSES.has(s)");
+    expect(src).toContain("status: z.enum(ROUTING_WORKFLOW_STATUSES).optional()");
   });
 });

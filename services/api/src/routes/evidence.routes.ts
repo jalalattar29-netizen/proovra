@@ -676,9 +676,19 @@ const ANNOTATION_PART_MISMATCH = { message: "Annotation part does not belong to 
  * refused here, at the edge, so the browser cannot name a review outcome:
  * decisions go to POST /v1/review-operations/evidence/:evidenceId/decision.
  */
+/**
+ * 2026-10-23 — READY_FOR_EXTERNAL_REVIEW is the LEGACY spelling of an approval:
+ * it maps to the APPROVED_INTERNAL stage and satisfies the export review gate.
+ * No writer produces it any more, and naming it through this administrative
+ * PATCH recorded a verdict with no decision row. It is not a routing state.
+ */
+const LEGACY_VERDICT_WORKFLOW_STATUSES: ReadonlySet<string> = new Set(["READY_FOR_EXTERNAL_REVIEW"]);
+
 const ROUTING_WORKFLOW_STATUSES = Object.values(
   prismaPkg.EvidenceReviewWorkflowStatus,
-).filter((s) => !isDecisionDerivedWorkflowStatus(s)) as [string, ...string[]];
+).filter(
+  (s) => !isDecisionDerivedWorkflowStatus(s) && !LEGACY_VERDICT_WORKFLOW_STATUSES.has(s),
+) as [string, ...string[]];
 
 const ReviewerWorkflowUpdateBody = z.object({
   assignedToUserId: z.string().uuid().nullable().optional(),
