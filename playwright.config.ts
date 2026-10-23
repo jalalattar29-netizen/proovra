@@ -140,6 +140,13 @@ const SETTINGS_LAYOUT_PORT = 3017;
 const CAPTURE_LAYOUT_BASE = `http://127.0.0.1:${CAPTURE_LAYOUT_PORT}`;
 const BILLING_LAYOUT_BASE = `http://127.0.0.1:${BILLING_LAYOUT_PORT}`;
 const SETTINGS_LAYOUT_BASE = `http://127.0.0.1:${SETTINGS_LAYOUT_PORT}`;
+/**
+ * The REPORTS selector gate serves its own production build here: whether a
+ * long selected value, its menu and the toolbar fit at every width, in every
+ * locale and in RTL, is a layout-engine question jsdom answers 0 to.
+ */
+const REPORTS_LAYOUT_PORT = 3019;
+const REPORTS_LAYOUT_BASE = `http://127.0.0.1:${REPORTS_LAYOUT_PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -428,6 +435,15 @@ export default defineConfig({
         baseURL: SETTINGS_LAYOUT_BASE,
       },
     },
+    {
+      name: "reports-layout",
+      testDir: "./e2e/reports-layout",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: LAYOUT_STORAGE_STATE,
+        baseURL: REPORTS_LAYOUT_BASE,
+      },
+    },
   ],
   /**
    * Started only for the opt-in layout projects, each on its own port.
@@ -439,6 +455,17 @@ export default defineConfig({
    * second web server on top of the one they already run.
    */
   webServer: [
+    ...(process.env.REPORTS_LAYOUT
+      ? [
+          {
+            command: `pnpm --filter proovra-web exec next start -p ${REPORTS_LAYOUT_PORT} -H 127.0.0.1`,
+            url: `${REPORTS_LAYOUT_BASE}/login`,
+            reuseExistingServer: true,
+            timeout: 180_000,
+            env: { NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },
+          },
+        ]
+      : []),
     ...(process.env.SETTINGS_LAYOUT
       ? [
           {

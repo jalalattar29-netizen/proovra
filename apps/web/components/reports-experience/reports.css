@@ -99,15 +99,25 @@
   flex: 2 1 240px;
   min-inline-size: 0;
 }
+/* The sort control SIZES TO ITS VALUE (2026-10-23). A fixed 190px basis cut
+   "Newest captured first" — and every longer translation — to its first
+   words. In a narrow toolbar it takes the whole row instead. */
 .rpt-toolbar__sort {
-  flex: 0 1 190px;
-  min-inline-size: 150px;
+  flex: 0 0 auto;
+  max-inline-size: 100%;
   margin-inline-start: auto;
+}
+@container rpt-toolbar (max-width: 560px) {
+  .rpt-toolbar__sort {
+    flex: 1 1 100%;
+    margin-inline-start: 0;
+  }
 }
 .rpt-advanced__field {
   display: grid;
   gap: 4px;
   min-inline-size: 0;
+  max-inline-size: 100%;
 }
 .rpt-advanced__label {
   font-size: 12px;

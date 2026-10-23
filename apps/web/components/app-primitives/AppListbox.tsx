@@ -50,6 +50,13 @@ export interface AppListboxProps<T extends string = string> {
   className?: string;
   /** Render function for the trigger's selected content (defaults to label). */
   renderValue?: (option: AppListboxOption<T> | null) => React.ReactNode;
+  /**
+   * WRAP the chosen value instead of clipping it (2026-10-23). For a control
+   * in a constrained layout — a filter panel that can be narrower than its
+   * longest option — where a cut-off value would be ambiguous. The default
+   * stays one line: in a dense row the control sizes to its value instead.
+   */
+  wrapValue?: boolean;
 }
 
 let listboxSeq = 0;
@@ -65,6 +72,7 @@ export function AppListbox<T extends string = string>({
   id,
   className,
   renderValue,
+  wrapValue = false,
 }: AppListboxProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState<number>(-1);
@@ -125,6 +133,26 @@ export function AppListbox<T extends string = string>({
     setOpen(false);
     setActiveIndex(-1);
   }, []);
+
+  /*
+   * THE MENU FITS ITS LONGEST OPTION, INSIDE THE VIEWPORT (2026-10-23).
+   *
+   * The popup used to be exactly the trigger's width, so a long option was cut
+   * to its first words. It now sizes to its content (at least the trigger,
+   * capped by the stylesheet), which can carry it past the viewport edge when
+   * the trigger sits near one — so once it is laid out it is shifted back
+   * inside, in whichever direction it overflowed.
+   */
+  React.useLayoutEffect(() => {
+    const pop = popupRef.current;
+    if (!open || !pop || typeof window === "undefined") return;
+    pop.style.transform = "";
+    const r = pop.getBoundingClientRect();
+    const gutter = 12;
+    const vw = window.innerWidth;
+    const shift = r.right > vw - gutter ? vw - gutter - r.right : r.left < gutter ? gutter - r.left : 0;
+    if (shift !== 0) pop.style.transform = `translateX(${Math.round(shift)}px)`;
+  }, [open, options]);
 
   // Keep the active option scrolled into view.
   //
@@ -211,7 +239,7 @@ export function AppListbox<T extends string = string>({
   return (
     <div
       ref={rootRef}
-      className={`app-listbox${className ? ` ${className}` : ""}`}
+      className={`app-listbox${wrapValue ? " app-listbox--wrap" : ""}${className ? ` ${className}` : ""}`}
     >
       <button
         ref={triggerRef}
@@ -229,16 +257,7 @@ export function AppListbox<T extends string = string>({
         onClick={() => (open ? closeMenu() : openMenu())}
         onKeyDown={onTriggerKeyDown}
       >
-        <span
-          style={{
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
+        <span className="app-listbox__value">
           {selected?.markerColor ? (
             <span
               className="app-listbox__option-marker"
@@ -246,7 +265,7 @@ export function AppListbox<T extends string = string>({
               aria-hidden
             />
           ) : null}
-          {triggerContent}
+          <span className="app-listbox__value-text">{triggerContent}</span>
         </span>
         <svg
           className="app-listbox__chevron"
@@ -313,16 +332,7 @@ export function AppListbox<T extends string = string>({
                   />
                 ) : null}
                 <span style={{ minWidth: 0 }}>
-                  <span
-                    style={{
-                      display: "block",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {opt.label}
-                  </span>
+                  <span className="app-listbox__option-label">{opt.label}</span>
                   {opt.description ? (
                     <span className="app-listbox__option-desc">
                       {opt.description}

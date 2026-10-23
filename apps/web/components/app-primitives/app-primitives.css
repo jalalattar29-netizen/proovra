@@ -1575,6 +1575,28 @@ textarea.app-form-input {
 .app-listbox__trigger[aria-expanded="true"] .app-listbox__chevron {
   transform: rotate(180deg);
 }
+/* THE CHOSEN VALUE (2026-10-23). One line by default: a control in a dense
+   row sizes to its value, so nothing is cut. The ellipsis is the last resort
+   of a container that cannot grow — never the way a layout fits a control. */
+.app-listbox__value {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.app-listbox__value-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The WRAP variant, for a control in a layout that can be narrower than its
+   longest value: the whole value stays readable on more than one line. */
+.app-listbox--wrap .app-listbox__value-text {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
 /* ANCHORED OVERLAY — the one layer an escaped popup renders on.
    It is applied to the portaled element, which is a direct child of <body>,
    so no ancestor transform, filter, backdrop-filter, containment or overflow
@@ -1687,7 +1709,13 @@ textarea.app-form-input {
      A percentage width is safe precisely BECAUSE the parent is a sized box:
      under the old fixed positioning it resolved against the viewport and
      stretched the menu across the page. */
-  inline-size: 100%;
+  /* THE MENU FITS ITS LONGEST OPTION (2026-10-23): its content's width, never
+     narrower than the trigger (the overlay box is the trigger's width), capped
+     inside the viewport — where an option longer than that wraps instead of
+     being cut. `AppListbox` shifts it back inside the viewport when a
+     trigger near an edge would carry it out. */
+  inline-size: max-content;
+  min-inline-size: 100%;
   box-sizing: border-box;
   max-width: min(360px, calc(100vw - 24px));
   max-height: 280px;
@@ -1728,6 +1756,11 @@ textarea.app-form-input {
   margin-left: auto;
   color: #6D28D9;
   flex-shrink: 0;
+}
+.app-listbox__option-label {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .app-listbox__option-desc {
   font-size: 11.5px;

@@ -836,6 +836,7 @@ export function ReportsIndex() {
                 {copy.filters.statusLabel}
               </span>
               <AppListbox
+                wrapValue
                 value={filters.status}
                 ariaLabelledby={`${advancedPanelId}-status`}
                 onChange={(v) => patchFilters({ status: (STATUS_FILTERS as readonly string[]).includes(v) ? (v as StatusFilter) : "all" })}
@@ -848,6 +849,7 @@ export function ReportsIndex() {
                 {copy.filters.reportLabel}
               </span>
               <AppListbox
+                wrapValue
                 value={filters.report}
                 ariaLabelledby={`${advancedPanelId}-report`}
                 onChange={(v) => patchFilters({ report: REPORT_DIMENSION.find((d) => d === v) ?? "any" })}
@@ -862,6 +864,7 @@ export function ReportsIndex() {
                 {copy.filters.packageLabel}
               </span>
               <AppListbox
+                wrapValue
                 value={filters.package}
                 ariaLabelledby={`${advancedPanelId}-package`}
                 onChange={(v) => patchFilters({ package: PACKAGE_DIMENSION.find((d) => d === v) ?? "any" })}
@@ -876,6 +879,7 @@ export function ReportsIndex() {
                 {copy.filters.entitlementLabel}
               </span>
               <AppListbox
+                wrapValue
                 value={filters.entitlement}
                 ariaLabelledby={`${advancedPanelId}-entitlement`}
                 onChange={(v) => patchFilters({ entitlement: ENTITLEMENT_DIMENSION.find((d) => d === v) ?? "any" })}
