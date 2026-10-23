@@ -65,19 +65,31 @@ const {
   appendPlatformAuditLogMock: vi.fn(),
 }));
 
-vi.mock("../src/db.js", () => ({
-  prisma: {
+vi.mock("../src/db.js", () => {
+  // 2026-10-23 — the upsert runs in ONE interactive transaction and its
+  // update is conditional on the row it read (optimistic concurrency), then
+  // re-reads the row. The double routes those calls to the same spies.
+  const prisma = {
     evidenceReviewWorkflow: {
       findUnique: findUniqueMock,
       update: updateMock,
+      updateMany: async (args: unknown) => {
+        await updateMock(args);
+        return { count: 1 };
+      },
+      findUniqueOrThrow: async () => {
+        const last = updateMock.mock.results.at(-1);
+        return last ? await last.value : undefined;
+      },
       create: createMock,
     },
     evidenceReviewWorkflowEvent: {
       create: eventCreateMock,
     },
-    $transaction: txMock,
-  },
-}));
+    $transaction: (ops: unknown) => txMock(ops, prisma),
+  };
+  return { prisma };
+});
 
 vi.mock("../src/services/platform-audit-log.service.js", () => ({
   appendPlatformAuditLog: appendPlatformAuditLogMock,
@@ -125,10 +137,12 @@ beforeEach(() => {
   appendPlatformAuditLogMock.mockResolvedValue(undefined);
   // The reviewer-workflow service only batches the workflow-event creates
   // through $transaction. Resolve to a no-op array so we don't crash.
-  txMock.mockResolvedValue([]);
+  txMock.mockImplementation(async (ops: unknown, client: unknown) =>
+    typeof ops === "function" ? (ops as (tx: unknown) => unknown)(client) : [],
+  );
   // Default event-create stub returns a promise-shaped object that the
   // service awaits via $transaction. Returning a thenable is sufficient.
-  eventCreateMock.mockReturnValue({ then: () => undefined });
+  eventCreateMock.mockResolvedValue({});
 });
 
 afterEach(() => {
