@@ -55,7 +55,21 @@ function toneOf(state: TrustSignalState): TruthTone {
 }
 
 export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): TruthFact {
-  if (!t) return { label: "Not available", tone: "neutral", state: null, status: "UNAVAILABLE", measuredAtUtc: null };
+  // THE TIMESTAMP STATE, NEVER A BARE "NOT AVAILABLE" (2026-10-23). Four
+  // different facts used to read alike: the facts could not be read ("Not
+  // available"), no timestamp was ever requested, the provider failed to
+  // issue one, and the service was down (all three "Not obtained"). Each now
+  // says which it is; validation is claimed only when it happened.
+  if (!t) {
+    return { label: "Status could not be read", tone: "neutral", state: null, status: "UNAVAILABLE", measuredAtUtc: null };
+  }
+  const rawStatus = String(t.status ?? "").trim().toUpperCase();
+  if (rawStatus === "" || rawStatus === "NOT_REQUESTED") {
+    return { label: "Not requested", tone: "neutral", state: "UNAVAILABLE", status: "UNAVAILABLE", measuredAtUtc: null };
+  }
+  if (rawStatus === "UNAVAILABLE") {
+    return { label: "Timestamp service unavailable", tone: "warn", state: "UNAVAILABLE", status: "UNAVAILABLE", measuredAtUtc: null };
+  }
   const presented = presentedTsaStatus({ tsaStatus: t.status, tsaValidatedAtUtc: t.validatedAtUtc });
   const s = resolveTsaTrustState({
     presentedStatus: presented,
@@ -70,6 +84,10 @@ export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): TruthFact 
   // that nothing was obtained, nor that a token was. Only a provider code
   // says no token came back.
   const providerCode = /^tsa_provider_|^tsa_unknown_error$|^tsa_token_missing$/.test(String(t.failureCode ?? ""));
+  if (s.state === "UNAVAILABLE" && String(presented ?? "").toUpperCase() === "FAILED" && providerCode) {
+    // The provider did not issue a token: a failure, said as one.
+    return { label: "Failed — no token obtained", tone: "warn", state: s.state, status: "UNAVAILABLE", measuredAtUtc: null };
+  }
   if (s.state === "UNAVAILABLE" && String(presented ?? "").toUpperCase() === "FAILED" && !providerCode) {
     // A token may exist; no validation of it succeeded.
     // AUD-47 (2026-10-20) — NOT_CHECKED is neutral on every surface (THE shared VERIFICATION_STATUS_TONES): not checked is not a warning.
