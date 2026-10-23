@@ -22,7 +22,7 @@ import {
   parseTsaProofStatus,
   TSA_PROOF_STATUS_LABELS,
   type TsaProofStatus, objectLockModeLabel, recordSignaturePresentation,
-  classifyStorageProtection, custodyChainVerdictLabel, custodyLocalDayKey, describeStorageProtection, STORAGE_PROTECTION_CLASSES, type StorageProtectionClass } from "@proovra/shared";
+  classifyStorageProtection, presentEvidenceProtection, custodyChainVerdictLabel, custodyLocalDayKey, describeStorageProtection, STORAGE_PROTECTION_CLASSES, type StorageProtectionClass } from "@proovra/shared";
 import { projectLocationState } from "./evidence-detail";
 import { isOtsSummaryFact, otsCard, otsStatusLine, readOts, type OtsState, type OtsVerificationKey } from "./ots-anchoring";
 type Obj = Record<string, unknown>;
@@ -1037,8 +1037,15 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
           ? "Unknown"
           : "Not included on plan";
   const dateOr = (iso: string | null, fallback: string) => (iso ? fmt(iso) : fallback);
-  const legalHold = s(ev["storageObjectLockLegalHoldStatus"]);
-  const retentionUntil = s(ev["retentionUntilUtc"]);
+  // Legal hold and retention: THE shared presentation over THE canonical
+  // lifecycle projection, exactly as the web Integrity tab (2026-10-23). The
+  // storage object's native hold header is no longer written, and the
+  // workspace-policy column alone ignored the storage lock.
+  const lifecycle = ev["lifecycle"];
+  const protection = presentEvidenceProtection(
+    lifecycle && typeof lifecycle === "object" ? (lifecycle as Parameters<typeof presentEvidenceProtection>[0]) : null,
+    fmt,
+  );
   const olMode = s(ev["storageObjectLockMode"]);
   const olUntil = s(ev["storageObjectLockRetainUntilUtc"]);
   const otsUpdated = s(ots["lastUpdatedAtUtc"]);
@@ -1088,11 +1095,7 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
       state: packageState,
     },
     { label: "Package manifest", value: manifestLabel, state: manifestState },
-    {
-      label: "Retention until",
-      value: retentionUntil ? `Recorded — ${fmt(retentionUntil)}` : "No record-level retention deadline recorded",
-      state: retentionUntil ? "recorded" : "unavailable",
-    },
+    { label: "Retention", value: protection.retention.value, state: protection.retention.state },
     {
       label: "Object Lock retention mode",
       // AUD-47 — the mode in words, never the raw enum.
@@ -1100,11 +1103,7 @@ export function buildPreservationMatrix(rw: unknown, fmt: (iso: string) => strin
       state: olMode ? "recorded" : "unavailable",
     },
     { label: "Object Lock retention until", value: olUntil ? fmt(olUntil) : "Not asserted", state: olUntil ? "recorded" : "unavailable" },
-    {
-      label: "Legal hold",
-      value: legalHold === "ON" ? "Legal hold active" : legalHold === "OFF" ? "Legal hold off" : "No legal hold metadata recorded",
-      state: legalHold === "ON" ? "recorded" : legalHold === "OFF" ? "not-applicable" : "unavailable",
-    },
+    { label: "Legal hold", value: protection.legalHold.value, state: protection.legalHold.state },
     { label: `${otsView.title} — detail`, value: otsView.failureLabel ? `${otsDesc.detail} ${otsView.failureLabel}` : otsDesc.detail, wide: true },
   ];
 }
