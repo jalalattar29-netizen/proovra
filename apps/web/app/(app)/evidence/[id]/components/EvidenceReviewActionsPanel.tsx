@@ -227,7 +227,11 @@ export function EvidenceReviewActionsPanel({
   const globalBlock =
     actions.length > 0 &&
     actions.every(
-      (a) => a.blockedBy === "NO_WORKSPACE" || a.blockedBy === "NOT_INCLUDED" || a.blockedBy === "NOT_PERMITTED",
+      (a) =>
+        a.blockedBy === "NO_WORKSPACE" ||
+        a.blockedBy === "NO_WORKFLOW" ||
+        a.blockedBy === "NOT_INCLUDED" ||
+        a.blockedBy === "NOT_PERMITTED",
     )
       ? actions[0]!.blockedBy
       : null;

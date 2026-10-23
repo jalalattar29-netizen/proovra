@@ -126,6 +126,7 @@ import {
   anyNarrowingFilter,
   filtersForMetric,
   filtersFromParams,
+  filtersToParams,
   groupsQuery,
   incidentsQuery,
   metricForFilters,
@@ -349,14 +350,26 @@ function OperationsWorkbench() {
     [searchKey],
   );
 
-  /** Which of a just-applied saved view's filters could not be applied. */
-  const [savedViewNotice, setSavedViewNotice] = React.useState<string | null>(null);
+  /**
+   * Which of a just-applied saved view's filters could not be applied — bound
+   * to the filters and workspace the view produced, and shown only while
+   * those are on screen. Any other route to different filters (a filter
+   * control, Reset, Back/Forward, a workspace switch) leaves it unshown
+   * (audit F13 and its follow-up).
+   */
+  const [savedViewNotice, setSavedViewNotice] = React.useState<{
+    text: string;
+    filters: string;
+    workspace: string | null;
+  } | null>(null);
+  const savedViewNoticeText =
+    savedViewNotice &&
+    savedViewNotice.workspace === teamId &&
+    savedViewNotice.filters === filtersToParams(filters).toString()
+      ? savedViewNotice.text
+      : null;
   const applyFilters = React.useCallback(
     (next: FilterState) => {
-      // Any filter change replaces what a saved view put on screen, so its
-      // notice no longer describes the queue (audit F13: it never cleared).
-      // applyView sets its own notice after this.
-      setSavedViewNotice(null);
       router.push(operationsHref(next, presentation, incidentParam), {
         scroll: false,
       });
@@ -411,11 +424,15 @@ function OperationsWorkbench() {
       applyFilters(next);
       setSavedViewNotice(
         dropped.length > 0
-          ? fillOperationsCopy(copy.savedViewPartlyApplied, { name: view.name })
+          ? {
+              text: fillOperationsCopy(copy.savedViewPartlyApplied, { name: view.name }),
+              filters: filtersToParams(next).toString(),
+              workspace: teamId,
+            }
           : null,
       );
     },
-    [applyFilters, copy],
+    [applyFilters, copy, teamId],
   );
 
   // -------------------------------------------------------------------------
@@ -2123,9 +2140,9 @@ function OperationsWorkbench() {
             canManageShared={capabilities.canManageSharedViews}
             onDelete={(view) => void deleteView(view)}
           />
-          {savedViewNotice ? (
+          {savedViewNoticeText ? (
             <p className="opsw-muted" role="status" data-ops-saved-view-notice>
-              {savedViewNotice}
+              {savedViewNoticeText}
             </p>
           ) : null}
 

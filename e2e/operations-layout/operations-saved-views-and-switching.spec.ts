@@ -40,6 +40,8 @@ const VIEWS = (team: string) =>
         { id: "v-stale", name: "Old triage", filter: { teamId: WORKSPACE_ID, status: "RESOLVED", severity: "EXTREME", category: "RETIRED_SOURCE" } },
         // Saved before ALL was upper-case: the legacy spelling still means ALL.
         { id: "v-legacy-all", name: "Everything high", filter: { teamId: WORKSPACE_ID, status: "all", severity: "HIGH" } },
+        // Stale AND empty: the valid part (open report items) matches nothing.
+        { id: "v-stale-empty", name: "Old reports", filter: { teamId: WORKSPACE_ID, status: "UNRESOLVED", category: "REPORT", severity: "EXTREME" } },
         // A view whose stored filter names ANOTHER workspace.
         { id: "v-foreign", name: "Copied from elsewhere", filter: { teamId: OTHER_WORKSPACE_ID, category: "UPLOAD" } },
       ]
@@ -194,6 +196,35 @@ test("the partly-applied notice clears when the reader changes the filters thems
   await page.locator("[data-ops-clear-filters]").click();
   await expect.poll(() => search(page).get("status")).toBeNull();
   await expect(page.locator("[data-ops-saved-view-notice]")).toHaveCount(0);
+});
+
+test("the notice is not shown once the queue no longer shows the view: Reset, Back and a workspace switch (second audit)", async ({ page }) => {
+  const s = await serve(page);
+  await open(page);
+  const notice = page.locator("[data-ops-saved-view-notice]");
+
+  // Reset on the no-match state.
+  await page.locator('[data-ops-saved-view="v-stale-empty"]').click();
+  await expect(notice).toContainText("Old reports");
+  await page.locator("[data-ops-reset-filters]").click();
+  await expect.poll(() => search(page).get("category")).toBeNull();
+  await expect(notice).toHaveCount(0);
+
+  // Back to the filters before the view; Forward returns to the view's filters.
+  await page.locator('[data-ops-saved-view="v-stale"]').click();
+  await expect(notice).toContainText("Old triage");
+  await page.goBack();
+  await expect.poll(() => search(page).get("status")).not.toBe("RESOLVED");
+  await expect(notice).toHaveCount(0);
+  await page.goForward();
+  await expect.poll(() => search(page).get("status")).toBe("RESOLVED");
+  await expect(notice).toContainText("Old triage");
+
+  // A workspace switch: the previous workspace's view is not named.
+  await page.locator(".app-topbar-v2-workspace-button").first().dispatchEvent("click");
+  await page.locator(`[data-context-option="${OTHER_WORKSPACE_ID}"]`).first().dispatchEvent("click");
+  await expect.poll(() => lastList(s).get("teamId"), { timeout: 15_000 }).toBe(OTHER_WORKSPACE_ID);
+  await expect(notice).toHaveCount(0);
 });
 
 test("a view naming another workspace never makes the page read that workspace", async ({ page }) => {
