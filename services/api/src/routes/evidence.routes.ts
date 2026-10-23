@@ -9,7 +9,7 @@ import {
 } from "../services/evidence/evidence-part-writer.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
 import { EXTENSION_CAPTURE_SCOPE, extensionMayPresignPart } from "../services/auth/extension-scope.js";
-import { authorizeOrFail } from "../middleware/authorize.js";
+import { authorizeOrFail, evaluateAuthorize } from "../middleware/authorize.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import { evidenceIntakeIdentityArms } from "../services/search/intake-identity-search.js";
 // PHASE 6 §9.3 (2026-07-22) — canonical cross-team attach gate (same
@@ -160,6 +160,10 @@ import {
   evidenceRecordStatusLabel,
   presignedOriginalResponseHeaders,
   type AnnotatedArtifactHistoryItem,
+  classifyEvidenceAttention,
+  caseAssignmentPolicyFor,
+  projectReviewWorkflowActions,
+  type EvidenceReviewerAlertCode,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -5605,6 +5609,15 @@ const OUTPUT_ALERT_COPY: Partial<
   },
 };
 
+/**
+ * A reviewer-alert CODE (2026-10-23) — a classification key for the attention
+ * authority, not an error code; named through this helper so it is never read
+ * as one.
+ */
+function reviewerAlertCode<C extends EvidenceReviewerAlertCode>(code: C): C {
+  return code;
+}
+
 function buildResolvedReviewerAlerts(params: {
   evidenceIntelligence: EvidenceIntelligence | null;
   publicVerificationSummary: ReviewWorkspacePublicVerificationSummary;
@@ -5626,6 +5639,7 @@ function buildResolvedReviewerAlerts(params: {
         label: "Public verification not included",
         detail:
           "Public verification is not included in the current workspace capability set.",
+        code: reviewerAlertCode("PUBLIC_VERIFICATION_NOT_INCLUDED"),
       });
       break;
     // (2026-10-18) An AVAILABLE page is the normal state, whatever it
@@ -5635,6 +5649,7 @@ function buildResolvedReviewerAlerts(params: {
         severity: "warning" as const,
         label: "Verification page withdrawn",
         detail: "Every link to this record's verification page answers that the page was withdrawn.",
+        code: reviewerAlertCode("VERIFICATION_PAGE_WITHDRAWN"),
       });
       break;
     case "SUSPENDED":
@@ -5642,6 +5657,7 @@ function buildResolvedReviewerAlerts(params: {
         severity: "warning" as const,
         label: "Verification page suspended",
         detail: "The verification page is temporarily suspended.",
+        code: reviewerAlertCode("VERIFICATION_PAGE_SUSPENDED"),
       });
       break;
     default:
@@ -5669,6 +5685,7 @@ function buildResolvedReviewerAlerts(params: {
     if (alert) {
       operationalAlerts.push({
         severity: alert.severity,
+        code: `REPORT_${reportOutput.state}` as EvidenceReviewerAlertCode,
         label: `Report — ${alert.label}`,
         detail: alert.detail("report"),
       });
@@ -5682,6 +5699,7 @@ function buildResolvedReviewerAlerts(params: {
       detail:
         params.artifactStatus.verificationPackage.blockedReason ??
         "Verification package generation is blocked by governance policy.",
+      code: reviewerAlertCode("PACKAGE_POLICY_BLOCKED"),
     });
   } else {
     const packageOutput = params.artifactStatus.outputs.verificationPackage;
@@ -5693,6 +5711,7 @@ function buildResolvedReviewerAlerts(params: {
       if (alert) {
         operationalAlerts.push({
           severity: alert.severity,
+          code: `PACKAGE_${packageOutput.state}` as EvidenceReviewerAlertCode,
           label: `Verification package — ${alert.label}`,
           detail: alert.detail("verification package"),
         });
@@ -10265,6 +10284,66 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
         const governance = buildEvidenceReviewGovernance();
         const reviewerAudit = await listReviewerAuditEvents(id);
 
+        /*
+         * WHAT THIS RECORD ASKS OF THIS VIEWER (2026-10-23) — one server-owned
+         * classification (`classifyEvidenceAttention`). The web used to merge
+         * these alerts with signals it derived itself and render every one as
+         * "needs attention"; it now renders this and derives nothing.
+         *
+         * A case link the viewer cannot open is still a link: the record is
+         * not "unassigned" for them, it is restricted.
+         */
+        const linkedCaseCount = await prisma.caseEvidenceLink.count({ where: { evidenceId: id } });
+        const viewerMayReview = evidence.teamId
+          ? (await evaluateAuthorize(req, { teamId: evidence.teamId, permission: "evidence_request.review" })).allowed
+          : false;
+        const workflowStatus = reviewerWorkflowSummary.workflow?.status ?? null;
+        const attention = classifyEvidenceAttention({
+          alerts: reviewerAlerts,
+          source: {
+            importedUpload: sourceContext.importedUpload,
+            oldLastModified: sourceContext.clientSignalsSummary.oldLastModified,
+            screenshotLikeDetected: sourceContext.clientSignalsSummary.screenshotLikeStatus === "DETECTED",
+            genericMime: sourceContext.clientSignalsSummary.genericMime,
+          },
+          caseAssignment: {
+            assigned: linkedCaseCount > 0,
+            policy: caseAssignmentPolicyFor({ inWorkspace: Boolean(evidence.teamId) }),
+            viewerCanAssign: viewerMayReview,
+          },
+          review: {
+            // Review runs on team records; the claim and decision routes refuse
+            // a record without a workspace.
+            applicable: Boolean(evidence.teamId) && reviewerWorkflowSummary.available,
+            notStarted:
+              !reviewerWorkflowSummary.workflow?.assignedTo &&
+              (workflowStatus === null || workflowStatus === "NOT_STARTED" || workflowStatus === "QUEUED"),
+            viewerCanStart: viewerMayReview,
+          },
+        });
+        /*
+         * WHAT THIS VIEWER MAY DO WITH THE REVIEW (2026-10-23) — the shared
+         * projection over the stage matrix and the facts the review routes
+         * refuse on. The panel enables exactly these; it keeps no matrix.
+         */
+        const verdictCount = reviewerWorkflowSummary.workflow
+          ? await prisma.workflowReviewDecision.count({
+              where: { workflowId: reviewerWorkflowSummary.workflow.id },
+            })
+          : 0;
+        const reviewWorkflowActions = projectReviewWorkflowActions({
+          dbStatus: workflowStatus,
+          assignedToUserId: reviewerWorkflowSummary.workflow?.assignedTo?.id ?? null,
+          viewerUserId: ownerUserId,
+          viewerMayReview,
+          hasWorkspace: Boolean(evidence.teamId),
+          verdictRecorded: verdictCount > 0,
+        });
+        const caseAssignmentView = {
+          ...attention.caseAssignment,
+          restricted: linkedCaseCount > 0 && !caseItem,
+        };
+
         const reviewDecision =
           evidenceIntelligence?.reviewerDecision ?? {
             status: evidence.deletedAt
@@ -10288,7 +10367,11 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
                   latestReport
                 ? "Technical verification materials are available for reviewer inspection."
                 : "One or more technical or operational materials are still incomplete.",
-            issues: reviewerAlerts.map((alert) => alert.label),
+            // Issues are what the classification says needs action or
+            // understanding — never a positive state such as "No flagged issues".
+            issues: attention.items
+              .filter((i) => i.category === "ACTION_REQUIRED" || i.category === "ADVISORY")
+              .map((i) => i.label),
             nextActions: [
               latestReport
                 ? "Review the generated report together with the live record state."
@@ -10396,6 +10479,8 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             sourceContext,
             reviewDecision,
             reviewerAlerts,
+            // 2026-10-23 — the ONE classification of these facts (see above).
+            attention: { ...attention, caseAssignment: caseAssignmentView },
             custodyLifecycle,
             custodyDisplayCounts,
             locationState,
@@ -10541,6 +10626,8 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
                   available: true,
                   ...reviewerWorkflowSummary.workflow,
                   note: null,
+                  viewerUserId: ownerUserId,
+                  availableActions: reviewWorkflowActions,
                 }
               : {
                   available: false,
@@ -10550,6 +10637,8 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
                   dueAt: null,
                   lastReviewedAt: null,
                   note: "No reviewer workflow has been created.",
+                  viewerUserId: ownerUserId,
+                  availableActions: reviewWorkflowActions,
                 },
             classification: {
               evidenceType: evidence.type,

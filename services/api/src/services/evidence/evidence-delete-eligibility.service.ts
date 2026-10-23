@@ -182,6 +182,7 @@ export async function projectEvidenceLifecycle(
   now: Date = new Date(),
 ): Promise<EvidenceLifecycleProjection> {
   let legalHold = true;
+  let legalHoldState: "ACTIVE" | "NONE" | "UNAVAILABLE" = "UNAVAILABLE";
   try {
     let teamId = evidence.teamId ?? null;
     if (evidence.teamId === undefined) {
@@ -196,11 +197,17 @@ export async function projectEvidenceLifecycle(
       evidenceId: evidence.id,
     });
     legalHold = held.held;
+    legalHoldState = held.held ? "ACTIVE" : "NONE";
   } catch {
-    // FAIL CLOSED — see the docstring.
+    // FAIL CLOSED — see the docstring. The STATE says the read failed, so a
+    // page never presents a failed check as a placed hold (or as none).
     legalHold = true;
+    legalHoldState = "UNAVAILABLE";
   }
-  return toEvidenceLifecycleProjection(toAuthorityInput(evidence, legalHold), now);
+  return {
+    ...toEvidenceLifecycleProjection(toAuthorityInput(evidence, legalHold), now),
+    legalHoldState,
+  };
 }
 
 /**

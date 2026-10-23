@@ -1,150 +1,108 @@
 "use client";
 
+import type { EvidenceAttentionItem } from "@proovra/shared";
+
 import type { EvidenceDetailCtx } from "./_lib";
 
 /**
- * Phase 3 — "What needs attention" strip.
+ * "What needs attention" — ONLY what needs attention (2026-10-23).
  *
- * Compact, action-oriented summary directly below the hero. Surfaces:
- *   - top 3 risk signals (read from the existing buildRiskSignals);
- *   - missing case assignment;
- *   - missing reviewer (workflow status NOT_STARTED or absent);
- *   - missing report (REPORTED status but artifact not available);
- *   - missing verification package (same gate).
+ * This strip used to merge the server's reviewer alerts with signals the page
+ * derived itself, and render every one as a pill under the same heading:
+ * "Review ready" (a positive state), "Imported upload" (provenance), "File
+ * timestamp note" (an advisory), "No case assigned" (optional metadata) and
+ * "Review not started" (a real workflow step) looked like five equal problems.
  *
- * Renders nothing when there is nothing to act on — avoids visual
- * noise on clean records. Existing buttons / tabs are reachable
- * elsewhere; this strip is the high-altitude "have I done X yet?"
- * surface that users requested.
+ * It now renders the server's classification (`workspace.attention`, from the
+ * shared `classifyEvidenceAttention`) and derives nothing:
+ *
+ *   - the heading appears only when something is ACTION_REQUIRED or
+ *     ACTION_RECOMMENDED, and only those items are listed here, each with
+ *     its category in words and its one direct action;
+ *   - otherwise one calm line says no action is required;
+ *   - advisories belong to the rail's Risk Signals, provenance to the
+ *     provenance context, optional metadata to the rail — never here.
  */
 export function WhatNeedsAttentionStrip({
   ctx,
   onAssignCase,
   onAssignReviewer,
   onGoToArtifacts,
-  onGoToReview,
 }: {
   ctx: EvidenceDetailCtx;
   onAssignCase: () => void;
   onAssignReviewer: () => void;
   onGoToArtifacts: () => void;
-  onGoToReview: () => void;
+  /** Kept for callers; the strip no longer offers a generic review link. */
+  onGoToReview?: () => void;
 }) {
-  const { workspace, reviewSignals, canSeeReviewerOps } = ctx;
+  const { workspace } = ctx;
+  const attention = workspace.attention;
+  if (!attention) return null;
+  const items = attention.items.filter((i) => i.placement === "ATTENTION");
 
-  const needsCase = !workspace.relationships.caseId && !workspace.relationships.caseName;
-  // Phase EVIDENCE-REVIEW-VISIBILITY — only surface the
-  // "Assign reviewer" prompt when the workspace exposes the
-  // reviewer-ops surface. On a Personal Space / self-serve
-  // context the user IS the reviewer; pestering them to
-  // assign one is misleading.
-  const needsReviewer =
-    canSeeReviewerOps &&
-    (!workspace.reviewWorkflow?.status ||
-      workspace.reviewWorkflow.status === "NOT_STARTED");
-  /*
-   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — "missing" is a
-   * canonical STATE, not a plan flag beside an absence.
-   *
-   * This combined `reportsIncluded !== false` with `!available`, which said
-   * "the plan allows it and there is no row" — so a Free record was excluded
-   * only because the plan flag caught it, and every OTHER absence, including
-   * one that is queued right now or one that terminally failed, read the same.
-   * A reviewer summary is exactly where those must differ.
-   */
-  const missingReport =
-    workspace.artifactStatus.outputs.report.state === "ELIGIBLE_NOT_GENERATED";
-  const missingPackage =
-    workspace.artifactStatus.outputs.verificationPackage.state ===
-    "ELIGIBLE_NOT_GENERATED";
+  if (attention.headline === "NO_ACTION" || items.length === 0) {
+    return (
+      <p
+        className="evidence-detail-attention-calm"
+        role="status"
+        data-evidence-attention-strip="no-action"
+      >
+        No action required
+      </p>
+    );
+  }
 
-  const topRisks = reviewSignals.slice(0, 3);
-
-  const hasAnything =
-    needsCase ||
-    needsReviewer ||
-    missingReport ||
-    missingPackage ||
-    topRisks.length > 0;
-  if (!hasAnything) return null;
+  const actionFor = (item: EvidenceAttentionItem) =>
+    item.action === "ASSIGN_CASE"
+      ? { label: "Assign case", run: onAssignCase }
+      : item.action === "START_REVIEW"
+        ? { label: "Start review", run: onAssignReviewer }
+        : item.action === "OPEN_ARTIFACTS"
+          ? { label: "Open artifacts", run: onGoToArtifacts }
+          : null;
 
   return (
-    <section className="evidence-detail-attention" data-evidence-attention-strip>
-      <strong className="evidence-detail-attention__title">
+    <section
+      className="evidence-detail-attention"
+      data-evidence-attention-strip={attention.headline}
+      aria-labelledby="evidence-attention-title"
+    >
+      <h2 className="evidence-detail-attention__title" id="evidence-attention-title">
         What needs attention
-      </strong>
-      <div className="evidence-detail-attention__items">
-        {topRisks.map((s) => (
-          <span
-            key={`${s.title}-${s.detail}`}
-            className={`evidence-detail-pill ${
-              s.severity === "danger"
-                ? "danger"
-                : s.severity === "warning"
-                  ? "warning"
-                  : // Phase EVIDENCE-RISK-TONE — "info" and "neutral"
-                    // both render with the muted pill class so advisory
-                    // notes don't shout from the attention strip.
-                    "neutral"
-            }`}
-            data-evidence-attention-risk
-            data-evidence-attention-risk-severity={s.severity}
-            title={s.detail}
-          >
-            {s.title}
-          </span>
-        ))}
-        {needsCase ? (
-          <button
-            type="button"
-            data-evidence-attention-action="assign-case"
-            onClick={onAssignCase}
-            className="evidence-detail-attention__action"
-          >
-            No case assigned · Assign
-          </button>
-        ) : null}
-        {needsReviewer ? (
-          <button
-            type="button"
-            data-evidence-attention-action="assign-reviewer"
-            onClick={onAssignReviewer}
-            className="evidence-detail-attention__action"
-          >
-            Review not started · Start
-          </button>
-        ) : null}
-        {missingReport ? (
-          <button
-            type="button"
-            data-evidence-attention-action="missing-report"
-            onClick={onGoToArtifacts}
-            className="evidence-detail-attention__action"
-          >
-            Report not available · Artifacts
-          </button>
-        ) : null}
-        {missingPackage ? (
-          <button
-            type="button"
-            data-evidence-attention-action="missing-package"
-            onClick={onGoToArtifacts}
-            className="evidence-detail-attention__action"
-          >
-            Verification package not available · Artifacts
-          </button>
-        ) : null}
-      </div>
-      {topRisks.length === 0 && !needsCase && !needsReviewer ? (
-        <button
-          type="button"
-          className="evidence-detail-attention__action"
-          data-evidence-attention-action="open-review"
-          onClick={onGoToReview}
-        >
-          Open review workspace
-        </button>
-      ) : null}
+      </h2>
+      <ul className="evidence-detail-attention__items">
+        {items.map((item) => {
+          const action = actionFor(item);
+          return (
+            <li
+              key={item.code}
+              className="evidence-detail-attention__item"
+              data-evidence-attention-code={item.code}
+              data-evidence-attention-category={item.category}
+              data-tone={item.tone}
+            >
+              {/* The category is WORDS, not only a colour. */}
+              <span className="evidence-detail-attention__category">
+                {item.category === "ACTION_REQUIRED" ? "Required" : "Recommended"}
+              </span>
+              <span className="evidence-detail-attention__label" title={item.detail}>
+                {item.label}
+              </span>
+              {action ? (
+                <button
+                  type="button"
+                  className="evidence-detail-attention__action"
+                  data-evidence-attention-action={item.action}
+                  onClick={action.run}
+                >
+                  {action.label}
+                </button>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

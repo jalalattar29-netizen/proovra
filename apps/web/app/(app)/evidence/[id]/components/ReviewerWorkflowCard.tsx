@@ -1,6 +1,12 @@
 "use client";
 
 import {
+  reviewAssigneeLabel,
+  reviewPriorityLabel,
+  summarizeReviewWorkflowEvents,
+} from "@proovra/shared";
+
+import {
   formatReviewerStatusLabel,
   REVIEWER_STATUS_DISCLAIMER,
 } from "../../lib/reviewer-status";
@@ -20,6 +26,7 @@ type WorkflowSummary = {
   dueAt: string | null;
   lastReviewedAt: string | null;
   note: string | null;
+  viewerUserId?: string | null;
 };
 
 type WorkflowEvent = {
@@ -31,10 +38,6 @@ type WorkflowEvent = {
   createdAt: string;
   actor: WorkflowActor | null;
 };
-
-function formatActor(actor: WorkflowActor | null) {
-  return actor?.displayName || actor?.email || "Unassigned";
-}
 
 export function ReviewerWorkflowCard({
   workflow,
@@ -53,6 +56,10 @@ export function ReviewerWorkflowCard({
   onOpenEditor: () => void;
   formatDateTime: (value: string | null | undefined) => string;
 }) {
+  const viewerUserId = workflow.viewerUserId ?? null;
+  // The stored events, read for a person: creation's automatic companions
+  // folded into one entry, enum names in words, actors by name.
+  const history = summarizeReviewWorkflowEvents(events, viewerUserId);
   return (
     <section id="workflow" className="evidence-detail-card">
       <div className="evidence-detail-card-header">
@@ -90,24 +97,33 @@ export function ReviewerWorkflowCard({
         </div>
         <div className="evidence-detail-data-cell">
           <span>Priority</span>
-          <strong>{workflow.priority ? workflow.priority.replace(/_/g, " ") : "Not configured"}</strong>
+          <strong>{reviewPriorityLabel(workflow.priority)}</strong>
         </div>
-        <div className="evidence-detail-data-cell">
-          <span>Assigned reviewer</span>
-          <strong>{formatActor(workflow.assignedTo)}</strong>
+        <div className="evidence-detail-data-cell" data-evidence-reviewer-assignee>
+          <span>Reviewer</span>
+          <strong>{reviewAssigneeLabel(workflow.assignedTo, viewerUserId)}</strong>
         </div>
-        <div className="evidence-detail-data-cell">
-          <span>Due date</span>
-          <strong>{formatDateTime(workflow.dueAt)}</strong>
-        </div>
-        <div className="evidence-detail-data-cell">
-          <span>Last reviewed</span>
-          <strong>{formatDateTime(workflow.lastReviewedAt)}</strong>
-        </div>
-        <div className="evidence-detail-data-cell">
-          <span>Assigned by</span>
-          <strong>{formatActor(workflow.assignedBy ?? null)}</strong>
-        </div>
+        {/* OPTIONAL FACTS ARE STATED ONLY WHEN THEY EXIST (2026-10-23): a due
+            date nobody set, a review nobody has done yet and an assigner for an
+            unassigned review used to read "Not available" three times. */}
+        {workflow.dueAt ? (
+          <div className="evidence-detail-data-cell">
+            <span>Due</span>
+            <strong>{formatDateTime(workflow.dueAt)}</strong>
+          </div>
+        ) : null}
+        {workflow.lastReviewedAt ? (
+          <div className="evidence-detail-data-cell">
+            <span>Last reviewed</span>
+            <strong>{formatDateTime(workflow.lastReviewedAt)}</strong>
+          </div>
+        ) : null}
+        {workflow.assignedTo && workflow.assignedBy ? (
+          <div className="evidence-detail-data-cell">
+            <span>Assigned by</span>
+            <strong>{reviewAssigneeLabel(workflow.assignedBy, viewerUserId)}</strong>
+          </div>
+        ) : null}
       </div>
 
       <p className="evidence-detail-muted">
@@ -123,25 +139,33 @@ export function ReviewerWorkflowCard({
       <div className="evidence-detail-subsection">
         <div className="evidence-detail-subsection__header">
           <strong>Workflow event history</strong>
-          <span>{events.length} recorded events</span>
+          <span>{history.length === 1 ? "1 entry" : `${history.length} entries`}</span>
         </div>
+        <p className="evidence-detail-muted">
+          Review history is separate from the evidence&apos;s custody record and does not change it.
+        </p>
         {eventsLoading ? (
           <p className="evidence-detail-muted">Loading workflow history…</p>
-        ) : events.length === 0 ? (
+        ) : history.length === 0 ? (
           <p className="evidence-detail-muted">No workflow history recorded yet.</p>
         ) : (
           <div className="evidence-detail-timeline evidence-detail-timeline--compact">
-            {events.map((event) => (
-              <article key={event.id} className="evidence-detail-timeline-item">
+            {history.map((entry) => (
+              <article
+                key={entry.eventIds.join(":")}
+                className="evidence-detail-timeline-item"
+                data-evidence-workflow-entry={entry.origin}
+                data-evidence-workflow-event-count={entry.eventIds.length}
+              >
                 <div className="evidence-detail-timeline-dot" aria-hidden="true" />
                 <div>
                   <div className="evidence-detail-item-row">
-                    <strong>{event.eventType.replace(/_/g, " ")}</strong>
-                    <span>{formatDateTime(event.createdAt)}</span>
+                    <strong>{entry.label}</strong>
+                    <span>{formatDateTime(entry.createdAt)}</span>
                   </div>
                   <p>
-                    {event.actor?.displayName || event.actor?.email || "Workspace user"}
-                    {event.note ? ` — ${event.note}` : ""}
+                    {entry.origin === "SYSTEM" ? "Automatic · PROOVRA" : entry.actorLabel}
+                    {entry.note ? ` — ${entry.note}` : ""}
                   </p>
                 </div>
               </article>

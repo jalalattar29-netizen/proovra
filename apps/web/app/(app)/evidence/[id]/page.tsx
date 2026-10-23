@@ -27,7 +27,7 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { evidenceRecordStatusLabel, multipartRecordKindLabel } from "@proovra/shared";
+import { evidenceRecordStatusLabel, multipartRecordKindLabel, reviewStatusLabel } from "@proovra/shared";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -65,7 +65,6 @@ import { CollisionWarning } from "../../../../components/presence/CollisionWarni
 import "./evidence-detail.css";
 import {
   resolveCanonicalVerificationLink,
-  buildRiskSignals,
   buildTechnicalReadinessSummary,
   describeOtsStatus,
   describeVerificationPageState,
@@ -332,6 +331,32 @@ function EvidenceDetailPageInner() {
     }
   }, [evidenceId]);
 
+  /**
+   * Start review = claim it (2026-10-23). The server assigns it to this
+   * viewer; the record is then re-read so the strip, the rail and the Review
+   * tab all show the new owner. A refusal is said, never swallowed.
+   */
+  const startReview = useCallback(async () => {
+    const teamId = workspace?.reviewWorkflow?.teamId ?? null;
+    if (!evidenceId || !teamId) return;
+    try {
+      await apiFetch(`/v1/review-operations/evidence/${evidenceId}/claim`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ teamId }),
+      });
+      await Promise.all([loadWorkspace({ bumpBaseline: true }), loadWorkflowEvents()]);
+      addToast("You now own this review.", "success");
+    } catch (claimError) {
+      await loadWorkspace({ bumpBaseline: true });
+      addToast(
+        toSafeUserError(claimError, { message: "The review could not be started. Try again." }).message,
+        "error",
+      );
+    }
+  }, [evidenceId, workspace, loadWorkspace, loadWorkflowEvents, addToast]);
+
+
   useEffect(() => {
     void loadWorkspace();
   }, [loadWorkspace]);
@@ -400,10 +425,6 @@ function EvidenceDetailPageInner() {
   );
   const technicalReadinessSummary = useMemo(
     () => (workspace ? buildTechnicalReadinessSummary(workspace) : ""),
-    [workspace],
-  );
-  const reviewSignals = useMemo(
-    () => (workspace ? buildRiskSignals(workspace.sourceContext, workspace.reviewerAlerts) : []),
     [workspace],
   );
 
@@ -977,7 +998,6 @@ function EvidenceDetailPageInner() {
     verificationPageState,
     otsStatusPresentation,
     technicalReadinessSummary,
-    reviewSignals,
     reviewReadinessItems,
     overviewMetadataItems,
     shareUrl,
@@ -1336,7 +1356,10 @@ function EvidenceDetailPageInner() {
             setSelectedCaseId(workspace.relationships.caseId || "");
             setAssignCaseOpen(true);
           }}
-          onAssignReviewer={() => setWorkflowOpen(true)}
+          // "Start review" CLAIMS the review for this viewer — the action the
+          // strip names. It used to open the workflow editor, whose reviewer
+          // picker offers only the current assignee.
+          onAssignReviewer={() => void startReview()}
           onGoToArtifacts={() => openArtifacts("recovery")}
           onGoToReview={() => setActiveTab("review")}
         />
@@ -1423,7 +1446,6 @@ function EvidenceDetailPageInner() {
           {/* ONE shared rail for every tab — see _tabs/EvidenceRecordRail. */}
           <EvidenceRecordRail
             workspace={workspace}
-            signals={reviewSignals}
             verificationPage={verificationPageState}
             shareUrl={shareUrl}
           />
@@ -1523,13 +1545,12 @@ function EvidenceDetailPageInner() {
               // resulting status from the immutable decision log, so this
               // administrative control can no longer assign one.
               options={
-                [
-                  "NOT_STARTED",
-                  "IN_REVIEW",
-                  "READY_FOR_EXTERNAL_REVIEW",
-                  "ESCALATED",
-                  "CLOSED",
-                ].map((value) => ({ value, label: value.replace(/_/g, " ") }))
+                // READY_FOR_EXTERNAL_REVIEW is the legacy spelling of an
+                // APPROVAL (2026-10-23) — a verdict, refused by the PATCH.
+                ["NOT_STARTED", "IN_REVIEW", "ESCALATED", "CLOSED"].map((value) => ({
+                  value,
+                  label: reviewStatusLabel(value),
+                }))
               }
             />
           </label>

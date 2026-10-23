@@ -1,301 +1,302 @@
 "use client";
 
 /**
- * Phase 13.5 — Compact enterprise review actions panel.
+ * Review actions — the internal review decisions for one record.
  *
- * Surfaces the Phase 13 decision endpoints next to the existing
- * Reviewer Workflow card. Internal-only — review notes never leave
- * the workspace. The API also enforces stage transitions, so if the
- * UI offers an invalid action the server will reject it.
+ * WHAT THIS PANEL MAY OFFER IS THE SERVER'S ANSWER (2026-10-23). It used to
+ * keep its own copy of the stage matrix, enable buttons from a status it never
+ * refreshed after an action, ask for reasons through `window.prompt`, and name
+ * the assignee by a truncated user id. Claim, Escalate and Reopen therefore
+ * looked like they did nothing: the request succeeded, and the panel went on
+ * showing the old state with the same buttons.
  *
- * Wording is operational: "internal review approved", "rejected as
- * insufficient", "needs more information". No claims of authenticity,
- * admissibility, or proven truth.
+ * Now:
+ *   - each control is enabled exactly when the server's `availableActions`
+ *     (the shared `projectReviewWorkflowActions`) says so, and otherwise says
+ *     why beside it;
+ *   - every click ends in one visible outcome — busy, then a persistent
+ *     success line and the RE-READ record (`onChanged` refetches the
+ *     workspace), or an actionable error — and a second click cannot be sent
+ *     while one is in flight;
+ *   - a decision that needs a reason asks for it in the panel, and states what
+ *     the decision will do before it is taken;
+ *   - the assignee is a name, "You", or "Unassigned" — never an identifier.
+ *
+ * Internal only: decisions and notes never reach public verification, the
+ * report or external contributors, and they do not change the evidence.
  */
 
-import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
-import { useState } from "react";
+import { useId, useState } from "react";
+
+import {
+  REVIEW_WORKFLOW_ACTION_LABELS,
+  REVIEW_WORKFLOW_ACTION_OUTCOMES,
+  REVIEW_WORKFLOW_BLOCK_COPY,
+  reviewAssigneeLabel,
+  reviewStatusLabel,
+  type ReviewWorkflowAction,
+  type ReviewWorkflowActionAvailability,
+} from "@proovra/shared";
 
 import { apiFetch } from "../../../../../lib/api";
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
+import { ReasonedActionButton } from "./ReasonedActionButton";
 
-type Stage =
-  | "QUEUED"
-  | "ASSIGNED"
-  | "IN_REVIEW"
-  | "NEEDS_MORE_INFO"
-  | "RESPONSE_RECEIVED"
-  | "APPROVED_INTERNAL"
-  | "REJECTED_INSUFFICIENT"
-  | "ESCALATED"
-  | "REOPENED"
-  | "CLOSED";
-
-type Decision =
-  | "APPROVE_INTERNAL"
-  | "REQUEST_MORE_INFO"
-  | "REJECT_INSUFFICIENT"
-  | "ESCALATE"
-  | "REOPEN"
-  | "CLOSE";
-
-const ALLOWED_TRANSITIONS: Record<Stage, ReadonlyArray<Stage>> = {
-  QUEUED: ["ASSIGNED", "IN_REVIEW", "ESCALATED", "CLOSED"],
-  ASSIGNED: ["IN_REVIEW", "NEEDS_MORE_INFO", "ESCALATED", "QUEUED", "CLOSED"],
-  IN_REVIEW: [
-    "NEEDS_MORE_INFO",
-    "APPROVED_INTERNAL",
-    "REJECTED_INSUFFICIENT",
-    "ESCALATED",
-    "ASSIGNED",
-    "CLOSED",
-  ],
-  NEEDS_MORE_INFO: [
-    "RESPONSE_RECEIVED",
-    "IN_REVIEW",
-    "ESCALATED",
-    "REJECTED_INSUFFICIENT",
-    "CLOSED",
-  ],
-  RESPONSE_RECEIVED: [
-    "IN_REVIEW",
-    "APPROVED_INTERNAL",
-    "REJECTED_INSUFFICIENT",
-    "NEEDS_MORE_INFO",
-    "ESCALATED",
-    "CLOSED",
-  ],
-  APPROVED_INTERNAL: ["REOPENED", "CLOSED"],
-  REJECTED_INSUFFICIENT: ["REOPENED", "CLOSED"],
-  ESCALATED: [
-    "IN_REVIEW",
-    "APPROVED_INTERNAL",
-    "REJECTED_INSUFFICIENT",
-    "NEEDS_MORE_INFO",
-    "CLOSED",
-  ],
-  REOPENED: ["IN_REVIEW", "NEEDS_MORE_INFO", "ESCALATED"],
-  CLOSED: ["REOPENED"],
+/** The review routes' refusal codes, said in words a reviewer can act on. */
+const REFUSAL_COPY: Readonly<Record<string, string>> = {
+  already_assigned_elsewhere:
+    "Another reviewer claimed this review first. The panel now shows the current owner.",
+  already_in_stage: "The review is already in that state. The panel now shows the current state.",
+  invalid_stage_transition:
+    "That step is not available at the review's current stage. The panel now shows the current state.",
+  review_already_resolved:
+    "A verdict is already recorded for this review, so another cannot be recorded here.",
+  duplicate_stage_decision:
+    "A verdict for this review stage was recorded at the same moment by someone else.",
+  same_reviewer_blocked: "The second review must be made by a different reviewer.",
+  note_required: "This decision needs a written reason.",
+  rationale_required: "This decision needs a written reason.",
+  STEP_UP_REQUIRED: "Confirm your identity to record this decision, then try again.",
 };
 
-const DECISION_TARGET: Record<Decision, Stage> = {
-  APPROVE_INTERNAL: "APPROVED_INTERNAL",
-  REQUEST_MORE_INFO: "NEEDS_MORE_INFO",
-  REJECT_INSUFFICIENT: "REJECTED_INSUFFICIENT",
-  ESCALATE: "ESCALATED",
-  REOPEN: "REOPENED",
-  CLOSE: "CLOSED",
+/** The route's limit for an escalation reason, applied to every reason. */
+const NOTE_MAX = 400;
+
+const SUCCESS_COPY: Readonly<Record<ReviewWorkflowAction, string>> = {
+  CLAIM: "You now own this review.",
+  APPROVE_INTERNAL: "Internal approval recorded.",
+  REQUEST_MORE_INFO: "More information requested.",
+  REJECT_INSUFFICIENT: "Rejection recorded.",
+  ESCALATE: "Review escalated. The assigned reviewer has been notified.",
+  REOPEN: "Review reopened.",
+  CLOSE: "Review closed.",
 };
 
-const DECISION_REQUIRES_NOTE: ReadonlySet<Decision> = new Set([
-  "REJECT_INSUFFICIENT",
-  "ESCALATE",
-  "REOPEN",
-]);
-
-const DECISION_LABEL: Record<Decision, string> = {
-  APPROVE_INTERNAL: "Approve (internal review)",
-  REQUEST_MORE_INFO: "Request more information",
-  REJECT_INSUFFICIENT: "Reject as insufficient",
-  ESCALATE: "Escalate",
-  REOPEN: "Reopen",
-  CLOSE: "Close",
-};
-
-function mapStatusToStage(status: string | null | undefined): Stage {
-  if (!status) return "QUEUED";
-  if (status === "NOT_STARTED") return "QUEUED";
-  if (status === "NEEDS_INFO") return "NEEDS_MORE_INFO";
-  if (status === "READY_FOR_EXTERNAL_REVIEW") return "APPROVED_INTERNAL";
-  return status as Stage;
+function refusalMessage(err: unknown, fallback: string): string {
+  const e = (err ?? {}) as { body?: { error?: { code?: string } }; code?: string };
+  const code = e.body?.error?.code ?? e.code ?? null;
+  if (code && REFUSAL_COPY[code]) return REFUSAL_COPY[code]!;
+  return toSafeUserError(err, { message: fallback }).message;
 }
 
 export function EvidenceReviewActionsPanel({
   evidenceId,
   teamId,
   currentStatus,
-  assignedToUserId,
-  currentUserId,
+  assignedTo,
+  viewerUserId,
+  availableActions,
   onChanged,
 }: {
   evidenceId: string;
   teamId: string | null;
   currentStatus: string | null;
-  assignedToUserId: string | null;
-  currentUserId: string | null;
-  onChanged?: () => void;
+  assignedTo: { id: string; displayName: string | null; email: string | null } | null;
+  viewerUserId: string | null;
+  /** The server's projection; absent → nothing is offered. */
+  availableActions: ReadonlyArray<ReviewWorkflowActionAvailability> | null | undefined;
+  /** Re-reads the record from the server. Awaited before success is shown. */
+  onChanged?: () => Promise<void> | void;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const stage = mapStatusToStage(currentStatus);
-  const allowed = ALLOWED_TRANSITIONS[stage] ?? [];
+  const { confirm } = useConfirmAction();
+  const [pending, setPending] = useState<ReviewWorkflowAction | null>(null);
+  const [outcome, setOutcome] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [reasonFor, setReasonFor] = useState<ReviewWorkflowAction | null>(null);
+  const [reason, setReason] = useState("");
+  const reasonId = useId();
+  const actions = availableActions ?? [];
+  const byAction = new Map(actions.map((a) => [a.action, a]));
 
-  const canClaim = !!(teamId && !assignedToUserId && stage !== "CLOSED");
-  const isMine = !!(
-    currentUserId &&
-    assignedToUserId &&
-    assignedToUserId === currentUserId
-  );
-
-  async function claim() {
-    if (!teamId) return;
-    setBusy(true);
-    setError(null);
+  async function run(action: ReviewWorkflowAction, note: string | null) {
+    if (pending) return;
+    setPending(action);
+    setOutcome(null);
     try {
-      await apiFetch(
-        `/v1/review-operations/evidence/${evidenceId}/claim`,
-        {
+      if (action === "CLAIM") {
+        await apiFetch(`/v1/review-operations/evidence/${evidenceId}/claim`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ teamId }),
-        },
-      );
-      onChanged?.();
-    } catch (err) {
-      const e = err as { message?: string };
-      setError(toSafeUserError(e, { message: "Could not claim." }).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function decide(decision: Decision) {
-    if (!teamId) return;
-    const target = DECISION_TARGET[decision];
-    if (!allowed.includes(target)) {
-      // UI guard — server still validates.
-      setError(`Cannot ${DECISION_LABEL[decision].toLowerCase()} from ${stage}.`);
-      return;
-    }
-    let note: string | null = null;
-    if (DECISION_REQUIRES_NOTE.has(decision)) {
-      const label =
-        decision === "ESCALATE"
-          ? "Escalation reason"
-          : decision === "REJECT_INSUFFICIENT"
-            ? "Reason for rejection"
-            : "Reason for reopening";
-      const input = window.prompt(`${label} (required, internal only)`);
-      if (!input || input.trim().length === 0) return;
-      note = input.trim();
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      await apiFetch(
-        `/v1/review-operations/evidence/${evidenceId}/decision`,
-        {
+        });
+      } else {
+        await apiFetch(`/v1/review-operations/evidence/${evidenceId}/decision`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          // PHASE 12 POINT 4 PASS C5 — the workspace subject is DERIVED from
-          // the record by the server; the browser does not name the tenant.
+          // The workspace is DERIVED from the record by the server.
           body: JSON.stringify({
-            decision,
+            decision: action,
             note,
-            ...(decision === "ESCALATE" ? { escalationReason: note } : {}),
+            ...(action === "ESCALATE" ? { escalationReason: note } : {}),
           }),
-        },
-      );
-      onChanged?.();
+        });
+      }
+      await onChanged?.();
+      setReasonFor(null);
+      setReason("");
+      setOutcome({ tone: "success", text: SUCCESS_COPY[action] });
     } catch (err) {
-      const e = err as { message?: string };
-      setError(toSafeUserError(e, { message: "Decision failed." }).message);
+      // A refusal often means the record moved under us: re-read it so the
+      // panel shows the state the message refers to.
+      await onChanged?.();
+      setOutcome({
+        tone: "error",
+        text: refusalMessage(err, "The review could not be updated. Try again."),
+      });
     } finally {
-      setBusy(false);
+      setPending(null);
     }
   }
 
+  async function start(action: ReviewWorkflowAction) {
+    const a = byAction.get(action);
+    if (!a?.enabled || pending) return;
+    if (a.requiresNote) {
+      setReasonFor(action);
+      setReason("");
+      setOutcome(null);
+      return;
+    }
+    if (action === "CLOSE" || action === "APPROVE_INTERNAL") {
+      const ok = await confirm({
+        title: action === "CLOSE" ? "Close this review?" : "Record an internal approval?",
+        description: REVIEW_WORKFLOW_ACTION_OUTCOMES[action],
+        confirmLabel: REVIEW_WORKFLOW_ACTION_LABELS[action],
+      });
+      if (!ok) return;
+    }
+    await run(action, null);
+  }
+
+  const reasonValid = reason.trim().length > 0 && reason.trim().length <= NOTE_MAX;
+
+  // WHAT IS OFFERED. A block that applies to every action (no workspace, no
+  // review permission) is ONE sentence, not six disabled buttons. An action
+  // the current stage does not allow is not offered. An action refused for a
+  // reason the reviewer should know (a verdict already recorded, another
+  // owner) stays visible, disabled, with that reason beside it.
+  const globalBlock =
+    actions.length > 0 &&
+    actions.every((a) => a.blockedBy === "NO_WORKSPACE" || a.blockedBy === "NOT_PERMITTED")
+      ? actions[0]!.blockedBy
+      : null;
+  const offered = globalBlock
+    ? []
+    : actions.filter(
+        (a) =>
+          a.blockedBy !== "NOT_FROM_STAGE" &&
+          // Claiming a review you already own is not an action to offer.
+          a.blockedBy !== "ALREADY_YOURS",
+      );
+
   return (
-    <section className="evd-panel">
+    <section className="evd-panel" data-evidence-review-decisions>
       <header className="evd-header">
         <div>
           <div className="evd-kicker">Review actions</div>
           <h3 className="evd-title">Internal review decisions</h3>
           <p className="evd-muted">
-            Internal-only actions. Decisions and notes stay in the
-            workspace and are never shared with public verify, external
-            contributors, or the report.
+            Internal only. Decisions and notes stay in this workspace. They do not change the
+            evidence, its integrity, its public verification or its report.
           </p>
         </div>
       </header>
 
-      {error ? <div className="evd-error">{error}</div> : null}
-
-      <div className="evd-actions">
-        <span className="app-status-badge" data-tone={stageTone(stage)}>
-          {stage}
+      <div className="evd-actions" data-evidence-review-state>
+        <span
+          className="app-status-badge"
+          data-tone="slate"
+          data-evidence-review-stage={currentStatus ?? "NOT_STARTED"}
+        >
+          {reviewStatusLabel(currentStatus)}
         </span>
-        {assignedToUserId ? (
-          <span className="evd-muted">
-            assigned to {isMine ? "you" : `${assignedToUserId.slice(0, 8)}…`}
-          </span>
-        ) : (
-          <span className="evd-muted">unassigned</span>
-        )}
+        <span className="evd-muted" data-evidence-review-assignee>
+          Reviewer: {reviewAssigneeLabel(assignedTo, viewerUserId)}
+        </span>
       </div>
 
-      <div className="evd-actions evd-actions--top">
-        {canClaim ? (
-          <button
-            type="button"
-            className="app-primary-action"
-            disabled={busy}
-            onClick={claim}
-          >
-            Claim review
-          </button>
-        ) : null}
-        {(
-          [
-            "APPROVE_INTERNAL",
-            "REQUEST_MORE_INFO",
-            "REJECT_INSUFFICIENT",
-            "ESCALATE",
-            "REOPEN",
-            "CLOSE",
-          ] as Decision[]
-        ).map((d) => {
-          const target = DECISION_TARGET[d];
-          const enabled = allowed.includes(target);
-          return (
+      {outcome ? (
+        <p
+          className={outcome.tone === "error" ? "evd-error" : "evd-muted"}
+          role={outcome.tone === "error" ? "alert" : "status"}
+          data-evidence-review-outcome={outcome.tone}
+        >
+          {outcome.text}
+        </p>
+      ) : null}
+
+      {reasonFor ? (
+        <form
+          className="evd-reason"
+          data-evidence-review-reason={reasonFor}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (reasonValid) void run(reasonFor, reason.trim());
+          }}
+        >
+          <label htmlFor={reasonId} className="evd-title">
+            {REVIEW_WORKFLOW_ACTION_LABELS[reasonFor]}: reason (required, internal only)
+          </label>
+          <p className="evd-muted">{REVIEW_WORKFLOW_ACTION_OUTCOMES[reasonFor]}</p>
+          <textarea
+            id={reasonId}
+            className="app-form-input"
+            rows={3}
+            maxLength={NOTE_MAX}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            aria-describedby={`${reasonId}-count`}
+          />
+          <span id={`${reasonId}-count`} className="app-hint">
+            {reason.trim().length}/{NOTE_MAX}
+          </span>
+          <div className="evd-actions">
             <button
-              key={d}
+              type="submit"
+              className="app-primary-action"
+              disabled={!reasonValid || pending !== null}
+              aria-busy={pending === reasonFor || undefined}
+              data-evidence-review-reason-submit
+            >
+              {pending === reasonFor ? "Saving…" : REVIEW_WORKFLOW_ACTION_LABELS[reasonFor]}
+            </button>
+            <button
               type="button"
               className="app-secondary-action"
-              disabled={busy || !enabled}
-              onClick={() => decide(d)}
-              title={enabled ? "" : `Not available from ${stage}`}
+              disabled={pending !== null}
+              onClick={() => {
+                setReasonFor(null);
+                setReason("");
+              }}
             >
-              {DECISION_LABEL[d]}
+              Cancel
             </button>
-          );
-        })}
+          </div>
+        </form>
+      ) : null}
+
+      {globalBlock ? (
+        <p className="evd-muted" data-evidence-review-blocked={globalBlock}>
+          {REVIEW_WORKFLOW_BLOCK_COPY[globalBlock]}
+        </p>
+      ) : null}
+
+      <div className="evd-actions evd-actions--top">
+        {offered.map((a) => (
+            <ReasonedActionButton
+              key={a.action}
+              className={a.action === "CLAIM" ? "app-primary-action" : "app-secondary-action"}
+              disabled={!a.enabled || pending !== null}
+              busy={pending === a.action}
+              disabledReason={!a.enabled && a.blockedBy ? REVIEW_WORKFLOW_BLOCK_COPY[a.blockedBy] : null}
+              data-evidence-review-action={a.action}
+              data-enabled={a.enabled ? "true" : "false"}
+              onClick={() => void start(a.action)}
+            >
+              {pending === a.action ? "Saving…" : REVIEW_WORKFLOW_ACTION_LABELS[a.action]}
+            </ReasonedActionButton>
+          ))}
       </div>
     </section>
   );
-}
-
-// -----------------------------------------------------------------------------
-// Styles — kept inline + minimal to match the existing evidence-detail
-// pattern. No new design tokens introduced.
-// -----------------------------------------------------------------------------
-
-
-/**
- * Reviewer stage -> canonical badge tone. The previous helper built a raw
- * palette per stage (a green ground, border and ink); the canonical
- * app-status-badge already owns that vocabulary, so this only names the tone.
- * The stage groupings are unchanged.
- */
-function stageTone(stage: string): "green" | "red" | "amber" | "blue" | "slate" {
-  if (stage === "APPROVED_INTERNAL") return "green";
-  if (
-    stage === "REJECTED_INSUFFICIENT" ||
-    stage === "ESCALATED" ||
-    stage === "NEEDS_MORE_INFO"
-  ) {
-    return "red";
-  }
-  if (stage === "IN_REVIEW" || stage === "READY_FOR_EXTERNAL_REVIEW") return "blue";
-  if (stage === "NOT_STARTED") return "slate";
-  return "amber";
 }

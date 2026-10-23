@@ -22,6 +22,8 @@
 // The rail's states are LABELLED FACTS in a key/value column, not states a
 // dense row is scanned by — so they are text, and the label beside them is
 // what tells the reader which fact they are.
+import { reviewPriorityLabel, reviewStatusLabel } from "@proovra/shared";
+
 import { AppStatusText } from "../../../../../components/app-primitives";
 import { formatUserDateTime } from "../../../../../lib/date";
 import {
@@ -31,24 +33,27 @@ import {
 } from "./_lib";
 import type { ReviewWorkspaceResponse } from "../review-workspace-types";
 
-export type EvidenceRailSignal = {
-  title: string;
-  detail: string;
-  severity: string;
+/** Whether a case is expected — the shared policy, said in words. */
+const CASE_POLICY_LABEL: Readonly<Record<"OPTIONAL" | "RECOMMENDED" | "REQUIRED", string>> = {
+  OPTIONAL: "Optional",
+  RECOMMENDED: "Recommended",
+  REQUIRED: "Required",
 };
 
 export function EvidenceRecordRail({
   workspace,
-  signals,
   verificationPage,
   shareUrl,
 }: {
   workspace: ReviewWorkspaceResponse;
-  signals: EvidenceRailSignal[];
   /** The verification page's access + disclosure, from describeVerificationPageState. */
   verificationPage: VerificationPageState | null;
   shareUrl: string | null;
 }) {
+  const attention = workspace.attention;
+  const signals = (attention?.items ?? []).filter((i) => i.placement === "SIGNAL");
+  const requiredAbove = (attention?.items ?? []).some((i) => i.category === "ACTION_REQUIRED");
+  const caseAssignment = attention?.caseAssignment;
   return (
     <aside
       className="evidence-detail-sidebar"
@@ -59,22 +64,26 @@ export function EvidenceRecordRail({
         data-evidence-side="risk-signals"
       >
         <h2 className="evidence-detail-rail-heading">Risk Signals</h2>
+        {/* ADVISORY SIGNALS ONLY (2026-10-23), from the server's
+            classification: a positive state is not a risk, provenance lives
+            in the provenance context, and an item that needs action is in the
+            strip above — never repeated here as a large card. */}
         {signals.length === 0 ? (
-          <p className="evidence-detail-muted evidence-detail-rail-note">
-            No advisory risk signals in the current response.
+          <p className="evidence-detail-muted evidence-detail-rail-note" data-evidence-risk-empty>
+            {requiredAbove
+              ? "Issues that need action are listed under What needs attention."
+              : "No current risk signals."}
           </p>
         ) : (
-          <div className="evidence-detail-signal-list">
-            {signals.slice(0, 4).map((signal) => (
-              <article
-                key={`${signal.title}-${signal.detail}`}
-                className={`evidence-detail-signal-card ${signal.severity}`}
-              >
-                <strong>{signal.title}</strong>
-                <p>{signal.detail}</p>
-              </article>
+          <ul className="evidence-detail-rail-signals">
+            {signals.map((signal) => (
+              <li key={signal.code} data-evidence-risk-code={signal.code} data-tone={signal.tone}>
+                <span className="evidence-detail-rail-signals__kind">Advisory</span>
+                <strong>{signal.label}</strong>
+                <span className="evidence-detail-muted">{signal.detail}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </section>
 
@@ -87,9 +96,7 @@ export function EvidenceRecordRail({
         <AppStatusText
           tone={getWorkflowStatusTone(workspace.reviewWorkflow.status)}
         >
-          {workspace.reviewWorkflow.status
-            ? workspace.reviewWorkflow.status.replace(/_/g, " ")
-            : "Not started"}
+          {reviewStatusLabel(workspace.reviewWorkflow.status)}
         </AppStatusText>
         <div className="evidence-detail-rail-field">
           <span className="evidence-detail-rail-field__label">Priority</span>
@@ -102,7 +109,7 @@ export function EvidenceRecordRail({
               data-tone={getPriorityTone(workspace.reviewWorkflow.priority)}
               aria-hidden="true"
             />
-            {workspace.reviewWorkflow.priority || "Not configured"}
+            {reviewPriorityLabel(workspace.reviewWorkflow.priority)}
           </span>
         </div>
       </section>
@@ -114,16 +121,24 @@ export function EvidenceRecordRail({
         <h2 className="evidence-detail-rail-heading">Attributes</h2>
         <div className="evidence-detail-rail-field">
           <span className="evidence-detail-rail-field__label">Case</span>
-          <span className="evidence-detail-rail-field__value">
-            {workspace.relationships.caseName || "Unassigned"}
+          <span className="evidence-detail-rail-field__value" data-evidence-rail-case>
+            {workspace.relationships.caseName
+              ? workspace.relationships.caseName
+              : caseAssignment?.restricted
+                ? "Linked to a case you cannot open"
+                : `None · ${CASE_POLICY_LABEL[caseAssignment?.policy ?? "OPTIONAL"]}`}
           </span>
         </div>
-        <div className="evidence-detail-rail-field">
-          <span className="evidence-detail-rail-field__label">Due date</span>
-          <span className="evidence-detail-rail-field__value">
-            {formatUserDateTime(workspace.reviewWorkflow.dueAt) ?? "Not available"}
-          </span>
-        </div>
+        {/* A due date is stated when one is SET. "Not available" for a date
+            nobody was asked to set read as missing data. */}
+        {workspace.reviewWorkflow.dueAt ? (
+          <div className="evidence-detail-rail-field">
+            <span className="evidence-detail-rail-field__label">Review due</span>
+            <span className="evidence-detail-rail-field__value">
+              {formatUserDateTime(workspace.reviewWorkflow.dueAt)}
+            </span>
+          </div>
+        ) : null}
       </section>
 
       {/* Phase CAPTURE-CLOSURE Part C — compact verification-page shortcut.

@@ -53,7 +53,8 @@ import {
 } from "./_lib";
 import { EvidenceProvenanceChainSection } from "./EvidenceProvenanceChainSection";
 import { formatUserDateTime } from "../../../../../lib/date";
-import { describeStorageProtection, storedBytesVerificationRow } from "@proovra/shared";
+import { describeStorageProtection, presentEvidenceProtection, storedBytesVerificationRow } from "@proovra/shared";
+import { getEvidenceLifecycle } from "../../lib/evidence-delete-eligibility";
 import { parseTsaProofStatus, TSA_PROOF_STATUS_LABELS, type TsaProofStatus } from "@proovra/shared";
 import { storageProtectionClassOf } from "../../lib/evidence-library-types";
 import {
@@ -292,6 +293,11 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   } = ctx;
 
   const packageIncluded = workspaceCaps.verificationPackageIncluded ?? false;
+  // Legal hold and retention from the ONE lifecycle projection.
+  const protection = presentEvidenceProtection(
+    getEvidenceLifecycle(workspace.evidence),
+    (iso) => formatUserDateTime(iso) ?? iso,
+  );
 
   // THE canonical location state (served by the review workspace).
   const locale = useOptionalLocale();
@@ -692,14 +698,13 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
               state: manifestState,
             },
             {
-              // Phase 5 — "Record protection" is plainer than the
-              // prior "Retention until" / "Object Lock" rows in the
-              // Review tab. Same underlying fact; condensed.
-              label: "Retention until",
-              value: workspace.evidence?.retentionUntilUtc
-                ? `Recorded — ${formatValue(formatUserDateTime(workspace.evidence.retentionUntilUtc))}`
-                : "No record-level retention deadline recorded",
-              state: workspace.evidence?.retentionUntilUtc ? "recorded" : "unavailable",
+              // 2026-10-23 — the EFFECTIVE retention from the canonical
+              // lifecycle projection, each source named. It read only the
+              // workspace-policy column, so a record kept by its storage lock
+              // said "Unavailable" as if nothing protected it.
+              label: "Retention",
+              value: protection.retention.value,
+              state: protection.retention.state,
             },
             {
               label: "Object Lock retention mode",
@@ -723,19 +728,13 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                 : "unavailable",
             },
             {
+              // 2026-10-23 — PROOVRA's legal hold (record, case or workspace),
+              // from the union evaluator. It read the storage object's native
+              // hold header, which the platform no longer writes, so a record
+              // under an active hold read "No legal hold metadata recorded".
               label: "Legal hold",
-              value:
-                workspace.evidence?.storageObjectLockLegalHoldStatus === "ON"
-                  ? "Legal hold active"
-                  : workspace.evidence?.storageObjectLockLegalHoldStatus === "OFF"
-                    ? "Legal hold off"
-                    : "No legal hold metadata recorded",
-              state:
-                workspace.evidence?.storageObjectLockLegalHoldStatus === "ON"
-                  ? "recorded"
-                  : workspace.evidence?.storageObjectLockLegalHoldStatus === "OFF"
-                    ? "not-applicable"
-                    : "unavailable",
+              value: protection.legalHold.value,
+              state: protection.legalHold.state,
             },
             {
               // Descriptive row — carries the anchoring explanation, not a

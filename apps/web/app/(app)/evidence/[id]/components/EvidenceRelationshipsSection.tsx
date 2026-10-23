@@ -128,7 +128,7 @@ export function EvidenceRelationshipsSection({
           </span>
           {cases ? (
             cases.length === 0 ? (
-              <span className="evidence-detail-fact__value">Unassigned</span>
+              <span className="evidence-detail-fact__value">None (optional)</span>
             ) : (
               <ul className="evidence-detail-case-list" data-evidence-linked-cases>
                 {cases.map((c) => (
@@ -154,16 +154,18 @@ export function EvidenceRelationshipsSection({
             )
           ) : (
             <span className="evidence-detail-fact__value evidence-detail-fact__value--clamp">
-              {caseName || "Unassigned"}
+              {caseName || "None (optional)"}
             </span>
           )}
         </div>
         <div className="evidence-detail-fact">
           <span className="evidence-detail-fact__label">Related evidence</span>
           <span className="evidence-detail-fact__value">
+            {/* The server counts the records in the linked case; with no case
+                there is nothing to count — said, not "Not available". */}
             {relatedEvidenceCount != null
-              ? `${relatedEvidenceCount} item${relatedEvidenceCount === 1 ? "" : "s"}`
-              : "Not available"}
+              ? `${relatedEvidenceCount} item${relatedEvidenceCount === 1 ? "" : "s"} in this case`
+              : "No case linked"}
           </span>
         </div>
         <div className="evidence-detail-fact">
@@ -178,16 +180,18 @@ export function EvidenceRelationshipsSection({
         </div>
       </div>
 
-      {note ? <p className="evidence-detail-review-note">{note}</p> : null}
+      {/* The server note only ever restates "no relationships yet", which
+          the empty state below already says once. */}
+      {note && items.length > 0 ? <p className="evidence-detail-review-note">{note}</p> : null}
 
       <div className="evidence-detail-linked">
         <div className="evidence-detail-review-head evidence-detail-review-head--sub">
           <h3 className="evidence-detail-review-head__title">
             Linked evidence relationships
           </h3>
-          <span className="evidence-detail-review-head__count">
-            {items.length} recorded
-          </span>
+          {items.length > 0 ? (
+            <span className="evidence-detail-review-head__count">{items.length} recorded</span>
+          ) : null}
         </div>
         {items.length === 0 ? (
           // Canonical dashed empty state. It reports the absence; it never

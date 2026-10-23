@@ -30,6 +30,7 @@
 
 import type { ReactNode } from "react";
 import { BadgeCheck, Trash2 } from "lucide-react";
+import { reviewStatusLabel } from "@proovra/shared";
 import type { EvidenceDetailCtx } from "./_lib";
 import { AppStatusBadge } from "../../../../../components/app-primitives";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -176,7 +177,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
               {formatReviewerStatusLabel(reviewerStatus)}
             </h2>
             <AppStatusBadge tone={getWorkflowStatusTone(reviewerStatus)}>
-              {reviewerStatus.replace(/_/g, " ")}
+              {reviewStatusLabel(reviewerStatus)}
             </AppStatusBadge>
           </div>
           <p
@@ -274,9 +275,17 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           evidenceId={evidenceId}
           teamId={workspace.reviewWorkflow?.teamId ?? null}
           currentStatus={workspace.reviewWorkflow.status ?? null}
-          assignedToUserId={workspace.reviewWorkflow.assignedTo?.id ?? null}
-          currentUserId={null}
-          onChanged={() => void loadWorkflowEvents()}
+          assignedTo={workspace.reviewWorkflow.assignedTo ?? null}
+          viewerUserId={workspace.reviewWorkflow.viewerUserId ?? null}
+          availableActions={workspace.reviewWorkflow.availableActions}
+          // THE AUTHORITATIVE RE-READ: the record (status, owner, available
+          // actions) AND the history — it used to reload only the history, so
+          // the panel kept showing the state from before the click.
+          // bumpBaseline: the change is the viewer's own, never a "someone
+          // else changed this record" collision.
+          onChanged={() =>
+            Promise.all([ctx.loadWorkspace({ bumpBaseline: true }), loadWorkflowEvents()]).then(() => undefined)
+          }
         />
       ) : null}
 

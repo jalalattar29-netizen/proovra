@@ -156,25 +156,28 @@ export function resolveStorageProtectionVerification(
  */
 export function storageProtectionAlert(
   cls: StorageProtectionClass,
-): { severity: "warning" | "info"; label: string; detail: string } | null {
+): { code: "STORAGE_RETENTION_ENDED" | "STORAGE_PROTECTION_INCOMPLETE" | "STORAGE_PROTECTION_UNCONFIRMED"; severity: "warning" | "info"; label: string; detail: string } | null {
   switch (cls) {
     case "PROTECTED":
       return null;
     case "RETENTION_EXPIRED":
       return {
         severity: "info",
+        code: "STORAGE_RETENTION_ENDED",
         label: "Storage retention ended",
         detail: "The Object Lock retention recorded for this record's stored object has passed its retain-until date.",
       };
     case "NOT_APPLIED":
       return {
         severity: "warning",
+        code: "STORAGE_PROTECTION_INCOMPLETE",
         label: "Storage protection incomplete",
         detail: "No Object Lock retention or legal hold is applied to this record's stored object.",
       };
     case "UNCONFIRMED":
       return {
         severity: "warning",
+        code: "STORAGE_PROTECTION_UNCONFIRMED",
         label: "Storage protection not confirmed",
         detail: "The stored object's lock metadata could not be read, so its protection is not confirmed.",
       };

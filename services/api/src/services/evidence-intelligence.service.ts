@@ -739,6 +739,7 @@ function buildReviewerAlerts(params: {
   if (params.evidence.deletedAt) {
     alerts.push({
       severity: "danger",
+      code: "TRASH_RETENTION_ACTIVE",
       label: "Trash retention active",
       detail: "This evidence is currently deleted and retained in secure trash.",
     });
@@ -747,6 +748,7 @@ function buildReviewerAlerts(params: {
   if (params.evidence.lockedAt) {
     alerts.push({
       severity: "info",
+      code: "RECORD_SEALED",
       label: "Record sealed",
       detail: "Evidence has been permanently locked to preserve chain-of-custody.",
     });
@@ -755,6 +757,7 @@ function buildReviewerAlerts(params: {
   if (!params.chainValid) {
     alerts.push({
       severity: "danger",
+      code: "CUSTODY_CHAIN_ISSUE",
       label: "Custody chain issue",
       detail: "One or more custody events did not match expected chain integrity.",
     });
@@ -783,6 +786,7 @@ function buildReviewerAlerts(params: {
   if (params.outputs.report.notApplicableReason === "INTEGRITY_FAILED") {
     alerts.push({
       severity: "danger",
+      code: "INTEGRITY_FAILED",
       label: "Integrity check failed",
       detail:
         "The fingerprint recomputed from the stored bytes does not match the value recorded at completion. No outputs will be produced for this record.",
@@ -797,6 +801,7 @@ function buildReviewerAlerts(params: {
   if (otsState === "FAILED") {
     alerts.push({
       severity: "warning",
+      code: "OTS_FAILED",
       label: OTS_STATE_LABELS.FAILED,
       detail:
         `${OTS_STATE_SENTENCES.FAILED} The record's fingerprint, signature and custody chain are unaffected.`,
@@ -804,6 +809,7 @@ function buildReviewerAlerts(params: {
   } else if (otsState === "UNAVAILABLE") {
     alerts.push({
       severity: "warning",
+      code: "OTS_UNAVAILABLE",
       label: OTS_STATE_LABELS.UNAVAILABLE,
       detail: OTS_STATE_SENTENCES.UNAVAILABLE,
     });
@@ -819,7 +825,8 @@ function buildReviewerAlerts(params: {
   if (alerts.length === 0) {
     alerts.push({
       severity: "info",
-      label: "Review ready",
+      code: "NO_FLAGGED_ISSUES",
+      label: "No flagged issues",
       detail: "This record has no flagged issues in the current intelligence summary.",
     });
   }

@@ -22,6 +22,11 @@ export const DECISION_DERIVED_WORKFLOW_STATUSES: ReadonlySet<string> = new Set([
   "APPROVED_INTERNAL",
   "REJECTED_INSUFFICIENT",
   "NEEDS_INFO",
+  // 2026-10-23 — the LEGACY spelling of an approval. It maps to the
+  // APPROVED_INTERNAL stage and satisfies the export review gate, so the
+  // administrative PATCH naming it recorded a verdict with no decision row.
+  // No current writer produces it; it is a verdict, never a routing state.
+  "READY_FOR_EXTERNAL_REVIEW",
 ]);
 
 /** True when `status` may only be produced by recording a decision. */

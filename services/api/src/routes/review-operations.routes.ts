@@ -134,7 +134,7 @@ function reviewErrorToReply(err: unknown, reply: FastifyReply): void {
             ? 422
             : err.code === "permission_denied"
               ? 403
-              : err.code === "already_assigned_elsewhere"
+              : err.code === "already_assigned_elsewhere" || err.code === "already_in_stage"
                 ? 409
                 : 400;
     reply.code(status).send({

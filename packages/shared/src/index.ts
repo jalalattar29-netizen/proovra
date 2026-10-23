@@ -2787,3 +2787,9 @@ export * from "./release-contract.js";
 export * from "./evidence-vocabulary.js";
 export * from "./artifact-history.js";
 export * from "./output-row-lifecycle.js";
+// 2026-10-23 — the ONE classification of what an Evidence record asks of its reader.
+export * from "./evidence-attention.js";
+// 2026-10-23 — review workflow: available actions, labels, readable history.
+export * from "./review-workflow-presentation.js";
+// 2026-10-23 — legal hold and retention rows, from the lifecycle projection.
+export * from "./evidence-protection-presentation.js";

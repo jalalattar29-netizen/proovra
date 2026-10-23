@@ -375,6 +375,8 @@ export type EvidenceLifecycleProjection = {
   effectiveRetentionUntilUtc: string | null;
   objectLockCompliance: boolean;
   legalHold: boolean;
+  /** What the hold READ found (presentation only; `legalHold` fails closed). */
+  legalHoldState: "ACTIVE" | "NONE" | "UNAVAILABLE" | undefined;
   destructionEligibleAtUtc: string | null;
   destructionBlockReason: EvidenceLifecycleBlockReason | null;
 };

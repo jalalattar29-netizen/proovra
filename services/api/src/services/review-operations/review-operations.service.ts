@@ -62,6 +62,7 @@ export class ReviewOperationError extends Error {
       | "note_required"
       | "permission_denied"
       | "already_assigned_elsewhere"
+      | "already_in_stage"
       | "evidence_not_in_workspace",
     public readonly details?: Record<string, unknown>,
   ) {
@@ -436,8 +437,18 @@ export async function claimReviewerWorkflow(
     throw new ReviewOperationError("already_assigned_elsewhere");
   }
 
-  const now = new Date();
   const fromStage = mapDbStatusToReviewStage(workflow.status as string);
+  // IDEMPOTENT (2026-10-23). A claim by the reviewer who already owns the
+  // workflow changes nothing, so it writes nothing: every repeated click used
+  // to append another CLAIMED event to the history.
+  if (
+    workflow.assignedToUserId === input.actorUserId &&
+    fromStage !== "QUEUED"
+  ) {
+    return workflow;
+  }
+
+  const now = new Date();
   const targetStage: ReviewStage =
     fromStage === "QUEUED" ? "ASSIGNED" : fromStage;
 
@@ -511,6 +522,15 @@ export async function recordLifecycleTransition(
 
   const fromStage = mapDbStatusToReviewStage(workflow.status as string);
   const toStage = decisionTargetStage(input.decision);
+  // NOT A HEARTBEAT (2026-10-23). The shared matrix allows a stage to
+  // "transition" to itself, so a second Escalate raised the escalation level
+  // and emailed the assignee again, and a second Reopen bumped the reopen
+  // count — each with a new event — while the screen showed nothing new. An
+  // explicit lifecycle decision into the stage the workflow is already in is
+  // refused, so a repeated click has one visible, explained outcome.
+  if (fromStage === toStage) {
+    throw new ReviewOperationError("already_in_stage", { stage: fromStage });
+  }
   const now = new Date();
 
   const patch: TransitionPatch = {};

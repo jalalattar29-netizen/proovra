@@ -4148,6 +4148,56 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   flex-wrap: wrap;
   gap: 6px;
   min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* A RECOMMENDED step is not a warning (2026-10-23): the strip is amber only
+   when something is required. */
+.evidence-detail-attention[data-evidence-attention-strip="ACTION_RECOMMENDED"] {
+  border-inline-start-color: var(--accent-500);
+  background: var(--surface-card);
+}
+.evidence-detail-attention[data-evidence-attention-strip="ACTION_RECOMMENDED"] .evidence-detail-attention__title {
+  color: var(--app-ink-control);
+}
+.evidence-detail-attention[data-evidence-attention-strip="ACTION_RECOMMENDED"] .evidence-detail-attention__action {
+  border-color: var(--border-default);
+  color: var(--accent-600);
+}
+.evidence-detail-attention[data-evidence-attention-strip="ACTION_RECOMMENDED"] .evidence-detail-attention__action:hover {
+  background: var(--surface-translucent-outer);
+}
+.evidence-detail-attention__item {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.evidence-detail-attention__category {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--app-ink-secondary);
+}
+.evidence-detail-attention__item[data-tone="destructive"] .evidence-detail-attention__category {
+  color: var(--detail-red);
+}
+.evidence-detail-attention__item[data-tone="warning"] .evidence-detail-attention__category {
+  color: var(--warning-ink);
+}
+.evidence-detail-attention__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-ink-control);
+}
+/* No action required: one quiet line, never a region. */
+.evidence-detail-attention-calm {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: var(--app-ink-secondary);
 }
 .evidence-detail-attention__action {
   align-self: flex-start;
@@ -6124,4 +6174,31 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 .rga-tab-indicator[data-tone="bad"] { color: var(--rga-bad); background: var(--rga-bad-soft); }
 @media (forced-colors: active) {
   .rga-tab-indicator { forced-color-adjust: auto; border-color: CanvasText; }
+}
+
+/* ---- Rail Risk Signals: compact advisory rows (2026-10-23) --------------- */
+.evidence-detail-rail-signals {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.evidence-detail-rail-signals > li {
+  display: grid;
+  gap: 2px;
+  padding-inline-start: 10px;
+  border-inline-start: 2px solid var(--border-default);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.evidence-detail-rail-signals > li[data-tone="warning"] {
+  border-inline-start-color: var(--warning-ink);
+}
+.evidence-detail-rail-signals__kind {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--app-ink-secondary);
 }

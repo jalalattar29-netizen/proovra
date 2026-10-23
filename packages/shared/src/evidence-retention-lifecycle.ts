@@ -675,6 +675,15 @@ export interface EvidenceLifecycleProjection {
   effectiveRetentionUntilUtc: string | null;
   objectLockCompliance: boolean;
   legalHold: boolean;
+  /**
+   * What the legal-hold READ found, for presentation only (2026-10-23).
+   * `legalHold` above fails CLOSED — a failed read reports a hold so nothing
+   * is offered that the write path would refuse — which left a page unable
+   * to tell "a hold is active" from "the hold check failed". ACTIVE / NONE /
+   * UNAVAILABLE says which. Set by the single-record projection; absent on
+   * list rows. Never used for enforcement.
+   */
+  legalHoldState?: "ACTIVE" | "NONE" | "UNAVAILABLE";
 
   /** ISO. The earliest instant physical destruction could be lawful. */
   destructionEligibleAtUtc: string | null;

@@ -1,3 +1,4 @@
+import type { EvidenceReviewerAlertCode } from "./evidence-attention.js";
 import type { OtsState } from "./ots-anchoring.js";
 export type EvidenceReviewDecisionStatus =
   | "READY_FOR_EXTERNAL_REVIEW"
@@ -67,6 +68,8 @@ export type EvidenceAccessActivitySummary = {
 };
 
 export type EvidenceReviewerAlert = {
+  /** The stable machine code the attention classification keys on (2026-10-23). */
+  code: EvidenceReviewerAlertCode;
   severity: "info" | "warning" | "danger";
   label: string;
   detail: string;

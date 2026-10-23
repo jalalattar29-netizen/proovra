@@ -4,7 +4,13 @@ import type {
   MatchedHistory,
   ArtifactPackageAccess,
 } from "../../../../components/evidence-outputs/artifact-status-types";
-import type { OtsAnchoringView, StoredBytesIntegrity } from "@proovra/shared";
+import type {
+  EvidenceAttention,
+  EvidenceReviewerAlertCode,
+  OtsAnchoringView,
+  ReviewWorkflowActionAvailability,
+  StoredBytesIntegrity,
+} from "@proovra/shared";
 import type {
   EvidenceIntelligence,
   EvidenceOutputState,
@@ -84,6 +90,7 @@ import type {
 } from "../lib/evidence-library-types";
 
 export type ReviewerAlert = {
+  code: EvidenceReviewerAlertCode;
   severity: "info" | "warning" | "danger";
   label: string;
   detail: string;
@@ -327,6 +334,13 @@ export type ReviewWorkspaceResponse = {
   sourceContext: SourceContext;
   reviewDecision: ReviewDecision;
   reviewerAlerts: ReviewerAlert[];
+  /**
+   * The ONE classification of what this record asks of this viewer
+   * (2026-10-23). The page renders it and derives nothing.
+   */
+  attention: EvidenceAttention & {
+    caseAssignment: EvidenceAttention["caseAssignment"] & { restricted: boolean };
+  };
   custodyLifecycle: {
     forensicEventCount: number;
     accessEventCount: number;
@@ -430,6 +444,10 @@ export type ReviewWorkspaceResponse = {
     createdAt?: string | null;
     updatedAt?: string | null;
     note: string | null;
+    /** The signed-in viewer, so the reviewer reads as "You". */
+    viewerUserId?: string | null;
+    /** What this viewer may do next — the server's projection. */
+    availableActions?: ReviewWorkflowActionAvailability[];
   };
   classification: {
     evidenceType: string;
