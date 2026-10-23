@@ -69,6 +69,33 @@ const OUTCOME_LABEL: Record<EligibilityOutcome, string> = {
   BLOCKED_BY_POLICY: "Blocked by workspace policy",
 };
 
+/**
+ * THE RESPONSE IS READ, NOT CAST (2026-10-23).
+ *
+ * The body was cast straight to `EligibilityResult`, and the render then
+ * indexed `TONE[outcome]`. A body without a recognised `outcome` — a proxy
+ * error page, a partial deploy, a new verdict this build does not know —
+ * made `tone` undefined, the render threw, and the error took the WHOLE
+ * Reports page down with it (one row's check, every row's page). An answer
+ * this build cannot read is an UNAVAILABLE check: the action stays disabled
+ * and the row says so, exactly as a failed request does.
+ */
+export function readEligibilityResult(body: unknown): EligibilityResult | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  if (typeof b.outcome !== "string" || !Object.prototype.hasOwnProperty.call(TONE, b.outcome)) {
+    return null;
+  }
+  return {
+    outcome: b.outcome as EligibilityOutcome,
+    reason: typeof b.reason === "string" ? b.reason : "",
+    lifecycleState: typeof b.lifecycleState === "string" ? b.lifecycleState : null,
+  };
+}
+
+const UNREADABLE_ELIGIBILITY =
+  "The eligibility check returned an answer this page cannot read, so the action stays disabled. Reload to check again.";
+
 const NEXT_STEP: Record<EligibilityOutcome, string> = {
   ALLOWED: "",
   BLOCKED_BY_HOLD:
@@ -120,12 +147,16 @@ export function GovernedExportAction({
     setError(null);
     try {
       // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
-      const json = (await apiFetch(
+      const body = await apiFetch(
         `/v1/governance/export-eligibility?teamId=${encodeURIComponent(
           teamId,
         )}&evidenceId=${encodeURIComponent(evidenceId)}`,
-      )) as EligibilityResult;
-      if (mountedRef.current) setData(json);
+      );
+      const read = readEligibilityResult(body);
+      if (mountedRef.current) {
+        setData(read);
+        if (!read) setError(UNREADABLE_ELIGIBILITY);
+      }
     } catch (err) {
       // Phase 12 Point 4 — the failure reason is surfaced instead of
       // swallowed (migrated from the deleted preflight component). A

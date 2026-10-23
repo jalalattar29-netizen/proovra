@@ -109,7 +109,13 @@ const CONSENT = JSON.stringify({
 });
 
 /** Intercept the API and open /reports in a locale. */
-export async function openReports(page: Page, locale: ReportsLocale, search = ""): Promise<void> {
+export async function openReports(
+  page: Page,
+  locale: ReportsLocale,
+  search = "",
+  /** The export-eligibility body to answer with (defaults to ALLOWED). */
+  eligibility: unknown = { outcome: "ALLOWED", reason: "ALLOWED", lifecycleState: "ACTIVE" },
+): Promise<void> {
   await page.context().addCookies([
     { name: "proovra-locale", value: locale, domain: "127.0.0.1", path: "/" },
     { name: "proovra-locale-mode", value: "manual", domain: "127.0.0.1", path: "/" },
@@ -136,7 +142,7 @@ export async function openReports(page: Page, locale: ReportsLocale, search = ""
     }
     if (url.pathname.endsWith("/v1/reports")) return json({ items: [], nextCursor: null });
     if (url.pathname.endsWith("/v1/governance/export-eligibility")) {
-      return json({ outcome: "ALLOWED", reason: "ALLOWED", lifecycleState: "ACTIVE" });
+      return json(eligibility);
     }
     return json({ items: [] });
   });
