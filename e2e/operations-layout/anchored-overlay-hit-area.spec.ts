@@ -9,28 +9,27 @@ test("outside clicks close the commitment dropdown", async ({ page }) => {
   await sla.click();
   await page.waitForSelector(popup);
 
-  // The container matches its trigger and is wider than the menu; the empty
-  // part must not be a click target, and what is underneath must be reachable.
+  // 2026-10-23 — the menu is never narrower than its trigger (the canonical
+  // listbox fits its longest option and is at least the trigger's width), so
+  // the invisible band that used to sit beside a narrow menu inside a wide
+  // container is gone. What this guarded stays pinned: the container never
+  // takes clicks, and the menu covers its trigger's width.
   const probe = await page.evaluate(() => {
     const ov = document.querySelector(".app-anchored-overlay") as HTMLElement;
     const pop = document.querySelector(".app-listbox__popup") as HTMLElement;
-    const ob = ov.getBoundingClientRect();
-    const pb = pop.getBoundingClientRect();
-    // A point inside the container but well past the menu's right edge.
-    const x = Math.min(pb.right + 60, ob.right - 4);
-    const y = pb.top + 20;
-    const hit = document.elementFromPoint(x, y);
+    const trig = document.querySelector('.app-listbox__trigger[aria-expanded="true"]') as HTMLElement;
     return {
       pointerEvents: getComputedStyle(ov).pointerEvents,
-      bandExists: ob.width > pb.width + 20,
-      hitIsOverlay: ov.contains(hit),
+      menuWidth: pop.getBoundingClientRect().width,
+      triggerWidth: trig.getBoundingClientRect().width,
+      menuRight: pop.getBoundingClientRect().right,
+      viewport: window.innerWidth,
     };
   });
-  expect(probe.bandExists, "the container is wider than its menu").toBe(true);
   expect(probe.pointerEvents, "the container must not take clicks").toBe("none");
-  expect(probe.hitIsOverlay, "a click beside the menu must reach the page").toBe(false);
+  expect(probe.menuWidth, "the menu is at least its trigger's width").toBeGreaterThanOrEqual(probe.triggerWidth - 1);
+  expect(probe.menuRight, "the menu stays inside the viewport").toBeLessThanOrEqual(probe.viewport + 0.5);
 
   await page.mouse.click(5, 400);
   await expect(page.locator(popup), "empty space").toHaveCount(0);
-
 });

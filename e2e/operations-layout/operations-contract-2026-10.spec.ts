@@ -38,7 +38,9 @@ const listReads = () =>
   observedOpsCalls().filter((c) => c.method === "GET" && c.path.endsWith("/v1/ops/incidents") && c.query.includes("sort="));
 const groupReads = () =>
   observedOpsCalls().filter(
-    (c) => c.method === "GET" && c.path.endsWith("/v1/ops/incident-groups") && !c.query.includes("resolvedWithinDays"),
+    // The unresolved SECTIONS read; the Resolved section has its own read
+    // (status=RESOLVED, no window — 2026-10-23).
+    (c) => c.method === "GET" && c.path.endsWith("/v1/ops/incident-groups") && !/[?&]status=RESOLVED(&|$)/.test(c.query),
   );
 
 test("the queue opens on EVERY lifecycle state; the grouped sections read the unresolved set they partition", async ({ page }) => {
@@ -60,6 +62,12 @@ test("the queue opens on EVERY lifecycle state; the grouped sections read the un
   await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("grouped");
   await expect.poll(() => groupReads().length).toBeGreaterThan(0);
   expect(groupReads().at(-1)!.query).toContain("status=UNRESOLVED");
+  // ALL + Group keeps every resolved condition: the Resolved section reads
+  // the same predicate the Resolved filter does, with no time window.
+  const resolvedRead = observedOpsCalls().filter(
+    (c) => c.method === "GET" && c.path.endsWith("/v1/ops/incident-groups") && /[?&]status=RESOLVED(&|$)/.test(c.query),
+  ).at(-1);
+  expect(resolvedRead?.query ?? "").not.toContain("resolvedWithinDays");
   await expect(page.locator('[data-ops-metric="open"]')).toContainText(EN.metrics.open.note);
   // Resolved history is its OWN section, never mixed into the two above.
   const resolvedInActive = page.locator(
