@@ -217,17 +217,30 @@ test.describe("Phase B.2 — multi-stage review governance @critical", () => {
     const src = await read(
       "services/api/src/services/reviewer-ops/review-decision.service.ts",
     );
+    // THE PURE DERIVATIONS AND THE SECOND-REVIEW RULE MOVED (2026-10-23):
+    // deriveReviewState / deriveDecisionProjection to @proovra/shared (the
+    // Evidence page reads the same rule), the second-review triggers to the
+    // evidence-review service the page route may import. The authority must
+    // USE them, not keep a copy.
+    const stateMachine = await read("packages/shared/src/review-decision-state.ts");
+    const secondReview = await read(
+      "services/api/src/services/evidence-review/second-review.service.ts",
+    );
+    expect(src).toMatch(/deriveReviewState[\s\S]*from "@proovra\/shared"/);
+    expect(src).toContain('from "../evidence-review/second-review.service.js"');
+    expect(src).not.toMatch(/function deriveReviewState\b/);
+    expect(src).not.toMatch(/function requiresSecondReview\b/);
     // Endpoints
     // Registration: the routes file.
     expect(routes).toContain(
       '"/v1/reviewer-ops/workspace/:workflowId/decisions"',
     );
     // State machine
-    expect(src).toContain("deriveReviewState");
-    expect(src).toContain('"first_required"');
-    expect(src).toContain('"second_required"');
-    expect(src).toContain('"conflict_detected"');
-    expect(src).toContain('"resolved"');
+    expect(stateMachine).toContain("export function deriveReviewState");
+    expect(stateMachine).toContain('"first_required"');
+    expect(stateMachine).toContain('"second_required"');
+    expect(stateMachine).toContain('"conflict_detected"');
+    expect(stateMachine).toContain('"resolved"');
     // Same-reviewer guard
     expect(src).toContain("same_reviewer_blocked");
     // Adjudicator role guard
@@ -235,15 +248,16 @@ test.describe("Phase B.2 — multi-stage review governance @critical", () => {
     // Duplicate stage guard (DB-level unique surfaces as 409)
     expect(src).toContain("duplicate_stage_decision");
     // Policy triggers for second review
-    expect(src).toContain("workflow_escalated");
-    expect(src).toContain("open_escalation");
-    expect(src).toContain("active_legal_hold");
-    expect(src).toContain("redaction_required");
+    expect(secondReview).toContain("workflow_escalated");
+    expect(secondReview).toContain("open_escalation");
+    expect(secondReview).toContain("active_legal_hold");
+    expect(secondReview).toContain("redaction_required");
     // Audit emission per stage
     expect(src).toContain("REVIEWER_DECISION_FIRST");
     expect(src).toContain("REVIEWER_DECISION_SECOND");
     expect(src).toContain("REVIEWER_DECISION_ADJUDICATION");
-    // All 7 decision kinds in the zod enum
+    // All 7 decision kinds — each one projected by the shared state machine
+    // (moved from the service with the derivations, 2026-10-23).
     for (const k of [
       "APPROVE",
       "REJECT",
@@ -253,7 +267,7 @@ test.describe("Phase B.2 — multi-stage review governance @critical", () => {
       "NEEDS_MORE_INFO",
       "UNRESOLVED",
     ]) {
-      expect(src).toContain(`"${k}"`);
+      expect(stateMachine).toContain(`"${k}"`);
     }
     // All 9 reason codes in the zod enum. Request VALIDATION, so it lives
     // with the route rather than with the state machine.
