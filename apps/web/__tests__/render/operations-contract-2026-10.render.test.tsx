@@ -519,13 +519,13 @@ describe("a workspace switch discards every late response from the previous work
       if (isA) {
         if (path.startsWith("/v1/ops/summary")) return slowA.summary.promise;
         if (path.startsWith("/v1/ops/incidents?")) return slowA.list.promise;
-        if (path.startsWith("/v1/ops/incident-groups?") && !path.includes("resolvedWithinDays")) return slowA.groups.promise;
+        if (path.startsWith("/v1/ops/incident-groups?") && !/[?&]status=RESOLVED(&|$)/.test(path)) return slowA.groups.promise;
         if (path.startsWith("/v1/ops/saved-views")) return slowA.views.promise;
         if (path.startsWith("/v1/ops/assignable-operators")) return slowA.operators.promise;
       }
       if (path.startsWith("/v1/ops/summary")) return summaryOf({ open: 1, critical: 0, high: 0, warning: 1 }, OTHER_WS);
       if (path.startsWith("/v1/ops/incidents?")) return listOf([incident("b-1")]);
-      if (path.startsWith("/v1/ops/incident-groups?") && !path.includes("resolvedWithinDays")) {
+      if (path.startsWith("/v1/ops/incident-groups?") && !/[?&]status=RESOLVED(&|$)/.test(path)) {
         return { groups: [group("b.source")], totals: { groups: 1, conditions: 2 }, completeness: { complete: true } };
       }
       if (path.startsWith("/v1/ops/saved-views")) return { views: [] };
@@ -1001,7 +1001,7 @@ describe("the grouped view", () => {
   it("one source in Action required AND Resolved opens the group from the section clicked, and drills down in that section's status", async () => {
     handler = defaultHandler({
       "/v1/ops/incident-groups?": (path) =>
-        path.includes("resolvedWithinDays=7")
+        /[?&]status=RESOLVED(&|$)/.test(path)
           ? {
               groups: [group("shared.source", { statusPosture: "RESOLVED", title: "Resolved twin", conditionCount: 1 })],
               totals: { groups: 1, conditions: 1 },
@@ -1021,7 +1021,7 @@ describe("the grouped view", () => {
     // The sections read asks for the UNRESOLVED set they partition, whatever
     // the lifecycle default is.
     expect(
-      gets().find((p) => p.startsWith("/v1/ops/incident-groups?") && !p.includes("resolvedWithinDays")),
+      gets().find((p) => p.startsWith("/v1/ops/incident-groups?") && !/[?&]status=RESOLVED(&|$)/.test(p)),
     ).toMatch(/status=UNRESOLVED/);
     const action = q('[data-ops-section="action-required"]') as HTMLElement;
     const monitoring = q('[data-ops-section="monitoring"]') as HTMLElement;
@@ -1060,7 +1060,7 @@ describe("the grouped view", () => {
     currentSearch = "view=grouped&sort=oldest";
     handler = defaultHandler({
       "/v1/ops/incident-groups?": (path) =>
-        path.includes("resolvedWithinDays")
+        /[?&]status=RESOLVED(&|$)/.test(path)
           ? { groups: [], totals: { groups: 0, conditions: 0 }, completeness: { complete: true } }
           : { groups: [group("a.source")], totals: { groups: 1, conditions: 2 }, completeness: { complete: true } },
     });
@@ -1194,7 +1194,7 @@ describe("the remaining Operations text is localized", () => {
     try {
       handler = defaultHandler({
         "/v1/ops/incident-groups?": (path) =>
-          path.includes("resolvedWithinDays")
+          /[?&]status=RESOLVED(&|$)/.test(path)
             ? { groups: [], totals: { groups: 0, conditions: 0 }, completeness: { complete: true } }
             : {
                 groups: [group("ar.source", { affectedRecordCount: 26, affectedUnit: "records", assignedCount: 2 })],

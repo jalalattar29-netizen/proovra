@@ -431,8 +431,15 @@ function OperationsWorkbench() {
   const [groupsLoading, setGroupsLoading] = React.useState(false);
   /** OPS-036 — A FAILED GROUPED READ IS UNAVAILABLE, NOT EMPTY. */
   const [groupsError, setGroupsError] = React.useState<SafeUserError | null>(null);
-  /** The "Resolved in the last 7 days" section's own read (server window). */
+  /**
+   * The "Resolved" section's own read: EVERY resolved group under the default
+   * lifecycle (ALL) — the same population the Resolved filter selects, so
+   * grouping the All view never drops resolved history (2026-10-23).
+   */
   const [resolvedGroups, setResolvedGroups] = React.useState<IncidentGroup[]>([]);
+  const [resolvedTotals, setResolvedTotals] = React.useState<IncidentGroupTotals | null>(null);
+  /** Loading is not empty: the section claims nothing until its read lands. */
+  const [resolvedLoading, setResolvedLoading] = React.useState(false);
   /** A failed read of that section is unavailable, never "nothing resolved". */
   const [resolvedUnavailable, setResolvedUnavailable] = React.useState(false);
   const [openGroupRef, setOpenGroupRef] = React.useState<OpenGroupRef | null>(null);
@@ -515,6 +522,8 @@ function OperationsWorkbench() {
     setGroupsLoading(false);
     setGroupsError(null);
     setResolvedGroups([]);
+    setResolvedTotals(null);
+    setResolvedLoading(false);
     setResolvedUnavailable(false);
     setOpenGroupRef(null);
     setAffected([]);
@@ -737,35 +746,62 @@ function OperationsWorkbench() {
   ]);
 
   /**
-   * "Resolved in the last 7 days" — its own read of RESOLVED groups, on the
-   * SERVER's clock and window, and only on the default view (no narrowing
-   * filter; the sort order does not narrow).
+   * "Resolved" — its own read of RESOLVED groups, only on the default view (no
+   * narrowing filter; the sort order does not narrow).
+   *
+   * POPULATION, NOT PRESENTATION (2026-10-23). The default lifecycle is ALL,
+   * so the grouped sections must together hold every condition the flat All
+   * list holds. This read used to carry `resolvedWithinDays=7`: grouping the
+   * All view silently dropped every resolution older than a week, and only
+   * switching the filter to Resolved brought them back. It now sends the SAME
+   * predicate the Resolved filter does, so Action required + Monitoring (the
+   * unresolved read) + Resolved (this read) = ALL.
    */
   React.useEffect(() => {
     const refused =
       readAccess.refusedReason !== null || !canView || !readAccess.incidents;
     if (refused || !teamId || !grouped || anyNarrowingFilter(filters)) {
       setResolvedGroups([]);
+      setResolvedTotals(null);
+      setResolvedLoading(false);
       setResolvedUnavailable(false);
       return;
     }
     const team = teamId;
     const seq = ++resolvedSeq.current;
     const controller = new AbortController();
-    const params = new URLSearchParams({ teamId: team, status: "RESOLVED", resolvedWithinDays: "7" });
-    void apiFetch(`/v1/ops/incident-groups?${params.toString()}`, {
-      method: "GET",
-      signal: controller.signal,
-    })
+    setResolvedLoading(true);
+    void apiFetch(
+      `/v1/ops/incident-groups?${groupsQuery({ teamId: team, filters: { ...filters, status: "RESOLVED" } })}`,
+      { method: "GET", signal: controller.signal },
+    )
       .then((res) => {
         if (seq !== resolvedSeq.current || team !== teamRef.current) return;
-        setResolvedGroups((res as { groups?: IncidentGroup[] }).groups ?? []);
+        const payload = res as {
+          groups?: IncidentGroup[];
+          totals?: IncidentGroupTotals;
+          completeness?: { complete?: boolean };
+        };
+        const next = payload.groups ?? [];
+        setResolvedGroups(next);
+        const readComplete = payload.completeness?.complete;
+        setResolvedTotals({
+          ...(payload.totals ?? {
+            groups: next.length,
+            conditions: next.reduce((sum, g) => sum + g.conditionCount, 0),
+          }),
+          ...(typeof readComplete === "boolean" ? { complete: readComplete } : {}),
+        });
         setResolvedUnavailable(false);
       })
       .catch(() => {
         if (seq !== resolvedSeq.current || team !== teamRef.current) return;
         setResolvedGroups([]);
+        setResolvedTotals(null);
         setResolvedUnavailable(true);
+      })
+      .finally(() => {
+        if (seq === resolvedSeq.current && team === teamRef.current) setResolvedLoading(false);
       });
     return () => controller.abort();
   }, [
@@ -1876,9 +1912,16 @@ function OperationsWorkbench() {
    * filter narrowed the selection — so a filtered count, zero included, never
    * reads as the workspace total.
    */
-  const groupCount = groupTotals?.groups ?? groups.length;
-  const conditionCount = groupTotals?.conditions ?? 0;
-  const groupsFloor = groupTotals?.complete === false;
+  // The unfiltered grouped view is TWO reads (unresolved sections + Resolved)
+  // that partition ALL, so its header counts both — the conditions it states
+  // are the rows on screen, never only the unresolved part of them.
+  const withResolved = grouped && !narrowing && !resolvedUnavailable && resolvedTotals !== null;
+  const groupCount =
+    (groupTotals?.groups ?? groups.length) + (withResolved ? resolvedTotals.groups : 0);
+  const conditionCount =
+    (groupTotals?.conditions ?? 0) + (withResolved ? resolvedTotals.conditions : 0);
+  const groupsFloor =
+    groupTotals?.complete === false || (withResolved && resolvedTotals.complete === false);
   const groupedSummary = [
     groupCount === 1 ? copy.resultSourceOne : fillOperationsCopy(copy.resultSources, { n: fmt(groupCount) }),
     groupsFloor
@@ -1889,7 +1932,7 @@ function OperationsWorkbench() {
         ? copy.resultConditionOne
         : fillOperationsCopy(copy.resultConditions, { n: fmt(conditionCount) }),
     ...(!narrowing
-      ? [copy.resultUnresolvedScope]
+      ? [withResolved ? copy.resultAllStatuses : copy.resultUnresolvedScope]
       : filters.status === "ALL"
         ? [copy.resultAllStatuses, copy.resultFiltered]
         : [copy.resultFiltered]),
@@ -2136,7 +2179,7 @@ function OperationsWorkbench() {
           ) : grouped && !narrowing ? (
             // THE GROUPED SECTIONS. "Action required" (posture OPEN) is the
             // primary content; "Monitoring" (acknowledged or silenced) is
-            // secondary; "Resolved in the last 7 days" is quiet reference
+            // secondary; "Resolved" (its own read) is quiet reference
             // below. All from the one UNRESOLVED read, so no group is in two
             // sections — and an EMPTY section is one compact line, never a
             // block, and never a global empty card.
@@ -2239,7 +2282,7 @@ function OperationsWorkbench() {
             </>
           )}
 
-          {/* RESOLVED IN THE LAST 7 DAYS — quiet reference content under the
+          {/* RESOLVED — every resolved condition, quiet reference content under the
               grouped sections. Not rendered under the first-use panel (there
               is no history to show), and one line when it is empty. */}
           {grouped && !groupsError && !narrowing && !mayAssertClear ? (
@@ -2247,7 +2290,7 @@ function OperationsWorkbench() {
               <div className="opsw-section-collapsed" data-ops-section="recently-resolved" data-ops-section-collapsed="true">
                 <p className="opsw-muted" role="status" data-ops-section-unavailable>{copy.sectionResolvedUnavailable}</p>
               </div>
-            ) : resolvedGroups.length > 0 ? (
+            ) : resolvedLoading && resolvedGroups.length === 0 ? null : resolvedGroups.length > 0 ? (
               <section
                 className="opsw-section opsw-section--quiet"
                 aria-labelledby="opsw-section-resolved"

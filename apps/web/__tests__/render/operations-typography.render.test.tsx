@@ -283,7 +283,7 @@ function routes(): Handler {
       };
     }
     if (path.startsWith("/v1/ops/incident-groups?")) {
-      return path.includes("resolvedWithinDays")
+      return /[?&]status=RESOLVED(&|$)/.test(path)
         ? { groups: [], completeness: { complete: true } }
         : { groups: [GROUP], totals: { groups: 1, conditions: 1 }, completeness: { complete: true } };
     }

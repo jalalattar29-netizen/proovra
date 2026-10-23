@@ -117,10 +117,19 @@ vi.mock("../../lib/api", () => ({
     }
     if (path.startsWith("/v1/ops/incident-groups?")) {
       const reply = pick(groupsReply(path)) as { groups?: Array<{ statusPosture?: string }> };
-      // THE SERVER'S WINDOW: the resolved section's read returns RESOLVED
-      // groups only (the API applies the window; the page no longer filters).
-      if (path.includes("resolvedWithinDays=") && Array.isArray(reply.groups)) {
-        return { ...reply, groups: reply.groups.filter((g) => g.statusPosture === "RESOLVED") };
+      // THE SERVER'S PREDICATE: the resolved section's read returns RESOLVED
+      // groups only, with totals the server would compute for THAT set (the
+      // page adds them to the unresolved read's totals).
+      if (/[?&]status=RESOLVED(&|$)/.test(path) && Array.isArray(reply.groups)) {
+        const groups = reply.groups.filter((g) => g.statusPosture === "RESOLVED") as Array<{ conditionCount?: number }>;
+        if (groups.length === reply.groups.length) return reply;
+        const conditions = groups.reduce((sum, g) => sum + (g.conditionCount ?? 0), 0);
+        return {
+          ...reply,
+          groups,
+          totals: { groups: groups.length, conditions },
+          conservation: { conditions, grouped: conditions },
+        };
       }
       return reply;
     }
@@ -2587,10 +2596,10 @@ describe("Operations — the grouped queue is the default", () => {
     // nothing to say how the two numbers were related. A group is a SOURCE,
     // which can hold several conditions, across every status.
     await mount(envelope(TEAM_ADMIN), "grouped");
-    // The default is UNRESOLVED work, so the header no longer says "all
-    // statuses" — it says that only when "All, including resolved" is chosen.
-    expect(document.body.textContent).toContain("2 sources · 5,001 conditions");
-    expect(document.body.textContent).not.toContain("all statuses");
+    // The default lifecycle is ALL and the grouped sections (unresolved +
+    // Resolved) hold all of it, so the header names that scope (2026-10-23).
+    expect(document.body.textContent).toContain("2 sources · 5,001 conditions · all statuses");
+    expect(document.body.textContent).not.toContain("· unresolved");
   });
 
   it("AN AGE RENDERS AS A SPAN, NEVER AS A RAW MINUTE COUNT", async () => {
@@ -4106,24 +4115,24 @@ describe("Operations truth closure — web", () => {
     expect(q('[data-ops-section="recently-resolved"]')).not.toBeNull();
   });
 
-  it("Resolved in the last 7 days is the SERVER's window over resolvedAtUtc: the browser clock never filters it, and a failed read is unavailable", async () => {
+  it("the Resolved section under All is the WHOLE resolved population (no time window): the browser clock never filters it, and a failed read is unavailable", async () => {
     const resolved = group({
       groupKey: "pipeline.report_generation_failed",
       sourceId: "pipeline.report_generation_failed",
       statusPosture: "RESOLVED",
-      // Last seen long ago; resolved recently. The old client filter used the
-      // last-seen time and dropped it.
-      latestActivityAtUtc: "2026-09-01T00:00:00.000Z",
-      latestResolvedAtUtc: "2026-10-12T09:00:00.000Z",
+      // Resolved MONTHS ago. Grouping the All view used to send
+      // `resolvedWithinDays=7`, which dropped exactly this group (2026-10-23).
+      latestActivityAtUtc: "2026-05-01T00:00:00.000Z",
+      latestResolvedAtUtc: "2026-06-12T09:00:00.000Z",
     });
     groupsReply = (path) =>
-      path.includes("resolvedWithinDays=7")
+      /[?&]status=RESOLVED(&|$)/.test(path)
         ? {
             groups: [resolved],
             totals: { groups: 1, conditions: 1 },
             conservation: { conditions: 1, grouped: 1 },
             completeness: { complete: true, mayAssertAllClear: true },
-            window: { resolvedWithinDays: 7, resolvedSinceUtc: "2026-10-05T10:00:00.000Z", serverNowUtc: "2026-10-12T10:00:00.000Z" },
+            window: null,
           }
         : { groups: [], totals: { groups: 0, conditions: 0 }, conservation: { conditions: 0, grouped: 0 }, completeness: { complete: true, mayAssertAllClear: true } };
 
@@ -4134,13 +4143,14 @@ describe("Operations truth closure — web", () => {
         requestLog = [];
         await mount(envelope(TEAM_ADMIN), "grouped");
         const read = requestLog.find((r) => r.path.startsWith("/v1/ops/incident-groups?") && r.path.includes("status=RESOLVED"));
-        expect(read?.path, clock).toContain("resolvedWithinDays=7");
+        // The SAME predicate the Resolved filter sends — no window.
+        expect(read?.path, clock).not.toContain("resolvedWithinDays");
+        expect(new URLSearchParams(read!.path.split("?")[1]).get("status")).toBe("RESOLVED");
         const section = q('[data-ops-section="recently-resolved"]') as HTMLElement;
-        expect(section.querySelector("h2")?.textContent).toBe("Resolved in the last 7 days");
-        // 2026-10-14 — concise and secondary: the window, and that the card counts all time.
-        expect(section.textContent).toContain("Closed in the last 7 days. The Resolved card above counts all time.");
+        expect(section.querySelector("h2")?.textContent).toBe("Resolved");
+        expect(section.textContent).toContain("Closed conditions, kept as history. The Resolved card above counts the same set.");
         expect(section.querySelector('[data-ops-group="pipeline.report_generation_failed"]'), clock).not.toBeNull();
-        expect(section.querySelector("[data-ops-group-resolved-at]")?.getAttribute("data-ops-group-resolved-at")).toBe("2026-10-12T09:00:00.000Z");
+        expect(section.querySelector("[data-ops-group-resolved-at]")?.getAttribute("data-ops-group-resolved-at")).toBe("2026-06-12T09:00:00.000Z");
       } finally {
         spy.mockRestore();
       }
@@ -4148,7 +4158,7 @@ describe("Operations truth closure — web", () => {
 
     // The section's own read fails: unavailable, never "nothing resolved".
     groupsReply = (path) =>
-      path.includes("resolvedWithinDays=7")
+      /[?&]status=RESOLVED(&|$)/.test(path)
         ? apiFailure(503)
         : { groups: [], totals: { groups: 0, conditions: 0 }, conservation: { conditions: 0, grouped: 0 }, completeness: { complete: true, mayAssertAllClear: true } };
     await mount(envelope(TEAM_ADMIN), "grouped");
@@ -4158,7 +4168,7 @@ describe("Operations truth closure — web", () => {
   });
 
   it("the grouped header counts sources and conditions, and names its scope", async () => {
-    groupsReply = () => ({
+    const unresolvedRead = {
       groups: [
         group({ groupKey: "evidence_integrity.tsa_failed", statusPosture: "OPEN" }),
         group({ groupKey: "pipeline.report_backlog", sourceId: "pipeline.report_backlog", statusPosture: "ACKNOWLEDGED" }),
@@ -4166,13 +4176,23 @@ describe("Operations truth closure — web", () => {
       totals: { groups: 2, conditions: 5 },
       conservation: { conditions: 5, grouped: 5 },
       completeness: { complete: true, mayAssertAllClear: true },
-    });
+    };
+    groupsReply = (path) =>
+      /[?&]status=RESOLVED(&|$)/.test(path)
+        ? {
+            groups: [group({ groupKey: "pipeline.report_generation_failed", sourceId: "pipeline.report_generation_failed", statusPosture: "RESOLVED" })],
+            totals: { groups: 1, conditions: 3 },
+            conservation: { conditions: 3, grouped: 3 },
+            completeness: { complete: true, mayAssertAllClear: true },
+          }
+        : unresolvedRead;
     await mount(envelope(TEAM_ADMIN), "grouped");
-    // The unfiltered grouped view is the unresolved SECTIONS, and its count
-    // says so — it is not the workspace total.
+    // The unfiltered grouped view is ALL: the unresolved sections plus the
+    // Resolved section, and its count is the rows on screen (2026-10-23).
     const resultLine = () => q("[data-ops-result-summary]")?.textContent ?? "";
-    expect(resultLine()).toBe("2 sources · 5 conditions · unresolved");
-    expect(resultLine()).not.toContain("all statuses");
+    expect(resultLine()).toBe("3 sources · 8 conditions · all statuses");
+    expect(resultLine()).not.toContain("unresolved");
+    groupsReply = () => unresolvedRead;
 
     // A FILTERED grouped view under lifecycle ALL says both.
     cleanup();

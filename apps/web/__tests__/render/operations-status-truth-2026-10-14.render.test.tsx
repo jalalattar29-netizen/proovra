@@ -261,7 +261,7 @@ function routes(r: Replies = {}): Handler {
     if (path === "/v1/platform/context/switch-workspace") return envelope(OTHER_WS, "Second workspace");
     if (path.startsWith("/v1/ops/summary")) return (r.summary ?? (() => summaryFor("CONFIRMED_CLEAR")))();
     if (path.startsWith("/v1/ops/incident-groups?")) {
-      if (path.includes("resolvedWithinDays")) {
+      if (/[?&]status=RESOLVED(&|$)/.test(path)) {
         return (r.resolvedGroups ?? (() => ({ groups: RESOLVED_GROUPS, totals: { groups: 3, conditions: 4 }, completeness: { complete: true } })))();
       }
       return { groups: [], totals: { groups: 0, conditions: 0 }, completeness: { complete: true } };

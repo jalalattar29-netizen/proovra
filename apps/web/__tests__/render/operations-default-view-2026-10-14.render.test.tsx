@@ -279,7 +279,7 @@ function routes(r: Replies = {}): Handler {
   return (path, method, body) => {
     if (path.startsWith("/v1/ops/summary")) return (r.summary ?? (() => summaryOf()))();
     if (path.startsWith("/v1/ops/incident-groups?")) {
-      if (path.includes("resolvedWithinDays")) {
+      if (/[?&]status=RESOLVED(&|$)/.test(path)) {
         return (r.resolvedGroups ?? (() => ({ groups: [], totals: { groups: 0, conditions: 0 }, completeness: { complete: true } })))();
       }
       return (r.groups ?? (() => ({ groups: [], totals: { groups: 0, conditions: 0 }, completeness: { complete: true } })))(path);
@@ -349,7 +349,13 @@ const gets = () => requestLog.filter((r) => r.method === "GET").map((r) => r.pat
 const posts = () => requestLog.filter((r) => r.method === "POST");
 const lastList = () => gets().filter((p) => p.startsWith("/v1/ops/incidents?")).at(-1) ?? "";
 const groupReads = () =>
-  gets().filter((p) => p.startsWith("/v1/ops/incident-groups?") && !p.includes("resolvedWithinDays"));
+  gets().filter((p) => p.startsWith("/v1/ops/incident-groups?") && !isResolvedSectionRead(p));
+// The unfiltered grouped view's Resolved section: teamId + status=RESOLVED and
+// nothing else (a FILTERED Resolved read carries its filters).
+const isResolvedSectionRead = (p: string) => {
+  const params = new URLSearchParams(p.split("?")[1] ?? "");
+  return params.get("status") === "RESOLVED" && [...params.keys()].every((k) => k === "teamId" || k === "status");
+};
 const resultLine = () => q("[data-ops-result-summary]")?.textContent ?? "";
 const tableRowIds = () =>
   qa("[data-ops-table-surface] [data-ops-row]").map((el) => el.getAttribute("data-ops-row"));
@@ -962,5 +968,210 @@ describe("D — the resolution note is trimmed, bounded, sent once, and its succ
     expect(EN.suppressConfirmBody).toMatch(/only notifications stop/);
     // No canned conclusion: the field asks, it never claims a repair.
     expect(EN.resolveNoteHelper).not.toMatch(/fixed|repaired|resolved the/i);
+  });
+});
+
+// ===========================================================================
+// E. GROUPING NEVER CHANGES THE POPULATION (2026-10-23)
+// ===========================================================================
+//
+// The defect: with the status filter at All, choosing Group dropped resolved
+// conditions — the grouped sections read UNRESOLVED plus a "Resolved in the
+// last 7 days" read (`resolvedWithinDays=7`), while the Resolved filter read
+// every resolved condition. Older resolutions were visible flat, visible under
+// Resolved, and invisible under All + Group.
+//
+// These cases run against a FAKE SERVER that honours the predicates the page
+// sends (status, and the window if one were sent), so the only way to pass is
+// for the grouped sections to ask for exactly the population All selects.
+
+describe("E — grouping is presentation: All + Group holds every condition All holds", () => {
+  const DAY = 24 * 3600_000;
+  type Row = {
+    id: string;
+    source: string;
+    status: "OPEN" | "ACKNOWLEDGED" | "SUPPRESSED" | "RESOLVED";
+    resolvedAgoMs?: number;
+  };
+
+  /** A server over one dataset: the flat list, the groups and the summary agree. */
+  function fakeServer(rows: Row[]): Handler {
+    const select = (params: URLSearchParams) => {
+      const status = params.get("status") ?? "ALL";
+      const within = params.get("resolvedWithinDays");
+      return rows.filter((r) => {
+        const ok =
+          status === "ALL" ||
+          (status === "UNRESOLVED" ? r.status !== "RESOLVED" : r.status === status);
+        if (!ok) return false;
+        if (within !== null) {
+          return r.status === "RESOLVED" && (r.resolvedAgoMs ?? 0) <= Number(within) * DAY;
+        }
+        return true;
+      });
+    };
+    const posture = (members: Row[]) =>
+      members.every((m) => m.status === "RESOLVED")
+        ? "RESOLVED"
+        : members.some((m) => m.status === "OPEN")
+          ? "OPEN"
+          : members.some((m) => m.status === "ACKNOWLEDGED")
+            ? "ACKNOWLEDGED"
+            : "SUPPRESSED";
+    const open = rows.filter((r) => r.status !== "RESOLVED").length;
+    const resolved = rows.length - open;
+    return (path, method, body) => {
+      const params = new URLSearchParams(path.split("?")[1] ?? "");
+      if (path.startsWith("/v1/ops/summary")) {
+        return summaryOf({
+          ...ZERO_ACTIVE,
+          open,
+          resolved,
+          unassigned: open,
+          mayAssertAllClear: open === 0,
+          clearRefusalReason: open === 0 ? null : "UNRESOLVED_CONDITIONS",
+        });
+      }
+      if (path.startsWith("/v1/ops/incident-groups?")) {
+        const selected = select(params);
+        const bySource = new Map<string, Row[]>();
+        for (const r of selected) bySource.set(r.source, [...(bySource.get(r.source) ?? []), r]);
+        const groups = [...bySource.entries()].map(([source, members]) =>
+          group(source, {
+            conditionCount: members.length,
+            statusPosture: posture(members),
+            latestResolvedAtUtc: posture(members) === "RESOLVED" ? HOURS_AGO(1) : null,
+          }),
+        );
+        return {
+          groups,
+          totals: { groups: groups.length, conditions: selected.length },
+          conservation: { conditions: selected.length, grouped: selected.length },
+          completeness: { complete: true, mayAssertAllClear: true },
+        };
+      }
+      if (method === "GET" && path.startsWith("/v1/ops/incidents?")) {
+        return listOf(
+          select(params).map((r) =>
+            r.status === "RESOLVED"
+              ? incident(r.id, {
+                  status: "RESOLVED",
+                  resolvedAtUtc: new Date(NOW - (r.resolvedAgoMs ?? 0)).toISOString(),
+                })
+              : incident(r.id, { status: r.status }),
+          ),
+        );
+      }
+      return routes()(path, method, body);
+    };
+  }
+
+  /** How many groups each grouped section holds. */
+  function groupedSections() {
+    const sections: Record<string, number> = {};
+    for (const s of qa("section[data-ops-section]")) {
+      sections[s.getAttribute("data-ops-section")!] = s.querySelectorAll("[data-ops-group]").length;
+    }
+    return sections;
+  }
+  const groupKeysIn = (section: string) =>
+    qa(`[data-ops-section="${section}"] [data-ops-group]`).map((g) => g.getAttribute("data-ops-group"));
+
+  /** Choose a lifecycle; the router writes the address and Next re-renders. */
+  async function chooseStatus(utils: ReturnType<typeof render>, label: string) {
+    await click(statusControl());
+    const option = qa('[role="option"]').find((o) => o.textContent?.trim() === label);
+    await click(option ?? null);
+    utils.rerender(tree());
+    await settle();
+  }
+
+  const MIXED: Row[] = [
+    { id: "o-1", source: "tsa.failed", status: "OPEN" },
+    { id: "o-2", source: "tsa.failed", status: "OPEN" },
+    { id: "a-1", source: "report.backlog", status: "ACKNOWLEDGED" },
+    { id: "r-new", source: "intake.delivery", status: "RESOLVED", resolvedAgoMs: 2 * DAY },
+    // Resolved long ago — the rows the 7-day window dropped.
+    { id: "r-old-1", source: "storage.verify", status: "RESOLVED", resolvedAgoMs: 40 * DAY },
+    { id: "r-old-2", source: "storage.verify", status: "RESOLVED", resolvedAgoMs: 90 * DAY },
+  ];
+
+  it("mixed open/resolved: All flat and All grouped select the same 6 conditions; old resolutions stay", async () => {
+    handler = fakeServer(MIXED);
+    await mount();
+    expect(tableRowIds()).toHaveLength(6);
+    expect(resultLine()).toBe("6 conditions · all statuses");
+
+    await click(q('[data-ops-view="grouped"]'));
+    expect(groupKeysIn("action-required")).toEqual(["tsa.failed"]);
+    expect(groupKeysIn("monitoring")).toEqual(["report.backlog"]);
+    expect(groupKeysIn("recently-resolved").sort()).toEqual(["intake.delivery", "storage.verify"]);
+    // Group totals equal the underlying rows the flat All list showed.
+    expect(resultLine()).toBe("4 sources · 6 conditions · all statuses");
+    // The resolved section sent the Resolved filter's predicate — no window.
+    const resolvedRead = gets().filter(isResolvedSectionRead).at(-1)!;
+    expect(resolvedRead).not.toContain("resolvedWithinDays");
+    expect(q("[data-ops-empty]")).toBeNull();
+  });
+
+  it("All → Resolved → All with Group on is stable without a refresh, and Resolved shows exactly the resolved set", async () => {
+    handler = fakeServer(MIXED);
+    currentSearch = "view=grouped";
+    const utils = await mount();
+    const allResolved = groupKeysIn("recently-resolved").sort();
+    expect(allResolved).toEqual(["intake.delivery", "storage.verify"]);
+
+    await chooseStatus(utils, EN.status.RESOLVED.label);
+    expect(currentSearch).toBe("status=RESOLVED&view=grouped");
+    // The filtered grouped view holds exactly the groups the All view's
+    // Resolved section held.
+    const filtered = qa("[data-ops-group]").map((g) => g.getAttribute("data-ops-group")).sort();
+    expect(filtered).toEqual(allResolved);
+    expect(resultLine()).toBe("2 sources · 3 conditions · filtered");
+
+    await chooseStatus(utils, EN.statusAll);
+    expect(currentSearch).toBe("view=grouped");
+    expect(groupKeysIn("recently-resolved").sort()).toEqual(allResolved);
+    expect(resultLine()).toBe("4 sources · 6 conditions · all statuses");
+  });
+
+  it("only resolved (all older than a week): All + Group lists them — never an empty queue or an all-clear panel", async () => {
+    handler = fakeServer([
+      { id: "r-1", source: "storage.verify", status: "RESOLVED", resolvedAgoMs: 30 * DAY },
+      { id: "r-2", source: "intake.delivery", status: "RESOLVED", resolvedAgoMs: 200 * DAY },
+    ]);
+    currentSearch = "view=grouped";
+    await mount();
+    expect(groupKeysIn("recently-resolved").sort()).toEqual(["intake.delivery", "storage.verify"]);
+    expect(resultLine()).toBe("2 sources · 2 conditions · all statuses");
+    expectNoOnboarding();
+    expect(q('[data-ops-empty="filtered"]')).toBeNull();
+    // The same population flat.
+    await click(q('[data-ops-view="flat"]'));
+    expect(tableRowIds().sort()).toEqual(["r-1", "r-2"]);
+  });
+
+  it("no records: the grouped view shows an empty state, and both reads were made", async () => {
+    handler = fakeServer([]);
+    currentSearch = "view=grouped";
+    await mount();
+    expect(qa("[data-ops-group]")).toHaveLength(0);
+    expect(q("[data-ops-empty]")).not.toBeNull();
+    expect(gets().filter(isResolvedSectionRead)).toHaveLength(1);
+  });
+
+  it("a deep link / reload and Back/Forward reproduce the same grouped population", async () => {
+    handler = fakeServer(MIXED);
+    currentSearch = "view=grouped";
+    const utils = await mount();
+    const first = JSON.stringify(groupedSections());
+    await navigateTo(utils, "status=RESOLVED&view=grouped");
+    expect(qa("[data-ops-group]")).toHaveLength(2);
+    await navigateTo(utils, "view=grouped");
+    expect(JSON.stringify(groupedSections())).toBe(first);
+    // A fresh mount at the same address (a reload) gives the same answer.
+    await mount();
+    expect(JSON.stringify(groupedSections())).toBe(first);
+    expect(resultLine()).toBe("4 sources · 6 conditions · all statuses");
   });
 });
