@@ -682,6 +682,8 @@ type OperationsVocabularyCopy = {
   bulkCancelled: string;
   bulkReasonTooShort: string;
   savedViewsLabel: string;
+  /** {name} — a saved view with filters this build no longer recognises. */
+  savedViewPartlyApplied: string;
   saveView: string;
   loadingConditions: string;
   clearTitle: string;
@@ -993,6 +995,7 @@ const OPERATIONS_VOCAB_EN: OperationsVocabularyCopy = {
   bulkCancelled: "Nothing was changed — verification was cancelled.",
   bulkReasonTooShort: "Write a reason of at least 3 characters first.",
   savedViewsLabel: "Views",
+  savedViewPartlyApplied: "Some filters in \u201c{name}\u201d are no longer recognised and were not applied. Save the view again to update it.",
   saveView: "Save this view",
   loadingConditions: "Loading operational conditions…",
   clearTitle: "Workspace operations are clear",
@@ -1331,6 +1334,7 @@ const OPERATIONS_VOCAB_DE: OperationsVocabularyCopy = {
   bulkCancelled: "Nichts wurde geändert – die Verifizierung wurde abgebrochen.",
   bulkReasonTooShort: "Geben Sie zuerst eine Begründung mit mindestens 3 Zeichen ein.",
   savedViewsLabel: "Ansichten",
+  savedViewPartlyApplied: "Einige Filter in \u201e{name}\u201c werden nicht mehr erkannt und wurden nicht angewendet. Speichern Sie die Ansicht erneut, um sie zu aktualisieren.",
   saveView: "Diese Ansicht speichern",
   loadingConditions: "Betriebliche Zustände werden geladen…",
   clearTitle: "Im Arbeitsbereich ist alles in Ordnung",
@@ -1671,6 +1675,7 @@ const OPERATIONS_VOCAB_AR: OperationsVocabularyCopy = {
   bulkCancelled: "لم يتغير شيء — أُلغي التحقق.",
   bulkReasonTooShort: "اكتب سببًا من 3 أحرف على الأقل أولًا.",
   savedViewsLabel: "طرق العرض",
+  savedViewPartlyApplied: "بعض عوامل التصفية في «{name}» لم تعد معروفة ولم تُطبَّق. احفظ طريقة العرض مجددًا لتحديثها.",
   saveView: "حفظ طريقة العرض هذه",
   loadingConditions: "جارٍ تحميل الحالات التشغيلية…",
   clearTitle: "عمليات مساحة العمل سليمة",

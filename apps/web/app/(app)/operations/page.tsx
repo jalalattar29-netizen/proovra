@@ -373,21 +373,40 @@ function OperationsWorkbench() {
    * not set falls back to the DEFAULT, so a named view means the same thing
    * whatever was on screen. D11 — the SLA posture is part of the view.
    */
+  /**
+   * A SAVED VIEW IS READ THROUGH THE SAME CODEC AS AN ADDRESS (2026-10-23).
+   *
+   * It used to be cast field by field into the filter state, so a view saved
+   * by an earlier build — a severity, category or commitment value this
+   * build no longer knows — sent that value to the API unvalidated, and the
+   * queue came back refused. It is now parsed exactly as a pasted link is:
+   * unknown values fall away (widening, never narrowing, the queue), and the
+   * reader is told which of the view's filters could not be applied. The
+   * view's own stored workspace is never consulted: the queue always reads
+   * the ACTIVE workspace.
+   */
+  const [savedViewNotice, setSavedViewNotice] = React.useState<string | null>(null);
   const applyView = React.useCallback(
     (view: OperationsSavedView) => {
-      const f = view.filter;
-      applyFilters({
-        ...DEFAULT_FILTERS,
-        sla: (f.sla ?? "") as FilterState["sla"],
-        status: (f.status ?? DEFAULT_FILTERS.status) as FilterState["status"],
-        severity: (f.severity ?? "") as FilterState["severity"],
-        category: (f.category ?? "") as FilterState["category"],
-        owner: (f.owner ?? "any") as FilterState["owner"],
-        q: f.q ?? "",
-        sort: (f.sort ?? DEFAULT_FILTERS.sort) as FilterState["sort"],
+      const f = (view.filter ?? {}) as Record<string, unknown>;
+      const params = new URLSearchParams();
+      for (const key of ["sla", "status", "severity", "category", "owner", "q", "sort"]) {
+        const v = f[key];
+        if (typeof v === "string" && v.length > 0) params.set(key, v);
+      }
+      const next = filtersFromParams(params);
+      const dropped = [...params.keys()].filter((key) => {
+        const applied = String((next as Record<string, unknown>)[key] ?? "");
+        return key === "q" ? applied !== String(f.q ?? "").slice(0, 120) : applied !== params.get(key);
       });
+      setSavedViewNotice(
+        dropped.length > 0
+          ? fillOperationsCopy(copy.savedViewPartlyApplied, { name: view.name })
+          : null,
+      );
+      applyFilters(next);
     },
-    [applyFilters],
+    [applyFilters, copy],
   );
 
   // -------------------------------------------------------------------------
@@ -2095,6 +2114,11 @@ function OperationsWorkbench() {
             canManageShared={capabilities.canManageSharedViews}
             onDelete={(view) => void deleteView(view)}
           />
+          {savedViewNotice ? (
+            <p className="opsw-muted" role="status" data-ops-saved-view-notice>
+              {savedViewNotice}
+            </p>
+          ) : null}
 
           <FilterToolbar
             filters={filters}
