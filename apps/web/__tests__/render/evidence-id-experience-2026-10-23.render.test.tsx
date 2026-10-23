@@ -132,6 +132,23 @@ describe("A — What needs attention holds only what needs attention", () => {
     expect(onAssignReviewer).toHaveBeenCalledTimes(1);
   });
 
+  it("no classification from the server is said, never shown as calm (audit F14)", () => {
+    render(
+      <WhatNeedsAttentionStrip
+        ctx={{ workspace: workspaceWith(undefined as never) } as never}
+        onAssignCase={() => {}}
+        onAssignReviewer={() => {}}
+        onGoToArtifacts={() => {}}
+      />,
+    );
+    expect(q('[data-evidence-attention-strip="no-action"]')).toBeNull();
+    expect(q('[data-evidence-attention-strip="unavailable"]')?.textContent).toContain("could not be read");
+    cleanup();
+    render(<EvidenceRecordRail workspace={workspaceWith(undefined as never)} verificationPage={null} shareUrl={null} />);
+    expect(q("[data-evidence-risk-empty]")).toBeNull();
+    expect(q("[data-evidence-risk-unavailable]")?.textContent).toBe("Risk signals could not be read.");
+  });
+
   it("nothing actionable: no heading and no region — one calm line", () => {
     render(
       <WhatNeedsAttentionStrip
@@ -221,7 +238,7 @@ function actionsFor(over: Partial<Parameters<typeof projectReviewWorkflowActions
     viewerUserId: ME,
     viewerMayReview: true,
     hasWorkspace: true,
-    verdictRecorded: false,
+    decision: { state: "first_required", firstReviewerUserId: null, resolvedByRequestInfo: false },
     ...over,
   });
 }
@@ -239,6 +256,7 @@ function Harness({ initial }: { initial: { status: string; assignedTo: { id: str
         currentStatus={state.status}
         assignedTo={state.assignedTo}
         viewerUserId={ME}
+        workflowUpdatedAt="2026-10-23T10:00:00.000Z"
         availableActions={actionsFor({ dbStatus: state.status, assignedToUserId: state.assignedTo?.id ?? null })}
         onChanged={async () => {
           setState({ ...server.current });
@@ -280,6 +298,32 @@ describe("C — every review click has a visible outcome", () => {
     expect(q("[data-evidence-review-assignee]")?.textContent).toBe("Reviewer: You");
     expect(q('[data-evidence-review-action="CLAIM"]')).toBeNull();
     expect(q("[data-evidence-review-stage]")?.textContent).toBe("Assigned");
+  });
+
+  it("Begin review (audit F7): after Claim the owner begins the review — a version-checked move to In review — and verdicts follow", async () => {
+    reply = (path, method) => {
+      if (method === "PATCH" && path.endsWith("/reviewer-workflow")) {
+        serverRef.current!.current = { status: "IN_REVIEW", assignedTo: { id: ME, displayName: "Dana", email: null } };
+        return { workflow: {} };
+      }
+      return {};
+    };
+    render(<Harness initial={{ status: "ASSIGNED", assignedTo: { id: ME, displayName: "Dana", email: null } }} />);
+    expect(q('[data-evidence-review-action="APPROVE_INTERNAL"]')).toBeNull();
+    const begin = q('[data-evidence-review-action="BEGIN_REVIEW"]') as HTMLButtonElement;
+    expect(begin.disabled).toBe(false);
+    expect(begin.textContent).toContain("Begin review");
+    await act(async () => {
+      fireEvent.click(begin);
+    });
+    await waitFor(() => expect(q('[data-evidence-review-outcome="success"]')).not.toBeNull());
+    const sent = requests.filter((r) => r.method === "PATCH");
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.path).toBe("/v1/evidence/ev-1/reviewer-workflow");
+    expect(JSON.parse(sent[0]!.body!)).toEqual({ status: "IN_REVIEW", expectedUpdatedAt: "2026-10-23T10:00:00.000Z" });
+    expect(q("[data-evidence-review-outcome]")?.textContent).toBe("Review begun. A verdict can now be recorded.");
+    expect(q('[data-evidence-review-action="BEGIN_REVIEW"]')).toBeNull();
+    expect((q('[data-evidence-review-action="APPROVE_INTERNAL"]') as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("another reviewer is named by NAME — never a raw id", () => {
@@ -365,7 +409,7 @@ describe("C — every review click has a visible outcome", () => {
 // ===========================================================================
 
 describe("D — the workflow history reads for a person", () => {
-  it("creation's four automatic events are ONE system entry; enums and ids never reach the reader", () => {
+  it("creation's four automatic events are ONE entry, attributed to the person who created it; enums and ids never reach the reader", () => {
     const t = "2026-10-20T10:00:00.000Z";
     const owner = { id: OTHER, email: null, displayName: null };
     render(
@@ -386,7 +430,8 @@ describe("D — the workflow history reads for a person", () => {
     );
     const entries = qa("[data-evidence-workflow-entry]");
     expect(entries).toHaveLength(1);
-    expect(entries[0]!.getAttribute("data-evidence-workflow-entry")).toBe("SYSTEM");
+    // A person created it (audit F8: it was always labelled the system's).
+    expect(entries[0]!.getAttribute("data-evidence-workflow-entry")).toBe("PERSON");
     expect(entries[0]!.getAttribute("data-evidence-workflow-event-count")).toBe("4");
     expect(entries[0]!.textContent).toContain("Review workflow created");
     const text = document.body.textContent ?? "";
@@ -395,5 +440,25 @@ describe("D — the workflow history reads for a person", () => {
     // The summary does not repeat absent optional values.
     expect(text).not.toContain("Not available");
     expect(text).toContain("Review history is separate from the evidence");
+  });
+
+  it("an SLA event PROOVRA wrote with no actor reads as PROOVRA, never as a former member (audit F8)", () => {
+    render(
+      <ReviewerWorkflowCard
+        workflow={{ available: true, status: "IN_REVIEW", priority: "NORMAL", assignedTo: null, dueAt: null, lastReviewedAt: null, note: null, viewerUserId: ME } as never}
+        events={[
+          { id: "s1", eventType: "SLA_BREACHED", note: null, previousValue: null, nextValue: null, createdAt: "2026-10-22T10:00:00.000Z", actor: null },
+        ]}
+        eventsLoading={false}
+        actionBusy={false}
+        onRefreshEvents={() => {}}
+        onOpenEditor={() => {}}
+        formatDateTime={(v) => v ?? ""}
+      />,
+    );
+    const entry = q("[data-evidence-workflow-entry]") as HTMLElement;
+    expect(entry.getAttribute("data-evidence-workflow-entry")).toBe("SYSTEM");
+    expect(entry.textContent).toContain("PROOVRA");
+    expect(entry.textContent).not.toContain("Former workspace member");
   });
 });

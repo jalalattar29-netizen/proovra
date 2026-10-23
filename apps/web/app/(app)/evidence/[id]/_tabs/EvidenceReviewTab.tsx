@@ -278,6 +278,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           assignedTo={workspace.reviewWorkflow.assignedTo ?? null}
           viewerUserId={workspace.reviewWorkflow.viewerUserId ?? null}
           availableActions={workspace.reviewWorkflow.availableActions}
+          workflowUpdatedAt={workspace.reviewWorkflow.updatedAt ?? null}
           // THE AUTHORITATIVE RE-READ: the record (status, owner, available
           // actions) AND the history — it used to reload only the history, so
           // the panel kept showing the state from before the click.

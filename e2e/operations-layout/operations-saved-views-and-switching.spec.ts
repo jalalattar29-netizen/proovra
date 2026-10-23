@@ -38,6 +38,8 @@ const VIEWS = (team: string) =>
         { id: "v-critical", name: "Open critical", filter: { teamId: WORKSPACE_ID, status: "UNRESOLVED", severity: "CRITICAL" } },
         // Saved by an earlier build: "EXTREME" and "RETIRED_SOURCE" no longer exist.
         { id: "v-stale", name: "Old triage", filter: { teamId: WORKSPACE_ID, status: "RESOLVED", severity: "EXTREME", category: "RETIRED_SOURCE" } },
+        // Saved before ALL was upper-case: the legacy spelling still means ALL.
+        { id: "v-legacy-all", name: "Everything high", filter: { teamId: WORKSPACE_ID, status: "all", severity: "HIGH" } },
         // A view whose stored filter names ANOTHER workspace.
         { id: "v-foreign", name: "Copied from elsewhere", filter: { teamId: OTHER_WORKSPACE_ID, category: "UPLOAD" } },
       ]
@@ -172,6 +174,26 @@ test("a stale saved view applies what is still valid, never sends the rest, and 
     expect(sent.get("category")).not.toBe("RETIRED_SOURCE");
   }
   expect((await titles(page)).join("|")).toContain("A — report backlog");
+});
+
+test("a legacy lower-case status is applied, not reported as dropped (audit F13)", async ({ page }) => {
+  const s = await serve(page);
+  await open(page);
+  await page.locator('[data-ops-saved-view="v-legacy-all"]').click();
+  await expect.poll(() => search(page).get("severity")).toBe("HIGH");
+  await expect.poll(() => lastList(s).get("severity")).toBe("HIGH");
+  await expect(page.locator("[data-ops-saved-view-notice]")).toHaveCount(0);
+  expect((await titles(page)).join("|")).toContain("A — report backlog");
+});
+
+test("the partly-applied notice clears when the reader changes the filters themselves (audit F13)", async ({ page }) => {
+  await serve(page);
+  await open(page);
+  await page.locator('[data-ops-saved-view="v-stale"]').click();
+  await expect(page.locator("[data-ops-saved-view-notice]")).toBeVisible();
+  await page.locator("[data-ops-clear-filters]").click();
+  await expect.poll(() => search(page).get("status")).toBeNull();
+  await expect(page.locator("[data-ops-saved-view-notice]")).toHaveCount(0);
 });
 
 test("a view naming another workspace never makes the page read that workspace", async ({ page }) => {

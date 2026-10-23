@@ -48,6 +48,7 @@ import {
   usePlanFeatureGate,
 } from "../../../../lib/platform-context";
 import { apiFetch } from "../../../../lib/api";
+import { claimAndBeginReview } from "./components/EvidenceReviewActionsPanel";
 import { getEvidenceDeletionEligibility } from "../lib/evidence-delete-eligibility";
 import { captureException } from "../../../../lib/sentry";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -339,21 +340,26 @@ function EvidenceDetailPageInner() {
   }, [evidenceId]);
 
   /**
-   * Start review = claim it (2026-10-23). The server assigns it to this
-   * viewer; the record is then re-read so the strip, the rail and the Review
-   * tab all show the new owner. A refusal is said, never swallowed.
+   * Start review = claim it, then begin it (claimAndBeginReview); the record
+   * is re-read so the strip, the rail and the Review tab agree. A refusal is
+   * said, never swallowed.
    */
   const startReview = useCallback(async () => {
     const teamId = workspace?.reviewWorkflow?.teamId ?? null;
     if (!evidenceId || !teamId) return;
     try {
-      await apiFetch(`/v1/review-operations/evidence/${evidenceId}/claim`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ teamId }),
-      });
+      const { beginError } = await claimAndBeginReview(evidenceId, teamId);
       await Promise.all([loadWorkspace({ bumpBaseline: true }), loadWorkflowEvents()]);
-      addToast("You now own this review.", "success");
+      if (!beginError) {
+        addToast("Review started. You own it and can record a verdict.", "success");
+      } else {
+        addToast(
+          `You now own this review, but it could not be moved to In review: ${
+            toSafeUserError(beginError, { message: "try Begin review on the Review tab." }).message
+          }`,
+          "error",
+        );
+      }
     } catch (claimError) {
       await loadWorkspace({ bumpBaseline: true });
       addToast(

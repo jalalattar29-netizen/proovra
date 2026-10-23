@@ -346,7 +346,7 @@ export function makeWorkspace(): unknown {
         viewerUserId: "user-1",
         viewerMayReview: true,
         hasWorkspace: true,
-        verdictRecorded: false,
+        decision: { state: "first_required", firstReviewerUserId: null, resolvedByRequestInfo: false },
       }),
       status: null,
       statusLabel: "Not started",

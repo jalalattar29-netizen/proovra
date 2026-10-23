@@ -66,13 +66,52 @@ const NOTE_MAX = 400;
 
 const SUCCESS_COPY: Readonly<Record<ReviewWorkflowAction, string>> = {
   CLAIM: "You now own this review.",
+  BEGIN_REVIEW: "Review begun. A verdict can now be recorded.",
   APPROVE_INTERNAL: "Internal approval recorded.",
   REQUEST_MORE_INFO: "More information requested.",
   REJECT_INSUFFICIENT: "Rejection recorded.",
-  ESCALATE: "Review escalated. The assigned reviewer has been notified.",
+  ESCALATE: "Review escalated to this workspace's owners and admins.",
   REOPEN: "Review reopened.",
   CLOSE: "Review closed.",
 };
+
+/**
+ * Begin review: a version-checked move of a claimed review to In review
+ * (audit F7). claimAndBeginReview sends the same request after a claim.
+ */
+export async function beginReview(evidenceId: string, expectedUpdatedAt: string | null | undefined) {
+  await apiFetch(`/v1/evidence/${evidenceId}/reviewer-workflow`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ status: "IN_REVIEW", ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}) }),
+  });
+}
+
+/**
+ * Start review = claim it, then begin it against the claim's own version.
+ * A refused claim throws; a claim that succeeded is never reported as a
+ * failure — a refused begin comes back as `beginError`.
+ */
+export async function claimAndBeginReview(evidenceId: string, teamId: string): Promise<{ beginError: unknown }> {
+  const claimed = (await apiFetch(`/v1/review-operations/evidence/${evidenceId}/claim`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ teamId }),
+  })) as { workflow?: { updatedAt?: string } } | null;
+  // The path is written here, not forwarded, so the request is attributed
+  // to its route by the capability analyzer.
+  const expectedUpdatedAt = claimed?.workflow?.updatedAt;
+  try {
+    await apiFetch(`/v1/evidence/${evidenceId}/reviewer-workflow`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "IN_REVIEW", ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}) }),
+    });
+    return { beginError: null };
+  } catch (beginError) {
+    return { beginError: beginError ?? new Error("begin_failed") };
+  }
+}
 
 function refusalMessage(err: unknown, fallback: string): string {
   const e = (err ?? {}) as { body?: { error?: { code?: string } }; code?: string };
@@ -88,6 +127,7 @@ export function EvidenceReviewActionsPanel({
   assignedTo,
   viewerUserId,
   availableActions,
+  workflowUpdatedAt,
   onChanged,
 }: {
   evidenceId: string;
@@ -97,6 +137,11 @@ export function EvidenceReviewActionsPanel({
   viewerUserId: string | null;
   /** The server's projection; absent → nothing is offered. */
   availableActions: ReadonlyArray<ReviewWorkflowActionAvailability> | null | undefined;
+  /**
+   * The workflow version this panel shows. Begin review sends it, so a review
+   * that changed under the viewer is refused rather than overwritten.
+   */
+  workflowUpdatedAt?: string | null;
   /** Re-reads the record from the server. Awaited before success is shown. */
   onChanged?: () => Promise<void> | void;
 }) {
@@ -120,6 +165,9 @@ export function EvidenceReviewActionsPanel({
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ teamId }),
         });
+      } else if (action === "BEGIN_REVIEW") {
+        // Audit F7: the panel had no way from Claim to a verdict.
+        await beginReview(evidenceId, workflowUpdatedAt);
       } else {
         await apiFetch(`/v1/review-operations/evidence/${evidenceId}/decision`, {
           method: "POST",
@@ -288,7 +336,7 @@ export function EvidenceReviewActionsPanel({
         {offered.map((a) => (
             <ReasonedActionButton
               key={a.action}
-              className={a.action === "CLAIM" ? "app-primary-action" : "app-secondary-action"}
+              className={a.action === "CLAIM" || a.action === "BEGIN_REVIEW" ? "app-primary-action" : "app-secondary-action"}
               disabled={!a.enabled || pending !== null}
               busy={pending === a.action}
               disabledReason={!a.enabled && a.blockedBy ? REVIEW_WORKFLOW_BLOCK_COPY[a.blockedBy] : null}

@@ -38,7 +38,19 @@ export function WhatNeedsAttentionStrip({
 }) {
   const { workspace } = ctx;
   const attention = workspace.attention;
-  if (!attention) return null;
+  // No classification from the server is NOT "nothing needs attention"
+  // (audit F14): say it could not be read rather than show nothing or calm.
+  if (!attention) {
+    return (
+      <p
+        className="evidence-detail-attention-calm"
+        role="status"
+        data-evidence-attention-strip="unavailable"
+      >
+        What needs attention could not be read. Reload to try again.
+      </p>
+    );
+  }
   const items = attention.items.filter((i) => i.placement === "ATTENTION");
 
   if (attention.headline === "NO_ACTION" || items.length === 0) {

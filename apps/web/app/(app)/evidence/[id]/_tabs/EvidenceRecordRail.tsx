@@ -68,7 +68,12 @@ export function EvidenceRecordRail({
             classification: a positive state is not a risk, provenance lives
             in the provenance context, and an item that needs action is in the
             strip above — never repeated here as a large card. */}
-        {signals.length === 0 ? (
+        {!attention ? (
+          // No classification is not "no risk" (audit F14).
+          <p className="evidence-detail-muted evidence-detail-rail-note" data-evidence-risk-unavailable>
+            Risk signals could not be read.
+          </p>
+        ) : signals.length === 0 ? (
           <p className="evidence-detail-muted evidence-detail-rail-note" data-evidence-risk-empty>
             {requiredAbove
               ? "Issues that need action are listed under What needs attention."

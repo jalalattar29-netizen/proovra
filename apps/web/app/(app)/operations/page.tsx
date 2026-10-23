@@ -349,8 +349,14 @@ function OperationsWorkbench() {
     [searchKey],
   );
 
+  /** Which of a just-applied saved view's filters could not be applied. */
+  const [savedViewNotice, setSavedViewNotice] = React.useState<string | null>(null);
   const applyFilters = React.useCallback(
     (next: FilterState) => {
+      // Any filter change replaces what a saved view put on screen, so its
+      // notice no longer describes the queue (audit F13: it never cleared).
+      // applyView sets its own notice after this.
+      setSavedViewNotice(null);
       router.push(operationsHref(next, presentation, incidentParam), {
         scroll: false,
       });
@@ -385,7 +391,6 @@ function OperationsWorkbench() {
    * view's own stored workspace is never consulted: the queue always reads
    * the ACTIVE workspace.
    */
-  const [savedViewNotice, setSavedViewNotice] = React.useState<string | null>(null);
   const applyView = React.useCallback(
     (view: OperationsSavedView) => {
       const f = (view.filter ?? {}) as Record<string, unknown>;
@@ -397,14 +402,18 @@ function OperationsWorkbench() {
       const next = filtersFromParams(params);
       const dropped = [...params.keys()].filter((key) => {
         const applied = String((next as Record<string, unknown>)[key] ?? "");
-        return key === "q" ? applied !== String(f.q ?? "").slice(0, 120) : applied !== params.get(key);
+        // A value the codec only re-cased (an earlier build saved "all") was
+        // applied, not dropped (audit F13: it raised a false notice).
+        return key === "q"
+          ? applied !== String(f.q ?? "").slice(0, 120)
+          : applied.toUpperCase() !== String(params.get(key) ?? "").toUpperCase();
       });
+      applyFilters(next);
       setSavedViewNotice(
         dropped.length > 0
           ? fillOperationsCopy(copy.savedViewPartlyApplied, { name: view.name })
           : null,
       );
-      applyFilters(next);
     },
     [applyFilters, copy],
   );
