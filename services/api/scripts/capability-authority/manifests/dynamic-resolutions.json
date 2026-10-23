@@ -211,9 +211,9 @@
       "reviewedAtUtc": "2026-10-01"
     },
     {
-      "site": "apps/web/app/(app)/operations/page.tsx:2378",
+      "site": "apps/web/app/(app)/operations/page.tsx:2402",
       "class": "PROP_CALLBACK",
-      "evidence": "onAssign={(userId) => void assign(openRow.id, userId)} — the drawer's assign callback; the path is built where the handler is defined, apps/web/app/(app)/operations/page.tsx:1463 `/v1/ops/incidents/${encodeURIComponent(incidentId)}/assign` (POST), and is counted there. | Re-anchored :2335 -> :2378 on 2026-10-23 (OPERATIONS POPULATION): forty-three lines, from the Resolved section read (full RESOLVED population, its totals and loading state) added above it. Verified BY READING the site: :2378 is `onAssign={(userId) => void assign(openRow.id, userId)}`, byte-identical.",
+      "evidence": "onAssign={(userId) => void assign(openRow.id, userId)} — the drawer's assign callback; the path is built where the handler is defined, apps/web/app/(app)/operations/page.tsx:1463 `/v1/ops/incidents/${encodeURIComponent(incidentId)}/assign` (POST), and is counted there. | Re-anchored :2335 -> :2378 on 2026-10-23 (OPERATIONS POPULATION): forty-three lines, from the Resolved section read (full RESOLVED population, its totals and loading state) added above it. Verified BY READING the site: :2378 is `onAssign={(userId) => void assign(openRow.id, userId)}`, byte-identical. | Re-anchored :2378 -> :2402 on 2026-10-23 (SAVED VIEWS): twenty-four lines, from the saved-view codec (applyView reading a view through filtersFromParams, with its notice) and the notice line rendered under the views strip, both above it. Verified BY READING the site: :2402 is `onAssign={(userId) => void assign(openRow.id, userId)}`, byte-identical.",
       "reviewedAtUtc": "2026-10-12"
     }
   ]

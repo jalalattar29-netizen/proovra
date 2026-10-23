@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "45b0ccc11d53f1ef728ed047c3c39cb19a0efadb17584989e737d434908dc85d",
-  "consumerInventoryHash": "8653286426dc76bd133cc796c980af1ded2d027afb724897bb20c116017f398f",
+  "consumerInventoryHash": "8f665ec51dd1c01c2e842674180d4cbe0c01d895dbe7be5a0855a4a11a7029a0",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1191,
@@ -125,7 +125,7 @@
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
       "METHOD_ON_VALUE": 10396,
-      "UNRESOLVED_IDENTIFIER": 1469
+      "UNRESOLVED_IDENTIFIER": 1470
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -12328,7 +12328,7 @@
       "method": "POST",
       "route": "/v1/ops/incidents/:id/unsuppress",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/page.tsx:1375",
+      "productConsumer": "apps/web/app/(app)/operations/page.tsx:1394",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -27428,8 +27428,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.updateMany@6041",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6041",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.updateMany@6042",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6042",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "createWithDraftBinding",
       "kind": "DATABASE",
@@ -27461,8 +27461,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@6052",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6052",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@6053",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6053",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "createWithDraftBinding",
       "kind": "DATABASE",
@@ -27494,8 +27494,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12667",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12667",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12673",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12673",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27527,8 +27527,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@15443",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:15443",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@15449",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:15449",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27560,8 +27560,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6159",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6159",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6160",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6160",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27593,8 +27593,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6438",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6438",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6439",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6439",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27626,8 +27626,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@15431",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:15431",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@15437",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:15437",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27659,8 +27659,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6984",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6984",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6985",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6985",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27692,8 +27692,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7065",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7065",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7066",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7066",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27725,8 +27725,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7182",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7182",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7183",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7183",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27758,8 +27758,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@9470",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9470",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@9471",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9471",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27791,8 +27791,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@8405",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8405",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@8406",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8406",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27824,8 +27824,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@8484",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8484",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@8485",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8485",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27857,8 +27857,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@8563",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8563",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@8564",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8564",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27890,8 +27890,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@8235",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8235",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@8236",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8236",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27923,8 +27923,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8291",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8291",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8292",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8292",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27956,8 +27956,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8346",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8346",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8347",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8347",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -27989,8 +27989,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@8077",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8077",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@8078",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8078",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -28022,8 +28022,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@8133",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8133",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@8134",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8134",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -28055,8 +28055,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@8188",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8188",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@8189",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8189",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -28088,8 +28088,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@6989",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6989",
+      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@6990",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6990",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -28121,8 +28121,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@15449",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:15449",
+      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@15455",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:15455",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -81811,8 +81811,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#evidenceReviewWorkflow.update@338",
-      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:338",
+      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#evidenceReviewWorkflow.update@343",
+      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:343",
       "file": "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
       "enclosingDeclaration": "createEscalation",
       "kind": "DATABASE",
@@ -81851,8 +81851,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#evidenceReviewWorkflow.updateMany@555",
-      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:555",
+      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#evidenceReviewWorkflow.updateMany@560",
+      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:560",
       "file": "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
       "enclosingDeclaration": "resolveEscalation",
       "kind": "DATABASE",
@@ -81894,8 +81894,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#evidenceReviewWorkflow.updateMany@603",
-      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:603",
+      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#evidenceReviewWorkflow.updateMany@608",
+      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:608",
       "file": "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
       "enclosingDeclaration": "suppressEscalation",
       "kind": "DATABASE",
@@ -81930,8 +81930,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#reviewEscalation.create@300",
-      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:300",
+      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#reviewEscalation.create@305",
+      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:305",
       "file": "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
       "enclosingDeclaration": "createEscalation",
       "kind": "DATABASE",
@@ -81970,8 +81970,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#reviewEscalation.update@386",
-      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:386",
+      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#reviewEscalation.update@391",
+      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:391",
       "file": "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
       "enclosingDeclaration": "createEscalation",
       "kind": "DATABASE",
@@ -82010,8 +82010,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#reviewEscalation.update@490",
-      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:490",
+      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#reviewEscalation.update@495",
+      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:495",
       "file": "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
       "enclosingDeclaration": "acknowledgeEscalation",
       "kind": "DATABASE",
@@ -82045,8 +82045,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#reviewEscalation.update@514",
-      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:514",
+      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#reviewEscalation.update@519",
+      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:519",
       "file": "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
       "enclosingDeclaration": "reassignEscalation",
       "kind": "DATABASE",
@@ -82078,8 +82078,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#reviewEscalation.update@544",
-      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:544",
+      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#reviewEscalation.update@549",
+      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:549",
       "file": "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
       "enclosingDeclaration": "resolveEscalation",
       "kind": "DATABASE",
@@ -82121,8 +82121,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#reviewEscalation.update@595",
-      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:595",
+      "writerId": "services/api/src/services/reviewer-ops/escalation-engine.service.ts#reviewEscalation.update@600",
+      "terminalLocation": "services/api/src/services/reviewer-ops/escalation-engine.service.ts:600",
       "file": "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
       "enclosingDeclaration": "suppressEscalation",
       "kind": "DATABASE",
@@ -94200,7 +94200,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7396",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7397",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -94277,7 +94277,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8539",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8540",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -94347,7 +94347,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8167",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8168",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -94417,7 +94417,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8325",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8326",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -94487,7 +94487,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9179",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9180",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -95075,7 +95075,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1179,
+          "line": 1198,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -95085,7 +95085,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1232 (remove, MOBILE); apps/web/app/(app)/operations/page.tsx:1179 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1232 (remove, MOBILE); apps/web/app/(app)/operations/page.tsx:1198 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -96580,7 +96580,7 @@
       "method": "GET",
       "path": "/public/verify/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13354",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13360",
       "authorizationClass": "WEBHOOK_SIGNATURE",
       "authorizationEvidence": [
         "resolvePackageSealCheck -> services/api/src/services/public-verify/package-seal-check.service.ts: reaches an inbound provider signature verifier (verifySignature)"
@@ -105958,7 +105958,7 @@
       "method": "GET",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7440",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7441",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactSearchScope -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -106758,7 +106758,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10825",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10831",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -106922,7 +106922,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/ai-categorization",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9220",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9221",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -106996,7 +106996,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8362",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8363",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107120,7 +107120,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/artifacts/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11468",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11474",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107261,7 +107261,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/certifications",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13187",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13193",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107346,7 +107346,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8046",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8047",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107412,7 +107412,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comparison",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8579",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8580",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107482,7 +107482,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/duplicates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8663",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8664",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107553,7 +107553,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/external-intake-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9022",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9023",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactDisclosure -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -107691,7 +107691,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8204",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8205",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107825,7 +107825,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/original",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12611",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12617",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107917,7 +107917,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6794",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6795",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107984,7 +107984,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9076",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9077",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108035,7 +108035,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/report/latest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12016",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12022",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108167,7 +108167,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reports/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12259",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12265",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108251,7 +108251,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/review-workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9524",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9525",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> handler: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -108378,7 +108378,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8867",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8868",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108453,7 +108453,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow/events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9053",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9054",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108521,7 +108521,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/technical-metadata",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6361",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6362",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108652,7 +108652,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-package",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12802",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12808",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108782,7 +108782,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-packages/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12367",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12373",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108867,7 +108867,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-packages/:version/external-disclosure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12509",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12515",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108995,7 +108995,7 @@
       "method": "GET",
       "path": "/v1/evidence/library-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7602",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7603",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactSearchScope -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -111336,7 +111336,7 @@
         },
         {
           "file": "apps/web/components/governance/GovernedExportAction.tsx",
-          "line": 123,
+          "line": 150,
           "caller": "GovernedExportAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111346,7 +111346,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:367 (EvidenceDetailScreen, MOBILE); apps/mobile/src/ui/report-artifact-row.tsx:74 (download, MOBILE); apps/web/components/governance/GovernedExportAction.tsx:123 (GovernedExportAction, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:367 (EvidenceDetailScreen, MOBILE); apps/mobile/src/ui/report-artifact-row.tsx:74 (download, MOBILE); apps/web/components/governance/GovernedExportAction.tsx:150 (GovernedExportAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -119886,7 +119886,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 992,
+          "line": 1011,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119896,7 +119896,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:403 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:992 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:403 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1011 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -120185,7 +120185,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 701,
+          "line": 720,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -120193,7 +120193,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 774,
+          "line": 793,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -120203,7 +120203,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:377 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:701 (OperationsWorkbench, WEB); apps/web/app/(app)/operations/page.tsx:774 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:377 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:720 (OperationsWorkbench, WEB); apps/web/app/(app)/operations/page.tsx:793 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -120262,7 +120262,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 856,
+          "line": 875,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -120272,7 +120272,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1863 (GroupInspector, MOBILE); apps/web/app/(app)/operations/page.tsx:856 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1863 (GroupInspector, MOBILE); apps/web/app/(app)/operations/page.tsx:875 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -120340,7 +120340,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 933,
+          "line": 952,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -120348,7 +120348,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1204,
+          "line": 1223,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -120374,7 +120374,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:345 (OperationsWorkspaceScreen, MOBILE); apps/mobile/app/(stack)/operations/index.tsx:435 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:933 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:345 (OperationsWorkspaceScreen, MOBILE); apps/mobile/app/(stack)/operations/index.tsx:435 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:952 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -120435,7 +120435,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1019,
+          "line": 1038,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -120445,7 +120445,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1417 (IncidentInspector, MOBILE); apps/web/app/(app)/operations/page.tsx:1019 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1417 (IncidentInspector, MOBILE); apps/web/app/(app)/operations/page.tsx:1038 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -120637,7 +120637,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1065,
+          "line": 1084,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -120647,7 +120647,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:415 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1065 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:415 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1084 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -120766,7 +120766,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 929,
+          "line": 948,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -120774,7 +120774,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1290,
+          "line": 1309,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -124803,7 +124803,7 @@
       "method": "GET",
       "path": "/v1/review-operations/queue",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:149",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:164",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -124867,7 +124867,7 @@
       "method": "GET",
       "path": "/v1/review-operations/queue-counts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:183",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:198",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132965,7 +132965,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8456",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8457",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133019,7 +133019,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8111",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8112",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133089,7 +133089,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/label",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6394",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6395",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133160,7 +133160,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8269",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8270",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133230,7 +133230,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9132",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9133",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133287,7 +133287,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8879",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8880",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -133961,7 +133961,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1144,
+          "line": 1163,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -133971,7 +133971,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1211 (submit, MOBILE); apps/web/app/(app)/operations/page.tsx:1144 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1211 (submit, MOBILE); apps/web/app/(app)/operations/page.tsx:1163 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147042,7 +147042,7 @@
       "method": "POST",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5903",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5904",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148400,7 +148400,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/ai-categorization/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9295",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9296",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148500,7 +148500,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8395",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8396",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148570,7 +148570,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7352",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7353",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148723,7 +148723,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/attest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13264",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13270",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148795,7 +148795,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13217",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13223",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148867,7 +148867,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13312",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13318",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148939,7 +148939,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8071",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8072",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149008,7 +149008,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11013",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11019",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149128,7 +149128,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8229",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8230",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149197,7 +149197,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/lock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7020",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7021",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149270,7 +149270,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6497",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6498",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149352,7 +149352,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9090",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9091",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149424,7 +149424,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/reports/regenerate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11561",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11567",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149569,7 +149569,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7415",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7416",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149654,7 +149654,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7371",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7372",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149739,7 +149739,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unlock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7138",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7139",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -150212,7 +150212,7 @@
       "method": "POST",
       "path": "/v1/evidence/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7778",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7779",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -150299,7 +150299,7 @@
       "method": "POST",
       "path": "/v1/evidence/claim",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6939",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6940",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -163570,7 +163570,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1668,
+          "line": 1687,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -163588,7 +163588,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:596 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1668 (OperationsWorkbench, WEB); apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:489 (WorkflowOperationsSection, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:596 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1687 (OperationsWorkbench, WEB); apps/web/components/command-center/_sections/WorkflowOperationsSection.tsx:489 (WorkflowOperationsSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -163671,7 +163671,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1375,
+          "line": 1394,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -163749,7 +163749,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1498,
+          "line": 1517,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -163759,7 +163759,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:559 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1498 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:559 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1517 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -163822,7 +163822,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1551,
+          "line": 1570,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -163832,7 +163832,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1453 (remediate, MOBILE); apps/web/app/(app)/operations/page.tsx:1551 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1453 (remediate, MOBILE); apps/web/app/(app)/operations/page.tsx:1570 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -163933,7 +163933,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1375,
+          "line": 1394,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -164027,7 +164027,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1375,
+          "line": 1394,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -164097,7 +164097,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1375,
+          "line": 1394,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -164107,7 +164107,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:1375 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/page.tsx:1394 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -164411,7 +164411,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1093,
+          "line": 1112,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -164421,7 +164421,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1206 (submit, MOBILE); apps/web/app/(app)/operations/page.tsx:1093 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:1206 (submit, MOBILE); apps/web/app/(app)/operations/page.tsx:1112 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -165301,7 +165301,7 @@
         },
         {
           "file": "apps/web/app/(app)/operations/page.tsx",
-          "line": 1250,
+          "line": 1269,
           "caller": "OperationsWorkbench",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -165311,7 +165311,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:480 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1250 (OperationsWorkbench, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/index.tsx:480 (OperationsWorkspaceScreen, MOBILE); apps/web/app/(app)/operations/page.tsx:1269 (OperationsWorkbench, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -169491,7 +169491,7 @@
       "method": "POST",
       "path": "/v1/review-operations/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:362",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:379",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdminMember -> services/api/src/routes/reliability.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -169592,7 +169592,7 @@
       "method": "POST",
       "path": "/v1/review-operations/evidence/:evidenceId/claim",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:200",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:215",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -169613,7 +169613,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx",
-          "line": 117,
+          "line": 118,
           "caller": "run",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -169639,7 +169639,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/review-actions-panel.tsx:50 (claim, MOBILE); apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:117 (run, WEB); apps/web/app/(app)/evidence/[id]/page.tsx:350 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/review-actions-panel.tsx:50 (claim, MOBILE); apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:118 (run, WEB); apps/web/app/(app)/evidence/[id]/page.tsx:350 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -169653,11 +169653,16 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
+        "report",
         "revokedSession",
+        "subscription",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "evidenceReviewWorkflow",
@@ -169670,10 +169675,15 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate"
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -169686,7 +169696,7 @@
       "method": "POST",
       "path": "/v1/review-operations/evidence/:evidenceId/decision",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:231",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:247",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -169707,7 +169717,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx",
-          "line": 123,
+          "line": 124,
           "caller": "run",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -169725,7 +169735,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/review-actions-panel.tsx:63 (send, MOBILE); apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:123 (run, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:285 (recordDecision, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/review-actions-panel.tsx:63 (send, MOBILE); apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:124 (run, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:285 (recordDecision, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -169742,19 +169752,23 @@
         "automationRule",
         "evidence",
         "evidenceLegalHold",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceWorkflowVisibilityDecision",
         "mfaFactor",
         "operationalIncident",
         "operationalIncidentEvent",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "riskSignal",
         "stepUpChallenge",
+        "subscription",
         "supportAccessGrant",
         "team",
         "teamMember",
         "user",
+        "verificationPackage",
         "webhookEndpoint",
         "workflowReviewDecision",
         "workspaceGovernancePolicy"
@@ -169779,15 +169793,15 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/reviewer-ops/review-decision.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/reviewer-ops/escalation-engine.service.ts: evidenceReviewWorkflow.update — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate"
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -169808,7 +169822,7 @@
       "method": "POST",
       "path": "/v1/review-operations/reconcile-slas",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:405",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:422",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -169820,7 +169834,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/review-operations.routes.ts:405 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/review-operations.routes.ts:422 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
