@@ -103,6 +103,9 @@ describe("internal-grant rollout — migration state", () => {
       "20281021000000_evidence_sealed_capture_facts_set_once",
       // F-05 / F-06 — the issuance custody cut-off and the renewed claim lease. EXPAND only.
       "20281021000100_output_lease_renewal_and_issued_custody_cutoff",
+      // Review decision rounds: Reopen and request-more-information start a new
+      // round. EXPAND + BACKFILL + a guarded swap of the unique key.
+      "20281023000100_review_decision_rounds",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

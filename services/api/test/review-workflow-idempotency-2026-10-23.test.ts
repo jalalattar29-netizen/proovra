@@ -12,7 +12,20 @@
  * records every write, so the assertion is about what reaches the database.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The escalation engine is its own authority with its own (real-database)
+// coverage in review-workflow-state-machine.integration.test.ts; here only
+// what the lifecycle service ASKS it for is recorded.
+const escalations: Array<Record<string, unknown>> = [];
+vi.mock("../src/services/reviewer-ops/escalation-engine.service.js", () => ({
+  createEscalation: async (input: Record<string, unknown>) => {
+    escalations.push(input);
+    return { ok: true, created: true, escalation: { id: "esc-1" } };
+  },
+  suppressEscalation: async () => ({}),
+  resolveOpenReviewEscalation: async () => undefined,
+}));
 
 import {
   ReviewOperationError,
@@ -46,6 +59,7 @@ function recordingClient(row: Record<string, unknown>) {
     evidenceReviewWorkflow: {
       findUnique: async () => row,
       findUniqueOrThrow: async () => row,
+      findFirst: async () => row,
       updateMany: async (args: unknown) => {
         writes.push({ op: "workflow.updateMany", args });
         return { count: 1 };
@@ -130,6 +144,14 @@ describe("lifecycle decisions into the stage the review is already in", () => {
     expect(update.data.status).toBe("ESCALATED");
     expect(update.data.escalationLevel).toBe(1);
     expect(writes.filter((w) => w.op === "event.create")).toHaveLength(1);
+    // A real escalation, routed to the workspace's admins (unassigned), with
+    // the reviewer's reason.
+    expect(escalations.at(-1)).toMatchObject({
+      reason: "REVIEWER_ESCALATED",
+      routeToWorkspaceAdmins: true,
+      createdByUserId: ME,
+      safeSummary: "needs counsel",
+    });
   });
 });
 

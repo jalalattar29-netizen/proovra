@@ -359,6 +359,14 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // evidence keys by (key_id, version) and get EVIDENCE_SIGNATURE rows; the
     // purpose key enforces their uniqueness unchanged.
     "20281006000100_signing_key_purpose": new Set(["DROP_INDEX"]),
+    // REVIEW DECISION ROUNDS (2026-10-23) — ONE guarded DROP INDEX retires the
+    // (workflow_id, stage) key on workflow_review_decisions after
+    // (workflow_id, round, stage) exists (created first; DO-block RAISE +
+    // EXECUTE). Safe BEFORE the new code: previous images insert decisions
+    // without a round, so every row lands in round 0 and the new key enforces
+    // their per-stage uniqueness exactly as the old one did. An index is not
+    // data; no decision row's content is changed.
+    "20281023000100_review_decision_rounds": new Set(["DROP_INDEX"]),
     // Removes the unsupported anchor receipt_id / public_url columns
     // from `evidence_anchors`. PROOVRA relies solely on OpenTimestamps ->
     // Bitcoin anchoring (transaction_id + anchored_at_utc), the verification

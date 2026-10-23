@@ -146,3 +146,12 @@ test("the Showing line: English unchanged; German and Arabic state the same fact
   assert.equal(notificationShowingLine("ar", { ...facts, archived: true, view: "high" }), "المعروض: 3 من 5 · مؤرشفة · مرتفع");
   assert.equal(notificationShowingLine("de", { ...facts, view: "all", total: null }), "Angezeigt: 3 (möglicherweise mehr)");
 });
+
+test("escalation routed to the workspace's admins says so, never 'assigned to you' (2026-10-23)", () => {
+  const m = renderNotificationMessage("en", {
+    key: "escalation.assigned",
+    params: { reason: "REVIEWER_ESCALATED", summary: "Needs counsel review", toWorkspace: 1 },
+  });
+  assert.equal(m.title, "Review escalated to your workspace's admins: Escalated by a reviewer");
+  assert.equal(m.body, "Needs counsel review");
+});

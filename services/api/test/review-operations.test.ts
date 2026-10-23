@@ -48,6 +48,7 @@ function mockWorkflowRow(
     escalationReason: null,
     rejectionReason: null,
     reopenCount: 0,
+    decisionRound: 0,
     reopenedAtUtc: null,
     reopenedByUserId: null,
     // Phase 25 — additive nullable columns on EvidenceReviewWorkflow.

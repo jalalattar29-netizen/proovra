@@ -28,9 +28,17 @@ import { DECISION_DERIVED_WORKFLOW_STATUSES } from "../src/services/evidence-rev
 
 const writes: string[] = [];
 
-vi.mock("../src/db.js", () => ({
-  prisma: {
+vi.mock("../src/db.js", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a minimal client double
+  const prisma: Record<string, any> = {
     evidenceReviewWorkflow: {
+      // 2026-10-23 — the routing write is conditional on the row read
+      // (optimistic concurrency) and re-reads the row it wrote.
+      updateMany: async () => {
+        writes.push("workflow.update");
+        return { count: 1 };
+      },
+      findUniqueOrThrow: async () => ({ id: "wf-1", status: "IN_REVIEW", assignedToUserId: null, priority: "NORMAL", dueAt: null }),
       findUnique: async () => ({
         id: "wf-1",
         evidenceId: "ev-1",
@@ -81,9 +89,10 @@ vi.mock("../src/db.js", () => ({
       },
     },
     $transaction: async (ops: unknown) =>
-      Array.isArray(ops) ? Promise.all(ops) : (ops as () => unknown)(),
-  },
-}));
+      Array.isArray(ops) ? Promise.all(ops) : (ops as (tx: unknown) => unknown)(prisma),
+  };
+  return { prisma };
+});
 
 // The audit sink is an external boundary too — record, never assert on it.
 vi.mock("../src/services/audit/tenant-audit.service.js", () => ({
