@@ -91,6 +91,14 @@ vi.mock("../src/db.js", () => {
   return { prisma };
 });
 
+// ET-CUS-12 — a status change is written to custody inside the upsert's
+// transaction (2026-10-23); the custody chain has its own real-database
+// coverage, so this double only needs the write to be accepted.
+vi.mock("../src/services/evidence-review/reviewer-audit.service.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  recordReviewStatusOnCustodyTx: vi.fn(async () => undefined),
+}));
+
 vi.mock("../src/services/platform-audit-log.service.js", () => ({
   appendPlatformAuditLog: appendPlatformAuditLogMock,
 }));

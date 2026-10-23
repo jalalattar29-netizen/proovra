@@ -59,6 +59,7 @@
  *     scoped to memberships the caller already has.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { secondReviewForRound } from "../services/evidence-review/second-review.service.js";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { getAuthUserId } from "../auth.js";
@@ -2057,7 +2058,7 @@ export async function buildInboxAggregation(
                 teamId: true,
                 decidedAt: true,
                 round: true,
-                workflow: { select: { decisionRound: true } },
+                workflow: { select: { decisionRound: true, status: true, evidenceId: true } },
               },
             })
           ).filter((d) => d.round === d.workflow.decisionRound);
@@ -2078,9 +2079,23 @@ export async function buildInboxAggregation(
           .filter((s) => s.round === s.workflow.decisionRound)
           .map((s) => s.workflowId),
       );
-      const pendingSecondForMe = myFirstDecisions.filter(
-        (d) => !haveSecond.has(d.workflowId),
-      );
+      // ...and only where a second review is actually awaited (third audit:
+      // every single-reviewer verdict stayed "awaiting peer review" for
+      // good). A finished or waiting-for-information review awaits nobody;
+      // an open one awaits a second reviewer only when its round requires it.
+      const FINISHED_FOR_PEER_REVIEW = new Set(["APPROVED_INTERNAL", "REJECTED_INSUFFICIENT", "CLOSED", "NEEDS_INFO"]);
+      const pendingSecondForMe: typeof myFirstDecisions = [];
+      for (const d of myFirstDecisions) {
+        if (haveSecond.has(d.workflowId)) continue;
+        if (FINISHED_FOR_PEER_REVIEW.has(String(d.workflow.status))) continue;
+        const second = await secondReviewForRound({
+          workflowId: d.workflowId,
+          teamId: d.teamId,
+          evidenceId: d.workflow.evidenceId,
+          round: d.round,
+        }).catch(() => ({ required: false }));
+        if (second.required) pendingSecondForMe.push(d);
+      }
 
       // -----------------------------------------------------------------
       // Source 3: unacknowledged governance notifications for teams

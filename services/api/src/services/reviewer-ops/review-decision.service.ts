@@ -134,7 +134,7 @@ export {
 
 // The second-review requirement lives beside the workflow (2026-10-23), for the
 // same reason; re-exported so every existing caller keeps one import.
-export { requiresSecondReview } from "../evidence-review/second-review.service.js";
+export { requiresSecondReview, secondReviewForRound } from "../evidence-review/second-review.service.js";
 
 // -----------------------------------------------------------------------------
 // THE atomic decision command.
@@ -564,6 +564,19 @@ export async function reconcileWorkflowProjection(
   if (!wf || !wf.teamId) {
     return { workflowId, repaired: false, reason: "workflow_not_found" };
   }
+  // CLOSE IS A PERSON'S ACT (audit 2026-10-23 #5). Close records no decision
+  // row, so a closed review's round still projects its last verdict (or its
+  // conflict); "repairing" it reopened a review someone had closed. Only
+  // Reopen — a new round — moves a closed review.
+  if (mapDbStatusToReviewStage(wf.status as string) === "CLOSED") {
+    // ...and a closed review keeps no open escalation: one a failed Close
+    // left behind is resolved here (third audit).
+    await resolveOpenReviewEscalation(
+      { workflow: wf, actorUserId: null, note: "Review closed; escalation resolved by the reconciler." },
+      client,
+    );
+    return { workflowId, repaired: false, reason: "closed_after_decisions" };
+  }
   const rows = await client.workflowReviewDecision.findMany({
     where: { workflowId, teamId: wf.teamId, round: wf.decisionRound },
     orderBy: { decidedAt: "asc" },
@@ -574,13 +587,6 @@ export async function reconcileWorkflowProjection(
   const latestDecidedAt = rows[rows.length - 1]!.decidedAt;
   if (wf.reopenedAtUtc && wf.reopenedAtUtc.getTime() > latestDecidedAt.getTime()) {
     return { workflowId, repaired: false, reason: "reopened_after_decisions" };
-  }
-  // CLOSE IS A PERSON'S ACT (audit 2026-10-23 #5). Close records no decision
-  // row, so a closed review's round still projects its last verdict (or its
-  // conflict); "repairing" it reopened a review someone had closed. Only
-  // Reopen — a new round — moves a closed review.
-  if (mapDbStatusToReviewStage(wf.status as string) === "CLOSED") {
-    return { workflowId, repaired: false, reason: "closed_after_decisions" };
   }
   const secondReview = await secondReviewForRound(
     { workflowId, teamId: wf.teamId, evidenceId: wf.evidenceId, round: wf.decisionRound },

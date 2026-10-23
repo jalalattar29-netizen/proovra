@@ -200,10 +200,25 @@ export type CreateEscalationInput = {
    * pointer is recorded here, so the level is never counted twice.
    */
   workflowCountersAlreadySet?: boolean;
+  /**
+   * The caller runs this inside its own transaction (a reviewer's Escalate).
+   * The security event and the platform audit append are then NOT run here:
+   * they come back as `afterCommit` for the caller to run once its
+   * transaction has committed — so a rolled-back escalation is never
+   * announced, and the transaction never holds the platform-wide audit lock
+   * (third audit).
+   */
+  deferAuditToCaller?: boolean;
 };
 
 export type CreateEscalationResult =
-  | { ok: true; created: boolean; escalation: EscalationProjection }
+  | {
+      ok: true;
+      created: boolean;
+      escalation: EscalationProjection;
+      /** Present when deferAuditToCaller was set: run it after commit. */
+      afterCommit?: () => Promise<void>;
+    }
   | { ok: false; code: "REVIEW_WORKFLOW_NOT_FOUND" | "REVIEW_PERMISSION_DENIED" };
 
 export async function createEscalation(
@@ -405,6 +420,7 @@ export async function createEscalation(
     }
   }
 
+  const announce = async (auditClient: PrismaClient) => {
   safeEmitSecurityEvent({
     teamId: input.teamId,
     eventType: "reviewer_escalation_created",
@@ -447,8 +463,10 @@ export async function createEscalation(
         templateDbId: templateProvenance.templateDbId,
       },
     },
-    client,
+    auditClient,
   );
+  };
+  if (!input.deferAuditToCaller) await announce(client);
 
   return {
     ok: true,
@@ -457,6 +475,7 @@ export async function createEscalation(
       ...created,
       incidentId: linkedIncidentId,
     } as DbEscalation),
+    ...(input.deferAuditToCaller ? { afterCommit: () => announce(defaultPrisma) } : {}),
   };
 }
 
@@ -467,7 +486,8 @@ export async function createEscalation(
 type TransitionContext = {
   teamId: string;
   escalationId: string;
-  actorUserId: string;
+  /** null: PROOVRA itself (the reconciler), recorded as a system action. */
+  actorUserId: string | null;
 };
 
 async function loadAndAssertOpen(
@@ -690,7 +710,7 @@ export async function findOpenEscalationForWorkflow(
  * an escalation could be marked resolved.
  */
 export async function resolveOpenReviewEscalation(
-  input: { workflow: { id: string; teamId: string | null }; actorUserId: string; note: string },
+  input: { workflow: { id: string; teamId: string | null }; actorUserId: string | null; note: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
   if (!input.workflow.teamId) return;

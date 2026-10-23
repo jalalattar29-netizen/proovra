@@ -58,8 +58,8 @@ export async function requiresSecondReview(
  * request must not turn a settled request into the first of two reviews (and
  * then a "disagreement" with the next verdict).
  *
- * null: the round has no recorded decision event (decided before rounds were
- * recorded) — callers derive it live.
+ * null: no decision event can be found for the round — callers derive it
+ * live.
  */
 export async function roundSettledByRequestInfo(
   input: { workflowId: string; round: number },
@@ -74,8 +74,26 @@ export async function roundSettledByRequestInfo(
     orderBy: { createdAt: "desc" },
     select: { nextValue: true },
   });
-  if (!event) return null;
-  const v = (event.nextValue ?? {}) as { stage?: unknown; state?: unknown };
+  if (event) return settledBy(event.nextValue);
+  // A round decided before events recorded their round: its latest decision
+  // and that decision's event were written in one transaction, so the first
+  // DECISION_LOGGED event at or after the decision is its own (third audit).
+  const latest = await client.workflowReviewDecision.findFirst({
+    where: { workflowId: input.workflowId, round: input.round },
+    orderBy: { decidedAt: "desc" },
+    select: { decidedAt: true },
+  });
+  if (!latest) return null;
+  const legacy = await client.evidenceReviewWorkflowEvent.findFirst({
+    where: { workflowId: input.workflowId, eventType: "DECISION_LOGGED", createdAt: { gte: latest.decidedAt } },
+    orderBy: { createdAt: "asc" },
+    select: { nextValue: true },
+  });
+  return legacy ? settledBy(legacy.nextValue) : null;
+}
+
+function settledBy(nextValue: unknown): boolean {
+  const v = (nextValue ?? {}) as { stage?: unknown; state?: unknown };
   return v.stage === "NEEDS_MORE_INFO" && v.state === "resolved";
 }
 

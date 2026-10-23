@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
+import { recordReviewStatusOnCustodyTx } from "./reviewer-audit.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 // PHASE 12 POINT 4 PASS C1 — the ONE definition of "this status is a verdict".
 import { isDecisionDerivedWorkflowStatus } from "./review-status-vocabulary.js";
@@ -367,6 +368,16 @@ export async function upsertEvidenceReviewerWorkflow(params: {
         assignedToUserId: params.assignedToUserId ?? null,
         dueAt: params.dueAt?.toISOString() ?? null,
       } as Prisma.InputJsonValue);
+      // ET-CUS-12 — a workflow opened with a status is on custody, in this
+      // transaction (third audit: the route appended it after commit).
+      if (params.status) {
+        await recordReviewStatusOnCustodyTx(tx, {
+          evidenceId: params.evidenceId,
+          actorUserId: params.actorUserId,
+          status: String(workflow.status),
+          decision: "WORKFLOW_EDITOR",
+        });
+      }
       if (workflow.assignedToUserId) {
         await event(
           prismaPkg.EvidenceReviewWorkflowEventType.ASSIGNED,
@@ -396,6 +407,13 @@ export async function upsertEvidenceReviewerWorkflow(params: {
         { status: existing.status } as Prisma.InputJsonValue,
         { status: workflow.status } as Prisma.InputJsonValue,
       );
+      // ET-CUS-12 — only a real status change, and in this transaction.
+      await recordReviewStatusOnCustodyTx(tx, {
+        evidenceId: params.evidenceId,
+        actorUserId: params.actorUserId,
+        status: String(workflow.status),
+        decision: "WORKFLOW_EDITOR",
+      });
     }
     if (existing.priority !== workflow.priority) {
       await event(

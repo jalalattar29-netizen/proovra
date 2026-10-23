@@ -150,6 +150,12 @@ function makeDb(seed: {
       },
     },
     workflowReviewDecision: {
+      // The round's latest decision (the legacy-event fallback of
+      // secondReviewForRound).
+      findFirst: async (args: { where?: { workflowId?: string } }) => {
+        const rows = state.decisions.filter((d) => d.workflowId === args.where?.workflowId);
+        return rows.length ? { decidedAt: rows[rows.length - 1]!.decidedAt } : null;
+      },
       findMany: async (args: {
         where?: { workflowId?: string; teamId?: string };
         select?: { workflowId?: boolean };

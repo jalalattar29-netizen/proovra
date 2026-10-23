@@ -138,7 +138,7 @@ import {
   ReviewDecisionAuthorityError,
   deriveReviewState,
   recordReviewDecision as recordCanonicalReviewDecision,
-  requiresSecondReview,
+  secondReviewForRound,
 } from "../services/reviewer-ops/review-decision.service.js";
 
 // -----------------------------------------------------------------------------
@@ -2379,10 +2379,12 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             reviewerUserId: true,
           },
         }),
-        requiresSecondReview({
+        // The same round rule as the authority and the Evidence page.
+        secondReviewForRound({
           workflowId,
           teamId: q.teamId,
           evidenceId: wf.evidenceId,
+          round: wf.decisionRound,
         }),
       ]);
 

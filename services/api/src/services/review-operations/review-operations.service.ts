@@ -601,6 +601,7 @@ export async function recordLifecycleTransition(
   // is not Escalated.
   if (input.decision === "ESCALATE" && workflow.teamId) {
     const teamId = workflow.teamId;
+    let afterCommit: (() => Promise<void>) | undefined;
     const updated = await client.$transaction(async (txc) => {
       const tx = txc as unknown as PrismaClient;
       const moved = await applyTransition(workflow, toStage, patch, tx, { strict: true });
@@ -617,10 +618,12 @@ export async function recordLifecycleTransition(
           bypassDedup: true,
           // The transition above already counted the level and kept the note.
           workflowCountersAlreadySet: true,
+          deferAuditToCaller: true,
         },
         tx,
       );
       if (!opened.ok) throw new ReviewOperationError("workflow_not_found");
+      afterCommit = opened.afterCommit;
       // Written directly, not through recordEvent: a swallowed failure would
       // abort this transaction without the caller hearing of it.
       await tx.evidenceReviewWorkflowEvent.create({
@@ -642,7 +645,9 @@ export async function recordLifecycleTransition(
       });
       return moved;
     });
-    // Operational notification — internal, best-effort, after commit.
+    // The escalation's security event and audit entry, then the operational
+    // notification — after commit, best-effort.
+    await afterCommit?.().catch(() => null);
     notifyReviewEscalated({ workflow: updated, actorUserId: input.actorUserId }, client).catch(() => null);
     return updated;
   }
@@ -671,9 +676,16 @@ export async function recordLifecycleTransition(
     });
     return moved;
   });
-  if (input.decision === "CLOSE") {
+  // Close resolves the escalations raised about the review. Reopen resolves
+  // any a failed Close left behind: they belong to the closed review, and an
+  // open one would demand a second reviewer in every new round (third audit).
+  if (input.decision === "CLOSE" || input.decision === "REOPEN") {
     await resolveOpenReviewEscalation(
-      { workflow, actorUserId: input.actorUserId, note: "Review closed." },
+      {
+        workflow,
+        actorUserId: input.actorUserId,
+        note: input.decision === "CLOSE" ? "Review closed." : "Review reopened; the closed review's escalation is resolved.",
+      },
       client,
     );
   }
@@ -963,12 +975,16 @@ export async function bulkReviewAction(
               tx,
               { strict: true },
             );
-            await recordReviewStatusOnCustodyTx(txc, {
-              evidenceId,
-              actorUserId: input.actorUserId,
-              status: moved.status as string,
-              decision: "MARK_IN_REVIEW",
-            });
+            // Only a real change is on custody (a review already In review
+            // is not moved).
+            if (moved.status !== workflow.status) {
+              await recordReviewStatusOnCustodyTx(txc, {
+                evidenceId,
+                actorUserId: input.actorUserId,
+                status: moved.status as string,
+                decision: "MARK_IN_REVIEW",
+              });
+            }
           });
           await recordEvent(
             (await client.evidenceReviewWorkflow.findUniqueOrThrow({

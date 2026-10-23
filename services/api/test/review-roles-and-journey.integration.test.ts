@@ -691,3 +691,166 @@ describe("ET-CUS-12 — custody exactly once, in the decision's own transaction"
     expect((await custodyCount(ev)) - before).toBe(3);
   });
 });
+
+// ===========================================================================
+// Third independent audit (2026-10-23) — the remaining P3s
+// ===========================================================================
+
+describe("third audit — side effects after commit, legacy rounds, console, custody only on change, stale escalations, inbox", () => {
+  const begin = async (token: string, ev: string) => {
+    const wf = await workflowOf(ev);
+    const res = await patchWorkflow(token, ev, { status: "IN_REVIEW", expectedUpdatedAt: wf.updatedAt.toISOString() });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+  };
+  const claimed = async (ev: string) => {
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    expect((await claim(A.memberToken, ev, A.teamId)).status).toBe(200);
+    await begin(A.memberToken, ev);
+  };
+  const custodyCount = (ev: string) =>
+    prisma.custodyEvent.count({ where: { evidenceId: ev, eventType: "REVIEW_DECISION_RECORDED" } });
+  const openEscalations = (ev: string) =>
+    prisma.reviewEscalation.count({ where: { evidenceId: ev, status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] } } });
+
+  it("Escalate announces its escalation (security event, platform audit) only after commit — a rolled-back escalation is never announced", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "audit3-announce");
+    await claimed(ev);
+    const securityBefore = await prisma.securityEvent.count({ where: { teamId: A.teamId, eventType: "reviewer_escalation_created" } });
+    const auditBefore = await prisma.adminAuditLog.count({ where: { workspaceId: A.teamId, action: "reviewer.escalation.create" } });
+    await prisma.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION audit3_fail_pointer() RETURNS trigger AS $$
+      BEGIN
+        -- After createEscalation has returned: the Escalate event insert.
+        IF NEW.note = 'FAIL-INJECT' AND NEW.event_type = 'ESCALATED' THEN
+          RAISE EXCEPTION 'injected failure';
+        END IF;
+        RETURN NEW;
+      END $$ LANGUAGE plpgsql`);
+    await prisma.$executeRawUnsafe(
+      `CREATE TRIGGER audit3_fail_pointer BEFORE INSERT ON evidence_review_workflow_events FOR EACH ROW EXECUTE FUNCTION audit3_fail_pointer()`,
+    );
+    try {
+      expect((await decide(A.memberToken, ev, "ESCALATE", "FAIL-INJECT")).status).toBeGreaterThanOrEqual(500);
+    } finally {
+      await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS audit3_fail_pointer ON evidence_review_workflow_events`);
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS audit3_fail_pointer()`);
+    }
+    expect(await prisma.securityEvent.count({ where: { teamId: A.teamId, eventType: "reviewer_escalation_created" } })).toBe(securityBefore);
+    expect(await prisma.adminAuditLog.count({ where: { workspaceId: A.teamId, action: "reviewer.escalation.create" } })).toBe(auditBefore);
+    // A committed Escalate is announced, once — and the security events then
+    // number exactly one more than before: the rolled-back attempt left no
+    // (fire-and-forget) event behind.
+    expect((await decide(A.memberToken, ev, "ESCALATE", "real reason")).status).toBe(200);
+    const esc = await prisma.reviewEscalation.findFirstOrThrow({ where: { evidenceId: ev } });
+    await expect
+      .poll(() => prisma.adminAuditLog.count({ where: { action: "reviewer.escalation.create", resourceId: esc.id } }))
+      .toBe(1);
+    const securityNow = () =>
+      prisma.securityEvent.count({ where: { teamId: A.teamId, eventType: "reviewer_escalation_created" } });
+    await expect.poll(securityNow).toBeGreaterThanOrEqual(securityBefore + 1);
+    await new Promise((r) => setTimeout(r, 750));
+    expect(await securityNow()).toBe(securityBefore + 1);
+  });
+
+  it("a request recorded before rounds were logged still settles its round (legacy event without a round)", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "audit3-legacy");
+    await claimed(ev);
+    expect((await decide(A.memberToken, ev, "REQUEST_MORE_INFO", "need the original")).status).toBe(200);
+    const wf0 = await workflowOf(ev);
+    // As an earlier build wrote it: the same event, with no round.
+    await prisma.$executeRawUnsafe(
+      `UPDATE evidence_review_workflow_events SET next_value = next_value - 'round' WHERE workflow_id = $1::uuid AND event_type = 'DECISION_LOGGED'`,
+      wf0.id,
+    );
+    expect((await decide(A.memberToken, ev, "ESCALATE", "counsel please")).status).toBe(200);
+    expect((await offered(A.adminToken, ev)).actions!.APPROVE_INTERNAL.enabled).toBe(true);
+    expect((await decide(A.adminToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
+    const wf = await workflowOf(ev);
+    expect(wf.decisionRound).toBe(1);
+    expect(
+      (await prisma.workflowReviewDecision.findMany({ where: { workflowId: wf.id, round: 1 } })).map((r) => [r.stage, r.decision]),
+    ).toEqual([["FIRST", "APPROVE"]]);
+  });
+
+  it("the reviewer console reads a settled round as the authority does", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "audit3-console");
+    await claimed(ev);
+    expect((await decide(A.memberToken, ev, "REQUEST_MORE_INFO", "need more")).status).toBe(200);
+    expect((await decide(A.memberToken, ev, "ESCALATE", "counsel")).status).toBe(200);
+    const wf = await workflowOf(ev);
+    const res = await call(A.adminToken, "GET", `/v1/reviewer-ops/workspace/${wf.id}/decisions?teamId=${A.teamId}`);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    // Settled by the request: the next verdict opens a new round, never "second".
+    expect(res.body.state).toBe("resolved");
+  });
+
+  it("custody records only a real status change: editor PATCH with no status, the same status, and bulk Mark in review on a review already in review", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "audit3-nochange");
+    await claimed(ev); // IN_REVIEW
+    const before = await custodyCount(ev);
+    expect((await patchWorkflow(A.adminToken, ev, { priority: "HIGH" })).status).toBe(200);
+    expect((await patchWorkflow(A.adminToken, ev, { status: "IN_REVIEW" })).status).toBe(200);
+    const bulk = await call(A.adminToken, "POST", "/v1/review-operations/bulk", {
+      teamId: A.teamId,
+      evidenceIds: [ev],
+      action: "MARK_IN_REVIEW",
+      note: "already",
+    });
+    expect(bulk.status).toBe(200);
+    expect((await custodyCount(ev)) - before).toBe(0);
+    // A real editor status change is on custody, once.
+    expect((await patchWorkflow(A.adminToken, ev, { status: "CLOSED" })).status).toBe(200);
+    expect((await custodyCount(ev)) - before).toBe(1);
+  });
+
+  it("an escalation a failed Close left open is resolved by Reopen and by the reconciler", async () => {
+    await setPlan(A, "TEAM");
+    const { reconcileWorkflowProjection } = await import("../src/services/reviewer-ops/review-decision.service.js");
+    const ev = await freshEvidence(A, "audit3-stale");
+    await claimed(ev);
+    expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
+    expect((await decide(A.memberToken, ev, "REOPEN", "more")).status).toBe(200);
+    await begin(A.memberToken, ev);
+    expect((await decide(A.memberToken, ev, "ESCALATE", "help")).status).toBe(200);
+    expect((await decide(A.adminToken, ev, "CLOSE", "done")).status).toBe(200);
+    // As if the Close's resolution had failed after commit:
+    await prisma.reviewEscalation.updateMany({ where: { evidenceId: ev }, data: { status: "OPEN", resolvedAtUtc: null } });
+    expect(await openEscalations(ev)).toBe(1);
+    await reconcileWorkflowProjection((await workflowOf(ev)).id);
+    expect(await openEscalations(ev)).toBe(0);
+    expect((await workflowOf(ev)).status).toBe("CLOSED");
+    // And Reopen clears one too.
+    await prisma.reviewEscalation.updateMany({ where: { evidenceId: ev }, data: { status: "OPEN", resolvedAtUtc: null } });
+    expect((await decide(A.adminToken, ev, "REOPEN", "again")).status).toBe(200);
+    expect(await openEscalations(ev)).toBe(0);
+  });
+
+  it("the inbox says 'awaiting peer review' only while a second reviewer is actually awaited", async () => {
+    await setPlan(A, "TEAM");
+    const awaiting = async (wfId: string) =>
+      ((await call(A.memberToken, "GET", "/v1/me/inbox")).body.items as Array<{ id: string }>).some(
+        (i) => i.id === `review_decision:awaiting_second:${wfId}`,
+      );
+    const single = await freshEvidence(A, "audit3-inbox-single");
+    await claimed(single);
+    expect((await decide(A.memberToken, single, "APPROVE_INTERNAL")).status).toBe(200);
+    expect(await awaiting((await workflowOf(single)).id)).toBe(false);
+
+    const held = await freshEvidence(A, "audit3-inbox-held");
+    await prisma.evidenceLegalHold.create({
+      data: { scope: "EVIDENCE", evidenceId: held, teamId: A.teamId, status: "ACTIVE", title: "Hold", placedByUserId: A.ownerUserId } as never,
+    });
+    await claimed(held);
+    expect((await decide(A.memberToken, held, "APPROVE_INTERNAL")).status).toBe(200);
+    expect(await awaiting((await workflowOf(held)).id)).toBe(true);
+    // The hold is released while the review is still open: nobody is
+    // awaited any more, and the inbox stops saying so.
+    expect((await workflowOf(held)).status).toBe("IN_REVIEW");
+    await prisma.evidenceLegalHold.updateMany({ where: { evidenceId: held }, data: { status: "RELEASED" } as never });
+    expect(await awaiting((await workflowOf(held)).id)).toBe(false);
+  });
+});
