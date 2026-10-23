@@ -23,7 +23,7 @@
  *     via the existing `recordIncident` helper. WARNING / INFO do not.
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { triggerEscalationCreated } from "../automation/automation-triggers.js";
 
 import type {
@@ -276,11 +276,16 @@ export async function createEscalation(
 
   const now = new Date();
   const summary = sanitiseSummary(input.safeSummary);
-  const fingerprint = buildFingerprint({
-    workflowId: input.workflowId,
-    reason: input.reason,
-    now,
-  });
+  // A deliberate escalation (bypassDedup) is its OWN row: the per-day
+  // fingerprint would make a second one the same day collide with the first
+  // on (team_id, fingerprint) — a 500 instead of an escalation (2026-10-23).
+  const fingerprint = input.bypassDedup
+    ? createHash("sha256").update(`${input.workflowId}:${input.reason}:${now.toISOString()}:${randomUUID()}`).digest("hex").slice(0, 64)
+    : buildFingerprint({
+        workflowId: input.workflowId,
+        reason: input.reason,
+        now,
+      });
 
   // Try the dedup'd insert first.
   if (!input.bypassDedup) {

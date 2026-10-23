@@ -288,6 +288,7 @@ import { assertInteractiveEvidenceCreateAllowed, createEvidence } from "../servi
 import {
   resolveEnforcementScopeForRequester,
   scopeIncludesAiOperations,
+  workspaceIncludesReviewerOperations,
 } from "../services/billing-enforcement.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
 import type { Prisma } from "@prisma/client";
@@ -10310,6 +10311,10 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
         const viewerMayReview = evidence.teamId
           ? (await evaluateAuthorize(req, { teamId: evidence.teamId, permission: "evidence_request.review" })).allowed
           : false;
+        // The commercial authority the review routes enforce (2026-10-23).
+        const reviewIncluded = evidence.teamId
+          ? await workspaceIncludesReviewerOperations(evidence.teamId)
+          : false;
         const workflowStatus = reviewerWorkflowSummary.workflow?.status ?? null;
         const attention = classifyEvidenceAttention({
           alerts: reviewerAlerts,
@@ -10327,7 +10332,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           review: {
             // Review runs on team records; the claim and decision routes refuse
             // a record without a workspace.
-            applicable: Boolean(evidence.teamId) && reviewerWorkflowSummary.available,
+            applicable: Boolean(evidence.teamId) && reviewerWorkflowSummary.available && reviewIncluded,
             notStarted:
               !reviewerWorkflowSummary.workflow?.assignedTo &&
               (workflowStatus === null || workflowStatus === "NOT_STARTED" || workflowStatus === "QUEUED"),
@@ -10367,6 +10372,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           viewerUserId: ownerUserId,
           viewerMayReview,
           hasWorkspace: Boolean(evidence.teamId),
+          planIncludesReview: reviewIncluded,
           verdictRecorded,
         });
         const caseAssignmentView = {

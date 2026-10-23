@@ -31,6 +31,7 @@ import {
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { workspaceIncludesReviewerOperations } from "../services/billing-enforcement.service.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import {
   ReviewOperationError,
@@ -105,6 +106,20 @@ async function requireAdminMember(
     return null;
   }
   return { userId: outcome.actorUserId };
+}
+
+/**
+ * THE COMMERCIAL GATE (2026-10-23) — `PlanCapabilities.reviewerOperationsIncluded`
+ * through the one authority (`workspaceIncludesReviewerOperations`), the same
+ * answer the reviewer workspace routes enforce and the web reads. Claim and
+ * decisions were open to every plan here while the Evidence page hid them on
+ * plans that do not include review: the server and the page disagreed.
+ * Checked AFTER membership, so a non-member still learns nothing.
+ */
+async function refuseUnlessReviewIncluded(teamId: string, reply: FastifyReply): Promise<boolean> {
+  if (await workspaceIncludesReviewerOperations(teamId)) return false;
+  reply.code(403).send({ error: { code: "reviewer_operations_not_included", details: null } });
+  return true;
 }
 
 function reviewErrorToReply(err: unknown, reply: FastifyReply): void {
@@ -214,6 +229,7 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
       if (!workflow || workflow.teamId !== body.teamId) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      if (await refuseUnlessReviewIncluded(body.teamId, reply)) return;
       try {
         const updated = await claimReviewerWorkflow({
           evidenceId,
@@ -261,6 +277,7 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
       const teamId = workflow.teamId;
       const ok = await requireReviewerMember(req, reply, teamId);
       if (!ok) return;
+      if (await refuseUnlessReviewIncluded(teamId, reply)) return;
 
       // Phase C0 — Sensitive reviewer decision step-up gate. When
       // the workspace governance flag for the chosen decision is

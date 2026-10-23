@@ -166,6 +166,14 @@ test("escalated: Escalate is not offered again", () => {
   assert.equal(actions({ dbStatus: "ESCALATED", assignedToUserId: ME }).ESCALATE.enabled, false);
 });
 
+test("a plan without reviewer operations blocks everything as NOT_INCLUDED (2026-10-23)", () => {
+  const a = actions({ planIncludesReview: false });
+  assert.ok(Object.values(a).every((x) => !x.enabled));
+  assert.equal(a.CLAIM.blockedBy, "NOT_INCLUDED");
+  // Absent means the caller checked it: included.
+  assert.equal(actions({}).CLAIM.enabled, true);
+});
+
 test("no permission / no workspace / no workflow block everything", () => {
   for (const over of [{ viewerMayReview: false }, { hasWorkspace: false }, { dbStatus: null }]) {
     assert.ok(Object.values(actions(over)).every((x) => !x.enabled), JSON.stringify(over));

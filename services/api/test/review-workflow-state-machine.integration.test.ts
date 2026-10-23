@@ -97,6 +97,9 @@ beforeAll(async () => {
   A = harness.fixtures.teamA;
   B = harness.fixtures.teamB;
   ({ prisma } = await import("../src/db.js"));
+  // The review workflow is a plan entitlement (reviewerOperationsIncluded);
+  // the harness workspaces are FREE, so this suite runs on a TEAM plan.
+  await prisma.team.update({ where: { id: A.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
 });
 
 afterAll(async () => {

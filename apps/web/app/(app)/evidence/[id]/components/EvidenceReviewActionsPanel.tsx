@@ -58,6 +58,7 @@ const REFUSAL_COPY: Readonly<Record<string, string>> = {
   note_required: "This decision needs a written reason.",
   rationale_required: "This decision needs a written reason.",
   STEP_UP_REQUIRED: "Confirm your identity to record this decision, then try again.",
+  reviewer_operations_not_included: "The review workflow is not included in this workspace's plan.",
 };
 
 /** The route's limit for an escalation reason, applied to every reason. */
@@ -177,7 +178,9 @@ export function EvidenceReviewActionsPanel({
   // owner) stays visible, disabled, with that reason beside it.
   const globalBlock =
     actions.length > 0 &&
-    actions.every((a) => a.blockedBy === "NO_WORKSPACE" || a.blockedBy === "NOT_PERMITTED")
+    actions.every(
+      (a) => a.blockedBy === "NO_WORKSPACE" || a.blockedBy === "NOT_INCLUDED" || a.blockedBy === "NOT_PERMITTED",
+    )
       ? actions[0]!.blockedBy
       : null;
   const offered = globalBlock

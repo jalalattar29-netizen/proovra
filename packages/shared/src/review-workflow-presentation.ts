@@ -125,6 +125,7 @@ export const REVIEW_WORKFLOW_ACTION_LABELS: Readonly<Record<ReviewWorkflowAction
 /** Why an action is not available — each has one sentence of copy. */
 export type ReviewWorkflowActionBlock =
   | "NO_WORKSPACE"
+  | "NOT_INCLUDED"
   | "NOT_PERMITTED"
   | "NOT_FROM_STAGE"
   | "VERDICT_RECORDED"
@@ -133,6 +134,7 @@ export type ReviewWorkflowActionBlock =
 
 export const REVIEW_WORKFLOW_BLOCK_COPY: Readonly<Record<ReviewWorkflowActionBlock, string>> = {
   NO_WORKSPACE: "Review runs in a team workspace. This record is not in one.",
+  NOT_INCLUDED: "The review workflow is not included in this workspace's plan.",
   NOT_PERMITTED: "Your role cannot make review decisions in this workspace.",
   NOT_FROM_STAGE: "Not available at the current review stage.",
   VERDICT_RECORDED:
@@ -174,6 +176,12 @@ export type ReviewWorkflowActionInput = {
   viewerMayReview: boolean;
   /** The record belongs to a team workspace (review routes require one). */
   hasWorkspace: boolean;
+  /**
+   * The workspace's plan includes reviewer operations (the commercial
+   * authority the review routes enforce). Absent → treated as included, for
+   * callers that check it themselves.
+   */
+  planIncludesReview?: boolean;
   /** At least one verdict (approve / reject / request info) is recorded. */
   verdictRecorded: boolean;
 };
@@ -193,6 +201,7 @@ export function projectReviewWorkflowActions(
     const requiresNote = action === "CLAIM" ? false : decisionRequiresNote(action);
     const block = ((): ReviewWorkflowActionBlock | null => {
       if (!input.hasWorkspace || input.dbStatus === null) return "NO_WORKSPACE";
+      if (input.planIncludesReview === false) return "NOT_INCLUDED";
       if (!input.viewerMayReview) return "NOT_PERMITTED";
       if (action === "CLAIM") {
         if (input.assignedToUserId === input.viewerUserId) return "ALREADY_YOURS";
