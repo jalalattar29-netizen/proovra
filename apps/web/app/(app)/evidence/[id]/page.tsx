@@ -113,6 +113,13 @@ const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string; icon: LucideIco
   { id: "technical", label: "Technical Appendix", icon: FileText },
 ];
 
+/** The workflow PATCH refusals, said in words (2026-10-23). */
+const WORKFLOW_REFUSAL_COPY: Readonly<Record<string, string>> = {
+  stale_workflow: "Someone changed this review since you opened it. It now shows the current state; make your change again.",
+  invalid_stage_transition: "That review state is not reachable from the current one.",
+  lifecycle_decision_required: "Escalate and Reopen are review decisions with a reason. Use the Review tab.",
+};
+
 export default function EvidenceDetailPage() {
   return (
     <PageRouteGate routeId="workspace.evidence">
@@ -508,6 +515,9 @@ function EvidenceDetailPageInner() {
           priority: workflowPriorityDraft,
           dueAt: workflowDueAtDraft ? new Date(workflowDueAtDraft).toISOString() : null,
           note: workflowNoteDraft || null,
+          // The version this edit was based on: a change someone else made
+          // since is refused (409), never silently overwritten.
+          ...(workspace?.reviewWorkflow.updatedAt ? { expectedUpdatedAt: workspace.reviewWorkflow.updatedAt } : {}),
         }),
       });
       addToast("Reviewer workflow updated", "success");
@@ -527,10 +537,17 @@ function EvidenceDetailPageInner() {
         feature: "web_evidence_workflow_update",
         evidenceId,
       });
+      const reason = (saveError as { body?: { error?: { details?: { reason?: string } } } })?.body?.error?.details?.reason;
       addToast(
-        toSafeUserError(saveError, { message: "Failed to update workflow" }).message,
+        reason && WORKFLOW_REFUSAL_COPY[reason]
+          ? WORKFLOW_REFUSAL_COPY[reason]!
+          : toSafeUserError(saveError, { message: "Failed to update workflow" }).message,
         "error",
       );
+      // The refusal is about the record as it is NOW: show that.
+      if (reason === "stale_workflow" || reason === "invalid_stage_transition") {
+        await loadWorkspace({ bumpBaseline: true });
+      }
     } finally {
       setActionBusy(false);
     }
@@ -1547,7 +1564,9 @@ function EvidenceDetailPageInner() {
               options={
                 // READY_FOR_EXTERNAL_REVIEW is the legacy spelling of an
                 // APPROVAL (2026-10-23) — a verdict, refused by the PATCH.
-                ["NOT_STARTED", "IN_REVIEW", "ESCALATED", "CLOSED"].map((value) => ({
+                // Escalate and Reopen are review DECISIONS with a reason (Review
+                // tab), not a status edit.
+                ["NOT_STARTED", "IN_REVIEW", "CLOSED"].map((value) => ({
                   value,
                   label: reviewStatusLabel(value),
                 }))

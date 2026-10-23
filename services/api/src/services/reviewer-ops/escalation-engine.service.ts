@@ -187,6 +187,13 @@ export type CreateEscalationInput = {
    *  passes `false` too. The only legitimate `true` case is the
    *  manual operator route. */
   bypassDedup?: boolean;
+  /**
+   * 2026-10-23 — leave the escalation UNASSIGNED so it reaches the
+   * workspace's owners and admins (the inbox shows unassigned open
+   * escalations to them). A reviewer escalating their own review must not
+   * have it routed back to themselves as the current assignee.
+   */
+  routeToWorkspaceAdmins?: boolean;
 };
 
 export type CreateEscalationResult =
@@ -301,8 +308,9 @@ export async function createEscalation(
       status: "OPEN",
       safeSummary: summary,
       createdByUserId: input.createdByUserId ?? null,
-      assignedToUserId:
-        input.assignedToUserId ?? workflow.assignedToUserId ?? null,
+      assignedToUserId: input.routeToWorkspaceAdmins
+        ? null
+        : (input.assignedToUserId ?? workflow.assignedToUserId ?? null),
       fingerprint,
     },
   });
@@ -657,4 +665,35 @@ export async function findOpenEscalationForWorkflow(
     orderBy: { createdAt: "desc" },
   });
   return row ? projectEscalation(row) : null;
+}
+
+/**
+ * Resolve the workflow's open escalation, if any (2026-10-23) — the review it
+ * was raised about has been finished (a verdict that ends the review, or
+ * Close). Best-effort: the review outcome stands whether or not the
+ * escalation could be marked resolved.
+ */
+export async function resolveOpenReviewEscalation(
+  input: { workflow: { id: string; teamId: string | null }; actorUserId: string; note: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  if (!input.workflow.teamId) return;
+  try {
+    const open = await findOpenEscalationForWorkflow(
+      { teamId: input.workflow.teamId, workflowId: input.workflow.id },
+      client,
+    );
+    if (!open) return;
+    await resolveEscalation(
+      {
+        teamId: input.workflow.teamId,
+        escalationId: open.id,
+        actorUserId: input.actorUserId,
+        resolutionNote: input.note,
+      },
+      client,
+    );
+  } catch {
+    /* the review outcome is recorded either way */
+  }
 }

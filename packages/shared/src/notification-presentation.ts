@@ -529,6 +529,7 @@ const MSG = {
   assignedOpenBody: t("An open discussion is assigned to you. Status: {status}.", "Ihnen ist eine offene Diskussion zugewiesen. Status: {status}.", "نقاش مفتوح مُسند إليك. الحالة: {status}."),
   assignedEscalatedBody: t("An escalated discussion is assigned to you. Status: {status}.", "Ihnen ist eine eskalierte Diskussion zugewiesen. Status: {status}.", "نقاش مُصعَّد مُسند إليك. الحالة: {status}."),
   escalationTitle: t("Escalation assigned to you: {reason}", "Ihnen zugewiesene Eskalation: {reason}", "تصعيد مُسند إليك: {reason}"),
+  escalationWorkspaceTitle: t("Review escalated to your workspace's admins: {reason}", "An die Admins Ihres Arbeitsbereichs eskalierte Prüfung: {reason}", "مراجعة مُصعَّدة إلى مسؤولي مساحة عملك: {reason}"),
   accessSubjectTitle: t("Your access is being reviewed", "Ihr Zugriff wird geprüft", "تجري مراجعة وصولك"),
   accessInitiatorTitle: t("An access review you initiated is pending", "Eine von Ihnen eingeleitete Zugriffsprüfung steht aus", "مراجعة وصول بدأتها معلّقة"),
   accessOverdueBody: t("{kind}. Past due — please act in the access reviews console.", "{kind}. Überfällig — bitte handeln Sie in der Konsole für Zugriffsprüfungen.", "{kind}. تجاوزت موعدها — يرجى اتخاذ إجراء في وحدة مراجعات الوصول."),
@@ -729,7 +730,11 @@ export function renderNotificationMessage(
     }
     case "escalation.assigned":
       return {
-        title: f(MSG.escalationTitle, { reason: sentenceCase(reviewEscalationReasonPhrase(l, str(p.reason) ?? "")) }),
+        // An UNASSIGNED escalation reaches the workspace's owners and admins
+        // (2026-10-23) and says so; an assigned one is the reader's own.
+        title: f(p.toWorkspace === 1 ? MSG.escalationWorkspaceTitle : MSG.escalationTitle, {
+          reason: sentenceCase(reviewEscalationReasonPhrase(l, str(p.reason) ?? "")),
+        }),
         // The escalation's own stored summary, verbatim.
         body: str(p.summary) ?? "",
       };

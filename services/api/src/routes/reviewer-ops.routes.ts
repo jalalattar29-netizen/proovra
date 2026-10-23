@@ -2360,13 +2360,14 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
 
       const wf = await prisma.evidenceReviewWorkflow.findFirst({
         where: { id: workflowId, teamId: q.teamId },
-        select: { id: true, evidenceId: true, status: true },
+        select: { id: true, evidenceId: true, status: true, decisionRound: true },
       });
       if (!wf) return reply.code(404).send({ error: { code: "not_found" } });
 
       const [rows, secondReview] = await Promise.all([
         prisma.workflowReviewDecision.findMany({
-          where: { workflowId, teamId: q.teamId },
+          // The CURRENT round (2026-10-23); earlier rounds decide nothing now.
+          where: { workflowId, teamId: q.teamId, round: wf.decisionRound },
           orderBy: { decidedAt: "asc" },
           select: {
             id: true,
@@ -2619,6 +2620,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           priority: true,
           assignedToUserId: true,
           updatedAt: true,
+          decisionRound: true,
         },
         orderBy: { updatedAt: "desc" },
         take: 500, // hard upper bound on the summary's input set
@@ -2641,6 +2643,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
                   stage: true,
                   decision: true,
                   reviewerUserId: true,
+                  round: true,
                 },
               }),
               prisma.reviewEscalation.findMany({
@@ -2679,7 +2682,10 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         string,
         Array<{ stage: string; decision: string; reviewerUserId: string }>
       >();
+      // Only the CURRENT round decides a workflow's state (2026-10-23).
+      const currentRound = new Map(workflows.map((w) => [w.id, w.decisionRound]));
       for (const d of decisions) {
+        if (d.round !== currentRound.get(d.workflowId)) continue;
         const arr = decisionsByWorkflow.get(d.workflowId) ?? [];
         arr.push({
           stage: d.stage,

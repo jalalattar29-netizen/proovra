@@ -696,6 +696,8 @@ const ReviewerWorkflowUpdateBody = z.object({
   priority: z.nativeEnum(prismaPkg.EvidenceReviewWorkflowPriority).optional(),
   dueAt: z.string().datetime().nullable().optional(),
   note: z.string().trim().max(1000).optional().nullable(),
+  /** Optimistic concurrency: the workflow updatedAt this edit was based on. */
+  expectedUpdatedAt: z.string().datetime().optional(),
 });
 
 const RelationshipBody = z.object({
@@ -8993,6 +8995,7 @@ return {
               ? new Date(body.dueAt)
               : null,
         note: body.note ?? null,
+        expectedUpdatedAt: body.expectedUpdatedAt ? new Date(body.expectedUpdatedAt) : null,
         templateIdentity: manualTrio,
         templateIdentitySource: "direct",
       });
@@ -10336,18 +10339,35 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
          * projection over the stage matrix and the facts the review routes
          * refuse on. The panel enables exactly these; it keeps no matrix.
          */
-        const verdictCount = reviewerWorkflowSummary.workflow
-          ? await prisma.workflowReviewDecision.count({
-              where: { workflowId: reviewerWorkflowSummary.workflow.id },
+        // The CURRENT decision round only (2026-10-23): Reopen starts a new
+        // round, and a request-more-information outcome does not close one —
+        // the review continues and its verdict is still to come. An escalated
+        // review takes a second, independent verdict.
+        const currentRoundDecisions = reviewerWorkflowSummary.workflow
+          ? await prisma.workflowReviewDecision.findMany({
+              where: {
+                workflowId: reviewerWorkflowSummary.workflow.id,
+                round: (
+                  await prisma.evidenceReviewWorkflow.findUnique({
+                    where: { id: reviewerWorkflowSummary.workflow.id },
+                    select: { decisionRound: true },
+                  })
+                )?.decisionRound ?? 0,
+              },
+              select: { decision: true },
             })
-          : 0;
+          : [];
+        const verdictRecorded =
+          currentRoundDecisions.length > 0 &&
+          !currentRoundDecisions.every((d) => d.decision === "REQUEST_INFO" || d.decision === "NEEDS_MORE_INFO") &&
+          workflowStatus !== "ESCALATED";
         const reviewWorkflowActions = projectReviewWorkflowActions({
           dbStatus: workflowStatus,
           assignedToUserId: reviewerWorkflowSummary.workflow?.assignedTo?.id ?? null,
           viewerUserId: ownerUserId,
           viewerMayReview,
           hasWorkspace: Boolean(evidence.teamId),
-          verdictRecorded: verdictCount > 0,
+          verdictRecorded,
         });
         const caseAssignmentView = {
           ...attention.caseAssignment,

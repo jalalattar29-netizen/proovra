@@ -232,6 +232,8 @@ export const REVIEW_ESCALATION_REASONS = [
   "REVIEWER_INACTIVE",
   "GOVERNANCE_BLOCKED",
   "REPEATED_REJECTION_LOOP",
+  // 2026-10-23 — a reviewer escalated the review from the Evidence page.
+  "REVIEWER_ESCALATED",
 ] as const;
 export const ReviewEscalationReasonSchema = z.enum(REVIEW_ESCALATION_REASONS);
 export type ReviewEscalationReason = z.infer<typeof ReviewEscalationReasonSchema>;

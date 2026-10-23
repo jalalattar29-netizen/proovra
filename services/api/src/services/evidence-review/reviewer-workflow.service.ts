@@ -5,6 +5,7 @@ import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 // PHASE 12 POINT 4 PASS C1 — the ONE definition of "this status is a verdict".
 import { isDecisionDerivedWorkflowStatus } from "./review-status-vocabulary.js";
 import { AppError, ErrorCode } from "../../errors.js";
+import { isAllowedReviewStageTransition, mapDbStatusToReviewStage } from "@proovra/shared";
 import {
   templateIdentityAuditMetadata,
   type TemplateIdentityStampSource,
@@ -127,6 +128,16 @@ export async function listEvidenceReviewerWorkflowEvents(evidenceId: string) {
   });
 }
 
+/**
+ * The workflow PATCH may change routing state only, and only along the shared
+ * stage matrix (2026-10-23).
+ *
+ * ESCALATED and REOPENED are LIFECYCLE DECISIONS: they need a written reason,
+ * Escalate opens a real escalation for the workspace's admins, and Reopen
+ * starts a new decision round. Setting them here skipped all of that.
+ */
+const LIFECYCLE_DECISION_STATUSES: ReadonlySet<string> = new Set(["ESCALATED", "REOPENED"]);
+
 export async function upsertEvidenceReviewerWorkflow(params: {
   evidenceId: string;
   workspaceType: "PERSONAL" | "TEAM";
@@ -137,6 +148,14 @@ export async function upsertEvidenceReviewerWorkflow(params: {
   priority?: prismaPkg.EvidenceReviewWorkflowPriority | null;
   dueAt?: Date | null;
   note?: string | null;
+  /**
+   * OPTIMISTIC CONCURRENCY (2026-10-23) — the `updatedAt` the caller's edit
+   * was based on. When given and the row has moved since, the write is
+   * refused (409 CONFLICT, reason stale_workflow) instead of silently
+   * overwriting someone else's change. The write itself is conditional on the
+   * row's `updatedAt`, so two concurrent writers cannot both win.
+   */
+  expectedUpdatedAt?: Date | null;
   // Phase T — canonical template-identity trio sourced from the upstream
   // Evidence row. Callers thread the trio through here so the reviewer
   // queue and downstream surfaces can group / filter by the same
@@ -176,35 +195,78 @@ export async function upsertEvidenceReviewerWorkflow(params: {
     );
   }
 
-  const existing = await prisma.evidenceReviewWorkflow.findUnique({
-    where: { evidenceId: params.evidenceId },
-    select: {
-      id: true,
-      status: true,
-      priority: true,
-      dueAt: true,
-      assignedToUserId: true,
-      assignedByUserId: true,
-      templateSlug: true,
-      templateVersion: true,
-      templateDbId: true,
-    },
-  });
-
-  const nextStatus = params.status ?? existing?.status ?? prismaPkg.EvidenceReviewWorkflowStatus.NOT_STARTED;
-  const nextPriority =
-    params.priority ?? existing?.priority ?? prismaPkg.EvidenceReviewWorkflowPriority.NORMAL;
-
   // Phase T — resolve the trio fields once so both create and update
   // branches stay in lockstep. The trio is optional: when undefined we
   // leave the row alone; when null we write NULL (legacy evidence).
   const trio: TemplateIdentityTrio | null =
     params.templateIdentity === undefined ? null : params.templateIdentity;
   const trioProvided = params.templateIdentity !== undefined;
+  const trioColumns = trioProvided
+    ? {
+        templateSlug: trio?.templateSlug ?? null,
+        templateVersion: trio?.templateVersion ?? null,
+        templateDbId: trio?.templateDbId ?? null,
+      }
+    : {};
 
-  const workflow = existing
-    ? await prisma.evidenceReviewWorkflow.update({
-        where: { evidenceId: params.evidenceId },
+  // ONE TRANSACTION (2026-10-23): the row and its events are written
+  // together, so a workflow can no longer exist without its creation event or
+  // carry events for a write that did not land.
+  const { workflow } = await prisma.$transaction(async (tx) => {
+    const existing = await tx.evidenceReviewWorkflow.findUnique({
+      where: { evidenceId: params.evidenceId },
+      select: {
+        id: true,
+        status: true,
+        priority: true,
+        dueAt: true,
+        assignedToUserId: true,
+        assignedByUserId: true,
+        updatedAt: true,
+      },
+    });
+
+    if (
+      existing &&
+      params.expectedUpdatedAt &&
+      existing.updatedAt.getTime() !== params.expectedUpdatedAt.getTime()
+    ) {
+      throw new AppError(ErrorCode.CONFLICT, "This review changed since you opened it. Reload and try again.", {
+        reason: "stale_workflow",
+        currentUpdatedAt: existing.updatedAt.toISOString(),
+      });
+    }
+
+    // THE STAGE MATRIX applies to a status CHANGE on an existing workflow.
+    if (existing && params.status && params.status !== existing.status) {
+      if (LIFECYCLE_DECISION_STATUSES.has(params.status)) {
+        throw new AppError(
+          ErrorCode.INVALID_STATE_TRANSITION,
+          "Escalate and Reopen are review decisions with a reason, not a status edit.",
+          { reason: "lifecycle_decision_required", field: "status", value: String(params.status) },
+        );
+      }
+      const from = mapDbStatusToReviewStage(existing.status as string);
+      const to = mapDbStatusToReviewStage(params.status as string);
+      if (!isAllowedReviewStageTransition(from, to)) {
+        throw new AppError(
+          ErrorCode.INVALID_STATE_TRANSITION,
+          "That review state is not reachable from the current one.",
+          { reason: "invalid_stage_transition", from, to },
+        );
+      }
+    }
+
+    const nextStatus = params.status ?? existing?.status ?? prismaPkg.EvidenceReviewWorkflowStatus.NOT_STARTED;
+    const nextPriority =
+      params.priority ?? existing?.priority ?? prismaPkg.EvidenceReviewWorkflowPriority.NORMAL;
+
+    let workflow;
+    if (existing) {
+      // Conditional on the row we read: a concurrent writer that landed in
+      // between makes this match nothing, and the write is refused.
+      const claim = await tx.evidenceReviewWorkflow.updateMany({
+        where: { id: existing.id, updatedAt: existing.updatedAt },
         data: {
           assignedToUserId:
             params.assignedToUserId !== undefined
@@ -217,7 +279,6 @@ export async function upsertEvidenceReviewerWorkflow(params: {
           dueAt: params.dueAt !== undefined ? params.dueAt : existing.dueAt,
           lastReviewedAt:
             nextStatus === prismaPkg.EvidenceReviewWorkflowStatus.IN_REVIEW ||
-            nextStatus === prismaPkg.EvidenceReviewWorkflowStatus.APPROVED_INTERNAL ||
             nextStatus === prismaPkg.EvidenceReviewWorkflowStatus.CLOSED
               ? new Date()
               : undefined,
@@ -225,19 +286,17 @@ export async function upsertEvidenceReviewerWorkflow(params: {
             nextStatus === prismaPkg.EvidenceReviewWorkflowStatus.CLOSED
               ? new Date()
               : null,
-          // Phase T — only touch trio columns when the caller opted in.
-          // Existing rows that were created before the caller wired the
-          // trio keep their current values (which may already be set).
-          ...(trioProvided
-            ? {
-                templateSlug: trio?.templateSlug ?? null,
-                templateVersion: trio?.templateVersion ?? null,
-                templateDbId: trio?.templateDbId ?? null,
-              }
-            : {}),
+          ...trioColumns,
         },
-      })
-    : await prisma.evidenceReviewWorkflow.create({
+      });
+      if (claim.count !== 1) {
+        throw new AppError(ErrorCode.CONFLICT, "This review changed since you opened it. Reload and try again.", {
+          reason: "stale_workflow",
+        });
+      }
+      workflow = await tx.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: existing.id } });
+    } else {
+      workflow = await tx.evidenceReviewWorkflow.create({
         data: {
           evidenceId: params.evidenceId,
           workspaceType: params.workspaceType,
@@ -255,18 +314,88 @@ export async function upsertEvidenceReviewerWorkflow(params: {
             nextStatus === prismaPkg.EvidenceReviewWorkflowStatus.CLOSED
               ? new Date()
               : null,
-          // Phase T — stamp trio at create time when the caller provided
-          // it. Legacy (undefined) callers create rows with NULL columns,
-          // which matches the Phase 2 schema (additive-nullable only).
-          ...(trioProvided
-            ? {
-                templateSlug: trio?.templateSlug ?? null,
-                templateVersion: trio?.templateVersion ?? null,
-                templateDbId: trio?.templateDbId ?? null,
-              }
-            : {}),
+          ...trioColumns,
         },
       });
+    }
+
+    const event = (
+      eventType: prismaPkg.EvidenceReviewWorkflowEventType,
+      previousValue: Prisma.InputJsonValue | undefined,
+      nextValue: Prisma.InputJsonValue,
+    ) =>
+      tx.evidenceReviewWorkflowEvent.create({
+        data: {
+          workflowId: workflow.id,
+          evidenceId: params.evidenceId,
+          actorUserId: params.actorUserId,
+          eventType,
+          ...(previousValue !== undefined ? { previousValue } : {}),
+          nextValue,
+          note: params.note ?? null,
+        },
+      });
+
+    if (!existing) {
+      // CREATION IS ONE EVENT (2026-10-23). The initial status, priority and
+      // assignee are recorded in its nextValue; the UNASSIGNED,
+      // STATUS_CHANGED and PRIORITY_CHANGED rows that used to accompany it
+      // described no change. An assignee set at creation is still a real
+      // assignment and keeps its own event.
+      await event(prismaPkg.EvidenceReviewWorkflowEventType.CREATED, undefined, {
+        status: nextStatus,
+        priority: nextPriority,
+        assignedToUserId: params.assignedToUserId ?? null,
+        dueAt: params.dueAt?.toISOString() ?? null,
+      } as Prisma.InputJsonValue);
+      if (workflow.assignedToUserId) {
+        await event(
+          prismaPkg.EvidenceReviewWorkflowEventType.ASSIGNED,
+          { assignedToUserId: null } as Prisma.InputJsonValue,
+          { assignedToUserId: workflow.assignedToUserId } as Prisma.InputJsonValue,
+        );
+      }
+      return { workflow, existing };
+    }
+
+    if (existing.assignedToUserId !== workflow.assignedToUserId) {
+      await event(
+        workflow.assignedToUserId
+          ? prismaPkg.EvidenceReviewWorkflowEventType.ASSIGNED
+          : prismaPkg.EvidenceReviewWorkflowEventType.UNASSIGNED,
+        { assignedToUserId: existing.assignedToUserId ?? null } as Prisma.InputJsonValue,
+        { assignedToUserId: workflow.assignedToUserId ?? null } as Prisma.InputJsonValue,
+      );
+    }
+    if (existing.status !== workflow.status) {
+      await event(
+        workflow.status === prismaPkg.EvidenceReviewWorkflowStatus.IN_REVIEW
+          ? prismaPkg.EvidenceReviewWorkflowEventType.REVIEW_STARTED
+          : workflow.status === prismaPkg.EvidenceReviewWorkflowStatus.CLOSED
+            ? prismaPkg.EvidenceReviewWorkflowEventType.CLOSED
+            : prismaPkg.EvidenceReviewWorkflowEventType.STATUS_CHANGED,
+        { status: existing.status } as Prisma.InputJsonValue,
+        { status: workflow.status } as Prisma.InputJsonValue,
+      );
+    }
+    if (existing.priority !== workflow.priority) {
+      await event(
+        prismaPkg.EvidenceReviewWorkflowEventType.PRIORITY_CHANGED,
+        { priority: existing.priority } as Prisma.InputJsonValue,
+        { priority: workflow.priority } as Prisma.InputJsonValue,
+      );
+    }
+    const existingDueAt = existing.dueAt?.toISOString() ?? null;
+    const nextDueAt = workflow.dueAt?.toISOString() ?? null;
+    if (existingDueAt !== nextDueAt) {
+      await event(
+        prismaPkg.EvidenceReviewWorkflowEventType.DUE_DATE_CHANGED,
+        { dueAt: existingDueAt } as Prisma.InputJsonValue,
+        { dueAt: nextDueAt } as Prisma.InputJsonValue,
+      );
+    }
+    return { workflow, existing };
+  });
 
   // Phase T — emit a bounded audit event when the caller opted in AND a
   // slug actually exists on the trio. We never emit on the pure-NULL
@@ -293,109 +422,6 @@ export async function upsertEvidenceReviewerWorkflow(params: {
     }).catch(() => {
       /* audit emission must never break the reviewer-workflow upsert */
     });
-  }
-
-  const events: Prisma.PrismaPromise<unknown>[] = [];
-
-  if (!existing) {
-    events.push(
-      prisma.evidenceReviewWorkflowEvent.create({
-        data: {
-          workflowId: workflow.id,
-          evidenceId: params.evidenceId,
-          actorUserId: params.actorUserId,
-          eventType: prismaPkg.EvidenceReviewWorkflowEventType.CREATED,
-          nextValue: {
-            status: nextStatus,
-            priority: nextPriority,
-            assignedToUserId: params.assignedToUserId ?? null,
-            dueAt: params.dueAt?.toISOString() ?? null,
-          } as Prisma.InputJsonValue,
-          note: params.note ?? null,
-        },
-      })
-    );
-  }
-
-  if (existing?.assignedToUserId !== workflow.assignedToUserId || (!existing && workflow.assignedToUserId)) {
-    events.push(
-      prisma.evidenceReviewWorkflowEvent.create({
-        data: {
-          workflowId: workflow.id,
-          evidenceId: params.evidenceId,
-          actorUserId: params.actorUserId,
-          eventType: workflow.assignedToUserId
-            ? prismaPkg.EvidenceReviewWorkflowEventType.ASSIGNED
-            : prismaPkg.EvidenceReviewWorkflowEventType.UNASSIGNED,
-          previousValue: { assignedToUserId: existing?.assignedToUserId ?? null } as Prisma.InputJsonValue,
-          nextValue: { assignedToUserId: workflow.assignedToUserId ?? null } as Prisma.InputJsonValue,
-          note: params.note ?? null,
-        },
-      })
-    );
-  }
-
-  if (existing?.status !== workflow.status) {
-    events.push(
-      prisma.evidenceReviewWorkflowEvent.create({
-        data: {
-          workflowId: workflow.id,
-          evidenceId: params.evidenceId,
-          actorUserId: params.actorUserId,
-          eventType:
-            workflow.status === prismaPkg.EvidenceReviewWorkflowStatus.IN_REVIEW
-              ? prismaPkg.EvidenceReviewWorkflowEventType.REVIEW_STARTED
-              : workflow.status === prismaPkg.EvidenceReviewWorkflowStatus.APPROVED_INTERNAL
-                ? prismaPkg.EvidenceReviewWorkflowEventType.REVIEW_COMPLETED
-                : workflow.status === prismaPkg.EvidenceReviewWorkflowStatus.ESCALATED
-                  ? prismaPkg.EvidenceReviewWorkflowEventType.ESCALATED
-                  : workflow.status === prismaPkg.EvidenceReviewWorkflowStatus.CLOSED
-                    ? prismaPkg.EvidenceReviewWorkflowEventType.CLOSED
-                    : prismaPkg.EvidenceReviewWorkflowEventType.STATUS_CHANGED,
-          previousValue: { status: existing?.status ?? null } as Prisma.InputJsonValue,
-          nextValue: { status: workflow.status } as Prisma.InputJsonValue,
-          note: params.note ?? null,
-        },
-      })
-    );
-  }
-
-  if (existing?.priority !== workflow.priority) {
-    events.push(
-      prisma.evidenceReviewWorkflowEvent.create({
-        data: {
-          workflowId: workflow.id,
-          evidenceId: params.evidenceId,
-          actorUserId: params.actorUserId,
-          eventType: prismaPkg.EvidenceReviewWorkflowEventType.PRIORITY_CHANGED,
-          previousValue: { priority: existing?.priority ?? null } as Prisma.InputJsonValue,
-          nextValue: { priority: workflow.priority } as Prisma.InputJsonValue,
-          note: params.note ?? null,
-        },
-      })
-    );
-  }
-
-  const existingDueAt = existing?.dueAt?.toISOString() ?? null;
-  const nextDueAt = workflow.dueAt?.toISOString() ?? null;
-  if (existingDueAt !== nextDueAt) {
-    events.push(
-      prisma.evidenceReviewWorkflowEvent.create({
-        data: {
-          workflowId: workflow.id,
-          evidenceId: params.evidenceId,
-          actorUserId: params.actorUserId,
-          eventType: prismaPkg.EvidenceReviewWorkflowEventType.DUE_DATE_CHANGED,
-          previousValue: { dueAt: existingDueAt } as Prisma.InputJsonValue,
-          nextValue: { dueAt: nextDueAt } as Prisma.InputJsonValue,
-          note: params.note ?? null,
-        },
-      })
-    );
-  }
-
-  if (events.length > 0) {
-    await prisma.$transaction(events);
   }
 
   return getEvidenceReviewerWorkflowSummary(params.evidenceId);

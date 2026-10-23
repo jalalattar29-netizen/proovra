@@ -279,6 +279,7 @@ const REASON_PHRASES: Readonly<Record<string, L3>> = {
   REVIEWER_INACTIVE: { en: "reviewer inactive", de: "prüfende Person inaktiv", ar: "المراجع غير نشط" },
   GOVERNANCE_BLOCKED: { en: "blocked by governance", de: "durch Governance gesperrt", ar: "محظور بسبب الحوكمة" },
   REPEATED_REJECTION_LOOP: { en: "repeated rejections", de: "wiederholte Ablehnungen", ar: "رفض متكرر" },
+  REVIEWER_ESCALATED: { en: "escalated by a reviewer", de: "von einer prüfenden Person eskaliert", ar: "صعّده مراجع" },
 };
 const REASON_FALLBACK: L3 = { en: "needs attention", de: "erfordert Aufmerksamkeit", ar: "يحتاج إلى انتباه" };
 const reasonPhrase = (l: ConditionMessageLocale, code: string) => phrase(REASON_PHRASES, REASON_FALLBACK, l, code);

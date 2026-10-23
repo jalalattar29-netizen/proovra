@@ -514,8 +514,18 @@ export async function evaluateReviewPolicy(
       select: { verdict: true },
     });
     qcPassed = qc?.verdict === "PASS";
+    // Approvers of the CURRENT decision round (2026-10-23): reviewers of a
+    // round that was reopened do not count toward the new verdict.
+    const wfRound = await prisma.evidenceReviewWorkflow.findUnique({
+      where: { id: input.workflowId },
+      select: { decisionRound: true },
+    });
     const decisions = await prisma.workflowReviewDecision.findMany({
-      where: { workflowId: input.workflowId, teamId: input.teamId },
+      where: {
+        workflowId: input.workflowId,
+        teamId: input.teamId,
+        round: wfRound?.decisionRound ?? 0,
+      },
       select: { reviewerUserId: true },
     });
     const reviewers = new Set<string>();

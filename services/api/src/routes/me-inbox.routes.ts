@@ -1993,6 +1993,8 @@ export async function buildInboxAggregation(
                 stage: true,
                 decision: true,
                 decidedAt: true,
+                round: true,
+                workflow: { select: { decisionRound: true } },
               },
             });
 
@@ -2007,6 +2009,8 @@ export async function buildInboxAggregation(
       >;
       const stagesByWorkflow: StageMap = new Map();
       for (const r of conflictCandidates) {
+        // Only the CURRENT decision round is live (2026-10-23).
+        if (r.round !== r.workflow.decisionRound) continue;
         const entry = stagesByWorkflow.get(r.workflowId) ?? {
           teamId: r.teamId,
         };
@@ -2041,7 +2045,8 @@ export async function buildInboxAggregation(
       const myFirstDecisions =
         teamIds.length === 0
           ? []
-          : await prisma.workflowReviewDecision.findMany({
+          : (
+            await prisma.workflowReviewDecision.findMany({
               where: {
                 reviewerUserId: userId,
                 stage: "FIRST",
@@ -2051,8 +2056,11 @@ export async function buildInboxAggregation(
                 workflowId: true,
                 teamId: true,
                 decidedAt: true,
+                round: true,
+                workflow: { select: { decisionRound: true } },
               },
-            });
+            })
+          ).filter((d) => d.round === d.workflow.decisionRound);
       // Filter to ones that DON'T yet have a SECOND row.
       const myFirstWorkflowIds = myFirstDecisions.map((d) => d.workflowId);
       const secondsForMyFirsts =
@@ -2063,10 +2071,12 @@ export async function buildInboxAggregation(
                 workflowId: { in: myFirstWorkflowIds },
                 stage: "SECOND",
               },
-              select: { workflowId: true },
+              select: { workflowId: true, round: true, workflow: { select: { decisionRound: true } } },
             });
       const haveSecond = new Set<string>(
-        secondsForMyFirsts.map((s) => s.workflowId),
+        secondsForMyFirsts
+          .filter((s) => s.round === s.workflow.decisionRound)
+          .map((s) => s.workflowId),
       );
       const pendingSecondForMe = myFirstDecisions.filter(
         (d) => !haveSecond.has(d.workflowId),
@@ -2285,10 +2295,17 @@ export async function buildInboxAggregation(
               "review_escalation",
               () =>
                 prisma.reviewEscalation.findMany({
+                  // Escalations assigned to the caller, AND unassigned ones
+                  // in workspaces the caller owns or administers — where a
+                  // reviewer escalation goes (2026-10-23).
                   where: {
-                    teamId: { in: teamIds },
-                    assignedToUserId: userId,
                     status: "OPEN",
+                    OR: [
+                      { teamId: { in: teamIds }, assignedToUserId: userId },
+                      ...(adjudicatorTeamIds.length > 0
+                        ? [{ teamId: { in: adjudicatorTeamIds }, assignedToUserId: null }]
+                        : []),
+                    ],
                   },
                   select: {
                     id: true,
@@ -2298,6 +2315,7 @@ export async function buildInboxAggregation(
                     reason: true,
                     severity: true,
                     safeSummary: true,
+                    assignedToUserId: true,
                     createdAt: true,
                     updatedAt: true,
                   },
@@ -3202,10 +3220,20 @@ export async function buildInboxAggregation(
           id: `review_escalation:${esc.id}`,
           category: "review_escalation",
           tone: escalationToneMap[esc.severity] ?? "warning",
-          title: `Escalation assigned to you: ${humanizeEscalationReason(esc.reason)}`,
-          message: { key: "escalation.assigned", params: { reason: esc.reason, summary: esc.safeSummary } },
+          title: esc.assignedToUserId
+            ? `Escalation assigned to you: ${humanizeEscalationReason(esc.reason)}`
+            : `Review escalated to your workspace's admins: ${humanizeEscalationReason(esc.reason)}`,
+          message: {
+            key: "escalation.assigned",
+            params: { reason: esc.reason, summary: esc.safeSummary, ...(esc.assignedToUserId ? {} : { toWorkspace: 1 }) },
+          },
           body: esc.safeSummary,
-          href: `/reviewer-ops/escalations?escalationId=${encodeURIComponent(esc.id)}`,
+          // A reviewer escalation opens the record's Review tab, where it is
+          // decided or closed; other escalations keep the console.
+          href:
+            esc.reason === "REVIEWER_ESCALATED" && esc.evidenceId
+              ? `/evidence/${encodeURIComponent(esc.evidenceId)}?tab=review`
+              : `/reviewer-ops/escalations?escalationId=${encodeURIComponent(esc.id)}`,
           occurredAt: esc.updatedAt.toISOString(),
           dueAt: null,
           context: {

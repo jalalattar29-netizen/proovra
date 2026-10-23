@@ -49,6 +49,11 @@ import {
   ReviewDecisionAuthorityError,
   recordReviewDecision as recordCanonicalReviewDecision,
 } from "../reviewer-ops/review-decision.service.js";
+import {
+  createEscalation,
+  resolveOpenReviewEscalation,
+  suppressEscalation,
+} from "../reviewer-ops/escalation-engine.service.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -207,6 +212,7 @@ export async function loadWorkspaceSlaDefaults(
 
 type TransitionPatch = {
   status?: ReviewStage;
+  decisionRound?: number;
   assignedToUserId?: string | null;
   assignedByUserId?: string | null;
   assignedAtUtc?: Date | null;
@@ -277,6 +283,8 @@ async function applyTransition(
     data.rejectionReason = patch.rejectionReason?.slice(0, 400) ?? null;
   if (typeof patch.reopenCount === "number")
     data.reopenCount = patch.reopenCount;
+  if (typeof patch.decisionRound === "number")
+    data.decisionRound = patch.decisionRound;
   if (patch.reopenedAtUtc !== undefined)
     data.reopenedAtUtc = patch.reopenedAtUtc;
   if (patch.reopenedByUserId !== undefined)
@@ -538,6 +546,7 @@ export async function recordLifecycleTransition(
 
   switch (input.decision) {
     case "ESCALATE":
+      // The escalation opened below already counted this level.
       patch.escalationLevel = workflow.escalationLevel + 1;
       patch.escalatedAtUtc = now;
       patch.escalatedByUserId = input.actorUserId;
@@ -546,6 +555,9 @@ export async function recordLifecycleTransition(
       break;
     case "REOPEN":
       patch.reopenCount = workflow.reopenCount + 1;
+      // A reopened review decides in a NEW round (2026-10-23): the verdict
+      // that closed the last round stays on the log and no longer blocks one.
+      patch.decisionRound = workflow.decisionRound + 1;
       patch.reopenedAtUtc = now;
       patch.reopenedByUserId = input.actorUserId;
       // Clear terminal markers so subsequent transitions are valid.
@@ -559,16 +571,75 @@ export async function recordLifecycleTransition(
       break;
   }
 
-  const updated = await applyTransition(workflow, toStage, patch, client);
+  // ESCALATE OPENS A REAL ESCALATION (2026-10-23). It used to change the
+  // status and email the current assignee — usually the escalator — and
+  // nothing else: no owner, no inbox item, no way to resolve it. It now
+  // opens a ReviewEscalation routed to the workspace's owners and admins
+  // (their inbox shows it), and the review appears under Escalated in the
+  // team review queue. A verdict that finishes the review, or Close,
+  // resolves it.
+  //
+  // Opened BEFORE the status moves, once the move is known to be legal, so
+  // the escalation's own counters are the ones the transition keeps.
+  let escalationId: string | null = null;
+  if (input.decision === "ESCALATE") {
+    if (!isAllowedReviewStageTransition(fromStage, toStage) || !workflow.teamId) {
+      throw new ReviewOperationError("invalid_stage_transition", { from: fromStage, to: toStage });
+    }
+    const opened = await createEscalation(
+      {
+        teamId: workflow.teamId,
+        workflowId: workflow.id,
+        reason: "REVIEWER_ESCALATED",
+        safeSummary: (input.escalationReason ?? input.note ?? "").trim(),
+        severity: "WARNING",
+        evidenceId: workflow.evidenceId,
+        createdByUserId: input.actorUserId,
+        routeToWorkspaceAdmins: true,
+        bypassDedup: true,
+      },
+      client,
+    );
+    if (!opened.ok) {
+      throw new ReviewOperationError("workflow_not_found");
+    }
+    escalationId = opened.escalation.id;
+  }
+
+  let updated: DbWorkflow;
+  try {
+    updated = await applyTransition(workflow, toStage, patch, client);
+  } catch (err) {
+    // The move was refused after the escalation opened (a concurrent
+    // change): withdraw it so no orphan escalation is left behind.
+    if (escalationId && workflow.teamId) {
+      await suppressEscalation(
+        {
+          teamId: workflow.teamId,
+          escalationId,
+          actorUserId: input.actorUserId,
+          suppressionReason: "Escalation withdrawn: the review changed at the same moment.",
+        },
+        client,
+      ).catch(() => null);
+    }
+    throw err;
+  }
   await recordEvent(
     workflow,
     eventType,
     input.actorUserId,
     input.note,
     { stage: fromStage },
-    { stage: toStage, decision: input.decision },
+    { stage: toStage, decision: input.decision, ...(escalationId ? { escalationId } : {}) },
     client,
   );
+  if (input.decision === "CLOSE") {
+    await resolveOpenReviewEscalation(
+      { workflow, actorUserId: input.actorUserId, note: "Review closed." },
+      client,
+    );
+  }
 
   // Phase 13.5 — operational notification dispatch. Internal-only;
   // safe wrappers — failure does not undo the transition.

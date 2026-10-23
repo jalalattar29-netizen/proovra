@@ -1757,6 +1757,8 @@ model EvidenceReviewWorkflow {
   escalationReason      String?                  @map("escalation_reason") @db.VarChar(400)
   // Phase 13 — REJECTED_INSUFFICIENT details + reopen pointer.
   rejectionReason       String?                  @map("rejection_reason") @db.VarChar(400)
+  /// The CURRENT decision round (see WorkflowReviewDecision.round).
+  decisionRound         Int                      @default(0) @map("decision_round")
   reopenCount           Int                      @default(0) @map("reopen_count")
   reopenedAtUtc         DateTime?                @map("reopened_at_utc") @db.Timestamptz(6)
   reopenedByUserId      String?                  @map("reopened_by_user_id") @db.Uuid
@@ -1902,14 +1904,18 @@ model WorkflowReviewDecision {
   /// for all ADJUDICATION rows. Optional for APPROVE at FIRST stage.
   rationale      String                     @db.VarChar(4000)
   decidedAt      DateTime                   @default(now()) @map("decided_at") @db.Timestamptz(6)
+  /// The workflow decision ROUND this row belongs to (2026-10-23). A round
+  /// starts at creation (0); Reopen, and continuing after a
+  /// request-more-information outcome, start the next one. Earlier rounds
+  /// stay on the log, immutable; state is derived from the current round.
+  round          Int                        @default(0)
 
   workflow EvidenceReviewWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   reviewer User                   @relation("WorkflowReviewDecisionReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict)
 
-  // One row per (workflow, stage). Resubmissions are forbidden; the
-  // existing row carries the audit-of-record. A new stage requires a
-  // new row.
-  @@unique([workflowId, stage])
+  // One row per (workflow, round, stage). Resubmissions within a round are
+  // forbidden; the existing row carries the audit-of-record.
+  @@unique([workflowId, round, stage])
   @@index([workflowId, decidedAt(sort: Desc)])
   @@index([teamId, stage])
   @@index([reviewerUserId])

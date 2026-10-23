@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281021000100_output_lease_renewal_and_issued_custody_cutoff";
+export const EXPECTED_MIGRATION_HEAD = "20281023000100_review_decision_rounds";
 
 export type MigrationRow = {
   migration_name: string;

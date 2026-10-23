@@ -53,6 +53,7 @@ import type {
   WorkflowReviewStage,
 } from "@prisma/client";
 import {
+  isAllowedReviewStageTransition,
   mapDbStatusToReviewStage,
   mapReviewStageToDbStatus,
   type ReviewStage,
@@ -60,6 +61,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { notifyReviewNeedsMoreInfo } from "../review-operations/review-notifications.service.js";
+import { resolveOpenReviewEscalation } from "./escalation-engine.service.js";
 
 // -----------------------------------------------------------------------------
 // Types + error surface
@@ -78,7 +80,8 @@ export class ReviewDecisionAuthorityError extends Error {
       | "same_reviewer_blocked"
       | "adjudicator_role_required"
       | "decision_kind_not_allowed"
-      | "rationale_required",
+      | "rationale_required"
+      | "decision_not_from_stage",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -364,10 +367,39 @@ export async function recordReviewDecision(
       });
     }
 
-    const rows = await tx.workflowReviewDecision.findMany({
-      where: { workflowId: input.workflowId, teamId: input.teamId },
+    // THE CURRENT ROUND (2026-10-23). A reopened review — and a review that
+    // continues after a request-more-information outcome — decides in a new
+    // round; earlier rounds stay on the log and decide nothing now.
+    let round = wf.decisionRound;
+    let rows = await tx.workflowReviewDecision.findMany({
+      where: { workflowId: input.workflowId, teamId: input.teamId, round },
       orderBy: { decidedAt: "asc" },
     });
+    {
+      const roundOutcome = deriveDecisionProjection(rows, false);
+      const stageNow = mapDbStatusToReviewStage(wf.status as string);
+      if (
+        rows.length > 0 &&
+        roundOutcome.state === "resolved" &&
+        roundOutcome.projectedStage === "NEEDS_MORE_INFO" &&
+        !DECISION_TERMINAL_STAGES.has(stageNow) &&
+        // The same reviewer repeating the same request is a replay, below.
+        !rows.some((r) => r.reviewerUserId === input.actorUserId && r.decision === input.decision)
+      ) {
+        // Information was requested; the review continues in a NEW round.
+        // Conditional on the round we read, so two concurrent decisions
+        // cannot both open it.
+        const bumped = await tx.evidenceReviewWorkflow.updateMany({
+          where: { id: wf.id, decisionRound: round },
+          data: { decisionRound: round + 1 },
+        });
+        if (bumped.count !== 1) {
+          throw new ReviewDecisionAuthorityError("stale_decision", { reason: "round_moved" });
+        }
+        round += 1;
+        rows = [];
+      }
+    }
 
     // Idempotent replay — the identical decision (same workflow + same
     // actor + same kind) is already the audit-of-record. Return it
@@ -402,6 +434,21 @@ export async function recordReviewDecision(
     if (DECISION_TERMINAL_STAGES.has(currentStage)) {
       throw new ReviewDecisionAuthorityError("review_already_resolved", {
         currentStage,
+      });
+    }
+    // THE STAGE MATRIX (2026-10-23). A verdict is a move to the stage it
+    // projects; it was accepted from any non-terminal stage, so a review
+    // nobody had started could be approved. Adjudication kinds project no
+    // stage of their own and are governed by the decision state below.
+    const verdictStage = kindToProjectedStage(input.decision as string);
+    if (
+      verdictStage !== null &&
+      verdictStage !== currentStage &&
+      !isAllowedReviewStageTransition(currentStage, verdictStage)
+    ) {
+      throw new ReviewDecisionAuthorityError("decision_not_from_stage", {
+        currentStage,
+        verdictStage,
       });
     }
     const secondReview = await requiresSecondReview(
@@ -474,6 +521,7 @@ export async function recordReviewDecision(
           workflowId: input.workflowId,
           teamId: input.teamId,
           stage: targetStage,
+          round,
           reviewerUserId: input.actorUserId,
           decision: input.decision,
           reasonCode: input.reasonCode ?? null,
@@ -540,6 +588,7 @@ export async function recordReviewDecision(
         nextValue: {
           stage: projection.projectedStage ?? currentStage,
           decisionStage: targetStage,
+          round,
           decision: input.decision,
           state: projection.state,
         } as Prisma.InputJsonValue,
@@ -590,6 +639,18 @@ export async function recordReviewDecision(
     ).catch(() => null);
   }
 
+  // A verdict that FINISHES the review resolves the escalation raised about
+  // it (2026-10-23), so the admins' inbox item does not outlive the issue.
+  if (!result.idempotent) {
+    const stageAfter = mapDbStatusToReviewStage(result.workflow.status as string);
+    if (stageAfter === "APPROVED_INTERNAL" || stageAfter === "REJECTED_INSUFFICIENT") {
+      await resolveOpenReviewEscalation(
+        { workflow: result.workflow, actorUserId: input.actorUserId, note: "Review decided." },
+        client,
+      );
+    }
+  }
+
   return result;
 }
 
@@ -634,7 +695,7 @@ export async function reconcileWorkflowProjection(
     return { workflowId, repaired: false, reason: "workflow_not_found" };
   }
   const rows = await client.workflowReviewDecision.findMany({
-    where: { workflowId, teamId: wf.teamId },
+    where: { workflowId, teamId: wf.teamId, round: wf.decisionRound },
     orderBy: { decidedAt: "asc" },
   });
   if (rows.length === 0) {
