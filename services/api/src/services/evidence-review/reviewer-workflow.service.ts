@@ -2,6 +2,9 @@ import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
 import { recordReviewStatusOnCustodyTx } from "./reviewer-audit.service.js";
+
+/** The states a workflow is opened in before anyone has decided anything. */
+const INITIAL_ROUTING_STATUSES: ReadonlySet<string> = new Set(["NOT_STARTED", "QUEUED"]);
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 // PHASE 12 POINT 4 PASS C1 — the ONE definition of "this status is a verdict".
 import { isDecisionDerivedWorkflowStatus } from "./review-status-vocabulary.js";
@@ -368,9 +371,11 @@ export async function upsertEvidenceReviewerWorkflow(params: {
         assignedToUserId: params.assignedToUserId ?? null,
         dueAt: params.dueAt?.toISOString() ?? null,
       } as Prisma.InputJsonValue);
-      // ET-CUS-12 — a workflow opened with a status is on custody, in this
-      // transaction (third audit: the route appended it after commit).
-      if (params.status) {
+      // ET-CUS-12 — a workflow OPENED IN A DECISION STATE is on custody, in
+      // this transaction. Opening it in an initial routing state (NOT_STARTED,
+      // QUEUED — every record's completion does this) is no decision and
+      // writes nothing to the append-only chain (fourth audit).
+      if (params.status && !INITIAL_ROUTING_STATUSES.has(String(workflow.status))) {
         await recordReviewStatusOnCustodyTx(tx, {
           evidenceId: params.evidenceId,
           actorUserId: params.actorUserId,

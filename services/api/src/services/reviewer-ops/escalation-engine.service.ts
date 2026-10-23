@@ -486,12 +486,11 @@ export async function createEscalation(
 type TransitionContext = {
   teamId: string;
   escalationId: string;
-  /** null: PROOVRA itself (the reconciler), recorded as a system action. */
-  actorUserId: string | null;
+  actorUserId: string;
 };
 
 async function loadAndAssertOpen(
-  ctx: TransitionContext,
+  ctx: Pick<TransitionContext, "escalationId" | "teamId">,
   client: PrismaClient,
 ): Promise<DbEscalation> {
   const row = await client.reviewEscalation.findFirst({
@@ -565,7 +564,9 @@ export async function reassignEscalation(
 }
 
 export async function resolveEscalation(
-  input: TransitionContext & { resolutionNote: string },
+  // Resolve alone may be PROOVRA's own act (the reconciler): a null actor is
+  // recorded as a system action.
+  input: Omit<TransitionContext, "actorUserId"> & { actorUserId: string | null; resolutionNote: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<EscalationProjection> {
   if (input.resolutionNote.trim().length === 0) {
@@ -710,7 +711,13 @@ export async function findOpenEscalationForWorkflow(
  * an escalation could be marked resolved.
  */
 export async function resolveOpenReviewEscalation(
-  input: { workflow: { id: string; teamId: string | null }; actorUserId: string | null; note: string },
+  input: {
+    workflow: { id: string; teamId: string | null };
+    actorUserId: string | null;
+    note: string;
+    /** Only escalations raised at or before this instant (the reconciler). */
+    raisedAtOrBefore?: Date;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
   if (!input.workflow.teamId) return;
@@ -721,6 +728,7 @@ export async function resolveOpenReviewEscalation(
         teamId: input.workflow.teamId,
         workflowId: input.workflow.id,
         status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+        ...(input.raisedAtOrBefore ? { createdAt: { lte: input.raisedAtOrBefore } } : {}),
       },
       select: { id: true },
     });

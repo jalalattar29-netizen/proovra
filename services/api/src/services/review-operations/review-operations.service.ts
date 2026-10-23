@@ -968,8 +968,9 @@ export async function bulkReviewAction(
           // The move and its custody entry together (ET-CUS-12).
           await client.$transaction(async (txc) => {
             const tx = txc as unknown as PrismaClient;
+            const current = await tx.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: workflow.id } });
             const moved = await applyTransition(
-              await tx.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: workflow.id } }),
+              current,
               "IN_REVIEW",
               { lastReviewedAt: new Date() },
               tx,
@@ -977,7 +978,7 @@ export async function bulkReviewAction(
             );
             // Only a real change is on custody (a review already In review
             // is not moved).
-            if (moved.status !== workflow.status) {
+            if (moved.status !== current.status) {
               await recordReviewStatusOnCustodyTx(txc, {
                 evidenceId,
                 actorUserId: input.actorUserId,

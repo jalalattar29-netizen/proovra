@@ -854,3 +854,63 @@ describe("third audit — side effects after commit, legacy rounds, console, cus
     expect(await awaiting((await workflowOf(held)).id)).toBe(false);
   });
 });
+
+// ===========================================================================
+// Fourth independent audit (2026-10-23)
+// ===========================================================================
+
+describe("fourth audit — opening a review is not a decision; the reconciler resolves only what preceded the close", () => {
+  const custodyCount = (ev: string) =>
+    prisma.custodyEvent.count({ where: { evidenceId: ev, eventType: "REVIEW_DECISION_RECORDED" } });
+
+  it("a workflow opened in its initial state — by record completion or the editor — writes nothing to custody", async () => {
+    await setPlan(A, "TEAM");
+    const { upsertEvidenceReviewerWorkflow } = await import("../src/services/evidence-review/reviewer-workflow.service.js");
+    // Exactly what completion's fan-out passes (evidence-complete.service.ts).
+    const completed = await freshEvidence(A, "audit4-completion");
+    await upsertEvidenceReviewerWorkflow({
+      evidenceId: completed,
+      workspaceType: "TEAM",
+      teamId: A.teamId,
+      actorUserId: A.ownerUserId,
+      status: "NOT_STARTED",
+      priority: "NORMAL",
+      note: "Created automatically on Capture finalization.",
+    } as never);
+    expect(await prisma.evidenceReviewWorkflow.count({ where: { evidenceId: completed } })).toBe(1);
+    expect(await custodyCount(completed)).toBe(0);
+    // The editor opening one in its initial state: none either.
+    const edited = await freshEvidence(A, "audit4-editor");
+    expect((await patchWorkflow(A.adminToken, edited, { status: "NOT_STARTED" })).status).toBe(200);
+    expect(await custodyCount(edited)).toBe(0);
+    // A real decision afterwards is recorded.
+    expect((await claim(A.memberToken, edited, A.teamId)).status).toBe(200);
+    const wf = await workflowOf(edited);
+    expect((await patchWorkflow(A.memberToken, edited, { status: "IN_REVIEW", expectedUpdatedAt: wf.updatedAt.toISOString() })).status).toBe(200);
+    expect(await custodyCount(edited)).toBe(1);
+  });
+
+  it("the reconciler leaves an escalation raised after its read of the closed review", async () => {
+    await setPlan(A, "TEAM");
+    const { reconcileWorkflowProjection } = await import("../src/services/reviewer-ops/review-decision.service.js");
+    const ev = await freshEvidence(A, "audit4-window");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    expect((await claim(A.memberToken, ev, A.teamId)).status).toBe(200);
+    let wf = await workflowOf(ev);
+    expect((await patchWorkflow(A.memberToken, ev, { status: "IN_REVIEW", expectedUpdatedAt: wf.updatedAt.toISOString() })).status).toBe(200);
+    expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
+    expect((await decide(A.memberToken, ev, "REOPEN", "more")).status).toBe(200);
+    wf = await workflowOf(ev);
+    expect((await patchWorkflow(A.memberToken, ev, { status: "IN_REVIEW", expectedUpdatedAt: wf.updatedAt.toISOString() })).status).toBe(200);
+    expect((await decide(A.memberToken, ev, "ESCALATE", "help")).status).toBe(200);
+    expect((await decide(A.adminToken, ev, "CLOSE", "done")).status).toBe(200);
+    // An escalation raised AFTER the closed state the reconciler reads (as a
+    // Reopen + Escalate racing it would raise) is not the closed review's.
+    await prisma.reviewEscalation.updateMany({
+      where: { evidenceId: ev },
+      data: { status: "OPEN", resolvedAtUtc: null, createdAt: new Date(Date.now() + 3_600_000) },
+    });
+    await reconcileWorkflowProjection((await workflowOf(ev)).id);
+    expect(await prisma.reviewEscalation.count({ where: { evidenceId: ev, status: "OPEN" } })).toBe(1);
+  });
+});

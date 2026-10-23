@@ -2052,7 +2052,12 @@ export async function buildInboxAggregation(
                 reviewerUserId: userId,
                 stage: "FIRST",
                 teamId: { in: teamIds },
+                // Only reviews still open can await a peer (fourth audit:
+                // bounded, so the per-item check below stays small).
+                workflow: { status: { notIn: ["APPROVED_INTERNAL", "REJECTED_INSUFFICIENT", "CLOSED", "NEEDS_INFO"] } },
               },
+              orderBy: { decidedAt: "desc" },
+              take: 50,
               select: {
                 workflowId: true,
                 teamId: true,

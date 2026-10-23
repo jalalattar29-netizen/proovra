@@ -572,7 +572,14 @@ export async function reconcileWorkflowProjection(
     // ...and a closed review keeps no open escalation: one a failed Close
     // left behind is resolved here (third audit).
     await resolveOpenReviewEscalation(
-      { workflow: wf, actorUserId: null, note: "Review closed; escalation resolved by the reconciler." },
+      {
+        workflow: wf,
+        actorUserId: null,
+        note: "Review closed; escalation resolved by the reconciler.",
+        // Only what was raised before this read: a review reopened and
+        // escalated meanwhile keeps its new escalation.
+        raisedAtOrBefore: wf.updatedAt,
+      },
       client,
     );
     return { workflowId, repaired: false, reason: "closed_after_decisions" };
