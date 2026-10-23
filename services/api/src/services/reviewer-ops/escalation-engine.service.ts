@@ -194,6 +194,12 @@ export type CreateEscalationInput = {
    * have it routed back to themselves as the current assignee.
    */
   routeToWorkspaceAdmins?: boolean;
+  /**
+   * The caller already moved the workflow and set its escalation level,
+   * time and reason (a reviewer's Escalate); only the active-escalation
+   * pointer is recorded here, so the level is never counted twice.
+   */
+  workflowCountersAlreadySet?: boolean;
 };
 
 export type CreateEscalationResult =
@@ -342,12 +348,14 @@ export async function createEscalation(
   // Update the workflow's denormalised pointer + escalation counters.
   await client.evidenceReviewWorkflow.update({
     where: { id: input.workflowId },
-    data: {
-      activeEscalationId: created.id,
-      escalationLevel: workflow.escalationLevel + 1,
-      escalatedAtUtc: now,
-      escalationReason: input.reason,
-    },
+    data: input.workflowCountersAlreadySet
+      ? { activeEscalationId: created.id }
+      : {
+          activeEscalationId: created.id,
+          escalationLevel: workflow.escalationLevel + 1,
+          escalatedAtUtc: now,
+          escalationReason: input.reason,
+        },
   });
 
   // HIGH / CRITICAL escalations open a Phase 21 incident.

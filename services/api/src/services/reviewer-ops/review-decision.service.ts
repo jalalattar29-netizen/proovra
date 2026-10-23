@@ -53,7 +53,10 @@ import type {
   WorkflowReviewStage,
 } from "@prisma/client";
 import {
+  deriveDecisionProjection,
+  deriveReviewState,
   isAllowedReviewStageTransition,
+  kindToProjectedStage,
   mapDbStatusToReviewStage,
   mapReviewStageToDbStatus,
   type ReviewStage,
@@ -62,13 +65,13 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { notifyReviewNeedsMoreInfo } from "../review-operations/review-notifications.service.js";
 import { resolveOpenReviewEscalation } from "./escalation-engine.service.js";
+import { requiresSecondReview } from "../evidence-review/second-review.service.js";
 
 // -----------------------------------------------------------------------------
 // Types + error surface
 // -----------------------------------------------------------------------------
 
 /** Any client that can run the reads/writes this service needs. */
-type Db = PrismaClient | Prisma.TransactionClient;
 
 export class ReviewDecisionAuthorityError extends Error {
   constructor(
@@ -89,18 +92,12 @@ export class ReviewDecisionAuthorityError extends Error {
   }
 }
 
-export type ReviewDecisionState =
-  | "first_required"
-  | "second_required"
-  | "conflict_detected"
-  | "adjudication_required"
-  | "resolved";
-
-export type DecisionLogRow = {
-  stage: WorkflowReviewStage | string;
-  decision: WorkflowReviewDecisionKind | string;
-  reviewerUserId: string;
-};
+// The decision-state DERIVATION lives in @proovra/shared (2026-10-23), so the
+// Evidence page's projection of what a viewer may decide reads the SAME rules
+// as this authority (the evidence route may not import reviewer-ops services).
+import type { ReviewDecisionState } from "@proovra/shared";
+export type { ReviewDecisionState, DecisionLogRow, DecisionProjection } from "@proovra/shared";
+export { deriveReviewState, deriveDecisionProjection } from "@proovra/shared";
 
 /** Decision kinds only valid at the ADJUDICATION stage. */
 const ADJUDICATION_ONLY_KINDS: ReadonlySet<string> = new Set([
@@ -134,167 +131,9 @@ export {
   isDecisionDerivedWorkflowStatus,
 } from "../evidence-review/review-status-vocabulary.js";
 
-// -----------------------------------------------------------------------------
-// Derivation — pure functions over the immutable decision log.
-// -----------------------------------------------------------------------------
-
-/**
- * Derive the multi-stage review state from the immutable decision log.
- * (Moved from reviewer-ops.routes.ts so route + authority + reconcile
- * all share ONE derivation.)
- */
-export function deriveReviewState(input: {
-  decisions: ReadonlyArray<DecisionLogRow>;
-  requiresSecond: boolean;
-}): ReviewDecisionState {
-  const first = input.decisions.find((d) => d.stage === "FIRST");
-  const second = input.decisions.find((d) => d.stage === "SECOND");
-  const adj = input.decisions.find((d) => d.stage === "ADJUDICATION");
-  if (adj) return "resolved";
-  if (first && second) {
-    if (first.decision !== second.decision) return "conflict_detected";
-    return "resolved";
-  }
-  if (first) {
-    return input.requiresSecond ? "second_required" : "resolved";
-  }
-  return "first_required";
-}
-
-/** Map a final decision kind to the projected workflow stage. */
-function kindToProjectedStage(
-  kind: string | null,
-): ReviewStage | null {
-  switch (kind) {
-    case "APPROVE":
-      return "APPROVED_INTERNAL";
-    case "REJECT":
-      return "REJECTED_INSUFFICIENT";
-    case "REQUEST_INFO":
-    case "NEEDS_MORE_INFO":
-      return "NEEDS_MORE_INFO";
-    default:
-      return null;
-  }
-}
-
-export type DecisionProjection = {
-  state: ReviewDecisionState;
-  /** Resolved outcome kind, when the log resolves to one. */
-  finalKind: string | null;
-  /**
-   * Workflow stage the projection derives from the log. `null` means
-   * "the log does not (yet) determine a stage" — the current lifecycle
-   * status stands (e.g. awaiting a second review).
-   */
-  projectedStage: ReviewStage | null;
-};
-
-/**
- * Deterministically project the workflow stage from the immutable
- * decision log. This is the ONE place decision → status derivation
- * lives; recordReviewDecision and reconcileWorkflowProjection both use
- * it.
- */
-export function deriveDecisionProjection(
-  decisions: ReadonlyArray<DecisionLogRow>,
-  requiresSecond: boolean,
-): DecisionProjection {
-  const first = decisions.find((d) => d.stage === "FIRST") ?? null;
-  const second = decisions.find((d) => d.stage === "SECOND") ?? null;
-  const adj = decisions.find((d) => d.stage === "ADJUDICATION") ?? null;
-
-  if (adj) {
-    if (adj.decision === "UNRESOLVED") {
-      return { state: "resolved", finalKind: null, projectedStage: "ESCALATED" };
-    }
-    const finalKind =
-      adj.decision === "UPHOLD_FIRST"
-        ? (first?.decision as string | undefined) ?? null
-        : adj.decision === "UPHOLD_SECOND"
-          ? (second?.decision as string | undefined) ?? null
-          : (adj.decision as string);
-    return {
-      state: "resolved",
-      finalKind,
-      projectedStage: kindToProjectedStage(finalKind),
-    };
-  }
-  if (first && second) {
-    if (first.decision !== second.decision) {
-      return {
-        state: "conflict_detected",
-        finalKind: null,
-        projectedStage: "ESCALATED",
-      };
-    }
-    return {
-      state: "resolved",
-      finalKind: first.decision as string,
-      projectedStage: kindToProjectedStage(first.decision as string),
-    };
-  }
-  if (first) {
-    if (requiresSecond) {
-      return { state: "second_required", finalKind: null, projectedStage: null };
-    }
-    return {
-      state: "resolved",
-      finalKind: first.decision as string,
-      projectedStage: kindToProjectedStage(first.decision as string),
-    };
-  }
-  return { state: "first_required", finalKind: null, projectedStage: null };
-}
-
-// -----------------------------------------------------------------------------
-// Second-review requirement (moved from reviewer-ops.routes.ts).
-// -----------------------------------------------------------------------------
-
-/**
- * Derive whether a workflow currently requires a second review.
- * Triggers (computed live — no stored column):
- *   - workflow.status === ESCALATED
- *   - an open escalation on the workflow
- *   - an ACTIVE legal hold on the underlying evidence
- *   - at least one redaction-required visibility decision
- */
-export async function requiresSecondReview(
-  input: { workflowId: string; teamId: string; evidenceId: string },
-  client: Db = defaultPrisma,
-): Promise<{ required: boolean; reason: string | null }> {
-  const [wf, openEsc, holdCount, redactionCount] = await Promise.all([
-    client.evidenceReviewWorkflow.findUnique({
-      where: { id: input.workflowId },
-      select: { status: true },
-    }),
-    client.reviewEscalation.findFirst({
-      where: {
-        teamId: input.teamId,
-        workflowId: input.workflowId,
-        status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
-      },
-      select: { id: true },
-    }),
-    client.evidenceLegalHold.count({
-      where: {
-        teamId: input.teamId,
-        evidenceId: input.evidenceId,
-        status: "ACTIVE",
-      },
-    }),
-    client.evidenceWorkflowVisibilityDecision.count({
-      where: { evidenceId: input.evidenceId, requiresRedaction: true },
-    }),
-  ]);
-  if (wf?.status === "ESCALATED")
-    return { required: true, reason: "workflow_escalated" };
-  if (openEsc) return { required: true, reason: "open_escalation" };
-  if (holdCount > 0) return { required: true, reason: "active_legal_hold" };
-  if (redactionCount > 0)
-    return { required: true, reason: "redaction_required" };
-  return { required: false, reason: null };
-}
+// The second-review requirement lives beside the workflow (2026-10-23), for the
+// same reason; re-exported so every existing caller keeps one import.
+export { requiresSecondReview } from "../evidence-review/second-review.service.js";
 
 // -----------------------------------------------------------------------------
 // THE atomic decision command.
@@ -376,7 +215,17 @@ export async function recordReviewDecision(
       orderBy: { decidedAt: "asc" },
     });
     {
-      const roundOutcome = deriveDecisionProjection(rows, false);
+      // The round is finished only by the SAME rule that resolves it — with
+      // the live second-review requirement. A request for information as the
+      // FIRST of two required reviews leaves the round open for the SECOND
+      // reviewer, who must not be moved into a new round (audit F1).
+      const roundSecond = rows.length > 0
+        ? await requiresSecondReview(
+            { workflowId: input.workflowId, teamId: input.teamId, evidenceId: wf.evidenceId },
+            tx,
+          )
+        : { required: false };
+      const roundOutcome = deriveDecisionProjection(rows, roundSecond.required);
       const stageNow = mapDbStatusToReviewStage(wf.status as string);
       if (
         rows.length > 0 &&
@@ -665,6 +514,7 @@ export type ReconcileProjectionResult = {
     | "workflow_not_found"
     | "no_decisions"
     | "reopened_after_decisions"
+    | "continued_after_request_info"
     | "no_projectable_outcome"
     | "consistent"
     | "repaired";
@@ -710,6 +560,17 @@ export async function reconcileWorkflowProjection(
     client,
   );
   const projection = deriveDecisionProjection(rows, secondReview.required);
+  // CONTINUED AFTER A REQUEST FOR INFORMATION (2026-10-23, audit F3). Such a
+  // round resolves to NEEDS_MORE_INFO and stays current until the next
+  // decision opens a new round; meanwhile the review legitimately moves on
+  // (resumed, escalated, closed). That is not a diverged projection, and
+  // "repairing" it back to NEEDS_INFO undid the reviewer's resume.
+  if (
+    projection.projectedStage === "NEEDS_MORE_INFO" &&
+    mapDbStatusToReviewStage(wf.status as string) !== "NEEDS_MORE_INFO"
+  ) {
+    return { workflowId, repaired: false, reason: "continued_after_request_info" };
+  }
   if (projection.projectedStage === null) {
     return { workflowId, repaired: false, reason: "no_projectable_outcome" };
   }

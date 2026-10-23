@@ -41,6 +41,10 @@ describe("Phase 37.98 — reviewer workflow lifecycle proof", () => {
     process.env.INTEGRATION_CRON_SECRET = "it-cron-secret-32chars-minimum-ok";
     harness = await bootIntegrationHarness();
     teamA = harness.fixtures.teamA;
+    // The review workflow is a plan entitlement (reviewerOperationsIncluded,
+    // enforced on its routes since 2026-10-23); the harness workspace is FREE.
+    const { prisma } = await import("../src/db.js");
+    await prisma.team.update({ where: { id: teamA.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
     api = {
       fetch: async (path, init) => {
         const res = await harness!.app.inject({

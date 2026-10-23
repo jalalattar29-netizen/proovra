@@ -52,7 +52,6 @@ import {
 import {
   createEscalation,
   resolveOpenReviewEscalation,
-  suppressEscalation,
 } from "../reviewer-ops/escalation-engine.service.js";
 
 // -----------------------------------------------------------------------------
@@ -241,6 +240,13 @@ async function applyTransition(
   toStage: ReviewStage,
   patch: TransitionPatch,
   client: PrismaClient,
+  /**
+   * STRICT (2026-10-23): a lost race is a refusal, not a quiet success. The
+   * lifecycle decisions use it — a caller that lost must not go on to write
+   * an event, open an escalation or send a notification for a move that did
+   * not happen.
+   */
+  options: { strict?: boolean } = {},
 ): Promise<DbWorkflow> {
   const fromStage = mapDbStatusToReviewStage(workflow.status as string);
   if (!isAllowedReviewStageTransition(fromStage, toStage)) {
@@ -299,6 +305,13 @@ async function applyTransition(
     data,
   });
   if (claim.count !== 1) {
+    if (options.strict) {
+      throw new ReviewOperationError("invalid_stage_transition", {
+        from: mapDbStatusToReviewStage(workflow.status as string),
+        to: toStage,
+        reason: "concurrent_change",
+      });
+    }
     // Lost the race; surface the canonical state to the caller.
     const fresh = await client.evidenceReviewWorkflow.findUniqueOrThrow({
       where: { id: workflow.id },
@@ -581,49 +594,56 @@ export async function recordLifecycleTransition(
   //
   // Opened BEFORE the status moves, once the move is known to be legal, so
   // the escalation's own counters are the ones the transition keeps.
+  // ESCALATE OPENS A REAL ESCALATION (2026-10-23). It used to change the
+  // status and email the current assignee — usually the escalator — and
+  // nothing else: no owner, no inbox item, no way to resolve it. It now
+  // opens a ReviewEscalation routed to the workspace's owners and admins
+  // (their inbox shows it), and the review appears under Escalated in the
+  // team review queue. A verdict that finishes the review, or Close,
+  // resolves it.
+  //
+  // The MOVE comes first and is strict: of two concurrent Escalate clicks
+  // exactly one wins, and only the winner opens an escalation (audit F4 — the
+  // loser used to open a second one nobody resolved).
+  const updated = await applyTransition(workflow, toStage, patch, client, { strict: true });
   let escalationId: string | null = null;
-  if (input.decision === "ESCALATE") {
-    if (!isAllowedReviewStageTransition(fromStage, toStage) || !workflow.teamId) {
-      throw new ReviewOperationError("invalid_stage_transition", { from: fromStage, to: toStage });
-    }
-    const opened = await createEscalation(
-      {
-        teamId: workflow.teamId,
-        workflowId: workflow.id,
-        reason: "REVIEWER_ESCALATED",
-        safeSummary: (input.escalationReason ?? input.note ?? "").trim(),
-        severity: "WARNING",
-        evidenceId: workflow.evidenceId,
-        createdByUserId: input.actorUserId,
-        routeToWorkspaceAdmins: true,
-        bypassDedup: true,
-      },
-      client,
-    );
-    if (!opened.ok) {
-      throw new ReviewOperationError("workflow_not_found");
-    }
-    escalationId = opened.escalation.id;
-  }
-
-  let updated: DbWorkflow;
-  try {
-    updated = await applyTransition(workflow, toStage, patch, client);
-  } catch (err) {
-    // The move was refused after the escalation opened (a concurrent
-    // change): withdraw it so no orphan escalation is left behind.
-    if (escalationId && workflow.teamId) {
-      await suppressEscalation(
+  if (input.decision === "ESCALATE" && workflow.teamId) {
+    try {
+      const opened = await createEscalation(
         {
           teamId: workflow.teamId,
-          escalationId,
-          actorUserId: input.actorUserId,
-          suppressionReason: "Escalation withdrawn: the review changed at the same moment.",
+          workflowId: workflow.id,
+          reason: "REVIEWER_ESCALATED",
+          safeSummary: (input.escalationReason ?? input.note ?? "").trim(),
+          severity: "WARNING",
+          evidenceId: workflow.evidenceId,
+          createdByUserId: input.actorUserId,
+          routeToWorkspaceAdmins: true,
+          bypassDedup: true,
+          // The transition above already counted the level and kept the note.
+          workflowCountersAlreadySet: true,
         },
         client,
-      ).catch(() => null);
+      );
+      if (!opened.ok) throw new ReviewOperationError("workflow_not_found");
+      escalationId = opened.escalation.id;
+    } catch (err) {
+      // No escalation could be opened: put the review back where it was, so
+      // it is never Escalated with nobody to see it.
+      await client.evidenceReviewWorkflow
+        .updateMany({
+          where: { id: workflow.id, status: updated.status },
+          data: {
+            status: workflow.status,
+            escalationLevel: workflow.escalationLevel,
+            escalatedAtUtc: workflow.escalatedAtUtc,
+            escalatedByUserId: workflow.escalatedByUserId,
+            escalationReason: workflow.escalationReason,
+          },
+        })
+        .catch(() => null);
+      throw err;
     }
-    throw err;
   }
   await recordEvent(
     workflow,

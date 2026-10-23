@@ -237,6 +237,25 @@ export async function upsertEvidenceReviewerWorkflow(params: {
       });
     }
 
+    // A workflow cannot be CREATED in a lifecycle-decision state either
+    // (audit F10): Escalated with no escalation, Reopened with no new round.
+    if (!existing && params.status && LIFECYCLE_DECISION_STATUSES.has(params.status)) {
+      throw new AppError(
+        ErrorCode.INVALID_STATE_TRANSITION,
+        "Escalate and Reopen are review decisions with a reason, not a status edit.",
+        { reason: "lifecycle_decision_required", field: "status", value: String(params.status) },
+      );
+    }
+    // Closing an ESCALATED review is the Close decision, which resolves the
+    // escalation raised about it (audit F5) — never an editor status change
+    // that would leave the admins' escalation open.
+    if (existing && existing.status === "ESCALATED" && params.status === "CLOSED") {
+      throw new AppError(
+        ErrorCode.INVALID_STATE_TRANSITION,
+        "Close an escalated review with the Close decision, which resolves its escalation.",
+        { reason: "lifecycle_decision_required", field: "status", value: "CLOSED" },
+      );
+    }
     // THE STAGE MATRIX applies to a status CHANGE on an existing workflow.
     if (existing && params.status && params.status !== existing.status) {
       if (LIFECYCLE_DECISION_STATUSES.has(params.status)) {

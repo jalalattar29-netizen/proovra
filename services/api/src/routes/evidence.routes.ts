@@ -10,6 +10,7 @@ import {
 import { getSecret } from "../config/runtime-secrets.js";
 import { EXTENSION_CAPTURE_SCOPE, extensionMayPresignPart } from "../services/auth/extension-scope.js";
 import { authorizeOrFail, evaluateAuthorize } from "../middleware/authorize.js";
+import { requiresSecondReview } from "../services/evidence-review/second-review.service.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import { evidenceIntakeIdentityArms } from "../services/search/intake-identity-search.js";
 // PHASE 6 §9.3 (2026-07-22) — canonical cross-team attach gate (same
@@ -163,6 +164,8 @@ import {
   classifyEvidenceAttention,
   caseAssignmentPolicyFor,
   projectReviewWorkflowActions,
+  deriveReviewState,
+  deriveDecisionProjection,
   type EvidenceReviewerAlertCode,
 } from "@proovra/shared";
 /**
@@ -8909,6 +8912,11 @@ return {
           antiEnumeration: true,
         });
         if (!authorized) return reply;
+        // The review workflow is a plan entitlement (2026-10-23, audit F6) —
+        // the same authority the review routes and the page read.
+        if (!(await workspaceIncludesReviewerOperations(evidence.teamId))) {
+          return reply.code(403).send({ error: { code: "reviewer_operations_not_included", details: null } });
+        }
       }
 
       if (body.assignedToUserId) {
@@ -10344,28 +10352,37 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
          * projection over the stage matrix and the facts the review routes
          * refuse on. The panel enables exactly these; it keeps no matrix.
          */
-        // The CURRENT decision round only (2026-10-23): Reopen starts a new
-        // round, and a request-more-information outcome does not close one —
-        // the review continues and its verdict is still to come. An escalated
-        // review takes a second, independent verdict.
-        const currentRoundDecisions = reviewerWorkflowSummary.workflow
-          ? await prisma.workflowReviewDecision.findMany({
-              where: {
-                workflowId: reviewerWorkflowSummary.workflow.id,
-                round: (
-                  await prisma.evidenceReviewWorkflow.findUnique({
-                    where: { id: reviewerWorkflowSummary.workflow.id },
-                    select: { decisionRound: true },
-                  })
-                )?.decisionRound ?? 0,
-              },
-              select: { decision: true },
-            })
-          : [];
-        const verdictRecorded =
-          currentRoundDecisions.length > 0 &&
-          !currentRoundDecisions.every((d) => d.decision === "REQUEST_INFO" || d.decision === "NEEDS_MORE_INFO") &&
-          workflowStatus !== "ESCALATED";
+        // THE CURRENT ROUND'S DECISION STATE (2026-10-23) — the authority's
+        // own derivation (shared deriveReviewState / deriveDecisionProjection)
+        // over the current round's rows with the live second-review
+        // requirement, so the page offers the second reviewer what the
+        // authority expects and never a verdict it would refuse.
+        const decisionState = await (async () => {
+          const wfRow = reviewerWorkflowSummary.workflow
+            ? await prisma.evidenceReviewWorkflow.findUnique({
+                where: { id: reviewerWorkflowSummary.workflow.id },
+                select: { id: true, decisionRound: true, teamId: true },
+              })
+            : null;
+          if (!wfRow || !wfRow.teamId) {
+            return { state: "first_required" as const, firstReviewerUserId: null, resolvedByRequestInfo: false };
+          }
+          const rows = await prisma.workflowReviewDecision.findMany({
+            where: { workflowId: wfRow.id, round: wfRow.decisionRound },
+            select: { stage: true, decision: true, reviewerUserId: true },
+          });
+          const second = await requiresSecondReview(
+            { workflowId: wfRow.id, teamId: wfRow.teamId, evidenceId: id },
+            prisma,
+          );
+          const state = deriveReviewState({ decisions: rows, requiresSecond: second.required });
+          const projection = deriveDecisionProjection(rows, second.required);
+          return {
+            state,
+            firstReviewerUserId: rows.find((r) => r.stage === "FIRST")?.reviewerUserId ?? null,
+            resolvedByRequestInfo: state === "resolved" && projection.projectedStage === "NEEDS_MORE_INFO",
+          };
+        })();
         const reviewWorkflowActions = projectReviewWorkflowActions({
           dbStatus: workflowStatus,
           assignedToUserId: reviewerWorkflowSummary.workflow?.assignedTo?.id ?? null,
@@ -10373,7 +10390,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           viewerMayReview,
           hasWorkspace: Boolean(evidence.teamId),
           planIncludesReview: reviewIncluded,
-          verdictRecorded,
+          decision: decisionState,
         });
         const caseAssignmentView = {
           ...attention.caseAssignment,

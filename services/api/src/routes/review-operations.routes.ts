@@ -28,7 +28,9 @@ import {
   REVIEW_STAGES,
 } from "@proovra/shared";
 
+import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
+import { appendReviewerAuditEvent } from "../services/evidence-review/reviewer-audit.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { workspaceIncludesReviewerOperations } from "../services/billing-enforcement.service.js";
@@ -114,11 +116,13 @@ async function requireAdminMember(
  * answer the reviewer workspace routes enforce and the web reads. Claim and
  * decisions were open to every plan here while the Evidence page hid them on
  * plans that do not include review: the server and the page disagreed.
- * Checked AFTER membership, so a non-member still learns nothing.
+ * Checked AFTER membership, so a non-member still learns nothing; answered
+ * 404 like every refusal in this file (its anti-enumeration posture), with a
+ * code the page states in words.
  */
 async function refuseUnlessReviewIncluded(teamId: string, reply: FastifyReply): Promise<boolean> {
   if (await workspaceIncludesReviewerOperations(teamId)) return false;
-  reply.code(403).send({ error: { code: "reviewer_operations_not_included", details: null } });
+  reply.code(404).send({ error: { code: "reviewer_operations_not_included", details: null } });
   return true;
 }
 
@@ -264,7 +268,7 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const workflow = await prisma.evidenceReviewWorkflow.findUnique({
         where: { evidenceId },
-        select: { id: true, teamId: true },
+        select: { id: true, teamId: true, status: true },
       });
       if (
         !workflow ||
@@ -367,6 +371,19 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
             escalationReason: body.escalationReason ?? null,
           });
         }
+        // ET-CUS-12 — a review decision that SETS A STATUS is recorded on the
+        // record's custody chain (and the reviewer audit log). Only the
+        // workflow-editor PATCH did this; the canonical decision route — every
+        // verdict, Escalate, Reopen and Close — did not (2026-10-23). An
+        // idempotent replay changed nothing and records nothing.
+        if (updated.status !== workflow.status) {
+          await appendReviewerAuditEvent({
+            evidenceId,
+            actorUserId: ok.userId,
+            eventType: prismaPkg.EvidenceReviewerAuditEventType.WORKFLOW_UPDATED,
+            metadata: { status: updated.status, decision: body.decision },
+          });
+        }
         return reply
           .code(200)
           .send({ workflow: projectReviewWorkflow(updated) });
@@ -401,6 +418,8 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
           ? await requireAdminMember(req, reply, body.teamId)
           : await requireReviewerMember(req, reply, body.teamId);
       if (!ok) return;
+      // The same commercial gate as claim and decisions (audit F6).
+      if (await refuseUnlessReviewIncluded(body.teamId, reply)) return;
 
       try {
         const result = await bulkReviewAction({

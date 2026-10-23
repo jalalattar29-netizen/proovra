@@ -2793,3 +2793,5 @@ export * from "./evidence-attention.js";
 export * from "./review-workflow-presentation.js";
 // 2026-10-23 — legal hold and retention rows, from the lifecycle projection.
 export * from "./evidence-protection-presentation.js";
+// 2026-10-23 — review decision state, shared by the authority and the page.
+export * from "./review-decision-state.js";

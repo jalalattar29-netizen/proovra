@@ -21,6 +21,9 @@ describe("redaction and review decisions on the custody chain (live PostgreSQL 1
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    // The review workflow is a plan entitlement (2026-10-23); the harness
+    // workspace is FREE.
+    await prisma.team.update({ where: { id: h.fixtures.teamA.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
   }, 180_000);
   afterAll(async () => {
     await h?.cleanup();

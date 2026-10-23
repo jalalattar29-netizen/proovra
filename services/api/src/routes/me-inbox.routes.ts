@@ -3222,7 +3222,11 @@ export async function buildInboxAggregation(
           tone: escalationToneMap[esc.severity] ?? "warning",
           title: esc.assignedToUserId
             ? `Escalation assigned to you: ${humanizeEscalationReason(esc.reason)}`
-            : `Review escalated to your workspace's admins: ${humanizeEscalationReason(esc.reason)}`,
+            : // Only a reviewer's Escalate is "a review escalated"; an unassigned
+              // escalation raised by the engine (SLA, policy) says so (audit F12).
+              esc.reason === "REVIEWER_ESCALATED"
+              ? `Review escalated to your workspace's admins: ${humanizeEscalationReason(esc.reason)}`
+              : `Escalation for your workspace's admins: ${humanizeEscalationReason(esc.reason)}`,
           message: {
             key: "escalation.assigned",
             params: { reason: esc.reason, summary: esc.safeSummary, ...(esc.assignedToUserId ? {} : { toWorkspace: 1 }) },

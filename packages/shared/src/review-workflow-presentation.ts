@@ -31,6 +31,7 @@ import {
   type ReviewDecisionType,
   type ReviewStage,
 } from "./review-operations.js";
+import type { ReviewDecisionState } from "./review-decision-state.js";
 
 // ---------------------------------------------------------------------------
 // Labels
@@ -100,10 +101,11 @@ export function reviewWorkflowEventLabel(eventType: string): string {
 // Available actions
 // ---------------------------------------------------------------------------
 
-export type ReviewWorkflowAction = "CLAIM" | ReviewDecisionType;
+export type ReviewWorkflowAction = "CLAIM" | "BEGIN_REVIEW" | ReviewDecisionType;
 
 export const REVIEW_WORKFLOW_ACTIONS: ReadonlyArray<ReviewWorkflowAction> = [
   "CLAIM",
+  "BEGIN_REVIEW",
   "APPROVE_INTERNAL",
   "REQUEST_MORE_INFO",
   "REJECT_INSUFFICIENT",
@@ -114,6 +116,7 @@ export const REVIEW_WORKFLOW_ACTIONS: ReadonlyArray<ReviewWorkflowAction> = [
 
 export const REVIEW_WORKFLOW_ACTION_LABELS: Readonly<Record<ReviewWorkflowAction, string>> = {
   CLAIM: "Claim review",
+  BEGIN_REVIEW: "Begin review",
   APPROVE_INTERNAL: "Approve (internal)",
   REQUEST_MORE_INFO: "Request more information",
   REJECT_INSUFFICIENT: "Reject as insufficient",
@@ -130,7 +133,10 @@ export type ReviewWorkflowActionBlock =
   | "NOT_FROM_STAGE"
   | "VERDICT_RECORDED"
   | "OWNED_BY_SOMEONE_ELSE"
-  | "ALREADY_YOURS";
+  | "ALREADY_YOURS"
+  | "CLAIM_FIRST"
+  | "AWAITING_SECOND_REVIEWER"
+  | "ADJUDICATION_REQUIRED";
 
 export const REVIEW_WORKFLOW_BLOCK_COPY: Readonly<Record<ReviewWorkflowActionBlock, string>> = {
   NO_WORKSPACE: "Review runs in a team workspace. This record is not in one.",
@@ -141,6 +147,11 @@ export const REVIEW_WORKFLOW_BLOCK_COPY: Readonly<Record<ReviewWorkflowActionBlo
     "A verdict is already recorded for this review. It cannot be replaced from here.",
   OWNED_BY_SOMEONE_ELSE: "Another reviewer owns this review.",
   ALREADY_YOURS: "You already own this review.",
+  CLAIM_FIRST: "Claim the review before beginning it.",
+  AWAITING_SECOND_REVIEWER:
+    "This review needs a second, independent verdict. Another reviewer must record it.",
+  ADJUDICATION_REQUIRED:
+    "The two reviewers disagreed. A workspace owner or admin adjudicates it in the reviewer console.",
 };
 
 /**
@@ -149,11 +160,12 @@ export const REVIEW_WORKFLOW_BLOCK_COPY: Readonly<Record<ReviewWorkflowActionBlo
  */
 export const REVIEW_WORKFLOW_ACTION_OUTCOMES: Readonly<Record<ReviewWorkflowAction, string>> = {
   CLAIM: "Assigns this review to you.",
+  BEGIN_REVIEW: "Moves the review to In review, where a verdict can be recorded.",
   APPROVE_INTERNAL: "Records an internal approval. It does not change the evidence or its verification.",
   REQUEST_MORE_INFO: "Marks the review as waiting for more information and notifies the assigned reviewer.",
   REJECT_INSUFFICIENT: "Records that the material is insufficient for this review. The evidence is not changed or deleted.",
   ESCALATE:
-    "Moves the review to Escalated. The assigned reviewer is notified by email, and the review appears under Escalated in the team review queue until someone continues, decides or closes it.",
+    "Moves the review to Escalated and opens an escalation for this workspace’s owners and admins, shown in their inbox. The review appears under Escalated in the team review queue until a verdict or Close resolves it.",
   REOPEN: "Returns a finished review to Reopened so work can continue.",
   CLOSE: "Ends the review without a new verdict. It can be reopened later.",
 };
@@ -182,8 +194,18 @@ export type ReviewWorkflowActionInput = {
    * callers that check it themselves.
    */
   planIncludesReview?: boolean;
-  /** At least one verdict (approve / reject / request info) is recorded. */
-  verdictRecorded: boolean;
+  /**
+   * The current decision round's state — `deriveReviewState` over that
+   * round's rows with the live second-review requirement — plus who recorded
+   * its FIRST decision and whether it was resolved by a request for
+   * information (which does not end the review: the next verdict opens a new
+   * round).
+   */
+  decision: {
+    state: ReviewDecisionState;
+    firstReviewerUserId: string | null;
+    resolvedByRequestInfo: boolean;
+  };
 };
 
 const VERDICTS: ReadonlySet<ReviewWorkflowAction> = new Set([
@@ -198,7 +220,7 @@ export function projectReviewWorkflowActions(
   const stage: ReviewStage = input.dbStatus ? mapDbStatusToReviewStage(input.dbStatus) : "QUEUED";
   const allowed = listAllowedReviewStageTransitions(stage);
   return REVIEW_WORKFLOW_ACTIONS.map((action) => {
-    const requiresNote = action === "CLAIM" ? false : decisionRequiresNote(action);
+    const requiresNote = action === "CLAIM" || action === "BEGIN_REVIEW" ? false : decisionRequiresNote(action);
     const block = ((): ReviewWorkflowActionBlock | null => {
       if (!input.hasWorkspace || input.dbStatus === null) return "NO_WORKSPACE";
       if (input.planIncludesReview === false) return "NOT_INCLUDED";
@@ -208,8 +230,26 @@ export function projectReviewWorkflowActions(
         if (input.assignedToUserId) return "OWNED_BY_SOMEONE_ELSE";
         return stage === "CLOSED" ? "NOT_FROM_STAGE" : null;
       }
-      if (VERDICTS.has(action) && input.verdictRecorded) return "VERDICT_RECORDED";
-      return allowed.includes(decisionTargetStage(action)) ? null : "NOT_FROM_STAGE";
+      if (action === "BEGIN_REVIEW") {
+        if (stage === "IN_REVIEW" || !allowed.includes("IN_REVIEW")) return "NOT_FROM_STAGE";
+        if (!input.assignedToUserId) return "CLAIM_FIRST";
+        if (input.assignedToUserId !== input.viewerUserId) return "OWNED_BY_SOMEONE_ELSE";
+        return null;
+      }
+      if (VERDICTS.has(action)) {
+        // THE AUTHORITY'S OWN DECISION STATE (2026-10-23): the second
+        // reviewer the authority expects is offered verdicts; the first
+        // reviewer waits; a disagreement goes to adjudication.
+        const d = input.decision;
+        if (d.state === "resolved" && !d.resolvedByRequestInfo) return "VERDICT_RECORDED";
+        if (d.state === "second_required" && d.firstReviewerUserId === input.viewerUserId) {
+          return "AWAITING_SECOND_REVIEWER";
+        }
+        if (d.state === "conflict_detected" || d.state === "adjudication_required") {
+          return "ADJUDICATION_REQUIRED";
+        }
+      }
+      return allowed.includes(decisionTargetStage(action as ReviewDecisionType)) ? null : "NOT_FROM_STAGE";
     })();
     return { action, enabled: block === null, blockedBy: block, requiresNote };
   });
@@ -261,6 +301,14 @@ const CREATION_WINDOW_MS = 2000;
  * resolve (a deleted account) reads as "Former workspace member" — never as
  * an identifier. CREATED by the record's own completion is a SYSTEM entry.
  */
+/**
+ * Events PROOVRA itself writes with no actor (the SLA sweeper, the stage
+ * reconciler). With no actor they are the system's — never a "Former
+ * workspace member" (audit F8). Any other event with no actor was written by
+ * a person whose account is gone.
+ */
+const SYSTEM_EVENT_TYPES: ReadonlySet<string> = new Set(["SLA_UPDATED", "SLA_BREACHED", "STAGE_CHANGED"]);
+
 export function summarizeReviewWorkflowEvents(
   events: ReadonlyArray<ReviewWorkflowEventInput>,
   viewerUserId: string | null,
@@ -278,13 +326,16 @@ export function summarizeReviewWorkflowEvents(
   let creation: ReviewWorkflowHistoryEntry | null = null;
   for (const e of ordered) {
     if (e.eventType === "CREATED") {
+      // Created by a person (the editor, a claim) reads as that person, with
+      // their note; created with no actor reads as PROOVRA (audit F8 — it was
+      // always labelled the system's, and its note dropped).
       creation = {
         eventIds: [e.id],
         label: reviewWorkflowEventLabel("CREATED"),
         createdAt: e.createdAt,
-        origin: "SYSTEM",
-        actorLabel: "PROOVRA",
-        note: null,
+        origin: e.actor ? "PERSON" : "SYSTEM",
+        actorLabel: e.actor ? actorLabel(e) : "PROOVRA",
+        note: e.note,
       };
       out.push(creation);
       continue;
@@ -299,12 +350,13 @@ export function summarizeReviewWorkflowEvents(
       continue;
     }
     creation = null;
+    const system = !e.actor && SYSTEM_EVENT_TYPES.has(e.eventType);
     out.push({
       eventIds: [e.id],
       label: reviewWorkflowEventLabel(e.eventType),
       createdAt: e.createdAt,
-      origin: "PERSON",
-      actorLabel: actorLabel(e),
+      origin: system ? "SYSTEM" : "PERSON",
+      actorLabel: system ? "PROOVRA" : actorLabel(e),
       note: e.note,
     });
   }

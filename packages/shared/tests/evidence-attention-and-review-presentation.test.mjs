@@ -126,7 +126,7 @@ const actions = (over) =>
       viewerUserId: ME,
       viewerMayReview: true,
       hasWorkspace: true,
-      verdictRecorded: false,
+      decision: { state: "first_required", firstReviewerUserId: null, resolvedByRequestInfo: false },
       ...over,
     }).map((a) => [a.action, a]),
   );
@@ -148,18 +148,40 @@ test("claim: yours → ALREADY_YOURS; someone else's → OWNED_BY_SOMEONE_ELSE",
 
 test("in review: verdicts enabled until one is recorded", () => {
   assert.equal(actions({ dbStatus: "IN_REVIEW", assignedToUserId: ME }).APPROVE_INTERNAL.enabled, true);
-  const after = actions({ dbStatus: "IN_REVIEW", assignedToUserId: ME, verdictRecorded: true });
+  const after = actions({ dbStatus: "IN_REVIEW", assignedToUserId: ME, decision: { state: "resolved", firstReviewerUserId: ME, resolvedByRequestInfo: false } });
   assert.equal(after.APPROVE_INTERNAL.blockedBy, "VERDICT_RECORDED");
   assert.equal(after.REJECT_INSUFFICIENT.blockedBy, "VERDICT_RECORDED");
 });
 
 test("closed: only Reopen; reopened: no Reopen, no Close (the server refuses both)", () => {
-  const closed = actions({ dbStatus: "CLOSED", assignedToUserId: ME, verdictRecorded: true });
+  const closed = actions({ dbStatus: "CLOSED", assignedToUserId: ME, decision: { state: "resolved", firstReviewerUserId: ME, resolvedByRequestInfo: false } });
   assert.deepEqual(Object.values(closed).filter((x) => x.enabled).map((x) => x.action), ["REOPEN"]);
-  const reopened = actions({ dbStatus: "REOPENED", assignedToUserId: ME, verdictRecorded: true });
+  const reopened = actions({ dbStatus: "REOPENED", assignedToUserId: ME, decision: { state: "resolved", firstReviewerUserId: ME, resolvedByRequestInfo: false } });
   assert.equal(reopened.REOPEN.enabled, false);
   assert.equal(reopened.CLOSE.enabled, false);
   assert.equal(reopened.ESCALATE.enabled, true);
+});
+
+test("Begin review (audit F7): Claim first; then the owner of the review begins it; never from In review", () => {
+  assert.equal(actions({}).BEGIN_REVIEW.blockedBy, "CLAIM_FIRST");
+  assert.equal(actions({ dbStatus: "ASSIGNED", assignedToUserId: ME }).BEGIN_REVIEW.enabled, true);
+  assert.equal(actions({ dbStatus: "ASSIGNED", assignedToUserId: OTHER }).BEGIN_REVIEW.blockedBy, "OWNED_BY_SOMEONE_ELSE");
+  assert.equal(actions({ dbStatus: "IN_REVIEW", assignedToUserId: ME }).BEGIN_REVIEW.blockedBy, "NOT_FROM_STAGE");
+  // A verdict is not offered before the review is begun.
+  assert.equal(actions({ dbStatus: "ASSIGNED", assignedToUserId: ME }).APPROVE_INTERNAL.enabled, false);
+});
+
+test("second review (audit F2): the first reviewer waits, another reviewer decides; a conflict needs adjudication", () => {
+  const second = { state: "second_required", firstReviewerUserId: ME, resolvedByRequestInfo: false };
+  assert.equal(actions({ dbStatus: "IN_REVIEW", assignedToUserId: ME, decision: second }).APPROVE_INTERNAL.blockedBy, "AWAITING_SECOND_REVIEWER");
+  assert.equal(actions({ dbStatus: "IN_REVIEW", assignedToUserId: ME, viewerUserId: OTHER, decision: second }).APPROVE_INTERNAL.enabled, true);
+  for (const state of ["conflict_detected", "adjudication_required"]) {
+    const d = { state, firstReviewerUserId: ME, resolvedByRequestInfo: false };
+    assert.equal(actions({ dbStatus: "IN_REVIEW", assignedToUserId: ME, decision: d }).APPROVE_INTERNAL.blockedBy, "ADJUDICATION_REQUIRED", state);
+  }
+  // A round resolved by a request for information continues with a verdict.
+  const info = { state: "resolved", firstReviewerUserId: ME, resolvedByRequestInfo: true };
+  assert.equal(actions({ dbStatus: "IN_REVIEW", assignedToUserId: ME, decision: info }).APPROVE_INTERNAL.enabled, true);
 });
 
 test("escalated: Escalate is not offered again", () => {
@@ -200,7 +222,9 @@ test("creation's four automatic events read as ONE entry; nothing stored is drop
   assert.equal(h.length, 3);
   assert.deepEqual(h.map((e) => e.label), ["Escalated", "Review claimed", "Review workflow created"]);
   assert.deepEqual(h[2].eventIds.sort(), ["e1", "e2", "e3", "e4"]);
-  assert.equal(h[2].origin, "SYSTEM");
+  // Created by a person reads as that person (audit F8: it was always the system).
+  assert.equal(h[2].origin, "PERSON");
+  assert.equal(h[2].actorLabel, "Workspace member");
   assert.equal(h[1].actorLabel, "You");
   assert.equal(h[0].actorLabel, "Former workspace member");
   assert.equal(h.flatMap((e) => e.eventIds).length, events.length);
@@ -269,4 +293,27 @@ test("retention: lock only / policy only / both / none / ended / destroyed — n
     assert.equal(r({ productState, objectLockRetainUntilUtc: "2034-10-01T00:00:00.000Z", effectiveRetentionUntilUtc: "2034-10-01T00:00:00.000Z" }).state, "recorded");
   }
   assert.equal(r({ productState: "DESTROYED", effectiveRetentionUntilUtc: "2034-10-01T00:00:00.000Z" }).state, "not-applicable");
+});
+
+test("history attribution (audit F8): actor-less sweeper events are PROOVRA; creation keeps its person and note", () => {
+  const t0 = "2026-10-20T10:00:00.000Z";
+  const dana = { id: ME, displayName: "Dana", email: null };
+  const h = summarizeReviewWorkflowEvents(
+    [
+      { id: "c", eventType: "CREATED", createdAt: t0, actor: dana, note: "Opened for counsel" },
+      { id: "s1", eventType: "SLA_BREACHED", createdAt: "2026-10-22T10:00:00.000Z", actor: null, note: null },
+      { id: "s2", eventType: "STAGE_CHANGED", createdAt: "2026-10-22T11:00:00.000Z", actor: null, note: null },
+      { id: "g", eventType: "ESCALATED", createdAt: "2026-10-22T12:00:00.000Z", actor: null, note: "x" },
+    ],
+    ME,
+  ).reverse();
+  assert.deepEqual(h.map((e) => [e.origin, e.actorLabel]), [
+    ["PERSON", "You"],
+    ["SYSTEM", "PROOVRA"],
+    ["SYSTEM", "PROOVRA"],
+    ["PERSON", "Former workspace member"],
+  ]);
+  assert.equal(h[0].note, "Opened for counsel");
+  const sys = summarizeReviewWorkflowEvents([{ id: "c", eventType: "CREATED", createdAt: t0, actor: null, note: null }], ME);
+  assert.deepEqual([sys[0].origin, sys[0].actorLabel], ["SYSTEM", "PROOVRA"]);
 });
