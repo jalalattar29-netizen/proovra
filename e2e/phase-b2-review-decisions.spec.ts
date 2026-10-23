@@ -190,8 +190,11 @@ test.describe("Phase B.2 — multi-stage review governance @critical", () => {
     expect(src).toContain("enum WorkflowReviewStage");
     expect(src).toContain("enum WorkflowReviewDecisionKind");
     expect(src).toContain("enum WorkflowReviewReasonCode");
-    // Unique (workflowId, stage) at the schema level.
-    expect(src).toContain("@@unique([workflowId, stage])");
+    // Unique per stage WITHIN a decision round at the schema level
+    // (2026-10-23): Reopen starts a new round, so the key is
+    // (workflowId, round, stage) and the old per-workflow key is gone.
+    expect(src).toContain("@@unique([workflowId, round, stage])");
+    expect(src).not.toContain("@@unique([workflowId, stage])");
     // Back-relation from EvidenceReviewWorkflow.
     expect(src).toContain("reviewDecisions WorkflowReviewDecision[]");
     // Back-relation from User.
