@@ -19,6 +19,7 @@ import {
   presentedTsaStatus,
   readOtsAnchoringView,
   reportFreshnessChangeCopy,
+  type ReportFreshnessExplanation,
   resolveTsaTrustState,
   tsaFailureCodeImpliesToken,
   toVerificationStatus,
@@ -210,7 +211,7 @@ export function ArtifactTruthHeader({
   /** The newest immutable pair (from the matched history), or null. */
   latest: MatchedVersion | null;
   trust: ArtifactTrust | null | undefined;
-  freshness: ReportFreshness | null | undefined;
+  freshness: (ReportFreshness & { explanation?: ReportFreshnessExplanation | null }) | null | undefined;
   activeRequest: ArtifactActiveRequest | null | undefined;
   formatDateTime: (value: string | null | undefined) => string;
   formatBytes: (value: string | number | null | undefined) => string;
@@ -254,9 +255,11 @@ export function ArtifactTruthHeader({
           <div>
             <strong>New verification facts are available</strong>
             <ul>
-              {freshness.changes.map((c) => (
-                <li key={c.code} data-freshness-code={c.code}>
-                  {reportFreshnessChangeCopy(c, freshness.reportVersion)}
+              {/* The server's explained reasons (2026-10-24). */}
+              {(freshness.explanation?.reasons ??
+                freshness.changes.map((c, i) => ({ key: `${c.code}:${i}`, code: c.code, label: reportFreshnessChangeCopy(c, freshness.reportVersion) }))).map((r) => (
+                <li key={r.key} data-freshness-code={r.code}>
+                  {r.label}
                 </li>
               ))}
             </ul>

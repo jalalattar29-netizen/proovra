@@ -152,21 +152,42 @@ export function EvidenceOutputsCard({
         </button>
       );
       break;
-    case "UPDATE_AVAILABLE":
+    case "UPDATE_AVAILABLE": {
+      // THE SERVER'S EXPLANATION (2026-10-24): why an update is owed, how many
+      // reportable changes, when, and which immutable version is created —
+      // never an unexplained count.
+      const reasons =
+        a.explanation?.reasons ??
+        a.materialChanges.map((c, i) => ({ key: `${c.code}:${i}`, code: c.code, reason: c.reason ?? null, label: reportFreshnessChangeCopy(c, a.currentVersion) }));
+      const count = a.explanation?.changeCount ?? reasons.length;
+      const next = a.explanation?.nextVersion ?? a.targetVersion ?? null;
       body = (
         <>
-          <p className="rga-attention__lead">New verification facts are available</p>
-          <ul className="rga-attention__list" data-testid="evidence-outputs-changes">
-            {a.materialChanges.map((c) => (
-              <li key={c.code} data-freshness-code={c.code}>
-                {reportFreshnessChangeCopy(c, a.currentVersion)}
-              </li>
-            ))}
-          </ul>
+          <p className="rga-attention__lead">Update available</p>
+          <p className="rga-attention__text" data-testid="evidence-outputs-why">
+            {count === 1 ? "1 reportable change" : `${count} reportable changes`}
+            {a.currentVersion != null ? ` since report v${a.currentVersion}` : ""}
+            {a.explanation?.firstAtUtc && a.explanation.latestAtUtc
+              ? a.explanation.firstAtUtc === a.explanation.latestAtUtc
+                ? `, recorded ${formatDateTime(a.explanation.latestAtUtc)}`
+                : `, recorded ${formatDateTime(a.explanation.firstAtUtc)} – ${formatDateTime(a.explanation.latestAtUtc)}`
+              : ""}
+            .
+          </p>
+          <details className="rga-attention__changes" data-testid="evidence-outputs-changes">
+            <summary>Review changes</summary>
+            <ul className="rga-attention__list">
+              {reasons.map((r) => (
+                <li key={r.key} data-freshness-code={r.code} data-freshness-reason={r.reason ?? ""}>
+                  {r.label}
+                </li>
+              ))}
+            </ul>
+          </details>
           {a.canGenerate ? (
-            <p className="rga-attention__text">
-              Create an updated immutable report and matching verification package.
-              {a.currentVersion != null ? ` Report v${a.currentVersion} will remain unchanged.` : ""}
+            <p className="rga-attention__text" data-testid="evidence-outputs-next-version">
+              {next != null ? `Generating creates report v${next} and a matching verification package.` : "Generating creates an updated immutable report and a matching verification package."}
+              {a.currentVersion != null ? ` Report v${a.currentVersion} remains unchanged.` : ""}
             </p>
           ) : a.unavailable ? (
             <p className="rga-attention__text" data-testid="evidence-outputs-unavailable">
@@ -194,6 +215,7 @@ export function EvidenceOutputsCard({
         </>
       );
       break;
+    }
     case "IN_PROGRESS":
       body = (
         <>

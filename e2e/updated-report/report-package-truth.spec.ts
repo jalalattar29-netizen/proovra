@@ -359,7 +359,7 @@ test("J2 v2 — TSA validated + attested OTS proof: Bitcoin attestation recorded
   // A recorded attestation is not a "verified after the report" change.
   expect(text).not.toMatch(/anchored in Bitcoin after report v1|verified against the Bitcoin main chain after report v1/);
   expect(text).toMatch(/supersedes report v1/);
-  expect(text).toMatch(/trusted timestamp was validated after report v1/i);
+  expect(text).toMatch(/trusted timestamp validation completed after report v1/i);
   // The Bitcoin anchoring card: one status, one sentence (2026-10-15).
   expect(text).toMatch(RECORDED_CARD);
   expect(text).not.toMatch(NO_VERIFIED_CLAIM);

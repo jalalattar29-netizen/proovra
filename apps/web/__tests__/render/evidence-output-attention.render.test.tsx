@@ -201,15 +201,21 @@ describe("Evidence outputs card", () => {
     expect(queryByText(/reflect the latest verified facts/)).toBeNull();
   });
 
-  it("UPDATE_AVAILABLE — server change copy, the immutability promise, the direct action", () => {
+  it("UPDATE_AVAILABLE — explained: why, how many, which version is created, the immutability promise, the direct action", () => {
     const a = derive(STATES.UPDATE_AVAILABLE)!;
     expect(a).toMatchObject({ state: "UPDATE_AVAILABLE", currentVersion: 1, targetVersion: 2, canGenerate: true });
-    const { getByTestId, getByText, calls } = mountCard(a);
+    const { getByTestId, calls } = mountCard(a);
     expect(getByTestId("evidence-outputs-badge").textContent).toBe("Update available");
-    getByText("New verification facts are available");
-    const changes = [...getByTestId("evidence-outputs-changes").querySelectorAll("li")].map((li) => li.dataset.freshnessCode);
+    expect(getByTestId("evidence-outputs-why").textContent).toMatch(/^2 reportable changes since report v1/);
+    // The reasons are behind a "Review changes" disclosure.
+    const changesBlock = getByTestId("evidence-outputs-changes");
+    expect(changesBlock.tagName).toBe("DETAILS");
+    expect(changesBlock.querySelector("summary")?.textContent).toBe("Review changes");
+    const changes = [...changesBlock.querySelectorAll("li")].map((li) => li.dataset.freshnessCode);
     expect(changes).toEqual(["TSA_VALIDATED_AFTER_REPORT", "OTS_ANCHORED_AFTER_REPORT"]);
-    getByText(/Report v1 will remain unchanged\./);
+    expect(getByTestId("evidence-outputs-next-version").textContent).toBe(
+      "Generating creates report v2 and a matching verification package. Report v1 remains unchanged.",
+    );
     fireEvent.click(getByTestId("evidence-outputs-generate"));
     expect(calls.generate).toBe(1);
     fireEvent.click(getByTestId("evidence-outputs-review"));
@@ -225,8 +231,45 @@ describe("Evidence outputs card", () => {
     )!;
     const { getByTestId } = mountCard(a);
     const text = getByTestId("evidence-outputs-changes").textContent ?? "";
-    expect(text).toMatch(/2 reportable custody events were recorded after report v1/);
+    expect(text).toMatch(/2 reportable evidence-custody facts were recorded after report v1/);
     expect(text).not.toMatch(/timestamp|OpenTimestamps/i);
+  });
+
+  it("UPDATE_AVAILABLE renders the SERVER's explained reasons and range — never a bare count", () => {
+    const explanation = {
+      reportVersion: 4,
+      nextVersion: 5,
+      changeCount: 3,
+      reasons: [
+        { key: "c:LEGAL_HOLD:0", code: "CUSTODY_CHANGED_AFTER_REPORT", reason: "LEGAL_HOLD", label: "2 legal-hold changes were recorded after report v4.", count: 2, firstAtUtc: "2026-10-21T09:00:00.000Z", latestAtUtc: "2026-10-22T09:00:00.000Z" },
+        { key: "o:-:1", code: "OTS_CHAIN_VERIFIED_AFTER_REPORT", reason: null, label: "Bitcoin verification completed after report v4: the anchor was independently checked against the Bitcoin main chain.", count: null, firstAtUtc: "2026-10-22T10:00:00.000Z", latestAtUtc: "2026-10-22T10:00:00.000Z" },
+      ],
+      firstAtUtc: "2026-10-21T09:00:00.000Z",
+      latestAtUtc: "2026-10-22T10:00:00.000Z",
+    };
+    const a = derive(
+      status({
+        freshness: {
+          reportVersion: 4,
+          reportGeneratedAtUtc: "2026-10-20T09:00:00.000Z",
+          hasNewerFacts: true,
+          changes: [
+            { code: "CUSTODY_CHANGED_AFTER_REPORT", atUtc: "2026-10-22T09:00:00.000Z", count: 2, reason: "LEGAL_HOLD", firstAtUtc: "2026-10-21T09:00:00.000Z" },
+            { code: "OTS_CHAIN_VERIFIED_AFTER_REPORT", atUtc: "2026-10-22T10:00:00.000Z" },
+          ],
+          explanation,
+        } as never,
+        newVersion: { ...OFFERED, currentVersion: 4, nextVersion: 5 },
+      }),
+    )!;
+    const { getByTestId } = mountCard(a);
+    const why = getByTestId("evidence-outputs-why").textContent ?? "";
+    expect(why).toMatch(/^3 reportable changes since report v4, recorded /);
+    const lines = [...getByTestId("evidence-outputs-changes").querySelectorAll("li")].map((li) => li.textContent);
+    expect(lines).toEqual(explanation.reasons.map((r) => r.label));
+    expect(getByTestId("evidence-outputs-next-version").textContent).toContain("Generating creates report v5");
+    const all = getByTestId("evidence-outputs-changes").parentElement?.textContent ?? "";
+    expect(all).not.toMatch(/custody events were recorded|REVIEW_|actorUserId|[0-9a-f]{8}-[0-9a-f]{4}-/);
   });
 
   it("UPDATE_AVAILABLE without permission states why and offers no Generate", () => {

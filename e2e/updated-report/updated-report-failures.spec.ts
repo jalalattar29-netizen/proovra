@@ -181,7 +181,7 @@ test("modal stays open while the TIMESTAMP is validated → stale, names the cha
   validateKeptTsaToken(id);
   await dialog.getByTestId("updated-report-confirm").click();
   await expect(dialog.getByTestId("updated-report-stale")).toContainText("The trusted timestamp's status changed.");
-  await expect(dialog.getByTestId("updated-report-changes")).toContainText("The trusted timestamp was validated after report v1 was generated.");
+  await expect(dialog.getByTestId("updated-report-changes")).toContainText("Trusted timestamp validation completed after report v1.");
   expect(newVersionRequests(id)).toBe(0);
   await dialog.getByTestId("updated-report-confirm").click();
   await expect(page.getByTestId("updated-report-dialog")).toHaveCount(0);

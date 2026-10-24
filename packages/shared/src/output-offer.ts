@@ -925,3 +925,67 @@ export function resolveOutputOperationError(input: {
       return outputOperationError("UNKNOWN");
   }
 }
+
+// ===========================================================================
+// THE EXPLAINED "UPDATE AVAILABLE" (2026-10-24)
+// ===========================================================================
+
+/** One explained reason a newer report is owed — privacy-safe, display-ready. */
+export type ReportFreshnessReasonView = {
+  /** Stable React/list key. */
+  key: string;
+  code: ReportFreshnessChangeCode;
+  reason: ReportableCustodyReason | null;
+  /** The sentence a person reads — never a payload, an id or an event code. */
+  label: string;
+  count: number | null;
+  firstAtUtc: string | null;
+  latestAtUtc: string | null;
+};
+
+export type ReportFreshnessExplanation = {
+  /** The immutable version the explanation compares against; it stays unchanged. */
+  reportVersion: number | null;
+  /** The version a new generation would create. */
+  nextVersion: number | null;
+  /** How many reportable facts changed (custody groups count each fact; a TSA/OTS/integrity change counts once). */
+  changeCount: number;
+  reasons: ReportFreshnessReasonView[];
+  /** When the earliest and latest of them were recorded, when known. */
+  firstAtUtc: string | null;
+  latestAtUtc: string | null;
+};
+
+/**
+ * Explain a freshness result for every surface (Evidence ID card, Reports,
+ * mobile): the server builds it once from the owed-report authority's result,
+ * so no client composes or derives it. Empty when nothing is owed — internal
+ * Review activity never appears here.
+ */
+export function explainReportFreshness(
+  freshness: ReportFreshness | null | undefined,
+  opts: { nextVersion?: number | null } = {},
+): ReportFreshnessExplanation | null {
+  if (!freshness) return null;
+  const reasons = freshness.changes.map((c, i): ReportFreshnessReasonView => ({
+    key: `${c.code}:${c.reason ?? "-"}:${i}`,
+    code: c.code,
+    reason: c.reason ?? null,
+    label: reportFreshnessChangeCopy(c, freshness.reportVersion),
+    count: c.count ?? null,
+    firstAtUtc: c.firstAtUtc ?? c.atUtc ?? null,
+    latestAtUtc: c.atUtc ?? null,
+  }));
+  const times = (pick: (r: ReportFreshnessReasonView) => string | null) =>
+    reasons.map(pick).filter((t): t is string => typeof t === "string").sort();
+  const firsts = times((r) => r.firstAtUtc);
+  const lasts = times((r) => r.latestAtUtc);
+  return {
+    reportVersion: freshness.reportVersion,
+    nextVersion: opts.nextVersion ?? (freshness.reportVersion != null ? freshness.reportVersion + 1 : null),
+    changeCount: reasons.reduce((n, r) => n + (r.count ?? 1), 0),
+    reasons,
+    firstAtUtc: firsts[0] ?? null,
+    latestAtUtc: lasts.at(-1) ?? null,
+  };
+}

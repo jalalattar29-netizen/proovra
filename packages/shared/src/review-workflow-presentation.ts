@@ -23,6 +23,7 @@
  * integrity, its public verification or any legal standing.
  */
 
+import { classifyReviewWorkflowEvent, type ReviewEventCode } from "./review-event-taxonomy.js";
 import {
   decisionRequiresNote,
   decisionTargetStage,
@@ -314,12 +315,18 @@ export type ReviewWorkflowEventInput = {
   createdAt: string;
   actor: { id: string; displayName: string | null; email: string | null } | null;
   note: string | null;
+  /** The event's recorded values — read only to name a decision kind or a move. */
+  nextValue?: unknown;
 };
 
 export type ReviewWorkflowHistoryEntry = {
   /** The ids of the stored events this entry stands for (one, or the creation group). */
   eventIds: string[];
   label: string;
+  /** The internal Review taxonomy code (only a verdict is a decision). */
+  code: ReviewEventCode;
+  /** The decision round the entry belongs to (Reopen starts the next). */
+  round: number;
   createdAt: string;
   /** SYSTEM entries were written by PROOVRA, not by a person. */
   origin: "SYSTEM" | "PERSON";
@@ -358,6 +365,33 @@ const CREATION_WINDOW_MS = 2000;
  */
 const SYSTEM_EVENT_TYPES: ReadonlySet<string> = new Set(["SLA_UPDATED", "SLA_BREACHED", "STAGE_CHANGED"]);
 
+const DECISION_KIND_LABELS: Readonly<Record<string, string>> = {
+  APPROVE: "Decision recorded: Approved",
+  REJECT: "Decision recorded: Not accepted",
+  REQUEST_INFO: "More information requested",
+  NEEDS_MORE_INFO: "More information requested",
+  UPHOLD_FIRST: "Disagreement adjudicated",
+  UPHOLD_SECOND: "Disagreement adjudicated",
+  UNRESOLVED: "Adjudication left unresolved",
+};
+
+/** One stored event, named for a person (never a raw enum, an id or a payload). */
+export function reviewWorkflowEventDisplayLabel(e: { eventType: string; nextValue?: unknown }): string {
+  return historyLabel(e as ReviewWorkflowEventInput);
+}
+
+function historyLabel(e: ReviewWorkflowEventInput): string {
+  const next = e.nextValue && typeof e.nextValue === "object" ? (e.nextValue as Record<string, unknown>) : {};
+  if (e.eventType === "DECISION_LOGGED") {
+    return DECISION_KIND_LABELS[String(next.decision ?? "").toUpperCase()] ?? reviewWorkflowEventLabel(e.eventType);
+  }
+  if (e.eventType === "STATUS_CHANGED" || e.eventType === "STAGE_CHANGED") {
+    const to = next.status ?? next.stage;
+    if (typeof to === "string" && to) return `Moved to ${reviewWorkflowStateLabel(to)}`;
+  }
+  return reviewWorkflowEventLabel(e.eventType);
+}
+
 export function summarizeReviewWorkflowEvents(
   events: ReadonlyArray<ReviewWorkflowEventInput>,
   viewerUserId: string | null,
@@ -373,7 +407,13 @@ export function summarizeReviewWorkflowEvents(
         ? "You"
         : e.actor.displayName?.trim() || e.actor.email?.trim() || "Workspace member";
   let creation: ReviewWorkflowHistoryEntry | null = null;
+  // THE ROUND each entry belongs to: Reopen starts the next; a decision event
+  // carries the round the authority recorded it in.
+  let round = 0;
   for (const e of ordered) {
+    if (e.eventType === "REOPENED") round += 1;
+    const recordedRound = (e.nextValue as { round?: unknown } | null | undefined)?.round;
+    if (e.eventType === "DECISION_LOGGED" && typeof recordedRound === "number" && recordedRound > round) round = recordedRound;
     if (e.eventType === "CREATED") {
       // Created by a person (the editor, a claim) reads as that person, with
       // their note; created with no actor reads as PROOVRA (audit F8 — it was
@@ -381,6 +421,8 @@ export function summarizeReviewWorkflowEvents(
       creation = {
         eventIds: [e.id],
         label: reviewWorkflowEventLabel("CREATED"),
+        code: "REVIEW_WORKFLOW_CREATED",
+        round,
         createdAt: e.createdAt,
         origin: e.actor ? "PERSON" : "SYSTEM",
         actorLabel: e.actor ? actorLabel(e) : "PROOVRA",
@@ -402,7 +444,9 @@ export function summarizeReviewWorkflowEvents(
     const system = !e.actor && SYSTEM_EVENT_TYPES.has(e.eventType);
     out.push({
       eventIds: [e.id],
-      label: reviewWorkflowEventLabel(e.eventType),
+      label: historyLabel(e),
+      code: classifyReviewWorkflowEvent({ eventType: e.eventType, nextValue: e.nextValue }),
+      round,
       createdAt: e.createdAt,
       origin: system ? "SYSTEM" : "PERSON",
       actorLabel: system ? "PROOVRA" : actorLabel(e),
@@ -410,6 +454,40 @@ export function summarizeReviewWorkflowEvents(
     });
   }
   return out.reverse();
+}
+
+/** History entries of one decision round, newest first. */
+export type ReviewHistoryRound = {
+  round: number;
+  /** "Round 1" for the first; the latest round is the current one. */
+  label: string;
+  current: boolean;
+  entries: ReviewWorkflowHistoryEntry[];
+  eventCount: number;
+};
+
+/**
+ * Group the summarized history (newest first) by decision round, newest
+ * round first — a presentation of the stored events, never a rewrite.
+ */
+export function groupReviewHistoryByRound(entries: ReadonlyArray<ReviewWorkflowHistoryEntry>): ReviewHistoryRound[] {
+  const byRound = new Map<number, ReviewWorkflowHistoryEntry[]>();
+  for (const e of entries) {
+    const list = byRound.get(e.round) ?? [];
+    list.push(e);
+    byRound.set(e.round, list);
+  }
+  const rounds = [...byRound.keys()].sort((a, b) => b - a);
+  return rounds.map((r, i) => {
+    const list = byRound.get(r)!;
+    return {
+      round: r,
+      label: `Round ${r + 1}`,
+      current: i === 0,
+      entries: list,
+      eventCount: list.reduce((n, e) => n + e.eventIds.length, 0),
+    };
+  });
 }
 
 /** The assignee as a person reads it — never an identifier. */

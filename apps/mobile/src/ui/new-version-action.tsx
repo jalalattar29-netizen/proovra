@@ -27,7 +27,6 @@ import {
   normalizeNewVersionReason,
   outputOperationError,
   outputOperationErrorForReason,
-  reportFreshnessChangeCopy,
   resolveOutputOperationError,
   validateNewVersionReason,
   type ReportFreshness,
@@ -44,7 +43,7 @@ import {
   readGenerationOutcome,
   requestWasAnswered,
 } from "../product/evidence-detail";
-import { projectNewVersionOffer, type NewVersionOfferView } from "../product/evidence-record";
+import { freshnessReasonLines, projectNewVersionOffer, type NewVersionOfferView } from "../product/evidence-record";
 import { theme } from "../theme/theme";
 import { ProovraButton, ProovraInput, ProovraText } from "./index";
 import { ProovraConfirmSheet } from "./patterns";
@@ -56,9 +55,7 @@ export function newVersionConfirmText(offer: NewVersionOfferView, freshness?: Re
   const lines = [
     "An updated report documents this record's current verification facts as a new, separate version. It does not replace or alter any earlier version.",
   ];
-  if (freshness?.hasNewerFacts) {
-    for (const c of freshness.changes) lines.push(reportFreshnessChangeCopy(c, freshness.reportVersion));
-  }
+  for (const r of freshnessReasonLines(freshness)) lines.push(r.label);
   lines.push(
     ...newVersionConsequence({
       currentVersion: offer.currentVersion,

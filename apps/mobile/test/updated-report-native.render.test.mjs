@@ -106,7 +106,7 @@ const generateLabel = (r) => r.byLabel("Generate updated report: Roof photo").le
 test("a direct action; the server's freshness is shown; Confirm is gated on the shared reason validator and sends the SIGNED offer", async () => {
   const r = await open();
   assert.ok(r.hasText("New verification facts are available"));
-  assert.ok(r.hasText("The trusted timestamp was validated after report v1 was generated."));
+  assert.ok(r.hasText("Trusted timestamp validation completed after report v1."));
   await r.press(generateLabel(r));
   await settle();
   assert.ok(r.hasText("Generate report v2"));

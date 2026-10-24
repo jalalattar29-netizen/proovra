@@ -17,7 +17,7 @@ import { CopyButton, copyToClipboard } from "../../../src/ui/copy-button";
 import { projectTrustDecision, type TrustDecision } from "../../../src/product/trust-decision";
 import { Alert, Linking, Pressable, Share, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { evidenceLocationCopy, NEW_VERSION_ACTION, otsAnchoringCopy, TRASH_KEEPS_PLAN_CAPACITY_COPY, TRASH_LIFECYCLE_COPY, reportFreshnessChangeCopy, type EvidenceOutputState, formatCaptureLocationCoordinate, formatCaptureLocationAccuracy } from "@proovra/shared";
+import { evidenceLocationCopy, NEW_VERSION_ACTION, otsAnchoringCopy, TRASH_KEEPS_PLAN_CAPACITY_COPY, TRASH_LIFECYCLE_COPY, type EvidenceOutputState, formatCaptureLocationCoordinate, formatCaptureLocationAccuracy } from "@proovra/shared";
 import { apiFetch } from "../../../src/api";
 import { EvidenceInternalMaterials } from "../../../src/ui/evidence-internal-materials";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
@@ -159,6 +159,7 @@ import {
   recordSummaryItems,
   relationshipDirectionLabel,
   type ArtifactOutputs,
+  freshnessReasonLines,
 } from "../../../src/product/evidence-record";
 import {
   buildDivergenceReasons,
@@ -1738,9 +1739,9 @@ export default function EvidenceDetailScreen() {
           {outputs.freshness?.hasNewerFacts ? (
             <ProovraCard testID="artifact-freshness">
               <ProovraText variant="bodySm" weight="semibold">New verification facts are available</ProovraText>
-              {outputs.freshness.changes.map((c) => (
-                <ProovraText key={c.code} variant="label" color={theme.color.ink.secondary}>
-                  {`• ${reportFreshnessChangeCopy(c, outputs.freshness!.reportVersion)}`}
+              {freshnessReasonLines(outputs.freshness).map((r) => (
+                <ProovraText key={r.key} variant="label" color={theme.color.ink.secondary}>
+                  {`• ${r.label}`}
                 </ProovraText>
               ))}
             </ProovraCard>
@@ -1781,6 +1782,7 @@ export default function EvidenceDetailScreen() {
       {tab === "review" && rw ? (
         <ReviewHero
           status={record.workflow.status}
+          decisionLabel={record.workflow.decisionLabel}
           canSeeReviewerOps={reviewerOperations}
           reportAvailable={reportAvailable}
           reportPending={outputs.report.state === "QUEUED" || outputs.report.state === "GENERATING"}

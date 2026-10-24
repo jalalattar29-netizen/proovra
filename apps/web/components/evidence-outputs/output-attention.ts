@@ -39,6 +39,7 @@ import {
   type OutputOperationError,
   type OutputProgressStep,
   type ReportFreshnessChange,
+  type ReportFreshnessExplanation,
 } from "@proovra/shared";
 
 import type { ArtifactOutputsExtras, ArtifactTrust, MatchedHistory } from "./artifact-status-types";
@@ -86,6 +87,8 @@ export type EvidenceOutputAttention =
       currentVersion: number | null;
       targetVersion: number | null;
       materialChanges: ReportFreshnessChange[];
+      /** The server's explanation: why, how many, when, and which version is created. */
+      explanation: ReportFreshnessExplanation | null;
       /** The server offers the updated report to this user now. */
       canGenerate: boolean;
       /** Why not, when it does not (typed). */
@@ -328,6 +331,7 @@ export function deriveEvidenceOutputAttention(input: {
       currentVersion: nv?.currentVersion ?? freshness.reportVersion ?? reportVersion,
       targetVersion: nv?.nextVersion ?? null,
       materialChanges: freshness.changes,
+      explanation: freshness.explanation ?? null,
       canGenerate: nvOffered,
       unavailable: nvOffered ? null : outputOperationErrorForReason(nv?.reason),
     };

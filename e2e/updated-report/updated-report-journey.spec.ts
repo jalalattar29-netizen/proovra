@@ -217,7 +217,7 @@ test.describe("updated report — the real stack, end to end", () => {
 
     const header = page.getByTestId("artifact-truth-header");
     await expect(header.getByTestId("truth-freshness")).toContainText("New verification facts are available");
-    await expect(header.getByTestId("truth-freshness")).toContainText("The trusted timestamp was validated after report v1 was generated.");
+    await expect(header.getByTestId("truth-freshness")).toContainText("Trusted timestamp validation completed after report v1.");
     await expect(header.getByTestId("truth-freshness")).not.toContainText(/anchored in Bitcoin|verified against the Bitcoin main chain/);
     await expect(header.getByTestId("truth-tsa")).toHaveText("Validated");
     await expect(page.getByTestId("pair-1")).toHaveAttribute("data-pair-latest", "true");

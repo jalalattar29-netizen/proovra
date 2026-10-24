@@ -36,6 +36,7 @@ import {
   outputOperationError,
   outputOperationErrorForReason,
   reportFreshnessChangeCopy,
+  type ReportFreshnessExplanation,
   validateNewVersionReason,
   type OutputOfferEnvelope,
   type ReportFreshness,
@@ -59,7 +60,7 @@ const FOCUSABLE = [
 type Snapshot = {
   newVersion: NewVersionDecision | null;
   offer: OutputOfferEnvelope | null;
-  freshness: ReportFreshness | null;
+  freshness: (ReportFreshness & { explanation?: ReportFreshnessExplanation | null }) | null;
 };
 
 export type UpdatedReportDialogProps = {
@@ -325,8 +326,9 @@ function DialogBody({ onClose, initial, loadStatus, submit, onAccepted }: Update
             </h3>
             {freshness?.hasNewerFacts ? (
               <ul className="rga-dialog__list" data-testid="updated-report-changes">
-                {freshness.changes.map((c) => (
-                  <li key={c.code}>{reportFreshnessChangeCopy(c, freshness.reportVersion)}</li>
+                {(freshness.explanation?.reasons ??
+                freshness.changes.map((c, i) => ({ key: `${c.code}:${i}`, code: c.code, label: reportFreshnessChangeCopy(c, freshness.reportVersion) }))).map((r) => (
+                  <li key={r.key}>{r.label}</li>
                 ))}
               </ul>
             ) : (

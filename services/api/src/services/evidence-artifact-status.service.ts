@@ -34,6 +34,7 @@
  * RETAINED on the shape and now carry correct values, so no consumer had to be
  * migrated blind. New consumers read `state`.
  */
+import { explainReportFreshness, type ReportFreshnessExplanation } from "@proovra/shared";
 import * as prismaPkg from "@prisma/client";
 import {
   PDF_SIGNING_UNAVAILABLE_COPY,
@@ -234,8 +235,13 @@ export interface EvidenceArtifactStatus {
     offer: OutputOfferEnvelope | null;
     /** The trust facts the latest report states and their current values (null = not readable now). */
     trust: Pick<ReportableFacts, "tsa" | "ots"> | null;
-    /** Which recorded facts are newer than the latest report (null = not readable now). */
-    freshness: ReportFreshness | null;
+    /**
+     * Which recorded facts are newer than the latest report (null = not readable
+     * now), and the server's explanation of them (2026-10-24): which version a
+     * generation would create, how many reportable changes, why, and when —
+     * the labels every client renders as-is.
+     */
+    freshness: (ReportFreshness & { explanation: ReportFreshnessExplanation | null }) | null;
     /**
      * The newest durable request and its progress, from persisted columns only.
      * `recent` is true while it is live or finished in the last 3 minutes.
@@ -688,7 +694,12 @@ export async function buildEvidenceArtifactStatus(params: {
       pollIntervalMs,
       offer,
       trust: reportable ? { tsa: reportable.tsa, ots: reportable.ots } : null,
-      freshness: reportable?.freshness ?? null,
+      freshness: reportable?.freshness
+        ? {
+            ...reportable.freshness,
+            explanation: explainReportFreshness(reportable.freshness, { nextVersion: actions.newVersion.nextVersion ?? null }),
+          }
+        : null,
       activeRequest,
     },
     versions,

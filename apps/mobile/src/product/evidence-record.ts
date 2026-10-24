@@ -9,6 +9,8 @@
  */
 
 
+import { reviewWorkflowStateLabel } from "@proovra/shared";
+import { reportFreshnessChangeCopy } from "@proovra/shared";
 import {
   outputNoteCopy,
   projectOutputProgress,
@@ -106,6 +108,8 @@ export interface RecordView {
     priority: string | null;
     dueAt: string | null;
     teamId: string | null;
+    /** The CURRENT round's decision label, from the server ("No decision" when absent). */
+    decisionLabel: string;
   };
   /** `governance.*.label` (review-workspace), for the private-notes note. */
   governanceLabels: { reviewerComments: string; legalNotes: string; annotations: string } | null;
@@ -151,6 +155,7 @@ export function projectRecord(rw: unknown): RecordView {
     storageObjectLockRetainUntilUtc: s(ev["storageObjectLockRetainUntilUtc"]),
     storageObjectLockLegalHoldStatus: s(ev["storageObjectLockLegalHoldStatus"]),
     workflow: {
+      decisionLabel: s(wf["decisionLabel"]) ?? "No decision",
       status: s(wf["status"]),
       priority: s(wf["priority"]),
       dueAt: s(wf["dueAt"]),
@@ -312,21 +317,14 @@ export function publicVerificationTone(state: string | null): "verified" | "risk
 
 /* ---------------------------------------------------------------- workflow */
 
-/** `lib/reviewer-status.ts:23` REVIEWER_STATUS_LABEL, verbatim. */
-export const REVIEWER_STATUS_LABEL: Readonly<Record<string, string>> = {
-  NOT_STARTED: "Needs review",
-  IN_REVIEW: "In review",
-  NEEDS_INFO: "Needs additional context",
-  READY_FOR_EXTERNAL_REVIEW: "Ready for external review",
-  APPROVED_INTERNAL: "Accepted for internal review",
-  REJECTED_INSUFFICIENT: "Rejected as insufficient",
-  ESCALATED: "Escalated for further review",
-  CLOSED: "Not accepted",
-};
-
+/**
+ * THE WORKFLOW STATE label — the ONE shared presenter, exactly as the web reads
+ * it (2026-10-24). This used to be a verbatim copy of the web's map in which
+ * CLOSED read "Not accepted"; the decision is a separate server fact
+ * (`workflow.decisionLabel`).
+ */
 export function formatReviewerStatusLabel(status: string | null | undefined): string {
-  if (!status) return REVIEWER_STATUS_LABEL.NOT_STARTED as string;
-  return REVIEWER_STATUS_LABEL[status] ?? (REVIEWER_STATUS_LABEL.NOT_STARTED as string);
+  return reviewWorkflowStateLabel(status);
 }
 
 /** `lib/reviewer-status.ts:111`, verbatim. */
@@ -523,6 +521,24 @@ function freshnessView(raw: unknown): ReportFreshness | null {
   const x = o(raw);
   if (typeof x["hasNewerFacts"] !== "boolean" || !Array.isArray(x["changes"])) return null;
   return raw as ReportFreshness;
+}
+
+/**
+ * WHY a newer report is owed, as the SERVER explained it (2026-10-24) —
+ * one line per reason, the same labels the web card shows. The client
+ * composes nothing; an older server without an explanation falls back to the
+ * shared sentence for each change.
+ */
+export function freshnessReasonLines(freshness: ReportFreshness | null | undefined): Array<{ key: string; label: string }> {
+  if (!freshness?.hasNewerFacts) return [];
+  const explanation = o((freshness as unknown as Record<string, unknown>)["explanation"]);
+  const reasons = Array.isArray(explanation["reasons"]) ? (explanation["reasons"] as unknown[]) : null;
+  if (reasons) {
+    return reasons
+      .map((r, i) => ({ key: s(o(r)["key"]) ?? String(i), label: s(o(r)["label"]) ?? "" }))
+      .filter((r) => r.label.length > 0);
+  }
+  return freshness.changes.map((c, i) => ({ key: `${c.code}:${i}`, label: reportFreshnessChangeCopy(c, freshness.reportVersion) }));
 }
 
 function outputView(raw: unknown): OutputView {

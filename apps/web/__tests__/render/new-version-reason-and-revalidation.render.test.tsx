@@ -107,8 +107,8 @@ describe("updated-report dialog — RGA-02 confirm-time revalidation, RGA-03 rea
       },
     );
     expect(dialog.textContent).toContain("Generate report v2");
-    expect(q(dialog, "updated-report-changes").textContent).toContain("The trusted timestamp was validated after report v1 was generated.");
-    expect(q(dialog, "updated-report-changes").textContent).toContain("The Bitcoin anchor was independently verified against the Bitcoin main chain after report v1 was generated.");
+    expect(q(dialog, "updated-report-changes").textContent).toContain("Trusted timestamp validation completed after report v1.");
+    expect(q(dialog, "updated-report-changes").textContent).toContain("Bitcoin verification completed after report v1: the anchor was independently checked against the Bitcoin main chain.");
     fireEvent.change(q(dialog, "updated-report-reason"), { target: { value: "Document the validated timestamp" } });
     fireEvent.click(q(dialog, "updated-report-confirm"));
     await waitFor(() => expect(seen).toEqual(["ofr1.current"]));

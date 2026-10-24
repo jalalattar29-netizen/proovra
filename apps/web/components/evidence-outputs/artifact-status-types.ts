@@ -14,6 +14,7 @@ import type {
   OutputOfferEnvelope,
   OutputProgressView,
   ReportFreshness,
+  ReportFreshnessExplanation,
 } from "@proovra/shared";
 
 export type ArtifactTrust = {
@@ -111,7 +112,8 @@ export type ArtifactOutputsExtras = {
   newVersion?: NewVersionDecision | null;
   offer?: OutputOfferEnvelope | null;
   trust?: ArtifactTrust | null;
-  freshness?: ReportFreshness | null;
+  /** With the server's explanation (2026-10-24): the labels every surface renders. */
+  freshness?: (ReportFreshness & { explanation?: ReportFreshnessExplanation | null }) | null;
   activeRequest?: ArtifactActiveRequest | null;
   pollIntervalMs?: number | null;
 };
