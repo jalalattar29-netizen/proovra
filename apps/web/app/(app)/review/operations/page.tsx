@@ -18,7 +18,7 @@
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { reviewSlaLabel, reviewStatusLabel, reviewWorkflowStateLabel } from "@proovra/shared";
+import { reviewSlaLabel, reviewStageFilterLabel, reviewWorkflowStateLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../../../lib/api";
 import { Badge } from "../../../../components/ui/Badge";
@@ -261,7 +261,7 @@ useEffect(() => {
               <Stat label="Due soon" value={String(counts.dueSoon)} />
               <Stat label="Escalated" value={String(counts.byStage.ESCALATED)} />
               <Stat
-                label="Approved, not yet closed"
+                label={reviewStageFilterLabel("APPROVED_INTERNAL")}
                 value={String(counts.byStage.APPROVED_INTERNAL)}
               />
             </div>
@@ -279,7 +279,7 @@ useEffect(() => {
                   <option value="">All statuses</option>
                   {STAGES.map((s) => (
                     <option key={s} value={s}>
-                      {reviewStatusLabel(s)} ({counts.byStage[s]})
+                      {reviewStageFilterLabel(s)} ({counts.byStage[s]})
                     </option>
                   ))}
                 </select>

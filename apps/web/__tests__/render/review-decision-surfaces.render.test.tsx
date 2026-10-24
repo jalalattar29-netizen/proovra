@@ -105,13 +105,16 @@ describe("intake card — state and decision from the server", () => {
 
 describe("review queue — shared labels, never raw enums", () => {
   it("the shared presenters name every stage and SLA state for people", async () => {
-    const { reviewSlaLabel, reviewStatusLabel, reviewWorkflowStateLabel } = await import("@proovra/shared");
+    const { reviewSlaLabel, reviewStageFilterLabel, reviewStatusLabel, reviewWorkflowStateLabel } = await import("@proovra/shared");
+    expect(reviewStageFilterLabel("APPROVED_INTERNAL")).toBe("Approved, not yet closed");
+    expect(reviewStageFilterLabel("REJECTED_INSUFFICIENT")).toBe("Not accepted, not yet closed");
     for (const sla of ["ON_TRACK", "DUE_SOON", "OVERDUE", "BREACHED", "PAUSED"]) {
       expect(reviewSlaLabel(sla)).not.toMatch(/^[A-Z_]+$/);
     }
     for (const stage of ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_MORE_INFO", "RESPONSE_RECEIVED", "APPROVED_INTERNAL", "REJECTED_INSUFFICIENT", "ESCALATED", "REOPENED", "CLOSED"]) {
       expect(reviewStatusLabel(stage)).not.toMatch(/^[A-Z_]+$/);
       expect(reviewWorkflowStateLabel(stage)).not.toMatch(/^[A-Z_]+$/);
+      expect(reviewStageFilterLabel(stage)).not.toMatch(/^[A-Z_]+$/);
     }
   });
 });
@@ -126,5 +129,7 @@ describe("review queue page — source pins", () => {
     expect(src).toMatch(/data-review-queue-decision/);
     expect(src).toMatch(/w\.decisionLabel/);
     expect(src).not.toMatch(/label="Approved \(internal\)"/);
+    expect(src).not.toMatch(/reviewStatusLabel\(/);
+    expect(src).toMatch(/reviewStageFilterLabel\(s\)/);
   });
 });

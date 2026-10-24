@@ -99,6 +99,19 @@ export const REVIEW_PRIORITY_LABELS: Readonly<Record<string, string>> = {
   URGENT: "Urgent",
 };
 
+/**
+ * A STAGE named for a queue filter or a stage count (2026-10-24). A verdict
+ * stage holds only reviews decided and not yet closed — an approved review
+ * that was then closed is in Closed — so it says exactly that; every other
+ * stage reads as the workflow state.
+ */
+export function reviewStageFilterLabel(stage: string | null | undefined): string {
+  const st = stage ? mapDbStatusToReviewStage(stage) : "QUEUED";
+  if (st === "APPROVED_INTERNAL") return "Approved, not yet closed";
+  if (st === "REJECTED_INSUFFICIENT") return "Not accepted, not yet closed";
+  return reviewWorkflowStateLabel(stage);
+}
+
 /** Review SLA states (`EvidenceReviewSlaStatus`), named for people — never the raw enum. */
 export const REVIEW_SLA_LABELS: Readonly<Record<string, string>> = {
   ON_TRACK: "On track",
@@ -473,8 +486,49 @@ export function summarizeReviewWorkflowEvents(
       note: e.note,
     });
   }
-  const offset = typeof options.currentRound === "number" && options.currentRound > round ? options.currentRound - round : 0;
-  if (offset > 0) for (const entry of out) entry.round += offset;
+  // ANCHORED TO THE SERVER'S ROUND. Counting forward from the window's
+  // start is right only for a complete history; a bounded window can start
+  // mid-review. With the current round known, rounds are counted BACK from
+  // the newest entry:
+  //  - a Reopen opened the round it belongs to, so older entries are one
+  //    round earlier;
+  //  - a decision event names its round outright. Entries between it and an
+  //    older decision of an earlier round, with no Reopen between, belong to
+  //    that earlier round — a round settled by a request for information
+  //    stays current until the next decision opens the next one.
+  if (typeof options.currentRound === "number" && options.currentRound >= 0) {
+    const byId = new Map(ordered.map((e) => [e.id, e] as const));
+    const eventsOf = (entry: ReviewWorkflowHistoryEntry) =>
+      entry.eventIds.map((id) => byId.get(id)).filter((e): e is ReviewWorkflowEventInput => !!e);
+    const taggedRound = (entry: ReviewWorkflowHistoryEntry): number | null => {
+      for (const e of eventsOf(entry)) {
+        const rr = (e.nextValue as { round?: unknown } | null | undefined)?.round;
+        if (e.eventType === "DECISION_LOGGED" && typeof rr === "number") return rr;
+      }
+      return null;
+    };
+    const reopens = (entry: ReviewWorkflowHistoryEntry) => eventsOf(entry).some((e) => e.eventType === "REOPENED");
+    let r = options.currentRound;
+    for (let i = out.length - 1; i >= 0; i -= 1) {
+      const entry = out[i]!;
+      const tagged = taggedRound(entry);
+      if (tagged !== null) {
+        entry.round = tagged;
+        r = tagged;
+        for (let j = i - 1; j >= 0; j -= 1) {
+          if (reopens(out[j]!)) break;
+          const older = taggedRound(out[j]!);
+          if (older !== null) {
+            if (older < tagged) r = older;
+            break;
+          }
+        }
+        continue;
+      }
+      entry.round = Math.max(0, r);
+      if (reopens(entry)) r -= 1;
+    }
+  }
   return out.reverse();
 }
 

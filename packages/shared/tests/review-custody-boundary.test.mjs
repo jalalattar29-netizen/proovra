@@ -197,3 +197,25 @@ test("a bounded history window is anchored to the server's current round (fifth 
   const unanchored = S.groupReviewHistoryByRound(S.summarizeReviewWorkflowEvents(events, null));
   assert.deepEqual(unanchored.map((r) => r.label), ["Round 2", "Round 1"]);
 });
+
+test("a truncated window holding a round-tagged decision is numbered from the server's round, and a request-info round stays current until the next decision", async () => {
+  const S = await import("../dist/index.js");
+  const at = (m) => `2026-10-02T10:${String(m).padStart(2, "0")}:00.000Z`;
+  const ev = (id, eventType, nextValue, m) => ({ id, eventType, nextValue, previousValue: null, note: null, createdAt: at(m), actor: null });
+  // Window starts mid round 3: a request for information settles round 3, a
+  // response arrives, then the next decision opens round 4.
+  const events = [
+    ev("a", "STATUS_CHANGED", { status: "IN_REVIEW" }, 1),
+    ev("b", "DECISION_LOGGED", { decision: "REQUEST_INFO", stage: "NEEDS_MORE_INFO", state: "resolved", round: 3 }, 2),
+    ev("c", "RESPONSE_RECEIVED", { stage: "RESPONSE_RECEIVED" }, 3),
+    ev("d", "DECISION_LOGGED", { decision: "APPROVE", stage: "APPROVED_INTERNAL", state: "resolved", round: 4 }, 4),
+  ];
+  const entries = S.summarizeReviewWorkflowEvents(events, null, { currentRound: 4 });
+  const roundOf = Object.fromEntries(entries.map((e) => [e.eventIds[0], e.round]));
+  assert.deepEqual(roundOf, { a: 3, b: 3, c: 3, d: 4 });
+  // The complete history gives the same answer without the anchor.
+  const full = [ev("r1", "REOPENED", { stage: "REOPENED" }, 0), ...events].map((e, i) => (i === 0 ? e : e));
+  const forward = Object.fromEntries(S.summarizeReviewWorkflowEvents(full, null).map((e) => [e.eventIds[0], e.round]));
+  assert.equal(forward.d, 4);
+  assert.equal(forward.c, 3);
+});
