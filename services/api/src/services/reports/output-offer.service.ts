@@ -141,18 +141,27 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
     },
     ots,
     // THE one owed-report authority, shared with the worker (2026-10-24).
-    freshness: await deriveReportFreshnessForRecord(evidenceId, latest, {
-      tsa: { status: tsaStatus, validatedAtUtc: ev?.tsaValidatedAtUtc ?? null },
-      ots: {
-        state: ots.state,
-        anchoredAtUtc: ots.anchoredAtUtc,
-        verification: ots.verification,
-        verifiedAtUtc: ots.chain?.verifiedAtUtc ?? null,
-        proofSha256: ots.proofSha256 ?? null,
-        blockHash: ots.chain?.blockHash ?? null,
+    freshness: await deriveReportFreshnessForRecord(
+      evidenceId,
+      latest,
+      {
+        tsa: { status: tsaStatus, validatedAtUtc: ev?.tsaValidatedAtUtc ?? null },
+        ots: {
+          state: ots.state,
+          anchoredAtUtc: ots.anchoredAtUtc,
+          verification: ots.verification,
+          verifiedAtUtc: ots.chain?.verifiedAtUtc ?? null,
+          proofSha256: ots.proofSha256 ?? null,
+          blockHash: ots.chain?.blockHash ?? null,
+        },
+        lastVerifiedAtUtc: ev?.lastVerifiedAtUtc ?? null,
       },
-      lastVerifiedAtUtc: ev?.lastVerifiedAtUtc ?? null,
-    }),
+      // This API's own client, explicitly — as the worker passes its own. The
+      // registry default depends on boot wiring that not every host (the test
+      // harness, a script) performs; without it the read threw, the status
+      // projection degraded to "freshness unknown" and no offer was signed.
+      prisma as never,
+    ),
   };
 }
 
