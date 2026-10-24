@@ -434,7 +434,7 @@ async function appendKindContent(params: {
               generatedAtUtc: new Date().toISOString(),
               eventCount: custody.length,
               hashFormula:
-                "eventHash = lowercase hex SHA-256 of the UTF-8 canonical JSON of {v:1, evidenceId, sequence, eventType, atUtc (ISO-8601), payload (or null), prevEventHash (or null)}; object keys sorted by code point at every level, no whitespace.",
+                "eventHash = lowercase hex SHA-256 of the UTF-8 canonical JSON of {v:1, evidenceId, sequence, eventType, atUtc (ISO-8601), payload (or null), prevEventHash (or null)}; object keys sorted by code point at every level, no whitespace. An entry of type WITHHELD_INTERNAL_RECORD is an internal workflow record withheld from this package: its payload and type are not disclosed, so its own eventHash cannot be recomputed here; its sequence, time and hashes keep the links on both sides of it checkable.",
               // Internal workflow rows keep only their position and hashes
               // (2026-10-24: Review activity is not evidence custody).
               events: custody.map(projectCustodyEventForExternalArtifact).map((e) => ({ ...e, atUtc: e.atUtc.toISOString() })),

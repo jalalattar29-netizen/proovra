@@ -3112,8 +3112,10 @@ captureMethod: deriveReportCaptureMethod({
     })),
   ];
 
+  // Projected like every other external custody mapping (2026-10-24): an
+  // internal workflow row keeps only its position and hashes.
   const custodyForVerificationPackage = [
-    ...custodyEvents.map((ev) => ({
+    ...custodyEvents.map(projectCustodyEventForExternalArtifact).map((ev) => ({
       sequence: ev.sequence,
       atUtc: ev.atUtc.toISOString(),
       eventType: ev.eventType,

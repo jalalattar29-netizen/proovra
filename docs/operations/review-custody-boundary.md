@@ -49,9 +49,11 @@ with the seven events seeded as stored history (synthetic identifiers).
 | Approve then Close | "Status: Not accepted" | Workflow: Closed · Decision: Approved |
 
 FULL package identifiers (owner decision, 2026-10-24): FULL keeps its
-documented, recomputable evidence-custody chain. The owner and workspace
-identifiers stay where genuine evidence custody records them. No reviewer,
-member or admin identifier is included, and nothing internal to Review.
+documented, recomputable evidence-custody chain. Genuine evidence-custody
+payloads keep the identifiers they recorded: the owner and workspace, and the
+member who placed or released a legal hold. Redacting a payload would make its
+hash unrecomputable. Nothing from Review is included: no Review row's type,
+status or actor (but see the residual property in section 3).
 EXTERNAL remains the third-party artifact, with identifiers withheld.
 
 ## 3. The model now
@@ -69,8 +71,13 @@ Review activity is recorded in:
 - the Review workflow events and the decision rounds;
 - the escalation records;
 - the reviewer audit log;
-- the existing tenant audit (`recordReviewActivityTx`, in each action's own
-  transaction, under the taxonomy's `review.*` actions).
+- the existing tenant audit (`recordReviewActivityTx`, under the taxonomy's
+  `review.*` actions).
+
+Each action's move, its history event, its reviewer audit row and its tenant
+audit row commit in one transaction, or none of them does. This covers the
+decision authority, Escalate, Reopen and Close, bulk actions, the workflow
+editor, start, pause, claim and assign.
 
 **Taxonomy** (`packages/shared/src/review-event-taxonomy.ts`). Only a verdict
 is `REVIEW_DECISION_RECORDED`. Reopen, In review, Close, claim, assignment and
@@ -79,12 +86,25 @@ payload status in internal views only; their bytes are never changed.
 
 **Workflow state vs decision.** The stored status is the workflow STATE. The
 current round's DECISION (`NO_DECISION` / `APPROVED` / `NOT_ACCEPTED`) is read
-from what the decision authority recorded (`review-outcome.service.ts`).
+from what the decision authority recorded (`review-outcome.service.ts`):
+
+- **One derivation.** The decision is the round's decision rows under the
+  live second-review requirement. This is the same derivation the decision
+  authority, the reconciler and the Evidence page's actions use.
+  - If a first approval was recorded while a second review was required, and
+    the requirement is then lifted, every surface reads Approved.
+  - A verdict already reached stands even if a requirement arrives later.
+- **Legacy workflows** are those decided before the decision log existed.
+  The verdict is read from their stored status. If Close or another move
+  overwrote that status, it is read from the newest verdict in their own
+  history since their last Reopen.
+
 Close never creates, defaults or rewrites a verdict. Reopen starts a new
 round with no decision. These read the decision:
 
 - the Evidence page;
-- the queues;
+- the Review queue rows (its stage counts are workflow-state counts,
+  labelled as such);
 - the export governance gate;
 - dual approval;
 - the analytics;
@@ -101,8 +121,27 @@ generation would create, and that the existing version stays unchanged.
 **External projection** (`projectCustodyEventForExternalArtifact`). A
 historical Review row becomes a withheld continuity entry (sequence, time,
 hashes) in the PDF hash-chain table and in package `custody.json`. Public
-Verify excludes it. Package READMEs state that these entries keep their links
-checkable but cannot be re-hashed.
+Verify excludes it. The package READMEs and the exchange package's
+`hashFormula` state that these entries keep their links checkable but cannot
+be re-hashed.
+
+**Residual property of a continuous chain (owner decision pending).** A
+withheld entry keeps its `eventHash`, and the next entry's `prevEventHash`
+repeats it; without that, the chain could not be checked across the entry. The
+hash covers `{v:1, evidenceId, sequence, eventType, atUtc, payload,
+prevEventHash}`. The legacy payload was `{status, actorUserId}`, and a
+recipient holds every other field.
+
+- **Who can recover it.** Anyone who also knows the reviewer's user ID can
+  recover the historical status offline by trying about a dozen statuses.
+- **Where that is possible.** A FULL package carries the owner's ID by
+  design. So when the owner was the reviewer, a FULL recipient can learn that
+  the historical row was, for example, `APPROVED_INTERNAL`.
+- **Where it is not.** EXTERNAL and the PDF carry no actor IDs, so the
+  payload cannot be confirmed from them alone.
+- **Why it can't be removed now.** Removing this would mean dropping the
+  hashes and breaking the chain across each historical Review row. That is an
+  integrity trade-off for the owner to decide; it is not applied.
 
 ## 4. The already-issued report v5 (Production record)
 
