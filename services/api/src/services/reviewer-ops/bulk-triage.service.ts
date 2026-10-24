@@ -19,7 +19,7 @@
  *     via the engine.
  */
 
-import { recordLifecycleTransition } from "../review-operations/review-operations.service.js";
+import { recordLifecycleTransition, ReviewOperationError } from "../review-operations/review-operations.service.js";
 import type { PrismaClient } from "@prisma/client";
 import {
   type ReviewerOpsBulkAction,
@@ -40,7 +40,6 @@ import {
   type LifecycleActorContext,
 } from "./reviewer-operations-engine.service.js";
 import {
-  createEscalation,
   EscalationEngineError,
 } from "./escalation-engine.service.js";
 
@@ -86,7 +85,9 @@ export async function executeBulkTriage(
           ? err.code
           : err instanceof EscalationEngineError
             ? err.code
-            : "REVIEW_INVALID_TRANSITION";
+            : err instanceof ReviewOperationError && err.code === "workflow_not_found"
+              ? "REVIEW_WORKFLOW_NOT_FOUND"
+              : "REVIEW_INVALID_TRANSITION";
       items.push({
         workflowId,
         ok: false,
@@ -180,22 +181,27 @@ async function runOne(
       if (!input.note) {
         throw new ReviewerOpsError("REVIEW_NOTE_REQUIRED");
       }
-      const res = await createEscalation(
+      // THE ONE ESCALATE (2026-10-24), as Close below: a bulk Escalate used
+      // to open an escalation row by itself — no move to Escalated, no
+      // Review history, no reviewer audit, separate writes. It now goes
+      // through the lifecycle authority, so a bulk and a single Escalate
+      // produce the same record: the move, the escalation routed to the
+      // admins, its event and its audit in one transaction.
+      const wf = await client.evidenceReviewWorkflow.findFirst({
+        where: { id: workflowId, teamId: ctx.teamId },
+        select: { evidenceId: true },
+      });
+      if (!wf) throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
+      await recordLifecycleTransition(
         {
-          teamId: ctx.teamId,
-          workflowId,
-          reason: "WORKFLOW_STALLED",
-          severity: "WARNING",
-          safeSummary: input.note,
-          createdByUserId: ctx.actorUserId,
+          evidenceId: wf.evidenceId,
+          decision: "ESCALATE",
+          actorUserId: ctx.actorUserId,
+          note: input.note,
+          escalationReason: input.note,
         },
         client,
       );
-      if (!res.ok) {
-        throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", {
-          reason: res.code,
-        });
-      }
       return;
     }
     case "PAUSE": {

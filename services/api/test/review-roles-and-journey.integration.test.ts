@@ -1375,3 +1375,30 @@ describe("sixth audit — refused assignments are 409s, bulk priority is audited
     expect((await loadCurrentReviewDecisions([{ ...ref, status: "IN_REVIEW" }])).get(wf.id)).toBe("NO_DECISION");
   });
 });
+
+describe("third delta audit — a bulk Escalate is the one Escalate", () => {
+  it("bulk-triage ESCALATE moves to Escalated, opens the escalation, writes its history event and one review.escalation audit — as a single Escalate does; a repeat is refused", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "delta-bulk-escalate");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    expect((await claim(A.memberToken, ev, A.teamId)).status).toBe(200);
+    const wf = await workflowOf(ev);
+    const custodyBefore = await allCustody(ev);
+    const { executeBulkTriage } = await import("../src/services/reviewer-ops/bulk-triage.service.js");
+    const run = () =>
+      executeBulkTriage(
+        { teamId: A.teamId, actorUserId: A.adminUserId, isReviewerCapable: true, isServiceAccount: false } as never,
+        { teamId: A.teamId, workflowIds: [wf.id], action: "ESCALATE", note: "stalled — needs an admin" } as never,
+      );
+    expect(JSON.stringify(await run())).not.toMatch(/"ok":false/);
+    expect((await workflowOf(ev)).status).toBe("ESCALATED");
+    expect(await prisma.reviewEscalation.count({ where: { workflowId: wf.id, status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] } } })).toBe(1);
+    expect(await prisma.evidenceReviewWorkflowEvent.count({ where: { workflowId: wf.id, eventType: "ESCALATED" } })).toBe(1);
+    const { REVIEW_EVENT_AUDIT_ACTIONS } = await import("@proovra/shared");
+    expect(await reviewAudits(ev, REVIEW_EVENT_AUDIT_ACTIONS.REVIEW_ESCALATION_CREATED)).toBe(1);
+    // A second bulk Escalate is a refused item, not a second escalation.
+    expect(JSON.stringify(await run())).toMatch(/"ok":false/);
+    expect(await prisma.reviewEscalation.count({ where: { workflowId: wf.id } })).toBe(1);
+    expect(await allCustody(ev)).toBe(custodyBefore);
+  });
+});
