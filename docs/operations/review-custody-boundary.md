@@ -53,7 +53,7 @@ documented, recomputable evidence-custody chain. Genuine evidence-custody
 payloads keep the identifiers they recorded: the owner and workspace, and the
 member who placed or released a legal hold. Redacting a payload would make its
 hash unrecomputable. Nothing from Review is included: no Review row's type,
-status or actor (but see the residual property in section 3).
+status or actor. See the accepted residual property in section 3.
 EXTERNAL remains the third-party artifact, with identifiers withheld.
 
 ## 3. The model now
@@ -125,7 +125,7 @@ Verify excludes it. The package READMEs and the exchange package's
 `hashFormula` state that these entries keep their links checkable but cannot
 be re-hashed.
 
-**Residual property of a continuous chain (owner decision pending).** A
+**Residual property of a continuous chain (accepted by the owner, 2026-10-24).** A
 withheld entry keeps its `eventHash`, and the next entry's `prevEventHash`
 repeats it; without that, the chain could not be checked across the entry. The
 hash covers `{v:1, evidenceId, sequence, eventType, atUtc, payload,
@@ -140,8 +140,11 @@ recipient holds every other field.
 - **Where it is not.** EXTERNAL and the PDF carry no actor IDs, so the
   payload cannot be confirmed from them alone.
 - **Why it can't be removed now.** Removing this would mean dropping the
-  hashes and breaking the chain across each historical Review row. That is an
-  integrity trade-off for the owner to decide; it is not applied.
+  hashes and breaking the chain across each historical Review row.
+- **Decision.** The owner accepted this residual property of FULL, which is
+  the owner's own package. The chain stays continuous and verifiable, and no
+  integrity rule is weakened. New Review activity is never written to custody,
+  so this applies only to rows stored before 2026-10-24.
 
 ## 4. The already-issued report v5 (Production record)
 
