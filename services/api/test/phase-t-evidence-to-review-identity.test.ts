@@ -96,7 +96,14 @@ vi.mock("../src/db.js", () => {
 // coverage, so this double only needs the write to be accepted.
 vi.mock("../src/services/evidence-review/reviewer-audit.service.js", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  recordReviewStatusOnCustodyTx: vi.fn(async () => undefined),
+  recordReviewActivityTx: vi.fn(async () => undefined),
+}));
+
+// The current-round decision read (review-outcome.service) has its own
+// real-database coverage; the summary this test reads needs no decision.
+vi.mock("../src/services/evidence-review/review-outcome.service.js", () => ({
+  loadCurrentReviewDecision: vi.fn(async () => "NO_DECISION"),
+  loadCurrentReviewDecisions: vi.fn(async () => new Map()),
 }));
 
 vi.mock("../src/services/platform-audit-log.service.js", () => ({

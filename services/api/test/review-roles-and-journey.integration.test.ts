@@ -75,6 +75,14 @@ const decide = (token: string, ev: string, decision: string, note?: string) =>
     ...(decision === "ESCALATE" ? { escalationReason: note } : {}),
   });
 const workflowOf = (ev: string) => prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { evidenceId: ev } });
+/**
+ * REVIEW IS NOT FORENSIC CUSTODY (owner decision 2026-10-24): every custody
+ * row of the record, whatever its type — Review activity must add none.
+ */
+const allCustody = (ev: string) => prisma.custodyEvent.count({ where: { evidenceId: ev } });
+/** Review activity is in the tenant audit, keyed to the workflow. */
+const reviewAudits = async (ev: string, action: string) =>
+  prisma.adminAuditLog.count({ where: { resourceId: (await workflowOf(ev)).id, action } });
 async function offered(token: string, ev: string) {
   const res = await call(token, "GET", `/v1/evidence/${ev}/review-workspace`);
   if (res.status !== 200) return { status: res.status, actions: null, attention: null };
@@ -464,20 +472,21 @@ describe("audit findings — second review, reconcile, races, editor Close, Begi
     expect(item?.title).toMatch(/^Escalation for your workspace's admins/);
   });
 
-  it("ET-CUS-12 parity — a status-setting decision on the decision route is on custody; an idempotent replay is not", async () => {
+  it("a verdict on the decision route writes no custody; it is ONE tenant-audit decision, and an idempotent replay records nothing", async () => {
     await setPlan(A, "TEAM");
     const ev = await freshEvidence(A, "custody-parity");
     await claimed(ev);
-    const count = () => prisma.custodyEvent.count({ where: { evidenceId: ev, eventType: "REVIEW_DECISION_RECORDED" } });
-    const before = await count();
+    const custodyBefore = await allCustody(ev);
+    const auditBefore = await reviewAudits(ev, "review.decision.recorded");
     expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
-    expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
-    expect((await count()) - before).toBe(1);
-    const last = await prisma.custodyEvent.findFirstOrThrow({
-      where: { evidenceId: ev, eventType: "REVIEW_DECISION_RECORDED" },
-      orderBy: { sequence: "desc" },
+    expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200); // idempotent replay
+    expect(await allCustody(ev)).toBe(custodyBefore);
+    expect((await reviewAudits(ev, "review.decision.recorded")) - auditBefore).toBe(1);
+    const row = await prisma.adminAuditLog.findFirstOrThrow({
+      where: { resourceId: (await workflowOf(ev)).id, action: "review.decision.recorded" },
+      orderBy: { createdAt: "desc" },
     });
-    expect(last.payload).toMatchObject({ status: "APPROVED_INTERNAL", actorUserId: A.memberUserId });
+    expect(row).toMatchObject({ userId: A.memberUserId, resultingState: "APPROVED_INTERNAL", reasonCode: "REVIEW_DECISION_RECORDED" });
   });
 });
 
@@ -636,9 +645,7 @@ describe("second audit — escalation atomicity, settled requests, repeated requ
   });
 });
 
-describe("ET-CUS-12 — custody exactly once, in the decision's own transaction", () => {
-  const custodyCount = (ev: string) =>
-    prisma.custodyEvent.count({ where: { evidenceId: ev, eventType: "REVIEW_DECISION_RECORDED" } });
+describe("Review activity is audited exactly once, in the action's own transaction — never custody", () => {
   const ready = async (ev: string) => {
     await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
     expect((await claim(A.memberToken, ev, A.teamId)).status).toBe(200);
@@ -646,38 +653,42 @@ describe("ET-CUS-12 — custody exactly once, in the decision's own transaction"
     expect((await patchWorkflow(A.memberToken, ev, { status: "IN_REVIEW", expectedUpdatedAt: wf.updatedAt.toISOString() })).status).toBe(200);
   };
 
-  it("a double-clicked verdict is ONE custody entry", async () => {
+  it("a double-clicked verdict is ONE audited decision and no custody", async () => {
     await setPlan(A, "TEAM");
     const ev = await freshEvidence(A, "custody-double");
     await ready(ev);
-    const before = await custodyCount(ev);
+    const custodyBefore = await allCustody(ev);
+    const before = await reviewAudits(ev, "review.decision.recorded");
     const results = await Promise.all([decide(A.memberToken, ev, "APPROVE_INTERNAL"), decide(A.memberToken, ev, "APPROVE_INTERNAL")]);
     expect(results.every((r) => r.status === 200 || r.status === 409)).toBe(true);
-    expect((await custodyCount(ev)) - before).toBe(1);
+    expect((await reviewAudits(ev, "review.decision.recorded")) - before).toBe(1);
+    expect(await allCustody(ev)).toBe(custodyBefore);
   });
 
-  it("Escalate, Close and Reopen are each one custody entry; a FIRST of two reviews (no status change) is none", async () => {
+  it("Escalate, a verdict, Close and Reopen are each one audit entry under its own action; none writes custody", async () => {
     await setPlan(A, "TEAM");
     const ev = await freshEvidence(A, "custody-lifecycle");
     await ready(ev);
-    let before = await custodyCount(ev);
+    const custodyBefore = await allCustody(ev);
     expect((await decide(A.memberToken, ev, "ESCALATE", "counsel")).status).toBe(200);
-    expect((await custodyCount(ev)) - before).toBe(1);
-    before = await custodyCount(ev);
-    // Escalated → a second review is required: the FIRST verdict moves nothing.
+    expect(await reviewAudits(ev, "review.escalation.created")).toBe(1);
+    // Escalated → a second review is required: the FIRST verdict moves no
+    // stage, but it is still a recorded decision.
     expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
     expect((await workflowOf(ev)).status).toBe("ESCALATED");
-    expect((await custodyCount(ev)) - before).toBe(0);
+    expect(await reviewAudits(ev, "review.decision.recorded")).toBe(1);
     expect((await decide(A.adminToken, ev, "CLOSE", "done")).status).toBe(200);
     expect((await decide(A.adminToken, ev, "REOPEN", "more")).status).toBe(200);
-    expect((await custodyCount(ev)) - before).toBe(2);
+    expect(await reviewAudits(ev, "review.closed")).toBe(1);
+    expect(await reviewAudits(ev, "review.reopened")).toBe(1);
+    expect(await allCustody(ev)).toBe(custodyBefore);
   });
 
-  it("bulk Mark in review, Escalate and Close are on custody too", async () => {
+  it("bulk Mark in review, Escalate and Close are audited too, and write no custody", async () => {
     await setPlan(A, "TEAM");
     const ev = await freshEvidence(A, "custody-bulk");
     await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
-    const before = await custodyCount(ev);
+    const custodyBefore = await allCustody(ev);
     for (const action of ["MARK_IN_REVIEW", "ESCALATE", "CLOSE"]) {
       const res = await call(A.adminToken, "POST", "/v1/review-operations/bulk", {
         teamId: A.teamId,
@@ -688,7 +699,10 @@ describe("ET-CUS-12 — custody exactly once, in the decision's own transaction"
       expect(res.status, action + " " + JSON.stringify(res.body)).toBe(200);
     }
     expect((await workflowOf(ev)).status).toBe("CLOSED");
-    expect((await custodyCount(ev)) - before).toBe(3);
+    expect(await reviewAudits(ev, "review.state.changed")).toBe(1);
+    expect(await reviewAudits(ev, "review.escalation.created")).toBe(1);
+    expect(await reviewAudits(ev, "review.closed")).toBe(1);
+    expect(await allCustody(ev)).toBe(custodyBefore);
   });
 });
 
@@ -707,8 +721,6 @@ describe("third audit — side effects after commit, legacy rounds, console, cus
     expect((await claim(A.memberToken, ev, A.teamId)).status).toBe(200);
     await begin(A.memberToken, ev);
   };
-  const custodyCount = (ev: string) =>
-    prisma.custodyEvent.count({ where: { evidenceId: ev, eventType: "REVIEW_DECISION_RECORDED" } });
   const openEscalations = (ev: string) =>
     prisma.reviewEscalation.count({ where: { evidenceId: ev, status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] } } });
 
@@ -787,12 +799,14 @@ describe("third audit — side effects after commit, legacy rounds, console, cus
     expect(res.body.state).toBe("resolved");
   });
 
-  it("custody records only a real status change: editor PATCH with no status, the same status, and bulk Mark in review on a review already in review", async () => {
+  it("Review edits write no custody; the audit records only a real change (no status, the same status, bulk Mark in review on a review in review)", async () => {
     await setPlan(A, "TEAM");
     const ev = await freshEvidence(A, "audit3-nochange");
     await claimed(ev); // IN_REVIEW
-    const before = await custodyCount(ev);
+    const custodyBefore = await allCustody(ev);
+    const statesBefore = await reviewAudits(ev, "review.state.changed");
     expect((await patchWorkflow(A.adminToken, ev, { priority: "HIGH" })).status).toBe(200);
+    expect(await reviewAudits(ev, "review.priority.changed")).toBe(1);
     expect((await patchWorkflow(A.adminToken, ev, { status: "IN_REVIEW" })).status).toBe(200);
     const bulk = await call(A.adminToken, "POST", "/v1/review-operations/bulk", {
       teamId: A.teamId,
@@ -801,10 +815,11 @@ describe("third audit — side effects after commit, legacy rounds, console, cus
       note: "already",
     });
     expect(bulk.status).toBe(200);
-    expect((await custodyCount(ev)) - before).toBe(0);
-    // A real editor status change is on custody, once.
+    expect((await reviewAudits(ev, "review.state.changed")) - statesBefore).toBe(0);
+    // A real editor status change is audited, once.
     expect((await patchWorkflow(A.adminToken, ev, { status: "CLOSED" })).status).toBe(200);
-    expect((await custodyCount(ev)) - before).toBe(1);
+    expect(await reviewAudits(ev, "review.closed")).toBe(1);
+    expect(await allCustody(ev)).toBe(custodyBefore);
   });
 
   it("an escalation a failed Close left open is resolved by Reopen and by the reconciler", async () => {
@@ -860,14 +875,13 @@ describe("third audit — side effects after commit, legacy rounds, console, cus
 // ===========================================================================
 
 describe("fourth audit — opening a review is not a decision; the reconciler resolves only what preceded the close", () => {
-  const custodyCount = (ev: string) =>
-    prisma.custodyEvent.count({ where: { evidenceId: ev, eventType: "REVIEW_DECISION_RECORDED" } });
 
-  it("a workflow opened in its initial state — by record completion or the editor — writes nothing to custody", async () => {
+  it("opening a workflow — by record completion or the editor — and every later Review change write no custody; they are audited", async () => {
     await setPlan(A, "TEAM");
     const { upsertEvidenceReviewerWorkflow } = await import("../src/services/evidence-review/reviewer-workflow.service.js");
     // Exactly what completion's fan-out passes (evidence-complete.service.ts).
     const completed = await freshEvidence(A, "audit4-completion");
+    const completedBefore = await allCustody(completed);
     await upsertEvidenceReviewerWorkflow({
       evidenceId: completed,
       workspaceType: "TEAM",
@@ -878,16 +892,18 @@ describe("fourth audit — opening a review is not a decision; the reconciler re
       note: "Created automatically on Capture finalization.",
     } as never);
     expect(await prisma.evidenceReviewWorkflow.count({ where: { evidenceId: completed } })).toBe(1);
-    expect(await custodyCount(completed)).toBe(0);
-    // The editor opening one in its initial state: none either.
+    expect(await allCustody(completed)).toBe(completedBefore);
+    expect(await reviewAudits(completed, "review.workflow.created")).toBe(1);
+    // The editor opening one, then a real state change: audited, never custody.
     const edited = await freshEvidence(A, "audit4-editor");
+    const editedBefore = await allCustody(edited);
     expect((await patchWorkflow(A.adminToken, edited, { status: "NOT_STARTED" })).status).toBe(200);
-    expect(await custodyCount(edited)).toBe(0);
-    // A real decision afterwards is recorded.
     expect((await claim(A.memberToken, edited, A.teamId)).status).toBe(200);
     const wf = await workflowOf(edited);
     expect((await patchWorkflow(A.memberToken, edited, { status: "IN_REVIEW", expectedUpdatedAt: wf.updatedAt.toISOString() })).status).toBe(200);
-    expect(await custodyCount(edited)).toBe(1);
+    expect(await reviewAudits(edited, "review.claimed")).toBe(1);
+    expect(await reviewAudits(edited, "review.state.changed")).toBe(1);
+    expect(await allCustody(edited)).toBe(editedBefore);
   });
 
   it("the reconciler leaves an escalation raised after its read of the closed review", async () => {

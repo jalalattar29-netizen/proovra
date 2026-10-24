@@ -18,6 +18,7 @@
  *     ("Not measured"), never as a 0/100 stand-in.
  */
 
+import { loadCurrentReviewDecisions } from "../evidence-review/review-outcome.service.js";
 import type { PrismaClient } from "@prisma/client";
 import {
   EXECUTIVE_METRICS_LIMITATIONS,
@@ -345,13 +346,14 @@ async function aggregateWindow(input: {
   let averageReviewDurationMs: number | null = null;
   try {
     if (reviewed > 0) {
-      const approved = await prisma.evidenceReviewWorkflow.count({
-        where: {
-          teamId,
-          completedAtUtc: within,
-          status: "APPROVED_INTERNAL",
-        } as never,
-      });
+      // Approved = the CURRENT round decided Approved (2026-10-24), whatever
+      // the workflow state: closing an approved review no longer lowers the rate.
+      const completedForRate = (await prisma.evidenceReviewWorkflow.findMany({
+        where: { teamId, completedAtUtc: within } as never,
+        select: { id: true, teamId: true, evidenceId: true, status: true, decisionRound: true },
+      })) as Array<{ id: string; teamId: string | null; evidenceId: string; status: string; decisionRound: number }>;
+      const decided = await loadCurrentReviewDecisions(completedForRate.map((w) => ({ ...w, status: String(w.status) })));
+      const approved = completedForRate.filter((w) => decided.get(w.id) === "APPROVED").length;
       approvalRatePct = Math.round((approved / reviewed) * 1000) / 10;
 
       const completedRows = await prisma.evidenceReviewWorkflow.findMany({

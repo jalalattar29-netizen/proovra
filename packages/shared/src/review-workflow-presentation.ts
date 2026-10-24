@@ -32,6 +32,7 @@ import {
   type ReviewStage,
 } from "./review-operations.js";
 import type { ReviewDecisionState } from "./review-decision-state.js";
+import { REVIEW_DECISION_LABELS, type ReviewDecision } from "./review-decision-state.js";
 
 // ---------------------------------------------------------------------------
 // Labels
@@ -54,6 +55,40 @@ export const REVIEW_STAGE_LABELS: Readonly<Record<ReviewStage, string>> = {
 export function reviewStatusLabel(dbStatus: string | null | undefined): string {
   if (!dbStatus) return REVIEW_STAGE_LABELS.QUEUED;
   return REVIEW_STAGE_LABELS[mapDbStatusToReviewStage(dbStatus)] ?? "Unknown state";
+}
+
+/**
+ * THE WORKFLOW STATE, as a person reads it — never a verdict (2026-10-24). A
+ * stage that a verdict produced reads "Decided"; WHAT was decided is the
+ * separate current-round decision. One value never means a stage on one
+ * screen and a verdict on another.
+ */
+export function reviewWorkflowStateLabel(dbStatus: string | null | undefined): string {
+  if (!dbStatus) return REVIEW_STAGE_LABELS.QUEUED;
+  const stage = mapDbStatusToReviewStage(dbStatus);
+  if (stage === "APPROVED_INTERNAL" || stage === "REJECTED_INSUFFICIENT") return "Decided";
+  return REVIEW_STAGE_LABELS[stage] ?? "Unknown state";
+}
+
+/** Workflow state and current-round decision, together and never merged. */
+export type ReviewOutcomePresentation = {
+  workflowState: ReviewStage;
+  workflowStateLabel: string;
+  decision: ReviewDecision;
+  decisionLabel: string;
+};
+
+export function presentReviewOutcome(input: {
+  dbStatus: string | null | undefined;
+  decision: ReviewDecision | null | undefined;
+}): ReviewOutcomePresentation {
+  const decision: ReviewDecision = input.decision ?? "NO_DECISION";
+  return {
+    workflowState: input.dbStatus ? mapDbStatusToReviewStage(input.dbStatus) : "QUEUED",
+    workflowStateLabel: reviewWorkflowStateLabel(input.dbStatus),
+    decision,
+    decisionLabel: REVIEW_DECISION_LABELS[decision],
+  };
 }
 
 export const REVIEW_PRIORITY_LABELS: Readonly<Record<string, string>> = {

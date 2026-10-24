@@ -28,6 +28,17 @@ import { DECISION_DERIVED_WORKFLOW_STATUSES } from "../src/services/evidence-rev
 
 const writes: string[] = [];
 
+// Review activity is recorded by its own recorder (reviewer audit + tenant
+// audit; real-database coverage in review-custody-boundary.integration.test.ts).
+vi.mock("../src/services/evidence-review/reviewer-audit.service.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  recordReviewActivityTx: vi.fn(async () => undefined),
+}));
+vi.mock("../src/services/evidence-review/review-outcome.service.js", () => ({
+  loadCurrentReviewDecision: vi.fn(async () => "NO_DECISION"),
+  loadCurrentReviewDecisions: vi.fn(async () => new Map()),
+}));
+
 vi.mock("../src/db.js", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a minimal client double
   const prisma: Record<string, any> = {

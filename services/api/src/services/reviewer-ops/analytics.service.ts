@@ -16,6 +16,7 @@
  *     is `REVIEWER_OPS_ALLOWED_LABELS`.
  */
 
+import { loadCurrentReviewDecisions } from "../evidence-review/review-outcome.service.js";
 import type { PrismaClient } from "@prisma/client";
 import {
   REVIEW_ESCALATION_REASONS,
@@ -226,6 +227,11 @@ export async function getReviewerPerformance(
       assignedAtUtc: true,
       lastReviewedAt: true,
       reopenCount: true,
+      // The current-round decision is read from these (2026-10-24).
+      id: true,
+      teamId: true,
+      evidenceId: true,
+      decisionRound: true,
     },
   });
 
@@ -261,6 +267,11 @@ export async function getReviewerPerformance(
     return s;
   }
 
+  // Verdicts come from the CURRENT round's decision, not the stored status
+  // (2026-10-24: an approved review that was then closed counted as neither).
+  const decisions = await loadCurrentReviewDecisions(
+    rows.map((r) => ({ id: r.id, teamId: r.teamId ?? null, evidenceId: r.evidenceId, status: String(r.status), decisionRound: r.decisionRound })),
+  );
   for (const r of rows) {
     if (!r.assignedToUserId) continue;
     const s = slot(r.assignedToUserId);
@@ -278,8 +289,8 @@ export async function getReviewerPerformance(
     if (r.completedAtUtc && r.completedAtUtc >= startUtc && r.completedAtUtc <= endUtc) {
       s.completedInRange += 1;
       s.completedTotal += 1;
-      if (r.status === "APPROVED_INTERNAL") s.approvedInRange += 1;
-      if (r.status === "REJECTED_INSUFFICIENT") s.rejectedInRange += 1;
+      if (decisions.get(r.id) === "APPROVED") s.approvedInRange += 1;
+      if (decisions.get(r.id) === "NOT_ACCEPTED") s.rejectedInRange += 1;
       if (r.assignedAtUtc) {
         s.totalResolutionMs +=
           r.completedAtUtc.getTime() - r.assignedAtUtc.getTime();

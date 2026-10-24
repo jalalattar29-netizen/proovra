@@ -66,7 +66,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { notifyReviewNeedsMoreInfo } from "../review-operations/review-notifications.service.js";
 import { resolveOpenReviewEscalation } from "./escalation-engine.service.js";
 import { requiresSecondReview, secondReviewForRound } from "../evidence-review/second-review.service.js";
-import { recordReviewStatusOnCustodyTx } from "../evidence-review/reviewer-audit.service.js";
+import { recordReviewActivityTx } from "../evidence-review/reviewer-audit.service.js";
 
 // -----------------------------------------------------------------------------
 // Types + error surface
@@ -433,16 +433,20 @@ export async function recordReviewDecision(
       where: { id: wf.id },
       data,
     });
-    // ET-CUS-12 — a verdict that moved the review is on custody, in this
-    // transaction: exactly once, never for a replay (2026-10-23).
-    if (data.status !== undefined) {
-      await recordReviewStatusOnCustodyTx(tx, {
-        evidenceId: wf.evidenceId,
-        actorUserId: input.actorUserId,
-        status: String(data.status),
-        decision: String(input.decision),
-      });
-    }
+    // Every recorded submission is on the reviewer audit + tenant audit, in
+    // this transaction: a verdict as a decision, a request for information as
+    // what it is. Never forensic custody (owner decision 2026-10-24); never
+    // for a replay (a replay returned above).
+    await recordReviewActivityTx(tx, {
+      evidenceId: wf.evidenceId,
+      workflowId: wf.id,
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      code: input.decision === "REQUEST_INFO" ? "REVIEW_INFORMATION_REQUESTED" : "REVIEW_DECISION_RECORDED",
+      previousState: String(wf.status),
+      resultingState: String(updated.status),
+      decision: String(input.decision),
+    });
 
     // (vi) Audit — workflow event history + workspace activity feed,
     // atomically with the decision.

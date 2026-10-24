@@ -1,15 +1,14 @@
 import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
-import { recordReviewStatusOnCustodyTx } from "./reviewer-audit.service.js";
-
-/** The states a workflow is opened in before anyone has decided anything. */
-const INITIAL_ROUTING_STATUSES: ReadonlySet<string> = new Set(["NOT_STARTED", "QUEUED"]);
+import { classifyReviewWorkflowEvent } from "@proovra/shared";
+import { recordReviewActivityTx } from "./reviewer-audit.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 // PHASE 12 POINT 4 PASS C1 — the ONE definition of "this status is a verdict".
 import { isDecisionDerivedWorkflowStatus } from "./review-status-vocabulary.js";
 import { AppError, ErrorCode } from "../../errors.js";
-import { isAllowedReviewStageTransition, mapDbStatusToReviewStage } from "@proovra/shared";
+import { isAllowedReviewStageTransition, mapDbStatusToReviewStage, presentReviewOutcome, type ReviewDecision } from "@proovra/shared";
+import { loadCurrentReviewDecision } from "./review-outcome.service.js";
 import {
   templateIdentityAuditMetadata,
   type TemplateIdentityStampSource,
@@ -17,7 +16,8 @@ import {
 } from "../templates/identity-resolver.service.js";
 
 function toWorkflowSummary(
-  workflow: Awaited<ReturnType<typeof getEvidenceReviewerWorkflow>>
+  workflow: Awaited<ReturnType<typeof getEvidenceReviewerWorkflow>>,
+  decision: ReviewDecision,
 ) {
   if (!workflow) {
     return {
@@ -25,6 +25,10 @@ function toWorkflowSummary(
       workflow: null,
     };
   }
+  // WORKFLOW STATE and CURRENT-ROUND DECISION, separately (2026-10-24):
+  // "Approve then Close" is Closed · Approved. `status` stays the stored
+  // value for the routes and editors that write it.
+  const outcome = presentReviewOutcome({ dbStatus: workflow.status, decision });
 
   return {
     available: true,
@@ -34,6 +38,11 @@ function toWorkflowSummary(
       workspaceType: workflow.workspaceType,
       teamId: workflow.teamId ?? null,
       status: workflow.status,
+      workflowState: outcome.workflowState,
+      workflowStateLabel: outcome.workflowStateLabel,
+      decision: outcome.decision,
+      decisionLabel: outcome.decisionLabel,
+      decisionRound: workflow.decisionRound,
       priority: workflow.priority,
       dueAt: workflow.dueAt ? workflow.dueAt.toISOString() : null,
       lastReviewedAt: workflow.lastReviewedAt
@@ -71,6 +80,7 @@ export async function getEvidenceReviewerWorkflow(evidenceId: string) {
       workspaceType: true,
       teamId: true,
       status: true,
+      decisionRound: true,
       priority: true,
       dueAt: true,
       lastReviewedAt: true,
@@ -97,7 +107,16 @@ export async function getEvidenceReviewerWorkflow(evidenceId: string) {
 
 export async function getEvidenceReviewerWorkflowSummary(evidenceId: string) {
   const workflow = await getEvidenceReviewerWorkflow(evidenceId);
-  return toWorkflowSummary(workflow);
+  const decision = workflow
+    ? await loadCurrentReviewDecision({
+        id: workflow.id,
+        teamId: workflow.teamId ?? null,
+        evidenceId: workflow.evidenceId,
+        status: String(workflow.status),
+        decisionRound: workflow.decisionRound,
+      })
+    : "NO_DECISION";
+  return toWorkflowSummary(workflow, decision);
 }
 
 export async function listEvidenceReviewerWorkflowEvents(evidenceId: string) {
@@ -347,17 +366,33 @@ export async function upsertEvidenceReviewerWorkflow(params: {
       previousValue: Prisma.InputJsonValue | undefined,
       nextValue: Prisma.InputJsonValue,
     ) =>
-      tx.evidenceReviewWorkflowEvent.create({
-        data: {
-          workflowId: workflow.id,
-          evidenceId: params.evidenceId,
-          actorUserId: params.actorUserId,
-          eventType,
-          ...(previousValue !== undefined ? { previousValue } : {}),
-          nextValue,
-          note: params.note ?? null,
-        },
-      });
+      tx.evidenceReviewWorkflowEvent
+        .create({
+          data: {
+            workflowId: workflow.id,
+            evidenceId: params.evidenceId,
+            actorUserId: params.actorUserId,
+            eventType,
+            ...(previousValue !== undefined ? { previousValue } : {}),
+            nextValue,
+            note: params.note ?? null,
+          },
+        })
+        // Every Review event is also on the reviewer audit + tenant audit,
+        // under the one taxonomy — never on forensic custody (2026-10-24).
+        .then(() => {
+          const prev = (previousValue ?? {}) as Record<string, unknown>;
+          const next = nextValue as Record<string, unknown>;
+          return recordReviewActivityTx(tx, {
+            evidenceId: params.evidenceId,
+            workflowId: workflow.id,
+            teamId: workflow.teamId ?? null,
+            actorUserId: params.actorUserId,
+            code: classifyReviewWorkflowEvent({ eventType, nextValue }),
+            previousState: typeof prev.status === "string" ? prev.status : null,
+            resultingState: typeof next.status === "string" ? next.status : String(workflow.status),
+          });
+        });
 
     if (!existing) {
       // CREATION IS ONE EVENT (2026-10-23). The initial status, priority and
@@ -371,18 +406,6 @@ export async function upsertEvidenceReviewerWorkflow(params: {
         assignedToUserId: params.assignedToUserId ?? null,
         dueAt: params.dueAt?.toISOString() ?? null,
       } as Prisma.InputJsonValue);
-      // ET-CUS-12 — a workflow OPENED IN A DECISION STATE is on custody, in
-      // this transaction. Opening it in an initial routing state (NOT_STARTED,
-      // QUEUED — every record's completion does this) is no decision and
-      // writes nothing to the append-only chain (fourth audit).
-      if (params.status && !INITIAL_ROUTING_STATUSES.has(String(workflow.status))) {
-        await recordReviewStatusOnCustodyTx(tx, {
-          evidenceId: params.evidenceId,
-          actorUserId: params.actorUserId,
-          status: String(workflow.status),
-          decision: "WORKFLOW_EDITOR",
-        });
-      }
       if (workflow.assignedToUserId) {
         await event(
           prismaPkg.EvidenceReviewWorkflowEventType.ASSIGNED,
@@ -412,13 +435,6 @@ export async function upsertEvidenceReviewerWorkflow(params: {
         { status: existing.status } as Prisma.InputJsonValue,
         { status: workflow.status } as Prisma.InputJsonValue,
       );
-      // ET-CUS-12 — only a real status change, and in this transaction.
-      await recordReviewStatusOnCustodyTx(tx, {
-        evidenceId: params.evidenceId,
-        actorUserId: params.actorUserId,
-        status: String(workflow.status),
-        decision: "WORKFLOW_EDITOR",
-      });
     }
     if (existing.priority !== workflow.priority) {
       await event(

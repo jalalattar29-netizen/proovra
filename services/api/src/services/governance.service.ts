@@ -14,6 +14,7 @@
  * or any unauthenticated surface.
  */
 
+import { loadCurrentReviewDecision } from "./evidence-review/review-outcome.service.js";
 import { Prisma } from "@prisma/client";
 import type {
   PrismaClient,
@@ -818,16 +819,23 @@ export async function loadRedactionPolicy(
   }
 }
 
+/**
+ * Reviewed = the CURRENT round decided Approved (2026-10-24). The stored
+ * status alone is the workflow STATE: an approved review that was then closed
+ * is still approved (it used to fail this gate), and a reopened one is not
+ * until its new round decides.
+ */
 export async function evidenceIsReviewed(
   evidenceId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<boolean> {
   const wf = await client.evidenceReviewWorkflow.findUnique({
     where: { evidenceId },
-    select: { status: true },
+    select: { id: true, teamId: true, evidenceId: true, status: true, decisionRound: true },
   });
   if (!wf) return false;
-  return reviewStatusSatisfiesGovernanceGate(wf.status);
+  const decision = await loadCurrentReviewDecision({ ...wf, status: String(wf.status) }, client);
+  return decision === "APPROVED";
 }
 
 // -----------------------------------------------------------------------------

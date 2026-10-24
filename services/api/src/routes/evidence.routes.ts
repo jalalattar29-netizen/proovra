@@ -847,7 +847,7 @@ const { EvidenceStatus, PlanType, VerificationViewerType } =
 const evidenceAiProvider = createAiProvider();
 const evidenceAiCostGuard = new AiCostGuard();
 
-type PublicCustodyEventCategory = "forensic" | "access";
+type PublicCustodyEventCategory = "forensic" | "access" | "withheld";
 
 function assertEvidenceNotLocked(evidence: SelectedEvidence) {
   if (evidence.lockedAt) {

@@ -1,5 +1,5 @@
 import {
-  isAccessCustodyEventType,
+  classifyCustodyEventType,
   formatTimestampForReportUtc,
   type TrustSignal,
 } from "@proovra/shared";
@@ -35,17 +35,22 @@ const LABELED_FULL_CRYPTO_PATTERN =
   /\b(?:hash|fingerprint|digest|sha-?256)\s*:\s*[a-f0-9]{32,}\b/gi;
 
 export type ClassifiedCustodyEvent = ReportCustodyEvent & {
-  category: "forensic" | "access";
+  category: "forensic" | "access" | "withheld";
 };
 
 export function classifyCustodyEvent(
   event: ReportCustodyEvent
 ): ClassifiedCustodyEvent {
   return Object.assign({}, event, {
-    category: isAccessCustodyEventType(event.eventType) ? "access" : "forensic",
+    category: classifyCustodyEventType(event.eventType),
   });
 }
 
+/**
+ * `all` keeps every chain position (the hash-chain table stays continuous);
+ * a withheld entry — internal workspace activity, not evidence custody — is in
+ * neither the forensic timeline nor the access activity.
+ */
 export function splitCustodyEvents(events: ReportCustodyEvent[]) {
   const classified = events.map(classifyCustodyEvent);
   return {

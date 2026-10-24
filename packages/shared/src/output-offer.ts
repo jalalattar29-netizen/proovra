@@ -238,34 +238,79 @@ export type OutputOfferEnvelope = {
 // ===========================================================================
 
 /**
- * Custody events that change what a report would SAY. Report/package
- * generation, downloads, views and investigation exports describe the record's
- * handling, not its evidentiary state, and do not make a report outdated. The
- * timestamp/anchor events are covered by their own, more specific codes.
+ * WHY a custody fact changes what a report would SAY — the reason each
+ * reportable custody event type is grouped under. Report/package generation,
+ * downloads, views, investigation exports and every internal Review workflow
+ * activity (owner decision 2026-10-24: Review is not forensic custody) describe
+ * the record's handling, not its evidentiary state, and never make a report
+ * outdated. The timestamp/anchor facts have their own, more specific codes.
  */
-export const REPORTABLE_CUSTODY_EVENT_TYPES: ReadonlyArray<string> = [
-  "LEGAL_HOLD_PLACED",
-  "LEGAL_HOLD_RELEASED",
-  "CASE_LEGAL_HOLD_APPLIED",
-  "CASE_LEGAL_HOLD_RELEASED",
-  "CHAIN_TRANSFER_CUSTODY_EXTENDED",
-  "REDACTION_RECORDED",
-  "REVIEW_DECISION_RECORDED",
-  "CERTIFICATION_REQUESTED",
-  "CERTIFICATION_ATTESTED",
-  "CERTIFICATION_REVOKED",
-  "EVIDENCE_LOCKED",
-  "EVIDENCE_UNLOCKED",
-  "STORAGE_PROTECTION_UNAVAILABLE",
-  "RETENTION_AUTO_EXTENDED",
-  "RETENTION_POLICY_APPLIED",
-  "TECHNICAL_VERIFICATION_CHECKED",
-  "INTEGRITY_REJECTED_HASH_MISMATCH",
-  "EVIDENCE_ARCHIVED",
-  "EVIDENCE_RESTORED",
-  "ARCHIVE_RESTORE_COMPLETED",
-  "ANCHOR_PUBLISHED",
-];
+export const REPORTABLE_CUSTODY_REASONS = [
+  "LEGAL_HOLD",
+  "CHAIN_TRANSFER",
+  "REDACTION",
+  "CERTIFICATION",
+  "RECORD_LOCK",
+  "STORAGE_PROTECTION",
+  "RETENTION",
+  "INTEGRITY",
+  "ARCHIVE",
+  "ANCHOR",
+] as const;
+export type ReportableCustodyReason = (typeof REPORTABLE_CUSTODY_REASONS)[number];
+
+const REPORTABLE_CUSTODY_REASON_BY_TYPE: Readonly<Record<string, ReportableCustodyReason>> = {
+  LEGAL_HOLD_PLACED: "LEGAL_HOLD",
+  LEGAL_HOLD_RELEASED: "LEGAL_HOLD",
+  CASE_LEGAL_HOLD_APPLIED: "LEGAL_HOLD",
+  CASE_LEGAL_HOLD_RELEASED: "LEGAL_HOLD",
+  CHAIN_TRANSFER_CUSTODY_EXTENDED: "CHAIN_TRANSFER",
+  REDACTION_RECORDED: "REDACTION",
+  CERTIFICATION_REQUESTED: "CERTIFICATION",
+  CERTIFICATION_ATTESTED: "CERTIFICATION",
+  CERTIFICATION_REVOKED: "CERTIFICATION",
+  EVIDENCE_LOCKED: "RECORD_LOCK",
+  EVIDENCE_UNLOCKED: "RECORD_LOCK",
+  STORAGE_PROTECTION_UNAVAILABLE: "STORAGE_PROTECTION",
+  RETENTION_AUTO_EXTENDED: "RETENTION",
+  RETENTION_POLICY_APPLIED: "RETENTION",
+  TECHNICAL_VERIFICATION_CHECKED: "INTEGRITY",
+  INTEGRITY_REJECTED_HASH_MISMATCH: "INTEGRITY",
+  EVIDENCE_ARCHIVED: "ARCHIVE",
+  EVIDENCE_RESTORED: "ARCHIVE",
+  ARCHIVE_RESTORE_COMPLETED: "ARCHIVE",
+  ANCHOR_PUBLISHED: "ANCHOR",
+};
+
+/** Custody events that change what a report would SAY (the keys above). */
+export const REPORTABLE_CUSTODY_EVENT_TYPES: ReadonlyArray<string> = Object.keys(REPORTABLE_CUSTODY_REASON_BY_TYPE);
+
+/** The reason a custody event type is reportable under; null when it is not reportable. */
+export function reportableCustodyReasonOf(eventType: string | null | undefined): ReportableCustodyReason | null {
+  return REPORTABLE_CUSTODY_REASON_BY_TYPE[String(eventType ?? "").trim().toUpperCase()] ?? null;
+}
+
+/** Singular / plural noun phrase per reason — a fact, never a payload. */
+const REPORTABLE_CUSTODY_REASON_NOUNS: Readonly<Record<ReportableCustodyReason, readonly [string, string]>> = {
+  LEGAL_HOLD: ["legal-hold change was", "legal-hold changes were"],
+  CHAIN_TRANSFER: ["chain-of-custody transfer was", "chain-of-custody transfers were"],
+  REDACTION: ["redaction step was", "redaction steps were"],
+  CERTIFICATION: ["certification change was", "certification changes were"],
+  RECORD_LOCK: ["record-lock change was", "record-lock changes were"],
+  STORAGE_PROTECTION: ["storage-protection change was", "storage-protection changes were"],
+  RETENTION: ["retention change was", "retention changes were"],
+  INTEGRITY: ["integrity result was", "integrity results were"],
+  ARCHIVE: ["archive or restore step was", "archive or restore steps were"],
+  ANCHOR: ["anchor publication was", "anchor publications were"],
+};
+
+/** One reportable reason's custody facts after the report's custody horizon. */
+export type ReportableCustodyGroup = {
+  reason: ReportableCustodyReason;
+  count: number;
+  firstAtUtc: string | null;
+  latestAtUtc: string | null;
+};
 
 export const REPORT_FRESHNESS_CHANGE_CODES = [
   "TSA_VALIDATED_AFTER_REPORT",
@@ -278,10 +323,14 @@ export type ReportFreshnessChangeCode = (typeof REPORT_FRESHNESS_CHANGE_CODES)[n
 
 export type ReportFreshnessChange = {
   code: ReportFreshnessChangeCode;
-  /** When the later fact was recorded, when known. */
+  /** When the later fact was recorded, when known (the latest, for a group). */
   atUtc: string | null;
   /** Count, for custody changes. */
   count?: number;
+  /** For custody changes: WHY they are reportable (one change per reason). */
+  reason?: ReportableCustodyReason | null;
+  /** For custody changes: when the first of them was recorded. */
+  firstAtUtc?: string | null;
 };
 
 export type ReportFreshness = {
@@ -312,8 +361,13 @@ export type ReportFreshnessInput = {
     /** When the chain verification was established, when it was. */
     verifiedAtUtc?: string | null;
   };
-  /** Reportable custody events recorded after the report's custody horizon. */
-  custodyAfterReport: { count: number; latestAtUtc: string | null };
+  /**
+   * Reportable custody events recorded after the report's custody horizon,
+   * grouped by reason (`loadReportableCustodyAfterReport`, the one query the
+   * API and the worker share). `count` / `latestAtUtc` alone are the
+   * ungrouped legacy form.
+   */
+  custodyAfterReport: { count?: number; latestAtUtc?: string | null; groups?: ReportableCustodyGroup[] };
   integrity: { lastVerifiedAtUtc: string | null; reportLastVerifiedAtUtc: string | null };
 };
 
@@ -350,11 +404,18 @@ export function deriveReportFreshness(input: ReportFreshnessInput): ReportFreshn
   if (input.ots.verification === "CHAIN_VERIFIED" && input.ots.reportVerification !== "CHAIN_VERIFIED") {
     changes.push({ code: "OTS_CHAIN_VERIFIED_AFTER_REPORT", atUtc: input.ots.verifiedAtUtc ?? null });
   }
-  if (input.custodyAfterReport.count > 0) {
+  const groups = (input.custodyAfterReport.groups ?? []).filter((g) => g.count > 0);
+  if (groups.length > 0) {
+    for (const g of [...groups].sort((a, b) => REPORTABLE_CUSTODY_REASONS.indexOf(a.reason) - REPORTABLE_CUSTODY_REASONS.indexOf(b.reason))) {
+      changes.push({ code: "CUSTODY_CHANGED_AFTER_REPORT", atUtc: g.latestAtUtc, count: g.count, reason: g.reason, firstAtUtc: g.firstAtUtc });
+    }
+  } else if ((input.custodyAfterReport.count ?? 0) > 0) {
     changes.push({
       code: "CUSTODY_CHANGED_AFTER_REPORT",
-      atUtc: input.custodyAfterReport.latestAtUtc,
+      atUtc: input.custodyAfterReport.latestAtUtc ?? null,
       count: input.custodyAfterReport.count,
+      reason: null,
+      firstAtUtc: null,
     });
   }
   if (
@@ -374,15 +435,23 @@ export function reportFreshnessChangeCopy(
   const v = reportVersion != null ? `report v${reportVersion}` : "the latest report";
   switch (change.code) {
     case "TSA_VALIDATED_AFTER_REPORT":
-      return `The trusted timestamp was validated after ${v} was generated.`;
+      return `Trusted timestamp validation completed after ${v}.`;
     case "TSA_STATUS_CHANGED_AFTER_REPORT":
-      return `The trusted timestamp's status changed after ${v} was generated.`;
+      return `The trusted timestamp's status changed after ${v}.`;
     case "OTS_CHAIN_VERIFIED_AFTER_REPORT":
-      return `The Bitcoin anchor was independently verified against the Bitcoin main chain after ${v} was generated.`;
-    case "CUSTODY_CHANGED_AFTER_REPORT":
-      return `${change.count ?? "Some"} reportable custody event${change.count === 1 ? " was" : "s were"} recorded after ${v}.`;
+      return `Bitcoin verification completed after ${v}: the anchor was independently checked against the Bitcoin main chain.`;
+    case "CUSTODY_CHANGED_AFTER_REPORT": {
+      const n = change.count ?? 0;
+      if (change.reason) {
+        const [one, many] = REPORTABLE_CUSTODY_REASON_NOUNS[change.reason];
+        return n === 1 ? `A ${one} recorded after ${v}.` : `${n} ${many} recorded after ${v}.`;
+      }
+      return n === 1
+        ? `1 reportable evidence-custody fact was recorded after ${v}.`
+        : `${n || "Some"} reportable evidence-custody facts were recorded after ${v}.`;
+    }
     case "INTEGRITY_REVERIFIED_AFTER_REPORT":
-      return `The record's integrity was re-verified after ${v} was generated.`;
+      return `The record's integrity was re-verified after ${v}.`;
     default:
       return `Verification facts changed after ${v}.`;
   }

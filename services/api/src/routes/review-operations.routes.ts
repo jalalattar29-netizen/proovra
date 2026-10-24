@@ -16,6 +16,7 @@
  * — the routes require an authenticated user session.
  */
 
+import { loadCurrentReviewDecision, loadCurrentReviewDecisions } from "../services/evidence-review/review-outcome.service.js";
 import type {
   FastifyInstance,
   FastifyReply,
@@ -124,6 +125,11 @@ async function refuseUnlessReviewIncluded(teamId: string, reply: FastifyReply): 
   return true;
 }
 
+/** The current round's decision of one workflow, for a single-row response. */
+function currentDecisionOf(row: { id: string; teamId: string | null; evidenceId: string; status: unknown; decisionRound: number }) {
+  return loadCurrentReviewDecision({ id: row.id, teamId: row.teamId ?? null, evidenceId: row.evidenceId, status: String(row.status), decisionRound: row.decisionRound });
+}
+
 function reviewErrorToReply(err: unknown, reply: FastifyReply): void {
   // Track 1C — canonical decision-authority error surface. Conflicts
   // (stale / already-resolved / duplicate / independence violations)
@@ -194,9 +200,12 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
         escalated: query.escalated === "true",
         limit: query.limit,
       });
+      const decisions = await loadCurrentReviewDecisions(
+        rows.map((r) => ({ id: r.id, teamId: r.teamId ?? null, evidenceId: r.evidenceId, status: String(r.status), decisionRound: r.decisionRound })),
+      );
       return reply
         .code(200)
-        .send({ workflows: rows.map(projectReviewWorkflow) });
+        .send({ workflows: rows.map((r) => projectReviewWorkflow(r, decisions.get(r.id))) });
     },
   );
 
@@ -242,7 +251,7 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
         });
         return reply
           .code(200)
-          .send({ workflow: projectReviewWorkflow(updated) });
+          .send({ workflow: projectReviewWorkflow(updated, await currentDecisionOf(updated)) });
       } catch (err) {
         return reviewErrorToReply(err, reply);
       }
@@ -378,7 +387,7 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
         // never for a replay, and never lost after a commit (2026-10-23).
         return reply
           .code(200)
-          .send({ workflow: projectReviewWorkflow(updated) });
+          .send({ workflow: projectReviewWorkflow(updated, await currentDecisionOf(updated)) });
       } catch (err) {
         return reviewErrorToReply(err, reply);
       }

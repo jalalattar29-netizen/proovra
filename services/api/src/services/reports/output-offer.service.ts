@@ -18,6 +18,7 @@
  * API's AUTH_JWT_SECRET under a distinct label), so every API instance verifies
  * every other instance's revisions and no key material is ever sent anywhere.
  */
+import { deriveReportFreshnessForRecord } from "@proovra/shared-runtime/reports";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 import {
@@ -25,16 +26,12 @@ import {
   OUTPUT_OFFER_BINDING_FIELDS,
   OUTPUT_OFFER_TTL_MS,
   REPORTABLE_CUSTODY_EVENT_TYPES,
-  deriveReportFreshness,
   diffOutputOfferBindings,
   OTS_ANCHORING_RECORD_SELECT,
   resolveOtsCustodyFacts,
   resolveRecordOtsAnchoring,
   toOtsAnchoringView,
   type OtsAnchoringView,
-  type OtsState,
-  type OtsVerificationKey,
-  snapshotAnchoringAtIssue,
   type OutputOfferBinding,
   type OutputOfferChangeCode,
   type OutputOfferEnvelope,
@@ -69,25 +66,13 @@ export type ReportableFacts = {
   freshness: ReportFreshness;
 };
 
-/**
- * What a report stated about anchoring at issue — the one legacy snapshot
- * normalizer (snapshotAnchoringAtIssue): its recorded otsState/otsVerification,
- * else its own Bitcoin signal. null without a report.
- */
-function reportAnchoringAtIssue(
-  report: { anchorSnapshot?: unknown; trustDecisionSnapshot?: unknown } | null | undefined,
-): { state: OtsState; verification: OtsVerificationKey } | null {
-  if (!report) return null;
-  const atIssue = snapshotAnchoringAtIssue(report.anchorSnapshot ?? null, report.trustDecisionSnapshot ?? null);
-  return { state: atIssue.otsState, verification: atIssue.otsVerification };
-}
-
 const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null);
 
 /**
  * The facts a report states that can change after it is issued, and which of
- * them are newer than the latest report. One evidence row, one report row and
- * one bounded custody aggregate.
+ * them are newer than the latest report. The owed-report decision itself is
+ * THE shared authority (deriveReportFreshnessForRecord), which the worker
+ * calls too.
  */
 export async function loadReportableFacts(evidenceId: string): Promise<ReportableFacts> {
   const [ev, latest] = await Promise.all([
@@ -118,24 +103,11 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
     }),
   ]);
   const reportableTypes = REPORTABLE_CUSTODY_EVENT_TYPES as prismaPkg.CustodyEventType[];
-  const [maxReportable, afterReport, otsEvents] = await Promise.all([
+  const [maxReportable, otsEvents] = await Promise.all([
     prisma.custodyEvent.aggregate({
       where: { evidenceId, eventType: { in: reportableTypes } },
       _max: { sequence: true },
     }),
-    latest
-      ? prisma.custodyEvent.aggregate({
-          where: {
-            evidenceId,
-            eventType: { in: reportableTypes },
-            ...(latest.custodyThroughSequence != null
-              ? { sequence: { gt: latest.custodyThroughSequence } }
-              : { atUtc: { gt: latest.generatedAtUtc } }),
-          },
-          _count: { _all: true },
-          _max: { atUtc: true },
-        })
-      : Promise.resolve(null),
     // The OTS lifecycle events (few per record): when the proof was requested.
     prisma.custodyEvent.findMany({
       where: { evidenceId, eventType: prismaPkg.CustodyEventType.OTS_APPLIED },
@@ -168,28 +140,16 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
       genTimeUtc: iso(ev?.tsaGenTimeUtc),
     },
     ots,
-    freshness: deriveReportFreshness({
-      reportVersion: latest?.version ?? null,
-      reportGeneratedAtUtc: iso(latest?.generatedAtUtc),
-      tsa: { status: tsaStatus, validatedAtUtc: iso(ev?.tsaValidatedAtUtc) },
+    // THE one owed-report authority, shared with the worker (2026-10-24).
+    freshness: await deriveReportFreshnessForRecord(evidenceId, latest, {
+      tsa: { status: tsaStatus, validatedAtUtc: ev?.tsaValidatedAtUtc ?? null },
       ots: {
         state: ots.state,
         anchoredAtUtc: ots.anchoredAtUtc,
-        reportState: reportAnchoringAtIssue(latest)?.state ?? null,
-        // Only an independent chain VERIFIED after the report is a change worth
-        // a new version; a recorded attestation is not.
         verification: ots.verification,
-        reportVerification: reportAnchoringAtIssue(latest)?.verification ?? null,
         verifiedAtUtc: ots.chain?.verifiedAtUtc ?? null,
       },
-      custodyAfterReport: {
-        count: afterReport?._count._all ?? 0,
-        latestAtUtc: iso(afterReport?._max.atUtc ?? null),
-      },
-      integrity: {
-        lastVerifiedAtUtc: iso(ev?.lastVerifiedAtUtc),
-        reportLastVerifiedAtUtc: iso(latest?.lastVerifiedAtUtcSnapshot),
-      },
+      lastVerifiedAtUtc: ev?.lastVerifiedAtUtc ?? null,
     }),
   };
 }

@@ -126,7 +126,8 @@ test("freshness: TSA validated and a Bitcoin chain verification after the report
     ots: { state: "PENDING", anchoredAtUtc: null, reportState: "PENDING" },
     custodyAfterReport: { count: 2, latestAtUtc: "2026-10-06T13:00:00.000Z" },
   });
-  assert.deepEqual(custody.changes, [{ code: "CUSTODY_CHANGED_AFTER_REPORT", atUtc: "2026-10-06T13:00:00.000Z", count: 2 }]);
+  // The legacy UNGROUPED form names no reason (2026-10-24: callers pass groups).
+  assert.deepEqual(custody.changes, [{ code: "CUSTODY_CHANGED_AFTER_REPORT", atUtc: "2026-10-06T13:00:00.000Z", count: 2, reason: null, firstAtUtc: null }]);
 });
 
 test("progress is derived only from persisted columns", () => {

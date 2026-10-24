@@ -1,3 +1,4 @@
+import { deriveReportFreshnessForRecord } from "@proovra/shared-runtime/reports";
 import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
 import {
@@ -71,6 +72,7 @@ import {
 import {
   compareReviewerArtifactRolePriority,
   classifyCustodyEventType,
+  projectCustodyEventForExternalArtifact,
   evaluateRecordedIntegrityPromotion,
   getReviewerEvidenceCategories,
   getReviewerEvidenceTypeLabel,
@@ -90,14 +92,10 @@ import {
   compareTimestampDigest,
   presentedTsaStatus,
   buildTimestampValidationRecord,
-  deriveReportFreshness,
   reportFreshnessChangeCopy,
   resolveRecordOtsAnchoring,
-  parseOtsState,
-  parseOtsVerificationKey,
   otsChainRecordOf,
   otsCustodyEventLines,
-  REPORTABLE_CUSTODY_EVENT_TYPES,
   parseTsaValidationEvidence,
   withShippedTimestamp,
   tsaValidatedFromRetainedToken,
@@ -658,45 +656,28 @@ async function buildReportSupersession(input: {
 }): Promise<{ previousVersion: number; previousGeneratedAtUtc: string | null; changes: string[]; reason: string | null }> {
   const previous = await prisma.report.findUnique({
     where: { evidenceId_version: { evidenceId: input.evidenceId, version: input.previousVersion } },
-    select: { generatedAtUtc: true, custodyThroughSequence: true, lastVerifiedAtUtcSnapshot: true, anchorSnapshot: true },
+    select: { generatedAtUtc: true, custodyThroughSequence: true, lastVerifiedAtUtcSnapshot: true, anchorSnapshot: true, trustDecisionSnapshot: true },
   });
-  const [afterReport] = await Promise.all([
-    previous
-      ? prisma.custodyEvent.aggregate({
-          where: {
-            evidenceId: input.evidenceId,
-            eventType: { in: REPORTABLE_CUSTODY_EVENT_TYPES as prismaPkg.CustodyEventType[] },
-            ...(previous.custodyThroughSequence != null
-              ? { sequence: { gt: previous.custodyThroughSequence } }
-              : { atUtc: { gt: previous.generatedAtUtc } }),
-          },
-          _count: { _all: true },
-          _max: { atUtc: true },
-        })
-      : null,
-  ]);
   const ots = resolveRecordOtsAnchoring(input.evidence);
-  const stated = (previous?.anchorSnapshot as { otsState?: unknown; otsVerification?: unknown } | null | undefined) ?? null;
-  const statedOts = stated?.otsState;
   const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
-  const freshness = deriveReportFreshness({
-    reportVersion: input.previousVersion,
-    reportGeneratedAtUtc: iso(previous?.generatedAtUtc),
-    tsa: { status: input.evidence.tsaStatus, validatedAtUtc: iso(input.evidence.tsaValidatedAtUtc) },
-    ots: {
-      state: ots.state,
-      anchoredAtUtc: ots.anchoredAtUtc,
-      reportState: statedOts == null ? null : parseOtsState(statedOts),
-      verification: ots.verification,
-      reportVerification: parseOtsVerificationKey(stated?.otsVerification),
-      verifiedAtUtc: ots.chain?.verifiedAtUtc ?? null,
+  // THE one owed-report authority, shared with the API (2026-10-24): the
+  // supersession statement names exactly the reasons the "Update available"
+  // card showed.
+  const freshness = await deriveReportFreshnessForRecord(
+    input.evidenceId,
+    previous ? { ...previous, version: input.previousVersion } : null,
+    {
+      tsa: { status: input.evidence.tsaStatus, validatedAtUtc: input.evidence.tsaValidatedAtUtc },
+      ots: {
+        state: ots.state,
+        anchoredAtUtc: ots.anchoredAtUtc,
+        verification: ots.verification,
+        verifiedAtUtc: ots.chain?.verifiedAtUtc ?? null,
+      },
+      lastVerifiedAtUtc: input.evidence.lastVerifiedAtUtc ?? null,
     },
-    custodyAfterReport: { count: afterReport?._count._all ?? 0, latestAtUtc: iso(afterReport?._max.atUtc ?? null) },
-    integrity: {
-      lastVerifiedAtUtc: iso(input.evidence.lastVerifiedAtUtc ?? null),
-      reportLastVerifiedAtUtc: iso(previous?.lastVerifiedAtUtcSnapshot ?? null),
-    },
-  });
+    prisma as never,
+  );
   return {
     previousVersion: input.previousVersion,
     previousGeneratedAtUtc: iso(previous?.generatedAtUtc),
@@ -3110,8 +3091,10 @@ captureMethod: deriveReportCaptureMethod({
     }).mode,
   } as const;
 
+  // EXTERNAL PROJECTION (2026-10-24): internal workflow rows stored in the
+  // custody table carry only their chain position and hashes into the report.
   const custodyEventsForReport = [
-    ...custodyEvents.map((ev) => ({
+    ...custodyEvents.map(projectCustodyEventForExternalArtifact).map((ev) => ({
       sequence: ev.sequence,
       atUtc: ev.atUtc.toISOString(),
       eventType: ev.eventType,
@@ -3923,7 +3906,7 @@ async function loadCommittedReportForPackage(params: {
     } as const;
     finalizedTrustDecision = buildTrustDecision({
       evidence: finalizedReportEvidencePayload,
-      custodyEvents: custodyEvents.map((ev) => ({
+      custodyEvents: custodyEvents.map(projectCustodyEventForExternalArtifact).map((ev) => ({
         sequence: ev.sequence,
         atUtc: ev.atUtc.toISOString(),
         eventType: ev.eventType,
@@ -3954,7 +3937,7 @@ async function loadCommittedReportForPackage(params: {
     issuanceFacts: null,
     reportIssuedAtUtc: report.generatedAtUtc,
     custodyThroughSequence: custodyEvents.at(-1)?.sequence ?? null,
-    finalizedCustodyEvents: custodyEvents.map((ev) => ({
+    finalizedCustodyEvents: custodyEvents.map(projectCustodyEventForExternalArtifact).map((ev) => ({
       sequence: ev.sequence,
       atUtc: ev.atUtc.toISOString(),
       eventType: ev.eventType,
@@ -4538,7 +4521,7 @@ async function runReportGeneration(
           acquisitionMode: effectiveReportEvidencePayload.acquisitionMode ?? null,
         } as const;
 
-        const finalizedCustodyForReport = custodyAtIssue.map((ev) => ({
+        const finalizedCustodyForReport = custodyAtIssue.map(projectCustodyEventForExternalArtifact).map((ev) => ({
           sequence: ev.sequence,
           atUtc: ev.atUtc.toISOString(),
           eventType: ev.eventType,
@@ -5105,7 +5088,7 @@ async function runReportGeneration(
               reportIssuedAtUtc: prepared.now,
               custodyThroughSequence:
                 finalizedCustodyEvents.at(-1)?.sequence ?? custodyThroughSequence,
-              finalizedCustodyEvents: finalizedCustodyEvents.map((ev) => ({
+              finalizedCustodyEvents: finalizedCustodyEvents.map(projectCustodyEventForExternalArtifact).map((ev) => ({
                 sequence: ev.sequence,
                 atUtc: ev.atUtc.toISOString(),
                 eventType: ev.eventType,

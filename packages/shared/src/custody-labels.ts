@@ -1,3 +1,5 @@
+import { classifyLegacyReviewCustody, reviewEventLabel } from "./review-event-taxonomy.js";
+import { WITHHELD_CUSTODY_EVENT_LABEL, WITHHELD_CUSTODY_EVENT_TYPE } from "./custody.js";
 /**
  * THE ONE CUSTODY EVENT LABEL (ET-CUS-13, 2026-09-29).
  *
@@ -80,7 +82,11 @@ const LABELS: Readonly<Record<string, string>> = {
   EVIDENCE_UNLOCKED: "Evidence record unlocked",
   RETENTION_AUTO_EXTENDED: "Retention period extended by policy",
   REDACTION_RECORDED: "Redaction step recorded",
-  REVIEW_DECISION_RECORDED: "Review decision recorded",
+  // Stored history only (owner decision 2026-10-24): no writer appends this
+  // type any more. Internal views name each stored row by what it was
+  // (classifyLegacyReviewCustody); external artifacts carry the withheld
+  // marker instead.
+  REVIEW_DECISION_RECORDED: "Internal review activity (historical record)",
   RETENTION_POLICY_APPLIED: "Retention policy applied",
   ARCHIVE_RESTORE_REQUESTED: "Restore from retention archive requested",
   ARCHIVE_RESTORE_STARTED: "Restore from retention archive started",
@@ -155,6 +161,10 @@ export function custodyEventLabel(
   if (type === "RETENTION_CANDIDATE_IDENTIFIED" && p?.blockedByLegalHold === true) {
     return "Retention period ended (held by legal hold)";
   }
+  if (type === "REVIEW_DECISION_RECORDED" && p) {
+    return `${reviewEventLabel(classifyLegacyReviewCustody(p))} (internal review, historical record)`;
+  }
+  if (type === WITHHELD_CUSTODY_EVENT_TYPE) return WITHHELD_CUSTODY_EVENT_LABEL;
   const known = LABELS[type];
   if (known) return known;
   if (!type) return "Custody event recorded";

@@ -363,7 +363,7 @@ export type ReportCustodyEvent = {
   labelHints?: CustodyLabelHints | null;
   prevEventHash?: string | null;
   eventHash?: string | null;
-  category?: "forensic" | "access";
+  category?: "forensic" | "access" | "withheld";
 };
 
 /**

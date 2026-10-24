@@ -520,11 +520,14 @@ export async function evaluateReviewPolicy(
       where: { id: input.workflowId },
       select: { decisionRound: true },
     });
+    // APPROVALS only (2026-10-24): a reviewer who rejected or asked for
+    // information is not an approver.
     const decisions = await prisma.workflowReviewDecision.findMany({
       where: {
         workflowId: input.workflowId,
         teamId: input.teamId,
         round: wfRound?.decisionRound ?? 0,
+        decision: "APPROVE",
       },
       select: { reviewerUserId: true },
     });
@@ -550,7 +553,7 @@ export async function evaluateReviewPolicy(
         ),
       );
     }
-    if (ruleBool(rule, "requireDualApproval") && approverCount < 2) {
+    if (ruleBool(rule, "requireDualApproval") && isApprove && approverCount < 2) {
       result = combine(
         result,
         applyEnforcementMode(

@@ -415,6 +415,8 @@ export {
   diffOutputOfferBindings,
   outputOfferChangeCopy,
   REPORTABLE_CUSTODY_EVENT_TYPES,
+  REPORTABLE_CUSTODY_REASONS,
+  reportableCustodyReasonOf,
   REPORT_FRESHNESS_CHANGE_CODES,
   deriveReportFreshness,
   reportFreshnessChangeCopy,
@@ -439,6 +441,8 @@ export type {
   ReportFreshnessChange,
   ReportFreshness,
   ReportFreshnessInput,
+  ReportableCustodyReason,
+  ReportableCustodyGroup,
   OutputProgressStage,
   OutputProgressStep,
   OutputProgressStepStatus,
@@ -487,7 +491,12 @@ export {
   isAdministrativeCustodyEventType,
   isForensicCustodyEventType,
   isForensicIntegrityCustodyEventType,
+  isInternalWorkflowCustodyEventType,
+  isWithheldCustodyEventType,
+  projectCustodyEventForExternalArtifact,
   RETENTION_ACTIVITY_CUSTODY_EVENT_TYPES,
+  WITHHELD_CUSTODY_EVENT_LABEL,
+  WITHHELD_CUSTODY_EVENT_TYPE,
 } from "./custody.js";
 
 export {
@@ -2795,3 +2804,4 @@ export * from "./review-workflow-presentation.js";
 export * from "./evidence-protection-presentation.js";
 // 2026-10-23 — review decision state, shared by the authority and the page.
 export * from "./review-decision-state.js";
+export * from "./review-event-taxonomy.js";

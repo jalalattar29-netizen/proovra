@@ -137,3 +137,59 @@ export function deriveDecisionProjection(
   return { state: "first_required", finalKind: null, projectedStage: null };
 }
 
+
+// -----------------------------------------------------------------------------
+// THE CURRENT-ROUND DECISION — independent of the workflow state (2026-10-24).
+// -----------------------------------------------------------------------------
+
+/**
+ * What the CURRENT decision round decided. Independent of the workflow state:
+ * Close ends the workflow and keeps this; Reopen starts a new round, whose
+ * decision is NO_DECISION until a verdict resolves it. A request for more
+ * information, a pending second review and an unresolved disagreement are not
+ * decisions (the workflow state says where the review stands).
+ *
+ * "Approve then Close" is Workflow Closed · Decision Approved — never
+ * "Not accepted" (the defect this replaces read the closed stage as a verdict).
+ */
+export const REVIEW_DECISIONS = ["NO_DECISION", "APPROVED", "NOT_ACCEPTED"] as const;
+export type ReviewDecision = (typeof REVIEW_DECISIONS)[number];
+
+export const REVIEW_DECISION_LABELS: Readonly<Record<ReviewDecision, string>> = {
+  NO_DECISION: "No decision",
+  APPROVED: "Approved",
+  NOT_ACCEPTED: "Not accepted",
+};
+
+/** The decision a RESOLVED projection of the round's log carries. */
+export function reviewDecisionFromProjection(
+  projection: { state: ReviewDecisionState | string; projectedStage?: string | null } | null | undefined,
+): ReviewDecision {
+  if (!projection || projection.state !== "resolved") return "NO_DECISION";
+  switch (projection.projectedStage) {
+    case "APPROVED_INTERNAL":
+      return "APPROVED";
+    case "REJECTED_INSUFFICIENT":
+      return "NOT_ACCEPTED";
+    default:
+      return "NO_DECISION";
+  }
+}
+
+/**
+ * LEGACY: a workflow decided before the decision log existed has only its
+ * stored status. Only a VERDICT status carries a decision — CLOSED, REOPENED
+ * and every routing state carry none (a closed stage is never read as a
+ * verdict).
+ */
+export function legacyReviewDecisionFromStatus(dbStatus: string | null | undefined): ReviewDecision {
+  switch (String(dbStatus ?? "").toUpperCase()) {
+    case "APPROVED_INTERNAL":
+    case "READY_FOR_EXTERNAL_REVIEW":
+      return "APPROVED";
+    case "REJECTED_INSUFFICIENT":
+      return "NOT_ACCEPTED";
+    default:
+      return "NO_DECISION";
+  }
+}

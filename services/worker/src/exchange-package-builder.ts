@@ -58,6 +58,7 @@
  *   One failure never breaks the loop.
  */
 
+import { projectCustodyEventForExternalArtifact } from "@proovra/shared";
 import archiver from "archiver";
 import { createHash, randomUUID } from "node:crypto";
 import { PassThrough } from "node:stream";
@@ -434,7 +435,9 @@ async function appendKindContent(params: {
               eventCount: custody.length,
               hashFormula:
                 "eventHash = lowercase hex SHA-256 of the UTF-8 canonical JSON of {v:1, evidenceId, sequence, eventType, atUtc (ISO-8601), payload (or null), prevEventHash (or null)}; object keys sorted by code point at every level, no whitespace.",
-              events: custody.map((e) => ({ ...e, atUtc: e.atUtc.toISOString() })),
+              // Internal workflow rows keep only their position and hashes
+              // (2026-10-24: Review activity is not evidence custody).
+              events: custody.map(projectCustodyEventForExternalArtifact).map((e) => ({ ...e, atUtc: e.atUtc.toISOString() })),
             }),
             "application/json",
           );

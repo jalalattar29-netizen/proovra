@@ -73,7 +73,7 @@ import {
   getReviewerEvidenceTypeLabel,
   hasCaptureLocationMetadata,
   resolveEvidenceLocation,
-  isAccessCustodyEventType,
+  classifyCustodyEventType,
   buildVerificationMatrix,
   type CanonicalEvidenceMaterials,
   // UC-0 — acquisition authority + artifact classes.
@@ -423,9 +423,12 @@ function splitCustodyEvents(
       item && typeof item === "object" ? (item as CustodyEventRecord) : null;
     if (!event) continue;
 
-    if (isAccessCustodyEventType(String(event.eventType ?? ""))) {
+    // A withheld entry (internal workspace activity, not evidence custody)
+    // stays in custody.json for chain continuity and is neither of these.
+    const category = classifyCustodyEventType(String(event.eventType ?? ""));
+    if (category === "access") {
       access.push(event);
-    } else {
+    } else if (category === "forensic") {
       forensic.push(event);
     }
   }
@@ -2426,7 +2429,9 @@ package-seal.json → reportSha256) and removes personal identifiers and interna
 infrastructure from the JSON files (each field is listed in
 disclosure-manifest.json). Redacted custody payloads cannot be re-hashed to
 their eventHash; the chain links (each prevEventHash equals the previous
-eventHash) remain checkable. A file received separately through an authorized
+eventHash) remain checkable. A withheld entry (eventType
+WITHHELD_INTERNAL_RECORD) stands for internal workspace activity that is not
+evidence custody: it keeps its sequence and hashes only. A file received separately through an authorized
 channel can be checked against its digest here.
 `
     : `HANDLING
@@ -2498,7 +2503,7 @@ public-key.pem
 Public key used to verify the signature.
 
 custody.json
-Chain of custody events recorded by the system. Each event's eventHash can be recomputed from this file: eventHash = lowercase hex SHA-256 of the UTF-8 canonical JSON of {"v":1,"evidenceId":<Evidence ID>,"sequence":<sequence>,"eventType":<eventType>,"atUtc":<atUtc>,"payload":<payload, or null>,"prevEventHash":<prevEventHash, or null>}. Canonical JSON: object keys sorted by code point at every level, no whitespace, strings and numbers as JSON.stringify writes them. Use "payload" exactly as it appears; "presentationPayload", where present, is a reader-friendly relabelling and is not part of the hash. Each event's prevEventHash equals the previous event's eventHash.
+Chain of custody events recorded by the system. Each event's eventHash can be recomputed from this file: eventHash = lowercase hex SHA-256 of the UTF-8 canonical JSON of {"v":1,"evidenceId":<Evidence ID>,"sequence":<sequence>,"eventType":<eventType>,"atUtc":<atUtc>,"payload":<payload, or null>,"prevEventHash":<prevEventHash, or null>}. Canonical JSON: object keys sorted by code point at every level, no whitespace, strings and numbers as JSON.stringify writes them. Use "payload" exactly as it appears; "presentationPayload", where present, is a reader-friendly relabelling and is not part of the hash. Each event's prevEventHash equals the previous event's eventHash. A withheld entry (eventType WITHHELD_INTERNAL_RECORD) stands for internal workspace activity that is not evidence custody: it keeps only its sequence, time and hashes, so its own eventHash cannot be recomputed from this file, while its links to the events before and after it remain checkable.
 
 ${anchorReadmeLine}
 

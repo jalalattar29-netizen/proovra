@@ -12,6 +12,7 @@
  * more.
  */
 
+import { legacyReviewDecisionFromStatus, presentReviewOutcome, type ReviewDecision } from "@proovra/shared";
 import type {
   EvidenceReviewWorkflow as DbWorkflow,
   EvidenceReviewWorkflowEvent as DbEvent,
@@ -53,7 +54,7 @@ import {
   createEscalation,
   resolveOpenReviewEscalation,
 } from "../reviewer-ops/escalation-engine.service.js";
-import { recordReviewStatusOnCustodyTx } from "../evidence-review/reviewer-audit.service.js";
+import { recordReviewActivityTx } from "../evidence-review/reviewer-audit.service.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -409,6 +410,15 @@ export async function assignReviewer(
     { assignedToUserId: input.assignedToUserId, stage: targetStage },
     client,
   );
+  await recordReviewActivityTx(client as never, {
+    evidenceId: workflow.evidenceId,
+    workflowId: workflow.id,
+    teamId: workflow.teamId ?? null,
+    actorUserId: input.actorUserId,
+    code: "REVIEW_ASSIGNMENT_CHANGED",
+    previousState: String(workflow.status),
+    resultingState: String(updated.status),
+  });
   /**
    * ARCH-005 (2026-08-07) — REVIEW_ASSIGNED.
    *
@@ -493,6 +503,15 @@ export async function claimReviewerWorkflow(
     { assignedToUserId: input.actorUserId, stage: targetStage },
     client,
   );
+  await recordReviewActivityTx(client as never, {
+    evidenceId: workflow.evidenceId,
+    workflowId: workflow.id,
+    teamId: workflow.teamId ?? null,
+    actorUserId: input.actorUserId,
+    code: "REVIEW_CLAIMED",
+    previousState: String(workflow.status),
+    resultingState: String(updated.status),
+  });
   return updated;
 }
 
@@ -637,11 +656,14 @@ export async function recordLifecycleTransition(
           note: input.note?.slice(0, 1000) ?? null,
         },
       });
-      await recordReviewStatusOnCustodyTx(txc, {
+      await recordReviewActivityTx(txc, {
         evidenceId: workflow.evidenceId,
+        workflowId: workflow.id,
+        teamId,
         actorUserId: input.actorUserId,
-        status: moved.status as string,
-        decision: input.decision,
+        code: "REVIEW_ESCALATION_CREATED",
+        previousState: String(workflow.status),
+        resultingState: String(moved.status),
       });
       return moved;
     });
@@ -668,11 +690,14 @@ export async function recordLifecycleTransition(
         note: input.note?.slice(0, 1000) ?? null,
       },
     });
-    await recordReviewStatusOnCustodyTx(txc, {
+    await recordReviewActivityTx(txc, {
       evidenceId: workflow.evidenceId,
+      workflowId: workflow.id,
+      teamId: workflow.teamId ?? null,
       actorUserId: input.actorUserId,
-      status: moved.status as string,
-      decision: input.decision,
+      code: input.decision === "REOPEN" ? "REVIEW_REOPENED" : "REVIEW_CLOSED",
+      previousState: String(workflow.status),
+      resultingState: String(moved.status),
     });
     return moved;
   });
@@ -965,7 +990,7 @@ export async function bulkReviewAction(
           break;
         case "MARK_IN_REVIEW":
           toStage = "IN_REVIEW";
-          // The move and its custody entry together (ET-CUS-12).
+          // The move and its audit entry together.
           await client.$transaction(async (txc) => {
             const tx = txc as unknown as PrismaClient;
             const current = await tx.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: workflow.id } });
@@ -976,14 +1001,17 @@ export async function bulkReviewAction(
               tx,
               { strict: true },
             );
-            // Only a real change is on custody (a review already In review
-            // is not moved).
+            // Only a real change is recorded (a review already In review is
+            // not moved).
             if (moved.status !== current.status) {
-              await recordReviewStatusOnCustodyTx(txc, {
+              await recordReviewActivityTx(txc, {
                 evidenceId,
+                workflowId: workflow.id,
+                teamId: input.teamId,
                 actorUserId: input.actorUserId,
-                status: moved.status as string,
-                decision: "MARK_IN_REVIEW",
+                code: "REVIEW_WORKFLOW_STATE_CHANGED",
+                previousState: String(current.status),
+                resultingState: String(moved.status),
               });
             }
           });
@@ -1187,11 +1215,16 @@ export async function getReviewQueueCounts(
   };
 }
 
-export function projectReviewWorkflow(row: DbWorkflow): {
+export function projectReviewWorkflow(row: DbWorkflow, decision?: ReviewDecision): {
   id: string;
   evidenceId: string;
   teamId: string | null;
   stage: ReviewStage;
+  /** The workflow state, as a person reads it — never a verdict. */
+  workflowStateLabel: string;
+  /** The CURRENT round's decision, independent of the stage (2026-10-24). */
+  decision: ReviewDecision;
+  decisionLabel: string;
   approvedForGovernanceGate: boolean;
   priority: string;
   assignedToUserId: string | null;
@@ -1215,12 +1248,18 @@ export function projectReviewWorkflow(row: DbWorkflow): {
   updatedAt: string;
 } {
   const stage = mapDbStatusToReviewStage(row.status as string);
+  const outcome = presentReviewOutcome({ dbStatus: row.status as string, decision: decision ?? legacyReviewDecisionFromStatus(row.status as string) });
   return {
     id: row.id,
     evidenceId: row.evidenceId,
     teamId: row.teamId,
     stage,
-    approvedForGovernanceGate: reviewStageSatisfiesGovernanceGate(stage),
+    workflowStateLabel: outcome.workflowStateLabel,
+    decision: outcome.decision,
+    decisionLabel: outcome.decisionLabel,
+    // The export gate reads the DECISION (an approved review stays approved
+    // when it is closed); the stage alone only when no decision was loaded.
+    approvedForGovernanceGate: decision !== undefined ? decision === "APPROVED" : reviewStageSatisfiesGovernanceGate(stage),
     priority: row.priority,
     assignedToUserId: row.assignedToUserId,
     assignedByUserId: row.assignedByUserId,

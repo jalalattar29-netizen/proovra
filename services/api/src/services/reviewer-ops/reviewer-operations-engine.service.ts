@@ -17,6 +17,7 @@
  *   - No private reviewer note content ever leaves the projection.
  */
 
+import { recordReviewActivityTx } from "../evidence-review/reviewer-audit.service.js";
 import type { PrismaClient, EvidenceReviewWorkflow as DbWorkflow } from "@prisma/client";
 import {
   REVIEWER_OPS_DEFAULT_SLA_POLICY,
@@ -998,12 +999,37 @@ export async function startReview(
     });
   }
   const now = new Date();
-  const updated = await client.evidenceReviewWorkflow.update({
-    where: { id: row.id },
-    data: {
-      status: "IN_REVIEW",
-      lastReviewedAt: now,
-    },
+  // The move, its workflow event and its audit entry together (2026-10-24:
+  // it used to write the status alone, invisible to the Review history).
+  const updated = await client.$transaction(async (tx) => {
+    const moved = await tx.evidenceReviewWorkflow.update({
+      where: { id: row.id },
+      data: {
+        status: "IN_REVIEW",
+        lastReviewedAt: now,
+      },
+    });
+    await tx.evidenceReviewWorkflowEvent.create({
+      data: {
+        workflowId: row.id,
+        evidenceId: row.evidenceId,
+        actorUserId: ctx.actorUserId,
+        eventType: "REVIEW_STARTED",
+        previousValue: { status: row.status },
+        nextValue: { status: "IN_REVIEW" },
+        note: null,
+      },
+    });
+    await recordReviewActivityTx(tx, {
+      evidenceId: row.evidenceId,
+      workflowId: row.id,
+      teamId: ctx.teamId,
+      actorUserId: ctx.actorUserId,
+      code: "REVIEW_WORKFLOW_STATE_CHANGED",
+      previousState: String(row.status),
+      resultingState: "IN_REVIEW",
+    });
+    return moved;
   });
   bump("reviewer_review_started_total");
   safeEmitSecurityEvent({

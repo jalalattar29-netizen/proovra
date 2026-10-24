@@ -24,6 +24,17 @@ const state = {
 
 // Notification dispatch is an external boundary; assignment must not depend
 // on it succeeding.
+// Review activity is recorded by its own recorder (reviewer audit + tenant
+// audit; real-database coverage in review-custody-boundary.integration.test.ts).
+vi.mock("../src/services/evidence-review/reviewer-audit.service.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  recordReviewActivityTx: vi.fn(async () => undefined),
+}));
+vi.mock("../src/services/evidence-review/review-outcome.service.js", () => ({
+  loadCurrentReviewDecision: vi.fn(async () => "NO_DECISION"),
+  loadCurrentReviewDecisions: vi.fn(async () => new Map()),
+}));
+
 vi.mock("../src/services/review-operations/review-notifications.service.js", () => ({
   notifyReviewAssigned: () => Promise.resolve(),
   notifyReviewNeedsMoreInfo: () => Promise.resolve(),

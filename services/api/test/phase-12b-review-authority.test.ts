@@ -46,13 +46,15 @@ vi.mock(
   }),
 );
 
-// ET-CUS-12 — the authority writes a status change to custody inside its own
-// transaction (2026-10-23); the custody chain has its own real-database
-// coverage, so here only what the authority records is kept.
-const custodyWrites: Array<Record<string, unknown>> = [];
+// REVIEW IS NOT CUSTODY (2026-10-24): every recorded submission is Review
+// activity — the reviewer audit + tenant audit, in the authority's own
+// transaction. That recorder has its own real-database coverage
+// (review-custody-boundary.integration.test.ts); here only what the authority
+// asks it to record is kept.
+const activity: Array<Record<string, unknown>> = [];
 vi.mock("../src/services/evidence-review/reviewer-audit.service.js", () => ({
-  recordReviewStatusOnCustodyTx: vi.fn(async (_tx: unknown, input: Record<string, unknown>) => {
-    custodyWrites.push(input);
+  recordReviewActivityTx: vi.fn(async (_tx: unknown, input: Record<string, unknown>) => {
+    activity.push(input);
   }),
 }));
 
@@ -252,7 +254,7 @@ function makeDb(seed: {
 
 beforeEach(() => {
   notifyNeedsMoreInfoMock.mockClear();
-  custodyWrites.length = 0;
+  activity.length = 0;
 });
 
 // ---------------------------------------------------------------------------
@@ -295,9 +297,10 @@ describe("canonical recordReviewDecision — decision success", () => {
     });
     // ONE transaction wrapped the whole command.
     expect(state.txCalls).toBe(1);
-    // ET-CUS-12: the status change is on custody once, inside that transaction.
-    expect(custodyWrites).toHaveLength(1);
-    expect(custodyWrites[0]).toMatchObject({ status: "APPROVED_INTERNAL" });
+    // The verdict is recorded once as a Review DECISION, inside that
+    // transaction — never on the custody chain.
+    expect(activity).toHaveLength(1);
+    expect(activity[0]).toMatchObject({ code: "REVIEW_DECISION_RECORDED", resultingState: "APPROVED_INTERNAL", decision: "APPROVE" });
   });
 
   // Table-driven outcome mapping for single-stage resolutions.

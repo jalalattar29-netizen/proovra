@@ -60,7 +60,7 @@ describe("redaction and review decisions on the custody chain (live PostgreSQL 1
     ]);
   });
 
-  it("a review status decision is recorded on the record; an assignment-only update is not", async () => {
+  it("a review status change is NOT forensic custody (owner decision 2026-10-24); it is in the tenant audit", async () => {
     const id = await record();
     const patch = (body: unknown) =>
       h.app.inject({
@@ -72,10 +72,12 @@ describe("redaction and review decisions on the custody chain (live PostgreSQL 1
     const assigned = await patch({ priority: "HIGH" });
     expect(assigned.statusCode, assigned.body).toBe(200);
     expect(await custody(id, "REVIEW_DECISION_RECORDED")).toEqual([]);
+    const custodyBefore = await prisma.custodyEvent.count({ where: { evidenceId: id } });
     const decided = await patch({ status: "CLOSED" });
     expect(decided.statusCode, decided.body).toBe(200);
-    expect(await custody(id, "REVIEW_DECISION_RECORDED")).toEqual([
-      expect.objectContaining({ status: "CLOSED" }),
-    ]);
+    expect(await custody(id, "REVIEW_DECISION_RECORDED")).toEqual([]);
+    expect(await prisma.custodyEvent.count({ where: { evidenceId: id } })).toBe(custodyBefore);
+    const wf = await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { evidenceId: id } });
+    expect(await prisma.adminAuditLog.count({ where: { resourceId: wf.id, action: "review.closed" } })).toBe(1);
   });
 });

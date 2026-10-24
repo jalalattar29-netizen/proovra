@@ -634,8 +634,9 @@ export function buildCanonicalCustodySnapshot(
   let earliest: number | null = null;
   let latest: number | null = null;
   for (const ev of input.custodyEvents) {
-    if (classifyCustodyEventType(ev.eventType) === "access") access += 1;
-    else forensic += 1;
+    const category = classifyCustodyEventType(ev.eventType);
+    if (category === "access") access += 1;
+    else if (category === "forensic") forensic += 1;
     const t = ev.atUtc instanceof Date ? ev.atUtc.getTime() : Date.parse(String(ev.atUtc));
     if (!Number.isNaN(t)) {
       if (earliest === null || t < earliest) earliest = t;

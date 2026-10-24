@@ -19,6 +19,7 @@
  *     via the engine.
  */
 
+import { recordLifecycleTransition } from "../review-operations/review-operations.service.js";
 import type { PrismaClient } from "@prisma/client";
 import {
   type ReviewerOpsBulkAction,
@@ -34,7 +35,6 @@ import {
   ReviewerOpsError,
   assignReviewerToWorkflow,
   pauseReview,
-  rejectReview,
   requestInformation,
   type LifecycleActorContext,
 } from "./reviewer-operations-engine.service.js";
@@ -220,14 +220,19 @@ async function runOne(
       return;
     }
     case "CLOSE": {
-      // Map CLOSE to a reject with the supplied note (or a default
-      // "bulk closed" note when none provided — but the shared schema
-      // requires a note for CLOSE-ish actions). We still go via
-      // rejectReview so the lifecycle transition + audit chain match.
-      await rejectReview(
-        ctx,
+      // CLOSE IS NEVER A VERDICT (2026-10-24). This used to record a REJECT
+      // decision ("Not accepted") for every review closed in bulk. Close
+      // ends the workflow and keeps whatever the current round decided — or
+      // no decision — through the one lifecycle authority.
+      const wf = await client.evidenceReviewWorkflow.findFirstOrThrow({
+        where: { id: workflowId, teamId: ctx.teamId },
+        select: { evidenceId: true },
+      });
+      await recordLifecycleTransition(
         {
-          workflowId,
+          evidenceId: wf.evidenceId,
+          decision: "CLOSE",
+          actorUserId: ctx.actorUserId,
           note: input.note ?? "Closed via bulk triage.",
         },
         client,
