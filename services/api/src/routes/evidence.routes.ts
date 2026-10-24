@@ -9009,22 +9009,9 @@ return {
         templateIdentitySource: "direct",
       });
 
-      // A status change is already on custody (and the reviewer audit log),
-      // written in the update's own transaction — only a real change, never
-      // lost after commit (ET-CUS-12, third audit). The other edited fields
-      // are logged here; with no status they write no custody entry.
-      if (body.assignedToUserId !== undefined || body.priority !== undefined || body.dueAt !== undefined) {
-        await appendReviewerAuditEvent({
-          evidenceId: id,
-          actorUserId: userId,
-          eventType: prismaPkg.EvidenceReviewerAuditEventType.WORKFLOW_UPDATED,
-          metadata: {
-            assignedToUserId: body.assignedToUserId ?? undefined,
-            priority: body.priority ?? undefined,
-            dueAt: body.dueAt ?? undefined,
-          } as Prisma.InputJsonValue,
-        }).catch(noteCustodyFailure);
-      }
+      // Every recorded change — status, assignment, priority, due date — is on
+      // the Review history, the reviewer audit and the tenant audit, written in
+      // the update's own transaction (2026-10-24). Never on forensic custody.
 
       return reply.code(200).send(summary);
     }

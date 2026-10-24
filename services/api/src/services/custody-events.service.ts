@@ -6,21 +6,16 @@ import {
   withProovraSpanSync,
 } from "../observability/otel.js";
 import {
-  isAccessCustodyEventType,
-} from "@proovra/shared";
-import {
   appendCustodyEventTx,
   evaluateCustodyChain as evaluateCustodyChainCore,
 } from "@proovra/shared-runtime";
 export { buildCustodyEventHash } from "@proovra/shared/custody-hash";
-export { classifyCustodyEventType, isAccessCustodyEventType } from "@proovra/shared";
+// THE ONE classification (2026-10-24): this module used to define its own
+// "forensic = not access", which counted internal Review rows as forensic.
+export { classifyCustodyEventType, isAccessCustodyEventType, isForensicCustodyEventType } from "@proovra/shared";
 
 type AppendCustodyEventParams = Parameters<typeof appendCustodyEventTx>[1];
 type CustodyChainRecord = Parameters<typeof evaluateCustodyChainCore>[0]["records"][number];
-
-export function isForensicCustodyEventType(eventType: string): boolean {
-  return !isAccessCustodyEventType(eventType);
-}
 
 // THE ONE appender lives in @proovra/shared-runtime (custody/custody-chain).
 export { appendCustodyEventTx };

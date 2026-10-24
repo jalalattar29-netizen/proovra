@@ -8,12 +8,24 @@
  * "Not accepted"). Readers now ask this for the decision and the status for
  * the workflow state, and show both.
  *
- * SOURCE. The decision authority logs each submission as a DECISION_LOGGED
- * workflow event carrying its round and the projection it resolved to, in the
- * same transaction as the decision row. A round decided before events carried
- * their round falls back to the round's decision rows (the same derivation the
- * authority uses), and a workflow decided before the decision log existed to
- * its verdict status — never to CLOSED.
+ * ONE DERIVATION. The decision is the round's decision rows under the LIVE
+ * second-review requirement for that round — `deriveDecisionProjection` with
+ * `secondReviewForRound`, exactly what the decision authority, the reconciler
+ * and the Evidence page's available actions derive. Reading the state logged
+ * at decision time instead disagreed with them once the requirement changed:
+ * a first approval logged as "second review required" stayed "No decision"
+ * here after the legal hold was released, while the authority already
+ * refused a second verdict as resolved and the reconciler projected Approved.
+ *
+ * A REACHED VERDICT STANDS. A round whose decision event recorded it as
+ * resolved keeps that verdict even if a requirement arrives afterwards (a
+ * legal hold placed on an approved record): the authority refuses any further
+ * verdict for it, so un-deciding it here would leave it undecidable.
+ *
+ * LEGACY. A workflow decided before the decision log existed (round 0, no
+ * decision rows) has its verdict in its stored status — or, once that status
+ * was overwritten by Close or another move, in the newest verdict its own
+ * workflow history recorded since it was last reopened. Never CLOSED itself.
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
 import {
@@ -36,24 +48,37 @@ export type ReviewWorkflowRef = {
   decisionRound: number;
 };
 
-function decisionFromLoggedEvent(nextValue: unknown): ReviewDecision {
+type DecisionRow = { workflowId: string; round: number; stage: string; decision: string; reviewerUserId: string };
+
+function loggedAsResolved(nextValue: unknown): ReviewDecision | null {
   const v = (nextValue ?? {}) as { state?: unknown; stage?: unknown };
-  return reviewDecisionFromProjection({ state: String(v.state ?? ""), projectedStage: typeof v.stage === "string" ? v.stage : null });
+  if (v.state !== "resolved") return null;
+  return reviewDecisionFromProjection({ state: "resolved", projectedStage: typeof v.stage === "string" ? v.stage : null });
 }
 
-async function legacyDecision(wf: ReviewWorkflowRef, client: Db): Promise<ReviewDecision> {
-  if (!wf.teamId) return legacyReviewDecisionFromStatus(wf.status);
-  const rows = await client.workflowReviewDecision.findMany({
-    where: { workflowId: wf.id, round: wf.decisionRound },
-    orderBy: { decidedAt: "asc" },
-    select: { stage: true, decision: true, reviewerUserId: true },
-  });
-  if (rows.length === 0) return wf.decisionRound === 0 ? legacyReviewDecisionFromStatus(wf.status) : "NO_DECISION";
-  const second = await secondReviewForRound(
-    { workflowId: wf.id, teamId: wf.teamId, evidenceId: wf.evidenceId, round: wf.decisionRound },
-    client,
-  );
-  return reviewDecisionFromProjection(deriveDecisionProjection(rows, second.required));
+/** What a legacy workflow-history value moved TO, if it names a status/stage. */
+function movedTo(value: unknown): string | null {
+  const v = (value ?? {}) as { status?: unknown; stage?: unknown };
+  const to = typeof v.status === "string" ? v.status : typeof v.stage === "string" ? v.stage : null;
+  return to ? to.toUpperCase() : null;
+}
+
+/**
+ * The newest verdict a legacy workflow's history recorded since it was last
+ * reopened (history is ordered newest first).
+ */
+function legacyVerdictFromHistory(
+  history: ReadonlyArray<{ eventType: string; nextValue: unknown }>,
+): ReviewDecision {
+  for (const e of history) {
+    const to = movedTo(e.nextValue);
+    if (e.eventType === "REOPENED" || to === "REOPENED") return "NO_DECISION";
+    const verdict = legacyReviewDecisionFromStatus(to);
+    if (verdict !== "NO_DECISION") return verdict;
+    const byType = legacyReviewDecisionFromStatus(e.eventType);
+    if (byType !== "NO_DECISION") return byType;
+  }
+  return "NO_DECISION";
 }
 
 /** The current round's decision for ONE workflow. */
@@ -63,8 +88,9 @@ export async function loadCurrentReviewDecision(wf: ReviewWorkflowRef, client: D
 
 /**
  * The current round's decision for MANY workflows (queues, counts): one
- * bounded event query, the legacy fallback only for workflows whose current
- * round has no round-tagged decision event.
+ * decision-row query and one decision-event query for the batch; the live
+ * requirement only for workflows whose round has rows and is not already
+ * resolved; history only for legacy workflows whose status lost the verdict.
  */
 export async function loadCurrentReviewDecisions(
   workflows: ReadonlyArray<ReviewWorkflowRef>,
@@ -72,21 +98,79 @@ export async function loadCurrentReviewDecisions(
 ): Promise<Map<string, ReviewDecision>> {
   const out = new Map<string, ReviewDecision>();
   if (workflows.length === 0) return out;
+  const ids = workflows.map((w) => w.id);
+  const roundOf = new Map(workflows.map((w) => [w.id, w.decisionRound]));
+
+  const rows = (await client.workflowReviewDecision.findMany({
+    where: { workflowId: { in: ids } },
+    orderBy: { decidedAt: "asc" },
+    select: { workflowId: true, round: true, stage: true, decision: true, reviewerUserId: true },
+  })) as unknown as DecisionRow[];
+  const roundRows = new Map<string, DecisionRow[]>();
+  for (const r of rows) {
+    if (r.round !== roundOf.get(r.workflowId)) continue;
+    const list = roundRows.get(r.workflowId) ?? [];
+    list.push(r);
+    roundRows.set(r.workflowId, list);
+  }
+
   const events = await client.evidenceReviewWorkflowEvent.findMany({
-    where: { workflowId: { in: workflows.map((w) => w.id) }, eventType: "DECISION_LOGGED" },
+    where: { workflowId: { in: [...roundRows.keys()] }, eventType: "DECISION_LOGGED" },
     orderBy: { createdAt: "desc" },
     select: { workflowId: true, nextValue: true },
   });
-  const latestForRound = new Map<string, unknown>();
-  const roundOf = new Map(workflows.map((w) => [w.id, w.decisionRound]));
+  const resolvedInRound = new Map<string, ReviewDecision>();
   for (const e of events) {
-    if (latestForRound.has(e.workflowId)) continue;
+    if (resolvedInRound.has(e.workflowId)) continue;
     const round = (e.nextValue as { round?: unknown } | null)?.round;
-    if (typeof round === "number" && round === roundOf.get(e.workflowId)) latestForRound.set(e.workflowId, e.nextValue);
+    if (round !== roundOf.get(e.workflowId)) continue;
+    const verdict = loggedAsResolved(e.nextValue);
+    if (verdict !== null) resolvedInRound.set(e.workflowId, verdict);
   }
+
+  const legacyHistoryNeeded: ReviewWorkflowRef[] = [];
   for (const wf of workflows) {
-    const logged = latestForRound.get(wf.id);
-    out.set(wf.id, logged !== undefined ? decisionFromLoggedEvent(logged) : await legacyDecision(wf, client));
+    const current = roundRows.get(wf.id);
+    if (current && current.length > 0 && wf.teamId) {
+      const reached = resolvedInRound.get(wf.id);
+      if (reached !== undefined) {
+        out.set(wf.id, reached);
+        continue;
+      }
+      const second = await secondReviewForRound(
+        { workflowId: wf.id, teamId: wf.teamId, evidenceId: wf.evidenceId, round: wf.decisionRound },
+        client,
+      );
+      out.set(wf.id, reviewDecisionFromProjection(deriveDecisionProjection(current as never, second.required)));
+      continue;
+    }
+    if (wf.decisionRound !== 0) {
+      out.set(wf.id, "NO_DECISION");
+      continue;
+    }
+    const fromStatus = legacyReviewDecisionFromStatus(wf.status);
+    if (fromStatus !== "NO_DECISION") {
+      out.set(wf.id, fromStatus);
+      continue;
+    }
+    legacyHistoryNeeded.push(wf);
+  }
+
+  if (legacyHistoryNeeded.length > 0) {
+    const history = await client.evidenceReviewWorkflowEvent.findMany({
+      where: { workflowId: { in: legacyHistoryNeeded.map((w) => w.id) } },
+      orderBy: { createdAt: "desc" },
+      select: { workflowId: true, eventType: true, nextValue: true },
+    });
+    const byWorkflow = new Map<string, Array<{ eventType: string; nextValue: unknown }>>();
+    for (const h of history) {
+      const list = byWorkflow.get(h.workflowId) ?? [];
+      list.push({ eventType: String(h.eventType), nextValue: h.nextValue });
+      byWorkflow.set(h.workflowId, list);
+    }
+    for (const wf of legacyHistoryNeeded) {
+      out.set(wf.id, legacyVerdictFromHistory(byWorkflow.get(wf.id) ?? []));
+    }
   }
   return out;
 }

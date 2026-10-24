@@ -1001,14 +1001,22 @@ export async function startReview(
   const now = new Date();
   // The move, its workflow event and its audit entry together (2026-10-24:
   // it used to write the status alone, invisible to the Review history).
+  // CONDITIONAL (2026-10-24): the move applies only to the state this call
+  // read, so a Close (or any move) that committed meanwhile is never undone
+  // by a Start that read the earlier state — it is refused instead.
   const updated = await client.$transaction(async (tx) => {
-    const moved = await tx.evidenceReviewWorkflow.update({
-      where: { id: row.id },
+    const claimed = await tx.evidenceReviewWorkflow.updateMany({
+      where: { id: row.id, status: row.status },
       data: {
         status: "IN_REVIEW",
         lastReviewedAt: now,
       },
     });
+    if (claimed.count !== 1) {
+      bump("reviewer_invalid_transition_blocked_total");
+      throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { from: fromLc, to: "IN_REVIEW", reason: "concurrent_change" });
+    }
+    const moved = await tx.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: row.id } });
     await tx.evidenceReviewWorkflowEvent.create({
       data: {
         workflowId: row.id,
@@ -1054,12 +1062,38 @@ export async function pauseReview(
   assertNoteIfRequired(input.pausedReason);
   const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
   const now = new Date();
-  const updated = await client.evidenceReviewWorkflow.update({
-    where: { id: row.id },
-    data: {
-      slaPausedAtUtc: now,
-      pausedReason: input.pausedReason.trim().slice(0, 400),
-    },
+  // The pause, its workflow event and its audit entry together (2026-10-24):
+  // it used to write the row alone, invisible to the Review history and the
+  // tenant audit.
+  const updated = await client.$transaction(async (tx) => {
+    const paused = await tx.evidenceReviewWorkflow.update({
+      where: { id: row.id },
+      data: {
+        slaPausedAtUtc: now,
+        pausedReason: input.pausedReason.trim().slice(0, 400),
+      },
+    });
+    await tx.evidenceReviewWorkflowEvent.create({
+      data: {
+        workflowId: row.id,
+        evidenceId: row.evidenceId,
+        actorUserId: ctx.actorUserId,
+        eventType: "SLA_UPDATED",
+        previousValue: { slaPausedAtUtc: row.slaPausedAtUtc?.toISOString() ?? null },
+        nextValue: { slaPausedAtUtc: now.toISOString() },
+        note: input.pausedReason.trim().slice(0, 1000),
+      },
+    });
+    await recordReviewActivityTx(tx, {
+      evidenceId: row.evidenceId,
+      workflowId: row.id,
+      teamId: ctx.teamId,
+      actorUserId: ctx.actorUserId,
+      code: "REVIEW_SLA_CHANGED",
+      previousState: String(row.status),
+      resultingState: String(paused.status),
+    });
+    return paused;
   });
   bump("reviewer_review_paused_total");
   safeEmitSecurityEvent({

@@ -389,35 +389,44 @@ export async function assignReviewer(
   const targetStage: ReviewStage =
     fromStage === "QUEUED" ? "ASSIGNED" : fromStage;
 
-  const updated = await applyTransition(
-    workflow,
-    targetStage,
-    {
-      assignedToUserId: input.assignedToUserId,
-      assignedByUserId: input.actorUserId,
-      assignedAtUtc: workflow.assignedAtUtc ?? now,
-      reassignedAtUtc: isReassignment ? now : workflow.reassignedAtUtc,
-    },
-    client,
-  );
-
-  await recordEvent(
-    workflow,
-    isReassignment ? "REASSIGNED" : "ASSIGNED",
-    input.actorUserId,
-    input.note,
-    { assignedToUserId: workflow.assignedToUserId, stage: fromStage },
-    { assignedToUserId: input.assignedToUserId, stage: targetStage },
-    client,
-  );
-  await recordReviewActivityTx(client as never, {
-    evidenceId: workflow.evidenceId,
-    workflowId: workflow.id,
-    teamId: workflow.teamId ?? null,
-    actorUserId: input.actorUserId,
-    code: "REVIEW_ASSIGNMENT_CHANGED",
-    previousState: String(workflow.status),
-    resultingState: String(updated.status),
+  // ONE TRANSACTION (2026-10-24, audit P2-3): the move, its history event
+  // and its reviewer + tenant audit commit together. They were four separate
+  // writes, so a failed audit left a committed assignment with no audit, and
+  // the retry was the no-op above. A lost race is a refusal (strict).
+  const updated = await client.$transaction(async (txc) => {
+    const moved = await applyTransition(
+      workflow,
+      targetStage,
+      {
+        assignedToUserId: input.assignedToUserId,
+        assignedByUserId: input.actorUserId,
+        assignedAtUtc: workflow.assignedAtUtc ?? now,
+        reassignedAtUtc: isReassignment ? now : workflow.reassignedAtUtc,
+      },
+      txc as unknown as PrismaClient,
+      { strict: true },
+    );
+    await txc.evidenceReviewWorkflowEvent.create({
+      data: {
+        workflowId: workflow.id,
+        evidenceId: workflow.evidenceId,
+        actorUserId: input.actorUserId,
+        eventType: isReassignment ? "REASSIGNED" : "ASSIGNED",
+        previousValue: { assignedToUserId: workflow.assignedToUserId, stage: fromStage } as Prisma.InputJsonValue,
+        nextValue: { assignedToUserId: input.assignedToUserId, stage: targetStage } as Prisma.InputJsonValue,
+        note: input.note?.slice(0, 1000) ?? null,
+      },
+    });
+    await recordReviewActivityTx(txc, {
+      evidenceId: workflow.evidenceId,
+      workflowId: workflow.id,
+      teamId: workflow.teamId ?? null,
+      actorUserId: input.actorUserId,
+      code: "REVIEW_ASSIGNMENT_CHANGED",
+      previousState: String(workflow.status),
+      resultingState: String(moved.status),
+    });
+    return moved;
   });
   /**
    * ARCH-005 (2026-08-07) — REVIEW_ASSIGNED.
@@ -484,35 +493,42 @@ export async function claimReviewerWorkflow(
   const targetStage: ReviewStage =
     fromStage === "QUEUED" ? "ASSIGNED" : fromStage;
 
-  const updated = await applyTransition(
-    workflow,
-    targetStage,
-    {
-      assignedToUserId: input.actorUserId,
-      assignedByUserId: input.actorUserId,
-      assignedAtUtc: workflow.assignedAtUtc ?? now,
-    },
-    client,
-  );
-  await recordEvent(
-    workflow,
-    "CLAIMED",
-    input.actorUserId,
-    null,
-    { assignedToUserId: workflow.assignedToUserId, stage: fromStage },
-    { assignedToUserId: input.actorUserId, stage: targetStage },
-    client,
-  );
-  await recordReviewActivityTx(client as never, {
-    evidenceId: workflow.evidenceId,
-    workflowId: workflow.id,
-    teamId: workflow.teamId ?? null,
-    actorUserId: input.actorUserId,
-    code: "REVIEW_CLAIMED",
-    previousState: String(workflow.status),
-    resultingState: String(updated.status),
+  // ONE TRANSACTION (2026-10-24, audit P2-3) — as assignment above. Of two
+  // concurrent claims exactly one wins; the other is refused (strict).
+  return client.$transaction(async (txc) => {
+    const moved = await applyTransition(
+      workflow,
+      targetStage,
+      {
+        assignedToUserId: input.actorUserId,
+        assignedByUserId: input.actorUserId,
+        assignedAtUtc: workflow.assignedAtUtc ?? now,
+      },
+      txc as unknown as PrismaClient,
+      { strict: true },
+    );
+    await txc.evidenceReviewWorkflowEvent.create({
+      data: {
+        workflowId: workflow.id,
+        evidenceId: workflow.evidenceId,
+        actorUserId: input.actorUserId,
+        eventType: "CLAIMED",
+        previousValue: { assignedToUserId: workflow.assignedToUserId, stage: fromStage } as Prisma.InputJsonValue,
+        nextValue: { assignedToUserId: input.actorUserId, stage: targetStage } as Prisma.InputJsonValue,
+        note: null,
+      },
+    });
+    await recordReviewActivityTx(txc, {
+      evidenceId: workflow.evidenceId,
+      workflowId: workflow.id,
+      teamId: workflow.teamId ?? null,
+      actorUserId: input.actorUserId,
+      code: "REVIEW_CLAIMED",
+      previousState: String(workflow.status),
+      resultingState: String(moved.status),
+    });
+    return moved;
   });
-  return updated;
 }
 
 // -----------------------------------------------------------------------------

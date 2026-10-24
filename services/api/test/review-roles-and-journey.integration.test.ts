@@ -1070,3 +1070,199 @@ describe("a lifecycle move that commits between a verdict's read and its write i
     expect(await prisma.workflowReviewDecision.count({ where: { workflowId: wf.id } })).toBe(0);
   });
 });
+
+describe("fifth audit — one decision derivation, legacy verdicts survive Close, claim and assign are atomic", () => {
+  const begin = async (token: string, ev: string) => {
+    const wf = await workflowOf(ev);
+    const res = await patchWorkflow(token, ev, { status: "IN_REVIEW", expectedUpdatedAt: wf.updatedAt.toISOString() });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+  };
+  const outcome = async (ev: string) => {
+    const res = await call(A.adminToken, "GET", `/v1/evidence/${ev}/review-workspace`);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    return res.body.reviewWorkflow as { workflowState: string; decision: string; decisionLabel: string };
+  };
+  const hold = (ev: string) =>
+    prisma.evidenceLegalHold.create({
+      data: {
+        teamId: A.teamId,
+        evidenceId: ev,
+        scope: "EVIDENCE",
+        status: "ACTIVE",
+        title: "Fifth-audit hold",
+        reason: "second review required",
+        placedByUserId: A.ownerUserId,
+      } as never,
+    });
+
+  it("a first approval made while a second review was required is Approved everywhere once the requirement is lifted (P2-1)", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "fifth-live-requirement");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    expect((await claim(A.memberToken, ev, A.teamId)).status).toBe(200);
+    await begin(A.memberToken, ev);
+    const h = await hold(ev);
+    expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
+    // Logged at decision time as "second review required": no decision yet.
+    expect((await outcome(ev)).decision).toBe("NO_DECISION");
+    const { evidenceIsReviewed } = await import("../src/services/governance.service.js");
+    expect(await evidenceIsReviewed(ev)).toBe(false);
+
+    await prisma.evidenceLegalHold.update({ where: { id: h.id }, data: { status: "RELEASED" } as never });
+    // The authority now derives the round as resolved and refuses another verdict...
+    const second = await decide(A.adminToken, ev, "APPROVE_INTERNAL");
+    expect(second.status, JSON.stringify(second.body)).not.toBe(200);
+    // ...and every reader agrees with it: Approved, and the export gate passes.
+    expect((await outcome(ev)).decision).toBe("APPROVED");
+    expect(await evidenceIsReviewed(ev)).toBe(true);
+    const wf = await workflowOf(ev);
+    const { loadCurrentReviewDecisions } = await import("../src/services/evidence-review/review-outcome.service.js");
+    const batch = await loadCurrentReviewDecisions([{ id: wf.id, teamId: wf.teamId, evidenceId: ev, status: String(wf.status), decisionRound: wf.decisionRound }]);
+    expect(batch.get(wf.id)).toBe("APPROVED");
+  });
+
+  it("a verdict already reached stands when a requirement arrives afterwards (a hold placed on an approved record)", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "fifth-reached-stands");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    expect((await claim(A.memberToken, ev, A.teamId)).status).toBe(200);
+    await begin(A.memberToken, ev);
+    expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
+    expect((await outcome(ev)).decision).toBe("APPROVED");
+    await hold(ev);
+    expect((await outcome(ev)).decision).toBe("APPROVED");
+  });
+
+  it("Close never erases a legacy verdict: approved before the decision log existed, then Closed, still reads Approved (P2-2)", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "fifth-legacy-close");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    const wf0 = await workflowOf(ev);
+    // The legacy shape: a verdict status written directly, with its history
+    // event, and no decision rows at all (round 0).
+    await prisma.evidenceReviewWorkflow.update({ where: { id: wf0.id }, data: { status: "APPROVED_INTERNAL" } });
+    await prisma.evidenceReviewWorkflowEvent.create({
+      data: { workflowId: wf0.id, evidenceId: ev, actorUserId: A.adminUserId, eventType: "STATUS_CHANGED", previousValue: { status: "IN_REVIEW" }, nextValue: { status: "APPROVED_INTERNAL" } },
+    });
+    expect(await prisma.workflowReviewDecision.count({ where: { workflowId: wf0.id } })).toBe(0);
+    expect((await outcome(ev)).decision).toBe("APPROVED");
+
+    expect((await decide(A.adminToken, ev, "CLOSE", "done")).status).toBe(200);
+    expect(await outcome(ev)).toMatchObject({ workflowState: "CLOSED", decision: "APPROVED" });
+    const { evidenceIsReviewed } = await import("../src/services/governance.service.js");
+    expect(await evidenceIsReviewed(ev)).toBe(true);
+
+    // Reopen starts a new round with no decision.
+    expect((await decide(A.adminToken, ev, "REOPEN", "again")).status).toBe(200);
+    expect((await outcome(ev)).decision).toBe("NO_DECISION");
+  });
+
+  it("a legacy verdict followed by a Reopen in the same round-0 history reads No decision (Reopen ends the verdict)", async () => {
+    const { loadCurrentReviewDecisions } = await import("../src/services/evidence-review/review-outcome.service.js");
+    const ev = await freshEvidence(A, "fifth-legacy-reopened");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    const wf = await workflowOf(ev);
+    const t0 = Date.now();
+    const steps = [["STATUS_CHANGED", "APPROVED_INTERNAL"], ["REOPENED", "REOPENED"], ["CLOSED", "CLOSED"]] as const;
+    for (const [i, [eventType, to]] of steps.entries()) {
+      await prisma.evidenceReviewWorkflowEvent.create({
+        data: { workflowId: wf.id, evidenceId: ev, actorUserId: A.adminUserId, eventType, nextValue: { status: to }, createdAt: new Date(t0 + 1000 * (i + 1)) },
+      });
+    }
+    const got = await loadCurrentReviewDecisions([{ id: wf.id, teamId: wf.teamId, evidenceId: ev, status: "CLOSED", decisionRound: 0 }]);
+    expect(got.get(wf.id)).toBe("NO_DECISION");
+  });
+
+  /** A client whose transactions fail at the reviewer-audit write. */
+  const failingAuditClient = () =>
+    new Proxy(prisma, {
+      get(target, prop, receiver) {
+        if (prop !== "$transaction") return Reflect.get(target, prop, receiver);
+        return (fn: (tx: unknown) => Promise<unknown>, opts?: unknown) =>
+          (target as typeof prisma).$transaction(async (tx) => {
+            const wrapped = new Proxy(tx, {
+              get(t, p2, r2) {
+                const model = Reflect.get(t, p2, r2);
+                if (p2 !== "evidenceReviewerAuditEvent") return model;
+                return new Proxy(model as object, {
+                  get(m, method, r3) {
+                    if (method === "create") {
+                      return async () => {
+                        throw new Error("injected audit failure");
+                      };
+                    }
+                    return Reflect.get(m, method, r3);
+                  },
+                });
+              },
+            });
+            return fn(wrapped);
+          }, opts as never);
+      },
+    });
+
+  it("claim: a failed audit write leaves no claim, no history event and no tenant audit; the retry then succeeds and is audited (P2-3)", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "fifth-claim-atomic");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    const before = await workflowOf(ev);
+    const { claimReviewerWorkflow } = await import("../src/services/review-operations/review-operations.service.js");
+    await expect(claimReviewerWorkflow({ evidenceId: ev, actorUserId: A.memberUserId }, failingAuditClient() as never)).rejects.toThrow(/injected audit failure/);
+    const after = await workflowOf(ev);
+    expect(after.assignedToUserId).toBeNull();
+    expect(after.status).toBe(before.status);
+    expect(await prisma.evidenceReviewWorkflowEvent.count({ where: { workflowId: before.id, eventType: "CLAIMED" } })).toBe(0);
+    expect(await reviewAudits(ev, "review.claimed")).toBe(0);
+    // The retry is not swallowed by the idempotent no-op: nothing was claimed.
+    expect((await claim(A.memberToken, ev, A.teamId)).status).toBe(200);
+    expect((await workflowOf(ev)).assignedToUserId).toBe(A.memberUserId);
+    expect(await reviewAudits(ev, "review.claimed")).toBe(1);
+    expect(await allCustody(ev)).toBe(0);
+  });
+
+  it("assign: a failed audit write leaves the assignment unchanged and unaudited (P2-3)", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "fifth-assign-atomic");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    const before = await workflowOf(ev);
+    const { assignReviewer } = await import("../src/services/review-operations/review-operations.service.js");
+    await expect(
+      assignReviewer({ evidenceId: ev, assignedToUserId: A.memberUserId, actorUserId: A.adminUserId }, failingAuditClient() as never),
+    ).rejects.toThrow(/injected audit failure/);
+    const after = await workflowOf(ev);
+    expect(after.assignedToUserId).toBe(before.assignedToUserId);
+    expect(after.status).toBe(before.status);
+    expect(await prisma.evidenceReviewWorkflowEvent.count({ where: { workflowId: before.id, eventType: { in: ["ASSIGNED", "REASSIGNED"] } } })).toBe(0);
+    await assignReviewer({ evidenceId: ev, assignedToUserId: A.memberUserId, actorUserId: A.adminUserId });
+    expect((await workflowOf(ev)).assignedToUserId).toBe(A.memberUserId);
+    expect(await prisma.evidenceReviewWorkflowEvent.count({ where: { workflowId: before.id, eventType: "ASSIGNED" } })).toBe(1);
+  });
+
+  it("Start is conditional: a Close that commits after Start read the review is never undone", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "fifth-start-close");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    expect((await claim(A.memberToken, ev, A.teamId)).status).toBe(200);
+    const wf = await workflowOf(ev);
+    const { startReview } = await import("../src/services/reviewer-ops/reviewer-operations-engine.service.js");
+    // Start reads the review, then a Close commits from another connection before Start writes.
+    let interleaved = false;
+    const client = new Proxy(prisma, {
+      get(target, prop, receiver) {
+        if (prop !== "$transaction") return Reflect.get(target, prop, receiver);
+        return async (fn: (tx: unknown) => Promise<unknown>, opts?: unknown) => {
+          if (!interleaved) {
+            interleaved = true;
+            await prisma.evidenceReviewWorkflow.update({ where: { id: wf.id }, data: { status: "CLOSED", closedAt: new Date() } });
+          }
+          return (target as typeof prisma).$transaction(fn as never, opts as never);
+        };
+      },
+    });
+    await expect(
+      startReview({ teamId: A.teamId, actorUserId: A.memberUserId, isReviewerCapable: true, isServiceAccount: false } as never, { workflowId: wf.id }, client as never),
+    ).rejects.toMatchObject({ code: "REVIEW_INVALID_TRANSITION" });
+    expect(interleaved).toBe(true);
+    expect((await workflowOf(ev)).status).toBe("CLOSED");
+  });
+});

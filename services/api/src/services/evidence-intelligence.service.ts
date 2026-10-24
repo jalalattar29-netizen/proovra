@@ -5,6 +5,7 @@ import { evaluateCustodyChain } from "./custody-events.service.js";
 import {
   deriveCanonicalArtifactAvailability,
   isAccessCustodyEventType,
+  isForensicCustodyEventType,
   OTS_STATE_LABELS,
   OTS_STATE_SENTENCES,
   resolveTsaProofStatus,
@@ -844,8 +845,10 @@ function buildCustodyTimeline(params: {
     eventHash: string | null;
   }>;
 }): EvidenceIntelligence["custodyTimeline"] {
-  const forensicRecords = params.records.filter(
-    (record) => !isAccessCustodyEventType(record.eventType)
+  // Forensic custody only (2026-10-24): neither access activity nor a
+  // historical internal Review row, which is not evidence custody.
+  const forensicRecords = params.records.filter((record) =>
+    isForensicCustodyEventType(record.eventType)
   );
 
   return forensicRecords
@@ -1022,7 +1025,9 @@ export async function buildEvidenceIntelligence(
   const accessEventCount = custodyRecords.filter((record) =>
     isAccessCustodyEventType(record.eventType)
   ).length;
-  const forensicEventCount = custodyRecords.length - accessEventCount;
+  const forensicEventCount = custodyRecords.filter((record) =>
+    isForensicCustodyEventType(record.eventType)
+  ).length;
 
   const { reportReady, packageReady: verificationPackageReady } = deriveCanonicalArtifactAvailability({
     latestReportVersion: params.evidence.latestReportVersion,
