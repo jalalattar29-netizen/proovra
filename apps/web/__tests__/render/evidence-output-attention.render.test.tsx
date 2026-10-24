@@ -254,7 +254,10 @@ describe("Evidence outputs card", () => {
           reportGeneratedAtUtc: "2026-10-20T09:00:00.000Z",
           hasNewerFacts: true,
           changes: [
-            { code: "CUSTODY_CHANGED_AFTER_REPORT", atUtc: "2026-10-22T09:00:00.000Z", count: 2, reason: "LEGAL_HOLD", firstAtUtc: "2026-10-21T09:00:00.000Z" },
+            // The raw change and the server's explanation deliberately differ (3 vs
+            // 2): only rendering the SERVER's labels passes — a client that
+            // composed its own sentence from the raw change would print 3.
+            { code: "CUSTODY_CHANGED_AFTER_REPORT", atUtc: "2026-10-22T09:00:00.000Z", count: 3, reason: "LEGAL_HOLD", firstAtUtc: "2026-10-21T09:00:00.000Z" },
             { code: "OTS_CHAIN_VERIFIED_AFTER_REPORT", atUtc: "2026-10-22T10:00:00.000Z" },
           ],
           explanation,
