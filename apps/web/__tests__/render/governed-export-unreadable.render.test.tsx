@@ -14,7 +14,12 @@ vi.mock("../../lib/api", () => ({
   apiBaseUrl: () => "https://api.test.invalid",
   ApiError: class ApiError extends Error {},
 }));
-vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
+const captured: unknown[] = [];
+vi.mock("../../lib/sentry", () => ({
+  captureException: (e: unknown) => {
+    captured.push(e);
+  },
+}));
 
 import { GovernedExportAction, readEligibilityResult } from "../../components/governance/GovernedExportAction";
 
@@ -79,5 +84,34 @@ describe("GovernedExportAction", () => {
     );
     await waitFor(() => expect(view.container.querySelector('[data-governed-export-allowed="true"]')).not.toBeNull());
     expect((view.container.querySelector("[data-test-export]") as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
+describe("GovernedExportAction — row-level isolation (2026-10-24)", () => {
+  it("an action that throws is withheld quietly in its own row; the row's other actions still render; the crash is reported", async () => {
+    body = { outcome: "ALLOWED", reason: "ok", lifecycleState: "ACTIVE" };
+    captured.length = 0;
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const view = render(
+      <div data-test-row>
+        <GovernedExportAction
+          evidenceId="ev-boom"
+          teamId="team-1"
+          actionLabel="Report PDF"
+          compactWhenAllowed
+          renderAction={() => {
+            throw new Error("render failure");
+          }}
+        />
+        <button type="button" data-test-sibling>
+          Open
+        </button>
+      </div>,
+    );
+    await waitFor(() => expect(view.container.querySelector('[data-governed-export-error="ev-boom"]')).not.toBeNull());
+    expect(view.container.textContent).toContain("Report PDF: the export check is unavailable");
+    expect(view.container.querySelector("[data-test-sibling]")).not.toBeNull();
+    expect(captured.length).toBeGreaterThanOrEqual(1);
+    spy.mockRestore();
   });
 });

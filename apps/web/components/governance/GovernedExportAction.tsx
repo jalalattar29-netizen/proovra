@@ -28,9 +28,10 @@
  *   * Read-only otherwise — the wrapper itself does not mutate.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { captureException } from "../../lib/sentry";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 
 type EligibilityOutcome =
@@ -108,7 +109,58 @@ const NEXT_STEP: Record<EligibilityOutcome, string> = {
     "Workspace policy disallows this action. Update the policy from the governance surface.",
 };
 
-export function GovernedExportAction({
+type GovernedExportActionProps = {
+  evidenceId: string;
+  teamId: string | null;
+  actionLabel: string;
+  renderAction: (props: { disabled: boolean; onClick: () => void }) => React.ReactNode;
+  onAction?: () => void;
+  compactWhenAllowed?: boolean;
+};
+
+/**
+ * ROW-LEVEL ISOLATION (2026-10-24). A malformed eligibility response is
+ * already read safely (`readEligibilityResult`); this catches anything else
+ * this one action could throw, so a single row's export check can never take
+ * the Reports page — or the row's other actions — down with it. The action is
+ * withheld (fail closed) with one quiet sentence. An unexpected render crash
+ * IS an error and is reported; an expected refusal never reaches here.
+ */
+class GovernedExportBoundary extends Component<
+  { children: ReactNode; evidenceId: string; actionLabel: string },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    captureException(error, { component: "GovernedExportAction", componentStack: info.componentStack ?? null });
+  }
+
+  override render() {
+    if (this.state.failed) {
+      return (
+        <span className="evd-muted evd-muted--small" role="status" data-governed-export-error={this.props.evidenceId}>
+          {`${this.props.actionLabel}: the export check is unavailable. Reload to try again.`}
+        </span>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export function GovernedExportAction(props: GovernedExportActionProps) {
+  return (
+    <GovernedExportBoundary evidenceId={props.evidenceId} actionLabel={props.actionLabel}>
+      <GovernedExportActionInner {...props} />
+    </GovernedExportBoundary>
+  );
+}
+
+function GovernedExportActionInner({
   evidenceId,
   teamId,
   actionLabel,
@@ -125,14 +177,7 @@ export function GovernedExportAction({
    * action button alone is enough). Defaults to false.
    */
   compactWhenAllowed = false,
-}: {
-  evidenceId: string;
-  teamId: string | null;
-  actionLabel: string;
-  renderAction: (props: { disabled: boolean; onClick: () => void }) => React.ReactNode;
-  onAction?: () => void;
-  compactWhenAllowed?: boolean;
-}) {
+}: GovernedExportActionProps) {
   const [data, setData] = useState<EligibilityResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

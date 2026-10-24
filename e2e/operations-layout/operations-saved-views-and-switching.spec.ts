@@ -51,6 +51,8 @@ type Server = {
   listQueries: URLSearchParams[];
   viewReads: string[];
   saves: Array<Record<string, unknown>>;
+  /** PATCH / DELETE calls against one view (2026-10-24). */
+  edits: Array<{ method: string; id: string; teamId: string | null; body: Record<string, unknown> | null }>;
   contextFetches: () => number;
 };
 
@@ -61,6 +63,13 @@ async function serve(page: Page): Promise<Server> {
   const listQueries: URLSearchParams[] = [];
   const viewReads: string[] = [];
   const saves: Array<Record<string, unknown>> = [];
+  const edits: Server["edits"] = [];
+  // The views each workspace holds — mutable, so an edit persists across a
+  // reload and never crosses into another workspace.
+  const viewsByTeam = new Map<string, ReturnType<typeof VIEWS>>([
+    [WORKSPACE_ID, VIEWS(WORKSPACE_ID)],
+    [OTHER_WORKSPACE_ID, VIEWS(OTHER_WORKSPACE_ID)],
+  ]);
   const json = (route: Route, body: unknown, status = 200) =>
     route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
   const envelope = () => {
@@ -95,7 +104,7 @@ async function serve(page: Page): Promise<Server> {
     const team = new URL(req.url()).searchParams.get("teamId") ?? "";
     viewReads.push(team);
     return json(route, {
-      views: VIEWS(team).map((v) => ({
+      views: (viewsByTeam.get(team) ?? []).map((v) => ({
         ...v,
         description: null,
         visibility: "PRIVATE",
@@ -106,6 +115,26 @@ async function serve(page: Page): Promise<Server> {
         updatedAt: new Date().toISOString(),
       })),
     });
+  });
+  await page.route(/\/v1\/ops\/saved-views\/[^/?]+(\?.*)?$/, (route) => {
+    const req = route.request();
+    const url = new URL(req.url());
+    const id = decodeURIComponent(url.pathname.split("/").pop() ?? "");
+    const body = req.postData() ? (JSON.parse(req.postData()!) as Record<string, unknown>) : null;
+    const teamId = (body?.teamId as string | undefined) ?? url.searchParams.get("teamId");
+    edits.push({ method: req.method(), id, teamId, body });
+    const list = viewsByTeam.get(teamId ?? "") ?? [];
+    const view = list.find((v) => v.id === id);
+    if (!view) return json(route, { error: { code: "NOT_FOUND" } }, 404);
+    if (req.method() === "PATCH") {
+      if (typeof body?.name === "string") view.name = body.name;
+      return json(route, { view: { ...view } });
+    }
+    if (req.method() === "DELETE") {
+      viewsByTeam.set(teamId!, list.filter((v) => v.id !== id));
+      return route.fulfill({ status: 204, body: "" });
+    }
+    return route.fallback();
   });
   await page.route(/\/v1\/ops\/incidents(\?.*)?$/, (route) => {
     if (route.request().method() !== "GET") return route.fallback();
@@ -126,7 +155,7 @@ async function serve(page: Page): Promise<Server> {
       sla: { postures: ["UNTRACKED_LEGACY", "NOT_APPLICABLE", "ON_TRACK", "AT_RISK", "BREACHED", "ACKNOWLEDGED", "RESOLVED"], attentionPostures: ["BREACHED", "AT_RISK"] },
     });
   });
-  return { listQueries, viewReads, saves, contextFetches: () => contextFetches };
+  return { listQueries, viewReads, saves, edits, contextFetches: () => contextFetches };
 }
 
 async function open(page: Page, query = "") {
@@ -225,6 +254,48 @@ test("the notice is not shown once the queue no longer shows the view: Reset, Ba
   await page.locator(`[data-context-option="${OTHER_WORKSPACE_ID}"]`).first().dispatchEvent("click");
   await expect.poll(() => lastList(s).get("teamId"), { timeout: 15_000 }).toBe(OTHER_WORKSPACE_ID);
   await expect(notice).toHaveCount(0);
+});
+
+test("editing a saved view renames it in the active workspace only, and the new name persists across a reload", async ({ page }) => {
+  const s = await serve(page);
+  await open(page);
+  await page.getByTestId("ops-view-menu-v-critical").click();
+  await page.locator('[data-ops-view-row-action="rename"]').click();
+  const nameField = page.locator("[data-ops-view-name]");
+  await expect(nameField).toHaveValue("Open critical");
+  await nameField.fill("Critical now");
+  await nameField.press("Enter");
+  await expect.poll(() => s.edits.filter((e) => e.method === "PATCH").length).toBe(1);
+  const patch = s.edits.find((e) => e.method === "PATCH")!;
+  expect(patch).toMatchObject({ id: "v-critical", teamId: WORKSPACE_ID, body: { name: "Critical now" } });
+  await expect(page.locator('[data-ops-saved-view="v-critical"]')).toContainText("Critical now");
+  await page.reload();
+  await expect(page.locator("[data-ops-view-toggle]")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-ops-saved-view="v-critical"]')).toContainText("Critical now");
+});
+
+test("deleting a saved view asks first, removes it from the active workspace only, and it stays gone after a reload", async ({ page }) => {
+  const s = await serve(page);
+  await open(page);
+  await page.getByTestId("ops-view-menu-v-stale").click();
+  await page.locator('[data-ops-view-row-action="delete"]').click();
+  const confirm = page.locator('[data-confirm-action-modal="ops-view-delete-confirm"]');
+  await expect(confirm).toBeVisible();
+  // Cancel first: nothing is sent.
+  await confirm.locator("[data-confirm-action-cancel]").first().click();
+  await expect(page.locator('[data-ops-saved-view="v-stale"]')).toBeVisible();
+  expect(s.edits.filter((e) => e.method === "DELETE")).toHaveLength(0);
+  // Then delete.
+  await page.getByTestId("ops-view-menu-v-stale").click();
+  await page.locator('[data-ops-view-row-action="delete"]').click();
+  await page.locator('[data-confirm-action-modal="ops-view-delete-confirm"] [data-confirm-action-submit]').click();
+  await expect.poll(() => s.edits.filter((e) => e.method === "DELETE").length).toBe(1);
+  expect(s.edits.find((e) => e.method === "DELETE")).toMatchObject({ id: "v-stale", teamId: WORKSPACE_ID });
+  await expect(page.locator('[data-ops-saved-view="v-stale"]')).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator("[data-ops-view-toggle]")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-ops-saved-view="v-critical"]')).toBeVisible();
+  await expect(page.locator('[data-ops-saved-view="v-stale"]')).toHaveCount(0);
 });
 
 test("a view naming another workspace never makes the page read that workspace", async ({ page }) => {
