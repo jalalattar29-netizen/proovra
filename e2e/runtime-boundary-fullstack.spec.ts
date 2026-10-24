@@ -134,6 +134,19 @@ test.describe("runtime boundary — real generation, isolation and rendering", (
       .toBe(200);
     const pdf = await downloadBytes(A.token, `/v1/evidence/${evidenceId}/report/latest`);
     expect(pdf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+    // The verification package is issued by its own background step after the
+    // report, so it gets the same poll the report got above — fetching it in
+    // the same tick the report appeared raced that step on a loaded runner
+    // (observed 2026-10-24: report v1 present, package 404 on both attempts).
+    await expect
+      .poll(
+        async () => {
+          const r = await A.api.get(`/v1/evidence/${evidenceId}/verification-package`);
+          return r.status();
+        },
+        { timeout: 120_000, intervals: [2000] },
+      )
+      .toBe(200);
     const zip = await downloadBytes(A.token, `/v1/evidence/${evidenceId}/verification-package`);
     expect(zip.subarray(0, 2).toString("latin1")).toBe("PK");
 
