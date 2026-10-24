@@ -508,7 +508,9 @@ export function summarizeReviewWorkflowEvents(
       return null;
     };
     const reopens = (entry: ReviewWorkflowHistoryEntry) => eventsOf(entry).some((e) => e.eventType === "REOPENED");
-    let r = options.currentRound;
+    // Never behind the window's own count: a stale anchor (events refreshed
+    // after someone reopened the review) must not pull rounds backwards.
+    let r = Math.max(options.currentRound, round);
     for (let i = out.length - 1; i >= 0; i -= 1) {
       const entry = out[i]!;
       const tagged = taggedRound(entry);

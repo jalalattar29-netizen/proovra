@@ -79,6 +79,10 @@ const LEGACY_DB_STATUS_MAP: Record<string, ReviewStage> = {
   RESPONSE_RECEIVED: "RESPONSE_RECEIVED",
   REJECTED_INSUFFICIENT: "REJECTED_INSUFFICIENT",
   REOPENED: "REOPENED",
+  // The canonical stage name itself (2026-10-24): stage values reach the
+  // presenters too (the queue filter), and this one differs from its DB
+  // spelling NEEDS_INFO, so it fell through to QUEUED and read "Not started".
+  NEEDS_MORE_INFO: "NEEDS_MORE_INFO",
 };
 
 /**

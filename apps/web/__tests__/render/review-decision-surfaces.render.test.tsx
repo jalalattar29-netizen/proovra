@@ -116,6 +116,13 @@ describe("review queue — shared labels, never raw enums", () => {
       expect(reviewWorkflowStateLabel(stage)).not.toMatch(/^[A-Z_]+$/);
       expect(reviewStageFilterLabel(stage)).not.toMatch(/^[A-Z_]+$/);
     }
+    // Every stage the queue filters by has its OWN label — no two options
+    // read alike (NEEDS_MORE_INFO used to fall through to "Not started").
+    const STAGES = ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_MORE_INFO", "RESPONSE_RECEIVED", "APPROVED_INTERNAL", "REJECTED_INSUFFICIENT", "ESCALATED", "REOPENED", "CLOSED"];
+    const labels = STAGES.map((s) => reviewStageFilterLabel(s));
+    expect(new Set(labels).size).toBe(STAGES.length);
+    expect(reviewStageFilterLabel("NEEDS_MORE_INFO")).toBe("More information requested");
+    expect(reviewStageFilterLabel("NEEDS_INFO")).toBe("More information requested");
   });
 });
 

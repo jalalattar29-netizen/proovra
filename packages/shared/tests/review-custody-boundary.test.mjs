@@ -219,3 +219,13 @@ test("a truncated window holding a round-tagged decision is numbered from the se
   assert.equal(forward.d, 4);
   assert.equal(forward.c, 3);
 });
+
+test("a stale round anchor never pulls the window's rounds backwards", async () => {
+  const S = await import("../dist/index.js");
+  const ev = (id, eventType, nextValue, m) => ({ id, eventType, nextValue, previousValue: null, note: null, createdAt: `2026-10-03T10:0${m}:00.000Z`, actor: null });
+  // Complete history: round 0, a Reopen into round 1. The anchor still says 0
+  // (the workspace was read before someone reopened the review).
+  const events = [ev("a", "CREATED", null, 1), ev("b", "STATUS_CHANGED", { status: "IN_REVIEW" }, 2), ev("c", "REOPENED", { stage: "REOPENED" }, 3), ev("d", "STATUS_CHANGED", { status: "IN_REVIEW" }, 4)];
+  const roundOf = Object.fromEntries(S.summarizeReviewWorkflowEvents(events, null, { currentRound: 0 }).map((e) => [e.eventIds[0], e.round]));
+  assert.deepEqual(roundOf, { a: 0, b: 0, c: 1, d: 1 });
+});
