@@ -159,8 +159,11 @@ export function EvidenceRecordRail({
         <View style={styles.stackTight}>
           <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>REVIEW WORKFLOW</ProovraText>
           <ProovraText variant="label" color={theme.color.ink.muted}>Operational summary</ProovraText>
-          <View style={styles.row}>
-            <ProovraBadge tone={workflowStatusTone(status)} label={status ? status.replace(/_/g, " ") : "Not started"} />
+          <View style={styles.row} testID="evidence-record-rail-review">
+            {/* The workflow STATE and the current round's DECISION, both from the
+                server's labels — never a raw enum (2026-10-24, audit P2-5). */}
+            <ProovraBadge tone={workflowStatusTone(status)} label={formatReviewerStatusLabel(status)} />
+            <ProovraBadge tone="neutral" label={`Decision: ${record.workflow.decisionLabel}`} />
           </View>
           <View style={styles.railField}>
             <ProovraText variant="label" color={theme.color.ink.muted}>Priority</ProovraText>

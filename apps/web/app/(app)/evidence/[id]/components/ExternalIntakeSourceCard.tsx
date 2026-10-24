@@ -102,6 +102,10 @@ type Summary = {
 type ReviewWorkflowDetails = {
   id?: string | null;
   status?: string | null;
+  /** The shared presenter's state label and the current-round decision (2026-10-24). */
+  workflowStateLabel?: string | null;
+  decision?: "NO_DECISION" | "APPROVED" | "NOT_ACCEPTED" | null;
+  decisionLabel?: string | null;
   priority?: string | null;
   assignedTo?: { id?: string; displayName?: string | null } | null;
   note?: string | null;
@@ -175,8 +179,10 @@ export default function ExternalIntakeSourceCard({
   // workflow row exists yet (first click creates it via PATCH).
   const currentStatus = review?.workflow?.status ?? "NOT_STARTED";
   const currentStatusLabel = useMemo(() => {
-    return STATUS_LABEL[currentStatus] ?? currentStatus;
-  }, [currentStatus]);
+    return review?.workflow?.workflowStateLabel ?? STATUS_LABEL[currentStatus] ?? currentStatus;
+  }, [currentStatus, review?.workflow?.workflowStateLabel]);
+  const currentDecision = review?.workflow?.decision ?? "NO_DECISION";
+  const currentDecisionLabel = review?.workflow?.decisionLabel ?? "No decision";
 
   const [savedFlashStatus, setSavedFlashStatus] = useState<string | null>(null);
   /** The verdict awaiting its required written reason, and that reason. */
@@ -597,6 +603,9 @@ export default function ExternalIntakeSourceCard({
           >
             {currentStatusLabel}
           </h4>
+          <p className="evd-muted" data-evidence-reviewer-current-decision={currentDecision}>
+            Decision: {currentDecisionLabel}
+          </p>
         </header>
         {reviewError ? <div className="evd-error">{reviewError}</div> : null}
         <div className="evd-actions">
@@ -630,7 +639,10 @@ export default function ExternalIntakeSourceCard({
           data-evidence-reviewer-decisions="true"
         >
           {REVIEWER_DECISION_ACTIONS.map((action) => {
-            const satisfied = currentStatus === action.resultingStatus;
+            const satisfied =
+              action.verdict !== null
+                ? currentDecision === action.verdict
+                : currentStatus === action.resultingStatus;
             return (
               <button
                 key={action.decision}

@@ -18,6 +18,7 @@
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { reviewSlaLabel, reviewStatusLabel, reviewWorkflowStateLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../../../lib/api";
 import { Badge } from "../../../../components/ui/Badge";
@@ -68,6 +69,9 @@ type Workflow = {
   firstResponseDueAtUtc: string | null;
   completedAtUtc: string | null;
   slaStatus: string | null;
+  /** The shared presenter's state label and the current-round decision (2026-10-24). */
+  workflowStateLabel?: string;
+  decisionLabel?: string;
   escalationLevel: number;
   escalatedAtUtc: string | null;
   escalationReason: string | null;
@@ -257,7 +261,7 @@ useEffect(() => {
               <Stat label="Due soon" value={String(counts.dueSoon)} />
               <Stat label="Escalated" value={String(counts.byStage.ESCALATED)} />
               <Stat
-                label="Approved (internal)"
+                label="Approved, not yet closed"
                 value={String(counts.byStage.APPROVED_INTERNAL)}
               />
             </div>
@@ -275,7 +279,7 @@ useEffect(() => {
                   <option value="">All statuses</option>
                   {STAGES.map((s) => (
                     <option key={s} value={s}>
-                      {s} ({counts.byStage[s]})
+                      {reviewStatusLabel(s)} ({counts.byStage[s]})
                     </option>
                   ))}
                 </select>
@@ -404,10 +408,15 @@ useEffect(() => {
                     </div>
                     {w.slaStatus ? (
                       <Badge tone={slaTone(w.slaStatus)} subtle>
-                        {w.slaStatus}
+                        {reviewSlaLabel(w.slaStatus)}
                       </Badge>
                     ) : null}
-                    <span style={stageBadgeStyle(w.stage)}>{w.stage}</span>
+                    <span style={stageBadgeStyle(w.stage)} data-review-queue-state>
+                      {w.workflowStateLabel ?? reviewWorkflowStateLabel(w.stage)}
+                    </span>
+                    <span className="evd-muted" data-review-queue-decision>
+                      Decision: {w.decisionLabel ?? "No decision"}
+                    </span>
                     {!w.assignedToUserId ? (
                       <button
                         type="button"

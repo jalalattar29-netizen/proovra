@@ -181,3 +181,19 @@ test("7 — ONE OTS owed rule (update card and the worker's automatic version): 
   // Identity unknown now: the verification alone decides.
   assert.equal(otsChainVerifiedAfterReport({ verification: "CHAIN_VERIFIED", reportVerification: "CHAIN_VERIFIED" }), false);
 });
+
+test("a bounded history window is anchored to the server's current round (fifth audit)", async () => {
+  const S = await import("../dist/index.js");
+  // The newest window of a review now in round 4: one Reopen, then a decision.
+  const events = [
+    { id: "a", eventType: "STATUS_CHANGED", nextValue: { status: "IN_REVIEW" }, previousValue: null, note: null, createdAt: "2026-10-01T10:00:00.000Z", actor: null },
+    { id: "b", eventType: "REOPENED", nextValue: { stage: "REOPENED" }, previousValue: null, note: "again", createdAt: "2026-10-01T11:00:00.000Z", actor: null },
+    { id: "c", eventType: "DECISION_LOGGED", nextValue: { decision: "APPROVE", stage: "APPROVED_INTERNAL", state: "resolved" }, previousValue: null, note: null, createdAt: "2026-10-01T12:00:00.000Z", actor: null },
+  ];
+  const anchored = S.groupReviewHistoryByRound(S.summarizeReviewWorkflowEvents(events, null, { currentRound: 4 }));
+  assert.deepEqual(anchored.map((r) => r.label), ["Round 5", "Round 4"]);
+  assert.equal(anchored[0].current, true);
+  // Without the anchor the window would call the current round "Round 2".
+  const unanchored = S.groupReviewHistoryByRound(S.summarizeReviewWorkflowEvents(events, null));
+  assert.deepEqual(unanchored.map((r) => r.label), ["Round 2", "Round 1"]);
+});

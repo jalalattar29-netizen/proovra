@@ -101,21 +101,32 @@ export const REVIEWER_DECISION_ACTIONS: ReadonlyArray<{
   decision: "APPROVE_INTERNAL" | "REJECT_INSUFFICIENT" | "REQUEST_MORE_INFO";
   label: string;
   resultingStatus: string;
+  /**
+   * The current-round DECISION this verdict records (2026-10-24), as the
+   * server reports it; null for a request for information, which is a state
+   * and no verdict. A verdict is "recorded" when the server's decision says
+   * so — never because the stored status happens to equal its stage (after
+   * Close the status is CLOSED and the verdict still stands).
+   */
+  verdict: "APPROVED" | "NOT_ACCEPTED" | null;
 }> = [
   {
     decision: "REQUEST_MORE_INFO",
     label: "Request more context",
     resultingStatus: "NEEDS_INFO",
+    verdict: null,
   },
   {
     decision: "APPROVE_INTERNAL",
     label: "Accept for internal review",
     resultingStatus: "APPROVED_INTERNAL",
+    verdict: "APPROVED",
   },
   {
     decision: "REJECT_INSUFFICIENT",
     label: "Reject as insufficient",
     resultingStatus: "REJECTED_INSUFFICIENT",
+    verdict: "NOT_ACCEPTED",
   },
 ];
 

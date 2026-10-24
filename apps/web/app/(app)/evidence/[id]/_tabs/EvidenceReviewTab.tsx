@@ -279,6 +279,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           evidenceId={evidenceId}
           teamId={workspace.reviewWorkflow?.teamId ?? null}
           currentStatus={workspace.reviewWorkflow.status ?? null}
+          decisionLabel={workspace.reviewWorkflow.decisionLabel ?? null}
           assignedTo={workspace.reviewWorkflow.assignedTo ?? null}
           viewerUserId={workspace.reviewWorkflow.viewerUserId ?? null}
           availableActions={workspace.reviewWorkflow.availableActions}

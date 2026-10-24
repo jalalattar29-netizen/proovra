@@ -38,3 +38,22 @@ test("the record view carries the server's decision, separate from the status", 
   const none = ER.projectRecord({ evidence: { id: "ev-1" }, reviewWorkflow: { status: "CLOSED" } });
   assert.equal(none.workflow.decisionLabel, "No decision");
 });
+
+test("the record rail shows the workflow state and the decision — never the raw stored enum (audit P2-5)", async () => {
+  const { loadWithProviders, renderInProviders, React } = await import("./support/render.mjs");
+  const Sections = await loadWithProviders("src/ui/evidence-record-sections.tsx");
+  const record = ER.projectRecord({
+    evidence: { id: "ev-1", status: "REPORTED" },
+    reviewWorkflow: { status: "CLOSED", priority: "NORMAL", decision: "APPROVED", decisionLabel: "Approved" },
+  });
+  const r = await renderInProviders(
+    Sections,
+    React.createElement(Sections.EvidenceRecordRail, { signals: [], record, publicVerification: null, shareUrl: null }),
+  );
+  assert.equal(r.byLabel("Closed").length, 1, "the state badge reads the shared presenter's label");
+  assert.equal(r.byLabel("Decision: Approved").length, 1, "the decision badge reads the server's label");
+  for (const raw of ["CLOSED", "APPROVED INTERNAL", "APPROVED_INTERNAL"]) {
+    assert.equal(r.byLabel(raw).length, 0, raw);
+    assert.ok(!r.hasText(raw), raw);
+  }
+});

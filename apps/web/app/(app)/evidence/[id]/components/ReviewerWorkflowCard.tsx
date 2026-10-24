@@ -26,6 +26,8 @@ type WorkflowSummary = {
   status: string | null;
   /** The current round's decision, from the server (2026-10-24). */
   decision?: ReviewDecision | null;
+  /** The current decision round, from the server: anchors the bounded history window. */
+  decisionRound?: number | null;
   priority: string | null;
   assignedTo: WorkflowActor | null;
   assignedBy?: WorkflowActor | null;
@@ -80,7 +82,7 @@ export function ReviewerWorkflowCard({
 }) {
   const viewerUserId = workflow.viewerUserId ?? null;
   const outcome = presentReviewOutcome({ dbStatus: workflow.status, decision: workflow.decision ?? null });
-  const history = summarizeReviewWorkflowEvents(events, viewerUserId);
+  const history = summarizeReviewWorkflowEvents(events, viewerUserId, { currentRound: workflow.decisionRound ?? null });
   const rounds = groupReviewHistoryByRound(history);
   const lastActivity = history[0]?.createdAt ?? null;
   return (

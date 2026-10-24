@@ -33,7 +33,7 @@ import {
   REVIEW_WORKFLOW_ACTION_OUTCOMES,
   REVIEW_WORKFLOW_BLOCK_COPY,
   reviewAssigneeLabel,
-  reviewStatusLabel,
+  reviewWorkflowStateLabel,
   type ReviewWorkflowAction,
   type ReviewWorkflowActionAvailability,
 } from "@proovra/shared";
@@ -124,6 +124,7 @@ export function EvidenceReviewActionsPanel({
   evidenceId,
   teamId,
   currentStatus,
+  decisionLabel,
   assignedTo,
   viewerUserId,
   availableActions,
@@ -133,6 +134,8 @@ export function EvidenceReviewActionsPanel({
   evidenceId: string;
   teamId: string | null;
   currentStatus: string | null;
+  /** The server's current-round decision label (2026-10-24); the state alone never names a verdict. */
+  decisionLabel?: string | null;
   assignedTo: { id: string; displayName: string | null; email: string | null } | null;
   viewerUserId: string | null;
   /** The server's projection; absent → nothing is offered. */
@@ -263,7 +266,10 @@ export function EvidenceReviewActionsPanel({
           data-tone="slate"
           data-evidence-review-stage={currentStatus ?? "NOT_STARTED"}
         >
-          {reviewStatusLabel(currentStatus)}
+          {reviewWorkflowStateLabel(currentStatus)}
+        </span>
+        <span className="evd-muted" data-evidence-review-decision>
+          Decision: {decisionLabel ?? "No decision"}
         </span>
         <span className="evd-muted" data-evidence-review-assignee>
           Reviewer: {reviewAssigneeLabel(assignedTo, viewerUserId)}

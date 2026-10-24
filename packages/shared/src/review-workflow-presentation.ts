@@ -99,6 +99,19 @@ export const REVIEW_PRIORITY_LABELS: Readonly<Record<string, string>> = {
   URGENT: "Urgent",
 };
 
+/** Review SLA states (`EvidenceReviewSlaStatus`), named for people — never the raw enum. */
+export const REVIEW_SLA_LABELS: Readonly<Record<string, string>> = {
+  ON_TRACK: "On track",
+  DUE_SOON: "Due soon",
+  OVERDUE: "Overdue",
+  BREACHED: "SLA breached",
+  PAUSED: "SLA paused",
+};
+
+export function reviewSlaLabel(sla: string | null | undefined): string {
+  return (sla && REVIEW_SLA_LABELS[sla]) || "No SLA";
+}
+
 export function reviewPriorityLabel(priority: string | null | undefined): string {
   return (priority && REVIEW_PRIORITY_LABELS[priority]) || "Normal";
 }
@@ -395,6 +408,13 @@ function historyLabel(e: ReviewWorkflowEventInput): string {
 export function summarizeReviewWorkflowEvents(
   events: ReadonlyArray<ReviewWorkflowEventInput>,
   viewerUserId: string | null,
+  /**
+   * The workflow's CURRENT decision round, from the server. History is a
+   * bounded window (the newest events), so rounds counted from the Reopens
+   * inside it can start late; the newest entry is anchored to the current
+   * round and the rest counted back from it (2026-10-24).
+   */
+  options: { currentRound?: number | null } = {},
 ): ReviewWorkflowHistoryEntry[] {
   const ordered = [...events].sort(
     (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.id.localeCompare(b.id),
@@ -453,6 +473,8 @@ export function summarizeReviewWorkflowEvents(
       note: e.note,
     });
   }
+  const offset = typeof options.currentRound === "number" && options.currentRound > round ? options.currentRound - round : 0;
+  if (offset > 0) for (const entry of out) entry.round += offset;
   return out.reverse();
 }
 
