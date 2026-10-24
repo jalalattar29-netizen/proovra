@@ -33,6 +33,7 @@ import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import {
   REVIEWER_DECISION_ACTIONS,
+  REVIEWER_ROUTING_ACTION_LABELS,
   REVIEWER_STATUS_LABEL,
   REVIEWER_STATUS_PRIMARY_ACTIONS,
   REVIEWER_STATUS_DISCLAIMER,
@@ -617,7 +618,7 @@ export default function ExternalIntakeSourceCard({
                 aria-pressed={active}
               >
                 {reviewBusy && savedFlashStatus === null ? "…" : ""}
-                {STATUS_LABEL[s] ?? s}
+                {REVIEWER_ROUTING_ACTION_LABELS[s] ?? STATUS_LABEL[s] ?? s}
               </button>
             );
           })}

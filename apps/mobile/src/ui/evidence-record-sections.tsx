@@ -620,6 +620,7 @@ export function VerificationDisclosureCard({
 /** EvidenceReviewTab.tsx:164-234 — the review hero. Identical layout for every status. */
 export function ReviewHero({
   status,
+  decisionLabel,
   canSeeReviewerOps,
   reportAvailable,
   reportPending,
@@ -628,6 +629,8 @@ export function ReviewHero({
   onOpenReport,
 }: {
   status: string | null;
+  /** The current round's decision label (server). */
+  decisionLabel?: string | null;
   canSeeReviewerOps: boolean;
   reportAvailable: boolean;
   reportPending: boolean;
@@ -640,7 +643,8 @@ export function ReviewHero({
     <ProovraCard testID="review-hero">
       <View style={styles.railField}>
         <ProovraText variant="h3" weight="semibold" style={{ flex: 1 }}>{formatReviewerStatusLabel(st)}</ProovraText>
-        <ProovraBadge tone={workflowStatusTone(st)} label={st.replace(/_/g, " ")} />
+        {/* The DECISION, never the raw stored status (2026-10-24). */}
+        <ProovraBadge tone={workflowStatusTone(st)} label={`Decision: ${decisionLabel ?? "No decision"}`} />
       </View>
       <ProovraText variant="label" color={theme.color.ink.muted}>{REVIEWER_STATUS_DISCLAIMER}</ProovraText>
       <View style={styles.actionsRow}>

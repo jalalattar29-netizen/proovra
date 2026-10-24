@@ -448,6 +448,15 @@ export type ReviewWorkspaceResponse = {
     viewerUserId?: string | null;
     /** What this viewer may do next — the server's projection. */
     availableActions?: ReviewWorkflowActionAvailability[];
+    /**
+     * WORKFLOW STATE and CURRENT-ROUND DECISION, separately (2026-10-24):
+     * Approve then Close is workflow Closed, decision Approved.
+     */
+    workflowState?: string | null;
+    workflowStateLabel?: string | null;
+    decision?: "NO_DECISION" | "APPROVED" | "NOT_ACCEPTED" | null;
+    decisionLabel?: string | null;
+    decisionRound?: number | null;
   };
   classification: {
     evidenceType: string;

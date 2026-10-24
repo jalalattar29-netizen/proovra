@@ -439,7 +439,9 @@ describe("D — the workflow history reads for a person", () => {
     expect(text).not.toMatch(/54b5d495/);
     // The summary does not repeat absent optional values.
     expect(text).not.toContain("Not available");
-    expect(text).toContain("Review history is separate from the evidence");
+    // ONE boundary line (2026-10-24: it used to be said three times).
+    expect(text.match(/Internal review only/g)?.length).toBe(1);
+    expect(text).not.toContain("Review history is separate from the evidence");
   });
 
   it("an SLA event PROOVRA wrote with no actor reads as PROOVRA, never as a former member (audit F8)", () => {
@@ -460,5 +462,98 @@ describe("D — the workflow history reads for a person", () => {
     expect(entry.getAttribute("data-evidence-workflow-entry")).toBe("SYSTEM");
     expect(entry.textContent).toContain("PROOVRA");
     expect(entry.textContent).not.toContain("Former workspace member");
+  });
+});
+
+// ===========================================================================
+// E. The redesigned Reviewer workflow card (2026-10-24)
+// ===========================================================================
+
+describe("E — Reviewer workflow card: state and decision apart, history by round, compact", () => {
+  const WF = { available: true, priority: "NORMAL", assignedTo: null, dueAt: null, lastReviewedAt: null, note: null, viewerUserId: ME } as const;
+  const at = (min: number) => new Date(Date.UTC(2026, 9, 20, 10, min, 0)).toISOString();
+  const ev = (id: string, eventType: string, min: number, nextValue: unknown = null, actor: unknown = { id: OTHER, displayName: "Sam Okafor", email: null }) =>
+    ({ id, eventType, note: null, previousValue: null, nextValue, createdAt: at(min), actor }) as never;
+  const card = (workflow: Record<string, unknown>, events: unknown[]) =>
+    render(
+      <ReviewerWorkflowCard
+        workflow={{ ...WF, ...workflow } as never}
+        events={events as never}
+        eventsLoading={false}
+        actionBusy={false}
+        onRefreshEvents={() => {}}
+        onOpenEditor={() => {}}
+        formatDateTime={(v) => `${v} Europe/Berlin`}
+      />,
+    );
+
+  it("Approve then Close reads Workflow: Closed · Decision: Approved — never 'Not accepted'", () => {
+    card({ status: "CLOSED", decision: "APPROVED" }, []);
+    expect(q('[data-evidence-review-fact="workflow"] dd')?.textContent).toBe("Closed");
+    expect(q('[data-evidence-review-fact="decision"] dd')?.textContent).toBe("Approved");
+    expect(document.body.textContent).not.toContain("Not accepted");
+    cleanup();
+    card({ status: "CLOSED", decision: "NO_DECISION" }, []);
+    expect(q('[data-evidence-review-fact="decision"] dd')?.textContent).toBe("No decision");
+    cleanup();
+    card({ status: "CLOSED", decision: "NOT_ACCEPTED" }, []);
+    expect(q('[data-evidence-review-fact="decision"] dd')?.textContent).toBe("Not accepted");
+    expect(q('[data-evidence-review-fact="workflow"] dd')?.textContent).toBe("Closed");
+  });
+
+  it("history is grouped by round: newest round open, older rounds collapsed; a decision is named, Reopen/Close are not decisions", () => {
+    card({ status: "CLOSED", decision: "APPROVED" }, [
+      ev("a", "CREATED", 0, null, null),
+      ev("b", "CLAIMED", 1),
+      ev("c", "DECISION_LOGGED", 2, { round: 0, decision: "REJECT", stage: "REJECTED_INSUFFICIENT", state: "resolved" }),
+      ev("d", "REOPENED", 3),
+      ev("e", "DECISION_LOGGED", 4, { round: 1, decision: "APPROVE", stage: "APPROVED_INTERNAL", state: "resolved" }),
+      ev("f", "CLOSED", 5),
+    ]);
+    const current = q('[data-evidence-review-round-current="true"]') as HTMLElement;
+    expect(current.getAttribute("data-evidence-review-round")).toBe("1");
+    const labels = [...current.querySelectorAll("li strong")].map((x) => x.textContent);
+    expect(labels).toEqual(["Closed", "Decision recorded: Approved", "Reopened"]);
+    const older = q('[data-evidence-review-round-disclosure="0"]') as HTMLDetailsElement;
+    expect(older.tagName).toBe("DETAILS");
+    expect(older.open).toBe(false);
+    expect(older.querySelector("summary")?.textContent).toBe("Round 1 · 3 entries");
+    const codes = [...document.querySelectorAll("[data-evidence-workflow-code]")].map((x) => [x.querySelector("strong")?.textContent, x.getAttribute("data-evidence-workflow-code")]);
+    expect(codes).toContainEqual(["Reopened", "REVIEW_REOPENED"]);
+    expect(codes).toContainEqual(["Closed", "REVIEW_CLOSED"]);
+    expect(codes).toContainEqual(["Decision recorded: Not accepted", "REVIEW_DECISION_RECORDED"]);
+  });
+
+  it("five entries a round until 'Show all N entries'; 'Show less' returns; concise date in the row, the exact zoned time only in the accessible detail", () => {
+    const events = Array.from({ length: 8 }, (_, i) => ev(`p${i}`, "PRIORITY_CHANGED", i + 1));
+    card({ status: "IN_REVIEW", decision: "NO_DECISION" }, [ev("c", "CREATED", 0, null, null), ...events]);
+    const current = q('[data-evidence-review-round-current="true"]') as HTMLElement;
+    expect(current.querySelectorAll("li")).toHaveLength(5);
+    const more = q("[data-evidence-review-show-all]") as HTMLButtonElement;
+    expect(more.textContent).toBe("Show all 9 entries");
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(more);
+    expect(current.querySelectorAll("li")).toHaveLength(9);
+    expect(more.textContent).toBe("Show less");
+    fireEvent.click(more);
+    expect(current.querySelectorAll("li")).toHaveLength(5);
+    // The zone is never repeated in the visible rows.
+    const visible = [...current.querySelectorAll("time")].map((t) => t.textContent ?? "");
+    expect(visible.every((t) => !t.includes("Europe/Berlin"))).toBe(true);
+    const first = current.querySelector("time") as HTMLTimeElement;
+    expect(first.getAttribute("title")).toContain("Europe/Berlin");
+    expect(first.getAttribute("dateTime")).toMatch(/^2026-10-20T10:/);
+  });
+
+  it("no raw enums or identifiers reach the reader", () => {
+    card({ status: "APPROVED_INTERNAL", decision: "APPROVED" }, [
+      ev("x", "DECISION_LOGGED", 1, { round: 0, decision: "REQUEST_INFO", stage: "NEEDS_MORE_INFO", state: "resolved" }),
+      ev("y", "STATUS_CHANGED", 2, { status: "IN_REVIEW" }),
+    ]);
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("More information requested");
+    expect(text).toContain("Moved to In review");
+    expect(q('[data-evidence-review-fact="workflow"] dd')?.textContent).toBe("Decided");
+    expect(text).not.toMatch(/[A-Z]{3,}_[A-Z]{2,}|[0-9a-f]{8}-[0-9a-f]{4}-/);
   });
 });

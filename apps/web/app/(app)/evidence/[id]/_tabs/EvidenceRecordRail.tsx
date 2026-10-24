@@ -22,7 +22,7 @@
 // The rail's states are LABELLED FACTS in a key/value column, not states a
 // dense row is scanned by — so they are text, and the label beside them is
 // what tells the reader which fact they are.
-import { reviewPriorityLabel, reviewStatusLabel } from "@proovra/shared";
+import { reviewPriorityLabel, reviewWorkflowStateLabel } from "@proovra/shared";
 
 import { AppStatusText } from "../../../../../components/app-primitives";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -97,26 +97,31 @@ export function EvidenceRecordRail({
         data-evidence-side="operational-summary"
       >
         <h2 className="evidence-detail-rail-heading">Review Workflow</h2>
-        <p className="evidence-detail-rail-lede">Operational summary</p>
+        {/* A COMPACT, NON-DUPLICATIVE SUMMARY (2026-10-24): the Review tab is
+            the authority; the rail says where the review stands in one line —
+            workflow state and current-round decision, separately — and links
+            there. */}
         <AppStatusText
           tone={getWorkflowStatusTone(workspace.reviewWorkflow.status)}
         >
-          {reviewStatusLabel(workspace.reviewWorkflow.status)}
+          {reviewWorkflowStateLabel(workspace.reviewWorkflow.status)}
         </AppStatusText>
-        <div className="evidence-detail-rail-field">
-          <span className="evidence-detail-rail-field__label">Priority</span>
-          <span
-            className="evidence-detail-rail-field__value"
-            data-evidence-rail-priority
-          >
+        <p className="evidence-detail-rail-field__value" data-evidence-rail-review>
+          <span data-evidence-rail-decision>
+            Decision: {workspace.reviewWorkflow.decisionLabel ?? "No decision"}
+          </span>
+          <span className="evidence-detail-muted" data-evidence-rail-priority>
             <span
               className="evidence-detail-rail-dot"
               data-tone={getPriorityTone(workspace.reviewWorkflow.priority)}
               aria-hidden="true"
             />
-            {reviewPriorityLabel(workspace.reviewWorkflow.priority)}
+            {reviewPriorityLabel(workspace.reviewWorkflow.priority)} priority
           </span>
-        </div>
+        </p>
+        <a className="evidence-detail-inline-link" href="?tab=review#workflow" data-evidence-rail-open-review>
+          Open review
+        </a>
       </section>
 
       <section

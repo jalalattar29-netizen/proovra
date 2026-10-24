@@ -43,23 +43,15 @@ const STATUS_LIB = "apps/web/app/(app)/evidence/lib/reviewer-status.ts";
 // (A) Canonical reviewer-status labels + disclaimer copy
 // ============================================================================
 
-test("reviewer-status: canonical label map exists and covers every backend status", () => {
+test("reviewer-status: the workflow-state labels are the shared presenter's; Close is an action, never a verdict", () => {
   const src = read(STATUS_LIB);
-  for (const [enumValue, label] of [
-    ["NOT_STARTED", "Needs review"],
-    ["IN_REVIEW", "In review"],
-    ["NEEDS_INFO", "Needs additional context"],
-    ["READY_FOR_EXTERNAL_REVIEW", "Ready for external review"],
-    ["APPROVED_INTERNAL", "Accepted for internal review"],
-    ["ESCALATED", "Escalated for further review"],
-    ["CLOSED", "Not accepted"],
-  ] as Array<[string, string]>) {
-    assert.match(
-      src,
-      new RegExp(`${enumValue}:\\s*"${label}"`),
-      `REVIEWER_STATUS_LABEL missing canonical entry for ${enumValue}`,
-    );
-  }
+  // 2026-10-24 — the WORKFLOW STATE labels come from the ONE shared presenter
+  // (reviewWorkflowStateLabel); this lib keeps no label map of its own, and a
+  // closed review never reads "Not accepted".
+  assert.match(src, /import \{ reviewWorkflowStateLabel \} from "@proovra\/shared"/);
+  assert.match(src, /\.map\(\(status\) => \[status, reviewWorkflowStateLabel\(status\)\]\)/);
+  assert.doesNotMatch(src, /CLOSED:\s*"Not accepted"/);
+  assert.match(src, /CLOSED:\s*"Close review"/);
 });
 
 test("reviewer-status: disclaimer copy is the legally-safe internal-marker line", () => {
@@ -93,8 +85,10 @@ test("ExternalIntakeSourceCard reuses the canonical reviewer-status helpers", ()
 
 test("ReviewerWorkflowCard renders the legally-safe label + disclaimer", () => {
   const src = read(WORKFLOW_CARD);
-  assert.match(src, /formatReviewerStatusLabel\(workflow\.status\)/);
-  assert.match(src, /REVIEWER_STATUS_DISCLAIMER/);
+  // 2026-10-24 — workflow state and decision from the one shared presenter;
+  // one short boundary line.
+  assert.match(src, /presentReviewOutcome\(\{ dbStatus: workflow\.status, decision: workflow\.decision \?\? null \}\)/);
+  assert.match(src, /outcome\.decisionLabel/);
   assert.match(src, /data-evidence-reviewer-disclaimer="true"/);
   // The card must NOT render the raw enum (the old
   // `workflow.status.replace(/_/g, " ")` produced "NOT STARTED",

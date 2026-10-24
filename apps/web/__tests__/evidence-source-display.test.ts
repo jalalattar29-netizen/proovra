@@ -285,26 +285,12 @@ test("REGRESSION GUARD: reviewer-status fix still reads nested workflow.status",
   assert.match(card, /savedFlashStatus/);
 });
 
-test("REGRESSION GUARD: five legally-safe reviewer status labels remain", () => {
-  // Labels moved to the canonical reviewer-status lib so every
-  // surface reads the same map. The External Intake card aliases
-  // REVIEWER_STATUS_LABEL to its local STATUS_LABEL.
-  const card = read(CARD);
-  assert.match(card, /REVIEWER_STATUS_LABEL/);
-  const libSrc = read("apps/web/app/(app)/evidence/lib/reviewer-status.ts");
-  for (const label of [
-    "Needs review",
-    "In review",
-    "Needs additional context",
-    "Accepted for internal review",
-    "Not accepted",
-  ]) {
-    assert.match(
-      libSrc,
-      new RegExp(label.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")),
-      `legally-safe label "${label}" must remain in the canonical reviewer-status lib`,
-    );
-  }
+test("REGRESSION GUARD: reviewer workflow labels come from the shared presenter; a closed review never reads 'Not accepted'", () => {
+  const src = read("apps/web/app/(app)/evidence/lib/reviewer-status.ts");
+  assert.match(src, /reviewWorkflowStateLabel/);
+  assert.doesNotMatch(src, /CLOSED:\s*"Not accepted"/);
+  // The routing buttons name what they DO.
+  assert.match(src, /CLOSED:\s*"Close review"/);
 });
 
 test("REGRESSION GUARD: backend reviewer-workflow route + enum unchanged", () => {

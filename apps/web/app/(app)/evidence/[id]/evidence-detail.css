@@ -6202,3 +6202,17 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   letter-spacing: 0.04em;
   color: var(--app-ink-secondary);
 }
+
+/* ---- Reviewer workflow card: compact facts (2026-10-24) -----------------
+ * One wrapping row of label/value pairs (the rail field pattern) instead of
+ * tall summary tiles. */
+.evidence-detail-review-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  margin: 4px 0 12px;
+}
+.evidence-detail-review-facts dd,
+.evidence-detail-review-card__title {
+  margin: 0;
+}

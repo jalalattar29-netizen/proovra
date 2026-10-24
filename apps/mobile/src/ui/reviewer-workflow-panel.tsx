@@ -226,6 +226,8 @@ export function ReviewerWorkflowPanel({ evidenceId, openRequest = 0 }: { evidenc
               label={workflowStatusLabel(current.status)}
               tone={isVerdictStatus(current.status) ? "verified" : "info"}
             />
+            {/* The DECISION, separate from the workflow state (2026-10-24). */}
+            <ProovraBadge label={`Decision: ${current.decisionLabel}`} tone="neutral" />
             <ProovraBadge label={workflowPriorityLabel(current.priority)} tone="neutral" />
           </View>
           {isVerdictStatus(current.status) ? (
@@ -285,7 +287,7 @@ export function ReviewerWorkflowPanel({ evidenceId, openRequest = 0 }: { evidenc
           {events.value.map((e) => (
             <View key={e.id} style={{ gap: 2, paddingVertical: theme.space.s2 }}>
               <ProovraText variant="bodySm" weight="semibold">
-                {workflowEventLabel(e.eventType)}
+                {workflowEventLabel(e.eventType, e.nextValue)}
               </ProovraText>
               {e.note ? <ProovraText variant="bodySm">{e.note}</ProovraText> : null}
               <ProovraText variant="label" color={theme.color.ink.muted}>

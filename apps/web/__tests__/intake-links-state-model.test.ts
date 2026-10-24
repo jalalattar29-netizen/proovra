@@ -255,24 +255,12 @@ test("reviewer-status card has the legal-careful internal-workflow disclaimer", 
   );
 });
 
-test("REGRESSION GUARD: the five legally-safe reviewer status labels remain (canonical lib)", () => {
-  // The labels moved to apps/web/app/(app)/evidence/lib/reviewer-status.ts
-  // so every reviewer-status surface (External Intake card, Reviewer
-  // Workflow card, Review tab status box) reads the same strings.
+test("REGRESSION GUARD: reviewer workflow labels come from the shared presenter; a closed review never reads 'Not accepted'", () => {
   const src = read("apps/web/app/(app)/evidence/lib/reviewer-status.ts");
-  for (const label of [
-    "Needs review",
-    "In review",
-    "Needs additional context",
-    "Accepted for internal review",
-    "Not accepted",
-  ]) {
-    assert.match(
-      src,
-      new RegExp(label.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")),
-      `legally-safe label "${label}" must remain in the canonical reviewer-status lib`,
-    );
-  }
+  assert.match(src, /reviewWorkflowStateLabel/);
+  assert.doesNotMatch(src, /CLOSED:\s*"Not accepted"/);
+  // The routing buttons name what they DO.
+  assert.match(src, /CLOSED:\s*"Close review"/);
 });
 
 test("REGRESSION GUARD: reviewer-status reads the nested workflow.status (fix kept)", () => {

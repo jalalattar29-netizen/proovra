@@ -225,9 +225,12 @@ test("Case and Due date live under Attributes, NOT under Review Workflow", () =>
   );
   assert.doesNotMatch(workflow, />Case</);
   assert.doesNotMatch(workflow, />Review due</);
-  // Review Workflow keeps its own two facts.
-  assert.match(workflow, /Operational summary/);
-  assert.match(workflow, />Priority</);
+  // Review Workflow is a compact summary (2026-10-24): state, the current
+  // decision and priority on one line, and a link to the authoritative tab.
+  assert.match(workflow, /reviewWorkflowStateLabel\(workspace\.reviewWorkflow\.status\)/);
+  assert.match(workflow, /data-evidence-rail-decision/);
+  assert.match(workflow, /data-evidence-rail-priority/);
+  assert.match(workflow, />\s*Open review\s*</);
 });
 
 test("the rail reuses the same projections — no field was added", () => {

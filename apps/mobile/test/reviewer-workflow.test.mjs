@@ -42,7 +42,9 @@ const DISPLAY_URL =
 const src = readFileSync(resolve(HERE, "../src/product/reviewer-workflow.ts"), "utf8")
   .replace('from "./domain-display"', `from "${DISPLAY_URL}"`)
   .replace('from "./envelope"', `from "${ENVELOPE_URL}"`)
-  .replace('from "./domain-enums.generated"', `from "${ENUMS_URL}"`);
+  .replace('from "./domain-enums.generated"', `from "${ENUMS_URL}"`)
+  // 2026-10-24 — the workflow-state and event labels are the SHARED presenter (built package, by file URL).
+  .replaceAll('"@proovra/shared"', JSON.stringify(pathToFileURL(resolve(HERE, "../../../packages/shared/dist/index.js")).href));
 const mod = await import(
   `data:text/javascript,${encodeURIComponent(
     ts.transpileModule(src, {
@@ -166,7 +168,12 @@ test("the event feed is read from its items envelope", () => {
   assert.equal(events.length, 1);
   assert.equal(events[0].eventType, "STATUS_CHANGED");
   assert.equal(events[0].actorLabel, "Ada Lovelace");
-  assert.equal(mod.workflowEventLabel("STATUS_CHANGED"), "Status Changed");
+  // The SHARED display label (the web reads the same, 2026-10-24): the move
+  // the event recorded, never a humanized enum.
+  assert.equal(mod.workflowEventLabel("STATUS_CHANGED"), "Status changed");
+  assert.equal(mod.workflowEventLabel(events[0].eventType, events[0].nextValue), "Moved to In review");
+  assert.equal(mod.workflowEventLabel("DECISION_LOGGED", { decision: "APPROVE" }), "Decision recorded: Approved");
+  assert.equal(mod.workflowEventLabel("CLOSED"), "Closed");
 });
 
 test("an unreadable event envelope refuses rather than reporting no history", () => {

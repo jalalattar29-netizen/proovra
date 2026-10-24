@@ -1,3 +1,5 @@
+import { reviewWorkflowStateLabel } from "@proovra/shared";
+
 /**
  * Canonical reviewer-status labels and disclaimer copy.
  *
@@ -15,20 +17,41 @@
  */
 
 /**
- * Maps the EvidenceReviewWorkflowStatus enum (transport / DB) to the
- * legally-safe display label. New backend statuses should be added
- * here so the UI renders a real phrase instead of falling back to the
- * raw enum string.
+ * THE WORKFLOW STATE label for every stored status — read from the ONE shared
+ * presenter (`reviewWorkflowStateLabel`, 2026-10-24), never a local map.
+ *
+ * This used to be a second label map in which CLOSED read "Not accepted": a
+ * closed review — including one that was APPROVED and then closed — told the
+ * reader it had been rejected. The workflow state and the current-round
+ * DECISION are separate facts; this names only the state ("Closed",
+ * "Decided"), and the decision is `decisionLabel` from the server.
  */
-export const REVIEWER_STATUS_LABEL: Record<string, string> = {
-  NOT_STARTED: "Needs review",
-  IN_REVIEW: "In review",
-  NEEDS_INFO: "Needs additional context",
-  READY_FOR_EXTERNAL_REVIEW: "Ready for external review",
-  APPROVED_INTERNAL: "Accepted for internal review",
-  REJECTED_INSUFFICIENT: "Rejected as insufficient",
-  ESCALATED: "Escalated for further review",
-  CLOSED: "Not accepted",
+export const REVIEWER_STATUS_LABEL: Readonly<Record<string, string>> = Object.fromEntries(
+  [
+    "NOT_STARTED",
+    "QUEUED",
+    "ASSIGNED",
+    "IN_REVIEW",
+    "NEEDS_INFO",
+    "RESPONSE_RECEIVED",
+    "READY_FOR_EXTERNAL_REVIEW",
+    "APPROVED_INTERNAL",
+    "REJECTED_INSUFFICIENT",
+    "ESCALATED",
+    "REOPENED",
+    "CLOSED",
+  ].map((status) => [status, reviewWorkflowStateLabel(status)]),
+);
+
+/**
+ * What the ROUTING buttons DO (a status the browser may set on the
+ * administrative PATCH). Closing is not a verdict: the button says "Close
+ * review", never "Not accepted" — a verdict is recorded as a decision.
+ */
+export const REVIEWER_ROUTING_ACTION_LABELS: Readonly<Record<string, string>> = {
+  NOT_STARTED: "Mark not started",
+  IN_REVIEW: "Mark in review",
+  CLOSED: "Close review",
 };
 
 /**
@@ -103,8 +126,7 @@ export const REVIEWER_DECISION_ACTIONS: ReadonlyArray<{
  * string so the user is never confronted with "FOO_BAR".
  */
 export function formatReviewerStatusLabel(status: string | null | undefined): string {
-  if (!status) return REVIEWER_STATUS_LABEL.NOT_STARTED;
-  return REVIEWER_STATUS_LABEL[status] ?? REVIEWER_STATUS_LABEL.NOT_STARTED;
+  return reviewWorkflowStateLabel(status);
 }
 
 /** Full disclaimer — preferred when there's room. */

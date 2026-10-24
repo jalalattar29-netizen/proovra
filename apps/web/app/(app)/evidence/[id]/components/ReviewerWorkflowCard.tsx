@@ -1,15 +1,19 @@
 "use client";
 
+import { useState } from "react";
+
 import {
+  groupReviewHistoryByRound,
+  presentReviewOutcome,
   reviewAssigneeLabel,
   reviewPriorityLabel,
   summarizeReviewWorkflowEvents,
+  type ReviewDecision,
+  type ReviewHistoryRound,
+  type ReviewWorkflowHistoryEntry,
 } from "@proovra/shared";
 
-import {
-  formatReviewerStatusLabel,
-  REVIEWER_STATUS_DISCLAIMER,
-} from "../../lib/reviewer-status";
+import { formatUserDateTimeCompact } from "../../../../../lib/date";
 
 type WorkflowActor = {
   id: string;
@@ -20,6 +24,8 @@ type WorkflowActor = {
 type WorkflowSummary = {
   available: boolean;
   status: string | null;
+  /** The current round's decision, from the server (2026-10-24). */
+  decision?: ReviewDecision | null;
   priority: string | null;
   assignedTo: WorkflowActor | null;
   assignedBy?: WorkflowActor | null;
@@ -39,6 +45,21 @@ type WorkflowEvent = {
   actor: WorkflowActor | null;
 };
 
+/** Entries shown per round before "Show all". */
+const ROUND_PREVIEW = 5;
+
+/**
+ * THE REVIEWER WORKFLOW CARD (2026-10-24) — compact, and never mixing the
+ * workflow state with the decision.
+ *
+ * It used to be five tall summary tiles under a generic "Status" that read
+ * "Not accepted" for a closed review, the boundary sentence three times, and
+ * every stored event expanded with its full time zone. Now: a state badge and
+ * one boundary line; Workflow · Decision · Reviewer · Priority · Last activity
+ * in one compact list; and the history grouped by decision round — newest
+ * round open, older rounds collapsed, five entries a round until "Show all".
+ * The stored events are presented, never rewritten.
+ */
 export function ReviewerWorkflowCard({
   workflow,
   events,
@@ -54,26 +75,31 @@ export function ReviewerWorkflowCard({
   actionBusy: boolean;
   onRefreshEvents: () => void;
   onOpenEditor: () => void;
+  /** The exact viewer-timezone timestamp, for each row's accessible detail. */
   formatDateTime: (value: string | null | undefined) => string;
 }) {
   const viewerUserId = workflow.viewerUserId ?? null;
-  // The stored events, read for a person: creation's automatic companions
-  // folded into one entry, enum names in words, actors by name.
+  const outcome = presentReviewOutcome({ dbStatus: workflow.status, decision: workflow.decision ?? null });
   const history = summarizeReviewWorkflowEvents(events, viewerUserId);
+  const rounds = groupReviewHistoryByRound(history);
+  const lastActivity = history[0]?.createdAt ?? null;
   return (
-    <section id="workflow" className="evidence-detail-card">
+    <section id="workflow" className="evidence-detail-card" data-evidence-review-card>
       <div className="evidence-detail-card-header">
         <div>
-          <p className="evidence-detail-kicker">Reviewer Workflow</p>
-          <h2>Assignment and review state</h2>
+          <p className="evidence-detail-kicker">Reviewer workflow</p>
+          <h2 className="evidence-detail-review-card__title">
+            <span className="app-status-badge" data-tone="slate" data-evidence-review-state={outcome.workflowState}>
+              {outcome.workflowStateLabel}
+            </span>
+          </h2>
+          <p className="evidence-detail-muted" data-evidence-reviewer-disclaimer="true">
+            Internal review only. It never changes the evidence, its integrity, its verification, reports or packages.
+          </p>
         </div>
         <div className="evidence-detail-inline-actions">
-          <button
-            type="button"
-            className="app-secondary-action"
-            onClick={onRefreshEvents}
-          >
-            Refresh history
+          <button type="button" className="app-secondary-action" onClick={onRefreshEvents}>
+            Refresh
           </button>
           <button
             type="button"
@@ -86,93 +112,138 @@ export function ReviewerWorkflowCard({
         </div>
       </div>
 
-      <div className="evidence-detail-data-grid">
-        <div
-          className="evidence-detail-data-cell"
-          data-evidence-reviewer-status-cell
-          data-evidence-reviewer-status={workflow.status ?? "NOT_STARTED"}
-        >
-          <span>Status</span>
-          <strong>{formatReviewerStatusLabel(workflow.status)}</strong>
+      <dl className="evidence-detail-review-facts" data-evidence-review-facts>
+        <div className="evidence-detail-rail-field" data-evidence-review-fact="workflow">
+          <dt className="evidence-detail-rail-field__label">Workflow</dt>
+          <dd className="evidence-detail-rail-field__value">{outcome.workflowStateLabel}</dd>
         </div>
-        <div className="evidence-detail-data-cell">
-          <span>Priority</span>
-          <strong>{reviewPriorityLabel(workflow.priority)}</strong>
+        <div className="evidence-detail-rail-field" data-evidence-review-fact="decision" data-evidence-review-decision={outcome.decision}>
+          <dt className="evidence-detail-rail-field__label">Decision</dt>
+          <dd className="evidence-detail-rail-field__value">{outcome.decisionLabel}</dd>
         </div>
-        <div className="evidence-detail-data-cell" data-evidence-reviewer-assignee>
-          <span>Reviewer</span>
-          <strong>{reviewAssigneeLabel(workflow.assignedTo, viewerUserId)}</strong>
+        <div className="evidence-detail-rail-field" data-evidence-reviewer-assignee>
+          <dt className="evidence-detail-rail-field__label">Reviewer</dt>
+          <dd className="evidence-detail-rail-field__value">{reviewAssigneeLabel(workflow.assignedTo, viewerUserId)}</dd>
         </div>
-        {/* OPTIONAL FACTS ARE STATED ONLY WHEN THEY EXIST (2026-10-23): a due
-            date nobody set, a review nobody has done yet and an assigner for an
-            unassigned review used to read "Not available" three times. */}
+        <div className="evidence-detail-rail-field">
+          <dt className="evidence-detail-rail-field__label">Priority</dt>
+          <dd className="evidence-detail-rail-field__value">{reviewPriorityLabel(workflow.priority)}</dd>
+        </div>
+        {/* Optional facts are stated only when they exist. */}
         {workflow.dueAt ? (
-          <div className="evidence-detail-data-cell">
-            <span>Due</span>
-            <strong>{formatDateTime(workflow.dueAt)}</strong>
+          <div className="evidence-detail-rail-field">
+            <dt className="evidence-detail-rail-field__label">Due</dt>
+            <dd className="evidence-detail-rail-field__value">
+              <Stamp iso={workflow.dueAt} exact={formatDateTime} />
+            </dd>
           </div>
         ) : null}
-        {workflow.lastReviewedAt ? (
-          <div className="evidence-detail-data-cell">
-            <span>Last reviewed</span>
-            <strong>{formatDateTime(workflow.lastReviewedAt)}</strong>
+        {lastActivity ? (
+          <div className="evidence-detail-rail-field">
+            <dt className="evidence-detail-rail-field__label">Last activity</dt>
+            <dd className="evidence-detail-rail-field__value">
+              <Stamp iso={lastActivity} exact={formatDateTime} />
+            </dd>
           </div>
         ) : null}
-        {workflow.assignedTo && workflow.assignedBy ? (
-          <div className="evidence-detail-data-cell">
-            <span>Assigned by</span>
-            <strong>{reviewAssigneeLabel(workflow.assignedBy, viewerUserId)}</strong>
-          </div>
-        ) : null}
-      </div>
+      </dl>
 
-      <p className="evidence-detail-muted">
-        {workflow.note || "Workflow state is recorded separately from forensic custody and does not alter the preserved evidence record."}
-      </p>
-      <p
-        className="evd-muted evd-muted--small evd-block--tight"
-        data-evidence-reviewer-disclaimer="true"
-      >
-        {REVIEWER_STATUS_DISCLAIMER}
-      </p>
+      {workflow.note ? <p className="evidence-detail-muted">{workflow.note}</p> : null}
 
       <div className="evidence-detail-subsection">
         <div className="evidence-detail-subsection__header">
-          <strong>Workflow event history</strong>
-          <span>{history.length === 1 ? "1 entry" : `${history.length} entries`}</span>
+          <strong>History</strong>
+          <span data-evidence-review-history-count>
+            {history.length === 1 ? "1 entry" : `${history.length} entries`}
+            {rounds.length > 1 ? ` · ${rounds.length} rounds` : ""}
+          </span>
         </div>
-        <p className="evidence-detail-muted">
-          Review history is separate from the evidence&apos;s custody record and does not change it.
-        </p>
         {eventsLoading ? (
-          <p className="evidence-detail-muted">Loading workflow history…</p>
+          <p className="evidence-detail-muted">Loading history…</p>
         ) : history.length === 0 ? (
-          <p className="evidence-detail-muted">No workflow history recorded yet.</p>
+          <p className="evidence-detail-muted">No history recorded yet.</p>
         ) : (
-          <div className="evidence-detail-timeline evidence-detail-timeline--compact">
-            {history.map((entry) => (
-              <article
-                key={entry.eventIds.join(":")}
-                className="evidence-detail-timeline-item"
-                data-evidence-workflow-entry={entry.origin}
-                data-evidence-workflow-event-count={entry.eventIds.length}
-              >
-                <div className="evidence-detail-timeline-dot" aria-hidden="true" />
-                <div>
-                  <div className="evidence-detail-item-row">
-                    <strong>{entry.label}</strong>
-                    <span>{formatDateTime(entry.createdAt)}</span>
-                  </div>
-                  <p>
-                    {entry.origin === "SYSTEM" ? "Automatic · PROOVRA" : entry.actorLabel}
-                    {entry.note ? ` — ${entry.note}` : ""}
-                  </p>
-                </div>
-              </article>
-            ))}
-          </div>
+          rounds.map((round) =>
+            round.current ? (
+              <RoundEntries key={round.round} round={round} showHeading={rounds.length > 1} exact={formatDateTime} />
+            ) : (
+              <details key={round.round} className="evidence-detail-raw-disclosure" data-evidence-review-round-disclosure={round.round}>
+                <summary className="evidence-detail-raw-summary">
+                  {round.label} · {round.entries.length === 1 ? "1 entry" : `${round.entries.length} entries`}
+                </summary>
+                <RoundEntries round={round} showHeading={false} exact={formatDateTime} />
+              </details>
+            ),
+          )
         )}
       </div>
     </section>
+  );
+}
+
+/** A concise row date; the exact instant and zone in the accessible detail. */
+function Stamp({ iso, exact }: { iso: string; exact: (value: string | null | undefined) => string }) {
+  const full = exact(iso);
+  return (
+    <time dateTime={iso} title={full} aria-label={full}>
+      {formatUserDateTimeCompact(iso)}
+    </time>
+  );
+}
+
+function RoundEntries({
+  round,
+  showHeading,
+  exact,
+}: {
+  round: ReviewHistoryRound;
+  showHeading: boolean;
+  exact: (value: string | null | undefined) => string;
+}) {
+  const [all, setAll] = useState(false);
+  const shown = all ? round.entries : round.entries.slice(0, ROUND_PREVIEW);
+  return (
+    <div data-evidence-review-round={round.round} data-evidence-review-round-current={round.current ? "true" : "false"}>
+      {showHeading ? <p className="evidence-detail-muted">{round.label} (current)</p> : null}
+      <ol className="evidence-detail-timeline evidence-detail-timeline--compact">
+        {shown.map((entry) => (
+          <HistoryEntry key={entry.eventIds.join(":")} entry={entry} exact={exact} />
+        ))}
+      </ol>
+      {round.entries.length > ROUND_PREVIEW ? (
+        <button
+          type="button"
+          className="app-ghost-action"
+          aria-expanded={all}
+          onClick={() => setAll((v) => !v)}
+          data-evidence-review-show-all
+        >
+          {all ? "Show less" : `Show all ${round.entries.length} entries`}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function HistoryEntry({ entry, exact }: { entry: ReviewWorkflowHistoryEntry; exact: (value: string | null | undefined) => string }) {
+  return (
+    <li
+      className="evidence-detail-timeline-item"
+      data-evidence-workflow-entry={entry.origin}
+      data-evidence-workflow-code={entry.code}
+      data-evidence-workflow-event-count={entry.eventIds.length}
+    >
+      <div className="evidence-detail-timeline-dot" aria-hidden="true" />
+      <div>
+        <div className="evidence-detail-item-row">
+          <strong>{entry.label}</strong>
+          <Stamp iso={entry.createdAt} exact={exact} />
+        </div>
+        <p>
+          {entry.origin === "SYSTEM" ? "Automatic · PROOVRA" : entry.actorLabel}
+          {entry.note ? ` — ${entry.note}` : ""}
+        </p>
+      </div>
+    </li>
   );
 }

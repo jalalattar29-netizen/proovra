@@ -31,6 +31,7 @@ const obj = (v: unknown): Record<string, unknown> =>
 const str = (v: unknown): string | null =>
   typeof v === "string" && v.length > 0 ? v : null;
 
+import { reviewWorkflowEventDisplayLabel, reviewWorkflowStateLabel } from "@proovra/shared";
 import { humanizeEnum } from "./domain-display";
 import { listEnvelope } from "./envelope";
 import {
@@ -68,8 +69,9 @@ export const ROUTING_WORKFLOW_STATUSES: readonly string[] =
 
 export const WORKFLOW_PRIORITIES = EVIDENCE_REVIEW_WORKFLOW_PRIORITIES;
 
+/** The workflow STATE (the shared presenter — never a verdict, never a raw enum). */
 export function workflowStatusLabel(status: string | null | undefined): string {
-  return status ? humanizeEnum(status) : "Not started";
+  return reviewWorkflowStateLabel(status);
 }
 export function workflowPriorityLabel(priority: string | null | undefined): string {
   return priority ? humanizeEnum(priority) : "Normal";
@@ -89,6 +91,8 @@ export const VERDICT_STATUS_NOTE =
 
 export interface ReviewerWorkflow {
   status: string;
+  /** The CURRENT round's decision label, from the server (2026-10-24). */
+  decisionLabel: string;
   priority: string;
   dueAtIso: string | null;
   lastReviewedAtIso: string | null;
@@ -116,6 +120,7 @@ export function parseReviewerWorkflow(payload: unknown): ReviewerWorkflow | null
   const assigned = obj(w.assignedTo);
   return {
     status,
+    decisionLabel: str(w.decisionLabel) ?? "No decision",
     priority: str(w.priority) ?? "NORMAL",
     dueAtIso: str(w.dueAt),
     lastReviewedAtIso: str(w.lastReviewedAt),
@@ -130,6 +135,8 @@ export function parseReviewerWorkflow(payload: unknown): ReviewerWorkflow | null
 export interface ReviewerWorkflowEvent {
   id: string;
   eventType: string;
+  /** The event's recorded values — read only to name a decision kind or a move. */
+  nextValue: unknown;
   note: string | null;
   actorLabel: string | null;
   createdAtIso: string | null;
@@ -146,6 +153,7 @@ export function parseReviewerWorkflowEvents(payload: unknown): ReviewerWorkflowE
       return {
         id,
         eventType: str(e.eventType) ?? "UPDATED",
+        nextValue: (e.nextValue ?? null) as unknown,
         note: str(e.note),
         actorLabel: str(actor.displayName) ?? str(actor.email),
         createdAtIso: str(e.createdAt),
@@ -154,8 +162,9 @@ export function parseReviewerWorkflowEvents(payload: unknown): ReviewerWorkflowE
     .filter((e): e is ReviewerWorkflowEvent => e !== null);
 }
 
-export function workflowEventLabel(eventType: string): string {
-  return humanizeEnum(eventType);
+/** The shared display label (web reads the same): a decision is named, Reopen / Close are not decisions. */
+export function workflowEventLabel(eventType: string, nextValue?: unknown): string {
+  return reviewWorkflowEventDisplayLabel({ eventType, nextValue });
 }
 
 /* ------------------------------------------------------------- the write */

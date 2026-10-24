@@ -30,7 +30,6 @@
 
 import type { ReactNode } from "react";
 import { BadgeCheck, Trash2 } from "lucide-react";
-import { reviewStatusLabel } from "@proovra/shared";
 import type { EvidenceDetailCtx } from "./_lib";
 import { AppStatusBadge } from "../../../../../components/app-primitives";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -173,11 +172,16 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         </span>
         <div className="evidence-detail-review-hero__copy">
           <div className="evidence-detail-review-hero__titles">
-            <h2 className="evidence-detail-review-hero__title">
+            {/* Workflow state and current-round decision — separate facts
+                (2026-10-24): a closed, approved review reads "Closed" with
+                the decision "Approved", never "Not accepted". */}
+            <h2 className="evidence-detail-review-hero__title" data-evidence-review-hero-state>
               {formatReviewerStatusLabel(reviewerStatus)}
             </h2>
             <AppStatusBadge tone={getWorkflowStatusTone(reviewerStatus)}>
-              {reviewStatusLabel(reviewerStatus)}
+              <span data-evidence-review-hero-decision={workspace.reviewWorkflow.decision ?? "NO_DECISION"}>
+                {`Decision: ${workspace.reviewWorkflow.decisionLabel ?? "No decision"}`}
+              </span>
             </AppStatusBadge>
           </div>
           <p
