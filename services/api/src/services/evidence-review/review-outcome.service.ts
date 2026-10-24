@@ -23,9 +23,10 @@
  * verdict for it, so un-deciding it here would leave it undecidable.
  *
  * LEGACY. A workflow decided before the decision log existed (round 0, no
- * decision rows) has its verdict in its stored status — or, once that status
- * was overwritten by Close or another move, in the newest verdict its own
- * workflow history recorded since it was last reopened. Never CLOSED itself.
+ * decision rows) has its verdict in its stored status — or, once Close
+ * overwrote that status, in the verdict its own history recorded right
+ * before it was closed. Never CLOSED itself: a verdict followed by a Reopen
+ * or by any other move (back into review, for instance) no longer stands.
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
 import {
@@ -64,19 +65,23 @@ function movedTo(value: unknown): string | null {
 }
 
 /**
- * The newest verdict a legacy workflow's history recorded since it was last
- * reopened (history is ordered newest first).
+ * The verdict a closed legacy workflow's history recorded before it was
+ * closed (history is ordered newest first). Moves into Closed are passed
+ * over; the first other move decides: a verdict stands, anything else —
+ * a Reopen, a move back into review — means the verdict no longer did.
+ * Events that move nothing (assignment, priority, notes) are skipped.
  */
 function legacyVerdictFromHistory(
   history: ReadonlyArray<{ eventType: string; nextValue: unknown }>,
 ): ReviewDecision {
   for (const e of history) {
-    const to = movedTo(e.nextValue);
-    if (e.eventType === "REOPENED" || to === "REOPENED") return "NO_DECISION";
-    const verdict = legacyReviewDecisionFromStatus(to);
-    if (verdict !== "NO_DECISION") return verdict;
+    if (e.eventType === "REOPENED") return "NO_DECISION";
     const byType = legacyReviewDecisionFromStatus(e.eventType);
     if (byType !== "NO_DECISION") return byType;
+    const to = movedTo(e.nextValue);
+    if (to === null || e.eventType === "CLOSED" || to === "CLOSED") continue;
+    if (e.eventType === "ASSIGNED" || e.eventType === "REASSIGNED" || e.eventType === "CLAIMED" || e.eventType === "UNASSIGNED") continue;
+    return legacyReviewDecisionFromStatus(to);
   }
   return "NO_DECISION";
 }
@@ -98,11 +103,11 @@ export async function loadCurrentReviewDecisions(
 ): Promise<Map<string, ReviewDecision>> {
   const out = new Map<string, ReviewDecision>();
   if (workflows.length === 0) return out;
-  const ids = workflows.map((w) => w.id);
   const roundOf = new Map(workflows.map((w) => [w.id, w.decisionRound]));
 
+  // Only each workflow's CURRENT round (bounded by the batch).
   const rows = (await client.workflowReviewDecision.findMany({
-    where: { workflowId: { in: ids } },
+    where: { OR: workflows.map((w) => ({ workflowId: w.id, round: w.decisionRound })) },
     orderBy: { decidedAt: "asc" },
     select: { workflowId: true, round: true, stage: true, decision: true, reviewerUserId: true },
   })) as unknown as DecisionRow[];
@@ -153,7 +158,11 @@ export async function loadCurrentReviewDecisions(
       out.set(wf.id, fromStatus);
       continue;
     }
-    legacyHistoryNeeded.push(wf);
+    // Only Close overwrites a verdict status with one that carries none (a
+    // verdict stage moves only to Closed or Reopened, and Reopen opens round
+    // 1). Every other round-0 workflow without rows was never decided.
+    if (String(wf.status).toUpperCase() === "CLOSED") legacyHistoryNeeded.push(wf);
+    else out.set(wf.id, "NO_DECISION");
   }
 
   if (legacyHistoryNeeded.length > 0) {

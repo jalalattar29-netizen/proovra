@@ -248,7 +248,16 @@ async function applyTransition(
    * an event, open an escalation or send a notification for a move that did
    * not happen.
    */
-  options: { strict?: boolean } = {},
+  options: {
+    strict?: boolean;
+    /**
+     * ASSIGNMENT RACES (2026-10-24): also require the assignee this call
+     * read. A claim or assignment that keeps the stage (any stage but Queued)
+     * changes only the assignee, so a status-only guard let two concurrent
+     * claims both "win" — the last write silently replacing the first.
+     */
+    guardAssignee?: boolean;
+  } = {},
 ): Promise<DbWorkflow> {
   const fromStage = mapDbStatusToReviewStage(workflow.status as string);
   if (!isAllowedReviewStageTransition(fromStage, toStage)) {
@@ -303,7 +312,11 @@ async function applyTransition(
   if (patch.priority !== undefined) data.priority = patch.priority;
 
   const claim = await client.evidenceReviewWorkflow.updateMany({
-    where: { id: workflow.id, status: workflow.status },
+    where: {
+      id: workflow.id,
+      status: workflow.status,
+      ...(options.guardAssignee ? { assignedToUserId: workflow.assignedToUserId } : {}),
+    },
     data,
   });
   if (claim.count !== 1) {
@@ -404,7 +417,7 @@ export async function assignReviewer(
         reassignedAtUtc: isReassignment ? now : workflow.reassignedAtUtc,
       },
       txc as unknown as PrismaClient,
-      { strict: true },
+      { strict: true, guardAssignee: true },
     );
     await txc.evidenceReviewWorkflowEvent.create({
       data: {
@@ -494,7 +507,8 @@ export async function claimReviewerWorkflow(
     fromStage === "QUEUED" ? "ASSIGNED" : fromStage;
 
   // ONE TRANSACTION (2026-10-24, audit P2-3) — as assignment above. Of two
-  // concurrent claims exactly one wins; the other is refused (strict).
+  // concurrent claims exactly one wins; the other is refused (strict, with
+  // the assignee it read guarded).
   return client.$transaction(async (txc) => {
     const moved = await applyTransition(
       workflow,
@@ -505,7 +519,7 @@ export async function claimReviewerWorkflow(
         assignedAtUtc: workflow.assignedAtUtc ?? now,
       },
       txc as unknown as PrismaClient,
-      { strict: true },
+      { strict: true, guardAssignee: true },
     );
     await txc.evidenceReviewWorkflowEvent.create({
       data: {

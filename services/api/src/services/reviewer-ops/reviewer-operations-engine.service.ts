@@ -56,6 +56,7 @@ import {
   bulkReviewAction as legacyBulkReviewAction,
   claimReviewerWorkflow as legacyClaimReviewerWorkflow,
   ensureReviewWorkflow,
+  ReviewOperationError,
   getReviewQueueCounts as legacyGetReviewQueueCounts,
   projectReviewWorkflow as legacyProjectReviewWorkflow,
   reconcileReviewSlas as legacyReconcileReviewSlas,
@@ -829,6 +830,9 @@ async function assignReviewerToWorkflowInner(
   } else {
     throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { fromLc });
   }
+  // A refused move (a concurrent change committed between the read and the
+  // conditional write — 2026-10-24) is an expected 409 refusal in this
+  // engine's vocabulary, never an unmapped 500 reported to Sentry.
   const updated = await legacyAssignReviewer(
     {
       evidenceId: row.evidenceId,
@@ -837,7 +841,14 @@ async function assignReviewerToWorkflowInner(
       note: input.note ?? null,
     },
     client,
-  );
+  ).catch((err: unknown) => {
+    if (err instanceof ReviewOperationError) {
+      if (err.code === "workflow_not_found") throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
+      bump("reviewer_invalid_transition_blocked_total");
+      throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { fromLc, reason: err.code });
+    }
+    throw err;
+  });
   // Initialise assignmentDueAtUtc if not set. Phase 25.5 reads the
   // effective policy from template → workspace → env so per-team and
   // per-template overrides take effect at the moment of assignment.

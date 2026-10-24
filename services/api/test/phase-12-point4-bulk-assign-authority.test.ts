@@ -74,6 +74,8 @@ const prismaFake = {
       return args.data;
     },
   },
+  // The assignment, its event and its audit are one transaction (2026-10-24).
+  $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prismaFake),
 } as never;
 
 beforeEach(() => {

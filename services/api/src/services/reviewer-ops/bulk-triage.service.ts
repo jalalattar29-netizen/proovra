@@ -31,6 +31,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { recordReviewActivityTx } from "../evidence-review/reviewer-audit.service.js";
 import {
   ReviewerOpsError,
   assignReviewerToWorkflow,
@@ -242,8 +243,10 @@ async function runOne(
     case "PRIORITY_HIGH":
     case "PRIORITY_NORMAL":
     case "PRIORITY_URGENT": {
-      // Priority changes are simple field updates — they don't go
-      // through the lifecycle gate but they do write an audit event.
+      // Priority changes don't go through the lifecycle gate, but each one
+      // is a Review action like any other (2026-10-24): the change, its
+      // PRIORITY_CHANGED history event and its reviewer + tenant audit
+      // commit together. An unchanged priority writes nothing.
       const priorityValue =
         action === "PRIORITY_HIGH"
           ? "HIGH"
@@ -252,18 +255,38 @@ async function runOne(
             : "NORMAL";
       const row = await client.evidenceReviewWorkflow.findFirst({
         where: { id: workflowId, teamId: ctx.teamId },
-        select: { id: true, priority: true },
+        select: { id: true, priority: true, evidenceId: true, status: true },
       });
       if (!row) {
         throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
       }
-      await client.evidenceReviewWorkflow.update({
-        where: { id: workflowId },
-        data: { priority: priorityValue as never },
+      if (String(row.priority) === priorityValue) return;
+      await client.$transaction(async (tx) => {
+        await tx.evidenceReviewWorkflow.update({
+          where: { id: workflowId },
+          data: { priority: priorityValue as never },
+        });
+        await tx.evidenceReviewWorkflowEvent.create({
+          data: {
+            workflowId,
+            evidenceId: row.evidenceId,
+            actorUserId: ctx.actorUserId,
+            eventType: "PRIORITY_CHANGED",
+            previousValue: { priority: String(row.priority) },
+            nextValue: { priority: priorityValue },
+            note: input.note?.slice(0, 1000) ?? null,
+          },
+        });
+        await recordReviewActivityTx(tx, {
+          evidenceId: row.evidenceId,
+          workflowId,
+          teamId: ctx.teamId,
+          actorUserId: ctx.actorUserId,
+          code: "REVIEW_PRIORITY_CHANGED",
+          previousState: String(row.status),
+          resultingState: String(row.status),
+        });
       });
-      // The Phase 13 EvidenceReviewWorkflowEvent eventType catalog
-      // includes PRIORITY_CHANGED; we'd ordinarily go through the
-      // recordEvent helper but the bulk path keeps it lightweight.
       return;
     }
     default: {

@@ -1266,3 +1266,112 @@ describe("fifth audit — one decision derivation, legacy verdicts survive Close
     expect((await workflowOf(ev)).status).toBe("CLOSED");
   });
 });
+
+describe("sixth audit — refused assignments are 409s, bulk priority is audited, claims race deterministically", () => {
+  const engineCtx = (actorUserId: string) =>
+    ({ teamId: A.teamId, actorUserId, isReviewerCapable: true, isServiceAccount: false }) as never;
+  /** A client whose FIRST transaction is preceded by a concurrent commit. */
+  const interleaving = (before: () => Promise<unknown>) => {
+    let done = false;
+    const client = new Proxy(prisma, {
+      get(target, prop, receiver) {
+        if (prop !== "$transaction") return Reflect.get(target, prop, receiver);
+        return async (fn: (tx: unknown) => Promise<unknown>, opts?: unknown) => {
+          if (!done) {
+            done = true;
+            await before();
+          }
+          return (target as typeof prisma).$transaction(fn as never, opts as never);
+        };
+      },
+    });
+    return { client, fired: () => done };
+  };
+
+  it("reviewer-ops assign refused by a concurrent claim is the engine's 409 refusal, never an unmapped error (P2-A)", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "sixth-assign-refused");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    const wf = await workflowOf(ev);
+    const { assignReviewerToWorkflow, ReviewerOpsError } = await import("../src/services/reviewer-ops/reviewer-operations-engine.service.js");
+    const { client, fired } = interleaving(() =>
+      prisma.evidenceReviewWorkflow.update({ where: { id: wf.id }, data: { assignedToUserId: A.memberUserId, status: "ASSIGNED" } }),
+    );
+    const err = await assignReviewerToWorkflow(engineCtx(A.adminUserId), { workflowId: wf.id, assignedToUserId: A.adminUserId }, client as never).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(fired()).toBe(true);
+    expect(err).toBeInstanceOf(ReviewerOpsError);
+    expect(err).toMatchObject({ code: "REVIEW_INVALID_TRANSITION" });
+    // The concurrent claim stands; the refused assignment wrote nothing.
+    expect((await workflowOf(ev)).assignedToUserId).toBe(A.memberUserId);
+    expect(await prisma.evidenceReviewWorkflowEvent.count({ where: { workflowId: wf.id, eventType: { in: ["ASSIGNED", "REASSIGNED"] } } })).toBe(0);
+  });
+
+  it("of two claims on an unassigned review already in progress, exactly one wins; the loser is refused (P3)", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "sixth-claim-race");
+    await patchWorkflow(A.adminToken, ev, { status: "IN_REVIEW" });
+    const wf = await workflowOf(ev);
+    expect(wf.assignedToUserId).toBeNull();
+    const { claimReviewerWorkflow } = await import("../src/services/review-operations/review-operations.service.js");
+    // The admin's claim commits after the member's claim read the review.
+    const { client } = interleaving(() =>
+      prisma.evidenceReviewWorkflow.update({ where: { id: wf.id }, data: { assignedToUserId: A.adminUserId } }),
+    );
+    await expect(claimReviewerWorkflow({ evidenceId: ev, actorUserId: A.memberUserId }, client as never)).rejects.toMatchObject({
+      code: "invalid_stage_transition",
+    });
+    expect((await workflowOf(ev)).assignedToUserId).toBe(A.adminUserId);
+    expect(await prisma.evidenceReviewWorkflowEvent.count({ where: { workflowId: wf.id, eventType: "CLAIMED" } })).toBe(0);
+  });
+
+  it("bulk-triage priority: one PRIORITY_CHANGED event and one review.priority.changed audit per changed row; an unchanged row writes nothing (P2-B)", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "sixth-bulk-priority");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    const wf = await workflowOf(ev);
+    const { executeBulkTriage } = await import("../src/services/reviewer-ops/bulk-triage.service.js");
+    const run = (action: string) =>
+      executeBulkTriage(
+        { teamId: A.teamId, actorUserId: A.adminUserId, isReviewerCapable: true, isServiceAccount: false } as never,
+        { teamId: A.teamId, workflowIds: [wf.id], action, note: "bulk priority" } as never,
+      );
+    const custodyBefore = await allCustody(ev);
+    expect(JSON.stringify(await run("PRIORITY_URGENT"))).not.toMatch(/"ok":false/);
+    expect(String((await workflowOf(ev)).priority)).toBe("URGENT");
+    expect(await prisma.evidenceReviewWorkflowEvent.count({ where: { workflowId: wf.id, eventType: "PRIORITY_CHANGED", nextValue: { path: ["priority"], equals: "URGENT" } } })).toBe(1);
+    expect(await reviewAudits(ev, "review.priority.changed")).toBe(1);
+    // Repeating it changes nothing and records nothing.
+    await run("PRIORITY_URGENT");
+    expect(await prisma.evidenceReviewWorkflowEvent.count({ where: { workflowId: wf.id, eventType: "PRIORITY_CHANGED", nextValue: { path: ["priority"], equals: "URGENT" } } })).toBe(1);
+    expect(await reviewAudits(ev, "review.priority.changed")).toBe(1);
+    expect(await allCustody(ev)).toBe(custodyBefore);
+  });
+
+  it("a legacy verdict that moved back into review before it was closed no longer stands (P3)", async () => {
+    const { loadCurrentReviewDecisions } = await import("../src/services/evidence-review/review-outcome.service.js");
+    const ev = await freshEvidence(A, "sixth-legacy-back-to-review");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    const wf = await workflowOf(ev);
+    const t0 = Date.now() + 60_000;
+    const steps = [["STATUS_CHANGED", "APPROVED_INTERNAL"], ["STATUS_CHANGED", "IN_REVIEW"], ["ASSIGNED", null], ["CLOSED", "CLOSED"]] as const;
+    for (const [i, [eventType, to]] of steps.entries()) {
+      await prisma.evidenceReviewWorkflowEvent.create({
+        data: {
+          workflowId: wf.id,
+          evidenceId: ev,
+          actorUserId: A.adminUserId,
+          eventType,
+          nextValue: to ? { status: to } : { assignedToUserId: A.memberUserId },
+          createdAt: new Date(t0 + 1000 * (i + 1)),
+        },
+      });
+    }
+    const ref = { id: wf.id, teamId: wf.teamId, evidenceId: ev, status: "CLOSED", decisionRound: 0 };
+    expect((await loadCurrentReviewDecisions([ref])).get(wf.id)).toBe("NO_DECISION");
+    // A never-decided open review reads no decision without scanning history.
+    expect((await loadCurrentReviewDecisions([{ ...ref, status: "IN_REVIEW" }])).get(wf.id)).toBe("NO_DECISION");
+  });
+});

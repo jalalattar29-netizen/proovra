@@ -150,6 +150,22 @@ function makeDb(seed: {
         Object.assign(state.workflow, args.data);
         return { ...state.workflow };
       },
+      // The authority's projection write is CONDITIONAL on the state it read
+      // (2026-10-24): it applies only while the stored status still matches.
+      updateMany: async (args: {
+        where: { id: string; status?: string };
+        data: Record<string, unknown>;
+      }) => {
+        if (!state.workflow || state.workflow.id !== args.where.id) return { count: 0 };
+        if (args.where.status !== undefined && state.workflow.status !== args.where.status) return { count: 0 };
+        state.workflowUpdates.push(args.data);
+        Object.assign(state.workflow, args.data);
+        return { count: 1 };
+      },
+      findUniqueOrThrow: async (args: { where: { id: string } }) => {
+        if (!state.workflow || state.workflow.id !== args.where.id) throw new Error("workflow missing");
+        return { ...state.workflow };
+      },
     },
     workflowReviewDecision: {
       // The round's latest decision (the legacy-event fallback of

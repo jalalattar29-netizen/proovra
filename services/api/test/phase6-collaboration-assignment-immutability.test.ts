@@ -93,9 +93,11 @@ describe("SCOPE C — evidence assignment does not touch ownership / submitter /
     expect(body).not.toMatch(/custody/i);
   });
 
-  it("assignReviewer + claimReviewerWorkflow emit an audit event via recordEvent", () => {
+  it("assignReviewer + claimReviewerWorkflow write their history event and audit in the move's transaction", () => {
     // Assignment must be audited — the ASSIGNED / REASSIGNED / CLAIMED
-    // event rows are the operator-visible history.
+    // event rows are the operator-visible history. Since 2026-10-24 the
+    // event and the reviewer + tenant audit commit in the SAME transaction
+    // as the move (they were separate autocommits, the event's swallowed).
     const assignStart = REVIEW_OPS_SERVICE.indexOf(
       "export async function assignReviewer",
     );
@@ -105,16 +107,16 @@ describe("SCOPE C — evidence assignment does not touch ownership / submitter /
     expect(assignStart).toBeGreaterThan(-1);
     expect(claimStart).toBeGreaterThan(-1);
     const assignBody = REVIEW_OPS_SERVICE.slice(assignStart, claimStart);
-    expect(assignBody).toMatch(/recordEvent\(/);
+    const claimRest = REVIEW_OPS_SERVICE.slice(claimStart);
+    const claimBody = claimRest.slice(0, claimRest.indexOf("\n}\n"));
+    for (const body of [assignBody, claimBody]) {
+      expect(body).toMatch(/client\.\$transaction\(/);
+      expect(body).toMatch(/txc\.evidenceReviewWorkflowEvent\.create/);
+      expect(body).toMatch(/recordReviewActivityTx\(txc,/);
+      expect(body).not.toMatch(/recordEvent\(/);
+    }
     expect(assignBody).toMatch(/"REASSIGNED"|REASSIGNED/);
-    // recordEvent writes the immutable workflow event row.
-    const recordStart = REVIEW_OPS_SERVICE.indexOf(
-      "async function recordEvent",
-    );
-    const recordRest = REVIEW_OPS_SERVICE.slice(recordStart);
-    const recordEnd = recordRest.indexOf("\n}");
-    const recordBody = recordRest.slice(0, recordEnd > 0 ? recordEnd : undefined);
-    expect(recordBody).toMatch(/evidenceReviewWorkflowEvent\.create/);
+    expect(claimBody).toMatch(/"CLAIMED"/);
   });
 });
 

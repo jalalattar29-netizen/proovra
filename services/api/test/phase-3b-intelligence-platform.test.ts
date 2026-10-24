@@ -538,7 +538,11 @@ describe("Phase 3B — executive + audit aggregators", () => {
 
   it("executive metrics compute review + QC from real tables, null the rest", () => {
     // COMPUTABLE metrics are wired to real data sources.
-    expect(SVC_EXEC).toMatch(/status:\s*"APPROVED_INTERNAL"/);
+    // Approved = the current round's DECISION (2026-10-24), read from the one
+    // decision reader — never the stored status, which Close overwrites.
+    expect(SVC_EXEC).toMatch(/loadCurrentReviewDecisions\(/);
+    expect(SVC_EXEC).toMatch(/=== "APPROVED"/);
+    expect(SVC_EXEC).not.toMatch(/status:\s*"APPROVED_INTERNAL"/);
     expect(SVC_EXEC).toMatch(/completedAtUtc/);
     expect(SVC_EXEC).toMatch(/qcSample\.groupBy/);
     expect(SVC_EXEC).toMatch(/verdict === "PASS"/);
