@@ -209,6 +209,17 @@ describe("Review / Custody / Artifact boundary (Postgres + Redis + MinIO, real w
     ["team", A().teamId],
   ];
 
+  /** The first value under `key`, anywhere in a response body. */
+  function findKey(value: unknown, key: string): unknown {
+    if (!value || typeof value !== "object") return undefined;
+    if (key in (value as Record<string, unknown>)) return (value as Record<string, unknown>)[key];
+    for (const v of Object.values(value as Record<string, unknown>)) {
+      const hit = findKey(v, key);
+      if (hit !== undefined) return hit;
+    }
+    return undefined;
+  }
+
   const reviewCustodyRows = () => prisma.custodyEvent.count({ where: { evidenceId, eventType: "REVIEW_DECISION_RECORDED" } });
   const custodyCount = () => prisma.custodyEvent.count({ where: { evidenceId } });
 
@@ -284,6 +295,22 @@ describe("Review / Custody / Artifact boundary (Postgres + Redis + MinIO, real w
     const st = await status();
     expect(st.outputs.freshness?.hasNewerFacts ?? false).toBe(false);
     expect(st.outputs.freshness?.changes ?? []).toEqual([]);
+    // Nor says its custody changed after it: the report and its package's own
+    // issuance bookkeeping is never a forensic change after the snapshot —
+    // on the Evidence page or on Public Verify.
+    const ws = await call("GET", `/v1/evidence/${evidenceId}/review-workspace`, A().ownerToken);
+    expect(ws.statusCode, ws.body).toBe(200);
+    const wsConsistency = findKey(ws.json(), "trustDecisionConsistency") as { reasons: Array<{ code: string }> } | undefined;
+    expect(wsConsistency, "the Evidence page states its trust consistency").toBeTruthy();
+    expect(Array.isArray(wsConsistency!.reasons)).toBe(true);
+    const wsCodes = wsConsistency!.reasons.map((r) => r.code);
+    expect(wsCodes).not.toContain("FORENSIC_CUSTODY_CHANGED");
+    const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { verificationRef: true } });
+    const pv = await call("GET", `/public/verify/${encodeURIComponent(ev.verificationRef!)}`, null);
+    const pvConsistency = findKey(pv.json(), "trustDecisionConsistency") as { reasons: Array<{ code: string }> } | undefined;
+    expect(pvConsistency, "Public Verify states its trust consistency").toBeTruthy();
+    const pvCodes = pvConsistency!.reasons.map((r) => r.code);
+    expect(pvCodes).not.toContain("FORENSIC_CUSTODY_CHANGED");
   });
 
   it("6 — NEW Review activity through the real routes writes zero forensic custody, owes no report, and stays in Review history + tenant audit", async () => {

@@ -168,3 +168,16 @@ test("6 — workflow state and current-round decision are separate; Close never 
   assert.equal(reviewDecisionFromProjection(deriveDecisionProjection(rows(["FIRST", "REQUEST_INFO", "a"]), false)), "NO_DECISION");
   assert.equal(reviewDecisionFromProjection(deriveDecisionProjection(rows(["FIRST", "REJECT", "a"]), false)), "NOT_ACCEPTED");
 });
+
+test("7 — ONE OTS owed rule (update card and the worker's automatic version): only a verification the report did not state", async () => {
+  const { otsChainVerifiedAfterReport } = await import("../dist/index.js");
+  const live = { verification: "CHAIN_VERIFIED", proofSha256: "aa", blockHash: "bb" };
+  assert.equal(otsChainVerifiedAfterReport({ ...live, reportVerification: "PENDING" }), true);
+  assert.equal(otsChainVerifiedAfterReport({ ...live, reportVerification: "CHAIN_VERIFIED", reportProofSha256: "AA", reportBlockHash: "BB" }), false);
+  // Stated a DIFFERENT proof or block (re-anchor): owed.
+  assert.equal(otsChainVerifiedAfterReport({ ...live, reportVerification: "CHAIN_VERIFIED", reportProofSha256: "aa", reportBlockHash: "cc" }), true);
+  // Not verified now: never owed.
+  assert.equal(otsChainVerifiedAfterReport({ verification: "ATTESTATION_RECORDED", reportVerification: "PENDING" }), false);
+  // Identity unknown now: the verification alone decides.
+  assert.equal(otsChainVerifiedAfterReport({ verification: "CHAIN_VERIFIED", reportVerification: "CHAIN_VERIFIED" }), false);
+});

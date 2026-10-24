@@ -30,6 +30,7 @@
  *                                   retried under `ots-cv-r<n>:...` up to
  *                                   OTS_OWED_VERSION_MAX_RETRIES times (F-10)
  */
+import { otsChainVerifiedAfterReport } from "@proovra/shared";
 import { createReportGenerationRequest } from "@proovra/shared-runtime/reports";
 import { workerOutputEntitlement } from "./output-issuance.js";
 import {
@@ -100,17 +101,25 @@ export function owedVersionRetryable(prior: { state: string; terminalReasonCode:
   return false;
 }
 
+/**
+ * Did the report state THIS chain verification (proof and block)? The
+ * inverse of the one shared OTS owed rule (`otsChainVerifiedAfterReport`),
+ * which the update card reads too — so the automatic version and "Update
+ * available" never disagree.
+ */
 export function reportStatedChainVerification(
   anchorSnapshot: unknown,
   verification: { proofSha256: string; blockHash: string },
 ): boolean {
-  if (!anchorSnapshot || typeof anchorSnapshot !== "object") return false;
-  const a = anchorSnapshot as Record<string, unknown>;
-  return (
-    parseOtsVerificationKey(a.otsVerification) === "CHAIN_VERIFIED" &&
-    String(a.otsProofSha256 ?? "").toLowerCase() === verification.proofSha256.toLowerCase() &&
-    String(a.otsChainBlockHash ?? "").toLowerCase() === verification.blockHash.toLowerCase()
-  );
+  const a = (anchorSnapshot && typeof anchorSnapshot === "object" ? anchorSnapshot : {}) as Record<string, unknown>;
+  return !otsChainVerifiedAfterReport({
+    verification: "CHAIN_VERIFIED",
+    reportVerification: parseOtsVerificationKey(a.otsVerification),
+    proofSha256: verification.proofSha256,
+    blockHash: verification.blockHash,
+    reportProofSha256: typeof a.otsProofSha256 === "string" ? a.otsProofSha256 : null,
+    reportBlockHash: typeof a.otsChainBlockHash === "string" ? a.otsChainBlockHash : null,
+  });
 }
 
 export async function ensureOtsAnchoredReportVersion(input: {

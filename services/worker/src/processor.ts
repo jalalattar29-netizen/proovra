@@ -673,6 +673,8 @@ async function buildReportSupersession(input: {
         anchoredAtUtc: ots.anchoredAtUtc,
         verification: ots.verification,
         verifiedAtUtc: ots.chain?.verifiedAtUtc ?? null,
+        proofSha256: ots.proofSha256 ?? null,
+        blockHash: ots.chain?.blockHash ?? null,
       },
       lastVerifiedAtUtc: input.evidence.lastVerifiedAtUtc ?? null,
     },

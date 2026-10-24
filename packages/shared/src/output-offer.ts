@@ -360,6 +360,12 @@ export type ReportFreshnessInput = {
     reportVerification?: OtsVerificationKey | null;
     /** When the chain verification was established, when it was. */
     verifiedAtUtc?: string | null;
+    /** The verified proof and block NOW, when known (identity of the verification). */
+    proofSha256?: string | null;
+    blockHash?: string | null;
+    /** The proof and block the report stated (anchorSnapshot), when it recorded them. */
+    reportProofSha256?: string | null;
+    reportBlockHash?: string | null;
   };
   /**
    * Reportable custody events recorded after the report's custody horizon,
@@ -370,6 +376,29 @@ export type ReportFreshnessInput = {
   custodyAfterReport: { count?: number; latestAtUtc?: string | null; groups?: ReportableCustodyGroup[] };
   integrity: { lastVerifiedAtUtc: string | null; reportLastVerifiedAtUtc: string | null };
 };
+
+/**
+ * THE ONE OTS RULE for "a newer report is owed" (2026-10-24) — the update card
+ * and the worker's automatic OTS-anchored version both read it. Only an
+ * independent Bitcoin-chain verification the report did not state is owed. A
+ * report that stated CHAIN_VERIFIED owes nothing — unless the verification it
+ * stated was of a DIFFERENT proof or block (a re-anchor), which is known only
+ * when both the live identity and the stated one are recorded.
+ */
+export function otsChainVerifiedAfterReport(ots: {
+  verification?: OtsVerificationKey | null;
+  reportVerification?: OtsVerificationKey | null;
+  proofSha256?: string | null;
+  blockHash?: string | null;
+  reportProofSha256?: string | null;
+  reportBlockHash?: string | null;
+}): boolean {
+  if (ots.verification !== "CHAIN_VERIFIED") return false;
+  if (ots.reportVerification !== "CHAIN_VERIFIED") return true;
+  if (!ots.proofSha256 || !ots.blockHash) return false;
+  const same = (a: string | null | undefined, b: string) => String(a ?? "").toLowerCase() === b.toLowerCase();
+  return !(same(ots.reportProofSha256, ots.proofSha256) && same(ots.reportBlockHash, ots.blockHash));
+}
 
 const after = (fact: string | null, baseline: string | null): boolean =>
   fact != null && baseline != null && Date.parse(fact) > Date.parse(baseline);
@@ -401,7 +430,7 @@ export function deriveReportFreshness(input: ReportFreshnessInput): ReportFreshn
   // is not: it is not a verification, and offering a version for it would
   // carry the same unchecked claim. A report that already stated
   // CHAIN_VERIFIED needs nothing.
-  if (input.ots.verification === "CHAIN_VERIFIED" && input.ots.reportVerification !== "CHAIN_VERIFIED") {
+  if (otsChainVerifiedAfterReport(input.ots)) {
     changes.push({ code: "OTS_CHAIN_VERIFIED_AFTER_REPORT", atUtc: input.ots.verifiedAtUtc ?? null });
   }
   const groups = (input.custodyAfterReport.groups ?? []).filter((g) => g.count > 0);

@@ -10228,8 +10228,14 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             latestVerificationPackage?.version ??
             evidence.verificationPackageVersion ??
             null,
-          forensicEventsAtSnapshot: forensicEventsAtReportGeneration.length,
-          currentForensicEvents: forensicCustodyEvents.length,
+          // ONE rule with Public Verify (2026-10-24): a forensic-INTEGRITY
+          // change after the snapshot — never an administrative event, an
+          // internal Review row or the artifact's own issuance bookkeeping.
+          forensicEventsAtSnapshot: splitCustodyAtCutoff(
+            forensicCustodyEvents.filter((ev) => isForensicIntegrityCustodyEventType(ev.eventType)),
+            custodyCutoff,
+          ).atIssue.length,
+          currentForensicEvents: forensicCustodyEvents.filter((ev) => isForensicIntegrityCustodyEventType(ev.eventType)).length,
           accessEventsAfterSnapshot: accessEventsAfterReportGeneration.length,
         });
 

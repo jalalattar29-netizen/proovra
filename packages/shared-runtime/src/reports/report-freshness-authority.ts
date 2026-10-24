@@ -93,6 +93,9 @@ export type CurrentRecordFacts = {
     anchoredAtUtc: string | null;
     verification: OtsVerificationKey | null;
     verifiedAtUtc: string | null;
+    /** The verified proof and block now, when known. */
+    proofSha256?: string | null;
+    blockHash?: string | null;
   };
   lastVerifiedAtUtc: Date | null;
 };
@@ -110,6 +113,7 @@ export async function deriveReportFreshnessForRecord(
 ): Promise<ReportFreshness> {
   const groups = report ? await loadReportableCustodyAfterReport(evidenceId, report, client) : [];
   const atIssue = report ? snapshotAnchoringAtIssue((report.anchorSnapshot ?? null) as never, (report.trustDecisionSnapshot ?? null) as never) : null;
+  const stated = (report?.anchorSnapshot && typeof report.anchorSnapshot === "object" ? report.anchorSnapshot : {}) as Record<string, unknown>;
   return deriveReportFreshness({
     reportVersion: report?.version ?? null,
     reportGeneratedAtUtc: iso(report?.generatedAtUtc),
@@ -123,6 +127,10 @@ export async function deriveReportFreshnessForRecord(
       verification: now.ots.verification,
       reportVerification: atIssue?.otsVerification ?? null,
       verifiedAtUtc: now.ots.verifiedAtUtc,
+      proofSha256: now.ots.proofSha256 ?? null,
+      blockHash: now.ots.blockHash ?? null,
+      reportProofSha256: typeof stated.otsProofSha256 === "string" ? stated.otsProofSha256 : null,
+      reportBlockHash: typeof stated.otsChainBlockHash === "string" ? stated.otsChainBlockHash : null,
     },
     custodyAfterReport: { groups },
     integrity: {

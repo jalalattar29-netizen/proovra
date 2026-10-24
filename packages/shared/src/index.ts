@@ -419,6 +419,7 @@ export {
   reportableCustodyReasonOf,
   REPORT_FRESHNESS_CHANGE_CODES,
   deriveReportFreshness,
+  otsChainVerifiedAfterReport,
   reportFreshnessChangeCopy,
   OUTPUT_PROGRESS_STAGES,
   OUTPUT_PROGRESS_STEPS,

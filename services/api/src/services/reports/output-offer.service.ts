@@ -148,6 +148,8 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
         anchoredAtUtc: ots.anchoredAtUtc,
         verification: ots.verification,
         verifiedAtUtc: ots.chain?.verifiedAtUtc ?? null,
+        proofSha256: ots.proofSha256 ?? null,
+        blockHash: ots.chain?.blockHash ?? null,
       },
       lastVerifiedAtUtc: ev?.lastVerifiedAtUtc ?? null,
     }),
