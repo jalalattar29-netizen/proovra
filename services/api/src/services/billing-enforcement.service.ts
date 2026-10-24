@@ -1603,6 +1603,32 @@ export async function workspaceIncludesReviewCapability(
 }
 
 /**
+ * The same ladder for a record with NO workspace row (re-audit 2026-10-24,
+ * finding 6): a legacy teamless evidence row has no teamId to resolve, and
+ * leaving it ungated let a FREE account drive reviewer-workflow transitions
+ * there. The commercial subject of such a record is its OWNER's personal
+ * account, so the owner's effective personal plan answers — through the same
+ * resolver, so the matrix is still stated once. Fails closed.
+ */
+export async function ownerIncludesReviewCapability(
+  ownerUserId: string,
+  capability: ReviewCapability,
+): Promise<boolean> {
+  try {
+    const ctx = await resolveCommercialContext({
+      type: "PERSONAL_ACCOUNT",
+      userId: ownerUserId,
+    });
+    return resolveEffectiveReviewCapabilities({
+      plan: ctx.plan,
+      contract: ctx.scope.contractLimits,
+    })[capability];
+  } catch {
+    return false;
+  }
+}
+
+/**
  * The TEAM-tier reviewer OPERATIONS answer (assignments / queues / escalation
  * routing / bulk), kept under its established name for the projection surfaces
  * that already read it (platform-context, and through it web and mobile). The

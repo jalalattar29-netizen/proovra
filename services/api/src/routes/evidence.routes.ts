@@ -291,6 +291,7 @@ import { assertInteractiveEvidenceCreateAllowed, createEvidence } from "../servi
 import {
   resolveEnforcementScopeForRequester,
   scopeIncludesAiOperations,
+  ownerIncludesReviewCapability,
   workspaceIncludesReviewCapability,
 } from "../services/billing-enforcement.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
@@ -8917,6 +8918,12 @@ return {
         if (!(await workspaceIncludesReviewCapability(evidence.teamId, "BASIC_RECORD_REVIEW"))) {
           return reply.code(403).send({ error: { code: "reviewer_operations_not_included", details: null } });
         }
+      } else if (!(await ownerIncludesReviewCapability(evidence.ownerUserId, "BASIC_RECORD_REVIEW"))) {
+        // A legacy teamless record has no workspace to resolve, so its OWNER's
+        // personal plan answers (re-audit 2026-10-24, finding 6) — the branch
+        // above was the one reviewer-workflow door with no commercial gate at
+        // all, and a FREE account could drive transitions through it.
+        return reply.code(403).send({ error: { code: "reviewer_operations_not_included", details: null } });
       }
 
       if (body.assignedToUserId) {

@@ -1634,7 +1634,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         // information is the typed REVIEW_NOTE_REQUIRED refusal, the code a
         // bulk row and the single-item routes use — not a generic schema error.
         const noteOnly = parsed.error.issues.every(
-          (issue) => issue.path.join(".") === "note",
+          (issue) => issue.path.join(".") === "note" && issue.code === "custom",
         );
         if (noteOnly) {
           return reply.code(400).send({

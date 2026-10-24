@@ -221,6 +221,22 @@ describe("FREE / PAY_PER_EVIDENCE — every capability refused, credits grant no
         expect(res.body.error.requestId, capability).toBeTruthy();
       }
     }
+    // Anti-enumeration ORDER (re-audit finding 1): the commercial gate runs
+    // AFTER membership admission, so an outsider probing this FREE workspace
+    // is answered 404 and never the plan-disclosing ENTITLEMENT_REQUIRED.
+    const B = harness.fixtures.teamB;
+    for (const url of [
+      `/v1/reviewer-ops/queue?teamId=${A.teamId}`,
+      `/v1/reviewer-ops/escalations?teamId=${A.teamId}`,
+    ]) {
+      const outsider = await call(B.ownerToken, "GET", url);
+      expect(outsider.status, url).toBe(404);
+      expect(JSON.stringify(outsider.body), url).not.toContain("ENTITLEMENT_REQUIRED");
+    }
+    const outsiderBulk = await call(B.ownerToken, "POST", "/v1/reviewer-ops/reviews/bulk", { teamId: A.teamId, workflowIds: [workflowId], action: "PRIORITY_HIGH" });
+    expect(outsiderBulk.status).toBe(404);
+    expect(JSON.stringify(outsiderBulk.body)).not.toContain("ENTITLEMENT_REQUIRED");
+
     // The single-item lifecycle and queue reads refuse with the single-route
     // posture (404, reviewer_operations_not_included).
     const claim = await call(A.adminToken, "POST", `/v1/review-operations/evidence/${(await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: workflowId } })).evidenceId}/claim`, { teamId: A.teamId });

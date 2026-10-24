@@ -184,10 +184,24 @@ describe("unexpected errors — reported, never described", () => {
     expect((reported[0].err as Error).message).toBe(SECRET);
   });
 
+  it("a typed refusal never reaches the observer — expected outcomes make no Sentry noise", async () => {
+    const { executeBulkTriage } = await import("../src/services/reviewer-ops/bulk-triage.service.js");
+    const reported: unknown[] = [];
+    const result = await executeBulkTriage(
+      { teamId: A.teamId, actorUserId: A.adminUserId, isReviewerCapable: true, isServiceAccount: false } as never,
+      { teamId: A.teamId, workflowIds: [randomUUID()], action: "CLOSE", note: "typed refusal" } as never,
+      prisma,
+      { requestId: "req-sentinel-2", reportUnexpected: (x) => reported.push(x) },
+    );
+    expect(result.items[0]).toMatchObject({ ok: false, errorCode: "REVIEW_WORKFLOW_NOT_FOUND" });
+    expect(reported).toEqual([]);
+  });
+
   it("classifyBulkItemError maps every typed refusal to its contract code and marks only the unknown as unexpected", async () => {
     const { classifyBulkItemError } = await import("../src/services/reviewer-ops/bulk-triage.service.js");
     const { ReviewerOpsError } = await import("../src/services/reviewer-ops/reviewer-operations-engine.service.js");
     const { ReviewOperationError } = await import("../src/services/review-operations/review-operations.service.js");
+    const { EscalationEngineError } = await import("../src/services/reviewer-ops/escalation-engine.service.js");
     const cases: Array<[unknown, string, boolean]> = [
       [new ReviewerOpsError("REVIEW_NOTE_REQUIRED"), "REVIEW_NOTE_REQUIRED", false],
       [new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND"), "REVIEW_WORKFLOW_NOT_FOUND", false],
@@ -201,6 +215,15 @@ describe("unexpected errors — reported, never described", () => {
       [new ReviewOperationError("invalid_stage_transition", { reason: "concurrent_change" }), "REVIEW_CONFLICT", false],
       [new ReviewOperationError("invalid_stage_transition", { from: "X" }), "REVIEW_INVALID_TRANSITION", false],
       [new ReviewOperationError("already_in_stage"), "REVIEW_INVALID_TRANSITION", false],
+      // The escalation engine speaks the same contract: a missing escalation
+      // reads as the workflow does (not found), a terminal one as a stage the
+      // action does not apply to, and a lost race as a conflict.
+      [new EscalationEngineError("REVIEW_ESCALATION_NOT_FOUND"), "REVIEW_WORKFLOW_NOT_FOUND", false],
+      [new EscalationEngineError("REVIEW_ESCALATION_TERMINAL"), "REVIEW_INVALID_TRANSITION", false],
+      [new EscalationEngineError("REVIEW_WORKFLOW_NOT_FOUND"), "REVIEW_WORKFLOW_NOT_FOUND", false],
+      [new EscalationEngineError("REVIEW_NOTE_REQUIRED"), "REVIEW_NOTE_REQUIRED", false],
+      [new EscalationEngineError("REVIEW_PERMISSION_DENIED"), "REVIEW_PERMISSION_DENIED", false],
+      [new EscalationEngineError("REVIEW_INVALID_TRANSITION", { reason: "concurrent_change" }), "REVIEW_CONFLICT", false],
       [new Error("anything else"), "REVIEW_ITEM_FAILED", true],
       ["a string", "REVIEW_ITEM_FAILED", true],
     ];

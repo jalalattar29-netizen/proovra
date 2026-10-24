@@ -2283,8 +2283,10 @@ model EnterpriseContract {
   ///                `resolveEnterpriseContractLimits` fails closed on status
   ///                before this is read.
   ///
-  /// Governs NEW reviewer-operations work only. Existing workflows, decisions,
-  /// escalations and their history are never deleted or hidden by it.
+  /// Governs NEW reviewer-operations work only. Nothing is deleted: the
+  /// per-workflow decision log and notes stay readable through an exclusion,
+  /// while the shared operations surfaces (queues, escalation lists, the ops
+  /// workspace view) need their tier again, like any downgrade.
   reviewerOperationsEnabled    Boolean?            @map("reviewer_operations_enabled")
   region                  String?                  @db.VarChar(40)
   planVersion             String?                  @map("plan_version") @db.VarChar(40)
