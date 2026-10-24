@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281023000100_review_decision_rounds";
+export const EXPECTED_MIGRATION_HEAD = "20281024000000_enterprise_contract_reviewer_operations";
 
 export type MigrationRow = {
   migration_name: string;

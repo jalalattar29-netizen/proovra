@@ -620,6 +620,10 @@ describe("defects — teams, collaboration, saved views (live PostgreSQL 16)", (
 
     it("D22 reviewer-ops: a non-admin cannot delete a colleague's shared view; an admin can; a viewer cannot publish one", async () => {
       const a = h.fixtures.teamA;
+      // Reviewer-ops saved views are a reviewer-operations surface: the
+      // workspace must include them (2026-10-24 entitlement gate) for the
+      // role rules below to be what answers.
+      await prisma.team.update({ where: { id: a.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
       const shared = await view({
         teamId: a.teamId,
         createdByUserId: a.adminUserId,
@@ -659,6 +663,7 @@ describe("defects — teams, collaboration, saved views (live PostgreSQL 16)", (
           where: { teamId: a.teamId, createdByUserId: a.viewerUserId, scope: "REVIEWER_OPS" },
         }),
       ).toBe(0);
+      await prisma.team.update({ where: { id: a.teamId }, data: { billingPlan: "FREE", billingStatus: "INACTIVE" } });
     });
 
     it("D22 SIU: rename, filter change, share/unshare and delete of a colleague's shared view are creator-or-admin only", async () => {

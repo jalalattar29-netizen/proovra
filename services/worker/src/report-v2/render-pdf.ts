@@ -7,8 +7,14 @@ import { resolveReportAssetPath } from "./asset-data-url.js";
 import { OutputVerificationError } from "../output-verification-error.js";
 import { LAYOUT_AUDIT_SCRIPT, layoutAuditFindings, type LayoutAuditEntry } from "../pdf/report-geometry.js";
 import { REPORT_PAGE, REPORT_PAGE_AREA_HEIGHT_MM } from "./page-geometry.js";
+import { setPdfRendererIdentity } from "./pdf-renderer-identity.js";
 
-/** The PDF /Creator of every report (never the renderer host's user agent). */
+/**
+ * The PDF /Creator and /Producer of every report, whichever Chromium printed it
+ * (full Chrome or chrome-headless-shell): never the host's user agent, the
+ * browser's name or its version. Set on the printed bytes by
+ * `setPdfRendererIdentity` (pdf-renderer-identity.ts).
+ */
 export const REPORT_PDF_CREATOR = "PROOVRA Verification Report Renderer";
 
 export function resolveBrowserExecutablePath(): string | undefined {
@@ -196,8 +202,6 @@ export async function renderPdfFromHtml(html: string, options: RenderPdfOptions 
       "--disable-gpu",
       "--disable-extensions",
       "--no-first-run",
-      // The PDF /Creator is the browser's user agent: name the renderer, not the host.
-      `--user-agent=${REPORT_PDF_CREATOR}`,
     ],
   });
 
@@ -354,7 +358,8 @@ reportId: fullReportId(footerData.evidenceReference),
       },
     });
 
-    return Buffer.from(pdf);
+    // The PDF names the product's renderer, not the browser that printed it.
+    return setPdfRendererIdentity(Buffer.from(pdf), REPORT_PDF_CREATOR);
   } finally {
     await browser.close();
   }

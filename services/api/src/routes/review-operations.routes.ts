@@ -32,7 +32,10 @@ import {
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
-import { workspaceIncludesReviewerOperations } from "../services/billing-enforcement.service.js";
+import {
+  workspaceIncludesReviewCapability,
+  type ReviewCapability,
+} from "../services/billing-enforcement.service.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import {
   ReviewOperationError,
@@ -110,17 +113,24 @@ async function requireAdminMember(
 }
 
 /**
- * THE COMMERCIAL GATE (2026-10-23) — `PlanCapabilities.reviewerOperationsIncluded`
- * through the one authority (`workspaceIncludesReviewerOperations`), the same
- * answer the reviewer workspace routes enforce and the web reads. Claim and
- * decisions were open to every plan here while the Evidence page hid them on
- * plans that do not include review: the server and the page disagreed.
- * Checked AFTER membership, so a non-member still learns nothing; answered
- * 404 like every refusal in this file (its anti-enumeration posture), with a
- * code the page states in words.
+ * THE COMMERCIAL GATE (2026-10-23; capability-keyed 2026-10-24) — the one
+ * review-capability ladder (`workspaceIncludesReviewCapability`), the same
+ * answer the reviewer-ops routes, the reviewer workspace and the web read.
+ * Claim and decisions were open to every plan here while the Evidence page
+ * hid them on plans that do not include review: the server and the page
+ * disagreed. The caller states WHICH capability its action exercises: the
+ * record-level lifecycle is BASIC_RECORD_REVIEW (PRO and above), the queue
+ * reads are REVIEW_TASKS_AND_QUEUES and bulk is BULK_REVIEW_OPERATIONS (TEAM
+ * and above). Checked AFTER membership, so a non-member still learns
+ * nothing; answered 404 like every refusal in this file (its anti-enumeration
+ * posture), with a code the page states in words.
  */
-async function refuseUnlessReviewIncluded(teamId: string, reply: FastifyReply): Promise<boolean> {
-  if (await workspaceIncludesReviewerOperations(teamId)) return false;
+async function refuseUnlessReviewIncluded(
+  teamId: string,
+  reply: FastifyReply,
+  capability: ReviewCapability,
+): Promise<boolean> {
+  if (await workspaceIncludesReviewCapability(teamId, capability)) return false;
   reply.code(404).send({ error: { code: "reviewer_operations_not_included", details: null } });
   return true;
 }
@@ -190,6 +200,9 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ok = await requireReviewerMember(req, reply, query.teamId);
       if (!ok) return;
+      // The queue is the TEAM-tier tasks-and-queues surface; the record-level
+      // lifecycle below stays available to PRO (2026-10-24).
+      if (await refuseUnlessReviewIncluded(query.teamId, reply, "REVIEW_TASKS_AND_QUEUES")) return;
       const rows = await listReviewQueue({
         teamId: query.teamId,
         stage: query.stage,
@@ -218,6 +231,7 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ok = await requireReviewerMember(req, reply, query.teamId);
       if (!ok) return;
+      if (await refuseUnlessReviewIncluded(query.teamId, reply, "REVIEW_TASKS_AND_QUEUES")) return;
       const counts = await getReviewQueueCounts({
         teamId: query.teamId,
         meUserId: ok.userId,
@@ -243,7 +257,7 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
       if (!workflow || workflow.teamId !== body.teamId) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
-      if (await refuseUnlessReviewIncluded(body.teamId, reply)) return;
+      if (await refuseUnlessReviewIncluded(body.teamId, reply, "BASIC_RECORD_REVIEW")) return;
       try {
         const updated = await claimReviewerWorkflow({
           evidenceId,
@@ -291,7 +305,18 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
       const teamId = workflow.teamId;
       const ok = await requireReviewerMember(req, reply, teamId);
       if (!ok) return;
-      if (await refuseUnlessReviewIncluded(teamId, reply)) return;
+      // The record-level lifecycle is PRO's BASIC_RECORD_REVIEW; Escalate is
+      // not in it — it opens a ReviewEscalation routed to the workspace's
+      // admins, which is TEAM's shared escalation routing (owner matrix
+      // 2026-10-24).
+      if (
+        await refuseUnlessReviewIncluded(
+          teamId,
+          reply,
+          body.decision === "ESCALATE" ? "REVIEW_ESCALATION" : "BASIC_RECORD_REVIEW",
+        )
+      )
+        return;
 
       // Phase C0 — Sensitive reviewer decision step-up gate. When
       // the workspace governance flag for the chosen decision is
@@ -419,8 +444,9 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
           ? await requireAdminMember(req, reply, body.teamId)
           : await requireReviewerMember(req, reply, body.teamId);
       if (!ok) return;
-      // The same commercial gate as claim and decisions (audit F6).
-      if (await refuseUnlessReviewIncluded(body.teamId, reply)) return;
+      // The same commercial authority as claim and decisions (audit F6) —
+      // at the BULK tier, which PRO does not have.
+      if (await refuseUnlessReviewIncluded(body.teamId, reply, "BULK_REVIEW_OPERATIONS")) return;
 
       try {
         const result = await bulkReviewAction({

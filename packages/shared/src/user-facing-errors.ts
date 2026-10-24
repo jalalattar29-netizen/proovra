@@ -863,6 +863,15 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
       "One-time storage purchases don't renew, so there is nothing to cancel. The storage stays on your account.",
     severity: "info",
   },
+  /**
+   * A bulk reviewer action (Escalate, Pause, Request more information) whose
+   * note was missing or whitespace-only (2026-10-24). Customer-correctable.
+   */
+  REVIEW_NOTE_REQUIRED: {
+    title: "This action needs a note",
+    message: "Add a short note explaining the action and try again.",
+    severity: "warning",
+  },
   REVIEW_PERMISSION_DENIED: {
     title: "You're not a reviewer on this workspace",
     message:

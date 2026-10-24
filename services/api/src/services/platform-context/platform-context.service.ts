@@ -33,7 +33,10 @@ import { resolveCapabilities, resolvePersona } from "./capability-registry.js";
 import { ACTIVE_MEMBER_COUNT_SELECT, planProducesOperationalConditions } from "./workspace-capability.service.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
-import { workspaceIncludesExternalReview } from "../billing-enforcement.service.js";
+import {
+  workspaceIncludesExternalReview,
+  workspaceIncludesReviewerOperations,
+} from "../billing-enforcement.service.js";
 import { deriveOperationalEligibility } from "./operational-eligibility.js";
 // ATTENTION ARCHITECTURE (2026-08-22) — the canonical answer to "is this an Enterprise
 // customer?", replacing a `billingPlan === "ENTERPRISE"` string comparison.
@@ -721,6 +724,24 @@ export async function buildPlatformContext(
   }
 
   /**
+   * REVIEWER OPERATIONS ENTITLEMENT (2026-10-24) — projected from the ONE
+   * authority every `/v1/reviewer-ops/*` operations route and the single-item
+   * Review routes enforce, not from the bare catalog row: an ACTIVE Enterprise
+   * contract can exclude reviewer operations, and `workspace.plan` alone
+   * would keep promising them. Fails closed, like the projection above.
+   */
+  let reviewerOperationsIncluded = false;
+  if (workspace.id) {
+    try {
+      reviewerOperationsIncluded = await workspaceIncludesReviewerOperations(
+        workspace.id,
+      );
+    } catch {
+      reviewerOperationsIncluded = false;
+    }
+  }
+
+  /**
    * COMMERCIAL CLOSURE (2026-09-08) — intake follows the ONE intake rule.
    *
    * `planCaps.intakeIncluded` alone hid the Intake surface from every real
@@ -751,7 +772,7 @@ export async function buildPlatformContext(
     verificationPackageIncluded: planCaps.verificationPackageIncluded,
     intakeIncluded,
     casesIncluded: planCaps.casesIncluded,
-    reviewerOperationsIncluded: planCaps.reviewerOperationsIncluded,
+    reviewerOperationsIncluded,
     // PHASE 12B Track 1A — server-projected surface-tier entitlement (the ONE
     // commercial catalog decides; the frontend never branches on plan names).
     professionalSurfacesIncluded: planCaps.professionalSurfacesIncluded,

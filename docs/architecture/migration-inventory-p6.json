@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 329,
-    "classifiedMigrations": 329,
+    "filesystemMigrations": 330,
+    "classifiedMigrations": 330,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 329,
+    "productionSnapshotUnknown": 330,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 329,
-    "classifiedMigrations": 329,
+    "filesystemMigrations": 330,
+    "classifiedMigrations": 330,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 329,
+    "productionSnapshotUnknown": 330,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 101,
+      "EXPAND": 102,
       "BACKFILL": 27,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 116,
+      "SAFE_TO_APPLY_NOW": 117,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 2
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 329
+    "ProductionMigrationStateUnknown": 330
   },
   "gateFailures": [],
   "migrations": [
@@ -24977,8 +24977,71 @@
       "evidence": "REVIEW DECISION ROUNDS (2026-10-23). A reopened review could never receive a new verdict: workflow_review_decisions held one row per (workflow_id, stage), and the earlier FIRST row both resolved the derived state and occupied the unique key; the same held after a request-more-information outcome. Adds workflow_review_decisions.round (INT NOT NULL DEFAULT 0) and evidence_review_workflows.decision_round (INT NOT NULL DEFAULT 0); state is derived from the current round only and earlier rounds stay on the log unchanged. BACKFILL: a workflow reopened after decisions moves to round 1 and the decisions made after its (last) reopen are classified into round 1 (both UPDATEs conditioned). Then (workflow_id, round, stage) is created FIRST and (workflow_id, stage) is retired in a guarded DO block that RAISEs unless the new key exists. SAFE BEFORE THE NEW CODE: previous images insert decisions without a round, so every row lands in round 0 and the new key enforces per-stage uniqueness exactly as the old one did; apply BEFORE the API image (its Prisma client maps the columns). No decision content changed. MIXED-VERSION WINDOW: the previous API image reads decisions without a round and writes every decision into round 0, so for a workflow the backfill moved to round 1 its decisions are not counted by the new image (and new-image round-1 decisions read as current to it); apply with the API image. LOCK: the unique index is built non-concurrently inside the migration transaction, holding a SHARE lock on workflow_review_decisions (small table) for the build. Idempotent. READINESS: 2:1:0 after apply. ROLLBACK: drop the new index, recreate the old one, drop both columns — possible until some (workflow_id, stage) occurs in more than one round (the backfill never causes that; the first new-image verdict in a later round does), after which neither the migration nor the API image may be rolled back (one-way). NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281024000000_enterprise_contract_reviewer_operations",
       "order": 328,
+      "sqlPresent": true,
+      "byteLength": 2800,
+      "checksumSha256": "406bbd718a4391803e58ca65059a5aecb180c6c5e31d63221359eca845f9fe5d",
+      "checksumSha256Raw": "406bbd718a4391803e58ca65059a5aecb180c6c5e31d63221359eca845f9fe5d",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:1 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "enterprise_contracts"
+        ],
+        "addedColumns": [
+          "reviewer_operations_enabled"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20270920300000_enterprise_contract_state"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 1,
+      "guardRaises": 1,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name = 'enterprise_contracts' AND column_name = 'reviewer_operations_enabled'\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "REVIEWER OPERATIONS CONTRACT TERM (2026-10-24, owner matrix). The commercial contract sells basic record review on PRO and the reviewer OPERATIONS tiers (assignments, tasks & queues, escalation routing, bulk) on TEAM, and lets an ENTERPRISE organization contract govern them — but the contract had nowhere to state an exclusion, so the plan label alone answered. Adds ONE nullable BOOLEAN enterprise_contracts.reviewer_operations_enabled behind the Phase O-final table-existence guard. SEMANTICS (deliberately the REVERSE of legal_hold_enabled): every Enterprise customer has reviewer operations today, so NULL and TRUE keep the catalog answer (included) and only an explicit FALSE excludes, and only while the contract is ACTIVE (resolveEnterpriseContractLimits fails closed on status first). The term cannot GRANT: FREE/PAYG/PRO are refused by the catalog before the contract is read. Governs NEW reviewer-operations work only; no workflow, decision, escalation or history row is read or written, and a downgrade deletes nothing. No backfill is possible or correct (NULL is exactly today's behaviour). Safe on either image; idempotent (ADD COLUMN IF NOT EXISTS). READINESS: 1 after apply. ROLLBACK: code-first — revert the image and LEAVE the column (dropping it is a CONTRACT_DROP with its own decision). NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 329,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

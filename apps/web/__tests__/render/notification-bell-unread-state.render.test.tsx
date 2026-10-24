@@ -71,6 +71,11 @@ vi.mock("../../lib/navigation/useDeepLinkNavigation", () => ({
   }),
 }));
 
+// Static, not imported inside a test: the bell's module graph loads during
+// collection, which has no per-test timeout, instead of inside the first
+// test's 5s budget (3.9s of it in a full render-suite run).
+import { NotificationBell } from "../../components/app-shell-v2/NotificationBell";
+
 // ---------------------------------------------------------------------------
 // A tiny server: the five-most-recent window, read state, and dismissal.
 // ---------------------------------------------------------------------------
@@ -166,9 +171,6 @@ function installServer(rows: Row[]) {
 }
 
 async function mountBell() {
-  const { NotificationBell } = await import(
-    "../../components/app-shell-v2/NotificationBell"
-  );
   render(<NotificationBell />);
 }
 
@@ -533,9 +535,6 @@ describe("what is announced to assistive technology", () => {
 describe("switching context drops the previous state", () => {
   it("12. switching workspace clears the count synchronously and rescopes", async () => {
     installServer(makeRows(4));
-    const { NotificationBell } = await import(
-      "../../components/app-shell-v2/NotificationBell"
-    );
     const view = render(<NotificationBell />);
     await waitFor(() => expect(unreadAttr()).toBe("4"));
 
@@ -555,9 +554,6 @@ describe("switching context drops the previous state", () => {
 
   it("13. switching account clears the count and the rows", async () => {
     installServer(makeRows(3));
-    const { NotificationBell } = await import(
-      "../../components/app-shell-v2/NotificationBell"
-    );
     const view = render(<NotificationBell />);
     await waitFor(() => expect(unreadAttr()).toBe("3"));
     await openPopover("Submission 1 needs review");

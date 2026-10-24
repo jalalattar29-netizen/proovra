@@ -311,6 +311,10 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
       });
       expect(member.statusCode).toBe(403);
       expect(member.json().error).toMatchObject({ code: "REVIEW_PERMISSION_DENIED", reason: "review_bulk_required" });
+      // Team B's own workspace must include reviewer operations for its bulk
+      // call to reach the per-row lookup (2026-10-24 entitlement gate); the
+      // FREE default is refused before any row is read.
+      await prisma.team.update({ where: { id: b.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
       const intoForeign = await call({
         method: "POST",
         url: "/v1/reviewer-ops/reviews/bulk",
@@ -330,6 +334,8 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
         expect.objectContaining({ workflowId: w, ok: false, errorCode: "REVIEW_WORKFLOW_NOT_FOUND" }),
       ]);
       expect((await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: w } })).priority).toBe("NORMAL");
+      // Later tests rely on Organization B staying on the FREE default.
+      await prisma.team.update({ where: { id: b.teamId }, data: { billingPlan: "FREE", billingStatus: "INACTIVE" } });
     });
 
     it("POST + DELETE /v1/reviewer-ops/saved-views — a reviewer saves and deletes a view; row re-read; security events recorded; another tenant concealed", async () => {

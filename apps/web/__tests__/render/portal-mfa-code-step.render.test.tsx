@@ -30,6 +30,10 @@ vi.mock("next/navigation", () => ({
 
 import PortalTokenEntryPage from "../../app/portal/page";
 import PortalAcceptPage from "../../app/portal/accept/[grantId]/page";
+// Static, not imported inside the test: its module graph loads during
+// collection instead of inside one test's 5s budget, which a full render-suite
+// run otherwise exhausts.
+import PortalDashboardPage from "../../app/portal/[token]/page";
 
 const AUTH = "https://api.example.test/v1/portal/auth";
 const TOKEN = "tok-abcdefghijkl";
@@ -228,7 +232,6 @@ describe("invitation landing — emailed code step in place", () => {
 
 describe("signed-in portal pages — lapsed MFA", () => {
   it("the dashboard asks for the code before loading anything, and loads only after the server accepts it", async () => {
-    const { default: PortalDashboardPage } = await import("../../app/portal/[token]/page");
     const p = Promise.resolve({ token: TOKEN }) as Promise<{ token: string }> & { status?: string; value?: unknown };
     p.status = "fulfilled";
     p.value = { token: TOKEN };

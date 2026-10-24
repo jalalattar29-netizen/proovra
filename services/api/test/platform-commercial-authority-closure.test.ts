@@ -260,9 +260,12 @@ describe("the retired duplicate authorities cannot come back", () => {
     expect(PLAN_CAPABILITIES.FREE.reviewerOperationsIncluded).toBe(false);
     expect(PLAN_CAPABILITIES.PRO.reviewerOperationsIncluded).toBe(false);
     expect(PLAN_CAPABILITIES.TEAM.reviewerOperationsIncluded).toBe(true);
+    // 2026-10-24 — the one authority is capability-keyed now
+    // (workspaceIncludesReviewCapability over the same catalog): the reviewer
+    // workspace asks for its own tier rather than one undifferentiated flag.
     expect(
       codeOnly(read("services/api/src/routes/reviewer-workspace.routes.ts")),
-    ).toContain("workspaceIncludesReviewerOperations");
+    ).toContain("workspaceIncludesReviewCapability");
   });
 });
 

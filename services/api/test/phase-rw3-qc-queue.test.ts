@@ -113,7 +113,8 @@ describe("Phase RW3-3 — route source contract", () => {
 
   it("uses requireReviewerActor (team membership gate)", () => {
     expect(ROUTE_SRC).toMatch(
-      /\/v1\/reviewer-ops\/qc\/pending-count[\s\S]{0,2000}?requireReviewerActor\(req,\s*reply,\s*q\.teamId\)/,
+      // 2026-10-24 — the gate also names the commercial capability.
+      /\/v1\/reviewer-ops\/qc\/pending-count[\s\S]{0,2000}?requireReviewerActor\(req,\s*reply,\s*q\.teamId,\s*"REVIEW_TASKS_AND_QUEUES"\)/,
     );
   });
 

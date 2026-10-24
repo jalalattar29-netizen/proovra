@@ -32,9 +32,15 @@ vi.mock("../../lib/api", () => ({
 }));
 vi.mock("../../lib/sentry", () => sentry);
 
+// Static imports: the page's module graph loads during collection, which has
+// no per-test timeout. Imported inside the first test, its cold load counted
+// against that test's 5s budget and overran it when the whole render suite
+// shares the transform server; the timed-out test's late render then leaked
+// into the next test ("multiple elements").
+import VerifyPage from "../../app/verify/[token]/page";
+import { ToastProvider } from "../../components/ui";
+
 async function mountPage() {
-  const { default: VerifyPage } = await import("../../app/verify/[token]/page");
-  const { ToastProvider } = await import("../../components/ui");
   render(
     <ToastProvider>
       <VerifyPage />

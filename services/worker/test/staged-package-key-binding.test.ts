@@ -36,6 +36,12 @@ vi.mock("@proovra/shared-runtime", async (importOriginal) => {
 
 const REPORT = Buffer.from("%PDF-1.7 report v1\n");
 
+// Top-level await, not in-test: the in-test import's cold transform counted
+// against the 5s test timeout under full-suite load (2026-10-24). It stays a
+// dynamic import because the hoisted vi.mock factories above read consts of
+// this module, which a static import would evaluate too early.
+const { assertStagedPackage, OutputVerificationError } = await import("../src/output-verification.js");
+
 async function stagedZip(signer: typeof proovra, namedFingerprint: string | null = PROOVRA_FP): Promise<string> {
   const files: Array<[string, Buffer]> = [
     ["report/report-v1.pdf", REPORT],
@@ -94,7 +100,6 @@ async function stagedZip(signer: typeof proovra, namedFingerprint: string | null
 }
 
 async function findingsOf(zipPath: string): Promise<string[]> {
-  const { assertStagedPackage, OutputVerificationError } = await import("../src/output-verification.js");
   try {
     await assertStagedPackage({
       zipPath,

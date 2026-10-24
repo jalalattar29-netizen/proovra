@@ -158,14 +158,22 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
   );
 
   it(
-    "the PDF names its renderer neutrally, never the host's user agent",
+    "the PDF names its renderer neutrally, never the host's user agent — under full Chrome and chrome-headless-shell alike",
     async () => {
+      // Whichever Chromium the run resolved (full Chrome writes its user agent
+      // as /Creator, chrome-headless-shell writes "Chromium", both write
+      // "Skia/PDF m<N>" as /Producer), the report states one renderer name.
       const { input } = layoutVariant(LAYOUT_VARIANTS[0]!);
-      const doc = await openPdf(await renderPdf(await htmlOf(input)));
+      const pdf = await renderPdf(await htmlOf(input));
+      const browserIdentity = /Mozilla|HeadlessChrome|Chrom(e|ium)|Skia|Windows NT|Macintosh|X11|Linux/;
+      // Not even the superseded value survives in the bytes (one revision).
+      expect(pdf.toString("latin1")).not.toMatch(/\/(Creator|Producer)\s*\((?!PROOVRA)/);
+      const doc = await openPdf(pdf);
       try {
         const info = ((await doc.getMetadata()).info ?? {}) as Record<string, unknown>;
         expect(info.Creator).toBe(REPORT_PDF_CREATOR);
-        expect(JSON.stringify(info)).not.toMatch(/Mozilla|HeadlessChrome|Windows NT|X11|Linux x86_64/);
+        expect(info.Producer).toBe(REPORT_PDF_CREATOR);
+        expect(JSON.stringify(info)).not.toMatch(browserIdentity);
       } finally {
         await doc.destroy();
       }

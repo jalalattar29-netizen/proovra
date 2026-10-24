@@ -37,6 +37,7 @@ import {
   ReviewerOpsBulkInputSchema,
   ReviewerOpsSavedViewFilterSchema,
   ReviewerOpsSlaPolicySchema,
+  REVIEWER_OPS_BULK_ITEM_ERRORS,
   REVIEWER_OPS_QUEUE_TYPES,
   REVIEW_ESCALATION_REASONS,
   REVIEW_ESCALATION_STATUSES,
@@ -99,9 +100,16 @@ import {
   type WorkspaceReviewerOpsFlags,
 } from "../services/reviewer-ops/sla-policy.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+// THE ONE commercial authority for review — the same capability ladder the
+// single-item Review routes, the reviewer workspace and platform-context read.
+import {
+  workspaceIncludesReviewCapability,
+  type ReviewCapability,
+} from "../services/billing-enforcement.service.js";
 import type { StepUpPurpose } from "@proovra/shared";
 import { runtimeAdaptiveGate } from "../services/access-control/adaptive-runtime-gate.service.js";
 import { executeBulkTriage } from "../services/reviewer-ops/bulk-triage.service.js";
+import { captureException } from "../observability/sentry.js";
 import {
   createReviewerOpsSavedView,
   deleteReviewerOpsSavedView,
@@ -200,6 +208,7 @@ async function requireReviewerActor(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
+  surface: ReviewerOpsSurface,
 ): Promise<ReviewerActorContext | null> {
   const outcome = await evaluateAuthorizedWorkspace(req, {
     workspaceId: teamId,
@@ -236,6 +245,15 @@ async function requireReviewerActor(
     return null;
   }
   const authorized = outcome.context;
+  // The commercial gate, AFTER admission: a non-member has already been
+  // answered 404 above and learns nothing about the plan.
+  if (
+    surface !== "history" &&
+    !(await workspaceIncludesReviewCapability(authorized.workspaceId, surface))
+  ) {
+    sendReviewCapabilityNotIncluded(req, reply, surface);
+    return null;
+  }
   return {
     teamId: authorized.workspaceId,
     actorUserId: authorized.userId,
@@ -249,6 +267,57 @@ async function requireReviewerActor(
     isServiceAccount: false,
     authorized,
   };
+}
+
+/**
+ * REVIEW ENTITLEMENT (2026-10-24).
+ *
+ * Every route in this file used to authorize through `requireReviewerActor` +
+ * `requireReviewerCapable`, which answer RBAC only (`evidence_request.review`).
+ * Neither asked whether the workspace's PLAN includes what the route does, so
+ * an admin of a workspace downgraded below TEAM could still bulk Escalate,
+ * Close, Assign and prioritise workflows that the single-item Review routes
+ * refuse. The answer now comes from the one commercial review-capability
+ * ladder (`workspaceIncludesReviewCapability`) — the same authority the
+ * single-item routes, the reviewer workspace and platform-context use — asked
+ * inside the actor gate, so no route here can skip it without stating which
+ * capability it exercises:
+ *
+ *   BASIC_RECORD_REVIEW        the record-level lifecycle and its notes and
+ *                              verdicts (PRO and above).
+ *   REVIEW_ASSIGNMENTS         assigning or reassigning OTHER reviewers, and
+ *                              the pickers that exist for it (TEAM and above).
+ *   REVIEW_TASKS_AND_QUEUES    the shared queue / dashboard / workload /
+ *                              saved-view / analytics / SLA surface (TEAM
+ *                              and above).
+ *   REVIEW_ESCALATION          the shared escalation routing surface (TEAM
+ *                              and above).
+ *   BULK_REVIEW_OPERATIONS     bulk triage (TEAM and above).
+ *   "history"                  the EXISTING decision log and notes of one
+ *                              workflow. A downgrade preserves Review history
+ *                              and keeps it readable under the existing access
+ *                              rules; adding to it needs a capability again.
+ */
+type ReviewerOpsSurface = ReviewCapability | "history";
+
+/**
+ * The typed refusal: 403 (the caller is a proven ACTIVE member, so nothing is
+ * disclosed), `ENTITLEMENT_REQUIRED` naming the capability. A plain reply
+ * that never reaches the error handler, so never Sentry.
+ */
+function sendReviewCapabilityNotIncluded(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  capability: ReviewCapability,
+): void {
+  reply.code(403).send({
+    error: {
+      code: "ENTITLEMENT_REQUIRED",
+      reason: "reviewer_operations_not_included",
+      entitlement: capability,
+      requestId: req.id,
+    },
+  });
 }
 
 function requireReviewerCapable(
@@ -641,7 +710,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         });
       }
       const q = parsed.data;
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
       const result = await listReviewerOpsQueue(
         {
@@ -672,7 +741,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           workflowIds: z.array(z.string().uuid()).min(1).max(100),
         })
         .parse(req.body ?? {});
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
       const result = await projectQueueIntelligence({
         teamId: body.teamId,
@@ -693,7 +762,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const q = TeamIdQuery.parse(req.query ?? {});
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
       const dashboard = await buildDashboard({
         teamId: q.teamId,
@@ -731,7 +800,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         resolvedTeamId = user.currentWorkspaceId;
       }
       const q = TeamIdQuery.parse({ teamId: resolvedTeamId });
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
       // AUTH-005 — the former block re-read the TeamMember row with
       // `select: { role: true }` and no status predicate, then derived a
@@ -762,7 +831,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { workflowId } = ParamsWorkflowId.parse(req.params);
       const q = TeamIdQuery.parse(req.query ?? {});
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
       try {
         const ws = await getReviewerOpsWorkspace({
@@ -883,7 +952,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           suggest: z.coerce.boolean().optional(),
         })
         .parse(req.query ?? {});
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
       if (q.reviewerUserId) {
         const counts = await computeReviewerWorkload({
@@ -966,7 +1035,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse({ ...rawQuery, teamId: resolvedTeamId });
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_ASSIGNMENTS");
       if (!ctx) return;
       // Capability gate: the caller must hold `review.assign` for the
       // workspace. We resolve the workspace role inline (already
@@ -1061,7 +1130,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse({ ...rawQuery, teamId: resolvedTeamId });
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
       // Reviewer-capable check: reuse the existing helper that already
       // resolves to `evidence_request.review`. A non-reviewer would see
@@ -1093,7 +1162,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           note: BoundedNote.nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ASSIGNMENTS");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       /**
@@ -1107,9 +1176,12 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
        * therefore assign one reviewer per month and then be refused with
        * `403 QUOTA_EXCEEDED` naming an entitlement it was never sold.
        *
-       * Reviewer capability has one authority —
-       * `PlanCapabilities.reviewerOperationsIncluded` — and it is already
-       * enforced two lines above by `requireReviewerCapable(ctx, reply)`.
+       * The commercial question has one authority — the review-capability
+       * ladder (`workspaceIncludesReviewCapability`: the plan catalog,
+       * narrowed by the Enterprise contract) — enforced by
+       * `requireReviewerActor(..., "REVIEW_ASSIGNMENTS")` above. The
+       * `requireReviewerCapable` check after it is RBAC only
+       * (`evidence_request.review`) and answers no plan question.
        */
       try {
         const result = await assignReviewerToWorkflow(ctx, {
@@ -1137,7 +1209,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           note: BoundedNote.nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ASSIGNMENTS");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       try {
@@ -1164,7 +1236,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { workflowId } = ParamsWorkflowId.parse(req.params);
       const body = z.object({ teamId: z.string().uuid() }).parse(req.body ?? {});
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       try {
@@ -1192,7 +1264,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           pausedReason: BoundedNote.max(400),
         })
         .parse(req.body ?? {});
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       try {
@@ -1220,7 +1292,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const body = z
         .object({ teamId: z.string().uuid(), note: BoundedNote })
         .parse(req.body ?? {});
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       try {
@@ -1251,7 +1323,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           note: BoundedNote.nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       // Phase 26.75 — adaptive runtime gate (quarantine + age + risk).
@@ -1296,7 +1368,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const body = z
         .object({ teamId: z.string().uuid(), note: BoundedNote })
         .parse(req.body ?? {});
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       // Phase 26.75 — adaptive runtime gate.
@@ -1352,7 +1424,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_ESCALATION");
       if (!ctx) return;
       const escalations = await listEscalations({
         teamId: q.teamId,
@@ -1386,7 +1458,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           assignedToUserId: z.string().uuid().nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ESCALATION");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       const result = await createEscalation({
@@ -1419,7 +1491,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsId.parse(req.params);
       const body = z.object({ teamId: z.string().uuid() }).parse(req.body ?? {});
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ESCALATION");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       try {
@@ -1447,7 +1519,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           newAssigneeUserId: z.string().uuid(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ESCALATION");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       try {
@@ -1476,7 +1548,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           resolutionNote: BoundedNote.max(400),
         })
         .parse(req.body ?? {});
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ESCALATION");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       // Phase 26.75 — adaptive runtime gate.
@@ -1522,7 +1594,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           suppressionReason: BoundedNote.max(400),
         })
         .parse(req.body ?? {});
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ESCALATION");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       if (
@@ -1558,12 +1630,27 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const parsed = ReviewerOpsBulkInputSchema.safeParse(req.body);
       if (!parsed.success) {
+        // A blank or whitespace-only note on Escalate / Pause / Request
+        // information is the typed REVIEW_NOTE_REQUIRED refusal, the code a
+        // bulk row and the single-item routes use — not a generic schema error.
+        const noteOnly = parsed.error.issues.every(
+          (issue) => issue.path.join(".") === "note",
+        );
+        if (noteOnly) {
+          return reply.code(400).send({
+            error: {
+              code: "REVIEW_NOTE_REQUIRED",
+              message: REVIEWER_OPS_BULK_ITEM_ERRORS.REVIEW_NOTE_REQUIRED.message,
+              requestId: req.id,
+            },
+          });
+        }
         return reply
           .code(400)
           .send({ error: { code: "validation_error", detail: parsed.error.flatten() } });
       }
       const body = parsed.data;
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "BULK_REVIEW_OPERATIONS");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       // Phase R5 — bulk requires the granular `review.bulk` capability
@@ -1588,7 +1675,25 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       ) {
         return;
       }
-      const result = await executeBulkTriage(ctx, body);
+      const result = await executeBulkTriage(ctx, body, prisma, {
+        requestId: req.id,
+        // An UNEXPECTED row failure keeps its full detail here — the request
+        // log and Sentry, correlated by request and workflow id. The row
+        // itself only says REVIEW_ITEM_FAILED. Typed refusals are expected
+        // outcomes and are reported nowhere.
+        reportUnexpected: ({ workflowId, err }) => {
+          req.log.error(
+            { err, workflowId, action: body.action, requestId: req.id },
+            "reviewer_bulk_item_failed",
+          );
+          captureException(err, {
+            requestId: req.id,
+            workflowId,
+            action: body.action,
+            surface: "reviewer-ops.bulk",
+          });
+        },
+      });
       return reply.code(result.failed === 0 ? 200 : 207).send(result);
     },
   );
@@ -1607,7 +1712,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
       const views = await listReviewerOpsSavedViews({
         teamId: q.teamId,
@@ -1639,7 +1744,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           .code(400)
           .send({ error: { code: "teamId_mismatch" } });
       }
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       const view = await createReviewerOpsSavedView({
@@ -1666,7 +1771,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsId.parse(req.params);
       const q = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
       const role = provenRole(ctx);
       const ok = await deleteReviewerOpsSavedView({
@@ -1696,7 +1801,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           rangeDays: z.coerce.number().int().min(1).max(90).optional(),
         })
         .parse(req.query ?? {});
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
       const analytics = await getEscalationAnalytics({
         teamId: q.teamId,
@@ -1717,7 +1822,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(100).optional(),
         })
         .parse(req.query ?? {});
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
       const analytics = await getReviewerPerformance({
         teamId: q.teamId,
@@ -1737,10 +1842,10 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const q = TeamIdQuery.parse(req.query ?? {});
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
       const [policy, flags] = await Promise.all([
-        resolveEffectiveSlaPolicy({ teamId: q.teamId }),
+        resolveEffectiveSlaPolicy({ teamId: q.teamId }, prisma),
         loadWorkspaceReviewerOpsFlags(q.teamId),
       ]);
       return reply.code(200).send({ policy, flags });
@@ -1772,7 +1877,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             .optional(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       // Editing the SLA / step-up policy is itself a high-risk action.
@@ -1822,7 +1927,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         });
       }
       const [policy, flags] = await Promise.all([
-        resolveEffectiveSlaPolicy({ teamId: body.teamId }),
+        resolveEffectiveSlaPolicy({ teamId: body.teamId }, prisma),
         loadWorkspaceReviewerOpsFlags(body.teamId),
       ]);
       return reply.code(200).send({ policy, flags });
@@ -2113,7 +2218,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "history");
       if (!ctx) return;
 
       // Resolve the evidenceId behind the workflow within the same team.
@@ -2210,7 +2315,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         });
       }
       const body = parsed.data;
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
 
       // Resolve the evidenceId behind the workflow within the team.
@@ -2355,7 +2460,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "history");
       if (!ctx) return;
 
       const wf = await prisma.evidenceReviewWorkflow.findFirst({
@@ -2502,7 +2607,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         });
       }
       const body = parsed.data;
-      const ctx = await requireReviewerActor(req, reply, body.teamId);
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
 
       const wf = await prisma.evidenceReviewWorkflow.findFirst({
@@ -2594,7 +2699,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           previewLimit: z.coerce.number().int().min(0).max(50).optional(),
         })
         .parse(req.query ?? {});
-      const ctx = await requireReviewerActor(req, reply, q.teamId);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
       const previewLimit = q.previewLimit ?? 5;
 

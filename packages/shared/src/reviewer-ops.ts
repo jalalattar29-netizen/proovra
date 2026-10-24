@@ -317,6 +317,9 @@ export const REVIEWER_OPS_ERROR_CODES = [
   "REVIEW_ESCALATION_NOT_FOUND",
   "REVIEW_ESCALATION_TERMINAL",
   "REVIEW_ACTOR_BLOCKED",
+  // A concurrent change won the race (2026-10-24) — distinct from a stage
+  // that never allowed the move.
+  "REVIEW_CONFLICT",
 ] as const;
 export type ReviewerOpsErrorCode = (typeof REVIEWER_OPS_ERROR_CODES)[number];
 
@@ -722,11 +725,94 @@ export const ReviewerOpsBulkInputSchema = z
   });
 export type ReviewerOpsBulkInput = z.infer<typeof ReviewerOpsBulkInputSchema>;
 
+/**
+ * THE BULK ITEM ERROR CONTRACT (2026-10-24).
+ *
+ * A failed bulk row used to carry `err.message.slice(0, 200)` — whatever the
+ * thrown error said, Prisma text and internal identifiers included — and
+ * every unmapped refusal was labelled REVIEW_INVALID_TRANSITION, so a missing
+ * record, a blank note and a lost race all read the same. A row now carries
+ * one of these codes and the fixed message beside it, nothing else; technical
+ * detail stays in the server log and Sentry, correlated by the request id.
+ *
+ *   REVIEW_WORKFLOW_NOT_FOUND  missing OR in another workspace — one answer
+ *                              for both, so a foreign id discloses nothing.
+ *   REVIEW_NOTE_REQUIRED       the action needs a note and it was blank.
+ *   REVIEW_INVALID_TRANSITION  the review's stage does not allow the action.
+ *   REVIEW_CONFLICT            someone else changed the review first.
+ *   REVIEW_PERMISSION_DENIED   the caller's role may not do this.
+ *   REVIEW_ITEM_FAILED         unexpected; reported, never described.
+ */
+export const REVIEWER_OPS_BULK_ITEM_ERROR_CODES = [
+  "REVIEW_WORKFLOW_NOT_FOUND",
+  "REVIEW_NOTE_REQUIRED",
+  "REVIEW_INVALID_TRANSITION",
+  "REVIEW_CONFLICT",
+  "REVIEW_PERMISSION_DENIED",
+  "REVIEW_GOVERNANCE_BLOCKED",
+  "REVIEW_ESCALATION_EXISTS",
+  "REVIEW_ACTOR_BLOCKED",
+  "REVIEW_ITEM_FAILED",
+] as const;
+export type ReviewerOpsBulkItemErrorCode =
+  (typeof REVIEWER_OPS_BULK_ITEM_ERROR_CODES)[number];
+
+export type ReviewerOpsBulkNextAction =
+  | "ADD_NOTE"
+  | "REFRESH_AND_RETRY"
+  | "CONTACT_ADMIN"
+  | "CONTACT_SUPPORT";
+
+export const REVIEWER_OPS_BULK_ITEM_ERRORS: Readonly<
+  Record<
+    ReviewerOpsBulkItemErrorCode,
+    { message: string; nextAction?: ReviewerOpsBulkNextAction }
+  >
+> = {
+  REVIEW_WORKFLOW_NOT_FOUND: {
+    message: "This review was not found in this workspace.",
+  },
+  REVIEW_NOTE_REQUIRED: {
+    message: "This action needs a note.",
+    nextAction: "ADD_NOTE",
+  },
+  REVIEW_INVALID_TRANSITION: {
+    message: "This review's current stage does not allow this action.",
+    nextAction: "REFRESH_AND_RETRY",
+  },
+  REVIEW_CONFLICT: {
+    message: "This review was changed by someone else. Refresh and try again.",
+    nextAction: "REFRESH_AND_RETRY",
+  },
+  REVIEW_PERMISSION_DENIED: {
+    message: "Your role does not allow this action on this review.",
+    nextAction: "CONTACT_ADMIN",
+  },
+  REVIEW_GOVERNANCE_BLOCKED: {
+    message: "A workspace governance rule blocks this action on this review.",
+    nextAction: "CONTACT_ADMIN",
+  },
+  REVIEW_ESCALATION_EXISTS: {
+    message: "This review already has an open escalation.",
+  },
+  REVIEW_ACTOR_BLOCKED: {
+    message: "Your access to this workspace does not allow this action.",
+    nextAction: "CONTACT_ADMIN",
+  },
+  REVIEW_ITEM_FAILED: {
+    message:
+      "This review could not be updated. Quote the request ID if you contact support.",
+    nextAction: "CONTACT_SUPPORT",
+  },
+};
+
 export type ReviewerOpsBulkItemResult = {
   workflowId: string;
   ok: boolean;
-  errorCode?: string;
+  errorCode?: ReviewerOpsBulkItemErrorCode;
+  /** Always the fixed message for `errorCode` — never error text. */
   message?: string;
+  nextAction?: ReviewerOpsBulkNextAction;
 };
 
 // Set of bulk actions that require a step-up challenge when the

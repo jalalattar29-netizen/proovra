@@ -36,6 +36,8 @@ import {
   resolveEffectiveContractAiCap,
   resolveEffectiveContractEvidenceCap,
   resolveEffectiveExternalReviewIncluded,
+  resolveEffectiveReviewCapabilities,
+  type ReviewCapability,
 } from "./billing/enterprise-contract-limits.js";
 import {
   assertWorkspaceStorageAvailable,
@@ -1553,20 +1555,62 @@ export async function workspaceIncludesExternalReview(
 }
 
 /**
- * THE answer to "does this workspace commercially include reviewer
- * operations?" — `PlanCapabilities.reviewerOperationsIncluded`, the same field
- * `reviewer-ops.routes.ts` already enforces through the actor context and the
- * same one `platform-context` projects.
+ * THE answer to "which review capabilities does this workspace commercially
+ * include?" — the six-capability ladder of `resolveEffectiveReviewCapabilities`
+ * (plan catalog narrowed by the ACTIVE Enterprise contract), resolved for one
+ * workspace and failing closed when the workspace cannot be read.
+ *
+ * Every `/v1/reviewer-ops/*` route (through `requireReviewerActor`), the
+ * single-item Review routes, the Evidence page's review workflow and the
+ * reviewer workspace enforce a capability from THIS answer, and
+ * `platform-context` projects the same one, so no surface can offer what a
+ * route refuses. Credits are never consulted: a wallet buys completions,
+ * never review.
  *
  * It replaces `FEATURE_REVIEWER_WORKSPACE`, which defaulted to TRUE and so
  * granted the reviewer workspace to every plan including FREE while the
  * catalog reserved it for TEAM and above — the same duplicate-authority defect
  * as the others, failing open instead of closed.
  */
+export async function workspaceReviewCapabilities(
+  teamId: string,
+): Promise<Readonly<Record<ReviewCapability, boolean>>> {
+  const scope = await resolveWorkspaceCommercialScope(teamId);
+  if (!scope) return NO_REVIEW_CAPABILITIES;
+  return resolveEffectiveReviewCapabilities({
+    plan: scope.plan,
+    contract: scope.contractLimits,
+  });
+}
+
+export type { ReviewCapability };
+
+const NO_REVIEW_CAPABILITIES: Readonly<Record<ReviewCapability, boolean>> = {
+  BASIC_RECORD_REVIEW: false,
+  REVIEW_ASSIGNMENTS: false,
+  REVIEW_TASKS_AND_QUEUES: false,
+  REVIEW_ESCALATION: false,
+  BULK_REVIEW_OPERATIONS: false,
+  ADVANCED_REVIEW_WORKFLOWS: false,
+};
+
+/** One capability of the ladder above, for enforcement sites. */
+export async function workspaceIncludesReviewCapability(
+  teamId: string,
+  capability: ReviewCapability,
+): Promise<boolean> {
+  return (await workspaceReviewCapabilities(teamId))[capability];
+}
+
+/**
+ * The TEAM-tier reviewer OPERATIONS answer (assignments / queues / escalation
+ * routing / bulk), kept under its established name for the projection surfaces
+ * that already read it (platform-context, and through it web and mobile). The
+ * record-level basic lifecycle is `BASIC_RECORD_REVIEW` and is deliberately
+ * NOT part of this answer: PRO has that and none of this.
+ */
 export async function workspaceIncludesReviewerOperations(
   teamId: string,
 ): Promise<boolean> {
-  const scope = await resolveWorkspaceCommercialScope(teamId);
-  if (!scope) return false;
-  return getPlanCapabilities(scope.plan).reviewerOperationsIncluded;
+  return workspaceIncludesReviewCapability(teamId, "REVIEW_ASSIGNMENTS");
 }

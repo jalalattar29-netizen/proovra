@@ -162,9 +162,17 @@ describe("PHASE 12 — POINT 8 STEP 1: the census of THIS repository", () => {
     }
 
     // The files Point 7 traced production Sentry/S3/Redis/payment contact to
-    // are named WHENEVER they are present.
+    // are named whenever they are present AND still carry a live marker. The
+    // earlier form asserted presence => bearing, which is a property of one
+    // machine at one date: services/api/.env was scrubbed of live provider
+    // markers after the 2026-10-22 email incident, and present-but-clean is
+    // the DESIRED state — naming a clean file as bearing would be a
+    // fabricated finding, the exact failure mode this census exists to
+    // prevent. The classifier itself is proven on synthetic live markers
+    // below, so a scrubbed file weakens no detection property.
     for (const f of [".env", "services/api/.env"]) {
-      if (existsSync(resolve(REPO_ROOT, f))) expect(bearing).toContain(f);
+      const row = (census.files as { file: string; productionBearing: boolean }[]).find((r) => r.file === f);
+      if (existsSync(resolve(REPO_ROOT, f)) && row?.productionBearing) expect(bearing).toContain(f);
     }
   });
 

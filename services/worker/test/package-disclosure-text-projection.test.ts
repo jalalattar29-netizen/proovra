@@ -17,6 +17,11 @@ import { readFileSync } from "node:fs";
 import { projectTextForDisclosure } from "@proovra/shared";
 import { describe, expect, it } from "vitest";
 
+// Loaded at module scope: an in-test `await import` of this large module
+// counted its cold transform against the test's 5s timeout under full-suite
+// load (same failure mode as the render suite, fixed 2026-10-24).
+import { SECRET_MATERIAL } from "../src/output-verification.js";
+
 const src = readFileSync(new URL("../src/verification-package.ts", import.meta.url), "utf8");
 const appendEntry = src.slice(src.indexOf("const appendEntry = (name: string"), src.indexOf("const evidenceFiles = selectPackageEvidenceFiles(data);"));
 
@@ -45,7 +50,6 @@ describe("the package's one append point projects text for the external profile"
 
 describe("no package, in any profile, carries secret material (the sealed-package gate)", () => {
   it("presigned URLs, cloud keys, private keys and passworded connection strings are recognised; public material is not", async () => {
-    const { SECRET_MATERIAL } = await import("../src/output-verification.js");
     const carries = (text: string) => SECRET_MATERIAL.filter((s) => s.pattern.test(text)).map((s) => s.name);
     expect(carries("https://b.s3.amazonaws.com/k?X-Amz-Credential=x&X-Amz-Signature=y")).toContain("a presigned URL");
     expect(carries("key AKIAIOSFODNN7EXAMPLE")).toContain("a cloud access key id");

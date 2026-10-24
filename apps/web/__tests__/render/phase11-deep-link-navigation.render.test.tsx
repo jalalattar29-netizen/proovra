@@ -44,6 +44,10 @@ vi.mock("../../lib/platform-context", () => ({
 
 import { useDeepLinkNavigation, type DeepLinkOpenResult } from "../../lib/navigation/useDeepLinkNavigation";
 import { registerDirtyWork, clearAllDirtyWork } from "../../lib/platform-context/dirtyWorkRegistry";
+// Static, not imported inside the test: its module graph loads during
+// collection instead of inside one test's 5s budget, which a full render-suite
+// run otherwise exhausts.
+import { NotificationBell } from "../../components/app-shell-v2/NotificationBell";
 
 function Harness({ href, release, onResult }: { href: string; release?: boolean; onResult: (r: DeepLinkOpenResult) => void }) {
   const { open } = useDeepLinkNavigation();
@@ -161,7 +165,6 @@ describe("§4 chokepoint — server approval precedes every navigation", () => {
 
 describe("§4 real consumer — NotificationBell destination rows", () => {
   async function renderBellWithItem() {
-    const { NotificationBell } = await import("../../components/app-shell-v2/NotificationBell");
     render(<NotificationBell />);
     fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
     await waitFor(() => expect(screen.getByText("Suspicious upload flagged")).toBeTruthy());

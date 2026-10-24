@@ -120,7 +120,8 @@ describe("Phase 25.7 — POST /v1/reviewer-ops/queue-intelligence route", () => 
   it("declares the route gated by requireReviewerActor (RBAC enforced at the boundary)", () => {
     expect(src).toMatch(/"\/v1\/reviewer-ops\/queue-intelligence"/);
     expect(src).toMatch(
-      /\/v1\/reviewer-ops\/queue-intelligence"[\s\S]*?requireReviewerActor\(req, reply, body\.teamId\)/,
+      // 2026-10-24 — the gate also names the commercial capability.
+      /\/v1\/reviewer-ops\/queue-intelligence"[\s\S]*?requireReviewerActor\(req, reply, body\.teamId, "REVIEW_TASKS_AND_QUEUES"\)/,
     );
   });
 

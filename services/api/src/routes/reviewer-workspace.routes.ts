@@ -51,7 +51,7 @@ import {
   evaluateAuthorizedWorkspace,
   evaluateCurrentWorkspace,
 } from "../middleware/authorize.js";
-import { workspaceIncludesReviewerOperations } from "../services/billing-enforcement.service.js";
+import { workspaceIncludesReviewCapability } from "../services/billing-enforcement.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 
 import {
@@ -427,7 +427,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       // whose unprovisioned default was TRUE — so this gate admitted every
       // plan including FREE while the catalog reserved the capability for TEAM.
       // Two authorities over one question, and this was the one failing OPEN.
-      if (!(await workspaceIncludesReviewerOperations(ctx.teamId))) {
+      if (!(await workspaceIncludesReviewCapability(ctx.teamId, "REVIEW_TASKS_AND_QUEUES"))) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "REVIEWER_OPERATIONS" });
       }
       if (!requireCap(ctx, "review.schema.author")) return denyNoPermission(reply);

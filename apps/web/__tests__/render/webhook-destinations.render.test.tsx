@@ -30,6 +30,21 @@ vi.mock("../../components/ui/ConfirmActionModal", () => ({
 import { AutomationWebhookDestinationsPanel } from "../../components/automation/AutomationWebhookDestinationsPanel";
 import { AutomationRuleForm } from "../../components/automation/AutomationRuleForm";
 
+// The automation page (used only by "automation page wiring") is imported
+// statically so its large module graph loads during collection, which has no
+// per-test timeout. Imported inside the test after vi.resetModules(), that
+// cold load counted against the test's 5s budget and overran it in a full
+// render-suite run. Its tenancy and route gate are mocked file-wide: neither
+// the destinations panel nor the rule form imports either module.
+vi.mock("../../lib/platform-context", () => {
+  const ctx = { can: () => true };
+  return { usePlatformContext: () => ctx, useActiveSpaceId: () => TEAM };
+});
+vi.mock("../../components/navigation/PageRouteGate", () => ({
+  PageRouteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+import AutomationPage from "../../app/(app)/operations/automation/page";
+
 const TEAM = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ID = "11111111-1111-4111-8111-111111111111";
 const NEW = "22222222-2222-4222-8222-222222222222";
@@ -391,14 +406,6 @@ describe("rule form destination picker", () => {
 
 describe("automation page wiring", () => {
   it("mounts the destinations section on the automation page and feeds the rule form picker", async () => {
-    vi.resetModules();
-    vi.doMock("../../lib/platform-context", () => {
-      const ctx = { can: () => true };
-      return { usePlatformContext: () => ctx, useActiveSpaceId: () => TEAM };
-    });
-    vi.doMock("../../components/navigation/PageRouteGate", () => ({
-      PageRouteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    }));
     mocks.fetch.mockImplementation(async (path: string, init?: RequestInit) => {
       if (path.startsWith("/v1/automation/rules?")) {
         return { rules: [], allowlist: { triggerTypes: ["EVIDENCE_CREATED"], actionTypes: ["WEBHOOK_DELIVERY_INTERNAL_ONLY"] } };
@@ -406,7 +413,6 @@ describe("automation page wiring", () => {
       if (path.startsWith("/v1/automation/runs?")) return { runs: [], total: 0, limit: 50 };
       return defaultReply(path, init);
     });
-    const { default: AutomationPage } = await import("../../app/(app)/operations/automation/page");
     render(<AutomationPage />);
     const section = await screen.findByRole("region", { name: "Webhook destinations" });
     await within(section).findByText("Receiver");

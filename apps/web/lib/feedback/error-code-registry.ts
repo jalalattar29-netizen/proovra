@@ -145,6 +145,18 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   },
   REVIEW_PERMISSION_DENIED: { disposition: "customer", where: "global" },
   REVIEW_ACTOR_BLOCKED: { disposition: "customer", where: "global" },
+  /**
+   * The reviewer-ops plan gate (2026-10-24): a 403 naming the capability the
+   * workspace's plan does not include. The caller is a proven member, so
+   * stating the commercial reason leaks nothing, and the shared catalog's
+   * ENTITLEMENT_REQUIRED copy ("not available on your plan") already says it.
+   */
+  ENTITLEMENT_REQUIRED: { disposition: "customer", where: "global" },
+  /**
+   * A bulk reviewer action whose note was missing or whitespace-only
+   * (2026-10-24). Customer-correctable: add the note and retry.
+   */
+  REVIEW_NOTE_REQUIRED: { disposition: "customer", where: "global" },
   CASES_MANAGE_REQUIRED: { disposition: "customer", where: "global" },
   CASE_DELETE_DENIED: { disposition: "customer", where: "global" },
   CASE_RENAME_DENIED: { disposition: "customer", where: "global" },

@@ -260,6 +260,16 @@ vi.mock("../src/services/redaction/redaction-rbac.service.js", () => ({
   },
 }));
 
+// The reviewer-ops commercial gate (2026-10-24) resolves the workspace plan
+// through the real billing authority, which this suite's prisma double does
+// not model. This matrix proves RBAC residue, not the plan matrix — that has
+// its own live-PostgreSQL proof (review-capability-plan-matrix.integration) —
+// so every capability is granted here.
+vi.mock("../src/services/billing-enforcement.service.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  workspaceIncludesReviewCapability: async () => true,
+}));
+
 vi.mock("../src/services/identity-security/step-up-middleware.js", () => ({
   requireStepUpForSensitiveAction: async (input: {
     purpose: string;

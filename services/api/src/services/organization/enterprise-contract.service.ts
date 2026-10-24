@@ -73,6 +73,13 @@ export type EnterpriseContractProjection = {
    * it.
    */
   legalHoldEnabled: boolean | null;
+  /**
+   * REVIEWER OPERATIONS — the contract may EXCLUDE them; it is not needed to
+   * grant them. `null` (silent) and `true` keep the ENTERPRISE catalog answer
+   * (included); only an explicit `false` excludes, and only while the
+   * contract is ACTIVE.
+   */
+  reviewerOperationsEnabled: boolean | null;
   region: string | null;
   planVersion: string | null;
   billingCustomerRef: string | null;
@@ -152,6 +159,7 @@ export async function resolveEnterpriseContract(
           collaborationTeamsMax: row.collaborationTeamsMax,
           collaborationTeamMembersMax: row.collaborationTeamMembersMax,
           legalHoldEnabled: row.legalHoldEnabled,
+          reviewerOperationsEnabled: row.reviewerOperationsEnabled,
           region: row.region,
           planVersion: row.planVersion,
           billingCustomerRef: row.billingCustomerRef,
@@ -209,6 +217,8 @@ export async function resolveEnterpriseContract(
     // that has no contract row, and "no contract row" cannot have bought
     // Legal Hold.
     legalHoldEnabled: null,
+    // Silent: the catalog answer governs, as it did before the term existed.
+    reviewerOperationsEnabled: null,
     region: null,
     planVersion: null,
     billingCustomerRef: null,
@@ -250,6 +260,11 @@ export async function upsertEnterpriseContract(
      * it. No normaliser: a boolean has no ambiguous zero to reject.
      */
     legalHoldEnabled?: boolean | null;
+    /**
+     * The contracted reviewer-operations term. Omitted leaves it untouched;
+     * `null` records silence (included), `false` excludes.
+     */
+    reviewerOperationsEnabled?: boolean | null;
     contractOwnerUserId?: string | null;
     effectiveAtUtc?: Date | null;
     region?: string | null;
@@ -299,6 +314,9 @@ export async function upsertEnterpriseContract(
         ...(input.legalHoldEnabled !== undefined
           ? { legalHoldEnabled: input.legalHoldEnabled }
           : {}),
+        ...(input.reviewerOperationsEnabled !== undefined
+          ? { reviewerOperationsEnabled: input.reviewerOperationsEnabled }
+          : {}),
         ...(input.contractOwnerUserId !== undefined
           ? { contractOwnerUserId: input.contractOwnerUserId }
           : {}),
@@ -328,6 +346,7 @@ export async function upsertEnterpriseContract(
           "collaborationTeamMembersMax",
         ),
         legalHoldEnabled: input.legalHoldEnabled ?? null,
+        reviewerOperationsEnabled: input.reviewerOperationsEnabled ?? null,
         contractOwnerUserId: input.contractOwnerUserId ?? null,
         effectiveAtUtc: input.effectiveAtUtc ?? new Date(),
         region: input.region ?? null,

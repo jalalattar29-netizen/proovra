@@ -71,6 +71,14 @@ export type EnterpriseContractLimits = {
    */
   legalHoldEnabled: boolean;
   /**
+   * REVIEWER OPERATIONS — true only when an ACTIVE contract explicitly
+   * excludes them. Resolved HERE, once, to a plain boolean for the same reason
+   * as `legalHoldEnabled`, but in the opposite sense: the ENTERPRISE catalog
+   * includes reviewer operations, so silence and a non-ACTIVE contract exclude
+   * nothing (`resolveEffectiveReviewerOperationsIncluded` reads it).
+   */
+  reviewerOperationsExcluded: boolean;
+  /**
    * True when this projection came from the legacy fallback rather than a real
    * contract row. Surfaces are required to say "Contract-managed — contact
    * your account manager" instead of publishing a number derived from a guess.
@@ -98,6 +106,8 @@ export const NO_CONTRACT_LIMITS: EnterpriseContractLimits = {
   // or TERMINATED contract resolves to, so a lapsed agreement stops admitting
   // NEW holds without any status logic at the call sites.
   legalHoldEnabled: false,
+  // No contract excludes nothing: the plan's catalog row answers.
+  reviewerOperationsExcluded: false,
   legacyDerived: false,
 };
 
@@ -144,6 +154,8 @@ export function resolveEnterpriseContractLimits(
     collaborationTeamMembers: positiveOrNull(contract.collaborationTeamMembersMax),
     // Silence is NOT a grant: only an explicit true grants the capability.
     legalHoldEnabled: contract.legalHoldEnabled === true,
+    // Only an explicit false excludes; silence keeps the catalog answer.
+    reviewerOperationsExcluded: contract.reviewerOperationsEnabled === false,
     legacyDerived: contract.legacyDerived,
   };
 }
@@ -340,4 +352,58 @@ export function resolveEffectiveExternalReviewIncluded(input: {
   contract: EnterpriseContractLimits | null | undefined;
 }): boolean {
   return getPlanCapabilities(input.plan).externalReviewIncluded;
+}
+
+/**
+ * THE REVIEW CAPABILITY LADDER, effective for one workspace (owner correction
+ * 2026-10-24). `workspaceReviewCapabilities` is the only caller, and every
+ * enforcement and projection surface (the reviewer-ops routes, the single-item
+ * Review routes, the Evidence page, the reviewer workspace, platform-context
+ * for web and mobile) goes through THAT, so the plan × contract matrix is
+ * stated once, here:
+ *
+ *   FREE, PAYG       nothing. Only the catalog row is read, so a contract on
+ *                    a non-ENTERPRISE plan, or evidence credits, cannot turn
+ *                    anything on.
+ *   PRO              BASIC_RECORD_REVIEW only — the record-level lifecycle
+ *                    its cases and external review presuppose. Never the
+ *                    TEAM orchestration tiers.
+ *   TEAM             everything except ADVANCED_REVIEW_WORKFLOWS.
+ *   ENTERPRISE       the catalog answer, narrowed by the ACTIVE organization
+ *                    contract: an explicit exclusion withdraws the reviewer
+ *                    OPERATIONS tiers (assignments, queues, escalation, bulk,
+ *                    advanced); the PRO-level basic lifecycle stays with the
+ *                    plan. Silence keeps the catalog answer — the plan label
+ *                    alone is never the last word, the contract term is read
+ *                    whenever one exists.
+ *
+ * Commercial eligibility only — the reviewer permission and the bulk tier stay
+ * RBAC questions answered by the actor context.
+ */
+export const REVIEW_CAPABILITIES = [
+  "BASIC_RECORD_REVIEW",
+  "REVIEW_ASSIGNMENTS",
+  "REVIEW_TASKS_AND_QUEUES",
+  "REVIEW_ESCALATION",
+  "BULK_REVIEW_OPERATIONS",
+  "ADVANCED_REVIEW_WORKFLOWS",
+] as const;
+export type ReviewCapability = (typeof REVIEW_CAPABILITIES)[number];
+
+export function resolveEffectiveReviewCapabilities(input: {
+  plan: Parameters<typeof getPlanCapabilities>[0];
+  contract: EnterpriseContractLimits | null | undefined;
+}): Readonly<Record<ReviewCapability, boolean>> {
+  const caps = getPlanCapabilities(input.plan);
+  const contractExcludes = input.contract?.reviewerOperationsExcluded === true;
+  const operations = caps.reviewerOperationsIncluded && !contractExcludes;
+  return {
+    BASIC_RECORD_REVIEW: caps.basicRecordReviewIncluded,
+    REVIEW_ASSIGNMENTS: operations,
+    REVIEW_TASKS_AND_QUEUES: caps.reviewQueuesIncluded && !contractExcludes,
+    REVIEW_ESCALATION: operations,
+    BULK_REVIEW_OPERATIONS: operations,
+    ADVANCED_REVIEW_WORKFLOWS:
+      caps.advancedReviewWorkflowsIncluded && !contractExcludes,
+  };
 }

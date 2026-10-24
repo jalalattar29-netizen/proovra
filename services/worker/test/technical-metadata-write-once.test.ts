@@ -35,10 +35,14 @@ vi.mock("../src/technical-metadata/dispatch.js", () => ({
   dispatchTechnicalMetadata: async () => ({ parserName: "test", parserVersion: "1", metadataStatus: "Partial" }),
 }));
 
+// Top-level await, not in-test: the processor's cold transform counted
+// against the 5s test timeout under full-suite load (2026-10-24). The db
+// double is vi.hoisted, so it exists before the mocked modules load.
+const { extractTechnicalMetadataForTest } = await import("../src/media-intelligence.processor.js");
+
 describe("technical metadata pass (AUD-38)", () => {
   it("reads the sealed version and writes part and record metadata only where none exists", async () => {
     db.parts = [{ id: "part-1", storage_bucket: "b", storage_key: "k", storage_version_id: "v-sealed", mime_type: "image/jpeg", size_bytes: 1000 }];
-    const { extractTechnicalMetadataForTest } = await import("../src/media-intelligence.processor.js");
     await extractTechnicalMetadataForTest({ jobId: "j", teamId: "t", evidenceId: "e", evidencePartId: null } as never);
     expect(db.ranges[0]).toMatchObject({ bucket: "b", key: "k", versionId: "v-sealed" });
     const writes = db.executed.filter((e) => /UPDATE "evidence(_parts)?"\s+SET "technical_metadata"/.test(e.sql));

@@ -11,7 +11,7 @@
  * revoked key states the one revoked-key sentence for what the dates show.
  */
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { PUBLIC_PACKAGE_KEY_BINDING_TEXT, type PublicPackageRecord } from "@proovra/shared";
 
@@ -25,6 +25,14 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("../../lib/api", () => ({ apiFetch: vi.fn(async () => answer()) }));
+
+// Static import: the page's module graph loads once during collection, which
+// has no per-test timeout. Re-importing it after vi.resetModules() in every
+// test re-evaluated the whole graph inside each test's 5s budget, which the
+// full render suite's load overran; the timed-out test's late render then
+// leaked a second record into the next test. The page keeps no module-level
+// state, and every test sets `answer` before it renders.
+import Page from "../../app/verify/package/[packageId]/page";
 
 const GREEN = "rgb(11, 93, 59)";
 const NEUTRAL = "rgb(75, 85, 99)";
@@ -69,16 +77,11 @@ const badge = (label: string) => screen.getByLabelText(new RegExp(`^${label}: `)
 
 async function mount(r: PublicPackageRecord) {
   answer = () => r;
-  const { default: Page } = await import("../../app/verify/package/[packageId]/page");
   render(<Page />);
   await screen.findByTestId("package-record-id");
 }
 
 describe("public package record page: recorded is not verified", () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
-
   it("recorded facts are neutral; only the live key binding is green", async () => {
     await mount(record());
     expect(badge("Disclosure profile").style.color).toBe(NEUTRAL);
@@ -121,7 +124,6 @@ describe("public package record page: recorded is not verified", () => {
   // generic "could not be loaded".
   it("R-1: a retained record states its canonical state (200 body), never crashes", async () => {
     answer = () => ({ code: "VERIFICATION_RECORD_RETAINED", message: "retained" });
-    const { default: Page } = await import("../../app/verify/package/[packageId]/page");
     render(<Page />);
     expect(await screen.findByRole("heading", { name: "Record retained" })).toBeTruthy();
     expect(screen.queryByTestId("package-record-id")).toBeNull();
@@ -135,8 +137,6 @@ describe("public package record page: recorded is not verified", () => {
       answer = () => {
         throw Object.assign(new Error(code), { code, statusCode });
       };
-      vi.resetModules();
-      const { default: Page } = await import("../../app/verify/package/[packageId]/page");
       const view = render(<Page />);
       expect(await screen.findByRole("heading", { name: title })).toBeTruthy();
       view.unmount();

@@ -100,7 +100,35 @@ export type PlanCapabilities = {
    */
   intakeIncluded: boolean;
   casesIncluded: boolean;
+  /**
+   * THE REVIEW CAPABILITY LADDER (owner correction 2026-10-24). Review is not
+   * one entitlement but three tiers, and conflating them either sold TEAM
+   * orchestration to PRO or withheld from PRO the basic review its external
+   * review and Collaboration Teams presuppose:
+   *
+   *   basicRecordReviewIncluded     BASIC_RECORD_REVIEW — the record-level
+   *                                 review lifecycle (Claim / Start review,
+   *                                 notes, Approve, Not accepted, Request more
+   *                                 information, Close, Reopen). PRO and above.
+   *   reviewerOperationsIncluded    REVIEW_ASSIGNMENTS, REVIEW_ESCALATION and
+   *                                 BULK_REVIEW_OPERATIONS — assigning OTHER
+   *                                 people, shared escalation routing, bulk
+   *                                 triage. TEAM and above.
+   *   reviewQueuesIncluded          REVIEW_TASKS_AND_QUEUES — the shared
+   *                                 queues / dashboards / SLA surface. TEAM
+   *                                 and above.
+   *   advancedReviewWorkflowsIncluded
+   *                                 ADVANCED_REVIEW_WORKFLOWS — the
+   *                                 contract-governed Enterprise tier; the
+   *                                 catalog states eligibility and the
+   *                                 organization contract has the last word
+   *                                 (resolveEffectiveReviewCapabilities).
+   *
+   * Credits never grant any of them: nothing here reads a wallet.
+   */
+  basicRecordReviewIncluded: boolean;
   reviewerOperationsIncluded: boolean;
+  advancedReviewWorkflowsIncluded: boolean;
   /**
    * PHASE 12B Track 1A — does this plan unlock the PROFESSIONAL surface
    * tier (professional Evidence/Case/Intake/Reports/Search/collaboration
@@ -351,7 +379,9 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     publicVerifyIncluded: true,
     intakeIncluded: false,
     casesIncluded: false,
+    basicRecordReviewIncluded: false,
     reviewerOperationsIncluded: false,
+    advancedReviewWorkflowsIncluded: false,
     professionalSurfacesIncluded: false,
     reviewQueuesIncluded: false,
     externalReviewIncluded: false,
@@ -418,7 +448,11 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     publicVerifyIncluded: true,
     intakeIncluded: true,
     casesIncluded: false,
+    // A credit buyer stays a FREE account: evidence credits buy completions,
+    // never review (owner correction 2026-10-24).
+    basicRecordReviewIncluded: false,
     reviewerOperationsIncluded: false,
+    advancedReviewWorkflowsIncluded: false,
     professionalSurfacesIncluded: false,
     reviewQueuesIncluded: false,
     externalReviewIncluded: false,
@@ -449,7 +483,13 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     publicVerifyIncluded: true,
     intakeIncluded: true,
     casesIncluded: true,
+    // PRO sells personal cases, external review and small Collaboration
+    // Teams, which presuppose the basic record-level review lifecycle. The
+    // TEAM orchestration tiers (assignments, queues, escalation routing,
+    // bulk) stay excluded (owner correction 2026-10-24).
+    basicRecordReviewIncluded: true,
     reviewerOperationsIncluded: false,
+    advancedReviewWorkflowsIncluded: false,
     professionalSurfacesIncluded: true,
     reviewQueuesIncluded: false,
     externalReviewIncluded: true,
@@ -480,7 +520,9 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     publicVerifyIncluded: true,
     intakeIncluded: true,
     casesIncluded: true,
+    basicRecordReviewIncluded: true,
     reviewerOperationsIncluded: true,
+    advancedReviewWorkflowsIncluded: false,
     professionalSurfacesIncluded: true,
     reviewQueuesIncluded: true,
     externalReviewIncluded: true,
@@ -511,7 +553,11 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     publicVerifyIncluded: true,
     intakeIncluded: true,
     casesIncluded: true,
+    basicRecordReviewIncluded: true,
     reviewerOperationsIncluded: true,
+    // Eligible on the catalog; the ACTIVE organization contract has the last
+    // word (an explicit exclusion withdraws it): resolveEffectiveReviewCapabilities.
+    advancedReviewWorkflowsIncluded: true,
     professionalSurfacesIncluded: true,
     reviewQueuesIncluded: true,
     externalReviewIncluded: true,

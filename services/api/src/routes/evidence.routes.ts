@@ -291,7 +291,7 @@ import { assertInteractiveEvidenceCreateAllowed, createEvidence } from "../servi
 import {
   resolveEnforcementScopeForRequester,
   scopeIncludesAiOperations,
-  workspaceIncludesReviewerOperations,
+  workspaceIncludesReviewCapability,
 } from "../services/billing-enforcement.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
 import type { Prisma } from "@prisma/client";
@@ -8914,7 +8914,7 @@ return {
         if (!authorized) return reply;
         // The review workflow is a plan entitlement (2026-10-23, audit F6) —
         // the same authority the review routes and the page read.
-        if (!(await workspaceIncludesReviewerOperations(evidence.teamId))) {
+        if (!(await workspaceIncludesReviewCapability(evidence.teamId, "BASIC_RECORD_REVIEW"))) {
           return reply.code(403).send({ error: { code: "reviewer_operations_not_included", details: null } });
         }
       }
@@ -10319,7 +10319,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           : false;
         // The commercial authority the review routes enforce (2026-10-23).
         const reviewIncluded = evidence.teamId
-          ? await workspaceIncludesReviewerOperations(evidence.teamId)
+          ? await workspaceIncludesReviewCapability(evidence.teamId, "BASIC_RECORD_REVIEW")
           : false;
         const workflowStatus = reviewerWorkflowSummary.workflow?.status ?? null;
         const attention = classifyEvidenceAttention({

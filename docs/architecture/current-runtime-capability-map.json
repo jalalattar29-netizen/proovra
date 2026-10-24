@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 10443,
-      "UNRESOLVED_IDENTIFIER": 1480
+      "METHOD_ON_VALUE": 10460,
+      "UNRESOLVED_IDENTIFIER": 1482
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -161,7 +161,7 @@
       "NO_DATA_ACCESS": 51
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 244,
+    "OrganizationRoutesMeasured": 281,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
@@ -30362,8 +30362,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#evidenceReviewerComment.create@2231",
-      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2231",
+      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#evidenceReviewerComment.create@2336",
+      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2336",
       "file": "services/api/src/routes/reviewer-ops.routes.ts",
       "enclosingDeclaration": "reviewerOpsRoutes",
       "kind": "DATABASE",
@@ -30395,8 +30395,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#teamActivity.create@2255",
-      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2255",
+      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#teamActivity.create@2360",
+      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2360",
       "file": "services/api/src/routes/reviewer-ops.routes.ts",
       "enclosingDeclaration": "reviewerOpsRoutes",
       "kind": "DATABASE",
@@ -38710,8 +38710,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing-enforcement.service.ts#entitlementUsage.upsert@1363",
-      "terminalLocation": "services/api/src/services/billing-enforcement.service.ts:1363",
+      "writerId": "services/api/src/services/billing-enforcement.service.ts#entitlementUsage.upsert@1365",
+      "terminalLocation": "services/api/src/services/billing-enforcement.service.ts:1365",
       "file": "services/api/src/services/billing-enforcement.service.ts",
       "enclosingDeclaration": "recordWorkspaceAiOperation",
       "kind": "DATABASE",
@@ -78258,8 +78258,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/enterprise-contract.service.ts#enterpriseContract.upsert@261",
-      "terminalLocation": "services/api/src/services/organization/enterprise-contract.service.ts:261",
+      "writerId": "services/api/src/services/organization/enterprise-contract.service.ts#enterpriseContract.upsert@276",
+      "terminalLocation": "services/api/src/services/organization/enterprise-contract.service.ts:276",
       "file": "services/api/src/services/organization/enterprise-contract.service.ts",
       "enclosingDeclaration": "upsertEnterpriseContract",
       "kind": "DATABASE",
@@ -79925,8 +79925,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@358",
-      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:358",
+      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@361",
+      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:361",
       "file": "services/api/src/services/platform-context/platform-context.service.ts",
       "enclosingDeclaration": "buildPlatformContext",
       "kind": "DATABASE",
@@ -79959,8 +79959,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@440",
-      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:440",
+      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@443",
+      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:443",
       "file": "services/api/src/services/platform-context/platform-context.service.ts",
       "enclosingDeclaration": "buildPlatformContext",
       "kind": "DATABASE",
@@ -81918,8 +81918,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/bulk-triage.service.ts#evidenceReviewWorkflow.update@271",
-      "terminalLocation": "services/api/src/services/reviewer-ops/bulk-triage.service.ts:271",
+      "writerId": "services/api/src/services/reviewer-ops/bulk-triage.service.ts#evidenceReviewWorkflow.update@371",
+      "terminalLocation": "services/api/src/services/reviewer-ops/bulk-triage.service.ts:371",
       "file": "services/api/src/services/reviewer-ops/bulk-triage.service.ts",
       "enclosingDeclaration": "runOne",
       "kind": "DATABASE",
@@ -81951,8 +81951,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/bulk-triage.service.ts#evidenceReviewWorkflowEvent.create@275",
-      "terminalLocation": "services/api/src/services/reviewer-ops/bulk-triage.service.ts:275",
+      "writerId": "services/api/src/services/reviewer-ops/bulk-triage.service.ts#evidenceReviewWorkflowEvent.create@375",
+      "terminalLocation": "services/api/src/services/reviewer-ops/bulk-triage.service.ts:375",
       "file": "services/api/src/services/reviewer-ops/bulk-triage.service.ts",
       "enclosingDeclaration": "runOne",
       "kind": "DATABASE",
@@ -95871,7 +95871,7 @@
       "method": "DELETE",
       "path": "/v1/reviewer-ops/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1663",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1768",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -95906,12 +95906,18 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
+        "organization",
+        "report",
         "revokedSession",
         "savedSearchView",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "savedSearchView",
@@ -95920,7 +95926,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -125064,7 +125077,7 @@
       "method": "GET",
       "path": "/v1/review-operations/queue",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:175",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:185",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -125101,15 +125114,21 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
         "evidenceLegalHold",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceWorkflowVisibilityDecision",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
+        "verificationPackage",
         "workflowReviewDecision"
       ],
       "modelsWritten": [
@@ -125121,9 +125140,15 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
-        "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate"
+        "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -125136,7 +125161,7 @@
       "method": "GET",
       "path": "/v1/review-operations/queue-counts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:212",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:225",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -125173,11 +125198,17 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
+        "organization",
+        "report",
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -125187,7 +125218,14 @@
         "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -125506,7 +125544,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/analytics/escalations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1689",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1794",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125541,12 +125579,18 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -125554,7 +125598,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -125567,7 +125618,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/analytics/reviewers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1709",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1814",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125602,10 +125653,15 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
         "evidenceLegalHold",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceWorkflowVisibilityDecision",
+        "organization",
+        "report",
         "reviewEscalation",
         "reviewerWorkloadSnapshot",
         "revokedSession",
@@ -125613,6 +125669,7 @@
         "team",
         "teamMember",
         "user",
+        "verificationPackage",
         "workflowReviewDecision"
       ],
       "modelsWritten": [
@@ -125622,9 +125679,15 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
-        "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
-        "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate"
+        "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -125637,7 +125700,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/assignable-reviewers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:933",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1002",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125680,12 +125743,18 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
+        "organization",
+        "report",
         "reviewerWorkloadSnapshot",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -125694,7 +125763,14 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -125767,7 +125843,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/dashboard",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:691",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:760",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125802,14 +125878,20 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
+        "organization",
+        "report",
         "reviewEscalation",
         "reviewerWorkloadSnapshot",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -125817,7 +125899,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -125830,7 +125919,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/decisions/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2587",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2692",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125865,15 +125954,21 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
         "evidenceLegalHold",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceWorkflowVisibilityDecision",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
         "user",
+        "verificationPackage",
         "workflowReviewDecision"
       ],
       "modelsWritten": [
@@ -125882,7 +125977,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -125895,7 +125997,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/escalations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1336",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1408",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125946,12 +126048,18 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -125959,7 +126067,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -125972,7 +126087,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/qc/pending-count",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1035",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1104",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126007,12 +126122,18 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
+        "organization",
         "qcSample",
+        "report",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -126020,7 +126141,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -126033,7 +126161,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/queue",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:554",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:623",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126076,13 +126204,19 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -126091,6 +126225,13 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts: evidenceReviewWorkflow.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -126104,7 +126245,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/runtime-probe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:710",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:779",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126131,8 +126272,13 @@
       "modelsRead": [
         "authenticatedSession",
         "codingSchema",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
+        "organization",
         "qcSample",
+        "report",
         "reviewEscalation",
         "reviewerDisagreement",
         "reviewerOpsReminder",
@@ -126141,6 +126287,7 @@
         "team",
         "teamMember",
         "user",
+        "verificationPackage",
         "workflowReviewDecision",
         "workspaceGovernancePolicy"
       ],
@@ -126150,7 +126297,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -126163,7 +126317,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1600",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1705",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126189,12 +126343,18 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
+        "organization",
+        "report",
         "revokedSession",
         "savedSearchView",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -126202,7 +126362,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -126215,7 +126382,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/sla-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1735",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1840",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126250,12 +126417,18 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceWorkflowTemplate",
+        "organization",
+        "report",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
         "user",
+        "verificationPackage",
         "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
@@ -126265,6 +126438,13 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "packages/shared-runtime/src/ops/sla-policy-resolution.ts: evidenceWorkflowTemplate.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -126278,7 +126458,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workload",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:874",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:943",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126313,13 +126493,19 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
+        "organization",
+        "report",
         "reviewerWorkloadSnapshot",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -126327,7 +126513,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -126340,7 +126533,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workspace/:workflowId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:759",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:828",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126383,16 +126576,21 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
         "evidence",
         "evidenceLegalHold",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceWorkflowVisibilityDecision",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -126400,7 +126598,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -126413,7 +126618,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workspace/:workflowId/decisions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2350",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2455",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126456,16 +126661,22 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
         "evidenceLegalHold",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceWorkflowVisibilityDecision",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
         "user",
+        "verificationPackage",
         "workflowReviewDecision"
       ],
       "modelsWritten": [
@@ -126475,6 +126686,13 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate"
       ],
@@ -126489,7 +126707,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workspace/:workflowId/notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2105",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2210",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126524,13 +126742,19 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceReviewerComment",
+        "organization",
+        "report",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -126538,7 +126762,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -133637,16 +133868,12 @@
         "authenticatedSession",
         "caseAccess",
         "caseEvidenceLink",
-        "enterpriseContract",
-        "entitlement",
         "evidence",
         "evidenceLegalHold",
         "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceWorkflowVisibilityDecision",
-        "organization",
-        "planGrant",
         "report",
         "reviewEscalation",
         "revokedSession",
@@ -133656,11 +133883,9 @@
         "teamMember",
         "user",
         "verificationPackage",
-        "workflowReviewDecision",
-        "workspaceStorageAddon"
+        "workflowReviewDecision"
       ],
       "modelsWritten": [
-        "entitlement",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceReviewerAuditEvent",
@@ -144674,12 +144899,8 @@
       "modelsRead": [
         "authenticatedSession",
         "codingSchema",
-        "enterpriseContract",
-        "entitlement",
         "evidence",
         "evidencePartDerivedAsset",
-        "organization",
-        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -144687,12 +144908,10 @@
         "team",
         "teamMember",
         "user",
-        "verificationPackage",
-        "workspaceStorageAddon"
+        "verificationPackage"
       ],
       "modelsWritten": [
         "codingSchema",
-        "entitlement",
         "securityEvent"
       ],
       "tenantBindingResolved": true,
@@ -169781,7 +170000,7 @@
       "method": "POST",
       "path": "/v1/review-operations/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:397",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:422",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdminMember -> services/api/src/routes/reliability.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -169819,6 +170038,7 @@
       "modelsRead": [
         "authenticatedSession",
         "automationRule",
+        "enterpriseContract",
         "evidence",
         "evidenceLegalHold",
         "evidencePartDerivedAsset",
@@ -169827,10 +170047,10 @@
         "evidenceWorkflowVisibilityDecision",
         "operationalIncident",
         "operationalIncidentEvent",
+        "organization",
         "report",
         "reviewEscalation",
         "revokedSession",
-        "subscription",
         "supportAccessGrant",
         "team",
         "teamMember",
@@ -169866,8 +170086,8 @@
         "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate"
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -169888,7 +170108,7 @@
       "method": "POST",
       "path": "/v1/review-operations/evidence/:evidenceId/claim",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:229",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:243",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -169949,16 +170169,17 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
         "evidence",
         "evidenceLegalHold",
         "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceWorkflowVisibilityDecision",
+        "organization",
         "report",
         "reviewEscalation",
         "revokedSession",
-        "subscription",
         "supportAccessGrant",
         "team",
         "teamMember",
@@ -169983,8 +170204,8 @@
         "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate"
+        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
+        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -169997,7 +170218,7 @@
       "method": "POST",
       "path": "/v1/review-operations/evidence/:evidenceId/decision",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:261",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:275",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireReviewerMember -> services/api/src/routes/review-operations.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -170051,6 +170272,7 @@
       "modelsRead": [
         "authenticatedSession",
         "automationRule",
+        "enterpriseContract",
         "evidence",
         "evidenceLegalHold",
         "evidencePartDerivedAsset",
@@ -170060,12 +170282,12 @@
         "mfaFactor",
         "operationalIncident",
         "operationalIncidentEvent",
+        "organization",
         "report",
         "reviewEscalation",
         "revokedSession",
         "riskSignal",
         "stepUpChallenge",
-        "subscription",
         "supportAccessGrant",
         "team",
         "teamMember",
@@ -170103,8 +170325,8 @@
         "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate"
+        "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
+        "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -170125,7 +170347,7 @@
       "method": "POST",
       "path": "/v1/review-operations/reconcile-slas",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:442",
+      "registrationEvidence": "services/api/src/routes/review-operations.routes.ts:468",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -170137,7 +170359,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/review-operations.routes.ts:442 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/review-operations.routes.ts:468 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -170500,7 +170722,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1373",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1445",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -170544,16 +170766,21 @@
       "modelsRead": [
         "authenticatedSession",
         "automationRule",
+        "enterpriseContract",
         "evidence",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "operationalIncident",
         "operationalIncidentEvent",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "automationRun",
@@ -170567,11 +170794,15 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/reviewer-ops/escalation-engine.service.ts: evidenceReviewWorkflow.update — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/reviewer-ops/escalation-engine.service.ts: reviewEscalation.update — no tenant or self predicate"
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -170586,7 +170817,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/acknowledge",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1416",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1488",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -170645,12 +170876,18 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "reviewEscalation",
@@ -170659,7 +170896,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -170672,7 +170916,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/reassign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1439",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1511",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -170723,12 +170967,18 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "reviewEscalation",
@@ -170737,7 +170987,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -170750,7 +171007,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1468",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1540",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -170801,9 +171058,14 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "mfaFactor",
         "operationalIncident",
         "operationalIncidentEvent",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "riskSignal",
@@ -170813,6 +171075,7 @@
         "teamMember",
         "trustedDevice",
         "user",
+        "verificationPackage",
         "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
@@ -170828,7 +171091,13 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate"
       ],
@@ -170845,7 +171114,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1514",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1586",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -170896,7 +171165,12 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "mfaFactor",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "riskSignal",
@@ -170905,6 +171179,7 @@
         "team",
         "teamMember",
         "user",
+        "verificationPackage",
         "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
@@ -170916,7 +171191,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -170929,7 +171211,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/queue-intelligence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:665",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:734",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -170964,15 +171246,21 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "operationalIncident",
+        "organization",
+        "report",
         "reviewEscalation",
         "reviewerWorkloadSnapshot",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -170980,7 +171268,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -170993,7 +171288,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1836",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1941",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "handler body -> handler: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)"
@@ -171013,7 +171308,7 @@
       ],
       "primaryDisposition": "WORKER_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1836 — worker caller(s): services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts:127 (runReviewerReconciliation)",
+      "dispositionEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1941 — worker caller(s): services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts:127 (runReviewerReconciliation)",
       "dispositionReason": "called by the worker service",
       "replacement": null,
       "result": "DISPOSED_WORKER_CONSUMER",
@@ -171089,7 +171384,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/approve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1243",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1315",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171140,14 +171435,19 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
         "evidenceLegalHold",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceWorkflowVisibilityDecision",
         "mfaFactor",
         "operationalIncident",
         "operationalIncidentEvent",
+        "organization",
         "qcSample",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "riskSignal",
@@ -171157,6 +171457,7 @@
         "teamMember",
         "trustedDevice",
         "user",
+        "verificationPackage",
         "workflowReviewDecision",
         "workspaceGovernancePolicy"
       ],
@@ -171179,14 +171480,15 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
-        "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -171207,7 +171509,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1084",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1153",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171243,15 +171545,21 @@
       "modelsRead": [
         "authenticatedSession",
         "automationRule",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceWorkflowInstanceEvidence",
         "evidenceWorkflowTemplate",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
         "user",
+        "verificationPackage",
         "workflowIntakeSession",
         "workspaceGovernancePolicy"
       ],
@@ -171266,15 +171574,15 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/ops/sla-policy-resolution.ts: evidenceWorkflowTemplate.findUnique — no tenant or self predicate"
+        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -171291,7 +171599,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/pause",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1184",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1256",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171334,12 +171642,18 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
+        "organization",
+        "report",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "evidenceReviewWorkflow",
@@ -171350,7 +171664,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -171363,7 +171684,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/reassign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1128",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1200",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171390,15 +171711,21 @@
       "modelsRead": [
         "authenticatedSession",
         "automationRule",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceWorkflowInstanceEvidence",
         "evidenceWorkflowTemplate",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
         "user",
+        "verificationPackage",
         "workflowIntakeSession",
         "workspaceGovernancePolicy"
       ],
@@ -171413,15 +171740,15 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/ops/sla-policy-resolution.ts: evidenceWorkflowTemplate.findUnique — no tenant or self predicate"
+        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -171438,7 +171765,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/reject",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1291",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1363",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171489,14 +171816,19 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
         "evidenceLegalHold",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceWorkflowVisibilityDecision",
         "mfaFactor",
         "operationalIncident",
         "operationalIncidentEvent",
+        "organization",
         "qcSample",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "riskSignal",
@@ -171506,6 +171838,7 @@
         "teamMember",
         "trustedDevice",
         "user",
+        "verificationPackage",
         "workflowReviewDecision",
         "workspaceGovernancePolicy"
       ],
@@ -171528,14 +171861,15 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
-        "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -171556,7 +171890,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/request-info",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1215",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1287",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171615,16 +171949,22 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
         "evidenceLegalHold",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceWorkflowVisibilityDecision",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
         "user",
+        "verificationPackage",
         "workflowReviewDecision"
       ],
       "modelsWritten": [
@@ -171641,11 +171981,15 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
-        "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -171664,7 +172008,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1161",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1233",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171707,13 +172051,19 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "evidenceReviewWorkflow",
@@ -171724,7 +172074,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -171737,7 +172094,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1555",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1627",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171773,8 +172130,10 @@
       "modelsRead": [
         "authenticatedSession",
         "automationRule",
+        "enterpriseContract",
         "evidence",
         "evidenceLegalHold",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceWorkflowInstanceEvidence",
@@ -171783,6 +172142,8 @@
         "mfaFactor",
         "operationalIncident",
         "operationalIncidentEvent",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "riskSignal",
@@ -171792,6 +172153,7 @@
         "teamMember",
         "trustedDevice",
         "user",
+        "verificationPackage",
         "workflowIntakeSession",
         "workflowReviewDecision",
         "workspaceGovernancePolicy"
@@ -171814,15 +172176,15 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.updateMany — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/review-operations/review-operations.service.ts: evidenceReviewWorkflow.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/ops/sla-policy-resolution.ts: evidenceWorkflowTemplate.findUnique — no tenant or self predicate"
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -171840,7 +172202,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1621",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1726",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171875,11 +172237,17 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
+        "organization",
+        "report",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "savedSearchView",
@@ -171888,7 +172256,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -171903,7 +172278,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/sla-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1750",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1855",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -171938,8 +172313,13 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceWorkflowTemplate",
         "mfaFactor",
+        "organization",
+        "report",
         "revokedSession",
         "riskSignal",
         "stepUpChallenge",
@@ -171947,6 +172327,7 @@
         "team",
         "teamMember",
         "user",
+        "verificationPackage",
         "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
@@ -171958,6 +172339,13 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "packages/shared-runtime/src/ops/sla-policy-resolution.ts: evidenceWorkflowTemplate.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -171971,7 +172359,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/workspace/:workflowId/decisions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2490",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2595",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -172006,16 +172394,22 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
         "evidenceLegalHold",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceWorkflowVisibilityDecision",
+        "organization",
+        "report",
         "reviewEscalation",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
         "user",
+        "verificationPackage",
         "webhookEndpoint",
         "workflowReviewDecision"
       ],
@@ -172034,11 +172428,15 @@
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
-        "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -172058,7 +172456,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/workspace/:workflowId/notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2198",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2303",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -172093,12 +172491,18 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
+        "organization",
+        "report",
         "revokedSession",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "evidenceReviewerComment",
@@ -172108,7 +172512,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",

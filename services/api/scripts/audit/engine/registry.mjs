@@ -647,6 +647,22 @@ export const CHANGED_PATH_CLASSES = Object.freeze([
   },
   { class: "PRODUCTION_RUNTIME", test: (p) => PRODUCTION_RUNTIME_ROOTS.some((r) => p.startsWith(r)) },
   /**
+   * STATIC WEB ASSET (2026-10-24) — `apps/web/public/`, added by the same
+   * procedure as `SCHEMA_DECLARATION`: image files under the web app's public
+   * folder matched nothing (the runtime roots name the code directories, and
+   * the suffix rules name prose), the table correctly refused to default, and
+   * somebody had to look.
+   *
+   * Having looked: these are served bytes — marketing and product imagery the
+   * web server hands out verbatim. No module imports them, they execute
+   * nothing, and changing one changes pixels, not behaviour; so they are not
+   * PRODUCTION_RUNTIME (whose gates exist for executable authority), not
+   * DOCUMENTATION (prose), and not RELEASE_CONFIGURATION (build inputs). They
+   * are still release content, which is why they are classified rather than
+   * excluded.
+   */
+  { class: "STATIC_WEB_ASSET", test: (p) => p.startsWith("apps/web/public/") },
+  /**
    * The container image definition — its OWN class, for the same reason
    * `SCHEMA_DECLARATION` is.
    *

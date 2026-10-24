@@ -2271,6 +2271,21 @@ model EnterpriseContract {
   /// removal and suspension; only the authorized Legal Hold lifecycle releases
   /// it.
   legalHoldEnabled             Boolean?            @map("legal_hold_enabled")
+  /// REVIEWER OPERATIONS — a contract term that can EXCLUDE a capability the
+  /// ENTERPRISE catalog row includes (20281024000000).
+  ///
+  /// Read the other way round from `legalHoldEnabled`, deliberately. Reviewer
+  /// operations are sold on TEAM and above and every Enterprise customer has
+  /// them today, so silence keeps them:
+  ///
+  ///   NULL / true  INCLUDED (the catalog answer) — what every existing row means.
+  ///   false        EXCLUDED, and only while the contract is ACTIVE:
+  ///                `resolveEnterpriseContractLimits` fails closed on status
+  ///                before this is read.
+  ///
+  /// Governs NEW reviewer-operations work only. Existing workflows, decisions,
+  /// escalations and their history are never deleted or hidden by it.
+  reviewerOperationsEnabled    Boolean?            @map("reviewer_operations_enabled")
   region                  String?                  @db.VarChar(40)
   planVersion             String?                  @map("plan_version") @db.VarChar(40)
   billingCustomerRef      String?                  @map("billing_customer_ref") @db.VarChar(200)

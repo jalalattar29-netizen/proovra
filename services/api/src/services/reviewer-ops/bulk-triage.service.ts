@@ -22,8 +22,10 @@
 import { recordLifecycleTransition, ReviewOperationError } from "../review-operations/review-operations.service.js";
 import type { PrismaClient } from "@prisma/client";
 import {
+  REVIEWER_OPS_BULK_ITEM_ERRORS,
   type ReviewerOpsBulkAction,
   type ReviewerOpsBulkInput,
+  type ReviewerOpsBulkItemErrorCode,
   type ReviewerOpsBulkItemResult,
 } from "@proovra/shared";
 
@@ -52,7 +54,106 @@ export type BulkTriageResult = {
   succeeded: number;
   failed: number;
   items: ReviewerOpsBulkItemResult[];
+  /** The request this run belongs to — the support reference for a failed row. */
+  requestId: string | null;
 };
+
+/**
+ * Where an UNEXPECTED row failure goes: the route hands in its request-scoped
+ * logger + Sentry capture, so the full error is kept server-side with the
+ * request id and the workflow id beside it, and never reaches the response.
+ */
+export type BulkTriageObserver = {
+  requestId?: string | null;
+  reportUnexpected?: (input: { workflowId: string; err: unknown }) => void;
+};
+
+// -----------------------------------------------------------------------------
+// Row error classification — the bulk item error contract
+// -----------------------------------------------------------------------------
+
+/**
+ * Engine refusals that mean "someone else changed this review first". The
+ * engines report a lost conditional write as an invalid transition carrying
+ * one of these reasons; a bulk row names it REVIEW_CONFLICT.
+ */
+const CONFLICT_REASONS = new Set([
+  "concurrent_change",
+  "already_assigned_elsewhere",
+  "stale_decision",
+]);
+
+const ENGINE_CODES_KEPT: ReadonlySet<string> = new Set<ReviewerOpsBulkItemErrorCode>([
+  "REVIEW_WORKFLOW_NOT_FOUND",
+  "REVIEW_NOTE_REQUIRED",
+  "REVIEW_PERMISSION_DENIED",
+  "REVIEW_GOVERNANCE_BLOCKED",
+  "REVIEW_ESCALATION_EXISTS",
+  "REVIEW_ACTOR_BLOCKED",
+  "REVIEW_CONFLICT",
+]);
+
+/**
+ * One thrown error → one bulk item code. Typed refusals map to their code;
+ * anything else is REVIEW_ITEM_FAILED, the only outcome reported as an error.
+ * Exported for the contract tests.
+ */
+export function classifyBulkItemError(err: unknown): {
+  code: ReviewerOpsBulkItemErrorCode;
+  unexpected: boolean;
+} {
+  if (err instanceof ReviewerOpsError || err instanceof EscalationEngineError) {
+    const reason = (err.details as { reason?: unknown } | undefined)?.reason;
+    if (typeof reason === "string" && CONFLICT_REASONS.has(reason)) {
+      return { code: "REVIEW_CONFLICT", unexpected: false };
+    }
+    if (ENGINE_CODES_KEPT.has(err.code)) {
+      return { code: err.code as ReviewerOpsBulkItemErrorCode, unexpected: false };
+    }
+    // An escalation that is missing behaves as its workflow: not found.
+    if (err.code === "REVIEW_ESCALATION_NOT_FOUND") {
+      return { code: "REVIEW_WORKFLOW_NOT_FOUND", unexpected: false };
+    }
+    // Every other typed engine refusal (an invalid move, an SLA or terminal
+    // escalation state) is a stage the action does not apply to.
+    return { code: "REVIEW_INVALID_TRANSITION", unexpected: false };
+  }
+  if (err instanceof ReviewOperationError) {
+    const reason = (err.details as { reason?: unknown } | undefined)?.reason;
+    switch (err.code) {
+      case "workflow_not_found":
+      case "evidence_not_in_workspace":
+        return { code: "REVIEW_WORKFLOW_NOT_FOUND", unexpected: false };
+      case "note_required":
+        return { code: "REVIEW_NOTE_REQUIRED", unexpected: false };
+      case "permission_denied":
+        return { code: "REVIEW_PERMISSION_DENIED", unexpected: false };
+      case "already_assigned_elsewhere":
+        return { code: "REVIEW_CONFLICT", unexpected: false };
+      case "invalid_stage_transition":
+        return typeof reason === "string" && CONFLICT_REASONS.has(reason)
+          ? { code: "REVIEW_CONFLICT", unexpected: false }
+          : { code: "REVIEW_INVALID_TRANSITION", unexpected: false };
+      case "already_in_stage":
+        return { code: "REVIEW_INVALID_TRANSITION", unexpected: false };
+    }
+  }
+  return { code: "REVIEW_ITEM_FAILED", unexpected: true };
+}
+
+function failedItem(
+  workflowId: string,
+  code: ReviewerOpsBulkItemErrorCode,
+): ReviewerOpsBulkItemResult {
+  const { message, nextAction } = REVIEWER_OPS_BULK_ITEM_ERRORS[code];
+  return {
+    workflowId,
+    ok: false,
+    errorCode: code,
+    message,
+    ...(nextAction ? { nextAction } : {}),
+  };
+}
 
 // -----------------------------------------------------------------------------
 // Public entry point
@@ -62,6 +163,7 @@ export async function executeBulkTriage(
   ctx: LifecycleActorContext,
   input: ReviewerOpsBulkInput,
   client: PrismaClient = defaultPrisma,
+  observer: BulkTriageObserver = {},
 ): Promise<BulkTriageResult> {
   // The shared zod schema has already bounded array length + action.
   const items: ReviewerOpsBulkItemResult[] = [];
@@ -80,23 +182,12 @@ export async function executeBulkTriage(
       await runOne(ctx, input, workflowId, client);
       items.push({ workflowId, ok: true });
     } catch (err) {
-      const code =
-        err instanceof ReviewerOpsError
-          ? err.code
-          : err instanceof EscalationEngineError
-            ? err.code
-            : err instanceof ReviewOperationError && err.code === "workflow_not_found"
-              ? "REVIEW_WORKFLOW_NOT_FOUND"
-              : "REVIEW_INVALID_TRANSITION";
-      items.push({
-        workflowId,
-        ok: false,
-        errorCode: code,
-        message:
-          err instanceof Error
-            ? err.message.slice(0, 200)
-            : "unknown_error",
-      });
+      // The row says WHICH refusal, in the contract's fixed words. It never
+      // carries the error's own text: an unexpected error is kept for the
+      // server log and Sentry only.
+      const { code, unexpected } = classifyBulkItemError(err);
+      if (unexpected) observer.reportUnexpected?.({ workflowId, err });
+      items.push(failedItem(workflowId, code));
     }
   }
 
@@ -144,6 +235,7 @@ export async function executeBulkTriage(
     succeeded,
     failed,
     items,
+    requestId: observer.requestId ?? null,
   };
 }
 
@@ -158,6 +250,10 @@ async function runOne(
   client: PrismaClient,
 ): Promise<void> {
   const action: ReviewerOpsBulkAction = input.action;
+  // A note of only whitespace is no note (2026-10-24): Escalate, Pause and
+  // Request information refuse it as REVIEW_NOTE_REQUIRED, never as a stage
+  // error from further down.
+  const note = input.note?.trim() ? input.note.trim() : null;
   switch (action) {
     case "ASSIGN":
     case "REASSIGN": {
@@ -178,7 +274,7 @@ async function runOne(
       return;
     }
     case "ESCALATE": {
-      if (!input.note) {
+      if (!note) {
         throw new ReviewerOpsError("REVIEW_NOTE_REQUIRED");
       }
       // THE ONE ESCALATE (2026-10-24), as Close below: a bulk Escalate used
@@ -197,31 +293,31 @@ async function runOne(
           evidenceId: wf.evidenceId,
           decision: "ESCALATE",
           actorUserId: ctx.actorUserId,
-          note: input.note,
-          escalationReason: input.note,
+          note,
+          escalationReason: note,
         },
         client,
       );
       return;
     }
     case "PAUSE": {
-      if (!input.note) {
+      if (!note) {
         throw new ReviewerOpsError("REVIEW_NOTE_REQUIRED");
       }
       await pauseReview(
         ctx,
-        { workflowId, pausedReason: input.note },
+        { workflowId, pausedReason: note },
         client,
       );
       return;
     }
     case "REQUEST_INFO": {
-      if (!input.note) {
+      if (!note) {
         throw new ReviewerOpsError("REVIEW_NOTE_REQUIRED");
       }
       await requestInformation(
         ctx,
-        { workflowId, note: input.note },
+        { workflowId, note },
         client,
       );
       return;
@@ -231,16 +327,20 @@ async function runOne(
       // decision ("Not accepted") for every review closed in bulk. Close
       // ends the workflow and keeps whatever the current round decided — or
       // no decision — through the one lifecycle authority.
-      const wf = await client.evidenceReviewWorkflow.findFirstOrThrow({
+      // Missing and foreign read the same (2026-10-24): this was a
+      // findFirstOrThrow, whose Prisma error surfaced as an invalid transition
+      // with Prisma's own text as the message.
+      const wf = await client.evidenceReviewWorkflow.findFirst({
         where: { id: workflowId, teamId: ctx.teamId },
         select: { evidenceId: true },
       });
+      if (!wf) throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
       await recordLifecycleTransition(
         {
           evidenceId: wf.evidenceId,
           decision: "CLOSE",
           actorUserId: ctx.actorUserId,
-          note: input.note ?? "Closed via bulk triage.",
+          note: note ?? "Closed via bulk triage.",
         },
         client,
       );

@@ -1447,6 +1447,10 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // Review decision rounds: Reopen and request-more-information start a new
       // round. EXPAND + BACKFILL + a guarded swap of the unique key.
       "20281023000100_review_decision_rounds",
+      // Reviewer operations become a term an Enterprise contract can EXCLUDE
+      // (owner matrix 2026-10-24): one nullable boolean on enterprise_contracts,
+      // NULL = the catalog answer (included). EXPAND only.
+      "20281024000000_enterprise_contract_reviewer_operations",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */
