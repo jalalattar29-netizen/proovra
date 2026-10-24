@@ -1264,25 +1264,6 @@ export async function massReactivateSuspendedWorkspaceMemberships(
   return { count: affected.length };
 }
 
-/**
- * Team deletion: physically purge every membership of the team after
- * closing provenance (the team row itself is being deleted).
- */
-export async function purgeWorkspaceMembershipsForTeamDeletion(
-  tx: TxClient,
-  input: { teamId: string; actorUserId?: string | null },
-): Promise<void> {
-  const members = await tx.teamMember.findMany({
-    where: { teamId: input.teamId },
-    select: { id: true },
-  });
-  await closeGrantsForTeamMembers(
-    tx,
-    members.map((m) => m.id),
-    input.actorUserId ?? null,
-  );
-  await tx.teamMember.deleteMany({ where: { teamId: input.teamId } });
-}
 
 // =============================================================================
 // PHASE 10 §1.1 — THE ONE ATOMIC MANAGED-PROVISIONING INTENT

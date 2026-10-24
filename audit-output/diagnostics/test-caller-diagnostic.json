@@ -8,9 +8,9 @@
   "capabilityRouteInventoryHash": "45b0ccc11d53f1ef728ed047c3c39cb19a0efadb17584989e737d434908dc85d",
   "totals": {
     "routes": 1191,
-    "routesWithAnyTestCaller": 44,
-    "testOnlyRoutes": 4,
-    "testCallSites": 98,
+    "routesWithAnyTestCaller": 46,
+    "testOnlyRoutes": 5,
+    "testCallSites": 100,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -242,9 +242,11 @@
     },
     {
       "routeId": "DELETE /v1/teams/:id",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
+      "testCallerCount": 1,
+      "testOnly": true,
+      "testCallerFiles": [
+        "apps/web/__tests__/workspace-lifecycle-refusal-presentation.test.ts"
+      ]
     },
     {
       "routeId": "DELETE /v1/teams/:id/cases/:caseId",
@@ -3183,9 +3185,11 @@
     },
     {
       "routeId": "GET /v1/teams/:id",
-      "testCallerCount": 0,
+      "testCallerCount": 1,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "apps/web/__tests__/workspace-lifecycle-refusal-presentation.test.ts"
+      ]
     },
     {
       "routeId": "GET /v1/teams/:id/access-review",
@@ -7257,5 +7261,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "6f5c00e1546dbd2dcac4941b37272da7af9879a86c25ca6ddf0b20f9e8b788ee"
+  "contentHash": "c2ea0f01cf26dbea8fbadcc40ecec824e13a706381f3412ba1ec7a0bbaca59df"
 }

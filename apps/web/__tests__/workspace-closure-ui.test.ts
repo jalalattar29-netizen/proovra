@@ -17,9 +17,19 @@ const PAGE = readFileSync(
   resolve(APP_ROOT, "app/(app)/teams/[id]/page.tsx"),
   "utf8",
 );
+const LIFECYCLE = readFileSync(
+  resolve(APP_ROOT, "app/(app)/settings/_sections/WorkspaceLifecycleSection.tsx"),
+  "utf8",
+);
 
-test("the card mounts owner-only on the team page", () => {
-  assert.match(PAGE, /isOwner && teamId \? <WorkspaceClosureCard teamId=\{teamId\} \/> : null/);
+// MEMBERS AUDIT LIFE-01/02 — the closure card moved off Members & Access to
+// the workspace's Lifecycle surface, mounted only for the OWNER of a kind the
+// server's policy says can close (a Personal Workspace never shows it).
+test("the card mounts owner-only, and only where the server's lifecycle policy says the workspace closes", () => {
+  assert.doesNotMatch(PAGE, /<WorkspaceClosureCard/);
+  assert.match(LIFECYCLE, /policy\.kind === "OWNED" && isOwner/);
+  assert.match(LIFECYCLE, /policy\.closable \? <WorkspaceClosureCard teamId=\{workspace\.id\} \/> : null/);
+  assert.doesNotMatch(LIFECYCLE, /Delete workspace|method: "DELETE"/);
 });
 
 test("closure requires the typed phrase sent to the backend (no boolean)", () => {

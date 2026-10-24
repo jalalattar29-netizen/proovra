@@ -189,6 +189,12 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   TRANSFER_TARGET_REQUIRED: { disposition: "customer", where: "global" },
   INVALID_TRANSFER_TARGET: { disposition: "customer", where: "global" },
 
+  // -- Workspace lifecycle (members audit LIFE-01/02/07) --------------------
+  WORKSPACE_KIND_NOT_DELETABLE: { disposition: "customer", where: "global" },
+  WORKSPACE_CLOSURE_REQUIRED: { disposition: "customer", where: "global" },
+  WORKSPACE_KIND_NOT_CLOSABLE: { disposition: "customer", where: "global" },
+  WORKSPACE_OWNER_REQUIRED: { disposition: "customer", where: "global" },
+
   // -- Security posture -----------------------------------------------------
   STEP_UP_ENROLLMENT_REQUIRED: { disposition: "customer", where: "global" },
   HIGH_SECURITY_PREREQUISITES_UNMET: { disposition: "customer", where: "global" },

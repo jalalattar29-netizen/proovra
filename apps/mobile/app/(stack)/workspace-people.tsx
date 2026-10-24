@@ -26,7 +26,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import { useRouter } from "expo-router";
 
-import { apiFetch, apiFetchText } from "../../src/api";
+import { apiFetch } from "../../src/api";
 import { formatUserDate, formatUserDateTime } from "../../src/lib/date";
 import { toSafeUserError } from "../../src/errors/safe-error";
 import { usePlatformContext } from "../../src/product/platform-context";
@@ -56,8 +56,7 @@ import { RolePermissionsSheet } from "../../src/ui/role-permissions-sheet";
 import { useAuth } from "../../src/auth-context";
 import { MemberRemovalSheet } from "../../src/ui/member-removal";
 import { ExternalCollaboratorsCard } from "../../src/ui/external-collaborators";
-import { WorkspaceOwnershipTransferCard } from "../../src/ui/workspace-ownership-transfer";
-import { WorkspaceClosureCard } from "../../src/ui/workspace-closure-card";
+import { describeWorkspaceLifecycle } from "@proovra/shared";
 import {
   INVITABLE_ROLES,
   MANAGEABLE_ROLES,
@@ -74,7 +73,6 @@ import {
   canRemoveMember,
   canLinkCase,
   canUnlinkCase,
-  deleteWorkspaceFailure,
   describeActivity,
   describeRoleChange,
   invitesReadFailure,
@@ -158,11 +156,6 @@ export default function WorkspacePeopleScreen() {
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState("");
 
-  // Held at PAGE level: a transfer demotes the actor and unmounts the card
-  // that produced the sentence (web NEW-049).
-  const [ownershipNotice, setOwnershipNotice] = useState<string | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   const applyRoster = useCallback((d: unknown) => {
     const mp = parseWorkspaceMembers(d);
@@ -459,24 +452,6 @@ export default function WorkspacePeopleScreen() {
       setBusy(false);
     }
   }, [teamId, draftName, addToast]);
-
-  const deleteWorkspace = useCallback(async () => {
-    if (!teamId) return;
-    setDeleting(true);
-    try {
-      // 204 No Content (teams.routes.ts:1362) — read as text; apiFetch would
-      // fail to parse the empty body and report a deleted workspace as not deleted.
-      await apiFetchText(buildWorkspacePath(teamId), { method: "DELETE" });
-      setDeleteConfirm(false);
-      addToast("Workspace deleted successfully", "success");
-      router.replace("/spaces" as never);
-    } catch (err) {
-      setDeleteConfirm(false);
-      addToast(deleteWorkspaceFailure(err, toSafeUserError(err, { message: "Failed to delete workspace" }).message), "error");
-    } finally {
-      setDeleting(false);
-    }
-  }, [teamId, addToast, router]);
 
   const seats = overview?.seats ?? null;
   const available = seats ? seatsAvailable(seats) : null;
@@ -777,43 +752,25 @@ export default function WorkspacePeopleScreen() {
             </ProovraPageSection>
           ) : null}
 
-          {/* The transfer outcome lives OUTSIDE the owner gate: a transfer
-              demotes the caller and the lifecycle region unmounts. */}
-          {ownershipNotice ? (
-            <ProovraCard testID="people-ownership-notice">
-              <ProovraText variant="bodySm">{ownershipNotice}</ProovraText>
-            </ProovraCard>
-          ) : null}
-
-          {isWorkspaceOwner(overview) && teamId ? (
-            <ProovraPageSection title="Workspace lifecycle">
-              <WorkspaceOwnershipTransferCard
-                teamId={teamId}
-                teamName={overview.name ?? "this workspace"}
-                currentUserId={selfId}
-                onTransferred={async (notice) => {
-                  setOwnershipNotice(notice);
-                  await load();
-                }}
+          {/* WORKSPACE LIFECYCLE IS NOT A PEOPLE CONTROL (members audit LIFE-01/02).
+              Transfer and closure live on Settings → Workspace lifecycle,
+              rendered from the server's lifecycle projection; no Workspace
+              kind has a delete control anywhere. */}
+          {isWorkspaceOwner(overview) && overview?.lifecycle ? (
+            <ProovraCard testID="people-lifecycle-pointer">
+              <ProovraText variant="h3" weight="semibold">
+                Workspace lifecycle
+              </ProovraText>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                {describeWorkspaceLifecycle(overview.lifecycle).explanation}
+              </ProovraText>
+              <ProovraButton
+                label="Open workspace lifecycle"
+                variant="secondary"
+                fullWidth={false}
+                onPress={() => router.push("/settings/workspace-lifecycle" as never)}
               />
-              <WorkspaceClosureCard teamId={teamId} />
-              <ProovraCard testID="people-delete-workspace">
-                <ProovraText variant="h3" weight="semibold">
-                  Delete this workspace
-                </ProovraText>
-                <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-                  Deleting removes the workspace and everybody’s access to it. Evidence retention and legal holds are
-                  governed separately and are not overridden by this action.
-                </ProovraText>
-                <ProovraButton
-                  label={deleting ? "Deleting…" : "Delete workspace"}
-                  variant="ghost"
-                  fullWidth={false}
-                  disabled={deleting}
-                  onPress={() => setDeleteConfirm(true)}
-                />
-              </ProovraCard>
-            </ProovraPageSection>
+            </ProovraCard>
           ) : null}
 
           {/* ---- THE RAIL ---- */}
@@ -1079,16 +1036,6 @@ export default function WorkspacePeopleScreen() {
         onCancel={() => setRevoking(null)}
       />
 
-      <ProovraConfirmSheet
-        visible={deleteConfirm}
-        title="Delete this workspace?"
-        consequence="Everybody loses access to this workspace. Evidence retention and legal holds are governed separately and are not overridden by deleting a workspace."
-        confirmLabel="Delete workspace"
-        tone="danger"
-        busy={deleting}
-        onConfirm={() => void deleteWorkspace()}
-        onCancel={() => setDeleteConfirm(false)}
-      />
     </ProovraScreen>
   );
 }

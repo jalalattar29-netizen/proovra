@@ -775,7 +775,12 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
   // ===========================================================================
 
   describe("workspace administration", () => {
-    it("DELETE /v1/teams/:id — the OWNER deletes an empty workspace (tenant audit); its ADMIN is refused 403 and the row survives", async () => {
+    // PHASE A (members audit LIFE-01) — this case used to assert a 204 hard
+    // delete of an ORGANIZATION workspace by its OWNER: it locked in the
+    // defect. No Workspace kind has a self-service hard delete; the OWNER is
+    // now refused with a typed 409 naming organization offboarding, the row
+    // and its members survive, and the refusal is tenant-audited as denied.
+    it("DELETE /v1/teams/:id — nobody hard-deletes a workspace: the OWNER gets a typed 409, its ADMIN a typed 403, and the row survives (tenant audit)", async () => {
       const a = h.fixtures.teamA;
       const team = await prisma.team.create({
         data: {
@@ -795,22 +800,36 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
 
       const admin = await call({ method: "DELETE", url: `/v1/teams/${team.id}`, token: a.adminToken });
       expect(admin.statusCode).toBe(403);
-      expect(admin.json()).toEqual({ message: "Only the team owner can delete this team" });
+      expect(admin.json().error.code).toBe("WORKSPACE_OWNER_REQUIRED");
       expect(await prisma.team.findUnique({ where: { id: team.id } })).not.toBeNull();
       const outsider = await call({ method: "DELETE", url: `/v1/teams/${team.id}`, token: h.fixtures.teamB.ownerToken });
       expect(outsider.statusCode).toBe(403);
       expect(await prisma.team.findUnique({ where: { id: team.id } })).not.toBeNull();
 
       const res = await call({ method: "DELETE", url: `/v1/teams/${team.id}`, token: a.ownerToken });
-      expect(res.statusCode, res.body).toBe(204);
-      expect(await prisma.team.findUnique({ where: { id: team.id } })).toBeNull();
-      expect(await prisma.teamMember.count({ where: { teamId: team.id } })).toBe(0);
-      await tenantAudit("teams.delete", team.id).toMatchObject({
-        userId: a.ownerUserId,
-        workspaceId: team.id,
-        resourceType: "team",
-        outcome: "success",
+      expect(res.statusCode, res.body).toBe(409);
+      expect(res.json().error).toMatchObject({
+        code: "WORKSPACE_KIND_NOT_DELETABLE",
+        nextAction: "ORGANIZATION_OFFBOARDING",
       });
+      expect(await prisma.team.findUnique({ where: { id: team.id } })).not.toBeNull();
+      expect(await prisma.teamMember.count({ where: { teamId: team.id } })).toBe(2);
+      await expect
+        .poll(
+          () =>
+            prisma.adminAuditLog.findFirst({
+              where: { action: "teams.delete", resourceId: team.id, userId: a.ownerUserId },
+              orderBy: { createdAt: "desc" },
+              select: { userId: true, workspaceId: true, outcome: true, resourceType: true },
+            }),
+          { timeout: 10_000, interval: 25 },
+        )
+        .toMatchObject({
+          userId: a.ownerUserId,
+          workspaceId: team.id,
+          resourceType: "team",
+          outcome: "denied",
+        });
     });
 
     it("DELETE /v1/teams/:id/invites/:inviteId — an ADMIN revokes (state kept, token rotated, tenant audit); a MEMBER is refused 403", async () => {

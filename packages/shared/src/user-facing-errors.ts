@@ -204,6 +204,34 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     actionLabel: "Sign in",
     actionHref: "/login",
   },
+  /*
+   * WORKSPACE LIFECYCLE (members audit LIFE-01/02/07). No Workspace kind has a
+   * self-service hard delete; each refusal names the path that does end the
+   * Workspace. "Team" never names a Workspace here.
+   */
+  WORKSPACE_KIND_NOT_DELETABLE: {
+    title: "This workspace can't be deleted",
+    message:
+      "A Personal Workspace closes only when you close your account, and an Organization Workspace ends only through your organization's offboarding. Your evidence has not been changed.",
+    severity: "info",
+  },
+  WORKSPACE_CLOSURE_REQUIRED: {
+    title: "Workspaces are closed, not deleted",
+    message:
+      "Request a closure instead: it archives access after a cancellation window. Evidence stays governed by retention and legal-hold rules.",
+    severity: "info",
+  },
+  WORKSPACE_KIND_NOT_CLOSABLE: {
+    title: "This workspace doesn't close on its own",
+    message:
+      "A Personal Workspace closes only when you close your account (Settings → Privacy → Close account). An Organization Workspace ends through your organization's offboarding.",
+    severity: "info",
+  },
+  WORKSPACE_OWNER_REQUIRED: {
+    title: "Only the workspace owner can do this",
+    message: "Ask the workspace owner to make this change.",
+    severity: "warning",
+  },
   FORBIDDEN: {
     title: "You don't have access to this area",
     message: "This workspace or feature may require additional permissions. Ask a workspace admin for access, or return to the dashboard.",

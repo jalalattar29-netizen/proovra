@@ -185,16 +185,15 @@
     },
     {
       "site": "services/api/src/services/ai/ai-retention.service.ts#purgeWorkspaceAiRecords",
-      "disposition": "RETENTION_AUTHORITY_WIRED",
+      "disposition": "FUTURE_IMPLEMENTATION_REMOVED_BACKLOG_ONLY",
       "capability": "removes every AI record a workspace owns when the tenant is destroyed",
-      "classification": "SECURITY_OR_COMPLIANCE_LIFECYCLE",
-      "evidence": "The canonical tenant destruction path was traced rather than assumed. Workspace CLOSURE (workspace-closure.service.ts) is explicitly archive-only — 'ARCHIVE access, never destroy evidence' — and the destruction orchestrator in lifecycle/destruction-governance.service.ts is EVIDENCE-scoped, taking a list of evidenceIds. The one path that physically destroys a tenant is DELETE /v1/teams/:id, which ends in prisma.team.delete. The retention question then answers itself from the schema: WorkspaceAiPolicy carries `team Team @relation(onDelete: Cascade)` and AiCopilotObservationReview cascades off its parent run, but AiCopilotRun, AiUsageEvent, AiUsageDaily, AiUsageMonthly, SemanticUsageDaily, ProviderUsageEvent and ProviderBudget each carry a BARE workspace_id/team_id uuid with no foreign key. Deleting the Team left all of them behind, naming a tenant that no longer exists, holding prompt and response artifacts and per-user attribution, unreachable by any tenant-scoped query. No retention authority requires them: the billing records this system must keep are Subscription and Payment, and the same route already refuses to run while an active subscription exists.",
-      "wiredAt": "services/api/src/routes/teams.routes.ts",
-      "wiredSymbol": "purgeWorkspaceAiRecords",
-      "integration": "DELETE /v1/teams/:id, immediately BEFORE prisma.team.delete. The ordering is the point: a purge failure now throws with the Team — and therefore its AI rows — still present and still reachable by a retry, where purging after the delete would have converted any failure into permanent orphans.",
-      "alsoFixed": "Coverage was extended from four tables to seven (SemanticUsageDaily, ProviderUsageEvent, ProviderBudget were orphaned the same way), and the blanket `catch {}` was removed. A best-effort swallow on a destruction path is the worst possible shape: the purge fails, the caller deletes the Team, and nothing is reported.",
-      "proof": "services/api/test/phase-13-writer-disposition-runtime.integration.test.ts",
-      "reviewedAtUtc": "2026-08-17"
+      "classification": "GENUINE_FUTURE_FEATURE",
+      "evidence": "Its only caller was DELETE /v1/teams/:id, the one path that physically destroyed a tenant. The members-and-collaboration audit (LIFE-01, LIFE-03, LIFE-04, LIFE-05) found that path deleted Personal and Organization Workspaces outside the closure lifecycle, without a transaction, behind a legal-hold read that failed open, cascading legal holds and the lifecycle ledger. The route now makes zero mutations and refuses with a typed 409 for every Workspace kind (workspace-lifecycle-no-hard-delete.integration.test.ts). With no tenant-destruction path, nothing can orphan the AI rows and the purge has no caller; keeping an executable destruction writer would claim a capability the product no longer has.",
+      "removedFrom": "services/api/src/services/ai/ai-retention.service.ts",
+      "backlogRecordedIn": "services/api/scripts/capability-authority/manifests/writer-preservations.json",
+      "backlog": "A future operator-only tenant purge (post-closure, retention- and legal-hold-aware, transactional) must purge the seven FK-less AI tables (ai_copilot_runs, ai_usage_events, ai_usage_daily, ai_usage_monthly, semantic_usage_daily, provider_usage_events, provider_budgets) BEFORE the Team row, inside the same transaction.",
+      "history": "Previously RETENTION_AUTHORITY_WIRED (reviewed 2026-08-17) at teams.routes.ts DELETE /v1/teams/:id.",
+      "reviewedAtUtc": "2026-10-25"
     },
     {
       "site": "services/api/src/services/redaction/redaction-derivative.service.ts#quarantineDerivative",

@@ -122,7 +122,9 @@ async function openClosureForm(
   const watch = await watchPage(page);
   await login(page, account);
   const teamId = await createOwnedWorkspace(page, `p7 step-up ${label}`);
-  await page.goto(`${WEB_BASE}/teams/${teamId}`, {
+  // Workspace closure lives on the workspace's Lifecycle page (members audit
+  // LIFE-01/02), not on Members & Access.
+  await page.goto(`${WEB_BASE}/teams/${teamId}/lifecycle`, {
     waitUntil: "domcontentloaded",
   });
 

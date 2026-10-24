@@ -47,8 +47,10 @@ import { buildBillingHref } from "../../../../lib/navigation/billingWorkspaceLoc
 import { MemberRemovalDialog } from "./components/MemberRemovalDialog";
 import { TeamPermissionMatrix } from "./components/TeamPermissionMatrix";
 import { DangerConfirmModal } from "./components/DangerConfirmModal";
-import { WorkspaceClosureCard } from "./components/WorkspaceClosureCard";
-import { WorkspaceOwnershipTransferCard } from "./components/WorkspaceOwnershipTransferCard";
+import {
+  describeWorkspaceLifecycle,
+  type WorkspaceLifecyclePolicy,
+} from "@proovra/shared";
 import { TeamAccessReviewCard } from "./components/TeamAccessReviewCard";
 import {
   WorkspaceMembersPanel,
@@ -163,8 +165,10 @@ type Team = {
   ownerUserId?: string;
   currentUserRole?: string;
   canManageMembers?: boolean;
-  /** SERVER-projected OWNER-level workspace authority (delete / closure). */
+  /** SERVER-projected OWNER-level workspace authority (lifecycle). */
   canManageWorkspace?: boolean;
+  /** SERVER-projected: how this Workspace is allowed to end. Never derived here. */
+  lifecycle?: WorkspaceLifecyclePolicy;
   stats?: TeamStats;
   members?: TeamMember[];
   /**
@@ -479,8 +483,6 @@ function TeamDetailPageBody() {
     name: string;
   } | null>(null);
 
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [deletingTeam, setDeletingTeam] = useState(false);
 
   const [showAddCase, setShowAddCase] = useState(false);
   const [availableCases, setAvailableCases] = useState<AvailableCaseItem[]>([]);
@@ -491,7 +493,6 @@ function TeamDetailPageBody() {
    * actor, so the card unmounts on the refresh that follows its own success.
    * The sentence has to outlive it.
    */
-  const [ownershipNotice, setOwnershipNotice] = useState<string | null>(null);
   const [loadingAvailableCases, setLoadingAvailableCases] = useState(false);
   const [linkingCaseId, setLinkingCaseId] = useState<string | null>(null);
   const [unlinkingCaseId, setUnlinkingCaseId] = useState<string | null>(null);
@@ -926,30 +927,6 @@ function TeamDetailPageBody() {
       throw new Error(message);
     } finally {
       setDeletingInviteId(null);
-    }
-  };
-
-  const handleDeleteTeam = async () => {
-    if (!teamId || !isOwner) return;
-
-    setDeletingTeam(true);
-
-    try {
-      await apiFetch(`/v1/teams/${teamId}`, {
-        method: "DELETE",
-      });
-
-      addToast("Workspace deleted successfully", "success");
-      setTimeout(() => {
-        router.push("/workspaces");
-      }, 300);
-    } catch (err) {
-      const message = toSafeUserError(err, { message: "Failed to delete workspace" }).message;
-      captureException(err, { feature: "team_delete", teamId });
-      addToast(message, "error");
-    } finally {
-      setDeletingTeam(false);
-      setDeleteConfirm(false);
     }
   };
 
@@ -1731,100 +1708,32 @@ function TeamDetailPageBody() {
 
 
         {/*
-          LIFECYCLE — separated on purpose.
+          WORKSPACE LIFECYCLE IS NOT A PEOPLE CONTROL (members audit LIFE-01/02).
 
-          Transferring ownership, closing a workspace and deleting it are not
-          the same kind of act as changing somebody's role, and they used to
-          sit in the same visual rank as everything else. They keep their own
-          region, their own heading and the outlined destructive treatment the
-          design system defines, so the difference is visible before the click
-          rather than after it.
+          Members & Access manages people and their access. Transfer, closure
+          and the old hard delete used to sit at the bottom of this page — and
+          on a Personal Workspace that meant a Close button the server always
+          refused and a Delete that, with no evidence yet, destroyed the
+          workspace and silently replaced it. How a Workspace ends is now one
+          server-projected policy (`team.lifecycle`), rendered on this
+          Workspace's own Lifecycle page. This page only says where that lives.
         */}
-        {/*
-          THE TRANSFER OUTCOME LIVES OUTSIDE THE OWNER GATE, ON PURPOSE.
-
-          A successful transfer demotes the caller: the refresh that follows it
-          returns `canManageWorkspace: false`, `isOwner` flips, and the whole
-          lifecycle region below unmounts — taking any message rendered inside
-          it with it. The one moment the sentence matters is the moment the
-          card that produced it disappears, so it is announced here, above the
-          gate, in a live region.
-        */}
-        {ownershipNotice ? (
-          <div
-            className="app-panel"
-            data-testid="people-ownership-notice"
-            data-workspace-ownership-notice
-            role="status"
-            aria-live="polite"
-          >
-            <div className="app-panel__body">{ownershipNotice}</div>
-          </div>
-        ) : null}
-
-        {isOwner ? (
-          <div data-testid="people-lifecycle" className="app-section-stack">
-            <h2 className="app-panel__title" style={{ marginBottom: 0 }}>
-              Workspace lifecycle
-            </h2>
-            {/*
-              THREE FULL-WIDTH SLABS BECAME A GRID (§5).
-
-              Transfer, close and delete each held a paragraph and one button
-              and each took the whole page width, so the most consequential
-              region on the surface was also the emptiest — an operator scrolled
-              past several hundred pixels of white to reach three short
-              controls. They are the same panels with the same copy and the
-              same canonical danger treatment; only the layout changed.
-
-              The region STAYS separated at the bottom under its own heading,
-              because these are the operations that end things. Compact is not
-              the same as hidden.
-            */}
-            {/*
-              Each card repeats the `isOwner` condition the region already
-              applies. That redundancy is deliberate: these are the page's
-              authorization boundaries, and a reader should be able to see that
-              a card is owner-only from the card's own line rather than by
-              walking up the tree to find out.
-            */}
-            <div className="app-grid-panels app-grid-panels--stretch">
-            {isOwner && teamId ? (
-              <WorkspaceOwnershipTransferCard
-                teamId={teamId}
-                teamName={team?.name ?? "this workspace"}
-                currentUserId={currentUserId}
-                onTransferred={async (notice) => {
-                  setOwnershipNotice(notice);
-                  await loadData();
-                }}
-              />
-            ) : null}
-            {isOwner && teamId ? <WorkspaceClosureCard teamId={teamId} /> : null}
-            <div
-              className="app-panel app-panel--actions-bottom"
-              data-testid="people-delete-workspace"
-            >
-              <div className="app-panel__head">
-                <h3 className="app-panel__title">Delete this workspace</h3>
-              </div>
-              <div className="app-panel__body">
-                <p className="app-table__muted" style={{ margin: "0 0 10px" }}>
-                  Deleting removes the workspace and everybody&rsquo;s access to
-                  it. Evidence retention and legal holds are governed
-                  separately and are not overridden by this action.
-                </p>
-                <button
-                  type="button"
-                  className="app-secondary-action app-secondary-action--danger"
-                  onClick={() => setDeleteConfirm(true)}
-                  disabled={deletingTeam}
-                  data-testid="workspace-delete"
-                >
-                  {deletingTeam ? "Deleting…" : "Delete workspace"}
-                </button>
-              </div>
+        {isOwner && teamId && team?.lifecycle ? (
+          <div className="app-panel" data-testid="people-lifecycle-pointer">
+            <div className="app-panel__head">
+              <h2 className="app-panel__title">Workspace lifecycle</h2>
             </div>
+            <div className="app-panel__body">
+              <p className="app-table__muted" style={{ margin: "0 0 10px" }}>
+                {describeWorkspaceLifecycle(team.lifecycle).explanation}
+              </p>
+              <Link
+                href={`/teams/${teamId}/lifecycle`}
+                className="app-secondary-action"
+                data-testid="people-lifecycle-link"
+              >
+                Open workspace lifecycle
+              </Link>
             </div>
           </div>
         ) : null}
@@ -2308,16 +2217,6 @@ function TeamDetailPageBody() {
         testid="case-unlink-confirm"
         onCancel={() => setPendingCaseUnlink(null)}
         onConfirm={handleConfirmUnlinkCase}
-      />
-      <DangerConfirmModal
-        open={deleteConfirm}
-        title="Delete this workspace?"
-        description="Everybody loses access to this workspace."
-        caveat="Evidence retention and legal holds are governed separately and are not overridden by deleting a workspace."
-        confirmLabel="Delete workspace"
-        testid="workspace-delete-confirm"
-        onCancel={() => setDeleteConfirm(false)}
-        onConfirm={handleDeleteTeam}
       />
 
       {/* Offboarding transfer dialog. Mounted at root so the focus trap and

@@ -282,7 +282,8 @@ const SUBSCRIPTION_STATUS_ALLOWED: Record<string, string> = {
   // about — a small enough decision to look harmless, and one more place for
   // the answer to differ. It calls `findLivePersonalSubscription` now, which is
   // the same lookup the transition authority uses.
-  "routes/teams.routes.ts": "display: team subscription lookup query filter (no active/grace decision)",
+  // routes/teams.routes.ts left this list with members audit LIFE-01: its only
+  // reference was the hard-delete subscription gate, and that path is gone.
   // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — both new entries are
   // PRESENTATION and PROVIDER-INTERACTION, not a second active/grace decision.
   // The projection maps a status to a lifecycle LABEL for the UI (and defers to

@@ -146,7 +146,7 @@ top level of it.
 | OK | `parseSavedViews` | `GET /v1/search/saved-views` | views | views |
 | OK | `parseSuggestionRows` | `GET /v1/search/suggest` | suggestions | suggestions |
 | OK | `parseRecoveryWorkspaces` | `GET /v1/teams` | items, teams | teams |
-| OK | `parseWorkspaceOverview` | `GET /v1/teams/:id` | <SPREAD>, address, billingOwnerUserId, canManageMembers, canManageWorkspace, currentUser… | canManageMembers, canManageWorkspace, currentUserRole, effectivePlan, id, memberPage, me… |
+| OK | `parseWorkspaceOverview` | `GET /v1/teams/:id` | <SPREAD>, address, billingOwnerUserId, canManageMembers, canManageWorkspace, currentUser… | canManageMembers, canManageWorkspace, currentUserRole, effectivePlan, id, lifecycle, mem… |
 | OK | `parseExternalCollaborators` | `GET /v1/teams/:id/access-review` | externalCollaborators, members, pendingInvites, summary, teamId | externalCollaborators |
 | OK | `parseWorkspaceActivity` | `GET /v1/teams/:id/activity` | activities | activities |
 | OK | `parseWorkspaceCases` | `GET /v1/teams/:id/cases` | items | items |

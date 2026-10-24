@@ -5,19 +5,19 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "45b0ccc11d53f1ef728ed047c3c39cb19a0efadb17584989e737d434908dc85d",
-  "consumerInventoryHash": "35453ad06b4412339d265121db7ce2f6eafcadde78f8bea82de43d37be5e5919",
+  "consumerInventoryHash": "3177108253aac965c2fc227eb71908f3d7c18b3fb891696138a8ba9ba26c0473",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1191,
     "ProductionRegisteredRoutes": 1190,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 986,
+    "ProductConsumedRoutes": 985,
     "NonProductDispositionedRoutes": 202,
-    "UndisposedRoutes": 2,
+    "UndisposedRoutes": 3,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 986,
+    "ProductConsumerRoutes": 985,
     "MachineOnlyConsumerRoutes": 6,
-    "NoConsumerRoutes": 199,
+    "NoConsumerRoutes": 200,
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 33,
     "DynamicUnresolvedRouteRegistrations": 0,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1365,
-    "ReachableSensitiveMutations": 1346,
-    "ClassifiedSensitiveMutations": 1346,
+    "TerminalWriters": 1354,
+    "ReachableSensitiveMutations": 1335,
+    "ClassifiedSensitiveMutations": 1335,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 19,
@@ -74,13 +74,13 @@
       "ACCOUNT_SESSION_SECURITY": 219,
       "ORGANIZATION": 30,
       "ORGANIZATION_MEMBERSHIP": 29,
-      "WORKSPACE": 66,
-      "WORKSPACE_MEMBERSHIP_INVITATION": 52,
-      "CASE": 80,
+      "WORKSPACE": 65,
+      "WORKSPACE_MEMBERSHIP_INVITATION": 50,
+      "CASE": 79,
       "EVIDENCE_CUSTODY_FINALIZATION": 326,
       "LEGAL_HOLD_RETENTION_DELETION": 51,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 82,
-      "BILLING_SUBSCRIPTION_SEAT": 88,
+      "BILLING_SUBSCRIPTION_SEAT": 81,
       "SSO_OIDC_SCIM_PROVISIONING": 45,
       "AUTOMATION_QUEUE_WEBHOOK": 115,
       "REPORT_EXPORT_REDACTION": 57,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1198,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1187,
       "JOB_ATTRIBUTED_REACHABLE": 138,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 10460,
+      "METHOD_ON_VALUE": 10458,
       "UNRESOLVED_IDENTIFIER": 1482
     },
     "MutationFixpointRounds": 9,
@@ -133,8 +133,8 @@
     "PreservationEntriesUnmatched": 0,
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
-      "UNDISPOSED": 2,
-      "PRODUCT_CONNECTED": 991,
+      "UNDISPOSED": 3,
+      "PRODUCT_CONNECTED": 990,
       "EXTERNAL_API": 19,
       "MACHINE_OR_CRON": 21,
       "WEBHOOK": 4,
@@ -242,10 +242,10 @@
   },
   "totalRoutes": 1191,
   "classificationCounts": {
-    "BACKEND_ONLY_UNWIRED": 2,
+    "BACKEND_ONLY_UNWIRED": 3,
     "COMPATIBILITY_TEMPORARY": 16,
     "INTERNAL_REQUIRED": 187,
-    "TARGET_COMPLETE": 986
+    "TARGET_COMPLETE": 985
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 401,
@@ -712,10 +712,10 @@
       "method": "DELETE",
       "route": "/v1/teams/:id",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:469",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -724,7 +724,7 @@
       "method": "DELETE",
       "route": "/v1/teams/:id/cases/:caseId",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:428",
+      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:421",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -748,7 +748,7 @@
       "method": "DELETE",
       "route": "/v1/teams/:id/invites/:inviteId",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:346",
+      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:339",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6496,7 +6496,7 @@
       "method": "GET",
       "route": "/v1/teams/:id/activity",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:225",
+      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:218",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6508,7 +6508,7 @@
       "method": "GET",
       "route": "/v1/teams/:id/cases",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:222",
+      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:215",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6544,7 +6544,7 @@
       "method": "GET",
       "route": "/v1/teams/:id/invites",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:190",
+      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:183",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7480,7 +7480,7 @@
       "method": "PATCH",
       "route": "/v1/teams/:id",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:448",
+      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:441",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7492,7 +7492,7 @@
       "method": "PATCH",
       "route": "/v1/teams/:id/members/:memberId",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:366",
+      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:359",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -13840,7 +13840,7 @@
       "method": "POST",
       "route": "/v1/teams/:id/cases/link",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:408",
+      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:401",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -13876,7 +13876,7 @@
       "method": "POST",
       "route": "/v1/teams/:id/invites",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:294",
+      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:287",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -13888,7 +13888,7 @@
       "method": "POST",
       "route": "/v1/teams/:id/invites/:inviteId/resend",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:322",
+      "productConsumer": "apps/mobile/app/(stack)/workspace-people.tsx:315",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -30857,8 +30857,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.update@2675",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2675",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.update@2569",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2569",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -30890,8 +30890,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.update@2742",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2742",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.update@2636",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2636",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -30923,41 +30923,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@1379",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1379",
-      "file": "services/api/src/routes/teams.routes.ts",
-      "enclosingDeclaration": "teamsRoutes",
-      "kind": "DATABASE",
-      "target": "case",
-      "mutationKind": "updateMany",
-      "primaryFamily": "CASE",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "DELETE /v1/teams/:id"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/teams.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@2202",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2202",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@2096",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2096",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -30989,8 +30956,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#caseAccess.delete@3161",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3161",
+      "writerId": "services/api/src/routes/teams.routes.ts#caseAccess.delete@3055",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3055",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31022,8 +30989,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#evidence.updateMany@2194",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2194",
+      "writerId": "services/api/src/routes/teams.routes.ts#evidence.updateMany@2088",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2088",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31055,41 +31022,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#team.delete@1395",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1395",
-      "file": "services/api/src/routes/teams.routes.ts",
-      "enclosingDeclaration": "teamsRoutes",
-      "kind": "DATABASE",
-      "target": "team",
-      "mutationKind": "delete",
-      "primaryFamily": "WORKSPACE",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "DELETE /v1/teams/:id"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/teams.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/routes/teams.routes.ts#team.update@1197",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1197",
+      "writerId": "services/api/src/routes/teams.routes.ts#team.update@1180",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:1180",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31121,8 +31055,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@3179",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3179",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@3073",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3073",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31154,8 +31088,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@319",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:319",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@321",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:321",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "createActivity",
       "kind": "DATABASE",
@@ -31193,41 +31127,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamInvite.deleteMany@1368",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1368",
-      "file": "services/api/src/routes/teams.routes.ts",
-      "enclosingDeclaration": "teamsRoutes",
-      "kind": "DATABASE",
-      "target": "teamInvite",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "DELETE /v1/teams/:id"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/teams.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@3377",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3377",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@3305",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3305",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31259,8 +31160,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@3407",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3407",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@3335",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3335",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31292,8 +31193,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.updateMany@3446",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3446",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.updateMany@3374",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3374",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -33684,39 +33585,6 @@
       }
     },
     {
-      "writerId": "services/api/src/services/ai/ai-retention.service.ts#aiCopilotRun.deleteMany@100",
-      "terminalLocation": "services/api/src/services/ai/ai-retention.service.ts:100",
-      "file": "services/api/src/services/ai/ai-retention.service.ts",
-      "enclosingDeclaration": "purgeWorkspaceAiRecords",
-      "kind": "DATABASE",
-      "target": "aiCopilotRun",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "DELETE /v1/teams/:id"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/teams.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
       "writerId": "services/api/src/services/ai/ai-retention.service.ts#aiCopilotRun.deleteMany@29",
       "terminalLocation": "services/api/src/services/ai/ai-retention.service.ts:29",
       "file": "services/api/src/services/ai/ai-retention.service.ts",
@@ -33736,204 +33604,6 @@
       "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/ai/ai-retention.service.ts#aiUsageDaily.deleteMany@102",
-      "terminalLocation": "services/api/src/services/ai/ai-retention.service.ts:102",
-      "file": "services/api/src/services/ai/ai-retention.service.ts",
-      "enclosingDeclaration": "purgeWorkspaceAiRecords",
-      "kind": "DATABASE",
-      "target": "aiUsageDaily",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "DELETE /v1/teams/:id"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/teams.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/ai/ai-retention.service.ts#aiUsageEvent.deleteMany@101",
-      "terminalLocation": "services/api/src/services/ai/ai-retention.service.ts:101",
-      "file": "services/api/src/services/ai/ai-retention.service.ts",
-      "enclosingDeclaration": "purgeWorkspaceAiRecords",
-      "kind": "DATABASE",
-      "target": "aiUsageEvent",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "DELETE /v1/teams/:id"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/teams.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/ai/ai-retention.service.ts#aiUsageMonthly.deleteMany@103",
-      "terminalLocation": "services/api/src/services/ai/ai-retention.service.ts:103",
-      "file": "services/api/src/services/ai/ai-retention.service.ts",
-      "enclosingDeclaration": "purgeWorkspaceAiRecords",
-      "kind": "DATABASE",
-      "target": "aiUsageMonthly",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "DELETE /v1/teams/:id"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/teams.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/ai/ai-retention.service.ts#providerBudget.deleteMany@108",
-      "terminalLocation": "services/api/src/services/ai/ai-retention.service.ts:108",
-      "file": "services/api/src/services/ai/ai-retention.service.ts",
-      "enclosingDeclaration": "purgeWorkspaceAiRecords",
-      "kind": "DATABASE",
-      "target": "providerBudget",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "DELETE /v1/teams/:id"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/teams.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/ai/ai-retention.service.ts#providerUsageEvent.deleteMany@107",
-      "terminalLocation": "services/api/src/services/ai/ai-retention.service.ts:107",
-      "file": "services/api/src/services/ai/ai-retention.service.ts",
-      "enclosingDeclaration": "purgeWorkspaceAiRecords",
-      "kind": "DATABASE",
-      "target": "providerUsageEvent",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "DELETE /v1/teams/:id"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/teams.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/ai/ai-retention.service.ts#semanticUsageDaily.deleteMany@104",
-      "terminalLocation": "services/api/src/services/ai/ai-retention.service.ts:104",
-      "file": "services/api/src/services/ai/ai-retention.service.ts",
-      "enclosingDeclaration": "purgeWorkspaceAiRecords",
-      "kind": "DATABASE",
-      "target": "semanticUsageDaily",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "DELETE /v1/teams/:id"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/teams.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -53778,7 +53448,6 @@
       "insideTransaction": false,
       "entryRoutes": [
         "DELETE /v1/orgs/:id/members/:memberId",
-        "DELETE /v1/teams/:id",
         "DELETE /v1/teams/:id/members/:memberId",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/leave"
@@ -54120,39 +53789,6 @@
       "insideTransaction": false,
       "entryRoutes": [
         "DELETE /v1/teams/:id/members/:memberId"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/teams.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.deleteMany@1284",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1284",
-      "file": "services/api/src/services/identity/membership-provisioning.service.ts",
-      "enclosingDeclaration": "purgeWorkspaceMembershipsForTeamDeletion",
-      "kind": "DATABASE",
-      "target": "teamMember",
-      "mutationKind": "deleteMany",
-      "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "DELETE /v1/teams/:id"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -96064,7 +95700,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1232",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1236",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -96072,31 +95708,14 @@
       "gates": [
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 469,
-          "caller": "WorkspacePeopleScreen",
-          "class": "MOBILE",
-          "primitive": "apiFetchText",
-          "viaResolution": false
-        },
-        {
-          "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 938,
-          "caller": "handleDeleteTeam",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:469 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:938 (handleDeleteTeam, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "AUTHENTICATED",
@@ -96107,31 +95726,14 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
-        "evidence",
-        "evidenceLegalHold",
         "revokedSession",
-        "subscription",
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user",
-        "workspaceStorageAddon"
+        "user"
       ],
       "modelsWritten": [
-        "aiCopilotRun",
-        "aiUsageDaily",
-        "aiUsageEvent",
-        "aiUsageMonthly",
-        "analyticsEvent",
-        "case",
-        "membershipGrant",
-        "providerBudget",
-        "providerUsageEvent",
-        "securityEvent",
-        "semanticUsageDaily",
-        "team",
-        "teamInvite",
-        "teamMember"
+        "securityEvent"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -96149,7 +95751,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/cases/:caseId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2704",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2598",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -96160,7 +95762,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 428,
+          "line": 421,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -96168,7 +95770,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 1022,
+          "line": 999,
           "caller": "handleConfirmUnlinkCase",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -96178,7 +95780,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:428 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:1022 (handleConfirmUnlinkCase, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:421 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:999 (handleConfirmUnlinkCase, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -96221,7 +95823,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/external-grants/:grantId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3096",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2990",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -96295,7 +95897,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/invites/:inviteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1757",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1651",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -96306,7 +95908,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 346,
+          "line": 339,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -96314,7 +95916,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 911,
+          "line": 912,
           "caller": "handleConfirmDeleteInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -96324,7 +95926,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:346 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:911 (handleConfirmDeleteInvite, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:339 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:912 (handleConfirmDeleteInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -96366,7 +95968,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2053",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1947",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -102789,7 +102391,7 @@
         },
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 394,
+          "line": 387,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -102821,7 +102423,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 962,
+          "line": 939,
           "caller": "loadAvailableCases",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -102831,7 +102433,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:281 (openCaseAssign, MOBILE); apps/mobile/app/(stack)/workspace-people.tsx:394 (WorkspacePeopleScreen, MOBILE); apps/mobile/app/(tabs)/evidence.tsx:265 (EvidenceLibraryScreen, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:281 (openCaseAssign, MOBILE); apps/mobile/app/(stack)/workspace-people.tsx:387 (WorkspacePeopleScreen, MOBILE); apps/mobile/app/(tabs)/evidence.tsx:265 (EvidenceLibraryScreen, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122939,7 +122541,7 @@
       "method": "GET",
       "path": "/v1/platform/rbac/matrix",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3222",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3116",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -128791,7 +128393,7 @@
       "method": "GET",
       "path": "/v1/teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:549",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:522",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -128855,7 +128457,7 @@
       "method": "GET",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:629",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:602",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -128873,8 +128475,16 @@
           "viaResolution": false
         },
         {
+          "file": "apps/mobile/app/(stack)/settings/workspace-lifecycle.tsx",
+          "line": 55,
+          "caller": "WorkspaceLifecycleScreen",
+          "class": "MOBILE",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 207,
+          "line": 200,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -128929,8 +128539,16 @@
           "viaResolution": false
         },
         {
+          "file": "apps/web/app/(app)/settings/_sections/WorkspaceLifecycleSection.tsx",
+          "line": 71,
+          "caller": "WorkspaceLifecycleSection",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 512,
+          "line": 513,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -128956,7 +128574,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/ai.tsx:80 (AiSettingsScreen, MOBILE); apps/mobile/app/(stack)/workspace-people.tsx:207 (WorkspacePeopleScreen, MOBILE); apps/mobile/src/ui/ai-capability-status.tsx:35 (AiCapabilityStatus, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/ai.tsx:80 (AiSettingsScreen, MOBILE); apps/mobile/app/(stack)/settings/workspace-lifecycle.tsx:55 (WorkspaceLifecycleScreen, MOBILE); apps/mobile/app/(stack)/workspace-people.tsx:200 (WorkspacePeopleScreen, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -129020,7 +128638,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/access-review",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2929",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2823",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -129092,7 +128710,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2505",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2399",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -129103,7 +128721,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 225,
+          "line": 218,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -129127,7 +128745,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 523,
+          "line": 524,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -129137,7 +128755,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:225 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/integrations/page.tsx:3012 (load, WEB); apps/web/app/(app)/integrations/page.tsx:3267 (load, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:218 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/integrations/page.tsx:3012 (load, WEB); apps/web/app/(app)/integrations/page.tsx:3267 (load, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -129178,7 +128796,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/cases",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1060",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1043",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -129189,7 +128807,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 222,
+          "line": 215,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -129197,7 +128815,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 520,
+          "line": 521,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -129207,7 +128825,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:222 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:520 (TeamDetailPageBody, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:215 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:521 (TeamDetailPageBody, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -129247,7 +128865,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3279",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3173",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -129313,7 +128931,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/external-collaborators",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2794",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2688",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -129367,7 +128985,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1104",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1087",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -129378,7 +128996,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 190,
+          "line": 183,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -129386,7 +129004,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 513,
+          "line": 514,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -129394,7 +129012,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 838,
+          "line": 839,
           "caller": "reloadInvites",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -129404,7 +129022,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:190 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:513 (TeamDetailPageBody, WEB); apps/web/app/(app)/teams/[id]/page.tsx:838 (reloadInvites, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:183 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:514 (TeamDetailPageBody, WEB); apps/web/app/(app)/teams/[id]/page.tsx:839 (reloadInvites, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -129444,7 +129062,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:906",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:889",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -129463,7 +129081,7 @@
         },
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 220,
+          "line": 213,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -129471,7 +129089,7 @@
         },
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 245,
+          "line": 238,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -129479,7 +129097,7 @@
         },
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 261,
+          "line": 254,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -129487,7 +129105,7 @@
         },
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 275,
+          "line": 268,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -129577,7 +129195,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence-request/[id].tsx:178 (EvidenceRequestDetailScreen, MOBILE); apps/mobile/app/(stack)/workspace-people.tsx:220 (WorkspacePeopleScreen, MOBILE); apps/mobile/app/(stack)/workspace-people.tsx:245 (WorkspacePeopleScreen, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence-request/[id].tsx:178 (EvidenceRequestDetailScreen, MOBILE); apps/mobile/app/(stack)/workspace-people.tsx:213 (WorkspacePeopleScreen, MOBILE); apps/mobile/app/(stack)/workspace-people.tsx:238 (WorkspacePeopleScreen, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -129618,7 +129236,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/members/:memberId/removal-impact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1964",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1858",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135048,7 +134666,7 @@
       "method": "PATCH",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1176",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1159",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135059,7 +134677,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 448,
+          "line": 441,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -135075,7 +134693,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 711,
+          "line": 712,
           "caller": "handleSaveTeamName",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -135085,7 +134703,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:448 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/organizations/[id]/setup/page.tsx:438 (OrganizationSetupInner, WEB); apps/web/app/(app)/teams/[id]/page.tsx:711 (handleSaveTeamName, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:441 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/organizations/[id]/setup/page.tsx:438 (OrganizationSetupInner, WEB); apps/web/app/(app)/teams/[id]/page.tsx:712 (handleSaveTeamName, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -135126,7 +134744,7 @@
       "method": "PATCH",
       "path": "/v1/teams/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1829",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1723",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135137,7 +134755,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 366,
+          "line": 359,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -135155,7 +134773,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:366 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:268 (changeRole, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:359 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx:268 (changeRole, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -174302,7 +173920,7 @@
       "method": "POST",
       "path": "/v1/teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:487",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:460",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -174368,7 +173986,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/cases/link",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2612",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2506",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -174379,7 +173997,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 408,
+          "line": 401,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -174387,7 +174005,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 986,
+          "line": 963,
           "caller": "handleAddExistingCase",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -174397,7 +174015,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:408 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:986 (handleAddExistingCase, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:401 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:963 (handleAddExistingCase, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -174442,7 +174060,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3311",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3205",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -174519,7 +174137,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/closure/:requestId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3434",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3362",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -174585,7 +174203,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1417",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1311",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -174596,7 +174214,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 294,
+          "line": 287,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -174604,7 +174222,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 742,
+          "line": 743,
           "caller": "handleInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -174614,7 +174232,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:294 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:742 (handleInvite, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:287 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:743 (handleInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -174679,7 +174297,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/invites/:inviteId/resend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2449",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2343",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -174690,7 +174308,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/workspace-people.tsx",
-          "line": 322,
+          "line": 315,
           "caller": "WorkspacePeopleScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -174698,7 +174316,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 854,
+          "line": 855,
           "caller": "handleResendInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -174708,7 +174326,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:322 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:854 (handleResendInvite, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:315 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:855 (handleResendInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -174749,7 +174367,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/reopen",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3545",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3473",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -174822,7 +174440,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/transfer-ownership",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3492",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3420",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -174897,7 +174515,7 @@
       "method": "POST",
       "path": "/v1/teams/invites/:token/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2359",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2253",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -174994,7 +174612,7 @@
       "method": "POST",
       "path": "/v1/teams/invites/lookup",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2297",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2191",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"

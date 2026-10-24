@@ -183,7 +183,7 @@ export function resolveGoverningRoute(routePath, registry) {
  * invalidates the row instead of silently preserving a stale decision.
  *
  * This is NOT a reintroduction of the hand-authored parity table: it resolves
- * three routes the derivation cannot reach, it carries falsifiable citations,
+ * the routes the derivation cannot reach, it carries falsifiable citations,
  * and it decides NOTHING about what Native implements beyond inheriting the
  * canonical gate the page names for itself.
  */
@@ -193,6 +193,16 @@ export const REGISTRY_GAP_RESOLUTIONS = [
     inheritsRouteId: "workspace.people",
     marker: "workspacePeopleLocator",
     note: "the page states `/people` resolves here for the active workspace; gated by admin.teams (TEAM_VIEW)",
+  },
+  {
+    // MEMBERS AUDIT LIFE-01/02 — the workspace's own Lifecycle page, split off
+    // Members & Access. Same gate (admin.teams) and the same workspace-people
+    // ancestor semantics; the registry has no separate entry because the page
+    // is addressed only from /teams/[id] and Settings.
+    routePath: "/teams/[id]/lifecycle",
+    inheritsRouteId: "workspace.people",
+    marker: "Members & Access (`/teams/[id]`) manages people",
+    note: "the workspace lifecycle split from Members & Access; gated by admin.teams (TEAM_VIEW) like its parent",
   },
   {
     routePath: "/reviewer-ops/[reviewId]",

@@ -48,6 +48,7 @@ export type SettingsPaneId =
   | "members"
   | "roles"
   | "retention"
+  | "lifecycle"
   | "integrations"
   | "sso"
   | "audit"
@@ -349,6 +350,12 @@ export function resolveSettingsNavigation(
   if (isOrg && has(input, "SETTINGS_VIEW")) {
     workspace.push({ id: "roles", label: "Roles & permissions", href: null });
   }
+  // WORKSPACE LIFECYCLE (members audit LIFE-01/02) — offered to everyone,
+  // because every Workspace kind has an answer to "how does this end?" and
+  // the answer is the server's (`team.lifecycle`): a Personal Workspace
+  // explains account closure, an Organization Workspace its offboarding, a
+  // legacy owned one its closure — the actions only for its owner.
+  workspace.push({ id: "lifecycle", label: "Workspace lifecycle", href: null });
   if (routeLoads("governance.retention", input)) {
     workspace.push({
       id: "retention",

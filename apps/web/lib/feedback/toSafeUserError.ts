@@ -143,6 +143,28 @@ export function hasExplanationFor(error: unknown): boolean {
   return Boolean(code && CODE_MAP[code]);
 }
 
+/**
+ * IS THIS AN EXPECTED BUSINESS REFUSAL? (members audit AUD-05)
+ *
+ * A 4xx that carries a stable, typed code is the server deciding "no" —
+ * a lifecycle rule, an entitlement, a hold, a permission. That is a product
+ * outcome with its own copy, not an incident, and reporting it to Sentry as
+ * an exception buried real failures under refusals the product handled
+ * correctly. Kept here, beside the code map, so "explained" and "expected"
+ * are decided from the same vocabulary.
+ *
+ * Still reported: network failures, 5xx, and a 4xx with NO typed code
+ * (`API_ERROR`), because a code-less refusal is itself the defect — a route
+ * that refused without saying why.
+ */
+export function isExpectedBusinessRefusal(error: unknown): boolean {
+  const e = (error && typeof error === "object" ? error : {}) as ErrorLike;
+  const status = readStatus(e);
+  if (typeof status !== "number" || status < 400 || status >= 500) return false;
+  const code = readString(e.code)?.toUpperCase();
+  return Boolean(code && code !== "API_ERROR");
+}
+
 function fromStatus(status: number): Omit<SafeUserError, "supportReference"> {
   if (status === 401) return CODE_MAP.UNAUTHORIZED;
   if (status === 403) return CODE_MAP.FORBIDDEN;

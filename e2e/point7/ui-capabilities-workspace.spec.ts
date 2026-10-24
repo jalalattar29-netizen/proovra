@@ -196,7 +196,7 @@ test.describe("JOURNEY W — workspace lifecycle write surfaces", () => {
       ).toBeTruthy();
       target = next!;
 
-      await page.goto(`/teams/${target}`, { waitUntil: "domcontentloaded" });
+      await page.goto(`/teams/${target}/lifecycle`, { waitUntil: "domcontentloaded" });
       await expectSurfaceRendered(page, WORKSPACE_ADMIN_ROUTE_ID);
       await waitForSurface(page, "[data-workspace-closure-card]");
       const reveal = page.locator('[data-action="open-workspace-closure"]');
@@ -221,7 +221,7 @@ test.describe("JOURNEY W — workspace lifecycle write surfaces", () => {
       probe,
       descriptor: {
         capabilityId: "p7.ui.workspace.closure_requested",
-        pageUrl: "/teams/{id}",
+        pageUrl: "/teams/{id}/lifecycle",
         control: '[data-action="request-workspace-closure"] — “Request closure”',
         method: "POST",
         apiPath: "POST /v1/teams/:id/closure",
@@ -318,7 +318,7 @@ test.describe("JOURNEY W — workspace lifecycle write surfaces", () => {
     await proveServerRefusal({
       page,
       capabilityId: "p7.ui.workspace.closure_requested",
-      pageUrl: "/teams/{id}",
+      pageUrl: "/teams/{id}/lifecycle",
       control: '[data-action="request-workspace-closure"]',
       method: "POST",
       apiPath: "POST /v1/teams/:id/closure",
@@ -378,7 +378,7 @@ test.describe("JOURNEY W — workspace lifecycle write surfaces", () => {
       target = rows[0]!.team_id;
       targetRequestId = rows[0]!.id;
 
-      await page.goto(`/teams/${target}`, { waitUntil: "domcontentloaded" });
+      await page.goto(`/teams/${target}/lifecycle`, { waitUntil: "domcontentloaded" });
       await expectSurfaceRendered(page, WORKSPACE_ADMIN_ROUTE_ID);
       await waitForSurface(page, "[data-workspace-closure-card]");
       await expect(
@@ -393,7 +393,7 @@ test.describe("JOURNEY W — workspace lifecycle write surfaces", () => {
       probe,
       descriptor: {
         capabilityId: "p7.ui.workspace.closure_cancelled",
-        pageUrl: "/teams/{id}",
+        pageUrl: "/teams/{id}/lifecycle",
         control: '[data-action="cancel-workspace-closure"] — “Cancel closure request”',
         method: "POST",
         apiPath: "POST /v1/teams/:id/closure/:requestId/cancel",
@@ -502,7 +502,7 @@ test.describe("JOURNEY W — workspace lifecycle write surfaces", () => {
     const submit = () => page.locator('[data-action="reopen-workspace"]');
 
     const open = async () => {
-      await page.goto(`/teams/${e.workspaceId}`, { waitUntil: "domcontentloaded" });
+      await page.goto(`/teams/${e.workspaceId}/lifecycle`, { waitUntil: "domcontentloaded" });
       await expectSurfaceRendered(page, WORKSPACE_ADMIN_ROUTE_ID);
       await waitForSurface(page, "[data-workspace-closure-card]");
       await expect(
@@ -517,7 +517,7 @@ test.describe("JOURNEY W — workspace lifecycle write surfaces", () => {
       probe,
       descriptor: {
         capabilityId: "p7.ui.workspace.reopened",
-        pageUrl: "/teams/{id}",
+        pageUrl: "/teams/{id}/lifecycle",
         control: '[data-action="reopen-workspace"] — “Reopen workspace”',
         method: "POST",
         apiPath: "POST /v1/teams/:id/reopen",
@@ -576,7 +576,7 @@ test.describe("JOURNEY W — workspace lifecycle write surfaces", () => {
     await proveServerRefusal({
       page,
       capabilityId: "p7.ui.workspace.reopened",
-      pageUrl: "/teams/{id}",
+      pageUrl: "/teams/{id}/lifecycle",
       control: '[data-action="reopen-workspace"]',
       method: "POST",
       apiPath: "POST /v1/teams/:id/reopen",
@@ -632,7 +632,7 @@ test.describe("JOURNEY W — workspace lifecycle write surfaces", () => {
       ).toBeGreaterThan(0);
       target = rows[0]!.id;
 
-      await page.goto(`/teams/${target}`, { waitUntil: "domcontentloaded" });
+      await page.goto(`/teams/${target}/lifecycle`, { waitUntil: "domcontentloaded" });
       await expectSurfaceRendered(page, WORKSPACE_ADMIN_ROUTE_ID);
       await waitForSurface(page, "[data-workspace-ownership-transfer-card]");
       // The picker is fed from the workspace's own roster, so a user id is
@@ -670,7 +670,7 @@ test.describe("JOURNEY W — workspace lifecycle write surfaces", () => {
       probe,
       descriptor: {
         capabilityId: "p7.ui.workspace.ownership_transferred",
-        pageUrl: "/teams/{id}",
+        pageUrl: "/teams/{id}/lifecycle",
         control:
           '[data-control="workspace-transfer-target"] → [data-action="transfer-workspace-ownership"]',
         method: "POST",

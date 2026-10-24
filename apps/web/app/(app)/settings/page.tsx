@@ -59,6 +59,7 @@ import { BillingSection } from "./_sections/BillingSection";
 import { RolesSection } from "./_sections/RolesSection";
 import { SettingsNav } from "./_sections/SettingsNav";
 import { SettingsOverview } from "./_sections/SettingsOverview";
+import { WorkspaceLifecycleSection } from "./_sections/WorkspaceLifecycleSection";
 
 export default function SettingsPage() {
   return (
@@ -107,6 +108,11 @@ const PANE_COPY: Record<
     title: "Roles & permissions",
     description: "Understand workspace roles and what each role can do.",
   },
+  lifecycle: {
+    title: "Workspace lifecycle",
+    description:
+      "How this workspace ends. Workspaces are never deleted: a Personal Workspace closes with its account.",
+  },
   retention: {
     title: "Retention & lifecycle",
     description: "How long records are kept, and how they are archived.",
@@ -131,7 +137,7 @@ const PANE_COPY: Record<
 
 function SettingsWorkspace() {
   const { user } = useAuth();
-  const { envelope } = usePlatformContext();
+  const { envelope, activeWorkspaceId } = usePlatformContext();
   const canSeeWorkspaceSecurity = useEnterpriseSurfaceAccess();
 
   const ui = deriveSettingsUiContext({
@@ -261,6 +267,13 @@ function SettingsWorkspace() {
               {pane === "notifications" ? <NotificationsSection /> : null}
 
               {pane === "privacy" ? <PrivacySection /> : null}
+              {pane === "lifecycle" ? (
+                <WorkspaceLifecycleSection
+                  workspaceId={activeWorkspaceId}
+                  currentUserId={user?.id ?? null}
+                  onOpenPrivacy={() => openPane("privacy")}
+                />
+              ) : null}
 
               {pane === "workspace" ? (
                 <div className="set-stack">

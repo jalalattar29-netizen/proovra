@@ -13,11 +13,8 @@
  * schema. Nothing about the transitions under test is stubbed, because they are
  * the things under test.
  *
- *   1. OrphanAiRowsAfterWorkspaceDestruction = 0
- *      A workspace is destroyed and every AI table is counted for rows still
- *      naming it. The AI tables key on a bare `workspace_id`/`team_id` uuid with
- *      NO foreign key, so this cannot be inferred from a cascade — it has to be
- *      measured after a real delete.
+ *   1. (retired) OrphanAiRowsAfterWorkspaceDestruction — no product path
+ *      destroys a workspace any more (members audit LIFE-01); see below.
  *
  *   2. ReusableApprovedMfaRecoveryRequests = 0
  *      NonTerminalConsumedRecoveryRequests = 0
@@ -55,176 +52,14 @@ describe("PHASE 13 §4 — writer dispositions (live PostgreSQL 16)", () => {
     await harness?.cleanup();
   });
 
-  // =========================================================================
-  // INVESTIGATION 1 — workspace destruction vs AI advisory rows
-  // =========================================================================
-
-  describe("1. tenant destruction takes the AI rows with it", () => {
-    /**
-     * Every AI table that keys on a workspace WITHOUT a foreign key back to
-     * Team. Each is counted after the destruction; the scalar is their sum.
-     *
-     * `workspace_ai_policies` and `ai_copilot_observation_reviews` are
-     * deliberately NOT in this list: they carry real cascading relations (to
-     * Team and to AiCopilotRun respectively) and the database removes them. The
-     * point of the purge is the rows the database will NOT remove.
-     */
-    const ORPHANABLE = [
-      ["ai_copilot_runs", "workspace_id"],
-      ["ai_usage_events", "workspace_id"],
-      ["ai_usage_daily", "workspace_id"],
-      ["ai_usage_monthly", "workspace_id"],
-      ["semantic_usage_daily", "workspace_id"],
-      ["provider_usage_events", "team_id"],
-      ["provider_budgets", "team_id"],
-    ] as const;
-
-    async function countOrphans(workspaceId: string): Promise<number> {
-      let total = 0;
-      for (const [table, column] of ORPHANABLE) {
-        const rows = (await prisma.$queryRawUnsafe(
-          `SELECT COUNT(*)::int AS n FROM "${table}" WHERE "${column}" = $1::uuid`,
-          workspaceId,
-        )) as Array<{ n: number }>;
-        total += rows[0]?.n ?? 0;
-      }
-      return total;
-    }
-
-    /** A throwaway workspace with one row in every orphanable AI table. */
-    async function seedDoomedWorkspace(): Promise<string> {
-      const org = await prisma.organization.create({
-        data: { name: `phase13-doomed-${Date.now()}`, kind: "SYSTEM" },
-        select: { id: true },
-      });
-      const team = await prisma.team.create({
-        data: {
-          name: "phase13 doomed workspace",
-          ownerUserId: ownerA,
-          organizationId: org.id,
-          workspaceKind: "OWNED",
-        },
-        select: { id: true },
-      });
-      const w = team.id;
-
-      await prisma.aiCopilotRun.create({
-        data: {
-          workspaceId: w,
-          userId: ownerA,
-          feature: "CASE_COPILOT",
-          requestId: `phase13-${w}`,
-          provider: "test",
-          model: "test-model",
-          promptVersion: "1",
-          systemPolicyVersion: "1",
-          productKnowledgeVersion: "1",
-          contextSchemaVersion: "1",
-          outputSchemaVersion: "1",
-          workspacePolicyVersion: 1,
-          processingMode: "METADATA_ONLY",
-          selectedObjectVersionsJson: {},
-          status: "COMPLETED",
-        },
-      });
-      await prisma.aiUsageEvent.create({
-        data: {
-          workspaceId: w,
-          userId: ownerA,
-          feature: "CASE_COPILOT",
-          provider: "test",
-          model: "test-model",
-          requestId: `phase13-usage-${w}`,
-          estimatedCostUsdMicros: BigInt(10),
-          status: "COMMITTED",
-        },
-      });
-      await prisma.aiUsageDaily.create({
-        data: { workspaceId: w, dayUtc: "2026-08-17", operations: 1, costUsdMicros: BigInt(10) },
-      });
-      await prisma.aiUsageMonthly.create({
-        data: { workspaceId: w, monthUtc: "2026-08", operations: 1, costUsdMicros: BigInt(10) },
-      });
-      await prisma.semanticUsageDaily.create({
-        data: { workspaceId: w, dateUtc: new Date("2026-08-17T00:00:00Z"), chunksEmbedded: 3 },
-      });
-      await prisma.providerUsageEvent.create({
-        data: { teamId: w, provider: "test", operation: "embed", unit: "tokens", units: 5 },
-      });
-      await prisma.providerBudget.create({
-        data: {
-          teamId: w,
-          scope: "WORKSPACE",
-          period: "MONTHLY",
-          softLimitUsdMicros: BigInt(100),
-          hardLimitUsdMicros: BigInt(200),
-          createdByUserId: ownerA,
-        },
-      });
-      return w;
-    }
-
-    it("without the purge, deleting the Team would leave every AI row behind (the defect)", async () => {
-      const w = await seedDoomedWorkspace();
-      expect(await countOrphans(w)).toBe(7);
-
-      // Delete the Team the way the database would if nothing purged first.
-      // This is the CONTROL: it demonstrates that no cascade exists, which is
-      // the entire reason the purge has to be called at all. If this ever
-      // returns 0 the schema has grown foreign keys and the purge is redundant
-      // — and this case will say so rather than quietly passing.
-      await prisma.teamInvite.deleteMany({ where: { teamId: w } });
-      await prisma.teamMember.deleteMany({ where: { teamId: w } });
-      await prisma.team.delete({ where: { id: w } });
-      expect(await countOrphans(w)).toBe(7);
-
-      // Clean up the orphans this control deliberately created.
-      const { purgeWorkspaceAiRecords } = await import(
-        "../src/services/ai/ai-retention.service.js"
-      );
-      await purgeWorkspaceAiRecords(w, prisma as never);
-      expect(await countOrphans(w)).toBe(0);
-    });
-
-    it("OrphanAiRowsAfterWorkspaceDestruction = 0 when destruction runs the purge", async () => {
-      const w = await seedDoomedWorkspace();
-      expect(await countOrphans(w)).toBe(7);
-
-      const { purgeWorkspaceAiRecords } = await import(
-        "../src/services/ai/ai-retention.service.js"
-      );
-      // The destruction ordering under test: purge FIRST, then delete the Team.
-      const purged = await purgeWorkspaceAiRecords(w, prisma as never);
-      expect(purged.purged).toBe(7);
-      await prisma.teamInvite.deleteMany({ where: { teamId: w } });
-      await prisma.teamMember.deleteMany({ where: { teamId: w } });
-      await prisma.team.delete({ where: { id: w } });
-
-      const OrphanAiRowsAfterWorkspaceDestruction = await countOrphans(w);
-      expect(OrphanAiRowsAfterWorkspaceDestruction).toBe(0);
-    });
-
-    it("the purge is tenant-scoped — a sibling workspace keeps its rows", async () => {
-      const doomed = await seedDoomedWorkspace();
-      const survivor = await seedDoomedWorkspace();
-      const { purgeWorkspaceAiRecords } = await import(
-        "../src/services/ai/ai-retention.service.js"
-      );
-      await purgeWorkspaceAiRecords(doomed, prisma as never);
-      expect(await countOrphans(doomed)).toBe(0);
-      expect(await countOrphans(survivor)).toBe(7);
-      await purgeWorkspaceAiRecords(survivor, prisma as never);
-    });
-
-    it("the purge is idempotent — a second run removes nothing and does not throw", async () => {
-      const w = await seedDoomedWorkspace();
-      const { purgeWorkspaceAiRecords } = await import(
-        "../src/services/ai/ai-retention.service.js"
-      );
-      expect((await purgeWorkspaceAiRecords(w, prisma as never)).purged).toBe(7);
-      expect((await purgeWorkspaceAiRecords(w, prisma as never)).purged).toBe(0);
-    });
-  });
+  // INVESTIGATION 1 (workspace destruction vs AI advisory rows) is RETIRED.
+  // It proved that the one tenant-destruction path — DELETE /v1/teams/:id —
+  // purged the AI rows before prisma.team.delete. Members audit LIFE-01 removed
+  // that path: no Workspace kind has a self-service hard delete, so no product
+  // path can orphan AI rows. The behavioural proof that DELETE makes zero
+  // mutations lives in workspace-lifecycle-no-hard-delete.integration.test.ts;
+  // purgeWorkspaceAiRecords is recorded backlog-only in writer-preservations.json
+  // for the future operator purge.
 
   // =========================================================================
   // INVESTIGATION 2 — MFA recovery request terminal state

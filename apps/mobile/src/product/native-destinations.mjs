@@ -540,8 +540,6 @@ export const NATIVE_DESTINATIONS = {
     webSources: [
       "apps/web/app/(app)/teams/[id]/page.tsx",
       "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx",
-      "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx",
-      "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx",
     ],
     gaps: [
       "Workspace People ported: roster with roles and status, cursor paging, seats from the server's stats, invite/resend/revoke gated on canManageMembers",
@@ -549,7 +547,21 @@ export const NATIVE_DESTINATIONS = {
       "ROLE CHANGES ported (PATCH /members/:memberId, addressing the MEMBERSHIP as the route does). OWNER is not among the assignable roles: ownership is transferred, not assigned. The outcome is read back from the RELOADED row, as the web panel does - an accepted request is not a completed change, and announcing it from the request would assert what the server has not confirmed.",
       "CASE LINKS ported, with the two permissions kept apart: POST /cases/link is MEMBER+ and DELETE /cases/:caseId is ADMIN+, so a MEMBER can bring a case in and cannot take one out. The picker offers only cases not already linked.",
       "ACTIVITY FEED and workspace RENAME ported",
-      "OWNERSHIP TRANSFER and CLOSURE ported, both step-up guarded. The transfer body is newOwnerUserId here where the organization route spells the same thing targetUserId; each surface names its own rather than sharing a helper that would paper the difference over. The closure PROJECTION is shared (src/product/closure.ts) because that contract IS identical field for field.",
+      "WORKSPACE LIFECYCLE is not on this screen (members audit LIFE-01/02): the owner sees a pointer to Settings → Workspace lifecycle (/teams/[id]/lifecycle), and no Workspace kind has a delete control. The earlier note follows for history: OWNERSHIP TRANSFER and CLOSURE ported, both step-up guarded. The transfer body is newOwnerUserId here where the organization route spells the same thing targetUserId; each surface names its own rather than sharing a helper that would paper the difference over. The closure PROJECTION is shared (src/product/closure.ts) because that contract IS identical field for field.",
+    ],
+  },
+  "/teams/[id]/lifecycle": {
+    routeFile: "(stack)/settings/workspace-lifecycle.tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: [
+      "apps/web/app/(app)/teams/[id]/lifecycle/page.tsx",
+      "apps/web/app/(app)/settings/_sections/WorkspaceLifecycleSection.tsx",
+      "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx",
+      "apps/web/app/(app)/teams/[id]/components/WorkspaceClosureCard.tsx",
+    ],
+    gaps: [
+      "Renders the server's lifecycle projection (resolveWorkspaceLifecyclePolicy) for the ACTIVE workspace — native has no URL bar, so the workspace comes from the canonical platform context exactly as /teams/[id] does. PERSONAL explains account closure and routes to Settings → Privacy; ORGANIZATION explains organization offboarding; OWNED offers ownership transfer and the canonical closure request to its owner. No delete control for any kind.",
     ],
   },
   "/workspaces": {

@@ -52,6 +52,7 @@ const TRANSFER_CARD =
 const MEMBERS_PAGE = "app/(app)/organizations/[id]/admin/members/page.tsx";
 const ORG_PAGE = "app/(app)/organizations/[id]/page.tsx";
 const TEAM_PAGE = "app/(app)/teams/[id]/page.tsx";
+const LIFECYCLE_SECTION = "app/(app)/settings/_sections/WorkspaceLifecycleSection.tsx";
 
 /**
  * The obligations every one of these controls carries. Asserted as a unit so
@@ -358,27 +359,32 @@ test("transfer workspace ownership: a real target list, a confirmation, and step
 });
 
 test("transfer workspace ownership: owner-only, and never offers an ineligible target", () => {
-  const page = read(TEAM_PAGE);
+  // MEMBERS AUDIT LIFE-01/02 — workspace lifecycle moved off Members & Access
+  // to the workspace's own Lifecycle page (`/teams/[id]/lifecycle`), which
+  // renders `WorkspaceLifecycleSection` from the server's `lifecycle`
+  // projection. The transfer contract below is the same contract, read from
+  // its new host; Members & Access no longer mounts the card at all.
+  const team = read(TEAM_PAGE);
+  assert.ok(
+    !team.includes("<WorkspaceOwnershipTransferCard"),
+    "Members & Access still mounts a lifecycle card",
+  );
+  assert.ok(
+    team.includes("href={`/teams/${teamId}/lifecycle`}"),
+    "Members & Access does not point at this workspace's own lifecycle page",
+  );
 
+  const page = read(LIFECYCLE_SECTION);
   assert.ok(
     page.includes("<WorkspaceOwnershipTransferCard"),
-    "the workspace detail page does not mount the transfer card",
+    "the lifecycle section does not mount the transfer card",
   );
-  // `isOwner` is the SERVER projection (team.canManageWorkspace), not a
-  // client-side role guess.
-  assert.match(
-    page,
-    /isOwner && teamId \? \(\s*<WorkspaceOwnershipTransferCard/,
-    "the transfer card is not gated on the server owner projection",
-  );
-  assert.match(page, /const isOwner = team\?\.canManageWorkspace === true/);
+  // Owner-only from the SERVER projection, and only where the server's
+  // policy says ownership can move.
+  assert.match(page, /const isOwner = workspace\.canManageWorkspace === true/);
+  assert.match(page, /policy\.kind === "OWNED" && isOwner/);
+  assert.match(page, /policy\.transferable \? \(\s*<WorkspaceOwnershipTransferCard/);
 
-  // D46 (2026-09-17) — candidates USED to come from the roster the page had
-  // already read (`team.members`), which is the detail read's bounded first
-  // page of 50, so every eligible member after it could never be offered. That
-  // is why the old pins on `ownershipTransferCandidates` are gone. Eligibility
-  // (ACTIVE, not the owner) is now applied by the SERVER on the paged, searched
-  // members read, and the card additionally leaves out the caller.
   assert.doesNotMatch(page, /ownershipTransferCandidates/);
   assert.match(page, /currentUserId=\{currentUserId\}/);
   const card = read(TRANSFER_CARD);
@@ -386,15 +392,14 @@ test("transfer workspace ownership: owner-only, and never offers an ineligible t
   assert.match(card, /\/v1\/teams\/\$\{encodeURIComponent\(teamId\)\}\/members\?/);
   assert.match(card, /m\.userId !== currentUserId/);
   assert.match(card, /data-action="workspace-transfer-load-more"/);
-  // NEW-049: the page takes the outcome, holds it, THEN refreshes — and keeps
-  // it in a live region that is not inside the owner-gated card, because that
-  // card is about to unmount.
-  assert.match(page, /onTransferred=\{async \(notice\) => \{/);
-  assert.match(page, /setOwnershipNotice\(notice\)/);
-  assert.match(page, /await loadData\(\)/);
+  // NEW-049: the host takes the outcome, holds it, THEN refreshes — and keeps
+  // it in a live region outside the owner-gated card, which is about to unmount.
+  assert.match(page, /onTransferred=\{async \(message\) => \{/);
+  assert.match(page, /setNotice\(message\)/);
+  assert.match(page, /await load\(\)/);
   assert.match(page, /data-workspace-ownership-notice/);
   assert.ok(
-    /ownershipNotice \? \([\s\S]{0,400}role="status"/.test(page),
+    /notice \? \([\s\S]{0,400}role="status"/.test(page),
     "the transfer outcome is not announced in a live region",
   );
 });

@@ -228,6 +228,7 @@ const AUTHENTICATED_STACK_SCREENS = [
   "evidence/[id]", "intake-links", "intake-link-create", "operations/index", "operations/health", "operations/batch-analysis", "operations/quotas",
   "organizations/[id]", "organizations/index", "reports", "search", "settings/ai",
   "settings/notifications", "settings/privacy", "settings/reviewer-criteria", "settings/security",
+  "settings/workspace-lifecycle",
   "spaces", "trust-center", "workspace-people",
 ];
 /** Pre-auth, public-token and full-screen capture flows: the web renders these outside AppShellV2 too. */

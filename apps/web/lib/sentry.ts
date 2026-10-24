@@ -8,6 +8,7 @@ import {
 } from "@proovra/shared/telemetry-scrub";
 import { hasAnalyticsConsent } from "./consent";
 import { isSensitiveRoute } from "./privacy/redact";
+import { isExpectedBusinessRefusal } from "./feedback/toSafeUserError";
 
 let sentryReady = false;
 
@@ -97,6 +98,8 @@ export function captureException(
 ) {
   if (!sentryReady) return;
   if (!hasAnalyticsConsent()) return;
+  // A typed 4xx refusal is the product answering "no", not an incident.
+  if (isExpectedBusinessRefusal(err)) return;
 
   if (context) {
     const safeContext = scrubTelemetryValue(context, SCRUB) as Record<string, unknown>;

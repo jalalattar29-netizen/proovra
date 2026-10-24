@@ -56,12 +56,8 @@ import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { verifyAccountStepUp } from "../services/identity-security/account-step-up.service.js";
 import { evaluateWorkspaceClosurePreflight } from "../services/identity/account-lifecycle-preflight.service.js";
-// PHASE 13 §4 (2026-08-17) — tenant destruction must take the AI rows with it;
-// none of those tables carries a foreign key back to Team, so nothing else will.
-import { purgeWorkspaceAiRecords } from "../services/ai/ai-retention.service.js";
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
 import {
-  purgeWorkspaceMembershipsForTeamDeletion,
   removeWorkspaceMembershipPhysical,
   // THE canonical workspace role-transition command, reached THROUGH the
   // Membership Orchestrator. The rbac engine is deliberately internal to that
@@ -88,6 +84,12 @@ import {
   workspaceCaseWhere,
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
+import {
+  resolveWorkspaceLifecyclePolicy,
+  WORKSPACE_LIFECYCLE_ERROR_CODES,
+} from "@proovra/shared";
+import { resolveWorkspaceKind } from "../services/identity/workspace-kind.js";
+import { sendBusinessRefusal } from "../http/business-refusal.js";
 import { buildRbacMatrix } from "../services/platform-context/rbac-matrix.js";
 
 const WORKSPACE_MEMBER_PAGE_SIZE = 50;
@@ -326,35 +328,6 @@ async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
   await requireAuth(req, reply);
   if (reply.sent) return;
   await requireLegalAcceptance(req, reply);
-}
-
-// Phase 4B Final Closure I5 — legal-hold gate for workspace (team) deletion.
-// Queries WORKSPACE + ORGANIZATION holds scoped to the teamId. Returns
-// ok=true if no active hold blocks deletion; error is swallowed so engine
-// failure never blocks the operational path.
-async function checkWorkspaceLegalHold(
-  teamId: string,
-): Promise<{ ok: boolean; holdIds: string[] }> {
-  try {
-    // P12.3 canonical-only. The legacy WORKSPACE and ORGANIZATION kinds were
-    // both folded into scope='WORKSPACE' by the backfill. Historical rows are
-    // matched too so an unresolvable ACTIVE hold still blocks closure.
-    const activeHolds = await prisma.evidenceLegalHold.findMany({
-      where: {
-        teamId,
-        status: "ACTIVE",
-        OR: [{ scope: "WORKSPACE" }, { historical: true }],
-      },
-      select: { id: true },
-      take: 50,
-    });
-    if (activeHolds.length > 0) {
-      return { ok: false, holdIds: activeHolds.map((h) => h.id) };
-    }
-    return { ok: true, holdIds: [] };
-  } catch {
-    return { ok: true, holdIds: [] };
-  }
 }
 
 function getRequestPath(req: FastifyRequest): string {
@@ -836,6 +809,16 @@ export async function teamsRoutes(app: FastifyInstance) {
         // the workspace-closure routes; those gates remain the enforcement
         // point on every direct API call.
         canManageWorkspace: actorMembership.role === prismaPkg.TeamRole.OWNER,
+        // How this Workspace is allowed to end — the server's answer, from the
+        // one lifecycle authority. Clients render it; they never derive it.
+        lifecycle: resolveWorkspaceLifecyclePolicy(
+          resolveWorkspaceKind({
+            teamLoaded: true,
+            workspaceKind: team.workspaceKind,
+            isPersonal: team.isPersonal,
+            billingPlan: team.billingPlan,
+          }),
+        ),
         stats: {
           memberCount: workspaceMemberTotal,
           pendingInviteCount,
@@ -1229,6 +1212,27 @@ export async function teamsRoutes(app: FastifyInstance) {
     }
   );
 
+  /**
+   * DELETE /v1/teams/:id — NO WORKSPACE KIND HAS A SELF-SERVICE HARD DELETE.
+   *
+   * This route used to physically delete any Workspace whose OWNER asked —
+   * Personal and Organization Workspaces included — outside the closure
+   * lifecycle, without a transaction, behind a legal-hold read that failed
+   * open, cascading ~60 tables (holds, the lifecycle ledger, closure history,
+   * SSO/SCIM, Collaboration Teams). A Personal Workspace deleted that way was
+   * silently re-created with a new id on the next request.
+   *
+   * It now makes ZERO mutations, for every caller and every kind, and answers
+   * the path that does end the Workspace (`resolveWorkspaceLifecyclePolicy`):
+   *
+   *   PERSONAL      409 WORKSPACE_KIND_NOT_DELETABLE → CLOSE_ACCOUNT
+   *   ORGANIZATION  409 WORKSPACE_KIND_NOT_DELETABLE → ORGANIZATION_OFFBOARDING
+   *   OWNED         409 WORKSPACE_CLOSURE_REQUIRED   → REQUEST_WORKSPACE_CLOSURE
+   *
+   * The route is kept (rather than removed) so old clients receive a typed,
+   * explained refusal instead of a 404. Any future physical purge is an
+   * operator tool that runs after closure, under retention and legal hold.
+   */
   app.delete(
     "/v1/teams/:id",
     { preHandler: requireAuthAndLegal },
@@ -1244,174 +1248,64 @@ export async function teamsRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: teamId,
-          metadata: { reason: "only_owner_allowed" },
+          metadata: { reason: WORKSPACE_LIFECYCLE_ERROR_CODES.OWNER_REQUIRED },
         });
-        return reply.code(403).send({ message: "Only the team owner can delete this team" });
-      }
-
-      // Phase 4B Final Closure I5 — legal-hold gate: a WORKSPACE or
-      // ORGANIZATION hold MUST block team deletion. Helper is try/catch-safe.
-      const holdChk = await checkWorkspaceLegalHold(teamId);
-      if (!holdChk.ok) {
-        auditTeamAction(req, {
-          userId,
-          action: "teams.delete",
-          outcome: "blocked",
-          severity: "critical",
-          resourceId: teamId,
-          metadata: { reason: "legal_hold_blocked", holdIds: holdChk.holdIds },
-        });
-        return reply.code(403).send({ denial: "LEGAL_HOLD_BLOCKED", holdIds: holdChk.holdIds });
-      }
-
-      const activeTeamSubscription = await prisma.subscription.findFirst({
-        where: {
-          teamId,
-          status: {
-            in: [
-              prismaPkg.SubscriptionStatus.ACTIVE,
-              prismaPkg.SubscriptionStatus.PAST_DUE,
-              prismaPkg.SubscriptionStatus.TRIALING,
-            ],
-          },
-        },
-        select: { id: true },
-      });
-
-      if (activeTeamSubscription) {
-        auditTeamAction(req, {
-          userId,
-          action: "teams.delete",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: teamId,
-          metadata: { reason: "active_subscription_exists" },
-        });
-
-        return reply.code(409).send({
-          message: "Cancel the active team subscription before deleting this team",
+        return sendBusinessRefusal(req, reply, 403, {
+          code: "WORKSPACE_OWNER_REQUIRED",
+          message: "Only the workspace owner can change this workspace's lifecycle.",
         });
       }
 
-      // BILLING PAYPAL INTEGRITY (2026-09-28) — a workspace-bound storage
-      // add-on is a LIVE provider subscription. Its row is deleted with the
-      // workspace (ON DELETE CASCADE), and with it the only local record of a
-      // provider obligation that keeps billing. Deletion waits until every
-      // such subscription has ended at the provider.
-      const liveStorageSubscription = await prisma.workspaceStorageAddon.findFirst({
-        where: {
-          teamId,
-          billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
-          externalSubscriptionId: { not: null },
-          OR: [
-            {
-              status: {
-                in: [
-                  prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-                  prismaPkg.WorkspaceStorageAddonStatus.PENDING,
-                  prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
-                ],
-              },
-            },
-            {
-              dependentCancellationState: {
-                in: [
-                  prismaPkg.DependentCancellationState.PENDING,
-                  prismaPkg.DependentCancellationState.RETRY_SCHEDULED,
-                  prismaPkg.DependentCancellationState.ACTION_REQUIRED,
-                  prismaPkg.DependentCancellationState.MANUAL_INTERVENTION,
-                ],
-              },
-            },
-          ],
-        },
-        select: { id: true },
-      });
-
-      if (liveStorageSubscription) {
-        auditTeamAction(req, {
-          userId,
-          action: "teams.delete",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: teamId,
-          metadata: { reason: "active_storage_subscription_exists" },
-        });
-
-        return reply.code(409).send({
-          message: "Cancel this workspace's storage add-on subscription before deleting it",
-        });
-      }
-
-      const linkedEvidenceCount = await prisma.evidence.count({
-        where: { AND: [await workspaceEvidenceWhere(teamId, prisma)] },
-      });
-
-      if (linkedEvidenceCount > 0) {
-        auditTeamAction(req, {
-          userId,
-          action: "teams.delete",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: teamId,
-          metadata: {
-            reason: "linked_evidence_exists",
-            linkedEvidenceCount,
-          },
-        });
-
-        return reply.code(409).send({
-          message: "Move or delete team evidence before deleting this team",
-        });
-      }
-
-      await prisma.teamInvite.deleteMany({
-        where: { teamId },
-      });
-
-      // PHASE 3 — canonical orchestrator: team-deletion membership purge
-      // (provenance closed before physical removal).
-      await purgeWorkspaceMembershipsForTeamDeletion(prisma, {
-        teamId,
-        actorUserId: userId,
-      });
-
-      await prisma.case.updateMany({
-        where: { AND: [await workspaceCaseWhere(teamId, prisma)] },
-        data: { teamId: null },
-      });
-
-      // PHASE 13 §4 (2026-08-17) — AI advisory + AI spend rows for this tenant.
-      //
-      // ORDERING IS THE WHOLE POINT. These tables key on a bare `workspace_id` /
-      // `team_id` UUID with no foreign key, so `team.delete` below does NOT take
-      // them, and once the Team row is gone nothing can find them again. Running
-      // the purge FIRST means a failure here throws out of the handler with the
-      // Team — and therefore every one of its AI rows — still present and still
-      // reachable by a retry. Deleting the Team first and purging afterwards
-      // would convert any failure into permanent orphans.
-      await purgeWorkspaceAiRecords(teamId, prisma);
-
-      await prisma.team.delete({
+      const team = await prisma.team.findUnique({
         where: { id: teamId },
+        select: { workspaceKind: true, isPersonal: true, billingPlan: true, closedAtUtc: true },
       });
+      const policy = resolveWorkspaceLifecyclePolicy(
+        team
+          ? resolveWorkspaceKind({
+              teamLoaded: true,
+              workspaceKind: team.workspaceKind,
+              isPersonal: team.isPersonal,
+              billingPlan: team.billingPlan,
+            })
+          : null,
+      );
+      const state = team?.closedAtUtc ? "CLOSED" : "ACTIVE";
+      const audit = (reason: string) =>
+        auditTeamAction(req, {
+          userId,
+          action: "teams.delete",
+          outcome: "blocked",
+          severity: "info",
+          resourceId: teamId,
+          metadata: { reason, workspaceKind: policy.kind, nextAction: policy.nextAction },
+        });
 
-      auditTeamAction(req, {
-        userId,
-        action: "teams.delete",
-        outcome: "success",
-        resourceId: teamId,
+      // Each refusal is written out with its literal code, so the code-coverage
+      // guard (apps/web error-code-registry) sees exactly what this route emits.
+      if (policy.closable) {
+        audit(WORKSPACE_LIFECYCLE_ERROR_CODES.CLOSURE_REQUIRED);
+        return sendBusinessRefusal(req, reply, 409, {
+          code: "WORKSPACE_CLOSURE_REQUIRED",
+          message:
+            "Workspaces aren't deleted. Request a closure instead: it archives access after a cancellation window, and evidence stays governed by retention and legal hold.",
+          state,
+          nextAction: policy.nextAction,
+        });
+      }
+      audit(WORKSPACE_LIFECYCLE_ERROR_CODES.KIND_NOT_DELETABLE);
+      return sendBusinessRefusal(req, reply, 409, {
+        code: "WORKSPACE_KIND_NOT_DELETABLE",
+        message:
+          policy.kind === "PERSONAL"
+            ? "A Personal Workspace can't be deleted. It closes only when you close your account."
+            : policy.kind === "ORGANIZATION"
+              ? "An Organization Workspace can't be deleted. It ends only through your organization's offboarding."
+              : "This workspace can't be deleted. Contact support if you need help.",
+        state,
+        nextAction: policy.nextAction,
       });
-
-      fireTeamAnalyticsEvent({
-        eventType: "team_deleted",
-        userId,
-        req,
-        entityId: teamId,
-      });
-
-      return reply.code(204).send();
-    }
+    },
   );
 
   app.post(
@@ -3330,6 +3224,40 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       if (!(await requireWorkspaceOwner(teamId, userId))) {
         return reply.code(403).send({ error: { code: "owner_required" } });
+      }
+
+      // KIND FIRST (LIFE-02). A Personal Workspace ends only with its account
+      // and an Organization Workspace only through organization offboarding;
+      // neither is something more confirmation could resolve. The route used
+      // to demand a step-up and then persist a BLOCKED request for exactly
+      // that unresolvable blocker. It is refused here, before step-up, and
+      // nothing is written.
+      const lifecycleTeam = await prisma.team.findUnique({
+        where: { id: teamId },
+        select: { workspaceKind: true, isPersonal: true, billingPlan: true },
+      });
+      const lifecyclePolicy = resolveWorkspaceLifecyclePolicy(
+        lifecycleTeam
+          ? resolveWorkspaceKind({
+              teamLoaded: true,
+              workspaceKind: lifecycleTeam.workspaceKind,
+              isPersonal: lifecycleTeam.isPersonal,
+              billingPlan: lifecycleTeam.billingPlan,
+            })
+          : null,
+      );
+      if (!lifecyclePolicy.closable) {
+        return sendBusinessRefusal(req, reply, 409, {
+          code: "WORKSPACE_KIND_NOT_CLOSABLE",
+          message:
+            lifecyclePolicy.kind === "PERSONAL"
+              ? "A Personal Workspace closes only when you close your account (Settings → Privacy → Close account)."
+              : lifecyclePolicy.kind === "ORGANIZATION"
+                ? "An Organization Workspace ends only through your organization's offboarding."
+                : "This workspace can't be closed here. Contact support if you need help.",
+          state: "ACTIVE",
+          nextAction: lifecyclePolicy.nextAction,
+        });
       }
 
       // Typed confirmation — validated SERVER-SIDE, never a boolean.

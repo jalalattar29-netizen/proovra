@@ -27,13 +27,16 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/people",
   useSearchParams: () => new URLSearchParams(),
 }));
+vi.mock("../../app/providers", () => ({ useAuth: () => ({ user: { id: "user-owner" } }) }));
 vi.mock("../../app/(app)/security-center/components/PersonalSecuritySections", () => ({
   StepUpVerify: () => null,
   extractStepUp: () => null,
 }));
 
 import { WorkspaceOwnershipTransferCard } from "../../app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard";
-import TeamDetailPage from "../../app/(app)/teams/[id]/page";
+// MEMBERS AUDIT LIFE-01/02 — ownership transfer moved from Members & Access to
+// the workspace's own Lifecycle page, so the page-level case drives that page.
+import WorkspaceLifecyclePage from "../../app/(app)/teams/[id]/lifecycle/page";
 
 const TEAM = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ME = "user-owner";
@@ -73,6 +76,7 @@ function reply(path: string, init?: RequestInit): unknown {
       ownerUserId: ME,
       canManageMembers: true,
       canManageWorkspace: true,
+      lifecycle: { kind: "OWNED", endPath: "WORKSPACE_CLOSURE", deletable: false, closable: true, transferable: true, nextAction: "REQUEST_WORKSPACE_CLOSURE" },
       stats: { memberCount: 62, pendingInviteCount: 0, caseCount: 0 },
       members: ALL.slice(0, 50),
     };
@@ -103,8 +107,8 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("workspace ownership transfer — eligible-member picker", () => {
-  it("on the People page, the owner can choose a member beyond the first 50 the detail read embeds", async () => {
-    render(<TeamDetailPage />);
+  it("on the workspace Lifecycle page, the owner can choose a member beyond the first 50 the detail read embeds", async () => {
+    render(<WorkspaceLifecyclePage />);
     const card = (await screen.findByText("Transfer ownership")).closest(
       "[data-workspace-ownership-transfer-card]",
     ) as HTMLElement;

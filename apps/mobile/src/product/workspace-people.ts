@@ -31,6 +31,7 @@
  * Pure: no React, no react-native, no fetch.
  */
 import type { ProovraStatusTone } from "@proovra/ui";
+import type { WorkspaceLifecyclePolicy } from "@proovra/shared";
 
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" ? (v as Record<string, unknown>) : {};
@@ -126,6 +127,12 @@ export interface WorkspaceOverview {
   seats: WorkspaceSeats;
   /** True when the detail's member page does not hold every member. */
   hasMoreMembers: boolean;
+  /**
+   * How this Workspace is allowed to end — the server's projection
+   * (teams.routes.ts `lifecycle`), passed through, never derived here. Null
+   * when the response predates it.
+   */
+  lifecycle: WorkspaceLifecyclePolicy | null;
 }
 
 export function parseWorkspaceOverview(payload: unknown): WorkspaceOverview {
@@ -160,6 +167,23 @@ export function parseWorkspaceOverview(payload: unknown): WorkspaceOverview {
       storageLimitLabel: str(stats.storageLimitLabel),
     },
     hasMoreMembers: page.hasMore === true,
+    lifecycle: parseLifecycle(d.lifecycle),
+  };
+}
+
+function parseLifecycle(value: unknown): WorkspaceLifecyclePolicy | null {
+  const l = obj(value);
+  const kind = str(l.kind);
+  const endPath = str(l.endPath);
+  const nextAction = str(l.nextAction);
+  if (!kind || !endPath || !nextAction) return null;
+  return {
+    kind: kind as WorkspaceLifecyclePolicy["kind"],
+    endPath: endPath as WorkspaceLifecyclePolicy["endPath"],
+    deletable: false,
+    closable: l.closable === true,
+    transferable: l.transferable === true,
+    nextAction: nextAction as WorkspaceLifecyclePolicy["nextAction"],
   };
 }
 
@@ -855,16 +879,3 @@ export function transferOutcome(targetLabel: string, teamName: string): string {
   return `${targetLabel || "the new owner"} now owns ${teamName}. Billing ownership moved with it; you remain a member.`;
 }
 
-/**
- * DELETE /v1/teams/:id — OWNER only; 204 on success. It refuses with 403
- * (not owner / LEGAL_HOLD_BLOCKED) or 409 with its own sentence (an active
- * subscription, evidence still in the workspace — teams.routes.ts:1290,1312).
- */
-export function deleteWorkspaceFailure(err: unknown, fallback: string | null): string {
-  const e = obj(err);
-  const body = obj(e.body);
-  if (str(body.denial) === "LEGAL_HOLD_BLOCKED") {
-    return "This workspace is under a legal hold and cannot be deleted.";
-  }
-  return str(body.message) ?? fallback ?? "Failed to delete workspace";
-}

@@ -81,7 +81,6 @@ beforeEach(async () => {
     requests.push({ path, method, body: init.body ? JSON.parse(init.body) : null });
     const key = Object.keys(routes).filter((p) => path.startsWith(p)).sort((a, b) => b.length - a.length)[0];
     let res = key ? routes[key](path, method) : undefined;
-    if (method === "DELETE" && path === "/v1/teams/team-1") return new Response(null, { status: 204 });
     const status = res?.__status ?? (res === undefined ? 500 : 200);
     if (res?.__status) res = res.body;
     return new Response(JSON.stringify(res ?? {}), { status, headers: { "content-type": "application/json" } });
@@ -153,53 +152,24 @@ test("the case picker never offers a case already linked to another workspace", 
   r.unmount();
 });
 
-test("the owner's transfer picker reads the server's eligible list, pages it, and confirms before sending", async () => {
-  Object.assign(detail, { currentUserRole: "OWNER", canManageWorkspace: true });
+// MEMBERS AUDIT LIFE-01/02 — transfer, closure and reopen moved to Settings →
+// Workspace lifecycle (workspace-lifecycle.render.test.mjs proves them there).
+// The People screen manages people: for the owner it only points at the
+// lifecycle screen, and it offers no delete control at all.
+test("People has no lifecycle controls; the owner gets a pointer to Workspace lifecycle", async () => {
+  Object.assign(detail, {
+    currentUserRole: "OWNER",
+    canManageWorkspace: true,
+    lifecycle: { kind: "PERSONAL", endPath: "ACCOUNT_CLOSURE", deletable: false, closable: false, transferable: false, nextAction: "CLOSE_ACCOUNT" },
+  });
   const r = await render();
-  const eligible = requests.filter((q) => q.path.includes("eligible=ownership_transfer"));
-  assert.ok(eligible.length >= 1, "the candidates were not read from the server");
-  assert.match(eligible[0].path, /limit=50/);
-  assert.ok(r.hasText("Showing 1 of 60 members who can take ownership"));
-  assert.equal(r.byLabel("Show more members").length, 1);
-  await r.press("Dana");
-  await r.press("Transfer ownership…");
-  assert.ok(r.texts().some((t) => t.startsWith("Transfer Acme to Dana?")));
-  await r.press("Confirm transfer");
-  await settle();
-  const post = requests.find((q) => q.path === "/v1/teams/team-1/transfer-ownership");
-  assert.deepEqual(post.body, { newOwnerUserId: "u-dana" });
-  assert.ok(r.hasText("Dana now owns Acme. Billing ownership moved with it; you remain a member."));
-  r.unmount();
-});
-
-test("closure states the consequence; a completed closure offers Reopen; delete confirms first", async () => {
-  Object.assign(detail, { currentUserRole: "OWNER", canManageWorkspace: true });
-  closure = { ...closure, request: { id: "r1", status: "COMPLETED", blockersJson: null, requestedAtUtc: "2026-01-01T00:00:00.000Z", coolingOffEndsAtUtc: null, failureCode: null } };
-  const r = await render();
-  assert.ok(r.texts().some((t) => t.includes("7-day cancellation window") && t.includes("1 other member will lose access")));
-  await r.press("Reopen workspace");
-  await settle();
-  assert.equal(requests.filter((q) => q.path === "/v1/teams/team-1/reopen" && q.method === "POST").length, 1);
-  assert.ok(r.texts().some((t) => t.startsWith("Workspace reopened.")));
-
-  await r.press("Delete workspace");
-  assert.ok(r.hasText("Delete this workspace?"));
-  assert.equal(requests.filter((q) => q.method === "DELETE").length, 0, "deleted before the confirmation");
-  const confirm = r.byLabel("Delete workspace").filter((n) => n.props.onPress).at(-1);
-  await act(async () => { await confirm.props.onPress(); });
-  await settle();
-  assert.equal(requests.filter((q) => q.method === "DELETE" && q.path === "/v1/teams/team-1").length, 1);
-  assert.equal(M.calls.replace.at(-1), "/spaces");
-  r.unmount();
-});
-
-test("a 409 on reopen explains there is nothing to reopen", async () => {
-  Object.assign(detail, { currentUserRole: "OWNER", canManageWorkspace: true });
-  closure = { ...closure, request: { id: "r1", status: "COMPLETED", blockersJson: null } };
-  current.reopen = () => ({ __status: 409, body: { error: { code: "workspace_not_closed" } } });
-  const r = await render();
-  await r.press("Reopen workspace");
-  await settle();
-  assert.ok(r.texts().some((t) => t.startsWith("There is nothing to reopen")));
+  assert.equal(r.byLabel("Delete workspace").length, 0, "a delete control is offered");
+  assert.equal(r.byLabel("Close this workspace…").length, 0);
+  assert.equal(r.byLabel("Transfer ownership…").length, 0);
+  assert.equal(requests.filter((q) => q.path === "/v1/teams/team-1/closure").length, 0, "People read closure state");
+  assert.ok(r.texts().some((t) => t.includes("closes only when you close your account")));
+  await r.press("Open workspace lifecycle");
+  assert.equal(M.calls.push.at(-1), "/settings/workspace-lifecycle");
+  assert.equal(requests.filter((q) => q.method === "DELETE" && q.path === "/v1/teams/team-1").length, 0);
   r.unmount();
 });
