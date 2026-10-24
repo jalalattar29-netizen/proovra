@@ -429,10 +429,20 @@ export async function recordReviewDecision(
           break;
       }
     }
-    const updated = await tx.evidenceReviewWorkflow.update({
-      where: { id: wf.id },
+    // CONDITIONAL ON THE STAGE THIS DECISION WAS MADE AGAINST (2026-10-24). An
+    // unconditional write let a verdict that read the review before a
+    // concurrent Close (or any lifecycle move) committed overwrite it — Close
+    // returned 200 and the review read Approved. A review that moved under the
+    // decision refuses it; the whole transaction (decision row included) rolls
+    // back, and the reviewer sees the review as it now is.
+    const projected = await tx.evidenceReviewWorkflow.updateMany({
+      where: { id: wf.id, status: wf.status },
       data,
     });
+    if (projected.count !== 1) {
+      throw new ReviewDecisionAuthorityError("stale_decision", { reason: "concurrent_change" });
+    }
+    const updated = await tx.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: wf.id } });
     // Every recorded submission is on the reviewer audit + tenant audit, in
     // this transaction: a verdict as a decision, a request for information as
     // what it is. Never forensic custody (owner decision 2026-10-24); never

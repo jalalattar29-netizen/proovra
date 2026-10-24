@@ -313,6 +313,41 @@ describe("Review / Custody / Artifact boundary (Postgres + Redis + MinIO, real w
     expect(pvCodes).not.toContain("FORENSIC_CUSTODY_CHANGED");
   });
 
+  it("5b — a mixed set counts only the reportable subset, and the card's reason IS the updated report's supersession statement", async () => {
+    const latest = await prisma.report.findFirstOrThrow({ where: { evidenceId }, orderBy: { version: "desc" } });
+    // One reportable evidence-custody fact, among more internal Review rows.
+    await prisma.$transaction((tx) => appendCustodyEventTx(tx, { evidenceId, eventType: "LEGAL_HOLD_PLACED", payload: { reason: "boundary-proof" } }));
+    for (const status of ["REOPENED", "CLOSED"]) {
+      await prisma.$transaction((tx) =>
+        appendCustodyEventTx(tx, { evidenceId, eventType: "REVIEW_DECISION_RECORDED", payload: { status, actorUserId: SENTINEL_ACTOR } }),
+      );
+    }
+    const st = await call("GET", `/v1/evidence/${evidenceId}/artifacts/status`, A().ownerToken);
+    const freshness = st.json().outputs.freshness as {
+      hasNewerFacts: boolean;
+      changes: Array<{ code: string; reason?: string; count?: number }>;
+      explanation: { changeCount: number; nextVersion: number; reasons: Array<{ label: string; reason: string | null }> };
+    };
+    expect(freshness.hasNewerFacts).toBe(true);
+    expect(freshness.changes).toEqual([expect.objectContaining({ code: "CUSTODY_CHANGED_AFTER_REPORT", reason: "LEGAL_HOLD", count: 1 })]);
+    expect(freshness.explanation.changeCount).toBe(1);
+    expect(freshness.explanation.nextVersion).toBe(latest.version + 1);
+    const label = freshness.explanation.reasons[0]!.label;
+    expect(label).toBe(`A legal-hold change was recorded after report v${latest.version}.`);
+    // The worker states the SAME reason in the new version (one authority).
+    const v = await newVersion("Boundary proof: a reportable legal-hold fact.");
+    const report = await prisma.report.findFirstOrThrow({ where: { evidenceId, version: v } });
+    const text = (await extractPdfText(await objectBytes(report.storageBucket!, report.storageKey!))).replace(/\s+/g, " ");
+    expect(text).toContain(label);
+    expect(text).not.toContain(SENTINEL_ACTOR);
+    // Re-seeded history for the remaining cases.
+    historical = await prisma.custodyEvent.findMany({
+      where: { evidenceId, eventType: "REVIEW_DECISION_RECORDED" },
+      orderBy: { sequence: "asc" },
+      select: { id: true, sequence: true, eventHash: true, payload: true },
+    });
+  });
+
   it("6 — NEW Review activity through the real routes writes zero forensic custody, owes no report, and stays in Review history + tenant audit", async () => {
     const custodyBefore = await custodyCount();
     const auditBefore = await prisma.adminAuditLog.count({ where: { workspaceId: A().teamId, resourceId: { not: null } } });
@@ -340,7 +375,7 @@ describe("Review / Custody / Artifact boundary (Postgres + Redis + MinIO, real w
     expect(wf0.id).toBe(wf1.id);
     // Zero forensic custody for any of it.
     expect(await custodyCount(), "Review activity wrote forensic custody").toBe(custodyBefore);
-    expect(await reviewCustodyRows()).toBe(HISTORICAL_STATUSES.length);
+    expect(await reviewCustodyRows()).toBe(historical.length);
     // No report owed by it.
     const st = await status();
     expect(st.outputs.freshness?.hasNewerFacts ?? false).toBe(false);

@@ -930,3 +930,143 @@ describe("fourth audit — opening a review is not a decision; the reconciler re
     expect(await prisma.reviewEscalation.count({ where: { evidenceId: ev, status: "OPEN" } })).toBe(1);
   });
 });
+
+// ===========================================================================
+// Workflow state vs current-round decision (owner decision 2026-10-24)
+// ===========================================================================
+
+describe("workflow state and decision are separate — Close never decides, races never lose a verdict", () => {
+  const begin = async (token: string, ev: string) => {
+    const wf = await workflowOf(ev);
+    const res = await patchWorkflow(token, ev, { status: "IN_REVIEW", expectedUpdatedAt: wf.updatedAt.toISOString() });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+  };
+  const claimed = async (ev: string) => {
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    expect((await claim(A.memberToken, ev, A.teamId)).status).toBe(200);
+    await begin(A.memberToken, ev);
+  };
+  const outcome = async (ev: string) => {
+    const res = await call(A.adminToken, "GET", `/v1/evidence/${ev}/review-workspace`);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    return res.body.reviewWorkflow as { workflowState: string; decision: string; decisionLabel: string };
+  };
+
+  it("Reject then Close: Workflow Closed · Decision Not accepted; Close wrote no decision row", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "decision-reject-close");
+    await claimed(ev);
+    expect((await decide(A.memberToken, ev, "REJECT_INSUFFICIENT", "insufficient")).status).toBe(200);
+    const rowsBefore = await prisma.workflowReviewDecision.count({ where: { workflowId: (await workflowOf(ev)).id } });
+    expect((await decide(A.adminToken, ev, "CLOSE", "done")).status).toBe(200);
+    expect(await outcome(ev)).toMatchObject({ workflowState: "CLOSED", decision: "NOT_ACCEPTED", decisionLabel: "Not accepted" });
+    expect(await prisma.workflowReviewDecision.count({ where: { workflowId: (await workflowOf(ev)).id } })).toBe(rowsBefore);
+  });
+
+  it("Close racing a verdict resolves deterministically: an accepted Approve is never lost", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "decision-race");
+    await claimed(ev);
+    const [approve, close] = await Promise.all([
+      decide(A.memberToken, ev, "APPROVE_INTERNAL"),
+      decide(A.adminToken, ev, "CLOSE", "closing"),
+    ]);
+    expect([approve.status, close.status].some((x) => x === 200)).toBe(true);
+    const o = await outcome(ev);
+    if (approve.status === 200) {
+      // The verdict was accepted: whatever happened to the workflow, it decided Approved.
+      expect(o.decision).toBe("APPROVED");
+      expect(await prisma.workflowReviewDecision.count({ where: { workflowId: (await workflowOf(ev)).id, decision: "APPROVE" } })).toBe(1);
+    } else {
+      // Close won and the verdict was refused: no decision, no row.
+      expect(o).toMatchObject({ workflowState: "CLOSED", decision: "NO_DECISION" });
+      expect(await prisma.workflowReviewDecision.count({ where: { workflowId: (await workflowOf(ev)).id } })).toBe(0);
+    }
+    if (close.status === 200) expect(o.workflowState).toBe("CLOSED");
+  });
+
+  it("bulk-triage Close never records a verdict (it used to record REJECT for every review it closed)", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "decision-bulk-close");
+    await claimed(ev);
+    const wf = await workflowOf(ev);
+    const { executeBulkTriage } = await import("../src/services/reviewer-ops/bulk-triage.service.js");
+    const result = await executeBulkTriage(
+      { teamId: A.teamId, actorUserId: A.adminUserId, isReviewerCapable: true, isServiceAccount: false } as never,
+      { teamId: A.teamId, workflowIds: [wf.id], action: "CLOSE", note: "bulk close" } as never,
+    );
+    expect(JSON.stringify(result)).not.toMatch(/"ok":false/);
+    expect((await workflowOf(ev)).status).toBe("CLOSED");
+    expect(await prisma.workflowReviewDecision.count({ where: { workflowId: wf.id } })).toBe(0);
+    expect(await outcome(ev)).toMatchObject({ workflowState: "CLOSED", decision: "NO_DECISION" });
+  });
+
+  it("the export governance gate reads the decision: Approved then Closed is still reviewed; Reopened is not", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "decision-gate");
+    await claimed(ev);
+    const { evidenceIsReviewed } = await import("../src/services/governance.service.js");
+    expect(await evidenceIsReviewed(ev)).toBe(false);
+    expect((await decide(A.memberToken, ev, "APPROVE_INTERNAL")).status).toBe(200);
+    expect(await evidenceIsReviewed(ev)).toBe(true);
+    expect((await decide(A.adminToken, ev, "CLOSE", "done")).status).toBe(200);
+    expect(await evidenceIsReviewed(ev)).toBe(true);
+    expect((await decide(A.adminToken, ev, "REOPEN", "again")).status).toBe(200);
+    expect(await evidenceIsReviewed(ev)).toBe(false);
+  });
+});
+
+describe("a lifecycle move that commits between a verdict's read and its write is never overwritten (deterministic interleaving)", () => {
+  it("Close commits after the verdict read the review: the verdict is refused and rolled back; the review stays Closed with no decision", async () => {
+    await setPlan(A, "TEAM");
+    const ev = await freshEvidence(A, "decision-interleave");
+    await patchWorkflow(A.adminToken, ev, { status: "NOT_STARTED" });
+    expect((await claim(A.memberToken, ev, A.teamId)).status).toBe(200);
+    const wf0 = await workflowOf(ev);
+    expect((await patchWorkflow(A.memberToken, ev, { status: "IN_REVIEW", expectedUpdatedAt: wf0.updatedAt.toISOString() })).status).toBe(200);
+    const wf = await workflowOf(ev);
+    const { recordReviewDecision } = await import("../src/services/reviewer-ops/review-decision.service.js");
+    let interleaved = false;
+    // The verdict's own transaction, with one seam: right after it reads the
+    // review, a Close commits from ANOTHER connection.
+    const client = new Proxy(prisma, {
+      get(target, prop, receiver) {
+        if (prop !== "$transaction") return Reflect.get(target, prop, receiver);
+        return (fn: (tx: unknown) => Promise<unknown>, opts?: unknown) =>
+          (target as typeof prisma).$transaction(async (tx) => {
+            const wrapped = new Proxy(tx, {
+              get(t, p2, r2) {
+                const model = Reflect.get(t, p2, r2);
+                if (p2 !== "evidenceReviewWorkflow") return model;
+                return new Proxy(model as object, {
+                  get(m, method, r3) {
+                    const f = Reflect.get(m, method, r3) as (...a: unknown[]) => Promise<unknown>;
+                    if (method !== "findFirst") return f;
+                    return async (...args: unknown[]) => {
+                      const read = await f.apply(m, args);
+                      if (!interleaved) {
+                        interleaved = true;
+                        await prisma.evidenceReviewWorkflow.update({ where: { id: wf.id }, data: { status: "CLOSED", closedAt: new Date() } });
+                      }
+                      return read;
+                    };
+                  },
+                });
+              },
+            });
+            return fn(wrapped);
+          }, opts as never);
+      },
+    });
+    await expect(
+      recordReviewDecision(
+        { workflowId: wf.id, teamId: A.teamId, actorUserId: A.memberUserId, decision: "APPROVE", rationale: null, actorIsAdjudicator: false } as never,
+        client as never,
+      ),
+    ).rejects.toMatchObject({ code: "stale_decision" });
+    expect(interleaved).toBe(true);
+    const after = await workflowOf(ev);
+    expect(after.status).toBe("CLOSED");
+    expect(await prisma.workflowReviewDecision.count({ where: { workflowId: wf.id } })).toBe(0);
+  });
+});
