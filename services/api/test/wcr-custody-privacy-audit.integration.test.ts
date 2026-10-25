@@ -183,8 +183,10 @@ describe("WCR closure — custody, privacy, audit (live PostgreSQL 16)", () => {
       const b = h.fixtures.teamB;
       // The picker is WORKSPACE-scoped, not group-scoped: a group has no
       // records of its own to offer.
+      // Members audit CT-04 — and only what the ACTOR may reach.
       const page = await svc.listAssignableTargets({
         workspaceId: a.teamId,
+        actorUserId: a.ownerUserId,
         targetType: "EVIDENCE",
       });
       const ids = page.targets.map((t) => t.id);

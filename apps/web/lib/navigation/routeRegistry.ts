@@ -1049,7 +1049,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Escalation lifecycle: acknowledge, reassign, resolve, suppress.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["ESCALATIONS_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
+    requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "CREATE_ORG",
 
     advancedByDefault: true,
@@ -1189,7 +1189,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Per-review workspace: lifecycle, SLA, escalation, action surface.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
+    requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "CREATE_ORG",
 
     advancedByDefault: true,
@@ -1376,14 +1376,13 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.collaboration_teams",
     href: "/collaboration-teams",
-    // "Collaboration Teams", not "Teams" (2026-09-08). "Teams" sat beside
-    // "Workspaces" — which the legacy `Team` model backs — and beside the
-    // membership surface, naming none of them distinctly. The full name pairs
-    // with "Members & Access": one decides who can reach the workspace, the
-    // other how those members work together.
-    label: "Collaboration Teams",
-    description:
-      "Operational groups of workspace members — assignments, cases, evidence and review workload.",
+    // Owner decision 2026-10-25 (members audit): the page is "Teams" and the
+    // object is a "Collaboration Team". "Team" never names a workspace in the
+    // product — the legacy `Team` model is an implementation name only — so
+    // the short label is unambiguous beside "Members & Access": one decides who
+    // can reach the workspace, the other groups them for case access and work.
+    label: "Teams",
+    description: "Group workspace members to control case access and coordinate work.",
     domain: "PERSONAL_WORKSPACE",
     requiredCapabilities: [],
     navPlanFeature: "teamCollaborationIncluded",
@@ -1609,7 +1608,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Canonical reviewer console — queue, escalations, SLA, workload.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
+    requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "CREATE_ORG",
 
     advancedByDefault: false,
@@ -1634,7 +1633,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Reviewer queue (canonical surface; legacy /reviewer-ops index redirects here).",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
+    requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "CREATE_ORG",
 
     advancedByDefault: false,
@@ -1650,7 +1649,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Per-evidence review stage queue (Phase 13).",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
+    requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "CREATE_ORG",
 
     advancedByDefault: true,
@@ -1685,7 +1684,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "SLA windows + breach signals.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["SLA_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
+    requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "CREATE_ORG",
 
     advancedByDefault: true,
@@ -1892,7 +1891,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     /**
      * NAV-GATED ON THE PLANS THAT SELL A SECOND SEAT.
      *
-     * FREE and PAYG have `maxWorkspaceSeats: 1`, so Workspace People for them
+     * FREE and PAYG admit nobody but the owner, so Workspace People for them
      * is a page listing one person beside an invite control that answers
      * `402 WORKSPACE_INVITES_NOT_INCLUDED`. A primary nav entry to a surface
      * whose main action refuses is not navigation — it is an advertisement
@@ -1901,14 +1900,10 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
      *
      * `teamCollaborationIncluded` is a SERVER projection that already exists;
      * no new commercial authority is introduced for this gate. Its subject is
-     * strictly "does this plan include collaboration groups", which is NOT the
-     * same question as "does this plan sell a second seat" — and that is worth
-     * naming rather than glossing. Across every plan in the current catalog
-     * the two coincide exactly (FREE 0/1, PAYG 0/1, PRO 2/5, TEAM 5/10,
-     * ENTERPRISE 1000/500), so it is a correct gate today and a proxy, not a
-     * definition. If a plan is ever sold with seats but no groups, this needs
-     * its own projection off `maxWorkspaceSeats` rather than a wider reading
-     * of this one.
+     * strictly "does this plan include collaboration groups" — and since
+     * members audit ENT-04 that IS the question "does this plan admit anyone
+     * but the owner": `resolveWorkspaceMemberCeiling` admits members exactly
+     * when the plan includes Collaboration Teams.
      *
      * The gate is on the NAV only. Direct access is decided by the `/people`
      * surface-tier rule, which mirrors its destination `/teams/[id]`.
@@ -2527,7 +2522,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Multi-select reviewer queues + bulk action bar.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
+    requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: false,

@@ -924,7 +924,11 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
   },
   {
     family: "reconciliation",
-    suites: ["test/point5/family-reconciliation.integration.test.ts"],
+    suites: [
+      "test/point5/family-reconciliation.integration.test.ts",
+      // Members audit LIFE-11 — the lifecycle sweep's own suite.
+      "test/point5/lifecycle-closure-sweep.integration.test.ts",
+    ],
     units: (
       [
         // ET-Q-07 (2026-09-30) — twelve units became EIGHT. `IndexMediaIntelligence`,
@@ -942,6 +946,7 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
         ["ImmutableStorageReconciliationSweep", "services/worker/src/governance/immutable-storage-reconciliation.worker.ts", "immutable"],
         ["ReviewerReconciliationSweep", "services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts", "reviewer"],
         ["SearchIndexStrandedReconciler", "services/worker/src/search-index-reconciler.ts", "searchrecon"],
+        ["LifecycleSweep", "services/api/src/services/lifecycle/lifecycle-scheduler.service.ts", "closure"],
       ] as const
     ).map(([workName, executor, slug]) => ({
       workName: workName as WorkName,

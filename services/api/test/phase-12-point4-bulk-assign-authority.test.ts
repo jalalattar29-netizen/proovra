@@ -35,6 +35,19 @@ vi.mock("../src/services/evidence-review/review-outcome.service.js", () => ({
   loadCurrentReviewDecisions: vi.fn(async () => new Map()),
 }));
 
+// Members audit REV-02 — the assignment writer now asks whether the assignee
+// may carry the review. These cases are about the assignment itself, so the
+// two eligibility authorities answer "yes" unless a case says otherwise.
+const eligibility = { member: true, record: true };
+vi.mock("../src/services/identity/access-policy.service.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  evaluateMemberAccess: vi.fn(async () => ({ allowed: eligibility.member })),
+}));
+vi.mock("../src/services/evidence/evidence-record-access.service.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  resolveEvidenceRecordAccess: vi.fn(async () => ({ allowed: eligibility.record })),
+}));
+
 vi.mock("../src/services/review-operations/review-notifications.service.js", () => ({
   notifyReviewAssigned: () => Promise.resolve(),
   notifyReviewNeedsMoreInfo: () => Promise.resolve(),
@@ -79,6 +92,8 @@ const prismaFake = {
 } as never;
 
 beforeEach(() => {
+  eligibility.member = true;
+  eligibility.record = true;
   state.status = "QUEUED";
   state.updates = [];
   state.events = [];
@@ -143,5 +158,18 @@ describe("Phase 12 Point 4 — bulkAssign delegates to the assignment authority"
     });
     expect(res).toMatchObject({ ok: true, succeeded: 0 });
     expect(state.updates).toEqual([]);
+  });
+
+  it("an assignee who may not carry the review is refused per item and nothing is written", async () => {
+    eligibility.record = false;
+    const res = await bulkAssign({
+      prisma: prismaFake,
+      teamId: "team-1",
+      actorUserId: "user-1",
+      assigneeUserId: "user-2",
+      workflowIds: ["wf-1"],
+    });
+    expect(res).toMatchObject({ ok: true, succeeded: 0 });
+    expect(state.updates).toHaveLength(0);
   });
 });

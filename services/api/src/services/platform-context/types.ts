@@ -85,10 +85,13 @@ export type PlatformContextPlanFeatures = {
      */
     /** ACTIVE Collaboration Teams allowed inside ONE workspace. */
     maxCollaborationTeamsPerWorkspace: number;
-    /** ACCEPTED members allowed in ONE Collaboration Team. */
+    /** ACCEPTED non-owner members allowed in ONE active Collaboration Team. */
     maxAcceptedMembersPerCollaborationTeam: number;
-    /** ACCEPTED TeamMember seats allowed in ONE shared workspace. */
-    maxWorkspaceSeats: number;
+    /**
+     * Non-owner members one workspace may hold: 0 when the plan admits nobody
+     * but the owner, null when nothing bounds the workspace as a whole.
+     */
+    maxAdditionalWorkspaceMembers: number | null;
     maxPendingInvitesPerTeam: number;
     maxInvitesPer24h: number;
   };

@@ -32,6 +32,11 @@ import {
   resumeOrganization,
   suspendOrganization,
 } from "../services/organization/org-lifecycle.service.js";
+import {
+  EnterpriseTerminationError,
+  beginEnterpriseTermination,
+  cancelEnterpriseTermination,
+} from "../services/organization/enterprise-termination.service.js";
 
 const UuidParam = z.string().uuid();
 
@@ -288,4 +293,77 @@ export async function adminProvisioningRoutes(app: FastifyInstance) {
       },
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Members audit LIFE-16 (2026-10-25) — Enterprise contract termination.
+  //
+  //   POST /v1/admin/orgs/:id/terminate          schedule (TERMINATING)
+  //   POST /v1/admin/orgs/:id/terminate/cancel   withdraw before it executes
+  //
+  // Platform operator + fresh step-up, like suspend / resume. Execution is the
+  // canonical organization closure (enterprise-termination.service.ts), run by
+  // the lifecycle tick at the effective date.
+  // ---------------------------------------------------------------------------
+  const TerminateBody = StepUpTeamScope.extend({
+    reason: z.string().trim().min(1).max(400),
+    effectiveAtUtc: z.coerce.date().optional(),
+  });
+
+  for (const leg of ["terminate", "terminate/cancel"] as const) {
+    app.post(
+      `/v1/admin/orgs/:id/${leg}`,
+      { preHandler: requirePlatformAdmin },
+      async (req: FastifyRequest, reply: FastifyReply) => {
+        const idParse = UuidParam.safeParse((req.params as { id?: unknown }).id);
+        if (!idParse.success) {
+          return reply.code(400).send({
+            error: { code: "validation_error", detail: idParse.error.flatten() },
+          });
+        }
+        const bodyParse =
+          leg === "terminate"
+            ? TerminateBody.safeParse(req.body)
+            : StepUpTeamScope.safeParse(req.body);
+        if (!bodyParse.success) {
+          return reply.code(400).send({
+            error: { code: "validation_error", detail: bodyParse.error.flatten() },
+          });
+        }
+        const userId = actorUserId(req);
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: bodyParse.data.teamId,
+          userId,
+          purpose: "CAPABILITY_GRANT",
+          resourceKind: "organization",
+          resourceId: idParse.data,
+        });
+        if (gate.sent) return;
+        try {
+          if (leg === "terminate") {
+            const body = bodyParse.data as z.infer<typeof TerminateBody>;
+            const result = await beginEnterpriseTermination({
+              organizationId: idParse.data,
+              actorUserId: userId,
+              reason: body.reason,
+              effectiveAtUtc: body.effectiveAtUtc ?? null,
+            });
+            return reply.code(202).send({ lifecycleState: "TERMINATING", ...result });
+          }
+          await cancelEnterpriseTermination({ organizationId: idParse.data, actorUserId: userId });
+          return reply.code(200).send({ lifecycleState: "SUSPENDED" });
+        } catch (err) {
+          if (err instanceof EnterpriseTerminationError) {
+            return reply.code(err.httpStatus).send({
+              error: { code: err.code, message: err.message, requestId: req.id },
+              requestId: req.id,
+            });
+          }
+          throw err;
+        }
+      },
+    );
+  }
+
 }

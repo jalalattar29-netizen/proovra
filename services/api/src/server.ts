@@ -121,6 +121,7 @@ import { searchRoutes } from "./routes/search.routes.js";
 // empty `evidence_search_documents` table from inside the container
 // without minting a user token.
 import { internalReindexRoutes } from "./routes/internal-reindex.routes.js";
+import { internalLifecycleRoutes } from "./routes/internal-lifecycle.routes.js";
 import { reviewerOpsRoutes } from "./routes/reviewer-ops.routes.js";
 // Phase C0 — Reviewer Console aggregator. Composes the existing
 // reviewer-ops services into one bounded envelope for the canonical
@@ -1322,6 +1323,7 @@ allowedHeaders: [
   await app.register(legalRoutes);
   await app.register(searchRoutes);
   await app.register(internalReindexRoutes);
+  await app.register(internalLifecycleRoutes);
   await app.register(reviewerOpsRoutes);
   // Phase C0 — Reviewer Console aggregator. Read-only; composes
   // existing reviewer-ops services. Registered alongside the

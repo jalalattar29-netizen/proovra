@@ -350,8 +350,11 @@ async function computeSeatUsage(orgId: string): Promise<{
     select: {
       id: true,
       billingPlan: true,
-      includedSeats: true,
-      _count: { select: { members: true } },
+      // ACTIVE, non-owner memberships: the owner never holds a seat, and a
+      // suspended or revoked member holds nothing (members audit ENT-04).
+      _count: {
+        select: { members: { where: { status: "ACTIVE", role: { not: "OWNER" } } } },
+      },
     },
   });
   /*
@@ -365,25 +368,29 @@ async function computeSeatUsage(orgId: string): Promise<{
   );
   let totalIncludedSeats = 0;
   let totalUsedSeats = 0;
+  let everyWorkspaceBounded = workspaces.length > 0;
   for (const ws of workspaces) {
-    totalIncludedSeats += resolveEffectiveContractSeats({
+    const ceiling = resolveEffectiveContractSeats({
       plan: (ws.billingPlan ??
         "FREE") as Parameters<typeof getPlanCapabilities>[0],
       contract,
-      persistedSeats: ws.includedSeats ?? 0,
     });
+    // `null` = nothing bounds that workspace as a whole (members audit
+    // ENT-04); only a contract seat count does.
+    if (ceiling === null) everyWorkspaceBounded = false;
+    else totalIncludedSeats += ceiling;
     totalUsedSeats += ws._count.members;
   }
   /*
-   * Every plan seats at least its owner, so an organization with any workspace
-   * has a ceiling. The old `included > 0` flag existed only because the raw
-   * column is 0 on a self-serve workspace, and it turned that zero into
-   * "unlimited".
+   * The organization has a seat cap only when every workspace in it is bounded
+   * — by its contract, or by a plan that admits nobody but the owner. One
+   * workspace without a workspace-wide ceiling means no single number caps the
+   * batch, and inventing one would refuse members the contract never limited.
    */
   return {
     totalIncludedSeats,
     totalUsedSeats,
-    hasSeatCap: workspaces.length > 0,
+    hasSeatCap: everyWorkspaceBounded,
   };
 }// ---------------------------------------------------------------------------
 // Domain policy — verified-domain restriction, honestly gated behind an

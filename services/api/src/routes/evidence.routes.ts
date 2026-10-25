@@ -303,6 +303,7 @@ import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { CertificationType as PrismaCertificationType } from "@prisma/client";
 import { prisma } from "../db.js";
+import { RESTRICTED_CASE_WHERE } from "../services/cases/case-visibility.js";
 import {
   appendCustodyEventTx,
   isEvidenceReservationExpiredTx,
@@ -5300,7 +5301,9 @@ async function resolveWorkspaceCapabilitySnapshot(params: {
     seatsIncluded: shared ? usage.seatLimit : null,
     seatsUsed: shared ? usage.teamMemberCount : null,
     seatsRemaining: shared ? usage.seatRemaining : null,
-    overSeatLimit: shared ? usage.teamMemberCount > usage.seatLimit : null,
+    overSeatLimit: shared
+      ? usage.seatLimit !== null && usage.teamMemberCount > usage.seatLimit
+      : null,
     ...discussionFlags,
   };
 }
@@ -13937,7 +13940,9 @@ action: "evidence.certification_requested",
  */
 const inRestrictedCase =
   (await prisma.caseEvidenceLink.count({
-    where: { evidenceId: evidence.id, case: { access: { some: {} } } },
+    // Members audit — a case is restricted by its access list OR a
+    // Collaboration Team grant; the one predicate says so.
+    where: { evidenceId: evidence.id, case: RESTRICTED_CASE_WHERE },
   })) > 0;
 const richVerifyEntitled =
   !inRestrictedCase &&

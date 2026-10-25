@@ -279,6 +279,8 @@ const PROOF_PREFIX: Record<string, string> = {
   [SWEEP_NAMES.TRASH_GRACE_RECONCILER]: "trashgrace",
   // ET-SM-07 (2026-09-30).
   [SWEEP_NAMES.INTEGRITY_RECHECK]: "integrity",
+  // Members audit LIFE-11 (2026-10-25).
+  [SWEEP_NAMES.LIFECYCLE]: "closure",
 };
 
 /** The five obligations that must be shown by EXECUTION, per sweep. */
@@ -531,7 +533,8 @@ describe("Point 5 — every sweep satisfies its fourteen obligations", () => {
   // added after it was written). The assertion was always an identity against
   // the registry, so only the title was stale; it states the real count now.
   // ET-SM-07 (2026-09-30) — 19 -> 20 with IntegrityRecheckSweep.
-  it("SweepsBehaviorallyCovered = 20/20 (every registered sweep)", () => {
+  // Members audit LIFE-11 (2026-10-25) — 20 -> 21 with LifecycleSweep.
+  it("SweepsBehaviorallyCovered = 21/21 (every registered sweep)", () => {
     const covered = registered.filter((e) => {
       const prefix = PROOF_PREFIX[e.workName];
       if (!prefix) return false;

@@ -34,6 +34,7 @@ import { prisma } from "../../db.js";
 import { resolveWorkspaceKind } from "../identity/workspace-kind.js";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
 import { resolveCapabilities } from "./capability-registry.js";
+import { workspaceIncludesReviewerOperations } from "../billing-enforcement.service.js";
 import {
   isWorkspaceRole,
   type CapabilityKey,
@@ -124,6 +125,14 @@ export async function resolveMemberWorkspaceCapabilities(input: {
 
   const role = isWorkspaceRole(String(membership.role)) ? (String(membership.role) as never) : null;
   const activeMemberCount = team._count?.members ?? 0;
+  // Members audit ENT-01 — the plan halves of the capability map, from the
+  // same authorities the envelope reads.
+  let reviewerOperationsIncluded = false;
+  try {
+    reviewerOperationsIncluded = await workspaceIncludesReviewerOperations(team.id);
+  } catch {
+    reviewerOperationsIncluded = false;
+  }
   const capabilities = resolveCapabilities({
     scope: scopeFromKind(workspaceKind),
     role,
@@ -132,6 +141,10 @@ export async function resolveMemberWorkspaceCapabilities(input: {
     workspaceKind,
     packageProducesOperationalConditions: planProducesOperationalConditions(plan),
     memberCount: activeMemberCount,
+    collaborationIncluded:
+      getPlanCapabilities((plan ?? "FREE") as Parameters<typeof getPlanCapabilities>[0])
+        .maxCollaborationTeamsPerWorkspace > 0,
+    reviewerOperationsIncluded,
   }) as Record<CapabilityKey, boolean>;
 
   return { capabilities, plan, workspaceKind, activeMemberCount };

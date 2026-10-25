@@ -39,7 +39,11 @@ import { resolveCommercialContext } from "../billing/commercial-context.service.
 // THE workspace seat authority — contract-first, plan-aware, shared with the
 // invitation path and the entitlement projection. Composed here, never
 // reimplemented: see the seat gate inside `grantWorkspaceMembership`.
-import { resolveWorkspaceSeatState } from "../billing/workspace-seats.service.js";
+import {
+  resolveWorkspaceSeatState,
+  workspaceSeatsAdmit,
+} from "../billing/workspace-seats.service.js";
+import { endStandingReachForMembers } from "./standing-reach.js";
 
 export type TxClient = Prisma.TransactionClient | PrismaClient;
 
@@ -423,7 +427,7 @@ export async function grantWorkspaceMembership(
       input.assignment.teamId,
       tx as PrismaClient,
     );
-    if (seats.used >= seats.limit) {
+    if (!workspaceSeatsAdmit(seats)) {
       return { ok: false, reason: "workspace_seat_limit_reached" };
     }
   }
@@ -981,8 +985,11 @@ export async function massRevokeWorkspaceMemberships(
     reason: string;
   },
 ): Promise<{ count: number }> {
+  // Members audit LIFE-13 / ACC-11 (2026-10-25) — a closure TERMINATES every
+  // membership that has not already ended: a SUSPENDED one used to survive the
+  // workspace it belonged to and come back with any later restore.
   const memberWhere = {
-    status: "ACTIVE" as const,
+    status: { in: ["ACTIVE", "SUSPENDED"] as Array<"ACTIVE" | "SUSPENDED"> },
     ...(input.where.userId ? { userId: input.where.userId } : {}),
     ...(input.where.teamId ? { teamId: input.where.teamId } : {}),
     ...(input.where.teamIds ? { teamId: { in: input.where.teamIds } } : {}),
@@ -1007,6 +1014,11 @@ export async function massRevokeWorkspaceMemberships(
     tx,
     affected.map((m) => m.id),
     input.actorUserId ?? null,
+  );
+  // The reach each membership carried ends with it, in this transaction.
+  await endStandingReachForMembers(
+    tx as never,
+    affected.map((m) => ({ teamId: m.teamId, userId: m.userId })),
   );
   // §4.4 — SCIM deprovision / administrative mass revocation. Every affected
   // member loses this workspace, so every pointer naming it is cleared in
@@ -1311,7 +1323,7 @@ async function assertManagedSeatAvailable(
     requesterUserId: input.requesterUserId,
   });
   if (ctx.seats.limit == null) return { seatEnforced: false, alreadyHeld: false };
-  if (ctx.seats.remaining <= 0) throw new ManagedSeatLimitError();
+  if ((ctx.seats.remaining ?? 0) <= 0) throw new ManagedSeatLimitError();
   return { seatEnforced: true, alreadyHeld: false };
 }
 

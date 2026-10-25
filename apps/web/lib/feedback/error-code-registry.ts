@@ -193,6 +193,9 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   MEMBERSHIP_SUSPENDED: { disposition: "customer", where: "global" },
   ALREADY_WORKSPACE_MEMBER: { disposition: "customer", where: "global" },
   RETENTION_POLICY_GOVERNED: { disposition: "customer", where: "global" },
+  // Members audit ACC-01 — Collaboration Team case access.
+  COLLABORATION_TEAM_NOT_FOUND: { disposition: "customer", where: "global" },
+  CASE_TEAM_ACCESS_NOT_FOUND: { disposition: "customer", where: "global" },
 
   // -- Workspace lifecycle (members audit LIFE-01/02/07) --------------------
   WORKSPACE_KIND_NOT_DELETABLE: { disposition: "customer", where: "global" },

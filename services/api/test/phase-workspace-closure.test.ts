@@ -14,6 +14,9 @@ const PREFLIGHT = read(
 );
 const CLOSURE = read("../src/services/workspace/workspace-closure.service.ts");
 const SCHEDULER = read("../src/services/notifications/digest-scheduler.ts");
+// Members audit LIFE-11 — closures run through THE lifecycle tick, which the
+// digest run and the worker's lifecycle sweep both invoke.
+const LIFECYCLE_TICK = read("../src/services/lifecycle/lifecycle-scheduler.service.ts");
 const MIGRATION = read(
   "../prisma/migrations/20270922000000_workspace_closure_requests/migration.sql",
 );
@@ -69,12 +72,13 @@ describe("routes: owner-only + typed confirmation + step-up", () => {
 });
 
 describe("execution", () => {
-  it("worker re-runs preflight, claims atomically, and rides the digest cron", () => {
+  it("worker re-runs preflight, claims atomically, and runs through the lifecycle tick", () => {
     expect(CLOSURE).toMatch(
       /evaluateWorkspaceClosurePreflight\([\s\S]{0,600}status:\s*"BLOCKED"/,
     );
     expect(CLOSURE).toMatch(/if \(claimed\.count === 0\) continue;/);
-    expect(SCHEDULER).toMatch(/processWorkspaceClosures\(now\)/);
+    expect(SCHEDULER).toMatch(/runLifecycleTick\(now\)/);
+    expect(LIFECYCLE_TICK).toMatch(/processWorkspaceClosures\(now\)/);
   });
 
   it("revokes memberships + machine access; records a TeamActivity row", () => {

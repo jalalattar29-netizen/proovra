@@ -41,6 +41,8 @@ import { describe, expect, it } from "vitest";
 import { roleHasPermission } from "@proovra/shared";
 
 import { resolveCapabilities } from "../src/services/platform-context/capability-registry.js";
+// Static: an in-test dynamic import times out under a loaded full-suite run.
+import { otsBucket } from "../src/services/dashboard/trust-summary.service.js";
 import {
   enclosingSource,
   functionSource,
@@ -249,7 +251,6 @@ describe("Closure — every Home metric names a canonical authority", () => {
     // population is asserted by BEHAVIOUR: a FAILED record counts as failed; the stored
     // vocabulary is DISABLED | PENDING | ANCHORED | FAILED, so ERRORED / ERROR are never
     // written and read as no state at all.
-    const { otsBucket } = await import("../src/services/dashboard/trust-summary.service.js");
     expect(otsBucket({ otsStatus: "FAILED" })).toBe("failed");
     for (const s of ["PENDING", "ANCHORED", "DISABLED", "ERRORED", "ERROR", null]) expect(otsBucket({ otsStatus: s })).not.toBe("failed");
   });

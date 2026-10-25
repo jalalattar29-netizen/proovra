@@ -769,30 +769,27 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
-      if (item.ownerUserId !== ownerUserId) {
-        let hasAccess = item.access.some((a) => a.userId === ownerUserId);
-
-        if (!hasAccess && item.teamId && item.access.length === 0) {
-          const member = await prisma.teamMember.findUnique({
-            where: { teamId_userId: { teamId: item.teamId, userId: ownerUserId } },
-            select: { status: true },
-          });
-          // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-          hasAccess = member?.status === "ACTIVE";
-        }
-
-        if (!hasAccess) {
-          auditCaseAction(req, {
-            userId: ownerUserId,
-            action: "cases.export",
-            outcome: "blocked",
-            severity: "warning",
-            resourceId: id,
-            teamId: item.teamId,
-            metadata: { reason: "forbidden" },
-          });
-          return reply.code(403).send({ message: "Forbidden" });
-        }
+      /*
+       * ONE DECISION (members audit ACC-02 follow-up, 2026-10-25). This route
+       * decided for itself: the owner of record passed with no membership
+       * check, and "no CaseAccess rows" meant unrestricted — so a case
+       * restricted only by a Collaboration Team grant was exported to every
+       * workspace member, and a removed former owner kept exporting their old
+       * case. The export is a read of the case, so it asks the same record
+       * authority the case view asks, and refuses exactly like a missing case.
+       */
+      const exportDecision = await resolveCaseRecordAccess({ userId: ownerUserId, caseId: id });
+      if (!exportDecision.allowed) {
+        auditCaseAction(req, {
+          userId: ownerUserId,
+          action: "cases.export",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: id,
+          teamId: item.teamId,
+          metadata: { reason: "not_found_concealed" },
+        });
+        return reply.code(404).send({ message: "Case not found" });
       }
 
       const evidence = await prisma.evidence.findMany({
@@ -1981,6 +1978,202 @@ export async function casesRoutes(app: FastifyInstance) {
 
       return reply.code(204).send();
     }
+  );
+
+  // ===========================================================================
+  // COLLABORATION TEAM CASE ACCESS (members audit ACC-01 / ACC-10, 2026-10-25)
+  //
+  // A case may be granted to an ACTIVE Collaboration Team of its own workspace:
+  // the team's effective members can then open it (and its evidence, which
+  // inherits the restriction) exactly as if each were on its access list, and
+  // nobody else in the workspace gains anything. Granting makes the case
+  // RESTRICTED if it was not. The grant and revoke share the authority that
+  // manages a person's grant (`resolveCaseAccessManager`), so who may share a
+  // case does not depend on whether the grantee is a person or a team.
+  // ===========================================================================
+  const TeamAccessBody = z.object({ collaborationTeamId: z.string().uuid() }).strict();
+
+  app.post(
+    "/v1/cases/:id/team-access",
+    { preHandler: requireAuthAndLegal },
+    async (req: FastifyRequest, reply) => {
+      const id = z.string().uuid().parse((req.params as { id: string }).id);
+      const body = TeamAccessBody.parse(req.body ?? {});
+      const actorUserId = getAuthUserId(req);
+
+      const item = await prisma.case.findUnique({
+        where: { id },
+        select: { id: true, teamId: true, ownerUserId: true },
+      });
+      if (!item) return reply.code(404).send({ message: "Case not found" });
+
+      const decision = await resolveCaseAccessManager(item, actorUserId);
+      if (decision.kind !== "allowed" || !item.teamId) {
+        return refuseCaseAccessManagement(
+          req,
+          reply,
+          decision.kind === "allowed" ? { kind: "not_team_case" } : decision,
+          {
+            userId: actorUserId,
+            action: "cases.team_access_grant",
+            caseId: id,
+            teamId: item.teamId,
+            metadata: { collaborationTeamId: body.collaborationTeamId },
+          },
+        );
+      }
+
+      // The team must belong to the case's own workspace. A foreign or unknown
+      // team is answered identically (cross-tenant linking is impossible and
+      // says nothing about which it was).
+      const team = await prisma.collaborationTeam.findUnique({
+        where: { id: body.collaborationTeamId },
+        select: { id: true, workspaceId: true, status: true, name: true },
+      });
+      if (!team || team.workspaceId !== item.teamId) {
+        auditCaseAction(req, {
+          userId: actorUserId,
+          action: "cases.team_access_grant",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: id,
+          teamId: item.teamId,
+          metadata: { reason: "team_not_found", collaborationTeamId: body.collaborationTeamId },
+        });
+        return reply.code(404).send({
+          error: { code: "COLLABORATION_TEAM_NOT_FOUND", message: "Collaboration Team not found.", requestId: req.id },
+          requestId: req.id,
+        });
+      }
+      // An archived team grants nothing, so it cannot be given a grant either.
+      if (team.status !== "ACTIVE") {
+        auditCaseAction(req, {
+          userId: actorUserId,
+          action: "cases.team_access_grant",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: id,
+          teamId: item.teamId,
+          metadata: { reason: "team_archived", collaborationTeamId: team.id },
+        });
+        return reply.code(409).send({
+          error: {
+            code: "collaboration_team_archived",
+            message: "This team is archived. Reopen it before making changes.",
+            requestId: req.id,
+          },
+          requestId: req.id,
+        });
+      }
+
+      const grant = await prisma.caseCollaborationTeamAccess.upsert({
+        where: { caseId_collaborationTeamId: { caseId: id, collaborationTeamId: team.id } },
+        update: {},
+        create: { caseId: id, collaborationTeamId: team.id, grantedByUserId: actorUserId },
+        select: { id: true, collaborationTeamId: true, createdAt: true },
+      });
+
+      auditCaseAction(req, {
+        userId: actorUserId,
+        action: "cases.team_access_grant",
+        outcome: "success",
+        resourceId: id,
+        teamId: item.teamId,
+        metadata: { collaborationTeamId: team.id, grantId: grant.id },
+      });
+
+      return reply.code(201).send({
+        teamAccess: { id: grant.id, collaborationTeamId: team.id, name: team.name, createdAt: grant.createdAt },
+      });
+    },
+  );
+
+  // The teams this case may be granted to — ACTIVE Collaboration Teams of the
+  // case's own workspace — decided by the server for an access manager only,
+  // so the surface never reconstructs eligibility from a list of its own.
+  app.get(
+    "/v1/cases/:id/team-access/candidates",
+    { preHandler: requireAuthAndLegal },
+    async (req: FastifyRequest, reply) => {
+      const id = z.string().uuid().parse((req.params as { id: string }).id);
+      const actorUserId = getAuthUserId(req);
+      const item = await prisma.case.findUnique({
+        where: { id },
+        select: { id: true, teamId: true, ownerUserId: true },
+      });
+      if (!item) return reply.code(404).send({ message: "Case not found" });
+      const decision = await resolveCaseAccessManager(item, actorUserId);
+      if (decision.kind !== "allowed" || !item.teamId) {
+        return refuseCaseAccessManagement(
+          req,
+          reply,
+          decision.kind === "allowed" ? { kind: "not_team_case" } : decision,
+          { userId: actorUserId, action: "cases.team_access_candidates", caseId: id, teamId: item.teamId, metadata: {} },
+        );
+      }
+      const [teams, granted] = await Promise.all([
+        prisma.collaborationTeam.findMany({
+          where: { workspaceId: item.teamId, status: "ACTIVE", archivedAtUtc: null },
+          orderBy: { name: "asc" },
+          take: 200,
+          select: { id: true, name: true },
+        }),
+        prisma.caseCollaborationTeamAccess.findMany({
+          where: { caseId: id },
+          select: { collaborationTeamId: true },
+        }),
+      ]);
+      const already = new Set(granted.map((g) => g.collaborationTeamId));
+      return reply.send({ items: teams.filter((t) => !already.has(t.id)) });
+    },
+  );
+
+  app.delete(
+    "/v1/cases/:id/team-access/:collaborationTeamId",
+    { preHandler: requireAuthAndLegal },
+    async (req: FastifyRequest, reply) => {
+      const params = z
+        .object({ id: z.string().uuid(), collaborationTeamId: z.string().uuid() })
+        .parse(req.params);
+      const actorUserId = getAuthUserId(req);
+
+      const item = await prisma.case.findUnique({
+        where: { id: params.id },
+        select: { id: true, teamId: true, ownerUserId: true },
+      });
+      if (!item) return reply.code(404).send({ message: "Case not found" });
+
+      const decision = await resolveCaseAccessManager(item, actorUserId);
+      if (decision.kind !== "allowed") {
+        return refuseCaseAccessManagement(req, reply, decision, {
+          userId: actorUserId,
+          action: "cases.team_access_revoke",
+          caseId: params.id,
+          teamId: item.teamId,
+          metadata: { collaborationTeamId: params.collaborationTeamId },
+        });
+      }
+
+      const removed = await prisma.caseCollaborationTeamAccess.deleteMany({
+        where: { caseId: params.id, collaborationTeamId: params.collaborationTeamId },
+      });
+      if (removed.count === 0) {
+        return reply.code(404).send({
+          error: { code: "CASE_TEAM_ACCESS_NOT_FOUND", message: "That team does not have access to this case.", requestId: req.id },
+          requestId: req.id,
+        });
+      }
+
+      auditCaseAction(req, {
+        userId: actorUserId,
+        action: "cases.team_access_revoke",
+        outcome: "success",
+        resourceId: params.id,
+        teamId: item.teamId,
+        metadata: { collaborationTeamId: params.collaborationTeamId },
+      });
+      return reply.code(204).send();
+    },
   );
 
   // ===========================================================================

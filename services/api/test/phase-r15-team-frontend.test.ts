@@ -190,11 +190,11 @@ describe("Phase R15 — Stage 3: route registry", () => {
     expect(block).toMatch(/requiredActiveSpace:\s*"PERSONAL_OR_ORG"/);
     expect(block).not.toMatch(/requiredActiveSpace:\s*"ORGANIZATION_ONLY"/);
     expect(block).toMatch(/sidebarEligible:\s*true/);
-    // "Collaboration Teams" since 2026-09-08. "Teams" named none of the four
-    // things this product calls a team distinctly — it sat beside
-    // "Workspaces", which the legacy Team model backs. The full name is
-    // asserted, so a revert to the bare word fails here.
-    expect(block).toMatch(/label:\s*"Collaboration Teams"/);
+    // Owner decision 2026-10-25 (members audit): the page is "Teams" and its
+    // object a "Collaboration Team"; "Team" never names a workspace in the
+    // product. The canonical description is asserted with it.
+    expect(block).toMatch(/label:\s*"Teams"/);
+    expect(block).toMatch(/Group workspace members to control case access and coordinate work\./);
   });
 
   it("invite-accept route is NONE active-space (accessible during signup flow)", () => {

@@ -52,6 +52,11 @@ import {
 import { resolveEnterpriseContract } from "./enterprise-contract.service.js";
 
 import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
+import {
+  isContractTerminationClosure,
+  resolveOrganizationLifecycleState,
+  type OrganizationLifecycleState,
+} from "./enterprise-termination.service.js";
 // Plans considered "paid" for lifecycle provisioning derivation.
 const PAID_PLANS = new Set(["PAYG", "PRO", "TEAM", "ENTERPRISE"]);
 
@@ -652,6 +657,12 @@ export type AdminOrgDetail = {
     contractOwnerUserId: string | null;
     legacyDerived: boolean;
   } | null;
+  /**
+   * Members audit LIFE-16 — THE organization lifecycle state
+   * (ACTIVE / SUSPENDED / TERMINATING / TERMINATED), projected from the
+   * organization, its contract and any scheduled termination.
+   */
+  lifecycleState: OrganizationLifecycleState;
   overview: {
     id: string;
     name: string;
@@ -864,6 +875,23 @@ export async function getAdminOrganizationDetail(
         legacyDerived: contract.legacyDerived === true,
       }
     : null;
+
+  const openClosures = await safeCall(
+    () =>
+      client.organizationClosureRequest.findMany({
+        where: {
+          organizationId: org.id,
+          status: { in: ["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED", "PROCESSING"] },
+        },
+        select: { reason: true },
+      }),
+    [] as Array<{ reason: string | null }>,
+  );
+  const lifecycleState = resolveOrganizationLifecycleState({
+    organizationStatus: String(org.status),
+    contractStatus: contract && contract.legacyDerived !== true ? String(contract.status) : null,
+    openTerminationClosure: openClosures.some((c) => isContractTerminationClosure(c.reason)),
+  });
 
   // --- Owner + admins (memberships; identity only, never secrets) ---
   const memberships = await client.organizationMembership.findMany({
@@ -1298,6 +1326,7 @@ export async function getAdminOrganizationDetail(
     },
     workspaces: workspaceMap,
     enterpriseContract: contractProjection,
+    lifecycleState,
     overview: {
       id: org.id,
       name: org.name,

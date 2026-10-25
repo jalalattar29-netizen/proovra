@@ -227,6 +227,14 @@ export const SWEEP_NAMES = {
    */
   AUTOMATION_DISPATCH: "AutomationDispatchSweep",
   /**
+   * Members audit LIFE-11 (2026-10-25) — account, organization and workspace
+   * closure execution, with the reaper for requests an interrupted run left in
+   * PROCESSING. It used to ride only the notification digest run behind an
+   * empty catch; the worker now schedules it on its own (cron-secret machine
+   * endpoint, the same worker→API pattern as the automation dispatch sweep).
+   */
+  LIFECYCLE: "LifecycleSweep",
+  /**
    * ET-SM-07 (2026-09-30) — INTEGRITY RECHECK OF EVERY SIGNED RECORD.
    *
    * The stored original bytes of a record used to be re-hashed in exactly one

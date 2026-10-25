@@ -52,8 +52,8 @@ export type PlanContractRow = {
    * tiers are tiers OF it. The absence is asserted in `plan-matrix` so this
    * removal cannot be undone by a merge that quietly restores the field.
    */
-  /** Members per collaboration team. */
-  maxWorkspaceSeats: number;
+  /** Accepted non-owner members per ACTIVE Collaboration Team (members audit ENT-04). */
+  maxAcceptedMembersPerCollaborationTeam: number;
   /** Lifetime evidence-record cap; null = uncapped. */
   lifetimeRecordCap: number | null;
   /** Rolling 30-day evidence-record cap; null = uncapped. */
@@ -75,17 +75,11 @@ export type PlanContractRow = {
  *   PRO         personal-professional: cases, intake and professional surfaces
  *               on the SAME Personal Workspace — but NOT reviewer operations.
  *
- *   WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06) —
- *   `maxWorkspaceSeats` moved on three rows, by approved product decision,
- *   and this independent transcription follows the decision:
- *
- *     FREE / PAYG  0 -> 1. Zero seats described a workspace whose OWNER did
- *                  not occupy one, so "1 of 0 used" was the honest reading of
- *                  every free workspace. The owner counts as one seat; a free
- *                  workspace holds exactly its owner.
- *     TEAM         5 -> 10.
- *
- *   Nothing else in this table moved.
+ *   MEMBERS AUDIT ENT-04 (owner decision 2026-10-25) — the workspace seat
+ *   POOL (`maxWorkspaceSeats`, owner included) is gone. Collaboration capacity
+ *   is per ACTIVE Collaboration Team, the owner never counted, and this
+ *   transcription records that number instead: FREE / PAYG 0, PRO 5, TEAM 10,
+ *   ENTERPRISE 500 (the uncontracted default).
  *
  *   TEAM        the collaboration tier of that same Personal Workspace:
  *               reviewer operations and review queues on top of PRO. A tier,
@@ -103,7 +97,7 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     reports: true,
     intake: false,
     reviewerOperations: false,
-    maxWorkspaceSeats: 1,
+    maxAcceptedMembersPerCollaborationTeam: 0,
     lifetimeRecordCap: 3,
     monthlyRecordCap: null,
     creditsPerCompletion: 0,
@@ -115,7 +109,7 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     reports: true,
     intake: true,
     reviewerOperations: false,
-    maxWorkspaceSeats: 1,
+    maxAcceptedMembersPerCollaborationTeam: 0,
     lifetimeRecordCap: null,
     monthlyRecordCap: null,
     creditsPerCompletion: 1,
@@ -127,7 +121,7 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     reports: true,
     intake: true,
     reviewerOperations: false,
-    maxWorkspaceSeats: 5,
+    maxAcceptedMembersPerCollaborationTeam: 5,
     lifetimeRecordCap: 100,
     monthlyRecordCap: null,
     creditsPerCompletion: 0,
@@ -139,7 +133,7 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     reports: true,
     intake: true,
     reviewerOperations: true,
-    maxWorkspaceSeats: 10,
+    maxAcceptedMembersPerCollaborationTeam: 10,
     lifetimeRecordCap: null,
     monthlyRecordCap: 500,
     creditsPerCompletion: 0,
@@ -151,7 +145,7 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     reports: true,
     intake: true,
     reviewerOperations: true,
-    maxWorkspaceSeats: 500,
+    maxAcceptedMembersPerCollaborationTeam: 500,
     lifetimeRecordCap: null,
     monthlyRecordCap: null,
     creditsPerCompletion: 0,

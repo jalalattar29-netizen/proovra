@@ -55,6 +55,9 @@ import {
   resolveOpenReviewEscalation,
 } from "../reviewer-ops/escalation-engine.service.js";
 import { recordReviewActivityTx } from "../evidence-review/reviewer-audit.service.js";
+import { evaluateMemberAccess } from "../identity/access-policy.service.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
+import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.service.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -69,12 +72,47 @@ export class ReviewOperationError extends Error {
       | "permission_denied"
       | "already_assigned_elsewhere"
       | "already_in_stage"
-      | "evidence_not_in_workspace",
+      | "evidence_not_in_workspace"
+      | "assignee_not_eligible",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
     this.name = "ReviewOperationError";
   }
+}
+
+// -----------------------------------------------------------------------------
+// Who may carry a review (members audit REV-02, 2026-10-25)
+// -----------------------------------------------------------------------------
+
+/**
+ * A review is handed only to someone who can do it: an ACTIVE, unexpired
+ * member of the record's workspace whose role holds the reviewer permission,
+ * and who can reach the evidence itself (a restricted case keeps its own
+ * access list). Before this the assignee was any user id at all — and the
+ * assignment notification then mailed a stranger the workspace's name.
+ *
+ * Every assignment writer goes through `assignReviewer`, so stating it here
+ * covers the single-item routes, the reviewer-ops console and bulk triage.
+ * The refusal does not say WHICH condition failed: a would-be assigner learns
+ * nothing about a person's access they could not already see.
+ */
+async function assertReviewAssigneeEligible(
+  workflow: { teamId: string | null; evidenceId: string },
+  assigneeUserId: string,
+  client: PrismaClient,
+): Promise<void> {
+  if (!workflow.teamId) throw new ReviewOperationError("assignee_not_eligible");
+  const membership = await evaluateMemberAccess(
+    { teamId: workflow.teamId, userId: assigneeUserId, permission: "evidence_request.review" },
+    client,
+  );
+  if (!membership.allowed) throw new ReviewOperationError("assignee_not_eligible");
+  const record = await resolveEvidenceRecordAccess(
+    { userId: assigneeUserId, evidenceId: workflow.evidenceId, permission: "evidence.read" },
+    client,
+  );
+  if (!record.allowed) throw new ReviewOperationError("assignee_not_eligible");
 }
 
 // -----------------------------------------------------------------------------
@@ -393,6 +431,8 @@ export async function assignReviewer(
   if (workflow.assignedToUserId === input.assignedToUserId) {
     return workflow; // no-op
   }
+
+  await assertReviewAssigneeEligible(workflow, input.assignedToUserId, client);
 
   const now = new Date();
   const isReassignment = !!workflow.assignedToUserId;
@@ -1147,6 +1187,11 @@ export type QueueFilters = {
   priority?: DbWorkflow["priority"];
   escalated?: boolean;
   limit?: number;
+  /**
+   * Members audit REV-03 — the caller whose queue this is. The queue then
+   * follows the restricted-case rule every evidence read applies.
+   */
+  viewerUserId: string;
 };
 
 export async function listReviewQueue(
@@ -1166,6 +1211,7 @@ export async function listReviewQueue(
       ...(input.unassigned ? { assignedToUserId: null } : {}),
       ...(input.priority ? { priority: input.priority } : {}),
       ...(input.escalated ? { escalationLevel: { gt: 0 } } : {}),
+      evidence: evidenceVisibleThroughCasesWhere(input.viewerUserId),
     },
     orderBy: [
       { priority: "desc" },

@@ -1217,6 +1217,44 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     projection: "GET /v1/teams/:teamId/automation/runs",
   },
   {
+    workName: SWEEP_NAMES.LIFECYCLE,
+    family: "reconciliation",
+    familyReason:
+      "Executes due account, organization and workspace closure requests and resumes any an interrupted run left in PROCESSING; every closure leg is idempotent.",
+    transport: "db_outbox_sweep",
+    queueName: null,
+    implementation: "CURRENT_RUNTIME",
+    schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
+    jobIdPrefix: null,
+    durableAuthority: {
+      model: "AccountClosureRequest / OrganizationClosureRequest / WorkspaceClosureRequest",
+      // The tenant is the request row's own subject — the account, the
+      // organization or the workspace being closed — written by the
+      // already-authorized request route; there is no payload.
+      tenantSource:
+        "AccountClosureRequest.userId / OrganizationClosureRequest.organizationId / WorkspaceClosureRequest.teamId",
+      createdBySynchronousPath: true,
+    },
+    canonicalProducer: "services/api/src/routes/internal-lifecycle.routes.ts",
+    canonicalProcessor: "services/api/src/services/lifecycle/lifecycle-scheduler.service.ts",
+    workerRegistration: WORKER_INDEX,
+    claim: {
+      from: "COOLING_OFF / SCHEDULED",
+      to: "PROCESSING",
+      mechanism: "conditional_update_many",
+      leaseField: "startedAtUtc",
+      leaseMs: 30 * 60 * 1000,
+    },
+    terminalWriter: "services/api/src/services/lifecycle/lifecycle-scheduler.service.ts",
+    idempotency: ["conditional_state_claim", "advisory_lock"],
+    reconciler: "services/api/src/services/lifecycle/lifecycle-scheduler.service.ts",
+    retry: RETRY_POLICIES.SWEEP,
+    recovery: RECOVERY_POLICIES.SWEEP,
+    externalBoundary: null,
+    auditFamily: "identity.closure",
+    projection: null,
+  },
+  {
     workName: SWEEP_NAMES.WEBHOOK_DISPATCHER,
     family: "webhooks_providers",
     familyReason:

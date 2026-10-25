@@ -184,7 +184,7 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
             reports: caps.reportsIncluded,
             intake: caps.intakeIncluded,
             reviewerOperations: caps.reviewerOperationsIncluded,
-            maxWorkspaceSeats: caps.maxWorkspaceSeats,
+            maxAcceptedMembersPerCollaborationTeam: caps.maxAcceptedMembersPerCollaborationTeam,
             lifetimeRecordCap: caps.maxEvidenceRecords,
             monthlyRecordCap: caps.maxEvidenceRecordsPerMonth,
             creditsPerCompletion: caps.paygCreditsRequiredPerCompletion,
@@ -821,44 +821,40 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
       const { assertCollaborationTeamMemberLimit } = await import(
         "../../src/services/collaboration-team/billing-guards.js"
       );
-      // The limit comes from the SERVER's plan resolution, not from a
-      // client-side table keyed on a plan name.
-      expect(typeof assertCollaborationTeamMemberLimit).toBe("function");
+      // Members audit CT-17 — this scenario used to stop at "the projection
+      // reports full" and never asked the server to refuse anything. It now
+      // fills ONE Collaboration Team in the PRO Personal Workspace to the
+      // catalog capacity and proves the next add is refused by the server.
+      void ws;
       const { getPlanCapabilities } = await import("@proovra/shared-billing");
-      expect(getPlanCapabilities("PRO").maxWorkspaceSeats).toBe(
-        t.expected.maxWorkspaceSeats,
+      const cap = getPlanCapabilities("PRO").maxAcceptedMembersPerCollaborationTeam;
+      expect(cap).toBe(t.expected.maxAcceptedMembersPerCollaborationTeam);
+      const svc = await import(
+        "../../src/services/collaboration-team/collaboration-team.service.js"
       );
-      // Fill the workspace to ITS OWN cap with ACTIVE members and prove the
-      // canonical seat projection reports it as full.
-      //
-      // WORKSPACE AND COLLABORATION ARCHITECTURE RECONCILIATION (2026-09-06)
-      // — the cap read here used to be the PERSONAL tenant's
-      // (`t.expected.maxWorkspaceSeats`, PRO = 5) while the workspace being
-      // filled and measured is the OWNED one, whose own commercial state is
-      // TEAM. The two numbers happened to be equal, so the conflation was
-      // invisible; TEAM's seats moving to 10 exposed it. The whole point of
-      // this scenario is that an OWNED workspace is judged on its OWN plan,
-      // so the cap comes from the workspace's plan.
-      const cap = getPlanCapabilities("TEAM").maxWorkspaceSeats;
-      const current = await prisma.teamMember.count({
-        where: { teamId: ws.teamId, status: "ACTIVE" },
+      const { id: groupId } = await svc.createCollaborationTeam({
+        workspaceId: t.personalTeamId,
+        actorUserId: t.owner.userId,
+        name: "Point 7 capacity",
       });
-      for (let i = current; i < cap; i += 1) {
+      for (let i = 0; i < cap; i += 1) {
         const m = await seedUser(deps, `pro-member-${i}`);
         await prisma.teamMember.create({
-          data: { teamId: ws.teamId, userId: m.userId, role: "MEMBER", status: "ACTIVE" },
+          data: { teamId: t.personalTeamId, userId: m.userId, role: "MEMBER", status: "ACTIVE" },
         });
+        await svc.addExistingMember({ teamId: groupId, actorUserId: t.owner.userId, userIdToAdd: m.userId });
       }
-      const { resolveCommercialContext } = await import(
-        "../../src/services/billing/commercial-context.service.js"
-      );
-      const ctx = await resolveCommercialContext({
-        type: "OWNED_WORKSPACE",
-        teamId: ws.teamId,
-        requesterUserId: t.owner.userId,
+      const over = await seedUser(deps, "pro-member-over");
+      await prisma.teamMember.create({
+        data: { teamId: t.personalTeamId, userId: over.userId, role: "MEMBER", status: "ACTIVE" },
       });
-      expect(ctx.seats.consumed).toBe(cap);
-      expect(ctx.seats.remaining).toBe(0);
+      await expect(
+        svc.addExistingMember({ teamId: groupId, actorUserId: t.owner.userId, userIdToAdd: over.userId }),
+      ).rejects.toMatchObject({ code: "TEAM_MEMBER_LIMIT_REACHED" });
+      // The pre-flight guard the routes share answers the same.
+      await expect(assertCollaborationTeamMemberLimit(groupId, 1)).rejects.toMatchObject({
+        code: "TEAM_MEMBER_LIMIT_REACHED",
+      });
       provenScenario("SERVER", "p7.pro.members.limit_enforced_by_server");
     });
   });

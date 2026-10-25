@@ -72,8 +72,12 @@ const grantFor = (id: string, userId: string): Grant => ({
   id, userId, createdAt: "2026-09-01T00:00:00.000Z", user: { id: userId, ...people[userId] },
 });
 
+type TeamGrant = { id: string; createdAt: string; collaborationTeam: { id: string; name: string; status: string } };
+const teamOps = { id: "t0000000-0000-4000-8000-0000000000aa", name: "Field ops" };
+
 let server: {
   grants: Grant[];
+  teamGrants: TeamGrant[];
   viewer: Record<string, unknown>;
   holdGrantRead: boolean;
   failGrantRead: unknown;
@@ -128,7 +132,28 @@ async function route(path: string, init?: RequestInit): Promise<unknown> {
   if (method === "GET" && path === `/v1/cases/${caseId}`) {
     if (server.holdGrantRead) return new Promise(() => {});
     if (server.failGrantRead) throw server.failGrantRead;
-    return { case: { id: caseId, ownerUserId: ownerId, access: server.grants.map((g) => ({ ...g })) } };
+    return {
+      case: {
+        id: caseId,
+        ownerUserId: ownerId,
+        access: server.grants.map((g) => ({ ...g })),
+        teamAccess: server.teamGrants.map((g) => ({ ...g })),
+      },
+    };
+  }
+  if (method === "GET" && path === `/v1/cases/${caseId}/team-access/candidates`) {
+    const granted = new Set(server.teamGrants.map((g) => g.collaborationTeam.id));
+    return { items: [teamOps].filter((t) => !granted.has(t.id)) };
+  }
+  if (method === "POST" && path === `/v1/cases/${caseId}/team-access`) {
+    const g = { id: "g0000000-0000-4000-8000-000000000001", createdAt: "2026-10-25T00:00:00.000Z", collaborationTeam: { ...teamOps, status: "ACTIVE" } };
+    expect(body).toEqual({ collaborationTeamId: teamOps.id });
+    server.teamGrants = [...server.teamGrants, g];
+    return { teamAccess: g };
+  }
+  if (method === "DELETE" && path === `/v1/cases/${caseId}/team-access/${teamOps.id}`) {
+    server.teamGrants = server.teamGrants.filter((g) => g.collaborationTeam.id !== teamOps.id);
+    return undefined;
   }
   if (method === "GET" && path === `/v1/cases/${caseId}/team-members`) {
     if (server.failMembers) throw server.failMembers;
@@ -152,7 +177,7 @@ async function route(path: string, init?: RequestInit): Promise<unknown> {
 }
 
 beforeEach(() => {
-  server = { grants: [], viewer: manager, holdGrantRead: false, failGrantRead: null, failGrant: null, failMembers: null };
+  server = { grants: [], teamGrants: [], viewer: manager, holdGrantRead: false, failGrantRead: null, failGrant: null, failMembers: null };
   mocks.fetch.mockReset();
   mocks.fetch.mockImplementation(route);
   mocks.confirm.mockReset();
@@ -203,7 +228,7 @@ describe("matter workspace Access tab", () => {
     expect(within(row).getByText("Alice Analyst")).toBeTruthy();
     expect(within(row).getByText(/alice@example\.test/)).toBeTruthy();
     expect(within(row).getByRole("button", { name: "Remove access" })).toBeTruthy();
-    expect(within(panel()).getByText("Only the case owner and the people below can open this case.")).toBeTruthy();
+    expect(within(panel()).getByText("Only the case owner, the people below and the members of the Collaboration Teams below can open this case.")).toBeTruthy();
     // The workspace-wide member list only describes an unrestricted case.
     expect(panel().querySelector("[data-matter-access-members]")).toBeNull();
   });
@@ -360,4 +385,47 @@ describe("matter workspace Assignments tab (D37)", () => {
     expect(describedBy(add)).toBe(reason);
     expect(screen.getByText(reason)).toBeTruthy();
   });
+
+  it("team access: a manager gives a Collaboration Team access, which restricts the case", async () => {
+    await openAccessTab();
+    expect(await within(panel()).findByText("Open to the whole workspace")).toBeTruthy();
+    const form = (await waitFor(() => {
+      const el = panel().querySelector("[data-matter-access-team-form]") as HTMLElement | null;
+      expect(el?.querySelector("select")).toBeTruthy();
+      return el;
+    }))!;
+    fireEvent.change(within(form).getByLabelText("Collaboration Team"), { target: { value: teamOps.id } });
+    fireEvent.click(within(form).getByRole("button", { name: "Give team access" }));
+    await waitFor(() => expect(within(panel()).getByText(`${teamOps.name} now has access to this case. The list was reloaded.`)).toBeTruthy());
+    expect(mocks.confirm).toHaveBeenCalledTimes(1);
+    const row = panel().querySelector("[data-matter-access-team-grants]") as HTMLElement;
+    expect(within(row).getByText(teamOps.name)).toBeTruthy();
+    expect(within(panel()).queryByText("Open to the whole workspace")).toBeNull();
+  });
+
+  it("team access: removing the last grant warns the case reopens to the workspace", async () => {
+    server.teamGrants = [{ id: "g0000000-0000-4000-8000-000000000009", createdAt: "2026-10-25T00:00:00.000Z", collaborationTeam: { ...teamOps, status: "ACTIVE" } }];
+    await openAccessTab();
+    const revoke = await waitFor(() => {
+      const el = panel().querySelector(`[data-matter-access-team-revoke="${teamOps.id}"]`) as HTMLElement | null;
+      expect(el).toBeTruthy();
+      return el!;
+    });
+    fireEvent.click(revoke);
+    await waitFor(() => expect(writes("DELETE")).toHaveLength(1));
+    const asked = mocks.confirm.mock.calls[0]![0] as { description: string };
+    expect(asked.description).toMatch(/every active member of the workspace will be able to open the case again/);
+    expect(await within(panel()).findByText("Open to the whole workspace")).toBeTruthy();
+  });
+
+  it("team access: a viewer who may not manage access is offered no team controls", async () => {
+    server.viewer = plainMember;
+    server.teamGrants = [{ id: "g0000000-0000-4000-8000-000000000009", createdAt: "2026-10-25T00:00:00.000Z", collaborationTeam: { ...teamOps, status: "ACTIVE" } }];
+    await openAccessTab();
+    await waitFor(() => expect(panel().querySelector("[data-matter-access-team-grants]")).toBeTruthy());
+    expect(panel().querySelector("[data-matter-access-team-form]")).toBeNull();
+    expect(panel().querySelector("[data-matter-access-team-revoke]")).toBeNull();
+    expect(mocks.fetch.mock.calls.some(([path]) => String(path).endsWith("/team-access/candidates"))).toBe(false);
+  });
+
 });

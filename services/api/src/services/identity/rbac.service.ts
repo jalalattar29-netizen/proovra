@@ -47,6 +47,10 @@ import {
   recordMembershipGrant,
   revokeAllMembershipGrants,
 } from "./membership-provisioning.service.js";
+// When a membership ENDS (revoked or left), its standing reach ends with it in
+// the same transaction (members audit MEM-01 / ACC-08). Suspension keeps it —
+// inert while the membership is not ACTIVE, back with a restore.
+import { endStandingReach } from "./standing-reach.js";
 
 // -----------------------------------------------------------------------------
 // Error surface
@@ -240,30 +244,6 @@ async function revokePendingInvitesForMember(
       revokedAt: null,
     },
     data: { revokedAt: new Date(), revokedByUserId: input.actorUserId },
-  });
-}
-
-/**
- * When a membership ENDS (revoked or left), every standing reach it carried in
- * this workspace ends with it, in the same transaction (members audit MEM-01 /
- * ACC-08): case access-list entries, open case assignments, and Collaboration
- * Team membership. Suspension keeps them — they are inert while the membership
- * is not ACTIVE and come back with a restore.
- */
-async function endStandingReach(
-  tx: PrismaClient,
-  input: { teamId: string; userId: string },
-): Promise<void> {
-  await tx.caseAccess.deleteMany({
-    where: { userId: input.userId, case: { teamId: input.teamId } },
-  });
-  await tx.caseAssignment.updateMany({
-    where: { teamId: input.teamId, assignedToUserId: input.userId, status: "ACTIVE" },
-    data: { status: "REMOVED", removedAtUtc: new Date() },
-  });
-  await tx.collaborationTeamMember.updateMany({
-    where: { userId: input.userId, status: { not: "REMOVED" }, team: { workspaceId: input.teamId } },
-    data: { status: "REMOVED" },
   });
 }
 

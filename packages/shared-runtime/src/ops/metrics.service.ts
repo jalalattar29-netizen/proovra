@@ -876,6 +876,10 @@ export const COUNTER_NAMES = [
    * period-end schedule they never paid for.
    */
   "billing_subscription_entitlement_mismatch_total",
+  // Members audit LIFE-11 — the dedicated lifecycle tick: one per completed
+  // tick, and one per closure processor that failed inside it.
+  "lifecycle_tick_completed_total",
+  "lifecycle_tick_processor_failed_total",
 ] as const;
 export type CounterName = (typeof COUNTER_NAMES)[number];
 

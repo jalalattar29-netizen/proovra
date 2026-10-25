@@ -22,6 +22,7 @@ import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { resolveCaseRecordAccess } from "./case-permission.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
   attachEvidenceToCase,
@@ -300,16 +301,26 @@ export async function addCaseAssignment(
   });
   if (!existing) throw new CaseError("case_not_found");
 
-  // Enforce workspace membership when on a team workspace.
+  /*
+   * WHO MAY CARRY A CASE (members audit ACC-05 / ENT-11, 2026-10-25).
+   *
+   * This checked that the assignee had a membership ROW in any status, so a
+   * suspended or revoked person could be assigned. The assignee must now be
+   * an ACTIVE member who can actually open the case (a restricted case keeps
+   * its own access list and team grants). One refusal for both, so the
+   * assigner learns nothing about a person's access they could not see.
+   */
   if (existing.teamId) {
     const member = await client.teamMember.findFirst({
-      where: {
-        teamId: existing.teamId,
-        userId: input.assignedToUserId,
-      },
+      where: { teamId: existing.teamId, userId: input.assignedToUserId, status: "ACTIVE" },
       select: { id: true },
     });
     if (!member) throw new CaseError("invalid_assignee");
+    const reach = await resolveCaseRecordAccess(
+      { userId: input.assignedToUserId, caseId: existing.id },
+      client,
+    );
+    if (!reach.allowed) throw new CaseError("invalid_assignee");
   }
 
   // Idempotent on (caseId, assignedToUserId, role). If a REMOVED row

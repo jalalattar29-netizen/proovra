@@ -14,6 +14,9 @@ const PREFLIGHT = read(
 const CLOSURE = read("../src/services/identity/account-closure.service.ts");
 const ROUTES = read("../src/routes/account-closure.routes.ts");
 const SCHEDULER = read("../src/services/notifications/digest-scheduler.ts");
+// Members audit LIFE-11 — closures run through THE lifecycle tick, which the
+// digest run and the worker's lifecycle sweep both invoke.
+const LIFECYCLE_TICK = read("../src/services/lifecycle/lifecycle-scheduler.service.ts");
 const MIGRATION = read(
   "../prisma/migrations/20270920000000_account_closure_requests/migration.sql",
 );
@@ -83,8 +86,9 @@ describe("worker: cooling-off + execution safety", () => {
     expect(CLOSURE).toMatch(/if \(claimed\.count === 0\) continue;/);
   });
 
-  it("piggybacks the existing digest cron (no parallel job system)", () => {
-    expect(SCHEDULER).toMatch(/processAccountClosures\(now\)/);
+  it("runs through the one lifecycle tick (digest run and worker sweep alike)", () => {
+    expect(SCHEDULER).toMatch(/runLifecycleTick\(now\)/);
+    expect(LIFECYCLE_TICK).toMatch(/processAccountClosures\(now\)/);
   });
 });
 

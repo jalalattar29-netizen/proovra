@@ -64,7 +64,6 @@ import { resolveCollaborationEntitlement } from "../services/collaboration-team/
 import {
   BillingLimitError,
   assertCanCreateCollaborationTeam,
-  assertCollaborationTeamMemberLimit,
   assertSubscriptionActiveOrGraceAllowed,
 } from "../services/collaboration-team/billing-guards.js";
 
@@ -493,7 +492,15 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         });
         return reply.code(201).send({ team: { id: result.id } });
       } catch (err) {
-        return handleServiceError(reply, err, req.id ?? null);
+        // Members audit CT-12 — a refused creation (plan, capacity, lifecycle)
+        // is recorded like every other refused collaboration mutation.
+        return handleMutationError(reply, err, req.id ?? null, {
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+          action: "collaboration_team.created",
+          resourceType: "collaboration_team",
+          resourceId: null,
+        });
       }
     },
   });
@@ -900,11 +907,10 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
 
         const added: string[] = [];
         const failed: Array<{ userId: string; reason: string }> = [];
-        // Sequential on purpose: the per-group member limit is evaluated per
-        // add, and running them concurrently would race that ceiling.
+        // Sequential on purpose: each add asks the group's capacity under the
+        // per-group lock (addExistingMember), one person at a time.
         for (const userId of Array.from(new Set(parsed.data.userIds))) {
           try {
-            await assertCollaborationTeamMemberLimit(req.params.teamId, 1);
             const { id } = await addExistingMember({
               teamId: req.params.teamId,
               actorUserId: ctx.userId,
@@ -927,10 +933,12 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             });
             added.push(userId);
           } catch (err) {
+            // CT-12 — a capacity or plan refusal keeps its own code, so the
+            // surface can say "this group is full" rather than "failed".
             failed.push({
               userId,
               reason:
-                err instanceof CollaborationTeamError
+                err instanceof CollaborationTeamError || err instanceof BillingLimitError
                   ? err.code
                   : "add_failed",
             });
@@ -974,7 +982,8 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         try {
           // Phase 10 — billing guards (pre-mutation).
           await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
-          await assertCollaborationTeamMemberLimit(req.params.teamId, 1);
+          // Capacity is asked inside addExistingMember, under the per-group
+          // lock (members audit CT-02 / CT-15).
           const { id } = await addExistingMember({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
@@ -1477,6 +1486,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         try {
           const res = await listAssignableTargets({
             workspaceId: binding.workspace.workspaceId,
+            actorUserId: binding.workspace.userId,
             targetType: parsed.data,
             search: q.q ?? null,
             limit: q.limit ? parseInt(q.limit, 10) : undefined,

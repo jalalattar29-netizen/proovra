@@ -7,10 +7,7 @@ import {
   resolveEffectiveBaseStorageBytes,
   resolveEffectiveContractSeats,
 } from "./billing/enterprise-contract-limits.js";
-import {
-  formatBytesHuman,
-  getPlanCapabilities,
-} from "./plan-catalog.service.js";
+import { formatBytesHuman } from "./plan-catalog.service.js";
 // P1-2 / PRODUCT OPTION B — THE one storage-add-on entitlement decision.
 import {
   resolveStorageAddonEntitlement,
@@ -236,20 +233,17 @@ function getSuggestedUpgradePlan(
  * it reads the SAME catalog field and applies the SAME contract override, so it
  * cannot answer differently.
  */
-function getTeamMemberLimit(scope: WorkspaceScope): number {
+function getTeamMemberLimit(scope: WorkspaceScope): number | null {
   if (!scope.teamId) {
     return 0;
   }
 
-  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a contracted seat count is
-  // the ceiling, not one input to a `max()`. Maxing a contract against a
-  // catalog placeholder would have silently granted seats nobody bought.
+  // Members audit ENT-04 — `null` = no workspace-wide ceiling. Collaboration
+  // capacity is per Collaboration Team; only a contract seat count bounds a
+  // workspace as a whole.
   return resolveEffectiveContractSeats({
     plan: scope.plan,
     contract: scope.contractLimits,
-    // The catalog seat entitlement for the workspace's own plan. NOT
-    // `scope.teamSeats`, which the shape-based projection may have zeroed.
-    persistedSeats: getPlanCapabilities(scope.plan).maxWorkspaceSeats,
   });
 }
 
@@ -287,8 +281,9 @@ export type WorkspaceUsage = {
   baseStorageLimitLabel: string;
   extraStorageAddonLabel: string;
 
-  seatLimit: number;
-  seatRemaining: number;
+  /** Non-owner member ceiling; `null` = no workspace-wide ceiling. */
+  seatLimit: number | null;
+  seatRemaining: number | null;
   seatUsageRatio: number;
   seatUsagePercent: number;
   isNearSeatLimit: boolean;
@@ -420,7 +415,8 @@ export async function getWorkspaceUsage(
           // member. Suspended/revoked members no longer consume license
           // seats (matches the stated business rule: "we limit actual
           // members", and a suspended member is denied all access).
-          where: { teamId: scope.teamId, status: "ACTIVE" },
+          // The owner never holds a seat (members audit ENT-04).
+          where: { teamId: scope.teamId, status: "ACTIVE", userId: { not: scope.ownerUserId } },
         })
       : Promise.resolve(0),
     // UC-0 (D5) — derived review materials are stored bytes too.
@@ -493,16 +489,17 @@ export async function getWorkspaceUsage(
    */
   const seatLimit = getTeamMemberLimit(scope);
 
+  const bounded = seatLimit !== null && seatLimit > 0;
   const seatRemaining =
-    seatLimit > teamMemberCount ? seatLimit - teamMemberCount : 0;
+    seatLimit === null ? null : Math.max(0, seatLimit - teamMemberCount);
 
-  const rawSeatRatio = seatLimit > 0 ? teamMemberCount / seatLimit : 0;
+  const rawSeatRatio = bounded ? teamMemberCount / seatLimit : 0;
 
   const seatUsageRatio = clampRatio(rawSeatRatio);
   const seatUsagePercent = ratioToPercent(rawSeatRatio);
-  const isSeatLimitReached = seatLimit > 0 && teamMemberCount >= seatLimit;
+  const isSeatLimitReached = bounded && teamMemberCount >= seatLimit;
   const isNearSeatLimit =
-    seatLimit > 0 && !isSeatLimitReached && seatUsageRatio >= 0.8;
+    bounded && !isSeatLimitReached && seatUsageRatio >= 0.8;
 
   const availableStorageAddons = getAvailableStorageAddonOffers(scope).map(
     (offer) => ({
@@ -608,53 +605,7 @@ export async function assertWorkspaceStorageAvailable(params: {
   return usage;
 }
 
-export async function assertTeamSeatAvailable(scope: WorkspaceScope) {
-  if (!scope.teamId) return;
-
-  const usage = await getWorkspaceUsage(scope);
-  const seatLimit = getTeamMemberLimit(scope);
-
-  if (seatLimit <= 0) {
-    const err: Error & {
-      statusCode?: number;
-      code?: string;
-      details?: Record<string, unknown>;
-    } = new Error("Team plan required");
-    err.statusCode = 409;
-    err.code = "TEAM_PLAN_REQUIRED";
-    err.details = {
-      plan: scope.plan,
-      billingShape: scope.billingShape,
-      teamId: scope.teamId,
-    };
-    throw err;
-  }
-
-  if (usage.teamMemberCount >= seatLimit) {
-    const err: Error & {
-      statusCode?: number;
-      code?: string;
-      details?: Record<string, unknown>;
-    } = new Error("Team member limit reached");
-    err.statusCode = 409;
-    err.code = "TEAM_SEAT_LIMIT_REACHED";
-    err.details = {
-      plan: scope.plan,
-      teamId: scope.teamId,
-      teamMemberCount: usage.teamMemberCount,
-      seatLimit,
-      seatUsagePercent: usage.seatUsagePercent,
-      maxMembersPerTeam: seatLimit,
-    };
-    throw err;
-  }
-
-  return {
-    seatLimit,
-    teamMemberCount: usage.teamMemberCount,
-    seatRemaining: usage.seatRemaining,
-    seatUsageRatio: usage.seatUsageRatio,
-    seatUsagePercent: usage.seatUsagePercent,
-    isNearSeatLimit: usage.isNearSeatLimit,
-  };
-}
+// Members audit ENT-05 — `assertTeamSeatAvailable` was DELETED. It had no
+// caller and was a second workspace-seat gate beside the one the invitation
+// path enforces (`resolveWorkspaceSeatState`), applying a pool the product no
+// longer sells.

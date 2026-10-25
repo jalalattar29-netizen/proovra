@@ -244,9 +244,10 @@ describe("POINT 7 CORRECTIVE — TEAM / Personal-Space semantics (live PostgreSQ
     expect(env.planFeatures.limits.maxCollaborationTeamsPerWorkspace).toBe(
       getPlanCapabilities("TEAM").maxCollaborationTeamsPerWorkspace,
     );
-    expect(env.planFeatures.limits.maxWorkspaceSeats).toBe(
-      getPlanCapabilities("TEAM").maxWorkspaceSeats,
+    expect(env.planFeatures.limits.maxAcceptedMembersPerCollaborationTeam).toBe(
+      getPlanCapabilities("TEAM").maxAcceptedMembersPerCollaborationTeam,
     );
+    expect(env.planFeatures.limits.maxAdditionalWorkspaceMembers).toBeNull();
 
     // Nothing else in the system moved: the only delta is the entitlement.
     const after = await fingerprintSideEffects(prisma);

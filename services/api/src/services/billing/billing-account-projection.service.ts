@@ -1663,11 +1663,19 @@ export async function buildBillingAccountProjection(input: {
     // A SHARED workspace reports SEATS. Pending invitations are counted and
     // reported separately — an invitation is not an accepted member, and the
     // seat cap has never been an invite cap.
-    const [pendingInvites] = await Promise.all([
-      prisma.collaborationTeamInvite.count({
-        where: { team: { workspaceId: account.id }, status: "PENDING" },
-      }),
-    ]);
+    //
+    // Members audit CT-14 (2026-10-25) — counted from the WORKSPACE invitation
+    // authority (`team_invites`), the one that grants membership. This read the
+    // retired Collaboration Team invitation table, which no current writer
+    // fills, so the meter reported 0 pending however many people were invited.
+    const pendingInvites = await prisma.teamInvite.count({
+      where: {
+        teamId: account.id,
+        acceptedAt: null,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+    });
     collaboration.seats = {
       used: usage.teamMemberCount,
       limit: usage.seatLimit,

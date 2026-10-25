@@ -400,80 +400,9 @@ export function describeRoleChange(
   return { ok: true, message: `${member.displayName} is now ${roleLabel(requested)}` };
 }
 
-// ---------------------------------------------------------------------------
-// Linked cases
-// ---------------------------------------------------------------------------
-//
-// GET    /v1/teams/:id/cases          (any member)
-// POST   /v1/teams/:id/cases/link     (MEMBER+)  { caseId }
-// DELETE /v1/teams/:id/cases/:caseId  (ADMIN+)
-//
-// Linking and unlinking are gated differently and the surface must not treat
-// them as one permission: a MEMBER can bring a case into the workspace and
-// cannot take one out again.
-
-export function buildWorkspaceCasesPath(teamId: string): string {
-  return `/v1/teams/${encodeURIComponent(teamId)}/cases`;
-}
-
-export function buildWorkspaceCaseLinkPath(teamId: string): string {
-  return `${buildWorkspaceCasesPath(teamId)}/link`;
-}
-
-export function buildWorkspaceCaseUnlinkPath(teamId: string, caseId: string): string {
-  return `${buildWorkspaceCasesPath(teamId)}/${encodeURIComponent(caseId)}`;
-}
-
-export interface WorkspaceCase {
-  id: string;
-  name: string;
-  status: string | null;
-  createdAtIso: string | null;
-  /** The workspace the case is already linked to, if any (the full Case row GET /v1/cases returns). */
-  teamId: string | null;
-}
-
-export function parseWorkspaceCases(payload: unknown): WorkspaceCase[] {
-  return rows(obj(payload).items)
-    .map((raw) => {
-      const c = obj(raw);
-      const id = str(c.id);
-      if (!id) return null;
-      return {
-        id,
-        name: str(c.name) ?? "Untitled case",
-        status: str(c.status),
-        createdAtIso: str(c.createdAt),
-        teamId: str(c.teamId),
-      };
-    })
-    .filter((c): c is WorkspaceCase => c !== null);
-}
-
-/**
- * Cases not already linked, so the picker cannot offer a duplicate link — and
- * not linked to ANY workspace: the link route refuses a case that already has
- * a `teamId` ("Case is already linked to a team", teams.routes.ts:2599), so the
- * web filters `!item.teamId` (teams/[id]/page.tsx:966) and so does this.
- */
-export function linkableCases(
-  all: WorkspaceCase[],
-  linked: WorkspaceCase[],
-): WorkspaceCase[] {
-  const have = new Set(linked.map((c) => c.id));
-  return all.filter((c) => !have.has(c.id) && !c.teamId);
-}
-
-/** ADMIN and above may unlink; a MEMBER may only link. */
-export function canUnlinkCase(role: string): boolean {
-  const r = role.toUpperCase();
-  return r === "OWNER" || r === "ADMIN";
-}
-
-export function canLinkCase(role: string): boolean {
-  const r = role.toUpperCase();
-  return r === "OWNER" || r === "ADMIN" || r === "MEMBER";
-}
+// Linked-case helpers were RETIRED with the case-link section (members audit
+// MEM-05): Members & Access manages people, and who can open a case is managed
+// on the case itself.
 
 // ---------------------------------------------------------------------------
 // Activity

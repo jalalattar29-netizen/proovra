@@ -138,7 +138,10 @@ describe("workspace invitation resend", () => {
     mocks.canManage = false;
     render(<TeamDetailPage />);
     await screen.findByTestId("people-roster");
-    await waitFor(() => expect(mocks.fetch.mock.calls.some(([p]) => p === `/v1/teams/${TEAM}/invites`)).toBe(true));
+    // Members audit — the invitation list is not even requested for a caller
+    // the server would refuse (no calls guaranteed to 403).
+    await waitFor(() => expect(mocks.fetch.mock.calls.some(([p]) => p === `/v1/teams/${TEAM}/activity`)).toBe(true));
+    expect(mocks.fetch.mock.calls.some(([p]) => p === `/v1/teams/${TEAM}/invites`)).toBe(false);
     expect(screen.queryByRole("button", { name: /Resend invitation/ })).toBeNull();
     expect(posts()).toHaveLength(0);
   });

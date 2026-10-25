@@ -51,6 +51,12 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { effectiveGroupMemberWhere } from "./effective-membership.js";
+import {
+  accessibleWorkspaceIdsFor,
+  caseReachWhere,
+  evidenceReachWhere,
+} from "../access/record-reach.js";
+import { workspaceIncludesReviewCapability } from "../billing-enforcement.service.js";
 /**
  * THE reviewer-workload authority, reused rather than reimplemented.
  *
@@ -71,11 +77,46 @@ import {
   assertCanCreateCollaborationTeam,
   assertCollaborationTeamMemberLimit,
   lockAndAssertCollaborationTeamCapacity,
+  lockAndAssertCollaborationTeamMemberCapacity,
+  lockCollaborationTeamMembership,
 } from "./billing-guards.js";
 
 // =============================================================================
 // Errors
 // =============================================================================
+
+// =============================================================================
+// TEAM TASKS — the plan gate, the reach rule and the state machine
+// (members audit CT-01, CT-04, CT-06, CT-07, CT-08, REV-04; 2026-10-25)
+// =============================================================================
+//
+// A Collaboration Team assignment is an internal TASK. It is not the Reviewer
+// Workflow assignment (`evidence_review_workflows`) and never becomes one: the
+// two keep their own tables and lifecycles, and a REVIEW-target task only
+// points at a workflow the way a CASE-target task points at a case.
+
+/**
+ * The explicit task state machine. A transition not listed is refused with a
+ * typed 409 — "any status to any status" is how a cancelled task came back as
+ * in progress and a completed one was quietly re-opened.
+ *
+ * REASSIGNED is a legacy resting state written by an older client; it is
+ * accepted as a source, never as a target (reassignment is an assignee change,
+ * recorded as an event, not a status).
+ */
+export const TEAM_TASK_TRANSITIONS: Readonly<Record<string, ReadonlyArray<string>>> = {
+  OPEN: ["IN_PROGRESS", "COMPLETED", "CANCELLED"],
+  IN_PROGRESS: ["OPEN", "COMPLETED", "CANCELLED"],
+  REASSIGNED: ["OPEN", "IN_PROGRESS", "COMPLETED", "CANCELLED"],
+  COMPLETED: [],
+  CANCELLED: [],
+};
+
+/** Transitions an ASSIGNEE may make on their own task without supervision. */
+const ASSIGNEE_SELF_TRANSITIONS: ReadonlySet<string> = new Set(["IN_PROGRESS", "OPEN", "COMPLETED"]);
+
+/** Group roles that may carry assigned work. VIEWER and EXTERNAL are read-only. */
+const TASK_ASSIGNABLE_ROLES: ReadonlySet<string> = new Set(["LEAD", "ADMIN", "MEMBER"]);
 
 export class CollaborationTeamError extends Error {
   readonly code: string;
@@ -145,6 +186,46 @@ export function assertGroupRoleWithinActorAuthority(
 }
 
 
+/**
+ * LEAD PROTECTION (members audit CT-18, 2026-10-25).
+ *
+ * A group ADMIN may manage MEMBERs and VIEWERs, but changing a LEAD's role or
+ * membership is a LEAD's decision — or the workspace OWNER's, who may manage
+ * every Collaboration Team role. Before this, an ADMIN could suspend or remove
+ * a LEAD and, with the last-LEAD guard satisfied by a second LEAD, quietly
+ * reshape the group's leadership from below.
+ */
+async function assertMayActOnLead(
+  client: PrismaClient,
+  input: {
+    workspaceId: string;
+    actorUserId: string;
+    actorRole: CollaborationTeamRole;
+    targetRole: string;
+  },
+): Promise<void> {
+  if (input.targetRole !== "LEAD" || input.actorRole === "LEAD") return;
+  const workspace = await client.team.findUnique({
+    where: { id: input.workspaceId },
+    select: { ownerUserId: true },
+  });
+  if (workspace?.ownerUserId === input.actorUserId) return;
+  throw new CollaborationTeamError(
+    "LEAD_PROTECTED",
+    "Only a lead of this team or the workspace owner can change a lead's role or membership.",
+    403,
+  );
+}
+
+/**
+ * The group's VALID leads: ACTIVE LEAD rows held by effective members (still
+ * ACTIVE in the workspace). A lead row whose workspace membership has ended
+ * leads nothing, so it never satisfies the last-LEAD guard.
+ */
+function validLeadWhere(teamId: string, workspaceId: string) {
+  return { teamId, role: "LEAD" as const, ...effectiveGroupMemberWhere(workspaceId) };
+}
+
 const E = {
   notFound: (what: string) =>
     new CollaborationTeamError("team_not_found", `${what} not found.`, 404),
@@ -158,6 +239,30 @@ const E = {
     new CollaborationTeamError("team_invalid", msg, 400),
   conflict: (msg: string) =>
     new CollaborationTeamError("team_conflict", msg, 409),
+  // Members audit CT-01 — Team tasks are a TEAM / Enterprise capability.
+  taskCapabilityNotIncluded: (capability: string) =>
+    new CollaborationTeamError(
+      "ENTITLEMENT_REQUIRED",
+      "Team tasks are available on the Team and Enterprise plans.",
+      403,
+      { entitlement: capability, reason: "review_capability_not_included" },
+    ),
+  // Members audit CT-08 — a transition outside the task state machine.
+  taskTransitionInvalid: (from: string, to: string) =>
+    new CollaborationTeamError(
+      "ASSIGNMENT_TRANSITION_INVALID",
+      "This task cannot move to that state from where it is now.",
+      409,
+      { from, to },
+    ),
+  // The same code and sentence the route binding sends for an archived group
+  // (`authorizeCollaborationTeam` with `requireActiveTeam`).
+  archived: () =>
+    new CollaborationTeamError(
+      "collaboration_team_archived",
+      "This team is archived. Reopen it before making changes.",
+      409,
+    ),
 
   // ---------------------------------------------------------------------------
   // Stable invite-accept codes (Teams Entitlement Alignment, 2026-07-14).
@@ -1368,6 +1473,36 @@ export async function archiveCollaborationTeam(
       where: { id: input.teamId },
       data: { status: "ARCHIVED", archivedAtUtc: new Date() },
     });
+    /**
+     * AN ARCHIVED GROUP CARRIES NO LIVE WORK (members audit CT-11).
+     *
+     * Archiving left OPEN and IN_PROGRESS tasks live on a group nobody could
+     * act in, so they sat in assignees' queues forever. They are settled
+     * through the task state machine — CANCELLED, every one recorded on the
+     * group's timeline — never deleted, so the history of who was asked to do
+     * what survives the archive.
+     */
+    const open = await tx.collaborationTeamAssignment.findMany({
+      where: { teamId: input.teamId, status: { in: [...OPEN_ASSIGNMENT_STATUSES] } },
+      select: { id: true },
+    });
+    if (open.length > 0) {
+      await tx.collaborationTeamAssignment.updateMany({
+        where: { id: { in: open.map((a) => a.id) } },
+        data: { status: "CANCELLED" },
+      });
+      for (const a of open) {
+        await recordActivity(tx, {
+          teamId: input.teamId,
+          workspaceId: team.workspaceId,
+          actorUserId: input.actorUserId,
+          eventType: "ASSIGNMENT_CANCELLED",
+          targetType: "ASSIGNMENT",
+          targetId: a.id,
+          metadata: { assignmentId: a.id, reason: "team_archived" },
+        });
+      }
+    }
     await recordActivity(tx, {
       teamId: input.teamId,
       workspaceId: team.workspaceId,
@@ -1425,6 +1560,14 @@ export async function unarchiveCollaborationTeam(
       plan: cap.plan,
       maxCollaborationTeamsPerWorkspace: cap.maxCollaborationTeamsPerWorkspace,
     });
+    // Restoring re-checks the MEMBER capacity too (members audit CT-03): a
+    // group archived on TEAM with ten members cannot return to current access
+    // on a PRO plan that sells five.
+    await lockAndAssertCollaborationTeamMemberCapacity(tx, {
+      teamId: input.teamId,
+      addingUserIds: [],
+      requireWithinCapacity: true,
+    });
     await tx.collaborationTeam.update({
       where: { id: input.teamId },
       data: { status: "ACTIVE", archivedAtUtc: null },
@@ -1478,28 +1621,31 @@ export async function addExistingMember(
       "Target user is not an active member of the parent workspace.",
     );
 
-  // Plan gate — canonical entitlement-based member-limit guard. Throws
-  // TEAM_INVITES_NOT_INCLUDED (402) when the owner's plan includes zero
-  // Teams (grandfathered growth lock) and TEAM_MEMBER_LIMIT_REACHED
-  // (409, with details) at seat capacity.
-  await assertCollaborationTeamMemberLimit(input.teamId, 1, client);
-
-  // Upsert — a previously removed member can be reinstated.
-  const existing = await client.collaborationTeamMember.findUnique({
-    where: {
-      collaboration_team_member_team_user_uniq: {
-        teamId: input.teamId,
-        userId: input.userIdToAdd,
-      },
-    },
-    select: { id: true, status: true },
-  });
+  // An archived group grants no new access (members audit CT-11).
+  if (team.status !== "ACTIVE") throw E.archived();
 
   const result = await client.$transaction(async (tx) => {
+    // CT-02 / CT-15 — serialised per group: the capacity count, the existing
+    // row and the write are one decision, so two concurrent adds can neither
+    // exceed the cap nor race the unique index into a 500.
+    await lockAndAssertCollaborationTeamMemberCapacity(tx, {
+      teamId: input.teamId,
+      addingUserIds: [input.userIdToAdd],
+    });
+    const existing = await tx.collaborationTeamMember.findUnique({
+      where: {
+        collaboration_team_member_team_user_uniq: {
+          teamId: input.teamId,
+          userId: input.userIdToAdd,
+        },
+      },
+      select: { id: true, status: true },
+    });
     let row;
     if (existing) {
-      if (existing.status === "ACTIVE")
-        throw E.conflict("User is already an active member of this team.");
+      // Adding someone who is already a member is idempotent: the answer is
+      // the membership they already hold, with nothing written.
+      if (existing.status === "ACTIVE") return { id: existing.id };
       row = await tx.collaborationTeamMember.update({
         where: { id: existing.id },
         data: {
@@ -1581,8 +1727,17 @@ export async function changeMemberRole(
   });
   if (!member || member.teamId !== input.teamId) throw E.notFound("Member");
   if (member.role === newRole) return;
+  await assertMayActOnLead(client, {
+    workspaceId: team.workspaceId,
+    actorUserId: input.actorUserId,
+    actorRole,
+    targetRole: String(member.role),
+  });
 
   await client.$transaction(async (tx) => {
+    // Serialised with every other membership writer of this group: two
+    // concurrent demotions of the last two LEADs cannot both pass the count.
+    await lockCollaborationTeamMembership(tx, input.teamId);
     /*
      * THE LAST-LEAD COUNT BELONGS IN THE TRANSACTION THAT WRITES.
      *
@@ -1597,7 +1752,7 @@ export async function changeMemberRole(
      */
     if (member.role === "LEAD" && newRole !== "LEAD") {
       const leadCount = await tx.collaborationTeamMember.count({
-        where: { teamId: input.teamId, role: "LEAD", status: "ACTIVE" },
+        where: validLeadWhere(input.teamId, team.workspaceId),
       });
       if (leadCount <= 1)
         throw E.conflict(
@@ -1632,7 +1787,7 @@ export async function suspendMember(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
-  const { team } = await requireMemberWithPermission(
+  const { team, role: actorRole } = await requireMemberWithPermission(
     client,
     input.teamId,
     input.actorUserId,
@@ -1644,6 +1799,12 @@ export async function suspendMember(
   });
   if (!member || member.teamId !== input.teamId) throw E.notFound("Member");
   if (member.status !== "ACTIVE") return;
+  await assertMayActOnLead(client, {
+    workspaceId: team.workspaceId,
+    actorUserId: input.actorUserId,
+    actorRole,
+    targetRole: String(member.role),
+  });
   /**
    * A TEAM MAY NOT BE SUSPENDED OUT OF ITS OWN LEADERSHIP.
    *
@@ -1656,14 +1817,10 @@ export async function suspendMember(
    * The count is taken inside the same transaction as the write below.
    */
   await client.$transaction(async (tx) => {
+    await lockCollaborationTeamMembership(tx, input.teamId);
     if (member.role === "LEAD") {
       const remainingLeads = await tx.collaborationTeamMember.count({
-        where: {
-          teamId: input.teamId,
-          id: { not: member.id },
-          role: "LEAD",
-          status: "ACTIVE",
-        },
+        where: { ...validLeadWhere(input.teamId, team.workspaceId), id: { not: member.id } },
       });
       if (remainingLeads === 0) {
         throw E.conflict(
@@ -1745,7 +1902,15 @@ export async function reinstateMember(
     );
   }
 
+  if (team.status !== "ACTIVE") throw E.archived();
+
   await client.$transaction(async (tx) => {
+    // CT-03 — a reinstated member takes a place in the group exactly as an
+    // added one does, so it asks the same capacity rule under the same lock.
+    await lockAndAssertCollaborationTeamMemberCapacity(tx, {
+      teamId: input.teamId,
+      addingUserIds: [member.userId],
+    });
     await tx.collaborationTeamMember.update({
       where: { id: input.memberId },
       data: { status: "ACTIVE", suspendedAt: null, statusReason: null },
@@ -1769,7 +1934,7 @@ export async function removeMember(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
-  const { team } = await requireMemberWithPermission(
+  const { team, role: actorRole } = await requireMemberWithPermission(
     client,
     input.teamId,
     input.actorUserId,
@@ -1781,13 +1946,20 @@ export async function removeMember(
   });
   if (!member || member.teamId !== input.teamId) throw E.notFound("Member");
   if (member.status === "REMOVED") return;
+  await assertMayActOnLead(client, {
+    workspaceId: team.workspaceId,
+    actorUserId: input.actorUserId,
+    actorRole,
+    targetRole: String(member.role),
+  });
   await client.$transaction(async (tx) => {
+    await lockCollaborationTeamMembership(tx, input.teamId);
     // Same correction as `changeMemberRole` above: counted outside the
     // transaction, written inside it. Two concurrent removals of the last two
     // LEADs both saw 2 and both proceeded.
     if (member.role === "LEAD") {
       const leadCount = await tx.collaborationTeamMember.count({
-        where: { teamId: input.teamId, role: "LEAD", status: "ACTIVE" },
+        where: validLeadWhere(input.teamId, team.workspaceId),
       });
       if (leadCount <= 1)
         throw E.conflict("Cannot remove the last LEAD. Transfer leadership first.");
@@ -2052,6 +2224,12 @@ export async function acceptInvite(
   const role: CollaborationTeamRole =
     invitedRole === "LEAD" ? "MEMBER" : invitedRole;
   const result = await client.$transaction(async (tx) => {
+    // CT-02 — the group's capacity, asked under the per-group lock before the
+    // claim, so a refusal leaves the invitation unconsumed.
+    await lockAndAssertCollaborationTeamMemberCapacity(tx, {
+      teamId: invite.teamId,
+      addingUserIds: [input.actorUserId],
+    });
     /**
      * GUARDED CLAIM FIRST — the write that decides the race.
      *
@@ -2210,6 +2388,122 @@ export async function assignmentTargetExistsInWorkspace(
   return Boolean(found);
 }
 
+/**
+ * Members audit CT-04 — the records ONE PERSON may reach, through the canonical
+ * list scopes (`record-reach`: accessible workspaces × the restricted-case rule,
+ * Evidence inheriting it). A group references records; it never widens who may
+ * see them, so every picker row, hydrated label and new task is intersected
+ * with this.
+ */
+async function targetReachFor(userId: string): Promise<{
+  caseWhere: Prisma.CaseWhereInput;
+  evidenceWhere: Prisma.EvidenceWhereInput;
+}> {
+  const ids = await accessibleWorkspaceIdsFor(userId);
+  return {
+    caseWhere: caseReachWhere(userId, ids),
+    evidenceWhere: evidenceReachWhere(userId, ids),
+  };
+}
+
+/** Can this person reach this record (inside this workspace)? */
+async function assignmentTargetReachableBy(
+  client: PrismaClient,
+  userId: string,
+  workspaceId: string,
+  targetType: CollaborationTeamAssignmentTarget,
+  targetId: string,
+): Promise<boolean> {
+  const reach = await targetReachFor(userId);
+  if (targetType === "CASE") {
+    return Boolean(
+      await client.case.findFirst({
+        where: { AND: [await workspaceCaseWhere(workspaceId, client), reach.caseWhere, { id: targetId }] },
+        select: { id: true },
+      }),
+    );
+  }
+  if (targetType === "EVIDENCE") {
+    return Boolean(
+      await client.evidence.findFirst({
+        where: {
+          AND: [await workspaceEvidenceWhere(workspaceId, client), reach.evidenceWhere, { id: targetId }],
+        },
+        select: { id: true },
+      }),
+    );
+  }
+  return Boolean(
+    await client.evidenceReviewWorkflow.findFirst({
+      where: {
+        id: targetId,
+        evidence: { AND: [await workspaceEvidenceWhere(workspaceId, client), reach.evidenceWhere] },
+      },
+      select: { id: true },
+    }),
+  );
+}
+
+/**
+ * Members audit CT-01 / REV-04 — the plan capability a task needs. Every task
+ * is a REVIEW_TASKS_AND_QUEUES operation (TEAM and eligible Enterprise); a task
+ * that points at a review workflow is additionally a review ASSIGNMENT. PRO
+ * keeps Collaboration Teams for case access and basic record review, never
+ * Team tasks.
+ */
+async function assertTeamTaskCapability(
+  workspaceId: string,
+  targetType: CollaborationTeamAssignmentTarget,
+): Promise<void> {
+  if (!(await workspaceIncludesReviewCapability(workspaceId, "REVIEW_TASKS_AND_QUEUES"))) {
+    throw E.taskCapabilityNotIncluded("REVIEW_TASKS_AND_QUEUES");
+  }
+  if (
+    targetType === "REVIEW" &&
+    !(await workspaceIncludesReviewCapability(workspaceId, "REVIEW_ASSIGNMENTS"))
+  ) {
+    throw E.taskCapabilityNotIncluded("REVIEW_ASSIGNMENTS");
+  }
+}
+
+/**
+ * Members audit CT-06 — who may carry a task: an EFFECTIVE member of the group
+ * (ACTIVE in the group and in the workspace), in a role that does work, who can
+ * reach the record the task is about. The raw group row alone is not enough.
+ */
+async function assertTaskAssigneeEligible(
+  client: PrismaClient,
+  input: {
+    teamId: string;
+    workspaceId: string;
+    assigneeUserId: string;
+    targetType: CollaborationTeamAssignmentTarget;
+    targetId: string;
+  },
+): Promise<void> {
+  const member = await client.collaborationTeamMember.findFirst({
+    where: {
+      teamId: input.teamId,
+      userId: input.assigneeUserId,
+      ...effectiveGroupMemberWhere(input.workspaceId),
+    },
+    select: { role: true },
+  });
+  if (!member || !TASK_ASSIGNABLE_ROLES.has(String(member.role))) {
+    throw E.invalid("Assignee is not an active member of this team who can take on work.");
+  }
+  const reachable = await assignmentTargetReachableBy(
+    client,
+    input.assigneeUserId,
+    input.workspaceId,
+    input.targetType,
+    input.targetId,
+  );
+  if (!reachable) {
+    throw E.invalid("Assignee does not have access to this record.");
+  }
+}
+
 async function assertAssignmentTargetInWorkspace(
   client: PrismaClient,
   workspaceId: string,
@@ -2242,6 +2536,8 @@ async function assertAssignmentTargetInWorkspace(
 export async function listAssignableTargets(
   input: {
     workspaceId: string;
+    /** Members audit CT-04 — the picker offers only what the actor may reach. */
+    actorUserId: string;
     targetType: CollaborationTeamAssignmentTarget;
     search?: string | null;
     limit?: number;
@@ -2252,12 +2548,14 @@ export async function listAssignableTargets(
 }> {
   const take = boundedPage(input.limit);
   const search = (input.search ?? "").trim();
+  const reach = await targetReachFor(input.actorUserId);
 
   if (input.targetType === "CASE") {
     const rows = await client.case.findMany({
       where: {
         AND: [
           await workspaceCaseWhere(input.workspaceId, client),
+          reach.caseWhere,
           ...(search
             ? [
                 {
@@ -2294,6 +2592,7 @@ export async function listAssignableTargets(
       where: {
         AND: [
           await workspaceEvidenceWhere(input.workspaceId, client),
+          reach.evidenceWhere,
           { lifecycleState: { not: "DESTROYED" } },
           ...(search
             ? [{ title: { contains: search, mode: "insensitive" as const } }]
@@ -2315,7 +2614,9 @@ export async function listAssignableTargets(
   }
 
   const rows = await client.evidenceReviewWorkflow.findMany({
-    where: { evidence: await workspaceEvidenceWhere(input.workspaceId, client) },
+    where: {
+      evidence: { AND: [await workspaceEvidenceWhere(input.workspaceId, client), reach.evidenceWhere] },
+    },
     orderBy: { createdAt: "desc" },
     take,
     select: {
@@ -2699,24 +3000,37 @@ export async function createAssignment(
    * identified by their owner, and `evidenceScopeFor` is the one rule that
    * knows it.
    */
+  await assertTeamTaskCapability(team.workspaceId, targetType);
   await assertAssignmentTargetInWorkspace(
     client,
     team.workspaceId,
     targetType,
     input.targetId,
   );
+  // CT-04 — the actor must be able to reach the record, with the same refusal
+  // as "not in this workspace", so a restricted case is not disclosed.
+  if (
+    !(await assignmentTargetReachableBy(
+      client,
+      input.actorUserId,
+      team.workspaceId,
+      targetType,
+      input.targetId,
+    ))
+  ) {
+    if (targetType === "CASE") throw E.notFound("Case");
+    if (targetType === "EVIDENCE") throw E.notFound("Evidence record");
+    throw E.notFound("Review");
+  }
 
   if (input.assigneeUserId) {
-    const assignee = await client.collaborationTeamMember.findFirst({
-      where: {
-        teamId: input.teamId,
-        userId: input.assigneeUserId,
-        status: "ACTIVE",
-      },
-      select: { id: true },
+    await assertTaskAssigneeEligible(client, {
+      teamId: input.teamId,
+      workspaceId: team.workspaceId,
+      assigneeUserId: input.assigneeUserId,
+      targetType,
+      targetId: input.targetId,
     });
-    if (!assignee)
-      throw E.invalid("Assignee is not an active member of this team.");
   }
 
   const result = await client.$transaction(async (tx) => {
@@ -2808,26 +3122,44 @@ export async function updateAssignment(
       assignedByUserId: true,
       status: true,
       priority: true,
+      targetType: true,
+      targetId: true,
     },
   });
   if (!assignment || assignment.teamId !== input.teamId)
     throw E.notFound("Assignment");
 
-  // Status change to COMPLETED only requires team.assignment.complete; everything
-  // else requires team.assignment.reassign (a superset).
-  const isCompleteOnly =
-    input.status === "COMPLETED" &&
+  /**
+   * WHO MAY ACT ON A TASK (members audit CT-07).
+   *
+   * An assignee may move THEIR OWN task through its working states — start it,
+   * put it back, complete it — whatever their group role, as long as they are
+   * still an effective member. Anything else (someone else's task, an
+   * unassigned one, cancelling, reassigning, re-prioritising, editing) is a
+   * supervisory act and needs `team.assignment.reassign`. Before this, a
+   * MEMBER could complete anybody's task and a CONTRIBUTOR assignee could not
+   * complete their own.
+   */
+  const statusOnly =
+    input.status !== undefined &&
     input.priority === undefined &&
     input.assigneeUserId === undefined &&
     input.dueAtUtc === undefined &&
     input.note === undefined;
-  if (isCompleteOnly) {
-    await requireMemberWithPermission(
-      client,
-      input.teamId,
-      input.actorUserId,
-      "team.assignment.complete",
-    );
+  const actorIsAssignee =
+    assignment.assigneeUserId !== null && assignment.assigneeUserId === input.actorUserId;
+  const selfService =
+    statusOnly && actorIsAssignee && ASSIGNEE_SELF_TRANSITIONS.has(String(input.status));
+  if (selfService) {
+    const own = await client.collaborationTeamMember.findFirst({
+      where: {
+        teamId: input.teamId,
+        userId: input.actorUserId,
+        ...effectiveGroupMemberWhere(assignment.workspaceId),
+      },
+      select: { id: true },
+    });
+    if (!own) throw E.forbidden("team.assignment.complete");
   } else {
     await requireMemberWithPermission(
       client,
@@ -2837,12 +3169,30 @@ export async function updateAssignment(
     );
   }
 
+  // A supervisor handing work on, or a new task being started, is Team-task
+  // work: on a plan without it only settling existing tasks remains
+  // (complete, cancel, release), so a downgrade strands nothing.
+  if (input.assigneeUserId !== undefined && input.assigneeUserId) {
+    await assertTeamTaskCapability(
+      assignment.workspaceId,
+      assignment.targetType as CollaborationTeamAssignmentTarget,
+    );
+  }
+
   const data: Prisma.CollaborationTeamAssignmentUpdateInput = {};
   const eventEmissions: Array<CollaborationTeamActivityEventType> = [];
   const meta: Record<string, unknown> = { assignmentId: assignment.id };
 
   if (input.status !== undefined) {
     const status = validateAssignmentStatus(input.status);
+    // CT-08 — the explicit state machine. Re-asserting the current state is an
+    // idempotent no-op; anything not listed refuses.
+    if (status !== assignment.status) {
+      const allowed = TEAM_TASK_TRANSITIONS[String(assignment.status)] ?? [];
+      if (!allowed.includes(status)) {
+        throw E.taskTransitionInvalid(String(assignment.status), status);
+      }
+    }
     data.status = status;
     if (status === "COMPLETED" && assignment.status !== "COMPLETED") {
       data.completedAtUtc = new Date();
@@ -2862,21 +3212,19 @@ export async function updateAssignment(
     }
   }
   if (input.assigneeUserId !== undefined) {
-    if (input.assigneeUserId) {
-      const assignee = await client.collaborationTeamMember.findFirst({
-        where: {
-          teamId: input.teamId,
-          userId: input.assigneeUserId,
-          status: "ACTIVE",
-        },
-        select: { id: true },
-      });
-      if (!assignee)
-        throw E.invalid("Assignee is not an active member of this team.");
+    if (TEAM_TASK_TRANSITIONS[String(assignment.status)]?.length === 0) {
+      throw E.taskTransitionInvalid(String(assignment.status), "REASSIGNED");
     }
-    data.assignee = input.assigneeUserId
-      ? { connect: { id: input.assigneeUserId } }
-      : { disconnect: true };
+    if (input.assigneeUserId) {
+      await assertTaskAssigneeEligible(client, {
+        teamId: input.teamId,
+        workspaceId: assignment.workspaceId,
+        assigneeUserId: input.assigneeUserId,
+        targetType: assignment.targetType as CollaborationTeamAssignmentTarget,
+        targetId: assignment.targetId,
+      });
+    }
+    (data as Record<string, unknown>).assigneeUserId = input.assigneeUserId ?? null;
     eventEmissions.push("ASSIGNMENT_REASSIGNED");
     meta.assigneeUserId = input.assigneeUserId ?? null;
   }
@@ -2890,11 +3238,31 @@ export async function updateAssignment(
   }
   if (Object.keys(data).length === 0) return;
 
-  await client.$transaction(async (tx) => {
-    await tx.collaborationTeamAssignment.update({
-      where: { id: input.assignmentId },
-      data,
+  const outcome = await client.$transaction(async (tx) => {
+    /**
+     * GUARDED WRITE (members audit CT-08). The state the transition was judged
+     * from is part of the WHERE: two concurrent completions both read OPEN and
+     * both passed the machine; only one may write. The loser sees zero rows
+     * and, when the row already holds the state it wanted, succeeds as the
+     * idempotent no-op it is — without a second event or notification.
+     */
+    const written = await tx.collaborationTeamAssignment.updateMany({
+      where: { id: input.assignmentId, status: assignment.status as never },
+      data: data as Prisma.CollaborationTeamAssignmentUpdateManyMutationInput,
     });
+    if (written.count === 0) {
+      const now = await tx.collaborationTeamAssignment.findUnique({
+        where: { id: input.assignmentId },
+        select: { status: true },
+      });
+      if (now && data.status !== undefined && now.status === data.status) return "noop" as const;
+      throw E.taskTransitionInvalid(String(now?.status ?? assignment.status), String(data.status ?? assignment.status));
+    }
+    return "written" as const;
+  });
+  if (outcome === "noop") return;
+
+  await client.$transaction(async (tx) => {
     for (const evt of eventEmissions) {
       await recordActivity(tx, {
         teamId: input.teamId,
@@ -3045,9 +3413,16 @@ async function hydrateAssignmentTargets(
   client: PrismaClient,
   workspaceId: string,
   rows: ReadonlyArray<{ targetType: string; targetId: string }>,
+  /**
+   * Members audit CT-04 — labels are resolved only for records the VIEWER may
+   * reach. A task on a restricted case the viewer is not on reads as
+   * unresolved: the row is the group's, the case name is not theirs to see.
+   */
+  viewerUserId: string,
 ): Promise<Map<string, AssignmentTargetView>> {
   const out = new Map<string, AssignmentTargetView>();
   if (rows.length === 0) return out;
+  const reach = await targetReachFor(viewerUserId);
 
   const idsByType = new Map<string, string[]>();
   for (const r of rows) {
@@ -3066,6 +3441,7 @@ async function hydrateAssignmentTargets(
           where: {
             AND: [
               await workspaceCaseWhere(workspaceId, client),
+              reach.caseWhere,
               { id: { in: caseIds } },
             ],
           },
@@ -3083,6 +3459,7 @@ async function hydrateAssignmentTargets(
           where: {
             AND: [
               await workspaceEvidenceWhere(workspaceId, client),
+              reach.evidenceWhere,
               { id: { in: evidenceIds } },
             ],
           },
@@ -3098,7 +3475,7 @@ async function hydrateAssignmentTargets(
       ? client.evidenceReviewWorkflow.findMany({
           where: {
             AND: [
-              { evidence: await workspaceEvidenceWhere(workspaceId, client) },
+              { evidence: { AND: [await workspaceEvidenceWhere(workspaceId, client), reach.evidenceWhere] } },
               { id: { in: reviewIds } },
             ],
           },
@@ -3282,6 +3659,7 @@ export async function listAssignments(
       team.workspaceId,
       scanned,
       term,
+      input.actorUserId,
     );
     where.OR = [
       { note: { contains: term, mode: "insensitive" } },
@@ -3306,6 +3684,7 @@ export async function listAssignments(
     client,
     team.workspaceId,
     rows,
+    input.actorUserId,
   );
 
   const items = rows.map((a) => ({
@@ -3395,13 +3774,17 @@ export async function listResponsibilityForTarget(
    * including a PERSONAL workspace's legacy `team_id IS NULL` rows, which only
    * these predicates know how to identify.
    */
-  const inWorkspace = await assignmentTargetExistsInWorkspace(
+  // Members audit CT-04 / CT-05 — the record must be one the ACTOR may reach,
+  // and only the groups the actor is an effective member of are described:
+  // another group's work on the same record is that group's business.
+  const reachable = await assignmentTargetReachableBy(
     client,
+    input.actorUserId,
     input.workspaceId,
     input.targetType,
     input.targetId,
   );
-  if (!inWorkspace) return { assignments: [] };
+  if (!reachable) return { assignments: [] };
 
   const now = new Date();
   const rows = await client.collaborationTeamAssignment.findMany({
@@ -3409,6 +3792,11 @@ export async function listResponsibilityForTarget(
       workspaceId: input.workspaceId,
       targetType: input.targetType,
       targetId: input.targetId,
+      team: {
+        members: {
+          some: { userId: input.actorUserId, ...effectiveGroupMemberWhere(input.workspaceId) },
+        },
+      },
       // Terminal rows are history, not responsibility. A record shows who is
       // on it now; the group's own activity timeline holds who used to be.
       status: { in: [...OPEN_ASSIGNMENT_STATUSES] },
@@ -3728,8 +4116,10 @@ async function searchAssignmentTargets(
   workspaceId: string,
   rows: ReadonlyArray<{ targetType: string; targetId: string }>,
   term: string,
+  viewerUserId: string,
 ): Promise<string[]> {
   if (rows.length === 0) return [];
+  const reach = await targetReachFor(viewerUserId);
   const idsByType = new Map<string, string[]>();
   for (const r of rows) {
     const list = idsByType.get(r.targetType);
@@ -3747,6 +4137,7 @@ async function searchAssignmentTargets(
           where: {
             AND: [
               await workspaceCaseWhere(workspaceId, client),
+              reach.caseWhere,
               { id: { in: caseIds } },
               { OR: [{ name: like }, { referenceNumber: like }] },
             ],
@@ -3759,6 +4150,7 @@ async function searchAssignmentTargets(
           where: {
             AND: [
               await workspaceEvidenceWhere(workspaceId, client),
+              reach.evidenceWhere,
               { id: { in: evidenceIds } },
               { title: like },
             ],
@@ -3770,7 +4162,7 @@ async function searchAssignmentTargets(
       ? client.evidenceReviewWorkflow.findMany({
           where: {
             AND: [
-              { evidence: await workspaceEvidenceWhere(workspaceId, client) },
+              { evidence: { AND: [await workspaceEvidenceWhere(workspaceId, client), reach.evidenceWhere] } },
               { id: { in: reviewIds } },
               { evidence: { title: like } },
             ],

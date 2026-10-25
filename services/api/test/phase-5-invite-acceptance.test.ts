@@ -130,7 +130,8 @@ vi.mock("../src/services/enterprise-provisioning.service.js", () => ({
  * seat answer is stubbed to "room available" and the seat rule itself is
  * asserted where it lives, in `p2-invitation-coherence`.
  */
-vi.mock("../src/services/billing/workspace-seats.service.js", () => ({
+vi.mock("../src/services/billing/workspace-seats.service.js", async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   resolveWorkspaceSeatState: async () => ({
     plan: "TEAM",
     used: 1,

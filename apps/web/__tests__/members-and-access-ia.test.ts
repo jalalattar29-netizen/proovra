@@ -58,13 +58,15 @@ test("the platform-wide roster is NOT renamed — it is a different concept", ()
   assert.match(entry, /label: "People"/);
 });
 
-test("'Teams' is disambiguated to 'Collaboration Teams' in navigation", () => {
+test("the Collaboration Teams page is labelled 'Teams' with the canonical description", () => {
+  // Owner decision 2026-10-25 — page "Teams", object "Collaboration Team".
   const registry = read(REGISTRY);
   const entry = registry.slice(
     registry.indexOf('id: "workspace.collaboration_teams"'),
     registry.indexOf('id: "workspace.collaboration_teams"') + 1600,
   );
-  assert.match(entry, /label: "Collaboration Teams"/);
+  assert.match(entry, /label: "Teams"/);
+  assert.match(entry, /description: "Group workspace members to control case access and coordinate work\."/);
 });
 
 test("the route stays /people — the rename is a product name, not a URL change", () => {
@@ -134,12 +136,13 @@ test("Collaboration Teams links back to Members & Access", () => {
   assert.match(page, /WORKSPACE_PEOPLE_PATH \} from ".*workspacePeopleLocator"/);
 });
 
-test("Collaboration Teams states that it groups EXISTING members", () => {
+test("Teams states the canonical description — it groups members AND controls case access", () => {
+  // Owner decision 2026-10-25. The old sentence ("Teams … do not grant it")
+  // became false when a Collaboration Team could be granted a case.
   const page = read(TEAMS_PAGE);
-  assert.match(page, /<h1 className="app-page-header__title">Collaboration Teams<\/h1>/);
-  // The distinction in three words: "members who already have access".
-  assert.match(page, /already have access/);
-  assert.match(page, /they do not grant it/);
+  assert.match(page, /<h1 className="app-page-header__title">Teams<\/h1>/);
+  assert.match(page, /Group workspace members to control case access and coordinate work\./);
+  assert.doesNotMatch(page, /they do not grant it/);
 });
 
 test("no CollaborationTeamInvite writer was restored by this reconciliation", () => {

@@ -19,6 +19,7 @@
  */
 
 import { prisma } from "../../db.js";
+import { caseVisibleToWhere } from "./case-visibility.js";
 import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 
@@ -204,15 +205,13 @@ export async function buildCasesSummary(input: {
   });
   const workspaceScope: CaseScope = memberCount <= 1 ? "SINGLE_OCCUPANT" : "SHARED";
 
-  // Cases the user can see in this workspace. Same access model as
-  // /v1/cases: cases the user owns, has direct access to, or whose
-  // teamId matches the workspace and has no explicit access list.
+  // Cases the user can see in THIS workspace — the canonical restricted-case
+  // rule (members audit ACC-04): unrestricted, on the access list, granted
+  // through an ACTIVE Collaboration Team, or owned. The status-blind owner and
+  // grant arms that used to sit beside it are gone; the caller has already
+  // been authorized as an ACTIVE member of `teamId`.
   const accessibleWhere = {
-    OR: [
-      { ownerUserId: input.userId },
-      { access: { some: { userId: input.userId } } },
-      { teamId: input.teamId, access: { none: {} } },
-    ],
+    AND: [{ teamId: input.teamId }, caseVisibleToWhere(input.userId)],
   };
 
   let summary: CasesSummaryEnvelope["sections"]["summary"] = {

@@ -272,7 +272,8 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
     it("writes the PERSONAL entitlement, creates nothing, and raises exactly two limits", async () => {
       const t = await seedPersonalTenant(deps, "PRO");
       const beforeCaps = await capabilitiesOf(t.owner.userId);
-      expect(beforeCaps.maxWorkspaceSeats).toBe(5);
+      // Members audit ENT-04 — the offer is per Collaboration Team.
+      expect(beforeCaps.maxAcceptedMembersPerCollaborationTeam).toBe(5);
       expect(beforeCaps.maxCollaborationTeamsPerWorkspace).toBe(2);
 
       // Make the "nothing is transformed" assertion non-vacuous: the workspace
@@ -300,7 +301,7 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
       // The entitlement moved …
       expect((await entitlementOf(t.owner.userId))?.plan).toBe("TEAM");
       const afterCaps = await capabilitiesOf(t.owner.userId);
-      expect(afterCaps.maxWorkspaceSeats).toBe(10);
+      expect(afterCaps.maxAcceptedMembersPerCollaborationTeam).toBe(10);
       expect(afterCaps.maxCollaborationTeamsPerWorkspace).toBe(5);
 
       // … and NOTHING else did.
@@ -340,14 +341,22 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
       ).toBe(0);
     });
 
-    it("the seat authority reports the new ceiling for the SAME workspace", async () => {
+    it("the capacity authority reports the new per-group capacity for the SAME workspace", async () => {
+      // Members audit ENT-04 — what an upgrade raises is the capacity of each
+      // Collaboration Team; there is no workspace-wide ceiling before or after.
       const t = await seedPersonalTenant(deps, "PRO");
       const seats = await import(
         "../src/services/billing/workspace-seats.service.js"
       );
+      const { resolveCollaborationEntitlement } = await import(
+        "../src/services/collaboration-team/collaboration-entitlement.service.js"
+      );
       expect(
         (await seats.resolveWorkspaceSeatState(t.personalTeamId, prisma as never))
           .limit,
+      ).toBeNull();
+      expect(
+        (await resolveCollaborationEntitlement(t.personalTeamId)).collaborationTeamMembers.limit,
       ).toBe(5);
 
       const raw = stripeEvent({
@@ -363,8 +372,11 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
         t.personalTeamId,
         prisma as never,
       );
-      expect(after.limit).toBe(10);
+      expect(after.limit).toBeNull();
       expect(after.plan).toBe("TEAM");
+      expect(
+        (await resolveCollaborationEntitlement(t.personalTeamId)).collaborationTeamMembers.limit,
+      ).toBe(10);
     });
   });
 
@@ -382,7 +394,9 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
         "../src/services/collaboration-team/collaboration-team.service.js"
       );
 
-      // Fill past what PRO allows: seven active members and three groups.
+      // Fill past what PRO allows: one group of six non-owner members (PRO
+      // sells five per group) and three groups (PRO sells two).
+      const joined: string[] = [];
       for (let i = 0; i < 6; i += 1) {
         const email = `wcrc-down-${i}-${randomUUID().slice(0, 6)}@x.test`;
         const created = await invites.createWorkspaceInvitation(
@@ -400,13 +414,19 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
           { rawToken: created.rawToken, actorUserId: u.userId },
           prisma as never,
         );
+        joined.push(u.userId);
       }
+      const groupIds: string[] = [];
       for (const name of ["one", "two", "three"]) {
-        await svc.createCollaborationTeam({
+        const { id } = await svc.createCollaborationTeam({
           workspaceId: t.personalTeamId,
           actorUserId: t.owner.userId,
           name: `down ${name}`,
         });
+        groupIds.push(id);
+      }
+      for (const userId of joined) {
+        await svc.addExistingMember({ teamId: groupIds[0]!, actorUserId: t.owner.userId, userIdToAdd: userId });
       }
       const beforeMembers = await prisma.teamMember.count({
         where: { teamId: t.personalTeamId, status: "ACTIVE" },
@@ -446,14 +466,17 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
         "../src/services/collaboration-team/collaboration-entitlement.service.js"
       );
       const projection = await resolveCollaborationEntitlement(t.personalTeamId);
-      expect(projection.workspaceSeats.limit).toBe(5);
-      expect(projection.workspaceSeats.used).toBe(7);
-      expect(projection.workspaceSeats.overLimit).toBe(true);
+      // No workspace-wide pool: six non-owner members exceed nothing as such.
+      expect(projection.workspaceSeats.limit).toBeNull();
+      expect(projection.workspaceSeats.used).toBe(6);
+      expect(projection.workspaceSeats.overLimit).toBe(false);
       expect(projection.collaborationTeams.limit).toBe(2);
       expect(projection.collaborationTeams.used).toBe(3);
+      expect(projection.collaborationTeamMembers.limit).toBe(5);
       expect(projection.exceededDimensions).toEqual(
-        expect.arrayContaining(["WORKSPACE_SEATS", "COLLABORATION_TEAMS"]),
+        expect.arrayContaining(["COLLABORATION_TEAMS", "COLLABORATION_TEAM_MEMBERS"]),
       );
+      expect(projection.exceededDimensions).not.toContain("WORKSPACE_SEATS");
       expect(projection.upgradeHref).toBeTruthy();
 
       // GROWTH is blocked — a new group and a new member both refuse.
@@ -468,6 +491,19 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
         groupOutcome = (err as { code?: string }).code ?? "UNTYPED";
       }
       expect(groupOutcome).not.toBe("ALLOWED");
+
+      // … and the over-full group takes nobody else.
+      const extra = await seedUser(deps, "down-extra");
+      await prisma.teamMember.create({
+        data: { teamId: t.personalTeamId, userId: extra.userId, role: "MEMBER", status: "ACTIVE" },
+      });
+      await expect(
+        svc.addExistingMember({ teamId: groupIds[0]!, actorUserId: t.owner.userId, userIdToAdd: extra.userId }),
+      ).rejects.toMatchObject({ code: "TEAM_MEMBER_LIMIT_REACHED" });
+      // A group still within capacity is unaffected by its neighbour.
+      await expect(
+        svc.addExistingMember({ teamId: groupIds[1]!, actorUserId: t.owner.userId, userIdToAdd: extra.userId }),
+      ).resolves.toBeTruthy();
 
       const email = `wcrc-blocked-${randomUUID().slice(0, 6)}@x.test`;
       const created = await invites.createWorkspaceInvitation(
@@ -493,7 +529,9 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
       } catch (err) {
         acceptOutcome = (err as { code?: string }).code ?? "UNTYPED";
       }
-      expect(acceptOutcome).toBe("WORKSPACE_SEAT_LIMIT_REACHED");
+      // Joining the WORKSPACE is not growth of any group, and there is no
+      // workspace-wide pool to refuse it (members audit ENT-04).
+      expect(acceptOutcome).toBe("ALLOWED");
 
       // CORRECTIVE actions remain available — an over-limit workspace must be
       // able to get back under the limit, and to revoke access in a hurry.
@@ -599,9 +637,9 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
       expect((await deliver(canceled, sign(canceled))).statusCode).toBe(200);
       expect((await entitlementOf(t.owner.userId))?.plan).toBe("FREE");
 
-      // And FREE means what it says: one seat, no groups.
+      // And FREE means what it says: nobody but the owner, no groups.
       const caps = await capabilitiesOf(t.owner.userId);
-      expect(caps.maxWorkspaceSeats).toBe(1);
+      expect(caps.maxAdditionalWorkspaceMembers).toBe(0);
       expect(caps.maxCollaborationTeamsPerWorkspace).toBe(0);
     });
 
@@ -663,7 +701,7 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
         await import("@proovra/shared-billing");
       expect(canPlanPurchasePersonalWorkspacePlan("TEAM")).toBe(true);
       // …and buying it is what raises these two, which is the whole offer.
-      expect(getPlanCapabilities("TEAM").maxWorkspaceSeats).toBe(10);
+      expect(getPlanCapabilities("TEAM").maxAcceptedMembersPerCollaborationTeam).toBe(10);
       expect(getPlanCapabilities("TEAM").maxCollaborationTeamsPerWorkspace).toBe(5);
     });
 
@@ -730,7 +768,7 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
   // =========================================================================
 
   describe("a FREE person inside a TEAM workspace", () => {
-    it("spends one of ITS seats, acts by their workspace role, and gains nothing in their own", async () => {
+    it("joins THAT workspace, acts by their workspace role, and gains nothing in their own", async () => {
       const host = await seedPersonalTenant(deps, "TEAM");
       const guest = await seedPersonalTenant(deps, "FREE");
 
@@ -765,7 +803,8 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
         prisma as never,
       );
       expect(after.used).toBe(before.used + 1);
-      expect(after.limit).toBe(10);
+      // No workspace-wide ceiling on TEAM (members audit ENT-04).
+      expect(after.limit).toBeNull();
 
       // They act there by their WORKSPACE ROLE — ADMIN, which the host granted
       // — and not by their own plan.
@@ -778,7 +817,7 @@ describe("WCR closure — TEAM as a commercial plan (live PostgreSQL 16)", () =>
       // Their OWN entitlement is untouched: still FREE.
       expect((await entitlementOf(guest.owner.userId))?.plan).toBe("FREE");
       const ownCaps = await capabilitiesOf(guest.owner.userId);
-      expect(ownCaps.maxWorkspaceSeats).toBe(1);
+      expect(ownCaps.maxAdditionalWorkspaceMembers).toBe(0);
       expect(ownCaps.maxCollaborationTeamsPerWorkspace).toBe(0);
 
       // And their own workspace gained nothing: no group can be created there.

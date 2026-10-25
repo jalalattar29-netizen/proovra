@@ -357,9 +357,12 @@ describe("Phase RW3 — filter + cursor compose", () => {
       cursor: { id: string };
       skip: number;
     };
-    // Filter predicate present
-    expect(args.where.teamId).toBe(TEAM_ID);
-    expect(args.where.slaStatus).toEqual({ in: ["OVERDUE", "BREACHED"] });
+    // Filter predicate present — the queue filter is the first AND arm, the
+    // restricted-case narrowing the second (members audit REV-03).
+    const filter = (args.where.AND as Array<Record<string, unknown>>)[0]!;
+    expect(filter.teamId).toBe(TEAM_ID);
+    expect(filter.slaStatus).toEqual({ in: ["OVERDUE", "BREACHED"] });
+    expect((args.where.AND as Array<Record<string, unknown>>)[1]).toHaveProperty("evidence");
     // Cursor pagination present
     expect(args.cursor).toEqual({ id: CURSOR_ID });
     expect(args.skip).toBe(1);
@@ -380,8 +383,9 @@ describe("Phase RW3 — filter + cursor compose", () => {
       where: Record<string, unknown>;
       cursor: { id: string };
     };
-    expect(args.where.teamId).toBe(TEAM_ID);
-    expect(args.where.assignedToUserId).toBe(ME_USER_ID);
+    const filter = (args.where.AND as Array<Record<string, unknown>>)[0]!;
+    expect(filter.teamId).toBe(TEAM_ID);
+    expect(filter.assignedToUserId).toBe(ME_USER_ID);
     expect(args.cursor).toEqual({ id: CURSOR_ID });
   });
 });

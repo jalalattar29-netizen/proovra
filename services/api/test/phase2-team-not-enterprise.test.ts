@@ -63,11 +63,16 @@ describe("Phase 2 — TEAM is not enterprise (plan capabilities)", () => {
     expect(team.reportsIncluded).toBe(true);
     expect(team.verificationPackageIncluded).toBe(true);
     expect(team.allowsSharedWorkspace).toBe(true);
-    expect(team.includedSeats).toBe(5);
-    // APPROVED CHANGE — TEAM seats 10 people, PRO seats 5. The two tiers used
-    // to carry the same seat number, which meant the £79 tier bought no
-    // additional people over the £19 one.
-    expect(team.maxWorkspaceSeats).toBe(10);
+    // Members audit ENT-09 — a provisioning default that bounds nothing on a
+    // self-serve plan, so TEAM carries none; and TEAM is bought for the
+    // Personal Workspace, so its commercial shape is BOTH.
+    expect(team.includedSeats).toBe(0);
+    expect(team.billingShape).toBe("BOTH");
+    // Members audit ENT-04 — TEAM sells 5 Collaboration Teams of up to 10
+    // members each (owner not counted), with no workspace-wide pool.
+    expect(team.maxCollaborationTeamsPerWorkspace).toBe(5);
+    expect(team.maxAcceptedMembersPerCollaborationTeam).toBe(10);
+    expect(team.maxAdditionalWorkspaceMembers).toBeNull();
     // ...but never governance/SSO/SCIM.
     expect(team.enterpriseFeatures.ssoScim).toBe(false);
     expect(team.enterpriseFeatures.legalHold).toBe(false);

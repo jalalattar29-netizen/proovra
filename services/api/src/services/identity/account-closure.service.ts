@@ -27,6 +27,25 @@
  * Evidence is NEVER hard-deleted here — retention/legal governance owns
  * evidence destruction, not account lifecycle. Workspace rows, evidence
  * rows, and audit history remain intact under the archived organization.
+ *
+ * MEMBERS AUDIT LIFE-09 / LIFE-10 / LIFE-13 (2026-10-25) — ORDER AND
+ * DURABILITY. The workspaces the user owned used to outlive the account: their
+ * API keys, webhooks, pending invitations and suspended members stayed live
+ * under an anonymised owner. Execution is now two transactions in a fixed
+ * order:
+ *
+ *   A. DURABLE CLOSURE. Every workspace the user owns is closed through the
+ *      ONE closure leg set (`closeWorkspacesTx`): memberships (ACTIVE and
+ *      SUSPENDED) revoked with their reach ended, invitations revoked,
+ *      credentials revoked, webhooks disabled, external grants revoked,
+ *      `closedAtUtc` stamped. The user's own memberships elsewhere end the
+ *      same way, invitations addressed to them are revoked, and credentials
+ *      they minted in other workspaces are revoked.
+ *   B. ANONYMISATION — only after A has committed.
+ *
+ * Every leg selects only what is still live, so the whole execution is
+ * idempotent: a reaper that finds a request stuck in PROCESSING simply runs it
+ * again (`processAccountClosures`), and nothing already settled changes.
  */
 
 import { prisma } from "../../db.js";
@@ -35,6 +54,7 @@ import { emitPlatformAudit } from "../audit/tenant-audit.service.js";
 import { evaluateAccountClosurePreflight } from "./account-lifecycle-preflight.service.js";
 // PROGRAM CONVERGENCE (2026-07-22) — the ONE Organization→ARCHIVED transition.
 import { archiveOrganizationStatusTx } from "../organization/org-closure.service.js";
+import { closeWorkspacesTx } from "../workspace/workspace-closure.service.js";
 // PHASE 3 (2026-07-22) — canonical membership orchestrator.
 import {
   massRevokeWorkspaceMemberships,
@@ -43,6 +63,8 @@ import {
 
 export const COOLING_OFF_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const PROCESS_BATCH = 5;
+/** A PROCESSING request untouched this long was interrupted; the reaper resumes it. */
+export const ACCOUNT_CLOSURE_STALE_MS = 30 * 60 * 1000;
 
 /** Statuses that count as "an open closure request exists". */
 export const ACTIVE_CLOSURE_STATUSES = [
@@ -75,7 +97,71 @@ export async function executeAccountClosure(userId: string): Promise<void> {
     },
   });
 
-  // 2. Login methods + PII + privacy artifacts in one transaction.
+  // A. DURABLE CLOSURE — committed before a single field is anonymised.
+  await prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({ where: { id: userId }, select: { email: true } });
+
+    // Solo implicit organizations go first, so their workspaces close with
+    // the user's own (the multi-member case is a preflight blocker).
+    const ownerMemberships = await tx.organizationMembership.findMany({
+      where: { userId, role: "ORG_OWNER" },
+      select: { organizationId: true },
+    });
+    const soloOrgIds: string[] = [];
+    for (const m of ownerMemberships) {
+      const others = await tx.organizationMembership.count({
+        where: { organizationId: m.organizationId, userId: { not: userId } },
+      });
+      if (others === 0) {
+        // PROGRAM CONVERGENCE (2026-07-22) — the ONE Organization→ARCHIVED
+        // transition (org-closure engine), never a second inline status write.
+        await archiveOrganizationStatusTx(tx, { organizationId: m.organizationId });
+        soloOrgIds.push(m.organizationId);
+      }
+    }
+
+    // Every workspace the user owns, plus every workspace of an organization
+    // that just archived with them. Already-closed ones are settled again
+    // harmlessly (every leg selects only what is still live).
+    const owned = await tx.team.findMany({
+      where: {
+        OR: [
+          { ownerUserId: userId },
+          ...(soloOrgIds.length ? [{ organizationId: { in: soloOrgIds } }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+    await closeWorkspacesTx(tx, {
+      teamIds: owned.map((t) => t.id),
+      actorUserId: userId,
+      reason: "account closure",
+    });
+
+    // The user's memberships ELSEWHERE end, with their reach (canonical
+    // orchestrator: governance memberships removed with provenance closed;
+    // workspace memberships revoked, never erased).
+    await removeAllOrganizationMembershipsForUser(tx, { userId });
+    await massRevokeWorkspaceMemberships(tx, {
+      where: { userId },
+      reason: "account closure",
+    });
+
+    // Invitations addressed to this person can no longer be accepted by
+    // anyone, and machine credentials they minted elsewhere stop working.
+    if (user?.email) {
+      await tx.teamInvite.updateMany({
+        where: { email: { equals: user.email, mode: "insensitive" }, acceptedAt: null, revokedAt: null },
+        data: { revokedAt: now },
+      });
+    }
+    await tx.apiCredential.updateMany({
+      where: { createdByUserId: userId, status: "ACTIVE" },
+      data: { status: "REVOKED", revokedAtUtc: now, revokedReason: "account_closed" },
+    });
+  });
+
+  // B. ANONYMISATION — login methods, PII and privacy artifacts.
   await prisma.$transaction(async (tx) => {
     await tx.userIdentityLink.updateMany({
       where: { userId, status: "ACTIVE" },
@@ -105,35 +191,6 @@ export async function executeAccountClosure(userId: string): Promise<void> {
         currentWorkspaceId: null,
       },
     });
-
-    // Archive solo implicit personal organizations the user owns (no
-    // other members — the multi-member case is a preflight blocker).
-    const ownerMemberships = await tx.organizationMembership.findMany({
-      where: { userId, role: "ORG_OWNER" },
-      select: { organizationId: true },
-    });
-    for (const m of ownerMemberships) {
-      const others = await tx.organizationMembership.count({
-        where: { organizationId: m.organizationId, userId: { not: userId } },
-      });
-      if (others === 0) {
-        // PROGRAM CONVERGENCE (2026-07-22) — compose the ONE canonical
-        // Organization→ARCHIVED transition (org-closure engine) instead of a
-        // second inline status write.
-        await archiveOrganizationStatusTx(tx, {
-          organizationId: m.organizationId,
-        });
-      }
-    }
-
-    // PHASE 3 — canonical orchestrator: account-closure off-board
-    // (governance memberships removed with provenance closed; workspace
-    // memberships mass-revoked, never erased).
-    await removeAllOrganizationMembershipsForUser(tx, { userId });
-    await massRevokeWorkspaceMemberships(tx, {
-      where: { userId },
-      reason: "account closure",
-    });
   });
 }
 
@@ -151,6 +208,27 @@ export async function processAccountClosures(now: Date): Promise<void> {
     take: PROCESS_BATCH,
     select: { id: true, userId: true, status: true },
   });
+
+  // THE REAPER (members audit LIFE-11). A request left in PROCESSING by an
+  // interrupted run is resumed: execution is idempotent, so running it again
+  // finishes what the first run started and changes nothing it settled.
+  const stale = await prisma.accountClosureRequest.findMany({
+    where: {
+      status: "PROCESSING",
+      startedAtUtc: { lte: new Date(now.getTime() - ACCOUNT_CLOSURE_STALE_MS) },
+    },
+    orderBy: { startedAtUtc: "asc" },
+    take: PROCESS_BATCH,
+    select: { id: true, userId: true },
+  });
+  for (const req of stale) {
+    const reclaimed = await prisma.accountClosureRequest.updateMany({
+      where: { id: req.id, status: "PROCESSING" },
+      data: { startedAtUtc: now },
+    });
+    if (reclaimed.count === 0) continue;
+    await runClaimedClosure(req);
+  }
 
   for (const req of due) {
     // Execution-time preflight — a blocker acquired during cooling-off
@@ -180,40 +258,44 @@ export async function processAccountClosures(now: Date): Promise<void> {
       data: { status: "PROCESSING", startedAtUtc: now },
     });
     if (claimed.count === 0) continue;
+    await runClaimedClosure(req);
+  }
+}
 
-    try {
-      await executeAccountClosure(req.userId);
-      await prisma.accountClosureRequest.update({
+/** Execute one claimed request and record its outcome. */
+async function runClaimedClosure(req: { id: string; userId: string }): Promise<void> {
+  try {
+    await executeAccountClosure(req.userId);
+    await prisma.accountClosureRequest.update({
+      where: { id: req.id },
+      data: { status: "COMPLETED", completedAtUtc: new Date() },
+    });
+    await emitPlatformAudit({
+      action: "identity.account_closure_completed",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: req.userId,
+      serviceActor: "account_closure_worker",
+      resourceType: "account_closure_request",
+      resourceId: req.id,
+      metadata: {},
+    });
+  } catch {
+    await prisma.accountClosureRequest
+      .update({
         where: { id: req.id },
-        data: { status: "COMPLETED", completedAtUtc: new Date() },
-      });
-      await emitPlatformAudit({
-        action: "identity.account_closure_completed",
-        outcome: "success",
-        sourceApp: "API",
-        actorUserId: req.userId,
-        serviceActor: "account_closure_worker",
-        resourceType: "account_closure_request",
-        resourceId: req.id,
-        metadata: {},
-      });
-    } catch {
-      await prisma.accountClosureRequest
-        .update({
-          where: { id: req.id },
-          data: { status: "FAILED", failureCode: "closure_failed" },
-        })
-        .catch(() => null);
-      await emitPlatformAudit({
-        action: "identity.account_closure_failed",
-        outcome: "error",
-        sourceApp: "API",
-        actorUserId: req.userId,
-        serviceActor: "account_closure_worker",
-        resourceType: "account_closure_request",
-        resourceId: req.id,
-        metadata: { failureCode: "closure_failed" },
-      }).catch(() => null);
-    }
+        data: { status: "FAILED", failureCode: "closure_failed" },
+      })
+      .catch(() => null);
+    await emitPlatformAudit({
+      action: "identity.account_closure_failed",
+      outcome: "error",
+      sourceApp: "API",
+      actorUserId: req.userId,
+      serviceActor: "account_closure_worker",
+      resourceType: "account_closure_request",
+      resourceId: req.id,
+      metadata: { failureCode: "closure_failed" },
+    }).catch(() => null);
   }
 }

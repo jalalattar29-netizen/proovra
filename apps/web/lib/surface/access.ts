@@ -48,6 +48,8 @@ export type SurfaceUserContext = {
     intakeIncluded: boolean | null;
     /** PROFESSIONAL surface tier included (catalog-derived, server-projected). */
     professionalSurfacesIncluded: boolean | null;
+    /** Reviewer operations (members audit ENT-01) — the review capability ladder. */
+    reviewerOperationsIncluded?: boolean | null;
   } | null;
 };
 

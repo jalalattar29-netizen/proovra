@@ -28,6 +28,7 @@
  */
 
 import { getPlanCapabilities } from "../plan-catalog.service.js";
+import { resolveWorkspaceMemberCeiling } from "@proovra/shared-billing";
 import type { EnterpriseContractProjection } from "../organization/enterprise-contract.service.js";
 
 const BYTES_PER_GB = 1024n * 1024n * 1024n;
@@ -177,18 +178,31 @@ export function resolveEffectiveBaseStorageBytes(input: {
   return getPlanCapabilities(input.plan).includedStorageBytes;
 }
 
-/** The effective seat ceiling for one shared workspace, contract first. */
+/**
+ * The effective NON-OWNER member ceiling for one workspace, contract first, or
+ * `null` when nothing bounds the workspace as a whole.
+ *
+ * Members audit ENT-04 / ENT-05 (2026-10-25): this took
+ * `max(maxWorkspaceSeats, includedSeats, persistedSeats)` — a workspace pool
+ * that counted the owner and that the product does not sell. It now states the
+ * one rule (`resolveWorkspaceMemberCeiling`): an ACTIVE contract's seat count
+ * where it states one, 0 for a plan with no collaboration, and otherwise no
+ * workspace-wide ceiling. A persisted `includedSeats` no longer raises or
+ * lowers anything.
+ */
 export function resolveEffectiveContractSeats(input: {
   plan: Parameters<typeof getPlanCapabilities>[0];
   contract: EnterpriseContractLimits | null | undefined;
-  /** Seats already persisted on the workspace row. */
-  persistedSeats: number;
-}): number {
-  if (input.contract?.contractGovernsCapability && input.contract?.seats !== null) {
-    return input.contract?.seats;
-  }
-  const caps = getPlanCapabilities(input.plan);
-  return Math.max(0, caps.maxWorkspaceSeats, caps.includedSeats, input.persistedSeats);
+}): number | null {
+  const contractSeats =
+    input.contract?.contractGovernsCapability && input.contract?.seats !== null
+      ? (input.contract?.seats ?? null)
+      : null;
+  return resolveWorkspaceMemberCeiling({
+    plan: input.plan,
+    contractSeats,
+    contractGoverns: input.contract?.contractGovernsCapability === true,
+  }).limit;
 }
 
 /**
@@ -217,22 +231,23 @@ export function resolveEffectiveCollaborationTeamLimit(input: {
   ) {
     return input.contract.collaborationTeams;
   }
+  // CT-10 — no ACTIVE contract, no Enterprise capacity (typed upstream as
+  // ENTERPRISE_CONTRACT_REQUIRED); never the catalog's placeholder.
+  if (input.plan === "ENTERPRISE" && input.contract?.contractGovernsCapability !== true) return 0;
   return getPlanCapabilities(input.plan).maxCollaborationTeamsPerWorkspace;
 }
 
 /**
  * WCR-07 — the effective SAFETY ceiling on ACTIVE members inside ONE group.
  *
- * This is not a seat pool and never was: the commercial boundary is the set of
- * distinct ACTIVE workspace memberships, and a person in five groups is one
- * seat. What this bounds is how large a single group may grow, and the caller
- * (`assertCollaborationTeamMemberLimit`) still reconciles the answer down to
- * the workspace's actual seat entitlement, so a group can never be told it may
- * hold more people than the workspace has.
+ * THIS IS THE COLLABORATION CAPACITY (members audit ENT-04, 2026-10-25): the
+ * most ACCEPTED NON-OWNER members one ACTIVE Collaboration Team may hold. It is
+ * not reconciled against any workspace pool — there is none — and it is
+ * enforced, under a per-team lock, by every writer that makes someone an
+ * effective member of a group (`lockAndAssertCollaborationTeamMemberCapacity`).
  *
- * Before this existed the reconciliation ran against a flat catalog 500, which
- * meant an organization contracted for 800 seats could put only 500 of them in
- * a group — a self-serve placeholder capping a signed agreement.
+ * A contract that states a number wins outright, above or below the catalog,
+ * for the same reason the storage resolver takes no `max()`.
  */
 export function resolveEffectiveCollaborationMemberLimit(input: {
   plan: Parameters<typeof getPlanCapabilities>[0];
@@ -245,6 +260,7 @@ export function resolveEffectiveCollaborationMemberLimit(input: {
   ) {
     return input.contract.collaborationTeamMembers;
   }
+  if (input.plan === "ENTERPRISE" && input.contract?.contractGovernsCapability !== true) return 0;
   return getPlanCapabilities(input.plan).maxAcceptedMembersPerCollaborationTeam;
 }
 

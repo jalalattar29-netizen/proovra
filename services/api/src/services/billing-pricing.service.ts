@@ -194,7 +194,7 @@ function projectPublishedPlan<P extends "FREE" | "PRO" | "TEAM">(
     maxCollaborationTeamsPerWorkspace: caps.maxCollaborationTeamsPerWorkspace,
     maxAcceptedMembersPerCollaborationTeam:
       caps.maxAcceptedMembersPerCollaborationTeam,
-    maxWorkspaceSeats: caps.maxWorkspaceSeats,
+    maxAdditionalWorkspaceMembers: caps.maxAdditionalWorkspaceMembers,
     enterpriseFeatures: caps.enterpriseFeatures,
   };
 }

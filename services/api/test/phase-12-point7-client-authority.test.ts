@@ -209,7 +209,7 @@ describe("PHASE 12 POINT 7 STEP 5 — client-authority metrics", () => {
     // three different quantities that were sharing one integer.
     expect(types).toMatch(/maxCollaborationTeamsPerWorkspace:\s*number/);
     expect(types).toMatch(/maxAcceptedMembersPerCollaborationTeam:\s*number/);
-    expect(types).toMatch(/maxWorkspaceSeats:\s*number/);
+    expect(types).toMatch(/maxAdditionalWorkspaceMembers:\s*number \| null/);
 
     const service = readFileSync(
       resolve(
@@ -221,7 +221,7 @@ describe("PHASE 12 POINT 7 STEP 5 — client-authority metrics", () => {
     expect(service).toMatch(
       /maxCollaborationTeamsPerWorkspace:\s*\n?\s*planCaps\.maxCollaborationTeamsPerWorkspace/,
     );
-    expect(service).toMatch(/maxWorkspaceSeats:\s*planCaps\.maxWorkspaceSeats/);
+    expect(service).toMatch(/maxAdditionalWorkspaceMembers:\s*planCaps\.maxAdditionalWorkspaceMembers/);
   });
 
   it("SilentPersonalFallbacks = 0 — the context builder gates every personal selection", () => {

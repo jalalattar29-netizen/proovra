@@ -83,33 +83,23 @@ async function requireReviewerMember(
 }
 
 /**
- * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical admin gate.
- * Enforces ACTIVE membership + org lifecycle + fail-closed + anti-enumeration
- * via the canonical primitive, THEN preserves the stricter OWNER/ADMIN-only
- * restriction (no single admin-exclusive permission exists in the vocabulary,
- * so the role check remains, reading role from an informational lookup).
+ * Members audit REV-05 (2026-10-25) — handing a review to someone is the
+ * `review.assign` capability, decided by the canonical gate like every other
+ * permission. It used to be "the reviewer permission plus an OWNER/ADMIN role
+ * literal", a second definition of who may assign beside the one the reviewer
+ * console (`/v1/reviewer-ops/*`) already enforced.
  */
-async function requireAdminMember(
+async function requireAssignerMember(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
 ): Promise<{ userId: string } | null> {
   const outcome = await authorizeOrFail(req, reply, {
     teamId,
-    permission: "evidence_request.review",
+    permission: "review.assign",
     antiEnumeration: true,
   });
-  if (!outcome) return null;
-  // Informational role read (authorization already enforced above); the
-  // OWNER/ADMIN restriction is stricter than the reviewer permission.
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId: outcome.actorUserId } },
-  });
-  if (!membership || (membership.role !== "OWNER" && membership.role !== "ADMIN")) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  return { userId: outcome.actorUserId };
+  return outcome ? { userId: outcome.actorUserId } : null;
 }
 
 /**
@@ -166,7 +156,7 @@ function reviewErrorToReply(err: unknown, reply: FastifyReply): void {
         ? 404
         : err.code === "invalid_stage_transition"
           ? 409
-          : err.code === "note_required"
+          : err.code === "note_required" || err.code === "assignee_not_eligible"
             ? 422
             : err.code === "permission_denied"
               ? 403
@@ -212,6 +202,7 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
         priority: query.priority,
         escalated: query.escalated === "true",
         limit: query.limit,
+        viewerUserId: ok.userId,
       });
       const decisions = await loadCurrentReviewDecisions(
         rows.map((r) => ({ id: r.id, teamId: r.teamId ?? null, evidenceId: r.evidenceId, status: String(r.status), decisionRound: r.decisionRound })),
@@ -441,7 +432,7 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
 
       const ok =
         body.action === "ASSIGN"
-          ? await requireAdminMember(req, reply, body.teamId)
+          ? await requireAssignerMember(req, reply, body.teamId)
           : await requireReviewerMember(req, reply, body.teamId);
       if (!ok) return;
       // The same commercial authority as claim and decisions (audit F6) —

@@ -367,10 +367,11 @@ export type CollaborationEntitlement = {
     reasonCode: string | null;
     graceEndsAtUtc: string | null;
   };
+  /** Non-owner members; `limit` null = no workspace-wide ceiling. */
   workspaceSeats: {
-    limit: number;
+    limit: number | null;
     used: number;
-    remaining: number;
+    remaining: number | null;
     overLimit: boolean;
     source: string;
   };
@@ -382,6 +383,7 @@ export type CollaborationEntitlement = {
     overLimit: boolean;
     source: string;
   };
+  /** Accepted non-owner members ONE group may hold — the collaboration capacity. */
   collaborationTeamMembers: { limit: number; source: string };
   invitations: { pending: number; maxPending: number; maxPer24h: number };
   /**

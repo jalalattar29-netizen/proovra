@@ -432,7 +432,7 @@ export function createDisabledReason(
     return "This workspace's billing needs attention before new Teams can be created.";
   }
   if (entitlement.exceededDimensions.includes("WORKSPACE_SEATS")) {
-    return "This workspace is over its seat allowance.";
+    return "This workspace is over its contracted seats.";
   }
   if (entitlement.teamsLimit !== null) {
     const max = entitlement.teamsLimit;

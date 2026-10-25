@@ -19,6 +19,9 @@ const CLOSURE = read("../src/services/organization/org-closure.service.ts");
 const ORG_ACCESS = read("../src/services/organization/org-access.ts");
 const ORG_AUDIT = read("../src/services/organization/org-audit.service.ts");
 const SCHEDULER = read("../src/services/notifications/digest-scheduler.ts");
+// Members audit LIFE-11 — closures run through THE lifecycle tick, which the
+// digest run and the worker's lifecycle sweep both invoke.
+const LIFECYCLE_TICK = read("../src/services/lifecycle/lifecycle-scheduler.service.ts");
 const MIGRATION = read(
   "../prisma/migrations/20270921000000_organization_closure_requests/migration.sql",
 );
@@ -101,10 +104,13 @@ describe("organization closure routes", () => {
 describe("closure execution", () => {
   it("worker re-runs preflight and claims atomically", () => {
     expect(CLOSURE).toMatch(
-      /evaluateOrganizationClosurePreflight\([\s\S]{0,600}status:\s*"BLOCKED"/,
+      // A contract termination filters two self-service blockers between the
+      // preflight and the BLOCKED write (members audit LIFE-16).
+      /evaluateOrganizationClosurePreflight\([\s\S]{0,1400}status:\s*"BLOCKED"/,
     );
     expect(CLOSURE).toMatch(/if \(claimed\.count === 0\) continue;/);
-    expect(SCHEDULER).toMatch(/processOrganizationClosures\(now\)/);
+    expect(SCHEDULER).toMatch(/runLifecycleTick\(now\)/);
+    expect(LIFECYCLE_TICK).toMatch(/processOrganizationClosures\(now\)/);
   });
 
   it("ARCHIVES the org and checkOrgAccess denies archived AND suspended orgs", () => {
@@ -116,10 +122,14 @@ describe("closure execution", () => {
   });
 
   it("revokes workspace memberships + machine credentials/webhooks", () => {
-    // PHASE 3: closure revocation via the canonical mass helper.
-    expect(CLOSURE).toMatch(/massRevokeWorkspaceMemberships/);
-    expect(CLOSURE).toMatch(/apiCredential\.updateMany[\s\S]{0,300}"REVOKED"/);
-    expect(CLOSURE).toMatch(/webhookEndpoint\.updateMany[\s\S]{0,200}"DISABLED"/);
+    // Members audit LIFE-10/12 — the ONE closure leg set, which revokes
+    // memberships (mass helper), credentials and webhooks; see the workspace
+    // closure tests for the legs themselves.
+    expect(CLOSURE).toMatch(/closeWorkspacesTx\(tx,/);
+    const WS = read("../src/services/workspace/workspace-closure.service.ts");
+    expect(WS).toMatch(/massRevokeWorkspaceMemberships/);
+    expect(WS).toMatch(/apiCredential\.updateMany[\s\S]{0,300}"REVOKED"/);
+    expect(WS).toMatch(/webhookEndpoint\.updateMany[\s\S]{0,200}"DISABLED"/);
   });
 
   it("NEVER deletes evidence, teams, orgs, or memberships", () => {

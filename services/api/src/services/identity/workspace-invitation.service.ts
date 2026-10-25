@@ -49,6 +49,7 @@ import { provisionMembership } from "./membership-provisioning.service.js";
 import {
   resolveWorkspaceInvitationAllowance,
   resolveWorkspaceSeatState,
+  workspaceSeatsAdmit,
 } from "../billing/workspace-seats.service.js";
 import { organizationLifecycleApplies } from "./workspace-kind.js";
 import {
@@ -200,6 +201,16 @@ export async function createWorkspaceInvitation(
     input.workspaceId,
     client,
   );
+  // Members audit CT-10 — an ENTERPRISE workspace without an ACTIVE contract
+  // is not "a plan without invitations"; it is a contract to complete.
+  if (!allowance.featureIncluded && allowance.plan === "ENTERPRISE") {
+    throw new WorkspaceInvitationError(
+      "ENTERPRISE_CONTRACT_REQUIRED",
+      "This organization's contract does not configure members yet. Ask your organization administrator to complete the contract.",
+      409,
+      { plan: allowance.plan },
+    );
+  }
   if (!allowance.featureIncluded || allowance.maxPending <= 0) {
     throw new WorkspaceInvitationError(
       "WORKSPACE_INVITES_NOT_INCLUDED",
@@ -558,6 +569,14 @@ export async function acceptWorkspaceInvitation(
     if (!locked) return null;
 
     const seats = await resolveWorkspaceSeatState(invite.teamId, tx as PrismaClient);
+    if (!seats.featureIncluded && seats.plan === "ENTERPRISE") {
+      throw new WorkspaceInvitationError(
+        "ENTERPRISE_CONTRACT_REQUIRED",
+        "This organization's contract does not configure members yet. Ask your organization administrator to complete the contract.",
+        409,
+        { plan: seats.plan },
+      );
+    }
     if (!seats.featureIncluded) {
       throw new WorkspaceInvitationError(
         "WORKSPACE_MEMBERS_NOT_INCLUDED",
@@ -566,10 +585,12 @@ export async function acceptWorkspaceInvitation(
         { plan: seats.plan, limit: seats.limit },
       );
     }
-    if (seats.used >= seats.limit) {
+    // Only a contract seat count bounds the workspace as a whole; on every
+    // self-serve plan the capacity is per Collaboration Team (ENT-04).
+    if (!workspaceSeatsAdmit(seats)) {
       throw new WorkspaceInvitationError(
         "WORKSPACE_SEAT_LIMIT_REACHED",
-        `This workspace has used all ${seats.limit} of its seats.`,
+        `This workspace has used all ${seats.limit} of its contracted seats.`,
         409,
         { plan: seats.plan, limit: seats.limit, used: seats.used },
       );

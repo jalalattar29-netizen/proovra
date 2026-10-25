@@ -31,6 +31,7 @@
 
 import {
   getPlanCapabilities,
+  resolveWorkspaceMemberCeiling,
   type PlanType,
   type WorkspaceBillingShape,
 } from "./plan-catalog.js";
@@ -81,46 +82,28 @@ export type BillingWorkspaceScope = {
 export type WorkspaceScope = BillingWorkspaceScope;
 
 /**
- * WORKSPACE AND COLLABORATION RECONCILIATION — the shape no longer zeroes the
- * seat count.
+ * The workspace-wide member ceiling as the one number this scope carries, with
+ * the convention `computeOverSeatLimit` already reads: 0 means "no
+ * workspace-wide ceiling", never "nobody may join".
  *
- * This returned 0 for every non-SHARED shape, on the reasoning that "a
- * single-occupant workspace has no seats to sell". That was true of the old
- * model and is false of the approved one: PERSONAL now means individually OWNED
- * AND BILLED, not necessarily solely occupied. A Personal Workspace on PRO
- * seats five people and on TEAM ten, and they are real seats — invited,
- * claimed atomically at acceptance, and counted against the plan.
+ * MEMBERS AUDIT ENT-05 (2026-10-25). There were three seat formulas — this
+ * one (`max(maxWorkspaceSeats, includedSeats, persisted)`), the contract
+ * resolver's and the usage gate's — and none of them matched what the product
+ * sells. Collaboration capacity is per Collaboration Team
+ * (`maxAcceptedMembersPerCollaborationTeam`, owner excluded), and nothing
+ * bounds the workspace as a whole except an Enterprise contract seat count. So
+ * this delegates to `resolveWorkspaceMemberCeiling`, and a plan that sells no
+ * collaboration is refused by its `included: false` at the gate, not by a
+ * number here.
  *
- * The zero was also inert. `getTeamMemberLimit` — the enforcement path — took a
- * `max()` over the catalog and discarded it, so this function's deliberate 0
- * only ever reached the PROJECTION. One number for the customer and a different
- * number for the gate is the defect this change removes.
- *
- * FREE and PAYG still seat exactly one person, because their catalog entry says
- * `maxWorkspaceSeats: 1` — a commercial statement, made in the commercial
- * registry, rather than a shape-derived side effect.
+ * `scope.teamSeats` is honoured only as the contract seat count it carries on
+ * an Enterprise workspace; on any other plan it is a legacy persisted value
+ * that no longer bounds anything.
  */
 export function getEffectiveSeatLimit(scope: BillingWorkspaceScope): number {
-  const caps = getPlanCapabilities(scope.plan);
-
-  /**
-   * Effective seat cap for ONE shared workspace:
-   * - the plan's workspace-seat cap (`maxWorkspaceSeats`);
-   * - the plan's `includedSeats`;
-   * - any explicit persisted seat value on the workspace row, which is how an
-   *   Enterprise contract's `seatCount` reaches this calculation.
-   *
-   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — reads `maxWorkspaceSeats`
-   * rather than the retired `maxMembersPerTeam`, which also governed
-   * Collaboration Team membership. A workspace seat and a Collaboration Team
-   * seat are different containers with different membership tables.
-   */
-  return Math.max(
-    0,
-    caps.maxWorkspaceSeats || 0,
-    caps.includedSeats || 0,
-    scope.teamSeats || 0,
-  );
+  const contractSeats =
+    scope.plan === "ENTERPRISE" && (scope.teamSeats || 0) > 0 ? scope.teamSeats : null;
+  return resolveWorkspaceMemberCeiling({ plan: scope.plan, contractSeats }).limit ?? 0;
 }
 
 /**

@@ -564,7 +564,10 @@ test("Pricing advertises the Collaboration Team cap and no workspace cap", () =>
   assert.doesNotMatch(src, /label: "Owned workspaces"/);
   assert.doesNotMatch(src, /maxOwnedWorkspaces/);
   assert.match(src, /maxCollaborationTeamsPerWorkspace/);
-  assert.match(src, /accepted members per Team/);
+  // Members audit ENT-04 — the capacity is per Collaboration Team, the owner
+  // not counted, and nothing pools it across the workspace.
+  assert.match(src, /members per Collaboration Team, owner not counted/);
+  assert.doesNotMatch(src, /maxWorkspaceSeats/);
   // The overloaded fields cannot come back.
   assert.doesNotMatch(src, /maxOwnedTeams/);
   assert.doesNotMatch(src, /maxMembersPerTeam/);

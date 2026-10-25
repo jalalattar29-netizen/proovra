@@ -372,19 +372,15 @@ function TeamsOverview() {
           <TeamsGlyph />
         </span>
         <div className="app-page-header__text">
-          <h1 className="app-page-header__title">Collaboration Teams</h1>
+          <h1 className="app-page-header__title">Teams</h1>
           <p className="app-page-header__subtitle">
             {/*
-              The counterpart sentence to Members &amp; Access. That surface
-              decides WHO can reach this workspace; this one decides HOW those
-              members work together. Saying "members who already have access"
-              rather than "people" is the whole distinction in three words:
-              a Collaboration Team groups existing membership, it never grants
-              it.
+              The counterpart sentence to Members &amp; Access (owner decision
+              2026-10-25). That surface decides WHO can reach this workspace;
+              a Collaboration Team groups those members — and, where a case is
+              granted to it, controls who can open that case.
             */}
-            Organise workspace members into operational teams for cases,
-            evidence, assignments, reviews and workload. Teams group members who
-            already have access — they do not grant it.{" "}
+            Group workspace members to control case access and coordinate work.{" "}
             <Link
               href={WORKSPACE_PEOPLE_PATH}
               data-testid="teams-to-members-and-access"

@@ -62,7 +62,8 @@ type Detail = {
   commercial: {
     plan: string;
     billingShape: string;
-    seats: { consumed: number; limit: number; remaining: number };
+    /** Non-owner members; `limit` null = no workspace-wide ceiling. */
+    seats: { consumed: number; limit: number | null; remaining: number | null };
     lifecycleState: string;
     paidActive: boolean;
     mutationsAllowed: boolean;
@@ -403,12 +404,12 @@ export default function AdminWorkspaceDetailPage() {
                   <Field label="Paid access">
                     {detail.commercial.paidActive ? "Active" : "Not active"}
                   </Field>
-                  <Field label="Seats (active members)">
+                  <Field label="Members (excluding owner)">
                     {detail.commercial.seats.consumed}
-                    {detail.commercial.seats.limit > 0
+                    {detail.commercial.seats.limit !== null && detail.commercial.seats.limit > 0
                       ? ` / ${detail.commercial.seats.limit}`
-                      : ""}
-                    {detail.commercial.seats.limit > 0 ? (
+                      : " · no workspace-wide limit"}
+                    {detail.commercial.seats.limit !== null && detail.commercial.seats.limit > 0 ? (
                       <span style={{ fontSize: 12, color: "var(--ink-secondary)" }}>
                         {" "}
                         ({detail.commercial.seats.remaining} remaining)

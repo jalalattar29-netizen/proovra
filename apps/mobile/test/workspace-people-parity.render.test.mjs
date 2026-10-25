@@ -142,13 +142,14 @@ test("a resend that could not email says so from the re-read list; a stale invit
   r.unmount();
 });
 
-test("the case picker never offers a case already linked to another workspace", async () => {
+// MEMBERS AUDIT MEM-05 — case link management left Members & Access (web and
+// native alike): it offered one page of cases and is not people management.
+test("People offers no case linking, and asks for no case list", async () => {
   detail.currentUserRole = "OWNER";
   const r = await render();
-  await r.press("Link a case");
-  await settle();
-  assert.equal(r.byLabel("Link Free case").length, 1);
-  assert.equal(r.byLabel("Link Linked elsewhere").length, 0, "a case the route refuses was offered");
+  assert.equal(r.byLabel("Link a case").length, 0, "a case-link control is offered");
+  assert.equal(requests.filter((q) => q.path === "/v1/teams/team-1/cases").length, 0, "People read the case list");
+  assert.equal(requests.filter((q) => q.path === "/v1/cases").length, 0);
   r.unmount();
 });
 

@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "c71b3863bb397372500c38afba0db2bfd1c41529f36a187e2f8da3a1a1d06c54",
+  "capabilityRouteInventoryHash": "f16da67cd957759dc3ee85bc890b14b11907ef4184d0b911292832328c5cb778",
   "totals": {
-    "routes": 1193,
+    "routes": 1199,
     "routesWithAnyTestCaller": 46,
     "testOnlyRoutes": 5,
     "testCallSites": 100,
@@ -66,6 +66,12 @@
     },
     {
       "routeId": "DELETE /v1/cases/:id/legacy-evidence-link/:evidenceId",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "DELETE /v1/cases/:id/team-access/:collaborationTeamId",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -970,6 +976,12 @@
     },
     {
       "routeId": "GET /v1/cases/:id/siu-profile",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/cases/:id/team-access/candidates",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -3931,6 +3943,18 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/admin/orgs/:id/terminate",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/admin/orgs/:id/terminate/cancel",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/ai/capture/analyze-session",
       "testCallerCount": 0,
       "testOnly": false,
@@ -4462,6 +4486,12 @@
     },
     {
       "routeId": "POST /v1/cases/:id/status",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/cases/:id/team-access",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -5840,6 +5870,12 @@
     },
     {
       "routeId": "POST /v1/intelligence/providers/budgets",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/internal/lifecycle/run",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7273,5 +7309,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "0c57a0703053f5a5e5985e056267aea12710e8a6c3747e791ce0646a3a942194"
+  "contentHash": "7be03c0161c2d69539fb11ce7c912e5b4036bf113263a8f4bef062e9d5da7fa0"
 }

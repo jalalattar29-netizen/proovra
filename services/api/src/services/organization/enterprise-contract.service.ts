@@ -229,6 +229,35 @@ export async function resolveEnterpriseContract(
 }
 
 /**
+ * THE contract status transition for offboarding (members audit LIFE-16).
+ *
+ * Termination writes two states: SUSPENDED when it is scheduled (the contract
+ * grants nothing from that moment) and TERMINATED when the organization
+ * closure that executes it commits. Both go through here, beside the
+ * activation upsert below, so the contract keeps one canonical writer module.
+ * TERMINATED is final: a transition never leaves it.
+ */
+export async function transitionEnterpriseContractStatusTx(
+  tx: TxClient,
+  input: {
+    organizationId: string;
+    to: "SUSPENDED" | "TERMINATED";
+    terminationReason?: string | null;
+  },
+): Promise<void> {
+  await tx.enterpriseContract.updateMany({
+    where: { organizationId: input.organizationId, status: { not: "TERMINATED" } },
+    data: {
+      status: input.to,
+      ...(input.to === "TERMINATED" ? { terminatedAtUtc: new Date() } : {}),
+      ...(input.terminationReason !== undefined
+        ? { terminationReason: input.terminationReason?.slice(0, 400) ?? null }
+        : {}),
+    },
+  });
+}
+
+/**
  * Idempotent contract activation — called by enterprise provisioning
  * inside its transaction. Upserts the single contract row for the org.
  * Migration-window tolerant (skips when the table is not applied yet;

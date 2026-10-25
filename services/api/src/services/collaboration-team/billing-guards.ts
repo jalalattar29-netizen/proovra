@@ -38,18 +38,16 @@ import {
 // one integer capped two unrelated tables.
 import { getPlanCapabilities } from "@proovra/shared-billing";
 
-import { resolveWorkspaceSeatState } from "../billing/workspace-seats.service.js";
+import { resolveWorkspaceCommercialContext } from "../billing/workspace-seats.service.js";
 import {
   resolveEffectiveCollaborationMemberLimit,
   resolveEffectiveCollaborationTeamLimit,
   resolveEnterpriseContractLimits,
+  type EnterpriseContractLimits,
 } from "../billing/enterprise-contract-limits.js";
 import { prisma as defaultPrisma } from "../../db.js";
 import { effectiveGroupMemberWhere } from "./effective-membership.js";
-import {
-  resolveCommercialContext,
-  COMMERCIAL_GRACE_PERIOD_DAYS,
-} from "../billing/commercial-context.service.js";
+import { COMMERCIAL_GRACE_PERIOD_DAYS } from "../billing/commercial-context.service.js";
 // §9.4/§9.7 — workspace-subject plan via the canonical envelope.
 
 // =============================================================================
@@ -160,12 +158,15 @@ function throwBillingError(args: {
 async function resolveCollaborationTeamWorkspacePlan(
   client: PrismaClient,
   teamId: string,
-): Promise<{ plan: PlanType; workspaceId: string }> {
+): Promise<{
+  plan: PlanType;
+  workspaceId: string;
+  ownerUserId: string;
+  contractLimits: EnterpriseContractLimits;
+}> {
   const row = await client.collaborationTeam.findUnique({
     where: { id: teamId },
-    select: {
-      workspace: { select: { id: true, ownerUserId: true, isPersonal: true } },
-    },
+    select: { workspace: { select: { id: true, ownerUserId: true } } },
   });
   if (!row) {
     throwBillingError({
@@ -174,23 +175,14 @@ async function resolveCollaborationTeamWorkspacePlan(
       details: { teamId },
     });
   }
-  // §9.7 — canonical envelope with the subject the persisted discriminator
-  // names: a collaboration team hosted in the owner's PERSONAL space belongs
-  // to the PERSONAL_ACCOUNT subject; otherwise the WORKSPACE aggregate.
-  const ctx = row.workspace.isPersonal
-    ? await resolveCommercialContext({
-        type: "PERSONAL_ACCOUNT",
-        userId: row.workspace.ownerUserId,
-      })
-    : await resolveCommercialContext({
-        type: "WORKSPACE",
-        teamId: row.workspace.id,
-        requesterUserId: row.workspace.ownerUserId,
-      });
-  // The caller needs BOTH halves of this lookup: the plan to decide the
-  // entitlement, and the workspace id to count the seats that entitlement
-  // buys. Returning them together keeps it to one read of one row.
-  return { plan: ctx.scope.plan, workspaceId: row.workspace.id };
+  // CT-09 — the ONE workspace subject every collaboration gate resolves.
+  const ctx = await resolveWorkspaceCommercialContext(row.workspace);
+  return {
+    plan: ctx.scope.plan,
+    workspaceId: row.workspace.id,
+    ownerUserId: row.workspace.ownerUserId,
+    contractLimits: resolveEnterpriseContractLimits(ctx.enterpriseContract),
+  };
 }
 
 // =============================================================================
@@ -338,7 +330,7 @@ export async function assertCanCreateCollaborationTeam(
   // `maxCollaborationTeamsPerWorkspace`.
   const workspace = await client.team.findUnique({
     where: { id: input.workspaceId },
-    select: { id: true, ownerUserId: true, isPersonal: true },
+    select: { id: true, ownerUserId: true },
   });
   if (!workspace) {
     throwBillingError({
@@ -348,16 +340,8 @@ export async function assertCanCreateCollaborationTeam(
     });
   }
 
-  const ctx = workspace.isPersonal
-    ? await resolveCommercialContext({
-        type: "PERSONAL_ACCOUNT",
-        userId: workspace.ownerUserId,
-      })
-    : await resolveCommercialContext({
-        type: "WORKSPACE",
-        teamId: workspace.id,
-        requesterUserId: workspace.ownerUserId,
-      });
+  // CT-09 — the ONE workspace subject every collaboration gate resolves.
+  const ctx = await resolveWorkspaceCommercialContext(workspace);
   const plan = ctx.scope.plan;
 
   // WCR-07 — CONTRACT FIRST. `resolveEffectiveCollaborationTeamLimit` returns
@@ -382,6 +366,14 @@ export async function assertCanCreateCollaborationTeam(
     },
   });
 
+  if (plan === "ENTERPRISE" && maxCollaborationTeamsPerWorkspace <= 0) {
+    throwBillingError({
+      code: "ENTERPRISE_CONTRACT_REQUIRED",
+      message:
+        "This organization's contract does not configure Collaboration Teams yet. Ask your organization administrator to complete the contract.",
+      details: { plan, workspaceId: input.workspaceId },
+    });
+  }
   if (maxCollaborationTeamsPerWorkspace <= 0) {
     // Commercial contract: FREE includes ZERO Collaboration Teams. This is a
     // plan feature, not capacity — 402 with the lowest plan that includes
@@ -422,134 +414,181 @@ export async function assertCanCreateCollaborationTeam(
 // =============================================================================
 
 /**
- * Pre-flight member-count gate. Used by:
- *   - POST /v1/collaboration-teams/:teamId/members
- *   - POST /v1/collaboration-teams/:teamId/invites/(email|sms|link)
- *   - POST /v1/collaboration-teams/invites/:token/accept
+ * Where a group member occupies a place: an EFFECTIVE member (ACTIVE in the
+ * group and in the workspace — WCR-11, so a group is never "full" of leavers)
+ * who is not the workspace owner.
+ */
+function capacityMemberWhere(workspaceId: string, ownerUserId: string) {
+  return {
+    ...effectiveGroupMemberWhere(workspaceId),
+    userId: { not: ownerUserId },
+  };
+}
+
+export type CollaborationTeamMemberCapacity = {
+  plan: PlanType;
+  /** The most accepted NON-OWNER members this group may hold. */
+  maxAcceptedMembers: number;
+  currentMemberCount: number;
+  seatRemaining: number;
+};
+
+/**
+ * THE collaboration capacity rule (members audit ENT-04, owner decision
+ * 2026-10-25), stated once for the pre-flight check and the locked one.
  *
- * Mirrors legacy: `getTeamMemberLimit` +
- * `assertTeamSeatAvailable` from
- * services/api/src/services/workspace-usage.service.ts.
+ * Each ACTIVE Collaboration Team may hold up to
+ * `maxAcceptedMembersPerCollaborationTeam` accepted members other than the
+ * workspace owner — PRO 5, TEAM 10, an Enterprise contract whatever it states.
+ * Nothing is pooled across groups and nothing is reconciled to a workspace
+ * seat count: there is no workspace-wide cap. A plan with no Collaboration
+ * Teams locks all group growth (data stays readable).
  *
- * Reads `PlanCapabilities.maxAcceptedMembersPerCollaborationTeam`,
- * compares to the current ACTIVE member count + `addingCount`. Throws
- * `TEAM_MEMBER_LIMIT_REACHED` (HTTP 409) when adding would exceed
- * the per-team cap.
- *
- * Replaces the inline checks at
- * collaboration-team.service.ts:657-666 (addExistingMember) and
- * collaboration-team.service.ts:1260-1269 (acceptInvite).
+ * `addingUserIds`, when given, is the people about to be added; the owner and
+ * anyone already an effective member consume nothing, so re-adding them is
+ * never refused for capacity.
+ */
+async function evaluateCollaborationTeamMemberCapacity(
+  client: Pick<PrismaClient, "collaborationTeam" | "collaborationTeamMember">,
+  teamId: string,
+  input: {
+    addingCount: number;
+    addingUserIds?: readonly string[];
+    /** Refuse a group that ALREADY holds more than the capacity (reopen). */
+    requireWithinCapacity?: boolean;
+  },
+): Promise<CollaborationTeamMemberCapacity> {
+  const { plan, workspaceId, ownerUserId, contractLimits } =
+    await resolveCollaborationTeamWorkspacePlan(client as PrismaClient, teamId);
+  assertTeamsFeatureIncluded(plan);
+
+  const maxAcceptedMembers = Math.max(
+    0,
+    resolveEffectiveCollaborationMemberLimit({ plan, contract: contractLimits }),
+  );
+  if (plan === "ENTERPRISE" && maxAcceptedMembers <= 0) {
+    throwBillingError({
+      code: "ENTERPRISE_CONTRACT_REQUIRED",
+      message:
+        "This organization's contract does not configure Collaboration Team membership yet. Ask your organization administrator to complete the contract.",
+      details: { plan, teamId },
+    });
+  }
+  const where = capacityMemberWhere(workspaceId, ownerUserId);
+  const currentMemberCount = await client.collaborationTeamMember.count({
+    where: { teamId, ...where },
+  });
+
+  let adding = Math.max(0, Math.floor(input.addingCount));
+  if (input.addingUserIds) {
+    const candidates = [...new Set(input.addingUserIds)].filter((id) => id !== ownerUserId);
+    const already = candidates.length
+      ? await client.collaborationTeamMember.count({
+          where: { teamId, ...where, userId: { in: candidates } },
+        })
+      : 0;
+    adding = candidates.length - already;
+  }
+  const seatRemaining = Math.max(0, maxAcceptedMembers - currentMemberCount);
+
+  if (input.requireWithinCapacity && currentMemberCount > maxAcceptedMembers) {
+    throwBillingError({
+      code: "TEAM_MEMBER_LIMIT_REACHED",
+      message: `This Collaboration Team has ${currentMemberCount} members and the ${planDisplayName(plan)} plan allows up to ${maxAcceptedMembers} per Team, not counting the workspace owner. Remove members before reopening it.`,
+      details: {
+        plan,
+        teamId,
+        maxAcceptedMembers,
+        currentMemberCount,
+        limit: maxAcceptedMembers,
+        usage: currentMemberCount,
+      },
+    });
+  }
+
+  if (adding > 0 && maxAcceptedMembers <= 0) {
+    throwBillingError({
+      code: "TEAM_MEMBER_LIMIT_REACHED",
+      message: `The ${planDisplayName(plan)} plan does not include Collaboration Team members.`,
+      details: { plan, teamId, maxAcceptedMembers, currentMemberCount, addingCount: adding },
+    });
+  }
+  if (adding > 0 && currentMemberCount + adding > maxAcceptedMembers) {
+    throwBillingError({
+      code: "TEAM_MEMBER_LIMIT_REACHED",
+      message: `This Collaboration Team can hold up to ${maxAcceptedMembers} members on the ${planDisplayName(plan)} plan, not counting the workspace owner.`,
+      details: {
+        plan,
+        teamId,
+        maxAcceptedMembers,
+        currentMemberCount,
+        addingCount: adding,
+        seatRemaining,
+        limit: maxAcceptedMembers,
+        usage: currentMemberCount,
+      },
+    });
+  }
+  return { plan, maxAcceptedMembers, currentMemberCount, seatRemaining };
+}
+
+/**
+ * THE per-group membership lock. Every writer that changes who is in a group,
+ * or in what role, takes it on its own transaction: capacity (who may join)
+ * and leadership (who may leave a LEAD's place) are both "count, then write"
+ * decisions that READ COMMITTED alone cannot serialise.
+ */
+export async function lockCollaborationTeamMembership(
+  tx: Pick<PrismaClient, "$executeRaw">,
+  teamId: string,
+): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`collaboration-team-members:${teamId}`}))`;
+}
+
+/**
+ * Pre-flight form of the rule, for surfaces that want the refusal before they
+ * open a transaction. It is NOT sufficient on its own: every writer re-asks
+ * under the per-group lock (`lockAndAssertCollaborationTeamMemberCapacity`).
  */
 export async function assertCollaborationTeamMemberLimit(
   teamId: string,
   addingCount: number = 1,
   client: PrismaClient = defaultPrisma,
-): Promise<{
-  plan: PlanType;
-  maxAcceptedMembers: number;
-  currentMemberCount: number;
-  seatRemaining: number;
-}> {
-  const safeAdding = Math.max(1, Math.floor(addingCount));
-  // §9.4 corrected — existing-team member limits are a WORKSPACE-subject
-  // decision (the parent workspace's own effective plan), never the owner's
-  // account plan.
-  const { plan, workspaceId } = await resolveCollaborationTeamWorkspacePlan(
-    client,
-    teamId,
-  );
-  // Commercial contract: a plan with ZERO Teams locks ALL membership
-  // growth on grandfathered Teams (adds, every invite channel, and
-  // acceptance) — data stays readable, growth requires an upgrade.
-  assertTeamsFeatureIncluded(plan);
-
-  /**
-   * A GROUP IS NOT A SEAT POOL.
-   *
-   * This used to read `maxAcceptedMembersPerCollaborationTeam` as an
-   * independent commercial quota, so a workspace with room could still be told
-   * "this team has reached its member limit" — a second billing authority over
-   * a second membership table, charging a shape of usage nobody sells.
-   *
-   * The commercial boundary is the set of distinct ACTIVE WORKSPACE
-   * memberships. Assigning someone who is already in the workspace to a group
-   * consumes nothing, and the same person in five groups is still one seat. So
-   * the effective ceiling on a group is simply how many authorized people the
-   * workspace has: a group may contain every one of them, and cannot contain
-   * anyone else, because `addExistingMember` refuses a non-member.
-   *
-   * The catalog field survives as the SAFETY ceiling for one group — an
-   * operational bound, reconciled to the seat entitlement rather than
-   * contradicting it — and the workspace seat count is the real limit.
-   *
-   * WCR-07 — that safety ceiling is now CONTRACT-FIRST too. It was the flat
-   * catalog 500 on every Enterprise workspace, and because the reconciliation
-   * below takes a `min()`, an organization contracted for 800 seats could put
-   * only 500 of them in one group: a self-serve placeholder capping a signed
-   * agreement. The `min()` itself stays — a group still cannot exceed the
-   * people the workspace actually has — but both sides of it now come from the
-   * contract when there is one.
-   */
-  const workspaceSeats = await resolveWorkspaceSeatState(workspaceId, client);
-  const maxAcceptedMembers = Math.max(
-    0,
-    Math.min(
-      Math.max(workspaceSeats.limit, workspaceSeats.used),
-      resolveEffectiveCollaborationMemberLimit({
-        plan,
-        // The seat resolver already resolved the commercial context and already
-        // failed closed on contract status. Reading its result is what keeps
-        // this ONE resolution rather than a second one that could disagree.
-        contract: workspaceSeats.contractLimits,
-      }),
-    ),
-  );
-
-  /**
-   * WCR-11 — count EFFECTIVE members, not rows.
-   *
-   * A group row survives the end of the workspace membership behind it, so
-   * this counted people who can no longer enter the workspace at all and
-   * refused a legitimate addition on their behalf: a group could be "full" of
-   * leavers. One definition, imported rather than restated — see
-   * `effectiveGroupMemberWhere`.
-   */
-  const currentMemberCount = await client.collaborationTeamMember.count({
-    where: { teamId, ...effectiveGroupMemberWhere(workspaceId) },
+): Promise<CollaborationTeamMemberCapacity> {
+  return evaluateCollaborationTeamMemberCapacity(client, teamId, {
+    addingCount: Math.max(1, Math.floor(addingCount)),
   });
+}
 
-  const seatRemaining = Math.max(0, maxAcceptedMembers - currentMemberCount);
-
-  if (maxAcceptedMembers <= 0) {
-    throwBillingError({
-      code: "TEAM_MEMBER_LIMIT_REACHED",
-      message: `Plan ${plan} does not include collaboration team membership.`,
-      details: {
-        plan,
-        teamId,
-        maxAcceptedMembers,
-        currentMemberCount,
-        addingCount: safeAdding,
-      },
-    });
-  }
-
-  if (currentMemberCount + safeAdding > maxAcceptedMembers) {
-    throwBillingError({
-      code: "TEAM_MEMBER_LIMIT_REACHED",
-      message: `A team can hold everyone in this workspace. This workspace has ${maxAcceptedMembers} seats on plan ${plan}.`,
-      details: {
-        plan,
-        teamId,
-        maxAcceptedMembers,
-        currentMemberCount,
-        addingCount: safeAdding,
-        seatRemaining,
-      },
-    });
-  }
-
-  return { plan, maxAcceptedMembers, currentMemberCount, seatRemaining };
+/**
+ * The SAME rule, serialised per group, inside the writing transaction (members
+ * audit CT-02 / CT-03).
+ *
+ * A count taken before an unrelated INSERT lets two concurrent adds both see
+ * `limit - 1` and both succeed, and a reinstatement that never asked at all
+ * walked straight past the cap. Every writer that makes someone an effective
+ * group member — add, bulk add, reinstate — calls this on its own `tx` before
+ * it writes, so "at most N" holds whatever arrives together.
+ */
+export async function lockAndAssertCollaborationTeamMemberCapacity(
+  tx: Pick<PrismaClient, "$executeRaw" | "collaborationTeam" | "collaborationTeamMember">,
+  input: {
+    teamId: string;
+    addingUserIds: readonly string[];
+    /**
+     * Reopening an archived group adds nobody but returns its members to
+     * current access, so it must fit the capacity as it stands now — after a
+     * downgrade it may not.
+     */
+    requireWithinCapacity?: boolean;
+  },
+): Promise<CollaborationTeamMemberCapacity> {
+  await lockCollaborationTeamMembership(tx, input.teamId);
+  return evaluateCollaborationTeamMemberCapacity(tx, input.teamId, {
+    addingCount: input.addingUserIds.length,
+    addingUserIds: input.addingUserIds,
+    requireWithinCapacity: input.requireWithinCapacity,
+  });
 }
 
 // =============================================================================
@@ -639,7 +678,7 @@ export async function assertSubscriptionActiveOrGraceAllowed(
   // collaboration-team error contract.
   const workspace = await client.team.findUnique({
     where: { id: input.workspaceId },
-    select: { id: true, ownerUserId: true, isPersonal: true },
+    select: { id: true, ownerUserId: true },
   });
   if (!workspace) {
     throwBillingError({
@@ -648,16 +687,7 @@ export async function assertSubscriptionActiveOrGraceAllowed(
       details: { workspaceId: input.workspaceId },
     });
   }
-  const ctx = workspace.isPersonal
-    ? await resolveCommercialContext({
-        type: "PERSONAL_ACCOUNT",
-        userId: workspace.ownerUserId,
-      })
-    : await resolveCommercialContext({
-        type: "WORKSPACE",
-        teamId: workspace.id,
-        requesterUserId: workspace.ownerUserId,
-      });
+  const ctx = await resolveWorkspaceCommercialContext(workspace);
   const life = ctx.lifecycle;
   const status = (life.providerStatus ??
     (life.state === "CANCELLED" ? "CANCELLED" : "ACTIVE")) as SubscriptionStatus;

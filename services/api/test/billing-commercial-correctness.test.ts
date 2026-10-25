@@ -24,6 +24,7 @@ import {
   resolvePersonalEvidenceAdmission,
   type PlanType,
   resolveOutputIssuanceEntitlement,
+  resolveWorkspaceMemberCeiling,
 } from "@proovra/shared-billing";
 
 import {
@@ -364,36 +365,45 @@ describe("workspace, collaboration-team and member limits are independent", () =
       expect(typeof caps.maxAcceptedMembersPerCollaborationTeam, plan).toBe(
         "number",
       );
-      expect(typeof caps.maxWorkspaceSeats, plan).toBe("number");
+      // Members audit ENT-04 — the workspace POOL is gone; its replacement
+      // answers only "anyone but the owner?" (0) or "no workspace ceiling" (null).
+      expect(Object.keys(caps), plan).not.toContain("maxWorkspaceSeats");
+      expect([0, null], plan).toContain(caps.maxAdditionalWorkspaceMembers);
     }
   });
 
-  it("seats the approved population: PRO 5, TEAM 10, and a group may hold all of them", () => {
-    // APPROVED CHANGE. PRO and TEAM used to carry the same seat number, so the
-    // £79 tier bought no additional people over the £19 one.
-    expect(getPlanCapabilities("PRO").maxWorkspaceSeats).toBe(5);
-    expect(getPlanCapabilities("TEAM").maxWorkspaceSeats).toBe(10);
-
-    // A Collaboration Team is NOT a second seat pool: its ceiling is how many
-    // authorized people the workspace has, so a group may contain every one of
-    // them. The catalog field survives as the per-group safety ceiling and is
-    // reconciled to the seat entitlement rather than contradicting it — which
-    // is what a value of 5 against 10 seats would do.
-    expect(
-      getPlanCapabilities("PRO").maxAcceptedMembersPerCollaborationTeam,
-    ).toBe(getPlanCapabilities("PRO").maxWorkspaceSeats);
-    expect(
-      getPlanCapabilities("TEAM").maxAcceptedMembersPerCollaborationTeam,
-    ).toBe(getPlanCapabilities("TEAM").maxWorkspaceSeats);
+  it("collaboration capacity is per Collaboration Team: PRO 2 × 5, TEAM 5 × 10, no workspace pool", () => {
+    // Owner decision 2026-10-25 (members audit ENT-04). The owner is never
+    // counted, and nothing bounds the workspace as a whole on a self-serve plan.
+    expect(getPlanCapabilities("PRO").maxCollaborationTeamsPerWorkspace).toBe(2);
+    expect(getPlanCapabilities("PRO").maxAcceptedMembersPerCollaborationTeam).toBe(5);
+    expect(getPlanCapabilities("TEAM").maxCollaborationTeamsPerWorkspace).toBe(5);
+    expect(getPlanCapabilities("TEAM").maxAcceptedMembersPerCollaborationTeam).toBe(10);
+    for (const plan of ["PRO", "TEAM", "ENTERPRISE"] as const) {
+      expect(getPlanCapabilities(plan).maxAdditionalWorkspaceMembers, plan).toBeNull();
+      expect(resolveWorkspaceMemberCeiling({ plan, contractSeats: null }), plan).toEqual({
+        included: true,
+        limit: null,
+        source: "PLAN_CATALOG",
+      });
+    }
   });
 
-  it("FREE and PAYG seat exactly one person — the owner", () => {
-    // A commercial statement made in the commercial registry. It used to be 0,
-    // which the seat projection then had to reinterpret, and which said that a
-    // FREE workspace seats nobody at all — including the person who owns it.
+  it("FREE and PAYG admit nobody but the owner — credits never grant collaboration", () => {
     for (const plan of ["FREE", "PAYG"] as const) {
-      expect(getPlanCapabilities(plan).maxWorkspaceSeats, plan).toBe(1);
+      expect(getPlanCapabilities(plan).maxAdditionalWorkspaceMembers, plan).toBe(0);
+      expect(resolveWorkspaceMemberCeiling({ plan, contractSeats: null }).included, plan).toBe(false);
+      // Not even a contract number can grant collaboration a plan does not sell.
+      expect(resolveWorkspaceMemberCeiling({ plan, contractSeats: 50 }).included, plan).toBe(false);
     }
+  });
+
+  it("only an Enterprise contract seat count bounds a workspace as a whole", () => {
+    expect(resolveWorkspaceMemberCeiling({ plan: "ENTERPRISE", contractSeats: 400 })).toEqual({
+      included: true,
+      limit: 400,
+      source: "ENTERPRISE_CONTRACT",
+    });
   });
 
   it("FREE and PAYG include no collaboration teams", () => {
@@ -503,9 +513,12 @@ describe("Enterprise contract limits are enforced, not merely displayed", () => 
       resolveEffectiveContractSeats({
         plan: "ENTERPRISE",
         contract: limits,
-        persistedSeats: 5,
       }),
     ).toBe(400);
+    // Silent contract: no workspace-wide ceiling, never a catalog pool.
+    expect(
+      resolveEffectiveContractSeats({ plan: "TEAM", contract: null }),
+    ).toBeNull();
   });
 
   it("contracted evidence and AI allowances govern when stated", () => {

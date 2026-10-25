@@ -34,6 +34,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 // Phase O1.5D — bounded reviewer-ops spans. NEVER reviewer notes,
 // PII, or workflow body content; bounded teamId + workflowId only.
@@ -144,7 +145,8 @@ export class ReviewerOpsError extends Error {
       | "REVIEW_PERMISSION_DENIED"
       | "REVIEW_NOTE_REQUIRED"
       | "REVIEW_WORKFLOW_NOT_FOUND"
-      | "REVIEW_ACTOR_BLOCKED",
+      | "REVIEW_ACTOR_BLOCKED"
+      | "REVIEW_ASSIGNEE_NOT_ELIGIBLE",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -540,8 +542,18 @@ async function listReviewerOpsQueueInner(
     typeof input.cursor === "string" && input.cursor.length > 0
       ? input.cursor
       : null;
+  /*
+   * Members audit REV-03 (2026-10-25) — the queue is narrowed by the SAME
+   * restricted-case rule every evidence read applies: a workflow whose evidence
+   * sits on a restricted case the caller is not on is not in their queue. The
+   * queue switch above may already constrain `evidence` (LEGAL_HOLD), so the
+   * two are composed, never spread over each other.
+   */
+  const scopedWhere = {
+    AND: [baseWhere, { evidence: evidenceVisibleThroughCasesWhere(input.meUserId) }],
+  };
   const rows = await client.evidenceReviewWorkflow.findMany({
-    where: baseWhere as never,
+    where: scopedWhere as never,
     orderBy: [
       { priority: "desc" },
       { dueAt: "asc" },
@@ -844,6 +856,7 @@ async function assignReviewerToWorkflowInner(
   ).catch((err: unknown) => {
     if (err instanceof ReviewOperationError) {
       if (err.code === "workflow_not_found") throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
+      if (err.code === "assignee_not_eligible") throw new ReviewerOpsError("REVIEW_ASSIGNEE_NOT_ELIGIBLE");
       bump("reviewer_invalid_transition_blocked_total");
       throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { fromLc, reason: err.code });
     }

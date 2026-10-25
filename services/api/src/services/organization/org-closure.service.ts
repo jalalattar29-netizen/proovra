@@ -32,7 +32,9 @@ import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { evaluateOrganizationClosurePreflight } from "../identity/account-lifecycle-preflight.service.js";
 import { emitOrgAuditEvent } from "./org-audit.service.js";
 // PHASE 3 (2026-07-22) — canonical membership orchestrator.
-import { massRevokeWorkspaceMemberships } from "../identity/membership-provisioning.service.js";
+import { CLOSURE_STALE_MS, closeWorkspacesTx } from "../workspace/workspace-closure.service.js";
+import { isContractTerminationClosure } from "./enterprise-termination.service.js";
+import { transitionEnterpriseContractStatusTx } from "./enterprise-contract.service.js";
 
 export const ORG_CLOSURE_COOLING_OFF_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const PROCESS_BATCH = 3;
@@ -74,9 +76,10 @@ export async function archiveOrganizationStatusTx(
 export async function executeOrganizationClosure(input: {
   organizationId: string;
   requestedByUserId: string;
+  /** Members audit LIFE-16 — this closure executes a contract termination. */
+  terminateContract?: boolean;
 }): Promise<void> {
   const { organizationId, requestedByUserId } = input;
-  const now = new Date();
 
   await prisma.$transaction(async (tx) => {
     const orgTeams = await tx.team.findMany({
@@ -89,34 +92,19 @@ export async function executeOrganizationClosure(input: {
     // status flip is the access cutover for every org surface.
     await archiveOrganizationStatusTx(tx, { organizationId });
 
-    if (teamIds.length > 0) {
-      // PHASE 3 — canonical orchestrator: organization-closure mass
-      // revocation (deactivate, never erase; provenance closed).
-      await massRevokeWorkspaceMemberships(tx, {
-        where: { teamIds },
-        reason: "organization closure",
-      });
+    // Members audit LIFE-10 / LIFE-12 — the ONE closure leg set: memberships
+    // (and their reach), invitations, machine access, external grants and
+    // pointers, and the durable `closedAtUtc` on every org workspace.
+    await closeWorkspacesTx(tx, {
+      teamIds,
+      actorUserId: requestedByUserId,
+      reason: "organization closure",
+    });
 
-      // Machine access never outlives the organization.
-      await tx.apiCredential.updateMany({
-        where: { teamId: { in: teamIds }, status: "ACTIVE" },
-        data: {
-          status: "REVOKED",
-          revokedAtUtc: now,
-          revokedReason: "organization_closed",
-        },
-      });
-      await tx.webhookEndpoint.updateMany({
-        where: { teamId: { in: teamIds }, status: "ACTIVE" },
-        data: { status: "DISABLED" },
-      });
-
-      // Users pointed at an org workspace fall back to their personal
-      // workspace on next platform-context load.
-      await tx.user.updateMany({
-        where: { currentWorkspaceId: { in: teamIds } },
-        data: { currentWorkspaceId: null },
-      });
+    // TERMINATED — in the same transaction as the closure it completes, so a
+    // contract is never TERMINATED while its workspaces still operate.
+    if (input.terminateContract) {
+      await transitionEnterpriseContractStatusTx(tx, { organizationId, to: "TERMINATED" });
     }
 
     await emitOrgAuditEvent(tx, {
@@ -135,6 +123,19 @@ export async function executeOrganizationClosure(input: {
  * digest scheduler tick; failures are isolated per request row.
  */
 export async function processOrganizationClosures(now: Date): Promise<void> {
+  // THE REAPER (members audit LIFE-11). A request an interrupted run left in
+  // PROCESSING goes back to SCHEDULED and is executed again below — through the
+  // same preflight and the same guarded claim. Execution is idempotent (every
+  // closure leg selects only what is still live), so finishing it twice
+  // settles nothing twice.
+  await prisma.organizationClosureRequest.updateMany({
+    where: {
+      status: "PROCESSING",
+      startedAtUtc: { lte: new Date(now.getTime() - CLOSURE_STALE_MS) },
+    },
+    data: { status: "SCHEDULED" },
+  });
+
   const due = await prisma.organizationClosureRequest.findMany({
     where: {
       status: { in: ["COOLING_OFF", "SCHEDULED"] },
@@ -147,14 +148,25 @@ export async function processOrganizationClosures(now: Date): Promise<void> {
       organizationId: true,
       requestedByUserId: true,
       status: true,
+      reason: true,
     },
   });
 
   for (const req of due) {
-    const { blockers } = await evaluateOrganizationClosurePreflight(
+    const termination = isContractTerminationClosure(req.reason);
+    const preflight = await evaluateOrganizationClosurePreflight(
       req.organizationId,
       req.requestedByUserId,
     );
+    // Members audit LIFE-16 — a contract TERMINATION off-boards everyone and
+    // ends the very contract a self-service closure would wait on, so those
+    // two blockers do not apply to it. Nothing else is relaxed: an ACTIVE
+    // legal hold blocks a termination exactly as it blocks any closure.
+    const blockers = termination
+      ? preflight.blockers.filter(
+          (b) => b.code !== "ORG_MEMBERS_ACTIVE" && b.code !== "BILLING_CONTRACT_ACTIVE",
+        )
+      : preflight.blockers;
     if (blockers.length > 0) {
       await prisma.organizationClosureRequest.updateMany({
         where: { id: req.id, status: req.status },
@@ -185,6 +197,7 @@ export async function processOrganizationClosures(now: Date): Promise<void> {
       await executeOrganizationClosure({
         organizationId: req.organizationId,
         requestedByUserId: req.requestedByUserId,
+        terminateContract: termination,
       });
       await prisma.organizationClosureRequest.update({
         where: { id: req.id },

@@ -640,6 +640,27 @@ export async function buildPlatformContext(
     (workspace.plan ?? "FREE") as Parameters<typeof getPlanCapabilities>[0],
   );
 
+  /**
+   * REVIEWER OPERATIONS ENTITLEMENT (2026-10-24) — projected from the ONE
+   * authority every `/v1/reviewer-ops/*` operations route and the single-item
+   * Review routes enforce, not from the bare catalog row: an ACTIVE Enterprise
+   * contract can exclude reviewer operations, and `workspace.plan` alone
+   * would keep promising them. Fails closed.
+   *
+   * Resolved BEFORE the capabilities (members audit ENT-01): the capability
+   * map is a function of kind, plan AND role, and this is its plan half.
+   */
+  let reviewerOperationsIncluded = false;
+  if (workspace.id) {
+    try {
+      reviewerOperationsIncluded = await workspaceIncludesReviewerOperations(
+        workspace.id,
+      );
+    } catch {
+      reviewerOperationsIncluded = false;
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Capabilities
   // -------------------------------------------------------------------------
@@ -660,6 +681,9 @@ export async function buildPlatformContext(
       // function with no feature vocabulary in its input.
       packageProducesOperationalConditions: planProducesOperationalConditions(workspace.plan),
       memberCount: workspace.membership.memberCount,
+      // Members audit ENT-01 — the plan halves of the capability map.
+      collaborationIncluded: planCaps.maxCollaborationTeamsPerWorkspace > 0,
+      reviewerOperationsIncluded,
     });
     // OPS-021 — the Operations capabilities follow the SAME member-lifecycle
     // authority the API applies (evaluateMemberAccess): an expired access
@@ -720,24 +744,6 @@ export async function buildPlatformContext(
       );
     } catch {
       externalReviewEntitled = false;
-    }
-  }
-
-  /**
-   * REVIEWER OPERATIONS ENTITLEMENT (2026-10-24) — projected from the ONE
-   * authority every `/v1/reviewer-ops/*` operations route and the single-item
-   * Review routes enforce, not from the bare catalog row: an ACTIVE Enterprise
-   * contract can exclude reviewer operations, and `workspace.plan` alone
-   * would keep promising them. Fails closed, like the projection above.
-   */
-  let reviewerOperationsIncluded = false;
-  if (workspace.id) {
-    try {
-      reviewerOperationsIncluded = await workspaceIncludesReviewerOperations(
-        workspace.id,
-      );
-    } catch {
-      reviewerOperationsIncluded = false;
     }
   }
 
@@ -841,7 +847,7 @@ export async function buildPlatformContext(
         planCaps.maxCollaborationTeamsPerWorkspace,
       maxAcceptedMembersPerCollaborationTeam:
         planCaps.maxAcceptedMembersPerCollaborationTeam,
-      maxWorkspaceSeats: planCaps.maxWorkspaceSeats,
+      maxAdditionalWorkspaceMembers: planCaps.maxAdditionalWorkspaceMembers,
       maxPendingInvitesPerTeam: planCaps.maxPendingInvitesPerTeam,
       maxInvitesPer24h: planCaps.maxInvitesPer24h,
     },

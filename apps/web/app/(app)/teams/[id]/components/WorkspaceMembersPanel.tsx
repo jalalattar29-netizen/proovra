@@ -50,6 +50,11 @@ export type WorkspaceMember = {
   role: string;
   /** ACTIVE / SUSPENDED / REVOKED. */
   status?: string;
+  /**
+   * Server-projected placement of an ACTIVE member: OWNER, PLACED (in an
+   * active Collaboration Team) or UNASSIGNED. Null for any other status.
+   */
+  placement?: "OWNER" | "PLACED" | "UNASSIGNED" | null;
   createdAt?: string;
   user?: { id?: string; email?: string | null; displayName?: string | null };
   label?: string;
@@ -96,6 +101,9 @@ const STATUS_FILTERS = [
   { value: "ALL", label: "All statuses" },
   { value: "ACTIVE", label: "Active" },
   { value: "SUSPENDED", label: "Suspended" },
+  // Members audit MEM-04 — removed people stay in the history, so they can be
+  // found; the server has always accepted this filter.
+  { value: "REVOKED", label: "Access removed" },
 ] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number]["value"];
 
@@ -476,6 +484,18 @@ export const WorkspaceMembersPanel = forwardRef<
                     </td>
                     <td data-label="Status">
                       <AppStatusText tone={st.tone}>{st.label}</AppStatusText>
+                      {member.placement === "UNASSIGNED" ? (
+                        // Owner decision 2026-10-25 — an unassigned member is
+                        // shown honestly: no team-granted case access and no
+                        // team tasks until they are placed in a Collaboration Team.
+                        <span
+                          data-testid={`member-unassigned-${rowKey}`}
+                          title="Not in any Collaboration Team yet — no access to team-granted cases or team tasks until added to one."
+                        >
+                          {" "}
+                          <AppStatusText tone="amber">Unassigned</AppStatusText>
+                        </span>
+                      ) : null}
                     </td>
                     <td data-label="Joined" className="app-table__muted">
                       {member.createdAt ? formatUserDate(member.createdAt) : "—"}

@@ -37,6 +37,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import {
+  seedOrganizationTenant,
   seedPersonalTenant,
   seedUser,
   setAccountPlan,
@@ -655,66 +656,69 @@ describe("WCR closure — workspace invitation + seat authority (live PostgreSQL
       return joiners;
     }
 
-    it("PRO: the sixth active member is refused atomically", async () => {
+    /*
+     * MEMBERS AUDIT ENT-04 (owner decision 2026-10-25). These three cases
+     * proved a workspace POOL — PRO 5, TEAM 10, owner included — that the
+     * product does not sell. Collaboration capacity is per Collaboration Team
+     * (members-collaboration-capacity.integration.test.ts proves it, races
+     * included); a self-serve workspace has no workspace-wide ceiling at all,
+     * and the owner is never counted. The only workspace-wide ceiling left is
+     * an ACTIVE Enterprise contract's seat count, and the atomic-claim proof
+     * moves onto it.
+     */
+    it("PRO: no workspace-wide pool — the sixth accepted member joins, the owner uncounted", async () => {
       const t = await seedPersonalTenant(deps, "PRO");
-      const state = await seats.resolveWorkspaceSeatState(
-        t.personalTeamId,
+      const state = await seats.resolveWorkspaceSeatState(t.personalTeamId, prisma as never);
+      expect(state.limit).toBeNull();
+      expect(state.used).toBe(0); // the owner holds no seat
+      await fillToCeiling(t.personalTeamId, t.owner.userId, 6);
+
+      const email = addr("pro-seventh");
+      const created = await invite(t.personalTeamId, t.owner.userId, email);
+      const seventh = await outsider("pro-seventh");
+      await prisma.user.update({ where: { id: seventh.userId }, data: { email } });
+      await invites.acceptWorkspaceInvitation(
+        { rawToken: created.rawToken, actorUserId: seventh.userId },
         prisma as never,
       );
-      expect(state.limit).toBe(5);
-      await fillToCeiling(t.personalTeamId, t.owner.userId, 5);
-      expect(await activeMembers(t.personalTeamId)).toBe(5);
-
-      const email = addr("pro-sixth");
-      const created = await invite(t.personalTeamId, t.owner.userId, email);
-      const sixth = await outsider("pro-sixth");
-      await prisma.user.update({ where: { id: sixth.userId }, data: { email } });
-      expect(
-        await refusal(() =>
-          invites.acceptWorkspaceInvitation(
-            { rawToken: created.rawToken, actorUserId: sixth.userId },
-            prisma as never,
-          ),
-        ),
-      ).toEqual({ code: "WORKSPACE_SEAT_LIMIT_REACHED", httpStatus: 409 });
-      expect(await activeMembers(t.personalTeamId)).toBe(5);
-      const row = await prisma.teamInvite.findUniqueOrThrow({
-        where: { id: created.invite.id },
-      });
-      expect(row.acceptedAt).toBeNull();
+      const after = await seats.resolveWorkspaceSeatState(t.personalTeamId, prisma as never);
+      expect(after.used).toBe((await activeMembers(t.personalTeamId)) - 1);
+      expect(after.overLimit).toBe(false);
     });
 
-    it("TEAM: the eleventh active member is refused atomically", async () => {
+    it("TEAM: no workspace-wide pool — the eleventh accepted member joins", async () => {
       const t = await seedPersonalTenant(deps, "TEAM");
       expect(
-        (await seats.resolveWorkspaceSeatState(t.personalTeamId, prisma as never))
-          .limit,
-      ).toBe(10);
-      await fillToCeiling(t.personalTeamId, t.owner.userId, 10);
-      expect(await activeMembers(t.personalTeamId)).toBe(10);
+        (await seats.resolveWorkspaceSeatState(t.personalTeamId, prisma as never)).limit,
+      ).toBeNull();
+      await fillToCeiling(t.personalTeamId, t.owner.userId, 11);
 
-      const email = addr("team-eleventh");
+      const email = addr("team-twelfth");
       const created = await invite(t.personalTeamId, t.owner.userId, email);
-      const eleventh = await outsider("team-eleventh");
-      await prisma.user.update({
-        where: { id: eleventh.userId },
-        data: { email },
-      });
-      expect(
-        await refusal(() =>
-          invites.acceptWorkspaceInvitation(
-            { rawToken: created.rawToken, actorUserId: eleventh.userId },
-            prisma as never,
-          ),
+      const twelfth = await outsider("team-twelfth");
+      await prisma.user.update({ where: { id: twelfth.userId }, data: { email } });
+      await expect(
+        invites.acceptWorkspaceInvitation(
+          { rawToken: created.rawToken, actorUserId: twelfth.userId },
+          prisma as never,
         ),
-      ).toEqual({ code: "WORKSPACE_SEAT_LIMIT_REACHED", httpStatus: 409 });
-      expect(await activeMembers(t.personalTeamId)).toBe(10);
+      ).resolves.toBeTruthy();
     });
 
-    it("CONCURRENT distinct invitations cannot exceed the seat limit", async () => {
-      const t = await seedPersonalTenant(deps, "PRO");
-      await fillToCeiling(t.personalTeamId, t.owner.userId, 3);
-      expect(await activeMembers(t.personalTeamId)).toBe(3);
+    it("CONCURRENT distinct invitations cannot exceed a CONTRACTED seat count", async () => {
+      const org = await seedOrganizationTenant(deps, {});
+      // A contract that states seats bounds the workspace as a whole: five
+      // non-owner members, the owner uncounted.
+      await prisma.enterpriseContract.updateMany({
+        where: { organizationId: org.organizationId },
+        data: { seatCount: 5 },
+      });
+      const ws = org.workspaceId;
+      await fillToCeiling(ws, org.owner.userId, 4); // owner + 3 → 3 seats used
+      const before = await seats.resolveWorkspaceSeatState(ws, prisma as never);
+      expect(before.source).toBe("ENTERPRISE_CONTRACT");
+      expect(before.limit).toBe(5);
+      expect(before.used).toBe(3);
 
       // Two seats left, eight contenders, each with their OWN invitation —
       // so the single-use claim cannot be what bounds this. Only the seat
@@ -722,7 +726,7 @@ describe("WCR closure — workspace invitation + seat authority (live PostgreSQL
       const contenders = await Promise.all(
         Array.from({ length: 8 }, async (_unused, i) => {
           const email = addr(`race-${i}`);
-          const created = await invite(t.personalTeamId, t.owner.userId, email);
+          const created = await invite(ws, org.owner.userId, email);
           const u = await outsider(`race-${i}`);
           await prisma.user.update({ where: { id: u.userId }, data: { email } });
           return { rawToken: created.rawToken, userId: u.userId };
@@ -754,7 +758,7 @@ describe("WCR closure — workspace invitation + seat authority (live PostgreSQL
       expect(accepted, `accepted=${accepted} results=${results.join(",")}`).toBe(2);
       expect(other, `unexpected outcomes: ${other.join(",")}`).toEqual([]);
       expect(seatRefusals).toBe(6);
-      expect(await activeMembers(t.personalTeamId)).toBe(5);
+      expect((await seats.resolveWorkspaceSeatState(ws, prisma as never)).used).toBe(5);
     });
 
     it("a member in several groups is still ONE seat", async () => {

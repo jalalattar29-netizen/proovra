@@ -289,6 +289,16 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "It is closed or its organization is suspended.",
     severity: "warning",
   },
+  COLLABORATION_TEAM_NOT_FOUND: {
+    title: "Team not found",
+    message: "That Collaboration Team could not be found in this workspace.",
+    severity: "warning",
+  },
+  CASE_TEAM_ACCESS_NOT_FOUND: {
+    title: "Already removed",
+    message: "That team does not have access to this case. Refresh to see the current access list.",
+    severity: "info",
+  },
   RETENTION_POLICY_GOVERNED: {
     title: "Retention is managed under Governance",
     message: "Change how long records are kept under Governance → Retention.",
@@ -537,6 +547,26 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     severity: "warning",
     actionLabel: "View plans",
     actionHref: "/billing",
+  },
+  ENTERPRISE_CONTRACT_REQUIRED: {
+    title: "Contract configuration needed",
+    message: "This organization's contract does not configure this yet. Ask your organization administrator to complete the contract.",
+    severity: "warning",
+  },
+  LEAD_PROTECTED: {
+    title: "Lead protected",
+    message: "Only a lead of this team or the workspace owner can change a lead's role or membership.",
+    severity: "warning",
+  },
+  REVIEW_ASSIGNEE_NOT_ELIGIBLE: {
+    title: "Choose another reviewer",
+    message: "That person cannot be assigned this review. Choose an active reviewer who can open this record.",
+    severity: "warning",
+  },
+  ASSIGNMENT_TRANSITION_INVALID: {
+    title: "Task already moved on",
+    message: "This task cannot move to that state from where it is now. Refresh to see its current state.",
+    severity: "warning",
   },
   ENTITLEMENT_REQUIRED: {
     title: "This action isn't available on your plan",

@@ -42,10 +42,10 @@ export type PricingCatalogPlan = {
    */
   /** ACTIVE Collaboration Teams allowed inside ONE workspace. */
   maxCollaborationTeamsPerWorkspace?: number;
-  /** ACCEPTED members allowed in ONE Collaboration Team. */
+  /** ACCEPTED non-owner members allowed in ONE active Collaboration Team. */
   maxAcceptedMembersPerCollaborationTeam?: number;
-  /** ACCEPTED seats allowed in ONE shared workspace. */
-  maxWorkspaceSeats?: number;
+  /** Non-owner members one workspace may hold: 0 = owner only, null = no workspace-wide ceiling. */
+  maxAdditionalWorkspaceMembers?: number | null;
   enterpriseFeatures?: EnterpriseFeatureFlags;
 };
 

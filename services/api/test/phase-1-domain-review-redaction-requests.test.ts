@@ -36,8 +36,9 @@ describe("review-operations — source composes the canonical primitive", () => 
     expect(reviewSrc).toMatch(/antiEnumeration:\s*true/);
     expect(reviewSrc).not.toMatch(/const perm = requirePermission\(/);
   });
-  it("admin gate preserves the stricter OWNER/ADMIN restriction", () => {
-    expect(reviewSrc).toMatch(/membership\.role !== "OWNER" && membership\.role !== "ADMIN"/);
+  it("assigning is the canonical review.assign capability, not a role literal (members audit REV-05)", () => {
+    expect(reviewSrc).toMatch(/async function requireAssignerMember\([\s\S]{0,300}?permission: "review\.assign"/);
+    expect(reviewSrc).not.toMatch(/membership\.role !== "OWNER" && membership\.role !== "ADMIN"/);
   });
 });
 

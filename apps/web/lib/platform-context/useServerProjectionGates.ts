@@ -73,7 +73,8 @@ export type ServerWorkspaceLimits = {
   // there is no such limit to project or badge.
   maxCollaborationTeamsPerWorkspace: number;
   maxAcceptedMembersPerCollaborationTeam: number;
-  maxWorkspaceSeats: number;
+  /** 0 = nobody but the owner; null = no workspace-wide ceiling. */
+  maxAdditionalWorkspaceMembers: number | null;
   maxPendingInvitesPerTeam: number;
   maxInvitesPer24h: number;
 };
@@ -81,7 +82,7 @@ export type ServerWorkspaceLimits = {
 export function useWorkspaceLimits(): ServerWorkspaceLimits | null {
   const ctx = usePlatformContext();
   const limits = ctx?.envelope?.planFeatures?.limits;
-  if (!limits || typeof limits.maxWorkspaceSeats !== "number") return null;
+  if (!limits || typeof limits.maxAcceptedMembersPerCollaborationTeam !== "number") return null;
   return limits;
 }
 

@@ -52,6 +52,12 @@ export function useSurfaceUserContext(): SurfaceUserContext {
         typeof envelope.planFeatures?.professionalSurfacesIncluded === "boolean"
           ? envelope.planFeatures.professionalSurfacesIncluded
           : null,
+      // Members audit ENT-01 — the reviewer-operations surfaces follow the
+      // server's review capability answer. Unknown while loading → fail closed.
+      reviewerOperationsIncluded:
+        typeof envelope.planFeatures?.reviewerOperationsIncluded === "boolean"
+          ? envelope.planFeatures.reviewerOperationsIncluded
+          : null,
     },
   };
 }

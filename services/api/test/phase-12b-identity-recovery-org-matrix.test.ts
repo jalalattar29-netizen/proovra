@@ -2725,7 +2725,10 @@ describe("SYSTEM 7 — bulk organization invitation", () => {
      * organization holds an ACTIVE contract stating seats, that number wins
      * here too, which is the behaviour a provisioned Enterprise org wants.
      */
-    expect(body.seatPreview).toMatchObject({ used: 4, included: 500, hasSeatCap: true });
+    // Members audit ENT-04 (2026-10-25) — 500 → no cap. The catalog ENTERPRISE
+    // "ceiling" was a placeholder pool; only an ACTIVE contract seat count
+    // bounds a workspace as a whole, and this fixture holds none.
+    expect(body.seatPreview).toMatchObject({ used: 4, included: 0, hasSeatCap: false });
     // Zero writes, zero INVITATION audit, and never a token on the dry run.
     expect(rows("organizationInvite")).toHaveLength(before);
     /*

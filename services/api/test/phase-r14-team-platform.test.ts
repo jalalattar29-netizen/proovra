@@ -243,15 +243,18 @@ describe("Phase R14 — Stage 11: plan limits", () => {
   //
   // The `workspaces` column is unchanged and still asserted as an absence.
   const CANONICAL = {
-    FREE: { workspaces: 0, teams: 0, members: 0, seats: 1, pending: 0, rate: 0 },
-    PAYG: { workspaces: 0, teams: 0, members: 0, seats: 1, pending: 0, rate: 0 },
-    PRO: { workspaces: 2, teams: 2, members: 5, seats: 5, pending: 10, rate: 50 },
-    TEAM: { workspaces: 5, teams: 5, members: 10, seats: 10, pending: 25, rate: 100 },
+    // Members audit ENT-04 — `seats` is now the WORKSPACE-wide ceiling on
+    // non-owner members: 0 = nobody but the owner, null = none (capacity is
+    // per Collaboration Team, the `members` column).
+    FREE: { workspaces: 0, teams: 0, members: 0, seats: 0, pending: 0, rate: 0 },
+    PAYG: { workspaces: 0, teams: 0, members: 0, seats: 0, pending: 0, rate: 0 },
+    PRO: { workspaces: 2, teams: 2, members: 5, seats: null, pending: 10, rate: 50 },
+    TEAM: { workspaces: 5, teams: 5, members: 10, seats: null, pending: 25, rate: 100 },
     ENTERPRISE: {
       workspaces: 1000,
       teams: 1000,
       members: 500,
-      seats: 500,
+      seats: null,
       pending: 1000,
       rate: 5000,
     },
@@ -275,7 +278,10 @@ describe("Phase R14 — Stage 11: plan limits", () => {
         caps.maxAcceptedMembersPerCollaborationTeam,
         `${plan}.maxAcceptedMembersPerCollaborationTeam`,
       ).toBe(want.members);
-      expect(caps.maxWorkspaceSeats, `${plan}.maxWorkspaceSeats`).toBe(want.seats);
+      expect(
+        caps.maxAdditionalWorkspaceMembers,
+        `${plan}.maxAdditionalWorkspaceMembers`,
+      ).toBe(want.seats);
       expect(
         caps.maxPendingInvitesPerTeam,
         `${plan}.maxPendingInvitesPerTeam`,

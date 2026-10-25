@@ -63,6 +63,13 @@ export const COLLABORATION_TEAM_BILLING_ERROR_CODES = [
    */
   "AI_NOT_INCLUDED",
   "ENTERPRISE_FEATURE_REQUIRED",
+  /*
+   * Members audit CT-10 (2026-10-25) — an ENTERPRISE workspace's collaboration
+   * capacity is contract-defined. Without an ACTIVE contract there is no
+   * capacity to grant, and the answer is this typed state — never the
+   * catalog's placeholder ceiling, and never "unlimited".
+   */
+  "ENTERPRISE_CONTRACT_REQUIRED",
 ] as const;
 
 export type CollaborationTeamBillingErrorCode =
@@ -92,6 +99,8 @@ export const COLLABORATION_TEAM_BILLING_ERROR_HTTP_STATUS: Record<
   // 402, per the rule above: the capability is not included at all.
   AI_NOT_INCLUDED: 402,
   ENTERPRISE_FEATURE_REQUIRED: 402,
+  // Included in principle, unavailable until the contract is configured.
+  ENTERPRISE_CONTRACT_REQUIRED: 409,
 };
 
 /**

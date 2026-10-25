@@ -175,7 +175,8 @@ describe("the last ACTIVE LEAD invariant is transactional in all three writers",
     const leadCounts = [
       ...body.matchAll(/(\w+)\.collaborationTeamMember\.count\(/g),
     ].filter((m) =>
-      body.slice(m.index ?? 0, (m.index ?? 0) + 320).includes('role: "LEAD"'),
+      // Members audit CT-18 — the predicate is the shared `validLeadWhere`.
+      body.slice(m.index ?? 0, (m.index ?? 0) + 320).includes("validLeadWhere("),
     );
     expect(leadCounts.length, `${name} must count ACTIVE LEADs`).toBeGreaterThan(0);
     for (const match of leadCounts) {
@@ -189,7 +190,7 @@ describe("the last ACTIVE LEAD invariant is transactional in all three writers",
     const txStart = body.indexOf("$transaction(async (tx)");
     expect(txStart, `${name} must open a transaction`).toBeGreaterThan(-1);
     expect(
-      body.indexOf('role: "LEAD"'),
+      body.indexOf("validLeadWhere("),
       `${name} counts LEADs before its transaction opens`,
     ).toBeGreaterThan(txStart);
   }
@@ -214,9 +215,15 @@ describe("the last ACTIVE LEAD invariant is transactional in all three writers",
     expect(fn("removeMember")).toContain("Cannot remove the last LEAD");
   });
 
-  it("only ACTIVE members satisfy the invariant", () => {
+  it("only VALID leads satisfy the invariant — ACTIVE in the group AND in the workspace", () => {
+    // Members audit CT-18 — a LEAD row whose workspace membership ended leads
+    // nothing, so the count is over EFFECTIVE members.
+    const def = SERVICE.slice(SERVICE.indexOf("function validLeadWhere("));
+    expect(def.slice(0, 300)).toMatch(/role: "LEAD" as const, \.\.\.effectiveGroupMemberWhere\(workspaceId\)/);
     for (const name of ["suspendMember", "changeMemberRole", "removeMember"]) {
-      expect(fn(name)).toMatch(/role:\s*"LEAD",\s*status:\s*"ACTIVE"/);
+      expect(fn(name)).toMatch(/validLeadWhere\(input\.teamId, team\.workspaceId\)/);
+      // Serialised with every other membership writer of the group.
+      expect(fn(name)).toMatch(/lockCollaborationTeamMembership\(tx, input\.teamId\)/);
     }
   });
 });

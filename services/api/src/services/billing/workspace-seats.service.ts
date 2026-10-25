@@ -1,81 +1,100 @@
 /**
- * THE ONE effective-workspace-seat resolver.
+ * THE workspace member-ceiling resolver, and the ONE commercial subject every
+ * collaboration gate resolves.
  *
  * =============================================================================
- * WHY THERE CAN ONLY BE ONE
+ * WHAT THE PRODUCT SELLS (members audit ENT-04 / ENT-05 / CT-09, 2026-10-25)
  * =============================================================================
- * There were two, and they disagreed about the same workspace:
+ * Collaboration capacity is PER COLLABORATION TEAM: PRO sells 2 groups of up to
+ * 5 accepted members, TEAM 5 groups of up to 10. The workspace owner never
+ * consumes one of those places, pending invitations consume nothing, and an
+ * archived group frees its slot. That rule lives in the plan catalog
+ * (`maxAcceptedMembersPerCollaborationTeam`) and is enforced where a group
+ * gains a member (`lockAndAssertCollaborationTeamMemberCapacity`).
  *
- *   `getEffectiveSeatLimit`        (@proovra/shared-billing) returned 0 for any
- *                                  non-SHARED billing shape, with the comment
- *                                  "a single-occupant workspace has no seats to
- *                                  sell";
- *   `resolveEffectiveContractSeats` (enterprise-contract-limits) returned
- *                                  `max(maxWorkspaceSeats, includedSeats,
- *                                  persistedSeats)` and never looked at the
- *                                  shape at all.
+ * There is NO workspace-wide pool. This resolver used to enforce one — PRO 5,
+ * TEAM 10, owner included — at invitation acceptance, which is how a TEAM
+ * workspace with nine members was refused a tenth person who would have sat in
+ * an empty group. What it answers now is narrower and true:
  *
- * The first is what `workspace-billing.service` wrote onto `scope.teamSeats`.
- * The second is what `getWorkspaceUsage` and `assertTeamSeatAvailable` — the
- * ENFORCEMENT path — then computed, and because it takes a `max()` over the
- * catalog it discarded the deliberate 0 it had just been handed. So the
- * projection said one thing and the gate did another, on the same workspace, in
- * the same request.
- *
- * =============================================================================
- * WHAT A SEAT IS
- * =============================================================================
- * A seat is one DISTINCT ACTIVE workspace membership, and the owner holds one.
- *
- * That is the whole rule. In particular a Collaboration Team is NOT a seat
- * pool: a person assigned to five groups in a workspace consumes exactly one
- * seat, because they are one person with one membership. The old
- * `maxAcceptedMembersPerCollaborationTeam` behaved like a second commercial
- * quota over a second membership table, which is how a workspace could be told
- * it was "at capacity for your plan" on a group of five while the workspace
- * itself had room.
- *
- * SUSPENDED and REVOKED memberships hold no seat — they are denied access, and
- * charging for denied access is not a thing.
- *
- * PENDING invitations hold no seat either. They CLAIM one at acceptance, under
- * a per-workspace advisory lock, which is the only moment the arithmetic has to
- * be true (`workspace-invitation.service`).
+ *   * does the plan admit anyone but the owner at all? (FREE and evidence
+ *     credits do not — credits never grant collaboration);
+ *   * does an ACTIVE Enterprise contract state a seat count that bounds the
+ *     workspace as a whole? Only then is there a ceiling (`limit`), and the
+ *     owner is not counted against it either.
  *
  * =============================================================================
- * WHERE THE NUMBER COMES FROM
+ * WHAT IS COUNTED
  * =============================================================================
- * `PlanCapabilities.maxWorkspaceSeats`, resolved for the workspace's OWN
- * commercial subject — the owner's entitlement for a Personal workspace, the
- * contract for an Organization one. Never the actor's personal plan: an
- * invited user on FREE participates in a TEAM workspace on that workspace's
- * entitlement, and their own Personal Space stays FREE.
+ * Distinct ACTIVE workspace memberships other than the owner's. SUSPENDED and
+ * REVOKED memberships hold nothing; PENDING invitations hold nothing.
  *
- * An Enterprise contract seat count overrides the catalog. Nothing else does.
+ * =============================================================================
+ * WHOSE PLAN
+ * =============================================================================
+ * The workspace's OWN commercial subject (`resolveWorkspaceCommercialContext`)
+ * — the owner's entitlement for a Personal workspace, the contract for an
+ * Organization one. Never the actor's personal plan. Every collaboration gate
+ * resolves the subject through that one function (CT-09: the guards used to
+ * resolve a Personal workspace as PERSONAL_ACCOUNT while this resolver used
+ * WORKSPACE, so the two could read different plans for one workspace).
  */
 
 import type { PlanType, PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { getPlanCapabilities } from "@proovra/shared-billing";
-import { resolveCommercialContext } from "./commercial-context.service.js";
+import {
+  getPlanCapabilities,
+  resolveWorkspaceMemberCeiling,
+} from "@proovra/shared-billing";
+import {
+  resolveCommercialContext,
+  type CommercialContext,
+} from "./commercial-context.service.js";
 import {
   NO_CONTRACT_LIMITS,
-  resolveEffectiveContractSeats,
   resolveEnterpriseContractLimits,
   type EnterpriseContractLimits,
 } from "./enterprise-contract-limits.js";
 
+/**
+ * The commercial context of ONE workspace, resolved for the workspace itself.
+ * `WORKSPACE` lets the canonical resolver classify the kind and pick the right
+ * payer; every collaboration gate calls this rather than choosing a subject.
+ */
+export async function resolveWorkspaceCommercialContext(
+  workspace: { id: string; ownerUserId: string },
+): Promise<CommercialContext> {
+  return resolveCommercialContext({
+    type: "WORKSPACE",
+    teamId: workspace.id,
+    requesterUserId: workspace.ownerUserId,
+  });
+}
+
+/** Where a workspace member is counted: ACTIVE, and not the owner. */
+export function nonOwnerActiveMemberWhere(workspace: { id: string; ownerUserId: string }) {
+  return {
+    teamId: workspace.id,
+    status: "ACTIVE" as const,
+    userId: { not: workspace.ownerUserId },
+  };
+}
+
 export type WorkspaceSeatState = {
   plan: PlanType;
-  /** Distinct ACTIVE workspace memberships, including the owner's. */
+  /** Distinct ACTIVE workspace memberships, the owner's EXCLUDED. */
   used: number;
-  /** Effective seat ceiling for this workspace. */
-  limit: number;
-  remaining: number;
-  /** False when the plan sells no additional members at all. */
+  /**
+   * The most non-owner members the workspace may hold, or `null` when nothing
+   * bounds the workspace as a whole (every self-serve plan that includes
+   * collaboration — the per-team capacity is then the limit).
+   */
+  limit: number | null;
+  remaining: number | null;
+  /** False when the plan admits nobody but the owner. */
   featureIncluded: boolean;
-  /** True when usage already exceeds the ceiling — a downgrade, not a bug. */
+  /** True when usage already exceeds a contract ceiling — a downgrade, not a bug. */
   overLimit: boolean;
   source: "PLAN_CATALOG" | "ENTERPRISE_CONTRACT";
   /**
@@ -83,23 +102,21 @@ export type WorkspaceSeatState = {
    * from, carried out so callers that need ANOTHER contract dimension
    * (collaboration group count, per-group membership) do not re-resolve the
    * commercial context to get at it.
-   *
-   * Re-resolving is not merely wasteful: it is how two callers end up asking
-   * the same question a few milliseconds apart and acting on two answers. The
-   * seat resolver has already failed closed on DRAFT / SUSPENDED / TERMINATED
-   * here, so a caller reading this field inherits that decision instead of
-   * repeating it.
    */
   contractLimits: EnterpriseContractLimits;
 };
 
+/** True when the workspace may admit `adding` more non-owner members. */
+export function workspaceSeatsAdmit(seats: WorkspaceSeatState, adding = 1): boolean {
+  if (!seats.featureIncluded) return false;
+  return seats.limit === null || seats.used + adding <= seats.limit;
+}
+
 /**
- * Resolve seats for one workspace.
+ * Resolve the member ceiling for one workspace.
  *
  * Accepts a transaction client so a caller holding the per-workspace advisory
- * lock counts under the SAME snapshot it will write in — counting on the
- * default client from inside a transaction is how a serialised check stops
- * being serialised.
+ * lock counts under the SAME snapshot it will write in.
  */
 export async function resolveWorkspaceSeatState(
   workspaceId: string,
@@ -107,7 +124,7 @@ export async function resolveWorkspaceSeatState(
 ): Promise<WorkspaceSeatState> {
   const workspace = await client.team.findUnique({
     where: { id: workspaceId },
-    select: { id: true, ownerUserId: true, includedSeats: true },
+    select: { id: true, ownerUserId: true },
   });
   if (!workspace) {
     return {
@@ -122,47 +139,34 @@ export async function resolveWorkspaceSeatState(
     };
   }
 
-  // The workspace's own commercial subject. `WORKSPACE` lets the canonical
-  // resolver classify the kind and pick the right payer; it is the same call
-  // every other commercial gate on this surface makes.
-  const ctx = await resolveCommercialContext({
-    type: "WORKSPACE",
-    teamId: workspaceId,
-    requesterUserId: workspace.ownerUserId,
-  });
-
+  const ctx = await resolveWorkspaceCommercialContext(workspace);
   const plan = ctx.plan;
-  const catalogLimit = getPlanCapabilities(plan).maxWorkspaceSeats;
   // The contract PROJECTION is not the limits object: a DRAFT, SUSPENDED or
   // TERMINATED contract must not raise a ceiling, and
   // `resolveEnterpriseContractLimits` is the one place that fails closed on
-  // status. Reading `seatCount` off the projection directly would grant a
-  // terminated organization its contracted seats.
+  // status.
   const contractLimits = resolveEnterpriseContractLimits(ctx.enterpriseContract);
-  const contractSeats = contractLimits.contractGovernsCapability
-    ? resolveEffectiveContractSeats({
-        plan,
-        contract: contractLimits,
-        persistedSeats: workspace.includedSeats ?? 0,
-      })
-    : null;
-  const limit = contractSeats ?? catalogLimit;
+  const ceiling = resolveWorkspaceMemberCeiling({
+    plan,
+    contractSeats:
+      contractLimits.contractGovernsCapability && contractLimits.seats !== null
+        ? contractLimits.seats
+        : null,
+    contractGoverns: contractLimits.contractGovernsCapability,
+  });
 
   const used = await client.teamMember.count({
-    where: { teamId: workspaceId, status: "ACTIVE" },
+    where: nonOwnerActiveMemberWhere(workspace),
   });
 
   return {
     plan,
     used,
-    limit,
-    remaining: Math.max(0, limit - used),
-    // Every plan seats its owner. "Not included" means the plan sells no
-    // ADDITIONAL members, which is a different sentence from "you have no
-    // workspace" and the UI has to be able to say the right one.
-    featureIncluded: limit > 1,
-    overLimit: used > limit,
-    source: contractSeats !== null ? "ENTERPRISE_CONTRACT" : "PLAN_CATALOG",
+    limit: ceiling.limit,
+    remaining: ceiling.limit === null ? null : Math.max(0, ceiling.limit - used),
+    featureIncluded: ceiling.included,
+    overLimit: ceiling.limit !== null && used > ceiling.limit,
+    source: ceiling.source,
     contractLimits,
   };
 }
@@ -245,12 +249,12 @@ export async function resolveWorkspaceInvitationAllowance(
    * contracted organization is never told it may hold more pending
    * invitations than it has seats to give.
    */
-  const contractGoverned = seats.source === "ENTERPRISE_CONTRACT";
+  const contractGoverned = seats.source === "ENTERPRISE_CONTRACT" && seats.limit !== null;
   const maxPending = contractGoverned
-    ? Math.max(0, seats.limit)
+    ? Math.max(0, seats.limit ?? 0)
     : caps.maxPendingInvitesPerTeam;
   const maxPer24h = contractGoverned
-    ? Math.max(0, seats.limit) * 4
+    ? Math.max(0, seats.limit ?? 0) * 4
     : caps.maxInvitesPer24h;
 
   return {

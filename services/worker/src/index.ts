@@ -95,6 +95,7 @@ import { runReviewerReconciliation } from "./reviewer-ops/reviewer-reconciliatio
 // outbox rows; retries rotate the invite token API-side).
 import { runOrgInviteDeliverySweep } from "./org-invite-delivery.worker.js";
 import { runAutomationDispatchSweepTick } from "./automation-dispatch.js";
+import { runLifecycleSweepTick } from "./lifecycle-sweep.js";
 // P5 — Webhook dispatcher + Evidence Exchange package builder schedulers.
 import { runWebhookDispatcherTick } from "./webhook-dispatcher.js";
 import { pollExchangePackageBuilds } from "./exchange-package-builder.js";
@@ -1767,6 +1768,68 @@ function startAutomationDispatchScheduler() {
   })();
 }
 
+// -----------------------------------------------------------------------------
+// MEMBERS AUDIT LIFE-11 (2026-10-25) — LifecycleSweep.
+//
+// Account, organization and workspace closures, and the reaper for any an
+// interrupted run left in PROCESSING, on their OWN schedule — not only as a
+// side effect of the digest run. Same shape as the automation dispatch sweep:
+// a cron lock for replica safety, an in-process guard against overlap, a
+// readiness-gated first run.
+//
+// Tunables:
+//   LIFECYCLE_SWEEP_ENABLED      — default true
+//   LIFECYCLE_SWEEP_INTERVAL_MS  — default 5 minutes
+// -----------------------------------------------------------------------------
+
+const lifecycleSweepEnabled = envBoolean("LIFECYCLE_SWEEP_ENABLED", true);
+const lifecycleSweepIntervalMs = envNumber("LIFECYCLE_SWEEP_INTERVAL_MS", 5 * 60 * 1000);
+let lifecycleSweepTimer: ReturnType<typeof setInterval> | null = null;
+let lifecycleSweepRunning = false;
+
+async function runLifecycleTick(trigger: string) {
+  if (lifecycleSweepRunning) return;
+  lifecycleSweepRunning = true;
+  try {
+    const outcome = await withCronLock("lifecycle-sweep", () => runLifecycleSweepTick({ trigger }));
+    if (!outcome.ran) logger.debug({ trigger }, "lifecycle_sweep.skipped_locked");
+  } catch (err) {
+    logger.error({ err, trigger }, "lifecycle_sweep.tick_failed");
+    captureException(err, { trigger });
+  } finally {
+    lifecycleSweepRunning = false;
+  }
+}
+
+function startLifecycleScheduler() {
+  if (!lifecycleSweepEnabled) {
+    logger.info({}, "lifecycle_sweep.scheduler.disabled");
+    return;
+  }
+  lifecycleSweepTimer = setInterval(() => {
+    void runLifecycleTick("interval");
+  }, lifecycleSweepIntervalMs);
+  logger.info({ intervalMs: lifecycleSweepIntervalMs }, "lifecycle_sweep.scheduler.started");
+  void (async () => {
+    const readiness = await gateStartupOnApiReadiness("lifecycle-sweep");
+    if (!readiness.ready) {
+      logger.warn(
+        { consumer: "lifecycle-sweep", attempts: readiness.attempts, lastError: readiness.lastError },
+        "lifecycle_sweep.skipped_api_unready",
+      );
+      return;
+    }
+    void runLifecycleTick("startup");
+  })();
+}
+
+function stopLifecycleScheduler() {
+  if (lifecycleSweepTimer) {
+    clearInterval(lifecycleSweepTimer);
+    lifecycleSweepTimer = null;
+  }
+}
+
 function stopAutomationDispatchScheduler() {
   if (automationDispatchSweepTimer) {
     clearInterval(automationDispatchSweepTimer);
@@ -2314,6 +2377,7 @@ async function shutdown(exitCode: number) {
   // Macro-Wave A2 — org-invite delivery sweep.
   stopOrgInviteDeliverySweepScheduler();
   stopAutomationDispatchScheduler();
+  stopLifecycleScheduler();
   // Phase Y — Observability schedulers.
   stopObservabilityHeartbeat();
   stopQueueHealthSampler();
@@ -2575,6 +2639,7 @@ initSecretsAuthority(logger)
     // outbox rows → API-side rotation retry).
     startOrgInviteDeliverySweepScheduler();
     startAutomationDispatchScheduler();
+    startLifecycleScheduler();
     // Phase Y — Observability heartbeat + queue-health sampler.
     // The heartbeat fires every 30s; a log-based metrics provider
     // can derive `worker_last_heartbeat_age_seconds` by tailing

@@ -48,9 +48,7 @@ import type { FastifyRequest } from "fastify";
 
 import { prisma } from "../../db.js";
 import { processAccountDataExports } from "../identity/account-data-export.service.js";
-import { processAccountClosures } from "../identity/account-closure.service.js";
-import { processOrganizationClosures } from "../organization/org-closure.service.js";
-import { processWorkspaceClosures } from "../workspace/workspace-closure.service.js";
+import { runLifecycleTick } from "../lifecycle/lifecycle-scheduler.service.js";
 import {
   buildInboxAggregation,
   syncInboxSnapshots,
@@ -187,6 +185,12 @@ export async function runDigestScheduler(
     snapshotsPruned: 0,
   };
 
+  // Members audit LIFE-11 — closures run through THE lifecycle tick (logged,
+  // counted, reaped), and BEFORE the digest's own schema refusal below, so a
+  // digest problem can no longer stop an account or workspace from closing.
+  // The worker's lifecycle sweep calls the same tick; both are safe at once.
+  await runLifecycleTick(now);
+
   // Migration-order safety — refuse the ENTIRE run when the schedule
   // schema is missing. Refusing (rather than "treating the table as
   // empty") is deliberate: a run without schedule rows would bypass
@@ -215,30 +219,6 @@ export async function runDigestScheduler(
     /* isolated — digests continue */
   }
 
-  // Lifecycle Phase 5 — due account-closure requests execute on the same
-  // cron firing. The processor re-runs the closure preflight before
-  // touching anything and isolates every failure to its own request row.
-  try {
-    await processAccountClosures(now);
-  } catch {
-    /* isolated — digests continue */
-  }
-
-  // Lifecycle Phase 6 — due organization closures execute on the same
-  // cron firing (re-preflighted, per-row failure isolation).
-  try {
-    await processOrganizationClosures(now);
-  } catch {
-    /* isolated — digests continue */
-  }
-
-  // Lifecycle Phase 7 — due workspace closures execute on the same cron
-  // firing (re-preflighted, per-row failure isolation).
-  try {
-    await processWorkspaceClosures(now);
-  } catch {
-    /* isolated — digests continue */
-  }
 
   // 1. Every enabled EMAIL preference on a digest cadence.
   const prefRows = await prisma.workspaceNotificationPreference.findMany({

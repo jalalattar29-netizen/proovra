@@ -60,8 +60,8 @@ const render = async () => {
 
 test("the header names the page, hands off to Members & Access, and states a granted workspace view", async () => {
   const r = await render();
-  assert.ok(r.hasText("Collaboration Teams"));
-  assert.ok(r.texts().some((t) => t.includes("Teams group members who already have access — they do not grant it.")));
+  assert.ok(r.hasText("Teams"));
+  assert.ok(r.texts().some((t) => t.includes("Group workspace members to control case access and coordinate work.")));
   assert.ok(r.texts().some((t) => t.startsWith("Showing every Team in this workspace.")));
   await r.press("Manage members & access");
   assert.equal(M.calls.push.at(-1), "/(stack)/workspace-people");

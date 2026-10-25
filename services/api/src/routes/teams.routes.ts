@@ -33,6 +33,10 @@ import { getWorkspaceUsage } from "../services/workspace-usage.service.js";
 import { refreshTeamSeatState } from "../services/billing.service.js";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
+import {
+  placedUserIds,
+  placingGroupMembershipWhere,
+} from "../services/collaboration-team/placement.js";
 import { requireAuth } from "../middleware/auth.js";
 import { evaluateAuthorizedWorkspace } from "../middleware/authorize.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
@@ -878,12 +882,25 @@ export async function teamsRoutes(app: FastifyInstance) {
             active: countOf(prismaPkg.TeamMemberStatus.ACTIVE),
             suspended: countOf(prismaPkg.TeamMemberStatus.SUSPENDED),
             removed: countOf(prismaPkg.TeamMemberStatus.REVOKED),
+            // ACTIVE non-owner members in no active Collaboration Team yet.
+            unassigned: await prisma.teamMember.count({
+              where: {
+                teamId,
+                status: prismaPkg.TeamMemberStatus.ACTIVE,
+                userId: { not: team.ownerUserId },
+                user: { collaborationTeamMemberships: { none: placingGroupMembershipWhere(teamId) } },
+              },
+            }),
           },
           pendingInviteCount,
           caseCount,
           seatLimit: effectiveSeatLimit,
           seatUsed: workspaceUsage.teamMemberCount,
-          seatAvailable: Math.max(0, effectiveSeatLimit - workspaceUsage.teamMemberCount),
+          // `null` = no workspace-wide ceiling (members audit ENT-04).
+          seatAvailable:
+            effectiveSeatLimit === null
+              ? null
+              : Math.max(0, effectiveSeatLimit - workspaceUsage.teamMemberCount),
           storageUsedBytes: workspaceUsage.storageBytesUsed.toString(),
           storageLimitBytes: workspaceUsage.storageBytesLimit.toString(),
           storageRemainingBytes: workspaceUsage.storageBytesRemaining.toString(),
@@ -1069,6 +1086,20 @@ export async function teamsRoutes(app: FastifyInstance) {
       const page = rows.slice(0, limit);
       const nextCursor = rows.length > limit ? page[page.length - 1].id : null;
 
+      /*
+       * PLACEMENT (owner decision 2026-10-25). An ACTIVE member who is in no
+       * active Collaboration Team yet is UNASSIGNED, and the surface must say
+       * so: they hold no restricted case access and receive no work until they
+       * are placed. Only the fact is projected — never WHICH group, so private
+       * group membership is not disclosed.
+       */
+      const ownerOfRecord = await prisma.team.findUnique({ where: { id: teamId }, select: { ownerUserId: true } });
+      const placed = await placedUserIds({
+        workspaceId: teamId,
+        ownerUserId: ownerOfRecord?.ownerUserId ?? "",
+        userIds: page.filter((m) => m.status === prismaPkg.TeamMemberStatus.ACTIVE).map((m) => m.userId),
+      });
+
       return reply.code(200).send({
         members: page.map((member) => ({
           id: member.id,
@@ -1076,6 +1107,14 @@ export async function teamsRoutes(app: FastifyInstance) {
           role: member.role,
           status: member.status,
           createdAt: member.createdAt,
+          placement:
+            member.status !== prismaPkg.TeamMemberStatus.ACTIVE
+              ? null
+              : member.userId === ownerOfRecord?.ownerUserId
+                ? "OWNER"
+                : placed.has(member.userId)
+                  ? "PLACED"
+                  : "UNASSIGNED",
           // A label must never fall back to an address: doing so releases the
           // contact detail through the display field after the contact field
           // has been withheld. "Workspace member" is the same honest fallback

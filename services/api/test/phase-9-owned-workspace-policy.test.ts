@@ -164,14 +164,16 @@ describe("Phase 9 §9.4 corrected — Owned Workspace never inherits the owner's
     );
     // The GROUP-membership ceiling still lives here, and still asks the
     // workspace rather than the owner's account.
+    // Members audit ENT-04 — the rule now lives in ONE evaluator shared by the
+    // pre-flight and the locked guard; both are inside this slice.
     const member = guards.slice(
-      guards.indexOf("export async function assertCollaborationTeamMemberLimit"),
+      guards.indexOf("async function evaluateCollaborationTeamMemberCapacity"),
       guards.indexOf("// 3. (RETIRED) assertCanInviteCollaborationTeamMember"),
     );
-    // Whitespace-tolerant: the member guard destructures the workspace id out
-    // of the same call (it needs the workspace to count its seats), so the
-    // call wraps. The assertion is the subject, not the formatting.
-    const WORKSPACE_SUBJECT = /resolveCollaborationTeamWorkspacePlan\(\s*client,\s*teamId,?\s*\)/;
+    // Whitespace-tolerant: the evaluator destructures the workspace id out of
+    // the same call, so the call wraps. The assertion is the subject.
+    const WORKSPACE_SUBJECT =
+      /resolveCollaborationTeamWorkspacePlan\(\s*client(?: as PrismaClient)?,\s*teamId,?\s*\)/;
     expect(member).toMatch(WORKSPACE_SUBJECT);
     expect(member).not.toMatch(/resolveUserPlan\(/);
 

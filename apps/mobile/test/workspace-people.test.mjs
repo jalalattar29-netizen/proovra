@@ -200,40 +200,6 @@ test("an accepted role change is not reported as a completed one", () => {
   assert.match(confirmed.message, /Ada is now Admin/);
 });
 
-/* -------------------------------------------------------------- case links */
-
-test("linking and unlinking are two permissions, not one", () => {
-  // POST /cases/link is MEMBER+; DELETE /cases/:caseId is ADMIN+. A MEMBER can
-  // bring a case in and cannot take one out.
-  assert.equal(W.canLinkCase("MEMBER"), true);
-  assert.equal(W.canUnlinkCase("MEMBER"), false);
-  assert.equal(W.canUnlinkCase("ADMIN"), true);
-  assert.equal(W.canUnlinkCase("OWNER"), true);
-  assert.equal(W.canLinkCase("VIEWER"), false);
-});
-
-test("the case paths are the canonical ones", () => {
-  assert.equal(W.buildWorkspaceCasesPath("t1"), "/v1/teams/t1/cases");
-  assert.equal(W.buildWorkspaceCaseLinkPath("t1"), "/v1/teams/t1/cases/link");
-  assert.equal(W.buildWorkspaceCaseUnlinkPath("t1", "c1"), "/v1/teams/t1/cases/c1");
-});
-
-test("a case row with no id is dropped rather than rendered", () => {
-  const list = W.parseWorkspaceCases({ items: [{ id: "c1", name: "Flood" }, {}, null] });
-  assert.equal(list.length, 1);
-  assert.equal(list[0].name, "Flood");
-});
-
-test("an unnamed case is named, never blank", () => {
-  assert.equal(W.parseWorkspaceCases({ items: [{ id: "c1" }] })[0].name, "Untitled case");
-});
-
-test("the picker cannot offer a link that already exists", () => {
-  const all = W.parseWorkspaceCases({ items: [{ id: "c1" }, { id: "c2" }, { id: "c3" }] });
-  const linked = W.parseWorkspaceCases({ items: [{ id: "c2" }] });
-  assert.deepEqual(W.linkableCases(all, linked).map((c) => c.id), ["c1", "c3"]);
-});
-
 /* ---------------------------------------------------------------- activity */
 
 test("the activity read is bounded", () => {
@@ -307,11 +273,6 @@ test("a named refusal says what happened, in workspace words", () => {
 });
 
 /* ------------------------------------------------- web parity (teams/[id]) */
-
-test("the case picker drops cases the link route refuses (already in any workspace)", () => {
-  const all = W.parseWorkspaceCases({ items: [{ id: "c1", name: "A", teamId: null }, { id: "c2", name: "B", teamId: "t9" }, { id: "c3", name: "C" }] });
-  assert.deepEqual(W.linkableCases(all, []).map((c) => c.id), ["c1", "c3"]);
-});
 
 test("activity reads in the web's words, and an unmapped SHOUTY type does not shout", () => {
   assert.equal(W.activityLabel("invite_created"), "Invitation sent");

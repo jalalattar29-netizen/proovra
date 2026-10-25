@@ -37,6 +37,7 @@ import {
   childStatusAfterParentTransition,
   FORBIDDEN_CORRELATION_SIGNALS,
 } from "../src/services/operations/evidence-integrity-correlation.js";
+import { syncEvidenceIntegrityConditions } from "../src/services/operations/evidence-integrity-conditions.service.js";
 
 const NOW = new Date("2026-08-22T12:00:00.000Z");
 const TEAM = "11111111-1111-4111-8111-111111111111";
@@ -263,11 +264,8 @@ async function sync(
   evidence: FakeEvidence[],
   client?: ReturnType<typeof makeClient>,
 ) {
-  const mod = await import(
-    "../src/services/operations/evidence-integrity-conditions.service.js"
-  );
   const fake = client ?? makeClient(evidence);
-  const result = await mod.syncEvidenceIntegrityConditions(
+  const result = await syncEvidenceIntegrityConditions(
     { teamId: TEAM, now: NOW },
     fake.client as never,
   );

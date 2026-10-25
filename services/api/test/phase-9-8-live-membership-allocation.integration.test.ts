@@ -42,7 +42,7 @@ describe(
         const { provisionMembership } = await import(
           "../src/services/identity/membership-provisioning.service.js"
         );
-        const { resolveWorkspaceSeatState } = await import(
+        const { resolveWorkspaceSeatState, workspaceSeatsAdmit } = await import(
           "../src/services/billing/workspace-seats.service.js"
         );
         const { prisma } = await import("../src/db.js");
@@ -84,10 +84,12 @@ describe(
          * empty array.
          */
         const seats = await resolveWorkspaceSeatState(teamId, prisma);
+        // `remaining` is null when nothing bounds the workspace as a whole
+        // (members audit ENT-04) — the race is then unconstrained by seats.
         expect(
-          seats.remaining,
+          workspaceSeatsAdmit(seats),
           `the race cannot be exercised without a free seat (plan=${seats.plan} used=${seats.used} limit=${seats.limit})`,
-        ).toBeGreaterThanOrEqual(1);
+        ).toBe(true);
 
         // A subject that is NOT yet a member of teamA — the personal-space user.
         const subjectUserId = harness.fixtures.personal.userId;

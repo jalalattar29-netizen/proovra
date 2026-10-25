@@ -91,6 +91,7 @@ const ENGINE_CODES_KEPT: ReadonlySet<string> = new Set<ReviewerOpsBulkItemErrorC
   "REVIEW_ESCALATION_EXISTS",
   "REVIEW_ACTOR_BLOCKED",
   "REVIEW_CONFLICT",
+  "REVIEW_ASSIGNEE_NOT_ELIGIBLE",
 ]);
 
 /**
@@ -136,6 +137,8 @@ export function classifyBulkItemError(err: unknown): {
           : { code: "REVIEW_INVALID_TRANSITION", unexpected: false };
       case "already_in_stage":
         return { code: "REVIEW_INVALID_TRANSITION", unexpected: false };
+      case "assignee_not_eligible":
+        return { code: "REVIEW_ASSIGNEE_NOT_ELIGIBLE", unexpected: false };
     }
   }
   return { code: "REVIEW_ITEM_FAILED", unexpected: true };

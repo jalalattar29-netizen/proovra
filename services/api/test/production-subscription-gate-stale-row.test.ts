@@ -219,8 +219,19 @@ describe("Phase 9 STEP 5 — billing-guards is a thin adapter (no competing engi
      * follows: it asserts the subject is declared, and asserts the actor-plan
      * shape has not come back.
      */
-    expect(ADAPTER).toMatch(/type:\s*"WORKSPACE"/);
-    expect(ADAPTER).toMatch(/type:\s*"PERSONAL_ACCOUNT"/);
+    // Members audit CT-09 — ONE workspace subject for every collaboration
+    // gate: `resolveWorkspaceCommercialContext`, which declares
+    // `type: "WORKSPACE"` (the guards used to pick PERSONAL_ACCOUNT for a
+    // Personal workspace while the seat resolver used WORKSPACE).
+    expect(ADAPTER).toMatch(/resolveWorkspaceCommercialContext\(workspace\)/);
+    expect(ADAPTER).not.toMatch(/type:\s*"PERSONAL_ACCOUNT"/);
+    const seats = readFileSync(
+      fileURLToPath(new URL("../src/services/billing/workspace-seats.service.ts", import.meta.url)),
+      "utf8",
+    );
+    expect(seats).toMatch(
+      /export async function resolveWorkspaceCommercialContext[\s\S]{0,400}?type:\s*"WORKSPACE"/,
+    );
     expect(ADAPTER).not.toMatch(/resolveCommercialContext\(\{\s*ownerUserId:\s*userId\s*\}\)/);
     expect(ADAPTER).toMatch(/ctx\.lifecycle/);
   });

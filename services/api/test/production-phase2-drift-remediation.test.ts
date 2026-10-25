@@ -1215,7 +1215,10 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // shared by the canonical page AND the public package record (one access
 // decision for every public surface of a record), in the routes directory so
 // the web error-code coverage gate still reads the codes they emit.
-const ROUTE_COUNT_PHASE_2_BASELINE = 136;
+// 2026-10-25 (members audit LIFE-11): 136 -> 137 — internal-lifecycle.routes.ts,
+// the cron-secret machine endpoint the worker's lifecycle sweep calls. It is an
+// internal surface of its own, like internal-reindex.routes.ts beside it.
+const ROUTE_COUNT_PHASE_2_BASELINE = 137;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

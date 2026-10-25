@@ -120,8 +120,14 @@ function assertNeverDeletesNeverTouchesEvidence() {
       `closure must never touch ${delegate}`,
     ).toBe(false);
   }
+  // Members audit ACC-11 — the ONE deletion a closure makes is a revoked
+  // member's live case access-list entry: that row IS the grant, and removing
+  // it is how the grant ends (the per-member engine does the same). Nothing
+  // that is history or evidence is ever deleted.
   expect(
-    H.calls.some((c) => c.method === "delete" || c.method === "deleteMany"),
+    H.calls.some(
+      (c) => (c.method === "delete" || c.method === "deleteMany") && !c.model.endsWith("caseAccess"),
+    ),
     "closure must never hard-delete anything",
   ).toBe(false);
 }
@@ -157,7 +163,10 @@ describe("Phase 4 — closures preserve evidence structurally", () => {
     const teamWrites = H.calls.filter(
       (c) => c.model === "tx.team" && c.method !== "findMany" && c.method !== "findUnique",
     );
-    expect(teamWrites.map((c) => c.method)).toEqual(["update"]);
+    // `updateMany` guarded on `closedAtUtc: null` — the stamp is idempotent, so a
+    // reaper re-running a closure keeps the first timestamp (members audit LIFE-11).
+    expect(teamWrites.map((c) => c.method)).toEqual(["updateMany"]);
+    expect((teamWrites[0]!.args[0] as { where: Record<string, unknown> }).where).toMatchObject({ closedAtUtc: null });
     const written = (teamWrites[0]!.args[0] as { data: Record<string, unknown> })
       .data;
     // ONE key. A closure that also reset billing, renamed the workspace or
@@ -209,9 +218,13 @@ describe("Phase 4 — Legal Hold prevails at execution time", () => {
 
     await processWorkspaceClosures(new Date());
 
+    // The reaper's sweep of stale PROCESSING rows is not a write to this
+    // request (members audit LIFE-11).
     const requestWrites = H.calls.filter(
       (c) =>
-        c.model === "workspaceClosureRequest" && c.method === "updateMany",
+        c.model === "workspaceClosureRequest" &&
+        c.method === "updateMany" &&
+        (c.args[0] as { where?: { status?: unknown } }).where?.status !== "PROCESSING",
     );
     expect(requestWrites.length).toBe(1);
     expect(

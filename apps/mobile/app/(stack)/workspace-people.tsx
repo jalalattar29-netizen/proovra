@@ -66,21 +66,14 @@ import {
   buildRenameBody,
   buildRoleChangeBody,
   buildWorkspaceActivityPath,
-  buildWorkspaceCaseLinkPath,
-  buildWorkspaceCaseUnlinkPath,
-  buildWorkspaceCasesPath,
   buildWorkspaceMemberPath,
   canChangeRole,
   canRemoveMember,
-  canLinkCase,
-  canUnlinkCase,
   describeActivity,
   describeRoleChange,
   invitesReadFailure,
-  linkableCases,
   memberStatusLabel,
   parseWorkspaceActivity,
-  parseWorkspaceCases,
   isWorkspaceOwner,
   resendErrorCopy,
   resendOutcome,
@@ -88,7 +81,6 @@ import {
   validateWorkspaceName,
   type InvitesReadState,
   type WorkspaceActivity,
-  type WorkspaceCase,
   buildWorkspaceInvitePath,
   buildWorkspaceInviteResendPath,
   buildWorkspaceInvitesPath,
@@ -146,11 +138,7 @@ export default function WorkspacePeopleScreen() {
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [revoking, setRevoking] = useState<WorkspaceInvite | null>(null);
 
-  const [cases, setCases] = useState<WorkspaceCase[] | null>(null);
   const [activity, setActivity] = useState<WorkspaceActivity[] | null>(null);
-  const [linking, setLinking] = useState(false);
-  const [linkable, setLinkable] = useState<WorkspaceCase[] | null>(null);
-  const [unlinking, setUnlinking] = useState<WorkspaceCase | null>(null);
   const [roleFor, setRoleFor] = useState<WorkspaceMember | null>(null);
   // T-14 — member removal (web MemberRemovalDialog) and the roster total.
   const [removing, setRemoving] = useState<WorkspaceMember | null>(null);
@@ -214,9 +202,6 @@ export default function WorkspacePeopleScreen() {
     await Promise.all([
       apiFetch(buildWorkspaceMembersPath(teamId, null, rosterFilter)).then(applyRoster).catch(rosterFailure),
       reloadInvites(),
-      apiFetch(buildWorkspaceCasesPath(teamId))
-        .then((d) => setCases(parseWorkspaceCases(d)))
-        .catch(() => setCases(null)),
       apiFetch(buildWorkspaceActivityPath(teamId, 25))
         .then((d) => setActivity(parseWorkspaceActivity(d)))
         .catch(() => setActivity(null)),
@@ -383,58 +368,6 @@ export default function WorkspacePeopleScreen() {
     [teamId, addToast, reloadRoster, stepUp],
   );
 
-  const openLinkPicker = useCallback(async () => {
-    if (!teamId) return;
-    setLinking(true);
-    setLinkable(null);
-    try {
-      // The cases this person can see, minus the ones linked here or to any
-      // other workspace — the route refuses those.
-      const all = parseWorkspaceCases(await apiFetch("/v1/cases"));
-      setLinkable(linkableCases(all, cases ?? []));
-    } catch (err) {
-      addToast(toSafeUserError(err, { message: "Failed to load available cases" }).message, "error");
-      setLinkable([]);
-    }
-  }, [teamId, cases, addToast]);
-
-  const linkCase = useCallback(
-    async (target: WorkspaceCase) => {
-      if (!teamId) return;
-      setLinking(false);
-      setBusy(true);
-      try {
-        await apiFetch(buildWorkspaceCaseLinkPath(teamId), {
-          method: "POST",
-          body: JSON.stringify({ caseId: target.id }),
-        });
-        setCases((prev) => [{ ...target, teamId }, ...(prev ?? [])]);
-        addToast("Case linked successfully", "success");
-      } catch (err) {
-        addToast(toSafeUserError(err, { message: "Failed to link case" }).message, "error");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [teamId, addToast],
-  );
-
-  const unlinkCase = useCallback(async () => {
-    const target = unlinking;
-    if (!teamId || !target) return;
-    setBusy(true);
-    try {
-      await apiFetch(buildWorkspaceCaseUnlinkPath(teamId, target.id), { method: "DELETE" });
-      setUnlinking(null);
-      setCases((prev) => (prev ?? []).filter((c) => c.id !== target.id));
-      addToast("Case removed from workspace", "success");
-    } catch (err) {
-      addToast(toSafeUserError(err, { message: "Failed to remove case from workspace" }).message, "error");
-    } finally {
-      setBusy(false);
-    }
-  }, [teamId, unlinking, addToast]);
-
   const rename = useCallback(async () => {
     if (!teamId) return;
     const invalid = validateWorkspaceName(draftName);
@@ -466,7 +399,8 @@ export default function WorkspacePeopleScreen() {
   const currentRole =
     overview?.currentUserRole ?? members.find((m) => m.userId && m.userId === selfId)?.role ?? null;
   const pendingCount = invitesRead === "ready" ? invites.length : overview?.pendingInviteCount ?? 0;
-  const caseCount = cases?.length ?? overview?.caseCount ?? 0;
+  // The server's count — never the length of a page the screen happened to load.
+  const caseCount = overview?.caseCount ?? 0;
   const activeMemberCount = overview?.seats.memberCount ?? 0;
 
   const header = (subtitle: string | undefined, withActions: boolean) => (
@@ -537,10 +471,13 @@ export default function WorkspacePeopleScreen() {
               {
                 key: "seats",
                 label: "Seats available",
-                value: available === null ? "—" : String(available),
-                caption:
-                  seats?.seatLimit === null || !seats
-                    ? "Capacity unavailable"
+                // Members audit ENT-04 — `seatLimit: null` from a loaded
+                // overview means no workspace-wide ceiling, not "unknown".
+                value: seats && seats.seatLimit === null ? "No limit" : available === null ? "—" : String(available),
+                caption: !seats
+                  ? "Capacity unavailable"
+                  : seats.seatLimit === null
+                    ? "Capacity is set per Collaboration Team"
                     : `${seats.seatUsed ?? activeMemberCount} of ${seats.seatLimit} used`,
                 tone: available === 0 ? "risk" : available === null ? "neutral" : "info",
               },
@@ -841,7 +778,7 @@ export default function WorkspacePeopleScreen() {
               Collaboration Teams
             </ProovraText>
             <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-              Organise existing workspace members into operational groups for cases, evidence and work.
+              Group workspace members to control case access and coordinate work.
             </ProovraText>
             <ProovraButton label="Organise members" variant="secondary" onPress={() => router.push("/(tabs)/teams" as never)} />
           </ProovraCard>
@@ -853,45 +790,12 @@ export default function WorkspacePeopleScreen() {
             </ProovraPageSection>
           ) : null}
 
-          <ProovraPageSection
-            title="Cases in this workspace"
-            actions={
-              canLinkCase(currentRole ?? "") ? (
-                <ProovraButton label="Link a case" variant="secondary" fullWidth={false} loading={busy && linking} onPress={() => void openLinkPicker()} />
-              ) : undefined
-            }
-          >
-            {cases === null ? (
-              <ProovraEmpty presence="inline" title="Linked cases are visible to workspace members." />
-            ) : cases.length === 0 ? (
-              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-                No cases are linked to this workspace yet.
-              </ProovraText>
-            ) : (
-              <ProovraCard>
-                {cases.map((c) => (
-                  <ProovraListRow
-                    key={c.id}
-                    title={c.name}
-                    subtitle={c.createdAtIso ? `Opened ${formatUserDate(c.createdAtIso)}` : undefined}
-                    onPress={() => router.push(`/case/${c.id}` as never)}
-                    trailing={
-                      // Unlinking is ADMIN+, linking is MEMBER+. Two permissions.
-                      canUnlinkCase(currentRole ?? "") ? (
-                        <ProovraButton
-                          label="Remove"
-                          accessibilityLabel={`Remove ${c.name} from this workspace`}
-                          variant="ghost"
-                          fullWidth={false}
-                          onPress={() => setUnlinking(c)}
-                        />
-                      ) : undefined
-                    }
-                  />
-                ))}
-              </ProovraCard>
-            )}
-          </ProovraPageSection>
+          {/*
+            Case link management was removed from Members & Access (members
+            audit MEM-05, IA decision 2026-10-25), on web and here alike: it
+            offered one page of cases and is not people management. Who can
+            open a case is managed on the case itself.
+          */}
         </>
       ) : null}
 
@@ -980,22 +884,6 @@ export default function WorkspacePeopleScreen() {
         ))}
       </ProovraSheet>
 
-      <ProovraSheet visible={linking} title="Link a case" onClose={() => setLinking(false)}>
-        {linkable === null ? (
-          <ProovraLoadingState label="Loading cases…" />
-        ) : linkable.length === 0 ? (
-          <ProovraEmpty presence="inline" title="No unlinked cases are available to add." />
-        ) : (
-          linkable.map((c) => (
-            <ProovraListRow
-              key={c.id}
-              title={c.name}
-              trailing={<ProovraButton label="Link" accessibilityLabel={`Link ${c.name}`} variant="secondary" fullWidth={false} onPress={() => void linkCase(c)} />}
-            />
-          ))
-        )}
-      </ProovraSheet>
-
       <ProovraSheet visible={renaming} title="Rename this workspace" onClose={() => setRenaming(false)}>
         <ProovraFormField label="Workspace name">
           <ProovraInput value={draftName} onChangeText={setDraftName} autoCapitalize="sentences" accessibilityLabel="Workspace name" />
@@ -1011,21 +899,6 @@ export default function WorkspacePeopleScreen() {
           />
         </View>
       </ProovraSheet>
-
-      <ProovraConfirmSheet
-        visible={unlinking !== null}
-        title="Remove case from this workspace?"
-        consequence={
-          unlinking
-            ? `"${unlinking.name}" will be detached from this workspace. The case itself is not deleted; its owner retains it. Existing case access grants stay on the case. To revoke individual members, manage access on the case itself.`
-            : ""
-        }
-        confirmLabel="Remove from workspace"
-        tone="danger"
-        busy={busy}
-        onConfirm={() => void unlinkCase()}
-        onCancel={() => setUnlinking(null)}
-      />
 
       <ProovraConfirmSheet
         visible={revoking !== null}

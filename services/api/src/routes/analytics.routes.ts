@@ -564,16 +564,18 @@ async function computeTeamWorkspaceHealth() {
      * a documented tolerance on a REPORT, not a second answer — the rule is
      * one function and this is one of its callers.
      */
+    // `null` = no workspace-wide ceiling (members audit ENT-04): a self-serve
+    // workspace's capacity is per Collaboration Team, so it is never "at its
+    // seat limit" here.
     const seatLimit = resolveEffectiveContractSeats({
       plan: reportingPlanBaseline,
       contract: NO_CONTRACT_LIMITS,
-      persistedSeats: team.includedSeats ?? 0,
     });
     const memberCount = team._count.members;
 
-    if (seatLimit > 0 && memberCount >= seatLimit) {
+    if (seatLimit !== null && seatLimit > 0 && memberCount >= seatLimit) {
       seatLimitReachedTeams += 1;
-    } else if (seatLimit > 0 && memberCount / seatLimit >= 0.8) {
+    } else if (seatLimit !== null && seatLimit > 0 && memberCount / seatLimit >= 0.8) {
       seatNearLimitTeams += 1;
     }
   }

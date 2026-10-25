@@ -72,6 +72,20 @@ export type CapabilityResolverInput = {
    * always has operations to coordinate, whatever its package includes.
    */
   memberCount?: number | null;
+  /**
+   * MEMBERS AUDIT ENT-01 (2026-10-25) — does the workspace's package include
+   * collaboration (members, Collaboration Teams)? Pre-resolved by the caller
+   * from the canonical catalog, like the qualifier above.
+   */
+  collaborationIncluded?: boolean | null;
+  /**
+   * MEMBERS AUDIT ENT-01 — the TEAM-tier review operations (assignments,
+   * queues, escalation, bulk), pre-resolved by the caller from the one review
+   * capability ladder (`workspaceIncludesReviewerOperations`, contract-aware).
+   * When omitted, an OWNED / ORGANIZATION workspace keeps its long-standing
+   * shape and a PERSONAL one gets none.
+   */
+  reviewerOperationsIncluded?: boolean | null;
 };
 
 /**
@@ -192,63 +206,80 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
   // Personal-workspace shape
   // ============================================================
   //
-  // The viewer is the OWNER of their own personal workspace. They
-  // can manage their own evidence, generate their own reports,
-  // adjust their own settings. They do NOT get team-collaboration
-  // surfaces (Reviewer Ops, Governance, Teams, bulk actions).
+  // MEMBERS AUDIT ENT-01 (2026-10-25). This branch assumed the viewer was the
+  // workspace's only occupant and granted management to whoever was looking —
+  // a VIEWER invited into a PRO Personal Workspace received SETTINGS_MANAGE and
+  // CASES_MANAGE. A Personal Workspace on PRO or TEAM has members, so the
+  // grants now follow the viewer's ROLE, exactly as in a shared workspace.
+  //
+  // And it withheld every collaboration surface by KIND, so a TEAM buyer —
+  // whose TEAM plan lives on this very workspace — never received Team
+  // management, reviewer operations or case assignment. Capabilities are now a
+  // function of kind, plan and role: the plan halves are pre-resolved by the
+  // caller (`collaborationIncluded`, `reviewerOperationsIncluded`).
   if (isPersonal) {
     setMany(
       map,
       [
-        "EVIDENCE_MANAGE",
-        "CASES_MANAGE",
-        "CASE_STATUS_CHANGE",
-        "CASE_EVIDENCE_LINK",
-        "CASE_COMMENT",
-        "CASE_COMMENT_RESOLVE",
-        "REPORTS_GENERATE",
-        "SETTINGS_MANAGE",
-        // Phase ROUTE-FIX — Billing and Teams are ACCOUNT-LEVEL
-        // surfaces, not workspace-operator surfaces. A personal
-        // user must be able to:
-        //   - view and manage their personal subscription/plan
-        //     (BILLING_VIEW / BILLING_MANAGE, derived from the canonical
-        //     permission matrix below — they are the payer) and upgrade
-        //   - reach the Teams page as a CREATE-team entry point
-        //     (TEAM_VIEW). TEAM_MANAGE is still gated to team
-        //     OWNER/ADMIN so personal users see a "create team"
-        //     surface rather than an operator surface.
+        // Phase ROUTE-FIX — the Teams page is reachable as the create-a-group
+        // entry point; whether creation is ALLOWED is the plan's answer.
         "TEAM_VIEW",
-        // Phase IA-intake-access-fix — Intake Links is a core
-        // self-serve feature for PRO/TEAM users (lawyers,
-        // journalists, investigators, consultants, and small
-        // offices). The Personal Space user is the OWNER of their
-        // own workspace and must be able to create and manage
-        // intake links from there. Plan-tier gating (FREE/PAYG
-        // redirect) is enforced upstream by the surface-tier
-        // middleware — granting the capability here does not
-        // widen access for FREE/PAYG.
-        "INTAKE_LINKS_MANAGE",
       ],
       true,
     );
-    // Personal cases have no team assignments — CASE_ASSIGN stays
-    // false. No reviewer ops, no governance acts, no team manage.
-    // OPS_CENTER_VIEW is an operator capability and is NOT granted
-    // to personal users.
+    if (isWriter) {
+      setMany(
+        map,
+        [
+          "EVIDENCE_MANAGE",
+          "CASES_MANAGE",
+          "CASE_STATUS_CHANGE",
+          "CASE_EVIDENCE_LINK",
+          "CASE_COMMENT",
+          "CASE_COMMENT_RESOLVE",
+          "REPORTS_GENERATE",
+          // Phase IA-intake-access-fix — plan-tier gating (FREE/PAYG) is
+          // enforced upstream by the surface-tier middleware.
+          "INTAKE_LINKS_MANAGE",
+        ],
+        true,
+      );
+    }
+    if (isAdmin) {
+      map.SETTINGS_MANAGE = true;
+      // Managing the workspace's people and groups: only where the plan
+      // admits anyone but the owner.
+      if (input.collaborationIncluded === true) map.TEAM_MANAGE = true;
+    }
+    if (input.reviewerOperationsIncluded === true) {
+      setMany(map, ["REVIEWER_OPS_VIEW", "SLA_VIEW", "ESCALATIONS_VIEW"], true);
+      if (isWriter) {
+        setMany(
+          map,
+          ["REVIEWER_OPS_ACT", "REVIEW_ASSIGN", "REVIEW_REASSIGN", "REVIEW_ESCALATE"],
+          true,
+        );
+      }
+      if (isAdmin) setMany(map, ["CASE_ASSIGN", "BULK_ACTIONS"], true);
+    }
+    // OPS_CENTER_VIEW is an operator capability and is NOT granted here.
+    // Governance (legal hold, retention, export governance) stays an
+    // Enterprise feature and is not part of any self-serve plan.
   }
 
   // ============================================================
   // Team-workspace shape
   // ============================================================
+  // Members audit ENT-01 — reviewer operations are a plan capability, not a
+  // property of the workspace KIND. A caller that resolved the plan says so;
+  // one that did not keeps the long-standing shared-workspace shape.
+  const teamReviewOps = input.reviewerOperationsIncluded ?? true;
   if (isTeam) {
+    setMany(map, ["REVIEWER_OPS_VIEW", "SLA_VIEW", "ESCALATIONS_VIEW"], teamReviewOps);
     setMany(
       map,
       [
         "TEAM_VIEW",
-        "REVIEWER_OPS_VIEW",
-        "SLA_VIEW",
-        "ESCALATIONS_VIEW",
         "GOVERNANCE_VIEW",
         "LIFECYCLE_VIEW",
         // PHASE 4A (2026-08-22) — OPS_CENTER_VIEW / OBSERVABILITY_VIEW /
@@ -266,10 +297,6 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
         map,
         [
           "CASES_MANAGE",
-          "REVIEWER_OPS_ACT",
-          "REVIEW_ASSIGN",
-          "REVIEW_REASSIGN",
-          "REVIEW_ESCALATE",
           // Phase IA-intake-completion — REVIEWER (and any writer) can
           // create intake links because they already hold
           // `workflow.intake_link.create` in the role-permission matrix
@@ -298,6 +325,11 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
         ],
         true,
       );
+      setMany(
+        map,
+        ["REVIEWER_OPS_ACT", "REVIEW_ASSIGN", "REVIEW_REASSIGN", "REVIEW_ESCALATE"],
+        teamReviewOps,
+      );
     }
 
     if (isAdmin) {
@@ -314,16 +346,15 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
           "RETENTION_MANAGE",
           "EXPORT_GOVERNANCE_MANAGE",
           "SECURITY_CENTER_VIEW",
-          "BULK_ACTIONS",
-          // CASE_ASSIGN is reserved for OWNER/ADMIN. Per-case
-          // CaseAssignment OWNER also gets it server-side.
-          "CASE_ASSIGN",
           // Phase E3 — only OWNER/ADMIN may create/edit/enable/
           // disable automation rules. Writers can VIEW but not MANAGE.
           "AUTOMATION_MANAGE",
         ],
         true,
       );
+      // CASE_ASSIGN is reserved for OWNER/ADMIN (per-case CaseAssignment OWNER
+      // also gets it server-side); it and bulk review are review operations.
+      setMany(map, ["CASE_ASSIGN", "BULK_ACTIONS"], teamReviewOps);
     }
 
   }

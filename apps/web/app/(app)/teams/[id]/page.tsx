@@ -115,22 +115,6 @@ const RESEND_ERROR_COPY: Record<string, string> = {
     "That invitation was already accepted or revoked, so it cannot be resent. The list has been reloaded.",
 };
 
-type TeamCase = {
-  id: string;
-  name: string;
-  createdAt?: string;
-  ownerUserId?: string;
-  teamId?: string | null;
-};
-
-type AvailableCaseItem = {
-  id: string;
-  name: string;
-  createdAt?: string;
-  ownerUserId?: string;
-  teamId?: string | null;
-};
-
 type TeamActivity = {
   id: string;
   eventType: string;
@@ -147,6 +131,8 @@ type TeamActivity = {
 
 type TeamStats = {
   memberCount: number;
+  /** The server's counts by membership state (members audit MEM-02). */
+  memberCounts?: { active: number; suspended: number; removed: number; unassigned?: number };
   pendingInviteCount: number;
   caseCount: number;
   /**
@@ -154,9 +140,10 @@ type TeamStats = {
    * enforces. Optional on the wire so a degraded response is representable;
    * absent means UNKNOWN and is rendered as such, never as a default.
    */
-  seatLimit?: number;
+  /** null = no workspace-wide ceiling (members audit ENT-04). */
+  seatLimit?: number | null;
   seatUsed?: number;
-  seatAvailable?: number;
+  seatAvailable?: number | null;
 };
 
 type Team = {
@@ -196,16 +183,8 @@ type TeamInvitesResponse = {
   invites: TeamInvite[];
 };
 
-type TeamCasesResponse = {
-  items: TeamCase[];
-};
-
 type TeamActivitiesResponse = {
   activities: TeamActivity[];
-};
-
-type CasesListResponse = {
-  items?: AvailableCaseItem[];
 };
 
 const INVITE_ROLE_OPTIONS = ["ADMIN", "MEMBER", "VIEWER"] as const;
@@ -447,7 +426,8 @@ function TeamDetailPageBody() {
   const [invitesRead, setInvitesRead] = useState<InvitesReadState>("ready");
   const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
   const membersPanel = useRef<WorkspaceMembersPanelHandle | null>(null);
-  const [teamCases, setTeamCases] = useState<TeamCase[]>([]);
+  // Members audit MEM-03 — a failed read is a state the page can name.
+  const [activitiesFailed, setActivitiesFailed] = useState(false);
   const [activities, setActivities] = useState<TeamActivity[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -477,14 +457,6 @@ function TeamDetailPageBody() {
     inviteId: string;
     email: string;
   } | null>(null);
-  const [pendingCaseUnlink, setPendingCaseUnlink] = useState<{
-    caseId: string;
-    name: string;
-  } | null>(null);
-
-
-  const [showAddCase, setShowAddCase] = useState(false);
-  const [availableCases, setAvailableCases] = useState<AvailableCaseItem[]>([]);
   /**
    * PHASE 13 (NEW-049) — the ownership-transfer outcome, held at PAGE level.
    *
@@ -492,9 +464,6 @@ function TeamDetailPageBody() {
    * actor, so the card unmounts on the refresh that follows its own success.
    * The sentence has to outlive it.
    */
-  const [loadingAvailableCases, setLoadingAvailableCases] = useState(false);
-  const [linkingCaseId, setLinkingCaseId] = useState<string | null>(null);
-  const [unlinkingCaseId, setUnlinkingCaseId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!teamId) return;
@@ -507,36 +476,38 @@ function TeamDetailPageBody() {
       // current user id now comes from `platformCtx.envelope.user.id`
       // (read above into `currentUserId`), eliminating a parallel
       // authority source that could disagree with the envelope.
-      const [teamRes, invitesRes, casesRes, activitiesRes] =
+      // The workspace first: its projection says whether this viewer may list
+      // invitations at all, and a request the server is certain to refuse is
+      // not made (members audit — no calls guaranteed to 403).
+      const teamRes = (await apiFetch(`/v1/teams/${teamId}`)) as Team;
+      const [invitesRes, activitiesRes] =
         await Promise.all([
-          apiFetch(`/v1/teams/${teamId}`) as Promise<Team>,
-          (apiFetch(`/v1/teams/${teamId}/invites`).then(
+          (teamRes?.canManageMembers !== true
+            ? Promise.resolve({ res: { invites: [] } as TeamInvitesResponse, read: "ready" as InvitesReadState })
+            : apiFetch(`/v1/teams/${teamId}/invites`).then(
             (res: TeamInvitesResponse) => ({ res, read: "ready" as InvitesReadState }),
             (err: { statusCode?: number }) => ({
               res: { invites: [] } as TeamInvitesResponse,
               read: (err?.statusCode === 403 ? "refused" : "failed") as InvitesReadState,
             }),
-          ) as Promise<{ res: TeamInvitesResponse; read: InvitesReadState }>),
-          (apiFetch(`/v1/teams/${teamId}/cases`).catch(() => ({
-            items: [],
-          })) as Promise<TeamCasesResponse>),
-          (apiFetch(`/v1/teams/${teamId}/activity`).catch(() => ({
-            activities: [],
-          })) as Promise<TeamActivitiesResponse>),
+          )) as Promise<{ res: TeamInvitesResponse; read: InvitesReadState }>,
+          (apiFetch(`/v1/teams/${teamId}/activity`).then(
+            (res: TeamActivitiesResponse) => ({ res, failed: false }),
+            () => ({ res: { activities: [] } as TeamActivitiesResponse, failed: true }),
+          ) as Promise<{ res: TeamActivitiesResponse; failed: boolean }>),
         ]);
 
       setTeam(teamRes ?? null);
       setInvites(invitesRes.res?.invites ?? []);
       setInvitesRead(invitesRes.read);
-      setTeamCases(casesRes?.items ?? []);
-      setActivities(activitiesRes?.activities ?? []);
+      setActivities(activitiesRes.res?.activities ?? []);
+      setActivitiesFailed(activitiesRes.failed);
       setTeamName(teamRes?.name ?? "");
     } catch (err) {
       const message = toSafeUserError(err, { message: "Failed to load workspace" }).message;
       setError(message);
       setTeam(null);
       setInvites([]);
-      setTeamCases([]);
       setActivities([]);
       captureException(err, { feature: "team_detail_load", teamId });
       addToast(message, "error");
@@ -594,6 +565,10 @@ function TeamDetailPageBody() {
 
   const seatLimit = team?.stats?.seatLimit ?? null;
   const seatUsed = team?.stats?.seatUsed ?? null;
+  // Members audit ENT-04 — the server sends `seatLimit: null` when nothing
+  // bounds the workspace as a whole; capacity is then per Collaboration Team.
+  // Distinct from UNKNOWN (no stats at all), which still renders an em dash.
+  const noWorkspaceCeiling = team?.stats != null && team.stats.seatLimit === null;
   const seatsAvailable =
     typeof team?.stats?.seatAvailable === "number"
       ? team.stats.seatAvailable
@@ -601,12 +576,10 @@ function TeamDetailPageBody() {
         ? Math.max(0, seatLimit - seatUsed)
         : null;
 
-  const activeMemberCount = useMemo(
-    () =>
-      team?.stats?.memberCount ??
-      (team?.members ?? []).filter((m) => m.status !== "SUSPENDED").length,
-    [team?.stats?.memberCount, team?.members],
-  );
+  // The server's count, never the rows on screen (members audit MEM-02): a
+  // page of the roster is not the roster, and it carried removed people too.
+  const activeMemberCount = team?.stats?.memberCounts?.active ?? team?.stats?.memberCount ?? null;
+  const unassignedCount = team?.stats?.memberCounts?.unassigned ?? null;
 
   /** Only invitations still awaiting a decision belong in the pending list. */
   const pendingInvites = useMemo(
@@ -926,100 +899,6 @@ function TeamDetailPageBody() {
       throw new Error(message);
     } finally {
       setDeletingInviteId(null);
-    }
-  };
-
-  const loadAvailableCases = async () => {
-    if (!teamId || !canManageTeam) return;
-
-    setLoadingAvailableCases(true);
-
-    try {
-      const data = (await apiFetch("/v1/cases")) as CasesListResponse;
-      const existing = new Set(teamCases.map((c) => c.id));
-
-      const available = (data.items ?? []).filter(
-        (item) => !existing.has(item.id) && !item.teamId
-      );
-
-      setAvailableCases(available);
-    } catch (err) {
-      const message =
-        toSafeUserError(err, { message: "Failed to load available cases" }).message;
-      captureException(err, { feature: "team_available_cases_load", teamId });
-      addToast(message, "error");
-    } finally {
-      setLoadingAvailableCases(false);
-    }
-  };
-
-  const handleAddExistingCase = async (caseId: string) => {
-    if (!teamId || !canManageTeam) return;
-
-    setLinkingCaseId(caseId);
-
-    try {
-      await apiFetch(`/v1/teams/${teamId}/cases/link`, {
-        method: "POST",
-        body: JSON.stringify({ caseId }),
-      });
-
-      const linkedCase = availableCases.find((c) => c.id === caseId);
-      if (linkedCase) {
-        setTeamCases((prev) => [{ ...linkedCase, teamId }, ...prev]);
-        setAvailableCases((prev) => prev.filter((c) => c.id !== caseId));
-      }
-
-      addToast("Case linked successfully", "success");
-    } catch (err) {
-      const message = toSafeUserError(err, { message: "Failed to link case" }).message;
-      captureException(err, { feature: "team_case_link", teamId, caseId });
-      addToast(message, "error");
-    } finally {
-      setLinkingCaseId(null);
-    }
-  };
-
-  // Phase 2.6B — entry point. The actual DELETE runs inside the
-  // DangerConfirmModal's onConfirm handler (handleConfirmUnlinkCase).
-  const handleUnlinkTeamCase = (caseId: string) => {
-    if (!teamId || !canManageTeam) return;
-    const c = teamCases.find((item) => item.id === caseId);
-    setPendingCaseUnlink({ caseId, name: c?.name ?? "this case" });
-  };
-
-  const handleConfirmUnlinkCase = async () => {
-    if (!teamId || !canManageTeam || !pendingCaseUnlink) return;
-    const caseId = pendingCaseUnlink.caseId;
-
-    setUnlinkingCaseId(caseId);
-
-    try {
-      await apiFetch(`/v1/teams/${teamId}/cases/${caseId}`, {
-        method: "DELETE",
-      });
-
-      const removedCase = teamCases.find((item) => item.id === caseId) ?? null;
-
-      setTeamCases((prev) => prev.filter((item) => item.id !== caseId));
-
-      if (removedCase) {
-        setAvailableCases((prev) => {
-          const exists = prev.some((item) => item.id === removedCase.id);
-          if (exists) return prev;
-          return [{ ...removedCase, teamId: null }, ...prev];
-        });
-      }
-
-      addToast("Case removed from workspace", "success");
-      setPendingCaseUnlink(null);
-    } catch (err) {
-      const message =
-        toSafeUserError(err, { message: "Failed to remove case from workspace" }).message;
-      captureException(err, { feature: "team_case_unlink", teamId, caseId });
-      throw new Error(message);
-    } finally {
-      setUnlinkingCaseId(null);
     }
   };
 
@@ -1366,10 +1245,12 @@ function TeamDetailPageBody() {
         <ul className="app-grid-kpis" data-testid="people-kpis">
           <li>
             <div className="app-metric-card" data-app-metric-tone="success">
-              <span className="app-metric-card__value">{activeMemberCount}</span>
+              <span className="app-metric-card__value">{activeMemberCount ?? "—"}</span>
               <span className="app-metric-card__label">Active members</span>
-              <span className="app-metric-card__meta">
-                With access to this workspace
+              <span className="app-metric-card__meta" data-testid="people-unassigned-count">
+                {unassignedCount && unassignedCount > 0
+                  ? `${unassignedCount} not yet in a Collaboration Team`
+                  : "With access to this workspace"}
               </span>
             </div>
           </li>
@@ -1409,19 +1290,23 @@ function TeamDetailPageBody() {
               }
             >
               <span className="app-metric-card__value">
-                {seatsAvailable === null ? "—" : seatsAvailable}
+                {noWorkspaceCeiling ? "No limit" : seatsAvailable === null ? "—" : seatsAvailable}
               </span>
               <span className="app-metric-card__label">Seats available</span>
               <span className="app-metric-card__meta">
-                {seatLimit === null
-                  ? "Capacity unavailable"
-                  : `${seatUsed ?? activeMemberCount} of ${seatLimit} used`}
+                {noWorkspaceCeiling
+                  ? "Capacity is set per Collaboration Team"
+                  : seatLimit === null
+                    ? "Capacity unavailable"
+                    : `${seatUsed ?? activeMemberCount ?? "—"} of ${seatLimit} used`}
               </span>
             </div>
           </li>
           <li>
             <div className="app-metric-card" data-app-metric-tone="accent">
-              <span className="app-metric-card__value">{teamCases.length}</span>
+              <span className="app-metric-card__value">
+                {typeof team?.stats?.caseCount === "number" ? team.stats.caseCount : "—"}
+              </span>
               <span className="app-metric-card__label">
                 Cases in this workspace
               </span>
@@ -1673,7 +1558,19 @@ function TeamDetailPageBody() {
             list keeps its shape whether it holds one event or twelve, which is
             the case that made the old panel look broken.
           */}
-          {activities.length > 0 ? (
+          {activitiesFailed ? (
+            // Members audit MEM-03 — a failed read is said, not shown as "no activity".
+            <div className="app-panel" data-testid="people-activity-error">
+              <div className="app-panel__body">
+                <p className="app-alert app-alert--danger" role="alert" style={{ margin: 0 }}>
+                  Recent activity could not be loaded.{" "}
+                  <button type="button" className="app-secondary-action" onClick={() => void loadData()}>
+                    Try again
+                  </button>
+                </p>
+              </div>
+            </div>
+          ) : activities.length > 0 ? (
             <div className="app-panel" data-testid="people-activity">
               <div className="app-panel__head">
                 <h2 className="app-panel__title">Recent activity</h2>
@@ -1877,8 +1774,8 @@ function TeamDetailPageBody() {
                     <dt className="app-kv-key">Members</dt>
                     <dd className="app-kv-value">
                       {seatLimit === null
-                        ? `${activeMemberCount} active`
-                        : `${seatUsed ?? activeMemberCount} of ${seatLimit} seats used`}
+                        ? `${activeMemberCount ?? "—"} active`
+                        : `${seatUsed ?? activeMemberCount ?? "—"} of ${seatLimit} seats used`}
                     </dd>
                   </div>
                   <div className="app-kv-row">
@@ -1972,119 +1869,14 @@ function TeamDetailPageBody() {
         */}
         {teamId ? <TeamAccessReviewCard teamId={teamId} /> : null}
 
-        {/* Case linkage. Not people management, and it stays because
-            `POST /v1/teams/:id/cases/link` has no other surface in the product
-            — removing the only door to a capability is not a redesign. */}
-        <div className="app-panel" data-testid="people-cases">
-          <div className="app-panel__head app-panel__head-row">
-            <h2 className="app-panel__title">Cases in this workspace</h2>
-            {canManageTeam ? (
-              <button
-                type="button"
-                className="app-secondary-action"
-                onClick={() => {
-                  const next = !showAddCase;
-                  setShowAddCase(next);
-                  // Candidates are fetched when the picker OPENS, not on page
-                  // load: an unlinked-case list is a whole extra read that
-                  // most visits to this page never need.
-                  if (next) void loadAvailableCases();
-                }}
-                data-testid="workspace-case-add-toggle"
-              >
-                {showAddCase ? "Close" : "Link a case"}
-              </button>
-            ) : null}
-          </div>
-          <div className="app-panel__body">
-            {showAddCase ? (
-              <div style={{ marginBottom: 12 }}>
-                {loadingAvailableCases ? (
-                  <p className="app-table__muted" style={{ margin: 0 }}>
-                    Loading cases…
-                  </p>
-                ) : availableCases.length === 0 ? (
-                  <p className="app-table__muted" style={{ margin: 0 }}>
-                    No unlinked cases are available to add.
-                  </p>
-                ) : (
-                  <ul
-                    style={{
-                      listStyle: "none",
-                      margin: 0,
-                      padding: 0,
-                      display: "grid",
-                      gap: 6,
-                      maxHeight: 220,
-                      overflowY: "auto",
-                    }}
-                    data-testid="workspace-case-candidates"
-                  >
-                    {availableCases.map((c) => (
-                      <li
-                        key={c.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                        }}
-                      >
-                        <span style={{ flex: 1, minWidth: 0 }}>{c.name}</span>
-                        <button
-                          type="button"
-                          className="app-secondary-action"
-                          onClick={() => void handleAddExistingCase(c.id)}
-                          disabled={linkingCaseId === c.id}
-                          data-testid={`workspace-case-link-${c.id}`}
-                        >
-                          {linkingCaseId === c.id ? "Linking…" : "Link"}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ) : null}
-
-            {teamCases.length === 0 ? (
-              <p className="app-table__muted" style={{ margin: 0 }}>
-                No cases are linked to this workspace yet.
-              </p>
-            ) : (
-              <ul
-                style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}
-                data-testid="workspace-case-list"
-              >
-                {teamCases.map((c) => (
-                  <li
-                    key={c.id}
-                    style={{ display: "flex", alignItems: "center", gap: 10 }}
-                  >
-                    <Link
-                      href={`/cases/${encodeURIComponent(c.id)}`}
-                      className="app-table__link"
-                      style={{ flex: 1, minWidth: 0 }}
-                    >
-                      {c.name}
-                    </Link>
-                    {canManageTeam ? (
-                      <button
-                        type="button"
-                        className="app-secondary-action app-secondary-action--danger"
-                        onClick={() => handleUnlinkTeamCase(c.id)}
-                        disabled={unlinkingCaseId === c.id}
-                        data-testid={`workspace-case-unlink-${c.id}`}
-                      >
-                        Remove
-                      </button>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-
+        {/*
+          CASE LINK MANAGEMENT WAS REMOVED FROM THIS PAGE (members audit MEM-05,
+          IA decision 2026-10-25). It offered only the first page of the
+          caller's cases, hid MEMBER links the server accepted, and is not
+          people management. Who can open a case is managed on the case itself
+          (its access list and its Collaboration Team grants); this page
+          manages people.
+        */}
         </div>
         </div>
       </div>
@@ -2203,21 +1995,6 @@ function TeamDetailPageBody() {
         onCancel={() => setPendingInviteDelete(null)}
         onConfirm={handleConfirmDeleteInvite}
       />
-      <DangerConfirmModal
-        open={pendingCaseUnlink !== null}
-        title="Remove case from this workspace?"
-        description={
-          pendingCaseUnlink
-            ? `"${pendingCaseUnlink.name}" will be detached from this workspace. The case itself is not deleted; its owner retains it.`
-            : ""
-        }
-        caveat="Existing case access grants stay on the case. To revoke individual members, manage access on the case itself."
-        confirmLabel="Remove from workspace"
-        testid="case-unlink-confirm"
-        onCancel={() => setPendingCaseUnlink(null)}
-        onConfirm={handleConfirmUnlinkCase}
-      />
-
       {/* Offboarding transfer dialog. Mounted at root so the focus trap and
           overlay are not constrained by a card's scroll container. We pass
           `TeamMember.id` (the row PK) as `memberId`, NOT `userId`: the Fastify

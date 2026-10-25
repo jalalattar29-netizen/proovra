@@ -124,9 +124,10 @@ describe("SCOPE C — route gating for assignment is preserved", () => {
   const ROUTES = readSrc("../src/routes/review-operations.routes.ts");
 
   it("admin assign + SLA routes require an OWNER/ADMIN member; claim/decision require a reviewer member", () => {
-    // requireAdminMember gates the admin-only mutations; the assign
-    // route must use it (not the looser reviewer gate).
-    expect(ROUTES).toMatch(/requireAdminMember/);
+    // Members audit REV-05 — the assign action is gated by the canonical
+    // `review.assign` capability (requireAssignerMember), never by the looser
+    // reviewer gate nor by a role literal.
+    expect(ROUTES).toMatch(/body\.action === "ASSIGN"\s*\?\s*await requireAssignerMember\(/);
     expect(ROUTES).toMatch(/requireReviewerMember/);
     // Anti-enumeration: still 404 (never 403) on non-members.
     expect(ROUTES).not.toMatch(/reply\.code\(403\)/);

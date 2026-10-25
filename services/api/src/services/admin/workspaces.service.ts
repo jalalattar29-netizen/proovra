@@ -263,7 +263,7 @@ export type AdminWorkspaceDetail = {
   commercial: {
     plan: string;
     billingShape: string;
-    seats: { consumed: number; limit: number; remaining: number };
+    seats: { consumed: number; limit: number | null; remaining: number | null };
     lifecycleState: string;
     paidActive: boolean;
     mutationsAllowed: boolean;

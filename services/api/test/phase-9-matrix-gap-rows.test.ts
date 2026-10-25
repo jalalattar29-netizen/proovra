@@ -41,6 +41,10 @@ vi.mock("../src/db.js", () => {
                   };
                 if (String(model) === "teamMember" && method === "count")
                   return H.activeMembers;
+                if (String(model) === "collaborationTeam" && method === "findUnique")
+                  return { workspace: { id: "ws-1", ownerUserId: "owner-1" } };
+                if (String(model) === "collaborationTeamMember" && method === "count")
+                  return H.activeMembers;
                 // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — rows 19
                 // and 23 now exercise the billing-account capability
                 // chokepoint, which reads the viewer and their organization
@@ -66,7 +70,20 @@ vi.mock("../src/db.js", () => {
   return { prisma };
 });
 
-import { assertTeamSeatAvailable } from "../src/services/workspace-usage.service.js";
+// Members audit ENT-04 — row 14 follows the capacity gate that exists now:
+// the per-Collaboration-Team member capacity (the workspace seat pool it used
+// to exercise, `assertTeamSeatAvailable`, was deleted with the pool). Only
+// the commercial subject is substituted, so the rule itself runs for real.
+vi.mock("../src/services/billing/workspace-seats.service.js", async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  resolveWorkspaceCommercialContext: async () => ({
+    plan: "TEAM",
+    scope: { plan: "TEAM" },
+    enterpriseContract: null,
+  }),
+}));
+
+import { assertCollaborationTeamMemberLimit } from "../src/services/collaboration-team/billing-guards.js";
 import { assertBillingCapability } from "../src/services/billing/billing-accounts.service.js";
 
 // The REAL module (its role sets included — the billing-account service reads
@@ -92,33 +109,32 @@ beforeEach(() => {
   ];
 });
 
-describe("Row 14 — seat exhaustion is DETERMINISTIC (same state → same denial, zero mutation)", () => {
-  it("exhausted seats deny BEFORE any membership mutation, with a stable shape, twice in a row", async () => {
-    // WORKSPACE AND COLLABORATION RECONCILIATION — the approved TEAM
-    // workspace seat entitlement is 10. This row is about determinism, not
-    // about the number, so it tracks the entitlement.
-    H.activeMembers = 10; // TEAM seat limit (10) fully consumed → exhausted
-    H.includedSeats = 1;
-    const scope = { billingShape: "SHARED", plan: "TEAM", teamId: "ws-1", ownerUserId: "owner-1", organizationId: "org-1", credits: 0, teamSeats: 1, storageBytesOverride: null, activeStorageAddonBytes: 0n, legacyRecordCapOverride: null } as never;
-    const first = await assertTeamSeatAvailable(scope).then(
-      () => "allowed",
-      (e: Error & { code?: string; statusCode?: number }) => ({ code: e.code, status: e.statusCode }),
-    );
-    const second = await assertTeamSeatAvailable(scope).then(
-      () => "allowed",
-      (e: Error & { code?: string; statusCode?: number }) => ({ code: e.code, status: e.statusCode }),
-    );
-    expect(first).not.toBe("allowed");
+describe("Row 14 — capacity exhaustion is DETERMINISTIC (same state → same denial, zero mutation)", () => {
+  it("a full Collaboration Team denies BEFORE any membership mutation, with a stable shape, twice in a row", async () => {
+    // TEAM sells up to 10 accepted non-owner members per Collaboration Team.
+    // This row is about determinism, not about the number, so it tracks it.
+    H.activeMembers = 10;
+    const deny = () =>
+      assertCollaborationTeamMemberLimit("ct-1", 1).then(
+        () => "allowed",
+        (e: Error & { code?: string; httpStatus?: number }) => ({
+          code: e.code,
+          status: e.httpStatus,
+        }),
+      );
+    const first = await deny();
+    const second = await deny();
+    expect(first).toEqual({ code: "TEAM_MEMBER_LIMIT_REACHED", status: 409 });
     expect(second).toEqual(first); // deterministic
-    expect(H.writes.filter((w) => /teamMember|invite/i.test(w))).toEqual([]);
+    expect(H.writes.filter((w) => /member|invite/i.test(w))).toEqual([]);
   });
 
-  it("a free seat allows deterministically", async () => {
-    H.activeMembers = 0;
-    H.includedSeats = 1;
-    await expect(
-      assertTeamSeatAvailable({ billingShape: "SHARED", plan: "TEAM", teamId: "ws-1", ownerUserId: "owner-1", organizationId: "org-1", credits: 0, teamSeats: 1, storageBytesOverride: null, activeStorageAddonBytes: 0n, legacyRecordCapOverride: null } as never),
-    ).resolves.toMatchObject({ seatLimit: 10 });
+  it("a group with room allows deterministically", async () => {
+    H.activeMembers = 9;
+    await expect(assertCollaborationTeamMemberLimit("ct-1", 1)).resolves.toMatchObject({
+      maxAcceptedMembers: 10,
+      currentMemberCount: 9,
+    });
   });
 });
 

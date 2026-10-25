@@ -113,10 +113,11 @@ async function resolvePaidLifecycle(
 }
 
 export type SeatConsumption = {
-  /** ACTIVE-only members (§12.7). Null when the plan has no seat concept. */
+  /** ACTIVE non-owner members (§12.7, members audit ENT-04). */
   consumed: number;
-  limit: number;
-  remaining: number;
+  /** `null` = no workspace-wide ceiling; only a contract seat count sets one. */
+  limit: number | null;
+  remaining: number | null;
 };
 
 export type CommercialContext = {

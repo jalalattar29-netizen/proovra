@@ -16,6 +16,9 @@ const STEP_UP = read(
   "../src/services/identity-security/account-step-up.service.ts",
 );
 const SCHEDULER = read("../src/services/notifications/digest-scheduler.ts");
+// Members audit LIFE-11 — closures run through THE lifecycle tick, which the
+// digest run and the worker's lifecycle sweep both invoke.
+const LIFECYCLE_TICK = read("../src/services/lifecycle/lifecycle-scheduler.service.ts");
 const ACCOUNT_CLOSURE = read(
   "../src/services/identity/account-closure.service.ts",
 );
@@ -78,9 +81,10 @@ describe("one canonical step-up union covers every sensitive lifecycle action", 
 describe("one worker host: every async lifecycle processor rides the digest cron", () => {
   it("all four processors are wired, each in its own isolation guard", () => {
     expect(SCHEDULER).toMatch(/processAccountDataExports\(now\)/);
-    expect(SCHEDULER).toMatch(/processAccountClosures\(now\)/);
-    expect(SCHEDULER).toMatch(/processOrganizationClosures\(now\)/);
-    expect(SCHEDULER).toMatch(/processWorkspaceClosures\(now\)/);
+    expect(SCHEDULER).toMatch(/runLifecycleTick\(now\)/);
+    expect(LIFECYCLE_TICK).toMatch(/processAccountClosures\(now\)/);
+    expect(LIFECYCLE_TICK).toMatch(/processOrganizationClosures\(now\)/);
+    expect(LIFECYCLE_TICK).toMatch(/processWorkspaceClosures\(now\)/);
   });
 });
 
@@ -101,10 +105,11 @@ describe("shared closure state-machine shape", () => {
   });
 
   it("machine credentials never outlive their org/workspace", () => {
-    for (const src of [ORG_CLOSURE, WS_CLOSURE]) {
-      expect(src).toMatch(/apiCredential\.updateMany/);
-      expect(src).toMatch(/webhookEndpoint\.updateMany/);
-    }
+    // Members audit LIFE-09/10/12 — ONE closure leg set (`closeWorkspacesTx`)
+    // carries the machine-access legs; organization closure composes it.
+    expect(WS_CLOSURE).toMatch(/apiCredential\.updateMany/);
+    expect(WS_CLOSURE).toMatch(/webhookEndpoint\.updateMany/);
+    expect(ORG_CLOSURE).toMatch(/closeWorkspacesTx\(tx,/);
   });
 });
 

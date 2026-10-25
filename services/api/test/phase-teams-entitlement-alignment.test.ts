@@ -128,6 +128,11 @@ import {
   lowestPlanWithTeams,
   BillingLimitError,
 } from "../src/services/collaboration-team/billing-guards.js";
+import {
+  NO_CONTRACT_LIMITS,
+  resolveEffectiveCollaborationMemberLimit,
+  resolveEffectiveCollaborationTeamLimit,
+} from "../src/services/billing/enterprise-contract-limits.js";
 
 beforeEach(() => {
   H.plan = "FREE";
@@ -212,14 +217,27 @@ describe("Team creation — the commercial plan matrix", () => {
     expect(e.details.limit).toBe(5);
   });
 
-  it("ENTERPRISE: provisioned ceiling enforced (not unlimited frontend assumption)", async () => {
+  it("ENTERPRISE without an ACTIVE contract: a typed state, never the placeholder ceiling or unlimited", async () => {
+    // Members audit CT-10 (2026-10-25) — Enterprise capacity is contract-
+    // defined. With no ACTIVE contract the answer is ENTERPRISE_CONTRACT_REQUIRED
+    // whatever the workspace holds; it used to fall back to the catalog's 1000.
     H.plan = "ENTERPRISE";
-    H.workspaceTeams = 1000;
-    await expectBillingError(
-      () => assertCanCreateCollaborationTeam({ workspaceId: "ws-1", actorUserId: "owner-1" }),
-      "TEAM_LIMIT_REACHED",
-      409,
-    );
+    for (const count of [0, 1000]) {
+      H.workspaceTeams = count;
+      await expectBillingError(
+        () => assertCanCreateCollaborationTeam({ workspaceId: "ws-1", actorUserId: "owner-1" }),
+        "ENTERPRISE_CONTRACT_REQUIRED",
+        409,
+      );
+    }
+  });
+
+  it("ENTERPRISE with an ACTIVE contract: the contracted ceiling, and the catalog only where the contract is silent", async () => {
+    const active = { ...NO_CONTRACT_LIMITS, contractGovernsCapability: true };
+    expect(resolveEffectiveCollaborationTeamLimit({ plan: "ENTERPRISE", contract: { ...active, collaborationTeams: 12 } })).toBe(12);
+    expect(resolveEffectiveCollaborationMemberLimit({ plan: "ENTERPRISE", contract: { ...active, collaborationTeamMembers: 40 } })).toBe(40);
+    expect(resolveEffectiveCollaborationTeamLimit({ plan: "ENTERPRISE", contract: active })).toBe(1000);
+    expect(resolveEffectiveCollaborationTeamLimit({ plan: "ENTERPRISE", contract: NO_CONTRACT_LIMITS })).toBe(0);
   });
 
   it("the upgrade target is DERIVED from the canonical table, not hardcoded", () => {

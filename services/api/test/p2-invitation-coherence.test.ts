@@ -46,7 +46,9 @@ const seatState = vi.hoisted(() => ({
     contractLimits: {},
   },
 }));
-vi.mock("../src/services/billing/workspace-seats.service.js", () => ({
+vi.mock("../src/services/billing/workspace-seats.service.js", async (importOriginal) => ({
+  // The real admission predicate, over the substituted seat state.
+  ...((await importOriginal()) as Record<string, unknown>),
   resolveWorkspaceSeatState: async () => seatState.current,
 }));
 

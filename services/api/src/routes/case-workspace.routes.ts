@@ -23,6 +23,7 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 import { prisma } from "../db.js";
+import { workspaceIncludesReviewCapability } from "../services/billing-enforcement.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 
@@ -956,6 +957,23 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       if (!access) return;
       const member = await gateCaseMutation(reply, "ASSIGN", params.id, access);
       if (!member) return;
+      // Members audit ENT-11 — "Team cases": handing a case to a person is a
+      // review ASSIGNMENT, a TEAM / eligible Enterprise capability. PRO keeps
+      // personal cases (and Collaboration Team case access); removing an
+      // existing assignment stays open after a downgrade.
+      const caseTeam = await prisma.case.findUnique({ where: { id: params.id }, select: { teamId: true } });
+      if (caseTeam?.teamId && !(await workspaceIncludesReviewCapability(caseTeam.teamId, "REVIEW_ASSIGNMENTS"))) {
+        return reply.code(403).send({
+          error: {
+            code: "ENTITLEMENT_REQUIRED",
+            reason: "review_capability_not_included",
+            entitlement: "REVIEW_ASSIGNMENTS",
+            message: "Assigning a case to a person is available on the Team and Enterprise plans.",
+            requestId: req.id,
+          },
+          requestId: req.id,
+        });
+      }
       try {
         const row = await addCaseAssignment({
           caseId: params.id,

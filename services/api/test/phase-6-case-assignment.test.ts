@@ -34,6 +34,15 @@ vi.mock("../src/services/platform-audit-log.service.js", () => ({
   appendPlatformAuditLog: appendPlatformAuditLogMock,
 }));
 
+// Members audit ACC-05 — the assignee must be able to open the case. The
+// record authority is substituted here (these cases are about the assignment
+// row); a refusal case below proves the writer asks it.
+const reach = vi.hoisted(() => ({ allowed: true }));
+vi.mock("../src/services/cases/case-permission.service.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  resolveCaseRecordAccess: vi.fn(async () => ({ allowed: reach.allowed })),
+}));
+
 import {
   addCaseAssignment,
   removeCaseAssignment,
@@ -93,6 +102,7 @@ function makeClient(overrides?: {
 }
 
 beforeEach(() => {
+  reach.allowed = true;
   appendPlatformAuditLogMock.mockClear();
 });
 
@@ -349,5 +359,19 @@ describe("SCOPE B — CaseError type is exported for route mapping", () => {
         client,
       ),
     ).rejects.toBeInstanceOf(CaseError);
+  });
+});
+
+describe("Members audit ACC-05 — an assignee who cannot open the case is refused", () => {
+  it("refuses invalid_assignee and writes nothing", async () => {
+    reach.allowed = false;
+    const client = makeClient();
+    await expect(
+      addCaseAssignment(
+        { caseId: "case-1", assignedToUserId: "user-2", role: "INVESTIGATOR", actorUserId: "user-1" },
+        client,
+      ),
+    ).rejects.toMatchObject({ code: "invalid_assignee" });
+    expect(client.caseAssignment.create).not.toHaveBeenCalled();
   });
 });

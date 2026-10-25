@@ -145,7 +145,8 @@ test("a refusal is explained from the dimension the server named", () => {
     canCreateCollaborationTeam: false,
     exceededDimensions: ["WORKSPACE_SEATS"],
   });
-  assert.match(mod.createDisabledReason(overSeats), /seat allowance/);
+  // Members audit ENT-04 — only a CONTRACT bounds a workspace as a whole now.
+  assert.match(mod.createDisabledReason(overSeats), /contracted seats/);
 
   const locked = mod.parseCollaborationEntitlement({
     canCreateCollaborationTeam: false,

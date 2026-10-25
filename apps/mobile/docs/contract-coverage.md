@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**172 bindings — OK 172, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**170 bindings — OK 170, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -45,7 +45,6 @@ top level of it.
 | OK | `parseEvidenceCreditOffer` | `GET /v1/billing/pricing` | currency, enterprise, free, payg, pro, storageAddons, team | payg |
 | OK | `parseIntakeTemplates` | `GET /v1/capture/intake-templates` | templates | templates |
 | OK | `parseEligibleCases` | `GET /v1/cases` | items | items |
-| OK | `parseWorkspaceCases` | `GET /v1/cases` | items | items |
 | OK | `parseAttachCandidates` | `GET /v1/cases/:id/available-evidence` | items | items |
 | OK | `parseCaseEvidenceRows` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |
 | OK | `parseCaseNotes` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |
@@ -149,7 +148,6 @@ top level of it.
 | OK | `parseWorkspaceOverview` | `GET /v1/teams/:id` | <SPREAD>, address, billingOwnerUserId, canManageMembers, canManageWorkspace, currentUser… | canManageMembers, canManageWorkspace, currentUserRole, effectivePlan, id, lifecycle, mem… |
 | OK | `parseExternalCollaborators` | `GET /v1/teams/:id/access-review` | externalCollaborators, members, pendingInvites, summary, teamId | externalCollaborators |
 | OK | `parseWorkspaceActivity` | `GET /v1/teams/:id/activity` | activities | activities |
-| OK | `parseWorkspaceCases` | `GET /v1/teams/:id/cases` | items | items |
 | OK | `parseClosureState` | `GET /v1/teams/:id/closure` | blockers, confirmationPhrase, coolingOffDays, membersLosingAccess, request | blockers, confirmationPhrase, coolingOffDays, request |
 | OK | `parseMembersLosingAccess` | `GET /v1/teams/:id/closure` | blockers, confirmationPhrase, coolingOffDays, membersLosingAccess, request | membersLosingAccess |
 | OK | `parseRequestBlockers` | `GET /v1/teams/:id/closure` | blockers, confirmationPhrase, coolingOffDays, membersLosingAccess, request | request |

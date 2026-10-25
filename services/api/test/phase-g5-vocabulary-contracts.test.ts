@@ -278,6 +278,12 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
    * work held by the group from work held by a named person.
    */
   "components/collaboration/TeamResponsibilityPanel.tsx",
+  // Members audit ACC-01 (2026-10-25) — the case Access tab grants a case to a
+  // "Collaboration Team", the constitutional product object; it never uses
+  // "Team" for a workspace.
+  "components/cases-experience/MatterAccessTab.tsx",
+  // The Members roster names the Collaboration Team a member is not yet in.
+  "app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx",
   // Team-detail page — explicitly named per backend Team model.
   "app/(app)/teams/[id]/page.tsx",
   "app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx",

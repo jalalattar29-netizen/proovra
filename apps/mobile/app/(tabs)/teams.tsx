@@ -229,8 +229,8 @@ export default function CollaborationScreen() {
   return (
     <ProovraShell>
       <ProovraPageHeader
-        title="Collaboration Teams"
-        subtitle="Organise workspace members into operational teams for cases, evidence, assignments, reviews and workload. Teams group members who already have access — they do not grant it."
+        title="Teams"
+        subtitle="Group workspace members to control case access and coordinate work."
         secondaryActions={
           <ProovraButton
             label="Manage members & access"

@@ -304,7 +304,9 @@ export default function MarketingPricingPage() {
          * in this column. A reader who sees that number needs to know the way
          * past it, and it is not "buy Pro".
          */
-        "Free storage allowance, with paid storage add-ons once you hold a credit",
+        // Members audit ENT-07 — any FREE account may buy storage add-ons
+        // (`resolveStorageAddonEntitlement`); holding a credit is not required.
+        "Free storage allowance, with paid monthly storage add-ons when you need more",
       ],
     },
     {
@@ -382,7 +384,7 @@ export default function MarketingPricingPage() {
         `${catalogValue(catalog?.team?.storageLabel)} cumulative storage`,
         `AI assistance: ${catalogValue(catalog?.team?.aiAdvisoryMonthlyOperations)} operations / month`,
         "Collaboration teams, review assignments and team governance — on the workspace you already use",
-        `Up to ${catalogValue(catalog?.team?.maxAcceptedMembersPerCollaborationTeam)} accepted members per Team`,
+        `Up to ${catalogValue(catalog?.team?.maxAcceptedMembersPerCollaborationTeam)} members per Collaboration Team, owner not counted`,
       ],
     },
     {
@@ -618,11 +620,13 @@ export default function MarketingPricingPage() {
     {
       label: "AI assistance (advisory)",
       values: [
-        "Not included",
-        // P1-2 — Free's allowance, because a credit buyer is on Free. This
-        // published 50 from the grandfather row.
-        catalog?.payg?.aiAdvisoryMonthlyOperations != null
-          ? `${catalog.payg.aiAdvisoryMonthlyOperations} ops / month (Free account)`
+        // Members audit ENT-06 — FREE includes a small monthly allowance; the
+        // page said "Not included" while the catalog granted it.
+        `${catalogValue(catalog?.free?.aiAdvisoryMonthlyOperations)} ops / month`,
+        // A credit buyer stays a FREE account, so this column states FREE's
+        // allowance from the FREE row — never the grandfather PAYG row.
+        catalog?.free?.aiAdvisoryMonthlyOperations != null
+          ? `${catalog.free.aiAdvisoryMonthlyOperations} ops / month (Free account)`
           : CATALOG_VALUE_UNAVAILABLE,
         `${catalogValue(catalog?.pro?.aiAdvisoryMonthlyOperations)} ops / month`,
         `${catalogValue(catalog?.team?.aiAdvisoryMonthlyOperations)} ops / month`,
@@ -805,7 +809,7 @@ export default function MarketingPricingPage() {
       // the overload) and a guard suite
       // `pricing-teams-entitlement-consistency.test.ts` that does not exist —
       // a pin that had rotted into a claim.
-      label: "Teams",
+      label: "Collaboration Teams",
       values: [
         "Not included",
         "Not included",
@@ -815,16 +819,16 @@ export default function MarketingPricingPage() {
       ],
     },
     {
-      // Teams Entitlement Alignment 2026-07-14 — "Up to N members"
-      // ALWAYS means members per Team. Canonical values come from
-      // COLLABORATION_TEAM_PLAN_LIMITS (PRO 5 / TEAM 5), mirrored by
-      // the served catalog's maxMembersPerTeam.
-      label: "Team members",
+      // Members audit ENT-04 — THE collaboration capacity: accepted members
+      // per ACTIVE Collaboration Team, the workspace owner not counted, with
+      // no workspace-wide pool behind it. Served from
+      // `PlanCapabilities.maxAcceptedMembersPerCollaborationTeam`.
+      label: "Members per Collaboration Team",
       values: [
         "Not included",
         "Not included",
-        `Up to ${catalogValue(catalog?.pro?.maxAcceptedMembersPerCollaborationTeam)} accepted members per Team`,
-        `Up to ${catalogValue(catalog?.team?.maxAcceptedMembersPerCollaborationTeam)} accepted members per Team`,
+        `Up to ${catalogValue(catalog?.pro?.maxAcceptedMembersPerCollaborationTeam)} members per Collaboration Team, owner not counted`,
+        `Up to ${catalogValue(catalog?.team?.maxAcceptedMembersPerCollaborationTeam)} members per Collaboration Team, owner not counted`,
         "Custom",
       ],
     },

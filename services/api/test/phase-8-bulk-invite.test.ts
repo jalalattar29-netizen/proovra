@@ -296,7 +296,10 @@ describe("Phase 8 Group 3 — bulk-invite route plugin contract", () => {
 
   it("reuses the billing-rollup seat signal (includedSeats vs member count)", () => {
     expect(ROUTE_SRC).toMatch(/includedSeats/);
-    expect(ROUTE_SRC).toMatch(/_count: \{ select: \{ members: true \} \}/);
+    // Members audit ENT-04 — ACTIVE, non-owner memberships only.
+    expect(ROUTE_SRC).toMatch(
+      /members: \{ where: \{ status: "ACTIVE", role: \{ not: "OWNER" \} \} \}/,
+    );
     expect(ROUTE_SRC).toMatch(/outcome: "SEAT_LIMIT_EXCEEDED"/);
     // Only when the org has an actual seat cap.
     expect(ROUTE_SRC).toMatch(/if \(seat\.hasSeatCap\)/);

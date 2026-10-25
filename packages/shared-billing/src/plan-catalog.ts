@@ -78,6 +78,13 @@ export type PlanCapabilities = {
   monthlyPriceCents: number | null;
 
   includedStorageBytes: bigint;
+  /**
+   * The seat count an ENTERPRISE provisioning writes onto a new organization
+   * workspace when the contract states none. It bounds nothing on a self-serve
+   * plan (members audit ENT-09): collaboration capacity is per Collaboration
+   * Team (`maxAcceptedMembersPerCollaborationTeam`) and only an ACTIVE contract
+   * seat count bounds a workspace as a whole (`resolveWorkspaceMemberCeiling`).
+   */
   includedSeats: number;
 
   reportsIncluded: boolean;
@@ -296,19 +303,32 @@ export type PlanCapabilities = {
   maxCollaborationTeamsPerWorkspace: number;
 
   /**
-   * Hard cap on ACCEPTED members inside one Collaboration Team.
-   * NOT an invite cap: pending invitations may exist above this number, but
-   * accepting or adding a member must fail once the cap is reached.
+   * Hard cap on ACCEPTED NON-OWNER members inside one ACTIVE Collaboration
+   * Team. The workspace owner never consumes one of them. NOT an invite cap:
+   * pending invitations may exist above this number, but adding, accepting or
+   * reinstating a member must fail once the cap is reached.
+   *
+   * THIS IS THE COLLABORATION CAPACITY (members audit ENT-04, owner decision
+   * 2026-10-25). PRO sells 2 Collaboration Teams of up to 5 members each and
+   * TEAM 5 of up to 10, and there is no workspace-wide pool behind them: the
+   * same person in two groups is counted by each group they occupy, an
+   * archived group frees its slot, and pending invitations count for nothing.
    */
   maxAcceptedMembersPerCollaborationTeam: number;
 
   /**
-   * Hard cap on ACCEPTED `TeamMember` seats inside one SHARED workspace
-   * (Owned or Organization). Drives `getEffectiveSeatLimit` and the
-   * `overSeatLimit` comparison. Always 0 for a SINGLE_OCCUPANT workspace —
-   * a Personal Space has no seats to sell.
+   * How many NON-OWNER members a workspace on this plan may hold in total, or
+   * `null` for "no workspace-wide ceiling".
+   *
+   * It replaces `maxWorkspaceSeats`, which was a workspace POOL that counted
+   * the owner (PRO 5, TEAM 10) and so contradicted the per-team capacity the
+   * product sells. Only two answers remain: 0 for a plan that sells no
+   * collaboration at all (FREE, and evidence credits, which never grant it),
+   * and `null` for every plan that does. An Enterprise contract that states a
+   * seat count is the one thing that bounds a workspace as a whole, and it is
+   * read from the contract, never from here (`resolveWorkspaceMemberCeiling`).
    */
-  maxWorkspaceSeats: number;
+  maxAdditionalWorkspaceMembers: number | null;
 
   /**
    * PHASE 9 §9.6 (2026-07-22) — invitation abuse rails, folded from the
@@ -354,6 +374,13 @@ const ALL_ENTERPRISE_FEATURES: EnterpriseFeatureFlags = {
   objectLock: true,
 };
 
+/**
+ * STORAGE UNITS ARE BINARY (members audit ENT-10, 2026-10-25). A published
+ * "GB" is 2^30 bytes and an "MB" 2^20 — the unit `formatBytesHuman` divides
+ * by, so a label and its allowance always agree, and a customer sold "100 GB"
+ * receives at least 100 × 10^9 bytes. Stated here because it is the one place
+ * every storage number is minted; changing it would change every allowance.
+ */
 const MB = 1024n * 1024n;
 const GB = 1024n * 1024n * 1024n;
 const TB = 1024n * 1024n * 1024n * 1024n;
@@ -416,7 +443,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     allowsSharedWorkspace: false,
     maxCollaborationTeamsPerWorkspace: 0,
     maxAcceptedMembersPerCollaborationTeam: 0,
-    maxWorkspaceSeats: 1,
+    maxAdditionalWorkspaceMembers: 0,
     maxPendingInvitesPerTeam: 0,
     maxInvitesPer24h: 0,
     enterpriseFeatures: NO_ENTERPRISE_FEATURES,
@@ -465,7 +492,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     allowsSharedWorkspace: false,
     maxCollaborationTeamsPerWorkspace: 0,
     maxAcceptedMembersPerCollaborationTeam: 0,
-    maxWorkspaceSeats: 1,
+    maxAdditionalWorkspaceMembers: 0,
     maxPendingInvitesPerTeam: 0,
     maxInvitesPer24h: 0,
     enterpriseFeatures: NO_ENTERPRISE_FEATURES,
@@ -502,7 +529,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     allowsSharedWorkspace: true,
     maxCollaborationTeamsPerWorkspace: 2,
     maxAcceptedMembersPerCollaborationTeam: 5,
-    maxWorkspaceSeats: 5,
+    maxAdditionalWorkspaceMembers: null,
     maxPendingInvitesPerTeam: 10,
     maxInvitesPer24h: 50,
     enterpriseFeatures: NO_ENTERPRISE_FEATURES,
@@ -511,10 +538,13 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
   TEAM: {
     plan: "TEAM",
     displayName: "Team",
-    billingShape: "SHARED",
+    // Members audit ENT-09 — TEAM is bought FOR the Personal Workspace (it is
+    // the collaboration tier of that one workspace) as well as carried by a
+    // legacy owned one, so its shape is BOTH, not SHARED.
+    billingShape: "BOTH",
     monthlyPriceCents: 7900,
     includedStorageBytes: 500n * GB,
-    includedSeats: 5,
+    includedSeats: 0,
     reportsIncluded: true,
     verificationPackageIncluded: true,
     publicVerifyIncluded: true,
@@ -535,7 +565,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     allowsSharedWorkspace: true,
     maxCollaborationTeamsPerWorkspace: 5,
     maxAcceptedMembersPerCollaborationTeam: 10,
-    maxWorkspaceSeats: 10,
+    maxAdditionalWorkspaceMembers: null,
     maxPendingInvitesPerTeam: 25,
     maxInvitesPer24h: 100,
     enterpriseFeatures: NO_ENTERPRISE_FEATURES,
@@ -570,7 +600,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     allowsSharedWorkspace: true,
     maxCollaborationTeamsPerWorkspace: 1000,
     maxAcceptedMembersPerCollaborationTeam: 500,
-    maxWorkspaceSeats: 500,
+    maxAdditionalWorkspaceMembers: null,
     maxPendingInvitesPerTeam: 1000,
     maxInvitesPer24h: 5000,
     enterpriseFeatures: ALL_ENTERPRISE_FEATURES,
@@ -758,6 +788,71 @@ export function getPlanStorageLimitBytes(plan: PlanType): bigint {
 
 export function getPlanSeatLimit(plan: PlanType): number {
   return getPlanCapabilities(plan).includedSeats;
+}
+
+// =============================================================================
+// Collaboration capacity — THE rule (members audit ENT-04 / ENT-05 / CT-09)
+// =============================================================================
+
+/**
+ * Does this plan sell collaboration at all? Members, invitations and
+ * Collaboration Teams stand or fall together: a plan with no Collaboration
+ * Teams admits nobody but the owner.
+ */
+export function planIncludesCollaboration(plan: PlanType): boolean {
+  return getPlanCapabilities(plan).maxCollaborationTeamsPerWorkspace > 0;
+}
+
+export type WorkspaceMemberCeiling = {
+  /** False when the plan admits nobody but the owner. */
+  included: boolean;
+  /**
+   * The most NON-OWNER members the workspace may hold, or `null` when nothing
+   * bounds the workspace as a whole — the per-team capacity is then the only
+   * limit, and it is enforced where a group gains a member.
+   */
+  limit: number | null;
+  source: "PLAN_CATALOG" | "ENTERPRISE_CONTRACT";
+};
+
+/**
+ * The ONE statement of how many members a workspace may hold.
+ *
+ * Every gate and every projection reads this, so the number a customer is
+ * shown and the number they are held to cannot differ. `contractSeats` is the
+ * seat count of an ACTIVE Enterprise contract that states one (a status-checked
+ * value; pass `null` otherwise). The owner is never counted against it.
+ */
+export function resolveWorkspaceMemberCeiling(input: {
+  plan: PlanType;
+  contractSeats: number | null;
+  /**
+   * Is an ACTIVE Enterprise contract governing this workspace? An ENTERPRISE
+   * workspace without one admits nobody new (members audit CT-10): its
+   * capacity is contract-defined, and a missing or lapsed contract is a typed
+   * "configure the contract" state — never an unlimited fallback. Omitted on
+   * self-serve plans, where it is irrelevant.
+   */
+  contractGoverns?: boolean;
+}): WorkspaceMemberCeiling {
+  if (!planIncludesCollaboration(input.plan)) {
+    return { included: false, limit: 0, source: "PLAN_CATALOG" };
+  }
+  if (input.plan === "ENTERPRISE" && input.contractGoverns === false) {
+    return { included: false, limit: 0, source: "ENTERPRISE_CONTRACT" };
+  }
+  if (input.contractSeats !== null) {
+    return {
+      included: input.contractSeats > 0,
+      limit: Math.max(0, input.contractSeats),
+      source: "ENTERPRISE_CONTRACT",
+    };
+  }
+  return {
+    included: true,
+    limit: getPlanCapabilities(input.plan).maxAdditionalWorkspaceMembers,
+    source: "PLAN_CATALOG",
+  };
 }
 
 /**

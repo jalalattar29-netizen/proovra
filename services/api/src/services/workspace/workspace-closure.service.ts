@@ -35,6 +35,8 @@ import { evaluateWorkspaceClosurePreflight } from "../identity/account-lifecycle
 
 export const WORKSPACE_CLOSURE_COOLING_OFF_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const PROCESS_BATCH = 3;
+/** A PROCESSING request untouched this long was interrupted; the reaper resumes it. */
+export const CLOSURE_STALE_MS = 30 * 60 * 1000;
 
 /** Statuses that count as "an open closure request exists". */
 export const ACTIVE_WORKSPACE_CLOSURE_STATUSES = [
@@ -52,49 +54,85 @@ export const CANCELLABLE_WORKSPACE_CLOSURE_STATUSES = [
   "SCHEDULED",
 ] as const;
 
+type ClosureTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+/**
+ * THE closure legs (members audit LIFE-09 / LIFE-10 / LIFE-12, 2026-10-25).
+ *
+ * Workspace closure, organization closure and account closure each carried
+ * their own copy of "make this workspace dark", and the copies disagreed:
+ * account closure revoked nothing in the workspace the user OWNED (its API
+ * keys, webhooks and invitations outlived the anonymised owner), organization
+ * closure never stamped `closedAtUtc`, and none of them revoked pending
+ * invitations, which then revived on reopen. One leg set now, run inside the
+ * caller's transaction:
+ *
+ *   * every membership that has not ended (ACTIVE and SUSPENDED) → REVOKED,
+ *     with its standing reach (case access, assignments, groups) ended;
+ *   * pending invitations → revoked;
+ *   * API credentials → REVOKED, webhooks → DISABLED;
+ *   * live external-review grants → REVOKED;
+ *   * workspace pointers cleared;
+ *   * `closedAtUtc` stamped — the durable closure state.
+ *
+ * Idempotent: every leg selects only what is still live, and an already
+ * stamped `closedAtUtc` is kept, so a reaper re-running an interrupted
+ * closure changes nothing that the first run already settled. Evidence,
+ * custody, holds, retention and audit history are never touched.
+ */
+export async function closeWorkspacesTx(
+  tx: ClosureTx,
+  input: { teamIds: readonly string[]; actorUserId: string | null; reason: string },
+): Promise<{ membersRevoked: number }> {
+  if (input.teamIds.length === 0) return { membersRevoked: 0 };
+  const now = new Date();
+  const teamIds = [...input.teamIds];
+
+  const revoked = await massRevokeWorkspaceMemberships(tx, {
+    where: { teamIds },
+    actorUserId: input.actorUserId,
+    reason: input.reason,
+  });
+  await tx.teamInvite.updateMany({
+    where: { teamId: { in: teamIds }, acceptedAt: null, revokedAt: null },
+    data: { revokedAt: now, ...(input.actorUserId ? { revokedByUserId: input.actorUserId } : {}) },
+  });
+  await tx.apiCredential.updateMany({
+    where: { teamId: { in: teamIds }, status: "ACTIVE" },
+    data: { status: "REVOKED", revokedAtUtc: now, revokedReason: "workspace_closed" },
+  });
+  await tx.webhookEndpoint.updateMany({
+    where: { teamId: { in: teamIds }, status: "ACTIVE" },
+    data: { status: "DISABLED" },
+  });
+  await tx.externalReviewGrant.updateMany({
+    where: { teamId: { in: teamIds }, state: { in: ["INVITED", "ACTIVE"] } },
+    data: { state: "REVOKED", revokedAtUtc: now, ...(input.actorUserId ? { revokedByUserId: input.actorUserId } : {}) },
+  });
+  await tx.user.updateMany({
+    where: { currentWorkspaceId: { in: teamIds } },
+    data: { currentWorkspaceId: null },
+  });
+  // ADM-004 — THE lifecycle write, in the same transaction as the revocation.
+  await tx.team.updateMany({
+    where: { id: { in: teamIds }, closedAtUtc: null },
+    data: { closedAtUtc: now },
+  });
+  return { membersRevoked: revoked.count };
+}
+
 export async function executeWorkspaceClosure(input: {
   teamId: string;
   requestedByUserId: string;
 }): Promise<void> {
   const { teamId, requestedByUserId } = input;
-  const now = new Date();
 
   await prisma.$transaction(async (tx) => {
-    // Collaboration consequence — every membership goes dark at once.
-    // PHASE 3 — canonical orchestrator (provenance closed per member).
-    const revoked = await massRevokeWorkspaceMemberships(tx, {
-      where: { teamId },
+    const closed = await closeWorkspacesTx(tx, {
+      teamIds: [teamId],
       actorUserId: requestedByUserId,
       reason: "workspace closure",
     });
-
-    await tx.apiCredential.updateMany({
-      where: { teamId, status: "ACTIVE" },
-      data: {
-        status: "REVOKED",
-        revokedAtUtc: now,
-        revokedReason: "workspace_closed",
-      },
-    });
-    await tx.webhookEndpoint.updateMany({
-      where: { teamId, status: "ACTIVE" },
-      data: { status: "DISABLED" },
-    });
-
-    await tx.user.updateMany({
-      where: { currentWorkspaceId: teamId },
-      data: { currentWorkspaceId: null },
-    });
-
-    // ADM-004 — THE lifecycle write. Inside the SAME transaction as the
-    // membership revocation, so a workspace can never be dark to its members
-    // while still counting as live in the control plane; that divergence is
-    // precisely the state the finding describes.
-    await tx.team.update({
-      where: { id: teamId },
-      data: { closedAtUtc: now },
-    });
-
     await tx.teamActivity.create({
       data: {
         teamId,
@@ -102,7 +140,7 @@ export async function executeWorkspaceClosure(input: {
         eventType: "workspace_closed",
         targetType: "team",
         targetId: teamId,
-        metadata: { membersRevoked: revoked.count },
+        metadata: { membersRevoked: closed.membersRevoked },
       },
     });
   });
@@ -113,6 +151,19 @@ export async function executeWorkspaceClosure(input: {
  * digest scheduler tick; failures are isolated per request row.
  */
 export async function processWorkspaceClosures(now: Date): Promise<void> {
+  // THE REAPER (members audit LIFE-11). A request an interrupted run left in
+  // PROCESSING goes back to SCHEDULED and is executed again below — through the
+  // same preflight and the same guarded claim. Execution is idempotent (every
+  // closure leg selects only what is still live), so finishing it twice
+  // settles nothing twice.
+  await prisma.workspaceClosureRequest.updateMany({
+    where: {
+      status: "PROCESSING",
+      startedAtUtc: { lte: new Date(now.getTime() - CLOSURE_STALE_MS) },
+    },
+    data: { status: "SCHEDULED" },
+  });
+
   const due = await prisma.workspaceClosureRequest.findMany({
     where: {
       status: { in: ["COOLING_OFF", "SCHEDULED"] },

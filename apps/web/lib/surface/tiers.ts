@@ -94,7 +94,12 @@ export type SurfaceTierRule = {
    * unknown (loading / degraded envelope). This keeps the tier table free
    * of plan-literal duplication of the pricing catalog.
    */
-  entitlementOverride?: "intakeIncluded";
+  entitlementOverride?: "intakeIncluded" | "reviewerOperationsIncluded";
+  /**
+   * Match the path EXACTLY rather than as a prefix. Used where one console
+   * (`/review`) shares its prefix with surfaces that keep a different rule.
+   */
+  exact?: boolean;
   directAccessPolicy: DirectAccessPolicy;
   /**
    * For `redirect` policy. Defaults to `/home`. Operators see a friendly
@@ -296,8 +301,18 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   { pathPrefix: "/packaging", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "packaging entitlement admin (INTERNAL/ENTERPRISE)" },
 
   // Reviewer Operations
-  { pathPrefix: "/review-operations", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "reviewer operations" },
-  { pathPrefix: "/reviewer-ops", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "reviewer ops console" },
+  //
+  // MEMBERS AUDIT ENT-01 (2026-10-25) — the reviewer OPERATIONS surfaces
+  // (console, queue, escalations, SLA, the per-workflow inspector) follow the
+  // server's `reviewerOperationsIncluded` answer — the same review capability
+  // ladder every `/v1/reviewer-ops/*` route enforces — not "is this an
+  // Enterprise workspace". TEAM sells them on the Personal Workspace it lives
+  // on; PRO does not. The advanced review surfaces below stay ENTERPRISE.
+  { pathPrefix: "/review", exact: true, tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "notFound", reason: "reviewer console (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/review/operations", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "notFound", reason: "reviewer operations (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/review/queues", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "notFound", reason: "review queues (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/review-operations", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "notFound", reason: "reviewer operations (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/reviewer-ops", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "notFound", reason: "reviewer ops console (per reviewerOperationsIncluded)" },
   { pathPrefix: "/reviewer-workspace", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "reviewer workspace" },
   { pathPrefix: "/review", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "review surfaces" },
   { pathPrefix: "/redaction", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "redaction platform" },
@@ -399,7 +414,7 @@ export function findSurfaceTierRule(
     : pathname;
   for (const rule of SURFACE_TIER_RULES) {
     if (p === rule.pathPrefix) return rule;
-    if (p.startsWith(rule.pathPrefix + "/")) return rule;
+    if (!rule.exact && p.startsWith(rule.pathPrefix + "/")) return rule;
   }
   return null;
 }

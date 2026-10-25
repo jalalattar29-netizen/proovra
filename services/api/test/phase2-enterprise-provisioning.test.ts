@@ -801,11 +801,13 @@ describe("enterprise capability + gate wiring", () => {
     expect(src).toContain("requireStepUpForSensitiveAction");
     expect(src).toContain('"/v1/admin/orgs/:id/plan"');
     expect(src).toContain('"/v1/admin/enterprise/provision"');
-    // One step-up gate per endpoint: plan grant, provision, and the
-    // PHASE 4 §7.6 shared suspend/resume handler (one loop body).
+    // One step-up gate per endpoint: plan grant, provision, the PHASE 4 §7.6
+    // shared suspend/resume handler (one loop body), and the members audit
+    // LIFE-16 shared terminate / terminate-cancel handler (one loop body).
     const gateCount = (src.match(/requireStepUpForSensitiveAction\(/g) ?? [])
       .length;
-    expect(gateCount).toBe(3);
+    expect(gateCount).toBe(4);
+    expect(src).toContain("`/v1/admin/orgs/:id/${leg}`");
   });
 
   it("the new route is registered in server.ts", () => {

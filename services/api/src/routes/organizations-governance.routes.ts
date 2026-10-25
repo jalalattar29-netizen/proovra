@@ -371,16 +371,14 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
             typeof getPlanCapabilities
           >[0],
           contract: seatContract,
-          persistedSeats: ws.includedSeats ?? 0,
         });
         const used = ws._count.members;
-        totalIncludedSeats += included;
+        // `null` = no workspace-wide ceiling (members audit ENT-04).
+        totalIncludedSeats += included ?? 0;
         totalUsedSeats += used;
-        // Over-seat = a workspace whose member count exceeds its
-        // included-seat allotment (mirrors billing.service.ts
-        // `_count.members > includedSeats`). Only counted when the
-        // workspace actually has a seat allotment.
-        if (included > 0 && used > included) overSeatWorkspaceCount += 1;
+        // Over-seat = a workspace whose member count exceeds a contracted
+        // ceiling. A workspace with no workspace-wide ceiling is never over.
+        if (included !== null && included > 0 && used > included) overSeatWorkspaceCount += 1;
         if (
           status === "ACTIVE" ||
           status === "PAST_DUE"

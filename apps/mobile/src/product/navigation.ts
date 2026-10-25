@@ -120,7 +120,7 @@ export const NATIVE_NAV_ROUTES: readonly NativeNavRoute[] = [
     requiredActiveSpace: "PERSONAL_OR_ORG", fallbackBehavior: "DEGRADED", group: "WORKSPACE", icon: "search",
   },
   {
-    id: "workspace.collaboration_teams", webHref: "/collaboration-teams", href: "/teams", label: "Collaboration Teams",
+    id: "workspace.collaboration_teams", webHref: "/collaboration-teams", href: "/teams", label: "Teams",
     domain: "PERSONAL_WORKSPACE", requiredCapabilities: [], navPlanFeature: "teamCollaborationIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG", fallbackBehavior: "DEGRADED", group: "WORKSPACE", icon: "users",
   },

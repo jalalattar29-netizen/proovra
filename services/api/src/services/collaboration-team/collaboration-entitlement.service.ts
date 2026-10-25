@@ -54,9 +54,13 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { effectiveGroupMemberWhere } from "./effective-membership.js";
 import { getPlanCapabilities } from "@proovra/shared-billing";
 import { resolveCommercialContext } from "../billing/commercial-context.service.js";
-import { resolveWorkspaceSeatState } from "../billing/workspace-seats.service.js";
+import {
+  resolveWorkspaceSeatState,
+  workspaceSeatsAdmit,
+} from "../billing/workspace-seats.service.js";
 import {
   resolveEffectiveCollaborationMemberLimit,
   resolveEffectiveCollaborationTeamLimit,
@@ -78,10 +82,16 @@ export type CollaborationEntitlementProjection = {
     reasonCode: string | null;
     graceEndsAtUtc: Date | null;
   };
+  /**
+   * Non-owner workspace members, and the ceiling on them — `null` when nothing
+   * bounds the workspace as a whole (every self-serve plan that includes
+   * collaboration; members audit ENT-04). Only an Enterprise contract seat
+   * count sets one.
+   */
   workspaceSeats: {
-    limit: number;
+    limit: number | null;
     used: number;
-    remaining: number;
+    remaining: number | null;
     /** Usage above the ceiling — a downgrade, not an error. */
     overLimit: boolean;
     source: string;
@@ -95,7 +105,10 @@ export type CollaborationEntitlementProjection = {
     /** PLAN_CATALOG or ENTERPRISE_CONTRACT — which authority set `limit`. */
     source: string;
   };
-  /** Safety ceiling on ACTIVE members inside ONE group, contract-first. */
+  /**
+   * THE collaboration capacity: the most accepted NON-OWNER members one ACTIVE
+   * group may hold, contract-first. Not reconciled against any pool.
+   */
   collaborationTeamMembers: {
     limit: number;
     source: string;
@@ -129,7 +142,12 @@ export type CollaborationEntitlementProjection = {
     allTeamsCount: number;
   };
   /** Each dimension currently over its ceiling, named separately. */
-  exceededDimensions: Array<"WORKSPACE_SEATS" | "COLLABORATION_TEAMS" | "PENDING_INVITATIONS">;
+  exceededDimensions: Array<
+    | "WORKSPACE_SEATS"
+    | "COLLABORATION_TEAMS"
+    | "COLLABORATION_TEAM_MEMBERS"
+    | "PENDING_INVITATIONS"
+  >;
   upgradeHref: string | null;
 };
 
@@ -195,6 +213,24 @@ export async function resolveCollaborationEntitlement(
 
   const exceeded: CollaborationEntitlementProjection["exceededDimensions"] = [];
   if (seats.overLimit) exceeded.push("WORKSPACE_SEATS");
+  // Members audit ENT-04 — after a downgrade the capacity that can be exceeded
+  // is a GROUP's: name it when any active group holds more accepted non-owner
+  // members than the plan now sells per group. Nobody is evicted; growth into
+  // that group refuses until it is back within capacity.
+  if (memberLimit >= 0 && teamsUsed > 0) {
+    const perGroup = await client.collaborationTeamMember.groupBy({
+      by: ["teamId"],
+      where: {
+        ...effectiveGroupMemberWhere(workspaceId),
+        userId: { not: workspace.ownerUserId },
+        team: { workspaceId, status: "ACTIVE", archivedAtUtc: null },
+      },
+      _count: { _all: true },
+    });
+    if (perGroup.some((g) => g._count._all > memberLimit)) {
+      exceeded.push("COLLABORATION_TEAM_MEMBERS");
+    }
+  }
   if (teamsUsed > teamsLimit) exceeded.push("COLLABORATION_TEAMS");
   if (pendingInvites > caps.maxPendingInvitesPerTeam) {
     exceeded.push("PENDING_INVITATIONS");
@@ -210,7 +246,10 @@ export async function resolveCollaborationEntitlement(
    */
   const reasonCode = !ctx.lifecycle.mutationsAllowed
     ? ctx.lifecycle.state
-    : teamsLimit <= 0
+    : teamsLimit <= 0 && ctx.plan === "ENTERPRISE"
+      ? // Members audit CT-10 — a contract to complete, not a plan to buy.
+        "ENTERPRISE_CONTRACT_REQUIRED"
+      : teamsLimit <= 0
       ? "PLAN_DOES_NOT_INCLUDE_TEAMS"
       : teamsUsed >= teamsLimit
         ? "COLLABORATION_TEAM_LIMIT_REACHED"
@@ -244,11 +283,9 @@ export async function resolveCollaborationEntitlement(
       source: teamsSource,
     },
     collaborationTeamMembers: {
-      // Reconciled to the workspace's real population for the same reason the
-      // guard reconciles it: a group may hold everyone in the workspace and
-      // cannot hold anyone else, so a ceiling above the seat count would be a
-      // number no group could ever reach.
-      limit: Math.max(0, Math.min(Math.max(seats.limit, seats.used), memberLimit)),
+      // The same number `lockAndAssertCollaborationTeamMemberCapacity`
+      // enforces — per group, owner excluded, no workspace pool behind it.
+      limit: Math.max(0, memberLimit),
       source: memberSource,
     },
     invitations: {
@@ -268,7 +305,7 @@ export async function resolveCollaborationEntitlement(
     canCreateCollaborationTeam:
       teamsLimit > 0 && mutationsAllowed && teamsUsed < teamsLimit,
     canInviteWorkspaceMember:
-      seats.featureIncluded && mutationsAllowed && seats.used < seats.limit,
+      mutationsAllowed && workspaceSeatsAdmit(seats),
     // Assigning an EXISTING workspace member to a group consumes no seat, so it
     // is bounded only by the group ceiling and the lifecycle — never by seats.
     canAssignExistingMember: teamsLimit > 0 && mutationsAllowed,

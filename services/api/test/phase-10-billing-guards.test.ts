@@ -221,14 +221,22 @@ describe("Phase 10 — /v1/collaboration-teams handlers call the canonical guard
     ).toMatch(/assertCanCreateCollaborationTeam\s*\(/);
   });
 
-  it("POST /v1/collaboration-teams/:teamId/members calls assertCollaborationTeamMemberLimit", () => {
+  it("POST /v1/collaboration-teams/:teamId/members asks the capacity under the per-group lock", () => {
+    // Members audit CT-02 / CT-15 — the route no longer pre-flights the count
+    // (a pre-flight refused the idempotent re-add of an existing member); the
+    // service asks the one capacity rule inside its writing transaction.
     const membersSection = routes.split(
       '"/v1/collaboration-teams/:teamId/members"',
     )[1] ?? "";
-    expect(
-      membersSection,
-      "expected assertCollaborationTeamMemberLimit in add-member handler",
-    ).toMatch(/assertCollaborationTeamMemberLimit\s*\(/);
+    expect(membersSection).toMatch(/addExistingMember\s*\(/);
+    const svc = readFileSync(
+      fileURLToPath(new URL("../src/services/collaboration-team/collaboration-team.service.ts", import.meta.url)),
+      "utf8",
+    );
+    const add = svc.slice(svc.indexOf("export async function addExistingMember("));
+    expect(add.slice(0, add.indexOf("\nexport async function ", 10))).toMatch(
+      /lockAndAssertCollaborationTeamMemberCapacity\(tx,/,
+    );
   });
 
   // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link

@@ -71,10 +71,12 @@ vi.mock("../src/services/audit/tenant-audit.service.js", () => ({
   emitTenantAudit: async () => undefined,
 }));
 
+// Static (vi.mock above is hoisted over it): an in-test dynamic import of
+// this module times out under a loaded full-suite run.
+import * as collaborationTeamService from "../src/services/collaboration-team/collaboration-team.service.js";
+
 async function load() {
-  return import(
-    "../src/services/collaboration-team/collaboration-team.service.js"
-  );
+  return collaborationTeamService;
 }
 
 const ACTOR = "22222222-2222-4222-8222-222222222222";

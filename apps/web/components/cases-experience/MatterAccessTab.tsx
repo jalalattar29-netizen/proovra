@@ -48,9 +48,18 @@ type Grant = {
   user?: { id: string; email: string | null; displayName: string | null } | null;
 };
 
-type CaseDetailResponse = {
-  case: { id: string; ownerUserId: string | null; access?: Grant[] };
+/** A Collaboration Team granted this case (members audit ACC-01). */
+type TeamGrant = {
+  id: string;
+  createdAt: string;
+  collaborationTeam: { id: string; name: string; status: string };
 };
+
+type CaseDetailResponse = {
+  case: { id: string; ownerUserId: string | null; access?: Grant[]; teamAccess?: TeamGrant[] };
+};
+
+type TeamCandidate = { id: string; name: string };
 
 type TeamMemberRow = {
   userId: string;
@@ -100,6 +109,9 @@ export function MatterAccessTab({
         : viewer.disabledReasons?.["manageAccess"] ?? FALLBACK_MANAGE_REASON;
 
   const [grants, setGrants] = useState<Load<Grant[]>>({ status: "loading" });
+  const [teamGrants, setTeamGrants] = useState<TeamGrant[]>([]);
+  const [teamCandidates, setTeamCandidates] = useState<Load<TeamCandidate[]> | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [members, setMembers] = useState<Load<TeamMemberRow[]> | null>(null);
   const [selected, setSelected] = useState<WorkspaceMember | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -113,6 +125,7 @@ export function MatterAccessTab({
       method: "GET",
     })) as CaseDetailResponse;
     const rows = res.case.access ?? [];
+    setTeamGrants(res.case.teamAccess ?? []);
     setGrants({ status: "ready", data: rows });
     setUnconfirmed(false);
     return rows;
@@ -154,8 +167,32 @@ export function MatterAccessTab({
     loadMembers();
   }, [loadMembers]);
 
+  // The teams this case may be granted to — decided by the server.
+  const loadTeamCandidates = useCallback(() => {
+    if (!canManage) {
+      setTeamCandidates(null);
+      return;
+    }
+    setTeamCandidates({ status: "loading" });
+    apiFetch(`/v1/cases/${encodeURIComponent(caseId)}/team-access/candidates`, { method: "GET" })
+      .then((res) => {
+        setTeamCandidates({ status: "ready", data: (res as { items?: TeamCandidate[] }).items ?? [] });
+      })
+      .catch((err) => {
+        setTeamCandidates({
+          status: "failed",
+          message: toSafeUserError(err, { message: "Collaboration Teams could not be loaded." }).message,
+        });
+      });
+  }, [caseId, canManage]);
+
+  useEffect(() => {
+    loadTeamCandidates();
+  }, [loadTeamCandidates]);
+
   const grantList = grants.status === "ready" ? grants.data : [];
-  const restricted = grantList.length > 0;
+  // A case is restricted by its people list OR a Collaboration Team grant.
+  const restricted = grantList.length > 0 || teamGrants.length > 0;
   const viewerIsOwner = caseOwnerUserId !== null && caseOwnerUserId === viewer.userId;
   const alreadyGranted = selected ? grantList.some((g) => g.userId === selected.userId) : false;
 
@@ -276,6 +313,75 @@ export function MatterAccessTab({
     [busy, caseId, confirm, grantList.length, readGrants],
   );
 
+  const grantTeam = useCallback(async () => {
+    const team =
+      teamCandidates?.status === "ready" ? teamCandidates.data.find((t) => t.id === selectedTeamId) : undefined;
+    if (!team || busy) return;
+    setNotice("");
+    setFailure("");
+    if (!restricted) {
+      const ok = await confirm({
+        title: "Restrict this case to a Collaboration Team?",
+        description: `Right now every active member of this workspace can open this case. After ${team.name} is given access, only the case owner, the people listed here and that team's members can open it.`,
+        confirmLabel: "Give access and restrict",
+        tone: "warning",
+      });
+      if (!ok) return;
+    }
+    setBusy("team-grant");
+    try {
+      await apiFetch(`/v1/cases/${encodeURIComponent(caseId)}/team-access`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ collaborationTeamId: team.id }),
+      });
+      await readGrants();
+      loadTeamCandidates();
+      setSelectedTeamId("");
+      setNotice(`${team.name} now has access to this case. The list was reloaded.`);
+    } catch (err) {
+      setFailure(toSafeUserError(err, { message: "Access could not be given to that team." }).message);
+    } finally {
+      setBusy(null);
+      feedbackRef.current?.focus();
+    }
+  }, [busy, caseId, confirm, loadTeamCandidates, readGrants, restricted, selectedTeamId, teamCandidates]);
+
+  const revokeTeam = useCallback(
+    async (row: TeamGrant) => {
+      if (busy) return;
+      setNotice("");
+      setFailure("");
+      const name = row.collaborationTeam.name;
+      const last = teamGrants.length === 1 && grantList.length === 0;
+      const ok = await confirm({
+        title: `Remove ${name}'s access?`,
+        description:
+          `Members of ${name} will no longer be able to open this case through the team.` +
+          (last ? " This is the last grant, so every active member of the workspace will be able to open the case again." : ""),
+        confirmLabel: "Remove access",
+        tone: "danger",
+      });
+      if (!ok) return;
+      setBusy(row.id);
+      try {
+        await apiFetch(
+          `/v1/cases/${encodeURIComponent(caseId)}/team-access/${encodeURIComponent(row.collaborationTeam.id)}`,
+          { method: "DELETE" },
+        );
+        await readGrants();
+        loadTeamCandidates();
+        setNotice(`${name} no longer has access through the team. The list was reloaded.`);
+      } catch (err) {
+        setFailure(toSafeUserError(err, { message: "The team's access could not be removed." }).message);
+      } finally {
+        setBusy(null);
+        feedbackRef.current?.focus();
+      }
+    },
+    [busy, caseId, confirm, grantList.length, loadTeamCandidates, readGrants, teamGrants.length],
+  );
+
   return (
     <div className="app-panel app-panel__body case-detail-stack" data-matter-access-tab>
       <div className="app-panel__head-row">
@@ -315,7 +421,7 @@ export function MatterAccessTab({
       ) : restricted ? (
         <>
           <p className="app-hint" data-matter-access-mode="restricted">
-            Only the case owner and the people below can open this case.
+            Only the case owner, the people below and the members of the Collaboration Teams below can open this case.
           </p>
           <ul className="case-detail-rows" data-matter-access-grants>
             {grantList.map((g) => {
@@ -349,6 +455,32 @@ export function MatterAccessTab({
               );
             })}
           </ul>
+          {teamGrants.length > 0 ? (
+            <ul className="case-detail-rows" data-matter-access-team-grants>
+              {teamGrants.map((g) => (
+                <li key={g.id} className="app-inner-surface case-detail-row" data-matter-access-team-grant={g.id}>
+                  <strong>{g.collaborationTeam.name}</strong>
+                  <span> · Collaboration Team</span>
+                  {g.collaborationTeam.status !== "ACTIVE" ? (
+                    <span> · archived — grants no access while archived</span>
+                  ) : null}
+                  <small> · added {formatUserDate(g.createdAt)}</small>
+                  {canManage ? (
+                    <ReasonedActionButton
+                      className="app-secondary-action app-secondary-action--danger"
+                      data-matter-access-team-revoke={g.collaborationTeam.id}
+                      busy={busy === g.id}
+                      disabled={busy !== null}
+                      disabledReason={null}
+                      onClick={() => void revokeTeam(g)}
+                    >
+                      {busy === g.id ? "Removing…" : "Remove access"}
+                    </ReasonedActionButton>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </>
       ) : (
         <div className="app-empty" role="status" data-matter-access-mode="workspace">
@@ -411,6 +543,53 @@ export function MatterAccessTab({
           </ReasonedActionButton>
         </div>
       </section>
+
+      {canManage ? (
+        <section className="case-detail-stack" data-matter-access-team-form>
+          <h4>Give a Collaboration Team access</h4>
+          {teamCandidates === null || teamCandidates.status === "loading" ? (
+            <p className="app-hint" role="status">
+              Loading Collaboration Teams…
+            </p>
+          ) : teamCandidates.status === "failed" ? (
+            <p className="app-field-error" role="alert">
+              {teamCandidates.message}
+            </p>
+          ) : teamCandidates.data.length === 0 ? (
+            <p className="app-hint">No other active Collaboration Team in this workspace can be given access.</p>
+          ) : (
+            <>
+              <label htmlFor={`matter-access-team-${caseId}`}>Collaboration Team</label>
+              <select
+                id={`matter-access-team-${caseId}`}
+                className="app-select"
+                value={selectedTeamId}
+                onChange={(e) => setSelectedTeamId(e.target.value)}
+                disabled={busy !== null}
+              >
+                <option value="">Choose a team</option>
+                {teamCandidates.data.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <div>
+                <ReasonedActionButton
+                  className="app-primary-action"
+                  data-matter-access-team-grant
+                  busy={busy === "team-grant"}
+                  disabled={busy !== null || selectedTeamId === ""}
+                  disabledReason={selectedTeamId === "" ? "Choose a Collaboration Team first." : null}
+                  onClick={() => void grantTeam()}
+                >
+                  {busy === "team-grant" ? "Giving access…" : "Give team access"}
+                </ReasonedActionButton>
+              </div>
+            </>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }
