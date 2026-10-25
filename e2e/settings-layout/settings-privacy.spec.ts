@@ -71,12 +71,17 @@ test.describe("settings — the Privacy & data destination", () => {
     await expect(
       page.locator('[data-settings-nav-item="workspace"]'),
     ).toHaveText("AI & assistance");
+    // WORKSPACE LIFECYCLE (pane id `lifecycle`) is the sixth, added by the
+    // members audit (LIFE-01/02, 2026-10-26): every workspace kind answers
+    // "how does this end?" — for a personal space, account closure — and the
+    // pane only states the server's answer, so it is offered to everyone.
     expect(ids).toEqual([
       "overview",
       "security",
       "notifications",
       "privacy",
       "workspace",
+      "lifecycle",
     ]);
   });
 

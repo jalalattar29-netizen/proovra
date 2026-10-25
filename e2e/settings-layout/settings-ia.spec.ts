@@ -116,8 +116,10 @@ test.describe("settings — the map is the resolver's answer", () => {
     // personal workspace, not only an org").
     //
     // What this test is about is unchanged and is asserted more exactly: the
-    // Workspace group exists with ONE item, which is not collaborative, and
-    // the Integrations and System groups do not exist.
+    // Workspace group holds the AI pane and the lifecycle pane (members audit
+    // LIFE-01/02 — for a personal space it explains account closure), neither
+    // of them collaborative, and the Integrations and System groups do not
+    // exist.
     const groups = await page
       .locator(".set-nav__rail .set-nav__group")
       .evaluateAll((els) =>
@@ -130,7 +132,7 @@ test.describe("settings — the map is the resolver's answer", () => {
       );
     expect(groups).toEqual([
       { label: "Account", ids: ["security", "notifications", "privacy"] },
-      { label: "Workspace", ids: ["workspace"] },
+      { label: "Workspace", ids: ["workspace", "lifecycle"] },
     ]);
     await expect(
       page.locator('[data-settings-nav-item="workspace"]'),

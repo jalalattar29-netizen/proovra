@@ -53,8 +53,18 @@ const ACCOUNT_RAIL = ["security", "notifications", "privacy"];
  */
 const AI_DESTINATION = "workspace";
 
+/**
+ * Workspace lifecycle — offered to EVERY actor in every workspace kind
+ * (members audit LIFE-01/02, 2026-10-26): each kind has an answer to "how does
+ * this end?" and the pane states the server's answer (`team.lifecycle`) — a
+ * Personal Workspace explains account closure, an Organization Workspace its
+ * offboarding — with actions only for the owner. It administers nothing for
+ * anyone else, so it is not in ADMIN_RAIL.
+ */
+const LIFECYCLE_DESTINATION = "lifecycle";
+
 /** The exact rail of an actor holding no administration capability. */
-const NON_ADMIN_RAIL = ["overview", ...ACCOUNT_RAIL, AI_DESTINATION];
+const NON_ADMIN_RAIL = ["overview", ...ACCOUNT_RAIL, AI_DESTINATION, LIFECYCLE_DESTINATION];
 
 /** The rail's groups, as rendered: heading -> the destinations under it. */
 const navGroups = (page: import("@playwright/test").Page) =>
@@ -110,7 +120,10 @@ test.describe("settings — a personal space stays compact", () => {
       },
       {
         label: "Workspace",
-        items: [{ id: "workspace", label: "AI & assistance" }],
+        items: [
+          { id: "workspace", label: "AI & assistance" },
+          { id: "lifecycle", label: "Workspace lifecycle" },
+        ],
       },
     ]);
   });
@@ -315,7 +328,15 @@ test.describe("settings — the Enterprise role matrix", () => {
   const MATRIX = [
     {
       actor: "org-owner",
-      visible: [...ACCOUNT_RAIL, AI_DESTINATION, ...ADMIN_RAIL],
+      // The resolver's order: members, roles, then the lifecycle pane, then
+      // the remaining administration destinations.
+      visible: [
+        ...ACCOUNT_RAIL,
+        AI_DESTINATION,
+        ...ADMIN_RAIL.slice(0, 2),
+        LIFECYCLE_DESTINATION,
+        ...ADMIN_RAIL.slice(2),
+      ],
       hidden: [] as string[],
     },
     // AI & assistance moved from `hidden` to `visible` for these two rows
@@ -323,12 +344,12 @@ test.describe("settings — the Enterprise role matrix", () => {
     // Every ADMINISTRATION destination stays hidden, unchanged.
     {
       actor: "org-member",
-      visible: [...ACCOUNT_RAIL, AI_DESTINATION],
+      visible: [...ACCOUNT_RAIL, AI_DESTINATION, LIFECYCLE_DESTINATION],
       hidden: ADMIN_RAIL,
     },
     {
       actor: "org-viewer",
-      visible: [...ACCOUNT_RAIL, AI_DESTINATION],
+      visible: [...ACCOUNT_RAIL, AI_DESTINATION, LIFECYCLE_DESTINATION],
       hidden: ADMIN_RAIL,
     },
   ];

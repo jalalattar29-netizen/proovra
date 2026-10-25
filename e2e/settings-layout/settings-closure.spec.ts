@@ -19,7 +19,7 @@ const rgb = (value: string) =>
   ((value.match(/\d+/g) ?? []).slice(0, 3).map(Number) as [number, number, number]);
 
 test.describe("settings — the personal map is short on purpose", () => {
-  test("a personal space offers exactly Overview, Security, Notifications, Privacy & data, AI & assistance", async ({
+  test("a personal space offers exactly Overview, Security, Notifications, Privacy & data, AI & assistance, Workspace lifecycle", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -41,13 +41,19 @@ test.describe("settings — the personal map is short on purpose", () => {
     // exist only for personal accounts and both were unreachable behind an
     // org-only entry. It is NOT "General" coming back — that pane was retired
     // for holding one sentence; this is the destination that owns AI policy,
-    // named as such. Still exact: a sixth entry fails here.
+    // named as such.
+    // WORKSPACE LIFECYCLE (pane id `lifecycle`) is the sixth, added by the
+    // members audit (LIFE-01/02, 2026-10-26): every workspace kind answers
+    // "how does this end?" — for a personal space, account closure — and the
+    // pane only states the server's answer, so it is offered to everyone.
+    // Still exact: a seventh entry fails here.
     expect(await navIds(page)).toEqual([
       "overview",
       "security",
       "notifications",
       "privacy",
       "workspace",
+      "lifecycle",
     ]);
     await expect(
       page.locator('[data-settings-nav-item="workspace"]'),
