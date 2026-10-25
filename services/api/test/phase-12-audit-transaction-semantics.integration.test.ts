@@ -175,8 +175,15 @@ describe("§1.5 — audit events commit with the right thing", () => {
         threw,
         "revoking the last administrator must be refused",
       ).toBeInstanceOf(RbacError);
-      expect((threw as InstanceType<typeof RbacError>).message).toContain(
-        "last_administrator_protected",
+      // MEMBERS AUDIT ROLE-04 — the actor here is the OWNER whose own row the
+      // fixture just SUSPENDED, so the rank rule refuses first: an actor must
+      // hold an ACTIVE membership that outranks the target. (Because the
+      // actor always outranks and therefore remains an administrator, the
+      // last-administrator guard is now reachable only through leave.) The
+      // property this case exists for — a refused revoke records no success —
+      // is asserted below unchanged.
+      expect(["rank_insufficient", "last_administrator_protected"]).toContain(
+        (threw as InstanceType<typeof RbacError>).message,
       );
 
       // THE PROPERTY: the state did not change…

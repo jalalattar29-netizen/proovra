@@ -66,6 +66,7 @@ import { PageShell } from "../../ui";
 // repo-wide Phase Final-D3 contract forbids raw `window.confirm` in
 // apps/web; this is the parity replacement.
 import { useConfirmAction } from "../../ui/ConfirmActionModal";
+import { StepUpModal, useStepUpAction } from "../../identity-security/StepUpModal";
 // Phase CASES-EVIDENCE-NAMES — reuse the canonical Evidence Library
 // title cascade so Case Detail rows never render "Untitled evidence"
 // when filename fields exist on the record.
@@ -2269,6 +2270,8 @@ function SettingsTab({
 }) {
   const [nameDraft, setNameDraft] = useState(caseDetail.name);
   const [busy, setBusy] = useState(false);
+  const caseTeamId = caseDetail.teamId;
+  const stepUp = useStepUpAction({ teamId: caseTeamId });
   // Settings is allowed when canMutate (rename) or canChangeStatus or canManage (delete).
   const canRename = viewer.canMutate;
   const canChangeStatus = viewer.canChangeStatus;
@@ -2359,7 +2362,12 @@ function SettingsTab({
     if (!ok) return;
     setBusy(true);
     try {
-      await apiFetch(`/v1/cases/${caseId}`, { method: "DELETE" });
+      // Irreversible: a fresh step-up, bound to the case's own workspace
+      // (members audit SEC-03).
+      await stepUp.runStepUpAction(
+        (headers) => apiFetch(`/v1/cases/${caseId}`, { method: "DELETE", ...(headers ? { headers } : {}) }),
+        { teamId: caseTeamId },
+      );
       addToast("Case deleted. Evidence records were preserved.", "success");
       onDeleted();
     } catch (err) {
@@ -2370,9 +2378,11 @@ function SettingsTab({
     } finally {
       setBusy(false);
     }
-  }, [caseId, onDeleted, addToast, confirm]);
+  }, [caseId, onDeleted, addToast, confirm, stepUp, caseTeamId]);
 
   return (
+    <>
+      <StepUpModal control={stepUp} />
     <section
       className="cc-section"
       role="tabpanel"
@@ -2548,5 +2558,6 @@ function SettingsTab({
         </CaseButton>
       </div>
     </section>
+    </>
   );
 }

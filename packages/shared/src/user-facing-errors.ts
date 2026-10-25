@@ -205,6 +205,141 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     actionHref: "/login",
   },
   /*
+   * WORKSPACE INVITATIONS AND MEMBERSHIP (members audit INV-02 / ROLE-04).
+   * Every refusal on Members & Access read "Please review your input"; each now
+   * says what happened and what to do. Lower-case engine codes are matched
+   * case-insensitively. "Team" never names a Workspace here.
+   */
+  WORKSPACE_INVITES_NOT_INCLUDED: {
+    title: "Your plan doesn't include inviting members",
+    message: "Upgrade to Pro or Team to invite people into this workspace.",
+    severity: "info",
+    actionLabel: "See plans",
+    actionHref: "/pricing",
+  },
+  WORKSPACE_MEMBERS_NOT_INCLUDED: {
+    title: "Your plan doesn't include additional members",
+    message: "Upgrade to Pro or Team to add people to this workspace.",
+    severity: "info",
+    actionLabel: "See plans",
+    actionHref: "/pricing",
+  },
+  WORKSPACE_INVITE_LIMIT_REACHED: {
+    title: "Too many pending invitations",
+    message: "Revoke or wait for some pending invitations before sending more.",
+    severity: "warning",
+  },
+  WORKSPACE_INVITE_RATE_LIMIT_REACHED: {
+    title: "Invitation limit for today reached",
+    message: "This workspace has sent as many invitations as it can today. Try again tomorrow.",
+    severity: "warning",
+  },
+  INVITE_RESEND_LIMIT_REACHED: {
+    title: "This invitation was resent recently",
+    message: "An invitation can be resent a few times a day. Try again later.",
+    severity: "warning",
+  },
+  INVITE_ALREADY_PENDING: {
+    title: "An invitation is already pending",
+    message: "That address already has a pending invitation. Resend it instead of creating a new one.",
+    severity: "info",
+  },
+  ALREADY_WORKSPACE_MEMBER: {
+    title: "Already a member",
+    message: "That person is already a member of this workspace.",
+    severity: "info",
+  },
+  INVITE_NOT_FOUND: {
+    title: "Invitation not found",
+    message: "This invitation doesn't exist any more. Ask for a new one.",
+    severity: "warning",
+  },
+  INVITE_EXPIRED: {
+    title: "This invitation has expired",
+    message: "Ask the workspace administrator to send a new invitation.",
+    severity: "warning",
+  },
+  INVITE_REVOKED: {
+    title: "This invitation was withdrawn",
+    message: "Ask the workspace administrator if you still need access.",
+    severity: "warning",
+  },
+  INVITE_ALREADY_USED: {
+    title: "This invitation has already been used",
+    message: "Sign in to open the workspace, or ask for a new invitation.",
+    severity: "info",
+  },
+  INVITE_EMAIL_MISMATCH: {
+    title: "Signed in with a different address",
+    message: "Sign in with the address this invitation was sent to.",
+    severity: "warning",
+  },
+  INVITE_SUPERSEDED: {
+    title: "This invitation is no longer valid",
+    message: "It was issued before your access to this workspace ended. Ask for a new invitation.",
+    severity: "warning",
+  },
+  MEMBERSHIP_SUSPENDED: {
+    title: "Your membership is suspended",
+    message: "Ask a workspace administrator to reinstate your membership.",
+    severity: "warning",
+  },
+  WORKSPACE_NOT_ACCEPTING_MEMBERS: {
+    title: "This workspace isn't accepting members",
+    message: "It is closed or its organization is suspended.",
+    severity: "warning",
+  },
+  RETENTION_POLICY_GOVERNED: {
+    title: "Retention is managed under Governance",
+    message: "Change how long records are kept under Governance → Retention.",
+    severity: "info",
+  },
+  RANK_INSUFFICIENT: {
+    title: "You can't change this member",
+    message: "Administrators manage members and viewers. Only the workspace owner can change another administrator.",
+    severity: "warning",
+  },
+  OWNER_CANNOT_LEAVE: {
+    title: "The owner can't leave",
+    message: "A Personal Workspace closes with its account. For another workspace, transfer ownership first.",
+    severity: "info",
+  },
+  LAST_ADMINISTRATOR_PROTECTED: {
+    title: "This would leave no administrator",
+    message: "Make another member an administrator first.",
+    severity: "warning",
+  },
+  SELF_ACTION_FORBIDDEN: {
+    title: "You can't do this to your own membership",
+    message: "Ask another administrator, or use Leave workspace.",
+    severity: "info",
+  },
+  MEMBER_OWNER_IMMUTABLE: {
+    title: "The owner can't be changed here",
+    message: "The workspace owner can't be suspended, removed or demoted from Members & Access.",
+    severity: "info",
+  },
+  ROLE_TRANSITION_TO_OWNER_FORBIDDEN: {
+    title: "Ownership isn't a role",
+    message: "Ownership moves through the workspace's ownership transfer, not a role change.",
+    severity: "info",
+  },
+  INVALID_STATUS_TRANSITION: {
+    title: "That change isn't possible from the current state",
+    message: "Reload to see the member's current status.",
+    severity: "warning",
+  },
+  MANAGED_IDENTITY_READONLY: {
+    title: "Managed by your directory",
+    message: "This person is provisioned by your identity provider. Change them there — a change made here would be reverted.",
+    severity: "info",
+  },
+  IDENTITY_MODE_UNAVAILABLE: {
+    title: "Couldn't check how this identity is managed",
+    message: "Nothing was changed. Try again shortly.",
+    severity: "warning",
+  },
+  /*
    * WORKSPACE LIFECYCLE (members audit LIFE-01/02/07). No Workspace kind has a
    * self-service hard delete; each refusal names the path that does end the
    * Workspace. "Team" never names a Workspace here.

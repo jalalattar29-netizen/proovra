@@ -80,6 +80,8 @@ export {
   revokeDelegatedAdminScope,
   listTeamMembersWithAccess,
   touchMemberLastSeen,
+  leaveWorkspace,
+  preflightMemberMutation,
 } from "./rbac.service.js";
 
 // =============================================================================
@@ -960,21 +962,9 @@ export async function removeOrganizationMembership(
   });
 }
 
-/**
- * Workspace-membership physical removal (legacy-compat admin removal).
- * Closes provenance first, then deletes.
- */
-export async function removeWorkspaceMembershipPhysical(
-  tx: TxClient,
-  input: { teamMemberId: string; actorUserId?: string | null },
-): Promise<void> {
-  await closeGrantsForTeamMembers(
-    tx,
-    [input.teamMemberId],
-    input.actorUserId ?? null,
-  );
-  await tx.teamMember.delete({ where: { id: input.teamMemberId } });
-}
+// Workspace-membership PHYSICAL removal is retired (members audit MEM-01):
+// removal is the canonical REVOCATION (rbac.service `revokeMember`), so the
+// membership history survives and its standing reach ends with it.
 
 /**
  * Mass revocation for lifecycle closures (workspace close, organization

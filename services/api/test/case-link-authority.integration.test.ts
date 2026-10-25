@@ -111,7 +111,10 @@ describe("case-link authority (live PostgreSQL 16, real HTTP)", () => {
 
     const res = await bulk(A().memberToken, { action: "REMOVE_FROM_CASE", evidenceIds: [ev] });
     expect(res.statusCode, res.body).toBe(200);
-    expect(res.json()).toMatchObject({ successCount: 0, failedCount: 1, results: [{ evidenceId: ev, ok: false, reason: "Case not found" }] });
+    // MEMBERS AUDIT ACC-01 — evidence linked to a restricted case inherits the
+    // restriction, so a member kept out of the case cannot reach the evidence
+    // either: it is refused as not found before the case is even consulted.
+    expect(res.json()).toMatchObject({ successCount: 0, failedCount: 1, results: [{ evidenceId: ev, ok: false, reason: "Evidence not found" }] });
     expect(await links(caseId)).toBe(1);
   });
 

@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "45b0ccc11d53f1ef728ed047c3c39cb19a0efadb17584989e737d434908dc85d",
+  "capabilityRouteInventoryHash": "c71b3863bb397372500c38afba0db2bfd1c41529f36a187e2f8da3a1a1d06c54",
   "totals": {
-    "routes": 1191,
+    "routes": 1193,
     "routesWithAnyTestCaller": 46,
     "testOnlyRoutes": 5,
     "testCallSites": 100,
@@ -3229,6 +3229,12 @@
     },
     {
       "routeId": "GET /v1/teams/:id/members",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/teams/:id/members/:memberId/access",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6931,6 +6937,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/teams/:id/leave",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/teams/:id/reopen",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7261,5 +7273,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "c2ea0f01cf26dbea8fbadcc40ecec824e13a706381f3412ba1ec7a0bbaca59df"
+  "contentHash": "0c57a0703053f5a5e5985e056267aea12710e8a6c3747e791ce0646a3a942194"
 }

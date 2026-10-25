@@ -26,6 +26,7 @@ import {
 } from "../../src/ui";
 import { caseStatusDisplay } from "../../src/product/domain-display";
 import { usePlatformContext } from "../../src/product/platform-context";
+import { ChallengeStepUpSheet, useChallengeStepUp } from "../../src/ui/challenge-step-up";
 import {
   CREATE_CASE_COPY,
   MATTER_QUEUE_COPY as COPY,
@@ -80,6 +81,8 @@ export default function CasesScreen() {
   const { addToast } = useToast();
   const platform = usePlatformContext();
   const teamId = platform.context?.activeTeamId ?? null;
+  // Deleting a case is irreversible and needs a fresh step-up (members audit SEC-03).
+  const stepUp = useChallengeStepUp(teamId);
   const workspaceName = platform.context?.displayName ?? null;
   const advanced = canSeeAdvancedCaseOps(platform.envelope);
 
@@ -180,7 +183,9 @@ export default function CasesScreen() {
         addToast("Case archived.", "success");
       } else {
         // 204 No Content (cases.routes.ts:1272) — read as text, not JSON.
-        await apiFetchText(`/v1/cases/${encodeURIComponent(c.row.id)}`, { method: "DELETE" });
+        await stepUp.run((headers) =>
+          apiFetchText(`/v1/cases/${encodeURIComponent(c.row.id)}`, { method: "DELETE", ...(headers ? { headers } : {}) }),
+        );
         addToast("Case deleted.", "success");
       }
       await load();
@@ -189,7 +194,7 @@ export default function CasesScreen() {
     } finally {
       setRowBusy(null);
     }
-  }, [rowConfirm, load, addToast]);
+  }, [rowConfirm, load, addToast, stepUp]);
 
   const anyFilterActive = appliedSearch.length > 0 || status !== "" || riskLevel !== "";
   const clearFilters = () => {
@@ -429,6 +434,7 @@ export default function CasesScreen() {
           onCancel={() => setRowConfirm(null)}
         />
       ) : null}
+      <ChallengeStepUpSheet stepUp={stepUp} />
     </ProovraShell>
   );
 }

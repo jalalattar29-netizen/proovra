@@ -29,7 +29,7 @@ import {
 import {
   attachEvidenceToCase,
   detachEvidenceFromCase,
-  detachAllEvidenceFromCase,
+  deleteCaseAtomically,
   caseUnlinkRefusal,
   CaseEvidenceAuthorityError,
 } from "../services/cases/case-evidence-link.service.js";
@@ -42,7 +42,16 @@ import {
   authorizeCaseEvidenceLink,
   evaluateCaseMutationPermission,
   evaluateCrossTeamAttach,
+  resolveCaseRecordAccess,
 } from "../services/cases/case-permission.service.js";
+import { listAccessibleWorkspaces } from "../services/access/accessible-workspaces.js";
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { caseVisibleToWhere } from "../services/cases/case-visibility.js";
+import {
+  accessibleWorkspaceIdsFor,
+  caseReachWhere,
+  evidenceReachWhere,
+} from "../services/access/record-reach.js";
 import { ensurePersonalWorkspace } from "../services/platform-context/workspace-bootstrap.service.js";
 import { evaluateCaseDeletionHold } from "../services/governance/legal-hold.service.js";
 // PHASE 12 POINT 7 — the canonical commercial chokepoint + the cases plan gate.
@@ -436,59 +445,14 @@ export async function casesRoutes(app: FastifyInstance) {
     })();
 
     if (eligibleForEvidenceId) {
-      // 1. Build ACTIVE-only memberships. Stricter than the default
-      //    branch — see comment above. Used for both the evidence
-      //    read-access check AND the case OR-union.
-      const activeMemberTeams = await prisma.teamMember.findMany({
-        where: { userId: ownerUserId, status: prismaPkg.TeamMemberStatus.ACTIVE },
-        select: { teamId: true },
-      });
-      const activeMemberTeamIds = activeMemberTeams.map((t) => t.teamId);
-
-      // 2. Pre-compute the cases the user can access. Used twice:
-      //    once to widen the evidence read-access check (a user may
-      //    have access to an evidence only because it is already
-      //    attached to a case they can see), and once as the
-      //    OR-union for the eligibility case query below.
-      const accessibleCases = await prisma.case.findMany({
-        where: {
-          OR: [
-            { ownerUserId },
-            { access: { some: { userId: ownerUserId } } },
-            ...(activeMemberTeamIds.length > 0
-              ? [
-                  {
-                    teamId: { in: activeMemberTeamIds },
-                    access: { none: {} },
-                  },
-                ]
-              : []),
-          ],
-        },
-        select: { id: true },
-      });
-      const accessibleCaseIds = accessibleCases.map((c) => c.id);
-
-      // 3. Load the evidence + enforce read access. Mirrors
-      //    `getEvidenceWithReadAccess`:
-      //      - direct owner, OR
-      //      - team-member of the evidence's team (ACTIVE only — the
-      //        helper does not require ACTIVE, but the eligibility
-      //        path tightens it deliberately), OR
-      //      - already attached to a case the user can access.
-      //    If no row → 404 (anti-enumeration).
+      // ONE SCOPE (members audit ACC-03 / ACC-04). Which workspaces: the
+      // canonical accessible-workspace authority (ACTIVE, unexpired, live
+      // organization). Which records inside them: the restricted-case rule,
+      // which Evidence inherits. No arm may stand in for membership.
+      const accessibleWorkspaceIds = await accessibleWorkspaceIdsFor(ownerUserId);
       const evidence = await prisma.evidence.findFirst({
         where: {
-          id: eligibleForEvidenceId,
-          OR: [
-            { ownerUserId },
-            ...(activeMemberTeamIds.length > 0
-              ? [{ teamId: { in: activeMemberTeamIds } }]
-              : []),
-            ...(accessibleCaseIds.length > 0
-              ? [{ caseLinks: { some: { caseId: { in: accessibleCaseIds } } } }]
-              : []),
-          ],
+          AND: [{ id: eligibleForEvidenceId }, evidenceReachWhere(ownerUserId, accessibleWorkspaceIds)],
         },
         select: { id: true, teamId: true },
       });
@@ -522,16 +486,6 @@ export async function casesRoutes(app: FastifyInstance) {
       //        spec's "exclude archived / deleted" rule maps to
       //        excluding the inactive status values that the
       //        attach gate would later fail on anyway.
-      const eligibleOr: Array<Record<string, unknown>> = [
-        { ownerUserId },
-        { access: { some: { userId: ownerUserId } } },
-      ];
-      if (activeMemberTeamIds.length > 0) {
-        eligibleOr.push({
-          teamId: { in: activeMemberTeamIds },
-          access: { none: {} },
-        });
-      }
 
       const eligibleItems = await prisma.case.findMany({
         where: {
@@ -545,7 +499,7 @@ export async function casesRoutes(app: FastifyInstance) {
                 ],
               },
             },
-            { OR: eligibleOr },
+            caseReachWhere(ownerUserId, accessibleWorkspaceIds),
           ],
         },
         orderBy: { createdAt: "desc" },
@@ -579,32 +533,15 @@ export async function casesRoutes(app: FastifyInstance) {
       return reply.code(200).send({ items: eligibleItems });
     }
 
-    // Default behaviour — unchanged from before the eligibility flag.
-    const memberTeams = await prisma.teamMember.findMany({
-      // P0 remediation (2026-07-21) — ACTIVE memberships only.
-      where: { userId: ownerUserId, status: "ACTIVE" },
-      select: { teamId: true },
-    });
-    const memberTeamIds = memberTeams.map((t) => t.teamId);
-
-    const or: Array<Record<string, unknown>> = [
-      { ownerUserId },
-      { access: { some: { userId: ownerUserId } } },
-    ];
-
-    if (memberTeamIds.length > 0) {
-      or.push({
-        teamId: { in: memberTeamIds },
-        access: { none: {} },
-      });
-    }
+    // Default behaviour — the same canonical scope (members audit ACC-04).
+    const accessibleWorkspaceIds = await accessibleWorkspaceIdsFor(ownerUserId);
 
     // Phase 37.95 — enforce a server-side cap on the bare list. Larger
     // tenants must consume `/v1/cases/matter-queue` (case-workspace.routes)
     // which carries a cursor + bounded page size. This endpoint is the
     // simple non-paginated index — capped at a safe default.
     const items = await prisma.case.findMany({
-      where: { OR: or },
+      where: caseReachWhere(ownerUserId, accessibleWorkspaceIds),
       orderBy: { createdAt: "desc" },
       take: 200,
     });
@@ -648,6 +585,13 @@ export async function casesRoutes(app: FastifyInstance) {
               },
             },
           },
+          teamAccess: {
+            select: {
+              id: true,
+              createdAt: true,
+              collaborationTeam: { select: { id: true, name: true, status: true } },
+            },
+          },
         },
       });
 
@@ -663,72 +607,35 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
-      if (item.ownerUserId === ownerUserId) {
+      // ONE DECISION (members audit ACC-02). The case owner and the CaseAccess
+      // list used to answer 200 BEFORE any membership check, so a removed,
+      // suspended or access-expired member who once owned or was granted the
+      // case kept reading it — and its access list's emails. The canonical
+      // record authority asks membership first and the narrowing rule second.
+      const decision = await resolveCaseRecordAccess({ userId: ownerUserId, caseId: id });
+      if (decision.allowed) {
+        const accessMode =
+          item.ownerUserId === ownerUserId
+            ? "owner"
+            : item.access.some((a) => a.userId === ownerUserId)
+              ? "direct_share"
+              : "workspace";
         auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.view",
           outcome: "success",
           resourceId: id,
           teamId: item.teamId,
+          metadata: { accessMode },
         });
-
         fireCaseAnalyticsEvent({
           eventType: "case_viewed",
           userId: ownerUserId,
           req,
           entityId: id,
+          metadata: { accessMode },
         });
-
         return reply.code(200).send({ case: item });
-      }
-
-      if (item.access.some((a) => a.userId === ownerUserId)) {
-        auditCaseAction(req, {
-          userId: ownerUserId,
-          action: "cases.view",
-          outcome: "success",
-          resourceId: id,
-          teamId: item.teamId,
-          metadata: { accessMode: "direct_share" },
-        });
-
-        fireCaseAnalyticsEvent({
-          eventType: "case_viewed",
-          userId: ownerUserId,
-          req,
-          entityId: id,
-          metadata: { accessMode: "direct_share" },
-        });
-
-        return reply.code(200).send({ case: item });
-      }
-
-      if (item.teamId && item.access.length === 0) {
-        const member = await prisma.teamMember.findUnique({
-          where: { teamId_userId: { teamId: item.teamId, userId: ownerUserId } },
-          select: { status: true },
-        });
-        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-        if (member?.status === "ACTIVE") {
-          auditCaseAction(req, {
-            userId: ownerUserId,
-            action: "cases.view",
-            outcome: "success",
-            resourceId: id,
-            teamId: item.teamId,
-            metadata: { accessMode: "team" },
-          });
-
-          fireCaseAnalyticsEvent({
-            eventType: "case_viewed",
-            userId: ownerUserId,
-            req,
-            entityId: id,
-            metadata: { accessMode: "team" },
-          });
-
-          return reply.code(200).send({ case: item });
-        }
       }
 
       auditCaseAction(req, {
@@ -1256,6 +1163,23 @@ export async function casesRoutes(app: FastifyInstance) {
         });
       }
 
+      // Deleting a case is irreversible (members audit SEC-03): a fresh
+      // step-up, as for every other action that ends access to records. A
+      // personal case has no workspace to bind a challenge to; its owner-only
+      // rule above is the gate there.
+      if (item.teamId) {
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: item.teamId,
+          userId,
+          purpose: "CASE_DELETE",
+          resourceKind: "case",
+          resourceId: id,
+        });
+        if (gate.sent) return;
+      }
+
       // Phase 4B Final Closure I5 — legal-hold gate: a CASE or
       // WORKSPACE hold MUST block deletion. ET-SEC-17 — it fails CLOSED: an
       // unreadable hold state is 503 and the case stays.
@@ -1294,16 +1218,22 @@ export async function casesRoutes(app: FastifyInstance) {
       // CANONICAL case-evidence authority: removes every
       // CaseEvidenceLink row atomically (the link table is the only
       // relationship truth).
-      await detachAllEvidenceFromCase({
-        caseId: id,
-        actorUserId: userId,
-        reason: "case_deleted",
-        ipAddress: req.ip,
-        userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
-      });
-
-      await prisma.caseAccess.deleteMany({ where: { caseId: id } });
-      await prisma.case.delete({ where: { id } });
+      // ONE TRANSACTION (members audit ACC-06): the hold is re-read under a
+      // row lock, and links, access lists and the case go together or not at
+      // all. The check above stays as the fast, auditable refusal.
+      try {
+        await deleteCaseAtomically({
+          caseId: id,
+          teamId: item.teamId,
+          actorUserId: userId,
+          ipAddress: req.ip,
+          userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
+        });
+      } catch (err) {
+        const refusal = caseUnlinkRefusal(err);
+        if (refusal) return reply.code(refusal.status).send(refusal.body);
+        throw err;
+      }
 
       auditCaseAction(req, {
         userId,
@@ -2077,27 +2007,12 @@ export async function casesRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const caseId = z.string().uuid().parse(req.params.id);
 
-      // Permission check: the case must be visible to the caller.
-      const memberTeams = await prisma.teamMember.findMany({
-        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-        where: { userId, status: "ACTIVE" },
-        select: { teamId: true },
-      });
-      const memberTeamIds = memberTeams.map((t) => t.teamId);
-      const accessOr: Array<Record<string, unknown>> = [
-        { ownerUserId: userId },
-        { access: { some: { userId } } },
-      ];
-      if (memberTeamIds.length > 0) {
-        accessOr.push({
-          teamId: { in: memberTeamIds },
-          access: { none: {} },
-        });
-      }
-      const caseRow = await prisma.case.findFirst({
-        where: { id: caseId, OR: accessOr },
-        select: { id: true, teamId: true },
-      });
+      // Permission check: the case must be visible to the caller — the one
+      // case-read authority (members audit ACC-02), not a local OR-union.
+      const decision = await resolveCaseRecordAccess({ userId, caseId });
+      const caseRow = decision.allowed
+        ? await prisma.case.findUnique({ where: { id: caseId }, select: { id: true, teamId: true } })
+        : null;
       if (!caseRow) {
         return reply.code(404).send({
           code: "CASE_NOT_FOUND",
@@ -2171,11 +2086,12 @@ export async function casesRoutes(app: FastifyInstance) {
 
       // Resolve which cases the caller can actually mutate. Mirrors
       // the access predicate in GET /v1/cases.
-      const memberTeams = await prisma.teamMember.findMany({
-        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-        where: { userId, status: "ACTIVE" },
-        select: { teamId: true, role: true },
-      });
+      // The canonical accessible-workspace authority (ACTIVE, unexpired, live
+      // organization) — members audit ACC-04/ACC-05.
+      const memberTeams = (await listAccessibleWorkspaces({ userId })).map((w) => ({
+        teamId: w.workspaceId,
+        role: w.role,
+      }));
       // K4 (2026-09-16) — a status change is a case mutation and VIEWER
       // never mutates (case-permission matrix, STATUS_CHANGE). Workspace
       // membership therefore only makes a case bulk-mutable for a non-viewer;
@@ -2187,18 +2103,8 @@ export async function casesRoutes(app: FastifyInstance) {
       const viewerTeamIds = memberTeams
         .filter((t) => t.role === "VIEWER")
         .map((t) => t.teamId);
-      const accessOr: Array<Record<string, unknown>> = [
-        { ownerUserId: userId },
-        { access: { some: { userId } } },
-      ];
-      if (memberTeamIds.length > 0) {
-        accessOr.push({
-          teamId: { in: memberTeamIds },
-          access: { none: {} },
-        });
-      }
       const accessible = await prisma.case.findMany({
-        where: { id: { in: ids }, OR: accessOr },
+        where: { AND: [{ id: { in: ids } }, caseReachWhere(userId, memberTeamIds)] },
         select: { id: true },
       });
       const accessibleSet = new Set(accessible.map((c) => c.id));
@@ -2208,9 +2114,11 @@ export async function casesRoutes(app: FastifyInstance) {
         viewerTeamIds.length > 0
           ? await prisma.case.findMany({
               where: {
-                id: { in: ids.filter((i) => !accessibleSet.has(i)) },
-                teamId: { in: viewerTeamIds },
-                access: { none: {} },
+                AND: [
+                  { id: { in: ids.filter((i) => !accessibleSet.has(i)) } },
+                  { teamId: { in: viewerTeamIds } },
+                  caseVisibleToWhere(userId),
+                ],
               },
               select: { id: true },
             })

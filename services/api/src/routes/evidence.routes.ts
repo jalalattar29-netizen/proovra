@@ -1,5 +1,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { bumpCaptureFailure, objectLockPolicyFromEnv } from "@proovra/shared-runtime";
+import {
+  accessibleWorkspaceIdsFor,
+  evidenceReachWhere,
+} from "../services/access/record-reach.js";
 import { loadRecordSigningKeyFacts, resolveRecordSignatureValidity } from "../signing/key-registry.js";
 
 import {
@@ -3038,36 +3042,13 @@ async function assertCaseAccess(userId: string, caseId: string) {
 }
 
 async function getAccessibleEvidenceContext(userId: string) {
-  const memberTeams = await prisma.teamMember.findMany({
-    // P0 remediation (2026-07-21) — list scope derives from ACTIVE
-    // memberships only; suspended/revoked members see nothing team-scoped.
-    where: { userId, status: "ACTIVE" },
-    select: { teamId: true },
-  });
-  const memberTeamIds = memberTeams.map((item) => item.teamId);
-
-  const accessibleCases = await prisma.case.findMany({
-    where: {
-      OR: [
-        { ownerUserId: userId },
-        { access: { some: { userId } } },
-        ...(memberTeamIds.length > 0
-          ? [
-              {
-                teamId: { in: memberTeamIds },
-                access: { none: {} },
-              },
-            ]
-          : []),
-      ],
-    },
-    select: { id: true },
-  });
-
-  return {
-    memberTeamIds,
-    accessibleCaseIds: accessibleCases.map((item) => item.id),
-  };
+  // ONE SCOPE (members audit ACC-03). Which workspaces: the canonical
+  // accessible-workspace authority. Which records inside them: the
+  // restricted-case rule, inherited by Evidence (record-reach.ts). The old
+  // "cases I own / was granted" arms carried no membership condition, so a
+  // former member kept listing those records.
+  const memberTeamIds = await accessibleWorkspaceIdsFor(userId);
+  return { memberTeamIds };
 }
 
 /**
@@ -3104,7 +3085,6 @@ function buildEvidenceListBaseWhere(params: {
   query: EvidenceListQuery;
   userId: string;
   memberTeamIds: string[];
-  accessibleCaseIds: string[];
   /**
    * The workspaces in which this caller may MATCH on the raw recipient
    * contact of an intake link. Empty (the default) means none, so a caller
@@ -3153,25 +3133,16 @@ function buildEvidenceListBaseWhere(params: {
         ? { lockedAt: null }
         : {};
 
-  const accessFilter: Prisma.EvidenceWhereInput = query.caseId
-    ? { caseLinks: { some: { caseId: query.caseId } } }
-    : {
-        OR: [
-          { ownerUserId: params.userId },
-          ...(params.accessibleCaseIds.length > 0
-            ? [
-                {
-                  caseLinks: {
-                    some: { caseId: { in: params.accessibleCaseIds } },
-                  },
-                },
-              ]
-            : []),
-          ...(params.memberTeamIds.length > 0
-            ? [{ teamId: { in: params.memberTeamIds } }]
-            : []),
-        ],
-      };
+  // ONE SCOPE (members audit ACC-01 / ACC-03): the caller's reach — workspace
+  // membership through the canonical authority, narrowed by restricted cases
+  // — and, for a case-filtered read, that case's links INSIDE that reach. The
+  // case filter used to stand alone, trusting the caller's earlier check.
+  const accessFilter: Prisma.EvidenceWhereInput = {
+    AND: [
+      evidenceReachWhere(params.userId, params.memberTeamIds),
+      ...(query.caseId ? [{ caseLinks: { some: { caseId: query.caseId } } }] : []),
+    ],
+  };
 
   const searchFilter = buildEvidenceListSearchFilter(query.search, {
     matchRecipientContact: (params.recipientContactTeamIds ?? []).length > 0,
@@ -7462,12 +7433,9 @@ return {
       await assertCaseAccess(ownerUserId, caseId);
     }
 
-    const memberTeams = await prisma.teamMember.findMany({
-      // P0 remediation (2026-07-21) — ACTIVE memberships only.
-      where: { userId: ownerUserId, status: "ACTIVE" },
-      select: { teamId: true },
-    });
-    const memberTeamIds = memberTeams.map((entry) => entry.teamId);
+    // The canonical accessible-workspace authority (members audit ACC-03):
+    // ACTIVE, unexpired, live organization — not a bare status filter.
+    const memberTeamIds = await accessibleWorkspaceIdsFor(ownerUserId);
 
     // PHASE 12 (anti-enumeration closure) — an EXPLICIT ?teamId= request is a
     // Workspace-scoped read: without ACTIVE membership in exactly that
@@ -7482,30 +7450,11 @@ return {
       return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
     }
 
-    const accessibleCases = await prisma.case.findMany({
-      where: {
-        OR: [
-          { ownerUserId },
-          { access: { some: { userId: ownerUserId } } },
-          ...(memberTeamIds.length > 0
-            ? [
-                {
-                  teamId: { in: memberTeamIds },
-                  access: { none: {} },
-                },
-              ]
-            : []),
-        ],
-      },
-      select: { id: true },
-    });
-    const accessibleCaseIds = accessibleCases.map((entry) => entry.id);
 
     const baseWhere = buildEvidenceListBaseWhere({
       query: parsedQuery,
       userId: ownerUserId,
       memberTeamIds,
-      accessibleCaseIds,
       recipientContactTeamIds: await resolveRecipientContactSearchScope(
         req,
         memberTeamIds,
@@ -7616,37 +7565,15 @@ return {
         await assertCaseAccess(ownerUserId, caseId);
       }
 
-      const memberTeams = await prisma.teamMember.findMany({
-        // P0 remediation (2026-07-21) — ACTIVE memberships only.
-        where: { userId: ownerUserId, status: "ACTIVE" },
-        select: { teamId: true },
-      });
-      const memberTeamIds = memberTeams.map((entry) => entry.teamId);
+      // The canonical accessible-workspace authority (members audit ACC-03):
+      // ACTIVE, unexpired, live organization — not a bare status filter.
+      const memberTeamIds = await accessibleWorkspaceIdsFor(ownerUserId);
 
-      const accessibleCases = await prisma.case.findMany({
-        where: {
-          OR: [
-            { ownerUserId },
-            { access: { some: { userId: ownerUserId } } },
-            ...(memberTeamIds.length > 0
-              ? [
-                  {
-                    teamId: { in: memberTeamIds },
-                    access: { none: {} },
-                  },
-                ]
-              : []),
-          ],
-        },
-        select: { id: true },
-      });
-      const accessibleCaseIds = accessibleCases.map((entry) => entry.id);
 
       const baseWhere = buildEvidenceListBaseWhere({
         query: parsedQuery,
         userId: ownerUserId,
         memberTeamIds,
-        accessibleCaseIds,
         recipientContactTeamIds: await resolveRecipientContactSearchScope(
           req,
           memberTeamIds,
@@ -8690,7 +8617,6 @@ return {
       },
       userId,
       memberTeamIds: accessContext.memberTeamIds,
-      accessibleCaseIds: accessContext.accessibleCaseIds,
     });
 
     const partHashes = await prisma.evidencePart.findMany({
@@ -8927,33 +8853,18 @@ return {
       }
 
       if (body.assignedToUserId) {
-        // Track 1B closure — access can flow through ANY linked case.
-        const assigneeCaseLinks = await prisma.caseEvidenceLink.findMany({
-          where: { evidenceId: id },
-          select: { caseId: true },
-          take: 100,
-        });
-        const targetUserAccessible =
-          evidence.ownerUserId === body.assignedToUserId ||
-          (assigneeCaseLinks.length > 0
-            ? await prisma.caseAccess.findFirst({
-                where: {
-                  caseId: { in: assigneeCaseLinks.map((l) => l.caseId) },
-                  userId: body.assignedToUserId,
-                },
-                select: { caseId: true },
-              })
-            : evidence.teamId
-              ? await prisma.teamMember.findFirst({
-                  where: {
-                    teamId: evidence.teamId,
-                    userId: body.assignedToUserId,
-                    // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-                    status: "ACTIVE",
-                  },
-                  select: { id: true },
-                })
-              : null);
+        // ONE DECISION (members audit ACC-07): the assignee must be able to
+        // open this record through the canonical record authority — current
+        // membership first, then the restricted-case rule. The old check took
+        // a stale CaseAccess row with no membership (a former member qualified)
+        // and refused an ACTIVE member on an unrestricted case.
+        const targetUserAccessible = (
+          await resolveEvidenceRecordAccess({
+            userId: body.assignedToUserId,
+            evidenceId: id,
+            permission: "evidence.read",
+          })
+        ).allowed;
 
         if (!targetUserAccessible) {
           return reply

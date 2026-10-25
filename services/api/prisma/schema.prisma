@@ -621,6 +621,8 @@ model Case {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   access              CaseAccess[]
+  /// Members audit ACC-10 — Collaboration Teams granted reach into this case.
+  teamAccess          CaseCollaborationTeamAccess[]
   // PHASE 12B CLUSTER 8 — CASE-scoped rows in the canonical legal-hold
   // table (evidence_legal_holds). Restrict on delete: a Case with a
   // preservation control cannot be removed out from under it.
@@ -2374,6 +2376,32 @@ model CaseAccess {
   @@index([caseId])
   @@index([userId])
   @@map("case_access")
+}
+
+/// MEMBERS AUDIT ACC-10 (2026-10-25) — a Collaboration Team's reach into a Case.
+///
+/// Roles define capability; access lists define reach. A Case with ANY
+/// CaseAccess row or ANY row here is RESTRICTED: only its owner, the members on
+/// its CaseAccess list, and the effective members of an ACTIVE Collaboration
+/// Team granted here may open it — and the Evidence linked to it inherits that
+/// restriction. Workspace membership alone (OWNER and ADMIN included) never
+/// reaches a restricted Case. An ARCHIVED team's grant confers nothing.
+///
+/// The team FK is Restrict: a team that still holds case grants is not
+/// disposable and must be archived (its grants then stop conferring reach).
+model CaseCollaborationTeamAccess {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId              String   @map("case_id") @db.Uuid
+  collaborationTeamId String   @map("collaboration_team_id") @db.Uuid
+  grantedByUserId     String   @map("granted_by_user_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  case              Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  collaborationTeam CollaborationTeam @relation("CaseCollaborationTeamAccessTeam", fields: [collaborationTeamId], references: [id], onDelete: Restrict)
+
+  @@unique([caseId, collaborationTeamId])
+  @@index([collaborationTeamId])
+  @@map("case_collaboration_team_access")
 }
 
 /// THE WORKSPACE INVITATION — the one that actually grants tenancy access.
@@ -13881,6 +13909,8 @@ model CollaborationTeam {
   notificationPreferences CollaborationTeamNotificationPreference[] @relation("CollaborationTeamNotificationPreferenceTeam")
   guests                  CollaborationTeamGuest[]                  @relation("CollaborationTeamGuestTeam")
   accessReviews           CollaborationTeamAccessReview[]           @relation("CollaborationTeamAccessReviewTeam")
+  /// Members audit ACC-10 — cases this Collaboration Team was granted reach into.
+  caseAccess              CaseCollaborationTeamAccess[]             @relation("CaseCollaborationTeamAccessTeam")
 
   @@index([workspaceId, status])
   @@index([createdByUserId])

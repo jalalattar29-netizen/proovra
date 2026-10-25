@@ -35,6 +35,13 @@ function makeTx() {
     {},
     {
       get(_t, model: string) {
+        // Members audit SEC-01 — the transfer locks the workspace row first.
+        if (model === "$queryRaw") {
+          return async (...args: unknown[]) => {
+            H.calls.push({ model, method: "raw", args });
+            return [];
+          };
+        }
         return new Proxy(
           {},
           {

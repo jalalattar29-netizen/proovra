@@ -93,7 +93,6 @@ import * as prismaPkg from "@prisma/client";
 // WAVE A FINAL CLOSURE (2026-07-22) — member transitions are consumed via the
 // Membership Orchestrator public command surface; the rbac engine is internal.
 import {
-  RbacError,
   changeMemberRole,
   grantCapability,
   grantDelegatedAdminScope,
@@ -106,7 +105,10 @@ import {
 } from "../services/identity/membership-provisioning.service.js";
 // PHASE 12B — managed (SCIM/SSO-owned) identities are read-only on this
 // unmanaged administration path.
-import { resolveManagedIdentity } from "../services/identity/identity-mode.service.js";
+import {
+  denyIfManagedIdentity,
+  sendRbacRefusal as handleRbacError,
+} from "../http/member-command-gates.js";
 import {
   disableApiCredential,
   enableApiCredential,
@@ -394,63 +396,8 @@ async function resolveMappingTarget(
   return { teamId: row.teamId, mappingId: row.id, userId: row.userId };
 }
 
-/**
- * MANAGED-IDENTITY GUARD. A SCIM/SSO-owned identity's membership state is
- * owned by the directory; changing it here would be silently reverted on the
- * next sync and would break the organization's provable provisioning trail.
- * Both the resolved MANAGED and the fail-closed MANAGED_UNRESOLVED states are
- * refused with ONE bounded code (never a free-text or state-revealing body).
- * A schema-unavailable read denies too — it is never read as "STANDARD".
- *
- * Returns true when the caller must stop (the reply has been sent).
- */
-async function denyIfManagedIdentity(
-  reply: FastifyReply,
-  targetUserId: string,
-): Promise<boolean> {
-  try {
-    const identity = await resolveManagedIdentity(targetUserId);
-    if (identity.state === "STANDARD") return false;
-    reply.code(409).send({ error: { code: "managed_identity_readonly" } });
-    return true;
-  } catch {
-    // FAIL CLOSED: an unresolvable identity mode (schema unavailable, read
-    // failure) is never read as "STANDARD" — the mutation is refused.
-    reply.code(503).send({ error: { code: "identity_mode_unavailable" } });
-    return true;
-  }
-}
-
-function handleRbacError(reply: FastifyReply, err: unknown): boolean {
-  if (err instanceof RbacError) {
-    const status =
-      err.code === "member_not_found"
-        ? 404
-        : err.code === "self_action_forbidden" ||
-            // D54 — the granting administrator does not hold the permission.
-            err.code === "grantor_lacks_permission"
-          ? 403
-          : err.code === "member_owner_immutable" ||
-              err.code === "role_transition_to_owner_forbidden"
-            ? 400
-            : err.code === "invalid_status_transition" ||
-                // PHASE 12B — the atomic last-administrator guard.
-                err.code === "last_administrator_protected"
-              ? 409
-              : err.code === "capability_unknown"
-                ? 400
-                : err.code === "capability_already_active" ||
-                    err.code === "delegated_scope_already_active"
-                  ? 409
-                  : err.code === "capability_not_found" ||
-                      err.code === "delegated_scope_not_found"
-                    ? 404
-                    : 400;
-    reply.code(status).send({ error: { code: err.code } });
-    return true;
-  }
-  return false;
-}
+// The managed-identity guard and the engine refusal mapping live in ONE module
+// shared with the /v1/teams member routes (members audit ROLE-01).
 
 function handleAccessReviewError(reply: FastifyReply, err: unknown): boolean {
   if (err instanceof AccessReviewError) {

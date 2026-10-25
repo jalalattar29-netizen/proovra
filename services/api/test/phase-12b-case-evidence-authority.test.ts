@@ -101,7 +101,14 @@ vi.mock("../src/db.js", () => {
     case: {
       findUnique: async ({ where }: { where: { id: string } }) =>
         H.cases.get(where.id) ?? null,
+      delete: async ({ where }: { where: { id: string } }) => {
+        H.cases.delete(where.id);
+        H.mutations += 1;
+        return { id: where.id };
+      },
     },
+    caseAccess: { deleteMany: async () => ({ count: 0 }) },
+    caseCollaborationTeamAccess: { deleteMany: async () => ({ count: 0 }) },
     evidence: {
       findUnique: async ({ where }: { where: { id: string } }) =>
         H.evidence.get(where.id) ?? null,
@@ -196,7 +203,7 @@ vi.mock("../src/db.js", () => {
 import {
   attachEvidenceToCase,
   detachEvidenceFromCase,
-  detachAllEvidenceFromCase,
+  deleteCaseAtomically,
   CaseEvidenceAuthorityError,
 } from "../src/services/cases/case-evidence-link.service.js";
 
@@ -459,13 +466,14 @@ describe("Track 1B — detach matrix", () => {
     expect(H.links[0].caseId).toBe(CASE_TEAM_2);
   });
 
-  it("detachAllEvidenceFromCase removes every link (case deletion); link table is the only truth", async () => {
+  it("deleteCaseAtomically removes every link with the case (case deletion); link table is the only truth", async () => {
     seed({ links: [{ caseId: CASE_TEAM, evidenceId: EV_TEAM }] });
-    const result = await detachAllEvidenceFromCase({
+    const result = await deleteCaseAtomically({
       caseId: CASE_TEAM,
+      teamId: H.cases.get(CASE_TEAM)?.teamId ?? null,
       actorUserId: ACTOR,
-      reason: "case_deleted",
     });
+    expect(H.cases.has(CASE_TEAM)).toBe(false);
     expect(result.removedLinkCount).toBe(1);
     expect(H.links).toHaveLength(0);
     expect(H.evidenceWrites).toBe(0);

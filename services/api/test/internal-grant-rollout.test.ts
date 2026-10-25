@@ -110,6 +110,9 @@ describe("internal-grant rollout — migration state", () => {
       // (owner matrix 2026-10-24): one nullable boolean on enterprise_contracts,
       // NULL = the catalog answer (included). EXPAND only.
       "20281024000000_enterprise_contract_reviewer_operations",
+      // Members audit ACC-01/ACC-10: a Collaboration Team's reach into a Case.
+      // One new empty table; EXPAND only.
+      "20281025000000_case_collaboration_team_access",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

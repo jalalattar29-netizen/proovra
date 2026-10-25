@@ -34,6 +34,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { Permission } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { CASE_VISIBILITY_SELECT, caseRowVisibleTo } from "../cases/case-visibility.js";
 import {
   evaluateMemberAccess,
   type AccessDenyReason,
@@ -49,6 +50,7 @@ export type EvidenceRecordDenyReason =
   | "evidence_not_found"
   | "not_personal_owner"
   | "authorization_unavailable"
+  | "case_access_list"
   | AccessDenyReason;
 
 export type EvidenceRecordAccessResult =
@@ -92,9 +94,24 @@ export async function resolveEvidenceRecordAccess(
       },
       client,
     );
-    return decision.allowed
-      ? { allowed: true }
-      : { allowed: false, internalReason: decision.reason };
+    if (!decision.allowed) {
+      return { allowed: false, internalReason: decision.reason };
+    }
+    // RESTRICTED-CASE INHERITANCE (members audit ACC-01). Workspace access is
+    // necessary, never sufficient: Evidence linked to a restricted Case the
+    // caller cannot see is closed to them — OWNER and ADMIN included — and so
+    // are its reports, packages and original. The narrowing rule is the one
+    // in case-visibility.ts; nothing here restates it.
+    const links = await client.caseEvidenceLink.findMany({
+      where: { evidenceId: row.id },
+      select: { case: { select: CASE_VISIBILITY_SELECT } },
+    });
+    for (const link of links) {
+      if (!caseRowVisibleTo(link.case, input.userId)) {
+        return { allowed: false, internalReason: "case_access_list" };
+      }
+    }
+    return { allowed: true };
   } catch {
     return { allowed: false, internalReason: "authorization_unavailable" };
   }

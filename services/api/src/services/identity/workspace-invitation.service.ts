@@ -381,6 +381,44 @@ export type AcceptResult = {
  * taken before the transaction opened, so N concurrent accepts of N DIFFERENT
  * invitations all saw the same "one seat left" and all provisioned.
  */
+/**
+ * AN INVITATION NEVER REVIVES A MEMBERSHIP AN ADMINISTRATOR ENDED (members
+ * audit INV-01).
+ *
+ * Acceptance upserts the membership to ACTIVE, and only short-circuited an
+ * already-ACTIVE row — so a SUSPENDED member holding a still-pending
+ * invitation reinstated themself, bypassing the step-up-gated restore, and a
+ * REVOKED member did the same despite REVOKED being terminal.
+ *
+ *   SUSPENDED  refused: reinstatement is the governed restore.
+ *   REVOKED    refused when the invitation was issued BEFORE the removal (it
+ *              is the very access that was ended); an invitation issued AFTER
+ *              it is an administrator deliberately re-adding the person.
+ */
+function assertInvitationCannotReviveMembership(
+  membership: { status: string; revokedAtUtc: Date | null } | null,
+  invitationCreatedAt: Date,
+): void {
+  if (!membership) return;
+  if (membership.status === prismaPkg.TeamMemberStatus.SUSPENDED) {
+    throw new WorkspaceInvitationError(
+      "MEMBERSHIP_SUSPENDED",
+      "Your membership in this workspace is suspended. Ask a workspace administrator to reinstate it.",
+      409,
+    );
+  }
+  if (
+    membership.status === prismaPkg.TeamMemberStatus.REVOKED &&
+    (membership.revokedAtUtc === null || membership.revokedAtUtc.getTime() >= invitationCreatedAt.getTime())
+  ) {
+    throw new WorkspaceInvitationError(
+      "INVITE_SUPERSEDED",
+      "This invitation was issued before your access to this workspace ended. Ask for a new invitation.",
+      409,
+    );
+  }
+}
+
 export async function acceptWorkspaceInvitation(
   input: { rawToken: string; actorUserId: string },
   client: PrismaClient = defaultPrisma,
@@ -469,21 +507,27 @@ export async function acceptWorkspaceInvitation(
     );
   }
 
-  // An existing ACTIVE member re-clicking a link is a success, not an error,
-  // and it consumes nothing.
   const existingMembership = await client.teamMember.findUnique({
     where: {
       teamId_userId: { teamId: invite.teamId, userId: input.actorUserId },
     },
-    select: { status: true },
+    select: { status: true, revokedAtUtc: true },
   });
+  // An existing ACTIVE member re-clicking a link is a success, not an error —
+  // and the invitation is CONSUMED (members audit INV-07): left PENDING it kept
+  // counting against the pending allowance and stayed replayable until expiry.
   if (existingMembership?.status === prismaPkg.TeamMemberStatus.ACTIVE) {
+    await client.teamInvite.updateMany({
+      where: { id: invite.id, acceptedAt: null, revokedAt: null },
+      data: { acceptedAt: new Date(), acceptedByUserId: input.actorUserId },
+    });
     return {
       workspaceId: invite.teamId,
       role: invite.role,
       alreadyMember: true,
     };
   }
+  assertInvitationCannotReviveMembership(existingMembership, invite.createdAt);
 
   /**
    * DO NOT HOLD A CONNECTION WHILE WAITING FOR A LOCK.
@@ -531,8 +575,27 @@ export async function acceptWorkspaceInvitation(
       );
     }
 
+    // The membership is re-read under the lock: a suspension or removal that
+    // committed after the first read must still win (members audit INV-01).
+    assertInvitationCannotReviveMembership(
+      await tx.teamMember.findUnique({
+        where: { teamId_userId: { teamId: invite.teamId, userId: input.actorUserId } },
+        select: { status: true, revokedAtUtc: true },
+      }),
+      invite.createdAt,
+    );
+
+    // The claim re-checks the token and the expiry it was accepted under
+    // (members audit INV-08): a resend that rotated the token, or an expiry
+    // that passed, between the read above and this write must refuse.
     const claimed = await tx.teamInvite.updateMany({
-      where: { id: invite.id, acceptedAt: null, revokedAt: null },
+      where: {
+        id: invite.id,
+        tokenHash: hash,
+        acceptedAt: null,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
       data: { acceptedAt: new Date(), acceptedByUserId: input.actorUserId },
     });
     if (claimed.count === 0) {

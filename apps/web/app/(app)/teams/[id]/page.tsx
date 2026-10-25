@@ -22,7 +22,7 @@
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useToast } from "../../../../components/ui";
 import { Button } from "../../../../components/ui/Button";
@@ -433,7 +433,6 @@ function normalizePlanLabel(value?: string | null): string | null {
 
 function TeamDetailPageBody() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const { addToast } = useToast();
 
   const teamId = params?.id;

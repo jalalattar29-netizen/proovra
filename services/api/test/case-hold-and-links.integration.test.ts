@@ -217,19 +217,22 @@ describe("case hold, role and link concurrency (live PostgreSQL 16)", () => {
 
   // --- UC-CASE-005 ------------------------------------------------------------
 
-  it("CASE-005: the review workspace lists every case the viewer may open and hides a restricted one", async () => {
+  // MEMBERS AUDIT ACC-01 — evidence linked to a restricted case INHERITS the
+  // restriction. This case used to assert that a member NOT on the restricted
+  // case's list could still open the evidence and merely not see the case name;
+  // the evidence, its reports and packages are now closed to that member too.
+  it("CASE-005: the review workspace lists every case the viewer may open; evidence linked to a restricted case is closed to members not on it", async () => {
     const open1 = await newCase("open-one");
     const open2 = await newCase("open-two");
     const restricted = await newCase("restricted-secret");
     await prisma.caseAccess.create({ data: { caseId: restricted, userId: A().adminUserId } });
-    const ev = await record(A().ownerUserId);
-    await link(open1, ev);
-    await link(restricted, ev);
-    await link(open2, ev);
 
+    const visible = await record(A().ownerUserId);
+    await link(open1, visible);
+    await link(open2, visible);
     const asMember = await h.app.inject({
       method: "GET",
-      url: `/v1/evidence/${ev}/review-workspace`,
+      url: `/v1/evidence/${visible}/review-workspace`,
       headers: auth(A().memberToken),
     });
     expect(asMember.statusCode, asMember.body).toBe(200);
@@ -237,13 +240,25 @@ describe("case hold, role and link concurrency (live PostgreSQL 16)", () => {
     expect(rel.cases.map((c) => c.caseId).sort()).toEqual([open1, open2].sort());
     expect(asMember.body).not.toContain(restricted);
     expect(asMember.body).not.toContain("restricted-secret");
-    expect(rel.caseId).toBe(open1);
+
+    const inherited = await record(A().ownerUserId);
+    await link(open1, inherited);
+    await link(restricted, inherited);
+    await link(open2, inherited);
+    const closed = await h.app.inject({
+      method: "GET",
+      url: `/v1/evidence/${inherited}/review-workspace`,
+      headers: auth(A().memberToken),
+    });
+    expect(closed.statusCode).toBe(404);
+    expect(closed.body).not.toContain("restricted-secret");
 
     const asAdmin = await h.app.inject({
       method: "GET",
-      url: `/v1/evidence/${ev}/review-workspace`,
+      url: `/v1/evidence/${inherited}/review-workspace`,
       headers: auth(A().adminToken),
     });
     expect((asAdmin.json().relationships.cases as unknown[]).length).toBe(3);
   });
+
 });

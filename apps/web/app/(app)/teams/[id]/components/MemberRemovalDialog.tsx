@@ -34,6 +34,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "../../../../../components/cases-experience/matter-modals/Modal";
 import { Button } from "../../../../../components/ui";
 import { apiFetch } from "../../../../../lib/api";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../../components/identity-security/StepUpModal";
 import { captureException } from "../../../../../lib/sentry";
 
 type RemovalImpactResponse = {
@@ -167,6 +171,8 @@ export function MemberRemovalDialog({
     return true;
   }, [impact, submitting, requiresTransfer, hasEligibleTargets, transferToUserId]);
 
+  const stepUp = useStepUpAction({ teamId: teamId ?? null });
+
   const handleConfirm = useCallback(async () => {
     if (!teamId || !member?.memberId || !canSubmit) return;
     setSubmitting(true);
@@ -176,15 +182,18 @@ export function MemberRemovalDialog({
         requiresTransfer && transferToUserId
           ? { transferToUserId }
           : undefined;
-      await apiFetch(`/v1/teams/${teamId}/members/${member.memberId}`, {
-        method: "DELETE",
-        ...(body
-          ? {
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
-            }
-          : {}),
-      });
+      // Removing access needs a fresh step-up (members audit ROLE-01); the
+      // shared modal runs the challenge and the request is retried with it.
+      await stepUp.runStepUpAction((headers) =>
+        apiFetch(`/v1/teams/${teamId}/members/${member.memberId}`, {
+          method: "DELETE",
+          headers: {
+            ...(body ? { "Content-Type": "application/json" } : {}),
+            ...(headers ?? {}),
+          },
+          ...(body ? { body: JSON.stringify(body) } : {}),
+        }),
+      );
       onRemoved({ transferToUserId: transferToUserId || null });
     } catch (err) {
       const e = err as {
@@ -207,7 +216,7 @@ export function MemberRemovalDialog({
         setSubmitError(
           "That transfer target isn't eligible anymore — refresh and try again.",
         );
-      } else if (e.statusCode === 403) {
+      } else if (e.statusCode === 403 && !e.code) {
         setSubmitError(
           "You don't have permission to remove members from this workspace.",
         );
@@ -224,11 +233,14 @@ export function MemberRemovalDialog({
     requiresTransfer,
     transferToUserId,
     onRemoved,
+    stepUp,
   ]);
 
   if (!member) return null;
 
   return (
+    <>
+    <StepUpModal control={stepUp} />
     <Modal
       open={open}
       onClose={() => {
@@ -438,6 +450,7 @@ export function MemberRemovalDialog({
         ) : null}
       </div>
     </Modal>
+    </>
   );
 }
 

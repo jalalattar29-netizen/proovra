@@ -516,14 +516,25 @@ describe("step-up denial", () => {
 // ---------------------------------------------------------------------------
 
 describe("last-administrator protection (atomic, under concurrency)", () => {
-  function seedTwoAdmins() {
+  /*
+   * MEMBERS AUDIT ROLE-04 changed what can reach this guard. An actor must now
+   * hold an ACTIVE membership that STRICTLY outranks the member they act on, so
+   * an actor always remains an administrator themself and a suspend, revoke or
+   * demotion can no longer remove the last one. The two races these cases used
+   * to stage — a SUSPENDED actor demoting the last two ADMINs, an ADMIN
+   * suspending its last peer — are refused by the rank rule first, with zero
+   * mutation, which is asserted below. The last-administrator guard itself
+   * (now reachable through leave) is proven against real PostgreSQL in
+   * members-membership-commands.integration.test.ts.
+   */
+  function seedAdmins(actorRole: "ADMIN" | "OWNER") {
     return makeDb({
       members: [
         {
           id: "tm-actor",
           teamId: TEAM,
           userId: ACTOR,
-          role: "ADMIN",
+          role: actorRole,
           status: "ACTIVE",
           accessExpiresAtUtc: null,
         },
@@ -548,121 +559,52 @@ describe("last-administrator protection (atomic, under concurrency)", () => {
     });
   }
 
-  it("two concurrent demotions of the last two administrators cannot both commit", async () => {
-    // Three ADMINs; the actor keeps its own row (self-action is refused), so
-    // demoting BOTH others would leave exactly one — allowed. To force the
-    // race, demote the actor's two peers when only they and the actor exist
-    // AFTER the actor itself is suspended out of the administrative tier.
-    const db = seedTwoAdmins();
+  it("a SUSPENDED actor cannot demote the last two administrators — both refused, nothing changes", async () => {
+    const db = seedAdmins("ADMIN");
     H.db = db;
-    // Remove the actor from the ACTIVE administrative tier so that MEMBER_A and
-    // MEMBER_B are the last two administrators.
     db.state.members.find((m) => m.id === "tm-actor")!.status = "SUSPENDED";
 
     const results = await Promise.allSettled([
       changeMemberRole(
-        {
-          teamId: TEAM,
-          teamMemberId: MEMBER_A,
-          actorUserId: ACTOR,
-          newRole: "VIEWER" as never,
-        },
+        { teamId: TEAM, teamMemberId: MEMBER_A, actorUserId: ACTOR, newRole: "VIEWER" as never },
         db.client as never,
       ),
       changeMemberRole(
-        {
-          teamId: TEAM,
-          teamMemberId: MEMBER_B,
-          actorUserId: ACTOR,
-          newRole: "VIEWER" as never,
-        },
+        { teamId: TEAM, teamMemberId: MEMBER_B, actorUserId: ACTOR, newRole: "VIEWER" as never },
         db.client as never,
       ),
     ]);
 
-    const fulfilled = results.filter((r) => r.status === "fulfilled");
-    const rejected = results.filter((r) => r.status === "rejected");
-    expect(fulfilled).toHaveLength(1);
-    expect(rejected).toHaveLength(1);
-    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(
-      RbacError,
-    );
-    expect((rejected[0] as PromiseRejectedResult).reason.code).toBe(
-      "last_administrator_protected",
-    );
-
-    // The workspace still has an administrator — the invariant held.
-    const remaining = db.state.members.filter(
-      (m) => m.status === "ACTIVE" && (m.role === "ADMIN" || m.role === "OWNER"),
-    );
-    expect(remaining).toHaveLength(1);
-
-    // And the guard's re-count ran INSIDE a transaction every time.
-    expect(H.countTxDepths.length).toBeGreaterThan(0);
-    expect(H.countTxDepths.every((depth) => depth > 0)).toBe(true);
+    expect(results.every((r) => r.status === "rejected")).toBe(true);
+    for (const r of results) {
+      expect((r as PromiseRejectedResult).reason).toBeInstanceOf(RbacError);
+      expect((r as PromiseRejectedResult).reason.code).toBe("rank_insufficient");
+    }
+    expect(
+      db.state.members.filter((m) => m.status === "ACTIVE" && m.role === "ADMIN"),
+    ).toHaveLength(2);
   });
 
-  it("refuses to suspend the only remaining administrator (zero mutation)", async () => {
-    const db = makeDb({
-      members: [
-        {
-          id: "tm-actor",
-          teamId: TEAM,
-          userId: ACTOR,
-          role: "ADMIN",
-          status: "ACTIVE",
-          accessExpiresAtUtc: null,
-        },
-        {
-          id: MEMBER_A,
-          teamId: TEAM,
-          userId: USER_A,
-          role: "ADMIN",
-          status: "ACTIVE",
-          accessExpiresAtUtc: null,
-        },
-      ],
-      users: [],
-    });
+  it("an ADMIN cannot suspend another ADMIN (zero mutation)", async () => {
+    const db = seedAdmins("ADMIN");
     H.db = db;
-    // The actor is not in the ACTIVE administrative tier, so MEMBER_A is the
-    // last administrator standing.
-    db.state.members.find((m) => m.id === "tm-actor")!.status = "SUSPENDED";
-
     await expect(
-      suspendMember(
-        {
-          teamId: TEAM,
-          teamMemberId: MEMBER_A,
-          actorUserId: ACTOR,
-        },
-        db.client as never,
-      ),
-    ).rejects.toMatchObject({ code: "last_administrator_protected" });
-
-    expect(db.state.members.find((m) => m.id === MEMBER_A)?.status).toBe(
-      "ACTIVE",
-    );
+      suspendMember({ teamId: TEAM, teamMemberId: MEMBER_A, actorUserId: ACTOR }, db.client as never),
+    ).rejects.toMatchObject({ code: "rank_insufficient" });
+    expect(db.state.members.find((m) => m.id === MEMBER_A)?.status).toBe("ACTIVE");
     expect(H.writes.filter((w) => MUTATIONS.test(w))).toEqual([]);
   });
 
-  it("a demotion that leaves another administrator standing is allowed", async () => {
-    const db = seedTwoAdmins();
+  it("the OWNER demoting an ADMIN, with another administrator standing, is allowed", async () => {
+    const db = seedAdmins("OWNER");
     H.db = db;
     const updated = await changeMemberRole(
-      {
-        teamId: TEAM,
-        teamMemberId: MEMBER_A,
-        actorUserId: ACTOR,
-        newRole: "VIEWER" as never,
-      },
+      { teamId: TEAM, teamMemberId: MEMBER_A, actorUserId: ACTOR, newRole: "VIEWER" as never },
       db.client as never,
     );
     expect(updated.role).toBe("VIEWER");
-    expect(
-      db.state.members.filter(
-        (m) => m.status === "ACTIVE" && m.role === "ADMIN",
-      ),
-    ).toHaveLength(2);
+    // The guard's re-count ran INSIDE the transaction.
+    expect(H.countTxDepths.length).toBeGreaterThan(0);
+    expect(H.countTxDepths.every((depth) => depth > 0)).toBe(true);
   });
 });

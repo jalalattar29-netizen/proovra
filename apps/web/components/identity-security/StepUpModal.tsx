@@ -148,7 +148,13 @@ export function useStepUpAction({
   }, []);
 
   const runStepUpAction = useCallback(
-    async <T,>(action: StepUpAction<T>): Promise<T> => {
+    /**
+     * `options.teamId` binds the challenge to the RECORD's workspace when it
+     * is not the active one — a list that spans workspaces (Cases) deletes a
+     * case of workspace B while A is active, and a challenge minted for A is
+     * refused for B. Defaults to the hook's workspace.
+     */
+    async <T,>(action: StepUpAction<T>, options?: { teamId?: string | null }): Promise<T> => {
       try {
         return await action();
       } catch (err) {
@@ -165,7 +171,7 @@ export function useStepUpAction({
           setState({
             kind: "starting",
             details: extractDetails(err.details),
-            teamId,
+            teamId: options?.teamId ?? teamId,
           });
         });
       }

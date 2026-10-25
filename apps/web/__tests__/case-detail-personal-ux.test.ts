@@ -245,10 +245,13 @@ test("Status change uses POST /v1/cases/:id/status with { toStatus }", () => {
 });
 
 test("Delete uses DELETE /v1/cases/:id — and copy says preserved evidence is NOT deleted", () => {
+  // Members audit SEC-03 — the DELETE is sent through the step-up action, so
+  // the challenge header rides along when the server asks for one.
   assert.match(
     COMPONENT,
-    /apiFetch\(`\/v1\/cases\/\$\{caseId\}`,\s*\{\s*method: "DELETE"\s*\}\)/,
+    /apiFetch\(`\/v1\/cases\/\$\{caseId\}`,\s*\{\s*method: "DELETE",\s*\.\.\.\(headers \? \{ headers \} : \{\}\)\s*\}\)/,
   );
+  assert.match(COMPONENT, /stepUp\.runStepUpAction\(/);
   assert.match(
     COMPONENT,
     /Deleting this case will not delete preserved evidence records\. Evidence remains available in the Evidence Library unless separately archived or restricted\./,
@@ -565,7 +568,10 @@ test("Backend delete-case route still has the legal-hold gate AND only unlinks e
   // canonical link authority (detachAllEvidenceFromCase), which detaches every
   // CaseEvidenceLink and syncs the legacy caseId mirror atomically. It never
   // deletes evidence rows.
-  assert.match(CASE_ROUTES, /detachAllEvidenceFromCase\(/);
+  // Members audit ACC-06 — the unlink, the access lists and the case now go
+  // together in ONE transaction (deleteCaseAtomically), with the hold re-read
+  // under a row lock; it still never deletes an evidence row.
+  assert.match(CASE_ROUTES, /deleteCaseAtomically\(/);
   // Anti-regression: the DELETE handler must not call
   // `prisma.evidence.deleteMany`.
   assert.doesNotMatch(CASE_ROUTES, /prisma\.evidence\.deleteMany/);

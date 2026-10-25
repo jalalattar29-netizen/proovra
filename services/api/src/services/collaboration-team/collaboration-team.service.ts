@@ -1232,7 +1232,7 @@ export async function assessCollaborationTeamDisposability(
   );
   void team;
 
-  const [assignments, comments, accessReviews, guests, activity] =
+  const [assignments, comments, accessReviews, guests, activity, caseGrants] =
     await Promise.all([
       // Responsibility for a Case, Evidence or Review — the provenance record.
       client.collaborationTeamAssignment.count({
@@ -1271,6 +1271,10 @@ export async function assessCollaborationTeamDisposability(
           },
         },
       }),
+      // Members audit ACC-10 — Cases this group was granted reach into. The
+      // grant is an access record; the team FK is RESTRICT so it can never be
+      // cascaded away, and a group holding grants is archived instead.
+      client.caseCollaborationTeamAccess.count({ where: { collaborationTeamId: input.teamId } }),
     ]);
 
   const blockers = [
@@ -1279,6 +1283,7 @@ export async function assessCollaborationTeamDisposability(
     { kind: "accessReviews", count: accessReviews },
     { kind: "guests", count: guests },
     { kind: "activity", count: activity },
+    { kind: "caseAccess", count: caseGrants },
   ].filter((b) => b.count > 0);
 
   return { disposable: blockers.length === 0, blockers };

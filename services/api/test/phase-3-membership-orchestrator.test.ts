@@ -266,7 +266,9 @@ function walk(dir: string): string[] {
  */
 const RESIDUAL_WRITERS: Record<string, number> = {
   "membership-provisioning.service.ts": 99,
-  "rbac.service.ts": 5,
+  // +1 (2026-10-25, members audit LIFE-15): leaveWorkspace — the governed
+  // self-revocation, same state machine and last-administrator guard.
+  "rbac.service.ts": 6,
 };
 
 describe("Phase 3 — no unregistered direct membership writes", () => {

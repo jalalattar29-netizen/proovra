@@ -38,14 +38,12 @@ describe("PHASE 13 §4 — writer dispositions (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
   let prisma: (typeof import("../src/db.js"))["prisma"];
   let teamA: string;
-  let ownerA: string;
 
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     harness = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
     teamA = harness.fixtures.teamA.teamId;
-    ownerA = harness.fixtures.teamA.ownerUserId;
   });
 
   afterAll(async () => {

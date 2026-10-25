@@ -21,6 +21,7 @@ import {
 import { theme } from "../theme/theme";
 import { ProovraButton, ProovraText } from "./index";
 import { ProovraFilterChips, ProovraSheet } from "./patterns";
+import { ChallengeStepUpSheet, useChallengeStepUp } from "./challenge-step-up";
 
 export function MemberRemovalSheet({
   teamId,
@@ -63,6 +64,10 @@ export function MemberRemovalSheet({
   const requiresTransfer = impact?.requiresTransfer === true;
   const canSubmit = Boolean(impact) && !busy && (!requiresTransfer || (impact!.targets.length > 0 && target !== ""));
 
+  // Removing access needs a fresh step-up (members audit ROLE-01) — the same
+  // challenge the web StepUpModal runs; the request is retried with it.
+  const stepUp = useChallengeStepUp(teamId);
+
   const remove = async () => {
     if (!member || !canSubmit) return;
     setBusy(true);
@@ -70,10 +75,13 @@ export function MemberRemovalSheet({
     try {
       // 204 No Content (teams.routes.ts:2206): apiFetch would parse an empty
       // body and report a completed removal as a failure.
-      await apiFetchText(buildMemberRemovePath(teamId, member.id), {
-        method: "DELETE",
-        ...(requiresTransfer && target ? { body: JSON.stringify({ transferToUserId: target }) } : {}),
-      });
+      await stepUp.run((headers) =>
+        apiFetchText(buildMemberRemovePath(teamId, member.id), {
+          method: "DELETE",
+          ...(headers ? { headers } : {}),
+          ...(requiresTransfer && target ? { body: JSON.stringify({ transferToUserId: target }) } : {}),
+        }),
+      );
       await onRemoved(member);
     } catch (err) {
       const e = err as { statusCode?: number; code?: string };
@@ -84,6 +92,8 @@ export function MemberRemovalSheet({
   };
 
   return (
+    <>
+    <ChallengeStepUpSheet stepUp={stepUp} />
     <ProovraSheet visible={member !== null} title={member ? `Remove ${member.displayName}` : ""} onClose={() => (busy ? undefined : onClose())}>
       {member ? (
         <View style={{ gap: theme.space.s3 }} testID="member-removal">
@@ -128,5 +138,6 @@ export function MemberRemovalSheet({
         </View>
       ) : null}
     </ProovraSheet>
+    </>
   );
 }

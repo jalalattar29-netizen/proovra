@@ -33,6 +33,7 @@
 // membership-status predicate, shared with the access-policy engine and the
 // destructive-action gate. This service enforces it ITSELF rather than
 // relying on each caller to duplicate a `status === "ACTIVE"` comparison.
+import { CASE_VISIBILITY_SELECT, caseRowVisibleTo } from "./case-visibility.js";
 import { teamMemberStatusGrantsAccess } from "@proovra/shared";
 
 import type { PrismaClient } from "@prisma/client";
@@ -366,6 +367,20 @@ export async function resolveCaseDestructiveGate(input: {
       accessRole: "NONE",
     };
   }
+  // CURRENT AUTHORITY, THEN REACH (members audit ACC-05). A status test alone
+  // let an ADMIN whose access had EXPIRED, or whose organization was
+  // SUSPENDED, rename or delete a case; and an ADMIN not on a restricted
+  // case's list could delete a case they cannot open. The canonical case-read
+  // authority answers both (membership, expiry, organization lifecycle, the
+  // restricted-case rule) before the mutation matrix is consulted.
+  const reach = await resolveCaseRecordAccess({ userId, caseId: caseRow.id });
+  if (!reach.allowed) {
+    return {
+      allowed: false,
+      reason: "Caller is not a member of the case's workspace.",
+      accessRole: "NONE",
+    };
+  }
   const accessRole = member.role as CaseAccessRole;
   const result = evaluateCaseMutationPermission({
     mutation,
@@ -495,7 +510,7 @@ export async function resolveCaseRecordAccess(
 ): Promise<CaseRecordAccess> {
   const c = await client.case.findUnique({
     where: { id: input.caseId },
-    select: { id: true, ownerUserId: true, teamId: true, access: { select: { userId: true } } },
+    select: { id: true, ...CASE_VISIBILITY_SELECT },
   });
   if (!c) return { allowed: false, internalReason: "case_not_found" };
   if (c.teamId === null) {
@@ -514,7 +529,10 @@ export async function resolveCaseRecordAccess(
   }
   if (!decision.allowed) return { allowed: false, internalReason: decision.reason };
   if (c.ownerUserId === input.userId) return { allowed: true, role: "OWNER" };
-  if (c.access.length > 0 && !c.access.some((a) => a.userId === input.userId)) {
+  // The ONE narrowing rule (case-visibility.ts): a restricted case admits its
+  // owner, its CaseAccess list and the active members of an ACTIVE
+  // Collaboration Team granted it — never the workspace role alone.
+  if (!caseRowVisibleTo(c, input.userId)) {
     return { allowed: false, internalReason: "case_access_list" };
   }
   const membership = await client.teamMember.findUnique({

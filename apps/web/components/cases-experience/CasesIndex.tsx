@@ -58,6 +58,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "../../lib/api";
 import { useToast } from "../ui-legacy";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
+import { StepUpModal, useStepUpAction } from "../identity-security/StepUpModal";
 // Phase CASES-PERSONAL-UX / Track 1A — enterprise-experience gate. The
 // advanced Cases filters and card details render only for the Enterprise
 // workspace experience. The signal is the SERVER-projected
@@ -1435,6 +1436,9 @@ function RowActions({
   const router = useRouter();
   const { addToast } = useToast();
   const { confirm } = useConfirmAction();
+  // Deleting a case is irreversible and needs a fresh step-up (members audit
+  // SEC-03); the list is scoped to the active workspace, so is the challenge.
+  const stepUp = useStepUpAction({ teamId: useActiveWorkspaceId() });
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -1503,7 +1507,9 @@ function RowActions({
     if (!ok) return;
     setBusy(true);
     try {
-      await apiFetch(`/v1/cases/${caseId}`, { method: "DELETE" });
+      await stepUp.runStepUpAction((headers) =>
+        apiFetch(`/v1/cases/${caseId}`, { method: "DELETE", ...(headers ? { headers } : {}) }),
+      );
       addToast("Case deleted.", "success");
       await onReload();
     } catch (err) {
@@ -1517,6 +1523,8 @@ function RowActions({
   };
 
   return (
+    <>
+      <StepUpModal control={stepUp} />
     <div className="cases-row-actions" ref={wrapRef} data-matter-queue-row-actions>
       <button
         type="button"
@@ -1573,6 +1581,7 @@ function RowActions({
         </div>
       ) : null}
     </div>
+    </>
   );
 }
 

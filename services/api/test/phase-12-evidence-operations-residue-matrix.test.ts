@@ -344,16 +344,46 @@ vi.mock("../src/db.js", () => ({
               delegatedAdminScopes: [],
             }
           : null,
-      findMany: async () => (H.memberStatus === "ACTIVE" ? [{ teamId: TEAM }] : []),
+      // Members audit ACC-04 — the bulk case scope now comes from the canonical
+      // accessible-workspace authority, which reads the full membership row.
+      findMany: async () =>
+        H.memberStatus === "ACTIVE"
+          ? [
+              {
+                teamId: TEAM,
+                role: "OWNER",
+                status: "ACTIVE",
+                accessExpiresAtUtc: null,
+                team: {
+                  id: TEAM,
+                  name: "Residue",
+                  isPersonal: false,
+                  ownerUserId: "u-1",
+                  workspaceKind: "OWNED",
+                  billingPlan: "TEAM",
+                  organizationId: null,
+                  organization: null,
+                },
+              },
+            ]
+          : [],
       findFirst: async () => (H.memberStatus ? { id: "m-1", status: H.memberStatus } : null),
     },
     case: {
-      findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
-        where.id.in.filter((id) => H.accessibleCaseIds.includes(id)).map((id) => ({ id })),
+      findMany: async ({ where }: { where: Record<string, unknown> }) => {
+        // The ids arrive either bare or as the first arm of the canonical AND.
+        const idArm = (where.id ??
+          (where.AND as Array<Record<string, unknown>> | undefined)?.find((c) => "id" in c)?.id) as
+          | { in: string[] }
+          | undefined;
+        return (idArm?.in ?? []).filter((id) => H.accessibleCaseIds.includes(id)).map((id) => ({ id }));
+      },
       findUnique: async () => ({ id: CASE_A, teamId: TEAM }),
     },
     team: {
       findUnique: async () => ({ id: TEAM, isPersonal: false }),
+      // listAccessibleWorkspaces' Personal-Space ownership arm; none here.
+      findMany: async () => [],
     },
     evidence: {
       findFirst: async () => (H.evidenceInWorkspace ? { id: EVIDENCE } : null),

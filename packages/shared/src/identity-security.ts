@@ -108,6 +108,8 @@ export const STEP_UP_PURPOSES = [
   "PUBLIC_VERIFY_RESTORE",
   "GOVERNANCE_POLICY_UPDATE",
   "RETENTION_POLICY_UPDATE",
+  // Members audit SEC-03 — deleting a case is irreversible.
+  "CASE_DELETE",
   // Phase 27 — Enterprise destruction queue + lifecycle moves.
   "EVIDENCE_DESTRUCTION_APPROVE",
   "EVIDENCE_DESTRUCTION_EXECUTE",

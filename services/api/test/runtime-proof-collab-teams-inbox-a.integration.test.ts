@@ -31,6 +31,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { createStepUpCeremony } from "./support/step-up-ceremony.js";
 
 type Prisma = (typeof import("../src/db.js"))["prisma"];
 
@@ -63,6 +64,7 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
     });
 
   const tag = () => randomUUID().slice(0, 8);
+  let stepUp: ReturnType<typeof createStepUpCeremony>;
 
   const auditRow = (action: string, resourceId: string) =>
     prisma.adminAuditLog.findFirst({
@@ -114,6 +116,10 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    stepUp = createStepUpCeremony({
+      prisma: prisma as never,
+      inject: (o) => h.app.inject({ method: o.method, url: o.url, headers: o.headers, payload: o.payload as never }) as never,
+    });
     svc = await import("../src/services/collaboration-team/collaboration-team.service.js");
     completion = await import(
       "../src/services/collaboration-team/collaboration-completion.service.js"
@@ -875,7 +881,11 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
       });
     });
 
-    it("DELETE /v1/teams/:id/members/:memberId — an ADMIN removes a member (row gone, tenant audit); a MEMBER is refused 403", async () => {
+    // MEMBERS AUDIT MEM-01 / ROLE-01 — removal is the canonical REVOCATION (the
+    // row stays, REVOKED, as history) and needs a fresh step-up, exactly as
+    // the Security Center revoke does. This case asserted a physical delete
+    // with no step-up: it locked in the defect.
+    it("DELETE /v1/teams/:id/members/:memberId — an ADMIN revokes a member after step-up (row kept as REVOKED, tenant audit); no step-up is refused; a MEMBER is refused 403", async () => {
       const a = h.fixtures.teamA;
       const target = await disposableUser("ws-member");
       const membership = await prisma.teamMember.create({
@@ -894,9 +904,27 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
       expect(foreign.statusCode).toBe(404);
       expect(await prisma.teamMember.findUnique({ where: { id: membership.id } })).not.toBeNull();
 
-      const res = await call({ method: "DELETE", url, token: a.adminToken });
+      const noStepUp = await call({ method: "DELETE", url, token: a.adminToken });
+      expect(noStepUp.statusCode).toBe(401);
+      expect(noStepUp.json().error.code).toBe("STEP_UP_REQUIRED");
+      expect((await prisma.teamMember.findUniqueOrThrow({ where: { id: membership.id } })).status).toBe("ACTIVE");
+
+      const res = await call({
+        method: "DELETE",
+        url,
+        token: a.adminToken,
+        headers: await stepUp.approvedHeader({
+          token: a.adminToken,
+          userId: a.adminUserId,
+          teamId: a.teamId,
+          purpose: "MEMBER_REVOKE",
+          resourceKind: "team_member",
+          resourceId: membership.id,
+        }),
+      });
       expect(res.statusCode, res.body).toBe(204);
-      expect(await prisma.teamMember.findUnique({ where: { id: membership.id } })).toBeNull();
+      const kept = await prisma.teamMember.findUniqueOrThrow({ where: { id: membership.id } });
+      expect(kept.status).toBe("REVOKED");
       await expect
         .poll(
           () =>

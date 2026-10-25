@@ -328,43 +328,61 @@ export async function detachEvidenceFromCase(
   };
 }
 
-export type DetachAllEvidenceFromCaseInput = CaseEvidenceActorContext & {
-  caseId: string;
-  reason?: string | null;
-};
-
 /**
- * Case-deletion support: atomically removes EVERY link row for the case.
- * The link table is the only truth — there is no mirror column to clear.
+ * DELETE ONE CASE, ATOMICALLY (members audit ACC-06).
+ *
+ * The route ran four statements outside any transaction — hold check, detach
+ * every link, drop the access list, delete the case — so a hold placed between
+ * the check and the delete, or any failure after the access list was dropped,
+ * left a surviving case that was suddenly UNRESTRICTED and had lost its
+ * evidence. Now: one transaction; the case row is locked FOR UPDATE first (a
+ * hold insert takes FOR KEY SHARE on it, so a racing hold either committed
+ * before and is seen here, or waits for this to finish and finds no case);
+ * every hold that blocks deletion — CASE, WORKSPACE, historical — is read
+ * inside the lock and fails closed; then links, member and team grants and
+ * the case go together, or nothing does.
  */
-export async function detachAllEvidenceFromCase(
-  input: DetachAllEvidenceFromCaseInput,
+export async function deleteCaseAtomically(
+  input: CaseEvidenceActorContext & { caseId: string; teamId: string | null },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ removedLinkCount: number }> {
-  const caseRow = await client.case.findUnique({
-    where: { id: input.caseId },
-    select: { id: true, teamId: true },
-  });
-  if (!caseRow) throw new CaseEvidenceAuthorityError("case_not_found");
-
   return client.$transaction(async (tx) => {
-    await assertCaseNotHeldForUnlinkTx(tx, caseRow.id);
-    const removed = await tx.caseEvidenceLink.deleteMany({
-      where: { caseId: caseRow.id },
-    });
+    let held: number;
+    try {
+      await tx.$queryRaw`SELECT "id" FROM "cases" WHERE "id" = ${input.caseId}::uuid FOR UPDATE`;
+      held = input.teamId
+        ? await tx.evidenceLegalHold.count({
+            where: {
+              teamId: input.teamId,
+              status: "ACTIVE",
+              OR: [{ scope: "CASE", caseId: input.caseId }, { scope: "WORKSPACE" }, { historical: true }],
+            },
+          })
+        : await tx.evidenceLegalHold.count({
+            where: { caseId: input.caseId, status: "ACTIVE", OR: [{ scope: "CASE" }, { historical: true }] },
+          });
+    } catch {
+      throw new CaseEvidenceAuthorityError("hold_state_unavailable");
+    }
+    if (held > 0) throw new CaseEvidenceAuthorityError("case_hold_active");
+
+    const removed = await tx.caseEvidenceLink.deleteMany({ where: { caseId: input.caseId } });
+    await tx.caseAccess.deleteMany({ where: { caseId: input.caseId } });
+    await tx.caseCollaborationTeamAccess.deleteMany({ where: { caseId: input.caseId } });
+    await tx.case.delete({ where: { id: input.caseId } });
     await emitTenantAudit(
       {
         action: "cases.evidence_unlinked_all",
         outcome: "success",
         sourceApp: "API",
         actorUserId: input.actorUserId ?? null,
-        workspaceId: caseRow.teamId,
+        workspaceId: input.teamId,
         resourceType: "case",
-        resourceId: caseRow.id,
+        resourceId: input.caseId,
         metadata: {
-          caseId: caseRow.id,
+          caseId: input.caseId,
           removedLinkCount: removed.count,
-          reason: input.reason ? input.reason.slice(0, 400) : null,
+          reason: "case_deleted",
           ipAddress: input.ipAddress ?? null,
           userAgent: input.userAgent ?? null,
         },

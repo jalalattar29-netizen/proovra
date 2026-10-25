@@ -58,7 +58,6 @@ import { verifyAccountStepUp } from "../services/identity-security/account-step-
 import { evaluateWorkspaceClosurePreflight } from "../services/identity/account-lifecycle-preflight.service.js";
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
 import {
-  removeWorkspaceMembershipPhysical,
   // THE canonical workspace role-transition command, reached THROUGH the
   // Membership Orchestrator. The rbac engine is deliberately internal to that
   // module — the program architecture registry locks its import path — so a
@@ -68,8 +67,16 @@ import {
   // TEAM role change in a different service, and the two govern different
   // membership tables.
   changeMemberRole as changeWorkspaceMemberRole,
+  revokeMember as revokeWorkspaceMember,
+  leaveWorkspace,
+  preflightMemberMutation,
   RbacError,
 } from "../services/identity/membership-provisioning.service.js";
+import {
+  denyIfManagedIdentity,
+  sendRbacRefusal,
+} from "../http/member-command-gates.js";
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import {
   ACTIVE_WORKSPACE_CLOSURE_STATUSES,
   CANCELLABLE_WORKSPACE_CLOSURE_STATUSES,
@@ -89,6 +96,10 @@ import {
   WORKSPACE_LIFECYCLE_ERROR_CODES,
 } from "@proovra/shared";
 import { resolveWorkspaceKind } from "../services/identity/workspace-kind.js";
+import { accessibleWorkspaceIdsFor } from "../services/access/record-reach.js";
+import { explainMemberAccess } from "../services/access/access-explanation.service.js";
+import { resolveCaseRecordAccess } from "../services/cases/case-permission.service.js";
+import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
 import { sendBusinessRefusal } from "../http/business-refusal.js";
 import { buildRbacMatrix } from "../services/platform-context/rbac-matrix.js";
 
@@ -134,7 +145,7 @@ const UpdateMemberBody = z.object({
 });
 
 const UpdateTeamBody = z.object({
-  name: z.string().min(1).max(120).optional(),
+  name: z.string().trim().min(1).max(120).optional(),
   legalName: z.string().min(1).max(180).optional(),
   address: z.string().min(1).optional(),
   logoUrl: z.string().url().optional(),
@@ -330,6 +341,32 @@ async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
   await requireLegalAcceptance(req, reply);
 }
 
+/** The owner of record holding a current OWNER membership (members audit ROLE-06). */
+async function isWorkspaceOwnerOfRecord(
+  req: FastifyRequest | undefined,
+  teamId: string,
+  userId: string,
+): Promise<boolean> {
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { ownerUserId: true } });
+  if (!team || team.ownerUserId !== userId) return false;
+  const actor = req ? await getActorMembership(req, teamId, userId) : null;
+  return actor?.role === prismaPkg.TeamRole.OWNER;
+}
+
+/** Activity metadata for a non-administrator: no address or phone fields. */
+function withoutContactData(metadata: unknown): unknown {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return metadata;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(metadata as Record<string, unknown>)) {
+    if (/email|phone|address/i.test(key)) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+/** The transfer target failed re-validation inside the removal transaction. */
+class InvalidTransferTargetError extends Error {}
+
 function getRequestPath(req: FastifyRequest): string {
   const url = req.url || "";
   const qIndex = url.indexOf("?");
@@ -522,12 +559,13 @@ export async function teamsRoutes(app: FastifyInstance) {
   app.get("/v1/teams", { preHandler: requireAuthAndLegal }, async (req, reply) => {
     const userId = getAuthUserId(req);
 
+    // Members audit DOM-02 — only workspaces the caller can CURRENTLY operate
+    // in (the canonical accessible-workspace authority). Any membership row
+    // used to qualify, so a revoked or suspended member, or a member of a
+    // closed workspace, kept seeing its name and counts — and the MFA recovery
+    // picker preselected those rows.
     const teams = await prisma.team.findMany({
-      where: {
-        members: {
-          some: { userId },
-        },
-      },
+      where: { id: { in: await accessibleWorkspaceIdsFor(userId) } },
       include: {
         members: {
           where: { userId },
@@ -535,7 +573,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         },
         _count: {
           select: {
-            members: true,
+            members: { where: { status: prismaPkg.TeamMemberStatus.ACTIVE } },
           },
         },
       },
@@ -550,6 +588,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           where: {
             teamId: team.id,
             acceptedAt: null,
+            revokedAt: null,
             expiresAt: { gt: now },
           },
         });
@@ -691,10 +730,12 @@ export async function teamsRoutes(app: FastifyInstance) {
       const usersById = new Map(users.map((u) => [u.id, u]));
       const now = new Date();
 
+      // Members audit MEM-03 — a revoked invitation is not pending.
       const pendingInviteCount = await prisma.teamInvite.count({
         where: {
           teamId,
           acceptedAt: null,
+          revokedAt: null,
           expiresAt: { gt: now },
         },
       });
@@ -702,6 +743,17 @@ export async function teamsRoutes(app: FastifyInstance) {
       const workspaceMemberTotal = await prisma.teamMember.count({
         where: { teamId },
       });
+      // Members audit MEM-02 — "Active members" counted every row, suspended
+      // and removed included, while the seat figure counted ACTIVE only, so
+      // the two KPIs disagreed the moment anyone was suspended. One count per
+      // state, from the server.
+      const statusCounts = await prisma.teamMember.groupBy({
+        by: ["status"],
+        where: { teamId },
+        _count: { _all: true },
+      });
+      const countOf = (status: prismaPkg.TeamMemberStatus) =>
+        statusCounts.find((r) => r.status === status)?._count._all ?? 0;
 
       const caseCount = await prisma.case.count({
         where: { AND: [await workspaceCaseWhere(teamId, prisma)] },
@@ -808,7 +860,8 @@ export async function teamsRoutes(app: FastifyInstance) {
         // the `actor.role !== TeamRole.OWNER` gate on DELETE /v1/teams/:id and
         // the workspace-closure routes; those gates remain the enforcement
         // point on every direct API call.
-        canManageWorkspace: actorMembership.role === prismaPkg.TeamRole.OWNER,
+        canManageWorkspace:
+          actorMembership.role === prismaPkg.TeamRole.OWNER && team.ownerUserId === userId,
         // How this Workspace is allowed to end — the server's answer, from the
         // one lifecycle authority. Clients render it; they never derive it.
         lifecycle: resolveWorkspaceLifecyclePolicy(
@@ -820,7 +873,12 @@ export async function teamsRoutes(app: FastifyInstance) {
           }),
         ),
         stats: {
-          memberCount: workspaceMemberTotal,
+          memberCount: countOf(prismaPkg.TeamMemberStatus.ACTIVE),
+          memberCounts: {
+            active: countOf(prismaPkg.TeamMemberStatus.ACTIVE),
+            suspended: countOf(prismaPkg.TeamMemberStatus.SUSPENDED),
+            removed: countOf(prismaPkg.TeamMemberStatus.REVOKED),
+          },
           pendingInviteCount,
           caseCount,
           seatLimit: effectiveSeatLimit,
@@ -1177,6 +1235,26 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
+      // RETENTION IS GOVERNANCE, NOT PROFILE (members audit ROLE-05). Any ADMIN
+      // could rewrite the workspace retention policy through this profile
+      // route, with no step-up and no activity row. Retention is changed only
+      // through the governed retention authority.
+      if (body.retentionPolicy !== undefined) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.update",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "RETENTION_POLICY_GOVERNED" },
+        });
+        return sendBusinessRefusal(req, reply, 403, {
+          code: "RETENTION_POLICY_GOVERNED",
+          message: "Retention is managed under Governance → Retention, not in workspace profile settings.",
+          nextAction: "OPEN_GOVERNANCE_RETENTION",
+        });
+      }
+
       const updated = await prisma.team.update({
         where: { id: teamId },
         data: {
@@ -1186,9 +1264,14 @@ export async function teamsRoutes(app: FastifyInstance) {
           logoUrl: body.logoUrl ?? undefined,
           timezone: body.timezone ?? undefined,
           legalEmail: body.legalEmail ? normalizeEmail(body.legalEmail) : undefined,
-          retentionPolicy: body.retentionPolicy ?? undefined,
         },
       });
+
+      // The workspace trail records WHICH fields changed (members audit
+      // ROLE-05 / MEM-04: the "team_renamed" label in the UI had no writer).
+      await createActivity(teamId, "workspace_updated", "team", userId, teamId, {
+        updatedFields: Object.keys(body),
+      }).catch(() => null);
 
       auditTeamAction(req, {
         userId,
@@ -1240,8 +1323,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
-      const actor = await getActorMembership(req, teamId, userId);
-      if (!actor || actor.role !== prismaPkg.TeamRole.OWNER) {
+      if (!(await isWorkspaceOwnerOfRecord(req, teamId, userId))) {
         auditTeamAction(req, {
           userId,
           action: "teams.delete",
@@ -1513,19 +1595,32 @@ export async function teamsRoutes(app: FastifyInstance) {
           },
         });
 
-        if (existingMember) {
+        // Removal is a REVOKED state, not a deleted row (members audit
+        // MEM-01), so a REVOKED person may be invited again — that is a
+        // deliberate re-add. ACTIVE is already a member; SUSPENDED is reinstated
+        // through the governed restore, never by a fresh invitation.
+        if (existingMember && existingMember.status !== prismaPkg.TeamMemberStatus.REVOKED) {
           auditTeamAction(req, {
             userId,
             action: "teams.invite_create",
             outcome: "blocked",
             severity: "warning",
             resourceId: teamId,
-            metadata: { reason: "already_member", email },
+            metadata: { reason: "already_member", memberStatus: existingMember.status },
           });
 
-          return reply.code(400).send({
-            message: "That user is already a member of this team",
-          });
+          return existingMember.status === prismaPkg.TeamMemberStatus.SUSPENDED
+            ? sendBusinessRefusal(req, reply, 409, {
+                code: "MEMBERSHIP_SUSPENDED",
+                message: "That person's membership is suspended. Reinstate it instead of inviting them again.",
+                state: "SUSPENDED",
+                nextAction: "RESTORE_MEMBER",
+              })
+            : sendBusinessRefusal(req, reply, 409, {
+                code: "ALREADY_WORKSPACE_MEMBER",
+                message: "That person is already a member of this workspace.",
+                state: "ACTIVE",
+              });
         }
       }
 
@@ -1757,6 +1852,38 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Member not found" });
       }
 
+      // THE SAME GATES AS SECURITY CENTER (members audit ROLE-01). A SCIM/SSO
+      // identity is read-only here, and a role change needs a fresh step-up —
+      // exactly what /v1/identity/members/:id/role demands for the same command.
+      if (await denyIfManagedIdentity(reply, target.userId, req)) return;
+      // A request that can only be refused is refused BEFORE a step-up is asked for.
+      try {
+        await preflightMemberMutation({ teamId, teamMemberId: target.id, actorUserId: userId, newRole: body.role });
+      } catch (err) {
+        if (err instanceof RbacError) {
+          auditTeamAction(req, {
+            userId,
+            action: "teams.member_update",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: teamId,
+            metadata: { reason: err.code, memberId },
+          });
+        }
+        if (sendRbacRefusal(reply, err, req)) return;
+        throw err;
+      }
+      const roleStepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId,
+        userId,
+        purpose: "MEMBER_ROLE_CHANGE",
+        resourceKind: "team_member",
+        resourceId: target.id,
+      });
+      if (roleStepUp.sent) return;
+
       /**
        * THE CANONICAL ROLE-TRANSITION AUTHORITY, NOT A SECOND ONE.
        *
@@ -1795,14 +1922,6 @@ export async function teamsRoutes(app: FastifyInstance) {
         );
       } catch (err) {
         if (err instanceof RbacError) {
-          const status =
-            err.code === "member_not_found"
-              ? 404
-              : err.code === "member_owner_immutable" ||
-                  err.code === "role_transition_to_owner_forbidden" ||
-                  err.code === "self_action_forbidden"
-                ? 403
-                : 409;
           auditTeamAction(req, {
             userId,
             action: "teams.member_update",
@@ -1811,13 +1930,15 @@ export async function teamsRoutes(app: FastifyInstance) {
             resourceId: teamId,
             metadata: { reason: err.code, memberId },
           });
-          return reply.code(status).send({ error: { code: err.code } });
         }
+        if (sendRbacRefusal(reply, err, req)) return;
         throw err;
       }
       const updated = { ...target, role: body.role };
 
+      // Before AND after (members audit AUD-03): the trail says what changed.
       await createActivity(teamId, "member_role_changed", "member", userId, target.userId, {
+        fromRole: target.role,
         role: body.role,
       });
 
@@ -1839,6 +1960,62 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       return reply.code(200).send({ member: updated });
     }
+  );
+
+  /**
+   * GET /v1/teams/:id/members/:memberId/access — WHY THIS PERSON HAS ACCESS
+   * (members audit ACC-11). Optional ?caseId= or ?evidenceId= explains one
+   * record. ADMIN+ only, and only for a record the ASKING administrator can
+   * open themself — otherwise the record is concealed exactly like a missing
+   * one, so the projection never becomes a way to learn what a restricted
+   * case contains or that it exists.
+   */
+  app.get(
+    "/v1/teams/:id/members/:memberId/access",
+    { preHandler: requireAuthAndLegal },
+    async (req: FastifyRequest, reply) => {
+      const params = req.params as { id: string; memberId: string };
+      const teamId = z.string().uuid().parse(params.id);
+      const memberId = z.string().uuid().parse(params.memberId);
+      const query = z
+        .object({
+          caseId: z.string().uuid().optional(),
+          evidenceId: z.string().uuid().optional(),
+        })
+        .parse(req.query ?? {});
+      const userId = getAuthUserId(req);
+
+      const actor = await getActorMembership(req, teamId, userId);
+      if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+      const target = await getTeamMemberByMemberId(teamId, memberId);
+      if (!target) {
+        return reply.code(404).send({ message: "Member not found" });
+      }
+      if (query.caseId) {
+        const own = await resolveCaseRecordAccess({ userId, caseId: query.caseId });
+        const inWorkspace = await prisma.case.count({ where: { id: query.caseId, teamId } });
+        if (!own.allowed || inWorkspace === 0) return reply.code(404).send({ message: "Case not found" });
+      }
+      if (query.evidenceId) {
+        const own = await resolveEvidenceRecordAccess({
+          userId,
+          evidenceId: query.evidenceId,
+          permission: "evidence.read",
+        });
+        const inWorkspace = await prisma.evidence.count({ where: { id: query.evidenceId, teamId } });
+        if (!own.allowed || inWorkspace === 0) return reply.code(404).send({ message: "Evidence not found" });
+      }
+      const explanation = await explainMemberAccess({
+        teamId,
+        subjectUserId: target.userId,
+        caseId: query.caseId ?? null,
+        evidenceId: query.evidenceId ?? null,
+      });
+      if (!explanation) return reply.code(404).send({ message: "Member not found" });
+      return reply.code(200).send({ memberId: target.id, explanation });
+    },
   );
 
   // Phase 2.1 — pre-removal impact query.
@@ -2003,26 +2180,55 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "owner_cannot_be_removed", memberId },
         });
-        return reply.code(400).send({ message: "Owner cannot be removed" });
+        return reply.code(400).send({ error: { code: "member_owner_immutable", requestId: req.id }, requestId: req.id });
       }
 
-      // Phase 2.1 — orphan-safe pre-flight. Block removal if the
-      // member still owns active evidence or cases in this team,
-      // unless the caller specified a transfer target.
+      // THE SAME GATES AS SECURITY CENTER (members audit ROLE-01): a SCIM/SSO
+      // identity is read-only here, and removing access needs a fresh step-up.
+      if (await denyIfManagedIdentity(reply, target.userId, req)) return;
+      try {
+        await preflightMemberMutation({ teamId, teamMemberId: target.id, actorUserId: userId });
+      } catch (err) {
+        if (err instanceof RbacError) {
+          auditTeamAction(req, {
+            userId,
+            action: "teams.member_delete",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: teamId,
+            metadata: { reason: err.code, memberId },
+          });
+        }
+        if (sendRbacRefusal(reply, err, req)) return;
+        throw err;
+      }
+      const removeStepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId,
+        userId,
+        purpose: "MEMBER_REVOKE",
+        resourceKind: "team_member",
+        resourceId: target.id,
+      });
+      if (removeStepUp.sent) return;
+
+      // Records the member owns in this workspace — TRASHED ones included
+      // (members audit MEM-01): a trashed record left owned by a former member
+      // stayed on their list after removal.
       const [ownedEvidenceCount, ownedCaseCount] = await Promise.all([
         prisma.evidence.count({
           where: {
             AND: [await workspaceEvidenceWhere(teamId, prisma)],
             ownerUserId: target.userId,
-            deletedAt: null,
+            lifecycleState: { not: "DESTROYED" },
           },
         }),
         prisma.case.count({
           where: { AND: [await workspaceCaseWhere(teamId, prisma)], ownerUserId: target.userId },
         }),
       ]);
-      const hasOwnedRecords =
-        ownedEvidenceCount > 0 || ownedCaseCount > 0;
+      const hasOwnedRecords = ownedEvidenceCount > 0 || ownedCaseCount > 0;
 
       if (hasOwnedRecords && !transferToUserId) {
         auditTeamAction(req, {
@@ -2041,69 +2247,94 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(409).send({
           code: "TRANSFER_TARGET_REQUIRED",
           message:
-            "This member still owns active evidence or cases in this team. Provide `transferToUserId` to re-assign ownership before removal.",
+            "This member still owns evidence or cases in this workspace. Choose who takes them over before removing the member.",
           impact: {
             ownedEvidence: ownedEvidenceCount,
             ownedCases: ownedCaseCount,
           },
+          requestId: req.id,
+        });
+      }
+      if (transferToUserId && transferToUserId === target.userId) {
+        return reply.code(400).send({
+          code: "INVALID_TRANSFER_TARGET",
+          message: "Records can't be transferred to the member being removed.",
+          requestId: req.id,
         });
       }
 
-      // Validate the transfer target if provided: must be an
-      // existing ACTIVE member of the same team, must not be the
-      // member being removed, and must be ADMIN+ (so the records
-      // land with someone with appropriate authority).
-      if (transferToUserId) {
-        if (transferToUserId === target.userId) {
-          return reply.code(400).send({
-            code: "INVALID_TRANSFER_TARGET",
-            message:
-              "Cannot transfer ownership to the member being removed.",
-          });
-        }
-        const transferMember = await prisma.teamMember.findUnique({
-          where: {
-            teamId_userId: { teamId, userId: transferToUserId },
-          },
-          select: { id: true, role: true, status: true },
-        });
-        if (
-          !transferMember ||
-          transferMember.status !== "ACTIVE" ||
-          !hasRole(transferMember.role, prismaPkg.TeamRole.ADMIN)
-        ) {
-          return reply.code(400).send({
-            code: "INVALID_TRANSFER_TARGET",
-            message:
-              "Transfer target must be an active OWNER or ADMIN of this team.",
-          });
-        }
-      }
-
-      // Atomic: transfer ownership of evidence + cases, then delete
-      // the membership row. If either reassignment fails, the
-      // transaction rolls back and no membership change occurs.
-      await prisma.$transaction(async (tx) => {
-        if (transferToUserId && hasOwnedRecords) {
-          await tx.evidence.updateMany({
-            where: {
-              AND: [await workspaceEvidenceWhere(teamId, prisma)],
-              ownerUserId: target.userId,
-              deletedAt: null,
+      // ONE TRANSACTION, STATE-BASED (members audit MEM-01 / ACC-08 / SEC-04).
+      // Removal used to DELETE the membership row and leave behind the case
+      // access-list entries, open case assignments and Collaboration Team
+      // membership that kept reach alive. It is now the canonical REVOCATION:
+      // the membership becomes REVOKED (history stays), its standing reach and
+      // pending invitations end, its sessions are revoked, and the engine's
+      // rank, self and last-administrator rules apply. The transfer target is
+      // re-validated INSIDE the transaction, so a concurrent removal of the
+      // target cannot leave records owned by a non-member.
+      try {
+        await prisma.$transaction(async (tx) => {
+          if (transferToUserId) {
+            const transferMember = await tx.teamMember.findUnique({
+              where: { teamId_userId: { teamId, userId: transferToUserId } },
+              select: { role: true, status: true },
+            });
+            if (
+              !transferMember ||
+              transferMember.status !== "ACTIVE" ||
+              !hasRole(transferMember.role, prismaPkg.TeamRole.ADMIN)
+            ) {
+              throw new InvalidTransferTargetError();
+            }
+          }
+          if (transferToUserId && hasOwnedRecords) {
+            await tx.evidence.updateMany({
+              where: {
+                AND: [await workspaceEvidenceWhere(teamId, prisma)],
+                ownerUserId: target.userId,
+                lifecycleState: { not: "DESTROYED" },
+              },
+              data: { ownerUserId: transferToUserId },
+            });
+            await tx.case.updateMany({
+              where: { AND: [await workspaceCaseWhere(teamId, prisma)], ownerUserId: target.userId },
+              data: { ownerUserId: transferToUserId },
+            });
+          }
+          await revokeWorkspaceMember(
+            {
+              teamId,
+              teamMemberId: target.id,
+              actorUserId: userId,
+              reason: "removed_from_workspace",
+              ipAddress: req.ip ?? null,
+              userAgent:
+                typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
             },
-            data: { ownerUserId: transferToUserId },
-          });
-          await tx.case.updateMany({
-            where: { AND: [await workspaceCaseWhere(teamId, prisma)], ownerUserId: target.userId },
-            data: { ownerUserId: transferToUserId },
+            tx as unknown as typeof prisma,
+          );
+        });
+      } catch (err) {
+        if (err instanceof InvalidTransferTargetError) {
+          return reply.code(400).send({
+            code: "INVALID_TRANSFER_TARGET",
+            message: "The person taking over the records must be an active owner or administrator of this workspace.",
+            requestId: req.id,
           });
         }
-        // PHASE 3 — canonical orchestrator: physical removal (provenance closed).
-        await removeWorkspaceMembershipPhysical(tx, {
-          teamMemberId: target.id,
-          actorUserId: userId,
-        });
-      });
+        if (err instanceof RbacError) {
+          auditTeamAction(req, {
+            userId,
+            action: "teams.member_delete",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: teamId,
+            metadata: { reason: err.code, memberId },
+          });
+        }
+        if (sendRbacRefusal(reply, err, req)) return;
+        throw err;
+      }
 
       await refreshTeamSeatState(teamId);
 
@@ -2150,6 +2381,57 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       return reply.code(204).send();
     }
+  );
+
+  /**
+   * POST /v1/teams/:id/leave — the caller ends their OWN membership
+   * (members audit LIFE-15).
+   *
+   * MEMBER and VIEWER may always leave; an ADMIN may leave while another
+   * ACTIVE OWNER or ADMIN remains; the OWNER cannot leave. Leaving is the
+   * canonical revocation recorded as the member's own act: standing reach,
+   * pending invitations and sessions in this workspace end with it. A step-up
+   * is required, as for any action that ends access.
+   */
+  app.post(
+    "/v1/teams/:id/leave",
+    { preHandler: requireAuthAndLegal },
+    async (req: FastifyRequest, reply) => {
+      const teamId = z.string().uuid().parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+      const actor = await getActorMembership(req, teamId, userId);
+      if (!actor) {
+        return sendBusinessRefusal(req, reply, 404, {
+          code: "WORKSPACE_MEMBERSHIP_REQUIRED",
+          message: "You are not an active member of this workspace.",
+        });
+      }
+      if (await denyIfManagedIdentity(reply, userId, req)) return;
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId,
+        userId,
+        purpose: "MEMBER_REVOKE",
+        resourceKind: "team_member",
+        resourceId: null,
+      });
+      if (gate.sent) return;
+      try {
+        await leaveWorkspace({
+          teamId,
+          userId,
+          ipAddress: req.ip ?? null,
+          userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
+        });
+      } catch (err) {
+        if (sendRbacRefusal(reply, err, req)) return;
+        throw err;
+      }
+      await refreshTeamSeatState(teamId);
+      await createActivity(teamId, "member_left", "member", userId, userId).catch(() => null);
+      return reply.code(204).send();
+    },
   );
 
   /**
@@ -2486,7 +2768,12 @@ export async function teamsRoutes(app: FastifyInstance) {
                 displayName: actorUser.displayName,
               }
             : null,
-          metadata: activity.metadata,
+          // Members audit ROLE-03 — invitation activity carries the invited
+          // address, which the invitations list itself withholds from MEMBER
+          // and VIEWER. Contact data in metadata follows the same rule.
+          metadata: hasRole(actor.role, prismaPkg.TeamRole.ADMIN)
+            ? activity.metadata
+            : withoutContactData(activity.metadata),
           createdAt: activity.createdAt,
         };
       });
@@ -2526,9 +2813,20 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
-      const caseItem = await prisma.case.findUnique({
-        where: { id: caseId },
-      });
+      // NO CROSS-TENANT LINK (members audit ROLE-02). The case was loaded by id
+      // alone, so an ADMIN of ANY workspace who knew a stranger's unlinked
+      // legacy case UUID could pull it — and its evidence — into their own
+      // workspace, and read the full row back. A linkable case is an UNLINKED
+      // (teamId null) case whose owner is an ACTIVE member of THIS workspace;
+      // anything else is indistinguishable from a missing case.
+      const candidate = await prisma.case.findUnique({ where: { id: caseId } });
+      const ownerIsActiveMember = candidate
+        ? (await prisma.teamMember.count({
+            where: { teamId, userId: candidate.ownerUserId, status: "ACTIVE" },
+          })) > 0
+        : false;
+      const caseItem =
+        candidate && (candidate.teamId === teamId || ownerIsActiveMember) ? candidate : null;
 
       if (!caseItem) {
         auditTeamAction(req, {
@@ -3159,16 +3457,16 @@ export async function teamsRoutes(app: FastifyInstance) {
     failureCode: true,
   } as const;
 
+  // ONE OWNER PREDICATE (members audit ROLE-06): the owner of record AND a
+  // current OWNER membership under the canonical workspace authority (status,
+  // access expiry, organization lifecycle). Closure, reopen and transfer read
+  // Team.ownerUserId alone, the lifecycle projection read the role alone; a
+  // suspended organization's owner of record kept lifecycle authority.
   const requireWorkspaceOwner = async (
     teamId: string,
     userId: string,
-  ): Promise<boolean> => {
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-      select: { ownerUserId: true },
-    });
-    return team !== null && team.ownerUserId === userId;
-  };
+    req?: FastifyRequest,
+  ): Promise<boolean> => isWorkspaceOwnerOfRecord(req, teamId, userId);
 
   app.get(
     "/v1/teams/:id/closure",
@@ -3176,7 +3474,7 @@ export async function teamsRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
-      if (!(await requireWorkspaceOwner(teamId, userId))) {
+      if (!(await requireWorkspaceOwner(teamId, userId, req))) {
         return reply.code(403).send({ error: { code: "owner_required" } });
       }
       const [latest, preflight, memberCount] = await Promise.all([
@@ -3222,7 +3520,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         })
         .parse(req.body ?? {});
 
-      if (!(await requireWorkspaceOwner(teamId, userId))) {
+      if (!(await requireWorkspaceOwner(teamId, userId, req))) {
         return reply.code(403).send({ error: { code: "owner_required" } });
       }
 
@@ -3367,7 +3665,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         .object({ id: z.string().uuid(), requestId: z.string().uuid() })
         .parse(req.params);
       const userId = getAuthUserId(req);
-      if (!(await requireWorkspaceOwner(params.id, userId))) {
+      if (!(await requireWorkspaceOwner(params.id, userId, req))) {
         return reply.code(403).send({ error: { code: "owner_required" } });
       }
 
@@ -3436,7 +3734,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         })
         .parse(req.body ?? {});
 
-      if (!(await requireWorkspaceOwner(teamId, userId))) {
+      if (!(await requireWorkspaceOwner(teamId, userId, req))) {
         return reply.code(403).send({ error: { code: "owner_required" } });
       }
 

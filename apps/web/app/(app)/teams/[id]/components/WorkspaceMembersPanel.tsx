@@ -37,6 +37,10 @@ import {
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { AppStatusText } from "../../../../../components/app-primitives/AppStatusText";
 import { apiFetch } from "../../../../../lib/api";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../../components/identity-security/StepUpModal";
 import { formatUserDate } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 
@@ -256,6 +260,8 @@ export const WorkspaceMembersPanel = forwardRef<
     [loadFirst, notify, rereadLimit],
   );
 
+  const stepUp = useStepUpAction({ teamId });
+
   const changeRole = async (member: WorkspaceMember, nextRole: ManageableRole) => {
     /**
      * The route resolves `:memberId` against `TeamMember.id` (WCR-02), so a
@@ -265,9 +271,18 @@ export const WorkspaceMembersPanel = forwardRef<
     if (nextRole === member.role) return;
     setRoleSavingId(member.id);
     try {
-      await apiFetch(
-        `/v1/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(member.id)}`,
-        { method: "PATCH", body: JSON.stringify({ role: nextRole }) },
+      // A role change needs a fresh step-up (members audit ROLE-01), exactly
+      // as in Security Center: the server answers STEP_UP_REQUIRED, the shared
+      // step-up modal runs the challenge, and the request is retried with it.
+      await stepUp.runStepUpAction((headers) =>
+        apiFetch(
+          `/v1/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(member.id!)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify({ role: nextRole }),
+          },
+        ),
       );
     } catch (err) {
       setRoleSavingId(null);
@@ -291,6 +306,7 @@ export const WorkspaceMembersPanel = forwardRef<
 
   return (
     <div className="app-panel" data-testid="people-roster">
+      <StepUpModal control={stepUp} />
       <div className="app-panel__head app-panel__head-row" style={{ flexWrap: "wrap", gap: 8 }}>
         <h2 className="app-panel__title">Members</h2>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", minWidth: 0 }}>

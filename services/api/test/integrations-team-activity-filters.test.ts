@@ -246,7 +246,10 @@ describe("Phase 2 — response projection still hides secrets", () => {
     expect(handler).toContain("eventType: activity.eventType");
     expect(handler).toContain("targetType: activity.targetType");
     expect(handler).toContain("targetId: activity.targetId");
-    expect(handler).toContain("metadata: activity.metadata");
+    // Members audit ROLE-03 — metadata is the raw row for administrators only;
+    // everyone else gets it without contact data.
+    expect(handler).toContain("? activity.metadata");
+    expect(handler).toContain(": withoutContactData(activity.metadata)");
     expect(handler).toContain("createdAt: activity.createdAt");
   });
 

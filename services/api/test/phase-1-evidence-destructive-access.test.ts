@@ -49,6 +49,9 @@ vi.mock("../src/db.js", () => {
   };
   return {
     prisma: {
+      // Members audit ACC-01 — the resolver reads the record's case links for
+      // restricted-case inheritance; these fixtures carry none.
+      caseEvidenceLink: { findMany: async () => [] },
       evidence: {
         findUnique: async ({ where }: { where: { id: string } }) =>
           H.evidence.get(where.id) ?? null,

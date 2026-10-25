@@ -57,6 +57,7 @@ import { useAuth } from "../../src/auth-context";
 import { MemberRemovalSheet } from "../../src/ui/member-removal";
 import { ExternalCollaboratorsCard } from "../../src/ui/external-collaborators";
 import { describeWorkspaceLifecycle } from "@proovra/shared";
+import { ChallengeStepUpSheet, useChallengeStepUp } from "../../src/ui/challenge-step-up";
 import {
   INVITABLE_ROLES,
   MANAGEABLE_ROLES,
@@ -116,6 +117,7 @@ export default function WorkspacePeopleScreen() {
   const { addToast } = useToast();
   const { context } = usePlatformContext();
   const teamId = context?.activeTeamId ?? null;
+  const stepUp = useChallengeStepUp(teamId);
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -356,10 +358,14 @@ export default function WorkspacePeopleScreen() {
       setRoleFor(null);
       setBusy(true);
       try {
-        await apiFetch(buildWorkspaceMemberPath(teamId, member.id), {
-          method: "PATCH",
-          body: JSON.stringify(buildRoleChangeBody(nextRole)),
-        });
+        // A role change needs a fresh step-up (members audit ROLE-01).
+        await stepUp.run((headers) =>
+          apiFetch(buildWorkspaceMemberPath(teamId, member.id), {
+            method: "PATCH",
+            ...(headers ? { headers } : {}),
+            body: JSON.stringify(buildRoleChangeBody(nextRole)),
+          }),
+        );
       } catch (err) {
         addToast(toSafeUserError(err, { message: "Failed to update role" }).message, "error");
         setBusy(false);
@@ -374,7 +380,7 @@ export default function WorkspacePeopleScreen() {
       addToast(outcome.message, outcome.ok ? "success" : "error");
       setBusy(false);
     },
-    [teamId, addToast, reloadRoster],
+    [teamId, addToast, reloadRoster, stepUp],
   );
 
   const openLinkPicker = useCallback(async () => {
@@ -1036,6 +1042,7 @@ export default function WorkspacePeopleScreen() {
         onCancel={() => setRevoking(null)}
       />
 
+      <ChallengeStepUpSheet stepUp={stepUp} />
     </ProovraScreen>
   );
 }

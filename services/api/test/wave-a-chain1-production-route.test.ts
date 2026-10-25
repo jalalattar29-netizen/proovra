@@ -84,6 +84,11 @@ function fakePrisma(): unknown {
                   if (method === "findFirst" && a.where?.id) {
                     return H.targetRow; // transition target load
                   }
+                  if (method === "findFirst" && a.where?.userId === ACTOR) {
+                    // Members audit ROLE-04 — the engine reads the ACTOR's own
+                    // ACTIVE membership to apply the rank rule.
+                    return H.actorRow && H.actorRow.status === "ACTIVE" ? { role: H.actorRow.role } : null;
+                  }
                   if (method === "update") {
                     return { ...(H.targetRow ?? {}), status: "SUSPENDED" };
                   }

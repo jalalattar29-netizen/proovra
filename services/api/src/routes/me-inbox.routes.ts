@@ -59,6 +59,7 @@
  *     scoped to memberships the caller already has.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { caseVisibleToWhere } from "../services/cases/case-visibility.js";
 import { secondReviewForRound } from "../services/evidence-review/second-review.service.js";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -2821,6 +2822,10 @@ export async function buildInboxAggregation(
                     teamId: { in: teamIds },
                     assignedToUserId: userId,
                     status: "ACTIVE",
+                    // Members audit ACC-09 — an assignment never reaches past
+                    // the restricted-case rule: a case the assignee cannot
+                    // open contributes no item (and no case name).
+                    case: caseVisibleToWhere(userId),
                   },
                   select: {
                     id: true,

@@ -93,6 +93,11 @@ export async function transferWorkspaceOwnership(input: {
   const { teamId, actorUserId, newOwnerUserId } = input;
 
   const result = await prisma.$transaction(async (tx) => {
+    // SERIALISED (members audit SEC-01). Two concurrent transfers by the owner
+    // both read the same owner under READ COMMITTED and both committed, leaving
+    // TWO OWNER memberships. The workspace row is locked first, so the second
+    // transfer reads the first one's outcome and is refused as not-the-owner.
+    await tx.$queryRaw`SELECT "id" FROM "teams" WHERE "id" = ${teamId}::uuid FOR UPDATE`;
     const team = await tx.team.findUnique({
       where: { id: teamId },
       select: TEAM_LIFECYCLE_SELECT,

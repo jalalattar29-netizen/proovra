@@ -344,7 +344,9 @@ test("The row exposes a working overflow menu (Open / Rename / Change status / A
   // delete DELETEs the case (both confirmed), open/rename/change-status
   // navigate.
   assert.match(CASES_PAGE, /toStatus: "ARCHIVED"/);
-  assert.match(CASES_PAGE, /apiFetch\(`\/v1\/cases\/\$\{caseId\}`, \{ method: "DELETE" \}\)/);
+  // Members audit SEC-03 — delete goes through the step-up action.
+  assert.match(CASES_PAGE, /apiFetch\(`\/v1\/cases\/\$\{caseId\}`, \{ method: "DELETE", \.\.\.\(headers \? \{ headers \} : \{\}\) \}\)/);
+  assert.match(CASES_PAGE, /stepUp\.runStepUpAction\(/);
   for (const label of ["Open", "Rename", "Change status", "Archive", "Delete"]) {
     assert.match(
       CASES_PAGE,

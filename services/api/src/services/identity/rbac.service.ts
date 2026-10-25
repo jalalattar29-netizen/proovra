@@ -71,7 +71,12 @@ export type RbacErrorCode =
   // D54 — a capability grant may only hand out a permission the granting
   // administrator holds in this workspace (the rule D29 applied to temporary
   // elevation). Raised by `grantCapability` before the subject is read.
-  | "grantor_lacks_permission";
+  | "grantor_lacks_permission"
+  // Members audit ROLE-04 — the actor does not outrank the target, or the
+  // requested role is not below the actor's own.
+  | "rank_insufficient"
+  // Members audit LIFE-15 — the OWNER cannot leave the workspace they own.
+  | "owner_cannot_leave";
 
 export class RbacError extends Error {
   readonly code: RbacErrorCode;
@@ -128,6 +133,14 @@ async function assertNotLastAdministrator(
   ) {
     return;
   }
+  // SERIALISED (members audit SEC-02). Two concurrent demotions of the last two
+  // administrators each counted the OTHER as remaining under READ COMMITTED
+  // and both committed. A per-workspace transaction lock makes the count and
+  // the write one critical section. (No-op outside a real transaction.)
+  const lock = (tx as unknown as { $executeRaw?: unknown }).$executeRaw;
+  if (typeof lock === "function") {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`workspace-administrators:${input.teamId}`}))`;
+  }
   const remaining = await tx.teamMember.count({
     where: {
       teamId: input.teamId,
@@ -169,6 +182,89 @@ async function loadTargetMember(
   });
   if (!row) throw new RbacError("member_not_found");
   return row;
+}
+
+/**
+ * RANK (members audit ROLE-04 / SEC-04): OWNER > ADMIN > MEMBER > VIEWER.
+ *
+ * The actor must STRICTLY outrank the member they act on, and a role they hand
+ * out must be strictly BELOW their own — except the OWNER, who may appoint an
+ * ADMIN. So an ADMIN manages MEMBER and VIEWER only: never the OWNER, never
+ * another ADMIN, never themself (self-actions are refused separately). The
+ * permission check at the route says whether the actor may manage members at
+ * all; this says WHOM. Before it, any ADMIN could demote, suspend or remove
+ * every other ADMIN.
+ */
+const RANK: Record<string, number> = { OWNER: 4, ADMIN: 3, MEMBER: 2, VIEWER: 1 };
+
+async function assertActorOutranks(
+  tx: PrismaClient,
+  input: {
+    teamId: string;
+    actorUserId: string;
+    targetRole: prismaPkg.TeamRole;
+    newRole?: prismaPkg.TeamRole;
+  },
+): Promise<void> {
+  const actor = await tx.teamMember.findFirst({
+    where: { teamId: input.teamId, userId: input.actorUserId, status: prismaPkg.TeamMemberStatus.ACTIVE },
+    select: { role: true },
+  });
+  const actorRank = actor ? RANK[actor.role] ?? 0 : 0;
+  if (actorRank <= (RANK[input.targetRole] ?? 0)) throw new RbacError("rank_insufficient");
+  if (input.newRole !== undefined) {
+    const isOwner = actor?.role === prismaPkg.TeamRole.OWNER;
+    const ceiling = isOwner ? RANK.ADMIN : actorRank - 1;
+    if ((RANK[input.newRole] ?? 0) > ceiling) throw new RbacError("rank_insufficient");
+  }
+}
+
+/**
+ * Pending invitations addressed to this member in this workspace are revoked
+ * when their membership is suspended, revoked or ended (members audit
+ * INV-01): an invitation issued before the suspension must never be the way
+ * around it.
+ */
+async function revokePendingInvitesForMember(
+  tx: PrismaClient,
+  input: { teamId: string; userId: string; actorUserId: string },
+): Promise<void> {
+  const user = await tx.user.findUnique({ where: { id: input.userId }, select: { email: true } });
+  const email = user?.email?.trim().toLowerCase();
+  if (!email) return;
+  await tx.teamInvite.updateMany({
+    where: {
+      teamId: input.teamId,
+      email: { equals: email, mode: "insensitive" },
+      acceptedAt: null,
+      revokedAt: null,
+    },
+    data: { revokedAt: new Date(), revokedByUserId: input.actorUserId },
+  });
+}
+
+/**
+ * When a membership ENDS (revoked or left), every standing reach it carried in
+ * this workspace ends with it, in the same transaction (members audit MEM-01 /
+ * ACC-08): case access-list entries, open case assignments, and Collaboration
+ * Team membership. Suspension keeps them — they are inert while the membership
+ * is not ACTIVE and come back with a restore.
+ */
+async function endStandingReach(
+  tx: PrismaClient,
+  input: { teamId: string; userId: string },
+): Promise<void> {
+  await tx.caseAccess.deleteMany({
+    where: { userId: input.userId, case: { teamId: input.teamId } },
+  });
+  await tx.caseAssignment.updateMany({
+    where: { teamId: input.teamId, assignedToUserId: input.userId, status: "ACTIVE" },
+    data: { status: "REMOVED", removedAtUtc: new Date() },
+  });
+  await tx.collaborationTeamMember.updateMany({
+    where: { userId: input.userId, status: { not: "REMOVED" }, team: { workspaceId: input.teamId } },
+    data: { status: "REMOVED" },
+  });
 }
 
 function assertNotOwner(role: prismaPkg.TeamRole): void {
@@ -235,6 +331,11 @@ export async function suspendMember(
       throw new RbacError("self_action_forbidden");
     }
     assertNotOwner(target.role);
+    await assertActorOutranks(tx, {
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      targetRole: target.role,
+    });
     if (
       !isAllowedTeamMemberStatusTransition(
         target.status as TeamMemberStatus,
@@ -243,6 +344,11 @@ export async function suspendMember(
     ) {
       throw new RbacError("invalid_status_transition");
     }
+    await revokePendingInvitesForMember(tx, {
+      teamId: input.teamId,
+      userId: target.userId,
+      actorUserId: input.actorUserId,
+    });
     await assertNotLastAdministrator(tx, {
       teamId: input.teamId,
       teamMemberId: target.id,
@@ -306,6 +412,11 @@ export async function revokeMember(
       throw new RbacError("self_action_forbidden");
     }
     assertNotOwner(target.role);
+    await assertActorOutranks(tx, {
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      targetRole: target.role,
+    });
     if (
       !isAllowedTeamMemberStatusTransition(
         target.status as TeamMemberStatus,
@@ -314,6 +425,12 @@ export async function revokeMember(
     ) {
       throw new RbacError("invalid_status_transition");
     }
+    await revokePendingInvitesForMember(tx, {
+      teamId: input.teamId,
+      userId: target.userId,
+      actorUserId: input.actorUserId,
+    });
+    await endStandingReach(tx, { teamId: input.teamId, userId: target.userId });
     await assertNotLastAdministrator(tx, {
       teamId: input.teamId,
       teamMemberId: target.id,
@@ -376,6 +493,11 @@ export async function restoreMember(
   return runAtomically(client, async (tx) => {
     const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
     assertNotOwner(target.role);
+    await assertActorOutranks(tx, {
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      targetRole: target.role,
+    });
     if (
       !isAllowedTeamMemberStatusTransition(
         target.status as TeamMemberStatus,
@@ -416,6 +538,108 @@ export async function restoreMember(
   });
 }
 
+/**
+ * LEAVE A WORKSPACE (members audit LIFE-15).
+ *
+ * The one self-action: the caller ends their OWN membership. MEMBER and VIEWER
+ * may always leave; an ADMIN may leave while another ACTIVE OWNER or ADMIN
+ * remains (the same atomic last-administrator guard); the OWNER cannot leave —
+ * a Personal Workspace ends with its account, an owned one by transfer or
+ * closure. Leaving ends standing reach and sessions exactly as a revocation
+ * does, and is recorded as the member's own act.
+ */
+export async function leaveWorkspace(
+  input: { teamId: string; userId: string; ipAddress?: string | null; userAgent?: string | null },
+  client: PrismaClient = defaultPrisma,
+): Promise<prismaPkg.TeamMember> {
+  const updated = await runAtomically(client, async (tx) => {
+    const target = await tx.teamMember.findFirst({
+      where: { teamId: input.teamId, userId: input.userId, status: prismaPkg.TeamMemberStatus.ACTIVE },
+      select: { id: true, teamId: true, userId: true, role: true, status: true },
+    });
+    if (!target) throw new RbacError("member_not_found");
+    if (target.role === prismaPkg.TeamRole.OWNER) throw new RbacError("owner_cannot_leave");
+    await assertNotLastAdministrator(tx, {
+      teamId: input.teamId,
+      teamMemberId: target.id,
+      role: target.role,
+    });
+    const row = await tx.teamMember.update({
+      where: { id: target.id },
+      data: {
+        status: prismaPkg.TeamMemberStatus.REVOKED,
+        revokedAtUtc: new Date(),
+        revokedByUserId: input.userId,
+        revocationReason: "left_workspace",
+      },
+    });
+    await revokeAllMembershipGrants(tx, { teamMemberId: target.id, actorUserId: input.userId });
+    await revokePendingInvitesForMember(tx, {
+      teamId: input.teamId,
+      userId: target.userId,
+      actorUserId: input.userId,
+    });
+    await endStandingReach(tx, { teamId: input.teamId, userId: target.userId });
+    await repairStaleCurrentWorkspacePointers(
+      { memberships: [{ userId: target.userId, workspaceId: input.teamId }] },
+      tx as never,
+    );
+    await emitMemberAudit(tx, {
+      teamId: input.teamId,
+      actorUserId: input.userId,
+      action: "identity.member.left",
+      subjectMemberId: target.id,
+      subjectUserId: target.userId,
+      eventType: "member_revoked" as SecurityEventType,
+      reason: "left_workspace",
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+    });
+    return row;
+  });
+  await autoRevokeAllSessions(client, {
+    teamId: input.teamId,
+    userId: input.userId,
+    reason: "MEMBER_REVOKED",
+    actorUserId: input.userId,
+    ipAddress: input.ipAddress,
+    userAgent: input.userAgent,
+  });
+  return updated;
+}
+
+/**
+ * PREFLIGHT for a member mutation, run BEFORE a step-up is demanded (members
+ * audit ROLE-01 / ROLE-04). The same rules the engine enforces inside its
+ * transaction — not a copy: these are the engine's own helpers — so a request
+ * that can only be refused (acting on yourself, on the OWNER, granting OWNER,
+ * or on someone you do not outrank) is refused with its named reason without
+ * first sending the person through a step-up ceremony. The transactional
+ * command still re-checks everything under its lock.
+ */
+export async function preflightMemberMutation(
+  input: {
+    teamId: string;
+    teamMemberId: string;
+    actorUserId: string;
+    newRole?: prismaPkg.TeamRole;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  const target = await loadTargetMember(client, input.teamId, input.teamMemberId);
+  if (target.userId === input.actorUserId) throw new RbacError("self_action_forbidden");
+  assertNotOwner(target.role);
+  if (input.newRole === prismaPkg.TeamRole.OWNER) {
+    throw new RbacError("role_transition_to_owner_forbidden");
+  }
+  await assertActorOutranks(client, {
+    teamId: input.teamId,
+    actorUserId: input.actorUserId,
+    targetRole: target.role,
+    ...(input.newRole !== undefined ? { newRole: input.newRole } : {}),
+  });
+}
+
 export type RoleChangeInput = LifecycleInput & {
   newRole: prismaPkg.TeamRole;
 };
@@ -434,6 +658,12 @@ export async function changeMemberRole(
     // OWNERSHIP TRANSFER is intentionally NOT part of Phase 17.
     throw new RbacError("role_transition_to_owner_forbidden");
   }
+  await assertActorOutranks(tx, {
+    teamId: input.teamId,
+    actorUserId: input.actorUserId,
+    targetRole: target.role,
+    newRole: input.newRole,
+  });
   // A demotion out of the administrative tier is guarded atomically: the
   // count runs under the same transaction snapshot as the write below.
   if (input.newRole !== prismaPkg.TeamRole.ADMIN) {

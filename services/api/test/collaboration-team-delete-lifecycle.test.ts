@@ -62,6 +62,7 @@ function makeClient(counts: Partial<Record<string, number>> = {}) {
     },
     collaborationTeamGuest: { count: async () => counts.guests ?? 0 },
     collaborationTeamActivity: { count: async () => counts.activity ?? 0 },
+    caseCollaborationTeamAccess: { count: async () => counts.caseAccess ?? 0 },
   };
   return { client: client as never, deleted };
 }
@@ -97,6 +98,7 @@ describe("disposability — what makes a group safe to delete", () => {
     "accessReviews",
     "guests",
     "activity",
+    "caseAccess",
   ]) {
     it(`${kind} alone makes it non-disposable`, async () => {
       const { assessCollaborationTeamDisposability } = await load();
@@ -238,6 +240,14 @@ describe("evidence and case safety — structural, not promised", () => {
     );
     expect(cascading.length).toBeGreaterThan(5);
     for (const line of cascading) {
+      // Members audit ACC-10 — the ONE exception is a Case grant, and it is
+      // the stronger guarantee: RESTRICT, so a team that still holds case
+      // reach can never be deleted (it is archived) and the grant record can
+      // never be cascaded away.
+      if (line.includes("CaseCollaborationTeamAccessTeam")) {
+        expect(line).toContain("onDelete: Restrict");
+        continue;
+      }
       expect(line).toContain("onDelete: Cascade");
     }
     // And the workspace relation points the OTHER way: a team belongs to a

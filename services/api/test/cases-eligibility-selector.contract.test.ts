@@ -101,38 +101,27 @@ describe("GET /v1/cases?eligibleForEvidenceId — parsing + dispatch", () => {
 });
 
 describe("Eligibility branch — memberships, evidence guard, case query", () => {
-  it("loads memberships with status=ACTIVE only (excludes SUSPENDED / REVOKED)", () => {
-    expect(BLOCK).toMatch(
-      /prisma\.teamMember\.findMany\(\{\s*\n?\s*where:\s*\{[\s\S]{0,200}?status:\s*prismaPkg\.TeamMemberStatus\.ACTIVE/,
-    );
+  /*
+   * MEMBERS AUDIT ACC-03 / ACC-04 (2026-10-25). These cases pinned the old
+   * shape — an OR of "evidence I own", "my ACTIVE workspaces" and "cases I own
+   * or was granted" — and that shape WAS the defect: its owner and case arms
+   * carried no membership condition, so a removed or suspended member kept
+   * reaching those records. The branch now asks the two canonical authorities:
+   * which workspaces (accessible-workspace authority: ACTIVE, unexpired, live
+   * organization) and which records inside them (the restricted-case rule,
+   * which Evidence inherits). The pins below hold it to that.
+   */
+  it("derives its workspaces from the canonical accessible-workspace authority", () => {
+    expect(BLOCK).toMatch(/const accessibleWorkspaceIds = await accessibleWorkspaceIdsFor\(ownerUserId\);/);
+    expect(BLOCK).not.toMatch(/activeMemberTeamIds/);
   });
 
-  it("loads the evidence with a read-access where clause (owner OR active team-member OR case-based)", () => {
-    // The evidence query must AND the id with an OR over the three
-    // accepted access paths. Source-pin the shape; this is the
-    // anti-IDOR guard so the eligibility endpoint cannot leak the
-    // existence of an evidence record the user can't see.
+  it("loads the evidence only through the canonical evidence reach (anti-IDOR)", () => {
     expect(BLOCK).toMatch(
-      /prisma\.evidence\.findFirst\(\{\s*\n?\s*where:\s*\{\s*\n?\s*id:\s*eligibleForEvidenceId,\s*\n?\s*OR:\s*\[\s*\n?\s*\{\s*ownerUserId\s*\}/,
+      /prisma\.evidence\.findFirst\(\{\s*where:\s*\{\s*AND:\s*\[\{ id: eligibleForEvidenceId \}, evidenceReachWhere\(ownerUserId, accessibleWorkspaceIds\)\]/,
     );
-    // The team-member branch is gated on the ACTIVE list being
-    // non-empty — proven by the `activeMemberTeamIds.length > 0`
-    // conditional spread.
-    expect(BLOCK).toMatch(
-      /activeMemberTeamIds\.length > 0\s*\n?\s*\?\s*\[\{\s*teamId:\s*\{\s*in:\s*activeMemberTeamIds\s*\}\s*\}\]/,
-    );
-    // Track 1B closure — case-based access is expressed via the
-    // canonical caseLinks relation over the pre-computed
-    // `accessibleCaseIds` list.
-    expect(BLOCK).toMatch(
-      /accessibleCaseIds\.length > 0\s*\n?\s*\?\s*\[\{\s*caseLinks:\s*\{\s*some:\s*\{\s*caseId:\s*\{\s*in:\s*accessibleCaseIds\s*\}\s*\}\s*\}\s*\}\]/,
-    );
-  });
-
-  it("pre-computes accessibleCaseIds via the same OR-union used by the eligibility case query", () => {
-    expect(BLOCK).toMatch(
-      /const accessibleCases = await prisma\.case\.findMany\(\{\s*\n?\s*where:\s*\{\s*\n?\s*OR:\s*\[\s*\n?\s*\{\s*ownerUserId\s*\},\s*\n?\s*\{\s*access:\s*\{\s*some:\s*\{\s*userId:\s*ownerUserId\s*\}\s*\}\s*\}/,
-    );
+    // No arm may stand in for membership.
+    expect(BLOCK).not.toMatch(/OR:\s*\[\s*\n?\s*\{\s*ownerUserId\s*\}/);
   });
 
   it("returns 404 EVIDENCE_NOT_FOUND when the read-access query returns null (anti-enumeration)", () => {
@@ -142,29 +131,13 @@ describe("Eligibility branch — memberships, evidence guard, case query", () =>
     );
   });
 
-  it("case query: AND-narrowed by teamId equality + status NOT IN (ARCHIVED, CLOSED) + OR-union", () => {
-    // The Case model has no `archivedAt` / `deletedAt` columns —
-    // lifecycle is tracked via the `status` enum. The eligibility
-    // filter excludes ARCHIVED and CLOSED so the dropdown can only
-    // offer cases the attach gate would actually accept.
-    expect(BLOCK).toMatch(
-      /prisma\.case\.findMany\(\{\s*\n?\s*where:\s*\{\s*\n?\s*AND:\s*\[/,
-    );
+  it("case query: AND-narrowed by teamId equality + status NOT IN (ARCHIVED, CLOSED) + the canonical case reach", () => {
+    expect(BLOCK).toMatch(/prisma\.case\.findMany\(\{\s*\n?\s*where:\s*\{\s*\n?\s*AND:\s*\[/);
     expect(BLOCK).toMatch(/\{ teamId: evidence\.teamId \}/);
     expect(BLOCK).toMatch(/status:\s*\{[\s\S]{0,40}?notIn:\s*\[/);
     expect(BLOCK).toMatch(/prismaPkg\.CaseStatus\.ARCHIVED/);
     expect(BLOCK).toMatch(/prismaPkg\.CaseStatus\.CLOSED/);
-    expect(BLOCK).toMatch(/\{ OR: eligibleOr \}/);
-  });
-
-  it("user-access OR-union in eligibility mode uses the SAME shape as the default branch but with ACTIVE memberships", () => {
-    expect(BLOCK).toMatch(
-      /const eligibleOr:\s*Array<Record<string, unknown>> = \[\s*\n?\s*\{ ownerUserId \},\s*\n?\s*\{ access:\s*\{ some:\s*\{ userId: ownerUserId \} \} \},\s*\n?\s*\];/,
-    );
-    // The team-member arm is added only when there ARE active teams.
-    expect(BLOCK).toMatch(
-      /if \(activeMemberTeamIds\.length > 0\) \{\s*\n?\s*eligibleOr\.push\(\{\s*\n?\s*teamId:\s*\{ in: activeMemberTeamIds \},\s*\n?\s*access:\s*\{ none: \{\} \},\s*\n?\s*\}\);\s*\n?\s*\}/,
-    );
+    expect(BLOCK).toMatch(/caseReachWhere\(ownerUserId, accessibleWorkspaceIds\)/);
   });
 
   it("audit log records the eligibility mode for forensic correlation", () => {
@@ -179,39 +152,14 @@ describe("Eligibility branch — memberships, evidence guard, case query", () =>
 });
 
 describe("Default branch — ACTIVE-only membership (P0 remediation 2026-07-21)", () => {
-  it("default branch filters memberships to `status: ACTIVE` (suspended/revoked members are denied team-scoped visibility)", () => {
-    // (P0 remediation 2026-07-21) — this test previously pinned the
-    // status-blind back-compat behaviour. The Prisma schema mandates
-    // that every access check MUST reject anything other than ACTIVE,
-    // so the default branch now filters ACTIVE like the eligibility
-    // branch does. The default branch's `prisma.teamMember.findMany`
-    // is the SECOND such call in the route.
-    const defaultMemberCall = BLOCK.slice(
-      BLOCK.lastIndexOf("const memberTeams = await prisma.teamMember.findMany"),
+  it("default branch scopes through the canonical authorities (no status-blind arm)", () => {
+    // Members audit ACC-04 — the same two authorities as the eligibility branch.
+    const lastCaseFindMany = BLOCK.slice(BLOCK.lastIndexOf("prisma.case.findMany"));
+    const whereSlice = lastCaseFindMany.slice(
+      lastCaseFindMany.indexOf("where:"),
+      lastCaseFindMany.indexOf("orderBy:"),
     );
-    // Status filter present in this where clause.
-    const whereBlock =
-      defaultMemberCall.slice(
-        defaultMemberCall.indexOf("where:"),
-        defaultMemberCall.indexOf("select:"),
-      );
-    expect(whereBlock).toMatch(/userId:\s*ownerUserId/);
-    expect(whereBlock).toMatch(/status:\s*"ACTIVE"/);
-  });
-
-  it("default branch case findMany STILL has NO archivedAt / deletedAt exclusion (back-compat)", () => {
-    // The eligibility-mode `prisma.case.findMany` comes first; the
-    // default one is the second occurrence in the route.
-    const lastCaseFindMany = BLOCK.slice(
-      BLOCK.lastIndexOf("prisma.case.findMany"),
-    );
-    // Read the where block of THIS findMany call only.
-    const whereStart = lastCaseFindMany.indexOf("where:");
-    const orderByStart = lastCaseFindMany.indexOf("orderBy:");
-    expect(orderByStart).toBeGreaterThan(whereStart);
-    const whereSlice = lastCaseFindMany.slice(whereStart, orderByStart);
-    expect(whereSlice).toMatch(/\{ OR: or \}/);
-    // The forbidden additions:
+    expect(whereSlice).toMatch(/caseReachWhere\(ownerUserId, accessibleWorkspaceIds\)/);
     expect(whereSlice).not.toMatch(/archivedAt/);
     expect(whereSlice).not.toMatch(/deletedAt/);
   });

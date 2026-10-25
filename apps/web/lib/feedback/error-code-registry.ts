@@ -189,6 +189,11 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   TRANSFER_TARGET_REQUIRED: { disposition: "customer", where: "global" },
   INVALID_TRANSFER_TARGET: { disposition: "customer", where: "global" },
 
+  // -- Workspace membership (members audit INV-01 / INV-02) ----------------
+  MEMBERSHIP_SUSPENDED: { disposition: "customer", where: "global" },
+  ALREADY_WORKSPACE_MEMBER: { disposition: "customer", where: "global" },
+  RETENTION_POLICY_GOVERNED: { disposition: "customer", where: "global" },
+
   // -- Workspace lifecycle (members audit LIFE-01/02/07) --------------------
   WORKSPACE_KIND_NOT_DELETABLE: { disposition: "customer", where: "global" },
   WORKSPACE_CLOSURE_REQUIRED: { disposition: "customer", where: "global" },
