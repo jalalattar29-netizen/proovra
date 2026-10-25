@@ -8,13 +8,16 @@
  *   POST /v1/governance/cross-org-review
  *   POST /v1/governance/cross-org-review/:id/accept
  *   POST /v1/governance/access-reviews/campaigns
- *   POST /v1/governance/delegated-admin
  *   POST /v1/governance/destruction-reviews
  *   POST /v1/governance/policies
  *
+ * (The sixth, `POST /v1/governance/delegated-admin`, belonged to the retired
+ * delegated-admin TIER model and now answers 410; delegated administration is
+ * granted per member in Security Center.)
+ *
  * Every one of them is a governance capability whose console already LISTED
  * the entity and could never create one. This module is the single place the
- * five new create/accept surfaces get:
+ * create/accept surfaces get:
  *
  *   1. `useGovernanceAction` — in-flight state, stale/superseded-response
  *      protection (per-call sequence + unmount + tenant generation), and a
@@ -24,17 +27,21 @@
  *   2. `classifyGovernanceFailure` — the ONLY mapping from a thrown API error
  *      to user-facing copy on these surfaces. It never renders a raw backend
  *      message: 400 → invalid, 402/403/404 → denied, 409 → conflict,
- *      everything else → `toSafeUserError`. Bounded fragments (a delegated
- *      tier, an entitlement key) are echoed only after matching a strict
- *      pattern, so a hostile body cannot inject text into the page.
+ *      everything else → `toSafeUserError`. Bounded fragments (a permission
+ *      key, an entitlement key) are echoed only after matching the shared
+ *      catalog / a strict pattern, so a hostile body cannot inject text into
+ *      the page.
  *
- *   3. `useDelegatedTierAccess` — a CLIENT-SIDE MIRROR of the server's
- *      `hasDelegatedTier` ladder, derived from the same authority the console
- *      already reads (`GET /v1/governance/delegated-admin`) plus the
- *      workspace-owner implication the server applies. It exists so a control
- *      the caller cannot use renders DISABLED with a reason instead of
- *      failing on click. It is a hint, never an authorisation: the route
- *      re-checks every tier server-side.
+ *   3. `useWorkspacePermissionAccess` — a CLIENT-SIDE MIRROR of the canonical
+ *      permission engine (`authorize.ts`): role permissions + capability
+ *      grants + delegated scopes. It is built ONLY from sources the console
+ *      already reads — the platform-context role of the active space through
+ *      the shared `roleHasPermission` matrix, and the caller's own row of
+ *      `GET /v1/identity/members` (live capability grants, live delegated
+ *      scopes expanded through the shared `listPermissionsForDelegatedAdminScope`).
+ *      It exists so a control the caller cannot use renders DISABLED with a
+ *      reason instead of failing on click. It is a hint, never an
+ *      authorisation: every route re-checks the permission server-side.
  *
  *   4. `useGovernanceOrganization` — the SERVER-derived governance
  *      Organization for the active workspace, read from
@@ -50,14 +57,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  DELEGATED_ADMIN_TIERS,
-  type DelegatedAdminGrantProjection,
-  type DelegatedAdminTier,
+  DELEGATED_ADMIN_SCOPE_KINDS,
+  listPermissionsForDelegatedAdminScope,
+  roleHasPermission,
+  type DbTeamRole,
+  type DelegatedAdminScopeKind,
   type DepartmentProjection,
+  type Permission,
 } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
+import {
+  isKnownPermission,
+  permissionRequiredDetail,
+} from "../../lib/labels/governanceReviewLabels";
 import { usePlatformContext, useTenantGuard } from "../../lib/platform-context";
 
 // ---------------------------------------------------------------------------
@@ -104,7 +118,6 @@ export type GovernanceOutcome = {
   message: string;
 };
 
-const KNOWN_TIERS: ReadonlySet<string> = new Set(DELEGATED_ADMIN_TIERS);
 const ENTITLEMENT_PATTERN = /^FEATURE_[A-Z0-9_]{1,60}$/;
 
 /**
@@ -161,9 +174,10 @@ function readErrorFields(err: unknown): {
 /**
  * Turn a thrown API error into bounded, user-safe copy.
  *
- * NOTHING from the response body reaches the DOM except a delegated tier that
- * is a member of the shared `DELEGATED_ADMIN_TIERS` enum, or an entitlement
- * key matching `FEATURE_[A-Z0-9_]+`. No message, no detail object, no code.
+ * NOTHING from the response body reaches the DOM except the LABEL of a
+ * permission key that is a member of the shared `PERMISSIONS` catalog, or an
+ * entitlement key matching `FEATURE_[A-Z0-9_]+`. No message, no detail
+ * object, no code.
  */
 export function classifyGovernanceFailure(
   err: unknown,
@@ -177,9 +191,9 @@ export function classifyGovernanceFailure(
     typeof details["entitlement"] === "string"
       ? (details["entitlement"] as string)
       : null;
-  const requiredTier =
-    typeof details["requiredTier"] === "string"
-      ? (details["requiredTier"] as string)
+  const permission =
+    typeof details["permission"] === "string"
+      ? (details["permission"] as string)
       : null;
 
   // 404 is folded into "denied": these routes answer an unauthorised read of
@@ -195,10 +209,10 @@ export function classifyGovernanceFailure(
             : "This workspace's plan does not include this governance capability.",
       };
     }
-    if (requiredTier && KNOWN_TIERS.has(requiredTier)) {
+    if (denial === "PERMISSION_REQUIRED" && isKnownPermission(permission)) {
       return {
         kind: "denied",
-        message: `You need the ${requiredTier} delegated-admin tier in this workspace to do this. Ask an organization admin to grant it.`,
+        message: permissionRequiredDetail(permission),
       };
     }
     return {
@@ -325,7 +339,7 @@ export type GovernanceOrganizationState = {
 /**
  * `GET /v1/governance/departments` echoes `organizationId` for the resolved
  * workspace. That echo is the canonical, non-invented source of the
- * organization id the cross-org, delegated-admin and access-review bodies
+ * organization id the cross-org and access-review bodies
  * require. The client never asks an operator to type it.
  */
 export function useGovernanceOrganization(): GovernanceOrganizationState {
@@ -375,160 +389,160 @@ export function useGovernanceOrganization(): GovernanceOrganizationState {
 }
 
 // ---------------------------------------------------------------------------
-// useDelegatedTierAccess — client mirror of the server ladder
+// useWorkspacePermissionAccess — client mirror of the permission engine
 // ---------------------------------------------------------------------------
 
-const ORG_CHAIN: ReadonlyArray<DelegatedAdminTier> = [
-  "GLOBAL_ADMIN",
-  "ORG_ADMIN",
-  "DEPARTMENT_ADMIN",
-  "WORKSPACE_ADMIN",
-];
+/**
+ * What the mirror can say about one permission:
+ *
+ *   granted — the role, a live capability grant or a live delegated scope
+ *             grants it.
+ *   missing — the mirror saw the WHOLE picture (role + the caller's own
+ *             grants and scopes) and nothing grants it. The control is
+ *             disabled with a reason.
+ *   unknown — the role does not grant it and the caller's own grants and
+ *             scopes could not be read (the roster needs
+ *             `identity.member.read`, which e.g. a GOVERNANCE_ADMIN scope does
+ *             not include). The control stays ENABLED and the server decides:
+ *             disabling it would lock a legitimate scope holder out of a
+ *             capability the server would allow.
+ */
+export type PermissionVerdict = "granted" | "missing" | "unknown";
 
-/** Mirrors `expandAcceptableTiers` in the delegated-admin service. */
-function acceptableTiers(
-  required: DelegatedAdminTier,
-): ReadonlyArray<DelegatedAdminTier> {
-  const index = ORG_CHAIN.indexOf(required);
-  if (index >= 0) return ORG_CHAIN.slice(0, index + 1);
-  return [required];
-}
-
-export type DelegatedTierAccess = {
-  /** False until the grant list has resolved — gate optimistic UI on this. */
+export type WorkspacePermissionAccess = {
+  /** False until the mirror has resolved — gate optimistic UI on this. */
   ready: boolean;
-  /**
-   * Client-side mirror of `hasDelegatedTier`. ADVISORY ONLY: the route
-   * re-checks the tier server-side on every request.
-   */
-  hasTier: (
-    tier: DelegatedAdminTier,
-    scope?: { organizationId?: string | null },
-  ) => boolean;
-  /** True when any of the supplied tiers is held. */
-  hasAnyTier: (
-    tiers: ReadonlyArray<DelegatedAdminTier>,
-    scope?: { organizationId?: string | null },
-  ) => boolean;
+  /** ADVISORY ONLY: the route re-checks the permission on every request. */
+  verdict: (permission: Permission) => PermissionVerdict;
+  /** True unless the verdict is "missing". */
+  allows: (permission: Permission) => boolean;
 };
 
-export function useDelegatedTierAccess(): DelegatedTierAccess {
+type OwnAccessRow = {
+  userId: string;
+  status: string;
+  capabilityGrants?: ReadonlyArray<{
+    permission: string;
+    expiresAtUtc: string | null;
+    revokedAtUtc: string | null;
+  }>;
+  delegatedAdminScopes?: ReadonlyArray<{
+    scopeKind: string;
+    expiresAtUtc: string | null;
+    revokedAtUtc: string | null;
+  }>;
+};
+
+const KNOWN_SCOPE_KINDS: ReadonlySet<string> = new Set(DELEGATED_ADMIN_SCOPE_KINDS);
+
+/** Live = not revoked and not past its expiry, exactly as the engine reads it. */
+function isLive(
+  row: { expiresAtUtc: string | null; revokedAtUtc: string | null },
+  now: number,
+): boolean {
+  if (row.revokedAtUtc) return false;
+  if (row.expiresAtUtc && new Date(row.expiresAtUtc).getTime() <= now) return false;
+  return true;
+}
+
+/**
+ * The extra permissions the caller's own membership row carries on top of
+ * the role: live capability grants plus every permission of every live
+ * delegated scope (expanded through the shared scope → permission table the
+ * engine itself uses).
+ */
+export function grantedExtraPermissions(
+  row: OwnAccessRow,
+  now: number = Date.now(),
+): ReadonlySet<string> {
+  const out = new Set<string>();
+  for (const grant of row.capabilityGrants ?? []) {
+    if (isLive(grant, now)) out.add(grant.permission);
+  }
+  for (const scope of row.delegatedAdminScopes ?? []) {
+    if (!KNOWN_SCOPE_KINDS.has(scope.scopeKind) || !isLive(scope, now)) continue;
+    for (const p of listPermissionsForDelegatedAdminScope(
+      scope.scopeKind as DelegatedAdminScopeKind,
+    )) {
+      out.add(p);
+    }
+  }
+  return out;
+}
+
+const DB_ROLES: ReadonlySet<string> = new Set(["OWNER", "ADMIN", "MEMBER", "VIEWER"]);
+
+export function useWorkspacePermissionAccess(): WorkspacePermissionAccess {
   const { envelope } = usePlatformContext();
-  const [grants, setGrants] = useState<
-    ReadonlyArray<DelegatedAdminGrantProjection>
-  >([]);
-  const [ready, setReady] = useState(false);
+  // `undefined` = not read yet; `null` = unreadable (the verdict degrades to
+  // "unknown", never to "granted").
+  const [ownRow, setOwnRow] = useState<OwnAccessRow | null | undefined>(undefined);
+  const [rosterRead, setRosterRead] = useState(false);
   const { stamp, isStale } = useTenantGuard();
+  const userId = envelope?.user?.id ?? null;
 
   useEffect(() => {
     let cancelled = false;
     const generation = stamp();
-    setReady(false);
+    setOwnRow(undefined);
+    setRosterRead(false);
     void (async () => {
       try {
-        const res = await apiFetch("/v1/governance/delegated-admin", {
-          method: "GET",
-        });
+        const res = await apiFetch("/v1/identity/members", { method: "GET" });
         if (cancelled || isStale(generation)) return;
-        setGrants(
-          (res?.grants ?? []) as ReadonlyArray<DelegatedAdminGrantProjection>,
-        );
+        const rows = (res?.members ?? []) as ReadonlyArray<OwnAccessRow>;
+        setOwnRow(rows.find((m) => m.userId === userId) ?? null);
+        setRosterRead(true);
       } catch {
         if (cancelled || isStale(generation)) return;
-        // Fail CLOSED: no readable grants means no tier is asserted. The
-        // owner implication below still applies, matching the server.
-        setGrants([]);
-      } finally {
-        if (!cancelled && !isStale(generation)) setReady(true);
+        setOwnRow(null);
+        setRosterRead(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [stamp, isStale]);
+  }, [stamp, isStale, userId]);
 
-  const userId = envelope?.user?.id ?? null;
   /**
    * Read from `activeSpace.roleLabel`, never from the deprecated legacy
-   * workspace field on the envelope.
-   *
-   * That legacy field is inside a closing deprecation window: the Phase-37.95
-   * and G4.3 guards allow it only for a named set of files, and a new consumer
-   * fails both. `activeSpace` is the canonical projection of the space the
-   * caller is actually operating in, and the two can legitimately disagree —
-   * which is the whole reason the migration exists.
-   */
-  /**
-   * PHASE 13 (NEW-061) — BOTH SHAPES THE SERVER ACTUALLY EMITS.
-   *
-   * `roleLabel` is NOT a display string. `platform-context.service.ts` sets it
-   * to `workspace.membership.role` — the raw `TeamRole` enum, i.e. `"OWNER"` —
-   * for a TEAM-scoped active space, and to the literal `"Owner"` only on the
-   * PERSONAL branch. Comparing against `"Owner"` alone therefore recognised the
-   * owner of a Personal Space and NO owner of any real workspace.
-   *
-   * The consequence was not cosmetic: this mirror is what enables the
-   * cross-org-invite and delegated-admin-grant controls, and both are gated on
-   * the implicit workspace-owner ORG_ADMIN tier that the server DOES apply. So
-   * the genuine owner of an Organization workspace saw both controls
-   * permanently disabled, with the copy claiming they lacked a tier the server
-   * would have granted them. Neither capability was reachable from any surface.
-   *
-   * Accepting both shapes is what the rest of the app already does — see
-   * `review/workspace/page.tsx`, which tests `"OWNER"` and `"Owner"`, and
-   * `integrations/page.tsx` / `search/page.tsx` / `workflows/page.tsx`, which
-   * test the uppercase enum.
+   * workspace field on the envelope. `roleLabel` is the raw `TeamRole` enum
+   * ("OWNER") for an Organization space and the literal "Owner" on the
+   * Personal branch (PHASE 13 NEW-061) — both shapes are accepted.
    */
   const roleLabel = envelope?.activeSpace?.roleLabel ?? null;
-  const isOwner = roleLabel === "OWNER" || roleLabel === "Owner";
+  const role: DbTeamRole | null =
+    roleLabel === "Owner"
+      ? "OWNER"
+      : roleLabel && DB_ROLES.has(roleLabel)
+        ? (roleLabel as DbTeamRole)
+        : null;
 
-  const hasTier = useCallback<DelegatedTierAccess["hasTier"]>(
-    (tier, scope) => {
-      const organizationId = scope?.organizationId ?? null;
-      if (userId) {
-        const now = Date.now();
-        const acceptable = acceptableTiers(tier);
-        for (const grant of grants) {
-          if (grant.granteeUserId !== userId) continue;
-          if (grant.state !== "ACTIVE") continue;
-          if (
-            grant.expiresAtUtc &&
-            new Date(grant.expiresAtUtc).getTime() < now
-          ) {
-            continue;
-          }
-          if (!acceptable.includes(grant.tier)) continue;
-          if (grant.tier === "GLOBAL_ADMIN") return true;
-          if (grant.tier === "ORG_ADMIN") {
-            if (!organizationId || grant.organizationId === organizationId) {
-              return true;
-            }
-            continue;
-          }
-          if (grant.tier === "DEPARTMENT_ADMIN" || grant.tier === "WORKSPACE_ADMIN") {
-            return true;
-          }
-          // Cross-cutting tiers match at their own tier only.
-          if (grant.tier === tier) return true;
-        }
-      }
-      // Implicit workspace-owner grant — the server treats the owner as an
-      // ORG_ADMIN of their own workspace for the org-chain tiers only.
-      if (isOwner && ORG_CHAIN.slice(1).includes(tier)) return true;
-      return false;
+  const extras = useMemo(
+    () =>
+      ownRow && ownRow.status === "ACTIVE" ? grantedExtraPermissions(ownRow) : null,
+    [ownRow],
+  );
+
+  const verdict = useCallback<WorkspacePermissionAccess["verdict"]>(
+    (permission) => {
+      if (roleHasPermission(role, permission)) return "granted";
+      if (extras?.has(permission)) return "granted";
+      // The whole picture was seen and nothing grants it.
+      if (rosterRead && ownRow !== undefined) return "missing";
+      return "unknown";
     },
-    [grants, userId, isOwner],
+    [role, extras, rosterRead, ownRow],
   );
 
-  const hasAnyTier = useCallback<DelegatedTierAccess["hasAnyTier"]>(
-    (tiers, scope) => tiers.some((tier) => hasTier(tier, scope)),
-    [hasTier],
+  const allows = useCallback<WorkspacePermissionAccess["allows"]>(
+    (permission) => verdict(permission) !== "missing",
+    [verdict],
   );
 
-  return useMemo(
-    () => ({ ready, hasTier, hasAnyTier }),
-    [ready, hasTier, hasAnyTier],
-  );
+  const ready = ownRow !== undefined;
+
+  return useMemo(() => ({ ready, verdict, allows }), [ready, verdict, allows]);
 }
 
 // ---------------------------------------------------------------------------

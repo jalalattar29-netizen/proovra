@@ -21,6 +21,8 @@
  *   * Re-exported via `packages/shared/src/index.ts`.
  */
 
+import type { DelegatedAdminScopeKind } from "./identity.js";
+
 // ===========================================================================
 // 1. Trust Center sections (15 required, append-only)
 // ===========================================================================
@@ -546,7 +548,8 @@ export type GovernanceDashboardProjection = {
   delegatedAdminActivity: {
     activeGrants: number;
     revokedLast30d: number;
-    grantsPerTier: Record<DelegatedAdminTier, number>;
+    /** Live member delegated scopes per kind (members audit DOM-09). */
+    grantsPerScope: Record<DelegatedAdminScopeKind, number>;
   };
   departments: {
     total: number;

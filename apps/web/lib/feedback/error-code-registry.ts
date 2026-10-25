@@ -476,6 +476,7 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   },
   INVITE_PENDING_WITH_DIFFERENT_ROLE: { disposition: "customer", where: "global" },
   VERIFICATION_LINK_LIFETIME_INVALID: { disposition: "customer", where: "global" },
+  DELEGATED_ADMIN_TIERS_RETIRED: { disposition: "customer", where: "global" },
   VERIFICATION_LINK_NOT_RENEWABLE: { disposition: "customer", where: "global" },
   EXTERNAL_REVIEW_GRANT_NOT_FOUND: { disposition: "customer", where: "global" },
   EXTERNAL_REVIEW_GRANT_LIFETIME_INVALID: { disposition: "customer", where: "global" },

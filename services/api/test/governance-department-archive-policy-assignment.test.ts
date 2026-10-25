@@ -41,9 +41,8 @@ const H = vi.hoisted(() => ({
 
 vi.mock("../src/auth.js", () => ({ getAuthUserId: () => H.actor }));
 vi.mock("../src/middleware/auth.js", () => ({ requireAuth: async () => {} }));
-vi.mock("../src/middleware/require-delegated-tier.js", () => ({
-  requireDelegatedTier: () => async () => {},
-  requireDelegatedTierAny: () => async () => {},
+vi.mock("../src/middleware/require-workspace-permission.js", () => ({
+  requireWorkspacePermission: () => async () => {},
 }));
 vi.mock("../src/middleware/authorize.js", () => ({
   authorizeOrFail: async () => ({ actorUserId: H.actor, teamId: H.team }),

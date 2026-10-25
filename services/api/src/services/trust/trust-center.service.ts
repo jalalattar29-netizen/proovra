@@ -587,7 +587,6 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     body:
       "Phase 4A added tiered delegated admin (Global / Org / Department / Workspace / Reviewer Lead / Security Officer / Compliance Officer), department isolation, policy inheritance, and access reviews. See the Governance Dashboard.",
     implementationReferences: [
-      "services/api/src/services/governance/delegated-admin.service.ts",
       "services/api/src/services/governance/governance-policy.service.ts",
       "services/api/src/services/governance/access-review.service.ts",
     ],
@@ -953,13 +952,12 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "authorization",
     title: "Authorization",
     summary:
-      "RBAC + delegated-admin tiers + per-resource capability checks. Every route requires an explicit capability check; server-side enforcement is the source of truth. Administrative actions are further bounded by access reviews and scope-aware revocation pathways.",
+      "RBAC + member delegated scopes + per-resource capability checks. Every route requires an explicit capability check; server-side enforcement is the source of truth. Administrative actions are further bounded by access reviews and scope-aware revocation pathways.",
     body:
-      "Capabilities are computed from the user's workspace role, delegated admin tier (Global / Org / Department / Workspace / Reviewer Lead / Security Officer / Compliance Officer), department scope membership, and per-resource permissions. The rbac-engine.service.ts evaluates capability requirements against the resolved actor context; identity/rbac.service.ts surfaces the role-to-capability projection that drives the UI's visibility hints. UI hints are never trusted: every mutation re-checks server-side. Access reviews act as the administrative backstop: REVOKED decisions propagate into delegated-admin grants and external-reviewer assignments so over-broad access can be removed through an append-only review workflow. Denied requests emit a bounded denial code so operators can audit who attempted what.",
+      "Capabilities are computed from the user's workspace role, delegated administration scopes (Governance / Review / Intelligence / Integration / Collaboration / Identity / Retention), department scope membership, and per-resource permissions. The rbac-engine.service.ts evaluates capability requirements against the resolved actor context; identity/rbac.service.ts surfaces the role-to-capability projection that drives the UI's visibility hints. UI hints are never trusted: every mutation re-checks server-side. Access reviews act as the administrative backstop: REVOKED decisions propagate into delegated-admin grants and external-reviewer assignments so over-broad access can be removed through an append-only review workflow. Denied requests emit a bounded denial code so operators can audit who attempted what.",
     implementationReferences: [
       "services/api/src/services/access-control/rbac-engine.service.ts",
       "services/api/src/services/identity/rbac.service.ts",
-      "services/api/src/services/governance/delegated-admin.service.ts",
       "services/api/src/services/governance/access-review.service.ts",
     ],
     policyTags: ["AUTHZ"],
@@ -970,12 +968,11 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "rbac",
     title: "Role-based access control",
     summary:
-      "Workspace roles + reviewer roles + external-portal roles + 7 delegated-admin tiers. Capability projection drives the UI; the server re-enforces on every mutation.",
+      "Workspace roles + reviewer roles + external-portal roles + member delegated administration scopes. Capability projection drives the UI; the server re-enforces on every mutation.",
     body:
-      "The platform-context navigation-registry.ts pins every nav entry to a capability key; the buildNavigationProjection emitter computes a per-actor capability set from the role matrix + delegated admin grants + department scope envelope. The 7 delegated-admin tiers (GLOBAL_ADMIN, ORG_ADMIN, DEPARTMENT_ADMIN, WORKSPACE_ADMIN, REVIEWER_LEAD, SECURITY_OFFICER, COMPLIANCE_OFFICER) are enforced server-side via hasDelegatedTier and apply to every Phase 4A governance mutation route. Department isolation narrows the read scope so users see evidence only for their department membership (or unrestricted if they hold a workspace-wide tier).",
+      "The platform-context navigation-registry.ts pins every nav entry to a capability key; the buildNavigationProjection emitter computes a per-actor capability set from the role matrix + member delegated administration scopes + department scope envelope. Delegated scopes are folded into the canonical permission engine, which every governance mutation route consults server-side. Department isolation narrows the read scope so users see evidence only for their department membership (or unrestricted if they hold a workspace-wide tier).",
     implementationReferences: [
       "services/api/src/services/platform-context/navigation-registry.ts",
-      "services/api/src/services/governance/delegated-admin.service.ts",
     ],
     policyTags: ["RBAC"],
   },

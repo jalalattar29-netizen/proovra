@@ -223,8 +223,10 @@ describe("Phase 12 Point 4 — schema ownership is single and explicit", () => {
   it("the Release-A repair unblocks the broken create() paths without dropping anything", () => {
     expect(existsSync(REPAIR_MIGRATION)).toBe(true);
     const sql = readFileSync(REPAIR_MIGRATION, "utf8");
-    // The three NOT NULL orphans that make delegatedAdminGrant.create,
+    // The three NOT NULL orphans that made delegatedAdminGrant.create,
     // crossOrgReviewGrant.create and redactionPolicyAssignment.create fail.
+    // (The tier-grant writer is since retired — members audit DOM-09 — but the
+    // committed migration is historical and its repair is still pinned.)
     for (const [table, dup] of [
       ["cross_org_review_grants", "created_by_user_id"],
       ["delegated_admin_grants", "grantee_user_id"],

@@ -11,7 +11,9 @@
  * fallback so an unknown future member still renders as words, never as a
  * constant.
  */
-import { identifierLabel } from "@proovra/shared";
+import { PERMISSIONS, identifierLabel, type Permission } from "@proovra/shared";
+
+import { permissionLabel } from "./identityOrgLabels";
 
 function curated(map: Readonly<Record<string, string>>, value: string): string {
   return map[value] ?? identifierLabel(value);
@@ -22,35 +24,53 @@ function curated(map: Readonly<Record<string, string>>, value: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * WHO can grant access, said in product language. Every tier the API can
- * name (DELEGATED_ADMIN_TIERS) has a label here, plus the generic fallback
- * the pages used when none was sent.
+ * ONE delegated-administration authority (owner decision 2026-10-25): the
+ * tiered grants are retired, and every route that asked for a tier now asks
+ * the permission engine and refuses with
+ * `403 { denial: "PERMISSION_REQUIRED", permission: "<key>" }`.
+ *
+ * The key is echoed only when it is a member of the shared PERMISSIONS
+ * catalog, and always through `permissionLabel` (identityOrgLabels — the one
+ * permission-label map, typed on the full catalog), so a hostile body can
+ * never put its own text on the page and a reader never sees a raw key.
  */
-const DELEGATED_TIER_LABELS: Readonly<Record<string, string>> = {
-  GLOBAL_ADMIN: "a global administrator",
-  ORG_ADMIN: "an organization administrator",
-  DEPARTMENT_ADMIN: "a department administrator",
-  WORKSPACE_ADMIN: "a workspace administrator",
-  REVIEWER_LEAD: "a reviewer lead",
-  SECURITY_OFFICER: "a security officer",
-  COMPLIANCE_OFFICER: "a compliance officer",
-  DELEGATED_ADMIN: "a delegated administrator",
-};
+const KNOWN_PERMISSIONS: ReadonlySet<string> = new Set(PERMISSIONS);
 
-/** The role a reader should ask, never the constant. */
-export function delegatedTierLabel(tier: string | null | undefined): string {
-  if (!tier) return DELEGATED_TIER_LABELS.DELEGATED_ADMIN;
-  return DELEGATED_TIER_LABELS[tier] ?? DELEGATED_TIER_LABELS.DELEGATED_ADMIN;
+export function isKnownPermission(value: unknown): value is Permission {
+  return typeof value === "string" && KNOWN_PERMISSIONS.has(value);
+}
+
+/** The required permission in plain language, or null when none was named. */
+export function requiredPermissionLabel(
+  permission: string | null | undefined,
+): string | null {
+  return isKnownPermission(permission) ? permissionLabel(permission) : null;
+}
+
+/**
+ * The sentence that tells a reader what they lack and WHO can fix it: a
+ * workspace owner or admin grants the permission (or a delegated scope that
+ * includes it) per member, in Security Center.
+ */
+export function permissionRequiredDetail(
+  permission: string | null | undefined,
+): string {
+  const label = requiredPermissionLabel(permission);
+  const what = label
+    ? `This needs the “${label}” permission in this workspace.`
+    : "This needs a permission you do not have in this workspace.";
+  return `${what} A workspace owner or admin can grant it to you, or give you a delegated scope that includes it, in Security Center.`;
 }
 
 /**
  * The inline denial banner copy the non-shared lifecycle / exchange /
  * packaging / policy pages render. Same wording as the evidence-lifecycle
- * DenialBanner: a plan gap names the plan, a tier gap names who to ask.
+ * DenialBanner: a plan gap names the plan, a permission gap names the
+ * permission and who can grant it.
  */
 export function permissionDenialCopy(
   denial: string,
-  tier: string | null | undefined,
+  permission: string | null | undefined,
 ): { title: string; detail: string } {
   if (denial === "ENTITLEMENT_REQUIRED") {
     return {
@@ -60,7 +80,7 @@ export function permissionDenialCopy(
   }
   return {
     title: "Permission required.",
-    detail: `Ask ${delegatedTierLabel(tier)} to grant you access.`,
+    detail: permissionRequiredDetail(permission),
   };
 }
 

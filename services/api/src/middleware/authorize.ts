@@ -1200,11 +1200,10 @@ export async function authorizeCurrentWorkspaceOrFail(
  * guards that own their own denial shape and must not have a canonical
  * response sent underneath them.
  *
- * Added by the §1.3 corrective pass so `require-delegated-tier.ts` — which
- * emits its own `DELEGATED_ADMIN_REQUIRED` envelope and a POLICY_VIOLATION
- * audit event on denial — could adopt the canonical chain WITHOUT either
- * duplicating the pointer read or having two different bodies raced onto one
- * reply.
+ * Used by `require-workspace-permission.ts` — which emits its own
+ * `PERMISSION_REQUIRED` envelope and a POLICY_VIOLATION audit event on
+ * denial — so it adopts the canonical chain WITHOUT either duplicating the
+ * pointer read or having two different bodies raced onto one reply.
  */
 export async function evaluateCurrentWorkspace(
   req: FastifyRequest,

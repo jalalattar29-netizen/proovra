@@ -9,6 +9,7 @@
  *   POST   /v1/identity/members/:id/capabilities         — grant a capability
  *   DELETE /v1/identity/capabilities/:grantId            — revoke a capability grant
  *   POST   /v1/identity/members/:id/delegated-admin      — grant a delegated admin scope
+ *   PATCH  /v1/identity/delegated-admin/:scopeId         — change a scope's expiry / reason
  *   DELETE /v1/identity/delegated-admin/:scopeId         — revoke a delegated admin scope
  *   GET    /v1/identity/service-accounts                 — list service accounts (+hardening)
  *   POST   /v1/identity/service-accounts/:id/disable     — disable a credential
@@ -100,6 +101,7 @@ import {
   restoreMember,
   revokeCapability,
   revokeDelegatedAdminScope,
+  updateDelegatedAdminScope,
   revokeMember,
   suspendMember,
 } from "../services/identity/membership-provisioning.service.js";
@@ -790,6 +792,58 @@ export async function identityRoutes(app: FastifyInstance) {
           reason: body.reason ?? null,
           expiresAtUtc: body.expiresAtUtc ? new Date(body.expiresAtUtc) : null,
           actorUserId: actor.userId,
+          ipAddress: requestIp(req),
+          userAgent: requestUa(req),
+        });
+        return reply.code(200).send({ scope });
+      } catch (err) {
+        if (handleRbacError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  const UpdateDelegatedAdminBody = DeclaredTeamId.extend({
+    reason: z.string().min(1).max(400).nullable().optional(),
+    expiresAtUtc: z
+      .string()
+      .datetime()
+      .refine((v) => new Date(v).getTime() > Date.now(), "expiresAtUtc must be in the future")
+      .nullable()
+      .optional(),
+  }).refine((b) => b.reason !== undefined || b.expiresAtUtc !== undefined, "nothing to update");
+
+  app.patch(
+    "/v1/identity/delegated-admin/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsId.parse(req.params);
+      const body = UpdateDelegatedAdminBody.parse(req.body ?? {});
+      const target = await resolveDelegatedScopeTarget(reply, id, body.teamId);
+      if (!target) return;
+      const actor = await requireIdentityActor(
+        req, reply, target.teamId, "identity.delegated_admin.grant",
+        { kind: "delegated_admin_scope", id: target.scopeId },
+      );
+      if (!actor) return;
+      const gate = await requireStepUpForSensitiveAction({
+        req, reply,
+        teamId: target.teamId,
+        userId: actor.userId,
+        purpose: "DELEGATED_ADMIN_GRANT",
+        resourceKind: "delegated_admin_scope",
+        resourceId: target.scopeId,
+      });
+      if (gate.sent) return;
+      try {
+        const scope = await updateDelegatedAdminScope({
+          teamId: target.teamId,
+          scopeId: target.scopeId,
+          actorUserId: actor.userId,
+          ...(body.expiresAtUtc !== undefined
+            ? { expiresAtUtc: body.expiresAtUtc === null ? null : new Date(body.expiresAtUtc) }
+            : {}),
+          ...(body.reason !== undefined ? { reason: body.reason } : {}),
           ipAddress: requestIp(req),
           userAgent: requestUa(req),
         });

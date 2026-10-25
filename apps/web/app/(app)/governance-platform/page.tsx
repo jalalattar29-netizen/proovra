@@ -74,7 +74,7 @@ function Shell() {
         style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
       >
         <a data-governance-platform-link="departments" href="/governance-platform/departments" style={navLink}>Departments</a>
-        <a data-governance-platform-link="delegated-admin" href="/governance-platform/delegated-admin" style={navLink}>Delegated Admin</a>
+        <a data-governance-platform-link="delegated-admin" href="/security-center/identity" style={navLink} title="Delegated administration is managed per member in Security Center">Delegated administration</a>
         <a data-governance-platform-link="policies" href="/governance-platform/policies" style={navLink}>Policies</a>
         <a data-governance-platform-link="access-reviews" href="/governance-platform/access-reviews" style={navLink}>Access Reviews</a>
         <a data-governance-platform-link="cross-org" href="/governance-platform/cross-org" style={navLink}>Cross-Org</a>
@@ -103,7 +103,7 @@ function Shell() {
             <Tile label="Escalated" value={dashboard.accessReviews.escalatedItems} />
           </Family>
           <Family title="Delegated admin" anchor="data-governance-delegated">
-            <Tile label="Active grants" value={dashboard.delegatedAdminActivity.activeGrants} />
+            <Tile label="Active scopes" value={dashboard.delegatedAdminActivity.activeGrants} />
             <Tile label="Revoked · 30d" value={dashboard.delegatedAdminActivity.revokedLast30d} />
           </Family>
           <Family title="Departments" anchor="data-governance-departments-tiles">

@@ -13,7 +13,12 @@
  *   POST   /v1/identity/members/:id/capabilities
  *   DELETE /v1/identity/capabilities/:id
  *   POST   /v1/identity/members/:id/delegated-admin
+ *   PATCH  /v1/identity/delegated-admin/:id   (change expiry / reason)
  *   DELETE /v1/identity/delegated-admin/:id
+ *
+ * Delegated scopes are the ONE delegated-administration authority: the
+ * retired governance "tier" grants no longer give access. A scope adds a fixed
+ * permission set on top of the member's role.
  *
  * Discipline enforced here:
  *   * The workspace is NEVER declared by this surface. The API derives it from
@@ -38,6 +43,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DELEGATED_ADMIN_SCOPE_KINDS,
   PERMISSIONS,
+  identifierLabel,
   type DelegatedAdminScopeKind,
   type Permission,
 } from "@proovra/shared";
@@ -85,7 +91,73 @@ type DelegatedScope = {
   grantedAtUtc: string;
   expiresAtUtc: string | null;
   revokedAtUtc: string | null;
+  /**
+   * The grant reason. Optional on the member roster projection; the
+   * `PATCH /v1/identity/delegated-admin/:id` response always carries it.
+   */
+  reason?: string | null;
 };
+
+/** The scope fields the update route answers with (`{ scope }`). */
+type ScopeDetail = { reason: string | null; expiresAtUtc: string | null };
+
+/** ISO instant → `<input type="datetime-local">` value, in local time. */
+function toLocalInputValue(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export type ScopeEdit = {
+  scopeId: string;
+  expiresAt: string;
+  noExpiry: boolean;
+  reason: string;
+};
+
+/**
+ * The PATCH body for a scope edit: ONLY the fields that changed (the route
+ * refuses an empty body), with the expiry converted to an ISO instant and
+ * required to be in the future (the route refuses a past one).
+ */
+export function buildScopeUpdateBody(
+  edit: ScopeEdit,
+  current: { expiresAtUtc: string | null; reason: string | null | undefined },
+  now: number = Date.now(),
+):
+  | { ok: true; body: { expiresAtUtc?: string | null; reason?: string | null } }
+  | { ok: false; message: string } {
+  const body: { expiresAtUtc?: string | null; reason?: string | null } = {};
+  if (edit.noExpiry) {
+    if (current.expiresAtUtc !== null) body.expiresAtUtc = null;
+  } else if (edit.expiresAt.trim()) {
+    const parsed = new Date(edit.expiresAt.trim());
+    if (Number.isNaN(parsed.getTime())) {
+      return { ok: false, message: "Enter a valid expiry date and time." };
+    }
+    if (parsed.getTime() <= now) {
+      return { ok: false, message: "The expiry must be in the future." };
+    }
+    const currentMs = current.expiresAtUtc ? new Date(current.expiresAtUtc).getTime() : null;
+    // The input has minute precision: an unchanged field is not a change.
+    if (currentMs === null || Math.abs(currentMs - parsed.getTime()) >= 60_000) {
+      body.expiresAtUtc = parsed.toISOString();
+    }
+  }
+  const nextReason = edit.reason.trim();
+  if (current.reason === undefined) {
+    // The roster did not say what the reason is: send it only when one is typed.
+    if (nextReason) body.reason = nextReason;
+  } else if (nextReason !== (current.reason ?? "")) {
+    body.reason = nextReason ? nextReason : null;
+  }
+  if (body.expiresAtUtc === undefined && body.reason === undefined) {
+    return { ok: false, message: "Change the expiry or the reason first." };
+  }
+  return { ok: true, body };
+}
 
 export type MemberProjection = {
   teamMemberId: string;
@@ -160,6 +232,11 @@ export function MembersSection({
     DELEGATED_ADMIN_SCOPE_KINDS[0] as DelegatedAdminScopeKind,
   );
   const [reason, setReason] = useState("");
+  const [scopeEdit, setScopeEdit] = useState<ScopeEdit | null>(null);
+  const [scopeEditError, setScopeEditError] = useState<string | null>(null);
+  // What the update route answered for a scope, so its reason stays visible
+  // after the roster reload even where the roster omits it.
+  const [scopeDetails, setScopeDetails] = useState<Record<string, ScopeDetail>>({});
 
   // ---------------------------------------------------------------------------
   // Read — the ONE projection this surface renders.
@@ -388,6 +465,67 @@ export function MembersSection({
         ),
     );
   }, [selected, scopeDraft, reason, run]);
+
+  const scopeReason = useCallback(
+    (scope: DelegatedScope): string | null | undefined =>
+      scope.reason !== undefined ? scope.reason : scopeDetails[scope.id]?.reason,
+    [scopeDetails],
+  );
+
+  const startScopeEdit = useCallback(
+    (scope: DelegatedScope) => {
+      setScopeEditError(null);
+      setScopeEdit({
+        scopeId: scope.id,
+        expiresAt: toLocalInputValue(scope.expiresAtUtc),
+        noExpiry: scope.expiresAtUtc === null,
+        reason: scopeReason(scope) ?? "",
+      });
+    },
+    [scopeReason],
+  );
+
+  const updateDelegated = useCallback(
+    async (scope: DelegatedScope) => {
+      if (!selected || !scopeEdit || scopeEdit.scopeId !== scope.id) return;
+      const built = buildScopeUpdateBody(scopeEdit, {
+        expiresAtUtc: scope.expiresAtUtc,
+        reason: scopeReason(scope),
+      });
+      if (!built.ok) {
+        setScopeEditError(built.message);
+        return;
+      }
+      setScopeEditError(null);
+      let answered: ScopeDetail | null = null;
+      await run(
+        selected.teamMemberId,
+        `Delegated scope ${identifierLabel(scope.scopeKind)} updated.`,
+        "Could not update the delegated-admin scope.",
+        async (headers) => {
+          const res = await apiFetch(`/v1/identity/delegated-admin/${scope.id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify(built.body),
+          });
+          const s = (res as { scope?: Partial<ScopeDetail> } | null)?.scope;
+          if (s) {
+            answered = {
+              reason: typeof s.reason === "string" ? s.reason : null,
+              expiresAtUtc: typeof s.expiresAtUtc === "string" ? s.expiresAtUtc : null,
+            };
+          }
+          return res;
+        },
+      );
+      const detail = answered as ScopeDetail | null;
+      if (detail) {
+        setScopeDetails((prev) => ({ ...prev, [scope.id]: detail }));
+        setScopeEdit(null);
+      }
+    },
+    [selected, scopeEdit, scopeReason, run],
+  );
 
   const revokeDelegated = useCallback(
     async (scope: DelegatedScope) => {
@@ -846,36 +984,166 @@ export function MembersSection({
                 </p>
               ) : (
                 <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-                  {activeOnly(selected.delegatedAdminScopes).map((s) => (
-                    <li
-                      key={s.id}
-                      data-identity-delegated-row={s.id}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "6px 0",
-                      }}
-                    >
-                      <span>
-                        <code style={{ fontSize: 12 }}>{s.scopeKind}</code>
-                        <span className="adm-help" style={{ display: "block" }}>
-                          granted {fmt(s.grantedAtUtc)}
-                          {s.expiresAtUtc ? ` · expires ${fmt(s.expiresAtUtc)}` : ""}
-                        </span>
-                      </span>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        data-identity-delegated-revoke={s.id}
-                        disabled={busyRow === selected.teamMemberId}
-                        onClick={() => void revokeDelegated(s)}
+                  {activeOnly(selected.delegatedAdminScopes).map((s) => {
+                    const shownReason = scopeReason(s);
+                    const editing = scopeEdit?.scopeId === s.id ? scopeEdit : null;
+                    return (
+                      <li
+                        key={s.id}
+                        data-identity-delegated-row={s.id}
+                        style={{ padding: "6px 0" }}
                       >
-                        Revoke
-                      </Button>
-                    </li>
-                  ))}
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <span>
+                            <span style={{ fontWeight: 600 }}>
+                              {identifierLabel(s.scopeKind)}
+                            </span>{" "}
+                            <code data-identifier style={{ fontSize: 12 }}>
+                              {s.scopeKind}
+                            </code>
+                            <span
+                              className="adm-help"
+                              style={{ display: "block" }}
+                              data-identity-delegated-granted={s.id}
+                            >
+                              granted {fmt(s.grantedAtUtc)}
+                            </span>
+                            <span
+                              className="adm-help"
+                              style={{ display: "block" }}
+                              data-identity-delegated-expiry={s.id}
+                            >
+                              {s.expiresAtUtc ? `expires ${fmt(s.expiresAtUtc)}` : "no expiry"}
+                            </span>
+                            <span
+                              className="adm-help"
+                              style={{ display: "block" }}
+                              data-identity-delegated-reason={s.id}
+                            >
+                              reason:{" "}
+                              {shownReason === undefined
+                                ? "—"
+                                : shownReason === null || shownReason === ""
+                                  ? "none recorded"
+                                  : shownReason}
+                            </span>
+                          </span>
+                          <span style={{ display: "flex", gap: 4 }}>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              data-identity-delegated-edit={s.id}
+                              disabled={busyRow === selected.teamMemberId}
+                              onClick={() =>
+                                editing ? setScopeEdit(null) : startScopeEdit(s)
+                              }
+                            >
+                              {editing ? "Close" : "Edit"}
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              data-identity-delegated-revoke={s.id}
+                              disabled={busyRow === selected.teamMemberId}
+                              onClick={() => void revokeDelegated(s)}
+                            >
+                              Revoke
+                            </Button>
+                          </span>
+                        </div>
+                        {editing ? (
+                          <form
+                            data-identity-delegated-edit-form={s.id}
+                            style={{
+                              display: "grid",
+                              gap: 6,
+                              marginTop: 8,
+                              padding: 8,
+                              border: "1px solid var(--border-subtle, #e5e7eb)",
+                              borderRadius: 8,
+                            }}
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              void updateDelegated(s);
+                            }}
+                          >
+                            <label className="adm-help" htmlFor={`scope-expiry-${s.id}`}>
+                              Expires
+                            </label>
+                            <input
+                              id={`scope-expiry-${s.id}`}
+                              type="datetime-local"
+                              className="adm-input"
+                              data-identity-delegated-edit-expiry={s.id}
+                              value={editing.expiresAt}
+                              disabled={editing.noExpiry}
+                              title={
+                                editing.noExpiry
+                                  ? "Clear “No expiry” to set a date."
+                                  : undefined
+                              }
+                              onChange={(e) =>
+                                setScopeEdit({ ...editing, expiresAt: e.target.value })
+                              }
+                            />
+                            <label className="adm-help" style={{ display: "flex", gap: 6 }}>
+                              <input
+                                type="checkbox"
+                                data-identity-delegated-edit-no-expiry={s.id}
+                                checked={editing.noExpiry}
+                                onChange={(e) =>
+                                  setScopeEdit({ ...editing, noExpiry: e.target.checked })
+                                }
+                              />
+                              No expiry
+                            </label>
+                            <label className="adm-help" htmlFor={`scope-reason-${s.id}`}>
+                              Reason (recorded on the scope and its audit entry)
+                            </label>
+                            <input
+                              id={`scope-reason-${s.id}`}
+                              className="adm-input"
+                              data-identity-delegated-edit-reason={s.id}
+                              value={editing.reason}
+                              maxLength={400}
+                              onChange={(e) =>
+                                setScopeEdit({ ...editing, reason: e.target.value })
+                              }
+                            />
+                            {scopeEditError ? (
+                              <div
+                                role="alert"
+                                className="adm-help"
+                                data-identity-delegated-edit-error={s.id}
+                                style={{ color: "var(--danger-strong)" }}
+                              >
+                                {scopeEditError}
+                              </div>
+                            ) : null}
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <Button
+                                type="submit"
+                                variant="enterprise"
+                                size="sm"
+                                data-identity-delegated-edit-save={s.id}
+                                loading={busyRow === selected.teamMemberId}
+                                disabled={busyRow === selected.teamMemberId}
+                              >
+                                Save changes
+                              </Button>
+                            </div>
+                          </form>
+                        ) : null}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </Card>

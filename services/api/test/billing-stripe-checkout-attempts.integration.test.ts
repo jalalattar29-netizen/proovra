@@ -32,6 +32,13 @@ import {
 
 const STRIPE = "https://api.stripe.com/v1";
 
+/**
+ * ENT-08 — the configured Stripe Prices this fake knows (one per self-service
+ * offer, agreeing with the catalogue; filled in beforeAll from the commercial
+ * authority). Checkout reads its Price back before creating a session.
+ */
+const FAKE_PRICES = new Map<string, { env: string; body: Record<string, unknown> }>();
+
 type Session = {
   id: string;
   object: "checkout.session";
@@ -63,6 +70,10 @@ class FakeStripe {
 
   answer(method: string, path: string, body: string | null, key: string | null): { status: number; body: unknown } {
     this.calls.push({ method, path, key });
+    if (method === "GET" && path.startsWith("/prices/")) {
+      const p = FAKE_PRICES.get(decodeURIComponent(path.slice("/prices/".length)));
+      return p ? { status: 200, body: p.body } : { status: 404, body: { error: { code: "resource_missing" } } };
+    }
     if (path === "/checkout/sessions" && method === "POST") {
       if (this.createFailure) {
         return { status: this.createFailure.status, body: { error: { type: "invalid_request_error", code: "parameter_invalid" } } };
@@ -153,6 +164,8 @@ describe("Stripe checkout attempts (live PostgreSQL 16)", () => {
   async function withStripe<T>(fake: FakeStripe, fn: () => Promise<T>): Promise<T> {
     const previous = process.env.STRIPE_SECRET_KEY;
     process.env.STRIPE_SECRET_KEY = "sk_test_fake";
+    const previousPrices = new Map([...FAKE_PRICES.values()].map((p) => [p.env, process.env[p.env]]));
+    for (const [id, p] of FAKE_PRICES) process.env[p.env] = id;
     const realFetch = globalThis.fetch;
     const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
@@ -175,6 +188,10 @@ describe("Stripe checkout attempts (live PostgreSQL 16)", () => {
       spy.mockRestore();
       if (previous === undefined) delete process.env.STRIPE_SECRET_KEY;
       else process.env.STRIPE_SECRET_KEY = previous;
+      for (const [k, v] of previousPrices) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
     }
   }
 
@@ -191,6 +208,30 @@ describe("Stripe checkout attempts (live PostgreSQL 16)", () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     harness = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    const offers = await import("../src/services/billing/commercial-offer.service.js");
+    for (const currency of ["USD", "EUR"] as const) {
+      for (const o of offers.allSelfServiceOffers(currency)) {
+        const p = o.product;
+        const env =
+          p.kind === "PLAN"
+            ? `STRIPE_${p.plan}_PRICE_ID_${currency}`
+            : p.kind === "EVIDENCE_CREDIT"
+              ? `STRIPE_PAYG_PRICE_ID_${currency}`
+              : `STRIPE_STORAGE_${p.addonKey}_MONTHLY_${currency}_PRICE_ID`;
+        const id = `price_bsa_${offers.describeOffer(o).replace(/[^A-Za-z0-9]/g, "_")}`;
+        FAKE_PRICES.set(id, {
+          env,
+          body: {
+            id,
+            active: true,
+            currency: o.currency.toLowerCase(),
+            unit_amount: o.amountCents,
+            type: o.interval === "MONTH" ? "recurring" : "one_time",
+            recurring: o.interval === "MONTH" ? { interval: "month", interval_count: 1 } : null,
+          },
+        });
+      }
+    }
     const { signJwt } = await import("../src/services/jwt.js");
     deps = {
       prisma: prisma as never,

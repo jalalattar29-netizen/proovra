@@ -192,10 +192,17 @@ describe("Phase 4A Closure — Prisma + closure migration", () => {
 // ---------------------------------------------------------------------------
 
 describe("Phase 4A Closure — service module surface", () => {
-  it("require-delegated-tier middleware exposes the helpers", async () => {
-    const m = await import("../src/middleware/require-delegated-tier.js");
-    expect(typeof m.requireDelegatedTier).toBe("function");
-    expect(typeof m.requireDelegatedTierAny).toBe("function");
+  it("the route permission guard replaces the retired delegated-tier middleware", async () => {
+    // Members audit DOM-09 — one delegated-admin authority: the canonical
+    // permission engine. The tier middleware and its service are gone.
+    const m = await import("../src/middleware/require-workspace-permission.js");
+    expect(typeof m.requireWorkspacePermission).toBe("function");
+    expect(typeof m.requireWorkspacePermission("governance.policy.manage")).toBe("function");
+    expect(
+      typeof m.requireWorkspacePermission(["governance.retention.manage", "identity.org_policy.manage"]),
+    ).toBe("function");
+    expect(srcExists("../src/middleware/require-delegated-tier.ts")).toBe(false);
+    expect(srcExists("../src/services/governance/delegated-admin.service.ts")).toBe(false);
   });
 
   it("department-membership service exposes grant / revoke / list", async () => {
@@ -266,23 +273,39 @@ describe("Phase 4A Closure — service module surface", () => {
 // 4. Delegated tier enforcement applied to routes
 // ---------------------------------------------------------------------------
 
-describe("Phase 4A Closure — delegated tier enforcement on routes", () => {
+describe("Phase 4A Closure — canonical permission enforcement on routes (tier guard retired)", () => {
   const src = readSrc("../src/routes/trust-and-governance.routes.ts");
 
-  it("middleware factories are imported", () => {
-    expect(src).toContain("requireDelegatedTier");
-    expect(src).toContain("requireDelegatedTierAny");
-    expect(src).toContain("require-delegated-tier");
+  // Members audit DOM-09 — the tier guard is retired; every route that asked
+  // for a tier now asks the canonical permission engine for the permission of
+  // its domain. Each pin names the exact permission at the registration.
+  const guardOf = (method: string, path: string): string => {
+    const handler = routeSource(src, method, path);
+    const m = /requireWorkspacePermission\(([^)]*)\)/.exec(handler);
+    return m ? (m[1] as string).replace(/\s+/g, "") : "";
+  };
+
+  it("the permission guard is imported and the retired tier middleware is not", () => {
+    expect(src).toContain('from "../middleware/require-workspace-permission.js"');
+    expect(src).not.toMatch(/requireDelegatedTier/);
+    expect(src).not.toContain("require-delegated-tier");
+    expect(src).not.toContain("delegated-admin.service");
+    expect(src).not.toMatch(/hasDelegatedTier/);
   });
 
-  it("trust article + subprocessor AUTHORING POSTs are tier-gated", () => {
-    // AUTHORING — the routes that write custom workspace content —
-    // remain delegated-tier-gated. The /seed paths below intentionally
-    // are NOT (see the next test).
-    expect(src).toMatch(/"\/v1\/trust\/articles"[\s\S]{0,400}requireDelegatedTierAny/);
-    expect(src).toMatch(
-      /"\/v1\/trust\/subprocessors"[\s\S]{0,400}requireDelegatedTierAny/,
+  it("trust article + subprocessor AUTHORING POSTs are permission-gated", () => {
+    // AUTHORING — the routes that write custom workspace content — are
+    // gated. The /seed paths below intentionally are NOT (see the next test).
+    expect(guardOf("POST", "/v1/trust/articles")).toBe('"governance.policy.manage"');
+    expect(guardOf("POST", "/v1/trust/subprocessors")).toBe('"governance.policy.manage"');
+    // A SECURITY article additionally needs the security-policy permission,
+    // checked through the canonical evaluator (it replaced the kind-aware
+    // SECURITY_OFFICER tier check).
+    const article = routeSource(src, "POST", "/v1/trust/articles");
+    expect(article).toMatch(
+      /body\.kind === "SECURITY"[\s\S]{0,300}evaluateMemberAccess\([\s\S]{0,200}"identity\.org_policy\.manage"/,
     );
+    expect(article).toMatch(/denial: "PERMISSION_REQUIRED", permission: "identity\.org_policy\.manage"/);
   });
 
   it("trust SEED POSTs are NOT delegated-tier-gated (workspace-member self-heal)", () => {
@@ -295,49 +318,59 @@ describe("Phase 4A Closure — delegated tier enforcement on routes", () => {
     // phase tries to re-add the gate.
     const seedSubHandler = routeSource(src, "POST", "/v1/trust/subprocessors/seed");
     expect(seedSubHandler).toMatch(/preHandler:\s*requireAuth\b/);
-    expect(seedSubHandler).not.toMatch(/requireDelegatedTier/);
+    expect(seedSubHandler).not.toMatch(/requireWorkspacePermission/);
   });
 
-  it("department + delegated-admin + membership mutations are tier-gated", () => {
-    expect(src).toMatch(
-      /"\/v1\/governance\/departments"[\s\S]{0,400}requireDelegatedTier\("ORG_ADMIN"\)/,
+  it("department + department-membership mutations are permission-gated", () => {
+    expect(guardOf("POST", "/v1/governance/departments")).toBe('"governance.policy.manage"');
+    expect(guardOf("POST", "/v1/governance/departments/:id/archive")).toBe('"governance.policy.manage"');
+    expect(guardOf("POST", "/v1/governance/departments/:id/memberships")).toBe(
+      '"governance.department.manage"',
     );
-    expect(src).toMatch(
-      /"\/v1\/governance\/departments\/:id\/archive"[\s\S]{0,400}requireDelegatedTier\("ORG_ADMIN"\)/,
-    );
-    expect(src).toMatch(
-      /"\/v1\/governance\/delegated-admin\/:id\/revoke"[\s\S]{0,400}requireDelegatedTier\("ORG_ADMIN"\)/,
-    );
-    expect(src).toMatch(
-      /"\/v1\/governance\/departments\/:id\/memberships"[\s\S]{0,400}requireDelegatedTier\("DEPARTMENT_ADMIN"\)/,
+    expect(guardOf("POST", "/v1/governance/departments/memberships/:id/revoke")).toBe(
+      '"governance.department.manage"',
     );
   });
 
-  it("policy + access-review + cross-org mutations are tier-gated", () => {
-    expect(src).toMatch(
-      /"\/v1\/governance\/policies"[\s\S]{0,400}requireDelegatedTierAny/,
-    );
-    expect(src).toMatch(
-      /"\/v1\/governance\/policies\/:id\/activate"[\s\S]{0,400}requireDelegatedTierAny/,
-    );
-    expect(src).toMatch(
-      /"\/v1\/governance\/policies\/:id\/deprecate"[\s\S]{0,400}requireDelegatedTierAny/,
-    );
-    expect(src).toMatch(
-      /"\/v1\/governance\/policies\/:id\/assignments"[\s\S]{0,400}requireDelegatedTier\("ORG_ADMIN"\)/,
-    );
-    expect(src).toMatch(
-      /"\/v1\/governance\/access-reviews\/campaigns"[\s\S]{0,400}requireDelegatedTierAny/,
-    );
-    expect(src).toMatch(
-      /"\/v1\/governance\/access-reviews\/items\/:id\/decision"[\s\S]{0,400}requireDelegatedTierAny/,
-    );
-    expect(src).toMatch(
-      /"\/v1\/governance\/cross-org-review"[\s\S]{0,400}requireDelegatedTierAny/,
-    );
-    expect(src).toMatch(
-      /"\/v1\/governance\/cross-org-review\/:id\/accept"[\s\S]{0,400}requireDelegatedTier\("ORG_ADMIN"\)/,
-    );
+  it("the retired delegated-admin tier endpoints answer 410 and grant or revoke nothing", () => {
+    for (const [method, path] of [
+      ["GET", "/v1/governance/delegated-admin"],
+      ["POST", "/v1/governance/delegated-admin"],
+      ["POST", "/v1/governance/delegated-admin/:id/revoke"],
+    ] as const) {
+      const handler = routeSource(src, method, path);
+      expect(handler, `${method} ${path}`).toMatch(/reply\.code\(410\)/);
+      expect(handler).toContain('code: "DELEGATED_ADMIN_TIERS_RETIRED"');
+      expect(handler).toContain('nextAction: "OPEN_SECURITY_CENTER"');
+      expect(handler).not.toMatch(/prisma\.|grantDelegated|revokeDelegated|listDelegated/);
+    }
+  });
+
+  it("policy + access-review + cross-org mutations are permission-gated", () => {
+    for (const path of [
+      "/v1/governance/policies",
+      "/v1/governance/policies/:id/activate",
+      "/v1/governance/policies/:id/deprecate",
+      "/v1/governance/policies/:id/assignments",
+    ]) {
+      expect(guardOf("POST", path), path).toBe('"governance.policy.manage"');
+    }
+    for (const path of [
+      "/v1/governance/access-reviews/campaigns",
+      "/v1/governance/access-reviews/campaigns/:id/open",
+      "/v1/governance/access-reviews/campaigns/:id/close",
+      "/v1/governance/access-reviews/items/:id/decision",
+    ]) {
+      expect(guardOf("POST", path), path).toBe('"identity.access_review.action"');
+    }
+    for (const path of [
+      "/v1/governance/cross-org-review",
+      "/v1/governance/cross-org-review/:id/accept",
+      "/v1/governance/cross-org-review/:id/decline",
+      "/v1/governance/cross-org-review/:id/revoke",
+    ]) {
+      expect(guardOf("POST", path), path).toBe('"governance.exchange.manage"');
+    }
   });
 
 });
@@ -367,11 +400,13 @@ describe("Phase 4A Closure — trust mutation audit emissions", () => {
     expect(src).toContain("emitCrossOrgEvent");
   });
 
-  it("delegated-admin.service emits emitDelegatedAdminEvent", () => {
-    const src = readSrc(
-      "../src/services/governance/delegated-admin.service.ts",
-    );
-    expect(src).toContain("emitDelegatedAdminEvent");
+  it("delegated administration (member delegated scopes) emits grant + revoke audit events", () => {
+    // Members audit DOM-09 — the tier service (and its emitDelegatedAdminEvent
+    // call) is retired; the one delegated-admin authority is the member
+    // delegated scope, written by rbac.service, which audits both directions.
+    const src = readSrc("../src/services/identity/rbac.service.ts");
+    expect(src).toMatch(/export async function grantDelegatedAdminScope[\s\S]*?eventType: "delegated_admin_granted"/);
+    expect(src).toMatch(/export async function revokeDelegatedAdminScope[\s\S]*?eventType: "delegated_admin_revoked"/);
   });
 
   it("department.service emits emitDepartmentEvent", () => {
@@ -509,25 +544,74 @@ describe("Phase 4A Closure — policy evaluation behaviour", () => {
 // ---------------------------------------------------------------------------
 
 describe("Phase 4A Closure — access review REVOKED propagates", () => {
-  it("REVOKED on a delegated_admin grant calls revokeDelegatedAdmin", async () => {
-    const delegated = await import(
-      "../src/services/governance/delegated-admin.service.js"
-    );
-    const revokeSpy = vi
-      .spyOn(delegated, "revokeDelegatedAdmin")
-      .mockResolvedValue({ ok: true } as never);
+  // Members audit DOM-09 — the one delegated-admin authority is the member
+  // delegated scope. A REVOKED decision on either grantRef spelling (the
+  // legacy `delegated_admin:` and the canonical `delegated_scope:`) revokes
+  // the SCOPE through rbac.service, on the review's own client.
+  for (const kind of ["delegated_admin", "delegated_scope"] as const) {
+    it(`REVOKED on a ${kind} grantRef calls rbac revokeDelegatedAdminScope`, async () => {
+      const rbac = await import("../src/services/identity/rbac.service.js");
+      const revokeSpy = vi
+        .spyOn(rbac, "revokeDelegatedAdminScope")
+        .mockResolvedValue({ id: "scope" } as never);
 
+      const { recordItemDecision } = await import(
+        "../src/services/governance/access-review.service.js"
+      );
+
+      const scopeUuid = "11111111-1111-1111-1111-111111111111";
+      const prismaStub = {
+        accessReviewItem: {
+          findFirst: async () => ({
+            id: "item-1",
+            decision: "PENDING",
+            grantRef: `${kind}:${scopeUuid}`,
+          }),
+          update: async () => ({ id: "item-1" }),
+        },
+        intelligenceActivityEvent: {
+          create: async () => ({ id: "evt-1" }),
+        },
+      } as never;
+
+      try {
+        const res = await recordItemDecision({
+          prisma: prismaStub,
+          teamId: "team-1",
+          itemId: "item-1",
+          decision: "REVOKED",
+          reviewerUserId: "user-1",
+          notes: null,
+        });
+        expect(res.ok).toBe(true);
+        expect(revokeSpy).toHaveBeenCalledTimes(1);
+        const [input, client] = revokeSpy.mock.calls[0] ?? [];
+        expect(input).toMatchObject({
+          teamId: "team-1",
+          scopeId: scopeUuid,
+          actorUserId: "user-1",
+        });
+        expect(client).toBe(prismaStub);
+      } finally {
+        revokeSpy.mockRestore();
+      }
+    });
+  }
+
+  it("a non-REVOKED decision on a delegated scope revokes nothing", async () => {
+    const rbac = await import("../src/services/identity/rbac.service.js");
+    const revokeSpy = vi
+      .spyOn(rbac, "revokeDelegatedAdminScope")
+      .mockResolvedValue({ id: "scope" } as never);
     const { recordItemDecision } = await import(
       "../src/services/governance/access-review.service.js"
     );
-
-    const grantUuid = "11111111-1111-1111-1111-111111111111";
     const prismaStub = {
       accessReviewItem: {
         findFirst: async () => ({
           id: "item-1",
           decision: "PENDING",
-          grantRef: `delegated_admin:${grantUuid}`,
+          grantRef: "delegated_scope:11111111-1111-1111-1111-111111111111",
         }),
         update: async () => ({ id: "item-1" }),
       },
@@ -535,22 +619,20 @@ describe("Phase 4A Closure — access review REVOKED propagates", () => {
         create: async () => ({ id: "evt-1" }),
       },
     } as never;
-
-    const res = await recordItemDecision({
-      prisma: prismaStub,
-      teamId: "team-1",
-      itemId: "item-1",
-      decision: "REVOKED",
-      reviewerUserId: "user-1",
-      notes: null,
-    });
-    expect(res.ok).toBe(true);
-    expect(revokeSpy).toHaveBeenCalled();
-    const callArgs = revokeSpy.mock.calls[0]?.[0] as {
-      grantId?: string;
-    };
-    expect(callArgs?.grantId).toBe(grantUuid);
-    revokeSpy.mockRestore();
+    try {
+      const res = await recordItemDecision({
+        prisma: prismaStub,
+        teamId: "team-1",
+        itemId: "item-1",
+        decision: "APPROVED",
+        reviewerUserId: "user-1",
+        notes: null,
+      });
+      expect(res.ok).toBe(true);
+      expect(revokeSpy).not.toHaveBeenCalled();
+    } finally {
+      revokeSpy.mockRestore();
+    }
   });
 
   it("REVOKED on an external_review grant calls revokeInvitation", async () => {
@@ -707,42 +789,105 @@ describe("Phase 4A Closure — status probes", () => {
 // ---------------------------------------------------------------------------
 
 describe("Phase 4A Closure — department scope", () => {
-  it("resolveUserDepartmentScope returns unrestricted=true for GLOBAL_ADMIN", async () => {
+  // Members audit DOM-09 — the department-scope bypass is the canonical
+  // permission `governance.policy.manage` (it replaced the retired ORG_ADMIN /
+  // GLOBAL_ADMIN tier), read through the permission engine's member snapshot.
+  const memberRow = (over: {
+    role?: string;
+    status?: string;
+    delegatedAdminScopes?: Array<{ id: string; scopeKind: string; expiresAtUtc: Date | null; revokedAtUtc: Date | null }>;
+    capabilityGrants?: Array<{ id: string; permission: string; expiresAtUtc: Date | null; revokedAtUtc: Date | null }>;
+  }) => ({
+    id: "tm-1",
+    teamId: "team-1",
+    userId: "user-1",
+    role: over.role ?? "MEMBER",
+    status: over.status ?? "ACTIVE",
+    accessExpiresAtUtc: null,
+    team: {
+      isPersonal: false,
+      workspaceKind: "ORGANIZATION",
+      billingPlan: null,
+      organizationId: "org-a",
+      ownerUserId: "owner-X",
+      organization: { status: "ACTIVE" },
+    },
+    capabilityGrants: over.capabilityGrants ?? [],
+    delegatedAdminScopes: over.delegatedAdminScopes ?? [],
+  });
+  const scopeStub = (row: ReturnType<typeof memberRow>) =>
+    ({
+      team: { findFirst: async () => ({ ownerUserId: "owner-X" }) },
+      teamMember: { findUnique: async () => row },
+      securityEvent: { create: async () => ({ id: "se-1" }) },
+      departmentMembership: { findMany: async () => [] },
+    }) as never;
+
+  it("resolveUserDepartmentScope returns unrestricted=true for a GOVERNANCE_ADMIN delegated-scope holder", async () => {
     const { resolveUserDepartmentScope } = await import(
       "../src/services/governance/department-scope.service.js"
     );
-    const prismaStub = {
-      team: { findFirst: async () => ({ ownerUserId: "owner-X" }) },
-      delegatedAdminGrant: {
-        findMany: async () => [
-          {
-            tier: "GLOBAL_ADMIN",
-            organizationId: "org-a",
-            departmentId: null,
-            workspaceId: null,
-            expiresAtUtc: null,
-          },
-        ],
-      },
-      departmentMembership: { findMany: async () => [] },
-    } as never;
     const envelope = await resolveUserDepartmentScope({
-      prisma: prismaStub,
+      prisma: scopeStub(
+        memberRow({
+          delegatedAdminScopes: [
+            { id: "s-1", scopeKind: "GOVERNANCE_ADMIN", expiresAtUtc: null, revokedAtUtc: null },
+          ],
+        }),
+      ),
       teamId: "team-1",
       userId: "user-1",
     });
     expect(envelope.unrestricted).toBe(true);
   });
 
+  it("resolveUserDepartmentScope returns unrestricted=true for a governance.policy.manage capability grant", async () => {
+    const { resolveUserDepartmentScope } = await import(
+      "../src/services/governance/department-scope.service.js"
+    );
+    const envelope = await resolveUserDepartmentScope({
+      prisma: scopeStub(
+        memberRow({
+          capabilityGrants: [
+            { id: "g-1", permission: "governance.policy.manage", expiresAtUtc: null, revokedAtUtc: null },
+          ],
+        }),
+      ),
+      teamId: "team-1",
+      userId: "user-1",
+    });
+    expect(envelope.unrestricted).toBe(true);
+  });
+
+  it("an expired / revoked governor scope, or a SUSPENDED holder, does NOT bypass the department scope", async () => {
+    const { resolveUserDepartmentScope } = await import(
+      "../src/services/governance/department-scope.service.js"
+    );
+    const past = new Date(Date.now() - 60_000);
+    for (const row of [
+      memberRow({ delegatedAdminScopes: [{ id: "s-1", scopeKind: "GOVERNANCE_ADMIN", expiresAtUtc: past, revokedAtUtc: null }] }),
+      memberRow({ delegatedAdminScopes: [{ id: "s-1", scopeKind: "GOVERNANCE_ADMIN", expiresAtUtc: null, revokedAtUtc: past }] }),
+      memberRow({
+        status: "SUSPENDED",
+        delegatedAdminScopes: [{ id: "s-1", scopeKind: "GOVERNANCE_ADMIN", expiresAtUtc: null, revokedAtUtc: null }],
+      }),
+      // A scope that does not carry governance.policy.manage.
+      memberRow({ delegatedAdminScopes: [{ id: "s-1", scopeKind: "REVIEW_ADMIN", expiresAtUtc: null, revokedAtUtc: null }] }),
+    ]) {
+      const envelope = await resolveUserDepartmentScope({
+        prisma: scopeStub(row),
+        teamId: "team-1",
+        userId: "user-1",
+      });
+      expect(envelope.unrestricted).toBe(false);
+    }
+  });
+
   it("resolveUserDepartmentScope returns unrestricted=false + empty allowed-set when no grants + no memberships", async () => {
     const { resolveUserDepartmentScope } = await import(
       "../src/services/governance/department-scope.service.js"
     );
-    const prismaStub = {
-      team: { findFirst: async () => ({ ownerUserId: "owner-X" }) },
-      delegatedAdminGrant: { findMany: async () => [] },
-      departmentMembership: { findMany: async () => [] },
-    } as never;
+    const prismaStub = scopeStub(memberRow({}));
     const envelope = await resolveUserDepartmentScope({
       prisma: prismaStub,
       teamId: "team-1",

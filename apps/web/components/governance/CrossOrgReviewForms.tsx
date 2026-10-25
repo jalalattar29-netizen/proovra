@@ -10,11 +10,12 @@
  * them. It could not create one, and it could not accept one — so an INVITED
  * row was a dead end with exactly one exit, refusal.
  *
- * Authorisation (mirrored client-side only to disable the control):
- *   invite → ORG_ADMIN or REVIEWER_LEAD, plus FEATURE_CROSS_ORG_REVIEW and
- *            FEATURE_GOVERNANCE_PLATFORM entitlements (server-checked; a
- *            denial renders as the bounded entitlement message).
- *   accept → ORG_ADMIN.
+ * Authorisation (mirrored client-side only to disable the control): both
+ * routes require the `governance.exchange.manage` permission from the
+ * permission engine (role, capability grant or delegated scope), plus — for
+ * invite — the FEATURE_CROSS_ORG_REVIEW and FEATURE_GOVERNANCE_PLATFORM
+ * entitlements (server-checked; a denial renders as the bounded entitlement
+ * message).
  */
 
 import { useCallback, useId, useState } from "react";
@@ -22,6 +23,7 @@ import { useCallback, useId, useState } from "react";
 import type { CrossOrgReviewGrantProjection } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
+import { permissionRequiredDetail } from "../../lib/labels/governanceReviewLabels";
 import { useActiveSpaceId } from "../../lib/platform-context/useTenantModel";
 import {
   ReviewScopePicker,
@@ -41,12 +43,15 @@ import {
   ORG_SLUG_PATTERN,
   isUuid,
   toIsoInstant,
-  useDelegatedTierAccess,
   useGovernanceAction,
   useGovernanceOrganization,
+  useWorkspacePermissionAccess,
 } from "./governance-action-state";
 
 type FieldErrors = Record<string, string | null>;
+
+/** The permission both cross-org routes ask the engine for. */
+const CROSS_ORG_PERMISSION = "governance.exchange.manage" as const;
 
 // ---------------------------------------------------------------------------
 // Invite — POST /v1/governance/cross-org-review
@@ -61,7 +66,7 @@ export function CrossOrgInviteForm({
   const uid = useId();
   const { busy, outcome, reset, run } = useGovernanceAction();
   const org = useGovernanceOrganization();
-  const tiers = useDelegatedTierAccess();
+  const access = useWorkspacePermissionAccess();
 
   const [invitedOrgSlug, setInvitedOrgSlug] = useState("");
   const [scope, setScope] = useState("");
@@ -73,9 +78,7 @@ export function CrossOrgInviteForm({
   const [subject, setSubject] = useState<ReviewScopeState>({ target: null, blockedReason: null });
   const [pickerKey, setPickerKey] = useState(0);
 
-  const permitted = tiers.hasAnyTier(["ORG_ADMIN", "REVIEWER_LEAD"], {
-    organizationId: org.organizationId,
-  });
+  const permitted = access.ready && access.allows(CROSS_ORG_PERMISSION);
   const contextReady = !org.loading && org.organizationId !== null;
   const canSubmit = permitted && contextReady && !busy && subject.target !== null;
 
@@ -221,12 +224,11 @@ export function CrossOrgInviteForm({
           >
             {busy ? "Inviting…" : "Invite organization"}
           </Button>
-          {!tiers.ready ? (
-            <span style={noteStyle}>Checking your governance tier…</span>
+          {!access.ready ? (
+            <span style={noteStyle}>Checking your permissions…</span>
           ) : !permitted ? (
-            <span style={noteStyle} data-cross-org-invite-blocked="tier">
-              Inviting another organization needs the ORG_ADMIN or REVIEWER_LEAD
-              delegated-admin tier in this workspace.
+            <span style={noteStyle} data-cross-org-invite-blocked="permission">
+              {permissionRequiredDetail(CROSS_ORG_PERMISSION)}
             </span>
           ) : org.loading ? (
             <span style={noteStyle}>Resolving this workspace&apos;s organization…</span>
@@ -269,14 +271,12 @@ export function CrossOrgAcceptForm({
   const uid = useId();
   const { busy, outcome, reset, run } = useGovernanceAction();
   const org = useGovernanceOrganization();
-  const tiers = useDelegatedTierAccess();
+  const access = useWorkspacePermissionAccess();
 
   const [externalGrantId, setExternalGrantId] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
 
-  const permitted = tiers.hasTier("ORG_ADMIN", {
-    organizationId: org.organizationId,
-  });
+  const permitted = access.ready && access.allows(CROSS_ORG_PERMISSION);
   const contextReady = !org.loading && org.organizationId !== null;
   const canSubmit = permitted && contextReady && !busy;
 
@@ -379,12 +379,11 @@ export function CrossOrgAcceptForm({
           >
             Cancel
           </Button>
-          {!tiers.ready ? (
-            <span style={noteStyle}>Checking your governance tier…</span>
+          {!access.ready ? (
+            <span style={noteStyle}>Checking your permissions…</span>
           ) : !permitted ? (
-            <span style={noteStyle} data-cross-org-accept-blocked="tier">
-              Accepting a cross-org invitation needs the ORG_ADMIN
-              delegated-admin tier in this workspace.
+            <span style={noteStyle} data-cross-org-accept-blocked="permission">
+              {permissionRequiredDetail(CROSS_ORG_PERMISSION)}
             </span>
           ) : !contextReady ? (
             <span style={noteStyle} data-cross-org-accept-blocked="organization">

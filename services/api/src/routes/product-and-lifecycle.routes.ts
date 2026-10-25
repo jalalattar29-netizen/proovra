@@ -26,10 +26,7 @@ import { requireAuth } from "../middleware/auth.js";
 // server-side but checks neither ACTIVE membership, parent-Organization
 // lifecycle, access expiry, nor capability.
 import { authorizeOrFail } from "../middleware/authorize.js";
-import {
-  requireDelegatedTier,
-  requireDelegatedTierAny,
-} from "../middleware/require-delegated-tier.js";
+import { requireWorkspacePermission } from "../middleware/require-workspace-permission.js";
 import {
   extractPrismaDiagnostic,
   isPrismaTableOrColumnMissing,
@@ -186,7 +183,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/packaging/entitlements/apply-product-line",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("billing.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -197,9 +194,8 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       // 20270802000000_phase_sentry_batch_schema_drift_repair adds
       // the missing `delegated_admin_grants` columns
       // (`granted_to_user_id`, `scope_target_id`, `created_at`,
-      // `updated_at`). `hasDelegatedTier` is already hardened to
-      // return false on P2022/P2021 (see delegated-admin.service.ts),
-      // so the middleware path is safe. Belt-and-braces: catch any
+      // `updated_at`). The route's permission pre-handler reads only the
+      // canonical membership/scope tables. Belt-and-braces: catch any
       // residual P2022/P2021 raised by `applyProductLine` itself —
       // the route returns an explicit degraded payload instead of
       // 500ing. NEVER a silent suppression: the caller sees
@@ -233,7 +229,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/packaging/entitlements/grant",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("billing.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -727,7 +723,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/exchange/packages/:id/revoke",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -787,7 +783,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireDelegatedTierAny(["ORG_ADMIN", "REVIEWER_LEAD"]),
+        requireWorkspacePermission("governance.exchange.manage"),
       ],
     },
     async (req, reply) => {
@@ -833,7 +829,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/exchange/chain-transfers/:id/accept",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -854,7 +850,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/exchange/chain-transfers/:id/reject",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -875,7 +871,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/exchange/chain-transfers/:id/revoke",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -892,7 +888,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/exchange/chain-transfers/:id/complete",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -945,7 +941,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/integrations/webhooks/endpoints",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("integration.webhook.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -994,7 +990,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/integrations/webhooks/endpoints/:id/deactivate",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("integration.webhook.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1125,7 +1121,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/integrations/webhooks/lifecycle-deliveries/:id/replay",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("integration.webhook.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1182,7 +1178,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireDelegatedTierAny(["ORG_ADMIN", "COMPLIANCE_OFFICER"]),
+        requireWorkspacePermission("governance.retention.manage"),
       ],
     },
     async (req, reply) => {
@@ -1222,7 +1218,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireDelegatedTierAny(["ORG_ADMIN", "COMPLIANCE_OFFICER"]),
+        requireWorkspacePermission("governance.retention.manage"),
       ],
     },
     async (req, reply) => {
@@ -1320,7 +1316,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireDelegatedTierAny(["ORG_ADMIN", "COMPLIANCE_OFFICER"]),
+        requireWorkspacePermission("governance.legal_hold.manage"),
       ],
     },
     async (req, reply) => {
@@ -1437,7 +1433,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireDelegatedTierAny(["ORG_ADMIN", "COMPLIANCE_OFFICER"]),
+        requireWorkspacePermission("governance.legal_hold.manage"),
       ],
     },
     async (req, reply) => {
@@ -1541,7 +1537,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/lifecycle/archive/transition",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.retention.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1626,7 +1622,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireDelegatedTierAny(["ORG_ADMIN", "COMPLIANCE_OFFICER"]),
+        requireWorkspacePermission("governance.retention.manage"),
       ],
     },
     async (req, reply) => {
@@ -1658,7 +1654,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireDelegatedTierAny(["ORG_ADMIN", "COMPLIANCE_OFFICER", "SECURITY_OFFICER"]),
+        requireWorkspacePermission(["governance.retention.manage", "identity.org_policy.manage"]),
       ],
     },
     async (req, reply) => {
@@ -1683,7 +1679,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireDelegatedTierAny(["ORG_ADMIN", "COMPLIANCE_OFFICER"]),
+        requireWorkspacePermission("governance.retention.manage"),
       ],
     },
     async (req, reply) => {
@@ -1707,7 +1703,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
   app.post(
     "/v1/lifecycle/destruction/requests/:id/execute",
     {
-      preHandler: [requireAuth, requireDelegatedTier("COMPLIANCE_OFFICER")],
+      preHandler: [requireAuth, requireWorkspacePermission("governance.retention.manage")],
     },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
@@ -1908,7 +1904,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireDelegatedTierAny(["ORG_ADMIN", "COMPLIANCE_OFFICER"]),
+        requireWorkspacePermission("audit.read"),
       ],
     },
     async (req, reply) => {

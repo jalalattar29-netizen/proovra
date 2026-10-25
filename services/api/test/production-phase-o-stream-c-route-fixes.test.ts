@@ -14,7 +14,11 @@
  *             (delegatedAdminGrant.findMany drift in hasDelegatedTier
  *              middleware — service hardened to return false on
  *              P2022/P2021; route adds belt-and-braces degraded 200
- *              payload)
+ *              payload). Members audit DOM-09 then retired the tier
+ *              middleware and its service outright: the route's
+ *              pre-handler is the canonical permission guard, which
+ *              reads no tier-grant table at all — so the drifted read
+ *              is not merely caught, it is gone from the request path.
  *
  *   NODE-1E → GET /v1/trust/status
  *             (status_components.updated_at missing — projectStatusPage
@@ -53,7 +57,9 @@ function readApi(rel: string): string {
 const REVIEWER_WORKSPACE_ROUTES = readApi("src/routes/reviewer-workspace.routes.ts");
 const CODING_SCHEMA_SERVICE = readApi("src/services/reviewer-workspace/coding-schema.service.ts");
 const PRODUCT_LIFECYCLE_ROUTES = readApi("src/routes/product-and-lifecycle.routes.ts");
-const DELEGATED_ADMIN_SERVICE = readApi("src/services/governance/delegated-admin.service.ts");
+const PERMISSION_GUARD = readApi("src/middleware/require-workspace-permission.ts");
+const ACCESS_POLICY_SERVICE = readApi("src/services/identity/access-policy.service.ts");
+const AUTHORIZE_MIDDLEWARE = readApi("src/middleware/authorize.ts");
 const TRUST_ROUTES = readApi("src/routes/trust-and-governance.routes.ts");
 const RUNTIME_READINESS_ROUTES = readApi("src/routes/runtime-readiness.routes.ts");
 
@@ -100,16 +106,22 @@ describe("Phase O Stream C — Sentry NODE-1P /v1/coding/schemas/seed-defaults",
 // ===========================================================================
 
 describe("Phase O Stream C — Sentry NODE-1K /v1/packaging/entitlements/apply-product-line", () => {
-  it("hasDelegatedTier wraps the findMany in try/catch and returns [] on P2022/P2021", () => {
-    expect(DELEGATED_ADMIN_SERVICE).toMatch(
-      /try\s*\{[\s\S]{0,400}prisma\.delegatedAdminGrant\.findMany/,
-    );
-    expect(DELEGATED_ADMIN_SERVICE).toMatch(
-      /code !== "P2022" && code !== "P2021"/,
-    );
-    // After the catch, the implicit-owner ladder still runs — never
-    // a silent boolean true. The fail-closed behavior is documented.
-    expect(DELEGATED_ADMIN_SERVICE).toMatch(/grants\s*=\s*\[\]/);
+  it("the route's guard no longer reads the drifted tier-grant table at all", () => {
+    // The NODE-1K 500 came from `delegatedAdminGrant.findMany` inside the
+    // tier middleware. That middleware and its service are retired; the
+    // guard is the canonical permission chain, which decides from the member
+    // snapshot (membership + capability grants + delegated scopes).
+    expect(PERMISSION_GUARD).toMatch(/evaluateCurrentWorkspace\(req, \{ permission: p \}\)/);
+    for (const [name, src] of [
+      ["require-workspace-permission.ts", PERMISSION_GUARD],
+      ["access-policy.service.ts", ACCESS_POLICY_SERVICE],
+      ["authorize.ts", AUTHORIZE_MIDDLEWARE],
+    ] as const) {
+      expect(src, name).not.toMatch(/delegatedAdminGrant/);
+      expect(src, name).not.toMatch(/hasDelegatedTier/);
+    }
+    // The snapshot loader reads the canonical scope relation instead.
+    expect(ACCESS_POLICY_SERVICE).toMatch(/delegatedAdminScopes:\s*\{\s*select:/);
   });
 
   it("the route handler returns degraded 200 on P2022/P2021 instead of 500", () => {
@@ -125,14 +137,20 @@ describe("Phase O Stream C — Sentry NODE-1K /v1/packaging/entitlements/apply-p
     expect(slice).toMatch(/reason:\s*"SCHEMA_NOT_READY"/);
   });
 
-  it("the delegated-tier middleware gate is preserved (auth not weakened)", () => {
-    // The route MUST still require ORG_ADMIN via the middleware.
+  it("the route's authorization gate is preserved (auth not weakened)", () => {
+    // The route MUST still be gated in its pre-handler. The retired
+    // ORG_ADMIN tier is now the canonical `billing.manage` permission —
+    // OWNER-only by role (not even ADMIN holds it), so the gate is at least
+    // as narrow as it was.
     const slice = routeSource(
       PRODUCT_LIFECYCLE_ROUTES,
       "POST",
       "/v1/packaging/entitlements/apply-product-line",
     );
-    expect(slice).toMatch(/requireDelegatedTier\("ORG_ADMIN"\)/);
+    expect(slice).toMatch(
+      /preHandler:\s*\[requireAuth,\s*requireWorkspacePermission\("billing\.manage"\)\]/,
+    );
+    expect(slice).not.toMatch(/requireDelegatedTier/);
   });
 });
 

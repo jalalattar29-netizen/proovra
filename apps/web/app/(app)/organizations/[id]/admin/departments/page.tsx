@@ -86,7 +86,7 @@ function DepartmentsTab() {
 
       <PageSection
         title="Canonical departments surface"
-        description="Manage departments and delegated administration on the Governance Platform, scoped to the active workspace's organization."
+        description="Manage departments on the Governance Platform, scoped to the active workspace's organization. Delegated administration is granted per member in Security Center."
       >
         <div
           data-section="departments-deep-links"
@@ -101,8 +101,8 @@ function DepartmentsTab() {
           <DeepLink
             testId="dept-deep-link-delegated-admin"
             label="Delegated administration"
-            description="Grant tier-scoped admin powers (DEPT_ADMIN, SECURITY_OFFICER, etc.)."
-            href="/governance-platform/delegated-admin"
+            description="Grant, update or revoke a member's delegated scopes (governance, identity, review, retention and more) in Security Center."
+            href="/security-center/identity"
           />
         </div>
       </PageSection>

@@ -43,9 +43,13 @@ test("a retirement is presented as retired, not as bad input", () => {
 
   for (const code of found) {
     const safe = toSafeUserError({ statusCode: 410, code });
+    // A retirement reads either as the generic FEATURE_RETIRED copy or, when
+    // the code has its own registered copy that says where the feature went
+    // (e.g. DELEGATED_ADMIN_TIERS_RETIRED → Security Center), as that copy.
+    const own = (USER_FACING_ERRORS as Record<string, { title: string } | undefined>)[code];
     assert.equal(
       safe.title,
-      USER_FACING_ERRORS.FEATURE_RETIRED.title,
+      own ? own.title : USER_FACING_ERRORS.FEATURE_RETIRED.title,
       `${code} is not presented as a retirement`,
     );
     assert.equal(safe.severity, "info", `${code} is not an error; nothing broke`);

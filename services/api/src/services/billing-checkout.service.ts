@@ -12,10 +12,13 @@ import {
   getPlanPriceCents,
   getStorageAddonCurrency,
   getStorageAddonPriceCents,
-  getStripePlanPriceId,
-  getStripeStorageAddonPriceId,
   resolveCheckoutCurrency,
 } from "./billing-pricing.service.js";
+import {
+  requireVerifiedStripePrice,
+  resolveCommercialOffer,
+  selfServiceProductForPlan,
+} from "./billing/commercial-offer.service.js";
 // PHASE 11 — canonical internal URL builder. Used ONLY to compose the
 // checkout success/cancel return URLs; the Stripe/PayPal session-creation
 // logic itself is untouched.
@@ -159,30 +162,17 @@ export async function createStripeCheckoutSession(params: {
     searchParams.append("metadata[teamId]", params.teamId);
   }
 
-  const priceId = getStripePlanPriceId(params.plan, currency);
-
-  if (priceId) {
-    searchParams.append("line_items[0][price]", priceId);
-    searchParams.append("line_items[0][quantity]", "1");
-  } else {
-    searchParams.append("line_items[0][price_data][currency]", currency);
-    searchParams.append(
-      "line_items[0][price_data][product_data][name]",
-      `Proovra ${params.plan}`
-    );
-    searchParams.append(
-      "line_items[0][price_data][unit_amount]",
-      amountCents.toString()
-    );
-    searchParams.append("line_items[0][quantity]", "1");
-
-    if (mode === "subscription") {
-      searchParams.append(
-        "line_items[0][price_data][recurring][interval]",
-        "month"
-      );
-    }
-  }
+  // Members audit ENT-08 — the one commercial authority. The configured Stripe
+  // Price must exist, belong to this product alone, and bill exactly the
+  // catalogue amount, currency and interval the customer was shown; otherwise
+  // the checkout is refused before Stripe is asked to create anything. There
+  // is no inline `price_data` fallback: an ad-hoc price is a price nobody
+  // configured, compared or reconciled.
+  const priceId = await requireVerifiedStripePrice(
+    resolveCommercialOffer(selfServiceProductForPlan(params.plan), currency),
+  );
+  searchParams.append("line_items[0][price]", priceId);
+  searchParams.append("line_items[0][quantity]", "1");
 
   if (mode === "subscription") {
     searchParams.append("subscription_data[metadata][userId]", params.userId);
@@ -293,34 +283,13 @@ export async function createStripeStorageAddonCheckoutSession(params: {
     searchParams.append("metadata[teamId]", params.teamId);
   }
 
-  const priceId = getStripeStorageAddonPriceId({
-    addonKey: params.addonKey,
-    billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
-    currency,
-  });
-
-  if (priceId) {
-    searchParams.append("line_items[0][price]", priceId);
-    searchParams.append("line_items[0][quantity]", "1");
-  } else {
-    searchParams.append("line_items[0][price_data][currency]", currency);
-    searchParams.append(
-      "line_items[0][price_data][product_data][name]",
-      `Proovra Storage Add-on ${params.addonKey}`
-    );
-    searchParams.append(
-      "line_items[0][price_data][unit_amount]",
-      String(amountCents)
-    );
-    // Without this the inline price is a ONE-TIME charge and Stripe rejects it
-    // in subscription mode — which is precisely the mismatch that would let a
-    // "monthly" add-on bill once and never again.
-    searchParams.append(
-      "line_items[0][price_data][recurring][interval]",
-      "month"
-    );
-    searchParams.append("line_items[0][quantity]", "1");
-  }
+  // Members audit ENT-08 — verified against the catalogue like every other
+  // self-service Stripe checkout; no inline price.
+  const priceId = await requireVerifiedStripePrice(
+    resolveCommercialOffer({ kind: "STORAGE_ADDON", addonKey: params.addonKey }, currency),
+  );
+  searchParams.append("line_items[0][price]", priceId);
+  searchParams.append("line_items[0][quantity]", "1");
 
   const session = await stripeRequest("/checkout/sessions", searchParams, {
     idempotencyKey: params.attemptId ? `proovra-checkout-${params.attemptId}` : null,

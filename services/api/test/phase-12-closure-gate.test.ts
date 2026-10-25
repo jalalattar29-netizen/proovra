@@ -75,7 +75,9 @@ describe("Phase 12 — CLOSURE GATE (may be red during execution; blocks complet
     // parity duplicates, so none is delete-eligible:
     //   /v1/governance/legal-holds        — EVIDENCE-scoped ({evidenceId,...},
     //       requireMember+step-up) ≠ /v1/lifecycle/legal-holds which is
-    //       KIND/scopeTargetId-scoped (requireDelegatedTierAny+entitlement+quota).
+    //       KIND/scopeTargetId-scoped (requireWorkspacePermission(
+    //       "governance.legal_hold.manage")+entitlement+quota; the tier guard
+    //       it once used is retired, members audit DOM-09).
     //   /v1/governance/case-legal-holds   — CASE-scoped, distinct service.
     //   /v1/governance/policy             — WORKSPACE deletion/retention/download
     //       governance ≠ /v1/reviewer-ops/sla-policy (reviewer SLA). Invalid pair.

@@ -82,6 +82,7 @@ export {
   revokeCapability,
   grantDelegatedAdminScope,
   revokeDelegatedAdminScope,
+  updateDelegatedAdminScope,
   listTeamMembersWithAccess,
   touchMemberLastSeen,
   leaveWorkspace,

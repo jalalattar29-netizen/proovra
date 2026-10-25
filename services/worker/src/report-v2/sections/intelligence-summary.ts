@@ -332,7 +332,7 @@ export async function buildTrustReferencesForReport(input: {
           orderBy: { name: "asc" },
         }).catch(() => []),
         prisma.governancePolicy.count({ where: { teamId, state: "ACTIVE" } }).catch(() => 0),
-        prisma.delegatedAdminGrant.count({ where: { teamId, state: "ACTIVE" } }).catch(() => 0),
+        prisma.memberDelegatedAdminScope.count({ where: { teamId: teamId, revokedAtUtc: null, OR: [{ expiresAtUtc: null }, { expiresAtUtc: { gt: new Date() } }] } }).catch(() => 0),
         prisma.crossOrgReviewGrant.count({ where: { teamId, state: "ACCEPTED" } }).catch(() => 0),
       ]);
     return {

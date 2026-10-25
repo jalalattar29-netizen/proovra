@@ -7,8 +7,10 @@
  * effective chain, and read the audit — but the DRAFT row those actions
  * operate on could only be authored through a REST client.
  *
- * Authorisation: SECURITY_OFFICER or COMPLIANCE_OFFICER (cross-cutting tiers;
- * the workspace owner does not implicitly hold either).
+ * Authorisation: the `governance.policy.manage` permission from the
+ * permission engine — the role, a capability grant, or a delegated scope that
+ * includes it (GOVERNANCE_ADMIN). Mirrored client-side only to disable the
+ * control with a reason; the route re-checks it.
  *
  * `rule` is a `z.record(z.string(), z.unknown())` — a JSON object. It is
  * authored here as text and parsed CLIENT-SIDE before the request so a typo
@@ -26,6 +28,7 @@ import {
 } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
+import { permissionRequiredDetail } from "../../lib/labels/governanceReviewLabels";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import {
@@ -38,7 +41,7 @@ import {
 } from "./GovernanceFormField";
 import {
   POLICY_SLUG_PATTERN,
-  useDelegatedTierAccess,
+  useWorkspacePermissionAccess,
   useGovernanceAction,
 } from "./governance-action-state";
 
@@ -57,6 +60,9 @@ function parseRule(text: string): { ok: true; rule: Record<string, unknown> } | 
   return { ok: true, rule: parsed as Record<string, unknown> };
 }
 
+/** The permission the policy routes ask the engine for. */
+const POLICY_PERMISSION = "governance.policy.manage" as const;
+
 export function GovernancePolicyForm({
   onCreated,
 }: {
@@ -64,7 +70,7 @@ export function GovernancePolicyForm({
 }) {
   const uid = useId();
   const { busy, outcome, reset, run } = useGovernanceAction();
-  const tiers = useDelegatedTierAccess();
+  const access = useWorkspacePermissionAccess();
 
   const [kind, setKind] = useState<GovernancePolicyKind>(GOVERNANCE_POLICY_KINDS[0]);
   const [slug, setSlug] = useState("");
@@ -75,7 +81,7 @@ export function GovernancePolicyForm({
   const [rule, setRule] = useState("{}");
   const [errors, setErrors] = useState<Record<string, string | null>>({});
 
-  const permitted = tiers.hasAnyTier(["SECURITY_OFFICER", "COMPLIANCE_OFFICER"]);
+  const permitted = access.ready && access.allows(POLICY_PERMISSION);
   const canSubmit = permitted && !busy;
 
   const validate = useCallback((): Record<string, string | null> | null => {
@@ -259,13 +265,11 @@ export function GovernancePolicyForm({
           >
             {busy ? "Creating…" : "Create policy version"}
           </Button>
-          {!tiers.ready ? (
-            <span style={noteStyle}>Checking your governance tier…</span>
+          {!access.ready ? (
+            <span style={noteStyle}>Checking your permissions…</span>
           ) : !permitted ? (
-            <span style={noteStyle} data-governance-policy-blocked="tier">
-              Authoring a governance policy needs the SECURITY_OFFICER or
-              COMPLIANCE_OFFICER delegated-admin tier. These are cross-cutting
-              tiers — being the workspace owner does not grant them.
+            <span style={noteStyle} data-governance-policy-blocked="permission">
+              {permissionRequiredDetail(POLICY_PERMISSION)}
             </span>
           ) : null}
         </div>

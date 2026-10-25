@@ -43,7 +43,8 @@
  *      is not customer content; any workspace member may request the
  *      idempotent seed. Custom AUTHORING routes
  *      (POST /v1/trust/articles, POST /v1/trust/subprocessors)
- *      remain gated by delegated tier.
+ *      remain gated — formerly by delegated tier, now (members audit
+ *      DOM-09) by the canonical permission governance.policy.manage.
  *
  *   C. The landing "Re-seed defaults" button now seeds BOTH articles
  *      AND subprocessors via Promise.allSettled, and surfaces a
@@ -127,7 +128,9 @@ describe("Production fix B — seed POSTs no longer require delegated tier", () 
     const after = ROUTES.slice(idx + 1);
     const nextRoute = after.search(/\n\s{0,4}app\.(post|get|patch|delete)\(/);
     const slice = ROUTES.slice(idx, idx + 1 + (nextRoute > 0 ? nextRoute : 1500));
+    // Neither the retired tier guard nor its successor permission guard.
     expect(slice).not.toMatch(/requireDelegatedTier/);
+    expect(slice).not.toMatch(/requireWorkspacePermission/);
     expect(slice).toMatch(/preHandler:\s*requireAuth\b/);
   });
 
@@ -138,19 +141,25 @@ describe("Production fix B — seed POSTs no longer require delegated tier", () 
     const nextRoute = after.search(/\n\s{0,4}app\.(post|get|patch|delete)\(/);
     const slice = ROUTES.slice(idx, idx + 1 + (nextRoute > 0 ? nextRoute : 1500));
     expect(slice).not.toMatch(/requireDelegatedTier/);
+    expect(slice).not.toMatch(/requireWorkspacePermission/);
     expect(slice).toMatch(/preHandler:\s*requireAuth\b/);
   });
 
-  it("Authoring routes still require delegated tier (gate preserved where it matters)", () => {
+  it("Authoring routes are still gated (gate preserved where it matters)", () => {
     // Pin that POST /v1/trust/articles (NO trailing /seed) and
-    // POST /v1/trust/subprocessors (NO trailing /seed) DO still
-    // require the delegated tier. We only opened up the canonical
-    // seed paths.
+    // POST /v1/trust/subprocessors (NO trailing /seed) DO still carry an
+    // authorization pre-handler. We only opened up the canonical seed paths.
+    // Members audit DOM-09 retired the delegated tier; the gate is now the
+    // canonical permission `governance.policy.manage`.
     const authoringSlice = routeSource(ROUTES, "POST", "/v1/trust/articles");
-    expect(authoringSlice).toMatch(/requireDelegatedTierAny/);
+    expect(authoringSlice).toMatch(
+      /preHandler:\s*\[requireAuth,\s*requireWorkspacePermission\("governance\.policy\.manage"\)\]/,
+    );
 
     const subAuthoringSlice = routeSource(ROUTES, "POST", "/v1/trust/subprocessors");
-    expect(subAuthoringSlice).toMatch(/requireDelegatedTierAny/);
+    expect(subAuthoringSlice).toMatch(
+      /preHandler:\s*\[requireAuth,\s*requireWorkspacePermission\("governance\.policy\.manage"\)\]/,
+    );
   });
 });
 

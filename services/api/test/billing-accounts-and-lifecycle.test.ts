@@ -361,10 +361,11 @@ describe("storage add-ons are recurring monthly, legacy purchases preserved", ()
       src.indexOf("export async function createStripeStorageAddonCheckoutSession"),
     );
     expect(fn).toMatch(/const mode = "subscription"/);
-    // Without the recurring interval an inline price is a one-time charge, and
-    // Stripe rejects it in subscription mode — a "monthly" add-on that bills
-    // once and never again.
-    expect(fn).toMatch(/price_data\]\[recurring\]\[interval\]/);
+    // ENT-08 — no inline price at all: the add-on is charged only with its
+    // configured Stripe Price, verified as recurring monthly at the catalogue
+    // amount (behaviour proven in members-commercial-offer.test.ts).
+    expect(fn).not.toMatch(/price_data/);
+    expect(fn).toMatch(/requireVerifiedStripePrice\(/);
   });
 
   it("the pricing API publishes the same monthly cycle the checkout sells", async () => {

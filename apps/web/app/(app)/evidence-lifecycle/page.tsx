@@ -32,7 +32,7 @@ import { PageShell, PageHeader } from "../../../components/ui/PageShell";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { apiFetch, ApiError } from "../../../lib/api";
-import { LifecycleSectionBoundary, delegatedTierLabel } from "./_shared";
+import { LifecycleSectionBoundary, permissionRequiredDetail } from "./_shared";
 // PHASE 12B (Evidence Operations) — the lifecycle console is the home for
 // the dedicated policy-violation observability reads and the bounded
 // verification-package manifest preview.
@@ -110,7 +110,7 @@ type LoadState =
   | { phase: "empty" }
   | { phase: "error"; message: string }
   | { phase: "entitlement-required"; missingFeature?: string }
-  | { phase: "delegated-admin-required"; requiredTier?: string }
+  | { phase: "permission-required"; permission?: string }
   | { phase: "needs-setup"; missingFlags?: string[] };
 
 // ---------------------------------------------------------------------------
@@ -234,12 +234,12 @@ function mapErrorToState(err: unknown): LoadState {
             : undefined;
       return { phase: "entitlement-required", missingFeature };
     }
-    if (err.statusCode === 403 && denial === "DELEGATED_ADMIN_REQUIRED") {
-      const requiredTier =
-        err.details && typeof err.details["requiredTier"] === "string"
-          ? (err.details["requiredTier"] as string)
-          : "DELEGATED_ADMIN";
-      return { phase: "delegated-admin-required", requiredTier };
+    if (err.statusCode === 403 && denial === "PERMISSION_REQUIRED") {
+      const permission =
+        err.details && typeof err.details["permission"] === "string"
+          ? (err.details["permission"] as string)
+          : undefined;
+      return { phase: "permission-required", permission };
     }
   }
   // Generic shape (fetch/init errors that aren't ApiError but carry statusCode).
@@ -259,13 +259,13 @@ function mapErrorToState(err: unknown): LoadState {
             : undefined,
       };
     }
-    if (denial === "DELEGATED_ADMIN_REQUIRED") {
+    if (denial === "PERMISSION_REQUIRED") {
       return {
-        phase: "delegated-admin-required",
-        requiredTier:
-          typeof e.details["requiredTier"] === "string"
-            ? (e.details["requiredTier"] as string)
-            : "DELEGATED_ADMIN",
+        phase: "permission-required",
+        permission:
+          typeof e.details["permission"] === "string"
+            ? (e.details["permission"] as string)
+            : undefined,
       };
     }
   }
@@ -316,7 +316,7 @@ function Shell() {
       const mapped = mapErrorToState(err);
       if (
         mapped.phase === "entitlement-required" ||
-        mapped.phase === "delegated-admin-required"
+        mapped.phase === "permission-required"
       ) {
         setState(mapped);
       } else if (mapped.phase === "error") {
@@ -456,18 +456,17 @@ function Shell() {
         </div>
       ) : null}
 
-      {state.phase === "delegated-admin-required" ? (
+      {state.phase === "permission-required" ? (
         <div
-          data-evidence-lifecycle-state="delegated-admin-required"
-          data-permission-denied="DELEGATED_ADMIN_REQUIRED"
+          data-evidence-lifecycle-state="permission-required"
+          data-permission-denied="PERMISSION_REQUIRED"
           style={denialBoxStyle}
         >
-          {/* PV-STATE-001 — the role to ask for, never the tier constant. */}
-          <strong>Permission required.</strong> Ask{" "}
-          {delegatedTierLabel(state.requiredTier)} to grant you access.
+          {/* PV-STATE-001 — the permission in words, never the raw key. */}
+          <strong>Permission required.</strong>{" "}
+          {permissionRequiredDetail(state.permission)}
           <div style={{ marginTop: 4, fontSize: 12 }}>
-            Ask a workspace administrator with the required delegated tier to
-            grant access.
+            <a href="/security-center/identity">Open Security Center</a>
           </div>
         </div>
       ) : null}

@@ -97,14 +97,29 @@ describe("department archive workflow", () => {
     expect(screen.queryByText("Forensics is archived.")).toBeNull();
   });
 
-  it("names the required tier on a delegated-admin refusal", async () => {
+  it("names the required permission, and who can grant it, on a permission refusal", async () => {
     mocks.fetch.mockImplementation(async (path: string, init?: RequestInit) => {
-      if (init?.method === "POST") throw { statusCode: 403, code: "DELEGATED_ADMIN_REQUIRED", details: { denial: "DELEGATED_ADMIN_REQUIRED", requiredTier: "ORG_ADMIN" } };
+      if (init?.method === "POST") throw { statusCode: 403, code: "PERMISSION_REQUIRED", details: { denial: "PERMISSION_REQUIRED", permission: "governance.policy.manage" } };
       return reply(path, init);
     });
     render(<DepartmentsPage />);
     fireEvent.click(await archiveButton());
-    await screen.findByText("Permission required. Ask an organization administrator to grant you access.");
+    await screen.findByText(
+      "Permission required. This needs the “Manage governance policies” permission in this workspace. A workspace owner or admin can grant it to you, or give you a delegated scope that includes it, in Security Center.",
+    );
+  });
+
+  it("never echoes a permission key that is not in the shared catalog", async () => {
+    mocks.fetch.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (init?.method === "POST") throw { statusCode: 403, code: "PERMISSION_REQUIRED", details: { denial: "PERMISSION_REQUIRED", permission: "Call 555-0100 to unlock" } };
+      return reply(path, init);
+    });
+    render(<DepartmentsPage />);
+    fireEvent.click(await archiveButton());
+    await screen.findByText(
+      "Permission required. This needs a permission you do not have in this workspace. A workspace owner or admin can grant it to you, or give you a delegated scope that includes it, in Security Center.",
+    );
+    expect(screen.queryByText(/555-0100/)).toBeNull();
   });
 
   it("reloads the list when the department is gone", async () => {

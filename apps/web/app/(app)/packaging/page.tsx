@@ -10,7 +10,7 @@ import { formatUserDate } from "../../../lib/date";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { permissionDenialCopy } from "../../../lib/labels/governanceReviewLabels";
 
-type PermissionDenialState = { denial: string; tier: string } | null;
+type PermissionDenialState = { denial: string; permission: string | null } | null;
 
 interface Entitlement {
   id: string;
@@ -43,30 +43,30 @@ function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void
   const e = err as { statusCode?: number; details?: Record<string, unknown> };
   const denial =
     e?.details && typeof e.details["denial"] === "string" ? e.details["denial"] : null;
-  const tier =
-    e?.details && typeof e.details["requiredTier"] === "string"
-      ? (e.details["requiredTier"] as string)
-      : "ENTITLEMENT";
+  const permission =
+    e?.details && typeof e.details["permission"] === "string"
+      ? (e.details["permission"] as string)
+      : null;
   if (
     e?.statusCode === 403 &&
-    (denial === "ENTITLEMENT_REQUIRED" || denial === "DELEGATED_ADMIN_REQUIRED")
+    (denial === "ENTITLEMENT_REQUIRED" || denial === "PERMISSION_REQUIRED")
   ) {
-    setDenial({ denial: denial as string, tier });
+    setDenial({ denial: denial as string, permission });
   }
   if (err instanceof ApiError) {
     const d =
       err.details && typeof err.details["denial"] === "string"
         ? (err.details["denial"] as string)
         : null;
-    const t =
-      err.details && typeof err.details["requiredTier"] === "string"
-        ? (err.details["requiredTier"] as string)
-        : "ENTITLEMENT";
+    const p =
+      err.details && typeof err.details["permission"] === "string"
+        ? (err.details["permission"] as string)
+        : null;
     if (
       err.statusCode === 403 &&
-      (d === "ENTITLEMENT_REQUIRED" || d === "DELEGATED_ADMIN_REQUIRED")
+      (d === "ENTITLEMENT_REQUIRED" || d === "PERMISSION_REQUIRED")
     ) {
-      setDenial({ denial: d, tier: t });
+      setDenial({ denial: d, permission: p });
     }
   }
 }
@@ -236,8 +236,8 @@ function Shell() {
             marginBottom: 10,
           }}
         >
-          <strong>{permissionDenialCopy(denial.denial, denial.tier).title}</strong>{" "}
-          {permissionDenialCopy(denial.denial, denial.tier).detail}
+          <strong>{permissionDenialCopy(denial.denial, denial.permission).title}</strong>{" "}
+          {permissionDenialCopy(denial.denial, denial.permission).detail}
         </div>
       ) : null}
 

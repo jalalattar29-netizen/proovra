@@ -14,7 +14,13 @@ import React, { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn(), created: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  fetch: vi.fn(),
+  created: vi.fn(),
+  // The permission mirror's verdict for the one permission these routes need.
+  verdict: { value: "granted" as "granted" | "missing" | "unknown" },
+  asked: [] as string[],
+}));
 
 vi.mock("../../lib/api", () => ({
   apiFetch: mocks.fetch,
@@ -33,7 +39,14 @@ vi.mock("../../components/governance/governance-action-state", async (orig) => {
       loading: false,
       failed: false,
     }),
-    useDelegatedTierAccess: () => ({ ready: true, hasTier: () => true, hasAnyTier: () => true }),
+    useWorkspacePermissionAccess: () => ({
+      ready: true,
+      verdict: () => mocks.verdict.value,
+      allows: (permission: string) => {
+        mocks.asked.push(permission);
+        return mocks.verdict.value !== "missing";
+      },
+    }),
     // The runner's tenant guard needs the platform provider; the form only
     // needs "run the write, then report".
     useGovernanceAction: () => {
@@ -72,6 +85,8 @@ beforeEach(() => {
     throw Object.assign(new Error("unexpected path " + path), { statusCode: 500 });
   });
   mocks.created.mockReset();
+  mocks.verdict.value = "granted";
+  mocks.asked.length = 0;
 });
 afterEach(cleanup);
 
@@ -86,6 +101,31 @@ function fillText() {
     target: { value: "Review the dock camera footage for the harbor claim." },
   });
 }
+
+describe("cross-org invite permission (one delegated-administration authority)", () => {
+  it("asks the permission mirror for governance.exchange.manage, and disables with the reason when it is missing", async () => {
+    mocks.verdict.value = "missing";
+    render(<CrossOrgInviteForm onCreated={mocks.created} />);
+    fillText();
+    expect(mocks.asked).toContain("governance.exchange.manage");
+    expect(submit().disabled).toBe(true);
+    const blocked = document.querySelector('[data-cross-org-invite-blocked="permission"]');
+    expect(blocked?.textContent).toBe(
+      "This needs the “Manage evidence exchange” permission in this workspace. A workspace owner or admin can grant it to you, or give you a delegated scope that includes it, in Security Center.",
+    );
+    expect(blocked?.textContent).not.toMatch(/ORG_ADMIN|REVIEWER_LEAD|tier/);
+  });
+
+  it("leaves the control to the server when the mirror cannot tell", async () => {
+    mocks.verdict.value = "unknown";
+    render(<CrossOrgInviteForm onCreated={mocks.created} />);
+    fillText();
+    fireEvent.click(screen.getByRole("radio", { name: /^Evidence record/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: /Dock camera footage/ }));
+    await waitFor(() => expect(submit().disabled).toBe(false));
+    expect(document.querySelector('[data-cross-org-invite-blocked="permission"]')).toBeNull();
+  });
+});
 
 describe("cross-org invite subject (D17)", () => {
   it("keeps the invite disabled, with the reason visible, until a record is chosen", async () => {

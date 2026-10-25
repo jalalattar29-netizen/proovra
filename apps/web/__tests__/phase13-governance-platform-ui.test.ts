@@ -4,9 +4,14 @@
  *   POST /v1/governance/cross-org-review
  *   POST /v1/governance/cross-org-review/:id/accept
  *   POST /v1/governance/access-reviews/campaigns
- *   POST /v1/governance/delegated-admin
  *   POST /v1/governance/destruction-reviews
  *   POST /v1/governance/policies
+ *
+ * (The sixth, POST /v1/governance/delegated-admin, belonged to the retired
+ * delegated-admin TIER model and now answers 410. ONE delegated-administration
+ * authority remains — member delegated scopes in the permission engine — and
+ * the tests below pin that the console followed: permission denials, a
+ * permission-based client mirror, and no surface left on the retired routes.)
  *
  * Each one is a governance CAPABILITY whose console already listed the
  * entity, and already offered the follow-on transitions (open/close,
@@ -25,7 +30,7 @@
 
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -37,6 +42,8 @@ const FORM_FIELD = "components/governance/GovernanceFormField.tsx";
 const CROSS_ORG_FORMS = "components/governance/CrossOrgReviewForms.tsx";
 const CAMPAIGN_FORM = "components/governance/AccessReviewCampaignForm.tsx";
 const DELEGATED_FORM = "components/governance/DelegatedAdminGrantForm.tsx";
+const MEMBERS_SECTION = "app/(app)/security-center/identity/_sections/MembersSection.tsx";
+const LABELS = "lib/labels/governanceReviewLabels.ts";
 const POLICY_FORM = "components/governance/GovernancePolicyForm.tsx";
 const DESTRUCTION_FORM = "components/governance/DestructionReviewForm.tsx";
 
@@ -49,7 +56,6 @@ const DESTRUCTION_PAGE = "app/(app)/governance/destruction/page.tsx";
 const ALL_FORMS = [
   CROSS_ORG_FORMS,
   CAMPAIGN_FORM,
-  DELEGATED_FORM,
   POLICY_FORM,
   DESTRUCTION_FORM,
 ];
@@ -97,9 +103,16 @@ test("failure classification is bounded — no raw backend body ever reaches the
   );
 
   // Only two fragments of the response body may be echoed, and both are
-  // pattern-gated against the shared enums.
-  assert.ok(src.includes("KNOWN_TIERS.has(requiredTier)"), "a tier is echoed without checking it is a real tier");
+  // gated: a permission key against the shared catalog (and then rendered as
+  // its label), an entitlement key against a strict pattern.
+  assert.ok(
+    src.includes('denial === "PERMISSION_REQUIRED" && isKnownPermission(permission)'),
+    "a permission key is echoed without checking it is in the shared catalog",
+  );
+  assert.ok(src.includes("permissionRequiredDetail(permission)"), "the permission is not rendered through its label");
   assert.ok(src.includes("ENTITLEMENT_PATTERN.test(entitlement)"), "an entitlement key is echoed unchecked");
+  // The retired tier denial is gone from the classifier.
+  assert.equal(/requiredTier|DELEGATED_ADMIN_REQUIRED|KNOWN_TIERS/.test(src), false, "the retired tier denial is still classified");
   assert.equal(
     /message: [a-zA-Z]*[eE]rr[a-zA-Z]*\.message/.test(src.replace(/toSafeUserError\([^)]*\)\.message/g, "")),
     false,
@@ -109,19 +122,79 @@ test("failure classification is bounded — no raw backend body ever reaches the
   assert.ok(src.includes("CONFLICT_COPY[key] ??"), "an unmapped denial code would be rendered raw");
 });
 
-test("the client-side tier mirror is advisory and fails closed", () => {
+test("the client-side permission mirror follows the permission engine and stays advisory", () => {
   const src = read(ACTION_STATE);
-  assert.ok(src.includes("export function useDelegatedTierAccess"));
-  // Mirrors the server ladder rather than inventing one.
-  assert.ok(src.includes('"GLOBAL_ADMIN"') && src.includes('"ORG_ADMIN"'));
-  assert.ok(src.includes('grant.state !== "ACTIVE"'), "a revoked/expired grant would still enable the control");
-  assert.ok(src.includes("expiresAtUtc"), "grant expiry is ignored");
+  // The tier mirror is gone, and nothing reads the retired (410) endpoint.
+  assert.equal(src.includes("useDelegatedTierAccess"), false, "the retired tier mirror is still exported");
+  assert.equal(src.includes('apiFetch("/v1/governance/delegated-admin"'), false, "the mirror still reads the retired tier endpoint");
+  assert.ok(src.includes("export function useWorkspacePermissionAccess"));
+
+  // Built from the engine's own three sources, through the SHARED tables:
+  // role floor, live capability grants, live delegated scopes.
+  assert.ok(src.includes("roleHasPermission(role, permission)"), "the role floor is not the shared role matrix");
   assert.ok(
-    src.includes("isOwner && ORG_CHAIN.slice(1).includes(tier)"),
-    "the implicit workspace-owner grant must cover the org chain ONLY",
+    src.includes("listPermissionsForDelegatedAdminScope("),
+    "delegated scopes are not expanded through the shared scope → permission table",
   );
-  // A failed read must not be read as "permitted".
-  assert.ok(src.includes("// Fail CLOSED"), "the grant-read failure path must fail closed");
+  assert.match(
+    src,
+    /apiFetch\("\/v1\/identity\/members", \{ method: "GET" \}\)/,
+    "the caller's own grants and scopes must come from the existing member roster",
+  );
+  assert.ok(src.includes("rows.find((m) => m.userId === userId)"), "the mirror does not read the CALLER's own row");
+  // Revoked or expired grants/scopes never count.
+  assert.ok(src.includes("if (row.revokedAtUtc) return false;"), "a revoked grant would still enable the control");
+  assert.ok(
+    src.includes("new Date(row.expiresAtUtc).getTime() <= now"),
+    "an expired grant would still enable the control",
+  );
+  // Both role shapes the platform context emits ("OWNER" and the Personal "Owner").
+  assert.ok(src.includes('roleLabel === "Owner"'), "the Personal Space owner shape is not accepted");
+  // "missing" only when the whole picture was seen; an unreadable roster is
+  // "unknown" and leaves the server to decide — never "granted".
+  assert.ok(src.includes('if (rosterRead && ownRow !== undefined) return "missing";'));
+  assert.ok(src.includes('return "unknown";'));
+  assert.ok(src.includes('verdict(permission) !== "missing"'), "allows() must refuse only a confirmed gap");
+});
+
+test("PERMISSION_REQUIRED copy names the permission in words and who can grant it", () => {
+  const src = read(LABELS);
+  assert.equal(/delegatedTierLabel|DELEGATED_TIER_LABELS/.test(src), false, "the tier label map is still present");
+  // One permission-label map: the shared one, not a second copy.
+  assert.ok(src.includes('import { permissionLabel } from "./identityOrgLabels"'));
+  assert.ok(src.includes("KNOWN_PERMISSIONS.has(value)"), "an unknown key would be echoed");
+  assert.ok(
+    src.includes(
+      "A workspace owner or admin can grant it to you, or give you a delegated scope that includes it, in Security Center.",
+    ),
+    "the copy does not say who can grant the permission, or where",
+  );
+});
+
+test("the retired tier console is gone and points at Security Center", () => {
+  assert.equal(existsSync(join(WEB_ROOT, DELEGATED_FORM)), false, "the tier grant form still ships");
+  const page = read(DELEGATED_PAGE);
+  assert.equal(/apiFetch|\bfetch\(/.test(page), false, "the retired page still calls the tier API");
+  assert.ok(page.includes('href="/security-center/identity"'), "the retired page does not point at Security Center");
+  assert.ok(page.includes("remain in the audit history"), "the retired page does not say where past grants went");
+
+  const hub = read("app/(app)/governance-platform/page.tsx");
+  assert.ok(
+    hub.includes('data-governance-platform-link="delegated-admin" href="/security-center/identity"'),
+    "the hub nav still links to the retired tier console",
+  );
+  const orgDepartments = read("app/(app)/organizations/[id]/admin/departments/page.tsx");
+  assert.ok(orgDepartments.includes('href="/security-center/identity"'));
+  assert.equal(/DEPT_ADMIN|SECURITY_OFFICER|tier-scoped/.test(orgDepartments), false, "tier copy survives on the org departments page");
+
+  // No consumer of the retired tier shapes anywhere in the forms.
+  for (const rel of [...ALL_FORMS, ACTION_STATE]) {
+    assert.equal(
+      /hasTier\(|hasAnyTier\(|requiredTier|DELEGATED_ADMIN_REQUIRED/.test(read(rel)),
+      false,
+      `${rel} still consumes the retired tier model`,
+    );
+  }
 });
 
 test("the organization id is server-derived, never typed by the operator", () => {
@@ -132,7 +205,7 @@ test("the organization id is server-derived, never typed by the operator", () =>
     "the organization id must come from the departments listing's server echo",
   );
   assert.ok(src.includes('typeof res?.organizationId === "string"'));
-  for (const rel of [CROSS_ORG_FORMS, CAMPAIGN_FORM, DELEGATED_FORM]) {
+  for (const rel of [CROSS_ORG_FORMS, CAMPAIGN_FORM]) {
     assert.ok(
       read(rel).includes("useGovernanceOrganization"),
       `${rel} must take the organization id from the server-derived hook`,
@@ -226,12 +299,17 @@ test("POST /v1/governance/cross-org-review — invite is wired, validated, gated
   assert.ok(src.includes("Describe what the invited organization may review."));
   assert.ok(src.includes("trimmedScope.length > 600"), "the 600-char scope bound is not enforced");
 
-  // Permission: ORG_ADMIN or REVIEWER_LEAD (route preHandler at :1312).
+  // Permission: requireWorkspacePermission("governance.exchange.manage").
   assert.ok(
-    src.includes('hasAnyTier(["ORG_ADMIN", "REVIEWER_LEAD"]'),
-    "the invite control does not mirror its required tiers",
+    src.includes('const CROSS_ORG_PERMISSION = "governance.exchange.manage"'),
+    "the cross-org controls do not mirror the permission their routes require",
   );
-  assert.ok(src.includes('data-cross-org-invite-blocked="tier"'), "no permission-denied state on the control");
+  assert.ok(
+    src.includes("const permitted = access.ready && access.allows(CROSS_ORG_PERMISSION);"),
+    "the invite control does not mirror its required permission",
+  );
+  assert.ok(src.includes('data-cross-org-invite-blocked="permission"'), "no permission-denied state on the control");
+  assert.ok(src.includes("permissionRequiredDetail(CROSS_ORG_PERMISSION)"), "the denial does not name the permission");
   assert.ok(src.includes("<ReviewScopePicker"), "the invite does not ask which record is under review");
   assert.ok(src.includes('data-cross-org-invite-blocked="subject"'), "no visible reason while no record is chosen");
   assert.ok(src.includes("subject.target !== null"), "submit is not blocked until a record is chosen");
@@ -253,7 +331,7 @@ test("POST /v1/governance/cross-org-review — invite is wired, validated, gated
 // POST /v1/governance/cross-org-review/:id/accept
 // ---------------------------------------------------------------------------
 
-test("POST /v1/governance/cross-org-review/:id/accept — accept is wired with its body and ORG_ADMIN gate", () => {
+test("POST /v1/governance/cross-org-review/:id/accept — accept is wired with its body and permission gate", () => {
   const src = read(CROSS_ORG_FORMS);
 
   assert.match(
@@ -273,9 +351,13 @@ test("POST /v1/governance/cross-org-review/:id/accept — accept is wired with i
   // The optional uuid is validated before it is sent.
   assert.ok(src.includes("trimmed && !isUuid(trimmed)"), "the external grant id is not validated as a UUID");
 
-  // Permission: requireDelegatedTier("ORG_ADMIN") at :1346.
-  assert.ok(src.includes('hasTier("ORG_ADMIN"'), "the accept control does not mirror its required tier");
-  assert.ok(src.includes('data-cross-org-accept-blocked="tier"'), "no permission-denied state on accept");
+  // Permission: the same governance.exchange.manage check, on both controls.
+  assert.equal(
+    (src.match(/const permitted = access\.ready && access\.allows\(CROSS_ORG_PERMISSION\);/g) ?? []).length,
+    2,
+    "the accept control does not mirror its required permission",
+  );
+  assert.ok(src.includes('data-cross-org-accept-blocked="permission"'), "no permission-denied state on accept");
   assert.ok(src.includes("await onAccepted()"), "a successful accept does not refresh the grant list");
   assert.ok(src.includes("data-cross-org-accept-status"), "no status region for accept");
 
@@ -359,9 +441,11 @@ test("POST /v1/governance/access-reviews/campaigns — campaign creation is wire
   );
   assert.ok(src.includes("MAX_ITEMS = 500"), "the 500-item cap is not enforced client-side");
 
-  // Permission: SECURITY_OFFICER / COMPLIANCE_OFFICER (route preHandler :1182).
-  assert.ok(src.includes('hasAnyTier(["SECURITY_OFFICER", "COMPLIANCE_OFFICER"])'));
-  assert.ok(src.includes('data-access-review-campaign-blocked="tier"'), "no permission-denied state");
+  // Permission: requireWorkspacePermission("identity.access_review.action").
+  assert.ok(src.includes('const CAMPAIGN_PERMISSION = "identity.access_review.action"'));
+  assert.ok(src.includes("const permitted = access.ready && access.allows(CAMPAIGN_PERMISSION);"));
+  assert.ok(src.includes('data-access-review-campaign-blocked="permission"'), "no permission-denied state");
+  assert.ok(src.includes("permissionRequiredDetail(CAMPAIGN_PERMISSION)"), "the denial does not name the permission");
 
   // The item builder is a list, so it needs an empty state.
   assert.ok(src.includes("data-access-review-items-empty"), "the attached-grants list has no empty state");
@@ -380,57 +464,35 @@ test("POST /v1/governance/access-reviews/campaigns — campaign creation is wire
 });
 
 // ---------------------------------------------------------------------------
-// POST /v1/governance/delegated-admin
+// Delegated administration — member scopes in Security Center
 // ---------------------------------------------------------------------------
 
-test("POST /v1/governance/delegated-admin — the grant control is wired and mirrors the shape rules", () => {
-  const src = read(DELEGATED_FORM);
-
+test("delegated scopes are granted, updated and revoked per member in Security Center, under step-up", () => {
+  const src = read(MEMBERS_SECTION);
+  assert.match(src, /`\/v1\/identity\/members\/\$\{selected\.teamMemberId\}\/delegated-admin`/, "no grant call site");
   assert.match(
     src,
-    /apiFetch\("\/v1\/governance\/delegated-admin", \{\s*\n?\s*method: "POST",/,
-    "the grant call site is missing or addresses the wrong path/method",
+    /apiFetch\(`\/v1\/identity\/delegated-admin\/\$\{scope\.id\}`, \{\s*\n?\s*method: "PATCH",/,
+    "no update call site on the PATCH route",
   );
-  // Exact body contract (trust-and-governance.routes.ts:898).
-  for (const field of [
-    "organizationId,",
-    "departmentId: departmentId ? departmentId : null",
-    'workspaceId: tier === "WORKSPACE_ADMIN" ? teamId : null',
-    "granteeUserId,",
-    "tier,",
-    "expiresAtUtc: toIsoInstant(expiresAt)",
+  assert.match(
+    src,
+    /apiFetch\(`\/v1\/identity\/delegated-admin\/\$\{scope\.id\}`, \{\s*\n?\s*method: "DELETE",/,
+    "no revoke call site",
+  );
+  // The update rides the same step-up runner as grant and revoke.
+  const update = src.slice(src.indexOf("const updateDelegated = useCallback("), src.indexOf("const revokeDelegated = useCallback("));
+  assert.ok(update.includes("await run("), "the scope update bypasses the step-up runner");
+  assert.ok(update.includes("JSON.stringify(built.body)"), "the update body is not the changed-fields body");
+  // Kind, grant time, expiry and reason are all inspectable on the row.
+  for (const anchor of [
+    "data-identity-delegated-granted={s.id}",
+    "data-identity-delegated-expiry={s.id}",
+    "data-identity-delegated-reason={s.id}",
+    "data-identity-delegated-edit={s.id}",
   ]) {
-    assert.ok(src.includes(field), `grant body is missing ${field}`);
+    assert.ok(src.includes(anchor), `the scope row is missing ${anchor}`);
   }
-
-  // The two service-side shape rules (delegated-admin.service.ts:49/52) are
-  // mirrored so they surface as field errors rather than a 409.
-  assert.ok(
-    src.includes('tier === "DEPARTMENT_ADMIN" && !departmentId'),
-    "a DEPARTMENT_ADMIN grant without a department would 409",
-  );
-  assert.ok(
-    src.includes('tier === "WORKSPACE_ADMIN" && !teamId'),
-    "a WORKSPACE_ADMIN grant without a workspace would 409",
-  );
-  assert.ok(src.includes("Choose the member who will receive the grant."), "the grantee is not validated");
-
-  // The grantee is chosen from real membership, never hand-typed.
-  assert.ok(src.includes("useWorkspaceMembers"), "the grantee picker is not backed by the member roster");
-
-  // Permission: the handler calls hasDelegatedTier(ORG_ADMIN, organizationId).
-  assert.ok(src.includes('hasTier("ORG_ADMIN", {'), "the grant control does not mirror its required tier");
-  assert.ok(src.includes('data-delegated-admin-grant-blocked="tier"'), "no permission-denied state");
-  assert.ok(src.includes('data-delegated-admin-grant-blocked="organization"'), "no no-organization state");
-
-  assert.ok(src.includes("await onGranted()"), "a new grant does not refresh the list");
-  assert.ok(src.includes("data-delegated-admin-grant-status"), "no status region");
-
-  const page = read(DELEGATED_PAGE);
-  assert.ok(
-    page.includes("<DelegatedAdminGrantForm onGranted={refresh} />"),
-    "the page does not mount the grant form",
-  );
 });
 
 // ---------------------------------------------------------------------------
@@ -530,9 +592,11 @@ test("POST /v1/governance/policies — policy authoring is wired with a locally-
     "an array or scalar rule would be posted against a z.record schema",
   );
 
-  // Permission: SECURITY_OFFICER / COMPLIANCE_OFFICER (route preHandler :975).
-  assert.ok(src.includes('hasAnyTier(["SECURITY_OFFICER", "COMPLIANCE_OFFICER"])'));
-  assert.ok(src.includes('data-governance-policy-blocked="tier"'), "no permission-denied state");
+  // Permission: requireWorkspacePermission("governance.policy.manage").
+  assert.ok(src.includes('const POLICY_PERMISSION = "governance.policy.manage"'));
+  assert.ok(src.includes("const permitted = access.ready && access.allows(POLICY_PERMISSION);"));
+  assert.ok(src.includes('data-governance-policy-blocked="permission"'), "no permission-denied state");
+  assert.ok(src.includes("permissionRequiredDetail(POLICY_PERMISSION)"), "the denial does not name the permission");
 
   assert.ok(src.includes("await onCreated()"), "a new policy does not refresh the registry");
   assert.ok(src.includes("data-governance-policy-status"), "no status region");

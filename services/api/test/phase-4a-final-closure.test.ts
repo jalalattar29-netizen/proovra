@@ -101,8 +101,15 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
     departmentMembership: {
       findMany: async () => [],
     },
-    delegatedAdminGrant: {
-      findFirst: async () => null,
+    // Members audit DOM-09 — delegated administration is the member
+    // delegated scope (the tier-grant table is no longer read). A real EMPTY
+    // result: no member, no scope.
+    memberDelegatedAdminScope: {
+      findMany: async () => [],
+      count: async () => 0,
+    },
+    teamMember: {
+      findUnique: async () => null,
     },
     $queryRawUnsafe: async () => [],
     ...overrides,

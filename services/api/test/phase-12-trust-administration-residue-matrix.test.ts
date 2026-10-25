@@ -6,7 +6,7 @@
  * publication, verification preview + references, delivery history). This
  * suite proves the remaining THIRTEEN, through the REAL handlers with fastify
  * `inject`. Only process boundaries are mocked (auth, canonical authorization,
- * delegated tier, step-up, prisma, canonical services); every gate, projection
+ * route permission guard, step-up, prisma, canonical services); every gate, projection
  * and denial branch under test is the shipped handler code.
  *
  * Systems covered:
@@ -60,7 +60,7 @@ const H = vi.hoisted(() => ({
   seenPermissions: [] as string[],
 
   /** Delegated-tier preHandler seam (a SEPARATE gate from the capability). */
-  tierAllowed: true,
+  permissionAllowed: true,
 
   /** Step-up seam. */
   stepUpSent: false,
@@ -101,21 +101,22 @@ vi.mock("../src/middleware/cron-secret.js", () => ({
   requireIntegrationCronSecret: async () => {},
 }));
 
-vi.mock("../src/middleware/require-delegated-tier.js", () => ({
-  requireDelegatedTier: () => async (
+vi.mock("../src/middleware/require-workspace-permission.js", () => ({
+  // The route permission guard (members audit DOM-09: it replaced the retired
+  // delegated-tier guard). The mock answers with the guard's real denial
+  // envelope, naming the permission the ROUTE asked for, so a test can pin
+  // both the refusal and which permission the registration requires.
+  requireWorkspacePermission: (required: string | readonly string[]) => async (
     _req: unknown,
     reply: { code: (n: number) => { send: (b: unknown) => void } },
   ) => {
-    if (!H.tierAllowed) {
-      reply.code(403).send({ denial: "DELEGATED_ADMIN_REQUIRED", requiredTier: "ORG_ADMIN" });
-    }
-  },
-  requireDelegatedTierAny: () => async (
-    _req: unknown,
-    reply: { code: (n: number) => { send: (b: unknown) => void } },
-  ) => {
-    if (!H.tierAllowed) {
-      reply.code(403).send({ denial: "DELEGATED_ADMIN_REQUIRED", requiredTier: "ORG_ADMIN" });
+    const anyOf = typeof required === "string" ? [required] : [...required];
+    if (!H.permissionAllowed) {
+      reply.code(403).send(
+        anyOf.length > 1
+          ? { denial: "PERMISSION_REQUIRED", permission: anyOf[0], anyOf }
+          : { denial: "PERMISSION_REQUIRED", permission: anyOf[0] },
+      );
     }
   },
 }));
@@ -385,7 +386,7 @@ beforeEach(async () => {
   H.authAllowed = true;
   H.denyStatus = 403;
   H.seenPermissions.length = 0;
-  H.tierAllowed = true;
+  H.permissionAllowed = true;
   H.stepUpSent = false;
   H.stepUpCalls.length = 0;
   H.writes.length = 0;
@@ -728,14 +729,14 @@ describe("Trust residue — lifecycle verification-package preview", () => {
     expect(H.writes).toEqual([]);
   });
 
-  it("the delegated-tier gate runs BEFORE the workspace is even resolved", async () => {
-    H.tierAllowed = false;
+  it("the route permission gate (audit.read) runs BEFORE the workspace is even resolved", async () => {
+    H.permissionAllowed = false;
     const res = await lifecycle.inject({
       method: "GET",
       url: "/v1/lifecycle/verification-package/preview?kind=retention",
     });
     expect(res.statusCode).toBe(403);
-    expect(JSON.parse(res.body).denial).toBe("DELEGATED_ADMIN_REQUIRED");
+    expect(JSON.parse(res.body)).toEqual({ denial: "PERMISSION_REQUIRED", permission: "audit.read" });
     expect(H.writes).toEqual([]);
   });
 });
@@ -772,8 +773,8 @@ describe("Trust residue — packaging entitlement grant", () => {
     expect(H.writes).toEqual(["upsertEntitlementGrant:QUOTA:QUOTA_EXPORT_PACKAGES_PER_MONTH:25"]);
   });
 
-  it("ORG_ADMIN is required — a lesser tier grants NOTHING", async () => {
-    H.tierAllowed = false;
+  it("billing.manage is required — a caller without it grants NOTHING", async () => {
+    H.permissionAllowed = false;
     const res = await lifecycle.inject({
       method: "POST",
       url: "/v1/packaging/entitlements/grant",
@@ -781,7 +782,7 @@ describe("Trust residue — packaging entitlement grant", () => {
       payload: { key: "FEATURE_REDACTION", kind: "FEATURE", value: true },
     });
     expect(res.statusCode).toBe(403);
-    expect(JSON.parse(res.body).denial).toBe("DELEGATED_ADMIN_REQUIRED");
+    expect(JSON.parse(res.body)).toEqual({ denial: "PERMISSION_REQUIRED", permission: "billing.manage" });
     expect(H.writes).toEqual([]);
   });
 

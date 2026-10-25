@@ -36,7 +36,10 @@ import {
 import { ApiError } from "../../../lib/api";
 // PHASE 7 §10.7/§10.G — tenant-aware lifecycle fetch (re-scope on switch).
 import { usePlatformContext } from "../../../lib/platform-context";
-import { delegatedTierLabel } from "../../../lib/labels/governanceReviewLabels";
+import {
+  isKnownPermission,
+  permissionRequiredDetail,
+} from "../../../lib/labels/governanceReviewLabels";
 
 // ---------------------------------------------------------------------------
 // 1. Denial / error → resolved UI state
@@ -46,7 +49,7 @@ export interface LifecycleDenial {
   /** Canonical denial code. */
   denial:
     | "ENTITLEMENT_REQUIRED"
-    | "DELEGATED_ADMIN_REQUIRED"
+    | "PERMISSION_REQUIRED"
     | "FORBIDDEN"
     | "AUTHENTICATION_REQUIRED"
     | "VALIDATION_FAILED"
@@ -56,8 +59,11 @@ export interface LifecycleDenial {
   title: string;
   /** Optional supporting text. */
   detail?: string;
-  /** Optional required-tier hint (DELEGATED_ADMIN, ORG_ADMIN, etc.). */
-  requiredTier?: string;
+  /**
+   * The permission key the server named on `PERMISSION_REQUIRED`, kept only
+   * when it is in the shared catalog. Rendered through its label, never raw.
+   */
+  requiredPermission?: string;
   /** Optional missing entitlement key. */
   missingFeature?: string;
   /** True when this is a "no data yet" / non-fatal degraded state. */
@@ -73,18 +79,20 @@ interface LooseErrorShape {
 
 function extractDenialDetails(
   details: Record<string, unknown> | undefined,
-): { denial: string | null; tier: string | undefined; feature: string | undefined } {
-  if (!details) return { denial: null, tier: undefined, feature: undefined };
+): { denial: string | null; permission: string | undefined; feature: string | undefined } {
+  if (!details) return { denial: null, permission: undefined, feature: undefined };
   const denial = typeof details.denial === "string" ? details.denial : null;
-  const tier =
-    typeof details.requiredTier === "string" ? (details.requiredTier as string) : undefined;
+  // Only a key from the shared permission catalog survives.
+  const permission = isKnownPermission(details.permission)
+    ? details.permission
+    : undefined;
   const feature =
     typeof details.entitlement === "string"
       ? (details.entitlement as string)
       : typeof details.requiredEntitlement === "string"
         ? (details.requiredEntitlement as string)
         : undefined;
-  return { denial, tier, feature };
+  return { denial, permission, feature };
 }
 
 /**
@@ -128,7 +136,7 @@ export function resolveLifecycleError(err: unknown): LifecycleDenial | null {
 
   // Canonical client error.
   if (err instanceof ApiError) {
-    const { denial, tier, feature } = extractDenialDetails(err.details);
+    const { denial, permission, feature } = extractDenialDetails(err.details);
     if (err.statusCode === 403 && denial === "ENTITLEMENT_REQUIRED") {
       return {
         denial: "ENTITLEMENT_REQUIRED",
@@ -139,13 +147,12 @@ export function resolveLifecycleError(err: unknown): LifecycleDenial | null {
         missingFeature: feature,
       };
     }
-    if (err.statusCode === 403 && denial === "DELEGATED_ADMIN_REQUIRED") {
+    if (err.statusCode === 403 && denial === "PERMISSION_REQUIRED") {
       return {
-        denial: "DELEGATED_ADMIN_REQUIRED",
-        title: "Delegated admin required",
-        detail:
-          "A workspace administrator with the required delegated tier must grant access.",
-        requiredTier: tier ?? "DELEGATED_ADMIN",
+        denial: "PERMISSION_REQUIRED",
+        title: "Permission required",
+        detail: permissionRequiredDetail(permission),
+        requiredPermission: permission,
       };
     }
     if (err.statusCode === 401) {
@@ -192,7 +199,7 @@ export function resolveLifecycleError(err: unknown): LifecycleDenial | null {
   // Loose shape (legacy fetch helpers, non-ApiError throws).
   if (typeof err === "object") {
     const e = err as LooseErrorShape;
-    const { denial, tier, feature } = extractDenialDetails(e.details);
+    const { denial, permission, feature } = extractDenialDetails(e.details);
     if (e.statusCode === 403 && denial === "ENTITLEMENT_REQUIRED") {
       return {
         denial: "ENTITLEMENT_REQUIRED",
@@ -203,11 +210,12 @@ export function resolveLifecycleError(err: unknown): LifecycleDenial | null {
           : undefined,
       };
     }
-    if (e.statusCode === 403 && denial === "DELEGATED_ADMIN_REQUIRED") {
+    if (e.statusCode === 403 && denial === "PERMISSION_REQUIRED") {
       return {
-        denial: "DELEGATED_ADMIN_REQUIRED",
-        title: "Delegated admin required",
-        requiredTier: tier ?? "DELEGATED_ADMIN",
+        denial: "PERMISSION_REQUIRED",
+        title: "Permission required",
+        detail: permissionRequiredDetail(permission),
+        requiredPermission: permission,
       };
     }
     if (e.statusCode === 401) {
@@ -240,7 +248,7 @@ const DENIAL_PALETTE: Record<
   { bg: string; border: string; text: string }
 > = {
   ENTITLEMENT_REQUIRED: { bg: "#fef3c7", border: "#fcd34d", text: "#78350f" },
-  DELEGATED_ADMIN_REQUIRED: { bg: "#fef3c7", border: "#fcd34d", text: "#78350f" },
+  PERMISSION_REQUIRED: { bg: "#fef3c7", border: "#fcd34d", text: "#78350f" },
   FORBIDDEN: { bg: "#fef3c7", border: "#fcd34d", text: "#78350f" },
   AUTHENTICATION_REQUIRED: { bg: "#eff6ff", border: "#bfdbfe", text: "#1e3a8a" },
   VALIDATION_FAILED: { bg: "#fef2f2", border: "#fecaca", text: "#7f1d1d" },
@@ -250,15 +258,13 @@ const DENIAL_PALETTE: Record<
 };
 
 /**
- * PV-STATE-001 — WHO can grant access, said in product language.
+ * PV-STATE-001 — WHAT is missing and WHO can grant it, in product language.
  *
- * The lifecycle pages printed the raw tier constant ("Permission required:
- * DELEGATED_ADMIN"). A reader cannot act on a constant; they can act on "ask a
- * compliance officer". The tier map lives in lib/labels/governanceReviewLabels
- * so the exchange / packaging / policy pages outside this segment say the same
- * words; it is re-exported here for the lifecycle pages.
+ * The copy lives in lib/labels/governanceReviewLabels so the exchange /
+ * packaging / policy pages outside this segment say the same words; it is
+ * re-exported here for the lifecycle pages.
  */
-export { delegatedTierLabel };
+export { permissionRequiredDetail };
 
 /** An entitlement key rendered as words ("FEATURE_LEGAL_HOLD" -> "legal hold"). */
 export function entitlementLabel(key: string): string {
@@ -288,9 +294,12 @@ export function DenialBanner({ denial }: { denial: LifecycleDenial }) {
     >
       <strong style={{ display: "block", marginBottom: 2 }}>{denial.title}</strong>
       {denial.detail ? <div style={{ fontSize: 12 }}>{denial.detail}</div> : null}
-      {denial.requiredTier ? (
-        <div style={{ fontSize: 12, marginTop: 4 }} data-required-tier={denial.requiredTier}>
-          Ask {delegatedTierLabel(denial.requiredTier)} to grant you access.
+      {denial.denial === "PERMISSION_REQUIRED" ? (
+        <div
+          style={{ fontSize: 12, marginTop: 4 }}
+          data-required-permission={denial.requiredPermission ?? ""}
+        >
+          <a href="/security-center/identity">Open Security Center</a>
         </div>
       ) : null}
       {denial.missingFeature ? (

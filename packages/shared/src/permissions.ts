@@ -109,6 +109,11 @@ export const PERMISSIONS = [
   // Governance / audit
   "governance.policy.read",
   "governance.policy.manage",
+  // Members audit DOM-09 — the precise domains the retired delegated-admin
+  // tiers gated: evidence exchange (packages, chain transfers, cross-org
+  // review) and department membership administration.
+  "governance.exchange.manage",
+  "governance.department.manage",
   "governance.legal_hold.manage",
   "governance.retention.manage",
   "audit.read",
@@ -380,6 +385,8 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "notification.delivery.resend",
     "governance.policy.read",
     "governance.policy.manage",
+    "governance.exchange.manage",
+    "governance.department.manage",
     "governance.legal_hold.manage",
     "governance.retention.manage",
     "audit.read",

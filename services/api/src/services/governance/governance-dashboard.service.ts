@@ -8,11 +8,11 @@
 
 import type { PrismaClient } from "@prisma/client";
 import {
-  DELEGATED_ADMIN_TIERS,
+  DELEGATED_ADMIN_SCOPE_KINDS,
   GOVERNANCE_DASHBOARD_SCHEMA_VERSION,
   GOVERNANCE_POLICY_KINDS,
   TRUST_AND_GOVERNANCE_LIMITATIONS,
-  type DelegatedAdminTier,
+  type DelegatedAdminScopeKind,
   type GovernanceDashboardProjection,
   type GovernancePolicyKind,
 } from "@proovra/shared";
@@ -79,30 +79,28 @@ export async function projectGovernanceDashboard(input: {
     }
   }
 
-  // Delegated admin.
-  const grantRows = await prisma.delegatedAdminGrant
+  // Delegated admin — the member delegated scopes (members audit DOM-09: the
+  // one delegated-admin authority, the one the permission engine enforces).
+  const scopeRows = await prisma.memberDelegatedAdminScope
     .findMany({
       where: { teamId: input.teamId },
-      select: { tier: true, state: true, revokedAtUtc: true },
+      select: { scopeKind: true, revokedAtUtc: true, expiresAtUtc: true },
     })
-    .catch(() => [] as Array<{ tier: string; state: string; revokedAtUtc: Date | null }>);
-  const grantsPerTier = {} as Record<DelegatedAdminTier, number>;
-  for (const t of DELEGATED_ADMIN_TIERS) {
-    grantsPerTier[t] = 0;
+    .catch(() => [] as Array<{ scopeKind: string; revokedAtUtc: Date | null; expiresAtUtc: Date | null }>);
+  const grantsPerScope = {} as Record<DelegatedAdminScopeKind, number>;
+  for (const k of DELEGATED_ADMIN_SCOPE_KINDS) {
+    grantsPerScope[k] = 0;
   }
   let activeGrants = 0;
   let revokedLast30d = 0;
-  for (const g of grantRows) {
-    if (g.state === "ACTIVE") {
+  const nowMs = Date.now();
+  for (const g of scopeRows) {
+    if (g.revokedAtUtc === null && (g.expiresAtUtc === null || g.expiresAtUtc.getTime() > nowMs)) {
       activeGrants += 1;
-      grantsPerTier[g.tier as DelegatedAdminTier] =
-        (grantsPerTier[g.tier as DelegatedAdminTier] ?? 0) + 1;
+      grantsPerScope[g.scopeKind as DelegatedAdminScopeKind] =
+        (grantsPerScope[g.scopeKind as DelegatedAdminScopeKind] ?? 0) + 1;
     }
-    if (
-      g.state === "REVOKED" &&
-      g.revokedAtUtc &&
-      g.revokedAtUtc.getTime() >= since30d.getTime()
-    ) {
+    if (g.revokedAtUtc && g.revokedAtUtc.getTime() >= since30d.getTime()) {
       revokedLast30d += 1;
     }
   }
@@ -300,7 +298,7 @@ export async function projectGovernanceDashboard(input: {
     delegatedAdminActivity: {
       activeGrants,
       revokedLast30d,
-      grantsPerTier,
+      grantsPerScope,
     },
     departments: {
       total: departments,

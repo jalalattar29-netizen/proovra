@@ -26,7 +26,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { revokeDelegatedAdmin } from "./delegated-admin.service.js";
+import { revokeDelegatedAdminScope } from "../identity/rbac.service.js";
 import { revokeDepartmentMembership } from "./department-membership.service.js";
 import { escalateAccessReviewItem } from "./access-review-escalation.service.js";
 import { revokeInvitation } from "../external-review/portal-invitation.service.js";
@@ -162,13 +162,17 @@ export async function recordItemDecision(
   if (input.decision === "REVOKED" && row.grantRef) {
     const [kind, uuid] = row.grantRef.split(":");
     if (kind && uuid) {
-      if (kind === "delegated_admin") {
-        await revokeDelegatedAdmin({
+      if (kind === "delegated_admin" || kind === "delegated_scope") {
+        // Members audit DOM-09 — the one delegated-admin authority.
+        await revokeDelegatedAdminScope(
+          {
+            teamId: input.teamId,
+            scopeId: uuid,
+            actorUserId: input.reviewerUserId,
+            reason: "access_review_revoked",
+          },
           prisma,
-          teamId: input.teamId,
-          grantId: uuid,
-          actorUserId: input.reviewerUserId,
-        }).catch(() => {});
+        ).catch(() => {});
       } else if (kind === "external_review") {
         await revokeInvitation({
           prisma,

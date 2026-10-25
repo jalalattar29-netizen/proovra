@@ -486,7 +486,7 @@ async function runApiFetch(
     // `details` when no explicit `details` field is present AND the body
     // contains canonical denial fields. This is additive — routes already
     // sending `details` are unaffected.
-    const topLevelDenialFields = ["denial", "entitlement", "requiredTier", "requiredEntitlement"];
+    const topLevelDenialFields = ["denial", "entitlement", "permission", "requiredEntitlement"];
     const bodyHasTopLevelDenial =
       obj &&
       !detailsFromBody &&

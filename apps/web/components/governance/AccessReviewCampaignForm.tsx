@@ -9,9 +9,10 @@
  * existence was a REST client, so the empty state was unreachable from the
  * product.
  *
- * Authorisation: SECURITY_OFFICER or COMPLIANCE_OFFICER. Both are
- * cross-cutting tiers — the workspace owner does NOT implicitly hold them, so
- * an owner without an explicit grant correctly sees a disabled control.
+ * Authorisation: the `identity.access_review.action` permission from the
+ * permission engine — the role, a capability grant, or a delegated scope that
+ * includes it (IDENTITY_ADMIN). Mirrored client-side only to disable the
+ * control with a reason; the route re-checks it.
  */
 
 import { useCallback, useId, useMemo, useState } from "react";
@@ -22,6 +23,7 @@ import {
 } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
+import { permissionRequiredDetail } from "../../lib/labels/governanceReviewLabels";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { EmptyState } from "../ui/EmptyState";
@@ -35,7 +37,7 @@ import {
 import {
   memberLabel,
   toIsoInstant,
-  useDelegatedTierAccess,
+  useWorkspacePermissionAccess,
   useGovernanceAction,
   useGovernanceOrganization,
   useWorkspaceMembers,
@@ -44,6 +46,8 @@ import {
 type CampaignItem = { subjectUserId: string; grantRef: string };
 
 const MAX_ITEMS = 500;
+/** The permission the campaign routes ask the engine for. */
+const CAMPAIGN_PERMISSION = "identity.access_review.action" as const;
 
 export function AccessReviewCampaignForm({
   onCreated,
@@ -53,7 +57,7 @@ export function AccessReviewCampaignForm({
   const uid = useId();
   const { busy, outcome, reset, run } = useGovernanceAction();
   const org = useGovernanceOrganization();
-  const tiers = useDelegatedTierAccess();
+  const access = useWorkspacePermissionAccess();
   const roster = useWorkspaceMembers();
 
   const [name, setName] = useState("");
@@ -68,7 +72,7 @@ export function AccessReviewCampaignForm({
   const [grantRefDraft, setGrantRefDraft] = useState("");
   const [errors, setErrors] = useState<Record<string, string | null>>({});
 
-  const permitted = tiers.hasAnyTier(["SECURITY_OFFICER", "COMPLIANCE_OFFICER"]);
+  const permitted = access.ready && access.allows(CAMPAIGN_PERMISSION);
   const canSubmit = permitted && !busy;
 
   const memberOptions = useMemo(
@@ -347,13 +351,11 @@ export function AccessReviewCampaignForm({
           >
             {busy ? "Creating…" : "Create campaign"}
           </Button>
-          {!tiers.ready ? (
-            <span style={noteStyle}>Checking your governance tier…</span>
+          {!access.ready ? (
+            <span style={noteStyle}>Checking your permissions…</span>
           ) : !permitted ? (
-            <span style={noteStyle} data-access-review-campaign-blocked="tier">
-              Opening an access-review campaign needs the SECURITY_OFFICER or
-              COMPLIANCE_OFFICER delegated-admin tier. These are cross-cutting
-              tiers — being the workspace owner does not grant them.
+            <span style={noteStyle} data-access-review-campaign-blocked="permission">
+              {permissionRequiredDetail(CAMPAIGN_PERMISSION)}
             </span>
           ) : null}
         </div>

@@ -111,6 +111,8 @@ const DELEGATED_ADMIN_SCOPE_PERMISSIONS: Readonly<
   GOVERNANCE_ADMIN: [
     "governance.policy.read",
     "governance.policy.manage",
+    "governance.exchange.manage",
+    "governance.department.manage",
     "governance.legal_hold.manage",
     "governance.retention.manage",
     "audit.read",

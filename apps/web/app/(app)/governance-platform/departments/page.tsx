@@ -17,7 +17,7 @@
  *     an operator to type an Organization UUID and never derives tenancy
  *     from a row it rendered.
  *   * Role/capability is SERVER-derived. The page renders whatever denial the
- *     API returns (`DELEGATED_ADMIN_REQUIRED`, `permission_denied`); it never
+ *     API returns (`PERMISSION_REQUIRED` naming the permission, `permission_denied`); it never
  *     decides locally whether the operator may grant or revoke.
  *   * Grant and revoke are step-up gated. Both go through
  *     `useStepUpAction`, which surfaces the challenge modal on the
@@ -75,7 +75,7 @@ import {
 
 type SurfaceFailure = {
   /**
-   *   denied — the API refused on authorization (capability, delegated tier,
+   *   denied — the API refused on authorization (missing permission,
    *            membership status, or anti-enumeration 404).
    *   stale  — the row moved underneath the console; reload and retry.
    *   error  — anything else, rendered via the sanctioned safe-error path.
@@ -86,8 +86,6 @@ type SurfaceFailure = {
 
 /** Bounded denial → operator copy. Never a raw backend string. */
 const DENIAL_COPY: Record<string, string> = {
-  DELEGATED_ADMIN_REQUIRED:
-    "This action requires the DEPARTMENT_ADMIN delegated-admin tier in this organization.",
   DEPARTMENT_NOT_FOUND:
     "That department is not part of your current organization.",
   USER_NOT_A_MEMBER:
@@ -116,6 +114,17 @@ function readDenialCode(err: unknown): string | null {
   return typeof root?.denial === "string" ? root.denial : null;
 }
 
+/** The permission a `PERMISSION_REQUIRED` refusal names (label-gated downstream). */
+function readRequiredPermission(err: unknown): string | null {
+  const details =
+    err instanceof ApiError
+      ? err.details
+      : (err as { details?: Record<string, unknown> })?.details;
+  return details && typeof details["permission"] === "string"
+    ? (details["permission"] as string)
+    : null;
+}
+
 function classifyFailure(err: unknown, fallback: string): SurfaceFailure {
   const e = err as { statusCode?: number; code?: string };
   // A cancelled step-up is the operator's own choice, not a failure worth
@@ -123,6 +132,10 @@ function classifyFailure(err: unknown, fallback: string): SurfaceFailure {
   const denial = readDenialCode(err);
   if (denial === "STALE_STATE") {
     return { kind: "stale", message: DENIAL_COPY.STALE_STATE };
+  }
+  if (e?.statusCode === 403 && denial === "PERMISSION_REQUIRED") {
+    const copy = permissionDenialCopy(denial, readRequiredPermission(err));
+    return { kind: "denied", message: `${copy.title} ${copy.detail}` };
   }
   if (denial && DENIAL_COPY[denial]) {
     return {
@@ -513,12 +526,10 @@ function Shell() {
             message:
               "That department is no longer part of your current organization. The list has been reloaded.",
           });
-        } else if (status === 403 && denial === "DELEGATED_ADMIN_REQUIRED") {
-          const details = (err as { details?: Record<string, unknown> })?.details;
-          const tier = details?.["requiredTier"];
+        } else if (status === 403 && denial === "PERMISSION_REQUIRED") {
           const copy = permissionDenialCopy(
             denial,
-            typeof tier === "string" ? tier : "ORG_ADMIN",
+            readRequiredPermission(err) ?? "governance.policy.manage",
           );
           setDepartmentsFailure({
             kind: "denied",

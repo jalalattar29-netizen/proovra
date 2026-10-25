@@ -20,7 +20,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { DepartmentScopeEnvelope } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { hasDelegatedTier } from "./delegated-admin.service.js";
+import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import { emitTrustEvent } from "../trust/trust-and-governance-audit.service.js";
 
 // ---------------------------------------------------------------------------
@@ -101,16 +101,14 @@ export async function resolveUserDepartmentScope(
     };
   }
 
-  // GLOBAL_ADMIN / ORG_ADMIN bypass the department scope. The
-  // hierarchical `hasDelegatedTier` check with `ORG_ADMIN` also
-  // returns true for `GLOBAL_ADMIN` grants.
-  const isOrgAdmin = await hasDelegatedTier({
+  // A workspace governor bypasses the department scope (members audit DOM-09:
+  // the canonical permission — held by OWNER/ADMIN, delegable through the
+  // GOVERNANCE_ADMIN scope — replaces the retired ORG_ADMIN tier).
+  const governs = await evaluateMemberAccess(
+    { teamId: input.teamId, userId: input.userId, permission: "governance.policy.manage" },
     prisma,
-    teamId: input.teamId,
-    userId: input.userId,
-    requiredTier: "ORG_ADMIN",
-  });
-  if (isOrgAdmin) {
+  );
+  if (governs.allowed) {
     return {
       teamId: input.teamId,
       userId: input.userId,

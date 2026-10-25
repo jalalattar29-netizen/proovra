@@ -11,7 +11,7 @@
  * Hard rules:
  *   * Bounded decision vocabulary (PENDING / APPROVED / REVOKED /
  *     ESCALATED) — matches `AccessReviewItemDecision`.
- *   * 403 + denial=DELEGATED_ADMIN_REQUIRED is surfaced inline so the
+ *   * 403 + denial=PERMISSION_REQUIRED is surfaced inline so the
  *     operator knows the route is gated, not broken.
  *   * Subject user id truncated to 8 chars for screen density;
  *     the full id is on the row's data-* anchor for tests + dev tools.
@@ -34,6 +34,7 @@ import { DataTable, type DataTableColumn } from "../../../../../components/ui/Da
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { apiFetch, ApiError } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
+import { permissionRequiredDetail } from "../../../../../lib/labels/governanceReviewLabels";
 
 type DenialState = {
   denial: string;
@@ -250,10 +251,10 @@ function handleError(err: unknown, setDenial: (v: DenialState) => void): void {
       err.details && typeof err.details["denial"] === "string"
         ? (err.details["denial"] as string)
         : null;
-    if (err.statusCode === 403 && detailsDenial === "DELEGATED_ADMIN_REQUIRED") {
+    if (err.statusCode === 403 && detailsDenial === "PERMISSION_REQUIRED") {
       setDenial({
         denial: detailsDenial,
-        message: "DELEGATED_ADMIN tier (or higher) required for this action.",
+        message: permissionRequiredDetail(readPermission(err.details)),
       });
       return;
     }
@@ -264,10 +265,16 @@ function handleError(err: unknown, setDenial: (v: DenialState) => void): void {
     generic && generic.details && typeof generic.details["denial"] === "string"
       ? (generic.details["denial"] as string)
       : null;
-  if (generic && generic.statusCode === 403 && detailsDenial === "DELEGATED_ADMIN_REQUIRED") {
+  if (generic && generic.statusCode === 403 && detailsDenial === "PERMISSION_REQUIRED") {
     setDenial({
       denial: detailsDenial,
-      message: "DELEGATED_ADMIN tier (or higher) required for this action.",
+      message: permissionRequiredDetail(readPermission(generic.details)),
     });
   }
+}
+
+function readPermission(details: Record<string, unknown> | undefined): string | null {
+  return details && typeof details["permission"] === "string"
+    ? (details["permission"] as string)
+    : null;
 }

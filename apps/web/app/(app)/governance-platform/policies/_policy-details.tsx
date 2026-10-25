@@ -68,9 +68,12 @@ function writeFailure(err: unknown): string {
     typeof e?.details?.["denial"] === "string"
       ? (e.details["denial"] as string)
       : e?.code;
-  if (e?.statusCode === 403 && denial === "DELEGATED_ADMIN_REQUIRED") {
-    const tier = e.details?.["requiredTier"];
-    const copy = permissionDenialCopy(denial, typeof tier === "string" ? tier : "ORG_ADMIN");
+  if (e?.statusCode === 403 && denial === "PERMISSION_REQUIRED") {
+    const permission = e.details?.["permission"];
+    const copy = permissionDenialCopy(
+      denial,
+      typeof permission === "string" ? permission : "governance.policy.manage",
+    );
     return `${copy.title} ${copy.detail}`;
   }
   if (e?.statusCode === 403) {

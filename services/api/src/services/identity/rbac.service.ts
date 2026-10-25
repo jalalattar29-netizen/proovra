@@ -1010,12 +1010,28 @@ export async function grantDelegatedAdminScope(
     revokedByUserId: null,
     revokedReason: null,
   };
-  const scope = existing
-    ? await tx.memberDelegatedAdminScope.update({
-        where: { id: existing.id },
-        data: { ...data, grantedAtUtc: new Date() },
-      })
-    : await tx.memberDelegatedAdminScope.create({ data });
+  // Members audit DOM-09 — two concurrent grants of one scope: exactly one
+  // wins. Re-activating a revoked row is conditional on it still being
+  // revoked, and a racing first grant loses on the unique key (P2002); both
+  // losers are the same typed refusal.
+  let scope: prismaPkg.MemberDelegatedAdminScope;
+  if (existing) {
+    const reactivated = await tx.memberDelegatedAdminScope.updateMany({
+      where: { id: existing.id, revokedAtUtc: { not: null } },
+      data: { ...data, grantedAtUtc: new Date() },
+    });
+    if (reactivated.count !== 1) throw new RbacError("delegated_scope_already_active");
+    scope = await tx.memberDelegatedAdminScope.findUniqueOrThrow({ where: { id: existing.id } });
+  } else {
+    try {
+      scope = await tx.memberDelegatedAdminScope.create({ data });
+    } catch (err) {
+      if ((err as { code?: string } | null)?.code === "P2002") {
+        throw new RbacError("delegated_scope_already_active");
+      }
+      throw err;
+    }
+  }
   safeEmitSecurityEvent(
     {
       teamId: input.teamId,
@@ -1051,6 +1067,70 @@ export async function grantDelegatedAdminScope(
     },
   }, tx);
   return scope;
+  });
+}
+
+export type UpdateDelegatedAdminInput = {
+  teamId: string;
+  scopeId: string;
+  actorUserId: string;
+  /** undefined leaves it; null removes the expiry. */
+  expiresAtUtc?: Date | null;
+  reason?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+};
+
+/**
+ * Change a live delegated scope's terms — its expiry and recorded reason
+ * (members audit DOM-09: the one delegated-admin authority has a managed
+ * writer for grant, update, revoke and inspection). Audited with the
+ * previous and resulting terms; a revoked scope is not updatable (grant it
+ * again instead).
+ */
+export async function updateDelegatedAdminScope(
+  input: UpdateDelegatedAdminInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<prismaPkg.MemberDelegatedAdminScope> {
+  return runAtomically(client, async (tx) => {
+    const scope = await tx.memberDelegatedAdminScope.findFirst({
+      where: { id: input.scopeId, teamId: input.teamId, revokedAtUtc: null },
+      select: { id: true, scopeKind: true, teamMemberId: true, expiresAtUtc: true, reason: true },
+    });
+    if (!scope) throw new RbacError("delegated_scope_not_found");
+    const data: { expiresAtUtc?: Date | null; reason?: string | null } = {};
+    if (input.expiresAtUtc !== undefined) data.expiresAtUtc = input.expiresAtUtc;
+    if (input.reason !== undefined) data.reason = input.reason;
+    const changed = await tx.memberDelegatedAdminScope.updateMany({
+      where: { id: scope.id, revokedAtUtc: null },
+      data,
+    });
+    if (changed.count !== 1) throw new RbacError("delegated_scope_not_found");
+    const updated = await tx.memberDelegatedAdminScope.findUniqueOrThrow({ where: { id: scope.id } });
+    await emitTenantAudit({
+      action: "identity.delegated_admin.update",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "member_delegated_admin_scope",
+      resourceId: scope.id,
+      metadata: {
+        subjectMemberId: scope.teamMemberId,
+        scopeKind: scope.scopeKind,
+        previous: {
+          expiresAtUtc: scope.expiresAtUtc?.toISOString() ?? null,
+          reason: scope.reason ?? null,
+        },
+        resulting: {
+          expiresAtUtc: updated.expiresAtUtc?.toISOString() ?? null,
+          reason: updated.reason ?? null,
+        },
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
+    }, tx);
+    return updated;
   });
 }
 
@@ -1141,6 +1221,7 @@ export type MemberAccessSummary = {
     expiresAtUtc: Date | null;
     revokedAtUtc: Date | null;
     grantedAtUtc: Date;
+    reason: string | null;
   }>;
 };
 
@@ -1167,6 +1248,7 @@ export async function listTeamMembersWithAccess(
           expiresAtUtc: true,
           revokedAtUtc: true,
           grantedAtUtc: true,
+          reason: true,
         },
       },
     },

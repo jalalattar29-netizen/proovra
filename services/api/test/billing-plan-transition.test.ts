@@ -29,6 +29,7 @@ const H = vi.hoisted(() => ({
   stripeBodies: [] as URLSearchParams[],
   /** Set to make the next provider call throw. */
   providerFails: false,
+  priceMismatch: false,
   /** What PayPal's revise returns. */
   paypalLinks: [] as Array<{ rel: string; href: string }>,
   /** The plan applied through the canonical plan writer, if any. */
@@ -194,6 +195,29 @@ vi.mock("../src/services/billing-pricing.service.js", () => ({
   getPlanPriceCents: (plan: string) => (plan === "TEAM" ? 7900 : 1900),
 }));
 
+// ENT-08 — the commercial authority, stubbed at its boundary exactly like the
+// PayPal plan check above: the target plan's Stripe price is read back before
+// the subscription is touched, and a mismatch refuses (its own suite,
+// members-commercial-offer.test.ts, drives the comparison itself).
+vi.mock("../src/services/billing/commercial-offer.service.js", () => ({
+  resolveCommercialOffer: (product: { plan: string }, currency: string) => ({
+    product,
+    currency,
+    stripePriceId: `price_${product.plan}`,
+  }),
+  requireVerifiedStripePrice: async (offer: { stripePriceId: string }) => {
+    H.providerCalls.push(`stripeGet /prices/${offer.stripePriceId}`);
+    if (H.priceMismatch) {
+      throw Object.assign(new Error("stripe price mismatch"), {
+        publicCode: "PAYMENTS_UNAVAILABLE",
+        httpStatus: 503,
+        metadata: { provider: "stripe", reason: "plan_price_mismatch" },
+      });
+    }
+    return offer.stripePriceId;
+  },
+}));
+
 vi.mock("../src/services/paypal-plan-map.service.js", () => ({
   currencyForPayPalBasePlanId: (id: string) => (id === "P-PRO-EUR-LIVE" ? "EUR" : null),
 }));
@@ -234,6 +258,7 @@ beforeEach(() => {
   H.providerCalls.length = 0;
   H.stripeBodies.length = 0;
   H.providerFails = false;
+  H.priceMismatch = false;
   H.paypalLinks = [];
   H.planApplied = null;
   H.entitledPlan = null;
@@ -543,8 +568,9 @@ describe("applyPersonalPlanChange — UPGRADE (Stripe)", () => {
     H.subscription = live({ plan: "PRO" });
     await upgrade();
     expect(H.providerCalls).toEqual([
-      // the billed currency, then the item to move
+      // the billed currency, the target price verified, then the item to move
       "stripeGet /subscriptions/sub_ext_1",
+      "stripeGet /prices/price_TEAM",
       "stripeGet /subscriptions/sub_ext_1",
       "stripePost /subscriptions/sub_ext_1",
     ]);
@@ -644,9 +670,17 @@ describe("applyPersonalPlanChange — DOWNGRADE (Stripe)", () => {
     expect(H.providerCalls).toEqual([
       // a READ of the billed currency, never a write to the live subscription
       "stripeGet /subscriptions/sub_ext_1",
+      "stripeGet /prices/price_PRO",
       "stripePost /subscription_schedules",
       "stripePost /subscription_schedules/sched_1",
     ]);
+  });
+
+  it("ENT-08 — a target price that disagrees with the catalogue refuses before any provider write", async () => {
+    H.priceMismatch = true;
+    await expect(downgrade()).rejects.toMatchObject({ publicCode: "PAYMENTS_UNAVAILABLE" });
+    expect(H.providerCalls.some((c) => c.startsWith("stripePost"))).toBe(false);
+    expect(H.writes).toEqual([]);
   });
 
   it("does NOT apply the plan now — the paid period is not taken back", async () => {

@@ -254,6 +254,11 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "A reviewer share lasts at most 30 days. Renew it later if it is still needed.",
     severity: "info",
   },
+  DELEGATED_ADMIN_TIERS_RETIRED: {
+    title: "Delegated administration has moved",
+    message: "Delegated administration is now managed per member in Security Center. Past grants are kept in the audit history.",
+    severity: "info",
+  },
   VERIFICATION_LINK_NOT_RENEWABLE: {
     title: "This share can't be renewed",
     message: "A revoked or replaced share stays ended. Create a new share instead.",

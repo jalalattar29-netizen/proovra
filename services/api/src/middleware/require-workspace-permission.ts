@@ -16,6 +16,10 @@
  * their domain, through this pre-handler — the same workspace resolution the
  * tier guard used (the caller's current workspace), the same refusal shape
  * family, the same audit event.
+ *
+ * A route whose tier gate was an OR-set spanning two domains (destruction
+ * approval: a retention manager OR a security officer) passes the list; any
+ * one of the permissions admits.
  */
 import type { FastifyReply, FastifyRequest, preHandlerHookHandler } from "fastify";
 import type { Permission } from "@proovra/shared";
@@ -24,17 +28,27 @@ import { getAuthUserId } from "../auth.js";
 import { evaluateCurrentWorkspace } from "./authorize.js";
 import { emitTrustEvent } from "../services/trust/trust-and-governance-audit.service.js";
 
-export function requireWorkspacePermission(permission: Permission): preHandlerHookHandler {
+export function requireWorkspacePermission(
+  required: Permission | readonly [Permission, ...Permission[]],
+): preHandlerHookHandler {
+  const anyOf: readonly Permission[] = typeof required === "string" ? [required] : required;
+  const permission = anyOf[0]!;
+  const denialBody =
+    anyOf.length > 1
+      ? { denial: "PERMISSION_REQUIRED", permission, anyOf }
+      : { denial: "PERMISSION_REQUIRED", permission };
   return async function workspacePermissionGuard(req: FastifyRequest, reply: FastifyReply): Promise<void> {
     let userId: string | null = null;
     try {
       userId = getAuthUserId(req);
     } catch {
-      reply.code(403).send({ denial: "PERMISSION_REQUIRED", permission });
+      reply.code(403).send(denialBody);
       return;
     }
-    const outcome = await evaluateCurrentWorkspace(req, { permission });
-    if (outcome.allowed) return;
+    for (const p of anyOf) {
+      const outcome = await evaluateCurrentWorkspace(req, { permission: p });
+      if (outcome.allowed) return;
+    }
     const membership = await evaluateCurrentWorkspace(req, { permission: "evidence.read" });
     if (membership.allowed) {
       try {
@@ -42,12 +56,12 @@ export function requireWorkspacePermission(permission: Permission): preHandlerHo
           teamId: membership.context.workspaceId,
           code: "POLICY_VIOLATION",
           actorUserId: userId,
-          reason: `permission_required:${permission}`,
+          reason: `permission_required:${anyOf.join("|")}`,
         });
       } catch {
         // Audit emission must never break the request path.
       }
     }
-    reply.code(403).send({ denial: "PERMISSION_REQUIRED", permission });
+    reply.code(403).send(denialBody);
   };
 }

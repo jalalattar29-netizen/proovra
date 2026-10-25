@@ -69,8 +69,18 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
   let prisma: typeof import("../src/db.js")["prisma"];
   let pricing: typeof import("../src/services/billing-pricing.service.js");
   let paypalPolicy: typeof import("../src/services/paypal-checkout-policy.service.js");
+  let offers: typeof import("../src/services/billing/commercial-offer.service.js");
   let deps: FixtureDeps;
   const tag = `k7b-${Date.now().toString(36)}-${randomUUID().slice(0, 6)}`;
+
+  /**
+   * ENT-08 — the configured Stripe Prices the fake transport knows: one per
+   * self-service offer, agreeing with the catalogue (built in beforeAll from
+   * the same commercial authority checkout reads). Reads are recorded apart
+   * from `calls`, which stays the record of what the product CREATED.
+   */
+  const FAKE_STRIPE_PRICES: Record<string, { env: string; price: () => Record<string, unknown> }> = {};
+  const priceReads: string[] = [];
 
   const call = (method: "POST", url: string, token: string, payload: unknown) =>
     harness.app.inject({
@@ -112,9 +122,14 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
       PAYPAL_API_BASE: PAYPAL_FAKE_BASE,
       PAYPAL_PRO_PLAN_ID_USD: "P-K7FAKEPROUSD",
       PAYPAL_PLAN_STORAGE_PERSONAL_10_GB_EUR: "P-K7FAKESTORAGE10EUR",
+      // ENT-08 — Stripe checkout charges only a configured Price, read back
+      // and compared with the catalogue first; the fake answers that read.
+      ...Object.fromEntries(Object.keys(FAKE_STRIPE_PRICES).map((id) => [FAKE_STRIPE_PRICES[id]!.env, id])),
     };
     const previous = new Map(Object.keys(settings).map((k) => [k, process.env[k]]));
     Object.assign(process.env, settings);
+    offers.__clearVerifiedOffersForTests();
+    priceReads.length = 0;
     const realFetch = globalThis.fetch;
     const calls: ProviderCall[] = [];
     const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -122,6 +137,15 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
         typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
       if (!url.startsWith(STRIPE_API) && !url.startsWith(PAYPAL_FAKE_BASE)) {
         return realFetch(input as never, init);
+      }
+      if ((init?.method ?? "GET") === "GET" && url.startsWith(`${STRIPE_API}/prices/`)) {
+        const id = decodeURIComponent(url.slice(`${STRIPE_API}/prices/`.length));
+        priceReads.push(id);
+        const p = FAKE_STRIPE_PRICES[id];
+        return new Response(JSON.stringify(p ? p.price() : { error: { code: "resource_missing" } }), {
+          status: p ? 200 : 404,
+          headers: { "content-type": "application/json" },
+        });
       }
       const req: ProviderCall = {
         url,
@@ -206,6 +230,30 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
     ({ prisma } = await import("../src/db.js"));
     pricing = await import("../src/services/billing-pricing.service.js");
     paypalPolicy = await import("../src/services/paypal-checkout-policy.service.js");
+    offers = await import("../src/services/billing/commercial-offer.service.js");
+    for (const currency of ["USD", "EUR"] as const) {
+      for (const o of offers.allSelfServiceOffers(currency)) {
+        const p = o.product;
+        const env =
+          p.kind === "PLAN"
+            ? `STRIPE_${p.plan}_PRICE_ID_${currency}`
+            : p.kind === "EVIDENCE_CREDIT"
+              ? `STRIPE_PAYG_PRICE_ID_${currency}`
+              : `STRIPE_STORAGE_${p.addonKey}_MONTHLY_${currency}_PRICE_ID`;
+        const id = `price_k7_${offers.describeOffer(o).replace(/[^A-Za-z0-9]/g, "_")}`;
+        FAKE_STRIPE_PRICES[id] = {
+          env,
+          price: () => ({
+            id,
+            active: true,
+            currency: o.currency.toLowerCase(),
+            unit_amount: o.amountCents,
+            type: o.interval === "MONTH" ? "recurring" : "one_time",
+            recurring: o.interval === "MONTH" ? { interval: "month", interval_count: 1 } : null,
+          }),
+        };
+      }
+    }
     const { signJwt } = await import("../src/services/jwt.js");
     deps = {
       prisma: prisma as never,
@@ -258,6 +306,10 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
       expect(calls).toHaveLength(1);
       const sent = form(calls[0]!.body);
       expect(sent.get("mode")).toBe("subscription");
+      // ENT-08 — the configured PRO/USD Price, read back first; never inline.
+      expect(priceReads).toEqual(["price_k7_PRO_USD_MONTH"]);
+      expect(sent.get("line_items[0][price]")).toBe("price_k7_PRO_USD_MONTH");
+      expect([...sent.keys()].some((k) => k.includes("price_data"))).toBe(false);
       expect(sent.get("metadata[userId]")).toBe(t.owner.userId);
       expect(sent.get("metadata[plan]")).toBe("PRO");
       expect(sent.get("metadata[productKey]")).toBe("PLAN");
@@ -455,7 +507,10 @@ describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
       expect(sent.get("metadata[userId]")).toBe(t.owner.userId);
       expect(sent.get("metadata[storageAddonKey]")).toBe("PERSONAL_10_GB");
       expect(sent.get("metadata[workspacePlan]")).toBe("PRO");
-      expect(sent.get("line_items[0][price_data][recurring][interval]")).toBe("month");
+      // ENT-08 — the configured recurring monthly add-on Price, verified first.
+      expect(priceReads).toEqual(["price_k7_STORAGE_PERSONAL_10_GB_EUR_MONTH"]);
+      expect(sent.get("line_items[0][price]")).toBe("price_k7_STORAGE_PERSONAL_10_GB_EUR_MONTH");
+      expect([...sent.keys()].some((k) => k.includes("price_data"))).toBe(false);
       expect(sent.get("metadata[amountCents]")).toBe(
         String(pricing.getStorageAddonPriceCents({ addonKey: "PERSONAL_10_GB", currency: "EUR" })),
       );

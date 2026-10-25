@@ -115,6 +115,8 @@ const PERMISSION_LABEL: Readonly<Record<Permission, string>> = {
   "notification.delivery.resend": "Resend notifications",
   "governance.policy.read": "View governance policies",
   "governance.policy.manage": "Manage governance policies",
+  "governance.exchange.manage": "Manage evidence exchange",
+  "governance.department.manage": "Manage department memberships",
   "governance.legal_hold.manage": "Manage legal holds",
   "governance.retention.manage": "Manage retention governance",
   "audit.read": "View the audit log",

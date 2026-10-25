@@ -50,19 +50,18 @@ describe("D63 destruction request refusals (live PostgreSQL 16)", () => {
     ({ prisma } = await import("../src/db.js"));
     const { teamA } = h.fixtures;
     await prisma.user.update({ where: { id: teamA.ownerUserId }, data: { currentWorkspaceId: teamA.teamId } });
-    const team = await prisma.team.findUniqueOrThrow({ where: { id: teamA.teamId }, select: { organizationId: true } });
-    const { grantDelegatedAdmin } = await import("../src/services/governance/delegated-admin.service.js");
-    for (const tier of ["ORG_ADMIN", "COMPLIANCE_OFFICER"] as const) {
-      const res = await grantDelegatedAdmin({
-        teamId: teamA.teamId,
-        organizationId: team.organizationId,
-        departmentId: null,
-        workspaceId: null,
-        granteeUserId: teamA.ownerUserId,
-        tier,
-        grantedByUserId: teamA.ownerUserId,
-      });
-      expect(res.ok, `granting ${tier}`).toBe(true);
+    // approve/execute are guarded by the canonical permission engine (members
+    // audit DOM-09: `governance.retention.manage`; approve is any-of it and
+    // `identity.org_policy.manage`). The OWNER holds every permission by role,
+    // so no grant is needed — proven here rather than assumed, so every answer
+    // below is the route's own, never the guard's.
+    const { evaluateMemberAccess } = await import("../src/services/identity/access-policy.service.js");
+    for (const permission of ["governance.retention.manage", "identity.org_policy.manage"] as const) {
+      const decision = await evaluateMemberAccess(
+        { teamId: teamA.teamId, userId: teamA.ownerUserId, permission },
+        prisma,
+      );
+      expect(decision.allowed, `the owner holds ${permission}`).toBe(true);
     }
   }, 900_000);
 

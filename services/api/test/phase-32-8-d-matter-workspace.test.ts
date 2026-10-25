@@ -17,7 +17,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 // The placement prerequisite is proven against PostgreSQL in
 // members-unassigned-rule.integration.test.ts; this suite tests its own module.

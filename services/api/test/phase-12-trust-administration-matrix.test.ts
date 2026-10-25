@@ -77,12 +77,12 @@ const INCIDENT = "33333333-3333-4333-8333-333333333333";
 vi.mock("../src/auth.js", () => ({ getAuthUserId: () => H.actorUserId }));
 vi.mock("../src/middleware/auth.js", () => ({ requireAuth: async () => {} }));
 
-// Delegated-tier preHandlers are a SEPARATE gate from the canonical
-// capability check. They are satisfied here so each test isolates the
+// The route permission preHandler (`requireWorkspacePermission`, which
+// replaced the retired delegated-tier guard) is a SEPARATE gate from the
+// in-handler `authorizeOrFail` check. It is satisfied here so each test isolates the
 // `authorizeOrFail` composition the routes gained in this phase.
-vi.mock("../src/middleware/require-delegated-tier.js", () => ({
-  requireDelegatedTier: () => async () => {},
-  requireDelegatedTierAny: () => async () => {},
+vi.mock("../src/middleware/require-workspace-permission.js", () => ({
+  requireWorkspacePermission: () => async () => {},
 }));
 
 vi.mock("../src/middleware/authorize.js", () => ({

@@ -55,7 +55,11 @@ describe("REAL FIX 1 — apiFetch promotes top-level denial bodies", () => {
     // (e.g. POST /v1/lifecycle/dashboard ENTITLEMENT_REQUIRED body).
     expect(API).toMatch(/"denial"/);
     expect(API).toMatch(/"entitlement"/);
-    expect(API).toMatch(/"requiredTier"/);
+    // Members audit DOM-09 — the route permission guard's denial names a
+    // `permission` (it replaced the retired tier guard's `requiredTier`).
+    const fields = /topLevelDenialFields\s*=\s*\[([^\]]*)\]/.exec(API)?.[1] ?? "";
+    expect(fields).toMatch(/"permission"/);
+    expect(fields).not.toMatch(/"requiredTier"/);
   });
 });
 

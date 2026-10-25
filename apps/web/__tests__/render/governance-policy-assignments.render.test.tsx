@@ -139,15 +139,17 @@ describe("governance policy assignments + audit trail", () => {
     expect(screen.queryByText("Require MFA is assigned to this workspace.")).toBeNull();
   });
 
-  it("names the required tier when the server refuses the assignment", async () => {
+  it("names the required permission when the server refuses the assignment", async () => {
     mocks.fetch.mockImplementation(async (path: string, init?: RequestInit) => {
-      if (init?.method === "POST") throw { statusCode: 403, code: "DELEGATED_ADMIN_REQUIRED", details: { denial: "DELEGATED_ADMIN_REQUIRED", requiredTier: "ORG_ADMIN" } };
+      if (init?.method === "POST") throw { statusCode: 403, code: "PERMISSION_REQUIRED", details: { denial: "PERMISSION_REQUIRED", permission: "governance.policy.manage" } };
       return reply(path, init);
     });
     await openDetails();
     await openForm();
     fireEvent.click(screen.getByRole("button", { name: "Save assignment" }));
-    await screen.findByText("Permission required. Ask an organization administrator to grant you access.");
+    await screen.findByText(
+      "Permission required. This needs the “Manage governance policies” permission in this workspace. A workspace owner or admin can grant it to you, or give you a delegated scope that includes it, in Security Center.",
+    );
   });
 
   it("disables workspace assignment with a reason when the scope is unresolved", async () => {

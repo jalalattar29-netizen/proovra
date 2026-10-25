@@ -508,11 +508,17 @@ describe("Phase 12 Point 4 — lifecycle/exchange routes carry canonical capabil
 
   const gated = (b: string) =>
     /permission:\s*"[a-z_.]+"/.test(b) ||
-    /requireDelegatedTier/.test(b) ||
+    // The route permission guard (members audit DOM-09 — it replaced the
+    // retired delegated-tier guard): the canonical engine, a named permission.
+    /requireWorkspacePermission\(\[?\s*"[a-z_.]+"/.test(b) ||
     /requireIntegrationCronSecret/.test(b) ||
     tombstone(b);
 
-  it("every MUTATION carries a canonical capability or a delegated-tier gate", () => {
+  it("the retired delegated-tier guard gates nothing any more", () => {
+    expect(SRC).not.toMatch(/requireDelegatedTier/);
+  });
+
+  it("every MUTATION carries a canonical capability or a route permission gate", () => {
     const ungated = routes()
       .filter((r) => r.method !== "GET" && !gated(r.body))
       .map((r) => `${r.method} ${r.path}`);

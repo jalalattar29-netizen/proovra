@@ -110,8 +110,9 @@ export async function buildGovernanceManifestEntry(input: {
   const accessReviewCampaignCount = await prisma.accessReviewCampaign
     .count({ where: { teamId: input.teamId } })
     .catch(() => 0);
-  const delegatedAdminActiveGrants = await prisma.delegatedAdminGrant
-    .count({ where: { teamId: input.teamId, state: "ACTIVE" } })
+  // Members audit DOM-09 — live member delegated scopes.
+  const delegatedAdminActiveGrants = await prisma.memberDelegatedAdminScope
+    .count({ where: { teamId: input.teamId, revokedAtUtc: null, OR: [{ expiresAtUtc: null }, { expiresAtUtc: { gt: new Date() } }] } })
     .catch(() => 0);
   const crossOrgActive = await prisma.crossOrgReviewGrant
     .count({ where: { teamId: input.teamId, state: "ACCEPTED" } })

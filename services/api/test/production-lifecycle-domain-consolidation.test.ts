@@ -105,15 +105,23 @@ describe("Lifecycle consolidation — bounded error string", () => {
 });
 
 // =============================================================================
-// 4. Entitlement-required + delegated-admin-required phases exist
+// 4. Entitlement-required + permission-required phases exist
 // =============================================================================
 describe("Lifecycle consolidation — denial phases", () => {
   it("declares entitlement-required phase in LoadState", () => {
     expect(SURFACE_A).toMatch(/entitlement-required/);
   });
 
-  it("declares delegated-admin-required phase in LoadState", () => {
-    expect(SURFACE_A).toMatch(/delegated-admin-required/);
+  it("declares permission-required phase in LoadState, mapped from the guard's PERMISSION_REQUIRED denial", () => {
+    // Members audit DOM-09 — the lifecycle routes' tier guard (denial
+    // DELEGATED_ADMIN_REQUIRED) is retired; the route permission guard
+    // refuses with PERMISSION_REQUIRED + the permission it asked for.
+    expect(SURFACE_A).toMatch(/phase:\s*"permission-required";\s*permission\?:\s*string/);
+    expect(SURFACE_A).toMatch(
+      /denial === "PERMISSION_REQUIRED"[\s\S]{0,300}phase: "permission-required"/,
+    );
+    expect(SURFACE_A).not.toMatch(/delegated-admin-required/);
+    expect(SURFACE_A).not.toMatch(/DELEGATED_ADMIN_REQUIRED/);
   });
 });
 

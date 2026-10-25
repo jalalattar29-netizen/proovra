@@ -64,7 +64,7 @@ function classifyReadFailure(err: unknown): ReadFailure {
 
 type PermissionDenialState = {
   denial: string;
-  tier: string;
+  permission: string | null;
 } | null;
 
 export default function PoliciesPage() {
@@ -305,8 +305,8 @@ function Shell() {
           padding="compact"
           data-permission-denied={denial.denial}
         >
-          <strong>{permissionDenialCopy(denial.denial, denial.tier).title}</strong>{" "}
-          {permissionDenialCopy(denial.denial, denial.tier).detail}
+          <strong>{permissionDenialCopy(denial.denial, denial.permission).title}</strong>{" "}
+          {permissionDenialCopy(denial.denial, denial.permission).detail}
         </Card>
       ) : null}
       {listFailure ? (
@@ -512,12 +512,12 @@ function applyDenial(
       err.details && typeof err.details["denial"] === "string"
         ? (err.details["denial"] as string)
         : null;
-    const tier =
-      err.details && typeof err.details["requiredTier"] === "string"
-        ? (err.details["requiredTier"] as string)
-        : "DELEGATED_ADMIN";
-    if (err.statusCode === 403 && detailsDenial === "DELEGATED_ADMIN_REQUIRED") {
-      setDenial({ denial: detailsDenial, tier });
+    const permission =
+      err.details && typeof err.details["permission"] === "string"
+        ? (err.details["permission"] as string)
+        : null;
+    if (err.statusCode === 403 && detailsDenial === "PERMISSION_REQUIRED") {
+      setDenial({ denial: detailsDenial, permission });
       return true;
     }
   }
@@ -530,16 +530,16 @@ function applyDenial(
     generic && generic.details && typeof generic.details["denial"] === "string"
       ? (generic.details["denial"] as string)
       : null;
-  const tier =
-    generic && generic.details && typeof generic.details["requiredTier"] === "string"
-      ? (generic.details["requiredTier"] as string)
-      : "DELEGATED_ADMIN";
+  const permission =
+    generic && generic.details && typeof generic.details["permission"] === "string"
+      ? (generic.details["permission"] as string)
+      : null;
   if (
     generic &&
     generic.statusCode === 403 &&
-    detailsDenial === "DELEGATED_ADMIN_REQUIRED"
+    detailsDenial === "PERMISSION_REQUIRED"
   ) {
-    setDenial({ denial: detailsDenial, tier });
+    setDenial({ denial: detailsDenial, permission });
     return true;
   }
   return false;

@@ -21,7 +21,6 @@ import {
   ACCESS_REVIEW_ITEM_DECISIONS,
   AI_DISCLOSURE_SECTIONS,
   CROSS_ORG_REVIEW_STATES,
-  DELEGATED_ADMIN_TIERS,
   DEPARTMENT_MEMBERSHIP_ROLES,
   DEPARTMENT_MEMBERSHIP_STATES,
   GOVERNANCE_POLICY_ENFORCEMENT_MODES,
@@ -53,10 +52,8 @@ import {
 } from "../middleware/authorize.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { emitTrustEvent } from "../services/trust/trust-and-governance-audit.service.js";
-import {
-  requireDelegatedTier,
-  requireDelegatedTierAny,
-} from "../middleware/require-delegated-tier.js";
+import { requireWorkspacePermission } from "../middleware/require-workspace-permission.js";
+import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
 // Phase 4B Closure — single canonical GET /v1/governance/dashboard. The
 // lifecycle-shape branch lives in governance-lifecycle.routes.ts as a
@@ -89,12 +86,6 @@ import {
   createDepartment,
   listDepartments,
 } from "../services/governance/department.service.js";
-import {
-  grantDelegatedAdmin,
-  hasDelegatedTier,
-  listDelegatedGrants,
-  revokeDelegatedAdmin,
-} from "../services/governance/delegated-admin.service.js";
 import {
   activatePolicy,
   assignPolicy,
@@ -325,7 +316,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/articles",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["ORG_ADMIN", "SECURITY_OFFICER", "COMPLIANCE_OFFICER"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -352,13 +343,13 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
         return reply.code(409).send({ denial: "POLICY_REJECTED" });
       }
       // Kind-aware secondary tier check.
+      // Kind-aware secondary permission (members audit DOM-09: one authority —
+      // the canonical permission engine). A SECURITY article additionally needs
+      // the security-policy permission; every other kind is governed by the
+      // route's governance.policy.manage.
       if (body.kind === "SECURITY") {
-        const ok = await hasDelegatedTier({ teamId: ctx.teamId, userId: ctx.userId, requiredTier: "SECURITY_OFFICER" });
-        if (!ok) return reply.code(403).send({ denial: "DELEGATED_ADMIN_REQUIRED", requiredTier: "SECURITY_OFFICER" });
-      } else if (body.kind === "AI_DISCLOSURE") {
-        const okC = await hasDelegatedTier({ teamId: ctx.teamId, userId: ctx.userId, requiredTier: "COMPLIANCE_OFFICER" });
-        const okS = await hasDelegatedTier({ teamId: ctx.teamId, userId: ctx.userId, requiredTier: "SECURITY_OFFICER" });
-        if (!okC && !okS) return reply.code(403).send({ denial: "DELEGATED_ADMIN_REQUIRED", requiredTier: "COMPLIANCE_OFFICER" });
+        const ok = await evaluateMemberAccess({ teamId: ctx.teamId, userId: ctx.userId, permission: "identity.org_policy.manage" });
+        if (!ok.allowed) return reply.code(403).send({ denial: "PERMISSION_REQUIRED", permission: "identity.org_policy.manage" });
       }
       const res = await upsertTrustArticle({
         teamId: ctx.teamId,
@@ -533,7 +524,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/subprocessors",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["ORG_ADMIN", "COMPLIANCE_OFFICER"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -638,7 +629,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/status/incidents",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["ORG_ADMIN", "SECURITY_OFFICER"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("identity.org_policy.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -689,7 +680,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/status/incidents/:id/updates",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["ORG_ADMIN", "SECURITY_OFFICER"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("identity.org_policy.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -746,7 +737,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/status/maintenance",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["ORG_ADMIN", "SECURITY_OFFICER"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("identity.org_policy.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -826,7 +817,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/departments",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -873,7 +864,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/departments/:id/archive",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -893,85 +884,38 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
   app.get(
     "/v1/governance/delegated-admin",
     { preHandler: requireAuth },
-    async (req, reply) => {
-      const ctx = await resolveWorkspace(req, reply);
-      if (!ctx) return reply;
-      const q = z
-        .object({
-          organizationId: z.string().uuid().optional(),
-          tier: z.enum(DELEGATED_ADMIN_TIERS).optional(),
-        })
-        .parse(req.query ?? {});
-      const grants = await listDelegatedGrants({
-        teamId: ctx.teamId,
-        organizationId: q.organizationId,
-        tier: q.tier,
-      });
-      return reply.code(200).send({ grants });
-    },
+    // Members audit DOM-09 — the tier model is retired; one authority remains.
+    async (_req, reply) => reply.code(410).send({
+        code: "DELEGATED_ADMIN_TIERS_RETIRED",
+        message:
+          "Delegated administration is managed as member delegated scopes in Security Center. Tier grants are retired; their history is kept.",
+        nextAction: "OPEN_SECURITY_CENTER",
+      }),
   );
 
+  // Members audit DOM-09 — tier grants are retired: delegated administration
+  // is a member delegated scope (POST /v1/identity/members/:id/delegated-admin,
+  // DELETE /v1/identity/delegated-admin/:id), enforced by the permission engine.
   app.post(
     "/v1/governance/delegated-admin",
     { preHandler: requireAuth },
-    async (req, reply) => {
-      const ctx = await resolveWorkspace(req, reply);
-      if (!ctx) return reply;
-      // I6 — FEATURE_DELEGATED_ADMIN gate (minimal coverage, one rep mutation).
-      try {
-        const feOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_DELEGATED_ADMIN", actorUserId: ctx.userId });
-        if (!feOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_DELEGATED_ADMIN" });
-      } catch { /* engine failure must not break route */ }
-      const body = z
-        .object({
-          organizationId: z.string().uuid(),
-          departmentId: z.string().uuid().nullable().optional(),
-          workspaceId: z.string().uuid().nullable().optional(),
-          granteeUserId: z.string().uuid(),
-          tier: z.enum(DELEGATED_ADMIN_TIERS),
-          expiresAtUtc: z.string().datetime().nullable().optional(),
-        })
-        .parse(req.body);
-      // Enforce: only ORG_ADMIN+ (in scope) may grant.
-      const authorized = await hasDelegatedTier({
-        teamId: ctx.teamId,
-        userId: ctx.userId,
-        requiredTier: "ORG_ADMIN",
-        organizationId: body.organizationId,
-      });
-      if (!authorized) {
-        return reply.code(403).send({ denial: "DELEGATED_ADMIN_REQUIRED" });
-      }
-      const res = await grantDelegatedAdmin({
-        teamId: ctx.teamId,
-        organizationId: body.organizationId,
-        departmentId: body.departmentId ?? null,
-        workspaceId: body.workspaceId ?? null,
-        granteeUserId: body.granteeUserId,
-        tier: body.tier,
-        grantedByUserId: ctx.userId,
-        expiresAtUtc: body.expiresAtUtc ? new Date(body.expiresAtUtc) : null,
-      });
-      if (!res.ok) return reply.code(409).send({ denial: res.denial });
-      return reply.code(201).send({ grantId: res.grantId });
-    },
+    async (_req, reply) => reply.code(410).send({
+        code: "DELEGATED_ADMIN_TIERS_RETIRED",
+        message:
+          "Delegated administration is managed as member delegated scopes in Security Center. Tier grants are retired; their history is kept.",
+        nextAction: "OPEN_SECURITY_CENTER",
+      }),
   );
 
   app.post(
     "/v1/governance/delegated-admin/:id/revoke",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
-    async (req, reply) => {
-      const ctx = await resolveWorkspace(req, reply);
-      if (!ctx) return reply;
-      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const res = await revokeDelegatedAdmin({
-        teamId: ctx.teamId,
-        grantId: id,
-        actorUserId: ctx.userId,
-      });
-      if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
-      return reply.code(200).send({ ok: true });
-    },
+    { preHandler: requireAuth },
+    async (_req, reply) => reply.code(410).send({
+        code: "DELEGATED_ADMIN_TIERS_RETIRED",
+        message:
+          "Delegated administration is managed as member delegated scopes in Security Center. Tier grants are retired; their history is kept.",
+        nextAction: "OPEN_SECURITY_CENTER",
+      }),
   );
 
   // ===== Governance Policies =====
@@ -999,7 +943,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/policies",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["SECURITY_OFFICER", "COMPLIANCE_OFFICER"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1032,7 +976,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/policies/:id/activate",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["SECURITY_OFFICER", "COMPLIANCE_OFFICER"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1049,7 +993,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/policies/:id/deprecate",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["SECURITY_OFFICER", "COMPLIANCE_OFFICER"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1066,7 +1010,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/policies/:id/assignments",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1239,7 +1183,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/access-reviews/campaigns",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["SECURITY_OFFICER", "COMPLIANCE_OFFICER"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("identity.access_review.action")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1283,7 +1227,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/access-reviews/campaigns/:id/open",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["SECURITY_OFFICER", "COMPLIANCE_OFFICER"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("identity.access_review.action")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1296,7 +1240,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/access-reviews/campaigns/:id/close",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["SECURITY_OFFICER", "COMPLIANCE_OFFICER"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("identity.access_review.action")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1321,7 +1265,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/access-reviews/items/:id/decision",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["SECURITY_OFFICER", "COMPLIANCE_OFFICER", "ORG_ADMIN"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("identity.access_review.action")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1369,7 +1313,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/cross-org-review",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["ORG_ADMIN", "REVIEWER_LEAD"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1411,7 +1355,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/cross-org-review/:id/accept",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1437,7 +1381,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/cross-org-review/:id/decline",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1454,7 +1398,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/cross-org-review/:id/revoke",
-    { preHandler: [requireAuth, requireDelegatedTier("ORG_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1515,7 +1459,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/drift/scan",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["SECURITY_OFFICER", "COMPLIANCE_OFFICER"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1566,7 +1510,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/security-claims/scan",
-    { preHandler: [requireAuth, requireDelegatedTierAny(["SECURITY_OFFICER", "COMPLIANCE_OFFICER"])] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1643,7 +1587,8 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
   //   2. `authorizeOrFail`   — ACTIVE membership + parent-Organization
   //      lifecycle + access expiry + capability + audit + 404
   //      anti-enumeration for cross-Organization probes.
-  //   3. `requireDelegatedTier("DEPARTMENT_ADMIN")` — delegated-admin tier
+  //   3. `requireWorkspacePermission("governance.policy.manage")` — the
+  //      canonical permission, delegable through a member delegated scope
   //      (mutations only).
   //   4. `requireStepUpForSensitiveAction` — fresh step-up (mutations
   //      only), AFTER authorization and BEFORE the write.
@@ -1683,7 +1628,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/departments/:id/memberships",
-    { preHandler: [requireAuth, requireDelegatedTier("DEPARTMENT_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.department.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1756,7 +1701,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/departments/memberships/:id/revoke",
-    { preHandler: [requireAuth, requireDelegatedTier("DEPARTMENT_ADMIN")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.department.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1904,11 +1849,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireDelegatedTierAny([
-          "ORG_ADMIN",
-          "SECURITY_OFFICER",
-          "COMPLIANCE_OFFICER",
-        ]),
+        requireWorkspacePermission("audit.read"),
       ],
     },
     async (req, reply) => {

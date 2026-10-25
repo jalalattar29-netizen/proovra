@@ -59,6 +59,7 @@ import {
 } from "../billing-pricing.service.js";
 import { syncPlanForSubscription } from "./subscription-lifecycle.handlers.js";
 import { resolveCommercialContext } from "./commercial-context.service.js";
+import { requireVerifiedStripePrice, resolveCommercialOffer } from "./commercial-offer.service.js";
 import {
   derivePersonalBaseSubscriptionState,
   findLivePersonalBaseSubscription,
@@ -482,6 +483,13 @@ async function applyStripePlanChange(args: {
 }): Promise<PlanChangeOutcome> {
   const { transition, subscription, currency } = args;
   const priceId = requireStripePrice(transition.targetPlan, currency);
+  // Members audit ENT-08 — the price the customer moves ONTO must bill what the
+  // catalogue shows for it, verified exactly as a new checkout is. (The phase
+  // they are leaving keeps the price they bought, grandfathered amounts
+  // included, so it is not re-verified against today's catalogue.)
+  if (transition.targetPlan === prismaPkg.PlanType.PRO || transition.targetPlan === prismaPkg.PlanType.TEAM) {
+    await requireVerifiedStripePrice(resolveCommercialOffer({ kind: "PLAN", plan: transition.targetPlan }, currency));
+  }
 
   if (transition.kind === "UPGRADE") {
     const ownerUserId = await ownerOf(subscription.id);
