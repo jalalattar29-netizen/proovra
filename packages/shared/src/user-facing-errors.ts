@@ -249,6 +249,31 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "That person is already a member of this workspace.",
     severity: "info",
   },
+  VERIFICATION_LINK_LIFETIME_INVALID: {
+    title: "Choose up to 30 days",
+    message: "A reviewer share lasts at most 30 days. Renew it later if it is still needed.",
+    severity: "info",
+  },
+  VERIFICATION_LINK_NOT_RENEWABLE: {
+    title: "This share can't be renewed",
+    message: "A revoked or replaced share stays ended. Create a new share instead.",
+    severity: "warning",
+  },
+  EXTERNAL_REVIEW_GRANT_NOT_FOUND: {
+    title: "Invitation not found",
+    message: "This external review invitation no longer exists.",
+    severity: "warning",
+  },
+  EXTERNAL_REVIEW_GRANT_LIFETIME_INVALID: {
+    title: "Choose up to 30 days",
+    message: "An external review invitation lasts at most 30 days at a time.",
+    severity: "info",
+  },
+  EXTERNAL_REVIEW_GRANT_NOT_RENEWABLE: {
+    title: "This invitation can't be renewed",
+    message: "Only an invitation that is still open can be renewed. Issue a new one instead.",
+    severity: "warning",
+  },
   INVITE_PENDING_WITH_DIFFERENT_ROLE: {
     title: "An invitation is already pending",
     message:

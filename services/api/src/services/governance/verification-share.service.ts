@@ -32,8 +32,11 @@ import {
 } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { SHARE_GRANT_DEFAULT_LIFETIME_DAYS, SHARE_GRANT_MAX_LIFETIME_DAYS } from "@proovra/shared";
 
-export const VERIFICATION_LINK_MAX_EXPIRY_DAYS = 365;
+/** Members audit SEC-08 — an owner link lives at most 30 days per issue or renewal. */
+export const VERIFICATION_LINK_MAX_EXPIRY_DAYS = SHARE_GRANT_MAX_LIFETIME_DAYS;
+export const VERIFICATION_LINK_DEFAULT_EXPIRY_DAYS = SHARE_GRANT_DEFAULT_LIFETIME_DAYS;
 export const VERIFICATION_LINK_MAX_USES_CEILING = 100_000;
 
 export class VerificationShareError extends Error {
@@ -43,7 +46,9 @@ export class VerificationShareError extends Error {
       | "link_not_active"
       | "too_many_active_links"
       | "record_not_shareable"
-      | "legacy_link_not_active",
+      | "legacy_link_not_active"
+      | "link_lifetime_invalid"
+      | "link_not_renewable",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -195,8 +200,8 @@ export type CreateVerificationLinkInput = {
   record: RecordForShare;
   actorUserId: string;
   audience: string;
-  /** Days until the link expires; null = no expiry. */
-  expiresInDays: number | null;
+  /** Days until the link expires (1..30). There is no "no expiry" (SEC-08). */
+  expiresInDays: number;
   projection: VerificationShareProjection;
   maxUses: number | null;
   /** An explicit grant to hand out the original files (STANDARD links only). */
@@ -216,8 +221,14 @@ export async function createVerificationLink(
 ): Promise<{ link: VerificationLinkView; token: string }> {
   const { record } = input;
   if (!recordIsShareable(record)) throw new VerificationShareError("record_not_shareable");
-  const expiresAtUtc =
-    input.expiresInDays === null ? null : new Date(now.getTime() + input.expiresInDays * 24 * 60 * 60 * 1000);
+  if (
+    !Number.isInteger(input.expiresInDays) ||
+    input.expiresInDays < 1 ||
+    input.expiresInDays > VERIFICATION_LINK_MAX_EXPIRY_DAYS
+  ) {
+    throw new VerificationShareError("link_lifetime_invalid", { maxDays: VERIFICATION_LINK_MAX_EXPIRY_DAYS });
+  }
+  const expiresAtUtc = new Date(now.getTime() + input.expiresInDays * 24 * 60 * 60 * 1000);
 
   return client.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`verification-share:${record.id}`}))`;
@@ -315,6 +326,44 @@ export async function rotateVerificationLink(
       where: { id: minted.id },
     })) as VerificationShareRow;
     return { link: projectVerificationLink(row, now, input.record), token: minted.token, replacedLinkId: current.id };
+  });
+}
+
+/**
+ * RENEW an owner link (members audit SEC-08): an explicit, audited act that
+ * sets its expiry to `days` from now (1..30). Only an owner link that has not
+ * been revoked may be renewed; an expired one may be renewed by its record's
+ * manager (the token is unchanged), a revoked one never.
+ */
+export async function renewVerificationLink(
+  input: { record: RecordForShare; linkId: string; actorUserId: string; days: number },
+  client: PrismaClient = defaultPrisma,
+  now: Date = new Date(),
+): Promise<{ link: VerificationLinkView; previousExpiresAtUtc: string | null }> {
+  if (!Number.isInteger(input.days) || input.days < 1 || input.days > VERIFICATION_LINK_MAX_EXPIRY_DAYS) {
+    throw new VerificationShareError("link_lifetime_invalid", { maxDays: VERIFICATION_LINK_MAX_EXPIRY_DAYS });
+  }
+  return client.$transaction(async (tx) => {
+    const current = (await tx.verificationShareToken.findFirst({
+      where: { id: input.linkId, evidenceId: input.record.id },
+    })) as VerificationShareRow | null;
+    if (!current) throw new VerificationShareError("link_not_found");
+    if (current.purpose !== "OWNER_SHARE" || current.revokedAtUtc !== null) {
+      throw new VerificationShareError("link_not_renewable");
+    }
+    const expiresAtUtc = new Date(now.getTime() + input.days * 24 * 60 * 60 * 1000);
+    const moved = await tx.verificationShareToken.updateMany({
+      where: { id: current.id, revokedAtUtc: null },
+      data: { expiresAtUtc },
+    });
+    if (moved.count === 0) throw new VerificationShareError("link_not_renewable");
+    const row = (await tx.verificationShareToken.findUniqueOrThrow({
+      where: { id: current.id },
+    })) as VerificationShareRow;
+    return {
+      link: projectVerificationLink(row, now, input.record),
+      previousExpiresAtUtc: current.expiresAtUtc ? current.expiresAtUtc.toISOString() : null,
+    };
   });
 }
 

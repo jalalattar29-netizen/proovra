@@ -31,6 +31,8 @@ import {
   type TeamMemberStatus,
   PERMISSIONS,
   isAllowedTeamMemberStatusTransition,
+  mapTeamRoleToCanonical,
+  roleHasPermission,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -39,6 +41,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 // run (see middleware/authorize.ts `authorizeCurrentWorkspaceOrFail`).
 import { repairStaleCurrentWorkspacePointers } from "../access/current-workspace-pointer.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { revokeCreatorShareGrantsTx } from "../sharing/creator-share-grants.js";
 import { dispatchEnqueuedEmailNotifications } from "../notifications/index.js";
 import { enqueueMembershipLifecycleNoticeTx } from "../notifications/membership-lifecycle-notice.js";
 import { evaluateMemberAccess } from "./access-policy.service.js";
@@ -371,6 +374,13 @@ export async function suspendMember(
       teamId: input.teamId,
       teamMemberId: target.id,
       role: target.role,
+    });
+    // Members audit SEC-08 — a suspended creator's outward grants end now
+    // (and do not come back on restore: they are re-issued deliberately).
+    await revokeCreatorShareGrantsTx(tx as never, {
+      creators: [{ teamId: input.teamId, userId: target.userId }],
+      reason: "CREATOR_SUSPENDED",
+      actorUserId: input.actorUserId,
     });
     const row = await tx.teamMember.update({
       where: { id: target.id },
@@ -728,6 +738,19 @@ export async function changeMemberRole(
     where: { id: target.id },
     data: { role: input.newRole },
   });
+  // Members audit SEC-08 — a creator who loses the authority that let them
+  // create an outward grant loses the grant with it.
+  const nextRole = mapTeamRoleToCanonical(input.newRole);
+  const losesShares = !roleHasPermission(nextRole, "evidence.publish_verify");
+  const losesExternal = !roleHasPermission(nextRole, "governance.legal_hold.manage");
+  if (losesShares || losesExternal) {
+    await revokeCreatorShareGrantsTx(tx as never, {
+      creators: [{ teamId: input.teamId, userId: target.userId }],
+      reason: "CREATOR_LOST_AUTHORITY",
+      actorUserId: input.actorUserId,
+      kinds: { ownerShares: losesShares, externalReview: losesExternal },
+    });
+  }
   // PHASE 3 — provenance: manual admin role assignment.
   await recordMembershipGrant(tx, {
     teamMemberId: target.id,

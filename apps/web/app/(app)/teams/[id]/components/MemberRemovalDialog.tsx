@@ -95,6 +95,9 @@ export function MemberRemovalDialog({
   const [impact, setImpact] = useState<RemovalImpactResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [transferToUserId, setTransferToUserId] = useState<string>("");
+  // Members audit SEC-08 — their reviewer shares and external-review grants
+  // end with the membership unless the owner keeps them working.
+  const [keepShareGrants, setKeepShareGrants] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -179,8 +182,11 @@ export function MemberRemovalDialog({
     setSubmitError(null);
     try {
       const body =
-        requiresTransfer && transferToUserId
-          ? { transferToUserId }
+        (requiresTransfer && transferToUserId) || keepShareGrants
+          ? {
+              ...(requiresTransfer && transferToUserId ? { transferToUserId } : {}),
+              ...(keepShareGrants ? { transferShareGrantsToOwner: true } : {}),
+            }
           : undefined;
       // Removing access needs a fresh step-up (members audit ROLE-01); the
       // shared modal runs the challenge and the request is retried with it.
@@ -232,6 +238,7 @@ export function MemberRemovalDialog({
     canSubmit,
     requiresTransfer,
     transferToUserId,
+    keepShareGrants,
     onRemoved,
     stepUp,
   ]);
@@ -430,6 +437,22 @@ export function MemberRemovalDialog({
                 this workspace. Removing them won't transfer any ownership.
               </p>
             )}
+
+            <label
+              style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "12px 0 0", fontSize: 13 }}
+              data-member-removal-keep-shares
+            >
+              <input
+                type="checkbox"
+                checked={keepShareGrants}
+                onChange={(e) => setKeepShareGrants(e.target.checked)}
+              />
+              <span>
+                Keep the reviewer shares and external review invitations they
+                created working, by transferring them to the workspace owner.
+                Otherwise they stop working when this member is removed.
+              </span>
+            </label>
 
             {submitError ? (
               <p

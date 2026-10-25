@@ -43,6 +43,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 // Phase O1.5E — bounded external.review.notify span. NEVER reviewer
 // email, name, or token in attributes — bounded scope only.
 import {
@@ -599,6 +600,57 @@ export type TransitionInput = {
 export type TransitionResult =
   | { ok: true; grant: ExternalReviewGrantRow }
   | { ok: false; reason: ExternalReviewGrantDenialCode };
+
+/**
+ * RENEW an external-review grant (members audit SEC-08): an explicit, audited
+ * act. Only an INVITED or ACTIVE grant may be renewed; its expiry becomes
+ * `days` from now (1..30). Audited in the same transaction.
+ */
+export async function renewExternalReviewGrant(
+  input: { grantId: string; teamId: string; days: number; actorUserId: string; correlationId?: string | null },
+  client: PrismaClient = defaultPrisma,
+): Promise<
+  | { ok: true; grant: { id: string; expiresAtUtc: string; state: string } }
+  | { ok: false; reason: "not_found" | "not_renewable" | "invalid_expiry" }
+> {
+  if (!Number.isInteger(input.days) || input.days < 1 || input.days * 24 * 60 * 60 * 1000 > MAX_GRANT_LIFETIME_MS) {
+    return { ok: false, reason: "invalid_expiry" };
+  }
+  return client.$transaction(async (tx) => {
+    const current = await tx.externalReviewGrant.findFirst({
+      where: { id: input.grantId, teamId: input.teamId },
+      select: { id: true, state: true, expiresAtUtc: true },
+    });
+    if (!current) return { ok: false as const, reason: "not_found" as const };
+    if (current.state !== "INVITED" && current.state !== "ACTIVE") {
+      return { ok: false as const, reason: "not_renewable" as const };
+    }
+    const now = new Date();
+    const expiresAtUtc = new Date(now.getTime() + input.days * 24 * 60 * 60 * 1000);
+    const moved = await tx.externalReviewGrant.updateMany({
+      where: { id: current.id, state: { in: ["INVITED", "ACTIVE"] } },
+      data: { expiresAtUtc, updatedAtUtc: now },
+    });
+    if (moved.count === 0) return { ok: false as const, reason: "not_renewable" as const };
+    await emitTenantAudit(
+      {
+        action: "external_review.grant_renewed",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: input.actorUserId,
+        workspaceId: input.teamId,
+        resourceType: "external_review_grant",
+        resourceId: current.id,
+        correlationId: input.correlationId ?? null,
+        previousState: current.expiresAtUtc.toISOString(),
+        resultingState: expiresAtUtc.toISOString(),
+        metadata: { days: input.days },
+      },
+      tx as never,
+    );
+    return { ok: true as const, grant: { id: current.id, expiresAtUtc: expiresAtUtc.toISOString(), state: current.state } };
+  });
+}
 
 export async function transitionExternalReviewGrant(
   input: TransitionInput,

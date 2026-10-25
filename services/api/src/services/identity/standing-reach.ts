@@ -17,7 +17,12 @@
  */
 import type { PrismaClient } from "@prisma/client";
 
-type ReachTx = Pick<PrismaClient, "caseAccess" | "caseAssignment" | "collaborationTeamMember">;
+import { revokeCreatorShareGrantsTx } from "../sharing/creator-share-grants.js";
+
+type ReachTx = Pick<
+  PrismaClient,
+  "caseAccess" | "caseAssignment" | "collaborationTeamMember" | "verificationShareToken" | "externalReviewGrant"
+>;
 
 export async function endStandingReach(
   tx: ReachTx,
@@ -53,4 +58,8 @@ export async function endStandingReachForMembers(
       data: { status: "REMOVED", removedAt: now },
     });
   }
+  // Members audit SEC-08 — the owner links and external-review grants a
+  // departing member created end with their membership (a governed removal
+  // may first transfer them to the workspace's ownership).
+  await revokeCreatorShareGrantsTx(tx, { creators: members, reason: "CREATOR_REMOVED" });
 }

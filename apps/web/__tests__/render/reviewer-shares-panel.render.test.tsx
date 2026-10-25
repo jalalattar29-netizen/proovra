@@ -184,10 +184,15 @@ describe("Secure reviewer shares — owner controls", () => {
     expect(state("link-revoked").getAttribute("data-verification-link-state")).toBe("REVOKED");
     expect(state("link-revoked").textContent).toMatch(/Revoked on /);
     expect(state("link-rotated").textContent).toMatch(/Replaced by a new link on /);
-    // A link that no longer works offers nothing to do.
-    for (const id of ["link-expired", "link-revoked", "link-rotated"]) {
+    // A revoked or replaced link offers nothing to do; an EXPIRED owner share
+    // offers exactly one thing — an explicit renewal (members audit SEC-08).
+    for (const id of ["link-revoked", "link-rotated"]) {
       expect(state(id).querySelector("[data-verification-link-action]")).toBeNull();
     }
+    const expiredActions = Array.from(state("link-expired").querySelectorAll("[data-verification-link-action]")).map((b) =>
+      b.getAttribute("data-verification-link-action"),
+    );
+    expect(expiredActions).toEqual(["renew"]);
 
     // Nothing stored can be shown: no token, and no link built from the record id.
     expect(container.querySelector("[data-verification-link-url]")).toBeNull();
@@ -230,7 +235,8 @@ describe("Secure reviewer shares — owner controls", () => {
         path: BASE,
         body: {
           audience: "The insurer",
-          expiresInDays: 30,
+          // 7 days unless the owner chooses otherwise (members audit SEC-08).
+          expiresInDays: 7,
           projection: "STANDARD",
           maxUses: null,
           allowOriginalDownload: false,
@@ -385,6 +391,18 @@ describe("Secure reviewer shares — owner controls", () => {
       `${window.location.origin}/verify/${NEXT}`,
     );
     expect(posts().map((c) => c.path)).toEqual([`${BASE}/link-active/rotate`]);
+  });
+
+  it("renews a share for 30 days, on purpose and after saying so (members audit SEC-08)", async () => {
+    routes[`POST ${BASE}/link-active/renew`] = () => ({ link: link({ id: "link-active" }) });
+    const { container } = await mount();
+
+    fireEvent.click(container.querySelector("[data-verification-link-action='renew']")!);
+    const text = await confirmModal(true);
+    expect(text).toContain("Renew this reviewer share for 30 days?");
+    expect(text).toContain("recorded in the workspace audit log");
+    await waitFor(() => expect(posts().map((c) => c.path)).toEqual([`${BASE}/link-active/renew`]));
+    expect(bodies().find((b) => b.path === `${BASE}/link-active/renew`)?.body).toEqual({ days: 30 });
   });
 
   it("the legacy record-id link states when it ends and can be ended early; an ended one offers nothing", async () => {

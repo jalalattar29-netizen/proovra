@@ -57,6 +57,7 @@ import {
 } from "../services/identity/workspace-invitation.service.js";
 import { emitTenantAudit, emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { bump } from "../services/ops/metrics.service.js";
+import { transferCreatorShareGrantsToOwnerTx } from "../services/sharing/creator-share-grants.js";
 import { dispatchEnqueuedEmailNotifications } from "../services/notifications/index.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
@@ -2265,12 +2266,19 @@ export async function teamsRoutes(app: FastifyInstance) {
       const removalBodySchema = z
         .object({
           transferToUserId: z.string().uuid().optional(),
+          // Members audit SEC-08 — keep the member's live share links and
+          // external-review grants working by moving them to the workspace
+          // owner. Without it they end with the membership.
+          transferShareGrantsToOwner: z.boolean().optional(),
         })
         .optional();
       const parsedBody = removalBodySchema.safeParse(req.body ?? {});
       const transferToUserId = parsedBody.success
         ? parsedBody.data?.transferToUserId ?? null
         : null;
+      const transferShareGrantsToOwner = parsedBody.success
+        ? parsedBody.data?.transferShareGrantsToOwner === true
+        : false;
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
@@ -2448,6 +2456,18 @@ export async function teamsRoutes(app: FastifyInstance) {
               data: { ownerUserId: transferToUserId },
             });
           }
+          let sharesTransferred: { ownerShares: number; externalReview: number } | null = null;
+          if (transferShareGrantsToOwner) {
+            const workspace = await tx.team.findUniqueOrThrow({ where: { id: teamId }, select: { ownerUserId: true } });
+            if (workspace.ownerUserId !== target.userId) {
+              sharesTransferred = await transferCreatorShareGrantsToOwnerTx(tx, {
+                teamId,
+                fromUserId: target.userId,
+                ownerUserId: workspace.ownerUserId,
+              });
+              await createActivity(teamId, "share_grants_transferred", "member", userId, target.userId, sharesTransferred, tx);
+            }
+          }
           await revokeWorkspaceMember(
             {
               teamId,
@@ -2482,6 +2502,7 @@ export async function teamsRoutes(app: FastifyInstance) {
               transferredToUserId: transferToUserId,
               ownedEvidenceCount,
               ownedCaseCount,
+              shareGrantsTransferredToOwner: sharesTransferred,
             },
             db: tx,
           });

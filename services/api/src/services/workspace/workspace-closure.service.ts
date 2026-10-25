@@ -33,6 +33,7 @@ import { massRevokeWorkspaceMemberships } from "../identity/membership-provision
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { evaluateWorkspaceClosurePreflight } from "../identity/account-lifecycle-preflight.service.js";
 import { dispatchEnqueuedEmailNotifications } from "../notifications/index.js";
+import { revokeWorkspaceOwnerSharesTx } from "../sharing/creator-share-grants.js";
 import { enqueueMembershipLifecycleNoticeTx } from "../notifications/membership-lifecycle-notice.js";
 
 export const WORKSPACE_CLOSURE_COOLING_OFF_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -94,6 +95,11 @@ export async function closeWorkspacesTx(
   const now = new Date();
   const teamIds = [...input.teamIds];
 
+  // Members audit SEC-08 — owner share links end with the workspace (first, so
+  // their reason is the closure, not each creator's departure). The record's
+  // pvr_ reference and issued-report links are publication state and stay
+  // governed by the record's own lifecycle.
+  await revokeWorkspaceOwnerSharesTx(tx, { teamIds, actorUserId: input.actorUserId });
   const revoked = await massRevokeWorkspaceMemberships(tx, {
     where: { teamIds },
     actorUserId: input.actorUserId,

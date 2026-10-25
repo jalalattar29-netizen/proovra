@@ -44,6 +44,7 @@ import {
   listVerificationLinks,
   revokeLegacyVerifyLink,
   revokeVerificationLink,
+  renewVerificationLink,
   rotateVerificationLink,
   type CreatedVerificationLink,
   type LegacyVerifyLinkInventory,
@@ -71,13 +72,13 @@ const STATE_TONE: Record<VerificationLinkState, AppTone> = {
   EXHAUSTED: "slate",
 };
 
-type ExpiryChoice = "7" | "30" | "90" | "365" | "never";
+// Members audit SEC-08 — a reviewer share lives 7 days by default and at most
+// 30; it is renewed on purpose, never left without an expiry.
+type ExpiryChoice = "7" | "14" | "30";
 const EXPIRY_OPTIONS: ReadonlyArray<{ value: ExpiryChoice; label: string }> = [
   { value: "7", label: "7 days" },
-  { value: "30", label: "30 days" },
-  { value: "90", label: "90 days" },
-  { value: "365", label: "1 year" },
-  { value: "never", label: "No expiry" },
+  { value: "14", label: "14 days" },
+  { value: "30", label: "30 days (maximum)" },
 ];
 type ProjectionChoice = "STANDARD" | "BASIC";
 /** The share's own disclosure profile: STANDARD = content preview, BASIC = verification only. */
@@ -113,9 +114,21 @@ function purposeLabel(link: VerificationLink): string {
 function revokedNote(link: VerificationLink): string | null {
   if (link.state !== "REVOKED") return null;
   const when = link.revokedAtUtc ? formatUserDateTime(link.revokedAtUtc) : null;
-  return link.revocationReason === "ROTATED"
-    ? `Replaced by a new link${when ? ` on ${when}` : ""}.`
-    : `Revoked${when ? ` on ${when}` : ""}.`;
+  const on = when ? ` on ${when}` : "";
+  switch (link.revocationReason) {
+    case "ROTATED":
+      return `Replaced by a new link${on}.`;
+    case "CREATOR_REMOVED":
+      return `Ended${on}: the person who created it left the workspace.`;
+    case "CREATOR_SUSPENDED":
+      return `Ended${on}: the person who created it was suspended.`;
+    case "CREATOR_LOST_AUTHORITY":
+      return `Ended${on}: the person who created it can no longer share records.`;
+    case "WORKSPACE_CLOSED":
+      return `Ended${on}: the workspace was closed.`;
+    default:
+      return `Revoked${on}.`;
+  }
 }
 
 export function ReviewerSharesPanel({
@@ -138,7 +151,7 @@ export function ReviewerSharesPanel({
   const [busy, setBusy] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedVerificationLink | null>(null);
   const [audience, setAudience] = useState("");
-  const [expiry, setExpiry] = useState<ExpiryChoice>("30");
+  const [expiry, setExpiry] = useState<ExpiryChoice>("7");
   const [projection, setProjection] = useState<ProjectionChoice>("STANDARD");
   const [maxUses, setMaxUses] = useState("");
   const [allowOriginalDownload, setAllowOriginalDownload] = useState(false);
@@ -189,7 +202,7 @@ export function ReviewerSharesPanel({
           evidenceId,
           {
             audience: audience.trim(),
-            expiresInDays: expiry === "never" ? null : Number(expiry),
+            expiresInDays: Number(expiry),
             projection,
             maxUses: maxUsesValue,
             // Only a content-preview share can carry the download grant.
@@ -229,6 +242,26 @@ export function ReviewerSharesPanel({
       addToast("Reviewer share revoked", "success");
     } catch (err) {
       notifyApiError(addToast, err, { message: "The reviewer share could not be revoked." });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const renew = async (link: VerificationLink) => {
+    const ok = await confirm({
+      title: "Renew this reviewer share for 30 days?",
+      description: `The link for "${purposeLabel(link)}" keeps working and now expires 30 days from today. The renewal is recorded in the workspace audit log.`,
+      confirmLabel: "Renew for 30 days",
+      testId: "verification-link-renew",
+    });
+    if (!ok) return;
+    setBusy(link.id);
+    try {
+      await renewVerificationLink(evidenceId, link.id, 30);
+      await load();
+      addToast("Reviewer share renewed for 30 days", "success");
+    } catch (err) {
+      notifyApiError(addToast, err, { message: "The reviewer share could not be renewed." });
     } finally {
       setBusy(null);
     }
@@ -331,13 +364,25 @@ export function ReviewerSharesPanel({
         Created {formatUserDate(link.createdAtUtc)}
         {link.expiresAtUtc
           ? ` · ${link.state === "EXPIRED" ? "expired" : "expires"} ${formatUserDate(link.expiresAtUtc)}`
-          : " · no expiry"}
+          : ""}
         {link.maxUses != null ? ` · ${link.useCount} of ${link.maxUses} uses` : ` · opened ${link.useCount} time${link.useCount === 1 ? "" : "s"}`}
         {link.lastUsedAtUtc ? ` · last opened ${formatUserDateTime(link.lastUsedAtUtc)}` : ""}
       </p>
       {revokedNote(link) ? <p className="app-field__help">{revokedNote(link)}</p> : null}
-      {link.state === "ACTIVE" ? (
+      {link.state === "ACTIVE" || (link.state === "EXPIRED" && link.purpose === "OWNER_SHARE") ? (
         <div className="evidence-detail-link-row__actions">
+          {link.purpose === "OWNER_SHARE" ? (
+            <button
+              type="button"
+              className="app-secondary-action"
+              disabled={busy !== null}
+              onClick={() => void renew(link)}
+              data-verification-link-action="renew"
+            >
+              Renew
+            </button>
+          ) : null}
+          {link.state === "ACTIVE" ? (
           <button
             type="button"
             className="app-secondary-action"
@@ -347,6 +392,8 @@ export function ReviewerSharesPanel({
           >
             Replace share
           </button>
+          ) : null}
+          {link.state === "ACTIVE" ? (
           <button
             type="button"
             className="app-secondary-action evidence-detail-destructive-action"
@@ -356,6 +403,7 @@ export function ReviewerSharesPanel({
           >
             Revoke
           </button>
+          ) : null}
         </div>
       ) : null}
     </li>

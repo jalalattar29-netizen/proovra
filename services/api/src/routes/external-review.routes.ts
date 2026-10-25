@@ -56,11 +56,14 @@ import {
   listExternalReviewGrants,
   lookupExternalReviewGrantByToken,
   recordExternalReviewAccess,
+  renewExternalReviewGrant,
   transitionExternalReviewGrant,
   type ExternalReviewGrantRow,
 } from "../services/external-review/external-review-grant.service.js";
 import {
   EXTERNAL_REVIEW_ACCESS_STATES,
+  SHARE_GRANT_DEFAULT_LIFETIME_DAYS,
+  SHARE_GRANT_MAX_LIFETIME_DAYS,
   type ExternalReviewAccessState,
 } from "@proovra/shared";
 
@@ -87,8 +90,9 @@ const IssueGrantBodySchema = z.object({
   packageId: z.string().uuid().optional().nullable(),
   reviewerEmail: z.string().email().max(320),
   reviewerDisplayName: z.string().max(200).optional().nullable(),
-  // ISO timestamp; service enforces 15-min ≤ expiry ≤ 30d.
-  expiresAtUtc: z.string().datetime(),
+  // ISO timestamp; service enforces 15-min ≤ expiry ≤ 30d. Omitted → 7 days
+  // (members audit SEC-08).
+  expiresAtUtc: z.string().datetime().optional(),
   allowOriginalDownload: z.boolean().optional(),
   allowPackageDownload: z.boolean().optional(),
   redactionPolicyVersion: z.string().max(32).optional().nullable(),
@@ -238,7 +242,9 @@ export async function externalReviewRoutes(app: FastifyInstance) {
         packageId: body.packageId ?? null,
         reviewerEmail: body.reviewerEmail,
         reviewerDisplayName: body.reviewerDisplayName ?? null,
-        expiresAtUtc: body.expiresAtUtc,
+        expiresAtUtc:
+          body.expiresAtUtc ??
+          new Date(Date.now() + SHARE_GRANT_DEFAULT_LIFETIME_DAYS * 24 * 60 * 60 * 1000).toISOString(),
         allowOriginalDownload: body.allowOriginalDownload,
         allowPackageDownload: body.allowPackageDownload,
         redactionPolicyVersion: body.redactionPolicyVersion ?? null,
@@ -321,6 +327,48 @@ export async function externalReviewRoutes(app: FastifyInstance) {
         return reply.code(httpStatus).send({
           error: { code: "revoke_denied", reason: result.reason },
         });
+      }
+      return reply.code(200).send({ grant: result.grant });
+    },
+  );
+
+  // ===========================================================================
+  // POST /v1/external-review/grants/:id/renew — an explicit, audited renewal
+  // (members audit SEC-08): the expiry moves to at most 30 days from now.
+  // ===========================================================================
+  app.post(
+    "/v1/external-review/grants/:id/renew",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      const body = z
+        .object({
+          teamId: z.string().uuid(),
+          days: z.number().int().min(1).max(SHARE_GRANT_MAX_LIFETIME_DAYS).default(SHARE_GRANT_DEFAULT_LIFETIME_DAYS),
+        })
+        .parse(req.body ?? {});
+      const actor = await authorizeOrFail(req, reply, {
+        teamId: body.teamId,
+        permission: "governance.legal_hold.manage",
+        antiEnumeration: true,
+      });
+      if (!actor) return;
+      const result = await renewExternalReviewGrant({
+        grantId: id,
+        teamId: body.teamId,
+        days: body.days,
+        actorUserId: actor.actorUserId,
+        correlationId: req.id ?? null,
+      });
+      if (!result.ok) {
+        // Each refusal written out whole, for the error-code coverage gate.
+        if (result.reason === "not_found") {
+          return reply.code(404).send({ error: { code: "EXTERNAL_REVIEW_GRANT_NOT_FOUND" } });
+        }
+        if (result.reason === "invalid_expiry") {
+          return reply.code(400).send({ error: { code: "EXTERNAL_REVIEW_GRANT_LIFETIME_INVALID" } });
+        }
+        return reply.code(409).send({ error: { code: "EXTERNAL_REVIEW_GRANT_NOT_RENEWABLE" } });
       }
       return reply.code(200).send({ grant: result.grant });
     },

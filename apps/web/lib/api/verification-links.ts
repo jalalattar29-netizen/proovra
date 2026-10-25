@@ -72,7 +72,8 @@ export type CreatedVerificationLink = {
 export type CreateVerificationLinkInput = {
   audience: string;
   /** Days until the share expires; null = no expiry. */
-  expiresInDays: number | null;
+  /** 1..30 days (members audit SEC-08); there is no "no expiry". */
+  expiresInDays: number;
   projection: "BASIC" | "STANDARD";
   maxUses: number | null;
   /** STANDARD (content preview) shares only; needs a fresh step-up when true. */
@@ -104,6 +105,14 @@ export function revokeVerificationLink(evidenceId: string, linkId: string): Prom
     link: VerificationLink;
     changed: boolean;
   }>;
+}
+
+/** Members audit SEC-08 — an explicit, audited renewal (at most 30 days from now). */
+export function renewVerificationLink(evidenceId: string, linkId: string, days: number): Promise<{ link: VerificationLink }> {
+  return apiFetch(`${base(evidenceId)}/${encodeURIComponent(linkId)}/renew`, {
+    method: "POST",
+    body: JSON.stringify({ days }),
+  }) as Promise<{ link: VerificationLink }>;
 }
 
 export function rotateVerificationLink(evidenceId: string, linkId: string): Promise<CreatedVerificationLink> {

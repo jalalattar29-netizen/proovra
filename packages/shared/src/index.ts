@@ -2817,3 +2817,6 @@ export * from "./evidence-protection-presentation.js";
 // 2026-10-23 — review decision state, shared by the authority and the page.
 export * from "./review-decision-state.js";
 export * from "./review-event-taxonomy.js";
+
+// Members audit SEC-08 — share-grant lifetimes (owner links, external review).
+export * from "./share-grant-policy.js";

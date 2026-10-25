@@ -44,7 +44,9 @@ import {
   resolveShareWorkspaceId,
   revokeLegacyVerifyLink,
   revokeVerificationLink,
+  renewVerificationLink,
   rotateVerificationLink,
+  VERIFICATION_LINK_DEFAULT_EXPIRY_DAYS,
 } from "../services/governance/verification-share.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 
@@ -54,8 +56,17 @@ const ParamsLink = z.object({ id: z.string().uuid(), linkId: z.string().uuid() }
 const CreateBody = z.object({
   /** Who the link is for — the owner's label, never shown publicly. */
   audience: z.string().trim().min(1).max(VERIFICATION_SHARE_AUDIENCE_MAX),
-  /** Days until it expires; null = no expiry, stated on purpose. */
-  expiresInDays: z.number().int().min(1).max(VERIFICATION_LINK_MAX_EXPIRY_DAYS).nullable(),
+  /**
+   * Days until it expires — 7 by default, at most 30 (members audit SEC-08).
+   * There is no "no expiry": a link held in a person's name is renewed on
+   * purpose, never left to live for ever.
+   */
+  expiresInDays: z
+    .number()
+    .int()
+    .min(1)
+    .max(VERIFICATION_LINK_MAX_EXPIRY_DAYS)
+    .default(VERIFICATION_LINK_DEFAULT_EXPIRY_DAYS),
   projection: z.enum(VERIFICATION_SHARE_PROJECTIONS).default("STANDARD"),
   maxUses: z.number().int().min(1).max(VERIFICATION_LINK_MAX_USES_CEILING).nullable().default(null),
   /**
@@ -137,6 +148,10 @@ function shareErrorToReply(err: unknown, reply: FastifyReply): FastifyReply {
         return reply.code(409).send({ code: "RECORD_NOT_SHAREABLE", ...details });
       case "legacy_link_not_active":
         return reply.code(409).send({ code: "LEGACY_LINK_NOT_ACTIVE", ...details });
+      case "link_lifetime_invalid":
+        return reply.code(400).send({ code: "VERIFICATION_LINK_LIFETIME_INVALID", ...details });
+      case "link_not_renewable":
+        return reply.code(409).send({ code: "VERIFICATION_LINK_NOT_RENEWABLE", ...details });
       default:
         return reply.code(409).send({ code: "VERIFICATION_LINK_NOT_ACTIVE", ...details });
     }
@@ -249,6 +264,37 @@ export async function verificationShareRoutes(app: FastifyInstance) {
         metadata: { linkId, changed: result.changed },
       });
       return reply.code(200).send(result);
+    } catch (err) {
+      return shareErrorToReply(err, reply);
+    }
+  });
+
+  // Members audit SEC-08 — renewal is an explicit, audited act (≤ 30 days).
+  app.post("/v1/evidence/:id/verify-links/:linkId/renew", { preHandler: requireAuth }, async (req, reply) => {
+    const { id, linkId } = ParamsLink.parse(req.params);
+    const body = z
+      .object({
+        days: z.number().int().min(1).max(VERIFICATION_LINK_MAX_EXPIRY_DAYS).default(VERIFICATION_LINK_DEFAULT_EXPIRY_DAYS),
+      })
+      .parse(req.body ?? {});
+    const ctx = await authorizeShare(req, reply, id);
+    if (!ctx) return reply;
+    try {
+      const renewed = await renewVerificationLink({ record: ctx.record, linkId, actorUserId: ctx.actorUserId, days: body.days });
+      await emitTenantAudit({
+        action: "verification.link_renewed",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.actorUserId,
+        workspaceId: ctx.record.teamId,
+        resourceType: "evidence_verification",
+        resourceId: id,
+        correlationId: req.id ?? null,
+        previousState: renewed.previousExpiresAtUtc,
+        resultingState: renewed.link.expiresAtUtc,
+        metadata: { linkId, days: body.days },
+      });
+      return reply.code(200).send({ link: renewed.link });
     } catch (err) {
       return shareErrorToReply(err, reply);
     }
