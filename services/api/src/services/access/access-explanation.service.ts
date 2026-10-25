@@ -115,7 +115,9 @@ export async function explainMemberAccess(
     const cases = caseIds.length
       ? await client.case.findMany({ where: { id: { in: caseIds } }, select: { id: true, ...CASE_VISIBILITY_SELECT, teamAccess: { select: { collaborationTeam: { select: { id: true, name: true, workspaceId: true, status: true, members: { select: { userId: true, status: true } } } } } } } })
       : [];
-    const restricted = cases.some((c) => c.access.length > 0 || c.teamAccess.length > 0);
+    const restricted = cases.some(
+      (c) => c.restrictedAtUtc !== null || c.access.length > 0 || c.teamAccess.length > 0,
+    );
     let via: AccessPath = "NO_CURRENT_ACCESS";
     let viaTeam: { id: string; name: string } | null = null;
     if (allowed) {

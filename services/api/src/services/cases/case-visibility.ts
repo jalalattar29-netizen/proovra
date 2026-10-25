@@ -2,7 +2,8 @@
  * WHO MAY SEE A CASE (2026-09-29) — the restricted-case rule, once.
  *
  * Roles define capability; access lists define reach. A case is RESTRICTED
- * when it carries an access list: any `CaseAccess` row (a named member) or any
+ * when it has been restricted (`restrictedAtUtc` is set) or carries an access
+ * list: any `CaseAccess` row (a named member) or any
  * `CaseCollaborationTeamAccess` row (a Collaboration Team). A restricted case
  * is visible only to
  *
@@ -26,17 +27,57 @@
  * membership.
  *
  * With no caller (a machine path) only unrestricted cases are visible.
+ *
+ * RESTRICTION IS A PROPERTY OF THE CASE (members audit re-audit, defect 6).
+ * "Restricted" used to mean only "has at least one access row", so a member's
+ * DEPARTURE — whose standing reach ends by deleting their rows — could empty a
+ * case's list and silently open the case, its evidence, reports and packages
+ * to every member of the workspace, viewers included. The flag makes the
+ * restriction durable: granting access sets it; a departure removes the
+ * person and leaves the case restricted; only an authorised manager removing
+ * the last entry through the case-access routes (an explicit act) lifts it.
  */
 import type { Prisma } from "@prisma/client";
 
-/** A case carrying any access list — a named member or a Collaboration Team. */
+/** A restricted case — flagged, or carrying any access list. */
 export const RESTRICTED_CASE_WHERE: Prisma.CaseWhereInput = {
-  OR: [{ access: { some: {} } }, { teamAccess: { some: {} } }],
+  OR: [{ restrictedAtUtc: { not: null } }, { access: { some: {} } }, { teamAccess: { some: {} } }],
 };
 
 const UNRESTRICTED_CASE_WHERE: Prisma.CaseWhereInput = {
-  AND: [{ access: { none: {} } }, { teamAccess: { none: {} } }],
+  AND: [{ restrictedAtUtc: null }, { access: { none: {} } }, { teamAccess: { none: {} } }],
 };
+
+type CaseRestrictionTx = {
+  case: {
+    updateMany: (args: {
+      where: Prisma.CaseWhereInput;
+      data: { restrictedAtUtc: Date | null };
+    }) => Promise<{ count: number }>;
+  };
+};
+
+/**
+ * Restrict a case before its first access entry is written. Idempotent: an
+ * already-restricted case keeps the moment it was first restricted.
+ */
+export async function markCaseRestrictedTx(tx: CaseRestrictionTx, caseId: string): Promise<void> {
+  await tx.case.updateMany({ where: { id: caseId, restrictedAtUtc: null }, data: { restrictedAtUtc: new Date() } });
+}
+
+/**
+ * After an authorised manager removes an access entry through the case-access
+ * routes: when no named member and no Collaboration Team grant remains, the
+ * case is opened to its workspace again — the explicit act that lifts a
+ * restriction. Never called from a departure (standing-reach), which must not
+ * open anything.
+ */
+export async function releaseRestrictionIfEmptyTx(tx: CaseRestrictionTx, caseId: string): Promise<void> {
+  await tx.case.updateMany({
+    where: { id: caseId, restrictedAtUtc: { not: null }, access: { none: {} }, teamAccess: { none: {} } },
+    data: { restrictedAtUtc: null },
+  });
+}
 
 /**
  * The grant a Collaboration Team confers: only while the team is ACTIVE, and
@@ -85,6 +126,7 @@ export function evidenceVisibleThroughCasesWhere(
 export const CASE_VISIBILITY_SELECT = {
   ownerUserId: true,
   teamId: true,
+  restrictedAtUtc: true,
   access: { select: { userId: true } },
   teamAccess: {
     select: {
@@ -102,6 +144,7 @@ export const CASE_VISIBILITY_SELECT = {
 export type CaseVisibilityRow = {
   ownerUserId: string;
   teamId: string | null;
+  restrictedAtUtc: Date | null;
   access: Array<{ userId: string }>;
   teamAccess: Array<{
     collaborationTeam: {
@@ -118,7 +161,7 @@ export type CaseVisibilityRow = {
  */
 export function caseRowVisibleTo(row: CaseVisibilityRow, callerUserId: string): boolean {
   if (row.ownerUserId === callerUserId) return true;
-  if (row.access.length === 0 && row.teamAccess.length === 0) return true;
+  if (row.restrictedAtUtc === null && row.access.length === 0 && row.teamAccess.length === 0) return true;
   if (row.access.some((a) => a.userId === callerUserId)) return true;
   return row.teamAccess.some(
     (g) =>

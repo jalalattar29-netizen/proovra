@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { Readable } from "node:stream";
 import { z } from "zod";
 import { prisma } from "../db.js";
+import { markCaseRestrictedTx, releaseRestrictionIfEmptyTx } from "../services/cases/case-visibility.js";
 import * as prismaPkg from "@prisma/client";
 import archiver from "archiver";
 import { getObjectStream } from "../storage.js";
@@ -725,6 +726,8 @@ export async function casesRoutes(app: FastifyInstance) {
         });
       }
 
+      // A grant makes the case restricted, durably (re-audit defect 6).
+      await markCaseRestrictedTx(prisma, id);
       const access = await prisma.caseAccess.upsert({
         where: { caseId_userId: { caseId: id, userId: body.userId } },
         update: {},
@@ -1760,6 +1763,8 @@ export async function casesRoutes(app: FastifyInstance) {
         });
       }
 
+      // A grant makes the case restricted, durably (re-audit defect 6).
+      await markCaseRestrictedTx(prisma, id);
       const access = await prisma.caseAccess.upsert({
         where: { caseId_userId: { caseId: id, userId: body.userId } },
         update: {},
@@ -1880,6 +1885,8 @@ export async function casesRoutes(app: FastifyInstance) {
       }
 
       const targetUserId = targets[0].userId;
+      // A grant makes the case restricted, durably (re-audit defect 6).
+      await markCaseRestrictedTx(prisma, id);
       const access = await prisma.caseAccess.upsert({
         where: { caseId_userId: { caseId: id, userId: targetUserId } },
         update: {},
@@ -1968,6 +1975,9 @@ export async function casesRoutes(app: FastifyInstance) {
       }
 
       await prisma.caseAccess.delete({ where: { id: accessId } });
+      // A manager removing the LAST entry is the explicit act that opens the
+      // case to its workspace again (re-audit defect 6).
+      await releaseRestrictionIfEmptyTx(prisma, id);
 
       await auditCaseAction(req, {
         userId: ownerUserId,
@@ -2076,6 +2086,8 @@ export async function casesRoutes(app: FastifyInstance) {
         });
       }
 
+      // A grant makes the case restricted, durably (re-audit defect 6).
+      await markCaseRestrictedTx(prisma, id);
       const grant = await prisma.caseCollaborationTeamAccess.upsert({
         where: { caseId_collaborationTeamId: { caseId: id, collaborationTeamId: team.id } },
         update: {},
@@ -2167,6 +2179,7 @@ export async function casesRoutes(app: FastifyInstance) {
       const removed = await prisma.caseCollaborationTeamAccess.deleteMany({
         where: { caseId: params.id, collaborationTeamId: params.collaborationTeamId },
       });
+      if (removed.count > 0) await releaseRestrictionIfEmptyTx(prisma, params.id);
       if (removed.count === 0) {
         return reply.code(404).send({
           error: { code: "CASE_TEAM_ACCESS_NOT_FOUND", message: "That team does not have access to this case.", requestId: req.id },

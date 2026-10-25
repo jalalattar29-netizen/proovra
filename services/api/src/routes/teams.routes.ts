@@ -33,6 +33,7 @@ import { getWorkspaceUsage } from "../services/workspace-usage.service.js";
 import { refreshTeamSeatState } from "../services/billing.service.js";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
+import { releaseRestrictionIfEmptyTx } from "../services/cases/case-visibility.js";
 import {
   placedUserIds,
   placingGroupMembershipWhere,
@@ -3519,6 +3520,9 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       // Delete the grant.
       await prisma.caseAccess.delete({ where: { id: grantId } });
+      // A manager removing the LAST entry is the explicit act that opens the
+      // case to its workspace again (re-audit defect 6).
+      await releaseRestrictionIfEmptyTx(prisma, grant.caseId);
 
       // Audit the per-case revoke action (matches the existing
       // `cases.access_revoke` taxonomy) and a parent team event so

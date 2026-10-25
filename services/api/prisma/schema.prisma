@@ -605,6 +605,10 @@ model Case {
   id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String  @db.VarChar(120)
   ownerUserId String  @map("owner_user_id")
+  /// Members audit re-audit defect 6 — the case is RESTRICTED (independent of
+  /// whether its access list is currently empty). Set when access is first
+  /// granted; cleared only when a manager removes the last entry.
+  restrictedAtUtc DateTime? @map("restricted_at_utc") @db.Timestamptz(6)
   teamId      String? @map("team_id") @db.Uuid
 
   // Phase 32.8D — Matter lifecycle. status drives the matter queue
@@ -5135,7 +5139,8 @@ model EvidenceLegalHold {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  team              Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  // Members audit re-audit defect 8 — a hold never disappears with its tenant.
+  team              Team          @relation(fields: [teamId], references: [id], onDelete: Restrict)
   evidence          Evidence?     @relation("EvidenceLegalHolds", fields: [evidenceId], references: [id], onDelete: Cascade)
   // CLUSTER 8 — the bare `case_id` column now has referential integrity.
   // Restrict (not Cascade): deleting a Case must never silently destroy a
@@ -9505,7 +9510,9 @@ model ScimGroup {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  // Members audit re-audit defect 12 — the group is the Organization's; it does
+  // not disappear with the workspace it was configured from.
+  team Team @relation(fields: [teamId], references: [id], onDelete: Restrict)
   projections ScimGroupWorkspaceProjection[]
 
   // Members audit DOM-13 — one live group per (organization, externalId):

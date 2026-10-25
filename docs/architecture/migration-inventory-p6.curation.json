@@ -3662,6 +3662,22 @@
       "requiresBackfill": true,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM pg_indexes WHERE indexname IN ('sso_connections_org_provider_live_uk','scim_groups_org_external_id_live_uk','external_identity_mappings_org_provider_subject_uk','scim_group_workspace_projections_live_uk')) || ':' || (SELECT count(*) FROM scim_groups g WHERE NOT EXISTS (SELECT 1 FROM scim_group_workspace_projections p WHERE p.scim_group_id = g.id) AND NOT EXISTS (SELECT 1 FROM scim_groups c WHERE c.organization_id = g.organization_id AND c.external_id = g.external_id AND c.id <> g.id AND c.status = 'ACTIVE'))\"",
       "evidence": "ORGANIZATION-SCOPED IDENTITY (2026-10-26, members audit DOM-13). organization_id (backfilled from teams, NOT NULL, RESTRICT FK, BEFORE INSERT fill trigger) on sso_connections, scim_provisioning_tokens, scim_groups, external_identity_mappings, sso_callback_attempts. One live connection per (organization, provider) — duplicates DISABLED (DUPLICATE_PROVIDER_IN_ORGANIZATION); one live SCIM group per (organization, external id) — duplicates ARCHIVED and carried as projections of the canonical group; new scim_group_workspace_projections seeded from every group; external identities unique per (organization, provider, subject). Three per-workspace/global keys retired in guarded DO blocks after their replacements exist. Nothing deleted. Apply WITH the API image. Idempotent. READINESS: 4:0. ROLLBACK: code-first is not available once applied (the retired keys would have to be recreated, possible only while no cross-organization duplicate exists); the added columns/table are additive. NOT APPLIED TO PRODUCTION."
+    },
+    "20281026000800_case_restriction_flag": {
+      "classification": "BACKFILL",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": true,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_name='cases' AND column_name='restricted_at_utc') || ':' || (SELECT count(*) FROM cases c WHERE c.restricted_at_utc IS NULL AND (EXISTS (SELECT 1 FROM case_access a WHERE a.case_id = c.id) OR EXISTS (SELECT 1 FROM case_collaboration_team_access t WHERE t.case_id = c.id)))\"",
+      "evidence": "CASE RESTRICTION FLAG (2026-10-26, members re-audit defect 6). Restriction was derived from the presence of access rows, so a departing member's standing-reach cleanup could open a restricted case to the whole workspace. Adds cases.restricted_at_utc (nullable) and backfills it for every case currently carrying an access list; already-emptied cases are left unrestricted (no reach invented). Safe on either image; idempotent. READINESS: 1:0 after apply. ROLLBACK: code-first; the column is additive. NOT APPLIED TO PRODUCTION."
+    },
+    "20281026000900_holds_and_groups_outlive_workspace": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT string_agg(conname || '=' || confdeltype, ',' ORDER BY conname) FROM pg_constraint WHERE conname IN ('evidence_legal_holds_team_id_fkey','scim_groups_team_id_fkey')\"",
+      "evidence": "HOLDS AND GROUPS OUTLIVE THE WORKSPACE (2026-10-26, members re-audit defects 8 and 12). evidence_legal_holds.team_id and scim_groups.team_id foreign keys move from ON DELETE CASCADE to ON DELETE RESTRICT (same columns, ON UPDATE CASCADE). No row touched; no backfill. Safe on either image; idempotent. READINESS: both 'r' after apply. ROLLBACK: re-create with ON DELETE CASCADE (DDL only). NOT APPLIED TO PRODUCTION."
     }
   }
 }

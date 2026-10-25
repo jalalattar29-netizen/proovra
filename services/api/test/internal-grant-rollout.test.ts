@@ -130,6 +130,10 @@ describe("internal-grant rollout — migration state", () => {
       "20281026000600_collaboration_vocabulary_checks",
       // Members audit DOM-13: SSO and SCIM belong to the Organization. BACKFILL with guarded key swaps; apply with the API image.
       "20281026000700_organization_scoped_identity",
+      // Members re-audit defect 6: a restricted case stays restricted when its last named member leaves. EXPAND + BACKFILL.
+      "20281026000800_case_restriction_flag",
+      // Members re-audit defects 8 and 12: legal holds and Organization SCIM groups no longer cascade with a workspace. EXPAND (FK delete rule).
+      "20281026000900_holds_and_groups_outlive_workspace",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });
