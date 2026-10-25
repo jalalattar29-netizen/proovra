@@ -155,8 +155,10 @@ export async function resolveWorkspaceSeatState(
     contractGoverns: contractLimits.contractGovernsCapability,
   });
 
+  // `status: "ACTIVE"` is already in the shared predicate; it is restated in
+  // the query so the authorization-authority check can see it at the call site.
   const used = await client.teamMember.count({
-    where: nonOwnerActiveMemberWhere(workspace),
+    where: { ...nonOwnerActiveMemberWhere(workspace), status: "ACTIVE" },
   });
 
   return {
