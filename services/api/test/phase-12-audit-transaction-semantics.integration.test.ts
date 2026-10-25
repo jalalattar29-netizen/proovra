@@ -384,10 +384,13 @@ describe("§1.5 — audit events commit with the right thing", () => {
     );
     // Each `emitTenantAudit({ … }, tx)` block, isolated.
     const txBlocks = [...rbac.matchAll(/await emitTenantAudit\(\{([\s\S]*?)\},\s*tx\)/g)];
+    // Five since members audit DOM-09: the delegated-scope UPDATE writer
+    // (`updateDelegatedAdminScope`) audits its previous/resulting terms in its
+    // own transaction, like the grant and revoke writers beside it.
     expect(
       txBlocks.length,
-      "the four transaction-sharing audit emissions must still be exactly four",
-    ).toBe(4);
+      "the five transaction-sharing audit emissions must still be exactly five",
+    ).toBe(5);
     for (const [, body] of txBlocks) {
       expect(body).toMatch(/outcome:\s*"success"/);
       expect(body).not.toMatch(/outcome:\s*"denied"/);

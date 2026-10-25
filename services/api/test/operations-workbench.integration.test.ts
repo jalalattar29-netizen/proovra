@@ -28,6 +28,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { placeInCollaborationTeam } from "./support/place-in-collaboration-team.js";
 
 describe("Operations workbench — server contract (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
@@ -65,6 +66,15 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
       ownerToken: harness.fixtures.teamB.ownerToken,
       ownerUserId: harness.fixtures.teamB.ownerUserId,
     };
+    // Members audit, unassigned-member rule: operational work goes only to a
+    // member placed in an ACTIVE Collaboration Team (proven in
+    // members-unassigned-rule.integration.test.ts). This suite's subject is the
+    // workbench contract, so its actors are placed once, up front.
+    await placeInCollaborationTeam(prisma, {
+      workspaceId: A.teamId,
+      createdByUserId: A.ownerUserId,
+      userIds: [A.memberUserId, A.viewerUserId, harness.fixtures.teamA.adminUserId],
+    });
   });
 
   afterAll(async () => {

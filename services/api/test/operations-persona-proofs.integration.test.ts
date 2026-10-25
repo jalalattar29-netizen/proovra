@@ -31,6 +31,8 @@ import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { placeInCollaborationTeam } from "./support/place-in-collaboration-team.js";
+
 import {
   addMember,
   bootOps,
@@ -336,6 +338,15 @@ describe("Operations persona proofs (live PostgreSQL 16)", () => {
       await addMember(c, ws.teamId, viewer.id, "VIEWER");
       await addMember(c, ws.teamId, suspended.id, "ADMIN", "SUSPENDED");
       await addMember(c, ws.teamId, revoked.id, "ADMIN", "REVOKED");
+      // Members audit, unassigned-member rule: on TEAM, operational work goes
+      // only to a member placed in an ACTIVE Collaboration Team (proven in
+      // members-unassigned-rule.integration.test.ts). Every member is placed so
+      // this suite still isolates what it tests — status and the tier.
+      await placeInCollaborationTeam(c.prisma, {
+        workspaceId: ws.teamId,
+        createdByUserId: owner.id,
+        userIds: [admin.id, reviewer.id, viewer.id, suspended.id, revoked.id],
+      });
       return { teamId: ws.teamId, owner, admin, reviewer, viewer, suspended, revoked, outsider };
     }
 

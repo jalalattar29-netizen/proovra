@@ -27,6 +27,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { readZipEntries } from "./point5/_zip-entries.js";
+import { placeInCollaborationTeam } from "./support/place-in-collaboration-team.js";
 
 vi.mock("../src/services/timestamp.service.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -64,6 +65,15 @@ describe("Review / Custody / Artifact boundary (Postgres + Redis + MinIO, real w
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    // Members audit, unassigned-member rule: review work goes only to a member
+    // placed in an ACTIVE Collaboration Team (proven in
+    // members-unassigned-rule.integration.test.ts); this suite's subject is the
+    // custody boundary, so the reviewer is placed up front.
+    await placeInCollaborationTeam(prisma, {
+      workspaceId: h.fixtures.teamA.teamId,
+      createdByUserId: h.fixtures.teamA.ownerUserId,
+      userIds: [h.fixtures.teamA.memberUserId],
+    });
     const runtime = await import("@proovra/shared-runtime");
     runtime.registerPrisma(prisma as never);
     appendCustodyEventTx = runtime.appendCustodyEventTx as never;

@@ -428,9 +428,9 @@ export async function runOtsInitializationReconciler(
 }
 
 /** A chain check older than any healthy recheck step (1-hour follow-ups plus retry backoff). */
-const CHAIN_RECHECK_STALE_MS = 6 * 60 * 60 * 1000;
+export const CHAIN_RECHECK_STALE_MS = 6 * 60 * 60 * 1000;
 /** How long after a VERIFIED outcome the sweep still revisits it (the reorg recheck window). */
-const CHAIN_VERIFIED_RECHECK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+export const CHAIN_VERIFIED_RECHECK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** ANCHORED proofs whose independent chain check is due (the queue check decides whether to enqueue). */
 /** The chain sweep's order: least-recently checked first (never-checked first of all), id as the stable tie-break. */

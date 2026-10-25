@@ -1128,14 +1128,42 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
         anchoredAtUtc: new Date("2019-01-01T00:00:00Z"),
       });
       const q = await import("../../../worker/src/queue.js");
-      await clearOtsJobs([starved.evidenceId, competitor.evidenceId]);
+      const reconciler = await import("../../../worker/src/ots-initialization-reconciler.js");
+      const { OTS_NOT_IN_ACTIVE_CHAIN_GIVE_UP_MS } = await import("../../../worker/src/ots-state.js");
+      // The sweep is global, and this database is shared with every other
+      // suite of the run, some of which leave never-checked anchors behind. So
+      // the claim is stated against the sweep's OWN order over whatever is due
+      // now: the starved record ranks ahead of the competitor (an anchored-date
+      // order would reverse them), and a batch of one serves exactly the head.
+      const now = Date.now();
+      const due = await prisma.evidence.findMany({
+        where: reconciler.chainCheckDueWhere({
+          checkedBefore: new Date(now - reconciler.CHAIN_RECHECK_STALE_MS),
+          verifiedAfter: new Date(now - reconciler.CHAIN_VERIFIED_RECHECK_WINDOW_MS),
+          anchoredAfter: new Date(now - OTS_NOT_IN_ACTIVE_CHAIN_GIVE_UP_MS),
+        }),
+        orderBy: reconciler.CHAIN_CHECK_SWEEP_ORDER,
+        select: { id: true },
+      });
+      const order = due.map((r) => r.id);
+      expect(order.indexOf(starved.evidenceId), "the starved record is due").toBeGreaterThanOrEqual(0);
+      expect(order.indexOf(competitor.evidenceId), "the competitor is due").toBeGreaterThanOrEqual(0);
+      expect(
+        order.indexOf(starved.evidenceId),
+        "the longest-unchecked record is served before a recently-checked one, whatever its anchor date",
+      ).toBeLessThan(order.indexOf(competitor.evidenceId));
+      const head = order[0]!;
+      const touched = [...new Set([head, starved.evidenceId, competitor.evidenceId])];
+      await clearOtsJobs(touched);
       try {
-        const reconciler = await import("../../../worker/src/ots-initialization-reconciler.js");
         await withChainVerifierEnabled(() => reconciler.runOtsInitializationReconciler({ trigger: "test" as never, batchSize: 1 }));
-        expect(await q.isOtsUpgradeScheduled(starved.evidenceId), "the longest-unchecked record is served first").toBe(true);
+        expect(await q.isOtsUpgradeScheduled(head), "the head of the sweep order is served").toBe(true);
         expect(await q.isOtsUpgradeScheduled(competitor.evidenceId), "a batch of one serves one record").toBe(false);
+        if (head === starved.evidenceId) {
+          expect(await q.isOtsUpgradeScheduled(starved.evidenceId), "the longest-unchecked record is served first").toBe(true);
+        }
       } finally {
-        await clearOtsJobs([starved.evidenceId, competitor.evidenceId]);
+        await clearOtsJobs(touched);
       }
     }, 300_000);
 
