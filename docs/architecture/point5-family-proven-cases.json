@@ -1,39 +1,6 @@
 {
   "$comment": "PHASE 12 POINT 5 — machine-written record of which family state-machine cases actually EXECUTED. Written by the integration project, read by test/phase-12-point5-family-proof-gate.test.ts in the unit project. Each suite carries the SHA-256 of its own bytes; the gate re-hashes the file, so an edited or deleted suite loses its credit until the integration project is re-run. Do not hand-edit.",
   "suites": {
-    "test/phase-12-arch-005-automation-runtime.integration.test.ts": {
-      "sha256": "795d8bd661bceef24fc223b53ed9a2b3e658ca993ec810b5f7afdeaaef9930e6",
-      "cases": [
-        "auto.claim.active_not_stolen",
-        "auto.claim.one_winner",
-        "auto.durable.intent_before_work",
-        "auto.idempotency.duplicate_is_noop",
-        "auto.provider.unknown_never_projected_as_failure",
-        "auto.provider.unknown_outcome_non_terminal",
-        "auto.reconciler.recovers_stranded_once",
-        "auto.tenant.cross_workspace_denied",
-        "auto.tenant.workspace_reloaded",
-        "auto.terminal.stale_cannot_overwrite"
-      ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
-      "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:35:38.423Z"
-    },
-    "test/point5/lifecycle-closure-sweep.integration.test.ts": {
-      "sha256": "bdb4af0da7d65f20920b0d49b39edc1131ceaa0eb0f2dfaf14ad1da5a68eb702",
-      "cases": [
-        "closure.claim.active_not_stolen",
-        "closure.claim.one_winner",
-        "closure.durable.intent_before_work",
-        "closure.idempotency.duplicate_is_noop",
-        "closure.tenant.cross_workspace_denied",
-        "closure.tenant.workspace_reloaded",
-        "closure.terminal.stale_cannot_overwrite"
-      ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
-      "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:35:59.059Z"
-    },
     "test/point5/family-retention-destruction.integration.test.ts": {
       "sha256": "8b4085b7415a610102c84a7db2d859ae0f8dc524ed44f39254f5b70f0003467a",
       "cases": [
@@ -85,9 +52,52 @@
         "retention.tenant.workspace_reloaded",
         "retention.terminal.stale_cannot_overwrite"
       ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
       "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:36:22.876Z"
+      "recordedAtUtc": "2026-10-25T11:12:44.177Z"
+    },
+    "test/phase-12-arch-005-automation-runtime.integration.test.ts": {
+      "sha256": "795d8bd661bceef24fc223b53ed9a2b3e658ca993ec810b5f7afdeaaef9930e6",
+      "cases": [
+        "auto.claim.active_not_stolen",
+        "auto.claim.one_winner",
+        "auto.durable.intent_before_work",
+        "auto.idempotency.duplicate_is_noop",
+        "auto.provider.unknown_never_projected_as_failure",
+        "auto.provider.unknown_outcome_non_terminal",
+        "auto.reconciler.recovers_stranded_once",
+        "auto.tenant.cross_workspace_denied",
+        "auto.tenant.workspace_reloaded",
+        "auto.terminal.stale_cannot_overwrite"
+      ],
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
+      "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
+      "recordedAtUtc": "2026-10-25T11:13:36.955Z"
+    },
+    "test/point5/family-evidence-finalization.integration.test.ts": {
+      "sha256": "5c0f56846b1bad0c634d5fdb1bf51c1dbc9fc7db496fbf9945658e81e09d2e23",
+      "cases": [
+        "integrity.claim.active_not_stolen",
+        "integrity.claim.one_winner",
+        "integrity.durable.intent_before_work",
+        "integrity.idempotency.duplicate_is_noop",
+        "integrity.provider.unknown_outcome_non_terminal",
+        "integrity.tenant.cross_workspace_denied",
+        "integrity.tenant.workspace_reloaded",
+        "integrity.terminal.stale_cannot_overwrite",
+        "ots.claim.active_not_stolen",
+        "ots.claim.one_winner",
+        "ots.durable.intent_before_work",
+        "ots.idempotency.duplicate_is_noop",
+        "ots.payload.rejects_unknown_field",
+        "ots.provider.unknown_outcome_non_terminal",
+        "ots.tenant.cross_workspace_denied",
+        "ots.tenant.workspace_reloaded",
+        "ots.terminal.stale_cannot_overwrite"
+      ],
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
+      "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
+      "recordedAtUtc": "2026-10-25T11:13:57.687Z"
     },
     "test/point5/family-reconciliation.integration.test.ts": {
       "sha256": "3dec3bac276e58a5fd998ae376ce9c55a18c30ba51e143657b9c07ad523e08ca",
@@ -153,91 +163,9 @@
         "searchrecon.tenant.workspace_reloaded",
         "searchrecon.terminal.stale_cannot_overwrite"
       ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
       "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:36:44.097Z"
-    },
-    "test/point5/family-trash-grace.integration.test.ts": {
-      "sha256": "04874b67814f5afde12516a300438d4b1ea6472d2a007922a763606563c8fc2f",
-      "cases": [
-        "trashgrace.claim.active_not_stolen",
-        "trashgrace.claim.one_winner",
-        "trashgrace.durable.intent_before_work",
-        "trashgrace.idempotency.duplicate_is_noop",
-        "trashgrace.observe_only_by_default",
-        "trashgrace.tenant.cross_workspace_denied",
-        "trashgrace.tenant.workspace_reloaded",
-        "trashgrace.terminal.stale_cannot_overwrite"
-      ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
-      "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:37:05.161Z"
-    },
-    "test/point5/family-evidence-finalization.integration.test.ts": {
-      "sha256": "5c0f56846b1bad0c634d5fdb1bf51c1dbc9fc7db496fbf9945658e81e09d2e23",
-      "cases": [
-        "integrity.claim.active_not_stolen",
-        "integrity.claim.one_winner",
-        "integrity.durable.intent_before_work",
-        "integrity.idempotency.duplicate_is_noop",
-        "integrity.provider.unknown_outcome_non_terminal",
-        "integrity.tenant.cross_workspace_denied",
-        "integrity.tenant.workspace_reloaded",
-        "integrity.terminal.stale_cannot_overwrite",
-        "ots.claim.active_not_stolen",
-        "ots.claim.one_winner",
-        "ots.durable.intent_before_work",
-        "ots.idempotency.duplicate_is_noop",
-        "ots.payload.rejects_unknown_field",
-        "ots.provider.unknown_outcome_non_terminal",
-        "ots.tenant.cross_workspace_denied",
-        "ots.tenant.workspace_reloaded",
-        "ots.terminal.stale_cannot_overwrite"
-      ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
-      "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:37:25.719Z"
-    },
-    "test/point5/family-exchange-package.integration.test.ts": {
-      "sha256": "146fbcf1133ed20db1186973ed265b1a31f263411e458e904e2508ee6b6bd0a0",
-      "cases": [
-        "exchange.claim.active_not_stolen",
-        "exchange.claim.one_winner",
-        "exchange.durable.intent_before_work",
-        "exchange.idempotency.duplicate_is_noop",
-        "exchange.tenant.cross_workspace_denied",
-        "exchange.tenant.workspace_reloaded",
-        "exchange.terminal.stale_cannot_overwrite"
-      ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
-      "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:37:46.827Z"
-    },
-    "test/point5/family-redaction.integration.test.ts": {
-      "sha256": "ae7d62f4e672177949c5fb86b163a91de10f8ff111417cdedac0615bfc8c137c",
-      "cases": [
-        "redaction.claim.active_not_stolen",
-        "redaction.claim.one_winner",
-        "redaction.durable.intent_before_work",
-        "redaction.failure.no_false_ready",
-        "redaction.idempotency.duplicate_is_noop",
-        "redaction.payload.rejects_unknown_field",
-        "redaction.policy.stale_version_refused",
-        "redaction.recon.claim.active_not_stolen",
-        "redaction.recon.claim.one_winner",
-        "redaction.recon.durable.intent_before_work",
-        "redaction.recon.idempotency.duplicate_is_noop",
-        "redaction.recon.recovers_stranded_once",
-        "redaction.recon.tenant.cross_workspace_denied",
-        "redaction.recon.tenant.workspace_reloaded",
-        "redaction.recon.terminal.stale_cannot_overwrite",
-        "redaction.tenant.cross_workspace_denied",
-        "redaction.tenant.workspace_reloaded",
-        "redaction.terminal.stale_cannot_overwrite"
-      ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
-      "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:38:07.028Z"
+      "recordedAtUtc": "2026-10-25T11:14:18.977Z"
     },
     "test/point5/family-notifications.integration.test.ts": {
       "sha256": "9255eeb48bf6ecf9944df566eb875353c94ec09f6e66e948b15de20a66b13329",
@@ -269,9 +197,9 @@
         "digest.tenant.workspace_reloaded",
         "digest.terminal.stale_cannot_overwrite"
       ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
       "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:38:28.409Z"
+      "recordedAtUtc": "2026-10-25T11:14:39.634Z"
     },
     "test/phase-12-point5-report-authority.integration.test.ts": {
       "sha256": "07419ef6a6f99f6b97e482c3cc28172a814bbd0fc0dfb97bd832b79d7f0ce87e",
@@ -284,9 +212,34 @@
         "report.tenant.workspace_reloaded",
         "report.terminal.stale_cannot_overwrite"
       ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
       "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:38:49.148Z"
+      "recordedAtUtc": "2026-10-25T11:14:59.894Z"
+    },
+    "test/point5/family-invite-delivery.integration.test.ts": {
+      "sha256": "9cc25039419442543b2affa41aee317bfad284806033db8075d4fb6f247f61da",
+      "cases": [
+        "invite.claim.active_not_stolen",
+        "invite.claim.one_winner",
+        "invite.durable.intent_before_work",
+        "invite.idempotency.duplicate_is_noop",
+        "invite.provider.unknown_outcome_non_terminal",
+        "invite.retry.counter_moves_key_does_not",
+        "invite.retry.same_content_same_key",
+        "invite.revoked_not_sent",
+        "invite.rotation.duplicate_request_idempotent",
+        "invite.rotation.new_intent_new_key",
+        "invite.rotation.new_link_not_suppressed",
+        "invite.rotation.superseded_cannot_send",
+        "invite.rotation.supersedes_predecessor",
+        "invite.tenant.cross_workspace_denied",
+        "invite.tenant.workspace_reloaded",
+        "invite.terminal.stale_cannot_overwrite",
+        "invite.token.never_leaves_persistence"
+      ],
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
+      "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
+      "recordedAtUtc": "2026-10-25T11:15:19.914Z"
     },
     "test/point5/family-intelligence-operations.integration.test.ts": {
       "sha256": "ee976f1464a9ade1b0383a7c79f54207ebc0b54f63269e60426502c478bcd2a2",
@@ -318,52 +271,51 @@
         "mirun.tenant.workspace_reloaded",
         "mirun.terminal.stale_cannot_overwrite"
       ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
       "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:39:10.325Z"
+      "recordedAtUtc": "2026-10-25T11:15:40.073Z"
     },
-    "test/point5/family-invite-delivery.integration.test.ts": {
-      "sha256": "9cc25039419442543b2affa41aee317bfad284806033db8075d4fb6f247f61da",
+    "test/point5/family-trash-grace.integration.test.ts": {
+      "sha256": "7f4a3b861f2973505a617c7c15da87ec4be77c69c1b5394f2ff92c722a6ca8e1",
       "cases": [
-        "invite.claim.active_not_stolen",
-        "invite.claim.one_winner",
-        "invite.durable.intent_before_work",
-        "invite.idempotency.duplicate_is_noop",
-        "invite.provider.unknown_outcome_non_terminal",
-        "invite.retry.counter_moves_key_does_not",
-        "invite.retry.same_content_same_key",
-        "invite.revoked_not_sent",
-        "invite.rotation.duplicate_request_idempotent",
-        "invite.rotation.new_intent_new_key",
-        "invite.rotation.new_link_not_suppressed",
-        "invite.rotation.superseded_cannot_send",
-        "invite.rotation.supersedes_predecessor",
-        "invite.tenant.cross_workspace_denied",
-        "invite.tenant.workspace_reloaded",
-        "invite.terminal.stale_cannot_overwrite",
-        "invite.token.never_leaves_persistence"
+        "trashgrace.claim.active_not_stolen",
+        "trashgrace.claim.one_winner",
+        "trashgrace.durable.intent_before_work",
+        "trashgrace.idempotency.duplicate_is_noop",
+        "trashgrace.observe_only_by_default",
+        "trashgrace.tenant.cross_workspace_denied",
+        "trashgrace.tenant.workspace_reloaded",
+        "trashgrace.terminal.stale_cannot_overwrite"
       ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
       "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:39:31.539Z"
+      "recordedAtUtc": "2026-10-25T11:16:00.509Z"
     },
-    "test/point5/provider-not-configured.integration.test.ts": {
-      "sha256": "463051c19f398bd439326efd79d5e2289bd8bdb3881ae0670f23ed4657f95791",
+    "test/point5/family-redaction.integration.test.ts": {
+      "sha256": "ae7d62f4e672177949c5fb86b163a91de10f8ff111417cdedac0615bfc8c137c",
       "cases": [
-        "nocfg.checked_before_cost",
-        "nocfg.no_stuck_no_false_completion",
-        "nocfg.ocr.authorized_retry_possible",
-        "nocfg.ocr.no_reconciliation_loop",
-        "nocfg.ocr.terminal_failed_not_completed",
-        "nocfg.ocr.wrong_tenant_concealed",
-        "nocfg.transcript.authorized_retry_possible",
-        "nocfg.transcript.no_reconciliation_loop",
-        "nocfg.transcript.terminal_failed_not_completed",
-        "nocfg.transcript.wrong_tenant_concealed"
+        "redaction.claim.active_not_stolen",
+        "redaction.claim.one_winner",
+        "redaction.durable.intent_before_work",
+        "redaction.failure.no_false_ready",
+        "redaction.idempotency.duplicate_is_noop",
+        "redaction.payload.rejects_unknown_field",
+        "redaction.policy.stale_version_refused",
+        "redaction.recon.claim.active_not_stolen",
+        "redaction.recon.claim.one_winner",
+        "redaction.recon.durable.intent_before_work",
+        "redaction.recon.idempotency.duplicate_is_noop",
+        "redaction.recon.recovers_stranded_once",
+        "redaction.recon.tenant.cross_workspace_denied",
+        "redaction.recon.tenant.workspace_reloaded",
+        "redaction.recon.terminal.stale_cannot_overwrite",
+        "redaction.tenant.cross_workspace_denied",
+        "redaction.tenant.workspace_reloaded",
+        "redaction.terminal.stale_cannot_overwrite"
       ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
       "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:39:52.448Z"
+      "recordedAtUtc": "2026-10-25T11:16:20.626Z"
     },
     "test/point5/intelligence-run-claim.integration.test.ts": {
       "sha256": "8ccb54947b56a74b1ae5d80ee366b5d384b551ad91b417fec8d4d6c667f10f6f",
@@ -379,9 +331,27 @@
         "mirecon.tenant.workspace_reloaded",
         "mirecon.terminal.stale_cannot_overwrite"
       ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
       "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:40:13.218Z"
+      "recordedAtUtc": "2026-10-25T11:16:40.421Z"
+    },
+    "test/point5/provider-not-configured.integration.test.ts": {
+      "sha256": "463051c19f398bd439326efd79d5e2289bd8bdb3881ae0670f23ed4657f95791",
+      "cases": [
+        "nocfg.checked_before_cost",
+        "nocfg.no_stuck_no_false_completion",
+        "nocfg.ocr.authorized_retry_possible",
+        "nocfg.ocr.no_reconciliation_loop",
+        "nocfg.ocr.terminal_failed_not_completed",
+        "nocfg.ocr.wrong_tenant_concealed",
+        "nocfg.transcript.authorized_retry_possible",
+        "nocfg.transcript.no_reconciliation_loop",
+        "nocfg.transcript.terminal_failed_not_completed",
+        "nocfg.transcript.wrong_tenant_concealed"
+      ],
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
+      "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
+      "recordedAtUtc": "2026-10-25T11:17:00.258Z"
     },
     "test/point5/family-webhooks-providers.integration.test.ts": {
       "sha256": "acf904184bea316df9858dbaa06963362bf66cd23f9f092fca08f1ee19fdb898",
@@ -397,9 +367,39 @@
         "webhook.tenant.workspace_reloaded",
         "webhook.terminal.stale_cannot_overwrite"
       ],
-      "runId": "09f5e9ea-27db-420a-aead-1503872d2463",
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
       "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
-      "recordedAtUtc": "2026-10-25T05:40:33.220Z"
+      "recordedAtUtc": "2026-10-25T11:17:20.146Z"
+    },
+    "test/point5/family-exchange-package.integration.test.ts": {
+      "sha256": "146fbcf1133ed20db1186973ed265b1a31f263411e458e904e2508ee6b6bd0a0",
+      "cases": [
+        "exchange.claim.active_not_stolen",
+        "exchange.claim.one_winner",
+        "exchange.durable.intent_before_work",
+        "exchange.idempotency.duplicate_is_noop",
+        "exchange.tenant.cross_workspace_denied",
+        "exchange.tenant.workspace_reloaded",
+        "exchange.terminal.stale_cannot_overwrite"
+      ],
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
+      "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
+      "recordedAtUtc": "2026-10-25T11:17:40.568Z"
+    },
+    "test/point5/lifecycle-closure-sweep.integration.test.ts": {
+      "sha256": "bdb4af0da7d65f20920b0d49b39edc1131ceaa0eb0f2dfaf14ad1da5a68eb702",
+      "cases": [
+        "closure.claim.active_not_stolen",
+        "closure.claim.one_winner",
+        "closure.durable.intent_before_work",
+        "closure.idempotency.duplicate_is_noop",
+        "closure.tenant.cross_workspace_denied",
+        "closure.tenant.workspace_reloaded",
+        "closure.terminal.stale_cannot_overwrite"
+      ],
+      "runId": "dcac64ae-13cd-4ad3-be4a-029159a24913",
+      "binding": "0787fc67cbdcc16b0ddc7e6c0d9d603ec0abed6fdc25ed7e5d6e47b89cf6bc02",
+      "recordedAtUtc": "2026-10-25T11:18:00.639Z"
     }
   }
 }
