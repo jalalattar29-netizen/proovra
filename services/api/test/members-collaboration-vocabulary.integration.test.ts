@@ -8,7 +8,11 @@
  * a writer bug) is refused too.
  */
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+import pg from "pg";
 import {
   COLLABORATION_TEAM_ASSIGNMENT_STATUSES,
   COLLABORATION_TEAM_DELIVERY_STATUSES,
@@ -20,6 +24,20 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+
+const MIGRATION = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../prisma/migrations/20281026000600_collaboration_vocabulary_checks/migration.sql",
+);
+const CONSTRAINTS: ReadonlyArray<[string, string]> = [
+  ["collaboration_teams", "collaboration_teams_status_vocab"],
+  ["collaboration_team_members", "collaboration_team_members_status_vocab"],
+  ["collaboration_team_members", "collaboration_team_members_role_vocab"],
+  ["collaboration_team_invites", "collaboration_team_invites_status_vocab"],
+  ["collaboration_team_invites", "collaboration_team_invites_role_vocab"],
+  ["collaboration_team_invites", "collaboration_team_invites_delivery_vocab"],
+  ["collaboration_team_assignments", "collaboration_team_assignments_status_vocab"],
+];
 
 describe("DOM-08 — Collaboration Team vocabulary CHECKs (live PostgreSQL)", () => {
   let h: IntegrationHarness;
@@ -33,6 +51,20 @@ describe("DOM-08 — Collaboration Team vocabulary CHECKs (live PostgreSQL)", ()
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     prisma = (await import("../src/db.js")).prisma as unknown as import("@prisma/client").PrismaClient;
+    // The constraints under test are the ones THIS migration installs: drop
+    // them, re-apply the file exactly as `migrate deploy` runs it, and assert
+    // on the result — so a change to the migration is what the cases below
+    // see, not whatever the shared database was migrated with earlier.
+    const conn = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await conn.connect();
+    try {
+      for (const [table, name] of CONSTRAINTS) {
+        await conn.query(`ALTER TABLE "${table}" DROP CONSTRAINT IF EXISTS "${name}"`);
+      }
+      await conn.query(readFileSync(MIGRATION, "utf8"));
+    } finally {
+      await conn.end();
+    }
     const W = h.fixtures.teamA;
     const team = await prisma.collaborationTeam.create({
       data: { workspaceId: W.teamId, name: `Vocab ${randomUUID().slice(0, 6)}`, createdByUserId: W.ownerUserId },

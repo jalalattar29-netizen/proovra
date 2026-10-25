@@ -6801,5 +6801,263 @@
         ]
       }
     ]
+  },
+  {
+    "id": "MEM-UNASSIGNED-PLACEMENT",
+    "aud": "UNASSIGNED",
+    "name": "PRO/TEAM work assignment stops requiring Collaboration Team placement",
+    "file": "services/api/src/services/assignment/placement-policy.ts",
+    "find": "  if (context.plan !== \"ENTERPRISE\") return true;",
+    "replace": "  if (context.plan !== \"ENTERPRISE\") return false;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-unassigned-rule.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-SEC08-CREATOR-REMOVED",
+    "aud": "SEC-08",
+    "name": "removing a member leaves the shares they created live",
+    "file": "services/api/src/services/identity/standing-reach.ts",
+    "find": "  await revokeCreatorShareGrantsTx(tx, { creators: members, reason: \"CREATOR_REMOVED\" });",
+    "replace": "  void members;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-share-lifecycle.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-DOM09-MIGRATION-COVERAGE",
+    "aud": "DOM-09",
+    "name": "the tier convergence drops a permission a tier admitted (coverage lost)",
+    "file": "services/api/prisma/migrations/20281026000500_delegated_admin_convergence/migration.sql",
+    "find": "    ('COMPLIANCE_OFFICER', 'governance.legal_hold.manage'),\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-delegated-admin.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-DOM09-REGRANT-RACE",
+    "aud": "DOM-09",
+    "name": "re-activating a revoked delegated scope is not conditional (two racing grants both win)",
+    "file": "services/api/src/services/identity/rbac.service.ts",
+    "find": "      where: { id: existing.id, revokedAtUtc: { not: null } },",
+    "replace": "      where: { id: existing.id },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-delegated-admin.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-ENT08-AMOUNT",
+    "aud": "ENT-08",
+    "name": "a Stripe price billing a different amount than the catalogue is accepted",
+    "file": "services/api/src/services/billing/commercial-offer.service.ts",
+    "find": "  if (price.unit_amount !== offer.amountCents) out.push(\"amount\");\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/members-commercial-offer.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEM-ENT08-UNCONFIGURED",
+    "aud": "ENT-08",
+    "name": "an unconfigured Stripe price is charged instead of refused",
+    "file": "services/api/src/services/billing/commercial-offer.service.ts",
+    "find": "  if (!priceId) throw paymentsUnavailable(\"stripe\", `Stripe price for ${describe}`, \"plan_not_configured\");",
+    "replace": "  if (!priceId) return \"inline\";",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/members-commercial-offer.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEM-DOM13-ORG-INACTIVE-LOGIN",
+    "aud": "DOM-13",
+    "name": "the SSO login policy ignores a suspended or closed Organization",
+    "file": "services/api/src/services/access-control/sso-login-policy.service.ts",
+    "find": "  if (team.organization.status !== \"ACTIVE\" || team.closedAtUtc !== null) {",
+    "replace": "  if (false) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-DOM13-DEACTIVATE-ORG-WIDE",
+    "aud": "DOM-13",
+    "name": "a directory deactivation ends access only in the token's default workspace",
+    "file": "services/api/src/services/access-control/scim.service.ts",
+    "find": "      role: { not: \"OWNER\" },\n      team: { organizationId: ctx.organizationId },",
+    "replace": "      role: { not: \"OWNER\" },\n      teamId: ctx.teamId,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-DOM13-CLOSURE-IDENTITY",
+    "aud": "DOM-13",
+    "name": "Organization closure leaves its SSO connections live",
+    "file": "services/api/src/services/organization/org-closure.service.ts",
+    "find": "    const ssoRevoked = await tx.ssoConnection.updateMany({\n      where: { organizationId, status: { not: \"REVOKED\" } },",
+    "replace": "    const ssoRevoked = await tx.ssoConnection.updateMany({\n      where: { organizationId, status: \"__never__\" },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-DOM13-GROUP-ISOLATION",
+    "aud": "DOM-13",
+    "name": "a SCIM group may name a user of another Organization",
+    "file": "services/api/src/services/access-control/scim-groups.service.ts",
+    "find": "    if (!(await isOrganizationIdentity(ctx.organizationId, userId, client))) {",
+    "replace": "    if (false) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-DOM13-LINK-SCOPE",
+    "aud": "DOM-13",
+    "name": "a manual identity link is checked against every Organization (cross-tenant refusal)",
+    "file": "services/api/src/services/identity/external-identity.service.ts",
+    "find": "      organizationId: owner.organizationId,\n      provider: input.provider,",
+    "replace": "      provider: input.provider,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-DOM08-VOCAB",
+    "aud": "DOM-08",
+    "name": "the Collaboration Team member status CHECK accepts an unknown value",
+    "file": "services/api/prisma/migrations/20281026000600_collaboration_vocabulary_checks/migration.sql",
+    "find": "      CHECK (\"status\" IN ('ACTIVE', 'SUSPENDED', 'REMOVED')) NOT VALID;",
+    "replace": "      CHECK (\"status\" IS NOT NULL) NOT VALID;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-collaboration-vocabulary.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
   }
 ]

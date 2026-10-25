@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281025000000_case_collaboration_team_access";
+export const EXPECTED_MIGRATION_HEAD = "20281026000700_organization_scoped_identity";
 
 export type MigrationRow = {
   migration_name: string;
